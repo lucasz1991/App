@@ -13,11 +13,6 @@
         $boundedOrdersList = $consolidated && ! $profileEmbedded && ! $detailOnly;
     @endphp
     @unless($detailOnly)
-    @if(! $profileEmbedded)
-    <template x-teleport="[data-page-header-metrics]">
-        @include('livewire.admin.operations.partials.orders-summary')
-    </template>
-    @endif
     @if($boundedOrdersList)
         <template x-teleport="[data-topbar-page-search]">
             <x-tables.search-field context="page-topbar" wire:model.live.debounce.300ms="search" :results-count="$orders->count()" placeholder="Leistungen suchen" aria-label="Leistungen suchen" />

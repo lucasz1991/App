@@ -137,13 +137,11 @@ a.ops-kpi:hover, a.ops-tile:hover { transform:translateY(-1px); border-color:tra
 .wv-dispatch-map__choice span { flex:1; min-width:0; overflow-wrap:anywhere; }
 .wv-dispatch-map__choice small { color:var(--ops-muted); font-size:11px; font-variant-numeric:tabular-nums; }
 .wv-dispatch-map__list:focus-visible { outline:2px solid var(--ops-signal); outline-offset:2px; }
-/* Point coordinates share the exact SVG box, independent of the card's size. */
+/* The shared Germany stage keeps outline, state borders and points aligned. */
 .wv-dispatch-map__content { display:grid; grid-template-columns:minmax(0,1fr); gap:12px; flex:1; min-height:0; transition:opacity 160ms; }
 .wv-dispatch-map__content--loading { opacity:.45; }
 .wv-dispatch-map__figure { position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:0; min-height:0; margin:0; background:transparent; }
-.wv-dispatch-map__stage { position:relative; flex:0 0 auto; width:min(100%, calc(var(--dispatch-map-height) * 160 / 176)); }
-.wv-dispatch-map__canvas { position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
-.wv-dispatch-map__outline { fill:color-mix(in srgb, var(--ops-muted) 16%, var(--ops-sheet)); stroke:var(--ops-muted); stroke-opacity:.5; stroke-width:.65; stroke-linejoin:round; }
+.wv-dispatch-map__canvas { width:100%; height:var(--dispatch-map-height); }
 .wv-dispatch-map__point { position:absolute!important; transform:translate(-50%, -50%); }
 .wv-dispatch-map__marker { display:inline-flex; align-items:center; justify-content:center; gap:1px; width:24px; height:24px; padding:0; border:0; border-radius:50%; background:color-mix(in srgb, var(--ops-signal) 12%, transparent); cursor:pointer; }
 .wv-dispatch-map__marker:hover, .wv-dispatch-map__marker[aria-expanded="true"] { background:color-mix(in srgb, var(--ops-signal) 23%, transparent); }
@@ -204,7 +202,7 @@ a.ops-kpi:hover, a.ops-tile:hover { transform:translateY(-1px); border-color:tra
         .widget-card[data-widget-size="lg"] .wv-dispatch-map__content { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
         .widget-card[data-widget-size="lg"] .wv-dispatch-map__list { display:block; }
         .widget-card[data-widget-size="lg"] .wv-dispatch-map__legend { display:flex; }
-        .widget-card[data-widget-size="lg"] .wv-dispatch-map__stage { width:min(100%, calc((var(--dispatch-map-height) - 20px) * 160 / 176)); }
+        .widget-card[data-widget-size="lg"] .wv-dispatch-map__canvas { height:calc(var(--dispatch-map-height) - 20px); }
     }
 }
 @media(max-width:560px) {

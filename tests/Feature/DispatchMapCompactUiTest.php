@@ -10,6 +10,8 @@ use App\Models\Shift;
 use App\Models\User;
 use App\Support\Dashboard\DashboardLayout;
 use App\Support\Dashboard\WidgetRegistry;
+use App\Support\Operations\GermanyMap;
+use App\Support\Operations\TimelineLocationPreview;
 use Carbon\CarbonImmutable;
 use Livewire\Livewire;
 use Tests\Support\BuildsMinimalRailTimeSchema;
@@ -86,11 +88,39 @@ class DispatchMapCompactUiTest extends TestCase
         $xpath = $this->xpath($component->html());
         $card = '//article[@data-widget-key="operations_dispatch_map"]';
         $this->assertSame(0, $xpath->query($card.'//*[contains(concat(" ",normalize-space(@class)," ")," wv-dispatch-map__summary ")]')->length);
-        $this->assertSame(1, $xpath->query($card.'//svg[contains(concat(" ",normalize-space(@class)," ")," wv-dispatch-map__canvas ")]/path[@d]')->length);
+        $map = $card.'//*[contains(concat(" ",normalize-space(@class)," ")," rt-germany-map ")]';
+        $this->assertSame(1, $xpath->query($map.'[@role="group" and contains(@aria-label,"Einsatzorte in Deutschland")]')->length);
+        $this->assertSame(1, $xpath->query($map.'//*[contains(@class,"rt-germany-map__land") and @aria-hidden="true"]')->length);
+        $this->assertSame(1, $xpath->query($map.'//*[contains(@class,"rt-germany-map__borders") and @aria-hidden="true"]')->length);
+        $this->assertStringContainsString('germany-outline.svg', $xpath->query($map)->item(0)->getAttribute('style'));
+        $this->assertStringContainsString('germany-borders.svg', $xpath->query($map)->item(0)->getAttribute('style'));
         $this->assertStringNotContainsString('Ortslagen · ungefähr', $xpath->query($card)->item(0)->textContent);
         $this->assertSame(1, $xpath->query($card.'/header//time[@datetime="2026-10-09"]')->length);
         $this->assertDatabaseCount('shifts', 1);
         $this->assertDatabaseCount('operation_inquiries', 1);
+    }
+
+    public function test_dashboard_markers_share_the_shift_map_projection_and_remain_accessible_in_each_card_size(): void
+    {
+        $shift = $this->shift();
+        $point = GermanyMap::fromPreview(TimelineLocationPreview::fromShift($shift));
+        $component = $this->grid();
+        foreach (['sm', 'lg'] as $size) {
+            foreach ([1, 2] as $rows) {
+                $component->call('setWidgetSize', 'operations_dispatch_map', $size)
+                    ->call('setWidgetRows', 'operations_dispatch_map', $rows)->assertOk();
+                $xpath = $this->xpath($component->html());
+                $buttons = $xpath->query('//article[@data-widget-key="operations_dispatch_map"]//button[@data-dispatch-marker]');
+                $this->assertSame(1, $buttons->length);
+                $button = $buttons->item(0);
+                $dropdown = $xpath->query('ancestor::*[@data-rt-dropdown-root][1]', $button)->item(0);
+                $this->assertSame('left: '.$point['left'].'%; top: '.$point['top'].'%;', $dropdown->getAttribute('style'));
+                $this->assertSame('rt-germany-map__stage', $dropdown->parentNode->getAttribute('class'));
+                $this->assertSame(0, $xpath->query('ancestor::*[@role="img" or @aria-hidden="true"]', $button)->length, 'Interactive map markers must stay exposed to assistive technology.');
+                $this->assertSame(1, $xpath->query('ancestor::*[@role="group"]', $button)->length);
+                $this->assertSame('dialog', $button->getAttribute('aria-haspopup'));
+            }
+        }
     }
 
     public function test_native_map_points_expose_only_their_own_escaped_details_in_hover_dialogs(): void

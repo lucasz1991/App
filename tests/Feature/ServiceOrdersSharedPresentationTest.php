@@ -161,6 +161,42 @@ class ServiceOrdersSharedPresentationTest extends TestCase
         }
     }
 
+    public function test_orders_and_service_lists_wait_three_hundred_milliseconds_before_all_cell_hover_previews(): void
+    {
+        $order = $this->order();
+        $this->shift($order);
+        $orders = Livewire::actingAs($this->admin)->test(Orders::class, ['consolidated' => true]);
+        $services = Livewire::actingAs($this->admin)->test(ShiftManagement::class)->call('setView', 'orders');
+
+        foreach ([[$orders, 'orders'], [$services, 'service-overview']] as [$component, $key]) {
+            $xpath = $this->xpath($component->html());
+            $table = $this->table($xpath, $key);
+            $previews = $xpath->query('.//*[@data-service-cell-preview or @data-service-staffing]', $table);
+            $this->assertSame(4, $previews->length);
+            $this->assertSame(['period', 'location', 'shifts'], $this->attributes($xpath->query('.//*[@data-service-cell-preview]', $table), 'data-service-cell-preview'));
+            foreach ($previews as $preview) {
+                $this->assertTrue($preview->hasAttribute('data-rt-dropdown-root'));
+                $expression = $preview->getAttribute('x-data');
+                $this->assertStringStartsWith('rtAnchorDropdown(', $expression);
+                $this->assertSame(1, preg_match("/JSON\\.parse\\('([^']+)'\\)/", $expression, $match));
+                $json = json_decode('"'.$match[1].'"', true, 512, JSON_THROW_ON_ERROR);
+                $config = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+                $this->assertTrue($config['openOnHover']);
+                $this->assertSame(300, $config['hoverOpenDelay']);
+                $this->assertSame(180, $config['hoverCloseDelay']);
+                $this->assertSame('service-staffing', $config['layerGroup']);
+                $this->assertSame('dialog', $config['popupRole']);
+                $this->assertFalse($config['overlapAnchor']);
+                $this->assertSame(1, $xpath->query('.//*[@data-rt-dropdown-caret]', $preview)->length);
+                $this->assertSame(1, $xpath->query('.//*[@data-table-row-ignore and @role="button" and @tabindex="0"]', $preview)->length);
+            }
+            // libxml drops @-prefixed handlers; retain native immediate keyboard paths in actual rendered HTML.
+            $this->assertStringContainsString('@keydown.enter.prevent.stop="toggle()"', $component->html());
+            $this->assertStringContainsString('@keydown.space.prevent.stop="toggle()"', $component->html());
+            $this->assertStringContainsString('@keydown.arrow-down.prevent.stop="focusHoverPanel()"', $component->html());
+        }
+    }
+
     public function test_order_controls_share_the_first_header_row_without_duplicating_the_filter_toolbar(): void
     {
         $this->order();

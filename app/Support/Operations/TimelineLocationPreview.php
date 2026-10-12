@@ -40,12 +40,33 @@ final class TimelineLocationPreview
 
     public static function fromOrder(Order $order): array
     {
-        return self::confirmedSnapshot($order->getAttribute('location_snapshot')) ?? self::structuredLocation(
+        if (($snapshot = self::confirmedSnapshot($order->getAttribute('location_snapshot'))) !== null) {
+            return $snapshot;
+        }
+
+        return self::structuredDisplayLocation($order, [
+            $order->getAttribute('title'), $order->getAttribute('description'),
+        ]);
+    }
+
+    private static function structuredDisplayLocation(Order $order, array $texts): array
+    {
+        $base = self::structuredLocation(
             $order->getAttribute('location_name'),
             $order->getAttribute('city'),
             $order->getAttribute('postal_code'),
             $order->getAttribute('country'),
         );
+
+        // Only a completely missing structured worksite may be recovered solely
+        // from a full city-qualified name. Malformed/foreign/conflicting supplied
+        // city and postcode values remain closed to descriptive fallbacks.
+        $missing = self::normalize($order->getAttribute('location_name')) === ''
+            && self::normalize($order->getAttribute('city')) === ''
+            && self::normalize($order->getAttribute('postal_code')) === ''
+            && in_array(self::normalize($order->getAttribute('country')), ['', 'de', 'deu', 'deutschland', 'germany'], true);
+
+        return self::refineLocation($base, [$order->getAttribute('location_name')], $texts, $missing);
     }
 
     public static function fromInquiry(OperationInquiry $inquiry): array
@@ -75,12 +96,9 @@ final class TimelineLocationPreview
             if ($mapFallbacks) {
                 // Saved shifts never borrow a later order snapshot. A newly
                 // confirmed order must not move a historical unconfirmed duty.
-                return self::structuredLocation(
-                    $order->getAttribute('location_name'),
-                    $order->getAttribute('city'),
-                    $order->getAttribute('postal_code'),
-                    $order->getAttribute('country'),
-                );
+                return self::structuredDisplayLocation($order, [
+                    $shift->getAttribute('title'), $order->getAttribute('title'), $order->getAttribute('description'),
+                ]);
             }
             $country = self::normalize($order->getAttribute('country'));
             if ($country === null) {
@@ -99,7 +117,26 @@ final class TimelineLocationPreview
             $location = $city !== '' ? $city : self::normalize($order->getAttribute('location_name'));
         }
 
-        return $mapFallbacks && $location !== null ? self::mapLocation($location) : self::exactLocation($location);
+        return $mapFallbacks && $location !== null
+            ? self::refineLocation(self::mapLocation($location), [$location], [$shift->getAttribute('title')], $location === '')
+            : self::exactLocation($location);
+    }
+
+    private static function refineLocation(array $base, array $locations, array $texts, bool $missing): array
+    {
+        $detail = LocationDetailResolver::resolve($base, $locations, $texts, $missing);
+        if ($detail === null) {
+            return $base;
+        }
+        $preview = self::located($detail['point']);
+        if ($preview['state'] !== 'located') {
+            return $base;
+        }
+        $preview['label'] = $detail['point'][4] === 'station' ? 'Bahnhofslage · ungefähr' : 'Stadtteillage · ungefähr';
+        $preview['detail'] = true;
+        $preview['source'] = $detail['source'];
+
+        return $preview;
     }
 
     /** Pure display validation: no directory lookups, GPS sources or routing. */

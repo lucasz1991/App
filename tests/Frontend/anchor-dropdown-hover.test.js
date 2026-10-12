@@ -5,6 +5,10 @@ import { parseHTML } from 'linkedom';
 
 const blade = await readFile(new URL('../../resources/views/components/ui/dropdown/anchor-dropdown.blade.php', import.meta.url), 'utf8');
 const dropdownSource = await readFile(new URL('../../resources/js/anchor-dropdown.js', import.meta.url), 'utf8');
+const servicePreviewSources = await Promise.all(['service-cell-preview', 'service-staffing'].map(async name => ({
+    name,
+    source: await readFile(new URL(`../../resources/views/components/operations/${name}.blade.php`, import.meta.url), 'utf8'),
+})));
 assert.match(blade, /x-data="rtAnchorDropdown/, 'Dropdown must use the shared controller.');
 const detailBlade = await readFile(new URL('../../resources/views/livewire/operations/partials/timeline-event-detail.blade.php', import.meta.url), 'utf8');
 const detailDataExpression = detailBlade.match(/x-data="([\s\S]*?)"\s+x-init=/)?.[1];
@@ -24,7 +28,7 @@ function fixture(options = { openOnHover: true }) {
         },
         clearTimeout(id) { timers.delete(id); },
     };
-    const config = { openOnHover: options.openOnHover, hoverOpenDelay: 100, hoverCloseDelay: 180, panelId: 'test-content', layerId: 'test', layerGroup: '', anchorSelector: null, horizontalAlign: 'left', preferredPlacement: 'bottom', offset: 8, maximumHeight: options.maxHeight ?? 448, fixedHeight: options.fixedHeight ?? false, overlapAnchor: options.overlapAnchor ?? false, popupRole: 'dialog', headerOffset: 0, matchTriggerWidth: false, scrollOnOpen: false, scrollOnTrigger: false };
+    const config = { openOnHover: options.openOnHover, hoverOpenDelay: options.hoverOpenDelay ?? 100, hoverCloseDelay: 180, panelId: 'test-content', layerId: 'test', layerGroup: '', anchorSelector: null, horizontalAlign: 'left', preferredPlacement: 'bottom', offset: 8, maximumHeight: options.maxHeight ?? 448, fixedHeight: options.fixedHeight ?? false, overlapAnchor: options.overlapAnchor ?? false, popupRole: 'dialog', headerOffset: 0, matchTriggerWidth: false, scrollOnOpen: false, scrollOnTrigger: false };
     const dropdown = new Function('window', 'document', 'Element', 'Node', 'CustomEvent', 'config', `${dropdownSource.replace('export function', 'function')}; return anchorDropdown(config);`)(window, document, Element, Node, class {}, config);
     const refs = {
         trigger: document.getElementById('trigger'),
@@ -490,6 +494,124 @@ test('teleported panel close notifies only its identified timeline controller', 
 });
 
 const mouse = { pointerType: 'mouse' };
+
+for (const { name, source } of servicePreviewSources) {
+    const hoverOpenDelay = Number(source.match(/:hover-open-delay="(\d+)"/)?.[1]);
+    const serviceFixture = () => fixture({ openOnHover: true, hoverOpenDelay });
+
+    test(`${name} opts into 300ms while the shared dropdown default remains 100ms`, () => {
+        assert.equal(hoverOpenDelay, 300);
+        assert.match(source, /:hover-close-delay="180"/);
+        assert.match(source, /:open-on-hover="true"/);
+        assert.match(source, /@keydown\.enter\.prevent\.stop="toggle\(\)"/);
+        assert.match(source, /@keydown\.space\.prevent\.stop="toggle\(\)"/);
+        assert.match(blade, /'hoverOpenDelay'\s*=> 100/);
+    });
+
+    test(`${name} opens only after a complete 300ms dwell and cancels quick passes`, () => {
+        for (const elapsed of [0, 100, 299]) {
+            const quick = serviceFixture();
+            quick.dropdown.enterHover(mouse, 'trigger');
+            quick.advance(elapsed);
+            assert.equal(quick.dropdown.open, false);
+            quick.dropdown.leaveHover(mouse, 'trigger');
+            quick.advance(1000);
+            assert.equal(quick.dropdown.open, false);
+            assert.equal(quick.pending(), 0);
+            assert.deepEqual(quick.dispatched, []);
+        }
+
+        const dwell = serviceFixture();
+        dwell.dropdown.enterHover(mouse, 'trigger');
+        dwell.advance(299);
+        assert.equal(dwell.dropdown.open, false);
+        dwell.advance(1);
+        assert.equal(dwell.dropdown.open, true);
+        assert.equal(dwell.dropdown.pinned, false);
+        assert.deepEqual(dwell.dispatched, ['dropdown-open']);
+    });
+
+    test(`${name} re-entry starts a fresh 300ms dwell rather than carrying a previous pass`, () => {
+        const f = serviceFixture();
+        f.dropdown.enterHover(mouse, 'trigger');
+        f.advance(299);
+        f.dropdown.leaveHover(mouse, 'trigger');
+        f.advance(50);
+        f.dropdown.enterHover(mouse, 'trigger');
+        f.advance(299);
+        assert.equal(f.dropdown.open, false);
+        f.advance(1);
+        assert.equal(f.dropdown.open, true);
+        assert.deepEqual(f.dispatched, ['dropdown-open']);
+    });
+
+    test(`${name} click opens immediately during pending hover and never later reopens`, () => {
+        const f = serviceFixture();
+        f.dropdown.enterHover(mouse, 'trigger');
+        f.advance(100);
+        f.dropdown.toggle();
+        assert.equal(f.dropdown.open, true);
+        assert.equal(f.dropdown.pinned, true);
+        assert.equal(f.pending(), 0);
+        f.advance(1000);
+        assert.deepEqual(f.dispatched, ['dropdown-open']);
+        f.dropdown.toggle();
+        f.advance(1000);
+        assert.equal(f.dropdown.open, false);
+        assert.equal(f.pending(), 0);
+        assert.deepEqual(f.dispatched, ['dropdown-open', 'dropdown-closed']);
+    });
+
+    test(`${name} keyboard and touch remain immediate and do not acquire hover timers`, () => {
+        const keyboard = serviceFixture();
+        keyboard.dropdown.enterHover(mouse, 'trigger');
+        keyboard.advance(100);
+        keyboard.dropdown.focusHoverPanel();
+        assert.equal(keyboard.dropdown.open, true);
+        assert.equal(keyboard.dropdown.pinned, true);
+        assert.equal(keyboard.pending(), 0);
+        assert.equal(keyboard.document.activeElement, keyboard.refs.panel.querySelector('a'));
+        keyboard.dropdown.close(true);
+        keyboard.advance(1000);
+        assert.equal(keyboard.dropdown.open, false);
+        assert.equal(keyboard.document.activeElement, keyboard.refs.trigger.querySelector('button'));
+
+        const touch = serviceFixture();
+        touch.dropdown.enterHover({ pointerType: 'touch' }, 'trigger');
+        assert.equal(touch.pending(), 0);
+        touch.dropdown.toggle();
+        assert.equal(touch.dropdown.open, true);
+        assert.equal(touch.dropdown.pinned, true);
+        assert.equal(touch.pending(), 0);
+    });
+
+    test(`${name} keeps the 180ms crossing grace and clears pending hover on close or teardown`, () => {
+        const crossing = serviceFixture();
+        crossing.dropdown.enterHover(mouse, 'trigger');
+        crossing.advance(300);
+        crossing.dropdown.leaveHover(mouse, 'trigger');
+        crossing.advance(179);
+        assert.equal(crossing.dropdown.open, true);
+        crossing.dropdown.enterHover(mouse, 'panel');
+        crossing.advance(1000);
+        assert.equal(crossing.dropdown.open, true);
+        crossing.dropdown.leaveHover(mouse, 'panel');
+        crossing.advance(179);
+        assert.equal(crossing.dropdown.open, true);
+        crossing.advance(1);
+        assert.equal(crossing.dropdown.open, false);
+
+        for (const method of ['close', 'destroy']) {
+            const f = serviceFixture();
+            f.dropdown.enterHover(mouse, 'trigger');
+            f.advance(299);
+            f.dropdown[method]();
+            f.advance(1000);
+            assert.equal(f.dropdown.open, false);
+            assert.equal(f.pending(), 0);
+        }
+    });
+}
 
 test('hover is opt-in and ordinary dropdown click toggles remain unchanged', () => {
     const f = fixture({ openOnHover: false });

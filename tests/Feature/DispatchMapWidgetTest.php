@@ -14,6 +14,7 @@ use App\Support\Dashboard\DashboardLayout;
 use App\Support\Dashboard\DispatchMapData;
 use App\Support\Dashboard\WidgetDataProvider;
 use App\Support\Dashboard\WidgetRegistry;
+use App\Support\Operations\GermanyMap;
 use App\Support\Operations\OperationsPages;
 use App\Support\Operations\TimelineLocationPreview;
 use Carbon\CarbonImmutable;
@@ -115,6 +116,8 @@ class DispatchMapWidgetTest extends TestCase
         $legacyItem = collect($data['items'])->firstWhere('id', $legacy->id);
         $marker = collect($data['markers'])->firstWhere('place', 'Depot München');
         $this->assertSame([48.13512, 11.58198], [$marker['latitude'], $marker['longitude']]);
+        $point = GermanyMap::fromPreview($item['location']);
+        $this->assertSame([$point['left'], $point['top']], [$marker['left'], $marker['top']]);
         $this->assertSame('confirmed', $marker['precision']);
         $this->assertSame('Depot München', $item['locationLabel']);
         $this->assertSame('Hamburg', $legacyItem['location']['place']);
@@ -145,6 +148,49 @@ class DispatchMapWidgetTest extends TestCase
         $this->assertSame('Bestätigte und ungefähre Standorte', $data['markers'][0]['label']);
         $this->assertSame(2, $data['markers'][0]['count']);
         $this->assertSame([true, false], array_map(fn (array $item) => $item['location']['confirmed'] ?? false, $data['markers'][0]['items']));
+    }
+
+    public function test_service_title_and_description_refine_dashboard_points_without_exposing_internal_text(): void
+    {
+        $shift = $this->shift();
+        foreach (['shift_title', 'order_title', 'order_description'] as $source) {
+            $shift->update(['title' => $source === 'shift_title' ? 'Hasselbrook Nachtdienst' : 'Synthetic shift']);
+            $this->order->update([
+                'title' => $source === 'order_title' ? 'Hasselbrook Nachtdienst' : 'Synthetic order',
+                'description' => $source === 'order_description' ? 'Nachtdienst am Bahnhof Hasselbrook. PRIVATE SERVICE DESCRIPTION.' : null,
+                'notes' => 'PRIVATE INTERNAL NOTES at Berlin',
+            ]);
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+            try {
+                $data = $this->map();
+                $queries = DB::getQueryLog();
+            } finally {
+                DB::disableQueryLog();
+            }
+            $item = $data['items'][0];
+            $marker = $data['markers'][0];
+            $this->assertSame('Hamburg-Hasselbrook', $item['locationLabel'], $source);
+            $this->assertSame('Hamburg-Hasselbrook', $marker['place']);
+            $this->assertSame('Bahnhofslage · ungefähr', $marker['label']);
+            $this->assertSame('approximate', $marker['precision']);
+            $this->assertSame([53.5649, 10.05697], [$marker['latitude'], $marker['longitude']]);
+            $this->assertSame(GermanyMap::fromPreview($item['location'])['left'], $marker['left']);
+            $this->assertStringNotContainsString('PRIVATE SERVICE DESCRIPTION', json_encode($data));
+            $this->assertStringNotContainsString('PRIVATE INTERNAL NOTES', json_encode($data));
+            $orderQueries = array_values(array_filter($queries, fn (array $query) => str_contains(strtolower($query['query']), 'from "orders"')));
+            $this->assertCount(1, $orderQueries);
+            $this->assertStringContainsString('"description"', $orderQueries[0]['query']);
+            $this->assertStringNotContainsString('"notes"', $orderQueries[0]['query']);
+        }
+
+        $html = $this->grid($this->admin)->assertSee('Hamburg-Hasselbrook')->assertSee('Bahnhofslage · ungefähr')->html();
+        $xpath = $this->xpath($html);
+        $entry = $xpath->query('//a[@data-dispatch-entry="shift"]')->item(0);
+        $this->assertStringContainsString('Hamburg-Hasselbrook', $entry->textContent);
+        $this->assertStringContainsString('Bahnhofslage · ungefähr', $entry->textContent);
+        $this->assertDatabaseCount('shifts', 1);
+        $this->assertSame('Hamburg', $shift->fresh()->location_name);
     }
 
     public function test_snapshot_loading_stays_batched_and_does_not_read_employee_locations(): void

@@ -662,16 +662,6 @@ class Orders extends Component
             'statusOptions' => $this->enumOptions(OrderStatus::class),
             'priorityOptions' => $this->enumOptions(OrderPriority::class),
             'transitionOptions' => $transitionOptions,
-            'openCount' => $this->detailOnly ? 0 : $this->scopedQuery()->whereNotIn('status', ['completed', 'invoiced', 'cancelled'])->count(),
-            'startsSoonCount' => $this->detailOnly ? 0 : $this->scopedQuery()
-                ->whereNotIn('status', ['completed', 'invoiced', 'cancelled'])
-                ->whereBetween('starts_at', [now()->utc(), now()->addDays(7)->utc()])
-                ->count(),
-            'inProgressCount' => $this->detailOnly ? 0 : $this->scopedQuery()->where('status', OrderStatus::InProgress)->count(),
-            'withoutShiftsCount' => $this->detailOnly ? 0 : $this->scopedQuery()
-                ->whereNotIn('status', ['completed', 'invoiced', 'cancelled'])
-                ->whereDoesntHave('shifts')
-                ->count(),
         ]);
     }
 

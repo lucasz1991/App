@@ -263,29 +263,10 @@ body:has(#main-content [data-orders-list-scroll]) { height: 100%; min-height: 0;
     padding-block: 0;
 }
 .rt-disposition-page:has([data-orders-list-scroll]) > [data-page-header] > div:first-child { flex: 0 0 auto; }
-.rt-disposition-page:has([data-orders-list-scroll]) > [data-page-header] .rt-page-header-metrics {
-    position: static;
-    left: auto;
-    order: initial;
-    flex: 1 1 0;
-    width: auto;
-    min-width: 0;
-    max-width: none;
-    transform: none;
-}
-.rt-disposition-page:has([data-orders-list-scroll]) > [data-page-header] .rt-orders-summary {
-    width: 100%;
-    min-width: 0;
-    gap: 0;
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-}
 .rt-disposition-page:has([data-orders-list-scroll]) > [data-page-header] > [data-page-header-actions] {
     flex: 0 0 auto;
     width: auto;
-    margin-left: 0;
+    margin-left: auto;
     gap: 4px;
 }
 .rt-disposition-page:has([data-orders-list-scroll]) [data-page-info-button] {
@@ -293,27 +274,6 @@ body:has(#main-content [data-orders-list-scroll]) { height: 100%; min-height: 0;
     min-width: 44px !important;
     height: 44px !important;
 }
-.rt-orders-summary__desktop { display: flex; align-items: center; justify-content: center; gap: clamp(12px, 1.7vw, 24px); }
-.rt-orders-summary__desktop .rt-disposition-summary__item { align-items: center; gap: 5px; padding: 0; }
-.rt-orders-summary__desktop .rt-disposition-summary__value { font-size: 15px; font-weight: 650; letter-spacing: -.03em; }
-.rt-orders-summary__desktop .rt-disposition-summary__label { font-size: 10px; }
-.rt-orders-summary__dot { display: inline-block; flex: none; width: 4px; height: 4px; border-radius: 50%; background: var(--rt-shell-muted); }
-[data-orders-kpi='active'] > .rt-orders-summary__dot,
-[data-orders-kpi='active'] .rt-orders-summary__dot { background: #64748b; }
-[data-orders-kpi='upcoming'] .rt-orders-summary__dot { background: #d97706; }
-[data-orders-kpi='running'] .rt-orders-summary__dot { background: #059669; }
-[data-orders-kpi='unplanned'] .rt-orders-summary__dot { background: #e11d48; }
-.rt-orders-summary [data-orders-summary-mobile] { display: none; }
-.rt-orders-kpi-trigger.rt-ui-button { width: 100%; min-width: 0; max-width: 180px; height: 44px; padding: 4px !important; border-radius: 10px; }
-.rt-orders-kpi-trigger__counts { display: grid; width: 100%; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; }
-.rt-orders-kpi-trigger__item { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; min-width: 0; }
-.rt-orders-kpi-trigger__value { font-size: 12px; font-weight: 650; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.04em; }
-.rt-orders-kpi-trigger__value--compact { font-size: 10px; }
-.rt-orders-kpi-panel { padding: 12px; }
-.rt-orders-kpi-panel__title { padding-bottom: 8px; color: var(--rt-shell-muted); font-size: 11px; line-height: 1.4; }
-.rt-orders-kpi-panel__item { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 36px; font-size: 12px; }
-.rt-orders-kpi-panel__item dt { display: inline-flex; align-items: center; gap: 8px; }
-.rt-orders-kpi-panel__item dd { font-weight: 650; font-variant-numeric: tabular-nums; }
 @media (max-width: 1200px) {
     .rt-orders-period-trigger.rt-ui-button { width: 44px; max-width: 44px; padding-inline: 0 !important; justify-content: center; }
     .rt-orders-period-trigger > span, .rt-orders-period-trigger .rt-shift-plan-control__chevron { display: none; }
@@ -321,9 +281,6 @@ body:has(#main-content [data-orders-list-scroll]) { height: 100%; min-height: 0;
 @media (max-width: 767.98px) {
     .rt-disposition-page:has([data-orders-list-scroll]) > [data-page-header] { gap: 4px; }
     .rt-disposition-page:has([data-orders-list-scroll]) > [data-page-header] > div:first-child { display: none; }
-    .rt-orders-summary__desktop { display: none; }
-    .rt-orders-summary [data-orders-summary-mobile], .rt-orders-summary [data-orders-summary-mobile] > .rt-ui-dropdown-trigger { display: inline-flex; width: 100%; min-width: 0; }
-    .rt-orders-summary [data-orders-summary-mobile] > .rt-ui-dropdown-trigger { justify-content: center; }
     .rt-orders-table-filters { flex: none; gap: 4px; }
     .rt-disposition-page:has([data-orders-list-scroll]) [data-page-header-action-list] { gap: 4px; overflow: visible; }
 }

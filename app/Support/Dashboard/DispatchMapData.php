@@ -5,6 +5,7 @@ namespace App\Support\Dashboard;
 use App\Models\OperationInquiry;
 use App\Models\Shift;
 use App\Models\User;
+use App\Support\Operations\GermanyMap;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsPages;
 use App\Support\Operations\SchemaReadiness;
@@ -74,7 +75,7 @@ final class DispatchMapData
 
         if ($canViewShifts) {
             $shiftColumns = ['id', 'public_id', 'order_id', 'title', 'role_name', 'starts_at', 'ends_at', 'timezone', 'location_name', 'required_staff', 'status'];
-            $orderColumns = ['id', 'customer_id', 'title', 'location_name', 'city', 'postal_code', 'country'];
+            $orderColumns = ['id', 'customer_id', 'title', 'description', 'location_name', 'city', 'postal_code', 'country'];
             // Select only available snapshot columns once per batch, including
             // during a rolling migration; never inspect schema per map item.
             if (SchemaReadiness::remember(__METHOD__.':shift-snapshot', fn () => Schema::hasColumn('shifts', 'location_snapshot'))) {
@@ -128,7 +129,6 @@ final class DispatchMapData
             'count' => $count, 'displayedCount' => count($items), 'displayedByType' => $displayed,
             'truncated' => $count > count($items), 'itemLimit' => self::ITEMS_PER_TYPE * ((int) $canViewShifts + (int) $canViewInquiries),
             'itemsPerType' => self::ITEMS_PER_TYPE,
-            'mapPath' => TimelineLocationPreview::outlinePath(), 'viewBox' => TimelineLocationPreview::viewBox(),
             'shiftsHref' => $canViewShifts ? OperationsPages::moduleUrl('shift-management', ['from' => $day->toDateString(), 'until' => $day->toDateString()]) : null,
             'inquiriesHref' => $canViewInquiries ? OperationsPages::moduleUrl('inquiries') : null,
         ];
@@ -153,10 +153,11 @@ final class DispatchMapData
 
         $key = $item['locationKey'];
         $location = $item['location'];
+        $point = GermanyMap::fromPreview($location);
         $markers[$key] ??= [
             'key' => $key, 'place' => $location['place'], 'label' => $location['label'],
             'precision' => ($location['confirmed'] ?? false) ? 'confirmed' : 'approximate',
-            'x' => $location['x'], 'y' => $location['y'], 'latitude' => $location['latitude'], 'longitude' => $location['longitude'],
+            'left' => $point['left'], 'top' => $point['top'], 'latitude' => $location['latitude'], 'longitude' => $location['longitude'],
             'shiftCount' => 0, 'inquiryCount' => 0, 'count' => 0, 'itemKeys' => [],
             'items' => [], 'detailsPerType' => self::MARKER_ITEMS_PER_TYPE, 'detailsTruncated' => false,
         ];
@@ -193,7 +194,7 @@ final class DispatchMapData
             'key' => 'shift-'.$shift->id, 'type' => 'shift', 'id' => $shift->id, 'title' => $shift->title,
             'number' => $shift->order?->title, 'customer' => $shift->order?->customer?->company_name,
             'roleName' => $shift->role_name, 'status' => $shift->status->value, 'statusLabel' => $shift->status->label(),
-            'locationLabel' => ($location['confirmed'] ?? false) ? $location['place'] : ($shift->location_name ?: ($shift->order?->location_name ?: $shift->order?->city)),
+            'locationLabel' => (($location['confirmed'] ?? false) || ($location['detail'] ?? false)) ? $location['place'] : ($shift->location_name ?: ($shift->order?->location_name ?: $shift->order?->city)),
             'location' => $location,
             'href' => OperationsPages::moduleUrl('shift-management', ['shift' => $shift->id, 'from' => $date, 'until' => $date]),
             'requiredStaff' => (int) $shift->required_staff, 'assignedStaff' => (int) $shift->assigned_staff,

@@ -7,7 +7,7 @@
         @if($entry['type'] === 'shift')
             · {{ $entry['assignedStaff'] }}/{{ $entry['requiredStaff'] }} besetzt
         @endif
-        @if(($entry['location']['state'] ?? '') !== 'located')
+        @if(($entry['location']['state'] ?? '') !== 'located' || ($entry['location']['detail'] ?? false))
             · {{ $entry['location']['label'] }}
         @endif
     </span>

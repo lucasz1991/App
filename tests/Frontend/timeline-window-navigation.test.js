@@ -905,7 +905,7 @@ test('reserve-day opening shifts the bounded scaffold immediately and animates t
 });
 
 test('a seven-day Woche viewport preserves the previous visual anchor through a reserve-day transition instead of jumping', async () => {
-    await withWindow(({ timeline, body, header, width, first, flushFrame, tweens }) => {
+    await withWindow(({ timeline, body, header, width, first, flushTicks, flushFrame, tweens, timers }) => {
         body.clientWidth = 934;
         body.offsetWidth = 940;
         header.clientWidth = 784;
@@ -913,7 +913,17 @@ test('a seven-day Woche viewport preserves the previous visual anchor through a 
         assert.equal(width(), 112);
         header.querySelectorAll = () => timeline.windowScaffoldDays.map(day => ({ dataset: { timelineDate: day.date } }));
         timeline.requestDayReveal({ owner: 'plan-owner', date: '2026-10-04' });
-        assert.equal(body.scrollLeft, first() + width(), 'the old first day stays at the same visual position after the axis rebase');
+        assert.equal(body.scrollLeft, first() + width(), 'the old first day stays fixed before nextTick or any browser paint');
+        assert.equal(header.scrollLeft, body.scrollLeft, 'header and body are compensated together in the same turn');
+        assert.equal(tweens.length, 0);
+        timeline.finishHorizontalIntent(); // Native scrollend may precede deferred nextTick/tween creation.
+        for (const [id, timer] of timers) if (timer.delay === 350) { timers.delete(id); timer.callback(); }
+        timeline.syncHorizontal(body);
+        assert.equal(body.scrollLeft, first() + width(), 'early native scrollend/350ms timeout cannot release the pending animation or clamp its preserved anchor');
+        flushFrame();
+        assert.equal(body.scrollLeft, first() + width(), 'an early browser frame cannot expose the uncompensated new axis');
+        assert.equal(tweens.length, 0);
+        flushTicks();
         flushFrame();
         assert.equal(tweens.length, 1);
         assert.equal(tweens[0].options.left, first());
@@ -926,7 +936,7 @@ test('a seven-day Woche viewport preserves the previous visual anchor through a 
         body.scrollLeft = first() + width();
         timeline.syncHorizontal(body);
         assert.equal(body.scrollLeft, first(), 'manual movement retains the ordinary selected-edge boundary after completion');
-    }, { gsap: true, zoom: 'week' });
+    }, { gsap: true, zoom: 'week', deferredNextTick: true });
 });
 
 test('Alpine directive $el on an arrow still resolves the initialized timeline owner and measures the actual root', async () => {
@@ -1084,8 +1094,9 @@ test('delayed mirrored footer layout events cannot cancel the scheduled arrow mo
 test('native prefix reanchoring before nextTick is compensated absolutely and cannot advance the target twice', async () => {
     await withWindow(({ timeline, body, first, width, flushTicks, flushFrame, period, finishScroll }) => {
         timeline.scrollDay(-1);
-        body.scrollLeft += width(); // Chromium automatically preserves its old day when the new prefix enters.
         assert.equal(body.scrollLeft, first() + width());
+        body.scrollLeft += width(); // Simulate an extra native reanchor after our same-turn compensation.
+        assert.equal(body.scrollLeft, first() + 2 * width());
         flushTicks();
         assert.equal(body.scrollLeft, first() + width(), 'our compensation must not add a second day');
         flushFrame();
@@ -1164,9 +1175,11 @@ test('completed parent action waits for the child dates while the already-starte
 });
 
 test('transport timeout releases controls; a late response may confirm dates but cannot restore its obsolete anchor', async () => {
-    await withWindow(({ timeline, body, expireRequest, period, flushFrame, first, width, finishScroll }) => {
+    await withWindow(({ timeline, body, expireRequest, period, flushFrame, first, width, finishScroll, timers }) => {
         timeline.scrollDay(-1);
         finishScroll();
+        // The real bounded native fallback finishes at800ms, before15s transport timeout.
+        for (const [id, timer] of timers) if (timer.delay === 800) { timers.delete(id); timer.callback(); }
         expireRequest();
         assert.equal(timeline.windowLoading, false);
         assert.match(timeline.windowError, /erneut versuchen/);

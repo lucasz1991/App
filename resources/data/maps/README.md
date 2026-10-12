@@ -1,11 +1,13 @@
 # Local Germany preview data
 
-This data powers the timeline event's small Germany overview. Its marker is an
+This data powers the timeline and dashboard Germany overviews. Its marker is an
 approximate locality, city-centre, railway or postcode estimate, **not** a
 verified address, worksite or navigation target.
-There is no runtime network lookup. The helper reads only the shift location and
-its already-loaded order's location, city, postal code and country; it never reads customer
-addresses or private notes. Only immutable public data is cached.
+There is no runtime network lookup. Display refinement reads the shift location
+and title, plus its already-loaded, matching order's location, city, postal code,
+country, title and public description. It never reads customer addresses or
+private notes. Only immutable public data is cached. Confirmed own worksite
+snapshots remain authoritative.
 
 ## GeoNames attribution and transformation
 
@@ -162,6 +164,79 @@ IDs as `null`. For postal data, retain all distinct German five-digit source
 candidates. Record the source hashes/counts and run `TimelineLocationPreviewTest`
 and `StaffRegionalPreferenceServiceTest` after any refresh. The reproducible local
 generation helper is recorded with this change's `.lmzdev` report.
+
+## Detail-aware display refinement (2026-10-13)
+
+`germany-location-details.json` adds actual public district/station points before
+the existing city-centre fallback. It does not modify the coarse indexes above
+or the regional-assessment resolver. `LocationDetailResolver` recognizes bounded
+whole-word names from this immutable dictionary; it does not geocode free text,
+guess coordinates, rank nearby places or contact a runtime provider.
+
+The reproducible generator is `scripts/build-location-details.py`. Its first
+input is the original public GeoNames `DE.txt` from the 2026-10-06 archive already
+documented above. The unpacked file SHA-256 is
+`ab09c027d3b5d1e97edfb30181842d5801fb31f7ee90bcc00e3c2120897e264d`.
+It retains modern `PPLX`, `RSTN`, and `RSTP` features with exactly one existing
+known municipal anchor, matching all supplied administrative codes and within
+35 km. Missing fourth-level codes can inherit only an independent-city anchor,
+as in the coarse alias generator. Source coordinates are copied unchanged.
+The output contains 2,929 points across 227 municipalities and 5,468 full
+city-qualified names. Multiple source points sharing a normalized name remain
+blocked, even within one municipality; no arbitrary first match is selected.
+
+For example, `Hasselbrook` is GeoNames railway feature **2909401**, with unchanged
+WGS84 **53.5649, 10.05697** and municipal codes matching Hamburg. Its display name
+is `Hamburg-Hasselbrook` and its precision remains **Bahnhofslage · ungefähr**.
+`Hamburg` plus `Hasselbrook Nachtdienst` now uses this point rather than the city
+centre. Explicit `location_name=Hasselbrook, city=Hamburg` does the same.
+Districts such as München-Milbertshofen use **Stadtteillage · ungefähr**.
+These remain estimates of the named feature, never confirmed entrance/worksite
+coordinates. The result exposes `detail=true` and `source=location|service_text`
+for display; the original texts and persisted snapshots are not changed.
+
+Precedence is: the record's own confirmed snapshot; a unique explicit detail
+compatible with its city; one unique same-city detail across the shift title and
+matching order title/public description; then the existing locality/postcode/city
+fallback. An overridden shift never borrows order text. A completely missing
+worksite can use a full city-qualified detail name; an unknown supplied location
+or unknown/ambiguous structured city is not replaced by a descriptive guess.
+Malformed values, foreign countries, conflicting postcodes and invalid confirmed
+snapshots retain their existing fail-closed result. Private notes, customer
+records, inquiry originals and unloaded relationships are excluded. Inquiry
+display keeps its existing explicit-location-only path.
+
+Free text is bounded to 5,000 Unicode characters per field and matched using
+at most eight-word dictionary lookups. Invalid/oversized text is not truncated
+into a misleading match. HTML markup is separated, script/style contents are
+discarded, and suffixes such as `Hasselbrookstraße` do not match `Hasselbrook`.
+Multiple details, other known city mentions, negations, alternatives and routes
+retain the coarse fallback. Explicit detail text has priority over incidental
+mentions in descriptions.
+
+German administrative-city names also participate as conflict blockers even if
+the bare city name cannot create a map point. Foreign-city **blockers only** come
+from the public [GeoNames cities15000 extract](https://download.geonames.org/export/dump/cities15000.zip),
+downloaded 2026-10-13; archive SHA-256
+`8c2390a973087b9f42671a01c401ccbbc4d1346fe1d0371c15d1090b21d2d725`.
+GeoNames and contributors, CC BY 4.0; same upstream format/license as above.
+The generator retains readable source names of non-German capitals or cities
+with at least 100,000 inhabitants and a `Europe/` timezone. All names shared with
+any German populated-place or station feature are excluded from this foreign
+blocker set. The 12,643 blockers can reject contradictory mentions such as Wien
+or Zürich; they never create coordinates. This deliberately bounded dictionary
+does not claim exhaustive recognition of foreign places or natural-language
+intent. The complete detail index is 944,569 bytes.
+
+Regenerate with:
+
+```text
+python scripts/build-location-details.py /path/to/DE.txt --foreign-cities /path/to/cities15000.zip
+```
+
+Re-run `TimelineLocationPreviewTest`, `StaffRegionalPreferenceServiceTest`, and
+dashboard map tests after changes. Both data caches contain public data only;
+no shift, description, model, query result or user input survives between calls.
 
 ## Natural Earth outline and projection
 

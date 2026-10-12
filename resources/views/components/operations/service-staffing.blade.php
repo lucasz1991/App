@@ -6,7 +6,7 @@
     align="left"
     width="auto"
     :open-on-hover="true"
-    :hover-open-delay="100"
+    :hover-open-delay="300"
     :hover-close-delay="180"
     :dropdown-id="$previewId"
     layer-group="service-staffing"

@@ -2,7 +2,6 @@
     $mapId = 'dispatch-map-'.$this->getId();
     $dateTargets = 'setDispatchMapDate,moveDispatchMapDate,resetDispatchMapDate';
     $entryKinds = implode(' und ', array_filter([$data['canViewShifts'] ? 'Schichten' : null, $data['canViewInquiries'] ? 'Anfragen' : null]));
-    [$mapLeft, $mapTop, $mapWidth, $mapHeight] = array_map('floatval', explode(' ', $data['viewBox']));
 @endphp
 <div class="wv-dispatch-map" data-dispatch-map data-dispatch-date="{{ $data['date'] }}" wire:key="dispatch-map-content-{{ $data['date'] }}" x-effect="if (day !== $el.dataset.dispatchDate) { kind = 'all'; place = 'all'; day = $el.dataset.dispatchDate }">
     @error('dispatchMapDate')<p class="ops-errors" role="alert">{{ $message }}</p>@enderror
@@ -21,14 +20,10 @@
     </div>
     <div class="wv-dispatch-map__content" wire:loading.class="wv-dispatch-map__content--loading" wire:target="{{ $dateTargets }}">
         <figure class="wv-dispatch-map__figure" aria-label="Dispositionskarte">
-            <div class="wv-dispatch-map__stage" style="aspect-ratio: {{ $mapWidth }} / {{ $mapHeight }}">
-                <svg class="wv-dispatch-map__canvas" viewBox="{{ $data['viewBox'] }}" role="img" aria-labelledby="{{ $mapId }}-title {{ $mapId }}-description">
-                    <title id="{{ $mapId }}-title">Einsatzorte in Deutschland am {{ $data['dateLabel'] }}</title>
-                    <desc id="{{ $mapId }}-description">{{ count($data['markers']) }} Kartenpunkte. Bestätigte Einsatzstandorte und ungefähre Ortslagen sind je Kartenpunkt gekennzeichnet. Die Kartenpunkte öffnen Details zu den jeweiligen Standorten.</desc>
-                    <path class="wv-dispatch-map__outline" d="{{ $data['mapPath'] }}" />
-                </svg>
+            <x-ui.germany-map class="wv-dispatch-map__canvas" :interactive="true" :label="'Einsatzorte in Deutschland am '.$data['dateLabel'].'. '.count($data['markers']).' Kartenpunkte. Bestätigte Einsatzstandorte und ungefähre Ortslagen sind je Kartenpunkt gekennzeichnet. Die Kartenpunkte öffnen Details zu den jeweiligen Standorten.'">
+                <x-slot:markers>
                 @foreach($data['markers'] as $marker)
-                    <x-ui.dropdown.anchor-dropdown class="wv-dispatch-map__point" style="left: {{ ($marker['x'] - $mapLeft) / $mapWidth * 100 }}%; top: {{ ($marker['y'] - $mapTop) / $mapHeight * 100 }}%" x-show.important="(place === 'all' || place === $el.querySelector('[data-dispatch-marker]').dataset.dispatchMarker) && (kind === 'all' || (kind === 'shift' && {{ $marker['shiftCount'] }} > 0) || (kind === 'inquiry' && {{ $marker['inquiryCount'] }} > 0))" align="left" width="80" offset="6" :open-on-hover="true" dropdown-id="{{ $mapId }}-point-{{ $loop->index }}" layer-group="{{ $mapId }}-controls" content-role="dialog" content-label="{{ $marker['place'] }}: Einsatzdetails" content-classes="rt-ops wv-dispatch-map__menu wv-dispatch-map__point-menu">
+                    <x-ui.dropdown.anchor-dropdown class="wv-dispatch-map__point" style="left: {{ $marker['left'] }}%; top: {{ $marker['top'] }}%" x-show.important="(place === 'all' || place === $el.querySelector('[data-dispatch-marker]').dataset.dispatchMarker) && (kind === 'all' || (kind === 'shift' && {{ $marker['shiftCount'] }} > 0) || (kind === 'inquiry' && {{ $marker['inquiryCount'] }} > 0))" align="left" width="80" offset="6" :open-on-hover="true" dropdown-id="{{ $mapId }}-point-{{ $loop->index }}" layer-group="{{ $mapId }}-controls" content-role="dialog" content-label="{{ $marker['place'] }}: Einsatzdetails" content-classes="rt-ops wv-dispatch-map__menu wv-dispatch-map__point-menu">
                         <x-slot:trigger>
                             <button type="button" class="wv-dispatch-map__marker" data-dispatch-marker="{{ $marker['key'] }}" aria-haspopup="dialog" :aria-expanded="open.toString()" aria-controls="rt-dropdown-{{ $mapId }}-point-{{ $loop->index }}-content" aria-label="{{ $marker['place'] }}: {{ $marker['label'] }}. {{ $marker['count'] }} {{ $marker['count'] === 1 ? 'Eintrag' : 'Einträge' }}. Details öffnen" x-on:keydown.arrow-down.prevent.stop="focusHoverPanel(); $nextTick(() => Array.from($refs.panel.querySelectorAll('[data-dispatch-point-entry]')).find(entry => getComputedStyle(entry).display !== 'none')?.focus({ preventScroll: true }))">
                                 @if($marker['shiftCount'] > 0)<span class="wv-dispatch-map__shift" aria-hidden="true" x-show="kind !== 'inquiry'"></span>@endif
@@ -49,7 +44,8 @@
                         </x-slot:content>
                     </x-ui.dropdown.anchor-dropdown>
                 @endforeach
-            </div>
+                </x-slot:markers>
+            </x-ui.germany-map>
             <figcaption class="wv-dispatch-map__legend">@if($data['canViewShifts'])<span><i class="wv-dispatch-map__shift-key"></i>Schichten</span>@endif @if($data['canViewInquiries'])<span><i class="wv-dispatch-map__inquiry-key"></i>Anfragen</span>@endif</figcaption>
             @if($data['markers'] === [])<p class="wv-dispatch-map__map-empty">{{ $data['count'] === 0 ? 'Keine Einträge für diesen Tag.' : 'Keine Kartenpunkte für diesen Tag.' }}</p>@endif
             <p class="wv-dispatch-map__map-empty" x-cloak x-show="place === 'unlocated'">Einträge ohne ermittelten Kartenpunkt.</p>

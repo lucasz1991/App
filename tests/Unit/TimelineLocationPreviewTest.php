@@ -13,6 +13,164 @@ use RuntimeException;
 
 final class TimelineLocationPreviewTest extends TestCase
 {
+    public function test_shift_service_name_refines_hamburg_to_hasselbrook_without_queries_or_mutations(): void
+    {
+        $shift = new class extends Shift
+        {
+            public function order(): BelongsTo
+            {
+                throw new RuntimeException('Detail recognition must not query relationships.');
+            }
+        };
+        $shift->forceFill(['order_id' => 42, 'location_name' => 'Hamburg', 'title' => 'Hasselbrook Nachtdienst']);
+        $attributes = $shift->getAttributes();
+        $preview = TimelineLocationPreview::fromShift($shift);
+        self::assertSame('Hamburg-Hasselbrook', $preview['place']);
+        self::assertSame('Bahnhofslage · ungefähr', $preview['label']);
+        self::assertSame(53.5649, $preview['latitude']);
+        self::assertSame(10.05697, $preview['longitude']);
+        self::assertTrue($preview['detail']);
+        self::assertSame('service_text', $preview['source']);
+        self::assertArrayNotHasKey('confirmed', $preview);
+        self::assertFalse($shift->relationLoaded('order'));
+        self::assertSame($attributes, $shift->getAttributes());
+        self::assertSame($this->preview('Hamburg'), TimelineLocationPreview::forRegionalAssessment($shift));
+    }
+
+    public function test_aligned_order_title_and_public_description_supply_display_details(): void
+    {
+        foreach ([['title' => 'Hasselbrook Nachtdienst'], ['description' => '<p>Leistung:</p><p>Nachtwache am Bahnhof Hasselbrook.</p>']] as $fields) {
+            $order = new Order($fields + ['location_name' => 'Hamburg', 'city' => 'Hamburg', 'postal_code' => '20095', 'country' => 'DE']);
+            $shift = new Shift(['location_name' => 'Hamburg', 'title' => 'Nachtdienst']);
+            $shift->setRelation('order', $order);
+            self::assertSame('Hamburg-Hasselbrook', TimelineLocationPreview::fromShift($shift)['place']);
+            self::assertSame('Hamburg-Hasselbrook', TimelineLocationPreview::fromOrder($order)['place']);
+            self::assertSame($this->preview('Hamburg'), TimelineLocationPreview::forRegionalAssessment($shift));
+        }
+    }
+
+    #[DataProvider('explicitDetailLocations')]
+    public function test_source_backed_explicit_detail_outranks_city_centre(string $location, string $city, string $place, string $label): void
+    {
+        $preview = $this->preview($location);
+        self::assertSame($place, $preview['place']);
+        self::assertSame($label, $preview['label']);
+        self::assertTrue($preview['detail']);
+        self::assertSame('location', $preview['source']);
+        self::assertNotSame($this->preview($city)['latitude'], $preview['latitude']);
+        $order = new Order(['city' => $city, 'location_name' => $location, 'title' => 'Nachtdienst', 'country' => 'DE']);
+        self::assertSame($preview, TimelineLocationPreview::fromOrder($order));
+    }
+
+    public static function explicitDetailLocations(): array
+    {
+        return [
+            ['Hamburg Hasselbrook', 'Hamburg', 'Hamburg-Hasselbrook', 'Bahnhofslage · ungefähr'],
+            ['Hamburg-Hasselbrook', 'Hamburg', 'Hamburg-Hasselbrook', 'Bahnhofslage · ungefähr'],
+            ['München Milbertshofen', 'München', 'München-Milbertshofen', 'Stadtteillage · ungefähr'],
+            ['Muenchen-Milbertshofen', 'München', 'München-Milbertshofen', 'Stadtteillage · ungefähr'],
+            ['München-Milbertshofen Bahnhof', 'München', 'München-Milbertshofen', 'Stadtteillage · ungefähr'],
+            ['Köln-Eifeltor', 'Köln', 'Köln-Eifeltor', 'Bahnhofslage · ungefähr'],
+        ];
+    }
+
+    public function test_explicit_detail_is_not_replaced_by_descriptive_mentions(): void
+    {
+        $order = new Order(['location_name' => 'Hasselbrook', 'city' => 'Hamburg', 'description' => 'Material aus Eidelstedt']);
+        self::assertSame('Hamburg-Hasselbrook', TimelineLocationPreview::fromOrder($order)['place']);
+        self::assertSame('location', TimelineLocationPreview::fromOrder($order)['source']);
+    }
+
+    #[DataProvider('conflictingDetailTexts')]
+    public function test_conflicting_negated_or_unrecognized_details_preserve_city_fallback(string $title, ?string $description = null): void
+    {
+        $order = new Order(['location_name' => 'Hamburg', 'city' => 'Hamburg', 'description' => $description]);
+        $shift = new Shift(['location_name' => 'Hamburg', 'title' => $title]);
+        $shift->setRelation('order', $order);
+        self::assertSame($this->preview('Hamburg'), TimelineLocationPreview::fromShift($shift));
+    }
+
+    public static function conflictingDetailTexts(): array
+    {
+        return [
+            ['Hasselbrook / Eidelstedt Nachtdienst'],
+            ['Hasselbrook Nachtdienst', 'Ablösung in Köln-Eifeltor'],
+            ['Hasselbrook Nachtdienst', 'Einsatz in Essen'],
+            ['Hasselbrook Wien'],
+            ['Hasselbrook Nachtdienst', 'Einsatz in Wien.'],
+            ['Hasselbrook Nachtdienst', 'Ablösung in Zürich'],
+            ['Nicht Hasselbrook, Nachtdienst'],
+            ['Hasselbrook oder Eidelstedt'],
+            ['Von Hasselbrook nach Eidelstedt'],
+            ['Nachtdienst', 'Kein Einsatz in Hasselbrook'],
+            ['Hasselbrookstraße 12 Nachtdienst'],
+            ['Hasselbrookhausen Nachtdienst'],
+            ['Nachtdienst Atlantis'],
+            ['Hasselbrook Nachtdienst', str_repeat('x', 5001)],
+            ['Hasselbrook Nachtdienst', "\xFF"],
+        ];
+    }
+
+    public function test_override_never_uses_unrelated_order_descriptions_or_another_citys_details(): void
+    {
+        $shift = new Shift(['location_name' => 'Berlin', 'title' => 'Nachtdienst']);
+        $shift->setRelation('order', new Order(['location_name' => 'Hamburg', 'city' => 'Hamburg', 'title' => 'Hasselbrook Nachtdienst', 'description' => 'Hasselbrook']));
+        self::assertSame($this->preview('Berlin'), TimelineLocationPreview::fromShift($shift));
+        $shift->location_name = 'München';
+        $shift->title = 'Hasselbrook Nachtdienst';
+        self::assertSame($this->preview('München'), TimelineLocationPreview::fromShift($shift));
+    }
+
+    public function test_details_cannot_repair_foreign_malformed_conflicting_or_ambiguous_structured_locations(): void
+    {
+        foreach ([
+            ['city' => 'Hamburg', 'country' => 'AT'],
+            ['city' => 'Hamburg', 'postal_code' => '10115'],
+            ['city' => 'Hamburg', 'postal_code' => 'invalid'],
+            ['city' => 'Wien'],
+            ['city' => 'Hamburg / München'],
+            ['city' => 'Neustadt'],
+            ['city' => str_repeat('x', 201)],
+            ['country' => str_repeat('x', 201)],
+            ['country' => ['DE']],
+        ] as $fields) {
+            $base = TimelineLocationPreview::fromOrder(new Order($fields));
+            $order = new Order($fields + ['title' => 'Hamburg Hasselbrook Nachtdienst', 'description' => 'Hasselbrook']);
+            self::assertSame($base, TimelineLocationPreview::fromOrder($order));
+        }
+    }
+
+    public function test_missing_worksite_requires_one_fully_qualified_detail_name(): void
+    {
+        $shift = new Shift(['title' => 'Hamburg-Hasselbrook Nachtdienst']);
+        self::assertSame('Hamburg-Hasselbrook', TimelineLocationPreview::fromShift($shift)['place']);
+        self::assertSame('unknown', TimelineLocationPreview::forRegionalAssessment($shift)['state']);
+        $shift->title = 'Hasselbrook Nachtdienst';
+        self::assertSame('unknown', TimelineLocationPreview::fromShift($shift)['state']);
+        $shift->title = 'Hamburg-Hasselbrook und Köln-Eifeltor';
+        self::assertSame('unknown', TimelineLocationPreview::fromShift($shift)['state']);
+        $shift->title = 'Hamburg-Hasselbrook Nachtdienst';
+        $shift->location_name = 'Unbekannter Einsatzort';
+        self::assertSame('unknown', TimelineLocationPreview::fromShift($shift)['state']);
+    }
+
+    public function test_confirmed_and_malformed_snapshots_win_over_all_detail_text(): void
+    {
+        $shift = new Shift(['location_name' => 'Hamburg', 'title' => 'Hasselbrook Nachtdienst', 'location_snapshot' => $this->snapshot()]);
+        self::assertSame('Depot München', TimelineLocationPreview::fromShift($shift)['place']);
+        $shift->location_snapshot = $this->snapshot(['latitude' => null]);
+        self::assertSame('unknown', TimelineLocationPreview::fromShift($shift)['state']);
+    }
+
+    public function test_private_notes_and_customer_text_are_never_detail_sources(): void
+    {
+        $shift = new Shift(['location_name' => 'Hamburg', 'title' => 'Nachtdienst', 'notes' => 'Hasselbrook']);
+        $order = new Order(['location_name' => 'Hamburg', 'city' => 'Hamburg', 'notes' => 'Hasselbrook']);
+        $order->setRelation('customer', new Order(['title' => 'Hasselbrook', 'description' => 'Hasselbrook']));
+        $shift->setRelation('order', $order);
+        self::assertSame($this->preview('Hamburg'), TimelineLocationPreview::fromShift($shift));
+    }
+
     public function test_confirmed_shift_uses_its_own_snapshot_without_querying_or_borrowing_order(): void
     {
         $shift = new class extends Shift
@@ -152,12 +310,9 @@ final class TimelineLocationPreviewTest extends TestCase
     public static function cityCentreLocations(): array
     {
         return [
-            ['München Milbertshofen', 'München'],
-            ['Muenchen-Milbertshofen', 'München'],
             ['München Freimann', 'München'],
             ['München Laim', 'München'],
             ['München Nord', 'München'],
-            ['München-Milbertshofen Bahnhof', 'München'],
             ['München Hbf.', 'München'],
             ['München, Nord', 'München'],
             ['Nürnberghafen', 'Nürnberg'],
@@ -171,9 +326,7 @@ final class TimelineLocationPreviewTest extends TestCase
             ['Schwandorf', 'Schwandorf'],
             ['Schwandorf in Bayern', 'Schwandorf'],
             ['Hamburg-Eidelstedt', 'Hamburg'],
-            ['Hamburg Hasselbrook', 'Hamburg'],
             ['Leipzig-Plagwitz', 'Leipzig'],
-            ['Köln-Eifeltor', 'Köln'],
             ['Bahnhof München', 'München'],
         ];
     }
@@ -242,9 +395,12 @@ final class TimelineLocationPreviewTest extends TestCase
 
     public function test_source_backed_city_districts_and_railway_names_resolve_without_fuzzy_matching(): void
     {
-        foreach (['München-Pasing', 'München Pasing', 'München-Pasing Bahnhof', 'Bahnhof München-Pasing', 'Muenchen-Pasing', 'München – Pasing', 'München Berg am Laim'] as $location) {
+        foreach (['München-Pasing', 'München Pasing', 'München-Pasing Bahnhof', 'Muenchen-Pasing', 'München – Pasing'] as $location) {
             self::assertSame($this->preview('München'), $this->preview($location), $location);
         }
+        self::assertSame('München-Pasing', $this->preview('Bahnhof München-Pasing')['place']);
+        self::assertSame('Bahnhofslage · ungefähr', $this->preview('Bahnhof München-Pasing')['label']);
+        self::assertSame('München-Berg am Laim', $this->preview('München Berg am Laim')['place']);
         self::assertSame($this->preview('Hamburg'), $this->preview('Hamburg-Harburg'));
         self::assertSame($this->preview('Berlin'), $this->preview('Berlin Lichtenberg'));
         $station = $this->preview('Ingolstadt Hbf');

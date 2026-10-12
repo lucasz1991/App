@@ -874,26 +874,40 @@ export function staffTimeline() {
             state.frame = null;
             this.holdHorizontalIntent(direction);
             const motionVersion = this.horizontalMotionVersion;
+            const edges = this.timelineScrollEdges(true);
+            const revealOffset = revealDate === null ? null
+                : (timelineCivilDay(revealDate) - timelineCivilDay(this.windowDisplayAxis().from)) * width;
+            const target = Math.max(edges.first, Math.min(edges.last, revealOffset ?? (wheelDelta === null ? targetOffset : offset + wheelDelta - delta * width)));
+            const anchor = Math.max(0, Math.min(body.scrollWidth - body.clientWidth, offset - delta * width));
+            if (width) {
+                state.motionPendingVersion = motionVersion;
+                state.motionTarget = target;
+                // Compensate the constant-size axis in this same JS turn, not
+                // after nextTick: the first paint must still show the old dates
+                // in place before the new date starts its smooth transition.
+                body.scrollLeft = anchor;
+                this.syncHorizontal(body, false);
+                state.motionKind = revealDate !== null ? 'focus' : smoothWheel ? 'wheel' : 'arrow';
+            }
             this.$nextTick(() => {
                 if (this.windowDisposed || state.displayVersion !== version || this.horizontalMotionVersion !== motionVersion) return;
                 if (!width) return;
-                const edges = this.timelineScrollEdges(true);
-                const revealOffset = revealDate === null ? null
-                    : (timelineCivilDay(revealDate) - timelineCivilDay(this.windowDisplayAxis().from)) * width;
-                const target = Math.max(edges.first, Math.min(edges.last, revealOffset ?? (wheelDelta === null ? targetOffset : offset + wheelDelta - delta * width)));
-                state.motionTarget = target;
-                // Keep the old visible dates fixed on the new axis first.
-                // Reserve columns allow this presentation-only transition even
-                // when a full week fits and the selected first/last edge match.
-                body.scrollLeft = Math.max(0, Math.min(body.scrollWidth - body.clientWidth, offset - delta * width));
-                this.syncHorizontal(body, false);
-                state.motionKind = revealDate !== null ? 'focus' : smoothWheel ? 'wheel' : 'arrow';
+                // Recover an unexpected native reanchor absolutely, never by
+                // applying the axis delta twice. Real input invalidates this guard.
+                if (Math.abs(body.scrollLeft - anchor) >= 1) {
+                    body.scrollLeft = anchor;
+                    this.syncHorizontal(body, false);
+                }
                 state.frame = requestAnimationFrame(() => {
                     state.frame = null;
                     if (this.windowDisposed || state.displayVersion !== version || this.horizontalMotionVersion !== motionVersion) return;
                     this.holdHorizontalIntent(direction);
-                    if (wheelDelta !== null && !smoothWheel) body.scrollTo({ left: target, behavior: 'instant' });
-                    else this.startHorizontalMotion(target, revealDate !== null ? 'focus' : smoothWheel ? 'wheel' : 'arrow');
+                    if (wheelDelta !== null && !smoothWheel) {
+                        state.motionPendingVersion = null;
+                        body.scrollTo({ left: target, behavior: 'instant' });
+                        state.motionTarget = null;
+                        this.syncHorizontal(body, false);
+                    } else this.startHorizontalMotion(target, revealDate !== null ? 'focus' : smoothWheel ? 'wheel' : 'arrow');
                 });
             });
             return this.drainWindowRequest();
@@ -987,12 +1001,15 @@ export function staffTimeline() {
         },
         finishHorizontalIntent() {
             // Native scrollend and the ordinary 350ms intent fallback may fire
-            // during a focus tween; its guarded completion owns that release.
-            if (distributionFocusMotions.has(this.timelineElement)) return;
+            // even before nextTick creates the tween. Only its completion or an
+            // explicit user cancellation may release that pending command.
+            const state = windowNavigations.get(this.timelineElement);
+            if (distributionFocusMotions.has(this.timelineElement)
+                || Number.isSafeInteger(state?.motionPendingVersion)
+                    && state.motionPendingVersion === this.horizontalMotionVersion) return;
             if (this.intentTimer !== null) clearTimeout(this.intentTimer);
             this.intentTimer = null;
             this.horizontalIntent = null;
-            const state = windowNavigations.get(this.timelineElement);
             if (state) state.motionTarget = null;
             if (this.$refs?.timelineBody) this.lastScrollLeft = this.$refs.timelineBody.scrollLeft;
         },
@@ -1316,7 +1333,12 @@ export function staffTimeline() {
         startHorizontalMotion(target, kind = 'focus') {
             const root = this.timelineElement;
             const body = this.$refs.timelineBody;
-            if (this.windowDisposed || !Number.isFinite(target) || Math.abs(target - body.scrollLeft) < 1) return true;
+            const navigation = windowNavigations.get(root);
+            if (navigation) navigation.motionPendingVersion = null;
+            if (this.windowDisposed || !Number.isFinite(target) || Math.abs(target - body.scrollLeft) < 1) {
+                this.finishHorizontalIntent();
+                return true;
+            }
             const personnel = personnelMotions.get(root);
             // A previous width tween must not later restore its old right edge
             // after this explicit navigation (including instant/reduced motion).
@@ -1325,6 +1347,7 @@ export function staffTimeline() {
             if (reduceQuery?.matches || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
                 body.scrollTo({ left: target, behavior: 'instant' });
                 this.syncHorizontal(body, false);
+                this.finishHorizontalIntent();
                 return true;
             }
             const engine = typeof window !== 'undefined' ? window.gsap : null;
@@ -1357,6 +1380,7 @@ export function staffTimeline() {
             this.horizontalMotionVersion = (this.horizontalMotionVersion || 0) + 1;
             const navigation = windowNavigations.get(root);
             if (navigation) {
+                navigation.motionPendingVersion = null;
                 navigation.motionTarget = null;
                 if (navigation.frame !== null) cancelAnimationFrame(navigation.frame);
                 navigation.frame = null;
