@@ -21,15 +21,29 @@
     };
 @endphp
 
-<div x-data="{ visible: false, revealTimer: null, init() { this.revealTimer = setTimeout(() => { this.visible = true }, 1000) }, destroy() { clearTimeout(this.revealTimer) } }" x-show.important="visible" x-cloak data-rt-tone="{{ $type }}" {{ $attributes->class(["rt-ui-alert relative flex rounded-xl border {$styles}", 'gap-3 p-4 shadow-rt-xs' => ! $inline, 'rt-ui-alert--dismissible' => $dismissible]) }} @if($inline) style="align-items:center;gap:.5rem;padding:.25rem .75rem;box-shadow:none" @endif role="alert">
+<div class="rt-ui-alert-viewport" style="overflow:clip">
+<div x-data="{
+    visible: false,
+    revealTimer: null,
+    init() {
+        this.revealTimer = setTimeout(() => {
+            this.visible = true
+            this.$nextTick(() => {
+                if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                    this.$el.animate(
+                        [{ transform: 'translateX(100%)' }, { transform: 'translateX(0)' }],
+                        { duration: 650, easing: 'cubic-bezier(.22, 1, .36, 1)' }
+                    )
+                }
+            })
+        }, 1000)
+    },
+    destroy() {
+        clearTimeout(this.revealTimer)
+        this.$el.getAnimations().forEach(animation => animation.cancel())
+    }
+}" x-show.important="visible" x-cloak @if (!$attributes->has('wire:ignore.self')) wire:ignore.self @endif data-rt-tone="{{ $type }}" {{ $attributes->class(["rt-ui-alert relative flex rounded-xl border {$styles}", 'gap-3 p-4 shadow-rt-xs' => ! $inline, 'rt-ui-alert--dismissible' => $dismissible]) }} @if($inline) style="align-items:center;gap:.5rem;padding:.25rem .75rem;box-shadow:none" @endif role="alert">
     <style>
-        @keyframes rt-alert-enter {
-            from { opacity: 0; transform: translateX(1rem); }
-            to { opacity: 1; transform: translateX(0); }
-        }
-        @media (prefers-reduced-motion: no-preference) {
-            .rt-ui-alert { animation: rt-alert-enter 400ms cubic-bezier(.22, 1, .36, 1); }
-        }
         .rt-ui-alert--dismissible { padding-right: 2.75rem !important; }
         .rt-ui-alert__close { position: absolute; top: .375rem; right: .375rem; display: flex; align-items: center; justify-content: center; width: 1.75rem; height: 1.75rem; padding: 0; border: 0; border-radius: .375rem; color: inherit; background: transparent; opacity: .55; cursor: pointer; }
         .rt-ui-alert__close:hover { opacity: 1; background: color-mix(in srgb, currentColor 9%, transparent); }
@@ -47,7 +61,6 @@
         .rt-ui-alert__action:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
         .rt-ui-alert__action:disabled { opacity: .5; cursor: not-allowed; }
         @media (prefers-reduced-motion: reduce) {
-            .rt-ui-alert { animation: none; }
             .rt-ui-alert__action { transition: none; }
             .rt-ui-alert__warning-icon { animation: none !important; }
         }
@@ -70,4 +83,5 @@
         @endif
         <div @class(['mt-1' => $title])>{{ $slot }}</div>
     </div>
+</div>
 </div>
