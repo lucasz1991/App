@@ -1,4 +1,5 @@
-<div @class(['rt-disposition rt-disposition--orders', 'space-y-6' => ! $embeddedDetail]) data-operations-orders>
+<div @class(['rt-disposition rt-disposition--orders', 'space-y-6' => ! $embeddedDetail]) data-operations-orders
+    @unless($embeddedDetail) data-service-detail-controller data-service-detail-panel-owner="{{ $this->getId() }}" x-data="rtServiceDetailPanel({ mode: 'orders' })" @endunless>
     @php
         $statusFilterIcons = [
             'all' => 'far fa-list text-rt-muted dark:text-rt-dark-muted',
@@ -47,8 +48,14 @@
             @include('livewire.admin.operations.partials.service-details')
         </div>
     @else
-        <x-operations.panel :id="'order-detail-panel-'.$this->getId()" label="Leistungsdetails" wire:model.live="detailOpen">
-            @include('livewire.admin.operations.partials.service-details')
+        <x-operations.panel :id="'order-detail-panel-'.$this->getId()" label="Leistungsdetails" show-expression="panelVisible">
+            <x-operations.service-detail-shell :owner-id="$this->getId()">
+                @if($selectedOrder)
+                    <div class="rt-service-detail-content" data-service-detail-loaded="{{ $selectedOrder->id }}">
+                        @include('livewire.admin.operations.partials.service-details')
+                    </div>
+                @endif
+            </x-operations.service-detail-shell>
         </x-operations.panel>
     @endif
     <x-dialog-modal wire:model="formOpen" maxWidth="4xl">

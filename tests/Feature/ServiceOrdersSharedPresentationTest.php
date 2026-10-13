@@ -142,7 +142,7 @@ class ServiceOrdersSharedPresentationTest extends TestCase
         $this->assertSame(0, $xpath->query('.//nav[@role="navigation"]', $table)->length);
     }
 
-    public function test_shared_shift_preview_uses_its_host_native_detail_action_instead_of_another_owners_event(): void
+    public function test_shared_shift_preview_uses_the_host_owned_client_request_without_duplicate_native_action(): void
     {
         $order = $this->order();
         $this->shift($order);
@@ -154,13 +154,11 @@ class ServiceOrdersSharedPresentationTest extends TestCase
             $table = $this->table($xpath, $key);
             $button = $xpath->query('.//*[@data-rt-table-label="Schichten"]//button[contains(@class,"rt-service-preview-details")]', $table)->item(0);
             $this->assertInstanceOf(DOMElement::class, $button);
+            $this->assertSame('', $button->getAttribute('wire:click'));
+            $this->assertSame("open = false; \$dispatch('operations-service-detail-request', { id: ".$order->id.', ownerId: $wire.$id })', $button->getAttribute('x-on:click'));
             if ($native) {
-                $this->assertSame('openDetails('.$order->id.')', $button->getAttribute('wire:click'));
-                $this->assertStringNotContainsString('operations-service-detail-request', $button->getAttribute('x-on:click'));
                 $this->assertStringContainsString('Gesamter Auftrag', $xpath->query('.//*[@data-rt-table-label="Schichten"]', $table)->item(0)->textContent);
             } else {
-                $this->assertStringContainsString('operations-service-detail-request', $button->getAttribute('x-on:click'));
-                $this->assertStringContainsString('ownerId: $wire.$id', $button->getAttribute('x-on:click'));
                 $this->assertStringContainsString('Im Zeitraum', $xpath->query('.//*[@data-rt-table-label="Schichten"]', $table)->item(0)->textContent);
             }
         }

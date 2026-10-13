@@ -7,12 +7,18 @@ function serviceId(value) {
     return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
 
-function callsMatch(calls, id) {
+function callsMatch(calls, id, method) {
     return Array.isArray(calls) && calls.length > 0
-        && calls.every(call => call.method === 'openServiceDetails' && serviceId(call.params?.[0]) === id);
+        && calls.every(call => call.method === method && serviceId(call.params?.[0]) === id);
 }
 
-export function serviceDetailPanel() {
+export function serviceDetailPanel(config = {}) {
+    // Only these two existing owners opt in; no arbitrary method/property config.
+    const ordersMode = config?.mode === 'orders';
+    const detailMethod = ordersMode ? 'openDetails' : 'openServiceDetails';
+    const selectionProperty = ordersMode ? 'selectedOrderId' : 'selectedServiceId';
+    const actionPattern = new RegExp(`^\\s*${detailMethod}\\(\\s*(\\d+)\\s*\\)\\s*$`);
+    const rowPattern = ordersMode ? /^orders-row-(\d+)$/ : /^service-overview-row-(\d+)$/;
     return {
         panelVisible: false,
         loading: false,
@@ -51,11 +57,24 @@ export function serviceDetailPanel() {
                 if (!visible) this.closeServiceDetail();
             });
 
+            if (ordersMode) {
+                this.$watch('$wire.detailOpen', visible => {
+                    // The active request owns reveal/late-close synchronization.
+                    if (this.inFlight || this._destroyed) return;
+                    visible ? this.revealServerDetails() : this.closeServiceDetail();
+                });
+            }
+            // Orders may have a preselected ID while the native panel is closed.
+            if (!ordersMode || this.$wire.detailOpen) this.revealServerDetails();
+        },
+
+        revealServerDetails() {
             // A server-rendered selection needs no second request. The native
             // panel is already mounted; its content may finish Alpine setup next tick.
-            const id = serviceId(this.$wire.selectedServiceId);
+            const id = serviceId(this.$wire[selectionProperty]);
             if (id) {
                 this.requestedServiceId = id;
+                this.error = '';
                 this.panelVisible = true;
                 this.loading = !this.hasRenderedDetails(id);
                 if (this.loading) {
@@ -79,6 +98,8 @@ export function serviceDetailPanel() {
             const scope = this.$el ?? this.$root;
             const target = event.target?.nodeType === 1 ? event.target : event.target?.parentElement;
             if (!target?.closest || !scope?.contains(target)) return;
+            const owner = target.closest('[wire\\:id]');
+            if (owner && owner.getAttribute('wire:id') !== String(this.$wire.$id)) return;
 
             // Space belongs to the row only when its shared table explicitly
             // opts into single-click details. Native buttons and previews keep
@@ -87,14 +108,14 @@ export function serviceDetailPanel() {
                 || target.closest('[data-table-row-click]')?.getAttribute('data-table-row-click') !== 'details')) return;
 
             const action = target.closest('[wire\\:click]');
-            const actionMatch = action?.getAttribute('wire:click')?.match(/^\s*openServiceDetails\(\s*(\d+)\s*\)\s*$/);
+            const actionMatch = action?.getAttribute('wire:click')?.match(actionPattern);
             let id = null;
             if (actionMatch && scope.contains(action) && !action.disabled) {
                 id = serviceId(actionMatch[1]);
             } else {
                 if (target.closest(controls)) return;
                 const row = target.closest('[wire\\:key]');
-                const match = row?.getAttribute('wire:key')?.match(/^service-overview-row-(\d+)$/);
+                const match = row?.getAttribute('wire:key')?.match(rowPattern);
                 if (match && scope.contains(row)) id = serviceId(match[1]);
             }
             if (!id) return;
@@ -131,7 +152,14 @@ export function serviceDetailPanel() {
             this.pendingServiceId = null;
             this.loading = false;
             this.error = '';
-            // selectedServiceId and every business state remain server-owned.
+            if (!this.inFlight) this.syncClosedOrder();
+            // Selected IDs and every business state remain server-owned.
+        },
+
+        syncClosedOrder() {
+            // Use native updatedDetailOpen/closeDetails so URL and scope reset
+            // remain authoritative. An in-flight reply is closed in finally.
+            if (ordersMode && !this._destroyed && this.$wire.detailOpen) this.$wire.$set('detailOpen', false, true);
         },
 
         retryServiceDetail() {
@@ -147,7 +175,7 @@ export function serviceDetailPanel() {
         },
 
         renderedDetails(id) {
-            if (serviceId(this.$wire.selectedServiceId) !== id) return null;
+            if (serviceId(this.$wire[selectionProperty]) !== id) return null;
             const scope = this.$el ?? this.$root;
             const marker = `[data-service-detail-loaded="${id}"]`;
             const local = scope?.querySelector(marker);
@@ -224,6 +252,7 @@ export function serviceDetailPanel() {
                 }
             } finally {
                 this.inFlight = false;
+                if (!this.panelVisible) this.syncClosedOrder();
             }
         },
 
@@ -237,7 +266,7 @@ export function serviceDetailPanel() {
                 // component commit so HTTP failures also settle our loader.
                 if (typeof this.$wire.$hook === 'function') {
                     cleanups.push(this.$wire.$hook('commit', ({ commit, fail }) => {
-                        if (commit?.calls?.some(call => call.method === 'openServiceDetails' && serviceId(call.params?.[0]) === id)) {
+                        if (commit?.calls?.some(call => call.method === detailMethod && serviceId(call.params?.[0]) === id)) {
                             fail(() => reject(new Error('Service detail request failed')));
                         }
                     }));
@@ -248,14 +277,14 @@ export function serviceDetailPanel() {
                             if (!Array.isArray(components) || components.length !== 1) return;
                             const snapshot = typeof components[0].snapshot === 'string'
                                 ? JSON.parse(components[0].snapshot) : components[0].snapshot;
-                            if (snapshot?.memo?.id !== this.$wire.$id || !callsMatch(components[0].calls, id)) return;
+                            if (snapshot?.memo?.id !== this.$wire.$id || !callsMatch(components[0].calls, id, detailMethod)) return;
                         } catch { return; }
                         fail(({ status, preventDefault }) => {
                             if (status !== 419) preventDefault();
                         });
                     }));
                 }
-                Promise.resolve(this.$wire.openServiceDetails(id)).then(resolve, reject);
+                Promise.resolve(this.$wire[detailMethod](id)).then(resolve, reject);
             }).finally(() => {
                 cleanups.forEach(cleanup => { if (typeof cleanup === 'function') cleanup(); });
                 if (this._cancelRequest === cancel) this._cancelRequest = null;

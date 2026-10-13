@@ -649,9 +649,16 @@ class Orders extends Component
             return $item;
         }));
 
-        $selectedOrder = $this->selectedOrderId
-            ? $this->scopedQuery()->with(['customer', 'shifts.assignments.user.profile', 'shifts.assignments.user.currentTeam', 'statusHistory.changedBy.profile', 'statusHistory.changedBy.currentTeam'])->findOrFail($this->selectedOrderId)
-            : null;
+        $selectedOrder = null;
+        if ($this->selectedOrderId) {
+            if ($this->detailOpen || $this->embeddedDetail) {
+                $selectedOrder = $this->scopedQuery()->with(['customer', 'shifts.assignments.user.profile', 'shifts.assignments.user.currentTeam', 'statusHistory.changedBy.profile', 'statusHistory.changedBy.currentTeam'])->findOrFail($this->selectedOrderId);
+            } else {
+                // A closed shell needs no detail graph, but an existing public
+                // selection must still be checked against the fresh customer scope.
+                $this->scopedQuery()->select('id')->findOrFail($this->selectedOrderId);
+            }
+        }
 
         $serviceDetailItem = $this->serviceDetailProjection($selectedOrder);
 

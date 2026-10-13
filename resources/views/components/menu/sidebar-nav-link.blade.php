@@ -17,9 +17,10 @@
         href="{{ $href }}"
         data-menu-active="{{ $active ? 'true' : 'false' }}"
         data-rt-sidebar-link
+        data-rt-sidebar-depth="{{ $depth }}"
         wire:current="active"
         @if($active) aria-current="page" @endif
-        @if($depth > 0) style="padding-left: {{ 24 + (8 * $depth) }}px !important" @endif
+        style="--rt-sidebar-depth: {{ (int) $depth }}"
         {{ $attributes->class($classes) }}
         @if($navigate) wire:navigate @endif
     >

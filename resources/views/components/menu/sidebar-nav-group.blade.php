@@ -17,11 +17,12 @@
         href="#"
         data-menu-active="{{ $active ? 'true' : 'false' }}"
         data-rt-sidebar-group
+        data-rt-sidebar-depth="{{ $depth }}"
         role="button"
         aria-controls="{{ $submenuId }}"
         aria-expanded="{{ $active ? 'true' : 'false' }}"
         @keydown.space.prevent="$el.click()"
-        @if($depth > 0) style="padding-left: {{ 24 + (8 * $depth) }}px !important" @endif
+        style="--rt-sidebar-depth: {{ (int) $depth }}"
         {{ $attributes->class($classes) }}
     >
         <span class="sidebar-nav-link__icon" aria-hidden="true">
@@ -35,7 +36,7 @@
         </span>
     </a>
 
-    <ul id="{{ $submenuId }}" @class(['mm-collapse', 'mm-show' => $active])>
+    <ul id="{{ $submenuId }}" data-rt-sidebar-submenu @class(['sidebar-nav-submenu', 'mm-collapse', 'mm-show' => $active])>
         {{ $slot }}
     </ul>
 </li>

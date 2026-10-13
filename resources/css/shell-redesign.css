@@ -821,9 +821,15 @@ body[data-mode='dark'] .rt-shell-sidebar {
     align-items: center;
     min-height: 2.75rem;
     margin-block: 0.14rem;
+    margin-inline: 0.5rem;
     border: 1px solid transparent;
-    border-radius: 0 !important;
+    border-radius: 0.5rem !important;
     isolation: isolate;
+}
+
+.rt-shell-sidebar [data-rt-sidebar-depth] {
+    padding-inline-start: calc(0.875rem + var(--rt-sidebar-depth, 0) * 0.875rem) !important;
+    padding-inline-end: 0.875rem !important;
 }
 
 /* Native planning deliberately omits the legacy theme. Keep the shell's
@@ -865,7 +871,7 @@ body[data-mode='dark'] .rt-shell-sidebar {
     inset: 0;
     z-index: -1;
     content: '';
-    border-radius: 0;
+    border-radius: inherit;
     background: transparent;
     transition:
         background-color 180ms ease,
@@ -961,22 +967,93 @@ body[data-mode='dark'] .rt-shell-sidebar [data-rt-sidebar-group][data-menu-activ
 .rt-shell-sidebar li.mm-active > ul.mm-collapse,
 .rt-shell-sidebar li.mm-active > ul.mm-collapsing {
     position: relative;
-    margin-inline: 0;
-    padding-block: 0.25rem 0.35rem;
-    border: 1px solid rgba(228, 0, 43, 0.08);
-    border-top: 0;
-    border-radius: 0 !important;
-    background:
-        linear-gradient(180deg, rgba(228, 0, 43, 0.035), rgba(255, 255, 255, 0.42)) !important;
+    margin: 0.25rem 0.5rem 0.5rem;
+    padding-block: 0.25rem;
+    border: 1px solid var(--rt-shell-line) !important;
+    border-radius: 0.625rem !important;
+    background: var(--rt-shell-panel) !important;
 }
 
-html.dark .rt-shell-sidebar li.mm-active > ul.mm-collapse,
-html.dark .rt-shell-sidebar li.mm-active > ul.mm-collapsing,
-body[data-mode='dark'] .rt-shell-sidebar li.mm-active > ul.mm-collapse,
-body[data-mode='dark'] .rt-shell-sidebar li.mm-active > ul.mm-collapsing {
-    border-color: rgba(255, 113, 137, 0.1);
-    background:
-        linear-gradient(180deg, rgba(228, 0, 43, 0.07), rgba(15, 23, 42, 0.4)) !important;
+/* The guide belongs to each native submenu, not the active destination.
+   Keep the MetisMenu height/visibility lifecycle and the 44px targets intact. */
+.rt-shell-sidebar .sidebar-nav-submenu::before {
+    position: absolute;
+    inset-block: 0.875rem;
+    inset-inline-start: 0.875rem;
+    width: 1px;
+    content: '';
+    background: var(--rt-shell-line-strong);
+    pointer-events: none;
+}
+
+.rt-shell-sidebar #sidebar-menu [data-rt-sidebar-group] {
+    color: var(--rt-shell-text) !important;
+    font-weight: 650;
+}
+
+.rt-shell-sidebar #sidebar-menu [data-rt-sidebar-group][aria-expanded='true'] {
+    border-color: var(--rt-shell-line) !important;
+    background: var(--rt-shell-sidebar) !important;
+    box-shadow: none !important;
+}
+
+.rt-shell-sidebar #sidebar-menu [data-rt-sidebar-group]::before {
+    background: var(--rt-shell-line-strong);
+}
+
+.rt-shell-sidebar .sidebar-nav-submenu [data-rt-sidebar-link] {
+    font-size: 0.8125rem;
+    font-weight: 500;
+}
+
+.rt-shell-sidebar .sidebar-nav-submenu .sidebar-nav-link__label {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    line-height: 1.35;
+}
+
+.rt-shell-sidebar .sidebar-nav-submenu .sidebar-nav-link__icon svg {
+    width: 1rem !important;
+    height: 1rem !important;
+}
+
+.rt-shell-sidebar #sidebar-menu [data-rt-sidebar-link][data-menu-active='true'] {
+    border-color: rgba(228, 0, 43, 0.18) !important;
+    background: #ffe5eb !important;
+    box-shadow: none !important;
+    font-weight: 650;
+}
+
+html.dark .rt-shell-sidebar #sidebar-menu [data-rt-sidebar-link][data-menu-active='true'],
+body[data-mode='dark'] .rt-shell-sidebar #sidebar-menu [data-rt-sidebar-link][data-menu-active='true'] {
+    border-color: rgba(255, 113, 137, 0.25) !important;
+    background: #321b25 !important;
+}
+
+/* In the native compact desktop rail, all icons must remain centered.
+   Indentation/frames return only when its existing expanded state opens. */
+@media (min-width: 1024px) {
+    body[data-sidebar-collapsible='true']:not([data-sidebar-expanded='true']) .rt-shell-sidebar [data-rt-sidebar-depth] {
+        margin-inline: 0;
+        padding-inline: var(--webreach-sidebar-collapsed-padding) !important;
+    }
+
+    body[data-sidebar-collapsible='true']:not([data-sidebar-expanded='true']) .rt-shell-sidebar .sidebar-nav-submenu {
+        margin-inline: 0;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+    }
+
+    body[data-sidebar-collapsible='true']:not([data-sidebar-expanded='true']) .rt-shell-sidebar .sidebar-nav-submenu::before {
+        display: none;
+    }
+
+    body[data-sidebar-collapsible='true']:not([data-sidebar-expanded='true']) .rt-shell-sidebar .sidebar-nav-submenu .sidebar-nav-link__label {
+        overflow: hidden;
+        white-space: nowrap;
+    }
 }
 
 /* -------------------------------------------------------------------------- */
