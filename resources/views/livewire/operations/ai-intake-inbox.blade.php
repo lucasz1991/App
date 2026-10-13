@@ -21,7 +21,7 @@
             @endif
         </div>
         @if($ready)
-            <div class="ai-intake-panel__composer" @if($detailOpen && $selected) id="intake-{{ $this->getId() }}-panel-assistant" role="tabpanel" aria-labelledby="intake-{{ $this->getId() }}-tab-assistant" @endif @if($captureOpen) hidden @endif>
+            <div class="ai-intake-panel__composer" @if($detailOpen && $selected) id="intake-{{ $this->getId() }}-panel-assistant" @if($detailTab === 'assistant') role="tabpanel" aria-labelledby="intake-{{ $this->getId() }}-tab-assistant" @else role="region" aria-label="Fragen zu diesem Eingang" @endif @endif @if($captureOpen) hidden @endif>
                 <livewire:operations.ai-intake-assistant :initial-intake-id="$detailOpen ? $selectedId : null" :customer-id="$customerId" :overview="true" :host-component-id="$this->getId()" :key="'inbox-assistant-'.$this->getId()" />
             </div>
         @endif

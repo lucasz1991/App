@@ -347,12 +347,13 @@ class ShiftManagementViewsTest extends TestCase
             }
             $xpath = new \DOMXPath($document);
             $options = $xpath->query('//button[@role="menuitemradio" and @*[name()="wire:click"]]');
-            $this->assertSame(5, $options->length);
+            $this->assertSame(6, $options->length);
             $labels = [];
             foreach ($options as $option) {
                 $labels[] = trim($xpath->query('.//strong', $option)->item(0)->textContent);
             }
-            $this->assertSame(['Tabelle', 'Tagesübersicht', 'Besetzung', 'Leistungsübersicht', 'Zeitleiste'], $labels);
+            $this->assertSame(['Tabelle', 'Tagesübersicht', 'Besetzung', 'Leistungsübersicht', 'Zeitleiste', 'Karte'], $labels);
+            $this->assertSame("setView('map')", $options->item(5)->getAttribute('wire:click'));
             $calendar = $xpath->query('//a[@data-shift-calendar-link]')->item(0);
             $this->assertNotNull($calendar);
             $this->assertSame('menuitem', $calendar->getAttribute('role'));
@@ -360,6 +361,7 @@ class ShiftManagementViewsTest extends TestCase
             $this->assertSame(OperationsPages::url('cases', ['view' => 'shifts', 'section' => 'calendar', 'order' => $orderFilter !== 'all' ? (int) $orderFilter : null, 'from' => $component->instance()->rangeFrom, 'until' => $component->instance()->rangeTo]), $calendar->getAttribute('href'));
         }
         $component->call('setView', 'orders')->assertDispatched('shift-plan-view-changed', view: 'orders');
+        $component->call('setView', 'map')->assertDispatched('shift-plan-view-changed', view: 'map');
     }
 
     public function test_distribution_recovers_when_the_current_last_page_is_completed(): void

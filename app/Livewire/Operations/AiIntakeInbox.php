@@ -82,9 +82,12 @@ class AiIntakeInbox extends Component
     #[Locked]
     public bool $embedded = false;
 
+    #[Locked]
+    public ?string $parentComponentId = null;
+
     public string $detailTab = 'review';
 
-    public function mount(?int $customerId = null, ?int $initialIntakeId = null, bool $modalOnly = false, bool $embedded = false, bool $initialCapture = false): void
+    public function mount(?int $customerId = null, ?int $initialIntakeId = null, bool $modalOnly = false, bool $embedded = false, bool $initialCapture = false, ?string $parentComponentId = null): void
     {
         $this->actor();
         if ($customerId) {
@@ -93,6 +96,7 @@ class AiIntakeInbox extends Component
         $this->customerId = $customerId;
         $this->modalOnly = $modalOnly;
         $this->embedded = $embedded;
+        $this->parentComponentId = $parentComponentId;
         if ($initialIntakeId) {
             $this->select($initialIntakeId);
         } elseif ($modalOnly || $initialCapture) {
@@ -150,12 +154,12 @@ class AiIntakeInbox extends Component
     }
 
     #[On('open-ai-intake')]
-    public function open(?int $intakeId = null, bool $create = false): void
+    public function open(?int $intakeId = null, bool $create = false, ?string $parentComponentId = null): void
     {
-        $this->actor();
-        if (! $this->embedded) {
+        if (! $this->embedded || ($parentComponentId !== null && $parentComponentId !== $this->parentComponentId)) {
             return;
         }
+        $this->actor();
         if ($intakeId) {
             $this->select($intakeId);
         } elseif ($create) {

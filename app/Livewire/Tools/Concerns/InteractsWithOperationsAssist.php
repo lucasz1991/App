@@ -79,7 +79,7 @@ trait InteractsWithOperationsAssist
         $this->operationsIntakeId = $intakeId;
         $this->operationsIntakeCapture = $create;
         if ($this->operationsIntakeMounted && $this->operationsIntakeCustomerId === $customerId) {
-            $this->dispatch('open-ai-intake', intakeId: $intakeId, create: $create)->to(AiIntakeInbox::class);
+            $this->dispatch('open-ai-intake', intakeId: $intakeId, create: $create, parentComponentId: $this->getId())->to(AiIntakeInbox::class);
         } else {
             $this->operationsIntakeCustomerId = $customerId;
             $this->operationsIntakeMounted = true;

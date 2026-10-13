@@ -5,14 +5,14 @@ namespace App\Services\Operations;
 use App\Models\AiIntake;
 use App\Models\AiIntakeRun;
 use App\Services\Ai\AssistantSpeechRouter;
-use App\Services\Ai\Attachments\AssistantAttachmentBatch;
 use App\Services\Ai\Attachments\AssistantAttachment;
+use App\Services\Ai\Attachments\AssistantAttachmentBatch;
 use App\Services\Ai\Attachments\AssistantAttachmentProcessor;
 use App\Services\Ai\OpenRouterModelProfile;
 use App\Support\Operations\AiDispositionSettings;
 use App\Support\Operations\OperationsAccess;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Validation\ValidationException;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use ZipArchive;
 

@@ -527,6 +527,7 @@
                     </svg>
                 </button>
 
+                @if(!$operationsAvailable || $operationsTab === 'chat')
                 <button
                     type="button"
                     class="rt-chatbot__icon-button"
@@ -540,6 +541,7 @@
                         <path d="M8.5 6.5h7M9 6.5l.6-2h4.8l.6 2M7 8.5l.75 10h8.5l.75-10M10 10.5v5.5M14 10.5v5.5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
                 </button>
+                @endif
 
                 <button
                     type="button"
@@ -677,6 +679,7 @@
                     x-effect="if (!open || operationsTab !== 'intake') $dispatch('ai-intake-panel-hidden')">
                     <livewire:operations.ai-intake-inbox :embedded="true" :customer-id="$operationsIntakeCustomerId"
                         :initial-intake-id="$operationsIntakeId" :initial-capture="$operationsIntakeCapture"
+                        :parent-component-id="$this->getId()"
                         :key="'global-assist-intake-'.($operationsIntakeCustomerId ?? 'all')" />
                 </div>
             @endif

@@ -289,10 +289,12 @@ final class TimelineLocationPreviewTest extends TestCase
         self::assertSame('Stadtmitte · ungefähr', $this->preview('München')['label']);
     }
 
-    public function test_unreviewed_ambiguous_places_remain_unlocated(): void
+    public function test_ambiguous_places_have_explicit_display_proposals_only(): void
     {
         foreach (['Neustadt', 'Sulzdorf', 'Sulzdorf Bahnhof'] as $name) {
-            self::assertSame(['state' => 'ambiguous', 'label' => 'Ort nicht eindeutig'], $this->preview($name));
+            self::assertTrue($this->preview($name)['estimated']);
+            self::assertSame('Ortsvorschlag · ungefähr', $this->preview($name)['label']);
+            self::assertSame('ambiguous', TimelineLocationPreview::forRegionalAssessment(new Shift(['location_name' => $name]))['state']);
         }
     }
 
@@ -310,8 +312,6 @@ final class TimelineLocationPreviewTest extends TestCase
     public static function cityCentreLocations(): array
     {
         return [
-            ['München Freimann', 'München'],
-            ['München Laim', 'München'],
             ['München Nord', 'München'],
             ['München Hbf.', 'München'],
             ['München, Nord', 'München'],
@@ -322,11 +322,8 @@ final class TimelineLocationPreviewTest extends TestCase
             ['Berlin', 'Berlin'],
             ['Berlin Hbf', 'Berlin'],
             ['Neumünster', 'Neumünster'],
-            ['Neumuenster Bahnhof', 'Neumünster'],
             ['Schwandorf', 'Schwandorf'],
             ['Schwandorf in Bayern', 'Schwandorf'],
-            ['Hamburg-Eidelstedt', 'Hamburg'],
-            ['Leipzig-Plagwitz', 'Leipzig'],
             ['Bahnhof München', 'München'],
         ];
     }
@@ -336,8 +333,12 @@ final class TimelineLocationPreviewTest extends TestCase
         $preview = $this->preview('Treuchtlingen');
 
         self::assertSame('Ortslage · ungefähr', $preview['label']);
-        foreach (['Treuchtlingen Bahnhof', 'Treuchtlingen Rbf.', 'Treuchlingen', 'Treuchlingen Bahnhof'] as $location) {
+        foreach (['Treuchlingen', 'Treuchlingen Bahnhof'] as $location) {
             self::assertSame($preview, $this->preview($location));
+        }
+        foreach (['Treuchtlingen Bahnhof', 'Treuchtlingen Rbf.'] as $location) {
+            self::assertSame(11972780, $this->preview($location)['geonames_id']);
+            self::assertSame('Bahnhofslage · ungefähr', $this->preview($location)['label']);
         }
     }
 
@@ -355,7 +356,6 @@ final class TimelineLocationPreviewTest extends TestCase
             'unreviewed typo' => ['Treutlingen'],
             'arbitrary suffix' => ['Treuchtlingen Irgendwo'],
             'address' => ['Treuchtlingen, Bahnhofstraße 1'],
-            'conflicting cities' => ['München / Hamburg'],
             'conflicting city suffix' => ['München Hamburg'],
             'two cities and station' => ['München Hamburg Bahnhof'],
             'foreign city prefix' => ['Wien München'],
@@ -363,7 +363,6 @@ final class TimelineLocationPreviewTest extends TestCase
             'qualifier foreign suffix' => ['München Hbf Österreich'],
             'country code suffix' => ['Hamburg AT'],
             'arbitrary railway prefix' => ['Bahnstrecke München'],
-            'other full name sharing prefix' => ['Berlinchen'],
             'unreviewed district' => ['München Unbekannter Stadtteil'],
             'unknown place with station qualifier' => ['Atlantis Bahnhof'],
             'coordinates' => ['48.95473,10.90833'],
@@ -395,21 +394,23 @@ final class TimelineLocationPreviewTest extends TestCase
 
     public function test_source_backed_city_districts_and_railway_names_resolve_without_fuzzy_matching(): void
     {
-        foreach (['München-Pasing', 'München Pasing', 'München-Pasing Bahnhof', 'Muenchen-Pasing', 'München – Pasing'] as $location) {
-            self::assertSame($this->preview('München'), $this->preview($location), $location);
+        foreach (['München-Pasing', 'München Pasing', 'Muenchen-Pasing', 'München – Pasing'] as $location) {
+            self::assertSame(2855334, $this->preview($location)['geonames_id'], $location);
+            self::assertSame('Stadtteillage · ungefähr', $this->preview($location)['label']);
         }
+        self::assertSame(2867691, $this->preview('München-Pasing Bahnhof')['geonames_id']);
         self::assertSame('München-Pasing', $this->preview('Bahnhof München-Pasing')['place']);
         self::assertSame('Bahnhofslage · ungefähr', $this->preview('Bahnhof München-Pasing')['label']);
         self::assertSame('München-Berg am Laim', $this->preview('München Berg am Laim')['place']);
-        self::assertSame($this->preview('Hamburg'), $this->preview('Hamburg-Harburg'));
-        self::assertSame($this->preview('Berlin'), $this->preview('Berlin Lichtenberg'));
+        self::assertSame(2911289, $this->preview('Hamburg-Harburg')['geonames_id']);
+        self::assertSame(11973036, $this->preview('Berlin Lichtenberg')['geonames_id']);
         $station = $this->preview('Ingolstadt Hbf');
         self::assertSame('located', $station['state']);
         self::assertSame('Bahnhofslage · ungefähr', $station['label']);
         self::assertSame('Ingolstadt Hbf', $station['place']);
         self::assertSame($station, $this->preview('Ingolstadt Hauptbahnhof'));
         self::assertSame($station, $this->preview('Ingolstadt Hbf.'));
-        foreach (['München-Pasing Wien', 'München-Pasing / Hamburg', 'München-Pasingstraße 1', 'Bahnhof Wien München', 'München Unbekannter Stadtteil'] as $location) {
+        foreach (['München-Pasing Wien', 'München-Pasingstraße 1', 'Bahnhof Wien München', 'München Unbekannter Stadtteil'] as $location) {
             self::assertSame('unknown', $this->preview($location)['state'], $location);
         }
     }
@@ -422,9 +423,9 @@ final class TimelineLocationPreviewTest extends TestCase
         foreach (['Frankfurt(Oder)', 'Frankfurt (Oder) Hbf', 'Frankfurt(Oder)Hbf'] as $location) {
             self::assertSame($this->preview('Frankfurt (Oder)'), $this->preview($location));
         }
-        self::assertSame('unknown', $this->preview('Frankfurt')['state']);
+        self::assertTrue($this->preview('Frankfurt')['estimated']);
         self::assertNotSame($this->preview('Frankfurt am Main')['x'], $this->preview('Frankfurt (Oder)')['x']);
-        self::assertSame('unknown', $this->preview('Frankfurt (Main) / Frankfurt (Oder)')['state']);
+        self::assertCount(2, $this->preview('Frankfurt (Main) / Frankfurt (Oder)')['points']);
         self::assertSame('located', $this->preview('Hanau Hbf')['state']);
     }
 
@@ -439,7 +440,7 @@ final class TimelineLocationPreviewTest extends TestCase
 
     public function test_postcode_disambiguates_only_matching_city_and_keeps_precision_label(): void
     {
-        self::assertSame('ambiguous', $this->preview('Rain')['state']);
+        self::assertTrue($this->preview('Rain')['estimated']);
         $order = new Order(['location_name' => 'Depot', 'city' => 'Rain', 'postal_code' => '86641', 'country' => 'DE']);
         $preview = TimelineLocationPreview::fromOrder($order);
         self::assertSame('located', $preview['state']);
@@ -449,7 +450,7 @@ final class TimelineLocationPreviewTest extends TestCase
         self::assertSame($preview, $this->preview('DE-86641 Rain'));
         self::assertSame('unknown', $this->preview('10115 Rain')['state']);
         self::assertSame('unknown', $this->preview('86641 Wien')['state']);
-        self::assertSame('unknown', $this->preview('86641 Rain / Hamburg')['state']);
+        self::assertCount(2, $this->preview('86641 Rain / Hamburg')['points']);
         self::assertSame('outside', TimelineLocationPreview::fromOrder(new Order(['city' => 'Rain', 'postal_code' => '86641', 'country' => 'AT']))['state']);
     }
 
@@ -471,7 +472,7 @@ final class TimelineLocationPreviewTest extends TestCase
         self::assertSame($this->preview('München'), $this->preview(null, $order));
         self::assertSame($this->preview('Hamburg'), $this->preview('Hamburg', $order));
         self::assertSame('unknown', $this->preview('Unbekannter Einsatzort', $order)['state']);
-        self::assertSame('ambiguous', $this->preview('Rain', $order)['state']);
+        self::assertSame($this->preview('Rain'), $this->preview('Rain', $order));
     }
 
     public function test_inquiry_uses_only_explicit_worksite_and_does_not_query_relationships(): void
@@ -484,7 +485,7 @@ final class TimelineLocationPreviewTest extends TestCase
             }
         };
         $inquiry->forceFill(['location_name' => 'München-Pasing', 'contact_name' => 'Hamburg', 'original' => 'Hamburg', 'order_id' => 42]);
-        self::assertSame($this->preview('München'), TimelineLocationPreview::fromInquiry($inquiry));
+        self::assertSame($this->preview('München-Pasing'), TimelineLocationPreview::fromInquiry($inquiry));
         self::assertFalse($inquiry->relationLoaded('order'));
         $inquiry->location_name = null;
         $inquiry->setRelation('order', new Order(['location_name' => 'Hamburg']));
@@ -589,7 +590,8 @@ final class TimelineLocationPreviewTest extends TestCase
         self::assertSame('Hamburg', TimelineLocationPreview::fromShift($shift)['place']);
 
         $shift->location_name = 'Neustadt';
-        self::assertSame(['state' => 'ambiguous', 'label' => 'Ort nicht eindeutig'], TimelineLocationPreview::fromShift($shift));
+        self::assertTrue(TimelineLocationPreview::fromShift($shift)['estimated']);
+        self::assertSame('ambiguous', TimelineLocationPreview::forRegionalAssessment($shift)['state']);
     }
 
     public function test_shared_projection_places_treuchtlingen_northwest_of_munich(): void

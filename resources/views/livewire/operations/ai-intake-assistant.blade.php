@@ -1,7 +1,8 @@
 <section class="{{ $overview ? 'rt-ai-intake-assistant min-w-0' : 'rt-ai-assist__card mb-4' }}" aria-label="AI-Eingang besprechen" x-data
-    x-on:ai-intake-assistant-selected.window="if ($event.detail.componentId === @js($this->getId())) $nextTick(() => $el.querySelector('.rt-intake-composer__input')?.focus())">
-    <div wire:loading.attr="inert" wire:target="ask,review,submitPrompt,select,reloadContext,close">
-    <fieldset class="min-w-0 border-0 p-0" wire:loading.attr="disabled" wire:target="ask,review,submitPrompt,select,reloadContext,close">
+    x-on:ai-intake-assistant-selected.window="if ($event.detail.componentId === @js($this->getId())) $nextTick(() => $el.querySelector('.rt-intake-composer__input')?.focus())"
+    x-on:ai-intake-discussion-open.window="if ($event.detail.componentId === @js($hostComponentId)) $nextTick(() => $el.querySelector('.rt-intake-composer__input')?.focus())">
+    <div class="rt-ai-intake-assistant__body" wire:loading.attr="inert" wire:target="ask,review,submitPrompt,select,reloadContext,close">
+    <fieldset class="rt-ai-intake-assistant__fields min-w-0 border-0 p-0" wire:loading.attr="disabled" wire:target="ask,review,submitPrompt,select,reloadContext,close">
         @if(!$overview)<div class="rt-ai-assist__card-head">
             <i class="far fa-comment-alt" aria-hidden="true"></i>
             <strong>{{ $intake ? ($intake->title ?: 'Eingang #'.$intake->id) : 'Eingang mit AI besprechen' }}</strong>
@@ -15,7 +16,7 @@
         @elseif($intake || $overview)
             @if(!$overview)<p class="rt-ai-assist__card-note">Fragen zum Original stellen oder die Erkennung mit einem konkreten Hinweis korrigieren. Antworten beziehen sich nur auf diesen Eingang.</p>@endif
             @if($history->isNotEmpty())
-                <ol class="grid gap-3 p-3" aria-label="Fragen zu diesem Eingang">
+                <ol class="rt-ai-intake-assistant__history grid gap-3 p-3" aria-label="Fragen zu diesem Eingang">
                     @foreach($history as $run)
                         <li class="grid min-w-0 gap-1" wire:key="intake-question-{{ $run->id }}">
                             <strong class="text-sm whitespace-pre-wrap break-words">{{ ($run->configuration['prompt'] ?? '') ?: 'Datei- oder Sprachhinweis' }}</strong>
@@ -34,7 +35,7 @@
                     @endforeach
                 </ol>
             @endif
-            <div class="p-3">@include('livewire.operations.partials.ai-intake-composer', ['composerMode' => 'assistant'])</div>
+            <div class="rt-ai-intake-assistant__composer p-3">@include('livewire.operations.partials.ai-intake-composer', ['composerMode' => 'assistant'])</div>
             @if($intake && !$overview)<div class="rt-ai-assist__card-buttons"><a class="rt-ai-assist__btn" href="{{ $intakeUrl }}">Ergebnis und Original im Eingang prüfen</a></div>@endif
         @else
             <p class="rt-ai-assist__card-note">Bei einem Eingang „Mit AI besprechen“ wählen. Anschließend kannst du Fragen stellen und Hinweise zur Erkennung geben.</p>

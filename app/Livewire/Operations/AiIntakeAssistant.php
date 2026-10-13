@@ -4,10 +4,10 @@ namespace App\Livewire\Operations;
 
 use App\Models\AiIntake;
 use App\Models\User;
-use App\Services\Ai\OpenRouterChatException;
 use App\Services\Ai\AssistantSpeechException;
 use App\Services\Ai\Attachments\AssistantAttachmentException;
 use App\Services\Ai\Attachments\AssistantAttachmentProcessor;
+use App\Services\Ai\OpenRouterChatException;
 use App\Services\Operations\AiIntakeAssistantService;
 use App\Services\Operations\AiIntakeMessageContent;
 use App\Services\Operations\AiIntakeService;
@@ -291,6 +291,7 @@ class AiIntakeAssistant extends Component
         if ($this->overview && ! $this->intakeId) {
             return 'overview:'.$this->customerId.':'.$this->overviewFingerprint.':'.$this->settingsRevision;
         }
+
         return implode(':', [$this->intakeId, $this->intakeRevision, $this->sourceRevision, $this->settingsRevision]);
     }
 
@@ -349,6 +350,7 @@ class AiIntakeAssistant extends Component
                 $this->prompt = $this->feedback = '';
                 $this->discardTemporaryUploads();
             }
+
             return null;
         }
         $intake = AiIntake::findOrFail($this->intakeId);
@@ -440,6 +442,6 @@ class AiIntakeAssistant extends Component
 
         return view('livewire.operations.ai-intake-assistant', ['intake' => $intake, 'history' => $history, 'overviewHistory' => $overviewHistory,
             'canReview' => $intake?->source_type === 'email' && ! $intake->paused_at && ! in_array($intake->status, ['paused', 'completed', 'not_inquiry', 'analyzing'], true),
-            'intakeUrl' => $intake ? OperationsPages::url('cases', ['view' => 'inbox', 'section' => 'ai-intake', 'source' => 'ai-intake', 'record' => $intake->id]) : null]);
+            'intakeUrl' => $intake ? OperationsPages::intakePanelUrl($intake->id, $this->customerId) : null]);
     }
 }

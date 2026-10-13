@@ -83,6 +83,8 @@ class AiAssist extends Component
     {
         OperationsAccess::authorize($this->actor(), 'operations.inquiries.manage');
         AiIntakeSchema::requireReady();
+        abort_unless(($intakeId === null || $intakeId > 0) && ($customerId === null || $customerId > 0)
+            && ! ($intakeId !== null && $create), 422);
         if ($customerId !== null) {
             Customer::findOrFail($customerId);
         }
@@ -97,7 +99,7 @@ class AiAssist extends Component
         $this->loaded = $this->intakeMounted = $this->intakeRequested = true;
         $this->tab = 'intake';
         if ($existing) {
-            $this->dispatch('open-ai-intake', intakeId: $intakeId, create: $this->intakeCapture);
+            $this->dispatch('open-ai-intake', intakeId: $intakeId, create: $this->intakeCapture, parentComponentId: $this->getId());
         }
         $this->dispatch('ai-assist-intake-opened', componentId: $this->getId());
     }

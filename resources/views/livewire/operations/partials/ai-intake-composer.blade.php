@@ -17,16 +17,16 @@
         <label class="sr-only" for="{{ $composerId }}-contact">Antwortadresse</label>
         <x-ui.forms.input id="{{ $composerId }}-contact" wire:model="contactEmail" type="email" placeholder="Antwortadresse (optional)" />
         <x-ui.forms.input-error for="contactEmail" />
-    @else
+    @elseif($canReview ?? false)
         <div class="rt-intake-composer__mode flex flex-wrap items-center gap-2 text-xs">
             <label class="sr-only" for="{{ $composerId }}-mode">Frage oder Prüfhinweis</label>
-            <select id="{{ $composerId }}-mode" wire:model="promptMode" class="min-w-0 rounded-lg border border-rt-border bg-rt-surface px-2 py-1.5 text-sm"
-                x-bind:disabled="busy || recording || requesting || uploadActive || uploading">
+            <x-ui.forms.select id="{{ $composerId }}-mode" wire:model="promptMode" class="rt-intake-composer__mode-select min-w-0">
                 <option value="question">Frage stellen</option>
                 @if($canReview ?? false)<option value="review">Mit Hinweis erneut prüfen</option>@endif
-            </select>
-            <span class="ops-muted">Zusatzhinweise ersetzen keine Originalbelege.</span>
+            </x-ui.forms.select>
         </div>
+    @elseif($overview ?? false)
+        <span class="rt-intake-composer__scope text-xs ops-muted">{{ $intakeId ? 'Ausgewählter Eingang' : ($customerId ? 'Eingänge dieses Kunden' : 'Alle Eingänge') }}</span>
     @endif
     @if($fileCount)
         <div class="rt-intake-composer__files flex min-w-0 flex-wrap gap-1.5" aria-label="Ausgewählte Dateien">
@@ -69,7 +69,7 @@
             aria-describedby="intake-assistant-help-{{ $this->getId() }}"></textarea>
         <button type="submit" class="rt-intake-composer__send shrink-0 rounded-lg bg-rt-red p-2 text-white" x-bind:disabled="!canSubmit()" aria-label="{{ $assistantComposer ? 'Frage oder Prüfhinweis senden' : 'Als AI-Eingang erfassen' }}"><i class="far fa-paper-plane" aria-hidden="true"></i></button>
     </div>
-    <p id="intake-assistant-help-{{ $this->getId() }}" class="text-xs ops-muted">{{ $assistantComposer ? 'Ergänzte Dateien und Sprache dienen nur dieser Prüfung als Zusatzhinweis, nicht als Originalanlage. Erneutes Prüfen aktualisiert unverbindliche Vorschläge; Originalbelege und persönliche Freigaben bleiben maßgeblich.' : 'Der Eingang wird zur persönlichen Prüfung erfasst. Enter sendet, Umschalt+Enter fügt einen Absatz hinzu.' }}</p>
+    <p id="intake-assistant-help-{{ $this->getId() }}" class="text-xs ops-muted" title="{{ $assistantComposer ? 'Zusatzdateien und Sprache werden nur für diese Frage oder Prüfung verwendet, nicht als Originalanlagen gespeichert. Freigaben bleiben persönlich; Umschalt+Enter fügt einen Absatz hinzu.' : 'Der Eingang wird zur persönlichen Prüfung erfasst; Umschalt+Enter fügt einen Absatz hinzu.' }}">{{ $assistantComposer ? 'Dateien und Sprache: Zusatzhinweise nur für diese Prüfung.' : 'Unverbindlich zur Prüfung erfassen.' }}</p>
     @foreach([$composerField, 'promptMode', 'uploads', 'uploads.*', 'audioUpload'] as $errorField)
         @error($errorField)<p class="rt-ai-assist__error text-sm text-rt-red" role="alert">{{ $message }}</p>@enderror
     @endforeach

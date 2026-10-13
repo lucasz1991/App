@@ -5,6 +5,7 @@ namespace App\Livewire\Operations;
 use App\Enums\OrderStatus;
 use App\Enums\ShiftAssignmentStatus;
 use App\Enums\ShiftStatus;
+use App\Livewire\Concerns\InteractsWithPersonQuickActions;
 use App\Models\AbsenceRequest;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
@@ -28,6 +29,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -41,6 +43,11 @@ use Livewire\WithPagination;
 
 class StaffTimeline extends Component
 {
+    use InteractsWithPersonQuickActions {
+        openDirectChat as private openTimelineDirectChat;
+        startDirectCall as private startTimelineDirectCall;
+        openMessage as private openTimelineMessage;
+    }
     use WithoutUrlPagination, WithPagination;
 
     private const INITIAL_BATCH_SIZE = 24;
@@ -61,6 +68,21 @@ class StaffTimeline extends Component
     public string $renderedPeriod = '';
 
     public string $search = '';
+
+    /** Display filters never narrow staffing checks or calculated workload. */
+    public mixed $staffPresence = 'all';
+
+    public mixed $shiftRole = 'all';
+
+    public mixed $shiftStatus = 'all';
+
+    public mixed $assignmentStatusFilter = 'all';
+
+    private array $previousDisplayFilters = [];
+
+    private bool $displayFiltersHandled = false;
+
+    private bool $displayFiltersRejected = false;
 
     #[Locked]
     public bool $absencesOnly = false;
@@ -346,6 +368,48 @@ class StaffTimeline extends Component
         $this->resetValidation();
     }
 
+    public function openDirectChat(int $userId)
+    {
+        $this->authorizeTimelineAction();
+
+        return $this->openTimelineDirectChat($userId);
+    }
+
+    public function startDirectCall(int $userId, string $mode)
+    {
+        $viewer = $this->authorizeTimelineAction();
+        abort_unless($viewer->isAdmin() || $viewer->hasRbacPermission('calls.start'), 403);
+
+        return $this->startTimelineDirectCall($userId, $mode);
+    }
+
+    public function openMessage(int $userId): void
+    {
+        $viewer = $this->authorizeTimelineAction();
+        Gate::forUser($viewer)->authorize('users.messages.create');
+        $this->quickActionTarget($userId);
+        $this->openTimelineMessage($userId);
+    }
+
+    protected function quickActionTarget(int $userId): User
+    {
+        $other = User::query()->with('currentTeam')->where('role', 'staff')->where('status', true)->findOrFail($userId);
+        abort_if($other->is(auth()->user()), 422);
+
+        return $other;
+    }
+
+    private function authorizeTimelineAction(): User
+    {
+        $viewer = auth()->user()?->fresh();
+        abort_unless($viewer instanceof User && $viewer->status, 403);
+        OperationsAccess::authorize($viewer, 'operations.manage');
+        OperationsAccess::requireReady();
+        abort_unless($this->planningEnabled && ! $this->absencesOnly, 403);
+
+        return $viewer;
+    }
+
     public function mount(): void
     {
         $this->renderedPeriod = $this->from.'|'.$this->until;
@@ -359,6 +423,76 @@ class StaffTimeline extends Component
     public function updatedSearch(): void
     {
         $this->resetPage('staffPage');
+        $this->invalidateFilterPresentation();
+    }
+
+    public function updating(string $property, mixed $value): void
+    {
+        if (! in_array($property, ['staffPresence', 'shiftRole', 'shiftStatus', 'assignmentStatusFilter'], true)) {
+            return;
+        }
+        $this->authorizeTimelineAction();
+        $this->previousDisplayFilters[$property] = $this->{$property};
+    }
+
+    public function updated(string $property): void
+    {
+        if (! in_array($property, ['staffPresence', 'shiftRole', 'shiftStatus', 'assignmentStatusFilter'], true) || $this->displayFiltersHandled) {
+            return;
+        }
+        $this->displayFiltersHandled = true;
+        $rules = $this->timelineFilterRules();
+        if (isset($this->previousDisplayFilters['shiftRole']) && $this->shiftRole !== 'all') {
+            $rules['shiftRole'][] = Rule::exists('shifts', 'role_name')->whereNull('deleted_at')->whereNot('status', ShiftStatus::Cancelled->value);
+        }
+        $validator = Validator::make($this->only(array_keys($rules)), $rules);
+        if ($validator->fails()) {
+            // Livewire catches pre-update ValidationExceptions but still assigns
+            // inputs. Restore the whole filter update atomically instead so
+            // malformed values never reach the next display projection.
+            foreach ($this->previousDisplayFilters as $name => $previous) {
+                $this->{$name} = $previous;
+            }
+            $this->setErrorBag($validator->errors());
+            $this->displayFiltersRejected = true;
+
+            return;
+        }
+        if (isset($this->previousDisplayFilters['staffPresence'])) {
+            $this->resetPage('staffPage');
+        }
+        $this->invalidateFilterPresentation();
+    }
+
+    public function resetTimelineFilters(): void
+    {
+        $this->authorizeTimelineAction();
+        $this->reset(['search', 'staffPresence', 'shiftRole', 'shiftStatus', 'assignmentStatusFilter']);
+        $this->resetPage('staffPage');
+        $this->invalidateFilterPresentation();
+    }
+
+    private function invalidateFilterPresentation(): void
+    {
+        if (! $this->planningEnabled || $this->absencesOnly) {
+            return;
+        }
+        $errors = $this->getErrorBag();
+        $this->resetPlanningSelection();
+        if ($this->displayFiltersRejected) {
+            $this->setErrorBag($errors);
+        }
+        $this->dispatch('operations-timeline-filters-changed', timelineId: $this->getId());
+    }
+
+    private function timelineFilterRules(): array
+    {
+        return [
+            'staffPresence' => ['required', 'string', Rule::in(['all', 'assigned', 'unassigned'])],
+            'shiftRole' => ['bail', 'required', 'string', 'max:255'],
+            'shiftStatus' => ['required', 'string', Rule::in(['all', ...array_values(array_diff(ShiftStatus::values(), [ShiftStatus::Cancelled->value]))])],
+            'assignmentStatusFilter' => ['required', 'string', Rule::in(['all', ...ShiftAssignmentStatus::blockingValues()])],
+        ];
     }
 
     public function hydrate(): void
@@ -408,6 +542,7 @@ class StaffTimeline extends Component
         Validator::make(['from' => $this->from, 'until' => $this->until], [
             'from' => 'required|date_format:Y-m-d', 'until' => 'required|date_format:Y-m-d|after_or_equal:from',
         ])->validate();
+        Validator::make($this->only(['staffPresence', 'shiftRole', 'shiftStatus', 'assignmentStatusFilter']), $this->timelineFilterRules())->validate();
         $zone = config('operations.display_timezone', 'Europe/Berlin');
         $from = CarbonImmutable::parse($this->from, $zone);
         $until = CarbonImmutable::parse($this->until, $zone)->addDay();
@@ -444,6 +579,13 @@ class StaffTimeline extends Component
             $days->push($day);
         }
         $dayAttention = $this->planningEnabled && ! $this->absencesOnly ? $this->dayAttention($days) : [];
+        $timelineRoleOptions = $this->planningEnabled && ! $this->absencesOnly ? $this->timelineRoleOptions($axisFrom, $axisUntil) : [];
+        $timelineShiftStatusOptions = collect(ShiftStatus::cases())->reject(fn (ShiftStatus $status) => $status === ShiftStatus::Cancelled)
+            ->map(fn (ShiftStatus $status) => ['value' => $status->value, 'label' => $status->label()])->values()->all();
+        $timelineAssignmentStatusOptions = collect(ShiftAssignmentStatus::cases())->filter(fn (ShiftAssignmentStatus $status) => $status->blocksAvailability())
+            ->map(fn (ShiftAssignmentStatus $status) => ['value' => $status->value, 'label' => $status->label()])->values()->all();
+        $timelineFilterCount = (int) filled(trim($this->search)) + (int) ($this->staffPresence !== 'all') + (int) ($this->shiftRole !== 'all')
+            + (int) ($this->shiftStatus !== 'all') + (int) ($this->assignmentStatusFilter !== 'all');
         $workloads = $this->planningEnabled && ! $this->absencesOnly
             ? app(TimelineWorkloadService::class)->forRows($users->getCollection(), $assignments,
                 $absences->map(fn ($items) => $items->filter(fn ($absence) => $absence->starts_at->lt($selectedUntil) && $absence->ends_at->gt($selectedFrom))),
@@ -453,6 +595,9 @@ class StaffTimeline extends Component
             $events = collect();
             foreach ($assignments->get($user->id, collect()) as $assignment) {
                 $shift = $assignment->shift;
+                if (! $this->matchesShiftFilters($shift) || ($this->assignmentStatusFilter !== 'all' && $assignment->status->value !== $this->assignmentStatusFilter)) {
+                    continue;
+                }
                 $events->push(['id' => 'shift-'.$assignment->id, 'kind' => 'shift', 'title' => $shift->title, 'start' => $shift->starts_at, 'end' => $shift->ends_at, 'detail' => $shift->order?->customer?->company_name, 'order_title' => $shift->order?->title, 'order_number' => $shift->order?->order_number, 'status' => $assignment->status->label(), 'status_value' => $assignment->status->value, 'shift_status' => $shift->status->value, 'shift_status_label' => $shift->status->label(), 'role_name' => $shift->role_name, 'location_name' => $shift->location_name ?: $shift->order?->location_name, 'location_preview' => TimelineLocationPreview::fromShift($shift), 'planned_break_minutes' => $shift->planned_break_minutes, 'shift_id' => $shift->id]);
             }
             foreach ($absences->get($user->id, collect()) as $absence) {
@@ -476,7 +621,8 @@ class StaffTimeline extends Component
         $planningPreview = $this->planningEnabled && ! $this->absencesOnly && $this->showSuggestions && $this->suggestionsReady && $this->suggestionsAvailable
             ? $this->planningPreview()
             : ['proposals' => collect(), 'open_total' => 0, 'limited' => false];
-        $proposalRows = $planningPreview['proposals']->groupBy(fn ($proposal) => $proposal['user']->id)->map(fn ($proposals) => $layout->periodEvents($days, $proposals->map(fn ($proposal) => [
+        $visibleProposals = $planningPreview['proposals']->filter(fn ($proposal) => $this->assignmentStatusFilter === 'all' && $this->matchesShiftFilters($proposal['shift']));
+        $proposalRows = $visibleProposals->groupBy(fn ($proposal) => $proposal['user']->id)->map(fn ($proposals) => $layout->periodEvents($days, $proposals->map(fn ($proposal) => [
             'id' => 'proposal-'.$proposal['shift']->id.'-'.$proposal['user']->id,
             'kind' => 'proposal', 'shift_id' => $proposal['shift']->id, 'user_id' => $proposal['user']->id, 'revision' => $proposal['revision'],
             'title' => $proposal['shift']->title, 'start' => $proposal['shift']->starts_at, 'end' => $proposal['shift']->ends_at,
@@ -495,7 +641,24 @@ class StaffTimeline extends Component
                 'open' => max(0, $choice['shift']->required_staff - $choice['shift']->reserved_count), 'eligible' => $choice['eligible'], 'issues' => $choice['issues'], 'travel' => $choice['travel'],
             ]) : collect();
 
-        return view('livewire.operations.staff-timeline', compact('users', 'rows', 'days', 'selectedDays', 'selectedFrom', 'selectedUntil', 'axisFrom', 'axisUntil', 'zone', 'dayAttention', 'workloads', 'planningPreview', 'proposalRows', 'planningUser', 'planningShift', 'planningAssessment', 'choices', 'focus'));
+        return view('livewire.operations.staff-timeline', compact('users', 'rows', 'days', 'selectedDays', 'selectedFrom', 'selectedUntil', 'axisFrom', 'axisUntil', 'zone', 'dayAttention', 'workloads', 'planningPreview', 'proposalRows', 'planningUser', 'planningShift', 'planningAssessment', 'choices', 'focus', 'timelineRoleOptions', 'timelineShiftStatusOptions', 'timelineAssignmentStatusOptions', 'timelineFilterCount'));
+    }
+
+    private function timelineRoleOptions(CarbonImmutable $from, CarbonImmutable $until): array
+    {
+        $roles = Shift::query()->notCancelled()->during($from, $until)->whereNotNull('role_name')->whereRaw("TRIM(role_name) != ''")
+            ->select('role_name')->distinct()->orderBy('role_name')->limit(30)->pluck('role_name');
+        if ($this->shiftRole !== 'all' && ! $roles->contains($this->shiftRole)) {
+            $roles->prepend($this->shiftRole);
+        }
+
+        return $roles->map(fn (string $role) => ['value' => $role, 'label' => trim($role)])->all();
+    }
+
+    private function matchesShiftFilters(Shift $shift): bool
+    {
+        return ($this->shiftRole === 'all' || $shift->role_name === $this->shiftRole)
+            && ($this->shiftStatus === 'all' || $shift->status->value === $this->shiftStatus);
     }
 
     /**
@@ -562,11 +725,11 @@ class StaffTimeline extends Component
     private function focusData($days, StaffTimelineLayout $layout, string $zone): array
     {
         $empty = ['shift' => null, 'date' => null, 'event' => null, 'candidates' => collect()];
-        if (! $this->planningEnabled || $this->absencesOnly || ! $this->focusShiftId) {
+        if (! $this->planningEnabled || $this->absencesOnly || ! $this->focusShiftId || $this->assignmentStatusFilter !== 'all') {
             return $empty;
         }
         $shift = Shift::query()->find($this->focusShiftId);
-        if (! $shift) {
+        if (! $shift || ! $this->matchesShiftFilters($shift)) {
             return $empty;
         }
         $event = $layout->periodEvents($days, collect([[
@@ -593,6 +756,7 @@ class StaffTimeline extends Component
 
     private function staffQuery(CarbonImmutable $from, CarbonImmutable $until): Builder
     {
+        $assigned = fn () => ShiftAssignment::blocking()->whereHas('shift', fn ($shiftQuery) => $shiftQuery->notCancelled()->during($from, $until))->select('user_id');
         $query = User::with(['profile:id,user_id,first_name,last_name,position,weekly_working_hours', 'currentTeam'])
             ->where('role', 'staff')
             ->where(fn ($query) => $query->where('status', true)
@@ -600,6 +764,8 @@ class StaffTimeline extends Component
                     ->whereHas('shift', fn ($shiftQuery) => $shiftQuery->notCancelled()->during($from, $until))
                     ->select('user_id')))
             ->when(filled($this->search), fn ($query) => $query->where('name', 'like', '%'.mb_substr($this->search, 0, 100).'%'))
+            ->when($this->staffPresence === 'assigned', fn (Builder $query) => $query->whereIn('id', $assigned()))
+            ->when($this->staffPresence === 'unassigned', fn (Builder $query) => $query->whereNotIn('id', $assigned()))
             ->orderBy('name');
 
         return $this->absencesOnly ? app(PersonnelScopeService::class)->applyUsers($query, auth()->user(), 'operations.absences.review') : $query;

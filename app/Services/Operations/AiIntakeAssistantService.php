@@ -4,8 +4,8 @@ namespace App\Services\Operations;
 
 use App\Models\AiIntake;
 use App\Models\AiIntakeRun;
-use App\Models\User;
 use App\Models\Customer;
+use App\Models\User;
 use App\Services\Ai\AssistantSpeechRouter;
 use App\Services\Ai\Attachments\AssistantAttachment;
 use App\Services\Ai\Attachments\AssistantAttachmentBatch;
@@ -15,10 +15,10 @@ use App\Support\Operations\AiDispositionSettings;
 use App\Support\Operations\AiIntakeSchema;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsTransaction;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\Crypt;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 

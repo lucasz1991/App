@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Livewire\Operations\AiIntakeInbox;
 use App\Livewire\Tools\Chatbot;
 use App\Models\AiIntake;
 use App\Models\User;
@@ -49,7 +50,8 @@ class AssistantOperationsUiTest extends TestCase
     {
         AiIntake::create(['title' => 'Eingang zur Prüfung', 'source_type' => 'manual', 'status' => 'review']);
         $chat = Livewire::test(Chatbot::class)->call('setOperationsTab', 'intake');
-        $chat->assertSee('Eingang zur Prüfung')->assertSee('Als AI-Eingang erfassen')->assertSee('Automatik pausiert');
+        $chat->assertSee('Eingang zur Prüfung')->assertSee('Eingang erfassen')->assertSeeLivewire(AiIntakeInbox::class)
+            ->assertDontSee('Vollständige Annahme öffnen');
         $chat->call('setOperationsTab', 'activity')->assertSee('Eingang zur Prüfung')->assertSee('Aktivitäten filtern');
         $this->assertSame(1, AiIntake::count());
         $chat->call('setOperationsTab', 'chat')->assertSee('Dispositionsaktionen im Chat');

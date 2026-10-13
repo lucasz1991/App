@@ -275,6 +275,77 @@ test('hover cache stays bounded at 40 employee/date results and evicts the oldes
     assert.equal(planner.hoverCache.has('41:2027-05-13'), true);
 }));
 
+test('filter invalidation discards an unresolved hover result and the same employee/day must request fresh data', async () => fixture(async ({ planner, cell, hover, advance, status }) => {
+    const anchor = cell();
+    const calls = [], resolves = [];
+    planner.request = (method, args) => {
+        calls.push({ method, args });
+        return new Promise(resolve => resolves.push(resolve));
+    };
+    hover(anchor);
+    advance(280);
+    assert.equal(calls.length, 1);
+    assert.equal(anchor.dataset.fit, 'checking');
+    planner.invalidate();
+    assert.equal(planner.hoverCache.size, 0);
+    assert.equal(anchor.dataset.fit, undefined);
+    resolves.shift()({ state: 'blocked', label: 'Alter Filter', detail: 'Veraltetes Ergebnis' });
+    await settled();
+    assert.equal(planner.hoverCache.size, 0, 'a late pre-filter result must not refill the cleared cache');
+    assert.equal(status(anchor).textContent, '');
+    hover(anchor);
+    advance(280);
+    assert.deepEqual(calls.map(call => call.method), ['previewCell', 'previewCell']);
+    assert.equal(anchor.dataset.fit, 'checking', 'same-key fresh hover is not answered from the old cache');
+    resolves.shift()({ ...suitable, detail: 'Aktueller Filter' });
+    await settled();
+    assert.equal(planner.hoverCache.size, 1);
+    assert.equal(planner.hoverCache.get('1:2027-05-13').value.detail, 'Aktueller Filter');
+    assert.equal(status(anchor).textContent, '2 passend · Aktueller Filter');
+    assert.equal(planner.plannerVisible, false);
+    assert.equal(planner.$wire.assignmentOpen, false);
+}));
+
+test('an invalidated hover failure cannot overwrite a newer same-anchor check and queued fresh work stays serialized', async () => fixture(async ({ planner, cell, hover, advance, status }) => {
+    const anchor = cell();
+    const calls = [], pending = [];
+    planner.request = (method, args) => {
+        calls.push({ method, args });
+        return new Promise((resolve, reject) => pending.push({ resolve, reject }));
+    };
+    hover(anchor);
+    advance(280);
+    planner.invalidate();
+    hover(anchor);
+    advance(280);
+    assert.equal(calls.length, 1, 'the new generation still waits for the actual existing transport');
+    pending.shift().reject(new Error('Obsolete failure'));
+    await settled();
+    assert.equal(calls.length, 2);
+    assert.equal(anchor.dataset.fit, 'checking');
+    assert.equal(status(anchor).textContent, 'Eignung prüfen …', 'the old error must not replace the new check');
+    assert.equal(planner.hoverCache.size, 0);
+    pending.shift().resolve(suitable);
+    await settled();
+    assert.equal(anchor.dataset.fit, 'suitable');
+    assert.equal(planner.hoverCache.size, 1);
+}));
+
+test('destroyed planners never cache or paint a late hover response', async () => fixture(async ({ planner, cell, hover, advance, status }) => {
+    const anchor = cell();
+    let resolve;
+    planner.request = () => new Promise(done => { resolve = done; });
+    hover(anchor);
+    advance(280);
+    planner.destroy();
+    resolve(suitable);
+    await settled();
+    assert.equal(planner.hoverCache.size, 0);
+    assert.equal(anchor.dataset.fit, undefined);
+    assert.equal(status(anchor).textContent, '');
+    assert.equal(planner.inFlight, false);
+}));
+
 test('late previews cannot paint a different cell and requests remain serialized', async () => fixture(async ({ planner, cell, hover, advance, status }) => {
     const first = cell(1), second = cell(2);
     const calls = [], resolves = [];

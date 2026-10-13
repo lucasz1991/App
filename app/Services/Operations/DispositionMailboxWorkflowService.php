@@ -186,7 +186,7 @@ class DispositionMailboxWorkflowService
             $demand = $proposal->payload['demand'] ?? [];
 
             return array_intersect_key($demand, array_flip(['title', 'starts_at', 'ends_at', 'timezone', 'location_name', 'role_name', 'required_staff'])) + [
-                'id' => $proposal->id, 'missing_fields' => $proposal->payload['missing_fields'] ?? [], 'inquiry_id' => $proposal->inquiry_id,
+                'id' => $proposal->id, 'missing_fields' => $proposal->payload['missing_fields'] ?? [], 'assumptions' => $proposal->payload['assumptions'] ?? [], 'inquiry_id' => $proposal->inquiry_id,
                 'inquiry_number' => $proposal->inquiry?->number, 'order_id' => $proposal->inquiry?->order_id,
                 'inquiry_url' => $proposal->inquiry_id ? OperationsPages::url('cases', ['view' => 'inbox', 'inquiry' => $proposal->inquiry_id]) : null,
                 'order_url' => $proposal->inquiry?->order_id ? OperationsPages::url('cases', ['view' => 'orders', 'section' => 'planning', 'order' => $proposal->inquiry->order_id]) : null,
@@ -202,7 +202,7 @@ class DispositionMailboxWorkflowService
                 $positionMissing = array_values(array_unique(array_intersect(array_filter((array) ($position['missing_fields'] ?? []), 'is_string'), array_keys(self::FIELDS))));
                 $previewMissing = array_merge($previewMissing, $positionMissing);
                 $positions[] = array_intersect_key($position, array_flip(['title', 'starts_at', 'ends_at', 'timezone', 'location_name', 'role_name', 'required_staff'])) + [
-                    'id' => 'analysis-'.($index + 1), 'missing_fields' => $positionMissing, 'inquiry_id' => null,
+                    'id' => 'analysis-'.($index + 1), 'missing_fields' => $positionMissing, 'assumptions' => $position['assumptions'] ?? [], 'inquiry_id' => null,
                     'inquiry_number' => null, 'order_id' => null, 'inquiry_url' => null, 'order_url' => null,
                 ];
             }

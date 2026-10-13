@@ -51,14 +51,16 @@ class AiDispositionUiTest extends TestCase
         Storage::fake('local');
     }
 
-    public function test_unified_inbox_represents_current_ai_source_once_and_keeps_native_approval_drawer(): void
+    public function test_unified_inbox_represents_current_ai_source_once_and_opens_the_complete_assistant_panel(): void
     {
         $intake = AiIntake::create(['source_type' => 'manual', 'title' => 'Unified AI source', 'status' => 'review', 'source_revision' => 1, 'revision' => 1, 'supervising_user_id' => $this->admin->id]);
         $inquiry = OperationInquiry::create(['channel' => 'manual', 'title' => 'Linked native position', 'original' => 'Synthetic original', 'status' => 'new', 'timezone' => 'Europe/Berlin', 'revision' => 1, 'created_by' => $this->admin->id]);
         AiIntakeProposal::create(['intake_id' => $intake->id, 'source_revision' => $intake->source_revision, 'position_index' => 0, 'status' => 'proposed', 'inquiry_id' => $inquiry->id, 'payload' => ['demand' => ['title' => $inquiry->title], 'segments' => []]]);
         $component = Livewire::test(UnifiedInbox::class)
             ->assertSee('Unified AI source')->assertDontSee('Linked native position')
-            ->call('openRow', $intake->id * 8 + 1)->assertSeeLivewire(AiIntakeInbox::class);
+            ->call('openRow', $intake->id * 8 + 1)
+            ->assertDispatched('open-ai-intake-panel', intakeId: $intake->id, create: false, customerId: null)
+            ->assertSet('detail', null);
         $this->assertSame('review', $intake->fresh()->status);
         $this->assertSame('proposed', $intake->proposals()->first()->status);
         Livewire::test(AiIntakeInbox::class, ['initialIntakeId' => $intake->id, 'modalOnly' => true])

@@ -292,7 +292,7 @@ class AiIntakeService
                                 $questions[] = ['field' => $field, 'position' => $index + 1];
                             }
                         }
-                        $proposal = $current->proposals()->firstOrCreate(['source_revision' => $current->source_revision, 'position_index' => $index], ['revision' => 1, 'status' => 'proposed', 'payload' => ['demand' => $demand, 'segments' => $position['segments'], 'evidence' => $position['evidence'], 'missing_fields' => $absent, 'raw_requirements' => $position['qualification_requirements'] ?? [], 'unmapped_requirements' => $unmapped]]);
+                        $proposal = $current->proposals()->firstOrCreate(['source_revision' => $current->source_revision, 'position_index' => $index], ['revision' => 1, 'status' => 'proposed', 'payload' => ['demand' => $demand, 'segments' => $position['segments'], 'evidence' => $position['evidence'], 'assumptions' => $position['assumptions'], 'missing_fields' => $absent, 'raw_requirements' => $position['qualification_requirements'] ?? [], 'unmapped_requirements' => $unmapped]]);
                         if (($settings['automation_mode'] ?? 'automatic') === 'automatic') {
                             if (! $this->createInquiry($current, $proposal, $this->actor($run))) {
                                 $missing[] = 'native_review';
@@ -403,7 +403,7 @@ class AiIntakeService
                         $missing = array_merge($missing, $absent);
                         $proposal = $fresh->proposals()->firstOrNew(['source_revision' => $fresh->source_revision, 'position_index' => $index]);
                         $proposal->fill(['revision' => $proposal->exists ? $proposal->revision + 1 : 1, 'status' => 'proposed', 'error_code' => null,
-                            'payload' => ['demand' => $demand, 'segments' => $position['segments'], 'evidence' => $position['evidence'], 'missing_fields' => $absent,
+                            'payload' => ['demand' => $demand, 'segments' => $position['segments'], 'evidence' => $position['evidence'], 'assumptions' => $position['assumptions'], 'missing_fields' => $absent,
                                 'raw_requirements' => $position['qualification_requirements'] ?? [], 'unmapped_requirements' => $unmapped]])->save();
                     }
                 }
@@ -483,6 +483,8 @@ class AiIntakeService
                 $payload['missing_fields'][] = 'qualification_ids';
             }
             $payload['mapping'] = $record->payload['mapping'] ?? null;
+            // A personal correction confirms the value; a model must never mint provenance.
+            $payload['assumptions'] = [];
             $record->update(['payload' => $payload, 'revision' => $record->revision + 1, 'status' => 'proposed', 'approved_by' => null, 'approved_at' => null, 'error_code' => null, 'inquiry_revision' => $inquiry?->revision, 'inquiry_fingerprint' => $inquiry ? $this->fingerprint($inquiry) : null]);
             $intake->update(['revision' => $intake->revision + 1]);
             $this->refreshReviewState($intake);
@@ -841,6 +843,7 @@ class AiIntakeService
             }
         }
         foreach ($result['positions'] as &$position) {
+            $position['assumptions'] = [];
             $evidence = [];
             foreach ($position['evidence'] as $item) {
                 if (! is_array($item) || ! in_array($item['field'] ?? '', [...self::FIELDS, 'segments', 'timezone', 'title', 'qualifications'], true) || ! is_string($item['quote'] ?? null) || $item['quote'] === '' || mb_strlen($item['quote']) > 2000) {
@@ -885,8 +888,25 @@ class AiIntakeService
                 }
             }
             $position['evidence'] = $evidence;
+            // Requested business default, deliberately applied after original-source validation.
+            // It is a visible proposal, never fabricated evidence or a personnel assignment.
+            if (blank($position['required_staff'] ?? null)
+                && in_array($result['intent'], ['inquiry', 'amendment'], true)
+                && in_array($result['classification'], ['new_inquiry', 'reply', 'amendment'], true)
+                && collect($position['segments'])->every(fn ($segment) => ($segment['required_staff'] ?? null) === 1)
+                && $result['extraction_complete'] && ! $result['overflow']) {
+                $position['required_staff'] = 1;
+                $position['assumptions']['required_staff'] = [
+                    'value' => 1, 'basis' => 'default', 'label' => 'Standardvorschlag: 1 Person',
+                    'reason' => 'Keine Personalanzahl in der Mail belegt. Bei der Prüfung bestätigen oder anpassen.',
+                ];
+                $position['missing_fields'] = array_values(array_filter((array) ($position['missing_fields'] ?? []), fn ($field) => $field !== 'required_staff'));
+            }
         }
         unset($position);
+        if ($result['positions'] !== [] && collect($result['positions'])->every(fn ($position) => filled($position['required_staff'] ?? null))) {
+            $result['questions'] = array_values(array_filter($result['questions'], fn ($question) => ! is_array($question) || ($question['field'] ?? '') !== 'required_staff'));
+        }
 
         return $result;
     }

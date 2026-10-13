@@ -32,12 +32,12 @@
             <div class="rt-regions__editor">
                 <div class="rt-regions__zones" role="group" aria-label="Zone für die Bundesländerauswahl">
                     @foreach($zones as $zone => $definition)
-                    <button type="button" wire:click="selectZone('{{ $zone }}')" data-zone="{{ $zone }}" aria-pressed="{{ $activeZone === $zone ? 'true' : 'false' }}" wire:loading.attr="disabled" wire:target="selectZone,toggleState"><span>{{ $definition['label'] }}</span><small>{{ $definition['score'] }} Eignung</small></button>
+                    <button type="button" wire:click="selectZone('{{ $zone }}')" data-zone="{{ $zone }}" aria-pressed="{{ $activeZone === $zone ? 'true' : 'false' }}" wire:loading.attr="disabled" wire:target="selectZone,toggleState"><span class="rt-regions__zone-name"><i class="rt-regions__zone-dot" aria-hidden="true"></i>{{ $definition['label'] }}</span><small><strong>{{ $definition['score'] }}</strong> Eignung</small></button>
                     @endforeach
                 </div>
                 <fieldset class="rt-regions__radius"><legend>Radius ab Bezugsort <span>optional</span></legend>
                     <label for="region-origin-{{ $userId }}" class="sr-only">Bezugsort</label>
-                    <input id="region-origin-{{ $userId }}" type="text" wire:model.live.blur="preferences.base_location" placeholder="Bezugsort, z. B. Hamburg" maxlength="200" autocomplete="off" aria-describedby="region-distance-note-{{ $userId }}">
+                    <div class="rt-regions__origin-field"><i class="far fa-location-dot" aria-hidden="true"></i><input id="region-origin-{{ $userId }}" type="text" wire:model.live.blur="preferences.base_location" placeholder="Bezugsort, z. B. Hamburg" maxlength="200" autocomplete="off" aria-describedby="region-distance-note-{{ $userId }}"></div>
                     <div class="rt-regions__radius-fields">
                     @foreach($zones as $zone => $definition)
                         <label data-zone="{{ $zone }}" for="region-radius-{{ $userId }}-{{ $zone }}"><span>{{ $definition['label'] }}</span><span class="rt-regions__unit"><input id="region-radius-{{ $userId }}-{{ $zone }}" type="number" min="1" max="{{ $zone === 'preferred' ? 1000 : 2000 }}" wire:model.live.blur="preferences.{{ $definition['radius'] }}" @if($zone === 'emergency') placeholder="–" @endif><span>km</span></span></label>
@@ -46,7 +46,7 @@
                     <p id="region-distance-note-{{ $userId }}" class="rt-regions__hint">Luftlinie zur Ortsmitte. Bundesländer und Radien ergänzen sich; die passendste Zone zählt.</p>
                     @if(trim((string) ($preferences['base_location'] ?? '')) !== '' && !$basePoint)<p class="rt-regions__invalid" role="status">Bezugsort nicht eindeutig erkannt.</p>@endif
                 </fieldset>
-                <fieldset class="rt-regions__states"><legend>Bundesländer <span>{{ $zones[$activeZone]['label'] ?? 'Zone wählen' }}</span></legend>
+                <fieldset class="rt-regions__states"><legend>Bundesländer <span class="rt-regions__current-zone" data-zone="{{ $activeZone }}"><i class="rt-regions__zone-dot" aria-hidden="true"></i>{{ $zones[$activeZone]['label'] ?? 'Zone wählen' }}</span></legend>
                     <div class="rt-regions__state-list">
                     @foreach($states as $code => $label)
                         @php($zone = $selectedStates[$code] ?? 'none')

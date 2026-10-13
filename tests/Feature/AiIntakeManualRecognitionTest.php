@@ -675,6 +675,53 @@ class AiIntakeManualRecognitionTest extends TestCase
         $this->noBindingOrSending();
     }
 
+    public function test_unknown_staffing_defaults_to_one_as_a_visible_proposal_without_forged_evidence(): void
+    {
+        $body = 'Nachbestellung Tf Hamburg 2027-05-13T08:00 2027-05-13T16:00.';
+        $intake = $this->capture(['text' => $body, 'raw' => $this->raw($body)]);
+        $position = $this->extractionResult($intake)['positions'][0];
+        $position['required_staff'] = null;
+        $position['segments'] = [];
+        $position['missing_fields'] = ['required_staff'];
+        $position['evidence'] = array_values(array_filter($position['evidence'], fn ($item) => ! in_array($item['field'], ['required_staff', 'segments'], true)));
+        foreach ($position['evidence'] as &$evidence) {
+            $evidence['quote'] = $body;
+        }
+        unset($evidence);
+        $position['assumptions'] = ['required_staff' => ['value' => 99, 'basis' => 'forged']];
+        $this->expectResult($intake, ['positions' => [$position], 'questions' => [['field' => 'required_staff', 'question' => 'Wie viele?']]]);
+
+        $recognized = $this->recognize($intake);
+        $payload = $recognized->proposals()->firstOrFail()->payload;
+        $this->assertSame(1, $payload['demand']['required_staff']);
+        $this->assertSame('default', $payload['assumptions']['required_staff']['basis']);
+        $this->assertArrayNotHasKey('required_staff', $payload['evidence']);
+        $this->assertNotContains('required_staff', $payload['missing_fields']);
+        $this->assertSame([], $recognized->analysis['questions']);
+        $this->assertSame($body, $recognized->messages()->firstOrFail()->body);
+        $this->noBindingOrSending();
+    }
+
+    public function test_explicit_staffing_and_non_inquiries_never_receive_a_staffing_default(): void
+    {
+        $intake = $this->capture();
+        $this->expectResult($intake);
+        $recognized = $this->recognize($intake);
+        $this->assertSame(2, $recognized->analysis['positions'][0]['required_staff']);
+        $this->assertSame([], $recognized->analysis['positions'][0]['assumptions']);
+
+        $other = $this->capture(['uid' => 33, 'message_id' => 'other@example.test']);
+        $position = $this->extractionResult($other)['positions'][0];
+        $position['required_staff'] = null;
+        $position['segments'] = [];
+        $this->expectResult($other, ['intent' => 'other', 'classification' => 'unrelated', 'positions' => [$position]]);
+        $result = $this->recognize($other);
+        $this->assertNull($result->analysis['positions'][0]['required_staff']);
+        $this->assertSame([], $result->analysis['positions'][0]['assumptions']);
+        $this->assertSame(0, $result->proposals()->count());
+        $this->noBindingOrSending();
+    }
+
     private function attachment(AiIntake $intake, string $kind): void
     {
         $paths = [];

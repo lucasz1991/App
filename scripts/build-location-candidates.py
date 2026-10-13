@@ -16,8 +16,9 @@ target.mkdir(exist_ok=True)
 
 def normalize(value):
     value = value.lower().translate(str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss"}))
+    value = re.sub(r"\bu\.\s+", "unter ", value)
     value = re.sub(r"[^a-z0-9]+", " ", value).strip()
-    for pattern, replacement in [(r"\b(?:oberpf|opf)\b", "oberpfalz"), (r"\bunterfr\b", "unterfranken"), (r"\boberfr\b", "oberfranken"), (r"\bweinstr\b", "weinstrasse"), (r"\bi d\b", "in der"), (r"\ba d\b", "an der"), (r"\bu(?= teck\b)", "unter")]:
+    for pattern, replacement in [(r"\b(?:oberpf|opf)\b", "oberpfalz"), (r"\bunterfr\b", "unterfranken"), (r"\boberfr\b", "oberfranken"), (r"\bweinstr\b", "weinstrasse"), (r"\bi d\b", "in der"), (r"\ba d\b", "an der")]:
         value = re.sub(pattern, replacement, value)
     return value
 
@@ -39,6 +40,16 @@ for row in rows:
     if row[8] == "DE" and row[13] and row[7] in {"PPLC", "PPLA", "PPLA2", "PPLA3", "PPLA4", "PPLA5"}:
         municipality = municipalities.setdefault(row[13], {"name": row[1], "names": set()})
         municipality["names"].update(normalize(value) for value in row[1:3])
+reviewed = {city["point"][0]: city for city in json.loads((args.maps / "germany-city-centres.json").read_text(encoding="utf-8"))["cities"]}
+for row in rows:
+    city = reviewed.get(int(row[0]))
+    if city and row[13] in municipalities:
+        municipalities[row[13]]["name"] = city["point"][1]
+        municipalities[row[13]]["names"].update(normalize(name) for name in city["names"])
+for municipality in municipalities.values():
+    # Administrative source labels commonly append ", Stadt/Gemeinde/Markt";
+    # these suffixes are not part of the spoken locality name.
+    municipality["names"].update(re.sub(r" (?:stadt|gemeinde|markt)$", "", name) for name in list(municipality["names"]))
 
 index = collections.defaultdict(dict)
 point_count = 0
@@ -60,8 +71,9 @@ for row in rows:
     point_count += 1
     point = [int(row[0]), row[1], float(row[4]), float(row[5]), kind, int(row[14] or 0), row[13]]
     municipality = municipalities.get(row[13])
+    primary_names = {normalize(value) for value in row[1:3]}
     for position, name in enumerate(names(row)):
-        quality = 0 if position < 2 else 2
+        quality = 0 if normalize(name) in primary_names else 2
         add(name, point, quality)
         # Grammar-preserving regional qualifiers: Neumarkt in der Oberpfalz ->
         # Neumarkt (Oberpfalz), Kirchheim unter Teck -> Kirchheim (Teck).
@@ -69,13 +81,13 @@ for row in rows:
         if qualified != normalize(name):
             add(qualified, point, max(1, quality))
         if kind in {"RSTN", "RSTP", "RYD"}:
-            short = re.sub(r"^(?:bahnhof|haltepunkt|station|gueterbahnhof|hauptgueterbahnhof) ", "", normalize(name))
+            short = re.sub(r"^(?:bahnhof|haltepunkt|station|gueterbahnhof|hauptgueterbahnhof|rangierbahnhof) | (?:bahnhof|haltepunkt|station|gueterbahnhof|hauptgueterbahnhof|rangierbahnhof)$", "", normalize(name))
             add(short, point, max(1, quality))
             if municipality:
                 for prefix in municipality["names"]:
                     if short.startswith(prefix + " "):
                         add(short[len(prefix) + 1:], point, max(3, quality))
-        if municipality and position < 2:
+        if municipality and normalize(name) in primary_names:
             for prefix in municipality["names"]:
                 if prefix != normalize(name) and not normalize(name).startswith(prefix + " "):
                     add(prefix + " " + normalize(name), point, 1)

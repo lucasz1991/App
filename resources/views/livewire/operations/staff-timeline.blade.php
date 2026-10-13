@@ -1,5 +1,6 @@
 <section class="rt-staff-timeline-layout min-w-0" aria-label="Mitarbeiter-Zeitleiste"
     x-data="rtTimelinePlanning(@js($this->getId()))" x-on:operations-plan-changed.window="invalidate()"
+    x-on:operations-timeline-filters-changed.window="if ($event.detail.timelineId === @js($this->getId())) invalidate()"
     x-on:resize.window="refreshFocusPreview()"
     x-on:operations-timeline-window-reset.window="if ($event.detail.timelineId === @js($this->getId())) invalidate()"
     x-on:operations-timeline-window-pending.window="if ($event.detail.timelineId === @js($this->getId())) invalidate()">
@@ -21,6 +22,11 @@
         <x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Mitarbeiter suchen" />
     @endif
 @endif
+@if($windowNavigation)
+    <template x-teleport="[data-timeline-filter-owner='{{ $periodNavigationOwner }}']" wire:key="timeline-filter-controls-{{ $this->getId() }}">
+        @include('livewire.operations.partials.timeline-filters')
+    </template>
+@endif
 <div class="rt-personnel-timeline" style="--timeline-days:{{ $days->count() }};--timeline-selected-days:{{ $selectedDays->count() }}" x-data="rtStaffTimeline" x-effect="applyPersonnelMode()"
     x-on:operations-timeline-distribution-focus.window="requestDistributionFocus($event.detail)"
     data-no-sidebar-swipe data-rt-dropdown-scroll-root data-timeline-motion="{{ $planningEnabled && !$absencesOnly ? 'true' : 'false' }}"
@@ -39,7 +45,7 @@
         <span x-text="windowError"></span>
         <button type="button" x-on:click="retryWindow()" class="rt-timeline-window-retry">Erneut laden</button>
     </div>
-    <div class="rt-timeline-loading-indicator" style="display: none" wire:loading.delay.flex wire:target="search,loadMore,refreshPlanning,loadSuggestions" role="status" aria-live="polite">
+    <div class="rt-timeline-loading-indicator" style="display: none" wire:loading.delay.flex wire:target="search,staffPresence,shiftRole,shiftStatus,assignmentStatusFilter,resetTimelineFilters,loadMore,refreshPlanning,loadSuggestions" role="status" aria-live="polite">
         <i class="far fa-spinner-third" aria-hidden="true"></i><span>Lädt …</span>
     </div>
     <div class="rt-personnel-timeline-header">
@@ -107,13 +113,29 @@
             </template>
         </div>
     @endif
+    @php
+        $personViewer = auth()->user();
+        $personCanUseQuickActions = $planningEnabled && ! $absencesOnly && $personViewer->can('operations.manage');
+        $personCanMessage = $personCanUseQuickActions && $personViewer->can('users.messages.create');
+        $personCanViewProfile = $personCanUseQuickActions && $personViewer->canViewManagementDashboard() && $personViewer->can('employees.view');
+        $personCanStartCall = $personCanUseQuickActions && ($personViewer->isAdmin() || $personViewer->hasRbacPermission('calls.start'));
+    @endphp
     @forelse($rows as $row)
+        @php
+            $personCanCommunicate = $personCanUseQuickActions && $row['user']->isActive() && ! $row['user']->is($personViewer);
+            $personCanCall = $personCanCommunicate && $personCanStartCall
+                && ($row['user']->isAdmin() || $row['user']->hasRbacPermission('calls.join'));
+        @endphp
         <div class="rt-personnel-timeline-name min-w-0" data-timeline-person-column wire:key="staff-person-{{ $row['user']->id }}" @if($focus['shift']) data-focus-fit="{{ $focus['candidates']->has($row['user']->id) ? 'eligible' : 'blocked' }}" @endif>
             <div class="rt-timeline-person-summary">
-            <x-user.person-anchor-preview :user="$row['user']" trigger-classes="flex min-w-0 w-full">
+            <x-user.person-anchor-preview :user="$row['user']"
+                :profile-url="$personCanViewProfile ? route($personViewer->usesAdminLayout() ? 'admin.user-profile' : 'employees.show', $row['user']->id) : null"
+                :can-message="$personCanMessage" :can-chat="$personCanCommunicate" :can-call="$personCanCall"
+                chat-action="openDirectChat" call-action="startDirectCall" :show-presence="false"
+                trigger-classes="flex min-w-0 w-full">
                 <x-slot:trigger>
                     <button type="button" class="min-h-11 min-w-0 w-full rounded-lg text-left outline-none transition-colors hover:text-rt-red focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:hover:text-rt-dark-accent" aria-label="{{ __('app.open_person_preview') }}: {{ $row['user']->name }}" title="{{ $row['user']->name }}">
-                                    <x-user.public-info :user="$row['user']" :size="6" :show-email="false" :show-presence="false" name-format="initial-surname" class="rt-timeline-person-identity" />
+                        <x-user.public-info :user="$row['user']" :size="6" :show-email="false" :show-presence="false" name-format="initial-surname" class="rt-timeline-person-identity" />
                     </button>
                 </x-slot:trigger>
             </x-user.person-anchor-preview>
@@ -310,5 +332,8 @@
         </div></div>
         </x-slot:content>
     </x-ui.dropdown.anchor-dropdown>
+@endif
+@if($personCanMessage)
+    <livewire:admin.users.messages.message-form :key="'timeline-message-form-'.$this->getId()" />
 @endif
 </section>

@@ -285,9 +285,14 @@ export function timelinePlanning(ownerId = null) {
                 while (this.pending && !this.disposed) {
                     const job = this.pending;
                     this.pending = null;
+                    const generation = this.requestVersion;
                     try {
                         if (job.kind === 'hover') {
                             const value = await this.request('previewCell', [job.user, job.date]);
+                            // Filter/navigation invalidation can happen while the
+                            // request is unresolved. Never refill the cleared
+                            // cache (or repaint) with that obsolete generation.
+                            if (this.disposed || generation !== this.requestVersion) continue;
                             if (this.hoverCache.size >= 40) this.hoverCache.delete(this.hoverCache.keys().next().value);
                             this.hoverCache.set(job.key, { at: Date.now(), value });
                             this.paintHover(job.anchor, value);
@@ -303,7 +308,7 @@ export function timelinePlanning(ownerId = null) {
                             }
                         }
                     } catch {
-                        if (job.kind === 'hover') this.paintHover(job.anchor, { state: 'error', label: 'Prüfung nicht verfügbar', detail: 'Per Klick erneut versuchen.' });
+                        if (job.kind === 'hover' && !this.disposed && generation === this.requestVersion) this.paintHover(job.anchor, { state: 'error', label: 'Prüfung nicht verfügbar', detail: 'Per Klick erneut versuchen.' });
                         else if (job.version === this.requestVersion && this.plannerVisible) {
                             this.plannerLoading = false;
                             this.plannerError = 'Die Auswahl konnte nicht geladen werden. Bitte schließen und erneut versuchen.';

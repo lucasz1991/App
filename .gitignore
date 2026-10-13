@@ -315,9 +315,12 @@ auth.json
 !/tests/Frontend/runtime-status.test.js
 !/tests/Feature/TimelineLoadingProjectionTest.php
 !/tests/Feature/TimelineDayAttentionTest.php
+!/tests/Feature/TimelineFiltersTest.php
+!/tests/Feature/TimelineEmployeePreviewTest.php
 !/tests/Feature/TimelinePreviewRoutingCacheTest.php
 !/tests/Feature/TimelinePreviewRouteBatchTest.php
 !/tests/Feature/TimelineSharedEventDetailTest.php
+!/tests/Unit/LocationCoverageTest.php
 !/tests/Frontend/timeline-event-details.test.js
 !/tests/Frontend/timeline-proposal-ping.test.js
 

@@ -167,7 +167,7 @@ final class GermanyMap
     /**
      * Schichtplanung: Schichten je Einsatzort, eingefärbt nach dem dringlichsten Besetzungsstand.
      *
-     * @return array{points: list<array{key: string, left: float, top: float, label: string, count: int, open: int, tone: string}>, unplaced: int, total: int}
+     * @return array{points: list<array{key: string, left: float, top: float, label: string, precisionLabels: list<string>, count: int, open: int, tone: string}>, unplaced: int, total: int}
      */
     public static function planning(Collection $shifts): array
     {
@@ -188,7 +188,10 @@ final class GermanyMap
                     continue;
                 }
                 $seen[$key] = true;
-                $points[$key] ??= ['key' => $key, 'left' => $place['left'], 'top' => $place['top'], 'label' => $place['place'], 'count' => 0, 'open' => 0, 'tone' => 'closed'];
+                $points[$key] ??= ['key' => $key, 'left' => $place['left'], 'top' => $place['top'], 'label' => $place['place'], 'precisionLabels' => [], 'count' => 0, 'open' => 0, 'tone' => 'closed'];
+                if ($place['precision'] !== '' && ! in_array($place['precision'], $points[$key]['precisionLabels'], true)) {
+                    $points[$key]['precisionLabels'][] = $place['precision'];
+                }
                 $points[$key]['count']++;
                 $points[$key]['open'] += $open;
                 if (self::TONE_RANK[$tone] > self::TONE_RANK[$points[$key]['tone']]) {

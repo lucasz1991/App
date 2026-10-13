@@ -68,11 +68,14 @@ class GermanyMapTest extends TestCase
         $this->assertSame([5, 1], [$map['total'], $map['unplaced']]);
         $this->assertSame(['Hamburg-Hasselbrook', 'Hamburg-Billwerder', 'München'], array_column($map['points'], 'label'));
         $this->assertSame([2, 1, 'open'], [$map['points'][0]['count'], $map['points'][0]['open'], $map['points'][0]['tone']]);
+        $this->assertSame(['Bahnhofslage · ungefähr'], $map['points'][0]['precisionLabels']);
         $this->assertSame([1, 0, 'staffed'], [$map['points'][1]['count'], $map['points'][1]['open'], $map['points'][1]['tone']]);
         $this->assertSame([1, 0, 'awaiting'], [$map['points'][2]['count'], $map['points'][2]['open'], $map['points'][2]['tone']]);
         foreach ($map['points'] as $point) {
             $this->assertSame($point['left'].'|'.$point['top'], $point['key']);
         }
+        $html = view('livewire.admin.operations.partials.shift-plan-map', ['planMap' => $map])->render();
+        $this->assertStringContainsString('Bahnhofslage · ungefähr', $html);
     }
 
     public function test_planner_hover_keys_follow_coordinate_groups_even_when_labels_are_identical(): void
@@ -159,5 +162,9 @@ class GermanyMapTest extends TestCase
         $this->assertSame(['Hamburg', 'Berlin'], array_column($points, 'label'));
         $this->assertSame(GermanyMap::fromPreview($hamburg), $points[0]);
         $this->assertSame(GermanyMap::fromPreview($berlin, true), GermanyMap::pointsFromPreview($preview, true)[1]);
+        $nearby = array_replace($hamburg, ['latitude' => $hamburg['latitude'] + 0.0001, 'longitude' => $hamburg['longitude'] + 0.0001]);
+        $nearbyPreview = ['state' => 'multiple', 'points' => [$hamburg, $nearby]];
+        $this->assertCount(2, GermanyMap::pointsFromPreview($nearbyPreview));
+        $this->assertCount(1, GermanyMap::pointsFromPreview($nearbyPreview, true));
     }
 }

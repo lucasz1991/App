@@ -89,6 +89,9 @@
                     @endif
                 </x-slot:content>
             </x-ui.dropdown.anchor-dropdown>
+            @if($timelineDatePicker)
+                <div data-timeline-filter-owner="{{ $this->getId() }}" wire:ignore wire:key="timeline-filter-host-{{ $this->getId() }}"></div>
+            @endif
         </div>
     </template>
     <template x-teleport="[data-page-header-actions]">

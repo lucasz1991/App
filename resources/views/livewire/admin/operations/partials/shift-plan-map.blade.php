@@ -5,7 +5,7 @@
     $maxCount = max(1, (int) $mapPoints->max('count'));
     $pins = $mapPoints->map(fn (array $point): array => $point + [
         'size' => 9 + (int) round(9 * $point['count'] / $maxCount),
-        'title' => $point['label'].' · '.$point['count'].' '.($point['count'] === 1 ? 'Schicht' : 'Schichten').($point['open'] ? ' · '.$point['open'].' offen' : ''),
+        'title' => $point['label'].' · '.$point['count'].' '.($point['count'] === 1 ? 'Schicht' : 'Schichten').($point['open'] ? ' · '.$point['open'].' offen' : '').(empty($point['precisionLabels']) ? '' : ' · '.implode(' / ', $point['precisionLabels'])),
     ])->all();
     $mapScope = hash('sha256', json_encode([
         $planMap, $rangeFrom ?? null, $rangeTo ?? null, $search ?? null,
@@ -42,7 +42,7 @@
                             <i data-tone="{{ $point['tone'] }}" aria-hidden="true"></i>
                             <span>
                                 <strong>{{ $point['label'] }}</strong>
-                                <small>{{ $point['count'] }} {{ $point['count'] === 1 ? 'Schicht' : 'Schichten' }}@if($point['open']) · <em>{{ $point['open'] }} offen</em>@endif</small>
+                                <small>{{ $point['count'] }} {{ $point['count'] === 1 ? 'Schicht' : 'Schichten' }}@if($point['open']) · <em>{{ $point['open'] }} offen</em>@endif @if(!empty($point['precisionLabels'])) · {{ implode(' / ', $point['precisionLabels']) }}@endif</small>
                             </span>
                             <i class="far fa-chevron-right rt-shift-plan-map__chevron" aria-hidden="true"></i>
                         </button>

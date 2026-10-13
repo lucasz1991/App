@@ -487,7 +487,7 @@ body:has(#main-content .rt-shift-plan) { height: 100%; min-height: 0; overflow: 
 .rt-unified-inbox__statuses button[aria-pressed="true"] { background: #ef0031; color: white; }
 .rt-unified-inbox__statuses button span { font-variant-numeric: tabular-nums; opacity: .8; }
 .rt-unified-inbox__statuses button:focus-visible, .rt-unified-inbox__more summary:focus-visible { outline: 2px solid #ef0031; outline-offset: 2px; }
-.rt-unified-inbox__select { width: 170px; max-width: 100%; }
+.rt-unified-inbox__select { width: 186px; max-width: 100%; }
 .rt-unified-inbox__more { position: relative; }
 .rt-unified-inbox__more summary { display: grid; place-items: center; width: 44px; height: 44px; cursor: pointer; list-style: none; border: 1px solid #d8e0ec; border-radius: 8px; }
 .rt-unified-inbox__more summary::-webkit-details-marker { display: none; }

@@ -143,7 +143,7 @@
             <div class="rt-ai-assist__body" id="{{ $panelId }}-body" role="tabpanel" aria-labelledby="{{ $panelId }}-tab-{{ $tab }}" @if(in_array($tab, ['intake', 'activity'], true)) wire:poll.20s.visible @endif>
                 @if($intakeMounted && $intakesReady)
                     <div class="rt-ai-assist__intake-workspace" x-show="$wire.tab === 'intake'" @if($tab !== 'intake') style="display:none" @endif>
-                        <livewire:operations.ai-intake-inbox :embedded="true" :customer-id="$intakeCustomerId" :initial-intake-id="$intakeId" :initial-capture="$intakeCapture" :key="'ai-assist-intake-workspace-'.($intakeCustomerId ?? 'all')" />
+                        <livewire:operations.ai-intake-inbox :embedded="true" :customer-id="$intakeCustomerId" :initial-intake-id="$intakeId" :initial-capture="$intakeCapture" :parent-component-id="$this->getId()" :key="'ai-assist-intake-workspace-'.($intakeCustomerId ?? 'all')" />
                     </div>
                 @endif
                 @if($tab === 'intake')

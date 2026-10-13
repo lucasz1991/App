@@ -66,7 +66,21 @@ final class TimelineLocationPreview
             && self::normalize($order->getAttribute('postal_code')) === ''
             && in_array(self::normalize($order->getAttribute('country')), ['', 'de', 'deu', 'deutschland', 'germany'], true);
 
-        return self::refineLocation($base, [$order->getAttribute('location_name')], $texts, $missing);
+        $base = self::refineLocation($base, [$order->getAttribute('location_name')], $texts, $missing);
+        $location = self::normalize($order->getAttribute('location_name'));
+        $city = self::normalize($order->getAttribute('city'));
+        $postal = self::normalize($order->getAttribute('postal_code'));
+        $country = self::normalize($order->getAttribute('country'));
+        if ($location === null || $city === null || $postal === null || $country === null
+            || ! in_array($country, ['', 'de', 'deu', 'deutschland', 'germany'], true)
+            || ($postal !== '' && preg_match('/^\d{5}$/D', $postal) !== 1)) {
+            return $base;
+        }
+        $postalCities = $postal !== '' ? array_column(self::postcodes()[$postal] ?? [], 0) : [];
+
+        return self::displayLocation($location !== '' ? $location : $city, $base, [
+            'city' => $city, 'postal_cities' => $postalCities, 'postal_points' => $postal !== '' ? (self::postcodes()[$postal] ?? []) : [], 'texts' => $texts,
+        ]);
     }
 
     public static function fromInquiry(OperationInquiry $inquiry): array
@@ -75,7 +89,7 @@ final class TimelineLocationPreview
         // linked order addresses; none of those relationships are consulted.
         $location = self::normalize($inquiry->getAttribute('location_name'));
 
-        return $location === null ? self::unlocated('unknown') : self::mapLocation($location);
+        return $location === null ? self::unlocated('unknown') : self::displayLocation($location, self::mapLocation($location));
     }
 
     private static function shiftPreview(Shift $shift, bool $mapFallbacks): array
@@ -118,8 +132,110 @@ final class TimelineLocationPreview
         }
 
         return $mapFallbacks && $location !== null
-            ? self::refineLocation(self::mapLocation($location), [$location], [$shift->getAttribute('title')], $location === '')
+            ? self::displayLocation($location, self::refineLocation(self::mapLocation($location), [$location], [$shift->getAttribute('title')], $location === ''), [
+                'texts' => [$shift->getAttribute('title'), $shift->getAttribute('role_name')],
+            ])
             : self::exactLocation($location);
+    }
+
+    /** Display-only candidates and explicit multiple places never enter the regional pathway. */
+    private static function displayLocation(string $location, array $base, array $context = [], bool $allowMultiple = true): array
+    {
+        if ($location === '' || ($base['confirmed'] ?? false) || ($base['detail'] ?? false) || $base['state'] === 'outside' || $base['label'] === 'Bahnhofslage · ungefähr') {
+            return $base;
+        }
+        if ($base['state'] === 'located' && isset(self::cityCentres()['names'][$location])
+            && (($context['city'] ?? '') === '' || LocationCandidateResolver::normalize($context['city']) === LocationCandidateResolver::normalize($base['place']))
+            && ($context['postal_cities'] ?? []) === []) {
+            return $base;
+        }
+        if ($base['state'] === 'located' && isset(self::places()[$location])
+            && ($context['postal_cities'] ?? []) === [] && ($context['city'] ?? '') === ''
+            && array_filter($context['texts'] ?? [], fn ($value) => $value !== null && $value !== '') === []) {
+            return $base;
+        }
+        if ($base['state'] === 'located' && LocationCandidateResolver::normalize($location) === LocationCandidateResolver::normalize($base['place'])
+            && ($context['postal_cities'] ?? []) === [] && ($context['city'] ?? '') === ''
+            && array_filter($context['texts'] ?? [], fn ($value) => $value !== null && $value !== '') === []) {
+            return $base;
+        }
+        // A reviewed city-qualified label is an existing geographic anchor;
+        // an identically named station in another municipality cannot replace it.
+        if ($base['state'] === 'located' && $base['label'] === 'Stadtmitte · ungefähr' && ($context['city'] ?? '') === '') {
+            $context['city'] = $base['place'];
+        }
+        if ($base['state'] === 'located' && $base['label'] === 'Stadtmitte · ungefähr') {
+            $context['anchor'] = [$base['latitude'], $base['longitude']];
+        }
+        $candidate = LocationCandidateResolver::resolve($location, $context);
+        if (($candidate['blocked'] ?? false) === true) {
+            return ($candidate['reason'] ?? '') === 'service_context' && $base['state'] === 'located' ? $base : self::unlocated('unknown');
+        }
+        if ($candidate !== null) {
+            // Preserve established exact city/locality precision and labels.
+            if ($base['state'] === 'located' && LocationCandidateResolver::normalize($location) === LocationCandidateResolver::normalize($base['place'])
+                && ($context['postal_cities'] ?? []) === [] && ($context['city'] ?? '') === '') {
+                return $base;
+            }
+            $point = $candidate['point'];
+            if ($base['state'] === 'located' && abs($base['latitude'] - $point[2]) < 0.000001 && abs($base['longitude'] - $point[3]) < 0.000001) {
+                return $base;
+            }
+            $preview = self::located($point);
+            if ($preview['state'] !== 'located') {
+                return $base;
+            }
+            $preview['source'] = $candidate['source'];
+            $preview['geonames_id'] = $point[0];
+            $preview['place'] = $candidate['display_name'];
+            if ($candidate['estimated']) {
+                $preview['label'] = 'Ortsvorschlag · ungefähr';
+                $preview['estimated'] = true;
+                $preview['candidate_count'] = $candidate['candidate_count'];
+            } elseif (in_array($point[4], ['RSTN', 'RSTP', 'RYD'], true)) {
+                $preview['label'] = $point[4] === 'RYD' ? 'Bahnanlage · ungefähr' : 'Bahnhofslage · ungefähr';
+                $preview['detail'] = true;
+            } elseif ($point[4] === 'PPLX') {
+                $preview['label'] = 'Stadtteillage · ungefähr';
+                $preview['detail'] = true;
+            }
+
+            return $preview;
+        }
+        if (! $allowMultiple || preg_match('/(?:\/|;|\bund\b)/ui', $location) !== 1) {
+            return $base;
+        }
+        // Full names such as Frankfurt/Main and Heidelberg-Kirchheim/Rohrbach
+        // were tried first; only unresolved explicit separators form a list.
+        $parts = preg_split('/\s*(?:\/|;|\bund\b)\s*/ui', $location) ?: [];
+        if (count($parts) < 2 || count($parts) > 4 || in_array('', $parts, true)) {
+            return self::unlocated('unknown');
+        }
+        $points = [];
+        $unresolved = 0;
+        foreach ($parts as $part) {
+            $point = self::displayLocation($part, self::mapLocation($part), $context, false);
+            if ($point['state'] !== 'located') {
+                $unresolved++;
+
+                continue;
+            }
+            $key = number_format($point['latitude'], 6, '.', '').','.number_format($point['longitude'], 6, '.', '');
+            $points[$key] = $point;
+        }
+        if ($points === []) {
+            return $base;
+        }
+        if (count($points) === 1 && $unresolved === 0) {
+            return reset($points);
+        }
+
+        return [
+            'state' => 'multiple', 'place' => implode(' / ', array_column($points, 'place')),
+            'label' => $unresolved ? 'Mehrere genannte Orte · teilweise verortet' : 'Mehrere genannte Orte · ungefähr',
+            'points' => array_values($points), 'unresolved_count' => $unresolved,
+            'estimated' => count(array_filter($points, fn (array $point): bool => $point['estimated'] ?? false)) > 0,
+        ];
     }
 
     private static function refineLocation(array $base, array $locations, array $texts, bool $missing): array

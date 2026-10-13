@@ -32,6 +32,7 @@ export function aiIntakeComposer(wire, options = {}, environment = {}) {
         filePreviews: [],
         previewName: '',
         wireKey: '',
+        sourceKey: '',
         getFiles() { return wire.uploads ?? []; },
         attachmentCount() { return this.getFiles().length + (wire.audioUpload ? 1 : 0); },
         contextKey() {
@@ -42,7 +43,7 @@ export function aiIntakeComposer(wire, options = {}, environment = {}) {
         init() {
             nativeInit.call(this);
             this.wireKey = this.contextKey();
-            this.$watch?.('wireKey', () => this.resetContext());
+            this.sourceKey = [wire.intakeId, wire.sourceRevision, wire.settingsRevision, wire.overviewFingerprint].join(':');
             hidden = () => this.pause();
             target?.addEventListener('ai-intake-panel-hidden', hidden);
             this.resize();
@@ -50,8 +51,12 @@ export function aiIntakeComposer(wire, options = {}, environment = {}) {
         syncContext() {
             const next = this.contextKey();
             if (next !== this.wireKey) {
+                const source = [wire.intakeId, wire.sourceRevision, wire.settingsRevision, wire.overviewFingerprint].join(':');
+                const retained = source === this.sourceKey && !!wire.uploadContext && (this.getFiles().length > 0 || !!wire.audioUpload);
                 this.wireKey = next;
-                this.resetContext();
+                this.sourceKey = source;
+                if (retained) this.pause();
+                else this.resetContext();
             }
         },
         async bindContext() {
