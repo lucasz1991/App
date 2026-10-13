@@ -5,10 +5,13 @@ namespace App\Livewire\Profile;
 use App\Models\Shift;
 use App\Services\Operations\EmployeeOperationsService;
 use App\Services\Operations\StaffRegionalPreferenceService;
+use App\Services\Routing\TomTomAddressSearchService;
 use App\Support\Operations\GermanFederalStates;
 use App\Support\Operations\GermanyMap;
 use App\Support\Operations\TimelineLocationPreview;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
@@ -23,6 +26,12 @@ class EmployeeRegions extends Component
     public int $revision = 0;
 
     public array $preferences = [];
+
+    #[Locked]
+    public ?array $originPoint = null;
+
+    #[Locked]
+    public int $originVersion = 0;
 
     public string $activeZone = 'preferred';
 
@@ -54,6 +63,8 @@ class EmployeeRegions extends Component
         [, $employee] = $this->authorizeProfile();
         $config = app(StaffRegionalPreferenceService::class)->get($employee);
         $this->revision = (int) Arr::pull($config, 'revision');
+        $this->originPoint = Arr::pull($config, 'base_point');
+        $this->originVersion++;
         $this->preferences = $config + [
             'emergency_radius_km' => null,
             'federal_states' => ['preferred' => [], 'possible' => [], 'emergency' => []],
@@ -67,9 +78,61 @@ class EmployeeRegions extends Component
     {
         $this->authorizeProfile();
         $this->assertDraftShape();
+        if ($this->originPoint !== null && ($this->preferences['base_location'] ?? '') !== $this->originPoint['label']) {
+            $this->originPoint = null;
+        }
         $this->dirty = true;
         $this->notice = null;
         $this->resetValidation();
+    }
+
+    /** Suggestions are transient; only an explicit selection establishes an origin. */
+    public function searchAddresses(string $query): array
+    {
+        [$actor] = $this->authorizeProfile();
+        $query = trim($query);
+        if (mb_strlen($query) < 3 || mb_strlen($query) > 200) {
+            return ['status' => 'known', 'results' => []];
+        }
+        $key = 'employee-region-address:'.$actor->id;
+        if (RateLimiter::tooManyAttempts($key, 60)) {
+            return ['status' => 'unknown', 'reason' => 'rate_limited', 'results' => []];
+        }
+        RateLimiter::hit($key, 60);
+        $result = app(TomTomAddressSearchService::class)->search($query);
+        $this->authorizeProfile();
+        // Do not expose provider identifiers/coordinates until a result is chosen.
+        $result['results'] = array_map(fn (array $point): array => [
+            'label' => $point['label'], 'precision' => $point['precision'],
+            'token' => Crypt::encryptString(json_encode([
+                'purpose' => 'employee-region-origin', 'actor' => $actor->id,
+                'employee' => $this->userId, 'expires' => now()->addMinutes(15)->timestamp,
+                'point' => $point,
+            ], JSON_THROW_ON_ERROR)),
+        ], $result['results'] ?? []);
+
+        return $result;
+    }
+
+    public function selectAddress(string $token): void
+    {
+        [$actor] = $this->authorizeProfile();
+        abort_if(strlen($token) > 8192, 422);
+        try {
+            $selection = json_decode(Crypt::decryptString($token), true, 32, JSON_THROW_ON_ERROR);
+        } catch (\Throwable) {
+            throw ValidationException::withMessages(['preferences.base_location' => 'Bitte die Adresse erneut suchen und auswählen.']);
+        }
+        if (($selection['purpose'] ?? null) !== 'employee-region-origin'
+            || ($selection['actor'] ?? null) !== $actor->id || ($selection['employee'] ?? null) !== $this->userId
+            || ! is_int($selection['expires'] ?? null) || $selection['expires'] <= now()->timestamp
+            || ! is_array($selection['point'] ?? null)) {
+            throw ValidationException::withMessages(['preferences.base_location' => 'Die Adressauswahl ist abgelaufen. Bitte erneut suchen.']);
+        }
+        $this->originPoint = $selection['point'];
+        $this->preferences['base_location'] = $this->originPoint['label'];
+        $this->originVersion++;
+        $this->updatedPreferences();
     }
 
     public function selectZone(string $zone): void
@@ -121,6 +184,8 @@ class EmployeeRegions extends Component
     {
         $this->authorizeProfile();
         $this->assertDraftShape();
+        $this->originPoint = null;
+        $this->originVersion++;
         $this->preferences = [
             'schema_version' => 2,
             'enabled' => false,
@@ -161,7 +226,9 @@ class EmployeeRegions extends Component
         [$actor, $employee] = $this->authorizeProfile();
         try {
             $this->preferences['schema_version'] = 2;
-            app(StaffRegionalPreferenceService::class)->save($employee, $actor, $this->preferences, $this->revision);
+            $this->assertDraftShape();
+            $point = $this->originPoint !== null && ($this->preferences['base_location'] ?? '') === $this->originPoint['label'] ? $this->originPoint : null;
+            app(StaffRegionalPreferenceService::class)->save($employee, $actor, $this->preferences + ['base_point' => $point], $this->revision);
             $this->reload();
             $this->notice = 'Einsatzgebiete gespeichert.';
         } catch (ValidationException $exception) {
@@ -184,7 +251,9 @@ class EmployeeRegions extends Component
                 }
             }
         }
-        $base = TimelineLocationPreview::forRegionalAssessment(new Shift(['location_name' => (string) ($this->preferences['base_location'] ?? '')]));
+        $base = $this->originPoint !== null && ($this->preferences['base_location'] ?? '') === $this->originPoint['label']
+            ? ['state' => 'located', 'place' => $this->originPoint['label'], 'latitude' => $this->originPoint['latitude'], 'longitude' => $this->originPoint['longitude']]
+            : TimelineLocationPreview::forRegionalAssessment(new Shift(['location_name' => (string) ($this->preferences['base_location'] ?? '')]));
         $rings = [];
         $point = null;
         if (($base['state'] ?? null) === 'located') {
@@ -212,6 +281,8 @@ class EmployeeRegions extends Component
     /** Nested public Livewire state must remain safe even before save validation. */
     private function assertDraftShape(): void
     {
+        // Provider coordinates can only enter via a sealed selection and locked state.
+        abort_if(array_key_exists('base_point', $this->preferences), 422);
         abort_unless(is_array($this->preferences['federal_states'] ?? null) && is_array($this->preferences['no_go_areas'] ?? null), 422);
         foreach (array_keys(self::ZONES) as $zone) {
             abort_unless(is_array($this->preferences['federal_states'][$zone] ?? null), 422);

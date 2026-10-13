@@ -14,6 +14,7 @@ use App\Services\Operations\PersonnelScopeService;
 use App\Services\Operations\PlanningTravelDisplay;
 use App\Services\Operations\ShiftAssignmentService;
 use App\Services\Operations\StaffEligibilityService;
+use App\Services\Operations\StaffRegionalPreferenceService;
 use App\Services\Operations\StaffTimelineLayout;
 use App\Services\Operations\TimelinePlanningSuggestionService;
 use App\Services\Operations\TimelineWorkloadService;
@@ -321,27 +322,30 @@ class StaffTimeline extends Component
     public function loadSuggestions(): void
     {
         $this->ensurePlanning();
-        if ($this->suggestionsReady && Cache::has($this->previewKey())) {
+        $key = $this->previewKey();
+        if ($this->suggestionsReady && Cache::has($key)) {
             $this->skipRender();
 
             return;
         }
-        Cache::put($this->previewKey(), app(TimelinePlanningSuggestionService::class)->preview($this->from, $this->until, auth()->user()), 90);
+        Cache::put($key, app(TimelinePlanningSuggestionService::class)->preview($this->from, $this->until, auth()->user()), 90);
         $this->suggestionsReady = true;
     }
 
     /**
      * Besetzungsvorschau, je Zeitleiste und Planstand kurz gemerkt: Fokuswechsel, Nachladen und
-     * Klicks rechnen sie nicht neu. Eigene Änderungen zählen previewVersion hoch, fremde altern nach 90 s aus.
+     * Klicks rechnen sie nicht neu. Einsatzgebietsänderungen wechseln die Cachebasis
+     * sofort; übrige fremde Planänderungen altern nach 90 s aus.
      *
      * @return array{proposals: Collection, open_total: int, limited: bool}
      */
     private function planningPreview(): array
     {
-        $preview = Cache::get($this->previewKey());
+        $key = $this->previewKey();
+        $preview = Cache::get($key);
         if (! is_array($preview) && ! TomTomSettings::all()['enabled']) {
             $preview = app(TimelinePlanningSuggestionService::class)->preview($this->from, $this->until, auth()->user());
-            Cache::put($this->previewKey(), $preview, 90);
+            Cache::put($key, $preview, 90);
         }
         if (! is_array($preview)) {
             $this->suggestionsReady = false;
@@ -352,7 +356,8 @@ class StaffTimeline extends Component
 
     private function previewKey(): string
     {
-        return implode(':', ['staff-timeline-preview', auth()->id(), $this->getId(), $this->from, $this->until, $this->previewVersion]);
+        return implode(':', ['staff-timeline-preview', auth()->id(), $this->getId(), $this->from, $this->until, $this->previewVersion,
+            app(StaffRegionalPreferenceService::class)->revisionFingerprint()]);
     }
 
     private function ensurePlanning(): void

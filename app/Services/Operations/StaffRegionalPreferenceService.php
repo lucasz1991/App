@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Support\Operations\GermanFederalStates;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsTransaction;
+use App\Support\Operations\RegionalOriginPoint;
 use App\Support\Operations\TimelineLocationPreview;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
@@ -33,6 +34,20 @@ class StaffRegionalPreferenceService
         $preference = StaffRegionalPreference::query()->where('user_id', $employee->id)->first();
 
         return $preference ? $this->configuration($preference) : $this->defaults();
+    }
+
+    /** One population read and one preference read; return only an opaque hash. */
+    public function revisionFingerprint(): string
+    {
+        $population = User::query()->where('role', 'staff')->where('status', true);
+        $ids = (clone $population)->orderBy('id')->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $ready = $this->ready();
+        $preferences = $ready && $ids !== []
+            ? StaffRegionalPreference::query()->whereIn('user_id', $population->select('id'))->orderBy('user_id')->get(['user_id', 'revision', 'preferences'])
+                ->map(fn (StaffRegionalPreference $preference) => [(int) $preference->user_id, (int) $preference->revision, hash('sha256', (string) $preference->getRawOriginal('preferences'))])->all()
+            : [];
+
+        return hash('sha256', json_encode([$ready, $ids, $preferences], JSON_THROW_ON_ERROR));
     }
 
     /** Actor and expected revision are checked again inside the transaction. */
@@ -68,8 +83,8 @@ class StaffRegionalPreferenceService
             ])->save();
             app(OperationsAuditService::class)->record($preference, $lockedActor, 'staff.regional_preferences.saved', [
                 'user_id' => $employee->id,
-                'before' => $before,
-                'after' => $this->configuration($preference),
+                'before' => $this->auditConfiguration($before),
+                'after' => $this->auditConfiguration($this->configuration($preference)),
             ]);
 
             return $this->configuration($preference);
@@ -147,12 +162,17 @@ class StaffRegionalPreferenceService
             $distanceText = '';
             $radiusTier = null;
             if ($config['base_location'] !== '') {
-                $base = $resolved[$config['base_location']] ??= $this->resolve($config['base_location']);
+                $origin = $config['base_point'];
+                $base = $origin !== null
+                    ? ['state' => 'located', 'place' => $origin['label'], 'latitude' => $origin['latitude'], 'longitude' => $origin['longitude']]
+                    : ($resolved[$config['base_location']] ??= $this->resolve($config['base_location']));
                 if ($base['state'] !== 'located') {
                     throw new UnexpectedValueException('Stored regional preference cannot be resolved.');
                 }
                 $distance = $this->distance($location, $base);
-                $distanceText = number_format($distance, 0, ',', '.').' km Luftlinie ab '.$base['place'].' · Ortslagen ungefähr, keine Fahrzeit.';
+                $distanceText = $origin !== null
+                    ? number_format($distance, 1, ',', '.').' km Luftlinie ab '.RegionalOriginPoint::description($origin).'. Keine Fahrzeit.'
+                    : number_format($distance, 0, ',', '.').' km Luftlinie ab '.$base['place'].' · Ortslagen ungefähr, keine Fahrzeit.';
                 $radiusTier = match (true) {
                     $distance <= $config['preferred_radius_km'] => 'preferred',
                     $distance <= $config['border_radius_km'] => 'possible',
@@ -217,7 +237,7 @@ class StaffRegionalPreferenceService
 
     private function defaults(): array
     {
-        return ['revision' => 0, 'schema_version' => 1, 'enabled' => false, 'base_location' => '', 'preferred_radius_km' => 50, 'border_radius_km' => 100, 'emergency_radius_km' => null, 'federal_states' => ['preferred' => [], 'possible' => [], 'emergency' => []], 'no_go_areas' => []];
+        return ['revision' => 0, 'schema_version' => 1, 'enabled' => false, 'base_location' => '', 'base_point' => null, 'preferred_radius_km' => 50, 'border_radius_km' => 100, 'emergency_radius_km' => null, 'federal_states' => ['preferred' => [], 'possible' => [], 'emergency' => []], 'no_go_areas' => []];
     }
 
     private function configuration(StaffRegionalPreference $preference): array
@@ -245,6 +265,9 @@ class StaffRegionalPreferenceService
         }
 
         $config = array_replace($this->defaults(), $config);
+        if ($config['base_point'] !== null && ($config['schema_version'] !== 2 || ! RegionalOriginPoint::valid($config['base_point'], $config['base_location']))) {
+            throw new UnexpectedValueException('Invalid stored regional origin.');
+        }
         if (($config['emergency_radius_km'] !== null && (! is_numeric($config['emergency_radius_km']) || trim($config['base_location']) === '' || $config['emergency_radius_km'] < $config['border_radius_km'] || $config['emergency_radius_km'] > 2000))
             || ! is_array($config['federal_states']) || array_keys($config['federal_states']) !== ['preferred', 'possible', 'emergency']) {
             throw new UnexpectedValueException('Invalid stored extended regional configuration.');
@@ -283,7 +306,7 @@ class StaffRegionalPreferenceService
             }
         }
         $validated = Validator::make(['regional_preferences' => $config], [
-            'regional_preferences' => ['required', 'array:schema_version,enabled,base_location,preferred_radius_km,border_radius_km,emergency_radius_km,federal_states,no_go_areas'],
+            'regional_preferences' => ['required', 'array:schema_version,enabled,base_location,base_point,preferred_radius_km,border_radius_km,emergency_radius_km,federal_states,no_go_areas'],
             'regional_preferences.schema_version' => ['sometimes', 'integer', Rule::in([1, 2])],
             'regional_preferences.enabled' => ['required', 'boolean'],
             'regional_preferences.base_location' => ['nullable', 'string', 'max:200'],
@@ -300,6 +323,10 @@ class StaffRegionalPreferenceService
         ])->validate()['regional_preferences'];
         $validated['enabled'] = (bool) $validated['enabled'];
         $validated['base_location'] = trim($validated['base_location'] ?? '');
+        $validated['base_point'] = $config['base_point'] ?? null;
+        if ($validated['base_point'] !== null && ! RegionalOriginPoint::valid($validated['base_point'], $validated['base_location'])) {
+            throw ValidationException::withMessages(['regional_preferences.base_point' => 'Die bestätigte Adresse ist ungültig oder wurde verändert. Bitte erneut auswählen.']);
+        }
         $validated['preferred_radius_km'] = (int) $validated['preferred_radius_km'];
         $validated['border_radius_km'] = (int) $validated['border_radius_km'];
         $validated['emergency_radius_km'] = filled($validated['emergency_radius_km'] ?? null) ? (int) $validated['emergency_radius_km'] : null;
@@ -325,7 +352,7 @@ class StaffRegionalPreferenceService
         if ($validated['emergency_radius_km'] !== null && $validated['base_location'] === '') {
             throw ValidationException::withMessages(['regional_preferences.base_location' => 'Für den Notfallradius wird ein Ausgangsort benötigt.']);
         }
-        if ($validated['base_location'] !== '') {
+        if ($validated['base_location'] !== '' && $validated['base_point'] === null) {
             $validated['base_location'] = $this->validatedLocation($validated['base_location'], 'regional_preferences.base_location');
         }
         $areas = [];
@@ -351,11 +378,25 @@ class StaffRegionalPreferenceService
 
     private function hasExtendedZones(array $config): bool
     {
-        if ((int) ($config['schema_version'] ?? 1) === 2 || ($config['emergency_radius_km'] ?? null) !== null) {
+        if ((int) ($config['schema_version'] ?? 1) === 2 || ($config['base_point'] ?? null) !== null || ($config['emergency_radius_km'] ?? null) !== null) {
             return true;
         }
 
         return collect($config['federal_states'] ?? [])->contains(fn ($codes) => is_array($codes) && $codes !== []);
+    }
+
+    /** Provider coordinates and a precise street address never enter audit logs. */
+    private function auditConfiguration(array $config): array
+    {
+        $point = $config['base_point'] ?? null;
+        unset($config['base_point']);
+        if ($point !== null) {
+            $config['base_location'] = '[Adresse]';
+            $config['origin_reference'] = array_intersect_key($point, array_flip(['provider', 'type', 'precision']));
+            $config['origin_reference']['provider_id_hash'] = hash('sha256', $point['provider_id']);
+        }
+
+        return $config;
     }
 
     private function validatedLocation(string $name, string $field): string

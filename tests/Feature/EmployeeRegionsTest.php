@@ -10,12 +10,14 @@ use App\Models\StaffRegionalPreference;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\Operations\StaffRegionalPreferenceService;
+use App\Services\Routing\TomTomAddressSearchService;
 use App\Support\Operations\GermanFederalStates;
 use App\Support\Operations\GermanyMap;
 use DOMDocument;
 use DOMXPath;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -106,6 +108,114 @@ class EmployeeRegionsTest extends TestCase
             'federal_states' => ['preferred' => ['DE-HH'], 'possible' => ['DE-NI'], 'emergency' => ['DE-BE']],
             'no_go_areas' => [],
         ], $extra);
+    }
+
+    private function address(): array
+    {
+        return ['label' => 'Platz der Republik 1, 11011 Berlin', 'latitude' => 52.5186, 'longitude' => 13.3762,
+            'provider' => 'tomtom', 'provider_id' => 'synthetic-address', 'type' => 'Point Address', 'precision' => 'address'];
+    }
+
+    private function suggestionToken($component): string
+    {
+        $this->mock(TomTomAddressSearchService::class)->shouldReceive('search')->once()->with('Platz der Republik')
+            ->andReturn(['status' => 'known', 'results' => [$this->address()]]);
+        $component->call('searchAddresses', 'Platz der Republik');
+        $result = $component->effects['returns'][0];
+        $this->assertSame(['label', 'precision', 'token'], array_keys($result['results'][0]));
+        $this->assertStringNotContainsString('52.5186', $result['results'][0]['token']);
+
+        return $result['results'][0]['token'];
+    }
+
+    public function test_address_search_is_transient_and_selected_coordinates_are_saved_only_explicitly(): void
+    {
+        $component = $this->editor();
+        $token = $this->suggestionToken($component);
+        $component->assertSet('originPoint', null)->assertSet('dirty', false);
+        $this->assertDatabaseCount('staff_regional_preferences', 0);
+        $component->call('selectAddress', $token)->assertSet('originPoint', $this->address())
+            ->assertSet('preferences.base_location', $this->address()['label'])->assertSet('dirty', true);
+        $this->assertDatabaseCount('staff_regional_preferences', 0);
+        $component->call('save')->assertHasNoErrors()->assertSet('dirty', false)->assertSet('originPoint', $this->address());
+        $this->assertSame($this->address(), StaffRegionalPreference::sole()->preferences['base_point']);
+        Http::assertNothingSent();
+    }
+
+    public function test_typing_another_origin_removes_the_previous_coordinates_and_discard_restores_them(): void
+    {
+        $component = $this->editor();
+        $token = $this->suggestionToken($component);
+        $component->call('selectAddress', $token)->call('save')->assertHasNoErrors()
+            ->set('preferences.base_location', 'Hamburg')->assertSet('originPoint', null)
+            ->call('reload')->assertSet('originPoint', $this->address())
+            ->call('clearPreferences')->assertSet('originPoint', null)->call('reload')->assertSet('originPoint', $this->address());
+    }
+
+    public function test_typing_another_origin_and_saving_cannot_reuse_previous_coordinates(): void
+    {
+        $component = $this->editor();
+        $token = $this->suggestionToken($component);
+        $component->call('selectAddress', $token)->call('save')->set('preferences.base_location', 'Hamburg')->call('save')->assertHasNoErrors();
+        $this->assertNull(StaffRegionalPreference::sole()->preferences['base_point']);
+        $this->assertSame('Hamburg', StaffRegionalPreference::sole()->preferences['base_location']);
+    }
+
+    public function test_address_coordinates_are_locked_against_client_changes(): void
+    {
+        $this->expectException(CannotUpdateLockedPropertyException::class);
+        $this->editor()->set('originPoint', $this->address());
+    }
+
+    public function test_address_coordinates_cannot_be_injected_through_preferences(): void
+    {
+        $this->editor()->set('preferences.base_point', $this->address())->assertStatus(422);
+        $this->assertDatabaseCount('staff_regional_preferences', 0);
+    }
+
+    public function test_tampered_address_ticket_is_rejected_without_changing_origin(): void
+    {
+        $this->editor()->call('selectAddress', 'forged-ticket')->assertHasErrors('preferences.base_location')->assertSet('originPoint', null);
+    }
+
+    public function test_expired_address_ticket_is_rejected(): void
+    {
+        $component = $this->editor();
+        $token = $this->suggestionToken($component);
+        $this->travel(16)->minutes();
+        $component->call('selectAddress', $token)->assertHasErrors('preferences.base_location')->assertSet('originPoint', null);
+    }
+
+    public function test_address_ticket_cannot_be_used_for_a_different_employee_or_actor(): void
+    {
+        $token = $this->suggestionToken($this->editor());
+        $anotherEmployee = User::factory()->create(['role' => 'staff', 'status' => true]);
+        Livewire::test(EmployeeRegions::class, ['userId' => $anotherEmployee->id])->call('selectAddress', $token)
+            ->assertHasErrors('preferences.base_location')->assertSet('originPoint', null);
+        $anotherAdmin = User::factory()->create(['role' => 'admin', 'status' => true]);
+        $this->editor($anotherAdmin)->call('selectAddress', $token)->assertHasErrors('preferences.base_location')->assertSet('originPoint', null);
+    }
+
+    public function test_address_search_ignores_short_and_excessive_queries_and_enforces_rate_limit(): void
+    {
+        $this->mock(TomTomAddressSearchService::class)->shouldNotReceive('search');
+        $component = $this->editor()->call('searchAddresses', 'ab')->call('searchAddresses', str_repeat('x', 201));
+        $key = 'employee-region-address:'.$this->admin->id;
+        for ($i = 0; $i < 60; $i++) {
+            RateLimiter::hit($key, 60);
+        }
+        $component->call('searchAddresses', 'Berlin');
+        $this->assertSame('rate_limited', $component->effects['returns'][0]['reason']);
+        $component->assertSet('dirty', false);
+    }
+
+    public function test_address_actions_check_current_profile_permission(): void
+    {
+        $component = $this->editor();
+        $token = $this->suggestionToken($component);
+        $this->admin->forceFill(['status' => false])->save();
+        $component->call('selectAddress', $token)->assertForbidden();
+        $this->assertDatabaseCount('staff_regional_preferences', 0);
     }
 
     public function test_unconfigured_profile_is_neutral_without_inferring_a_home_address(): void

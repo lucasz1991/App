@@ -343,10 +343,10 @@ class AiPlanningService
         $rows = Shift::whereKey($ids)->with(['qualifications', 'assignments', 'order'])->orderBy('id')->get();
         $this->check($rows->count() === count($ids), 'Eine Schicht wurde entfernt. Bitte neu analysieren.');
 
-        return hash('sha256', json_encode($rows->map(fn (Shift $shift) => [$shift->getRawOriginal(),
+        return hash('sha256', json_encode([$rows->map(fn (Shift $shift) => [$shift->getRawOriginal(),
             $shift->qualifications->pluck('id')->sort()->values()->all(),
             $shift->assignments->sortBy('id')->map(fn ($row) => $row->getRawOriginal())->values()->all(),
-            $shift->order?->getRawOriginal()])->all(), JSON_THROW_ON_ERROR));
+            $shift->order?->getRawOriginal()])->all(), app(StaffRegionalPreferenceService::class)->revisionFingerprint()], JSON_THROW_ON_ERROR));
     }
 
     private function selected(array $record, int $shiftId, int $userId): void

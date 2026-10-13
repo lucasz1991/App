@@ -224,7 +224,14 @@ trait SupportsShiftStaffing
         abort_unless($this->regionalEmployeeId && $this->detailOpen, 404);
         try {
             $config = Arr::except($this->regionalPreference, ['revision']);
-            app(StaffRegionalPreferenceService::class)->save(User::findOrFail($this->regionalEmployeeId), auth()->user(), $config, $this->regionalRevision);
+            $employee = User::findOrFail($this->regionalEmployeeId);
+            $service = app(StaffRegionalPreferenceService::class);
+            $storedPoint = $service->get($employee)['base_point'] ?? null;
+            // This legacy editor does not perform a confirmed address search.
+            // Preserve only the current server-owned point for the same label.
+            $config['base_point'] = $storedPoint !== null && is_string($config['base_location'] ?? null)
+                && trim($config['base_location']) === $storedPoint['label'] ? $storedPoint : null;
+            $service->save($employee, auth()->user(), $config, $this->regionalRevision);
             $this->closeRegionalPreference();
             $this->cancelCandidateSelection();
             $this->resetCandidateWindow();

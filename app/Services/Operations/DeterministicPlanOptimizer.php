@@ -50,6 +50,8 @@ class DeterministicPlanOptimizer
         }
         $ordered = $shifts->sort(fn ($a, $b) => ($scarcity[$a->id] <=> $scarcity[$b->id]) ?: ($a->starts_at->timestamp <=> $b->starts_at->timestamp) ?: ($a->id <=> $b->id));
         foreach ($ordered as $shift) {
+            $regions = app(StaffRegionalPreferenceService::class)->assessMany($shift, $users, $lock);
+            $wishes = app(WorkforcePlanningService::class)->wishSummaries($shift, $users);
             $pinned = $shift->assignments->filter(fn ($a) => $a->status->blocksAvailability())->pluck('user_id')->map(fn ($id) => (int) $id)->all();
             $selected = $pinned;
             $explanations = [];
@@ -63,7 +65,8 @@ class DeterministicPlanOptimizer
                     }
                     $detail = $details[$user->id];
                     $issues = $detail['issues'];
-                    if ($issues !== []) {
+                    $region = $regions[$user->id];
+                    if ($issues !== [] || $region['blocked']) {
                         continue;
                     }
                     try {
@@ -71,7 +74,7 @@ class DeterministicPlanOptimizer
                     } catch (ValidationException) {
                         continue;
                     }
-                    $wish = app(WorkforcePlanningService::class)->wishSummary($shift, $user)['state'];
+                    $wish = $wishes->get($user->id)['state'];
                     $wishPenalty = ['preferred' => 0, 'available' => 1, 'unknown' => 2, 'free_requested' => 3][$wish] ?? 2;
                     $h = $history[$user->id];
                     $minutes = collect($additional[$user->id] ?? [])->sum(fn ($s) => max(0, $s->starts_at->diffInMinutes($s->ends_at) - $s->planned_break_minutes));
@@ -81,13 +84,15 @@ class DeterministicPlanOptimizer
                     $basis = $normalize ? $h['weekly_target'] : 1;
                     $score = $wishPenalty * $goals['wish_weight'] + ($load / $basis) * $goals['load_weight'] + ($this->night($shift, $goals) ? ($night / $basis) * $goals['night_weight'] : 0) + ($this->weekend($shift) ? ($weekend / $basis) * $goals['weekend_weight'] : 0);
                     $travel = $this->travelPreference($detail);
-                    $candidates[] = ['id' => $user->id, 'name' => $user->name, 'score' => round($score, 6), 'planned_travel_seconds' => $travel['seconds'], 'minimum_margin_minutes' => $travel['margin'], 'reasons' => ['Wunsch: '.$wish, 'Planstunden: '.round($load, 1), 'Nächte: '.$night, 'Wochenenden: '.$weekend, $normalize ? 'Verteilung relativ zum gepflegten Wochensoll' : 'Vergleich auf gemeinsamer Zählerbasis', $travel['reason']]];
+                    $candidates[] = ['id' => $user->id, 'name' => $user->name, 'score' => round($score, 6), 'regional_adjustment' => (int) $region['score_adjustment'], 'regional_state' => $region['state'], 'planned_travel_seconds' => $travel['seconds'], 'minimum_margin_minutes' => $travel['margin'], 'reasons' => [$region['label'].': '.$region['detail'], 'Einsatzgebiet zuerst; innerhalb derselben Gebietseignung gelten die gewichteten Planungsziele.', 'Wunsch: '.$wish, 'Planstunden: '.round($load, 1), 'Nächte: '.$night, 'Wochenenden: '.$weekend, $normalize ? 'Verteilung relativ zum gepflegten Wochensoll' : 'Vergleich auf gemeinsamer Zählerbasis', $travel['reason']]];
                 }
                 // Use a common basis for each equal-score cohort. Pairwise
                 // "unknown is neutral" would make the comparator non-transitive.
-                $comparable = collect($candidates)->groupBy(fn ($candidate) => sprintf('%.6F', $candidate['score']))->map(fn ($group) => $group->every(fn ($candidate) => $candidate['planned_travel_seconds'] !== null));
-                $best = collect($candidates)->sort(fn ($a, $b) => ($a['score'] <=> $b['score'])
-                    ?: (($comparable->get(sprintf('%.6F', $a['score'])) ?? false) ? ($a['planned_travel_seconds'] <=> $b['planned_travel_seconds']) : 0)
+                $cohort = fn ($candidate) => $candidate['regional_adjustment'].':'.sprintf('%.6F', $candidate['score']);
+                $comparable = collect($candidates)->groupBy($cohort)->map(fn ($group) => $group->every(fn ($candidate) => $candidate['planned_travel_seconds'] !== null));
+                $best = collect($candidates)->sort(fn ($a, $b) => ($b['regional_adjustment'] <=> $a['regional_adjustment'])
+                    ?: ($a['score'] <=> $b['score'])
+                    ?: (($comparable->get($cohort($a)) ?? false) ? ($a['planned_travel_seconds'] <=> $b['planned_travel_seconds']) : 0)
                     ?: strnatcasecmp($a['name'], $b['name']) ?: ($a['id'] <=> $b['id']))->first();
                 if (! $best) {
                     break;

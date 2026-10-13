@@ -109,6 +109,7 @@ class TimelinePlanningSuggestionService
             : collect($routeDetails)->map(fn ($detail) => $detail['issues'])->all();
         $ranked = collect();
         $routingEnabled = (bool) TomTomSettings::all()['enabled'];
+        $regions = app(StaffRegionalPreferenceService::class)->assessMany($shift, $users);
         $wishes = app(WorkforcePlanningService::class)->wishSummaries($shift, $users);
         $loads = $this->batchLoads($shift, $users);
         foreach ($users as $user) {
@@ -118,6 +119,10 @@ class TimelinePlanningSuggestionService
                 continue;
             }
             $wish = $wishes->get($user->id)['state'];
+            $region = $regions[$user->id] ?? ['state' => 'unknown', 'score_adjustment' => 0, 'revision' => 0, 'detail' => 'Gebiet ungeprüft.'];
+            if ($region['blocked'] ?? false) {
+                continue;
+            }
             $load = $this->projectLoad($loads[$user->id], $additional);
             $wishPriority = ['preferred' => 0, 'available' => 1, 'unknown' => 2, 'free_requested' => 3][$wish] ?? 2;
             $route = $routeDetails[$user->id] ?? ['issues' => [], 'warnings' => [], 'travel' => []];
@@ -127,12 +132,16 @@ class TimelinePlanningSuggestionService
             if ($wishLabel) {
                 $reasons[] = $wishLabel;
             }
+            if (filled($region['detail'] ?? null)) {
+                $reasons[] = $region['detail'];
+            }
             $reasons[] = 'Wochenplanung: '.number_format($load['planned_minutes'] / 60, 1, ',', '.').' h';
             if ($load['target_minutes'] !== null) {
                 $reasons[] = 'Gepflegtes Wochensoll: '.number_format($load['target_minutes'] / 60, 1, ',', '.').' h';
             }
             $ranked->push(['user' => $user, 'reasons' => $reasons, 'wish' => $wish,
                 'travel' => $route, 'warnings' => $route['warnings'] ?? [],
+                'region' => $region, 'planning_score' => max(0, min(100, 85 + (int) $region['score_adjustment'])),
                 'planned_minutes' => $load['planned_minutes'], 'target_minutes' => $load['target_minutes'],
                 '_wish_priority' => $wishPriority,
                 '_load_ratio' => $load['target_minutes'] > 0 ? $load['planned_minutes'] / $load['target_minutes'] : null]);
@@ -147,10 +156,14 @@ class TimelinePlanningSuggestionService
     {
         // A single comparable basis avoids fabricated targets and a non-transitive mixed ratio/minutes sort.
         $useRatios = $ranked->isNotEmpty() && $ranked->every(fn (array $candidate) => $candidate['_load_ratio'] !== null);
-        $cohortKey = fn (array $candidate) => json_encode([$candidate['_wish_priority'], $useRatios ? $candidate['_load_ratio'] : null, $candidate['planned_minutes']]);
+        $cohortKey = fn (array $candidate) => json_encode([$candidate['planning_score'], $candidate['_wish_priority'], $useRatios ? $candidate['_load_ratio'] : null, $candidate['planned_minutes']]);
         $knownCohorts = $ranked->groupBy($cohortKey)->map(fn (Collection $cohort) => $cohort->every(fn ($candidate) => ($candidate['travel']['planned_duration_seconds'] ?? null) !== null));
 
         return $ranked->sort(function (array $left, array $right) use ($useRatios, $cohortKey, $knownCohorts): int {
+            $regional = $right['planning_score'] <=> $left['planning_score'];
+            if ($regional !== 0) {
+                return $regional;
+            }
             $wish = $left['_wish_priority'] <=> $right['_wish_priority'];
             if ($wish !== 0) {
                 return $wish;
@@ -247,6 +260,7 @@ class TimelinePlanningSuggestionService
                 $hoursUntilStart = CarbonImmutable::now('UTC')->diffInHours($shift->starts_at, false);
                 $urgency = $hoursUntilStart <= 24 ? 'urgent' : ($hoursUntilStart <= 72 ? 'soon' : 'normal');
                 $proposals->push(['shift' => $shift, 'user' => $candidate['user'], 'revision' => (int) $shift->revision, 'reasons' => $candidate['reasons'],
+                    'region' => $candidate['region'], 'planning_score' => $candidate['planning_score'],
                     'fit' => $fit, 'fit_label' => in_array($candidate['travel']['route_state'], ['pending', 'unknown'], true) ? 'Fahrt ungeprüft · vorläufiger Vorschlag' : ['preferred' => 'Passend mit Dienstwunsch / Verfügbarkeit', 'suitable' => 'Keine bekannten Konflikte', 'review' => 'Freiwunsch prüfen'][$fit],
                     'urgency' => $urgency, 'urgency_label' => ['urgent' => 'Beginn innerhalb von 24 Stunden', 'soon' => 'Beginn innerhalb von 72 Stunden', 'normal' => 'Beginn in mehr als 72 Stunden'][$urgency]]);
                 $additionalByUser[$candidate['user']->id][] = $shift;

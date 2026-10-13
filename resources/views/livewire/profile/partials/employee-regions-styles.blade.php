@@ -46,6 +46,17 @@
 .rt-regions__origin-field { position:relative; }
 .rt-regions__origin-field > i { position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:13px; color:var(--regions-muted); pointer-events:none; }
 .rt-regions .rt-regions__origin-field input { padding-left:34px; }
+.rt-regions__address { position:relative; min-width:0; }
+.rt-regions__address-quality { float:right; font-size:10px; font-weight:400; color:var(--regions-muted); }
+.rt-regions__origin-field > .rt-regions__search-loading { right:10px; left:auto; }
+.rt-regions .rt-regions__address input { padding-right:32px; }
+.rt-regions__address-results { position:absolute; z-index:6; top:100%; left:0; right:0; margin-top:5px; max-height:min(320px,40svh); overflow:auto; overscroll-behavior:contain; border:1px solid var(--regions-border); border-radius:10px; background:var(--regions-bg); box-shadow:0 8px 24px rgba(23,40,63,.12); }
+.rt-regions__address-results ul { padding:4px; margin:0; list-style:none; }
+.rt-regions__address-results [role=option] { display:flex; flex-direction:column; gap:4px; padding:10px; min-height:50px; border-radius:6px; cursor:pointer; font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
+.rt-regions__address-results [role=option][aria-selected=true] { background:var(--regions-surface); outline:1px solid var(--regions-border); outline-offset:-1px; }
+.rt-regions__address-results small { font-size:10px; color:var(--regions-muted); }
+.rt-regions__address-results p { margin:0; padding:12px; font-size:12px; line-height:1.5; }
+.rt-regions__address-provider { display:block; padding:5px 12px; text-align:right; border-top:1px solid var(--regions-border); }
 .rt-regions__radius-fields { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; margin-top:14px; min-width:0; }
 .rt-regions__radius-fields > label { min-width:0; border:1px solid var(--regions-border); border-radius:8px; padding:9px 8px 1px; background:var(--regions-surface); }
 .rt-regions__radius-fields label > span:first-child { display:block; font-size:10px; color:var(--zone); font-weight:500; }
