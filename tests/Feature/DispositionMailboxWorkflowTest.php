@@ -735,11 +735,14 @@ class DispositionMailboxWorkflowTest extends TestCase
         $this->assertSame(0, OperationInquiry::count());
         $this->assertSame(0, AiIntakeDelivery::count());
 
-        $component->set('customerId', '999999')->call('confirmGuidedClassification', true)->assertHasNoErrors()
+        $otherCustomer = Customer::create(['company_name' => 'Another existing company', 'is_active' => true]);
+        $component->set('customerId', (string) $otherCustomer->id)->call('confirmGuidedClassification', true)->assertHasNoErrors()
             ->assertSet('guidedStep', 'actions')->assertSet('guidedReview.customer_id', $this->customer->id)
             ->assertSet('guidedReview.customer_resolved', true);
         $this->assertSame(0, OperationInquiry::count());
         $component->call('guidedBack')->assertHasNoErrors()->assertSet('guidedStep', 'customer');
+        $component->set('customerId', '999999')->assertStatus(200)->assertHasNoErrors()->assertSet('guidedStep', 'customer');
+        $this->assertSame([], $this->renderedOptionValues($component->html(), 'guided-contact-'));
         $contact = $this->contact();
         $component->set('customerId', (string) $this->customer->id)->set('contactId', (string) $contact->id)
             ->call('confirmGuidedCustomer')->assertHasNoErrors()->assertSet('guidedStep', 'actions')
@@ -779,9 +782,38 @@ class DispositionMailboxWorkflowTest extends TestCase
         $this->noAutomaticEffects();
     }
 
+    public function test_existing_exact_customer_email_match_can_advance_without_guessing_a_contact(): void
+    {
+        $this->customer->update(['email' => 'customer@example.test']);
+        $this->openMessage()->call('startRecognition')->assertHasNoErrors()
+            ->assertSet('guidedReview.customer_resolved', true)->assertSet('guidedReview.contact_id', null)
+            ->assertSet('guidedReview.can_prepare_clarification', false)->call('confirmGuidedClassification', true)
+            ->assertHasNoErrors()->assertSet('guidedStep', 'actions');
+        $this->assertSame('customer_email', AiIntake::firstOrFail()->match_method);
+        $this->assertSame(0, OperationInquiry::count());
+        $this->assertSame(0, AiIntakeDelivery::count());
+        $this->noAutomaticEffects();
+    }
+
+    public function test_existing_exact_contact_match_becomes_unresolved_when_the_contact_is_inactive(): void
+    {
+        $contact = $this->contact();
+        $component = $this->openMessage()->call('startRecognition')->assertHasNoErrors()
+            ->assertSet('guidedReview.customer_resolved', true)->assertSet('guidedReview.contact_id', $contact->id);
+        $this->assertSame('contact_email', AiIntake::firstOrFail()->match_method);
+        $contact->update(['is_active' => false]);
+        $component->call('confirmGuidedClassification', true)->assertHasNoErrors()
+            ->assertSet('guidedReview.customer_resolved', false)->assertSet('guidedStep', 'customer');
+        $this->assertNotContains((string) $contact->id, $this->renderedOptionValues($component->html(), 'guided-contact-'));
+        $this->rejected([422], fn () => app(DispositionMailboxWorkflowService::class)->createInquiries($this->admin, $component->get('guidedReview')));
+        $this->assertSame(0, OperationInquiry::count());
+        $this->assertSame(0, AiIntakeDelivery::count());
+        $this->noAutomaticEffects();
+    }
+
     public function test_assigned_customer_cannot_skip_the_customer_step_with_stale_or_unknown_assignment_proof(): void
     {
-        foreach (['source_revision', 'message_id', 'source_hash', 'customer_id', 'method', 'unknown_method'] as $invalid) {
+        foreach (['source_revision', 'message_id', 'source_hash', 'customer_id', 'method', 'settings_revision', 'lookup_version', 'unknown_method'] as $invalid) {
             $this->customer->update(['company_name' => 'Synthetic Rail GmbH']);
             $component = $this->openMessage()->call('startRecognition')->assertHasNoErrors()
                 ->assertSet('guidedReview.customer_resolved', true);
@@ -790,7 +822,7 @@ class DispositionMailboxWorkflowTest extends TestCase
             if ($invalid === 'unknown_method') {
                 $intake->update(['match_method' => 'unverified_model_choice']);
             } else {
-                $analysis['customer_match'][$invalid] = in_array($invalid, ['source_hash', 'method'], true) ? 'invalid' : 999999;
+                $analysis['customer_match'][$invalid] = in_array($invalid, ['source_hash', 'method', 'lookup_version'], true) ? 'invalid' : 999999;
                 $intake->update(['analysis' => $analysis]);
             }
             $component->call('confirmGuidedClassification', true)->assertHasNoErrors()

@@ -17,7 +17,7 @@ use RuntimeException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Webklex\PHPIMAP\Message;
 
-/** Readonly identity and history hints. Never extraction evidence or a customer assignment. */
+/** Readonly identity/history hints and verified assignment proofs; never mutates a customer or intake. */
 class AiIntakeCustomerContextService
 {
     public const VERSION = 'customer-context-v1';
