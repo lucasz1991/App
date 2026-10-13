@@ -36,16 +36,22 @@
                     <option value="all">Alle Funktionen</option>
                     @foreach($timelineRoleOptions as $option)<option value="{{ $option['value'] }}">{{ $option['label'] }}</option>@endforeach
                 </x-ui.forms.select>
-                <label for="timeline-filter-status-{{ $this->getId() }}">Schichtstatus</label>
-                <x-ui.forms.select id="timeline-filter-status-{{ $this->getId() }}" wire:model.live="shiftStatus" aria-label="Schichten nach Status filtern">
-                    <option value="all">Alle Schichtstatus</option>
-                    @foreach($timelineShiftStatusOptions as $option)<option value="{{ $option['value'] }}">{{ $option['label'] }}</option>@endforeach
-                </x-ui.forms.select>
-                <label for="timeline-filter-assignment-{{ $this->getId() }}">Zuweisung</label>
-                <x-ui.forms.select id="timeline-filter-assignment-{{ $this->getId() }}" wire:model.live="assignmentStatusFilter" aria-label="Schichten nach Zuweisung filtern">
-                    <option value="all">Angefragt und bestätigt</option>
-                    @foreach($timelineAssignmentStatusOptions as $option)<option value="{{ $option['value'] }}">{{ $option['label'] }}</option>@endforeach
-                </x-ui.forms.select>
+                <div class="rt-timeline-filters__columns">
+                    <div>
+                        <label for="timeline-filter-status-{{ $this->getId() }}">Schichtstatus</label>
+                        <x-ui.forms.select id="timeline-filter-status-{{ $this->getId() }}" wire:model.live="shiftStatus" aria-label="Schichten nach Status filtern">
+                            <option value="all">Alle</option>
+                            @foreach($timelineShiftStatusOptions as $option)<option value="{{ $option['value'] }}">{{ $option['label'] }}</option>@endforeach
+                        </x-ui.forms.select>
+                    </div>
+                    <div>
+                        <label for="timeline-filter-assignment-{{ $this->getId() }}">Zuweisung</label>
+                        <x-ui.forms.select id="timeline-filter-assignment-{{ $this->getId() }}" wire:model.live="assignmentStatusFilter" aria-label="Schichten nach Zuweisung filtern">
+                            <option value="all">Alle</option>
+                            @foreach($timelineAssignmentStatusOptions as $option)<option value="{{ $option['value'] }}">{{ $option['label'] }}</option>@endforeach
+                        </x-ui.forms.select>
+                    </div>
+                </div>
             </fieldset>
             <p class="rt-timeline-filters__hint">Filter ändern nur die Anzeige. Abwesenheiten und die vollständige Arbeitszeit bleiben sichtbar.</p>
             @if($errors->hasAny(['staffPresence', 'shiftRole', 'shiftStatus', 'assignmentStatusFilter']))

@@ -118,6 +118,34 @@ class AiIntakeServiceTest extends TestCase
         $this->mock(AiIntakeExtractionService::class, fn ($mock) => $mock->shouldReceive('extract')->andReturnUsing(fn (AiIntake $i) => ['result' => $callback($i), 'model' => 'synthetic-only', 'request_id' => 'synthetic', 'cost_usd' => 0.001]));
     }
 
+    public function test_automatic_processing_keeps_default_staffing_for_personal_review_without_creating_an_inquiry(): void
+    {
+        $source = 'Tf Hamburg 2027-05-13T08:00 2027-05-13T16:00.';
+        $intake = $this->receive(['text' => $source]);
+        $this->extractUsing(function ($intake) use ($source): array {
+            $result = $this->extractionResult($intake);
+            $position = &$result['positions'][0];
+            $position['required_staff'] = null;
+            $position['segments'] = [];
+            $position['evidence'] = array_values(array_filter($position['evidence'], fn ($evidence) => ! in_array($evidence['field'], ['required_staff', 'segments'], true)));
+            foreach ($position['evidence'] as &$evidence) {
+                $evidence['quote'] = $source;
+            }
+
+            return $result;
+        });
+
+        $this->service->analyze($intake->id);
+        $current = $intake->fresh();
+        $this->assertSame('review', $current->status);
+        $this->assertContains('native_review', $current->missing_fields);
+        $this->assertSame(1, $current->proposals()->firstOrFail()->payload['demand']['required_staff']);
+        $this->assertSame('default', $current->proposals()->firstOrFail()->payload['assumptions']['required_staff']['basis']);
+        $this->assertSame(0, OperationInquiry::count());
+        $this->assertSame(0, AiIntakeDelivery::count());
+        Mail::assertNothingSent();
+    }
+
     private function analyzed(): AiIntake
     {
         $intake = $this->receive();
@@ -241,9 +269,11 @@ class AiIntakeServiceTest extends TestCase
             return $result;
         });
         $this->service->analyze($intake->id);
-        $this->assertNull(OperationInquiry::first()->customer_id);
-        $this->assertNull(OperationInquiry::first()->location_name);
-        $this->assertNull(OperationInquiry::first()->starts_at);
+        $this->assertSame(0, OperationInquiry::count());
+        $this->assertNull($intake->fresh()->customer_id);
+        $this->assertNull(AiIntakeProposal::sole()->payload['demand']['location_name']);
+        $this->assertNull(AiIntakeProposal::sole()->payload['demand']['starts_at']);
+        $this->assertSame('default', AiIntakeProposal::sole()->payload['assumptions']['required_staff']['basis']);
         $this->assertSame(0, AiIntakeDelivery::count());
         Mail::assertNothingSent();
     }

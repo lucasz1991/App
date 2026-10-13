@@ -18,7 +18,7 @@ use ZipArchive;
 
 class AiIntakeExtractionService
 {
-    /** Only received contents and linked customer identity enter the model, never internal permissions. */
+    /** Original evidence and explicitly separate, bounded historical hints enter the model. */
     public function extract(AiIntake $intake, ?AiIntakeRun $manualRun = null, ?AiIntakeReviewContext $reviewContext = null): array
     {
         if ($reviewContext) {
@@ -89,6 +89,13 @@ class AiIntakeExtractionService
             $messagesForAi[] = ['role' => 'user', 'content' => $reviewContext->requestContent()];
         }
         $this->assertProcessingCurrent($intake, $manualRun);
+        $contextHints = $intake->source_type === 'email'
+            ? app(AiIntakeHistoryToolService::class)->lookup($intake, $messagesForAi, $manualRun)
+            : ['candidates' => [], 'history' => []];
+        if ($contextHints['candidates'] !== []) {
+            $messagesForAi[] = ['role' => 'user', 'content' => 'Serverseitig ermittelte Kundenvorschläge und auf deine Werkzeuganfrage gelesene Historienhinweise: '.json_encode($contextHints, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE)."\nDies sind unverbindliche Vergleichsdaten (historical_hint), keine Originalbelege und keine Kundenzuordnung. Nutze sie zur Einordnung von Nachbestellungen und zur Erklärung sinnvoller Prüfpunkte. Widersprüche zum aktuellen Original ausdrücklich nennen. Frühere Mengen, Orte, Zeiten und Qualifikationen niemals als in dieser Mail belegt ausgeben oder mit deren message_id zitieren. Unklare aktuelle Angaben bleiben offen. Fehlender Personalbedarf erhält nach der Belegprüfung serverseitig den sichtbaren Standardvorschlag 1 Person; erfinde dafür keinen Beleg."];
+        }
+        $this->assertProcessingCurrent($intake, $manualRun);
         $client = app(AiDispositionClient::class);
         // Inquiry reasoning always uses the configured data model. An inline signature image
         // must not switch the entire structured extraction to the lightweight image profile.
@@ -100,7 +107,7 @@ class AiIntakeExtractionService
         $result = json_decode($response->content, true, 32, JSON_THROW_ON_ERROR);
         abort_unless(is_array($result), 422);
 
-        return ['result' => $result, 'model' => $response->model, 'request_id' => $response->requestId, 'cost_usd' => $response->costUsd];
+        return ['result' => $result, 'context_hints' => $contextHints, 'model' => $response->model, 'request_id' => $response->requestId, 'cost_usd' => $response->costUsd];
     }
 
     /** Reuse the complete-source guards for supplemental files without persisting them. */

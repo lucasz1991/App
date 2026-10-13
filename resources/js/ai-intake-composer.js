@@ -25,6 +25,7 @@ export function aiIntakeComposer(wire, options = {}, environment = {}) {
     state = {
         ...native,
         busy: false,
+        hasText: false,
         uploadActive: false,
         uploadProgress: 0,
         uploadError: '',
@@ -46,7 +47,7 @@ export function aiIntakeComposer(wire, options = {}, environment = {}) {
             this.sourceKey = [wire.intakeId, wire.sourceRevision, wire.settingsRevision, wire.overviewFingerprint].join(':');
             hidden = () => this.pause();
             target?.addEventListener('ai-intake-panel-hidden', hidden);
-            this.resize();
+            this.updateInput();
         },
         syncContext() {
             const next = this.contextKey();
@@ -135,7 +136,7 @@ export function aiIntakeComposer(wire, options = {}, environment = {}) {
         },
         canSubmit() {
             return !destroyed && !this.busy && !this.uploadActive && !this.uploading && !this.recording && !this.requesting
-                && !wire.contextChanged && (!!this.$refs?.prompt?.value?.trim() || this.getFiles().length > 0 || !!wire.audioUpload);
+                && !wire.contextChanged && (this.hasText || this.getFiles().length > 0 || !!wire.audioUpload);
         },
         async submit() {
             if (!this.canSubmit()) return;
@@ -153,6 +154,10 @@ export function aiIntakeComposer(wire, options = {}, environment = {}) {
             const field = this.$refs?.prompt;
             if (field) { field.style.height = 'auto'; field.style.height = `${Math.min(160, Math.max(40, field.scrollHeight))}px`; }
         },
+        updateInput() {
+            this.hasText = !!this.$refs?.prompt?.value?.trim();
+            this.resize();
+        },
         clearFilePreviews() {
             this.filePreviews.forEach(file => { if (file.url) urls.revokeObjectURL(file.url); });
             this.filePreviews = [];
@@ -165,6 +170,7 @@ export function aiIntakeComposer(wire, options = {}, environment = {}) {
         },
         submitted(componentId) {
             if (String(componentId) !== String(options.componentId)) return;
+            this.hasText = false;
             this.clearFilePreviews();
             this.clearAudioPreview();
             if (this.$refs?.files) this.$refs.files.value = '';
@@ -179,6 +185,7 @@ export function aiIntakeComposer(wire, options = {}, environment = {}) {
             this.clearAudioPreview();
             this.busy = false;
             this.uploadError = '';
+            this.hasText = !!String(wire[options.field ?? 'prompt'] ?? '').trim();
         },
         cancel() { this.resetContext(); },
         pause() {

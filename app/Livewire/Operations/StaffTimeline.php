@@ -453,7 +453,7 @@ class StaffTimeline extends Component
             foreach ($this->previousDisplayFilters as $name => $previous) {
                 $this->{$name} = $previous;
             }
-            $this->setErrorBag($validator->errors());
+            $this->setErrorBag($this->getErrorBag()->merge($validator->errors()->messages()));
             $this->displayFiltersRejected = true;
 
             return;

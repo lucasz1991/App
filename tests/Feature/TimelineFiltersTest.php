@@ -10,6 +10,7 @@ use App\Models\Order;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
+use App\Services\Operations\PlanningTravelDisplay;
 use App\Services\Operations\TimelinePlanningSuggestionService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -237,11 +238,35 @@ class TimelineFiltersTest extends TestCase
     public function test_mixed_invalid_updates_restore_filters_atomically_and_preserve_field_errors(): void
     {
         $timeline = $this->timeline()->set('assignmentOpen', true);
-        $timeline->set(['staffPresence' => 'assigned', 'shiftStatus' => ['invalid'], 'search' => 'Alex'])
+        $timeline->update(updates: ['staffPresence' => 'assigned', 'shiftStatus' => ['invalid'], 'search' => 'Alex'])
             ->assertStatus(200)->assertHasErrors('shiftStatus')->assertSet('shiftStatus', 'all')
             ->assertSet('staffPresence', 'all')->assertSet('search', 'Alex')->assertSet('assignmentOpen', false);
         $this->assertSame([$this->alex->id], $this->userIds($timeline));
         $timeline->set('shiftStatus', 'draft')->assertHasNoErrors('shiftStatus')->assertSet('shiftStatus', 'draft');
+    }
+
+    public function test_invalid_filter_keeps_existing_assignment_error_and_renders_recoverable_feedback(): void
+    {
+        $shift = $this->shift();
+        $travel = ['issues' => [], 'warnings' => [], 'travel' => []];
+        $travel += app(PlanningTravelDisplay::class)->status($travel, false);
+        $this->partialMock(TimelinePlanningSuggestionService::class)->shouldReceive('cellChoices')->andReturn(collect([
+            ['shift' => $shift, 'revision' => 1, 'eligible' => true, 'issues' => [], 'travel' => $travel, 'warnings' => []],
+        ]));
+        $timeline = $this->timeline()->call('openCell', $this->alex->id, '2027-05-13')
+            ->call('selectCellShift', $shift->id, 1)->set('assignmentStatus', 'unsupported')
+            ->call('confirmAssignment')->assertHasErrors('assignmentStatus');
+        $timeline->set('shiftStatus', [])->assertStatus(200)->assertHasErrors(['assignmentStatus', 'shiftStatus'])
+            ->assertSet('shiftStatus', 'all')->assertSet('assignmentOpen', true);
+        $document = new \DOMDocument;
+        $previous = libxml_use_internal_errors(true);
+        $document->loadHTML('<?xml encoding="UTF-8">'.$timeline->html());
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        $xpath = new \DOMXPath($document);
+        $this->assertSame(1, $xpath->query('//p[@role="alert"][contains(text(),"Dieser Filter ist nicht mehr verfügbar")]')->length);
+        $timeline->call('resetTimelineFilters')->assertHasNoErrors(['assignmentStatus', 'shiftStatus'])->assertSet('assignmentOpen', false);
+        $this->assertDatabaseCount('shift_assignments', 0);
     }
 
     public function test_period_hydration_retains_display_filters_and_bounded_lazy_axis(): void
@@ -319,10 +344,10 @@ class TimelineFiltersTest extends TestCase
             $this->assertSame(1, $xpath->query('//*[@data-rt-custom-select][@data-autosave-model="'.$property.'"]')->length);
         }
         $this->assertStringContainsString('operations-timeline-filters-changed.window', $timeline->html());
-        $this->assertStringContainsString('wire:click="resetTimelineFilters"', $timeline->html());
         $this->assertStringContainsString('Abwesenheiten und die vollständige Arbeitszeit bleiben sichtbar.', $timeline->html());
-        $reset = $xpath->query('//button[@*[name()="wire:click"]="resetTimelineFilters"]')->item(0);
+        $reset = $xpath->query('//footer[contains(@class,"rt-timeline-filters__footer")]/button')->item(0);
         $this->assertTrue($reset->hasAttribute('disabled'));
+        $this->assertFalse($reset->hasAttribute('wire:click'), 'Native disabled buttons must not expose a click action.');
         $timeline->set('search', 'Alex');
         $document = new \DOMDocument;
         $previous = libxml_use_internal_errors(true);
@@ -331,6 +356,7 @@ class TimelineFiltersTest extends TestCase
         libxml_use_internal_errors($previous);
         $xpath = new \DOMXPath($document);
         $reset = $xpath->query('//button[@*[name()="wire:click"]="resetTimelineFilters"]')->item(0);
+        $this->assertNotNull($reset);
         $this->assertFalse($reset->hasAttribute('disabled'));
         $this->assertDatabaseCount('shift_assignments', 0);
     }

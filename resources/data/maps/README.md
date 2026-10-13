@@ -282,3 +282,65 @@ with its geometry, keep the shared projection, record new hashes/counts/date,
 and run `TimelineLocationPreviewTest`. Review the separate city's explicit IDs,
 names, district codes and approximate-label contract when updating its small
 fallback file; never replace unreviewed ambiguity with a generic best guess.
+
+## Display candidate coverage and explicit multiple places (2026-10-13)
+
+The user authorized the best available approximate display proposal for ambiguous
+place names without saving those proposals as worksite locations. This additive
+path supersedes the strict no-proposal display fallback above; regional assessment
+continues to use its original strict index and ambiguity policy.
+
+`scripts/build-location-candidates.py` builds `germany-location-candidates/`
+from the same public [GeoNames Germany extract](https://download.geonames.org/export/dump/DE.zip)
+([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)). Cached DE.txt SHA-256:
+`ab09c027d3b5d1e97edfb30181842d5801fb31f7ee90bcc00e3c2120897e264d`;
+archive downloaded 2026-10-06 SHA-256:
+`bc05cc8c6191d74bcde39edb0b44e586ebebe698a84aaf5f5c13482f74e5a25e`.
+The index contains 88,993 populated-place, district, station and railway-yard
+features, including small places omitted by the earlier population threshold.
+Feature codes for abandoned/historical stations are excluded; a retained station
+code is not evidence of its present operator, accessibility or service status.
+Administrative areas are context only, not duplicate location candidates.
+
+There are 202,361 exact/source-derived names in 64 SHA-256-partitioned JSON shards,
+19,522,698 bytes including the manifest. Manifest SHA-256:
+`e93ea91f9860450ed489aefb2982515867fee4eb3c0e3003d68f0c6c1d17d053`.
+The manifest records every shard hash, byte size, source hash and municipality
+context. Canonical/ASCII names precede source aliases; bounded spelling grammar
+covers regional abbreviations and source municipality/station labels. There is no
+edit-distance fuzzy matching or runtime network request.
+
+Structured country, city and postcode remain authoritative. A supplied postcode
+also limits candidates to within 30 km of its public postal point; this is a coarse
+plausibility check, not a postal boundary. A reviewed city centre similarly anchors
+qualified local details, preventing a same-name station hundreds of kilometres away.
+Among compatible candidates, ranking is: matching municipality/full-name service
+context; explicit station/yard wording; canonical versus derived/source alias;
+weak railway-role context; administrative prominence; documented population; stable
+GeoNames ID. Population zero means unavailable in this source, not uninhabited.
+Generic WGM/RB roles cannot make a distant shortened station alias outrank an exact
+canonical town. Explicit negated municipality mentions exclude those candidates;
+`sondern`/`aber` end the negation window. Generic `ohne Personal` is not a location
+constraint. This bounded parser is not general language understanding: an unrelated
+German city outside the candidate municipalities is not exhaustively interpreted
+as a contradictory service location. Existing foreign-city blockers remain a
+bounded safeguard, not a world geocoder.
+
+Ambiguous selections carry `estimated=true`, `candidate_count`, `geonames_id`,
+`source`, and label `Ortsvorschlag · ungefähr`. Their coordinates are actual source
+points, never fabricated averages. Full source names are attempted before splitting
+2–4 explicit `/`, `;` or `und` parts. `multiple` previews carry `points[]`, an
+aggregate estimate flag and an unresolved count, without top-level coordinates.
+Partial matches explicitly say `teilweise verortet`; there is no midpoint between
+separate sites. Confirmed own snapshots always remain singleton and malformed
+confirmed snapshots cannot be rescued by guesses. Neither the preview nor ranking
+writes to models, queries unloaded relations, reads private customer/notes fields,
+or changes regional assignment policy.
+
+Runtime caches retain at most 8 public shards and 256 positively matched immutable
+public-name records. Unmatched names, descriptions and ranking decisions are never
+cached. Description scans use bounded dictionaries without per-ngram shard loads.
+A local PHP 8.2 benchmark of 250 repeated six-location orders took 291 ms with cold
+caches, 59 ms warm, and 497 ms with 5,000-character descriptions (50 MiB process
+peak including legacy indexes); these are local synthetic measurements, not a
+production latency guarantee.

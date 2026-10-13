@@ -230,6 +230,7 @@ class DispositionMailboxWorkflowService
             'classification' => $classification, 'classification_label' => DispositionMailboxReview::LABELS[$classification],
             'title' => $intake->title, 'summary' => $intake->summary, 'positions' => $positions, 'missing_fields' => $missing,
             'intake_status' => $intake->status,
+            'context_hints' => app(AiIntakeContextHints::class)->forReview($intake, $actor),
             'customer_id' => $intake->customer_id, 'contact_id' => $intake->customer_contact_id, 'customer_name' => $intake->customer?->company_name,
             'customer_suggestions' => array_values(array_filter(array_map(fn ($candidate) => isset($customers[$candidate['customer_id']]) ? ['id' => $candidate['customer_id'], 'name' => $customers[$candidate['customer_id']]->company_name, 'reasons' => $candidate['reasons']] : null, $suggestions))),
             'can_create_inquiries' => ($analysis['intent'] ?? '') === 'inquiry' && ($analysis['extraction_complete'] ?? false) && ! ($analysis['overflow'] ?? true) && $proposalPositions !== [] && collect($proposalPositions)->contains(fn ($position) => empty($position['inquiry_id'])),

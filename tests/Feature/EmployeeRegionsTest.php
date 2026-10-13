@@ -195,6 +195,114 @@ class EmployeeRegionsTest extends TestCase
         $this->assertDatabaseCount('staff_regional_preferences', 0);
     }
 
+    public function test_explicit_state_assignment_replaces_the_previous_tier_and_repeated_requests_are_idempotent(): void
+    {
+        $component = $this->editor()->call('assignState', 'DE-NI', 'possible')
+            ->set('preferences.base_location', 'Hamburg')
+            ->set('preferences.no_go_areas', [['location' => 'Berlin', 'radius_km' => 25]]);
+        foreach (['preferred', 'possible', 'emergency'] as $zone) {
+            $component->call('assignState', 'DE-HH', $zone)->assertSet('dirty', true);
+            $draft = $component->get('preferences');
+            $component->call('assignState', 'DE-HH', $zone);
+            $this->assertSame($draft, $component->get('preferences'));
+            foreach (['preferred', 'possible', 'emergency'] as $candidate) {
+                $this->assertSame($candidate === $zone, in_array('DE-HH', $draft['federal_states'][$candidate], true));
+            }
+        }
+        $component->call('assignState', 'DE-HH', null)
+            ->assertSet('preferences.federal_states', ['preferred' => [], 'possible' => ['DE-NI'], 'emergency' => []]);
+        $draft = $component->get('preferences');
+        $component->call('assignState', 'DE-HH', null);
+        $this->assertSame($draft, $component->get('preferences'));
+        $component->assertSet('preferences.base_location', 'Hamburg')
+            ->assertSet('preferences.no_go_areas', [['location' => 'Berlin', 'radius_km' => 25]]);
+        $this->assertDatabaseCount('staff_regional_preferences', 0);
+        $this->assertDatabaseCount('operation_audits', 0);
+        Http::assertNothingSent();
+    }
+
+    #[DataProvider('invalidStateAssignments')]
+    public function test_invalid_explicit_assignment_cannot_change_saved_preferences(string $code, ?string $zone): void
+    {
+        app(StaffRegionalPreferenceService::class)->save($this->employee, $this->admin, $this->preferences(), 0);
+        $before = StaffRegionalPreference::sole()->getAttributes();
+        $this->editor()->call('assignState', $code, $zone)->assertStatus(422);
+        $this->assertSame($before, StaffRegionalPreference::sole()->getAttributes());
+        $this->assertDatabaseCount('operation_audits', 1);
+    }
+
+    public static function invalidStateAssignments(): array
+    {
+        return [
+            'unknown state' => ['DE-XX', 'preferred'],
+            'unknown state removal' => ['DE-XX', null],
+            'unknown zone' => ['DE-HH', 'unknown'],
+            'empty zone is not removal' => ['DE-HH', ''],
+        ];
+    }
+
+    #[DataProvider('directDraftActions')]
+    public function test_direct_assignment_and_clear_actions_recheck_revoked_management_permissions(string $action, array $arguments): void
+    {
+        app(StaffRegionalPreferenceService::class)->save($this->employee, $this->admin, $this->preferences(), 0);
+        $manager = $this->manager(['employees.view', 'operations.manage']);
+        $component = $this->editor($manager);
+        $before = StaffRegionalPreference::sole()->getAttributes();
+        $manager->currentTeam->forceFill(['rbac_permissions' => ['employees.view' => true]])->save();
+        $component->call($action, ...$arguments)->assertForbidden();
+        $this->assertSame($before, StaffRegionalPreference::sole()->getAttributes());
+        $this->assertDatabaseCount('operation_audits', 1);
+    }
+
+    public static function directDraftActions(): array
+    {
+        return ['assign' => ['assignState', ['DE-HH', 'emergency']], 'clear' => ['clearPreferences', []]];
+    }
+
+    public function test_clearing_is_a_draft_until_saved_and_discard_restores_the_entire_configuration(): void
+    {
+        $configuration = $this->preferences(['no_go_areas' => [['location' => 'Berlin', 'radius_km' => 25]]]);
+        $component = $this->editor()->set('preferences', $configuration)->call('save')->assertHasNoErrors();
+        $savedDraft = $component->get('preferences');
+        $before = StaffRegionalPreference::sole()->getAttributes();
+        $component->call('clearPreferences')->assertSet('dirty', true)
+            ->assertSet('notice', 'Einstellungen zum Löschen vorgemerkt. Bitte speichern.')
+            ->assertSet('revision', 1)->assertSet('preferences.schema_version', 2)
+            ->assertSet('preferences.base_location', '')
+            ->assertSet('preferences.preferred_radius_km', 50)->assertSet('preferences.border_radius_km', 100)
+            ->assertSet('preferences.emergency_radius_km', null)
+            ->assertSet('preferences.federal_states', ['preferred' => [], 'possible' => [], 'emergency' => []])
+            ->assertSet('preferences.no_go_areas', []);
+        $this->assertSame($before, StaffRegionalPreference::sole()->getAttributes());
+        $this->assertDatabaseCount('operation_audits', 1);
+        $component->call('reload')->assertSet('dirty', false)->assertSet('preferences', $savedDraft);
+        $component->call('clearPreferences')->call('save')->assertHasNoErrors()
+            ->assertSet('revision', 2)->assertSet('dirty', false)->assertSet('preferences.enabled', false);
+        $this->assertDatabaseCount('operation_audits', 2);
+        $assessment = app(StaffRegionalPreferenceService::class)
+            ->assessMany(new Shift(['location_name' => 'Berlin']), collect([$this->employee]))[$this->employee->id];
+        $this->assertSame('neutral', $assessment['state']);
+        $this->assertFalse($assessment['blocked']);
+        $this->assertSame([], StaffRegionalPreference::sole()->preferences['no_go_areas']);
+    }
+
+    public function test_stale_clear_cannot_overwrite_another_editors_new_area_assignment(): void
+    {
+        $service = app(StaffRegionalPreferenceService::class);
+        $service->save($this->employee, $this->admin, $this->preferences(), 0);
+        $first = $this->editor();
+        $second = $this->editor();
+        $first->call('assignState', 'DE-HH', 'emergency')->call('save')->assertHasNoErrors();
+        $winner = StaffRegionalPreference::sole()->getAttributes();
+        $second->call('clearPreferences')->call('save')->assertHasErrors('preferences')
+            ->assertSet('revision', 1)->assertSet('dirty', true)->assertSet('preferences.base_location', '')
+            ->assertSet('preferences.federal_states', ['preferred' => [], 'possible' => [], 'emergency' => []]);
+        $this->assertSame($winner, StaffRegionalPreference::sole()->getAttributes());
+        $this->assertDatabaseCount('operation_audits', 2);
+        $second->call('reload')->assertHasNoErrors()->assertSet('revision', 2)->assertSet('dirty', false);
+        $this->assertContains('DE-HH', $second->get('preferences.federal_states.emergency'));
+    }
+
     public function test_save_persists_v2_for_only_the_locked_employee_with_audit_and_reloads_the_revision(): void
     {
         $outside = User::factory()->create(['role' => 'staff', 'status' => true]);
@@ -377,13 +485,31 @@ class EmployeeRegionsTest extends TestCase
         foreach ($states as $state) {
             $this->assertSame('0', $state->getAttribute('tabindex'));
             $this->assertNotSame('', $state->getAttribute('aria-label'));
-            $this->assertNotSame('', $state->getAttribute('x-on:keydown.enter.prevent'));
-            $this->assertNotSame('', $state->getAttribute('x-on:keydown.space.prevent'));
+            $this->assertNotSame('', $state->getAttribute('x-on:keydown.enter.prevent.stop'));
+            $this->assertNotSame('', $state->getAttribute('x-on:keydown.space.prevent.stop'));
+            $this->assertSame('dialog', $state->getAttribute('aria-haspopup'));
+            $this->assertSame('region-menu-'.$this->employee->id, $state->getAttribute('aria-controls'));
+            $this->assertFalse($state->hasAttribute('wire:click'));
         }
         $this->assertCount(3, $xpath->query('//*[contains(@class,"rt-regions__radii")]/*[local-name()="path"]'));
-        $this->assertCount(16, $xpath->query('//*[contains(@class,"rt-regions__state-list")]/button'));
+        $pickers = $xpath->query('//select[@id="region-picker-'.$this->employee->id.'"]');
+        $this->assertCount(1, $pickers);
+        $picker = $pickers->item(0);
+        $this->assertSame('region-menu-'.$this->employee->id, $picker->getAttribute('aria-controls'));
+        $this->assertSame('dialog', $picker->getAttribute('aria-haspopup'));
+        $this->assertCount(1, $xpath->query('//label[@for="'.$picker->getAttribute('id').'"]'));
+        $choices = $xpath->query('./option[@value!=""]', $picker);
+        $this->assertCount(16, $choices);
+        $this->assertSame(array_keys(GermanFederalStates::options()), array_map(
+            static fn ($option): string => $option->getAttribute('value'), iterator_to_array($choices),
+        ));
+        $menus = $xpath->query('//*[@id="region-menu-'.$this->employee->id.'" and @role="dialog"]');
+        $this->assertCount(1, $menus);
+        $this->assertCount(4, $xpath->query('.//button[@data-choice]', $menus->item(0)));
+        $this->assertCount(3, $xpath->query('.//button[@data-choice and @data-zone]', $menus->item(0)));
+        $this->assertCount(1, $xpath->query('//*[@*[name()="wire:click"]="clearPreferences"]'));
         $this->assertCount(0, $xpath->query('//input[@type="checkbox"]'));
-        foreach (['rt-regions__enable', 'rt-regions__legend', 'rt-regions__map-note', 'rt-regions__inactive'] as $removedClass) {
+        foreach (['rt-regions__enable', 'rt-regions__legend', 'rt-regions__map-note', 'rt-regions__inactive', 'rt-regions__state-list', 'rt-regions__editor'] as $removedClass) {
             $this->assertCount(0, $xpath->query('//*[contains(concat(" ",normalize-space(@class)," ")," '.$removedClass.' ")]'));
         }
         $component->assertDontSee('In Planung berücksichtigen')

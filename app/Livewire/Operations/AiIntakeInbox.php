@@ -465,6 +465,7 @@ class AiIntakeInbox extends Component
             'qualifications' => QualificationType::where('is_active', true)->orderBy('name')->get(),
             'mappingInquiries' => $selected?->proposals->pluck('inquiry')->filter()->unique('id')->keyBy('id') ?? collect(),
             'customerSuggestions' => $selected ? app(AiIntakeCustomerSuggestions::class)->suggest($selected, $actor) : [],
+            'contextHints' => $selected ? app(\App\Services\Operations\AiIntakeContextHints::class)->forReview($selected, $actor) : [],
             'limits' => array_intersect_key(AiDispositionSettings::all(), array_flip(['max_attachment_count', 'max_total_kilobytes', 'max_audio_kilobytes'])),
             'settingsRevision' => (int) AiDispositionSettings::all(true)['revision'],
         ]);

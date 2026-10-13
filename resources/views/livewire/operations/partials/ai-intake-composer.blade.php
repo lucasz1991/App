@@ -8,7 +8,7 @@
     $composerMaximum = max(1, min(3, (int) ($maxAttachmentCount ?? ($limits['max_attachment_count'] ?? 3))));
 @endphp
 <form class="rt-intake-composer grid min-w-0 gap-2"
-    x-data="aiIntakeComposer($wire, @js(['mode' => $assistantComposer ? 'assistant' : 'capture', 'action' => $composerAction, 'componentId' => $this->getId(), 'maxFiles' => $composerMaximum]))"
+    x-data="aiIntakeComposer($wire, @js(['mode' => $assistantComposer ? 'assistant' : 'capture', 'field' => $composerField, 'action' => $composerAction, 'componentId' => $this->getId(), 'maxFiles' => $composerMaximum]))"
     x-effect="syncContext()" x-on:submit.prevent.stop="submit()"
     x-on:ai-intake-composer-submitted.window="submitted($event.detail.componentId)"
     x-on:ai-intake-submitted.window="submitted(@js($this->getId()))"
@@ -64,7 +64,7 @@
         <button type="button" class="rt-intake-composer__tool shrink-0 rounded-lg p-2" x-on:click="toggleRecording()" x-bind:disabled="busy || uploadActive || uploading || requesting || !!$wire.audioUpload || attachmentCount() >= {{ $composerMaximum }}" x-bind:aria-pressed="recording.toString()" title="Sprache aufnehmen" aria-label="Sprache aufnehmen"><i class="far fa-microphone" aria-hidden="true"></i></button>
         <label class="sr-only" for="{{ $composerId }}-prompt">{{ $assistantComposer ? 'Frage oder Prüfhinweis' : 'Anfrage beschreiben' }}</label>
         <textarea id="{{ $composerId }}-prompt" class="rt-intake-composer__input min-h-10 min-w-0 flex-1 resize-none border-0 bg-transparent px-1 py-2 text-sm focus:ring-0"
-            rows="1" maxlength="{{ $composerLimit }}" wire:model="{{ $composerField }}" x-ref="prompt" x-on:input="resize()" x-on:keydown.enter="enter($event)"
+            rows="1" maxlength="{{ $composerLimit }}" wire:model="{{ $composerField }}" x-ref="prompt" x-on:input="updateInput()" x-on:keydown.enter="enter($event)"
             x-bind:disabled="busy" placeholder="{{ $assistantComposer ? 'Frage stellen oder einen Prüfhinweis geben …' : 'Anfrage beschreiben oder Dateien anhängen …' }}"
             aria-describedby="intake-assistant-help-{{ $this->getId() }}"></textarea>
         <button type="submit" class="rt-intake-composer__send shrink-0 rounded-lg bg-rt-red p-2 text-white" x-bind:disabled="!canSubmit()" aria-label="{{ $assistantComposer ? 'Frage oder Prüfhinweis senden' : 'Als AI-Eingang erfassen' }}"><i class="far fa-paper-plane" aria-hidden="true"></i></button>

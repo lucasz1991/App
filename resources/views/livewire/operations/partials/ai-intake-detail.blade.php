@@ -17,9 +17,10 @@
                 <div class="ops-full"><x-ui.forms.label :for="'ai-intake-contact-'.$this->getId()" value="Kontakt" /><x-ui.forms.select :id="'ai-intake-contact-'.$this->getId()" wire:model="assignContactId"><option value="">Hauptkontakt des Kunden</option>@foreach($contacts as $contact)<option value="{{ $contact->id }}">{{ $contact->name }}{{ $contact->email ? ' · '.$contact->email : '' }}</option>@endforeach</x-ui.forms.select><x-ui.forms.input-error for="assignContactId" /></div>
                 <x-ui.buttons.button-basic type="submit" wire:loading.attr="disabled">Zuordnung bestätigen</x-ui.buttons.button-basic>
             </form>
-            @if($customerSuggestions)<p class="mt-3 ops-muted">Mögliche Kunden anhand von Firmenname oder E-Mail-Domain. Die Zuordnung muss bestätigt werden.</p><ul class="mt-2 space-y-2 text-sm">@foreach($customerSuggestions as $suggestion)@if($suggestedCustomer = $customers->firstWhere('id',$suggestion['customer_id']))<li>{{ $suggestedCustomer->company_name }} · {{ implode(', ',array_map(fn($reason)=>['company_name_exact'=>'Firmenname stimmt überein','sender_domain'=>'E-Mail-Domain stimmt überein'][$reason] ?? 'Zuordnung prüfen',$suggestion['reasons'])) }}</li>@endif @endforeach</ul>@endif
+            @if($customerSuggestions)<p class="mt-3 ops-muted">Mögliche Kunden anhand von Absender, CC, Inhalt und Signatur. Die Zuordnung bitte bestätigen.</p><ul class="mt-2 space-y-2 text-sm">@foreach($customerSuggestions as $suggestion)@if($suggestedCustomer = $customers->firstWhere('id',$suggestion['customer_id']))<li>{{ $suggestedCustomer->company_name }} · {{ implode(', ',array_map(fn($reason)=>\App\Services\Operations\AiIntakeCustomerContextService::REASON_LABELS[$reason] ?? 'Zuordnung prüfen',$suggestion['reasons'])) }}</li>@endif @endforeach</ul>@endif
             @if(!$selected->customer_id && $canApprove && !$customerId)<div class="mt-3 ops-stack">@if($selected->analysis['customer_draft'] ?? null)<p class="text-sm">Vorbereiteter Kunde: {{ $selected->analysis['customer_draft']['company_name'] ?? 'Firmenname prüfen' }}{{ !empty($selected->analysis['customer_draft']['contact_name']) ? ' · '.$selected->analysis['customer_draft']['contact_name'] : '' }}</p>@endif<x-ui.buttons.button-basic type="button" wire:click="prepareCustomer">Neuen Kunden prüfen und anlegen</x-ui.buttons.button-basic></div>@endif
             </section>
+            @include('livewire.operations.partials.ai-intake-context-hints', ['showCandidateHints' => false])
             <section class="border-t border-rt-border pt-3 dark:border-rt-dark-border"><h3 class="font-semibold">Positionen und Planungsvorschläge</h3><p class="mt-2 ops-muted">Freigegebene Vorschläge werden nach der regulären Beauftragung als unbesetzte Schichtentwürfe vorbereitet.</p>
                 @forelse($selected->proposals as $proposal)
                     @php($payload = $proposal->payload ?? [])
@@ -28,6 +29,8 @@
                     <article class="mt-4 border-t border-rt-border pt-3 dark:border-rt-dark-border" wire:key="ai-proposal-{{ $proposal->id }}-{{ $proposal->revision }}">
                         <div class="ops-toolbar"><h4 class="font-semibold">{{ $payload['demand']['title'] ?? 'Position '.($proposal->position_index+1) }}</h4><x-operations.status :value="$proposal->status" :label="['proposed'=>'Vorschlag','approved'=>'Freigegeben','applied'=>'Entwürfe erstellt','stale'=>'Erneut prüfen','failed'=>'Übernahme prüfen'][$proposal->status] ?? 'Prüfung nötig'" /></div>
                         <dl class="mt-2 grid gap-2 text-sm sm:grid-cols-2">@foreach(['role_name'=>'Tätigkeit','location_name'=>'Einsatzort','starts_at'=>'Beginn','ends_at'=>'Ende','timezone'=>'Zeitzone','required_staff'=>'Personalbedarf'] as $key=>$label)<div><dt class="ops-muted">{{ $label }}</dt><dd class="break-words">{{ $payload['demand'][$key] ?? 'Noch offen' }}</dd></div>@endforeach</dl>
+                        @if(($payload['assumptions']['required_staff']['basis'] ?? '') === 'default')<p class="mt-2 ops-muted" role="status"><i class="far fa-info-circle" aria-hidden="true"></i> Standardvorschlag: 1 Person · In der Mail fehlt eine Personalanzahl. Bitte bestätigen oder anpassen.</p>@endif
+                        @if(!empty($payload['assumptions']['history_review']))<p class="mt-2 ops-muted">Historische Vergleichsdaten verwendet · Angaben vor der Übernahme mit der aktuellen Mail abgleichen.</p>@endif
                         @if($payload['segments'] ?? [])<p class="mt-2 ops-muted">{{ count($payload['segments']) }} ausdrücklich erkannte Schichtabschnitte.</p>@endif
                         @if($payload['raw_requirements'] ?? [])<p class="mt-2 text-sm"><span class="font-semibold">Erkannte Qualifikationsanforderungen:</span> {{ implode(', ', $payload['raw_requirements']) }}</p>@endif
                         @if($payload['unmapped_requirements'] ?? [])<p class="mt-2 ops-muted" role="status">Noch zu prüfen: {{ implode(', ', $payload['unmapped_requirements']) }}. Passende Qualifikationen auswählen und die Prüfung bestätigen.</p>@endif
@@ -52,7 +55,15 @@
                             </form>
                         @elseif($canCorrect)<div class="ops-actions mt-3"><x-ui.buttons.button-basic type="button" wire:click="editProposal({{ $proposal->id }})">Angaben korrigieren</x-ui.buttons.button-basic>@if($canApprove && $proposal->status === 'proposed' && $proposal->inquiry && $proposal->inquiry->verified_revision === $proposal->inquiry->revision)<x-ui.buttons.button-basic type="button" mode="primary" wire:click="approveProposal({{ $proposal->id }},{{ $proposal->revision }})" wire:confirm="Diesen Vorschlag zur Entwurfserstellung nach der regulären Beauftragung freigeben?" wire:loading.attr="disabled">Vorschlag freigeben</x-ui.buttons.button-basic>@endif</div>@endif
                     </article>
-                @empty<p class="mt-3 ops-muted">Noch keine Positionen ausgewertet.</p>@endforelse
+                @empty
+                    @if($selected->processed_source_revision === $selected->source_revision && !empty($selected->analysis['positions']))
+                        @foreach($selected->analysis['positions'] as $position)
+                            <article class="mt-3 border-t border-rt-border pt-3 dark:border-rt-dark-border"><h4 class="font-semibold">{{ $position['title'] }}</h4><p class="mt-1 ops-muted">{{ implode(' · ', array_filter([$position['role_name'] ?? '', $position['location_name'] ?? ''])) }}</p><p class="text-sm">{{ $position['starts_at'] ?? 'Beginn offen' }} → {{ $position['ends_at'] ?? 'Ende offen' }}</p>@if(!empty($position['required_staff']))<p class="text-sm">{{ $position['required_staff'] }} {{ (int)$position['required_staff'] === 1 ? 'Person' : 'Personen' }} benötigt</p>@endif
+                            @if(($position['assumptions']['required_staff']['basis'] ?? '') === 'default')<p class="mt-2 ops-muted">Standardvorschlag: 1 Person · Bitte bestätigen oder anpassen.</p>@endif</article>
+                        @endforeach
+                        <p class="mt-2 ops-muted">Erkannte Angaben zur Prüfung des bestehenden Vorgangs.</p>
+                    @else<p class="mt-3 ops-muted">Noch keine Positionen ausgewertet.</p>@endif
+                @endforelse
             </section>
             @endif
             </div>

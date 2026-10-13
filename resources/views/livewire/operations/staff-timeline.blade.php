@@ -130,7 +130,7 @@
             <div class="rt-timeline-person-summary">
             <x-user.person-anchor-preview :user="$row['user']"
                 :profile-url="$personCanViewProfile ? route($personViewer->usesAdminLayout() ? 'admin.user-profile' : 'employees.show', $row['user']->id) : null"
-                :can-message="$personCanMessage" :can-chat="$personCanCommunicate" :can-call="$personCanCall"
+                :can-message="$personCanMessage && $personCanCommunicate" :can-chat="$personCanCommunicate" :can-call="$personCanCall"
                 chat-action="openDirectChat" call-action="startDirectCall" :show-presence="false"
                 trigger-classes="flex min-w-0 w-full">
                 <x-slot:trigger>

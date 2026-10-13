@@ -119,7 +119,7 @@ class TimelineEmployeePreviewTest extends TestCase
         [$xpath, $card] = $this->card($this->timeline($this->admin), $target);
         $this->assertSame(0, $this->actions($xpath, $card, '$wire.call("openDirectChat", '.$target->id.')')->length);
         $this->assertSame(0, $this->actions($xpath, $card, '$wire.call("startDirectCall", '.$target->id.', "voice")')->length);
-        $this->assertSame(1, $this->actions($xpath, $card, '$wire.call("openMessage", '.$target->id.')')->length, 'Native employee-list message visibility is unchanged');
+        $this->assertSame(0, $this->actions($xpath, $card, '$wire.call("openMessage", '.$target->id.')')->length, 'Unavailable recipients must not show an action that the server rejects');
         $this->assertSame(1, $xpath->query('.//a[@*[name()="wire:navigate"]]', $card)->length);
         $this->assertSame(0, DB::table('chats')->count());
         $this->assertSame(0, DB::table('rooms')->count());
@@ -248,6 +248,7 @@ class TimelineEmployeePreviewTest extends TestCase
             $this->assertSame(0, $xpath->query('//*[@*[name()="wire:snapshot"] and contains(@*[name()="wire:snapshot"],"admin.users.messages.message-form")]')->length);
             foreach (['openDirectChat', 'startDirectCall', 'openMessage'] as $action) {
                 $arguments = $action === 'startDirectCall' ? [$target->id, 'voice'] : [$target->id];
+                $component = Livewire::actingAs($this->admin)->test(StaffTimeline::class, ['from' => '2026-10-10', 'until' => '2026-10-16', ...$scope]);
                 $component->call($action, ...$arguments)->assertForbidden()->assertNotDispatched('openMailModal');
                 $this->assertNoCommunicationWrites();
             }

@@ -94,6 +94,48 @@ class EmployeeRegions extends Component
         $this->updatedPreferences();
     }
 
+    /** Explicit placement remains stable when a client retries the same choice. */
+    public function assignState(string $code, ?string $zone): void
+    {
+        $this->authorizeProfile();
+        $this->assertDraftShape();
+        abort_unless(array_key_exists($code, GermanFederalStates::options())
+            && ($zone === null || array_key_exists($zone, self::ZONES)), 422);
+
+        foreach (array_keys(self::ZONES) as $targetZone) {
+            $codes = array_values(array_filter(
+                $this->preferences['federal_states'][$targetZone],
+                fn (string $value): bool => $value !== $code,
+            ));
+            if ($targetZone === $zone) {
+                $codes[] = $code;
+            }
+            sort($codes);
+            $this->preferences['federal_states'][$targetZone] = $codes;
+        }
+        $this->updatedPreferences();
+    }
+
+    /** Clearing is a draft edit; the existing save action performs CAS and audit. */
+    public function clearPreferences(): void
+    {
+        $this->authorizeProfile();
+        $this->assertDraftShape();
+        $this->preferences = [
+            'schema_version' => 2,
+            'enabled' => false,
+            'base_location' => '',
+            'preferred_radius_km' => 50,
+            'border_radius_km' => 100,
+            'emergency_radius_km' => null,
+            'federal_states' => ['preferred' => [], 'possible' => [], 'emergency' => []],
+            'no_go_areas' => [],
+        ];
+        $this->activeZone = 'preferred';
+        $this->updatedPreferences();
+        $this->notice = 'Einstellungen zum Löschen vorgemerkt. Bitte speichern.';
+    }
+
     public function addExclusion(): void
     {
         $this->authorizeProfile();

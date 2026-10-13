@@ -27,7 +27,7 @@ class CompactStaffTimelineUiTest extends TestCase
         $view = file_get_contents(resource_path('views/livewire/operations/staff-timeline.blade.php'));
         $css = file_get_contents(resource_path('css/operations-planning.css'));
         $this->assertStringContainsString('data-timeline-motion="{{ $planningEnabled && !$absencesOnly ? \'true\' : \'false\' }}"', $view);
-        $this->assertStringContainsString('wire:loading.delay.flex wire:target="search,loadMore,refreshPlanning,loadSuggestions"', $view);
+        $this->assertStringContainsString('wire:loading.delay.flex wire:target="search,staffPresence,shiftRole,shiftStatus,assignmentStatusFilter,resetTimelineFilters,loadMore,refreshPlanning,loadSuggestions"', $view);
         $this->assertStringContainsString('class="rt-timeline-loading-indicator" style="display: none"', $view);
         $this->assertStringContainsString('role="status" aria-live="polite"', $view);
         $this->assertStringContainsString('pointer-events: none', $this->cssDeclarationsFor($css, '.rt-timeline-loading-indicator'));

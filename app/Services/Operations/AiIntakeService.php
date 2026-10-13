@@ -256,6 +256,8 @@ class AiIntakeService
             }
             $extracted = app(AiIntakeExtractionService::class)->extract($intake);
             $result = $this->validateExtraction($intake, $extracted['result']);
+            $result['context_hints'] = $extracted['context_hints'] ?? [];
+            $result = $this->requireHistoricalReview($result);
             OperationsTransaction::run(function () use ($intake, $run, $settings, $result, $extracted): void {
                 $current = AiIntake::lockForUpdate()->findOrFail($intake->id);
                 $activeRun = $run->fresh();
@@ -381,6 +383,8 @@ class AiIntakeService
                 : app(AiIntakeExtractionService::class)->extract($current, $run);
             app(AiDispositionClient::class)->assertManualContext($run);
             $result = $this->validateExtraction($current, $extracted['result']);
+            $result['context_hints'] = $extracted['context_hints'] ?? [];
+            $result = $this->requireHistoricalReview($result);
 
             return OperationsTransaction::run(function () use ($current, $actor, $run, $result, $extracted): AiIntake {
                 $this->access($actor);
@@ -777,6 +781,9 @@ class AiIntakeService
 
     private function createInquiry(AiIntake $intake, AiIntakeProposal $proposal, User|OperationsAutomationActor $actor): bool
     {
+        if ($actor instanceof OperationsAutomationActor && ! empty($proposal->payload['assumptions'])) {
+            return false;
+        }
         $this->actionable($intake);
         abort_if($proposal->status === 'stale' && $proposal->error_code === 'mailbox_not_inquiry', 409, 'Bitte die wieder geöffnete Mail zuerst erneut erkennen oder den Vorschlag persönlich prüfen.');
         if ($proposal->inquiry_id) {
@@ -827,8 +834,23 @@ class AiIntakeService
         return array_intersect_key($demand, array_flip(['title', 'starts_at', 'ends_at', 'timezone', 'location_name', 'role_name', 'required_staff'])) + ['channel' => $intake->source_type === 'email' ? 'email' : 'manual', 'customer_id' => $intake->customer_id, 'original' => 'AI-Eingang '.$intake->public_id.'. Originalnachrichten und Anlagen sind unverändert im privaten Eingang gespeichert.', 'contact_email' => $intake->contact?->email, 'contact_name' => $intake->contact?->name];
     }
 
+    private function requireHistoricalReview(array $result): array
+    {
+        if (! empty($result['context_hints']['history'])) {
+            foreach ($result['positions'] as &$position) {
+                $position['assumptions']['history_review'] = ['basis' => 'historical_hint',
+                    'label' => 'Historische Vergleichsdaten verwendet',
+                    'reason' => 'Die erkannten Angaben vor der Übernahme mit der aktuellen Mail abgleichen und persönlich bestätigen.'];
+            }
+            unset($position);
+        }
+
+        return $result;
+    }
+
     private function validateExtraction(AiIntake $intake, array $result): array
     {
+        unset($result['context_hints']);
         $result['classification'] ??= match ($result['intent'] ?? '') {
             'inquiry' => $intake->source_revision > 1 ? 'reply' : 'new_inquiry', 'amendment' => 'amendment', 'cancel' => 'cancellation', default => 'unrelated'
         };

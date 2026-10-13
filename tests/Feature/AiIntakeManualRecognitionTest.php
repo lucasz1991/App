@@ -722,6 +722,42 @@ class AiIntakeManualRecognitionTest extends TestCase
         $this->noBindingOrSending();
     }
 
+    public function test_history_hints_are_separate_from_original_evidence_and_model_cannot_forge_their_provenance(): void
+    {
+        $intake = $this->capture();
+        $hints = ['candidates' => [['customer_id' => 42, 'name' => 'Historical customer']],
+            'history' => [['customer' => ['id' => 42], 'orders' => [['id' => 73, 'location_name' => 'Historical place', 'required_staff' => 8]]]],
+            'provenance' => ['kind' => 'historical_hint', 'original_evidence' => false]];
+        $this->mock(\App\Services\Operations\AiIntakeHistoryToolService::class, function ($mock) use ($hints): void {
+            $mock->shouldReceive('lookup')->once()->andReturn($hints);
+        });
+        $this->provider->shouldReceive('complete')->once()->andReturnUsing(function (array $messages) use ($intake): OpenRouterChatResponse {
+            $source = is_array($messages[1]['content']) ? $messages[1]['content'][0]['text'] : $messages[1]['content'];
+            $this->assertStringContainsString(self::SOURCE, $source);
+            $this->assertStringNotContainsString('Historical place', $source);
+            $this->assertStringContainsString('Historical place', $messages[2]['content']);
+            $this->assertStringContainsString('keine Originalbelege', $messages[2]['content']);
+            $result = $this->extractionResult($intake);
+            $result['context_hints'] = ['provenance' => ['kind' => 'model_forgery']];
+            $result['positions'][0]['location_name'] = 'Historical place';
+            foreach ($result['positions'][0]['evidence'] as &$evidence) {
+                if ($evidence['field'] === 'location_name') {
+                    $evidence['quote'] = 'Historical place';
+                }
+            }
+            unset($evidence);
+
+            return new OpenRouterChatResponse(json_encode($result, JSON_THROW_ON_ERROR));
+        });
+
+        $recognized = $this->recognize($intake);
+        $this->assertSame($hints, $recognized->analysis['context_hints']);
+        $this->assertNull($recognized->analysis['positions'][0]['location_name']);
+        $this->assertNull($recognized->customer_id);
+        $this->assertSame(self::SOURCE, $recognized->messages()->firstOrFail()->body);
+        $this->noBindingOrSending();
+    }
+
     private function attachment(AiIntake $intake, string $kind): void
     {
         $paths = [];
