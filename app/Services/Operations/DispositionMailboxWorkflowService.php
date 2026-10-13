@@ -70,7 +70,7 @@ class DispositionMailboxWorkflowService
             [$intake, $settings, $review] = $this->current($actor, $context, true);
             $this->confirmedCustomer($intake, $review);
             abort_unless(($intake->analysis['intent'] ?? '') === 'inquiry' && ($intake->analysis['extraction_complete'] ?? false) && ! ($intake->analysis['overflow'] ?? true)
-                && $intake->proposals()->where('source_revision', $intake->source_revision)->exists(), 422, 'Die erkannten Angaben zuerst in der Anfrageprüfung vervollständigen.');
+                && $intake->proposals()->where('source_revision', $intake->source_revision)->where('status', '!=', 'stale')->exists(), 422, 'Die erkannten Angaben zuerst in der Anfrageprüfung vervollständigen.');
             app(AiIntakeService::class)->createInquiries($intake, $actor, $context['intake_revision']);
 
             return $this->snapshot($actor, $intake->fresh(), $settings, $context['folder'], $context['uid'], $context['uid_validity']);
@@ -182,7 +182,7 @@ class DispositionMailboxWorkflowService
             default => 'unreviewed',
         };
         $classification = $review->reviewed_by ? $review->classification : $detected;
-        $positions = $intake->proposals()->where('source_revision', $intake->source_revision)->with('inquiry')->orderBy('position_index')->get()->map(function ($proposal): array {
+        $positions = $intake->proposals()->where('source_revision', $intake->source_revision)->where('status', '!=', 'stale')->with('inquiry')->orderBy('position_index')->get()->map(function ($proposal): array {
             $demand = $proposal->payload['demand'] ?? [];
 
             return array_intersect_key($demand, array_flip(['title', 'starts_at', 'ends_at', 'timezone', 'location_name', 'role_name', 'required_staff'])) + [

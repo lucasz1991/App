@@ -93,7 +93,7 @@ class AiIntakeAssistantService
 
     private function access(User $actor): void
     {
-        OperationsAccess::authorize($actor, 'operations.inquiries.manage');
+        OperationsAccess::authorize(User::findOrFail($actor->id), 'operations.inquiries.manage');
         OperationsAccess::requireReady();
         AiIntakeSchema::requireReady();
     }

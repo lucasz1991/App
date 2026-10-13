@@ -96,6 +96,166 @@ class SessionPermissionsUiTest extends TestCase
         $this->assertSame('accepted', $this->state['push_decision']);
     }
 
+    public function test_joint_acceptance_records_both_purposes_but_waits_for_explicit_completion(): void
+    {
+        Livewire::actingAs($this->employee)->test(SessionPermissions::class)
+            ->call('acceptAll', ['push', 'location'])->assertReturned(true)->assertHasNoErrors()
+            ->assertSet('dialogOpen', true)->assertDispatched('session-permissions-updated')
+            ->assertDispatched('railtime-session-permissions-changed')
+            ->call('complete')->assertReturned(true)->assertSet('dialogOpen', false);
+
+        $this->assertSame([['location', true, 2], ['push', true, 1]], $this->decisions);
+        $this->assertSame([], $this->revocations);
+        $this->assertDatabaseCount('push_subscriptions', 0);
+    }
+
+    public function test_completion_never_declines_an_unanswered_purpose(): void
+    {
+        $component = Livewire::actingAs($this->employee)->test(SessionPermissions::class);
+        $component->call('complete')->assertReturned(false)->assertSet('dialogOpen', true);
+        $this->assertSame([], $this->decisions);
+
+        $component->call('decide', 'push', true)->assertReturned(true)
+            ->call('complete')->assertReturned(false)->assertSet('dialogOpen', true);
+        $this->assertSame([['push', true, 1]], $this->decisions);
+
+        $component->call('decide', 'location', false)->assertReturned(true)
+            ->call('complete')->assertReturned(true)->assertSet('dialogOpen', false);
+        $this->assertSame([['push', true, 1], ['location', false, 2]], $this->decisions);
+    }
+
+    public function test_joint_acceptance_can_cover_only_the_one_available_purpose(): void
+    {
+        foreach (['push', 'location'] as $purpose) {
+            $this->state['push_enabled'] = $purpose === 'push';
+            $this->state['location_enabled'] = $purpose === 'location';
+            $this->state['push_decision'] = null;
+            $this->state['location_decision'] = null;
+            $this->decisions = [];
+
+            Livewire::actingAs($this->employee)->test(SessionPermissions::class)
+                ->assertSet('dialogOpen', true)->call('acceptAll', [$purpose])
+                ->assertReturned(true)->assertHasNoErrors()->assertSet('dialogOpen', true)
+                ->call('complete')->assertReturned(true)->assertSet('dialogOpen', false);
+
+            $this->assertSame([[$purpose, true, $this->state[$purpose.'_version']]], $this->decisions);
+            $other = $purpose === 'push' ? 'location' : 'push';
+            $this->assertNull($this->state[$other.'_decision']);
+        }
+    }
+
+    public function test_joint_acceptance_rejects_invalid_purpose_sets_before_any_write(): void
+    {
+        foreach ([[], ['other'], ['push', 'other'], ['location', 'location'], ['push', 'push', 'location'], [false], [['push']]] as $purposes) {
+            Livewire::actingAs($this->employee)->test(SessionPermissions::class)
+                ->call('acceptAll', $purposes)->assertStatus(422);
+            $this->assertSame([], $this->decisions);
+        }
+    }
+
+    public function test_joint_acceptance_checks_each_selected_feature_availability_before_any_write(): void
+    {
+        foreach (['push', 'location'] as $disabled) {
+            $this->state['push_enabled'] = true;
+            $this->state['location_enabled'] = true;
+            $component = Livewire::actingAs($this->employee)->test(SessionPermissions::class);
+            $this->state[$disabled.'_enabled'] = false;
+            $component->call('acceptAll', ['push', 'location'])->assertStatus(422);
+            $this->assertSame([], $this->decisions);
+        }
+    }
+
+    public function test_joint_acceptance_rejects_push_if_server_configuration_disappeared(): void
+    {
+        $component = Livewire::actingAs($this->employee)->test(SessionPermissions::class);
+        config(['webpush.vapid.public_key' => null, 'webpush.vapid.private_key' => null]);
+        $component->call('acceptAll', ['push', 'location'])->assertStatus(422);
+        $this->assertSame([], $this->decisions);
+    }
+
+    public function test_joint_acceptance_checks_all_rendered_versions_before_any_write_and_can_be_retried(): void
+    {
+        foreach (['push', 'location'] as $changed) {
+            $this->state['push_version'] = 1;
+            $this->state['location_version'] = 2;
+            $this->state['push_decision'] = null;
+            $this->state['location_decision'] = null;
+            $this->decisions = [];
+            $component = Livewire::actingAs($this->employee)->test(SessionPermissions::class);
+            $this->state[$changed.'_version']++;
+            $component->call('acceptAll', ['push', 'location'])->assertReturned(false)
+                ->assertHasErrors('permissions')->assertSet('dialogOpen', true)
+                ->assertSet($changed.'Version', $this->state[$changed.'_version']);
+            $this->assertSame([], $this->decisions);
+
+            $component->call('acceptAll', ['push', 'location'])->assertReturned(true)->assertHasNoErrors();
+            $this->assertSame([
+                ['location', true, $this->state['location_version']],
+                ['push', true, $this->state['push_version']],
+            ], $this->decisions);
+        }
+    }
+
+    public function test_completion_rechecks_fresh_decisions_after_a_new_explanation(): void
+    {
+        $component = Livewire::actingAs($this->employee)->test(SessionPermissions::class);
+        $component->call('acceptAll', ['push', 'location'])->assertReturned(true);
+        $recorded = $this->decisions;
+        $this->state['location_version'] = 3;
+        $this->state['location_decision'] = null;
+
+        $component->call('complete')->assertReturned(false)->assertSet('dialogOpen', true);
+        $this->assertSame($recorded, $this->decisions);
+    }
+
+    public function test_joint_acceptance_and_completion_reject_inactive_or_switched_accounts(): void
+    {
+        foreach (['acceptAll', 'complete'] as $method) {
+            foreach (['inactive', 'switched'] as $condition) {
+                $this->employee->forceFill(['status' => true])->save();
+                $component = Livewire::actingAs($this->employee)->test(SessionPermissions::class);
+                if ($condition === 'inactive') {
+                    $this->employee->forceFill(['status' => false])->save();
+                    auth()->setUser($this->employee);
+                } else {
+                    auth()->setUser(User::factory()->create(['role' => 'staff', 'status' => true]));
+                }
+
+                $parameters = $method === 'acceptAll' ? [['push', 'location']] : [];
+                $component->call($method, ...$parameters)->assertStatus(403);
+                $this->assertSame([], $this->decisions);
+            }
+        }
+    }
+
+    public function test_explanations_are_collapsed_native_disclosures_with_direct_joint_actions(): void
+    {
+        $component = Livewire::actingAs($this->employee)->test(SessionPermissions::class);
+        $document = new \DOMDocument;
+        @$document->loadHTML('<html><body>'.$component->html().'</body></html>');
+        $xpath = new \DOMXPath($document);
+        foreach (['push', 'location'] as $purpose) {
+            $details = $xpath->query('//details[@data-permission-explanation="'.$purpose.'"]')->item(0);
+            $this->assertInstanceOf(\DOMElement::class, $details);
+            $this->assertFalse($details->hasAttribute('open'));
+            $this->assertSame(1, $xpath->query('./summary', $details)->length);
+            $this->assertSame(1, $xpath->query('.//button[@data-permission-allow="'.$purpose.'"]', $details)->length);
+            $this->assertSame(1, $xpath->query('.//button[@data-permission-decline="'.$purpose.'"]', $details)->length);
+        }
+
+        $allow = $xpath->query('//button[@data-permission-allow-all]')->item(0);
+        $continue = $xpath->query('//button[@data-session-permissions-continue]')->item(0);
+        $this->assertInstanceOf(\DOMElement::class, $allow);
+        $this->assertInstanceOf(\DOMElement::class, $continue);
+        foreach ([$allow, $continue] as $action) {
+            $this->assertSame(0, $xpath->query('ancestor::details', $action)->length);
+            $this->assertStringContainsString('min-h-11', $action->getAttribute('class'));
+            $this->assertFalse($action->hasAttribute('disabled'));
+        }
+        $this->assertSame($allow->getAttribute('class'), $continue->getAttribute('class'));
+        $this->assertSame([], $this->decisions);
+    }
+
     public function test_profile_controls_never_auto_open_and_allow_later_withdrawal(): void
     {
         $this->state['location_decision'] = 'accepted';

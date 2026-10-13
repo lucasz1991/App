@@ -19,6 +19,7 @@ use App\Services\Ai\OpenRouterChatException;
 use App\Services\Ai\OpenRouterChatResponse;
 use App\Services\Operations\AiDispositionClient;
 use App\Services\Operations\AiIntakeAttachmentService;
+use App\Services\Operations\AiIntakeMessageContent;
 use App\Services\Operations\AiIntakeService;
 use App\Support\Operations\AiDispositionSettings;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -42,6 +43,11 @@ class AiIntakeManualRecognitionTest extends TestCase
     private MockInterface $provider;
 
     private const SOURCE = 'Tf Hamburg 2027-05-13T08:00 2027-05-13T16:00 zwei Mitarbeiter, Pause 30 Minuten.';
+
+    private function raw(string $body = self::SOURCE, string $type = 'text/plain'): string
+    {
+        return "From: customer@example.test\r\nTo: dispatch@example.test\r\nSubject: Synthetic inquiry\r\nMIME-Version: 1.0\r\nContent-Type: {$type}; charset=UTF-8\r\n\r\n".$body;
+    }
 
     protected function setUp(): void
     {
@@ -69,7 +75,7 @@ class AiIntakeManualRecognitionTest extends TestCase
         return app(AiIntakeService::class)->receiveEmail(array_replace([
             'mailbox_id' => AiDispositionSettings::mailboxId(), 'uid_validity' => 401, 'uid' => 32,
             'from' => 'customer@example.test', 'reply_to' => 'customer@example.test', 'subject' => 'Synthetic inquiry',
-            'message_id' => 'synthetic@example.test', 'text' => self::SOURCE, 'raw' => 'Synthetic immutable RFC822 source',
+            'message_id' => 'synthetic@example.test', 'text' => self::SOURCE, 'raw' => $this->raw(),
         ], $changes), $this->actor);
     }
 
@@ -98,9 +104,9 @@ class AiIntakeManualRecognitionTest extends TestCase
         });
     }
 
-    private function recognize(AiIntake $intake): AiIntake
+    private function recognize(AiIntake $intake, string $prompt = ''): AiIntake
     {
-        return app(AiIntakeService::class)->analyzeManually($intake, $this->actor, $intake->revision, (int) AiDispositionSettings::all(true)['revision']);
+        return app(AiIntakeService::class)->analyzeManually($intake, $this->actor, $intake->revision, (int) AiDispositionSettings::all(true)['revision'], $prompt);
     }
 
     private function noBindingOrSending(): void
@@ -147,8 +153,10 @@ class AiIntakeManualRecognitionTest extends TestCase
         $this->assertSame('succeeded', $run->status);
         $this->assertSame($this->actor->id, $run->supervising_user_id);
         $this->assertSame('manual_review', $run->configuration['mode']);
+        $this->assertSame(AiIntakeMessageContent::VERSION, $run->configuration['extraction_version']);
+        $this->assertSame('', $run->configuration['review_prompt']);
         $this->assertSame(2, OperationAudit::where('subject_type', 'AiIntake')->where('subject_id', $intake->id)->where('action', 'like', 'mailbox.analysis_%')->count());
-        $this->assertSame('Synthetic immutable RFC822 source', app(AiIntakeAttachmentService::class)->bytes($recognized, $source->raw_path, $source->raw_hash));
+        $this->assertSame($this->raw(), app(AiIntakeAttachmentService::class)->bytes($recognized, $source->raw_path, $source->raw_hash));
         $this->assertFalse(AiDispositionSettings::enabled());
         $this->assertNull(AiDispositionSettings::supervisor());
         $this->noBindingOrSending();
@@ -165,6 +173,123 @@ class AiIntakeManualRecognitionTest extends TestCase
         $this->assertSame(1, AiIntakeRun::count());
         $this->assertSame(1, AiIntakeProposal::count());
         $this->noBindingOrSending();
+    }
+
+    public function test_old_extraction_version_is_reanalyzed_only_after_an_explicit_request(): void
+    {
+        $intake = $this->capture();
+        $this->expectResult($intake);
+        $first = $this->recognize($intake);
+        $oldRun = $first->runs()->firstOrFail();
+        $oldRun->update(['configuration' => array_replace($oldRun->configuration, ['extraction_version' => 'obsolete-fixture'])]);
+        $this->expectResult($first, ['summary' => 'Fresh table-aware recognition']);
+
+        $second = $this->recognize($first);
+
+        $this->assertSame($first->source_revision, $second->source_revision);
+        $this->assertSame('Fresh table-aware recognition', $second->analysis['summary']);
+        $this->assertSame(2, AiIntakeRun::count());
+        $this->assertSame(AiIntakeMessageContent::VERSION, $second->runs()->latest('id')->firstOrFail()->configuration['extraction_version']);
+        $this->assertSame(1, AiIntakeProposal::count());
+        $this->noBindingOrSending();
+    }
+
+    public function test_explicit_review_guidance_bypasses_the_current_cache_and_is_stored_encrypted(): void
+    {
+        $intake = $this->capture();
+        $this->expectResult($intake);
+        $first = $this->recognize($intake);
+        $prompt = 'Bitte die beiden Tabellenzeilen einzeln prüfen.';
+        $this->expectResult($first, ['summary' => 'Reviewed with explicit guidance']);
+
+        $second = $this->recognize($first, '  '.$prompt.'  ');
+
+        $run = $second->runs()->latest('id')->firstOrFail();
+        $this->assertSame($prompt, $run->configuration['review_prompt']);
+        $this->assertStringNotContainsString($prompt, $run->getRawOriginal('configuration'));
+        $this->assertSame('Reviewed with explicit guidance', $second->analysis['summary']);
+        $this->assertSame($first->source_revision, $second->source_revision);
+        $this->assertSame($this->raw(), app(AiIntakeAttachmentService::class)->bytes($second, $second->messages()->firstOrFail()->raw_path, $second->messages()->firstOrFail()->raw_hash));
+        $this->assertSame($second->revision, $this->recognize($second, '  ')->revision);
+        $this->assertSame(2, AiIntakeRun::count());
+        $this->noBindingOrSending();
+    }
+
+    public function test_overlong_guidance_is_rejected_before_a_run_or_provider_call(): void
+    {
+        $intake = $this->capture();
+        $this->provider->shouldNotReceive('complete');
+        try {
+            $this->recognize($intake, str_repeat('x', 2001));
+            $this->fail('Review guidance must be bounded.');
+        } catch (\Illuminate\Validation\ValidationException $error) {
+            $this->assertArrayHasKey('review_prompt', $error->errors());
+        }
+        $this->assertSame(0, AiIntakeRun::count());
+        $this->assertSame($intake->revision, $intake->fresh()->revision);
+        $this->noBindingOrSending();
+    }
+
+    public function test_current_cache_never_hides_a_missing_archived_original(): void
+    {
+        $intake = $this->capture();
+        $this->expectResult($intake);
+        $first = $this->recognize($intake);
+        Storage::disk('local')->delete($first->messages()->firstOrFail()->raw_path);
+
+        $this->rejected(fn () => $this->recognize($first), 404);
+
+        $this->assertSame($first->revision, $first->fresh()->revision);
+        $this->assertSame(1, AiIntakeRun::count());
+        $this->noBindingOrSending();
+    }
+
+    public function test_table_quotes_verify_position_and_customer_fields_against_the_same_raw_projection(): void
+    {
+        $html = '<table><tr><th>Firma</th><th>Kontakt</th></tr><tr><td>Table Customer</td><td>person@example.test</td></tr></table><table><tr><th>Leistung</th><th>Ort</th><th>Beginn</th><th>Ende</th><th>Personal</th></tr><tr><td>Tf</td><td>Hamburg</td><td>2027-05-13T08:00</td><td>2027-05-13T16:00</td><td>2</td></tr></table>';
+        $intake = $this->capture(['text' => 'Legacy flattened body without table boundaries', 'raw' => $this->raw($html, 'text/html')]);
+        $message = $intake->messages()->firstOrFail();
+        $projected = app(AiIntakeMessageContent::class)->forMessage($message);
+        $this->assertNotSame($message->body, $projected);
+        $result = $this->extractionResult($intake);
+        foreach ($result['positions'][0]['evidence'] as &$item) {
+            $item['quote'] = $projected;
+        }
+        unset($item);
+        $result['customer_draft'] = ['company_name' => 'Table Customer', 'contact_email' => 'person@example.test', 'evidence' => [
+            ['field' => 'company_name', 'message_id' => $message->id, 'quote' => $projected],
+            ['field' => 'contact_email', 'message_id' => $message->id, 'quote' => $projected],
+        ]];
+        $this->expectResult($intake, $result);
+
+        $recognized = $this->recognize($intake);
+
+        $this->assertSame('Hamburg', $recognized->proposals()->firstOrFail()->payload['demand']['location_name']);
+        $this->assertSame('Table Customer', $recognized->analysis['customer_draft']['company_name']);
+        $this->assertSame('person@example.test', $recognized->analysis['customer_draft']['contact_email']);
+        $this->assertSame('Legacy flattened body without table boundaries', $message->fresh()->body);
+        $this->assertSame($this->raw($html, 'text/html'), app(AiIntakeAttachmentService::class)->bytes($recognized, $message->raw_path, $message->raw_hash));
+        $this->noBindingOrSending();
+    }
+
+    public function test_reanalysis_does_not_create_an_inquiry_from_an_obsolete_extra_position(): void
+    {
+        $intake = $this->capture();
+        $position = $this->extractionResult($intake)['positions'][0];
+        $this->expectResult($intake, ['positions' => [$position, $position]]);
+        $first = $this->recognize($intake);
+        $this->expectResult($first);
+        $second = $this->recognize($first, 'Nur die aktuelle erste Leistung übernehmen.');
+
+        $this->assertSame('stale', $second->proposals()->where('position_index', 1)->firstOrFail()->status);
+        $this->assertSame('manual_recognition_requested', $second->proposals()->where('position_index', 1)->firstOrFail()->error_code);
+        app(AiIntakeService::class)->createInquiries($second, $this->actor, $second->revision);
+
+        $this->assertSame(1, OperationInquiry::count());
+        $this->assertNull($second->proposals()->where('position_index', 1)->firstOrFail()->inquiry_id);
+        $this->assertSame(0, AiIntakeDelivery::count());
+        Queue::assertNothingPushed();
+        Mail::assertNothingSent();
     }
 
     public function test_enabled_automatic_mode_does_not_allow_this_single_run_to_create_or_send_anything(): void
@@ -207,7 +332,7 @@ class AiIntakeManualRecognitionTest extends TestCase
     {
         $intake = $this->capture();
         $this->provider->shouldNotReceive('complete');
-        foreach (['paused', 'completed'] as $status) {
+        foreach (['paused', 'completed', 'not_inquiry'] as $status) {
             $intake->update(['status' => $status]);
             $this->rejected(fn () => $this->recognize($intake), 409);
             $this->assertSame($status, $intake->fresh()->status);
@@ -245,10 +370,11 @@ class AiIntakeManualRecognitionTest extends TestCase
         $this->rejected(fn () => $this->recognize($intake), 409);
         $intake->update(['analysis' => $this->extractionResult($intake), 'processed_source_revision' => $intake->source_revision]);
         $intake->runs()->create(['kind' => 'analysis', 'status' => 'succeeded', 'source_revision' => $intake->source_revision, 'settings_revision' => 5,
-            'supervising_user_id' => $this->actor->id, 'input_hash' => str_repeat('a', 64), 'started_at' => now()->utc(), 'finished_at' => now()->utc()]);
+            'supervising_user_id' => $this->actor->id, 'input_hash' => str_repeat('a', 64), 'configuration' => ['extraction_version' => AiIntakeMessageContent::VERSION], 'started_at' => now()->utc(), 'finished_at' => now()->utc()]);
         $before = $inquiry->fresh()->getRawOriginal();
 
         $this->assertSame($intake->revision, $this->recognize($intake)->revision);
+        $this->rejected(fn () => $this->recognize($intake, 'Analyse ausdrücklich erneut prüfen.'), 409);
         $this->assertSame($before, $inquiry->fresh()->getRawOriginal());
         $this->assertSame('proposed', $proposal->fresh()->status);
         $this->assertSame(1, AiIntakeRun::count());

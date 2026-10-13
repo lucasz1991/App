@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Services\Privacy\SessionPermissionService;
 use App\Support\Push\WebPushConfiguration;
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -69,6 +70,56 @@ class SessionPermissions extends Component
         $service->revoke($this->actor(), $purpose);
         $this->dispatch('session-permissions-updated');
         $this->dispatch('railtime-session-permissions-changed');
+    }
+
+    /** One explicit choice for the purposes shown on the button, saved together. */
+    public function acceptAll(array $purposes, SessionPermissionService $service): bool
+    {
+        $this->resetErrorBag();
+        $actor = $this->actor();
+        abort_unless($purposes !== [] && count($purposes) <= 2
+            && collect($purposes)->every(fn ($purpose) => in_array($purpose, ['push', 'location'], true))
+            && count(array_unique($purposes)) === count($purposes), 422);
+
+        try {
+            DB::transaction(function () use ($actor, $purposes, $service): void {
+                $state = $this->state();
+                foreach ($purposes as $purpose) {
+                    abort_unless($purpose === 'push' ? $state['push_available'] : $state['location_enabled'], 422, 'Diese Funktion ist derzeit nicht verfügbar.');
+                    abort_unless(($purpose === 'push' ? $this->pushVersion : $this->locationVersion) === (int) $state[$purpose.'_version'], 409);
+                }
+                // Match the location writer's settings -> user -> grant lock order.
+                foreach (['location', 'push'] as $purpose) {
+                    if (in_array($purpose, $purposes, true)) {
+                        $service->decide($actor, $purpose, true, $purpose === 'push' ? $this->pushVersion : $this->locationVersion);
+                    }
+                }
+            }, 3);
+        } catch (HttpExceptionInterface $exception) {
+            if ($exception->getStatusCode() !== 409) {
+                throw $exception;
+            }
+            $this->syncVersions($this->state());
+            $this->addError('permissions', 'Die Erklärung wurde geändert. Bitte lies sie erneut und entscheide noch einmal.');
+
+            return false;
+        }
+
+        $this->dispatch('session-permissions-updated');
+        $this->dispatch('railtime-session-permissions-changed');
+
+        return true;
+    }
+
+    /** The browser calls this after its permission setup, without declining anything. */
+    public function complete(): bool
+    {
+        if ($this->needsDecision($this->state())) {
+            return false;
+        }
+        $this->dialogOpen = false;
+
+        return true;
     }
 
     /** Closing the optional prompt is an explicit continuation without unanswered features. */

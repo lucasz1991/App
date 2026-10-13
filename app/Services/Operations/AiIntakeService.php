@@ -327,14 +327,16 @@ class AiIntakeService
     }
 
     /** Explicit recognition prepares review data; it cannot perform the automatic workflow. */
-    public function analyzeManually(AiIntake $intake, User $actor, int $expectedRevision, int $expectedSettingsRevision): AiIntake
+    public function analyzeManually(AiIntake $intake, User $actor, int $expectedRevision, int $expectedSettingsRevision, string $reviewPrompt = ''): AiIntake
     {
         $this->access($actor);
+        $reviewPrompt = trim($reviewPrompt);
+        Validator::make(['review_prompt' => $reviewPrompt], ['review_prompt' => 'string|max:2000'])->validate();
         $lock = Cache::lock('ai-intake:'.$intake->id, 660);
         abort_unless($lock->get(), 409, 'Dieser Eingang wird bereits analysiert. Bitte den aktuellen Stand laden.');
         $run = null;
         try {
-            $current = OperationsTransaction::run(function () use ($intake, $actor, $expectedRevision, $expectedSettingsRevision, &$run): AiIntake {
+            $current = OperationsTransaction::run(function () use ($intake, $actor, $expectedRevision, $expectedSettingsRevision, $reviewPrompt, &$run): AiIntake {
                 $this->access($actor);
                 $settings = AiDispositionSettings::all(true);
                 abort_unless((int) $settings['revision'] === $expectedSettingsRevision, 409, 'Postfacheinstellungen wurden geändert. Bitte neu öffnen.');
@@ -344,9 +346,14 @@ class AiIntakeService
                 abort_unless($message && ($message->metadata['mailbox_id'] ?? '') === AiDispositionSettings::mailboxId($settings)
                     && (int) ($message->metadata['uid'] ?? 0) > 0 && (int) ($message->metadata['uid_validity'] ?? 0) > 0, 409, 'Die Mail gehört nicht zum aktuellen Dispositionspostfach.');
                 abort_if($current->error_code !== 'mailbox_test_review' && (str_starts_with((string) $current->error_code, 'mailbox_') || in_array($current->error_code, ['sender_unverified', 'attachments_review', 'automatic_message_review'], true)), 422, 'Die vollständige Mailquelle und Anlagen zuerst manuell prüfen.');
-                $successful = $current->processed_source_revision === $current->source_revision && $current->analysis
-                    && $current->runs()->where('source_revision', $current->source_revision)->whereIn('kind', ['analysis', 'mailbox_test'])->where('status', 'succeeded')->exists();
+                $successfulRun = $current->runs()->where('source_revision', $current->source_revision)->whereIn('kind', ['analysis', 'mailbox_test'])->where('status', 'succeeded')->latest('id')->first();
+                $successful = $reviewPrompt === '' && $current->processed_source_revision === $current->source_revision && $current->analysis
+                    && ($successfulRun?->configuration['extraction_version'] ?? null) === AiIntakeMessageContent::VERSION;
                 if ($successful) {
+                    foreach ($current->messages()->where('direction', 'inbound')->get() as $source) {
+                        app(AiIntakeMessageContent::class)->forMessage($source);
+                    }
+
                     return $current;
                 }
                 abort_if($current->proposals()->where(function ($q): void {
@@ -357,7 +364,8 @@ class AiIntakeService
                 $settings['supervisor_id'] = $actor->id;
                 $run = $this->run($current, 'mailbox_test', $settings);
                 $run->update(['configuration' => ['mode' => 'manual_review', 'actor_id' => $actor->id,
-                    'intake_revision' => $current->revision, 'mailbox_id' => AiDispositionSettings::mailboxId($settings)]]);
+                    'intake_revision' => $current->revision, 'mailbox_id' => AiDispositionSettings::mailboxId($settings),
+                    'extraction_version' => AiIntakeMessageContent::VERSION, 'review_prompt' => $reviewPrompt]]);
                 app(OperationsAuditService::class)->record($current, $actor, 'mailbox.analysis_requested', ['run_id' => $run->id, 'source_revision' => $current->source_revision]);
 
                 return $current;
@@ -507,6 +515,9 @@ class AiIntakeService
             $current = $this->current($intake, $expectedRevision);
             abort_unless(($current->analysis['intent'] ?? '') === 'inquiry', 422);
             foreach ($current->proposals()->where('source_revision', $current->source_revision)->get() as $proposal) {
+                if ($proposal->status === 'stale' && $proposal->error_code === 'manual_recognition_requested') {
+                    continue;
+                }
                 $this->createInquiry($current, $proposal, $actor);
             }
             $current->update(['inquiry_ids' => $current->proposals()->where('source_revision', $current->source_revision)->whereNotNull('inquiry_id')->pluck('inquiry_id')->all(), 'revision' => $current->revision + 1]);
@@ -817,7 +828,8 @@ class AiIntakeService
         };
         $result['extraction_complete'] ??= false;
         $result['overflow'] ??= false;
-        $result['customer_draft'] = $this->customerDraft($intake, $result['customer_draft'] ?? null);
+        $messageContents = $intake->messages()->where('direction', 'inbound')->get()->mapWithKeys(fn (AiIntakeMessage $message): array => [$message->id => app(AiIntakeMessageContent::class)->forMessage($message)])->all();
+        $result['customer_draft'] = $this->customerDraft($intake, $result['customer_draft'] ?? null, $messageContents);
         Validator::make($result, ['intent' => 'required|in:inquiry,amendment,cancel,other', 'classification' => 'required|in:new_inquiry,reply,amendment,cancellation,auto_reply,unrelated', 'extraction_complete' => 'required|boolean', 'overflow' => 'required|boolean', 'title' => 'required|string|max:180', 'summary' => 'required|string|max:2000', 'confidence' => 'required|numeric|min:0|max:1', 'positions' => 'present|array|max:21', 'positions.*.title' => 'required|string|max:180', 'positions.*.timezone' => 'required|timezone', 'positions.*.starts_at' => 'nullable|string|max:40', 'positions.*.ends_at' => 'nullable|string|max:40', 'positions.*.location_name' => 'nullable|string|max:180', 'positions.*.role_name' => 'nullable|string|max:160', 'positions.*.required_staff' => 'nullable|integer|min:1|max:999', 'positions.*.segments' => 'present|array|max:51', 'positions.*.qualification_requirements' => 'present|array|max:30', 'positions.*.qualification_requirements.*' => 'required|string|max:180', 'positions.*.evidence' => 'present|array|max:100', 'questions' => 'present|array|max:10'])->validate();
         foreach ($result['positions'] as $position) {
             if (count($position['segments']) > 50) {
@@ -832,8 +844,7 @@ class AiIntakeService
                 }
                 $valid = false;
                 if (! empty($item['message_id'])) {
-                    $source = $intake->messages()->where('direction', 'inbound')->find($item['message_id']);
-                    $valid = $source && str_contains($source->body, $item['quote']);
+                    $valid = $this->messageQuote($messageContents, $item['message_id'], $item['quote']);
                 }
                 if (! $valid && ! empty($item['attachment_id'])) {
                     $file = $intake->attachments()->find($item['attachment_id']);
@@ -927,7 +938,7 @@ class AiIntakeService
         return [array_values(array_unique($ids)), $unmapped];
     }
 
-    private function customerDraft(AiIntake $intake, mixed $draft): ?array
+    private function customerDraft(AiIntake $intake, mixed $draft, array $messageContents): ?array
     {
         if (! is_array($draft)) {
             return null;
@@ -938,9 +949,8 @@ class AiIntakeService
             if (! is_array($item) || ! isset($fields[$item['field'] ?? '']) || ! is_string($item['quote'] ?? null) || $item['quote'] === '' || mb_strlen($item['quote']) > 2000) {
                 continue;
             }
-            $message = ! empty($item['message_id']) ? $intake->messages()->where('direction', 'inbound')->find($item['message_id']) : null;
             $file = ! empty($item['attachment_id']) ? $intake->attachments()->find($item['attachment_id']) : null;
-            if (($message && str_contains($message->body, $item['quote'])) || ($file && (in_array($file->kind, ['image', 'pdf'], true) || str_contains((string) $file->extracted_text, $item['quote'])))) {
+            if ($this->messageQuote($messageContents, $item['message_id'] ?? null, $item['quote']) || ($file && (in_array($file->kind, ['image', 'pdf'], true) || str_contains((string) $file->extracted_text, $item['quote'])))) {
                 $evidence[$item['field']] = array_intersect_key($item, array_flip(['message_id', 'attachment_id', 'quote']));
             }
         }
@@ -959,6 +969,15 @@ class AiIntakeService
         }
 
         return $clean;
+    }
+
+    private function messageQuote(array $messageContents, mixed $messageId, string $quote): bool
+    {
+        if (! is_int($messageId) && (! is_string($messageId) || ! ctype_digit($messageId))) {
+            return false;
+        }
+
+        return isset($messageContents[(int) $messageId]) && str_contains($messageContents[(int) $messageId], $quote);
     }
 
     private function missing(array $demand): array
@@ -1025,7 +1044,7 @@ class AiIntakeService
     {
         $snapshot = ['proposal_id' => $proposalId, 'message_hashes' => $intake->messages()->where('direction', 'inbound')->get()->mapWithKeys(fn ($m) => [$m->id => ['body' => hash('sha256', $m->body), 'raw' => $m->raw_hash, 'metadata' => hash('sha256', json_encode($m->metadata, JSON_THROW_ON_ERROR))]])->all(), 'attachment_hashes' => $intake->attachments()->pluck('file_hash', 'id')->all(), 'proposal_revisions' => $intake->proposals()->pluck('revision', 'id')->all()];
 
-        return $intake->runs()->create(['kind' => $kind, 'status' => 'running', 'source_revision' => $intake->source_revision, 'settings_revision' => $settings['revision'], 'supervising_user_id' => $settings['supervisor_id'], 'input_hash' => hash('sha256', json_encode($snapshot, JSON_THROW_ON_ERROR)), 'input_snapshot' => $snapshot, 'configuration' => ['settings_revision' => $settings['revision'], 'mode' => $settings['automation_mode'] ?? 'automatic'], 'started_at' => now()->utc()]);
+        return $intake->runs()->create(['kind' => $kind, 'status' => 'running', 'source_revision' => $intake->source_revision, 'settings_revision' => $settings['revision'], 'supervising_user_id' => $settings['supervisor_id'], 'input_hash' => hash('sha256', json_encode($snapshot, JSON_THROW_ON_ERROR)), 'input_snapshot' => $snapshot, 'configuration' => ['settings_revision' => $settings['revision'], 'mode' => $settings['automation_mode'] ?? 'automatic', 'extraction_version' => AiIntakeMessageContent::VERSION], 'started_at' => now()->utc()]);
     }
 
     private function actor(AiIntakeRun $run): OperationsAutomationActor
