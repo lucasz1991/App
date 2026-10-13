@@ -1,9 +1,11 @@
 <section class="rt-staffing-section rt-staffing-editor" aria-label="Einsatzgebiete bearbeiten" wire:key="regional-editor-{{ $regionalEmployeeId }}" tabindex="-1" x-data x-init="$nextTick(() => { $el.focus({ preventScroll: true }); $el.scrollIntoView({ block: 'start', behavior: 'auto' }); })">
     <div class="rt-staffing-heading"><div><h3>Einsatzgebiete</h3><p>Persönliche Präferenzen · optional</p></div><button type="button" class="rt-ops-panel__icon-button" wire:click="closeRegionalPreference" aria-label="Gebietseinstellungen schließen"><i class="far fa-xmark" aria-hidden="true"></i></button></div>
     <x-user.person-anchor-preview :user="$regionalEmployee" :show-presence="false" :show-email="false" :size="8" />
-    <x-ui.forms.checkbox id="staffing-region-enabled" wire:model.live="regionalPreference.enabled" label="Regionale Präferenzen verwenden" :toggle="true" />
+    @if(($regionalPreference['schema_version'] ?? 1) < 2)
+        <x-ui.forms.checkbox id="staffing-region-enabled" wire:model.live="regionalPreference.enabled" label="Regionale Präferenzen verwenden" :toggle="true" />
+    @endif
     <p class="rt-staffing-note">Radien beziehen sich auf die Luftlinie zur Ortsmitte, nicht auf Fahrstrecken oder Fahrzeiten. Ohne Präferenz entsteht kein Nachteil. Unklare Orte werden nicht geraten.</p>
-    @if($regionalPreference['enabled'] ?? false)
+    @if(($regionalPreference['schema_version'] ?? 1) >= 2 || ($regionalPreference['enabled'] ?? false))
         <div class="rt-staffing-filters">
             <div class="rt-staffing-field-wide"><x-ui.forms.label for="staffing-base-location" value="Bezugsort (Stadt oder eindeutiger Ort)" /><x-ui.forms.input id="staffing-base-location" wire:model="regionalPreference.base_location" placeholder="z. B. München" maxlength="180" /></div>
             <div><x-ui.forms.label for="staffing-preferred-radius" value="Wunschgebiet bis (km)" /><x-ui.forms.input id="staffing-preferred-radius" type="number" min="1" max="1000" wire:model="regionalPreference.preferred_radius_km" /></div>

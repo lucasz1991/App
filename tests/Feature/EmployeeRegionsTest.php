@@ -121,6 +121,64 @@ class EmployeeRegionsTest extends TestCase
         Http::assertNothingSent();
     }
 
+    #[DataProvider('automaticActivationChoices')]
+    public function test_configuring_an_area_activates_it_without_an_enable_action(array $changes, string $location, string $expectedState): void
+    {
+        $component = $this->editor()->assertSet('preferences.enabled', false);
+        foreach ($changes as $field => $value) {
+            $component->set('preferences.'.$field, $value);
+        }
+        $component->call('save')->assertHasNoErrors()
+            ->assertSet('preferences.schema_version', 2)->assertSet('preferences.enabled', true);
+        $stored = StaffRegionalPreference::sole();
+        $this->assertTrue($stored->preferences['enabled']);
+        $assessment = app(StaffRegionalPreferenceService::class)
+            ->assessMany(new Shift(['location_name' => $location]), collect([$this->employee]))[$this->employee->id];
+        $this->assertSame($expectedState, $assessment['state']);
+        $this->assertSame($expectedState === 'no_go', $assessment['blocked']);
+        Http::assertNothingSent();
+    }
+
+    public static function automaticActivationChoices(): array
+    {
+        return [
+            'origin only' => [['base_location' => 'Hamburg'], 'Hamburg', 'preferred'],
+            'federal state only' => [['federal_states.preferred' => ['DE-HH']], 'Hamburg', 'preferred'],
+            'exclusion only' => [['no_go_areas' => [['location' => 'Berlin', 'radius_km' => 25]]], 'Berlin', 'no_go'],
+        ];
+    }
+
+    public function test_an_empty_saved_configuration_remains_neutral_even_if_enabled_is_forged(): void
+    {
+        $component = $this->editor()->call('save')->assertHasNoErrors()
+            ->assertSet('preferences.schema_version', 2)->assertSet('preferences.enabled', false);
+        $component->set('preferences.enabled', true)->call('save')->assertHasNoErrors()
+            ->assertSet('preferences.enabled', false);
+        $this->assertFalse(StaffRegionalPreference::sole()->preferences['enabled']);
+        $assessment = app(StaffRegionalPreferenceService::class)
+            ->assessMany(new Shift(['location_name' => 'Berlin']), collect([$this->employee]))[$this->employee->id];
+        $this->assertSame('neutral', $assessment['state']);
+        $this->assertSame(0, $assessment['score_adjustment']);
+        $this->assertFalse($assessment['blocked']);
+    }
+
+    public function test_forged_false_cannot_disable_configured_areas_or_saved_exclusions(): void
+    {
+        $component = $this->editor()->set('preferences.base_location', 'Hamburg')
+            ->set('preferences.no_go_areas', [['location' => 'Berlin', 'radius_km' => 25]])
+            ->call('save')->assertHasNoErrors()->assertSet('preferences.enabled', true);
+        $component->set('preferences.enabled', false)->call('save')->assertHasNoErrors()
+            ->assertSet('preferences.enabled', true)->assertSet('revision', 2)
+            ->assertSet('preferences.no_go_areas', [['location' => 'Berlin', 'radius_km' => 25]]);
+        $service = app(StaffRegionalPreferenceService::class);
+        $preferred = $service->assessMany(new Shift(['location_name' => 'Hamburg']), collect([$this->employee]))[$this->employee->id];
+        $excluded = $service->assessMany(new Shift(['location_name' => 'Berlin']), collect([$this->employee]))[$this->employee->id];
+        $this->assertSame('preferred', $preferred['state']);
+        $this->assertSame('no_go', $excluded['state']);
+        $this->assertTrue($excluded['blocked']);
+        $this->assertTrue(StaffRegionalPreference::sole()->preferences['enabled']);
+    }
+
     public function test_zone_switch_moves_a_state_between_tiers_and_same_tier_toggle_removes_it(): void
     {
         $component = $this->editor()->call('toggleState', 'DE-HH')
@@ -324,7 +382,13 @@ class EmployeeRegionsTest extends TestCase
         }
         $this->assertCount(3, $xpath->query('//*[contains(@class,"rt-regions__radii")]/*[local-name()="path"]'));
         $this->assertCount(16, $xpath->query('//*[contains(@class,"rt-regions__state-list")]/button'));
-        $this->assertStringContainsString('In Planung berücksichtigen', $component->html());
+        $this->assertCount(0, $xpath->query('//input[@type="checkbox"]'));
+        foreach (['rt-regions__enable', 'rt-regions__legend', 'rt-regions__map-note', 'rt-regions__inactive'] as $removedClass) {
+            $this->assertCount(0, $xpath->query('//*[contains(concat(" ",normalize-space(@class)," ")," '.$removedClass.' ")]'));
+        }
+        $component->assertDontSee('In Planung berücksichtigen')
+            ->assertDontSee('Zone wählen, dann Bundesländer auf der Karte oder in der Liste markieren.')
+            ->assertDontSee('Vorschau · Gebietsvorgaben sind deaktiviert.');
         $this->assertStringContainsString('Luftlinie', $component->html());
         $this->assertDatabaseCount('staff_regional_preferences', 0);
         Http::assertNothingSent();

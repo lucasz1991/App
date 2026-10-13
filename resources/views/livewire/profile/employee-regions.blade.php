@@ -2,7 +2,6 @@
     @include('livewire.profile.partials.employee-regions-styles')
     <header class="rt-regions__header">
         <div><h2>Einsatzgebiete</h2><p>Wo Einsätze bevorzugt, möglich oder im Notfall vorgesehen sind.</p></div>
-        <label class="rt-regions__enable"><input type="checkbox" wire:model.live="preferences.enabled" @disabled(!$ready)><span>In Planung berücksichtigen</span></label>
     </header>
     @if(!$ready)
         <p role="status" class="rt-regions__message">Einsatzgebiete sind noch nicht eingerichtet.</p>
@@ -29,9 +28,6 @@
                         </svg>
                     </x-slot:markers>
                 </x-ui.germany-map>
-                <div class="rt-regions__legend">@foreach($zones as $zone => $definition)<span data-zone="{{ $zone }}"><i aria-hidden="true"></i>{{ $definition['label'] }}</span>@endforeach</div>
-                <p class="rt-regions__map-note">Zone wählen, dann Bundesländer auf der Karte oder in der Liste markieren.</p>
-                @if(!($preferences['enabled'] ?? false))<p class="rt-regions__inactive"><i class="far fa-pause" aria-hidden="true"></i> Vorschau · Gebietsvorgaben sind deaktiviert.</p>@endif
             </div>
             <div class="rt-regions__editor">
                 <div class="rt-regions__zones" role="group" aria-label="Zone für die Bundesländerauswahl">

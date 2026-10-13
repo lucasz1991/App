@@ -133,7 +133,7 @@ class ShiftStaffingCandidatesTest extends TestCase
                 'outside' => 'preferred', 'unqualified' => 'emergency', default => $tier
             }] = [$tier === 'outside' ? 'DE-BY' : 'DE-HH'];
             app(StaffRegionalPreferenceService::class)->save($employee, $this->admin, [
-                'schema_version' => 2, 'enabled' => true, 'base_location' => '', 'preferred_radius_km' => 50,
+                'schema_version' => 2, 'enabled' => false, 'base_location' => '', 'preferred_radius_km' => 50,
                 'border_radius_km' => 100, 'emergency_radius_km' => null, 'federal_states' => $states, 'no_go_areas' => [],
             ], 0);
         }

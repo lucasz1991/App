@@ -315,7 +315,7 @@ class StaffRegionalPreferenceServiceTest extends TestCase
         $this->assertSame(0, StaffRegionalPreference::count());
     }
 
-    public function test_no_go_still_blocks_all_new_tiers_and_disabled_zones_remain_neutral(): void
+    public function test_no_go_still_blocks_all_new_tiers_and_client_cannot_disable_configured_v2_zones(): void
     {
         $config = $this->config([
             'base_location' => '', 'federal_states' => ['preferred' => ['DE-BY'], 'possible' => [], 'emergency' => ['DE-HH']],
@@ -327,8 +327,9 @@ class StaffRegionalPreferenceServiceTest extends TestCase
             $this->invalid(fn () => $this->service->assertAllowed(new Shift(['location_name' => $place]), $this->employee), 'workflow');
         }
         $config['enabled'] = false;
-        $this->service->save($this->employee, $this->admin, $config, 1);
-        $this->assertSame('neutral', $this->assessment('Hamburg')['state']);
+        $saved = $this->service->save($this->employee, $this->admin, $config, 1);
+        $this->assertTrue($saved['enabled']);
+        $this->assertSame('no_go', $this->assessment('Hamburg')['state']);
     }
 
     public function test_legacy_roundtrip_keeps_original_outside_score_until_explicit_upgrade(): void
@@ -380,5 +381,63 @@ class StaffRegionalPreferenceServiceTest extends TestCase
         }
         $this->invalid(fn () => $this->service->save($this->employee, $this->admin, $this->config(['federal_states' => ['preferred' => ['']]]), 1), 'regional_preferences.federal_states.preferred.0');
         $this->assertSame(1, $this->service->get($this->employee)['revision']);
+    }
+
+    public function test_empty_v2_is_neutral_and_configured_v2_is_automatically_active_without_inventing_private_origin(): void
+    {
+        $this->employee->profile()->create(['city' => 'München', 'country' => 'DE']);
+        $config = $this->config(['schema_version' => 2, 'base_location' => '']);
+        $empty = $this->service->save($this->employee, $this->admin, $config, 0);
+        $this->assertFalse($empty['enabled']);
+        $this->assertSame('', $empty['base_location']);
+        $this->assertSame('neutral', $this->assessment('München')['state']);
+
+        $config['enabled'] = false;
+        $config['base_location'] = 'Hamburg';
+        $active = $this->service->save($this->employee, $this->admin, $config, 1);
+        $this->assertTrue($active['enabled']);
+        $this->assertSame('preferred', $this->assessment('Hamburg')['state']);
+    }
+
+    public function test_previously_disabled_configured_v2_is_active_on_read_without_bulk_write(): void
+    {
+        $saved = $this->service->save($this->employee, $this->admin, $this->config(['schema_version' => 2]), 0);
+        $record = StaffRegionalPreference::sole();
+        $stored = $record->preferences;
+        $stored['enabled'] = false;
+        $record->update(['preferences' => $stored]);
+
+        $current = $this->service->get($this->employee);
+        $this->assertTrue($current['enabled']);
+        $this->assertSame($saved['revision'], $current['revision']);
+        $this->assertSame('preferred', $this->assessment('München')['state']);
+        $this->assertFalse($record->fresh()->preferences['enabled']);
+        $this->assertSame(1, OperationAudit::where('action', 'staff.regional_preferences.saved')->count());
+    }
+
+    public function test_disabled_legacy_profile_remains_disabled_until_explicit_v2_save(): void
+    {
+        $saved = $this->service->save($this->employee, $this->admin, $this->config(['enabled' => false]), 0);
+        $this->assertSame(1, $saved['schema_version']);
+        $this->assertFalse($this->service->get($this->employee)['enabled']);
+        $this->assertSame('neutral', $this->assessment('München')['state']);
+        unset($saved['revision']);
+        $saved['schema_version'] = 2;
+        $upgraded = $this->service->save($this->employee, $this->admin, $saved, 1);
+        $this->assertTrue($upgraded['enabled']);
+        $this->assertSame('preferred', $this->assessment('München')['state']);
+    }
+
+    public function test_exclusion_only_v2_is_active_and_other_places_are_neutral(): void
+    {
+        $saved = $this->service->save($this->employee, $this->admin, $this->config([
+            'schema_version' => 2, 'enabled' => false, 'base_location' => '',
+            'no_go_areas' => [['location' => 'Hamburg', 'radius_km' => 10]],
+        ]), 0);
+        $this->assertTrue($saved['enabled']);
+        $this->assertSame('no_go', $this->assessment('Hamburg')['state']);
+        $this->assertSame('neutral', $this->assessment('München')['state']);
+        $this->assertSame(0, $this->assessment('München')['score_adjustment']);
+        $this->assertSame('unknown', $this->assessment('Unbekanntes Depot')['state']);
     }
 }

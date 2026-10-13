@@ -138,6 +138,11 @@ class StaffRegionalPreferenceService
 
                 continue;
             }
+            if ($extended && ! $this->hasPositiveAreas($config)) {
+                $results[$user->id] = $this->result('neutral', 'Keine Gebietsvorgabe', 'Außerhalb der ausgeschlossenen Gebiete; keine bevorzugten Einsatzgebiete hinterlegt.', 0, $revision, $location);
+
+                continue;
+            }
             $distance = null;
             $distanceText = '';
             $radiusTier = null;
@@ -227,7 +232,7 @@ class StaffRegionalPreferenceService
             || ! is_numeric($config['border_radius_km'] ?? null)
             || ! is_array($config['no_go_areas'] ?? null)
             || (isset($config['federal_states']) && ! is_array($config['federal_states']))
-            || ($config['enabled'] && trim($config['base_location']) === '' && empty(array_filter($config['federal_states'] ?? [])))
+            || (($config['schema_version'] ?? null) === 1 && $config['enabled'] && trim($config['base_location']) === '')
             || $config['preferred_radius_km'] < 1 || $config['preferred_radius_km'] > 1000
             || $config['border_radius_km'] < $config['preferred_radius_km'] || $config['border_radius_km'] > 2000
             || count($config['no_go_areas']) > 20) {
@@ -255,6 +260,9 @@ class StaffRegionalPreferenceService
                 }
                 $seen[$code] = true;
             }
+        }
+        if ($config['schema_version'] === 2) {
+            $config['enabled'] = $this->hasConfiguredAreas($config);
         }
 
         return ['revision' => $preference->revision] + array_intersect_key($config, $this->defaults());
@@ -307,13 +315,16 @@ class StaffRegionalPreferenceService
             sort($codes);
             $validated['federal_states'][$tier] = array_values($codes);
         }
-        if ($validated['enabled'] && $validated['base_location'] === '' && $seen === []) {
+        $validated['schema_version'] = $this->hasExtendedZones($validated) ? 2 : 1;
+        if ($validated['schema_version'] === 2) {
+            $validated['enabled'] = $this->hasConfiguredAreas($validated);
+        }
+        if ($validated['schema_version'] === 1 && $validated['enabled'] && $validated['base_location'] === '') {
             throw ValidationException::withMessages(['regional_preferences.base_location' => 'Bitte einen Ausgangsort oder mindestens ein Bundesland auswählen.']);
         }
         if ($validated['emergency_radius_km'] !== null && $validated['base_location'] === '') {
             throw ValidationException::withMessages(['regional_preferences.base_location' => 'Für den Notfallradius wird ein Ausgangsort benötigt.']);
         }
-        $validated['schema_version'] = $this->hasExtendedZones($validated) ? 2 : 1;
         if ($validated['base_location'] !== '') {
             $validated['base_location'] = $this->validatedLocation($validated['base_location'], 'regional_preferences.base_location');
         }
@@ -326,6 +337,16 @@ class StaffRegionalPreferenceService
         $validated['no_go_areas'] = array_values($areas);
 
         return $validated;
+    }
+
+    private function hasConfiguredAreas(array $config): bool
+    {
+        return $this->hasPositiveAreas($config) || $config['no_go_areas'] !== [];
+    }
+
+    private function hasPositiveAreas(array $config): bool
+    {
+        return trim($config['base_location']) !== '' || array_filter($config['federal_states']) !== [];
     }
 
     private function hasExtendedZones(array $config): bool
