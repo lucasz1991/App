@@ -172,6 +172,10 @@ Route::get('/icons/{icon}', PwaIconController::class)
 
 Route::get('/', function () {
     if (auth()->check()) {
+        if (auth()->user()->usesPersonalWorkspaceAsHome()) {
+            return redirect()->route('operations.mine', request()->query());
+        }
+
         return auth()->user()->usesAdminLayout()
             ? redirect()->route('admin.dashboard')
             : redirect()->route('dashboard');

@@ -1,44 +1,44 @@
-<div class="rt-ops ops-stack" data-customer-workspace>
+<div class="rt-ops ops-stack customer-workspace" data-customer-workspace @if(!$customerId) data-customer-directory-scroll @endif>
+    <x-ui.page title="Kunden" :auto-intro="false" :show-back="false" :title-in-topbar="true">
+        <x-slot:actions>
+            @if(!$customerId)
+                <div class="customer-directory__toolbar" wire:key="customer-directory-toolbar">
+                    <div class="customer-directory__search-controls" aria-label="Kunden suchen und auswählen">
+                        @if($selectedListCustomerId)
+                            <x-ui.dropdown.anchor-dropdown dropdown-id="customer-list-selection" width="64" layer-group="topbar-controls">
+                                <x-slot:trigger><x-ui.buttons.button-basic type="button" mode="secondary" aria-label="Aktionen für ausgewählten Kunden" title="Ausgewählter Kunde"><i class="far fa-layer-group" aria-hidden="true"></i></x-ui.buttons.button-basic></x-slot:trigger>
+                                <x-slot:content>
+                                    <x-dropdown-link wire:click.prevent="selectCustomer({{ $selectedListCustomerId }})"><i class="far fa-id-card" aria-hidden="true"></i>Kundenprofil öffnen</x-dropdown-link>
+                                    <x-dropdown-link wire:click.prevent="toggleCustomerSelection({{ $selectedListCustomerId }})"><i class="far fa-align-slash" aria-hidden="true"></i>Auswahl aufheben</x-dropdown-link>
+                                </x-slot:content>
+                            </x-ui.dropdown.anchor-dropdown>
+                        @endif
+                        <x-tables.search-field context="page-topbar" id="customer-list-search" :results-count="$customers->total()" placeholder="Kunden suchen" maxlength="100" wire:model.live.debounce.300ms="search" />
+                    </div>
+                    <span class="customer-directory__total" aria-live="polite">{{ number_format($customers->total(), 0, ',', '.') }} {{ $customers->total()===1?'Kunde':'Kunden' }}</span>
+                    <div class="customer-directory__actions">
+                        @if($canCreate)
+                            <x-ui.buttons.button-basic type="button" mode="primary" class="customer-directory__create" wire:click="createCustomer" aria-label="Kunde anlegen" title="Kunde anlegen"><i class="far fa-plus" aria-hidden="true"></i></x-ui.buttons.button-basic>
+                        @endif
+                        @include('livewire.operations.partials.customer-directory-filters')
+                    </div>
+                </div>
+            @endif
+        </x-slot:actions>
     @if(!$customerId)
-        <x-operations.surface>
-            <x-slot:actions>
-                <span class="mr-auto text-sm text-rt-muted dark:text-rt-dark-muted" aria-live="polite">{{ number_format($customers->total(), 0, ',', '.') }} {{ $customers->total()===1?'Kunde':'Kunden' }}</span>
-                @if($canCreate)
-                    <x-ui.buttons.button-basic type="button" mode="primary" wire:click="createCustomer"><i class="far fa-plus" aria-hidden="true"></i>Kunde anlegen</x-ui.buttons.button-basic>
-                @endif
-            </x-slot:actions>
-            <x-tables.toolbar id="customer-list-filters" :single-line="true" :filter-count="$activeFilterCount" title="Kunden filtern" reset-action="resetFilters" search-for="customer-list-search">
-                <x-slot:search>
-                    <x-tables.search-field id="customer-list-search" :results-count="$customers->total()" placeholder="Kunden suchen" maxlength="100" wire:model.live.debounce.300ms="search" />
-                </x-slot:search>
-                @if($canCreate)
-                    <x-tables.filter-field label="Status" icon="far fa-signal-alt-3" for="customer-status-filter">
-                        <x-ui.forms.select id="customer-status-filter" wire:model.live="activeFilter" aria-label="Kundenstatus" class="w-full">
-                            <option value="all">Alle Kunden</option>
-                            <option value="active">Aktiv</option>
-                            <option value="inactive">Inaktiv</option>
-                        </x-ui.forms.select>
-                    </x-tables.filter-field>
-                @endif
-                <x-tables.filter-field label="Anzeige" icon="far fa-list-ol" for="customer-page-size">
-                    <x-ui.forms.select id="customer-page-size" wire:model.live="perPage" aria-label="Kunden pro Seite" class="w-full">
-                        @foreach([15,30,50,100] as $size)<option value="{{ $size }}">{{ $size }} pro Seite</option>@endforeach
-                    </x-ui.forms.select>
-                </x-tables.filter-field>
-                <x-slot:chips>
-                    @if(trim($search)!=='')<x-tables.filter-chip label="Suche" :value="$search" wire:click="$set('search', '')" />@endif
-                    @if($canCreate && $activeFilter!=='all')<x-tables.filter-chip label="Status" :value="$activeFilter==='active'?'Aktiv':'Inaktiv'" wire:click="$set('activeFilter', 'all')" />@endif
-                </x-slot:chips>
-            </x-tables.toolbar>
+        <div class="customer-directory__results">
             <x-tables.table
+                class="rt-customer-table"
                 label="Kundenliste"
                 table-key="customer-list"
                 :flush-top="true"
+                :scroll-body="true"
+                :mobile-header="true"
                 :columns="$canCreate ? [
-                    ['label'=>'Kunde','key'=>'company_name','width'=>'36%','sortable'=>true],
-                    ['label'=>'Kontakt','key'=>'contact','width'=>'28%','hideOn'=>'md'],
+                    ['label'=>'Kunde','key'=>'company_name','width'=>'34%','sortable'=>true],
+                    ['label'=>'Ansprechpartner / Kontakt','key'=>'contact','width'=>'32%','hideOn'=>'md'],
                     ['label'=>'Ort','key'=>'city','width'=>'20%','sortable'=>true,'hideOn'=>'md'],
-                    ['label'=>'Status','key'=>'is_active','width'=>'16%','sortable'=>true],
+                    ['label'=>'Status','key'=>'is_active','width'=>'14%','sortable'=>true],
                 ] : [['label'=>'Kunde','key'=>'company_name','width'=>'1fr','sortable'=>true]]"
                 :items="$customers"
                 :selected-items="$selectedListCustomerId ? [$selectedListCustomerId] : []"
@@ -51,11 +51,12 @@
                 sort-action="sort"
                 empty="Keine Kunden gefunden."
             />
-            <div class="py-4">{{ $customers->links() }}</div>
-        </x-operations.surface>
+            <div class="customer-directory__pagination"><x-tables.pagination :paginator="$customers" table-key="customer-list" /></div>
+        </div>
     @else
         @include('livewire.operations.partials.customer-profile')
     @endif
+    </x-ui.page>
     @if($canCreate && ($startCreating || $editingCustomerId))
         <livewire:admin.operations.customers :customer-id="$editingCustomerId" :embedded="true" :modal-only="true" :workspace-revision="$contextRevision" :start-creating="$startCreating" :start-editing="(bool)$editingCustomerId" :key="'customer-form-'.($editingCustomerId ?? 'new').'-'.$contextRevision" />
     @endif

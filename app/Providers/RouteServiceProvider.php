@@ -26,9 +26,13 @@ class RouteServiceProvider extends ServiceProvider
             return '/login';
         }
 
-        return Auth::user()->isAdmin()
-            ? '/administrator'
-            : '/dashboard';
+        $user = Auth::user();
+
+        return match (true) {
+            $user->isAdmin() => '/administrator',
+            $user->usesPersonalWorkspaceAsHome() => '/mein-arbeitstag',
+            default => '/dashboard',
+        };
     }
 
     /**

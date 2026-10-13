@@ -34,6 +34,12 @@ class UserDashboard extends Component
     {
         if (auth()->user()->usesAdminLayout()) {
             $this->redirectRoute('admin.dashboard', navigate: true);
+
+            return;
+        }
+
+        if (auth()->user()->usesPersonalWorkspaceAsHome()) {
+            $this->redirectRoute('operations.mine', request()->query(), navigate: true);
         }
     }
 

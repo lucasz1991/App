@@ -171,6 +171,12 @@ class User extends Authenticatable implements HasLocalePreference, MustVerifyEma
         return in_array($this->dashboardAudience(), ['admin', 'administration', 'management'], true);
     }
 
+    /** Technical staff in the employee context start in their own workday. */
+    public function usesPersonalWorkspaceAsHome(): bool
+    {
+        return $this->isActive() && $this->role === 'staff' && $this->dashboardAudience() === 'employee';
+    }
+
     /**
      * Explizite Superadmin-Konten und der bestehende primaere Benutzer #1
      * behalten den nicht delegierbaren Systemadministrator-Status.

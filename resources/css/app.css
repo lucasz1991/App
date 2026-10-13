@@ -32,6 +32,8 @@
 @import './customer-portal.css';
 @import './personnel-workspace.css';
 @import './employee-workspace.css';
+@import './customer-directory.css';
+@import './customer-profile.css';
 @import './personnel-management.css';
 @import './personal-workspace.css';
 @import './germany-map.css';

@@ -3,11 +3,17 @@
 namespace App\Livewire\Operations;
 
 use App\Models\AbsenceRequest;
+use App\Models\Customer;
+use App\Models\CustomerCapacityCommitment;
+use App\Models\CustomerLocation;
 use App\Models\EmployeeQualification;
+use App\Models\OperationAudit;
 use App\Models\PersonnelTraining;
 use App\Models\QualificationType;
 use App\Models\ShiftAssignment;
+use App\Models\User;
 use App\Models\WorkTimeEntry;
+use App\Services\CustomerPortal\CustomerCapacityService;
 use App\Services\Operations\OperationsReportService;
 use App\Services\Operations\PersonnelWorkflowService;
 use App\Services\Operations\PlanChangeService;
@@ -19,7 +25,10 @@ use App\Support\Operations\GermanyMap;
 use App\Support\Operations\PersonalSchedule;
 use App\Support\Operations\ReportingPeriod;
 use App\Support\Operations\WorkTimeSchema;
+use App\Support\CustomerPortal\CustomerPortalIntakeSchema;
 use Carbon\CarbonImmutable;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Locked;
@@ -62,6 +71,22 @@ class MyWork extends Component
     public bool $generalStartOpen = false;
 
     public bool $sectionsOpen = false;
+
+    public bool $requestOpen = false;
+
+    public bool $requestConfirmed = false;
+
+    #[Locked]
+    public string $requestType = '';
+
+    #[Locked]
+    public ?int $requestId = null;
+
+    #[Locked]
+    public ?int $requestRevision = null;
+
+    #[Locked]
+    public string $requestNotice = '';
 
     #[Locked]
     public ?int $sectionsId = null;
@@ -194,7 +219,7 @@ class MyWork extends Component
         session()->flash('operations.saved', 'Zeit nachgetragen.');
     }
 
-    public function mount(string $focus = '', string $initialTab = ''): void
+    public function mount(string $focus = '', string $initialTab = '', array $initialRequest = []): void
     {
         $this->access();
         $this->eventKey = (string) Str::uuid();
@@ -208,6 +233,9 @@ class MyWork extends Component
         }
         if ($this->focus === 'records' && request()->boolean('new')) {
             $this->qualificationOpen = true;
+        }
+        if ($this->focus === '') {
+            $this->initializeRequest($initialRequest ?: request()->only(['request_type', 'request_id', 'request_revision']));
         }
     }
 
@@ -223,6 +251,7 @@ class MyWork extends Component
         abort_unless(array_key_exists($tab, $this->tabs()), 404);
         $this->tab = $tab;
         $this->closeCalendarEvent();
+        $this->closeConsentRequest();
         $this->reset(['manualOpen', 'correctionOpen', 'qualificationOpen', 'absenceOpen']);
         $this->resetValidation();
     }
@@ -231,6 +260,188 @@ class MyWork extends Component
     {
         $this->access();
         $service->respond($id, $revision, $accept, auth()->user());
+    }
+
+    /** A notification GET selects a request; only respondToRequest can submit an answer. */
+    private function initializeRequest(array $input): void
+    {
+        if ($input === []) {
+            return;
+        }
+        $this->tab = 'today';
+        $type = $input['request_type'] ?? null;
+        $id = $this->requestInteger($input['request_id'] ?? null);
+        $revision = $this->requestInteger($input['request_revision'] ?? null);
+        if (! is_string($type) || ! in_array($type, ['shift', 'capacity'], true) || $id === null || $revision === null) {
+            $this->requestOpen = true;
+            $this->requestNotice = 'Diese Anfrage ist nicht verfügbar. Deine offenen Anfragen findest du im Arbeitstag.';
+
+            return;
+        }
+        try {
+            $this->openConsentRequest($type, $id, $revision);
+        } catch (HttpException $exception) {
+            if ($exception->getStatusCode() !== 404) {
+                throw $exception;
+            }
+            $this->requestOpen = true;
+            $this->requestNotice = 'Diese Anfrage ist nicht verfügbar. Deine offenen Anfragen findest du im Arbeitstag.';
+            $this->requestType = '';
+            $this->requestId = $this->requestRevision = null;
+        }
+    }
+
+    private function requestInteger(mixed $value): ?int
+    {
+        return (is_int($value) || is_string($value)) && preg_match('/\A[1-9][0-9]{0,17}\z/', (string) $value) ? (int) $value : null;
+    }
+
+    private function requestActor(): User
+    {
+        $this->access();
+        $actor = User::findOrFail(auth()->id());
+        OperationsAccess::own($actor, $actor->id);
+
+        return $actor;
+    }
+
+    public function openConsentRequest(string $type, int $id, int $revision): void
+    {
+        $actor = $this->requestActor();
+        abort_unless(in_array($type, ['shift', 'capacity'], true) && $id > 0 && $revision > 0 && $this->focus === '', 404);
+        $this->consentRequest($actor, $type, $id, $revision);
+        $this->requestType = $type;
+        $this->requestId = $id;
+        $this->requestRevision = $revision;
+        $this->requestConfirmed = false;
+        $this->requestNotice = '';
+        $this->requestOpen = true;
+        $this->resetValidation();
+    }
+
+    public function closeConsentRequest(): void
+    {
+        $this->access();
+        $this->reset(['requestOpen', 'requestConfirmed', 'requestType', 'requestId', 'requestRevision', 'requestNotice']);
+        $this->resetErrorBag(['request', 'requestConfirmed']);
+    }
+
+    public function respondToRequest(bool $accept): void
+    {
+        $actor = $this->requestActor();
+        abort_unless($this->requestOpen && $this->requestId && $this->requestRevision && in_array($this->requestType, ['shift', 'capacity'], true), 409);
+        $request = $this->consentRequest($actor, $this->requestType, $this->requestId, $this->requestRevision);
+        if (! $request['can_respond']) {
+            $this->requestConfirmed = false;
+            $this->addError('request', $request['notice']);
+
+            return;
+        }
+        if ($this->requestType === 'capacity') {
+            $this->validate(['requestConfirmed' => 'accepted'], ['requestConfirmed.accepted' => 'Bitte prüfe und bestätige den angefragten Zeitraum.']);
+            app(CustomerCapacityService::class)->consent($actor, $this->requestId, $this->requestRevision, $accept);
+            $message = $accept ? 'Verfügbarkeit bestätigt.' : 'Kapazitätsanfrage abgelehnt.';
+        } else {
+            app(PlanPublicationService::class)->respond($this->requestId, $this->requestRevision, $accept, $actor);
+            $message = $accept ? 'Dienst bestätigt.' : 'Dienst abgelehnt.';
+        }
+        $this->closeConsentRequest();
+        $this->resetPage('requestsPage');
+        session()->flash('operations.saved', $message);
+    }
+
+    /** Every read repeats the own-user and published-revision checks. */
+    private function consentRequest(User $actor, string $type, int $id, int $revision): array
+    {
+        $unavailable = ['can_respond' => false, 'notice' => 'Diese Anfrage ist nicht mehr verfügbar.', 'row' => null, 'changes' => []];
+        if ($type === 'shift') {
+            $owned = ShiftAssignment::where('user_id', $actor->id)->findOrFail($id);
+            if ($owned->status->value !== 'requested') {
+                return array_replace($unavailable, ['notice' => 'Diese Anfrage wurde bereits beantwortet oder zurückgenommen.']);
+            }
+            try {
+                $assignment = app(PersonalSchedule::class)->assignment($actor, $id);
+            } catch (HttpException $exception) {
+                if ($exception->getStatusCode() !== 404) {
+                    throw $exception;
+                }
+
+                return $unavailable;
+            }
+            $row = $this->shiftRequestRow($assignment, $this->firstPublishedRevisions(collect([$assignment])));
+            $changes = app(PlanChangeService::class)->publishedChanges($assignment->shift_id, $assignment->plan_revision);
+            $notice = match (true) {
+                $assignment->plan_is_stale => 'Der Dienst wird gerade überarbeitet. Eine Antwort ist nach der Veröffentlichung wieder möglich.',
+                $assignment->plan_revision !== $revision => 'Diese Anfrage hat sich geändert. Prüfe die aktuelle Version, bevor du antwortest.',
+                ! $assignment->shift->ends_at->isFuture() => 'Dieser Dienst ist bereits beendet. Eine Antwort ist nicht mehr möglich.',
+                default => '',
+            };
+
+            return ['can_respond' => $notice === '', 'notice' => $notice, 'row' => $row, 'changes' => $row['changed_plan'] ? $changes : []];
+        }
+        if (! CustomerPortalIntakeSchema::ready()) {
+            return $unavailable;
+        }
+        $record = CustomerCapacityCommitment::where('user_id', $actor->id)->findOrFail($id);
+        $notice = match (true) {
+            $record->status !== 'requested' => 'Diese Kapazitätsanfrage wurde bereits beantwortet oder zurückgenommen.',
+            ! $record->starts_at->isFuture() => 'Der angefragte Zeitraum hat bereits begonnen. Eine Antwort ist nicht mehr möglich.',
+            $record->revision !== $revision => 'Diese Anfrage hat sich geändert. Prüfe die aktuelle Version, bevor du antwortest.',
+            default => '',
+        };
+
+        return ['can_respond' => $notice === '', 'notice' => $notice, 'row' => $record->status === 'requested' ? $this->capacityRequestRows(collect([$record]))->first() : null, 'changes' => []];
+    }
+
+    private function firstPublishedRevisions(Collection $assignments): Collection
+    {
+        return $assignments->isEmpty() ? collect() : OperationAudit::where('subject_type', 'Shift')->where('action', 'shift.published')
+            ->whereIn('subject_id', $assignments->pluck('shift_id'))->selectRaw('subject_id, MIN(revision) AS first_revision')->groupBy('subject_id')->pluck('first_revision', 'subject_id');
+    }
+
+    private function shiftRequestRow(ShiftAssignment $assignment, Collection $firstRevisions): array
+    {
+        $shift = $assignment->shift;
+        $changed = isset($firstRevisions[$shift->id]) && (int) $firstRevisions[$shift->id] < $assignment->plan_revision;
+
+        return ['type' => 'shift', 'id' => $assignment->id, 'revision' => $assignment->plan_revision, 'changed_plan' => $changed,
+            'label' => $changed ? 'Planänderung' : 'Dienstanfrage', 'title' => $shift->title, 'role' => $shift->role_name,
+            'customer' => $shift->order?->customer?->company_name, 'location' => $shift->location_name,
+            'starts_at' => $shift->starts_at, 'ends_at' => $shift->ends_at, 'timezone' => $shift->timezone, 'break_minutes' => $shift->planned_break_minutes];
+    }
+
+    private function capacityRequestRows(Collection $records): Collection
+    {
+        if ($records->isEmpty()) {
+            return collect();
+        }
+        $customers = Customer::whereIn('id', $records->pluck('customer_id'))->pluck('company_name', 'id');
+        $locations = CustomerLocation::whereIn('id', $records->pluck('location_id'))->whereIn('customer_id', $records->pluck('customer_id'))->get(['id', 'customer_id', 'name'])->keyBy('id');
+
+        return $records->map(function (CustomerCapacityCommitment $record) use ($customers, $locations): array {
+            $location = $locations->get($record->location_id);
+
+            return ['type' => 'capacity', 'id' => $record->id, 'revision' => $record->revision, 'changed_plan' => false,
+                'label' => 'Kapazitätsanfrage', 'title' => $record->role_name, 'role' => $record->role_name,
+                'customer' => $customers->get($record->customer_id), 'location' => $location && (int) $location->customer_id === (int) $record->customer_id ? $location->name : 'Einsatzort nicht verfügbar',
+                'starts_at' => $record->starts_at, 'ends_at' => $record->ends_at, 'timezone' => $record->timezone, 'break_minutes' => $record->planned_break_minutes];
+        });
+    }
+
+    private function pendingRequests(Collection $assignments): LengthAwarePaginator
+    {
+        $actor = $this->requestActor();
+        $pending = $assignments->filter(fn ($assignment) => $assignment->status->value === 'requested' && ! $assignment->plan_is_stale && $assignment->shift->ends_at->isFuture());
+        $firstRevisions = $this->firstPublishedRevisions($pending);
+        $requests = $pending->map(fn ($assignment) => $this->shiftRequestRow($assignment, $firstRevisions));
+        if (CustomerPortalIntakeSchema::ready()) {
+            $capacity = CustomerCapacityCommitment::where('user_id', $actor->id)->where('status', 'requested')->where('starts_at', '>', now()->utc())->get();
+            $requests = $requests->concat($this->capacityRequestRows($capacity));
+        }
+        $requests = $requests->sortBy(fn ($row) => sprintf('%020d-%s-%020d', $row['starts_at']->getTimestamp(), $row['type'], $row['id']))->values();
+        $page = min(max(1, $this->getPage('requestsPage')), max(1, (int) ceil($requests->count() / 6)));
+
+        return new LengthAwarePaginator($requests->forPage($page, 6)->values(), $requests->count(), 6, $page, ['pageName' => 'requestsPage']);
     }
 
     public function start(int $id, int $revision, WorkTimeService $service): void

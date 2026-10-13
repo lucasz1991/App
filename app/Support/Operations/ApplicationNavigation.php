@@ -13,7 +13,9 @@ final class ApplicationNavigation
         $add = static function (string $section, string $title, string $route, string $icon, array $parameters = [], bool $navigate = true, ?string $group = null, array $excludedSections = []) use (&$sections): void {
             $sections[$section][] = compact('title', 'route', 'icon', 'parameters', 'navigate', 'group', 'excludedSections');
         };
-        $add('', 'Dashboard', $admin ? 'admin.dashboard' : 'dashboard', 'home');
+        if (! $user->usesPersonalWorkspaceAsHome()) {
+            $add('', 'Dashboard', $admin ? 'admin.dashboard' : 'dashboard', 'home');
+        }
         $sections += array_fill_keys($user->dashboardAudience() === 'employee'
             ? ['Mein Arbeitsplatz', 'Disposition', 'Personal', 'Kunden']
             : ['Disposition', 'Personal', 'Kunden', 'Mein Arbeitsplatz'], []);
@@ -21,6 +23,9 @@ final class ApplicationNavigation
         $personalLinks = $ready && OperationsAccess::isEmployee($user) ? PersonalWorkspaceAreas::links() : [];
         foreach ($personalLinks['Mein Arbeitsplatz'] ?? [] as $link) {
             $sections['Mein Arbeitsplatz'][] = $link;
+        }
+        if (! $ready && $user->usesPersonalWorkspaceAsHome()) {
+            $add('Mein Arbeitsplatz', 'Mein Arbeitstag', 'operations.mine', 'clock');
         }
         foreach (OperationsPages::availableFor($user) as $page => $definition) {
             if ($page === 'cases') {
