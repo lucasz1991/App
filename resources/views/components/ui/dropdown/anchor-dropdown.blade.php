@@ -22,7 +22,6 @@
   'openOnHover'       => false,
   'hoverOpenDelay'    => 100,
   'hoverCloseDelay'   => 180,
-  'hoverCursorProgress' => false,
   'externalTrigger'  => false,
 ])
 
@@ -72,7 +71,6 @@
       'openOnHover' => (bool) $openOnHover,
       'hoverOpenDelay' => max(0, (int) $hoverOpenDelay),
       'hoverCloseDelay' => max(0, (int) $hoverCloseDelay),
-      'hoverCursorProgress' => (bool) $hoverCursorProgress,
       'layerGroup' => $resolvedLayerGroup,
       'layerId' => $resolvedDropdownId,
       'anchorSelector' => filled($anchorSelector) ? (string) $anchorSelector : null,
@@ -108,7 +106,6 @@
     @click="toggle()"
     @pointerenter="enterHover($event, 'trigger')"
     @pointerleave="leaveHover($event, 'trigger')"
-    @if($hoverCursorProgress) @pointermove="trackHoverCursor($event)" @endif
     @focusin="retainHoverFocus()"
     @focusout="scheduleHoverClose()"
     @if($openOnHover) @keydown.arrow-down.prevent.stop="focusHoverPanel()" @endif
@@ -116,18 +113,6 @@
   >
     {{ $trigger }}
   </div>
-
-  @if($hoverCursorProgress && $openOnHover)
-    <template x-teleport="body">
-      <svg class="rt-service-hover-progress" viewBox="0 0 16 16" aria-hidden="true" focusable="false"
-        x-show="hoverOpenTimer !== null && !open" style="display:none;"
-        x-bind:data-progress-state="hoverOpenTimer !== null && !open ? 'pending' : 'idle'"
-        x-bind:style="{ transform: 'translate3d(' + hoverCursorX + 'px,' + hoverCursorY + 'px,0)', '--rt-service-hover-wait': hoverOpenDelay + 'ms' }">
-        <circle class="rt-service-hover-progress__track" cx="8" cy="8" r="6" />
-        <circle class="rt-service-hover-progress__fill" cx="8" cy="8" r="6" pathLength="100" transform="rotate(-90 8 8)" />
-      </svg>
-    </template>
-  @endif
 
   @if($overlay)
     <template x-teleport="body">

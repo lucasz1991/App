@@ -166,7 +166,7 @@ class ServiceOrdersSharedPresentationTest extends TestCase
         }
     }
 
-    public function test_orders_and_service_lists_wait_four_hundred_milliseconds_with_cursor_progress_before_all_cell_hover_previews(): void
+    public function test_orders_and_service_lists_use_native_wait_cursor_for_four_hundred_milliseconds_before_all_cell_hover_previews(): void
     {
         $order = $this->order();
         $this->shift($order);
@@ -188,22 +188,18 @@ class ServiceOrdersSharedPresentationTest extends TestCase
                 $config = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
                 $this->assertTrue($config['openOnHover']);
                 $this->assertSame(400, $config['hoverOpenDelay']);
-                $this->assertTrue($config['hoverCursorProgress']);
+                $this->assertArrayNotHasKey('hoverCursorProgress', $config);
                 $this->assertSame(180, $config['hoverCloseDelay']);
                 $this->assertSame('service-staffing', $config['layerGroup']);
                 $this->assertSame('dialog', $config['popupRole']);
                 $this->assertFalse($config['overlapAnchor']);
                 $this->assertSame(1, $xpath->query('.//*[@data-rt-dropdown-caret]', $preview)->length);
-                $progress = $xpath->query('.//*[contains(concat(" ",normalize-space(@class)," ")," rt-service-hover-progress ")]', $preview)->item(0);
-                $this->assertInstanceOf(DOMElement::class, $progress);
-                $this->assertSame('true', $progress->getAttribute('aria-hidden'));
-                $this->assertSame('false', $progress->getAttribute('focusable'));
-                $this->assertSame('hoverOpenTimer !== null && !open', $progress->getAttribute('x-show'));
-                $this->assertSame('body', $progress->parentNode->getAttribute('x-teleport'));
+                $this->assertSame(0, $xpath->query('.//*[contains(concat(" ",normalize-space(@class)," ")," rt-service-hover-progress ")]', $preview)->length);
                 $this->assertSame(1, $xpath->query('.//*[@data-table-row-ignore and @role="button" and @tabindex="0"]', $preview)->length);
                 $trigger = $xpath->query('.//*[@data-table-row-ignore and @role="button"]', $preview)->item(0);
                 $this->assertSame("open ? 'open' : (hoverOpenTimer !== null ? 'pending' : 'idle')", $trigger->getAttribute('x-bind:data-service-preview-state'));
-                $this->assertSame("{ '--rt-service-hover-wait': hoverOpenDelay + 'ms' }", $trigger->getAttribute('x-bind:style'));
+                $this->assertSame("hoverOpenTimer !== null && !open ? 'cursor-wait' : 'cursor-zoom-in'", $trigger->getAttribute('x-bind:class'));
+                $this->assertFalse($trigger->hasAttribute('x-bind:style'));
             }
             // libxml drops @-prefixed handlers; retain native immediate keyboard paths in actual rendered HTML.
             $this->assertStringContainsString('@keydown.enter.prevent.stop="toggle()"', $component->html());
