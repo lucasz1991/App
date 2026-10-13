@@ -13,7 +13,7 @@ use Webklex\PHPIMAP\Message;
 /** A bounded text projection of an immutable source, never executable HTML. */
 final class AiIntakeMessageContent
 {
-    public const VERSION = 'mail-table-projection-v1';
+    public const VERSION = 'mail-table-data-v3';
 
     private const MAX_RAW_BYTES = 25 * 1024 * 1024;
 

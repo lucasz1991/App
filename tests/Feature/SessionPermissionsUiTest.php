@@ -252,7 +252,8 @@ class SessionPermissionsUiTest extends TestCase
             $this->assertStringContainsString('min-h-11', $action->getAttribute('class'));
             $this->assertFalse($action->hasAttribute('disabled'));
         }
-        $this->assertSame($allow->getAttribute('class'), $continue->getAttribute('class'));
+        $this->assertStringContainsString('rt-ui-button-success', $allow->getAttribute('class'));
+        $this->assertStringContainsString('rt-ui-button-secondary', $continue->getAttribute('class'));
         $this->assertSame([], $this->decisions);
     }
 

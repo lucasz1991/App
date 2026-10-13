@@ -53,17 +53,8 @@
         </x-ui.dropdown.page-actions>
     </x-slot:actions>
 
-    <div class="employee-profile__workspace employee-profile__dossier relative" data-autosave-scope>
-      <x-ui.autosave-status
-          event="employee-profile-field-saved"
-          target="savePendingInlineChanges"
-          dirty-target="inlineValues"
-      />
-
-      @include('livewire.admin.user-profile.partials.identity-card')
-
       @if ($canInviteEmployee && $user->role === 'staff')
-        <x-ui.feedback.alert type="warning" :inline="true" aria-label="Mitarbeiterzugang" data-account-invitation>
+        <x-ui.feedback.alert type="warning" :inline="true" aria-label="Mitarbeiterzugang" data-account-invitation class="mb-3">
           <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
             <span role="status">
               @if ($errors->has('accountInvitation'))
@@ -74,15 +65,27 @@
                 {{ ! $user->isActive() ? 'Konto inaktiv – bitte zuerst aktivieren.' : ($user->hasVerifiedEmail() ? 'Zugang eingerichtet.' : 'E-Mail noch nicht bestätigt.') }}
               @endif
             </span>
-          <button type="button" class="shrink-0 rounded font-semibold underline underline-offset-2 disabled:opacity-50" style="min-height:2.25rem" @disabled(!$user->isActive())
+          <button type="button" class="rt-ui-alert__action" @disabled(!$user->isActive())
               x-on:click.prevent="{{ \App\Support\Ui\ConfirmationAction::alpine(method: 'sendAccountInvitation', arguments: [$user->email], title: 'Mitarbeiter einladen', message: 'Zugangseinladung an '.$user->email.' senden? Der Mitarbeiter legt sein Passwort selbst fest. Ein bisheriger Einladungs- oder Passwortlink wird ersetzt.', variant: 'default', confirmLabel: 'Einladung senden') }}"
               wire:loading.attr="disabled" wire:target="sendAccountInvitation">
+            <i class="far fa-envelope" aria-hidden="true"></i>
             <span wire:loading.remove wire:target="sendAccountInvitation">Mitarbeiter einladen</span>
             <span wire:loading wire:target="sendAccountInvitation">Wird versendet …</span>
           </button>
           </div>
         </x-ui.feedback.alert>
       @endif
+
+    <div class="employee-profile__workspace employee-profile__dossier relative" data-autosave-scope>
+      <x-ui.autosave-status
+          event="employee-profile-field-saved"
+          target="savePendingInlineChanges"
+          dirty-target="inlineValues"
+      />
+
+      @include('livewire.admin.user-profile.partials.identity-card')
+
+
 
       <div class="employee-profile__navigation" data-profile-navigation x-data="{}">
         <nav class="employee-profile__groups" aria-label="Bereiche der Mitarbeiterakte">

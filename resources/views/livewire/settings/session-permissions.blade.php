@@ -160,13 +160,15 @@
                     $availablePurposes = array_values(array_filter(['push', 'location'], fn ($purpose) => $purpose === 'push' ? $permissions['push_available'] : $permissions['location_enabled']));
                 @endphp
                 @if ($availablePurposes !== [])
-                    <x-ui.buttons.button-basic mode="secondary" :x-on:click="'allowAll('.\Illuminate\Support\Js::from($availablePurposes).')'" wire:loading.attr="disabled" x-bind:disabled="busy !== null" class="min-h-11 w-full rounded-xl sm:w-auto" data-permission-allow-all>
-                        <span x-show="busy !== 'all'">{{ count($availablePurposes) === 2 ? 'Push und Standort erlauben' : ($availablePurposes[0] === 'push' ? 'Push erlauben' : 'Standort erlauben') }}</span>
-                        <span x-cloak x-show="busy === 'all'" role="status">Freigaben werden eingerichtet …</span>
+                    <x-ui.buttons.button-basic mode="success" :x-on:click="'allowAll('.\Illuminate\Support\Js::from($availablePurposes).')'" wire:loading.attr="disabled" x-bind:disabled="busy !== null" x-bind:aria-busy="busy === 'all'" class="min-h-11 w-full rounded-xl sm:w-auto" data-permission-allow-all>
+                        <i class="fas fa-check" x-show="busy !== 'all'" aria-hidden="true"></i>
+                        <i class="fas fa-spinner fa-spin" x-cloak x-show="busy === 'all'" aria-hidden="true"></i>
+                        <span>Zustimmen</span>
                     </x-ui.buttons.button-basic>
                 @endif
                 <x-ui.buttons.button-basic mode="secondary" x-on:click="continueWithout()" wire:loading.attr="disabled" x-bind:disabled="busy !== null" class="min-h-11 w-full rounded-xl sm:w-auto" data-session-permissions-continue>
-                    {{ ($permissions['push_available'] && $permissions['push_decision'] === null) || ($permissions['location_enabled'] && $permissions['location_decision'] === null) ? 'Ohne weitere Freigabe fortfahren' : 'Fertig' }}
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                    <span>Ablehnen</span>
                 </x-ui.buttons.button-basic>
             </x-slot>
         </x-dialog-modal>

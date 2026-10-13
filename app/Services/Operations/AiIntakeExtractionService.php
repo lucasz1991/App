@@ -72,14 +72,17 @@ class AiIntakeExtractionService
         ];
         $messagesForAi[0]['content'] .= '\nTabellen sind mit TABLE-, ROW- und CELL-Markierungen strukturiert. Ordne Werte anhand ihrer Spalte und zugehörigen Überschriften zu; beachte verbundene Zellen und mehrzeilige Überschriften. Eine Datenzeile kann eine eigene Leistung enthalten. Verwende keine Layout- oder Signaturtabellen als Leistungsanforderung. Übernimm Tätigkeitskürzel unverändert, wenn ihre Bedeutung nicht ausdrücklich erklärt wird. Genannte Ansprechpartner oder Fahrer sind keine Personalzuweisung und belegen allein keinen Personalbedarf. Zitiere kurze, exakt vorhandene Quelltexte aus den Zellen; konstruiere keine neuen Zitate aus getrennten Zellen. Fehlende Endzeiten, Mengen oder Qualifikationen bleiben offen.';
         $reviewPrompt = trim((string) ($manualRun?->configuration['review_prompt'] ?? ''));
+        $messagesForAi[0]['content'] .= "\nGib starts_at und ends_at als lokale Uhrzeit exakt im Format YYYY-MM-DDTHH:mm aus, ohne Sekunden, Z oder UTC-Offset; die Zeitzone steht separat in timezone. Das wörtliche Belegzitat bleibt im Originalformat der Mail. Unbekannte Zeiten bleiben null.";
         if ($reviewPrompt !== '') {
             $messagesForAi[] = ['role' => 'user', 'content' => 'Prüfhinweis der bearbeitenden Person (nur zur erneuten Prüfung, kein Originalbeleg und keine Freigabe): '.json_encode($reviewPrompt, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE)."\nPrüfe den vollständigen Eingang unter diesem Hinweis erneut. Jede Sachangabe muss weiterhin im Original belegt sein. Widersprüche und unbelegte Ergänzungen bleiben offen."];
         }
         $this->assertProcessingCurrent($intake, $manualRun);
         $client = app(AiDispositionClient::class);
+        // Inquiry reasoning always uses the configured data model. An inline signature image
+        // must not switch the entire structured extraction to the lightweight image profile.
         $response = $manualRun
-            ? $client->structuredManual($manualRun, 'intake', $messagesForAi, self::schema(), $batch->isEmpty() ? OpenRouterModelProfile::Data : $batch->modelProfile(), $batch->plugins())
-            : $client->structured('intake', $messagesForAi, self::schema(), $batch->isEmpty() ? OpenRouterModelProfile::Data : $batch->modelProfile(), $batch->plugins());
+            ? $client->structuredManual($manualRun, 'intake', $messagesForAi, self::schema(), OpenRouterModelProfile::Data, $batch->plugins())
+            : $client->structured('intake', $messagesForAi, self::schema(), OpenRouterModelProfile::Data, $batch->plugins());
         $this->assertProcessingCurrent($intake, $manualRun);
         $result = json_decode($response->content, true, 32, JSON_THROW_ON_ERROR);
         abort_unless(is_array($result), 422);
@@ -175,6 +178,12 @@ class AiIntakeExtractionService
         $segment = ['type' => 'object', 'properties' => ['starts_at' => ['type' => 'string'], 'ends_at' => ['type' => 'string'], 'timezone' => ['type' => 'string'], 'planned_break_minutes' => ['type' => 'integer'], 'required_staff' => ['type' => 'integer']], 'required' => ['starts_at', 'ends_at', 'timezone', 'planned_break_minutes', 'required_staff'], 'additionalProperties' => false];
         $position = ['type' => 'object', 'properties' => ['title' => ['type' => 'string'], 'starts_at' => $nullable('string'), 'ends_at' => $nullable('string'), 'timezone' => ['type' => 'string'], 'location_name' => $nullable('string'), 'role_name' => $nullable('string'), 'required_staff' => $nullable('integer'), 'segments' => ['type' => 'array', 'items' => $segment, 'maxItems' => 51], 'qualification_requirements' => ['type' => 'array', 'items' => ['type' => 'string'], 'maxItems' => 30], 'missing_fields' => ['type' => 'array', 'items' => ['type' => 'string']], 'evidence' => ['type' => 'array', 'items' => $evidence]], 'required' => ['title', 'starts_at', 'ends_at', 'timezone', 'location_name', 'role_name', 'required_staff', 'segments', 'qualification_requirements', 'missing_fields', 'evidence'], 'additionalProperties' => false];
 
+        $localDateTime = ['type' => 'string', 'pattern' => '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}$',
+            'description' => 'Local date and time in timezone, exactly YYYY-MM-DDTHH:mm, without a UTC offset or Z.'];
+        foreach (['starts_at', 'ends_at'] as $field) {
+            $position['properties'][$field] = array_replace($localDateTime, $nullable('string'));
+            $position['properties']['segments']['items']['properties'][$field] = $localDateTime;
+        }
         $schema = ['type' => 'object', 'properties' => ['intent' => ['type' => 'string', 'enum' => ['inquiry', 'amendment', 'cancel', 'other']], 'classification' => ['type' => 'string', 'enum' => ['new_inquiry', 'reply', 'amendment', 'cancellation', 'auto_reply', 'unrelated']], 'extraction_complete' => ['type' => 'boolean'], 'overflow' => ['type' => 'boolean'], 'title' => ['type' => 'string'], 'summary' => ['type' => 'string'], 'confidence' => ['type' => 'number', 'minimum' => 0, 'maximum' => 1], 'positions' => ['type' => 'array', 'items' => $position, 'maxItems' => 21], 'questions' => ['type' => 'array', 'items' => ['type' => 'object', 'properties' => ['field' => ['type' => 'string'], 'question' => ['type' => 'string']], 'required' => ['field', 'question'], 'additionalProperties' => false], 'maxItems' => 10]], 'required' => ['intent', 'classification', 'extraction_complete', 'overflow', 'title', 'summary', 'confidence', 'positions', 'questions'], 'additionalProperties' => false];
         $schema['properties']['customer_draft'] = ['type' => ['object', 'null'], 'properties' => ['company_name' => $nullable('string'), 'contact_name' => $nullable('string'), 'contact_email' => $nullable('string'), 'contact_phone' => $nullable('string'), 'evidence' => ['type' => 'array', 'items' => $evidence]], 'required' => ['company_name', 'contact_name', 'contact_email', 'contact_phone', 'evidence'], 'additionalProperties' => false];
         $schema['required'][] = 'customer_draft';

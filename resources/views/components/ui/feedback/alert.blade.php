@@ -21,8 +21,32 @@
     };
 @endphp
 
-<div data-rt-tone="{{ $type }}" {{ $attributes->class("rt-ui-alert flex gap-3 rounded-xl border p-4 shadow-rt-xs {$styles}") }} @if($inline) style="align-items:center;gap:.5rem;padding:.25rem .75rem;box-shadow:none" @endif role="alert">
-    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg {{ $iconStyles }}" @if($inline) style="width:1.25rem;height:1.25rem;background:transparent" @endif aria-hidden="true">
+<div data-rt-tone="{{ $type }}" {{ $attributes->class(["rt-ui-alert flex rounded-xl border {$styles}", 'gap-3 p-4 shadow-rt-xs' => ! $inline]) }} @if($inline) style="align-items:center;gap:.5rem;padding:.25rem .75rem;box-shadow:none" @endif role="alert">
+    <style>
+        @keyframes rt-alert-enter {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @media (prefers-reduced-motion: no-preference) {
+            .rt-ui-alert { animation: rt-alert-enter 240ms ease-out; }
+        }
+        .rt-ui-alert__action {
+            display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
+            flex-shrink: 0; margin-left: auto; min-height: 2rem; padding: .375rem .75rem;
+            border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+            border-radius: .5rem; background: color-mix(in srgb, currentColor 9%, transparent);
+            color: inherit; font: inherit; font-weight: 600; line-height: 1.25;
+            cursor: pointer; transition: background-color 160ms ease, border-color 160ms ease;
+        }
+        .rt-ui-alert__action:hover:not(:disabled) { background: color-mix(in srgb, currentColor 16%, transparent); border-color: color-mix(in srgb, currentColor 30%, transparent); }
+        .rt-ui-alert__action:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+        .rt-ui-alert__action:disabled { opacity: .5; cursor: not-allowed; }
+        @media (prefers-reduced-motion: reduce) {
+            .rt-ui-alert { animation: none; }
+            .rt-ui-alert__action { transition: none; }
+        }
+    </style>
+    <span @class(['flex shrink-0 items-center justify-center', "h-9 w-9 rounded-lg {$iconStyles}" => ! $inline]) @if($inline) style="width:1.25rem;height:1.25rem" @endif aria-hidden="true">
         <i class="far {{ $icon }}"></i>
     </span>
     <div @class(['min-w-0 text-sm', 'flex-1' => $inline])>

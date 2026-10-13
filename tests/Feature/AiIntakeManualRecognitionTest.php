@@ -12,16 +12,21 @@ use App\Models\OperationInquiry;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\Ai\AssistantSpeechRouter;
+use App\Services\Ai\Attachments\AssistantAttachment;
 use App\Services\Ai\Attachments\AssistantAttachmentBatch;
+use App\Services\Ai\Attachments\AssistantAttachmentKind;
 use App\Services\Ai\Attachments\AssistantAttachmentProcessor;
 use App\Services\Ai\OpenRouterChatClient;
 use App\Services\Ai\OpenRouterChatException;
 use App\Services\Ai\OpenRouterChatResponse;
+use App\Services\Ai\OpenRouterModelProfile;
 use App\Services\Operations\AiDispositionClient;
 use App\Services\Operations\AiIntakeAttachmentService;
+use App\Services\Operations\AiIntakeExtractionService;
 use App\Services\Operations\AiIntakeMessageContent;
 use App\Services\Operations\AiIntakeService;
 use App\Support\Operations\AiDispositionSettings;
+use App\Support\Operations\OperationsDateTime;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -596,6 +601,77 @@ class AiIntakeManualRecognitionTest extends TestCase
         $this->rejected(fn () => $this->recognize($intake), 409);
 
         $this->assertNull(AiIntakeAttachment::firstOrFail()->extracted_text);
+        $this->noBindingOrSending();
+    }
+
+    public function test_inline_signature_image_keeps_the_data_model_and_full_image_without_losing_source_evidence(): void
+    {
+        $intake = $this->capture();
+        $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aXioAAAAASUVORK5CYII=', true);
+        $paths = [];
+        $path = app(AiIntakeAttachmentService::class)->put($intake, $png, $paths);
+        $file = $intake->attachments()->create(['message_id' => $intake->latest_inbound_message_id, 'file_name' => 'signature.png',
+            'file_path' => $path, 'file_hash' => hash('sha256', $png), 'file_size' => strlen($png), 'file_mime' => 'image/png',
+            'kind' => 'image', 'status' => 'stored', 'metadata' => ['extension' => 'png']]);
+        $imageUrl = 'data:image/png;base64,'.base64_encode($png);
+        $batch = new AssistantAttachmentBatch([new AssistantAttachment('signature.png', 'png', 'image/png', strlen($png), AssistantAttachmentKind::Image, dataUrl: $imageUrl)]);
+        $this->assertSame(OpenRouterModelProfile::ImageUnderstanding, $batch->modelProfile());
+        $this->mock(AssistantAttachmentProcessor::class, function ($mock) use ($batch, $png): void {
+            $mock->shouldReceive('process')->once()->andReturnUsing(function (array $uploads) use ($batch, $png): AssistantAttachmentBatch {
+                $this->assertSame($png, file_get_contents($uploads[0]->getRealPath()));
+
+                return $batch;
+            });
+        });
+        $this->provider->shouldReceive('complete')->once()->andReturnUsing(function (array $messages, OpenRouterModelProfile $profile, array $plugins, array $tools = [], string|array|null $toolChoice = null, ?array $structuredSchema = null) use ($intake, $file, $imageUrl): OpenRouterChatResponse {
+            $this->assertSame(0, DB::transactionLevel());
+            $this->assertSame(OpenRouterModelProfile::Data, $profile);
+            $this->assertSame([], $plugins);
+            $this->assertSame([], $tools);
+            $this->assertSame('intake', $structuredSchema['name']);
+            $this->assertStringContainsString('YYYY-MM-DDTHH:mm', $messages[0]['content']);
+            $this->assertSame(['type' => 'image_url', 'image_url' => ['url' => $imageUrl]], $messages[1]['content'][1]);
+            $source = json_decode($messages[1]['content'][0]['text'], true, 32, JSON_THROW_ON_ERROR);
+            $this->assertSame(self::SOURCE, $source['received_messages'][0]['text']);
+            $this->assertSame($file->id, $source['attachments'][0]['attachment_id']);
+
+            return new OpenRouterChatResponse(json_encode($this->extractionResult($intake), JSON_THROW_ON_ERROR), model: 'synthetic-data-model');
+        });
+
+        $recognized = $this->recognize($intake);
+
+        $proposal = $recognized->proposals()->firstOrFail();
+        $this->assertSame('inquiry', $recognized->analysis['intent']);
+        $this->assertSame('Hamburg', $proposal->payload['demand']['location_name']);
+        $this->assertSame(2, $proposal->payload['demand']['required_staff']);
+        $this->assertSame(self::SOURCE, $proposal->payload['evidence']['starts_at']['quote']);
+        $this->assertSame($intake->latest_inbound_message_id, $proposal->payload['evidence']['starts_at']['message_id']);
+        $this->assertSame('synthetic-data-model', $recognized->runs()->firstOrFail()->model);
+        $this->assertSame(AiIntakeMessageContent::VERSION, $recognized->runs()->firstOrFail()->configuration['extraction_version']);
+        $this->assertSame($png, app(AiIntakeAttachmentService::class)->bytes($recognized, $file->file_path, $file->file_hash));
+        $this->noBindingOrSending();
+    }
+
+    public function test_structured_dates_use_supported_local_minutes_with_nullable_positions_and_strict_segments(): void
+    {
+        $position = AiIntakeExtractionService::schema()['properties']['positions']['items'];
+        foreach (['starts_at', 'ends_at'] as $field) {
+            $date = $position['properties'][$field];
+            $segmentDate = $position['properties']['segments']['items']['properties'][$field];
+            $this->assertSame(['string', 'null'], $date['type']);
+            $this->assertSame('string', $segmentDate['type']);
+            foreach ([$date, $segmentDate] as $rule) {
+                $pattern = '~'.$rule['pattern'].'~';
+                foreach (['2027-05-13T08:00', '2027-05-13T16:00'] as $local) {
+                    $this->assertMatchesRegularExpression($pattern, $local);
+                    $this->assertSame($local, OperationsDateTime::local($local, 'Europe/Berlin')->setTimezone('Europe/Berlin')->format('Y-m-d\TH:i'));
+                }
+                foreach (['2027-05-13T08:00+02:00', '2027-05-13T08:00Z', '2027-05-13T08:00:00', '13.05.2027 08:00', '2027-05-13 08:00'] as $unsupported) {
+                    $this->assertDoesNotMatchRegularExpression($pattern, $unsupported);
+                }
+            }
+        }
+        $this->assertSame(0, AiIntakeRun::count());
         $this->noBindingOrSending();
     }
 

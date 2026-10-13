@@ -1,7 +1,4 @@
 <div class="space-y-3">
-    <p class="text-sm leading-6 text-rt-muted dark:text-rt-dark-muted" data-session-consent-notice>
-        Freiwillig und jederzeit im Profil änderbar. Ohne Freigabe bleiben RailTime und die Zeiterfassung nutzbar.
-    </p>
     @foreach (['push' => 'Push-Benachrichtigungen', 'location' => 'Standort für die Einsatzplanung'] as $purpose => $label)
         @php
             $available = $purpose === 'push' ? $permissions['push_available'] : $permissions['location_enabled'];
@@ -10,10 +7,9 @@
         <details wire:key="{{ $permissionIdPrefix }}-{{ $purpose }}" class="rounded-xl border border-rt-border/70 dark:border-rt-dark-border/70" data-session-permission-purpose="{{ $purpose }}" data-permission-explanation="{{ $purpose }}">
             <summary class="min-h-11 cursor-pointer rounded-xl p-4 text-sm text-rt-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent dark:text-rt-dark-text">
                 <span class="font-semibold">{{ $label }}</span>
-                <span class="mt-1 block text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">{{ $purpose === 'push' ? 'Neue Nachrichten und betriebliche Hinweise auf deinem Gerät.' : 'Letzter präziser Standort während aktiver App-Nutzung für Planung und Anreise.' }}</span>
-                <span class="mt-1 block text-xs font-semibold text-rt-muted dark:text-rt-dark-muted" role="status">{{ !$available ? 'Derzeit nicht verfügbar' : ($decision === 'accepted' ? 'Für diese Sitzung erlaubt' : ($decision === 'declined' ? 'Für diese Sitzung abgelehnt' : 'Noch keine Entscheidung · Details und einzeln entscheiden')) }}</span>
             </summary>
             <div class="space-y-3 px-4 pb-4">
+                <p class="text-xs font-semibold text-rt-muted dark:text-rt-dark-muted" role="status">{{ !$available ? 'Derzeit nicht verfügbar' : ($decision === 'accepted' ? 'Für diese Sitzung erlaubt' : ($decision === 'declined' ? 'Für diese Sitzung abgelehnt' : 'Noch keine Entscheidung')) }}</p>
                 @if ($purpose === 'push')
                     <p class="text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">RailTime darf dir Benachrichtigungen über neue Nachrichten und betriebliche Hinweise senden. Die Browserberechtigung und Einrichtung gelten separat für dieses Gerät. Auf dem iPhone wird die installierte Web-App benötigt.</p>
                 @elseif ($available)
@@ -59,7 +55,6 @@
             @endif
         </div>
     </details>
-    <p class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Dein Gerät fragt gegebenenfalls zusätzlich nach der Berechtigung.</p>
     @error('permissions')<p role="alert" class="rounded-xl bg-red-50 p-3 text-sm text-red-800 dark:bg-red-500/10 dark:text-red-200">{{ $message }}</p>@enderror
     @error('location')<p role="alert" class="rounded-xl bg-red-50 p-3 text-sm text-red-800 dark:bg-red-500/10 dark:text-red-200">{{ $message }}</p>@enderror
     @error('push')<p role="alert" class="rounded-xl bg-red-50 p-3 text-sm text-red-800 dark:bg-red-500/10 dark:text-red-200">{{ $message }}</p>@enderror
