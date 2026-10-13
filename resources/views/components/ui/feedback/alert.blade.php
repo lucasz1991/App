@@ -1,4 +1,4 @@
-@props(['type' => 'info', 'title' => null, 'inline' => false])
+@props(['type' => 'info', 'title' => null, 'inline' => false, 'dismissible' => true])
 
 @php
     $styles = match ($type) {
@@ -21,15 +21,20 @@
     };
 @endphp
 
-<div data-rt-tone="{{ $type }}" {{ $attributes->class(["rt-ui-alert flex rounded-xl border {$styles}", 'gap-3 p-4 shadow-rt-xs' => ! $inline]) }} @if($inline) style="align-items:center;gap:.5rem;padding:.25rem .75rem;box-shadow:none" @endif role="alert">
+<div x-data="{ visible: false, revealTimer: null, init() { this.revealTimer = setTimeout(() => { this.visible = true }, 1000) }, destroy() { clearTimeout(this.revealTimer) } }" x-show.important="visible" x-cloak data-rt-tone="{{ $type }}" {{ $attributes->class(["rt-ui-alert relative flex rounded-xl border {$styles}", 'gap-3 p-4 shadow-rt-xs' => ! $inline, 'rt-ui-alert--dismissible' => $dismissible]) }} @if($inline) style="align-items:center;gap:.5rem;padding:.25rem .75rem;box-shadow:none" @endif role="alert">
     <style>
         @keyframes rt-alert-enter {
-            from { opacity: 0; transform: translateY(-5px); }
-            to { opacity: 1; transform: translateY(0); }
+            from { opacity: 0; transform: translateX(1rem); }
+            to { opacity: 1; transform: translateX(0); }
         }
         @media (prefers-reduced-motion: no-preference) {
-            .rt-ui-alert { animation: rt-alert-enter 240ms ease-out; }
+            .rt-ui-alert { animation: rt-alert-enter 400ms cubic-bezier(.22, 1, .36, 1); }
         }
+        .rt-ui-alert--dismissible { padding-right: 2.75rem !important; }
+        .rt-ui-alert__close { position: absolute; top: .375rem; right: .375rem; display: flex; align-items: center; justify-content: center; width: 1.75rem; height: 1.75rem; padding: 0; border: 0; border-radius: .375rem; color: inherit; background: transparent; opacity: .55; cursor: pointer; }
+        .rt-ui-alert__close:hover { opacity: 1; background: color-mix(in srgb, currentColor 9%, transparent); }
+        .rt-ui-alert__close:focus-visible { opacity: 1; outline: 2px solid currentColor; outline-offset: 1px; }
+        .rt-ui-alert__warning-icon { display: flex; align-items: center; justify-content: center; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: color-mix(in srgb, currentColor 12%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 4%, transparent); }
         .rt-ui-alert__action {
             display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
             flex-shrink: 0; margin-left: auto; min-height: 2rem; padding: .375rem .75rem;
@@ -44,11 +49,21 @@
         @media (prefers-reduced-motion: reduce) {
             .rt-ui-alert { animation: none; }
             .rt-ui-alert__action { transition: none; }
+            .rt-ui-alert__warning-icon { animation: none !important; }
         }
     </style>
-    <span @class(['flex shrink-0 items-center justify-center', "h-9 w-9 rounded-lg {$iconStyles}" => ! $inline]) @if($inline) style="width:1.25rem;height:1.25rem" @endif aria-hidden="true">
-        <i class="far {{ $icon }}"></i>
+    <span @class(['flex shrink-0 items-center justify-center', "h-9 w-9 rounded-lg {$iconStyles}" => ! $inline]) @if($inline) style="width:1.75rem;height:1.75rem" @endif aria-hidden="true">
+        @if ($type === 'warning')
+            <span class="rt-ui-alert__warning-icon animate-pulse motion-reduce:animate-none"><i class="far fa-exclamation" aria-hidden="true"></i></span>
+        @else
+            <i class="far {{ $icon }}"></i>
+        @endif
     </span>
+    @if ($dismissible)
+        <button type="button" class="rt-ui-alert__close" x-on:click="visible = false" aria-label="Hinweis schließen" title="Schließen">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+        </button>
+    @endif
     <div @class(['min-w-0 text-sm', 'flex-1' => $inline])>
         @if ($title)
             <p class="font-semibold">{{ $title }}</p>
