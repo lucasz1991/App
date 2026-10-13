@@ -15,8 +15,10 @@
             this.$nextTick(() => {
                 const panel = this.$refs.regionMenu.getBoundingClientRect();
                 this.menuX = Math.max(12, Math.min(x + 10, canvas.width - panel.width - 12));
-                this.menuY = Math.max(12, Math.min(y + 10, canvas.height - panel.height - 12));
-                this.$refs.regionMenu.querySelector('[data-choice]').focus();
+                const top = Math.max(12, -canvas.top + 12);
+                const bottom = Math.min(canvas.height - panel.height - 12, window.innerHeight - canvas.top - panel.height - 12);
+                this.menuY = Math.max(12, Math.min(Math.max(top, Math.min(y + 10, bottom)), canvas.height - panel.height - 12));
+                this.$refs.regionMenu.querySelector('[data-choice]').focus({ preventScroll: true });
             });
         },
         currentZone() {
@@ -26,7 +28,7 @@
             const code = this.openedState;
             this.openedState = null;
             this.picker = '';
-            if (restoreFocus && code) this.$nextTick(() => (this.fromPicker ? this.$refs.statePicker : this.$root.querySelector('[data-state-code=' + code + ']'))?.focus());
+            if (restoreFocus && code) this.$nextTick(() => (this.fromPicker ? this.$refs.statePicker : this.$root.querySelector('[data-state-code=' + code + ']'))?.focus({ preventScroll: true }));
         },
         async chooseRegion(zone) {
             if (this.busy || !this.openedState) return;
@@ -42,7 +44,7 @@
         }
     }"
     x-on:keydown.escape.stop="if (openedState) closeRegion(); else if (exclusionsOpen) { exclusionsOpen = false; $refs.exclusionToggle.focus(); }"
-    x-on:resize.window="closeRegion(false)" x-on:scroll.window="if (openedState) closeRegion(false)">
+    x-on:resize.window="closeRegion(false)">
     @include('livewire.profile.partials.employee-regions-styles')
     <header class="rt-regions__header"><h2>Einsatzgebiete</h2></header>
     @if(!$ready)
