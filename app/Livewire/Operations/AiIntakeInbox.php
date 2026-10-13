@@ -17,6 +17,7 @@ use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Component;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -37,6 +38,9 @@ class AiIntakeInbox extends Component
 
     #[Locked]
     public int $selectedRevision = 0;
+
+    #[Locked]
+    public int $selectedSettingsRevision = 0;
 
     #[Locked]
     public ?int $editingProposalId = null;
@@ -74,7 +78,12 @@ class AiIntakeInbox extends Component
     #[Locked]
     public bool $modalOnly = false;
 
-    public function mount(?int $customerId = null, ?int $initialIntakeId = null, bool $modalOnly = false): void
+    #[Locked]
+    public bool $embedded = false;
+
+    public string $detailTab = 'review';
+
+    public function mount(?int $customerId = null, ?int $initialIntakeId = null, bool $modalOnly = false, bool $embedded = false, bool $initialCapture = false): void
     {
         $this->actor();
         if ($customerId) {
@@ -82,9 +91,10 @@ class AiIntakeInbox extends Component
         }
         $this->customerId = $customerId;
         $this->modalOnly = $modalOnly;
+        $this->embedded = $embedded;
         if ($initialIntakeId) {
             $this->select($initialIntakeId);
-        } elseif ($modalOnly) {
+        } elseif ($modalOnly || $initialCapture) {
             $this->openCapture();
         }
     }
@@ -119,13 +129,68 @@ class AiIntakeInbox extends Component
         $record = $this->scope()->findOrFail($id);
         $this->selectedId = $id;
         $this->selectedRevision = $record->revision;
+        $this->selectedSettingsRevision = (int) AiDispositionSettings::all(true)['revision'];
         $this->assignCustomerId = (string) ($record->customer_id ?? '');
         $this->assignContactId = (string) ($record->customer_contact_id ?? '');
         $this->editingProposalId = null;
         $this->proposalForm = [];
         $this->mappingInquiryIds = [];
         $this->detailOpen = true;
+        $this->detailTab = 'review';
+        if ($this->embedded) {
+            $this->captureOpen = false;
+        }
         $this->resetValidation();
+        $this->dispatch('ai-intake-selected', intakeId: $id, customerId: $this->customerId, componentId: $this->getId(),
+            intakeRevision: $record->revision, sourceRevision: $record->source_revision);
+    }
+
+    #[On('open-ai-intake')]
+    public function open(?int $intakeId = null, bool $create = false): void
+    {
+        $this->actor();
+        if (! $this->embedded) {
+            return;
+        }
+        if ($intakeId) {
+            $this->select($intakeId);
+        } elseif ($create) {
+            $this->openCapture();
+        } else {
+            $this->closeDetail();
+        }
+    }
+
+    public function closeDetail(): void
+    {
+        $this->actor();
+        $this->detailOpen = false;
+        $this->selectedId = $this->editingProposalId = null;
+        $this->selectedRevision = $this->selectedSettingsRevision = $this->proposalRevision = 0;
+        $this->proposalForm = $this->mappingInquiryIds = [];
+        $this->assignCustomerId = $this->assignContactId = '';
+        $this->detailTab = 'review';
+        $this->resetValidation();
+    }
+
+    public function closeCapture(): void
+    {
+        $this->actor();
+        $this->captureOpen = false;
+        $this->dispatch('ai-intake-capture-closed', componentId: $this->getId());
+    }
+
+    public function setDetailTab(string $tab): void
+    {
+        $this->selected();
+        abort_unless(in_array($tab, ['review', 'sources', 'communication', 'assistant'], true), 422);
+        $this->detailTab = $tab;
+    }
+
+    public function discuss(int $id): void
+    {
+        $this->select($id);
+        $this->detailTab = 'assistant';
     }
 
     public function updatedSearch(): void
@@ -148,12 +213,26 @@ class AiIntakeInbox extends Component
         $this->actor();
         AiIntakeSchema::requireReady();
         $this->captureOpen = true;
+        if ($this->embedded) {
+            $this->detailOpen = false;
+        }
+    }
+
+    public function removeUpload(int $index): void
+    {
+        $this->actor();
+        abort_unless($index >= 0 && array_key_exists($index, $this->uploads), 422);
+        if ($this->uploads[$index] instanceof TemporaryUploadedFile) {
+            $this->uploads[$index]->delete();
+        }
+        unset($this->uploads[$index]);
+        $this->uploads = array_values($this->uploads);
     }
 
     public function removeAudio(): void
     {
         $this->actor();
-        if ($this->audioUpload && method_exists($this->audioUpload, 'delete')) {
+        if ($this->audioUpload instanceof TemporaryUploadedFile) {
             $this->audioUpload->delete();
         }
         $this->audioUpload = null;
@@ -194,7 +273,14 @@ class AiIntakeInbox extends Component
 
     public function reanalyze(): void
     {
-        $this->perform(fn () => app(AiIntakeService::class)->reanalyze($this->selected(), $this->actor(), $this->selectedRevision));
+        $this->perform(function (): void {
+            $intake = $this->selected();
+            if ($intake->source_type === 'email') {
+                app(AiIntakeService::class)->analyzeManually($intake, $this->actor(), $this->selectedRevision, $this->selectedSettingsRevision);
+            } else {
+                app(AiIntakeService::class)->reanalyze($intake, $this->actor(), $this->selectedRevision);
+            }
+        });
     }
 
     public function pause(): void
@@ -319,6 +405,7 @@ class AiIntakeInbox extends Component
         $actor = $this->actor();
         $ready = AiIntakeSchema::ready();
         abort_unless(in_array($this->statusFilter, ['all', ...AiIntake::STATUSES], true), 422);
+        abort_unless(in_array($this->detailTab, ['review', 'sources', 'communication', 'assistant'], true), 422);
         $query = $ready ? $this->scope()->with('customer')->when($this->statusFilter !== 'all', fn ($query) => $query->where('status', $this->statusFilter))->when(trim($this->search) !== '', fn ($query) => $query->where('title', 'like', '%'.mb_substr(trim($this->search), 0, 100).'%')) : null;
         $selected = $ready && $this->selectedId ? $this->selected()->load(['customer', 'contact', 'messages', 'attachments', 'runs', 'deliveries', 'proposals.inquiry']) : null;
 
@@ -332,6 +419,7 @@ class AiIntakeInbox extends Component
             'mappingInquiries' => $selected?->proposals->pluck('inquiry')->filter()->unique('id')->keyBy('id') ?? collect(),
             'customerSuggestions' => $selected ? app(AiIntakeCustomerSuggestions::class)->suggest($selected, $actor) : [],
             'limits' => array_intersect_key(AiDispositionSettings::all(), array_flip(['max_attachment_count', 'max_total_kilobytes', 'max_audio_kilobytes'])),
+            'settingsRevision' => (int) AiDispositionSettings::all(true)['revision'],
         ]);
     }
 }

@@ -72,14 +72,14 @@ class AiDispositionClient
     }
 
     /** Explicit questions about one intake also work while automatic processing is paused. */
-    public function structuredIntakeQuestion(AiIntakeRun $run, array $messages, array $schema): OpenRouterChatResponse
+    public function structuredIntakeQuestion(AiIntakeRun $run, array $messages, array $schema, array $plugins = []): OpenRouterChatResponse
     {
         $guard = app(AiIntakeAssistantService::class);
         $guard->assertCurrent($run);
         if (! $this->client->isConfiguredFor(OpenRouterModelProfile::Data)) {
             throw new OpenRouterChatException('disposition_not_configured');
         }
-        $response = $this->request('intake_question', $messages, $schema, OpenRouterModelProfile::Data, [], AiDispositionSettings::all(true));
+        $response = $this->request('intake_question', $messages, $schema, OpenRouterModelProfile::Data, $plugins, AiDispositionSettings::all(true));
         $guard->assertCurrent($run);
 
         return $response;

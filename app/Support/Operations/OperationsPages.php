@@ -108,6 +108,18 @@ final class OperationsPages
     {
         abort_unless(isset(self::definitions()[$page]), 404);
 
+        if ($page === 'cases' && ($parameters['section'] ?? null) === 'ai-intake') {
+            $parameters['view'] = 'inbox';
+            $parameters['assistant'] = 'intake';
+            if (isset($parameters['intake'])) {
+                $parameters['record'] = $parameters['intake'];
+            }
+            if (isset($parameters['record'])) {
+                $parameters['source'] = 'ai-intake';
+            }
+            unset($parameters['section'], $parameters['intake']);
+        }
+
         if ($page === 'shifts') {
             $section = $parameters['view'] ?? 'plan';
             abort_unless(in_array($section, ['plan', 'calendar'], true), 403);
@@ -117,6 +129,44 @@ final class OperationsPages
         }
 
         return route('operations.page', ['page' => $page] + array_filter($parameters, fn ($value) => $value !== null && $value !== ''));
+    }
+
+    public static function intakePanelUrl(?int $intakeId = null, ?int $customerId = null, bool $create = false): string
+    {
+        abort_unless(($intakeId === null || $intakeId > 0) && ($customerId === null || $customerId > 0)
+            && ! ($intakeId !== null && $create), 422);
+
+        return self::url('cases', ['view' => 'inbox', 'assistant' => 'intake',
+            'source' => $intakeId !== null ? 'ai-intake' : null, 'record' => $intakeId,
+            'customer' => $customerId, 'capture' => $create ? '1' : null]);
+    }
+
+    /** Query parsing only; each host must authorize the returned source and customer again. */
+    public static function intakePanelContext(Request $request): ?array
+    {
+        $legacy = $request->query('section') === 'ai-intake';
+        $assistant = $request->query('assistant');
+        if (! $legacy && $assistant === null) {
+            return null;
+        }
+        abort_unless($legacy && $assistant === null || $assistant === 'intake', 422);
+        $context = self::context($request);
+        $intakeId = $context['record'] ?? null;
+        $oldIntakeId = $request->query('intake');
+        if ($oldIntakeId !== null && $oldIntakeId !== '') {
+            abort_unless($legacy && (is_int($oldIntakeId) || is_string($oldIntakeId) && ctype_digit($oldIntakeId))
+                && filter_var($oldIntakeId, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) !== false, 422);
+            abort_if($intakeId !== null && $intakeId !== (int) $oldIntakeId, 422);
+            $intakeId = (int) $oldIntakeId;
+        }
+        abort_unless(! isset($context['source']) || $context['source'] === 'ai-intake', 422);
+        abort_unless($legacy || $intakeId === null || ($context['source'] ?? '') === 'ai-intake', 422);
+        $capture = $request->query('capture', '0');
+        abort_unless(in_array($capture, ['0', '1', 0, 1, false, true], true), 422);
+        $create = in_array($capture, ['1', 1, true], true);
+        abort_if($create && $intakeId !== null, 422);
+
+        return ['intakeId' => $intakeId, 'customerId' => $context['customer'] ?? null, 'create' => $create];
     }
 
     public static function context(Request $request): array

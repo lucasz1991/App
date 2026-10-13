@@ -3,6 +3,7 @@
 namespace App\Livewire\Operations;
 
 use App\Livewire\Admin\Operations\Orders;
+use App\Models\AiIntake;
 use App\Models\Customer;
 use App\Models\CustomerCapacityReservation;
 use App\Models\CustomerPortalRequest;
@@ -18,6 +19,7 @@ use App\Support\CustomerPortal\CustomerPortalIntakeSchema;
 use App\Support\CustomerPortal\CustomerPortalScope;
 use App\Support\CustomerPortal\CustomerPortalWorkflowSchema;
 use App\Support\Operations\OperationsAccess;
+use App\Support\Operations\AiIntakeSchema;
 use App\Support\Operations\OperationsEnhancementsSchema;
 use App\Support\Operations\OperationsPages;
 use Illuminate\Validation\ValidationException;
@@ -86,6 +88,13 @@ class CaseWorkspace extends Component
         $this->servicesView = $initialView === 'shifts' && request()->query('services') === '1';
         $this->section = $initialSection ?: ($initialView === 'inbox' ? 'overview' : ($initialView === 'shifts' ? 'plan' : ($initialView === 'orders' && ! $actor->can('operations.manage') ? 'costs' : 'overview')));
         $this->context = $context;
+        if ($this->view === 'inbox' && $this->section === 'ai-intake') {
+            $panel = OperationsPages::intakePanelContext(request());
+            if ($panel && $panel['intakeId'] !== null) {
+                $this->context['source'] = 'ai-intake';
+                $this->context['record'] = $panel['intakeId'];
+            }
+        }
         if ($this->view === 'inbox' && $this->section === 'overview') {
             $this->context = array_replace($this->context, InquiryInbox::listState(array_replace($this->context, request()->query())));
         } elseif ($this->view === 'orders' && $actor->can('operations.manage')) {
@@ -98,6 +107,13 @@ class CaseWorkspace extends Component
             }
         }
         $this->access();
+        if ($this->view === 'inbox' && $this->section === 'ai-intake') {
+            $this->section = 'overview';
+            $this->redirect(OperationsPages::intakePanelUrl(
+                ($this->context['source'] ?? '') === 'ai-intake' ? ($this->context['record'] ?? null) : null,
+                $this->context['customer'] ?? null, $panel['create'] ?? false,
+            ), navigate: true);
+        }
     }
 
     private function actor(): User
@@ -140,6 +156,13 @@ class CaseWorkspace extends Component
             }
         }
         $customer = isset($this->context['customer']) ? Customer::findOrFail($this->context['customer']) : null;
+        if (($this->context['source'] ?? '') === 'ai-intake') {
+            OperationsAccess::authorize($this->actor(), 'operations.inquiries.manage');
+            AiIntakeSchema::requireReady();
+            $intake = AiIntake::findOrFail($this->context['record'] ?? 0);
+            abort_if($customer && $intake->customer_id !== $customer->id, 404);
+            abort_if(isset($this->context['revision']) && $intake->revision !== $this->context['revision'], 409, 'Der Eingang wurde geändert.');
+        }
         $inquiry = isset($this->context['inquiry']) ? OperationInquiry::findOrFail($this->context['inquiry']) : null;
         $order = isset($this->context['order']) ? Order::findOrFail($this->context['order']) : null;
         if ($this->view === 'shifts' && isset($this->context['shift'])) {
@@ -297,6 +320,11 @@ class CaseWorkspace extends Component
             return;
         }
         abort_unless($this->view === 'inbox' && isset(self::availableSections($this->actor())[$section]), 403);
+        if ($section === 'ai-intake') {
+            $this->dispatch('open-ai-intake-panel', intakeId: null, create: false, customerId: $this->context['customer'] ?? null);
+
+            return;
+        }
         $this->redirect(OperationsPages::url('cases', ['view' => 'inbox', 'section' => $section, 'customer' => $this->context['customer'] ?? null] + $this->preservedListContext('inbox', $section)), navigate: true);
     }
 

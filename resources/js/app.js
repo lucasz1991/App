@@ -59,6 +59,7 @@ import { timelineEventDetails } from './timeline-event-details';
 import { shiftDetailDrawer } from './shift-detail-drawer';
 import { serviceDetailPanel } from './service-detail-panel';
 import { aiIntakeRecorder } from './ai-intake-recorder';
+import { aiIntakeComposer } from './ai-intake-composer';
 import { workTimeCapture } from './work-time-capture';
 import { railtimeTabs } from './tabs';
 import { areaMenu } from './area-menu';
@@ -103,6 +104,7 @@ import {
 
 ensureRailTimeNavigationCoordinator(window, document);
 Alpine.data('aiIntakeRecorder', aiIntakeRecorder);
+Alpine.data('aiIntakeComposer', aiIntakeComposer);
 Alpine.data('distributionPanel', distributionPanel);
 
 const loadAdminDashboardECharts = () => import('./admin-dashboard-echarts');

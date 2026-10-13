@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Operations;
 
+use App\Models\AiIntake;
+use App\Models\Customer;
 use App\Models\User;
 use App\Services\Operations\AiAssistService;
 use App\Support\Operations\AiDispositionSettings;
@@ -47,9 +49,20 @@ class AiAssist extends Component
 
     public string $tab = 'chat';
 
-    public string $intakeSearch = '';
+    #[Locked]
+    public bool $intakeMounted = false;
 
-    public string $intakeStatus = 'all';
+    #[Locked]
+    public bool $intakeRequested = false;
+
+    #[Locked]
+    public ?int $intakeId = null;
+
+    #[Locked]
+    public ?int $intakeCustomerId = null;
+
+    #[Locked]
+    public bool $intakeCapture = false;
 
     public string $activityFilter = 'all';
 
@@ -60,6 +73,38 @@ class AiAssist extends Component
         $this->actor();
         $context = app(AiAssistService::class)->context($page, $view, $section);
         [$this->page, $this->pageLabel, $this->from, $this->until] = [$context['page'], $context['label'], $context['from'], $context['until']];
+        if (request()->query('assistant') === 'intake' || $section === 'ai-intake') {
+            $record = request()->query('source') === 'ai-intake' ? request()->query('record') : request()->query('intake');
+            $customer = request()->query('customer');
+            foreach ([$record, $customer] as $id) {
+                abort_if($id !== null && filter_var($id, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) === false, 404);
+            }
+            $this->openIntake($record === null ? null : (int) $record, request()->query('capture') === '1', $customer === null ? null : (int) $customer);
+        }
+    }
+
+    #[On('open-ai-intake-panel')]
+    public function openIntake(?int $intakeId = null, bool $create = false, ?int $customerId = null): void
+    {
+        OperationsAccess::authorize($this->actor(), 'operations.inquiries.manage');
+        AiIntakeSchema::requireReady();
+        if ($customerId !== null) {
+            Customer::findOrFail($customerId);
+        }
+        if ($intakeId !== null) {
+            $intake = AiIntake::findOrFail($intakeId);
+            abort_if($customerId !== null && $intake->customer_id !== $customerId, 404);
+        }
+        $existing = $this->intakeMounted && $this->intakeCustomerId === $customerId;
+        $this->intakeId = $intakeId;
+        $this->intakeCustomerId = $customerId;
+        $this->intakeCapture = $create && $intakeId === null;
+        $this->loaded = $this->intakeMounted = $this->intakeRequested = true;
+        $this->tab = 'intake';
+        if ($existing) {
+            $this->dispatch('open-ai-intake', intakeId: $intakeId, create: $this->intakeCapture);
+        }
+        $this->dispatch('ai-assist-intake-opened', componentId: $this->getId());
     }
 
     #[On('operations-period-changed')]
@@ -89,6 +134,13 @@ class AiAssist extends Component
     {
         $this->actor();
         abort_unless(in_array($tab, ['chat', 'intake', 'actions', 'activity'], true), 422);
+        if ($tab === 'intake') {
+            OperationsAccess::authorize($this->actor(), 'operations.inquiries.manage');
+            AiIntakeSchema::requireReady();
+            $this->intakeMounted = true;
+        } elseif ($this->tab === 'intake') {
+            $this->dispatch('ai-intake-panel-hidden');
+        }
         $this->tab = $tab;
         $this->loaded = true;
     }
@@ -112,7 +164,7 @@ class AiAssist extends Component
         abort_unless(in_array($action, $service->permitted($actor), true), 403);
         $this->consumeAssistRate($actor);
         $this->loaded = true;
-        $this->tab = 'chat';
+        $this->setTab('chat');
         // Erst auswerten (prüft Recht und Aktion), dann Frage und Antwort gemeinsam ablegen.
         $answer = $service->answer($action, $actor, $this->context());
         $this->push(['role' => 'user', 'text' => $service->title($action)]);
@@ -140,7 +192,7 @@ class AiAssist extends Component
         $this->consumeAssistRate($actor);
         $service = app(AiAssistService::class);
         $this->loaded = true;
-        $this->tab = 'chat';
+        $this->setTab('chat');
         $this->push(['role' => 'user', 'text' => $text]);
         $action = $service->route($text);
         $known = $action && in_array($action, $service->permitted($actor), true);
@@ -237,7 +289,7 @@ class AiAssist extends Component
         abort_unless($lock->get(), 409, 'Der Assistent bearbeitet gerade eine Aktion. Bitte kurz warten.');
         try {
             session()->forget(self::SESSION);
-            $this->tab = 'chat';
+            $this->setTab('chat');
         } finally {
             $lock->release();
         }
@@ -341,7 +393,6 @@ class AiAssist extends Component
             'messages' => $this->conversation(),
             'overview' => $loaded ? $service->overview($actor) : null,
             'automation' => $loaded ? $service->automationOverview($actor) : null,
-            'intakes' => $loaded && $this->tab === 'intake' ? $service->intakes($actor, $this->intakeSearch, $this->intakeStatus) : collect(),
             'intakesReady' => $actor->can('operations.inquiries.manage') && AiIntakeSchema::ready(),
             'activity' => $loaded && $this->tab === 'activity' ? $service->activity($actor, $this->activityFilter) : collect(),
             'status' => AiDispositionSettings::status(),

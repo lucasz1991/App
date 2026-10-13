@@ -99,7 +99,7 @@ class EmployeeProfileOperationsUiTest extends TestCase
         $count = $xpath->query('.//*[contains(@class,"employee-profile__group-count") and @aria-hidden="true"]', $groups->item(0));
         $this->assertCount(0, $count);
         $this->assertSame('Profil', trim($groups->item(0)->textContent));
-        $this->assertSame(['userDetails', 'userNotes', 'userFiles', 'userMessages', 'devices', 'masterData', 'documents', 'compensation'], array_map(
+        $this->assertSame(['userDetails', 'userNotes', 'userFiles', 'userMessages', 'devices'], array_map(
             static fn ($tab): string => $tab->getAttribute('data-panel-tab'),
             iterator_to_array($xpath->query('//*[@data-profile-navigation]//*[@role="tab"]')),
         ));
@@ -290,7 +290,7 @@ class EmployeeProfileOperationsUiTest extends TestCase
         $actor = $this->actor('staff', 'Verwaltung', ['employees.view', 'operations.manage', 'operations.locations.view']);
         $component = Livewire::actingAs($actor)->test(UserProfile::class, ['userId' => $this->employee->id])
             ->assertSuccessful()->assertSet('profileTab', 'userDetails')
-            ->assertViewHas('employeeProfileTabs', fn (array $tabs): bool => array_keys($tabs) === ['userDetails', 'operationsOverview', 'shifts']);
+            ->assertViewHas('employeeProfileTabs', fn (array $tabs): bool => array_keys($tabs) === ['userDetails', 'operationsOverview', 'shifts', 'regions']);
         $xpath = $this->xpath($component->html());
         $this->assertCount(0, $xpath->query('//*[@data-panel-tab="locations"]'));
         $this->assertSame([], $this->children($component->html(), 'profile.employee-location-history'));

@@ -28,6 +28,49 @@ final class GermanyMap
     private const TONE_RANK = ['open' => 3, 'awaiting' => 2, 'staffed' => 1, 'closed' => 0];
 
     /**
+     * Full-precision Mercator point on the existing map; never clipped to Germany.
+     * Used by state lookup and overlays. Existing pin APIs retain their rounding.
+     *
+     * @return array{x: float, y: float, left: float, top: float}
+     */
+    public static function projectCoordinates(float $latitude, float $longitude): array
+    {
+        if (! is_finite($latitude) || ! is_finite($longitude) || abs($latitude) >= 90 || abs($longitude) > 180) {
+            throw new \InvalidArgumentException('Ungültige Kartenkoordinaten.');
+        }
+
+        $b = self::BOUNDS;
+        $mercator = fn (float $lat): float => log(tan(M_PI / 4 + deg2rad($lat) / 2));
+        $x = $b['x0'] + ($longitude - $b['west']) / ($b['east'] - $b['west']) * ($b['x1'] - $b['x0']);
+        $y = $b['y0'] + ($mercator($b['north']) - $mercator($latitude)) / ($mercator($b['north']) - $mercator($b['south'])) * ($b['y1'] - $b['y0']);
+
+        return ['x' => $x, 'y' => $y, 'left' => $x / self::VIEW_WIDTH * 100, 'top' => $y / self::VIEW_HEIGHT * 100];
+    }
+
+    /** Geodesic Luftlinie ring, sampled before projection; no road-distance claim. */
+    public static function radiusPath(float $latitude, float $longitude, float $radiusKm): string
+    {
+        self::projectCoordinates($latitude, $longitude);
+        if (! is_finite($radiusKm) || $radiusKm <= 0 || $radiusKm > 2000) {
+            throw new \InvalidArgumentException('Der Kartenradius muss zwischen 0 und 2000 km liegen.');
+        }
+
+        $lat = deg2rad($latitude);
+        $lon = deg2rad($longitude);
+        $distance = $radiusKm / 6371.0088;
+        $path = [];
+        for ($step = 0; $step < 120; $step++) {
+            $bearing = 2 * M_PI * $step / 120;
+            $destinationLat = asin(sin($lat) * cos($distance) + cos($lat) * sin($distance) * cos($bearing));
+            $destinationLon = $lon + atan2(sin($bearing) * sin($distance) * cos($lat), cos($distance) - sin($lat) * sin($destinationLat));
+            $point = self::projectCoordinates(rad2deg($destinationLat), fmod(rad2deg($destinationLon) + 540, 360) - 180);
+            $path[] = ($step === 0 ? 'M ' : 'L ').number_format($point['x'], 2, '.', '').' '.number_format($point['y'], 2, '.', '');
+        }
+
+        return implode(' ', $path).' Z';
+    }
+
+    /**
      * Kartenpunkt aus einer TimelineLocationPreview; null, wenn nicht verortet.
      * $coarse rundet auf ~10 km (Mitarbeiteransichten zeigen eine Gegend, keinen Standort).
      *
@@ -147,10 +190,8 @@ final class GermanyMap
         $b = self::BOUNDS;
         $latitude = max($b['south'], min($b['north'], $latitude));
         $longitude = max($b['west'], min($b['east'], $longitude));
-        $mercator = fn (float $lat): float => log(tan(M_PI / 4 + deg2rad($lat) / 2));
-        $x = $b['x0'] + ($longitude - $b['west']) / ($b['east'] - $b['west']) * ($b['x1'] - $b['x0']);
-        $y = $b['y0'] + ($mercator($b['north']) - $mercator($latitude)) / ($mercator($b['north']) - $mercator($b['south'])) * ($b['y1'] - $b['y0']);
+        $point = self::projectCoordinates($latitude, $longitude);
 
-        return [round($x / self::VIEW_WIDTH * 100, 1), round($y / self::VIEW_HEIGHT * 100, 1)];
+        return [round($point['left'], 1), round($point['top'], 1)];
     }
 }

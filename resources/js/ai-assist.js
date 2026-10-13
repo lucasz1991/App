@@ -50,6 +50,10 @@ export function aiAssist({ embedded = false } = {}) {
         bubbleTimer: null,
         init() {
             root = this.$el;
+            if (root?.dataset.intakeOpen === 'true') {
+                this.open = true;
+                this.loaded = true;
+            }
             try {
                 this.prefs = readAiAssistPrefs(window.localStorage);
             } catch {
@@ -95,6 +99,7 @@ export function aiAssist({ embedded = false } = {}) {
             this.bubble = false;
             if (!open) {
                 this.settingsOpen = false;
+                window.dispatchEvent(new CustomEvent('ai-intake-panel-hidden'));
             }
             this.$nextTick(() => {
                 if (this.disposed || this.open !== open) return;
@@ -107,6 +112,15 @@ export function aiAssist({ embedded = false } = {}) {
                 }
             });
             if (open) void this.ensureLoaded();
+        },
+        async openIntake(detail = {}) {
+            if (this.disposed || this.busy) return false;
+            this.open = true;
+            this.bubble = false;
+            this.settingsOpen = false;
+            const success = await this.call('openIntake', detail.intakeId ?? null, detail.create === true, detail.customerId ?? null);
+            if (success && !this.disposed) this.loaded = true;
+            return success;
         },
         async ensureLoaded() {
             if (this.loaded || this.busy || this.disposed) return false;

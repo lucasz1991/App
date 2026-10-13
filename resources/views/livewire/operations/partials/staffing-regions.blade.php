@@ -7,9 +7,16 @@
         <div class="rt-staffing-filters">
             <div class="rt-staffing-field-wide"><x-ui.forms.label for="staffing-base-location" value="Bezugsort (Stadt oder eindeutiger Ort)" /><x-ui.forms.input id="staffing-base-location" wire:model="regionalPreference.base_location" placeholder="z. B. München" maxlength="180" /></div>
             <div><x-ui.forms.label for="staffing-preferred-radius" value="Wunschgebiet bis (km)" /><x-ui.forms.input id="staffing-preferred-radius" type="number" min="1" max="1000" wire:model="regionalPreference.preferred_radius_km" /></div>
-            <div><x-ui.forms.label for="staffing-border-radius" value="Grenzgebiet bis (km)" /><x-ui.forms.input id="staffing-border-radius" type="number" min="1" max="1000" wire:model="regionalPreference.border_radius_km" /></div>
+            <div><x-ui.forms.label for="staffing-border-radius" value="Mögliches Gebiet bis (km)" /><x-ui.forms.input id="staffing-border-radius" type="number" min="1" max="2000" wire:model="regionalPreference.border_radius_km" /></div>
+            <div><x-ui.forms.label for="staffing-emergency-radius" value="Notfallgebiet bis (km, optional)" /><x-ui.forms.input id="staffing-emergency-radius" type="number" min="1" max="2000" wire:model="regionalPreference.emergency_radius_km" /></div>
         </div>
-        <p class="rt-staffing-note">Außerhalb des Grenzgebiets ist eine Zuweisung weiterhin möglich, aber niedriger priorisiert. Nur ausdrücklich ausgeschlossene Gebiete sperren die Zuweisung.</p>
+        @foreach(['preferred' => 'Bevorzugt', 'possible' => 'Möglich', 'emergency' => 'Notfall'] as $zone => $label)
+            @if(!empty($regionalPreference['federal_states'][$zone]))
+                <p class="rt-staffing-note"><strong>{{ $label }}:</strong> {{ collect($regionalPreference['federal_states'][$zone])->map(fn ($code) => \App\Support\Operations\GermanFederalStates::options()[$code] ?? $code)->implode(', ') }}</p>
+            @endif
+        @endforeach
+        @can('employees.view')<a class="rt-staffing-text-button" href="{{ route(auth()->user()->usesAdminLayout() ? 'admin.user-profile' : 'employees.show', ['userId' => $regionalEmployeeId, 'profileTab' => 'regions']) }}" target="_blank" rel="noopener">Bundesländer und Karte im Mitarbeiterprofil <i class="far fa-arrow-up-right-from-square" aria-hidden="true"></i></a>@endcan
+        <p class="rt-staffing-note">Bundesländer und Radien ergänzen sich. Außerhalb bleibt eine Zuteilung mit niedrigerer Eignung möglich. Ausgeschlossene Gebiete bleiben auch im Notfall gesperrt.</p>
         <div class="rt-staffing-heading"><h4>No-Go-Gebiete</h4><button type="button" class="rt-staffing-text-button" wire:click="addNoGoArea"><i class="far fa-plus" aria-hidden="true"></i> Gebiet hinzufügen</button></div>
         @foreach(($regionalPreference['no_go_areas'] ?? []) as $index => $area)
             <div class="rt-staffing-no-go" wire:key="staffing-no-go-{{ $regionalEmployeeId }}-{{ $index }}">

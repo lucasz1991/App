@@ -6,19 +6,25 @@ use App\Models\AiIntake;
 use App\Models\AiIntakeRun;
 use App\Services\Ai\AssistantSpeechRouter;
 use App\Services\Ai\Attachments\AssistantAttachmentBatch;
+use App\Services\Ai\Attachments\AssistantAttachment;
 use App\Services\Ai\Attachments\AssistantAttachmentProcessor;
 use App\Services\Ai\OpenRouterModelProfile;
 use App\Support\Operations\AiDispositionSettings;
 use App\Support\Operations\OperationsAccess;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Http\UploadedFile;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use ZipArchive;
 
 class AiIntakeExtractionService
 {
     /** Only received contents and linked customer identity enter the model, never internal permissions. */
-    public function extract(AiIntake $intake, ?AiIntakeRun $manualRun = null): array
+    public function extract(AiIntake $intake, ?AiIntakeRun $manualRun = null, ?AiIntakeReviewContext $reviewContext = null): array
     {
+        if ($reviewContext) {
+            abort_unless($manualRun, 409);
+            $reviewContext->assertProcessing($manualRun);
+        }
         if ($manualRun) {
             abort_unless($manualRun->intake_id === $intake->id, 409);
             $this->assertProcessingCurrent($intake, $manualRun);
@@ -76,18 +82,35 @@ class AiIntakeExtractionService
         if ($reviewPrompt !== '') {
             $messagesForAi[] = ['role' => 'user', 'content' => 'Prüfhinweis der bearbeitenden Person (nur zur erneuten Prüfung, kein Originalbeleg und keine Freigabe): '.json_encode($reviewPrompt, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE)."\nPrüfe den vollständigen Eingang unter diesem Hinweis erneut. Jede Sachangabe muss weiterhin im Original belegt sein. Widersprüche und unbelegte Ergänzungen bleiben offen."];
         }
+        if ($reviewContext) {
+            if ($characters + $reviewContext->textCharacters() > 60000) {
+                throw ValidationException::withMessages(['uploads' => 'Original und zusätzliche Prüfhinweise sind zusammen zu umfangreich.']);
+            }
+            $messagesForAi[] = ['role' => 'user', 'content' => $reviewContext->requestContent()];
+        }
         $this->assertProcessingCurrent($intake, $manualRun);
         $client = app(AiDispositionClient::class);
         // Inquiry reasoning always uses the configured data model. An inline signature image
         // must not switch the entire structured extraction to the lightweight image profile.
+        $plugins = $batch->plugins() ?: ($reviewContext?->batch->plugins() ?? []);
         $response = $manualRun
-            ? $client->structuredManual($manualRun, 'intake', $messagesForAi, self::schema(), OpenRouterModelProfile::Data, $batch->plugins())
+            ? $client->structuredManual($manualRun, 'intake', $messagesForAi, self::schema(), OpenRouterModelProfile::Data, $plugins)
             : $client->structured('intake', $messagesForAi, self::schema(), OpenRouterModelProfile::Data, $batch->plugins());
         $this->assertProcessingCurrent($intake, $manualRun);
         $result = json_decode($response->content, true, 32, JSON_THROW_ON_ERROR);
         abort_unless(is_array($result), 422);
 
         return ['result' => $result, 'model' => $response->model, 'request_id' => $response->requestId, 'cost_usd' => $response->costUsd];
+    }
+
+    /** Reuse the complete-source guards for supplemental files without persisting them. */
+    public function assertSupplementalComplete(UploadedFile $upload, AssistantAttachment $attachment): void
+    {
+        $this->assertPlainComplete($attachment->extension, $upload->getRealPath());
+        $this->assertOfficeComplete($attachment->extension, $upload->getRealPath());
+        if (mb_strlen((string) $attachment->extractedText) >= max(1000, (int) config('assistant.attachments.max_extracted_characters', 20000))) {
+            throw ValidationException::withMessages(['uploads' => 'Der vollständige Prüfhinweis überschreitet die Extraktionsgrenze.']);
+        }
     }
 
     private function assertProcessingCurrent(AiIntake $intake, ?AiIntakeRun $manualRun = null): void

@@ -34,7 +34,7 @@ final class EmployeeProfileSections
                 $add('qualifications', 'Nachweise', 'fad fa-award', 'Personalakte', 'qualifications', 'qualifications');
             }
             if (app(PersonnelProcessService::class)->ready()) {
-                $add('training', 'Schulungen', 'fad fa-graduation-cap', 'Personalakte', 'workforce', 'training');
+                $add('training', 'Schulungen', 'fad fa-graduation-cap', 'Entwicklung & Aufgaben', 'workforce', 'training');
             }
         }
 
@@ -67,13 +67,13 @@ final class EmployeeProfileSections
             $add('workModel', 'Arbeitsmodell', 'fad fa-business-time', 'Arbeitszeit & Regeln', 'workforce', 'models');
             $add('vacationPolicy', 'Urlaubsrichtlinie', 'fad fa-umbrella-beach', 'Arbeitszeit & Regeln', 'workforce', 'policies');
             if ($allowed('operations.rules.manage') && PersonnelReview::moduleReady('rules')) {
-                $add('ruleAssignments', 'Regelzuordnungen', 'fad fa-sliders', 'Arbeitszeit & Regeln', 'workforce', 'rules');
+                $add('ruleAssignments', 'Regelprofile', 'fad fa-sliders', 'Arbeitszeit & Regeln', 'workforce', 'rules');
             }
             if (app(WorkforcePlanReviewService::class)->ready()) {
-                $add('planReviews', 'Planprüfungen', 'fad fa-clipboard-check', 'Arbeitszeit & Regeln', 'workforce', 'checks');
+                $add('planReviews', 'Planprüfungen', 'fad fa-clipboard-check', 'Betrieb', 'workforce', 'checks');
             }
             if ($actor->isAdmin() && $scope->ready()) {
-                $add('responsibilities', 'Zuständigkeiten', 'fad fa-user-shield', 'Arbeitszeit & Regeln', 'workforce', 'responsibilities');
+                $add('responsibilities', 'Zuständigkeiten', 'fad fa-user-shield', 'Personalakte', 'workforce', 'responsibilities');
             }
         }
 

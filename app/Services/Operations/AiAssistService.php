@@ -379,7 +379,7 @@ class AiAssistService
         if (! $draft) {
             return ['lead' => 'Keine Kundennachricht wartet auf eine persönliche Freigabe.'];
         }
-        $buttons = [['label' => 'Entwurf verwerfen', 'act' => 'reject'], ['label' => 'Eingang prüfen', 'href' => OperationsPages::url('cases', ['view' => 'inbox', 'section' => 'ai-intake', 'intake' => $draft['intake_id']])], ['label' => 'Nächsten Entwurf prüfen', 'act' => 'run:outbox']];
+        $buttons = [['label' => 'Entwurf verwerfen', 'act' => 'reject'], ['label' => 'Eingang prüfen', 'href' => OperationsPages::intakePanelUrl((int) $draft['intake_id'])], ['label' => 'Nächsten Entwurf prüfen', 'act' => 'run:outbox']];
         if (! empty($draft['can_approve'])) {
             array_unshift($buttons, ['label' => 'Nachricht freigeben', 'act' => 'approve', 'primary' => true]);
         }
@@ -906,7 +906,7 @@ class AiAssistService
 
     public function intakeUrl(AiIntake $intake): string
     {
-        return OperationsPages::url('cases', array_filter(['view' => 'inbox', 'section' => 'ai-intake', 'source' => 'ai-intake', 'record' => $intake->id, 'customer' => $intake->customer_id]));
+        return OperationsPages::intakePanelUrl($intake->id, $intake->customer_id);
     }
 
     public function tone(string $status): string

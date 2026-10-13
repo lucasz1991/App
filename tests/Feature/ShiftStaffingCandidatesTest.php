@@ -116,6 +116,39 @@ class ShiftStaffingCandidatesTest extends TestCase
         $this->assertSame($before, DB::table('operation_audits')->count());
     }
 
+    public function test_real_federal_state_tiers_rank_emergency_lower_without_overriding_qualifications(): void
+    {
+        (require database_path('migrations/2026_10_06_220000_create_staff_regional_preferences_table.php'))->up();
+        $this->shift->update(['location_name' => 'Hamburg']);
+        $type = QualificationType::create(['name' => 'Pflichtqualifikation', 'is_active' => true]);
+        $this->shift->qualifications()->attach($type);
+        $employees = [];
+        foreach (['preferred', 'possible', 'emergency', 'outside', 'unqualified'] as $tier) {
+            $employee = $employees[$tier] = $this->employee($tier);
+            if ($tier !== 'unqualified') {
+                $this->qualification($employee, $type);
+            }
+            $states = ['preferred' => [], 'possible' => [], 'emergency' => []];
+            $states[match ($tier) {
+                'outside' => 'preferred', 'unqualified' => 'emergency', default => $tier
+            }] = [$tier === 'outside' ? 'DE-BY' : 'DE-HH'];
+            app(StaffRegionalPreferenceService::class)->save($employee, $this->admin, [
+                'schema_version' => 2, 'enabled' => true, 'base_location' => '', 'preferred_radius_km' => 50,
+                'border_radius_km' => 100, 'emergency_radius_km' => null, 'federal_states' => $states, 'no_go_areas' => [],
+            ], 0);
+        }
+
+        $ranked = $this->service->ranked($this->shift);
+        $this->assertSame(array_map(fn ($employee) => $employee->id, array_values($employees)), $ranked->pluck('id')->all());
+        $this->assertSame([100, 90, 75, 65, 35], $ranked->pluck('staffing_score')->all());
+        $this->assertSame('emergency', $ranked[2]->staffing_region['state']);
+        $this->assertSame('eligible', $ranked[2]->staffing_state);
+        $this->assertSame('blocked', $ranked[4]->staffing_state);
+        $this->assertNotEmpty($ranked[4]->planning_issues);
+        $this->assertSame([$employees['emergency']->id, $employees['unqualified']->id], $this->service->ranked($this->shift, ['region' => 'emergency'])->pluck('id')->all());
+        $this->assertSame(0, ShiftAssignment::count());
+    }
+
     public function test_eligible_review_and_blocked_tiers_dominate_regional_preferences(): void
     {
         $eligible = $this->employee('Z Geeignet');

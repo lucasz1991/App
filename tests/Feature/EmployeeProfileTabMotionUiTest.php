@@ -77,7 +77,7 @@ class EmployeeProfileTabMotionUiTest extends TestCase
         $this->assertMotionRow($xpath, $sub->item(0), 'sub');
 
         $groups = $xpath->query('./button[@data-profile-group]', $main->item(0));
-        $this->assertSame(['Profil', 'Betrieb', 'Personalakte', 'Entwicklung', 'Arbeitszeit'], array_map(
+        $this->assertSame(['Profil', 'Betrieb', 'Personalakte', 'Entwicklung', 'Arbeitszeit & Regeln'], array_map(
             static fn (DOMElement $group): string => trim(preg_replace('/\s+/u', ' ', $group->textContent)),
             iterator_to_array($groups),
         ));
@@ -122,7 +122,7 @@ class EmployeeProfileTabMotionUiTest extends TestCase
     {
         return [
             'profile overview' => ['userDetails', 'Profil & Stammdaten'],
-            'same group child' => ['masterData', 'Profil & Stammdaten'],
+            'personnel master data' => ['masterData', 'Personalakte'],
             'operational overview' => ['operationsOverview', 'Betrieb'],
             'operational shifts' => ['shifts', 'Betrieb'],
             'personnel file' => ['qualifications', 'Personalakte'],

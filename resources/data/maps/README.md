@@ -238,6 +238,29 @@ Re-run `TimelineLocationPreviewTest`, `StaffRegionalPreferenceServiceTest`, and
 dashboard map tests after changes. Both data caches contain public data only;
 no shift, description, model, query result or user input survives between calls.
 
+## Federal-state planning areas on the current Dashboard map
+
+`germany-federal-states.json` extracts the 16 named state paths and 43 polygon
+rings from the existing `public/rt-brand/illustrations/v2/germany-rail-network.svg`.
+The Dashboard's `germany-outline.svg` and `germany-borders.svg` use these same
+Mercator paths in `viewBox="0 0 1154 1363"`. This differs from the older Natural
+Earth mini-map projection described below; do not mix the two coordinate spaces.
+
+Regenerate locally with `python scripts/build-german-federal-states.py`. The file
+records the source SHA-256 and retains its attribution: deutschlandGeoJSON,
+GeoBasis-DE / BKG (dl-de/by-2-0), and the Bremerhaven overlay from OpenStreetMap
+contributors (ODbL). No network lookup, employee coordinates, or new map provider
+is involved. The generator preserves each literal SVG path and its even-odd
+holes/multipart rings; the unit suite checks identity with the existing asset.
+
+`GermanFederalStates::containing()` uses these polygons for approximate planning
+preferences and returns unknown within 0.75 SVG units (roughly half a kilometre)
+of a generalized border or for an unexpected polygon overlap. The source draws
+Bremerhaven over Niedersachsen without a cut-out, so that one explicit overlay
+is preserved. This is not cadastral or legal boundary data. `GermanyMap` projects
+geodesic radius rings before rendering; radii are straight-line distances and do
+not replace the independent route duration check.
+
 ## Natural Earth outline and projection
 
 - Source: [Natural Earth 1:110m admin 0 countries](https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson), downloaded 2026-10-06; feature `ADMIN=Germany`.

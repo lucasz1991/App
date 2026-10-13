@@ -10,13 +10,15 @@
     $lastActivityAt = $user->lastActivityAt();
     $isUserOnline = $user->isOnline();
     $profileGroups = collect($employeeProfileTabs)->groupBy(fn ($definition) => $definition['group'] ?? 'Profil & Stammdaten', preserveKeys: true);
+    $profileGroups = collect(['Profil & Stammdaten', 'Betrieb', 'Personalakte', 'Entwicklung & Aufgaben', 'Arbeitszeit & Regeln'])
+        ->filter(fn ($group) => $profileGroups->has($group))->mapWithKeys(fn ($group) => [$group => $profileGroups[$group]]);
     $profileGroup = $employeeProfileTabs[$profileTab]['group'] ?? 'Profil & Stammdaten';
     $profileGroupLabels = [
         'Betrieb' => ['label' => 'Betrieb', 'icon' => 'far fa-train'],
         'Profil & Stammdaten' => ['label' => 'Profil', 'icon' => 'far fa-user'],
         'Personalakte' => ['label' => 'Personalakte', 'icon' => 'far fa-folder-open'],
         'Entwicklung & Aufgaben' => ['label' => 'Entwicklung', 'icon' => 'far fa-graduation-cap'],
-        'Arbeitszeit & Regeln' => ['label' => 'Arbeitszeit', 'icon' => 'far fa-clock'],
+        'Arbeitszeit & Regeln' => ['label' => 'Arbeitszeit & Regeln', 'icon' => 'far fa-clock'],
     ];
     $profilePrefix = 'employee-profile-'.$user->id;
   @endphp
@@ -54,7 +56,8 @@
     </x-slot:actions>
 
       @if ($canInviteEmployee && $user->role === 'staff')
-        <x-ui.feedback.alert type="warning" :inline="true" aria-label="Mitarbeiterzugang" data-account-invitation class="mb-3">
+        <x-ui.feedback.alert type="warning" :inline="true" aria-label="Mitarbeiterzugang" data-account-invitation class="mb-3"
+            wire:key="{{ $profilePrefix }}-account-invitation" wire:ignore.self>
           <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
             <span role="status">
               @if ($errors->has('accountInvitation'))
@@ -137,6 +140,12 @@
         @if(isset($employeeProfileTabs['shifts']) && $profileTab === 'shifts')
             <x-operations.panel.tab name="shifts" :id-prefix="$profilePrefix" model="$wire.profileTab" class="employee-profile__panel">
                 <livewire:profile.employee-operations :user-id="(int) $user->id" view-mode="shifts" :key="'employee-operations-shifts-'.$user->id" />
+            </x-operations.panel.tab>
+        @endif
+
+        @if(isset($employeeProfileTabs['regions']) && $profileTab === 'regions')
+            <x-operations.panel.tab name="regions" :id-prefix="$profilePrefix" model="$wire.profileTab" class="employee-profile__panel">
+                <livewire:profile.employee-regions :user-id="(int) $user->id" :key="'employee-regions-'.$user->id" />
             </x-operations.panel.tab>
         @endif
 

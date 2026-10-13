@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Livewire\Operations\AiAssist;
+use App\Livewire\Operations\AiIntakeInbox;
 use App\Models\AiIntake;
 use App\Models\Customer;
 use App\Models\EmployeeAvailability;
@@ -169,12 +170,45 @@ class AiAssistTest extends TestCase
         $component = $this->assist(['page' => 'cases', 'view' => 'inbox'])->assertSet('pageLabel', 'Eingang');
         $this->assertStringContainsString('Ein AI-Eingang wartet', json_encode(app(AiAssistService::class)->hints($this->manager), JSON_UNESCAPED_UNICODE) ?: '');
         $component->call('setTab', 'intake')->assertSee('Zusatzbedarf Fulda')->assertSee('Übernommene Anfrage')->assertSee('Prüfung nötig');
-        $component->set('intakeStatus', 'review')->assertSee('Zusatzbedarf Fulda')->assertDontSee('Übernommene Anfrage');
-        $component->set('intakeSearch', 'Übernommen')->assertDontSee('Zusatzbedarf Fulda');
-        $this->assist(['page' => 'cases', 'view' => 'inbox'])->call('setTab', 'intake')->set('intakeStatus', 'deleted')->assertStatus(422);
+        $component->assertSet('intakeMounted', true)->assertSeeLivewire(AiIntakeInbox::class);
+        $inbox = Livewire::actingAs($this->manager)->test(AiIntakeInbox::class, ['embedded' => true]);
+        $inbox->set('statusFilter', 'review')->assertSee('Zusatzbedarf Fulda')->assertDontSee('Übernommene Anfrage');
+        $inbox->set('search', 'Übernommen')->assertDontSee('Zusatzbedarf Fulda');
+        Livewire::actingAs($this->manager)->test(AiIntakeInbox::class, ['embedded' => true])->set('statusFilter', 'deleted')->assertStatus(422);
         $component = $this->assist(['page' => 'cases', 'view' => 'inbox'])->call('run', 'intake');
         $this->assertSame('Zusatzbedarf Fulda', session('operations.ai_assist.messages')[1]['card']['rows'][0]['label']);
         $this->assertSame('offen: Beginn', session('operations.ai_assist.messages')[1]['card']['rows'][0]['small']);
+    }
+
+    public function test_panel_capture_is_scoped_and_persists_when_visiting_other_assistant_tabs(): void
+    {
+        $component = $this->assist()->call('openIntake', null, true, $this->customer->id)
+            ->assertSet('tab', 'intake')->assertSet('intakeMounted', true)->assertSet('intakeCapture', true)
+            ->assertSet('intakeCustomerId', $this->customer->id)->assertSeeLivewire(AiIntakeInbox::class)
+            ->assertDispatched('ai-assist-intake-opened');
+        $component->call('setTab', 'chat')->assertDispatched('ai-intake-panel-hidden')
+            ->assertSet('intakeMounted', true)->assertSeeLivewire(AiIntakeInbox::class);
+        $component->call('setTab', 'intake')->assertSet('intakeCapture', true);
+        $this->assertSame(0, AiIntake::count());
+    }
+
+    public function test_panel_rejects_a_record_outside_the_requested_customer_scope(): void
+    {
+        $other = Customer::create(['company_name' => 'Other synthetic scope', 'is_active' => true]);
+        $intake = AiIntake::create(['source_type' => 'email', 'status' => 'review', 'title' => 'Private scoped intake', 'customer_id' => $other->id]);
+        $this->assist()->call('openIntake', $intake->id, false, $this->customer->id)->assertStatus(404);
+        $this->assist()->call('openIntake', 999999, false)->assertStatus(404);
+        $this->assertSame(1, AiIntake::count());
+    }
+
+    public function test_existing_panel_receives_selection_without_creating_a_second_workspace(): void
+    {
+        $intake = AiIntake::create(['source_type' => 'email', 'status' => 'review', 'title' => 'Current synthetic intake']);
+        $this->assist()->call('setTab', 'intake')->call('openIntake', $intake->id)
+            ->assertSet('intakeId', $intake->id)->assertSet('intakeCapture', false)
+            ->assertDispatched('open-ai-intake', intakeId: $intake->id, create: false)
+            ->assertDispatched('ai-assist-intake-opened');
+        $this->assertSame(1, AiIntake::count());
     }
 
     public function test_access_requires_disposition_rights_and_settings_stay_superadmin_only(): void

@@ -3,6 +3,8 @@
 namespace App\Livewire\Tools\Concerns;
 
 use App\Livewire\Operations\AiIntakeInbox;
+use App\Models\AiIntake;
+use App\Models\Customer;
 use App\Models\User;
 use App\Services\Operations\AiAssistService;
 use App\Services\Operations\AiIntakeService;
@@ -28,6 +30,21 @@ trait InteractsWithOperationsAssist
     public bool $operationsLoaded = false;
 
     #[Locked]
+    public bool $operationsIntakeMounted = false;
+
+    #[Locked]
+    public bool $operationsIntakeRequested = false;
+
+    #[Locked]
+    public ?int $operationsIntakeId = null;
+
+    #[Locked]
+    public ?int $operationsIntakeCustomerId = null;
+
+    #[Locked]
+    public bool $operationsIntakeCapture = false;
+
+    #[Locked]
     public array $operationsContext = [];
 
     public string $operationsIntakeSearch = '';
@@ -40,6 +57,37 @@ trait InteractsWithOperationsAssist
     {
         $page = (string) (request()->route()?->parameter('page') ?? '');
         $this->operationsContext = app(AiAssistService::class)->context($page, (string) request()->query('view', ''), (string) request()->query('section', ''));
+        if ($page === 'cases' && ($panel = OperationsPages::intakePanelContext(request()))) {
+            $this->openOperationsIntake(...$panel);
+        }
+    }
+
+    #[On('open-ai-intake-panel')]
+    public function openOperationsIntake(?int $intakeId = null, bool $create = false, ?int $customerId = null): void
+    {
+        $actor = $this->operationsActor();
+        OperationsAccess::authorize($actor, 'operations.inquiries.manage');
+        AiIntakeSchema::requireReady();
+        abort_unless(($intakeId === null || $intakeId > 0) && ($customerId === null || $customerId > 0)
+            && ! ($intakeId !== null && $create), 422);
+        if ($customerId !== null) {
+            Customer::findOrFail($customerId);
+        }
+        if ($intakeId !== null) {
+            AiIntake::query()->when($customerId !== null, fn ($query) => $query->where('customer_id', $customerId))->findOrFail($intakeId);
+        }
+        if ($this->operationsIntakeMounted && $this->operationsIntakeCustomerId === $customerId) {
+            $this->dispatch('open-ai-intake', intakeId: $intakeId, create: $create)->to(AiIntakeInbox::class);
+        } else {
+            $this->operationsIntakeId = $intakeId;
+            $this->operationsIntakeCustomerId = $customerId;
+            $this->operationsIntakeCapture = $create;
+            $this->operationsIntakeMounted = true;
+        }
+        $this->operationsIntakeRequested = true;
+        $this->operationsTab = 'intake';
+        $this->operationsLoaded = true;
+        $this->dispatch('railtime-assistant-open');
     }
 
     #[On('operations-period-changed')]
@@ -71,6 +119,9 @@ trait InteractsWithOperationsAssist
         if ($tab === 'intake') {
             OperationsAccess::authorize($actor, 'operations.inquiries.manage');
             AiIntakeSchema::requireReady();
+            $this->operationsIntakeMounted = true;
+        } elseif ($this->operationsTab === 'intake') {
+            $this->dispatch('ai-intake-panel-hidden');
         }
         $this->operationsTab = $tab;
         $this->operationsLoaded = true;
@@ -241,7 +292,7 @@ trait InteractsWithOperationsAssist
             $this->storeOperationsCardRecords($actor, $records);
             $this->message = '';
             $this->operationsLoaded = true;
-            $this->operationsTab = 'chat';
+            $this->openOperationsIntake($intake->id);
             if ($this->cleanupAttachments() > 0) {
                 $this->addError('attachments', 'Die Anfrage ist gespeichert; eine temporäre Anlage konnte noch nicht entfernt werden.');
             }
@@ -295,7 +346,7 @@ trait InteractsWithOperationsAssist
     private function operationsAssistData(): array
     {
         $available = $this->operationsAvailable();
-        $data = ['available' => $available, 'loaded' => $this->operationsLoaded, 'context' => $this->operationsContext, 'actions' => ['page' => [], 'global' => []], 'intakes' => collect(), 'activity' => collect(), 'reviewCount' => 0, 'overview' => [], 'status' => [], 'enabled' => false, 'mode' => 'assisted', 'labels' => AiIntakeInbox::LABELS, 'fieldLabels' => AiIntakeInbox::FIELD_LABELS, 'limits' => []];
+        $data = ['available' => $available, 'loaded' => $this->operationsLoaded, 'context' => $this->operationsContext, 'actions' => ['page' => [], 'global' => []], 'intakes' => collect(), 'intakesReady' => $available && AiIntakeSchema::ready(), 'activity' => collect(), 'reviewCount' => 0, 'overview' => [], 'status' => [], 'enabled' => false, 'mode' => 'assisted', 'labels' => AiIntakeInbox::LABELS, 'fieldLabels' => AiIntakeInbox::FIELD_LABELS, 'limits' => []];
         if (! $available || ! $this->operationsLoaded) {
             return $data;
         }
@@ -311,9 +362,6 @@ trait InteractsWithOperationsAssist
         $data['enabled'] = (bool) $settings['enabled'];
         $data['mode'] = $settings['automation_mode'];
         $data['limits'] = array_intersect_key($settings, array_flip(['max_attachment_count', 'max_total_kilobytes', 'max_audio_kilobytes']));
-        if ($this->operationsTab === 'intake') {
-            $data['intakes'] = $service->intakes($actor, $this->operationsIntakeSearch, $this->operationsIntakeStatus);
-        }
         if (in_array($this->operationsTab, ['chat', 'activity'], true)) {
             $data['activity'] = $service->activity($actor, $this->operationsActivityFilter);
         }

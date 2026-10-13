@@ -327,7 +327,7 @@ class AiIntakeService
     }
 
     /** Explicit recognition prepares review data; it cannot perform the automatic workflow. */
-    public function analyzeManually(AiIntake $intake, User $actor, int $expectedRevision, int $expectedSettingsRevision, string $reviewPrompt = ''): AiIntake
+    public function analyzeManually(AiIntake $intake, User $actor, int $expectedRevision, int $expectedSettingsRevision, string $reviewPrompt = '', ?AiIntakeReviewContext $reviewContext = null): AiIntake
     {
         $this->access($actor);
         $reviewPrompt = trim($reviewPrompt);
@@ -336,18 +336,19 @@ class AiIntakeService
         abort_unless($lock->get(), 409, 'Dieser Eingang wird bereits analysiert. Bitte den aktuellen Stand laden.');
         $run = null;
         try {
-            $current = OperationsTransaction::run(function () use ($intake, $actor, $expectedRevision, $expectedSettingsRevision, $reviewPrompt, &$run): AiIntake {
+            $current = OperationsTransaction::run(function () use ($intake, $actor, $expectedRevision, $expectedSettingsRevision, $reviewPrompt, $reviewContext, &$run): AiIntake {
                 $this->access($actor);
                 $settings = AiDispositionSettings::all(true);
                 abort_unless((int) $settings['revision'] === $expectedSettingsRevision, 409, 'Postfacheinstellungen wurden geändert. Bitte neu öffnen.');
                 $current = $this->current($intake, $expectedRevision);
+                $reviewContext?->assertFor($current, $actor->id, $expectedRevision, $expectedSettingsRevision);
                 abort_unless($current->source_type === 'email' && ! $current->paused_at && ! in_array($current->status, ['paused', 'completed', 'analyzing'], true), 409, 'Diesen Eingang bitte im bestehenden Vorgang prüfen.');
                 $message = $current->messages()->whereKey($current->latest_inbound_message_id)->where('direction', 'inbound')->first();
                 abort_unless($message && ($message->metadata['mailbox_id'] ?? '') === AiDispositionSettings::mailboxId($settings)
                     && (int) ($message->metadata['uid'] ?? 0) > 0 && (int) ($message->metadata['uid_validity'] ?? 0) > 0, 409, 'Die Mail gehört nicht zum aktuellen Dispositionspostfach.');
                 abort_if($current->error_code !== 'mailbox_test_review' && (str_starts_with((string) $current->error_code, 'mailbox_') || in_array($current->error_code, ['sender_unverified', 'attachments_review', 'automatic_message_review'], true)), 422, 'Die vollständige Mailquelle und Anlagen zuerst manuell prüfen.');
                 $successfulRun = $current->runs()->where('source_revision', $current->source_revision)->whereIn('kind', ['analysis', 'mailbox_test'])->where('status', 'succeeded')->latest('id')->first();
-                $successful = $reviewPrompt === '' && $current->processed_source_revision === $current->source_revision && $current->analysis
+                $successful = $reviewPrompt === '' && $reviewContext === null && $current->processed_source_revision === $current->source_revision && $current->analysis
                     && ($successfulRun?->configuration['extraction_version'] ?? null) === AiIntakeMessageContent::VERSION;
                 if ($successful) {
                     foreach ($current->messages()->where('direction', 'inbound')->get() as $source) {
@@ -365,7 +366,8 @@ class AiIntakeService
                 $run = $this->run($current, 'mailbox_test', $settings);
                 $run->update(['configuration' => ['mode' => 'manual_review', 'actor_id' => $actor->id,
                     'intake_revision' => $current->revision, 'mailbox_id' => AiDispositionSettings::mailboxId($settings),
-                    'extraction_version' => AiIntakeMessageContent::VERSION, 'review_prompt' => $reviewPrompt]]);
+                    'extraction_version' => AiIntakeMessageContent::VERSION, 'review_prompt' => $reviewPrompt,
+                    'review_context' => $reviewContext?->metadata()]]);
                 app(OperationsAuditService::class)->record($current, $actor, 'mailbox.analysis_requested', ['run_id' => $run->id, 'source_revision' => $current->source_revision]);
 
                 return $current;
@@ -374,7 +376,9 @@ class AiIntakeService
                 return $current;
             }
             app(AiDispositionClient::class)->assertManualContext($run);
-            $extracted = app(AiIntakeExtractionService::class)->extract($current, $run);
+            $extracted = $reviewContext
+                ? app(AiIntakeExtractionService::class)->extract($current, $run, $reviewContext)
+                : app(AiIntakeExtractionService::class)->extract($current, $run);
             app(AiDispositionClient::class)->assertManualContext($run);
             $result = $this->validateExtraction($current, $extracted['result']);
 

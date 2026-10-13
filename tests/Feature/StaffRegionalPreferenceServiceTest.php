@@ -271,4 +271,114 @@ class StaffRegionalPreferenceServiceTest extends TestCase
         $this->assertSame('neutral', $this->assessment('München')['state']);
         $this->assertFalse($this->service->get($this->employee)['enabled']);
     }
+
+    public function test_state_only_zones_score_all_three_tiers_and_outside_without_a_private_address(): void
+    {
+        $saved = $this->service->save($this->employee, $this->admin, $this->config([
+            'base_location' => '',
+            'federal_states' => ['preferred' => ['DE-HH'], 'possible' => ['DE-NI'], 'emergency' => ['DE-BE']],
+        ]), 0);
+
+        $this->assertSame(2, $saved['schema_version']);
+        $this->assertSame('', $saved['base_location']);
+        foreach (['Hamburg' => ['preferred', 15], 'Braunschweig' => ['border', 5], 'Berlin' => ['emergency', -10], 'München' => ['outside', -20]] as $place => [$state, $adjustment]) {
+            $assessment = $this->assessment($place);
+            $this->assertSame($state, $assessment['state'], $place);
+            $this->assertSame($adjustment, $assessment['score_adjustment']);
+            $this->assertNull($assessment['distance_km']);
+            $this->assertFalse($assessment['blocked']);
+        }
+    }
+
+    public function test_emergency_radius_is_lower_priority_than_possible_and_state_radius_union_uses_best_tier(): void
+    {
+        $saved = $this->service->save($this->employee, $this->admin, $this->config([
+            'base_location' => 'Hamburg', 'preferred_radius_km' => 10, 'border_radius_km' => 30, 'emergency_radius_km' => 120,
+            'federal_states' => ['preferred' => ['DE-BY'], 'possible' => [], 'emergency' => ['DE-HH']],
+        ]), 0);
+        $this->assertSame('preferred', $this->assessment('Hamburg')['state']);
+        $this->assertSame('preferred', $this->assessment('München')['state']);
+        $this->assertSame('emergency', $this->assessment('Lübeck')['state']);
+        $this->assertSame(-10, $this->assessment('Lübeck')['score_adjustment']);
+        $this->assertSame('outside', $this->assessment('Berlin')['state']);
+        $this->assertSame(-20, $this->assessment('Berlin')['score_adjustment']);
+        $this->assertSame($saved, $this->service->get($this->employee));
+    }
+
+    public function test_unknown_states_duplicate_tiers_and_invalid_emergency_radii_cannot_be_saved(): void
+    {
+        $this->invalid(fn () => $this->service->save($this->employee, $this->admin, $this->config(['federal_states' => ['preferred' => ['DE-XX']]]), 0), 'regional_preferences.federal_states.preferred.0');
+        $this->invalid(fn () => $this->service->save($this->employee, $this->admin, $this->config(['federal_states' => ['preferred' => ['DE-HH'], 'emergency' => ['DE-HH']]]), 0), 'regional_preferences.federal_states.emergency');
+        $this->invalid(fn () => $this->service->save($this->employee, $this->admin, $this->config(['emergency_radius_km' => 100]), 0), 'regional_preferences.emergency_radius_km');
+        $this->invalid(fn () => $this->service->save($this->employee, $this->admin, $this->config(['emergency_radius_km' => 2001]), 0), 'regional_preferences.emergency_radius_km');
+        $this->invalid(fn () => $this->service->save($this->employee, $this->admin, $this->config(['base_location' => '', 'emergency_radius_km' => 500, 'federal_states' => ['preferred' => ['DE-HH']]]), 0), 'regional_preferences.base_location');
+        $this->assertSame(0, StaffRegionalPreference::count());
+    }
+
+    public function test_no_go_still_blocks_all_new_tiers_and_disabled_zones_remain_neutral(): void
+    {
+        $config = $this->config([
+            'base_location' => '', 'federal_states' => ['preferred' => ['DE-BY'], 'possible' => [], 'emergency' => ['DE-HH']],
+            'no_go_areas' => [['location' => 'München', 'radius_km' => 10], ['location' => 'Hamburg', 'radius_km' => 10]],
+        ]);
+        $this->service->save($this->employee, $this->admin, $config, 0);
+        foreach (['München', 'Hamburg'] as $place) {
+            $this->assertTrue($this->assessment($place)['blocked']);
+            $this->invalid(fn () => $this->service->assertAllowed(new Shift(['location_name' => $place]), $this->employee), 'workflow');
+        }
+        $config['enabled'] = false;
+        $this->service->save($this->employee, $this->admin, $config, 1);
+        $this->assertSame('neutral', $this->assessment('Hamburg')['state']);
+    }
+
+    public function test_legacy_roundtrip_keeps_original_outside_score_until_explicit_upgrade(): void
+    {
+        StaffRegionalPreference::create(['user_id' => $this->employee->id, 'revision' => 1, 'preferences' => ['schema_version' => 1] + $this->config(), 'updated_by' => $this->admin->id]);
+        $saved = $this->service->get($this->employee);
+        $this->assertSame(1, $saved['schema_version']);
+        unset($saved['revision']);
+        $roundtrip = $this->service->save($this->employee, $this->admin, $saved, 1);
+        $this->assertSame(1, $roundtrip['schema_version']);
+        $this->assertSame(-10, $this->assessment('Hamburg')['score_adjustment']);
+        $saved['schema_version'] = 2;
+        $this->service->save($this->employee, $this->admin, $saved, 2);
+        $this->assertSame(-20, $this->assessment('Hamburg')['score_adjustment']);
+    }
+
+    public function test_v2_uses_own_confirmed_site_and_does_not_guess_from_unknown_or_malformed_locations(): void
+    {
+        $this->service->save($this->employee, $this->admin, $this->config([
+            'base_location' => '', 'federal_states' => ['preferred' => ['DE-HH']],
+        ]), 0);
+        $shift = new Shift(['location_name' => 'Unbekanntes Depot', 'location_snapshot' => ['confirmed' => true, 'name' => 'Depot', 'latitude' => 53.55, 'longitude' => 10.0]]);
+        $this->assertSame('preferred', $this->service->assessMany($shift, collect([$this->employee]))[$this->employee->id]['state']);
+        $shift->location_snapshot = ['confirmed' => true, 'name' => 'Depot', 'latitude' => 'invalid', 'longitude' => 10.0];
+        $this->assertSame('unknown', $this->service->assessMany($shift, collect([$this->employee]))[$this->employee->id]['state']);
+        $this->assertSame('unknown', $this->assessment('Neustadt')['state']);
+        $this->assertSame('unknown', $this->assessment('Unbekanntes Depot')['state']);
+    }
+
+    public function test_stored_conflicting_state_tiers_fail_closed_instead_of_dropping_a_zone(): void
+    {
+        $this->service->save($this->employee, $this->admin, $this->config(['federal_states' => ['preferred' => ['DE-HH']]]), 0);
+        $record = StaffRegionalPreference::sole();
+        $config = $record->preferences;
+        $config['federal_states']['emergency'] = ['DE-HH'];
+        $record->update(['preferences' => $config]);
+        $this->expectException(UnexpectedValueException::class);
+        $this->assessment('Hamburg');
+    }
+
+    public function test_clearing_optional_emergency_radius_stores_null_and_malformed_arrays_are_validation_errors(): void
+    {
+        $saved = $this->service->save($this->employee, $this->admin, $this->config(['schema_version' => 2, 'emergency_radius_km' => '']), 0);
+        $this->assertNull($saved['emergency_radius_km']);
+        foreach (['', null, 'invalid'] as $value) {
+            $this->invalid(fn () => $this->service->save($this->employee, $this->admin, $this->config(['federal_states' => $value]), 1), 'regional_preferences.federal_states');
+            $this->invalid(fn () => $this->service->save($this->employee, $this->admin, $this->config(['no_go_areas' => $value]), 1), 'regional_preferences.no_go_areas');
+            $this->invalid(fn () => $this->service->save($this->employee, $this->admin, $this->config(['federal_states' => ['preferred' => $value]]), 1), 'regional_preferences.federal_states.preferred');
+        }
+        $this->invalid(fn () => $this->service->save($this->employee, $this->admin, $this->config(['federal_states' => ['preferred' => ['']]]), 1), 'regional_preferences.federal_states.preferred.0');
+        $this->assertSame(1, $this->service->get($this->employee)['revision']);
+    }
 }

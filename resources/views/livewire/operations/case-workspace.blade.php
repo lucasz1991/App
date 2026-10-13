@@ -20,9 +20,7 @@
     @endif
     @if($view === 'inbox')
         @if($section !== 'overview')<x-ui.buttons.button-basic mode="link" :href="\App\Support\Operations\OperationsPages::url('cases', ['view'=>'inbox','customer'=>$context['customer'] ?? null])" wire:navigate><i class="far fa-inbox" aria-hidden="true"></i>Gemeinsamen Eingang öffnen</x-ui.buttons.button-basic>@endif
-        @if($section === 'ai-intake')
-            <livewire:operations.ai-intake-inbox :customer-id="$context['customer'] ?? null" :initial-intake-id="($context['source'] ?? '') === 'ai-intake' ? ($context['record'] ?? null) : null" :key="'case-ai-intake-'.($context['customer'] ?? 'all').'-'.($context['record'] ?? '')" />
-        @elseif($section === 'imports')
+        @if($section === 'imports')
             <livewire:operations.operations-enhancements tab="imports" :embedded="true" :key="'case-imports'" />
         @elseif($section === 'portal')
             @if($portalCustomers->isNotEmpty())

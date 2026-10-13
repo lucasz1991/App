@@ -212,6 +212,8 @@
     x-on:operations-assist-reply.window="handleOperationsReply($event.detail)"
     x-on:railtime-assistant-cleared.window="stopSpeaking(); clearPhraseAudioCache(); resetAttachmentUi(); knownAssistantMessageKeys = []; $nextTick(() => { updateComposerState(); scrollMessages(true) })"
     x-on:railtime-assistant-open.window="handleAssistantOpen($event.detail)"
+    x-on:railtime-ai-intake-open.window="$wire.openOperationsIntake($event.detail?.intakeId ?? null, $event.detail?.create === true, $event.detail?.customerId ?? null)"
+    @if($operationsIntakeRequested) x-init="$nextTick(() => handleAssistantOpen())" @endif
     x-on:railtime-assistant-client-action.window="handleClientAction($event.detail)"
     x-on:railtime-wagon-context-updated.window="if (!$event.detail?.editor_open) wagonHelpVisible = false; $wire.updateWagonAssistantContext($event.detail)"
     x-on:railtime-wagon-assistant-result.window="$wire.recordAssistantActionResult($event.detail)"
@@ -669,8 +671,19 @@
             @include('livewire.tools.partials.operations-assist')
         @endif
         <div class="rt-chatbot__body" id="railtime-assistant-content" @if($operationsAvailable) role="tabpanel" aria-labelledby="railtime-assistant-tab-{{ $operationsTab }}" @endif>
-            @if($operationsAvailable && $operationsTab !== 'chat')
+            @if($operationsAvailable && $operationsIntakeMounted && $operationsAssist['intakesReady'])
+                <div class="rt-assistant-operations__content min-w-0" data-ai-intake-panel-host
+                    x-show="operationsTab === 'intake'" @if($operationsTab !== 'intake') style="display:none" @endif
+                    x-effect="if (!open || operationsTab !== 'intake') $dispatch('ai-intake-panel-hidden')">
+                    <livewire:operations.ai-intake-inbox :embedded="true" :customer-id="$operationsIntakeCustomerId"
+                        :initial-intake-id="$operationsIntakeId" :initial-capture="$operationsIntakeCapture"
+                        :key="'global-assist-intake-'.($operationsIntakeCustomerId ?? 'all')" />
+                </div>
+            @endif
+            @if($operationsAvailable && in_array($operationsTab, ['actions', 'activity'], true))
                 @include('livewire.tools.partials.operations-assist-content')
+            @elseif($operationsAvailable && $operationsTab === 'intake')
+                @unless($operationsAssist['intakesReady'])<p class="rt-ai-assist__note">Die AI-Annahme ist noch nicht eingerichtet.</p>@endunless
             @else
             <div
                 class="rt-chatbot__messages"
@@ -1026,7 +1039,7 @@
                 </div>
             </template>
 
-            @if(!$operationsAvailable || in_array($operationsTab, ['chat', 'intake'], true))
+            @if(!$operationsAvailable || $operationsTab === 'chat')
             <form class="rt-chatbot__composer" x-on:submit.prevent="submitComposer($event)">
                 @if($operationsAvailable && $operationsTab === 'intake')
                     <p class="rt-assistant-operations__composer-label"><i class="far fa-inbox" aria-hidden="true"></i> Als AI-Eingang erfassen <small>Keine verbindliche Zusage</small></p>

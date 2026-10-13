@@ -20,9 +20,11 @@
     ]));
     $modeLabel = 'Disposition · '.($enabled ? ($mode === 'assisted' ? 'Assistiert' : 'Automatisch') : 'AI-Eingang aus');
 @endphp
-<div class="rt-ai-assist" x-data="rtAiAssist" :data-open="open ? 'true' : 'false'" data-open="false"
+<div class="rt-ai-assist" x-data="rtAiAssist" :data-open="open ? 'true' : 'false'" data-open="false" data-intake-open="{{ $intakeRequested ? 'true' : 'false' }}"
     data-hints="{{ json_encode($hints, JSON_UNESCAPED_UNICODE) }}" data-actions="{{ json_encode($allActions, JSON_UNESCAPED_UNICODE) }}"
-    x-on:keydown.window="shortcut($event)" x-on:keydown.escape="escape($event)" x-on:railtime-assistant-open.window="toggle(true)" data-ai-assist>
+    x-on:keydown.window="shortcut($event)" x-on:keydown.escape="escape($event)" x-on:railtime-assistant-open.window="toggle(true)"
+    x-on:railtime-ai-intake-open.window="openIntake($event.detail)"
+    x-on:ai-assist-intake-opened.window="if ($event.detail.componentId === @js($this->getId())) toggle(true)" data-ai-assist>
     <div x-data="railtimeAssistantCloud()" :data-state="orbState" data-state="idle">
         <div class="rt-ai-assist__stage">
             <div class="rt-ai-assist__bubble" role="status" aria-live="polite" x-show="bubble && !open && prefs.proactive && hints.length > 0" style="display: none">
@@ -53,7 +55,7 @@
                 <div class="rt-ai-assist__head-actions">
                     <button class="rt-ai-assist__icon-btn" type="button" :aria-expanded="settingsOpen ? 'true' : 'false'" aria-expanded="false" aria-label="Assistenz-Einstellungen" title="Einstellungen"
                         x-on:click="settingsOpen = !settingsOpen; @if($canConfigure) if (settingsOpen) $wire.openSettings(); @endif"><i class="far fa-cog" aria-hidden="true"></i></button>
-                    <button class="rt-ai-assist__icon-btn" type="button" aria-label="Neues Gespräch" title="Neues Gespräch" wire:click="resetConversation" @disabled($messages === [])><i class="far fa-edit" aria-hidden="true"></i></button>
+                    @if($tab === 'chat')<button class="rt-ai-assist__icon-btn" type="button" aria-label="Neues Gespräch" title="Neues Gespräch" wire:click="resetConversation" @disabled($messages === [])><i class="far fa-edit" aria-hidden="true"></i></button>@endif
                     <button class="rt-ai-assist__icon-btn" type="button" aria-label="AI-Assist schließen" title="Schließen (Esc)" x-on:click="toggle(false)"><i class="far fa-times" aria-hidden="true"></i></button>
                 </div>
 
@@ -109,11 +111,11 @@
                             <div class="rt-ai-assist__setting"><span class="rt-ai-assist__setting-copy"><strong>Antwortfrist</strong><small>Kundenantwort</small></span><b>{{ $values['reply_timeout_hours'] }} Stunden</b></div>
                         </div>
                     @endif
-                    <p class="rt-ai-assist__privacy"><i class="far fa-info-circle" aria-hidden="true"></i><span>Antworten sind Auswertungen der Planungsdaten in RailTime; Live- und Personaldaten verlassen den Server dafür nicht. Einteilungen geschehen erst nach deiner Bestätigung und lassen sich zurücknehmen.@if($supervisor) Verantwortlich: {{ $supervisor }}.@endif</span></p>
+                    <p class="rt-ai-assist__privacy"><i class="far fa-info-circle" aria-hidden="true"></i><span>Mailinhalte und ergänzte Dateien werden über die eingerichtete AI-Verbindung geprüft. Kundenzuordnung, Erfassung und Versand bleiben persönlich freizugeben.@if($supervisor) Verantwortlich: {{ $supervisor }}.@endif</span></p>
                 </div>
             </header>
 
-            <details class="rt-ai-assist__context rt-ai-assist__context--compact" x-show="prefs.context">
+            <details class="rt-ai-assist__context rt-ai-assist__context--compact" x-show="prefs.context && $wire.tab !== 'intake'">
                 <summary><i class="far fa-eye" aria-hidden="true"></i><span>{{ $pageLabel }}</span><small>{{ $reviewCount }} zur Prüfung</small><i class="far fa-chevron-down" aria-hidden="true"></i></summary>
                 <div class="rt-ai-assist__chips">
                     @foreach($chips as [$label, $value])
@@ -136,9 +138,17 @@
                     </button>
                 @endforeach
             </nav>
+            <p class="rt-ai-assist__error" x-show="callError" style="display:none" role="alert" x-text="callError"></p>
 
             <div class="rt-ai-assist__body" id="{{ $panelId }}-body" role="tabpanel" aria-labelledby="{{ $panelId }}-tab-{{ $tab }}" @if(in_array($tab, ['intake', 'activity'], true)) wire:poll.20s.visible @endif>
-                @if($tab === 'chat')
+                @if($intakeMounted && $intakesReady)
+                    <div class="rt-ai-assist__intake-workspace" x-show="$wire.tab === 'intake'" @if($tab !== 'intake') style="display:none" @endif>
+                        <livewire:operations.ai-intake-inbox :embedded="true" :customer-id="$intakeCustomerId" :initial-intake-id="$intakeId" :initial-capture="$intakeCapture" :key="'ai-assist-intake-workspace-'.($intakeCustomerId ?? 'all')" />
+                    </div>
+                @endif
+                @if($tab === 'intake')
+                    @unless($intakesReady)<p class="rt-ai-assist__note">Die AI-Annahme ist derzeit nicht verfügbar.</p>@endunless
+                @elseif($tab === 'chat')
                     <div class="rt-ai-assist__messages" x-ref="messages" x-on:scroll.passive="handleMessagesScroll()" aria-live="polite">
                         @if($messages === [])
                             <div class="rt-ai-assist__empty" x-show="!busy">
@@ -242,47 +252,6 @@
                         </div>
                     </div>
                     <button type="button" class="rt-ai-assist__new-output" x-show="unseenOutput" style="display:none" x-on:click="jumpToLatest()">Neue Antworten <i class="far fa-arrow-down" aria-hidden="true"></i></button>
-                @elseif($tab === 'intake')
-                    <div class="rt-ai-assist__scroll">
-                        <div class="rt-ai-assist__intake-head">
-                            <p>Eingänge aus Postfach, Sprache und Dateien – prüfen, zuordnen und freigeben.</p>
-                            <a class="rt-ai-assist__btn" data-primary="true" href="{{ \App\Support\Operations\OperationsPages::url('cases', ['view' => 'inbox', 'section' => 'ai-intake']) }}"><i class="far fa-plus" aria-hidden="true"></i>Eingang erfassen</a>
-                        </div>
-                        <div class="rt-ai-assist__tools">
-                            <label class="rt-ai-assist__search"><i class="far fa-search" aria-hidden="true"></i><span class="sr-only">AI-Eingang suchen</span>
-                                <input type="search" placeholder="AI-Eingang suchen" wire:model.live.debounce.300ms="intakeSearch" maxlength="100"></label>
-                            <label class="sr-only" for="{{ $panelId }}-intake-status">Bearbeitungsstand</label>
-                            <select id="{{ $panelId }}-intake-status" wire:model.live="intakeStatus">
-                                <option value="all">Alle Zustände</option>
-                                @foreach($labels as $value => $label)<option value="{{ $value }}">{{ $label }}</option>@endforeach
-                            </select>
-                        </div>
-                        @if($intakesReady)
-                            <livewire:operations.ai-intake-assistant :key="'ai-assist-intake-discussion'" />
-                        @endif
-                        @if($intakes->isEmpty())
-                            <p class="rt-ai-assist__note">Noch keine AI-Eingänge für diese Auswahl.</p>
-                        @else
-                            <ol class="rt-ai-assist__activity">
-                                @foreach($intakes as $intake)
-                                    @php
-                                        $tone = $service->tone($intake->status);
-                                    @endphp
-                                    <li wire:key="ai-assist-intake-{{ $intake->id }}">
-                                        <a class="rt-ai-assist__activity-item" href="{{ $service->intakeUrl($intake) }}">
-                                            <span class="rt-ai-assist__activity-icon" data-tone="{{ $tone }}"><i class="far {{ $intake->status === 'completed' ? 'fa-check' : 'fa-inbox' }}" aria-hidden="true"></i></span>
-                                            <span class="rt-ai-assist__activity-text"><strong>{{ $intake->title ?: 'Eingang #'.$intake->id }}</strong><small>{{ $intake->customer?->company_name ?? 'Bitte prüfen und zuordnen' }}</small></span>
-                                            <span class="rt-ai-assist__activity-side"><span>{{ \Carbon\CarbonImmutable::parse($intake->updated_at)->setTimezone(config('operations.display_timezone', 'Europe/Berlin'))->format('d.m. H:i') }}</span><span class="rt-ai-assist__badge" data-tone="{{ $tone }}">{{ $labels[$intake->status] ?? $intake->status }}</span></span>
-                                        </a>
-                                        <div class="flex justify-end px-3 pb-2">
-                                            <button type="button" class="rt-ai-assist__btn" wire:click="$dispatch('select-ai-intake-assistant', { intakeId: {{ $intake->id }} })"
-                                                aria-label="{{ ($intake->title ?: 'Eingang #'.$intake->id).' mit AI besprechen' }}"><i class="far fa-comment-alt" aria-hidden="true"></i>Mit AI besprechen</button>
-                                        </div>
-                                    </li>
-                                @endforeach
-                            </ol>
-                        @endif
-                    </div>
                 @elseif($tab === 'actions')
                     <div class="rt-ai-assist__scroll">
                         @include('livewire.tools.partials.operations-automation-status')
@@ -343,7 +312,6 @@
 
             @if($tab === 'chat')
                 <form class="rt-ai-assist__composer" x-on:submit.prevent="submit()">
-                    <p class="rt-ai-assist__error" x-show="callError" style="display:none" role="alert" x-text="callError"></p>
                     <div class="rt-ai-assist__slash" role="listbox" aria-label="Aktionen" x-show="slash" style="display: none">
                         <template x-for="(action, index) in slashList" :key="action.key">
                             <button type="button" role="option" class="rt-ai-assist__slash-item" :aria-selected="index === slashIndex ? 'true' : 'false'" x-on:click="run(action.key)">

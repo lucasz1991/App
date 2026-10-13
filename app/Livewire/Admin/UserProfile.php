@@ -117,6 +117,10 @@ class UserProfile extends Component
 
         $this->userId = $userId;
         $this->loadUser();
+        $requestedTab = request()->query('profileTab');
+        if (is_string($requestedTab) && isset($this->profileTabs()[$requestedTab])) {
+            $this->profileTab = $requestedTab;
+        }
 
         if ($this->personnelAllowed('employees.master-data.view') || $this->personnelAllowed('employees.compensation.view')) {
             activity('employee-master-data')
@@ -162,16 +166,17 @@ class UserProfile extends Component
             $tabs['devices'] = ['label' => 'Geräte', 'icon' => 'fad fa-laptop'];
         }
         if ($this->personnelAllowed('employees.master-data.view')) {
-            $tabs['masterData'] = ['label' => __('app.master_data'), 'icon' => 'fad fa-user-lock'];
-            $tabs['documents'] = ['label' => __('app.employee_documents'), 'icon' => 'fad fa-folder-check'];
+            $tabs['masterData'] = ['label' => __('app.master_data'), 'icon' => 'fad fa-user-lock', 'group' => 'Personalakte'];
+            $tabs['documents'] = ['label' => __('app.employee_documents'), 'icon' => 'fad fa-folder-check', 'group' => 'Personalakte'];
         }
         if ($this->personnelAllowed('employees.compensation.view')) {
-            $tabs['compensation'] = ['label' => __('app.compensation_data'), 'icon' => 'fad fa-coins'];
+            $tabs['compensation'] = ['label' => __('app.compensation_data'), 'icon' => 'fad fa-coins', 'group' => 'Personalakte'];
         }
 
         if ($this->operationalProfileAllowed()) {
             $tabs['operationsOverview'] = ['label' => 'Übersicht', 'icon' => 'far fa-chart-line', 'group' => 'Betrieb'];
             $tabs['shifts'] = ['label' => 'Schichten', 'icon' => 'far fa-calendar-days', 'group' => 'Betrieb'];
+            $tabs['regions'] = ['label' => 'Einsatzgebiete', 'icon' => 'far fa-map-location-dot', 'group' => 'Betrieb'];
         }
         if (auth()->user()?->isActive() && auth()->user()->isAdmin() && $this->user->role === 'staff') {
             $tabs['locations'] = ['label' => 'Standorte', 'icon' => 'far fa-location-dot', 'group' => 'Betrieb'];

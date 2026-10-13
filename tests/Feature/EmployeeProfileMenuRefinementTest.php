@@ -191,7 +191,7 @@ class EmployeeProfileMenuRefinementTest extends TestCase
             'personal overview' => ['userDetails', 'Profil & Stammdaten'],
             'operational overview' => ['operationsOverview', 'Betrieb'],
             'assigned shifts' => ['shifts', 'Betrieb'],
-            'personal master data' => ['masterData', 'Profil & Stammdaten'],
+            'personnel master data' => ['masterData', 'Personalakte'],
         ];
     }
 

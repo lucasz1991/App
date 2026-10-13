@@ -5,6 +5,9 @@ namespace App\Livewire\Operations;
 use App\Models\AiIntake;
 use App\Models\User;
 use App\Services\Ai\OpenRouterChatException;
+use App\Services\Ai\AssistantSpeechException;
+use App\Services\Ai\Attachments\AssistantAttachmentException;
+use App\Services\Ai\Attachments\AssistantAttachmentProcessor;
 use App\Services\Operations\AiIntakeAssistantService;
 use App\Services\Operations\AiIntakeMessageContent;
 use App\Services\Operations\AiIntakeService;
@@ -17,12 +20,16 @@ use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Component;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
+use Livewire\WithFileUploads;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
 
 /** Questions and explicit recognition guidance for one selected intake. */
 class AiIntakeAssistant extends Component
 {
+    use WithFileUploads;
+
     #[Locked]
     public ?int $intakeId = null;
 
@@ -43,9 +50,24 @@ class AiIntakeAssistant extends Component
 
     public string $prompt = '';
 
-    public function mount(): void
+    public string $promptMode = 'question';
+
+    public array $uploads = [];
+
+    public $audioUpload = null;
+
+    #[Locked]
+    public string $uploadContext = '';
+
+    #[Locked]
+    public ?int $contextActorId = null;
+
+    public function mount(?int $initialIntakeId = null): void
     {
-        $this->actor();
+        $this->contextActorId = $this->actor()->id;
+        if ($initialIntakeId) {
+            $this->select($initialIntakeId);
+        }
     }
 
     #[On('select-ai-intake-assistant')]
@@ -53,6 +75,7 @@ class AiIntakeAssistant extends Component
     {
         $this->actor();
         $intake = AiIntake::findOrFail($intakeId);
+        $this->discardTemporaryUploads();
         $this->intakeId = $intake->id;
         $this->intakeRevision = $intake->revision;
         $this->sourceRevision = $intake->source_revision;
@@ -74,6 +97,7 @@ class AiIntakeAssistant extends Component
     public function close(): void
     {
         $this->actor();
+        $this->discardTemporaryUploads();
         $this->intakeId = null;
         $this->intakeRevision = $this->sourceRevision = $this->settingsRevision = 0;
         $this->feedback = $this->prompt = '';
@@ -81,13 +105,96 @@ class AiIntakeAssistant extends Component
         $this->resetValidation();
     }
 
+    #[On('ai-intake-selected')]
+    public function selectedContextChanged(int $intakeId, ?int $customerId = null, ?string $componentId = null, ?int $intakeRevision = null, ?int $sourceRevision = null): void
+    {
+        $this->actor();
+        if ($intakeId === $this->intakeId) {
+            $this->current();
+        }
+    }
+
+    public function beginContextUpload(): void
+    {
+        $this->actor();
+        abort_unless($this->current(), 409, 'Den aktuellen Eingang vor dem Hochladen erneut auswählen.');
+        abort_if(($this->uploads !== [] || $this->audioUpload) && $this->uploadContext !== $this->contextKey(), 409, 'Alte zusätzliche Dateien zuerst entfernen.');
+        $this->uploadContext = $this->contextKey();
+    }
+
+    public function updatedUploads(): void
+    {
+        $this->actor();
+        if (! $this->uploadsCurrent()) {
+            return;
+        }
+        try {
+            $this->validate(['uploads' => 'array|max:3', 'uploads.*' => 'file|max:10240']);
+            // Audio is handled by the configured speech router only on explicit submission.
+            $documents = array_filter($this->uploads, fn ($file) => ! in_array(strtolower($file->getClientOriginalExtension()), ['wav', 'mp3', 'ogg', 'webm', 'm4a', 'mp4', 'aac', 'flac'], true));
+            app(AssistantAttachmentProcessor::class)->validate(array_values($documents));
+        } catch (AssistantAttachmentException $error) {
+            $this->addError('uploads', $error->userMessage);
+        }
+    }
+
+    public function updatedAudioUpload(): void
+    {
+        $this->actor();
+        if ($this->uploadsCurrent()) {
+            $this->validate(['audioUpload' => 'nullable|file|max:8192']);
+        }
+    }
+
+    public function removeUpload(int $index): void
+    {
+        $this->actor();
+        if (isset($this->uploads[$index])) {
+            if (! $this->uploads[$index] instanceof TemporaryUploadedFile || ! $this->uploads[$index]->delete()) {
+                $this->addError('uploads', 'Die temporäre Datei konnte nicht entfernt werden. Bitte erneut versuchen.');
+
+                return;
+            }
+            unset($this->uploads[$index]);
+            $this->uploads = array_values($this->uploads);
+        }
+        $this->resetValidation(['uploads', 'uploads.*']);
+    }
+
+    public function removeAudio(): void
+    {
+        $this->actor();
+        if ($this->audioUpload && (! $this->audioUpload instanceof TemporaryUploadedFile || ! $this->audioUpload->delete())) {
+            $this->addError('audioUpload', 'Die temporäre Aufnahme konnte nicht entfernt werden. Bitte erneut versuchen.');
+
+            return;
+        }
+        $this->audioUpload = null;
+        $this->resetValidation('audioUpload');
+        $this->dispatch('ai-intake-composer-audio-removed', componentId: $this->getId());
+    }
+
+    public function discardUploads(): void
+    {
+        $this->actor();
+        $this->discardTemporaryUploads();
+    }
+
+    public function submitPrompt(): void
+    {
+        $this->validate(['promptMode' => 'required|in:question,review']);
+        $this->promptMode === 'review' ? $this->review() : $this->ask();
+    }
+
     public function ask(): void
     {
         $this->perform(function (User $actor, AiIntake $intake): void {
             $this->prompt = trim($this->prompt);
-            $this->validate(['prompt' => 'required|string|max:2000']);
-            app(AiIntakeAssistantService::class)->ask($intake, $actor, $this->intakeRevision, trim($this->prompt));
+            $this->validatePrompt();
+            app(AiIntakeAssistantService::class)->ask($intake, $actor, $this->intakeRevision, $this->prompt, $this->uploads, $this->audioUpload, $this->settingsRevision);
             $this->prompt = '';
+            $this->discardTemporaryUploads();
+            $this->dispatch('ai-intake-composer-submitted', componentId: $this->getId());
         });
     }
 
@@ -95,15 +202,67 @@ class AiIntakeAssistant extends Component
     {
         $this->perform(function (User $actor, AiIntake $intake): void {
             $this->prompt = trim($this->prompt);
-            $this->validate(['prompt' => 'required|string|max:2000']);
+            $this->validatePrompt();
             abort_unless($intake->source_type === 'email', 422);
-            $recognized = app(AiIntakeService::class)->analyzeManually($intake, $actor, $this->intakeRevision, $this->settingsRevision, trim($this->prompt));
+            $context = $this->uploads !== [] || $this->audioUpload
+                ? app(AiIntakeAssistantService::class)->prepareReviewContext($intake, $actor, $this->intakeRevision, $this->settingsRevision, $this->uploads, $this->audioUpload)
+                : null;
+            $recognized = $context
+                ? app(AiIntakeService::class)->analyzeManually($intake, $actor, $this->intakeRevision, $this->settingsRevision, $this->prompt, $context)
+                : app(AiIntakeService::class)->analyzeManually($intake, $actor, $this->intakeRevision, $this->settingsRevision, $this->prompt);
             $this->intakeRevision = $recognized->revision;
             $this->sourceRevision = $recognized->source_revision;
             $this->prompt = '';
+            $this->discardTemporaryUploads();
             $this->feedback = 'Die Mail wurde mit deinem Hinweis erneut erkannt. Ergebnis und offene Angaben im Eingang prüfen; Anfragen und Versand bleiben persönlich freizugeben.';
             $this->dispatch('disposition-mailbox-updated');
+            $this->dispatch('ai-intake-composer-submitted', componentId: $this->getId());
         });
+    }
+
+    private function validatePrompt(): void
+    {
+        $this->validate(['prompt' => ($this->uploads !== [] || $this->audioUpload ? 'nullable' : 'required').'|string|max:2000']);
+        if (($this->uploads !== [] || $this->audioUpload) && ! $this->uploadsCurrent()) {
+            throw ValidationException::withMessages(['uploads' => 'Die Dateien gehören nicht mehr zum ausgewählten Eingang. Bitte erneut hinzufügen.']);
+        }
+    }
+
+    private function contextKey(): string
+    {
+        return implode(':', [$this->intakeId, $this->intakeRevision, $this->sourceRevision, $this->settingsRevision]);
+    }
+
+    private function uploadsCurrent(): bool
+    {
+        if (! $this->current() || $this->uploadContext === '' || $this->uploadContext !== $this->contextKey()) {
+            $this->discardTemporaryUploads();
+            $this->addError('uploads', 'Der Eingang wurde geändert. Bitte die zusätzlichen Hinweise erneut auswählen.');
+
+            return false;
+        }
+
+        return true;
+    }
+
+    private function discardTemporaryUploads(): void
+    {
+        $remaining = [];
+        foreach ($this->uploads as $file) {
+            if ($file instanceof TemporaryUploadedFile && ! $file->delete()) {
+                $remaining[] = $file;
+            }
+        }
+        $this->uploads = $remaining;
+        if ($this->audioUpload instanceof TemporaryUploadedFile && ! $this->audioUpload->delete()) {
+            $this->addError('audioUpload', 'Die temporäre Aufnahme konnte nicht entfernt werden. Bitte erneut entfernen.');
+        } else {
+            $this->audioUpload = null;
+        }
+        $this->uploadContext = '';
+        if ($remaining !== []) {
+            $this->addError('uploads', 'Eine temporäre Datei konnte nicht entfernt werden. Bitte erneut entfernen.');
+        }
     }
 
     private function actor(): User
@@ -111,6 +270,7 @@ class AiIntakeAssistant extends Component
         $actor = auth()->user();
         abort_unless($actor instanceof User, 403);
         $actor = User::findOrFail($actor->id);
+        abort_if($this->contextActorId !== null && $this->contextActorId !== $actor->id, 403);
         OperationsAccess::authorize($actor, 'operations.inquiries.manage');
         OperationsAccess::requireReady();
         AiIntakeSchema::requireReady();
@@ -128,6 +288,7 @@ class AiIntakeAssistant extends Component
             || (int) AiDispositionSettings::all(true)['revision'] !== $this->settingsRevision) {
             $this->contextChanged = true;
             $this->prompt = $this->feedback = '';
+            $this->discardTemporaryUploads();
 
             return null;
         }
@@ -148,7 +309,8 @@ class AiIntakeAssistant extends Component
             $action($actor, $intake);
         } catch (ValidationException $error) {
             foreach ($error->errors() as $field => $messages) {
-                $this->addError($field === 'review_prompt' ? 'prompt' : $field, implode(' ', $messages));
+                $target = $field === 'review_prompt' ? 'prompt' : (str_starts_with($field, 'uploads') ? 'uploads' : (in_array($field, ['prompt', 'promptMode', 'audioUpload'], true) ? $field : 'assistant'));
+                $this->addError($target, implode(' ', $messages));
             }
         } catch (HttpException $error) {
             if (in_array($error->getStatusCode(), [403, 404], true)) {
@@ -168,6 +330,10 @@ class AiIntakeAssistant extends Component
                 $error->upstreamStatus === 402 => 'Das Guthaben beim AI-Anbieter reicht für diese Prüfung nicht aus. Guthaben oder Abrechnung prüfen.',
                 default => 'Die AI-Prüfung konnte gerade nicht abgeschlossen werden. Bitte erneut versuchen.',
             });
+        } catch (AssistantAttachmentException $error) {
+            $this->addError('uploads', $error->userMessage);
+        } catch (AssistantSpeechException $error) {
+            $this->addError('audioUpload', 'Die Spracheingabe konnte gerade nicht vollständig erkannt werden. Bitte erneut versuchen oder Text eingeben.');
         } catch (Throwable $error) {
             Log::warning('AI intake assistant processing failed.', ['exception_class' => str_contains($error::class, '@anonymous') ? (get_parent_class($error) ?: Throwable::class) : $error::class,
                 'intake_id' => $this->intakeId, 'actor_id' => $actor->id]);
@@ -182,6 +348,7 @@ class AiIntakeAssistant extends Component
         $history = $intake ? $intake->runs()->where('kind', 'intake_question')->where('status', 'succeeded')
             ->where('source_revision', $this->sourceRevision)->where('supervising_user_id', $actor->id)->where('settings_revision', $this->settingsRevision)->latest('id')->limit(12)->get()
             ->filter(fn ($run) => ($run->configuration['actor_id'] ?? null) === $actor->id && ($run->configuration['intake_revision'] ?? null) === $this->intakeRevision
+                && ($run->configuration['purpose'] ?? 'question') === 'question'
                 && ($run->configuration['extraction_version'] ?? null) === AiIntakeMessageContent::VERSION)
             ->reverse() : collect();
 
