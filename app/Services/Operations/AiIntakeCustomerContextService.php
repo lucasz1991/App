@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Support\Operations\AiDispositionSettings;
 use App\Support\Operations\AiIntakeSchema;
 use App\Support\Operations\OperationsAccess;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -55,7 +56,7 @@ class AiIntakeCustomerContextService
         [$current, $actor, $snapshot, $message, $settings] = $this->begin($intake, $actor);
         [$text, $signals, $sourceAvailable] = $this->source($message);
         $text = $this->withoutBlindCopies($text);
-        $signature = implode("\n", array_slice(explode("\n", $text), -12));
+        $signature = $this->signature($text);
         $internalDomains = $internalEmails = [];
         foreach ([$settings['from_address'], $settings['imap_username'], config('mail.from.address', '')] as $address) {
             if ($email = $this->email($address)) {
@@ -67,7 +68,7 @@ class AiIntakeCustomerContextService
         }
         $signals = [...$signals, ...$this->bodySignals($text, $signature)];
         $signalEmails = array_values(array_unique(array_column($signals, 'value')));
-        $internalEmails = array_merge($internalEmails, User::whereIn('email', $signalEmails)->pluck('email')->map(fn ($value) => $this->email($value))->filter()->all());
+        $internalEmails = array_merge($internalEmails, User::whereIn(DB::raw('LOWER(TRIM(email))'), $signalEmails)->pluck('email')->map(fn ($value) => $this->email($value))->filter()->all());
         $signals = array_values(array_filter($signals, fn ($signal) => ! in_array($signal['value'], $internalEmails, true) && ! in_array($this->domain($signal['value']), $internalDomains, true)));
         $customers = Customer::active()->orderBy('id')->limit(2001)->get(['id', 'company_name', 'email']);
         $lookupTruncated = $customers->count() > 2000;
@@ -204,6 +205,20 @@ class AiIntakeCustomerContextService
                 'intake_revision' => $record->revision, 'source_revision' => $record->source_revision, 'customer_id' => $record->customer_id,
                 'source_hash' => $this->messageHash($related), 'reasons' => array_values(array_unique([...$relationship, ...$reasons]))];
         })->filter()->sort(fn ($a, $b) => $b['relevance'] <=> $a['relevance'] ?: $b['message_id'] <=> $a['message_id'])->values();
+        // A concurrent assignment or new source must not turn an earlier read into a foreign-customer hint.
+        $freshMails = AiIntakeMessage::whereIn('id', $mailRows->pluck('message_id'))->where('direction', 'inbound')->with('intake')->get()->keyBy('id');
+        $mailRows = $mailRows->filter(function ($row) use ($freshMails, $mailbox, $allowedCandidateId): bool {
+            $mail = $freshMails->get($row['message_id']);
+
+            return $mail && $mail->intake && $mail->intake->status !== 'not_inquiry'
+                && in_array($mail->intake->customer_id, [null, $allowedCandidateId], true)
+                && $mail->intake->customer_id === $row['customer_id'] && $mail->intake->revision === $row['intake_revision']
+                && $mail->intake->source_revision === $row['source_revision']
+                && (string) ($mail->metadata['mailbox_id'] ?? $mail->mailbox_id ?? '') === $mailbox
+                && hash_equals($row['source_hash'], $this->messageHash($mail));
+        })->values();
+        $freshOrderIds = $ordersAllowed ? Order::where('customer_id', $allowedCandidateId)->whereIn('id', $orderRows->pluck('id'))->pluck('id') : collect();
+        $orderRows = $orderRows->filter(fn ($row) => $freshOrderIds->contains($row['id']))->values();
         $this->assertCurrent($current, $actor, $snapshot);
 
         return ['customer' => ['id' => $allowedCandidateId, 'name' => $candidate['name']], 'orders' => $orderRows->take(5)->all(), 'related_mails' => $mailRows->take(5)->all(),
@@ -298,6 +313,18 @@ class AiIntakeCustomerContextService
         return array_slice(array_values($signals), 0, 64);
     }
 
+    private function signature(string $text): string
+    {
+        $lines = explode("\n", $text);
+        foreach (array_reverse(array_keys($lines)) as $index) {
+            if ($index >= count($lines) - 30 && preg_match('/^\s*(?:Mit freundlichen Gr[üu]ßen|Freundliche Gr[üu]ße|Viele Gr[üu]ße|Beste Gr[üu]ße|Kind regards|Best regards|Regards|Sincerely|--\s*$)/iu', $lines[$index])) {
+                return implode("\n", array_slice($lines, $index));
+            }
+        }
+
+        return '';
+    }
+
     private function withoutBlindCopies(string $text): string
     {
         $result = [];
@@ -342,10 +369,10 @@ class AiIntakeCustomerContextService
         return mb_strtolower(trim(preg_replace('/\s+/u', ' ', $value)));
     }
 
-    private function literalName(string $source, ?string $name): ?string
+    private function literalName(string $source, ?string $name, int $minimumLength = 3): ?string
     {
         $name = trim((string) $name);
-        if (mb_strlen($name) < 3 || mb_strlen($name) > 180) {
+        if (mb_strlen($name) < $minimumLength || mb_strlen($name) > 180) {
             return null;
         }
         $parts = preg_split('/\s+/u', $name, -1, PREG_SPLIT_NO_EMPTY);
@@ -359,7 +386,7 @@ class AiIntakeCustomerContextService
         $score = 0;
         $reasons = [];
         foreach (['order_reference' => [$reference, 100], 'same_location' => [$location, 40], 'same_title' => [$title, 30], 'same_role' => [$role, 20]] as $key => [$value, $weight]) {
-            if ($value && $this->literalName($source, $value)) {
+            if ($value && $this->literalName($source, $value, $key === 'same_role' ? 2 : 3)) {
                 $score += $weight;
                 $reasons[] = $key;
             }

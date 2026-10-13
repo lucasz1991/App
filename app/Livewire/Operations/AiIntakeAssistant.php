@@ -154,18 +154,6 @@ class AiIntakeAssistant extends Component
         $this->resetValidation();
     }
 
-    #[On('ai-intake-selected')]
-    public function selectedContextChanged(int $intakeId, ?int $customerId = null, ?string $componentId = null, ?int $intakeRevision = null, ?int $sourceRevision = null): void
-    {
-        if ($componentId !== null && $componentId !== $this->hostComponentId) {
-            return;
-        }
-        $this->actor();
-        if ($intakeId === $this->intakeId) {
-            $this->current();
-        }
-    }
-
     public function beginContextUpload(): void
     {
         $this->actor();

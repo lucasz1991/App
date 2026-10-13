@@ -349,15 +349,9 @@ class AiIntakeService
                 abort_unless($message && ($message->metadata['mailbox_id'] ?? '') === AiDispositionSettings::mailboxId($settings)
                     && (int) ($message->metadata['uid'] ?? 0) > 0 && (int) ($message->metadata['uid_validity'] ?? 0) > 0, 409, 'Die Mail gehört nicht zum aktuellen Dispositionspostfach.');
                 abort_if($current->error_code !== 'mailbox_test_review' && (str_starts_with((string) $current->error_code, 'mailbox_') || in_array($current->error_code, ['sender_unverified', 'attachments_review', 'automatic_message_review'], true)), 422, 'Die vollständige Mailquelle und Anlagen zuerst manuell prüfen.');
-                $successfulRun = $current->runs()->where('source_revision', $current->source_revision)->whereIn('kind', ['analysis', 'mailbox_test'])->where('status', 'succeeded')->latest('id')->first();
-                $successful = $reviewPrompt === '' && $reviewContext === null && $current->processed_source_revision === $current->source_revision && $current->analysis
-                    && ($successfulRun?->configuration['extraction_version'] ?? null) === AiIntakeMessageContent::VERSION;
-                if ($successful) {
-                    foreach ($current->messages()->where('direction', 'inbound')->get() as $source) {
-                        app(AiIntakeMessageContent::class)->forMessage($source);
-                    }
-
-                    return $current;
+                // Every explicit recognition requests a fresh provider analysis of the immutable source.
+                foreach ($current->messages()->where('direction', 'inbound')->get() as $source) {
+                    app(AiIntakeMessageContent::class)->forMessage($source);
                 }
                 abort_if($current->proposals()->where(function ($q): void {
                     $q->whereNotNull('inquiry_id')->orWhereIn('status', ['approved', 'applied']);
@@ -374,9 +368,6 @@ class AiIntakeService
 
                 return $current;
             });
-            if (! $run) {
-                return $current;
-            }
             app(AiDispositionClient::class)->assertManualContext($run);
             $extracted = $reviewContext
                 ? app(AiIntakeExtractionService::class)->extract($current, $run, $reviewContext)

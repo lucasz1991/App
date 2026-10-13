@@ -65,7 +65,7 @@
         <label class="sr-only" for="{{ $composerId }}-prompt">{{ $assistantComposer ? 'Frage oder Prüfhinweis' : 'Anfrage beschreiben' }}</label>
         <textarea id="{{ $composerId }}-prompt" class="rt-intake-composer__input min-h-10 min-w-0 flex-1 resize-none border-0 bg-transparent px-1 py-2 text-sm focus:ring-0"
             rows="1" maxlength="{{ $composerLimit }}" wire:model="{{ $composerField }}" x-ref="prompt" x-on:input="updateInput()" x-on:keydown.enter="enter($event)"
-            x-bind:disabled="busy" placeholder="{{ $assistantComposer ? 'Frage stellen oder einen Prüfhinweis geben …' : 'Anfrage beschreiben oder Dateien anhängen …' }}"
+            x-bind:disabled="busy" placeholder="{{ $assistantComposer ? 'Frage oder Hinweis …' : 'Anfrage beschreiben …' }}"
             aria-describedby="intake-assistant-help-{{ $this->getId() }}"></textarea>
         <button type="submit" class="rt-intake-composer__send shrink-0 rounded-lg bg-rt-red p-2 text-white" x-bind:disabled="!canSubmit()" aria-label="{{ $assistantComposer ? 'Frage oder Prüfhinweis senden' : 'Als AI-Eingang erfassen' }}"><i class="far fa-paper-plane" aria-hidden="true"></i></button>
     </div>

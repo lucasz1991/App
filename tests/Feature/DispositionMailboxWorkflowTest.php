@@ -229,7 +229,7 @@ class DispositionMailboxWorkflowTest extends TestCase
         $this->noAutomaticEffects();
     }
 
-    public function test_repeated_recognition_keeps_one_source_proposal_and_completed_manual_analysis(): void
+    public function test_repeated_recognition_keeps_one_source_and_proposal_but_runs_two_fresh_analyses(): void
     {
         $first = $this->recognize();
         $second = app(DispositionMailboxWorkflowService::class)->recognize($this->admin, 'INBOX', 32, 401, $first['settings_revision']);
@@ -237,7 +237,7 @@ class DispositionMailboxWorkflowTest extends TestCase
         $this->assertSame($first['intake_id'], $second['intake_id']);
         $this->assertSame(1, AiIntakeMessage::count());
         $this->assertSame(1, AiIntakeProposal::count());
-        $this->assertSame(1, AiIntakeRun::where('kind', 'mailbox_test')->where('status', 'succeeded')->count());
+        $this->assertSame(2, AiIntakeRun::where('kind', 'mailbox_test')->where('status', 'succeeded')->count());
         $this->assertSame(0, OperationInquiry::count());
         $this->noAutomaticEffects();
     }
@@ -551,7 +551,7 @@ class DispositionMailboxWorkflowTest extends TestCase
     public function test_real_structured_http_pipeline_recognizes_a_welcome_mail_without_inquiry_or_business_actions(): void
     {
         $history = [];
-        $this->mockedHttpProvider([$this->welcomeProviderResponse()], $history);
+        $this->mockedHttpProvider([$this->welcomeProviderResponse(), $this->welcomeProviderResponse()], $history);
         $component = $this->openMessage(realExtraction: true, emailChanges: $this->welcomeEmail())
             ->call('startRecognition')->assertHasNoErrors()->assertSet('showMailbox', true)
             ->assertSet('guidedStep', 'recognition')->assertSet('guidedReview.detected_classification', 'not_inquiry')
@@ -581,9 +581,9 @@ class DispositionMailboxWorkflowTest extends TestCase
         $this->assertNull($run->provider_request_id);
         $this->assertNull($run->cost_usd);
         $component->call('startRecognition')->assertHasNoErrors()->assertSet('guidedReview.intake_id', $intake->id);
-        $this->assertCount(1, $history);
+        $this->assertCount(2, $history);
         $this->assertSame(1, AiIntakeMessage::count());
-        $this->assertSame(1, AiIntakeRun::count());
+        $this->assertSame(2, AiIntakeRun::count());
         $component->call('confirmGuidedClassification', false)->assertHasNoErrors()->assertSet('guidedStep', 'done');
         $this->assertSame('not_inquiry', $intake->fresh()->status);
         $this->noAutomaticEffects();

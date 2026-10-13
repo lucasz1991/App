@@ -23,6 +23,7 @@ use App\Services\Ai\OpenRouterModelProfile;
 use App\Services\Operations\AiDispositionClient;
 use App\Services\Operations\AiIntakeAttachmentService;
 use App\Services\Operations\AiIntakeExtractionService;
+use App\Services\Operations\AiIntakeHistoryToolService;
 use App\Services\Operations\AiIntakeMessageContent;
 use App\Services\Operations\AiIntakeService;
 use App\Support\Operations\AiDispositionSettings;
@@ -168,15 +169,18 @@ class AiIntakeManualRecognitionTest extends TestCase
         $this->noBindingOrSending();
     }
 
-    public function test_repeating_a_successful_current_source_reuses_the_same_result_without_provider_call(): void
+    public function test_repeating_a_successful_current_source_always_requests_a_fresh_provider_analysis(): void
     {
         $intake = $this->capture();
         $this->expectResult($intake);
         $first = $this->recognize($intake);
+        $this->expectResult($first, ['summary' => 'Fresh recognition without a review prompt']);
         $second = $this->recognize($first);
 
-        $this->assertSame($first->revision, $second->revision);
-        $this->assertSame(1, AiIntakeRun::count());
+        $this->assertGreaterThan($first->revision, $second->revision);
+        $this->assertSame('Fresh recognition without a review prompt', $second->analysis['summary']);
+        $this->assertSame($first->source_revision, $second->source_revision);
+        $this->assertSame(2, AiIntakeRun::count());
         $this->assertSame(1, AiIntakeProposal::count());
         $this->noBindingOrSending();
     }
@@ -200,7 +204,7 @@ class AiIntakeManualRecognitionTest extends TestCase
         $this->noBindingOrSending();
     }
 
-    public function test_explicit_review_guidance_bypasses_the_current_cache_and_is_stored_encrypted(): void
+    public function test_explicit_review_guidance_is_stored_encrypted_and_subsequent_blank_guidance_still_reanalyzes(): void
     {
         $intake = $this->capture();
         $this->expectResult($intake);
@@ -216,8 +220,9 @@ class AiIntakeManualRecognitionTest extends TestCase
         $this->assertSame('Reviewed with explicit guidance', $second->analysis['summary']);
         $this->assertSame($first->source_revision, $second->source_revision);
         $this->assertSame($this->raw(), app(AiIntakeAttachmentService::class)->bytes($second, $second->messages()->firstOrFail()->raw_path, $second->messages()->firstOrFail()->raw_hash));
-        $this->assertSame($second->revision, $this->recognize($second, '  ')->revision);
-        $this->assertSame(2, AiIntakeRun::count());
+        $this->expectResult($second, ['summary' => 'Fresh recognition with blank guidance']);
+        $this->assertGreaterThan($second->revision, $this->recognize($second, '  ')->revision);
+        $this->assertSame(3, AiIntakeRun::count());
         $this->noBindingOrSending();
     }
 
@@ -236,7 +241,7 @@ class AiIntakeManualRecognitionTest extends TestCase
         $this->noBindingOrSending();
     }
 
-    public function test_current_cache_never_hides_a_missing_archived_original(): void
+    public function test_repeated_recognition_never_hides_a_missing_archived_original(): void
     {
         $intake = $this->capture();
         $this->expectResult($intake);
@@ -367,7 +372,7 @@ class AiIntakeManualRecognitionTest extends TestCase
         $this->noBindingOrSending();
     }
 
-    public function test_existing_native_inquiry_is_never_overwritten_and_current_analysis_can_be_reused(): void
+    public function test_existing_native_inquiry_is_never_overwritten_or_hidden_behind_a_cached_success(): void
     {
         $intake = $this->capture();
         $inquiry = OperationInquiry::create(['channel' => 'email', 'title' => 'Native current inquiry', 'original' => 'Native original', 'status' => 'new', 'timezone' => 'Europe/Berlin', 'revision' => 1, 'created_by' => $this->actor->id]);
@@ -379,7 +384,7 @@ class AiIntakeManualRecognitionTest extends TestCase
             'supervising_user_id' => $this->actor->id, 'input_hash' => str_repeat('a', 64), 'configuration' => ['extraction_version' => AiIntakeMessageContent::VERSION], 'started_at' => now()->utc(), 'finished_at' => now()->utc()]);
         $before = $inquiry->fresh()->getRawOriginal();
 
-        $this->assertSame($intake->revision, $this->recognize($intake)->revision);
+        $this->rejected(fn () => $this->recognize($intake), 409);
         $this->rejected(fn () => $this->recognize($intake, 'Analyse ausdrücklich erneut prüfen.'), 409);
         $this->assertSame($before, $inquiry->fresh()->getRawOriginal());
         $this->assertSame('proposed', $proposal->fresh()->status);
@@ -728,7 +733,7 @@ class AiIntakeManualRecognitionTest extends TestCase
         $hints = ['candidates' => [['customer_id' => 42, 'name' => 'Historical customer']],
             'history' => [['customer' => ['id' => 42], 'orders' => [['id' => 73, 'location_name' => 'Historical place', 'required_staff' => 8]]]],
             'provenance' => ['kind' => 'historical_hint', 'original_evidence' => false]];
-        $this->mock(\App\Services\Operations\AiIntakeHistoryToolService::class, function ($mock) use ($hints): void {
+        $this->mock(AiIntakeHistoryToolService::class, function ($mock) use ($hints): void {
             $mock->shouldReceive('lookup')->once()->andReturn($hints);
         });
         $this->provider->shouldReceive('complete')->once()->andReturnUsing(function (array $messages) use ($intake): OpenRouterChatResponse {
