@@ -195,6 +195,11 @@ Route::get('/locale/{locale}', function (Request $request, string $locale) {
 Route::middleware('guest')->group(function () {
     Route::view('/login', 'auth.login')->name('login');
 
+    Route::get('/mitarbeiter-einladung/{token}', [\App\Http\Controllers\Auth\EmployeeAccountInvitationController::class, 'create'])
+        ->middleware(['signed', 'throttle:12,1'])->name('employee-invitation.create');
+    Route::post('/mitarbeiter-einladung/{token}', [\App\Http\Controllers\Auth\EmployeeAccountInvitationController::class, 'store'])
+        ->middleware(['signed', 'throttle:6,1'])->name('employee-invitation.store');
+
     // Registrierung nur per Einladung aus dem Adminbereich
     Route::get('/einladung/{token}', [InvitedRegistrationController::class, 'create'])
         ->name('invitation.register');

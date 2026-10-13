@@ -71,6 +71,20 @@ class AiDispositionClient
         abort_unless(hash_equals($run->input_hash, hash('sha256', json_encode($snapshot, JSON_THROW_ON_ERROR))), 409, 'Die Mailquelle oder ihre Vorschläge wurden geändert.');
     }
 
+    /** Explicit questions about one intake also work while automatic processing is paused. */
+    public function structuredIntakeQuestion(AiIntakeRun $run, array $messages, array $schema): OpenRouterChatResponse
+    {
+        $guard = app(AiIntakeAssistantService::class);
+        $guard->assertCurrent($run);
+        if (! $this->client->isConfiguredFor(OpenRouterModelProfile::Data)) {
+            throw new OpenRouterChatException('disposition_not_configured');
+        }
+        $response = $this->request('intake_question', $messages, $schema, OpenRouterModelProfile::Data, [], AiDispositionSettings::all(true));
+        $guard->assertCurrent($run);
+
+        return $response;
+    }
+
     private function request(string $task, array $messages, array $schema, OpenRouterModelProfile $profile, array $plugins, array $settings): OpenRouterChatResponse
     {
         $key = 'operations-ai:hour:'.now()->utc()->format('YmdH');

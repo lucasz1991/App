@@ -6,13 +6,17 @@ use App\Actions\Jetstream\DeleteUser;
 use App\Models\DeviceAssignment;
 use App\Models\User;
 use App\Models\UserProfile as ProfileModel;
+use App\Notifications\EmployeeAccountInvitation;
 use App\Services\Operations\PersonnelScopeService;
 use App\Services\Personnel\EmployeePhoneStatusService;
 use App\Support\Operations\EmployeeProfileSections;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 
@@ -98,6 +102,9 @@ class UserProfile extends Component
 
     /** @var array<int, string> */
     public array $dirtyInlineFields = [];
+
+    #[Locked]
+    public ?string $accountInvitationNotice = null;
 
     public function mount($userId, bool $embedded = false)
     {
@@ -220,6 +227,60 @@ class UserProfile extends Component
         }
 
         $this->loadUser();
+    }
+
+    public function sendAccountInvitation(string $email): void
+    {
+        $actor = User::find(auth()->id());
+        abort_unless($actor?->isActive() && $actor->canViewManagementDashboard(), 403);
+        Gate::forUser($actor)->authorize('employees.view');
+        $this->resetValidation('accountInvitation');
+        $this->accountInvitationNotice = null;
+
+        try {
+            $status = DB::transaction(function () use ($actor, $email): string {
+                $target = User::lockForUpdate()->findOrFail($this->userId);
+                if ($target->role !== 'staff' || ! $target->isActive()) {
+                    throw ValidationException::withMessages(['accountInvitation' => 'Bitte aktivieren Sie zuerst das Mitarbeiterkonto.']);
+                }
+                if ($target->email !== $email) {
+                    throw ValidationException::withMessages(['accountInvitation' => 'Die E-Mail-Adresse wurde geändert. Bitte laden Sie das Profil neu.']);
+                }
+                if (Validator::make(['email' => $target->email], ['email' => 'required|email:rfc|max:255'])->fails()
+                    || str_ends_with(strtolower($target->email), '.invalid')) {
+                    throw ValidationException::withMessages(['accountInvitation' => 'Bitte hinterlegen Sie zuerst eine erreichbare E-Mail-Adresse.']);
+                }
+
+                $result = Password::broker('users')->sendResetLink(
+                    ['id' => $target->id, 'email' => $target->email, 'status' => true, 'role' => 'staff'],
+                    function (User $recipient, string $token): void {
+                        $recipient->notify(new EmployeeAccountInvitation($token));
+                    },
+                );
+                if ($result === Password::RESET_LINK_SENT) {
+                    activity('employee-access')->causedBy($actor)->performedOn($target)->log('employee_account_invitation_sent');
+                }
+
+                return $result;
+            });
+        } catch (ValidationException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            Log::warning('Employee account invitation failed', ['target_user_id' => $this->userId, 'exception' => $e::class]);
+            $this->addError('accountInvitation', 'Die Einladung konnte nicht versendet werden. Bitte versuchen Sie es erneut.');
+
+            return;
+        }
+
+        if ($status !== Password::RESET_LINK_SENT) {
+            $this->addError('accountInvitation', $status === Password::RESET_THROTTLED
+                ? 'Es wurde gerade ein Link angefordert. Bitte warten Sie eine Minute.' : 'Die Einladung konnte nicht versendet werden.');
+
+            return;
+        }
+
+        $this->accountInvitationNotice = 'Die Zugangseinladung wurde an '.$email.' versendet.';
+        $this->dispatch('swal:toast', type: 'success', text: 'Die Zugangseinladung wurde per E-Mail versendet.');
     }
 
     public function deactivateUser(): void
@@ -486,6 +547,8 @@ class UserProfile extends Component
             'phoneStatus' => app(EmployeePhoneStatusService::class)->read((int) $this->userId),
             'employeeProfileTabs' => $employeeProfileTabs,
             'canEditEmployee' => Gate::allows('employees.create'),
+            'canInviteEmployee' => auth()->user()->isActive()
+                && auth()->user()->canViewManagementDashboard() && Gate::allows('employees.view'),
             'canViewMasterData' => $this->personnelAllowed('employees.master-data.view'),
             'canEditMasterData' => $this->personnelAllowed('employees.master-data.view')
                 && $this->personnelAllowed('employees.master-data.edit'),

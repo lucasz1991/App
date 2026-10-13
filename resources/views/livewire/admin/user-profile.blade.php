@@ -62,6 +62,25 @@
 
       @include('livewire.admin.user-profile.partials.identity-card')
 
+      @if ($canInviteEmployee && $user->role === 'staff')
+        <section class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 p-4 dark:border-slate-700" aria-label="Mitarbeiterzugang" data-account-invitation>
+          <div class="min-w-0">
+            <h2 class="text-sm font-semibold">Mitarbeiterzugang</h2>
+            <p class="text-sm">{{ $user->hasVerifiedEmail() ? 'E-Mail bestätigt' : 'E-Mail noch nicht bestätigt' }} · {{ $user->isActive() ? 'Konto aktiv' : 'Konto inaktiv' }}</p>
+            <p class="text-sm">{{ $user->isActive() ? 'Einladung zum Setzen des Passworts und Bestätigen der E-Mail senden.' : 'Aktivieren Sie zuerst das Konto über die Profilaktionen.' }}</p>
+            @error('accountInvitation') <p class="text-sm text-red-700 dark:text-red-300" role="alert">{{ $message }}</p> @enderror
+            @if ($accountInvitationNotice) <p class="text-sm" role="status">{{ $accountInvitationNotice }}</p> @endif
+          </div>
+          <x-button type="button" class="min-h-11" :disabled="!$user->isActive()"
+              x-on:click.prevent="{{ \App\Support\Ui\ConfirmationAction::alpine(method: 'sendAccountInvitation', arguments: [$user->email], title: 'Mitarbeiter einladen', message: 'Zugangseinladung an '.$user->email.' senden? Der Mitarbeiter legt sein Passwort selbst fest. Ein bisheriger Einladungs- oder Passwortlink wird ersetzt.', variant: 'default', confirmLabel: 'Einladung senden') }}"
+              wire:loading.attr="disabled" wire:target="sendAccountInvitation">
+            <i class="far fa-envelope" aria-hidden="true"></i>
+            <span wire:loading.remove wire:target="sendAccountInvitation">Mitarbeiter einladen</span>
+            <span wire:loading wire:target="sendAccountInvitation">Wird versendet …</span>
+          </x-button>
+        </section>
+      @endif
+
       <div class="employee-profile__navigation" data-profile-navigation x-data="{}">
         <nav class="employee-profile__groups" aria-label="Bereiche der Mitarbeiterakte">
             @foreach($profileGroups as $group => $groupTabs)
