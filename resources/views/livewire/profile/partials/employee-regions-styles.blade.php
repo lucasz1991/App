@@ -108,6 +108,7 @@
     .rt-regions__visual { border-right: 0; border-bottom: 1px solid var(--regions-border); padding: 18px 8px 10px; }
     .rt-regions .rt-regions__map { max-width: 560px; margin: 10px auto 0; }
     .rt-regions__editor { padding: 20px; gap: 23px; }
+    .rt-regions input[type=text] { font-size: 16px; }
     .rt-regions__state-list button { min-height: 44px; }
     .rt-regions__footer { padding: 18px 20px; align-items: stretch; flex-direction: column; gap: 12px; }
     .rt-regions__actions { justify-content: flex-end; }

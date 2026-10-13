@@ -37,7 +37,7 @@
                 </div>
                 <fieldset class="rt-regions__radius"><legend>Radius ab Bezugsort <span>optional</span></legend>
                     <label for="region-origin-{{ $userId }}" class="sr-only">Bezugsort</label>
-                    <div class="rt-regions__origin-field"><i class="far fa-location-dot" aria-hidden="true"></i><input id="region-origin-{{ $userId }}" type="text" wire:model.live.blur="preferences.base_location" placeholder="Bezugsort, z. B. Hamburg" maxlength="200" autocomplete="off" aria-describedby="region-distance-note-{{ $userId }}"></div>
+                    <div class="rt-regions__origin-field"><i class="far fa-map-marker-alt" aria-hidden="true"></i><input id="region-origin-{{ $userId }}" type="text" wire:model.live.blur="preferences.base_location" placeholder="Bezugsort, z. B. Hamburg" maxlength="200" autocomplete="off" aria-describedby="region-distance-note-{{ $userId }}"></div>
                     <div class="rt-regions__radius-fields">
                     @foreach($zones as $zone => $definition)
                         <label data-zone="{{ $zone }}" for="region-radius-{{ $userId }}-{{ $zone }}"><span>{{ $definition['label'] }}</span><span class="rt-regions__unit"><input id="region-radius-{{ $userId }}-{{ $zone }}" type="number" min="1" max="{{ $zone === 'preferred' ? 1000 : 2000 }}" wire:model.live.blur="preferences.{{ $definition['radius'] }}" @if($zone === 'emergency') placeholder="–" @endif><span>km</span></span></label>
