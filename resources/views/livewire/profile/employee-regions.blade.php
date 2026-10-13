@@ -1,7 +1,7 @@
 <section class="rt-regions" aria-label="Einsatzgebiete"
     x-data="{
         mode: 'states', exclusionsOpen: false, openedState: null, picker: '', fromPicker: false,
-        menuX: 12, menuY: 12, busy: false, names: @js($states),
+        menuX: 12, menuY: 12, menuMaxHeight: 300, busy: false, names: @js($states),
         openRegion(code, event) {
             if (!this.names[code]) return;
             this.fromPicker = event.currentTarget.tagName === 'SELECT';
@@ -12,12 +12,13 @@
             const pointer = event.type === 'click' && event.detail > 0;
             const x = (pointer ? event.clientX : target.left + target.width / 2) - canvas.left;
             const y = (pointer ? event.clientY : target.bottom) - canvas.top;
+            const top = Math.max(12, -canvas.top + 12);
+            const bottom = Math.min(canvas.height - 12, window.innerHeight - canvas.top - 12);
+            this.menuMaxHeight = Math.max(1, bottom - top);
             this.$nextTick(() => {
                 const panel = this.$refs.regionMenu.getBoundingClientRect();
                 this.menuX = Math.max(12, Math.min(x + 10, canvas.width - panel.width - 12));
-                const top = Math.max(12, -canvas.top + 12);
-                const bottom = Math.min(canvas.height - panel.height - 12, window.innerHeight - canvas.top - panel.height - 12);
-                this.menuY = Math.max(12, Math.min(Math.max(top, Math.min(y + 10, bottom)), canvas.height - panel.height - 12));
+                this.menuY = Math.max(top, Math.min(y + 10, bottom - panel.height));
                 this.$refs.regionMenu.querySelector('[data-choice]').focus({ preventScroll: true });
             });
         },
@@ -32,8 +33,9 @@
         },
         async chooseRegion(zone) {
             if (this.busy || !this.openedState) return;
+            const code = this.openedState;
             this.busy = true;
-            try { await this.$wire.assignState(this.openedState, zone); this.closeRegion(); }
+            try { await this.$wire.assignState(code, zone); if (this.openedState === code) this.closeRegion(); }
             finally { this.busy = false; }
         },
         changeMode(next) { this.closeRegion(false); this.exclusionsOpen = false; this.mode = next; },
@@ -86,7 +88,7 @@
                     </svg>
                 </x-slot:markers>
             </x-ui.germany-map>
-            <div id="region-menu-{{ $userId }}" class="rt-regions__region-menu" x-ref="regionMenu" x-cloak x-show="openedState !== null" x-bind:style="{ left: menuX + 'px', top: menuY + 'px' }" role="dialog" x-bind:aria-label="'Einsatzgebiet für ' + (names[openedState] || '')" x-on:click.outside="if (openedState) closeRegion(false)" x-on:keydown.arrow-down.prevent="moveChoice(1)" x-on:keydown.arrow-up.prevent="moveChoice(-1)">
+            <div id="region-menu-{{ $userId }}" class="rt-regions__region-menu" x-ref="regionMenu" x-cloak x-show="openedState !== null" x-bind:style="{ left: menuX + 'px', top: menuY + 'px', maxHeight: menuMaxHeight + 'px' }" role="dialog" x-bind:aria-label="'Einsatzgebiet für ' + (names[openedState] || '')" x-on:click.outside="if (openedState) closeRegion(false)" x-on:keydown.arrow-down.prevent="moveChoice(1)" x-on:keydown.arrow-up.prevent="moveChoice(-1)">
                 <div class="rt-regions__popover-title"><strong x-text="names[openedState] || ''"></strong><button type="button" x-on:click="closeRegion()" aria-label="Bundeslandauswahl schließen"><i class="far fa-times" aria-hidden="true"></i></button></div>
                 @foreach($zones as $zone => $definition)
                     <button type="button" data-choice data-zone="{{ $zone }}" x-on:click="chooseRegion('{{ $zone }}')" x-bind:aria-pressed="currentZone() === '{{ $zone }}'" x-bind:disabled="busy"><i class="rt-regions__zone-dot" aria-hidden="true"></i><span>{{ $definition['label'] }}</span><i class="far fa-check rt-regions__choice-check" aria-hidden="true" x-show="currentZone() === '{{ $zone }}'"></i></button>
