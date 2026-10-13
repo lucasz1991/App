@@ -19,6 +19,7 @@ use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Models\WorkforcePool;
 use App\Services\Operations\ShiftAssignmentService;
+use App\Services\Operations\StaffRegionalPreferenceService;
 use App\Services\Operations\TimelinePlanningSuggestionService;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -387,6 +388,33 @@ class TimelinePlanningSuggestionServiceTest extends TestCase
         $this->anna->update(['status' => false]);
         $this->expectException(ModelNotFoundException::class);
         $this->service->cellChoices($this->anna->id, '2027-05-13', '2027-05-13', '2027-05-13', $this->manager);
+    }
+
+    public function test_regional_suitability_ranks_all_staff_before_wish_and_load_in_both_list_and_preview(): void
+    {
+        (require database_path('migrations/2026_10_06_220000_create_staff_regional_preferences_table.php'))->up();
+        $regional = app(StaffRegionalPreferenceService::class);
+        $base = ['enabled' => true, 'base_location' => '', 'preferred_radius_km' => 50, 'border_radius_km' => 100, 'no_go_areas' => []];
+        $regional->save($this->anna, $this->manager, $base + ['federal_states' => ['emergency' => ['DE-HH']]], 0);
+        $regional->save($this->ben, $this->manager, $base + ['federal_states' => ['preferred' => ['DE-HH']]], 0);
+        $this->wish($this->anna, 'preferred');
+        $this->assignment($this->shift(['starts_at' => '2027-05-12T08:00', 'ends_at' => '2027-05-12T12:00']), $this->ben);
+        $shift = $this->shift(['location_name' => 'Hamburg']);
+        $ranked = $this->service->rankedCandidates($shift, $this->manager);
+        $this->assertSame([$this->ben->id, $this->anna->id], $ranked->pluck('user.id')->all(), json_encode($ranked->pluck('region')->all()));
+        $this->assertSame([100, 75], $ranked->pluck('planning_score')->all());
+        $this->assertSame(['preferred', 'emergency'], $ranked->pluck('region.state')->all());
+        $this->assertSame([$this->ben->id, $this->anna->id], $this->service->rankedCandidatesForDisplay($shift, $this->manager)->pluck('user.id')->all());
+        $proposal = $this->service->preview('2027-05-13', '2027-05-13', $this->manager)['proposals']->first();
+        $this->assertSame($this->ben->id, $proposal['user']->id);
+        $this->assertSame(100, $proposal['planning_score']);
+        $this->assertStringContainsString('bevorzugten Einsatzgebiet', implode(' ', $proposal['reasons']));
+
+        $regional->save($this->ben, $this->manager, array_replace($base, [
+            'federal_states' => ['preferred' => ['DE-HH']], 'no_go_areas' => [['location' => 'Hamburg', 'radius_km' => 10]],
+        ]), 1);
+        $this->assertSame([$this->anna->id], $this->service->rankedCandidates($shift, $this->manager)->pluck('user.id')->all());
+        $this->assertSame($this->anna->id, $this->service->preview('2027-05-13', '2027-05-13', $this->manager)['proposals']->first()['user']->id);
     }
 
     public function test_read_actions_require_current_operations_manage_permission(): void

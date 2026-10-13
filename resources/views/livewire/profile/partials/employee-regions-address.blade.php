@@ -6,6 +6,7 @@
         this.$watch('$wire.originVersion', () => {
             this.cancel(); this.query = this.$wire.preferences.base_location || '';
         });
+        this.$watch('mode', value => { if (value !== 'radius') this.cancel(); });
     },
     destroy() { clearTimeout(this.timer); this.sequence++; },
     cancel() { clearTimeout(this.timer); this.sequence++; this.results = []; this.active = -1; this.open = false; this.loading = false; this.message = ''; },
@@ -41,16 +42,16 @@
         const token = this.results[index].token;
         this.cancel(); this.selecting = true;
         try { await this.$wire.selectAddress(token); }
-        finally { this.selecting = false; }
+        finally { this.selecting = false; this.$nextTick(() => this.$refs.origin?.focus({ preventScroll: true })); }
     },
     precisionLabel(value) { return { address: 'Hausadresse', interpolated: 'Hausnummer · angenähert', street: 'Straße · ungefähr', locality: 'Ort · ungefähr' }[value] || 'Ungefähre Lage'; }
-}" x-on:click.outside="open = false" x-on:keydown.escape.stop="open = false; active = -1">
+}" x-on:click.outside="cancel()" x-on:focusout="if (!$el.contains($event.relatedTarget)) cancel()" x-on:keydown.escape.stop="cancel()">
     <label for="region-origin-{{ $userId }}">Standort
         @if($originPoint)<span class="rt-regions__address-quality">{{ ['address' => 'Hausadresse', 'interpolated' => 'Angenähert', 'street' => 'Straße', 'locality' => 'Ort'][$originPoint['precision']] ?? '' }}</span>@endif
     </label>
     <div class="rt-regions__origin-field">
         <i class="far fa-map-marker-alt" aria-hidden="true"></i>
-        <input id="region-origin-{{ $userId }}" type="text" x-model="query" x-on:input="input()"
+        <input id="region-origin-{{ $userId }}" x-ref="origin" type="text" x-model="query" x-on:input="input()"
             x-on:keydown.arrow-down.prevent="move(1)" x-on:keydown.arrow-up.prevent="move(-1)"
             x-on:keydown.enter.prevent.stop="if (open && active >= 0) choose(active)"
             x-on:focus="if (results.length) open = true" x-bind:disabled="selecting"

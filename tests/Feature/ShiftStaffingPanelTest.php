@@ -202,6 +202,35 @@ class ShiftStaffingPanelTest extends TestCase
         $this->assertSame('Hamburg', app(StaffRegionalPreferenceService::class)->get($employee)['base_location']);
     }
 
+    public function test_legacy_region_editor_preserves_only_saved_origin_and_discards_forged_client_coordinates(): void
+    {
+        $employee = $this->employee();
+        $service = app(StaffRegionalPreferenceService::class);
+        $point = ['label' => 'Teststraße 14, Hamburg', 'latitude' => 53.654321, 'longitude' => 10.123456,
+            'provider' => 'tomtom', 'provider_id' => 'synthetic-origin', 'type' => 'Point Address', 'precision' => 'address'];
+        $service->save($employee, $this->admin, [
+            'enabled' => true, 'base_location' => $point['label'], 'base_point' => $point,
+            'preferred_radius_km' => 50, 'border_radius_km' => 100, 'no_go_areas' => [],
+        ], 0);
+        $component = $this->panel()->call('editRegionalPreference', $employee->id)
+            ->set('regionalPreference.base_point.latitude', 48.1)->set('regionalPreference.base_point.longitude', 11.5)
+            ->set('regionalPreference.preferred_radius_km', 75)->call('saveRegionalPreference')->assertHasNoErrors();
+        $this->assertSame($point, $service->get($employee)['base_point']);
+        $this->assertSame(75, $service->get($employee)['preferred_radius_km']);
+
+        $component->call('editRegionalPreference', $employee->id)
+            ->set('regionalPreference.base_location', 'München')
+            ->set('regionalPreference.base_point', array_replace($point, ['label' => 'München']))
+            ->call('saveRegionalPreference')->assertHasNoErrors();
+        $this->assertNull($service->get($employee)['base_point']);
+        $this->assertSame('München', $service->get($employee)['base_location']);
+
+        $component->call('editRegionalPreference', $employee->id)
+            ->set('regionalPreference.base_point', array_replace($point, ['label' => 'München']))
+            ->call('saveRegionalPreference')->assertHasNoErrors();
+        $this->assertNull($service->get($employee)['base_point']);
+    }
+
     public function test_staffing_actions_recheck_permissions_after_the_panel_was_mounted(): void
     {
         $employee = $this->employee();

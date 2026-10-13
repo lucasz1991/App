@@ -50,6 +50,12 @@ class StaffRegionalPreferenceServiceTest extends TestCase
         return $this->service->assessMany(new Shift(['location_name' => $place]), collect([$this->employee]))[$this->employee->id];
     }
 
+    private function originPoint(array $extra = []): array
+    {
+        return array_replace(['label' => 'Teststraße 14, Hamburg', 'latitude' => 53.654321, 'longitude' => 10.123456,
+            'provider' => 'tomtom', 'provider_id' => 'synthetic-provider-reference', 'type' => 'Point Address', 'precision' => 'address'], $extra);
+    }
+
     private function invalid(callable $action, string $field): void
     {
         try {
@@ -439,5 +445,121 @@ class StaffRegionalPreferenceServiceTest extends TestCase
         $this->assertSame('neutral', $this->assessment('München')['state']);
         $this->assertSame(0, $this->assessment('München')['score_adjustment']);
         $this->assertSame('unknown', $this->assessment('Unbekanntes Depot')['state']);
+    }
+
+    public function test_confirmed_address_uses_its_coordinates_and_own_confirmed_worksite_without_city_fallback(): void
+    {
+        $point = $this->originPoint();
+        $saved = $this->service->save($this->employee, $this->admin, $this->config([
+            'base_location' => $point['label'], 'base_point' => $point, 'preferred_radius_km' => 1, 'border_radius_km' => 2,
+        ]), 0);
+        $this->assertSame(2, $saved['schema_version']);
+        $this->assertSame($point, $saved['base_point']);
+        $shift = new Shift(['location_name' => 'Nicht auflösbares Depot', 'location_snapshot' => [
+            'confirmed' => true, 'name' => 'Eigenes Depot', 'latitude' => $point['latitude'], 'longitude' => $point['longitude'],
+        ]]);
+        $result = $this->service->assessMany($shift, collect([$this->employee]))[$this->employee->id];
+        $this->assertSame('preferred', $result['state']);
+        $this->assertSame(0.0, $result['distance_km']);
+        $this->assertStringContainsString('Luftlinie ab bestätigter Adresse', $result['detail']);
+        $this->assertStringNotContainsString($point['label'], $result['detail']);
+        $this->assertSame('outside', $this->assessment('Hamburg')['state']);
+        $shift->location_snapshot = ['confirmed' => false, 'latitude' => $point['latitude'], 'longitude' => $point['longitude']];
+        $this->assertSame('unknown', $this->service->assessMany($shift, collect([$this->employee]))[$this->employee->id]['state']);
+    }
+
+    public function test_address_precision_is_honest_and_private_origin_never_enters_details_or_audits(): void
+    {
+        $revision = 0;
+        foreach (['Address Range' => ['interpolated', 'interpoliert'], 'Street' => ['street', 'ungefähre Lage'], 'Geography' => ['locality', 'ungefähr']] as $type => [$precision, $text]) {
+            $point = $this->originPoint(['type' => $type, 'precision' => $precision]);
+            $this->service->save($this->employee, $this->admin, $this->config(['base_location' => $point['label'], 'base_point' => $point]), $revision++);
+            $this->assertStringContainsString($text, $this->assessment('Hamburg')['detail']);
+            $this->assertStringNotContainsString($point['label'], $this->assessment('Hamburg')['detail']);
+        }
+        foreach (OperationAudit::where('action', 'staff.regional_preferences.saved')->get() as $audit) {
+            $encoded = json_encode($audit->data, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+            foreach ([$point['label'], (string) $point['latitude'], (string) $point['longitude'], $point['provider_id'], 'base_point'] as $private) {
+                $this->assertStringNotContainsString($private, $encoded);
+            }
+            $this->assertSame('[Adresse]', $audit->data['after']['base_location']);
+            $this->assertSame(hash('sha256', $point['provider_id']), $audit->data['after']['origin_reference']['provider_id_hash']);
+        }
+    }
+
+    public function test_origin_contract_rejects_mismatch_malformed_coordinates_types_and_unknown_fields(): void
+    {
+        $point = $this->originPoint();
+        $invalid = [[], '', false, ['latitude' => 53.5], $point + ['unexpected' => true]];
+        foreach (['label' => 'Andere Straße', 'latitude' => '53.6', 'longitude' => '10.1', 'provider' => 'other', 'provider_id' => '', 'type' => 'POI', 'precision' => 'street'] as $key => $value) {
+            $invalid[] = array_replace($point, [$key => $value]);
+        }
+        foreach ([NAN, INF, -INF, 46.9, 56.1] as $latitude) {
+            $invalid[] = array_replace($point, ['latitude' => $latitude]);
+        }
+        foreach ([4.9, 16.1] as $longitude) {
+            $invalid[] = array_replace($point, ['longitude' => $longitude]);
+        }
+        foreach ($invalid as $candidate) {
+            $this->invalid(fn () => $this->service->save($this->employee, $this->admin, $this->config([
+                'base_location' => $point['label'], 'base_point' => $candidate,
+            ]), 0), 'regional_preferences.base_point');
+        }
+        $this->assertSame(0, StaffRegionalPreference::count());
+        $this->assertSame(0, OperationAudit::count());
+    }
+
+    public function test_corrupt_stored_origin_fails_closed_instead_of_reusing_a_city(): void
+    {
+        $point = $this->originPoint(['label' => 'Hamburg']);
+        $this->service->save($this->employee, $this->admin, $this->config(['base_location' => $point['label'], 'base_point' => $point]), 0);
+        $record = StaffRegionalPreference::sole();
+        $stored = $record->preferences;
+        $stored['base_point']['label'] = 'Berlin';
+        $record->update(['preferences' => $stored]);
+        $this->expectException(UnexpectedValueException::class);
+        $this->assessment('Hamburg');
+    }
+
+    public function test_revision_fingerprint_tracks_active_population_content_and_deletion_without_exposing_data(): void
+    {
+        $empty = $this->service->revisionFingerprint();
+        $this->assertSame($empty, $this->service->revisionFingerprint());
+        $point = $this->originPoint();
+        $this->service->save($this->employee, $this->admin, $this->config(['base_location' => $point['label'], 'base_point' => $point]), 0);
+        $saved = $this->service->revisionFingerprint();
+        $this->assertNotSame($empty, $saved);
+        $this->assertMatchesRegularExpression('/^[a-f0-9]{64}$/', $saved);
+        $record = StaffRegionalPreference::sole();
+        $stored = $record->preferences;
+        $stored['base_point']['latitude'] += 0.001;
+        $record->update(['preferences' => $stored]);
+        $changed = $this->service->revisionFingerprint();
+        $this->assertNotSame($saved, $changed); // Also detects content changes with unchanged revision.
+        $record->increment('revision');
+        $this->assertNotSame($changed, $this->service->revisionFingerprint());
+        $record->delete();
+        $this->assertSame($empty, $this->service->revisionFingerprint());
+        $new = User::factory()->create(['role' => 'staff', 'status' => true]);
+        $this->assertNotSame($empty, $this->service->revisionFingerprint());
+        $new->update(['status' => false]);
+        $this->assertSame($empty, $this->service->revisionFingerprint());
+        $new->update(['role' => 'admin', 'status' => true]);
+        $this->assertSame($empty, $this->service->revisionFingerprint());
+        Schema::drop('staff_regional_preferences');
+        $this->assertNotSame($empty, $this->service->revisionFingerprint());
+    }
+
+    public function test_revision_fingerprint_uses_fixed_batch_reads_for_many_employees(): void
+    {
+        $this->service->save($this->employee, $this->admin, $this->config(), 0);
+        User::factory()->count(25)->create(['role' => 'staff', 'status' => true]);
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $this->service->revisionFingerprint();
+        $queries = collect(DB::getQueryLog());
+        DB::disableQueryLog();
+        $this->assertCount(1, $queries->filter(fn ($row) => str_contains($row['query'], 'from "staff_regional_preferences"')));
+        $this->assertLessThanOrEqual(3, $queries->count());
     }
 }

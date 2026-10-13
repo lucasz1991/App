@@ -263,7 +263,8 @@ class AiPlanningHelperTest extends TestCase
         $this->response([$this->row($other, [$this->ben->id])]);
         $proposal = $this->service->analyzePeriod('2027-05-14', '2027-05-14', $this->manager);
         app(StaffRegionalPreferenceService::class)->save($this->ben, $this->manager, ['enabled' => true, 'base_location' => 'München', 'preferred_radius_km' => 50, 'border_radius_km' => 100, 'no_go_areas' => [['location' => 'München', 'radius_km' => 10]]], 0);
-        $this->invalid(fn () => $this->service->confirmPublished($proposal['token'], $other->id, $this->ben->id, $this->manager), 'Eignung hat sich geändert');
+        // Regional revisions now invalidate the proposal before the per-person guard.
+        $this->invalid(fn () => $this->service->confirmPublished($proposal['token'], $other->id, $this->ben->id, $this->manager), 'Plan wurde');
         $this->assertSame(2, ShiftAssignment::count());
     }
 
