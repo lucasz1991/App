@@ -16,9 +16,13 @@ class ChatLocationPrivacy extends Component
     #[Locked]
     public int $ownerUserId = 0;
 
-    public function mount(): void
+    #[Locked]
+    public bool $compact = false;
+
+    public function mount(bool $compact = false): void
     {
         $this->ownerUserId = (int) $this->actor()->id;
+        $this->compact = $compact;
     }
 
     public function revokeAll(ChatLocationHistoryService $history): void

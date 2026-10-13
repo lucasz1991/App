@@ -199,7 +199,7 @@ class DispositionMailboxWorkflowService
                 if (! is_array($position)) {
                     continue;
                 }
-                $positionMissing = array_values(array_intersect(array_filter((array) ($position['missing_fields'] ?? []), 'is_string'), array_keys(self::FIELDS)));
+                $positionMissing = array_values(array_unique(array_intersect(array_filter((array) ($position['missing_fields'] ?? []), 'is_string'), array_keys(self::FIELDS))));
                 $previewMissing = array_merge($previewMissing, $positionMissing);
                 $positions[] = array_intersect_key($position, array_flip(['title', 'starts_at', 'ends_at', 'timezone', 'location_name', 'role_name', 'required_staff'])) + [
                     'id' => 'analysis-'.($index + 1), 'missing_fields' => $positionMissing, 'inquiry_id' => null,

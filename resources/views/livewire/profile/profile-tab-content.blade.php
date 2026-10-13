@@ -127,15 +127,10 @@
                     <x-ui.accordion.section
                         section="push"
                         label="Push und Standort"
-                        description="Deine Freigaben für die aktive Anmeldesitzung und die Einrichtung auf diesem Gerät."
                         icon="fad fa-bell"
                         id-prefix="profile-app"
                     >
-                        <div class="space-y-5">
-                            <livewire:settings.session-permissions :automatic="false" />
-                            <livewire:settings.push-settings />
-                            <livewire:settings.chat-location-privacy />
-                        </div>
+                        <livewire:settings.session-permissions :automatic="false" />
                     </x-ui.accordion.section>
                 </div>
                 @break

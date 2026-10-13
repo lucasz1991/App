@@ -173,8 +173,7 @@
             </x-slot>
         </x-dialog-modal>
     @else
-        <section class="space-y-4" aria-labelledby="profile-session-permissions-heading">
-            <h3 id="profile-session-permissions-heading" class="text-base font-semibold text-rt-text dark:text-rt-dark-text">Deine Freigaben</h3>
+        <section class="space-y-3" aria-label="Push und Standort">
             @include('livewire.settings.partials.session-permission-controls', ['permissionIdPrefix' => 'profile-permissions'])
         </section>
     @endif

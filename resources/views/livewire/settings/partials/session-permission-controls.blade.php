@@ -9,12 +9,14 @@
                 <span class="font-semibold">{{ $label }}</span>
             </summary>
             <div class="space-y-3 px-4 pb-4">
+                @if ($automatic)
                 <p class="text-xs font-semibold text-rt-muted dark:text-rt-dark-muted" role="status">{{ !$available ? 'Derzeit nicht verfügbar' : ($decision === 'accepted' ? 'Für diese Sitzung erlaubt' : ($decision === 'declined' ? 'Für diese Sitzung abgelehnt' : 'Noch keine Entscheidung')) }}</p>
                 @if ($purpose === 'push')
                     <p class="text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">RailTime darf dir Benachrichtigungen über neue Nachrichten und betriebliche Hinweise senden. Die Browserberechtigung und Einrichtung gelten separat für dieses Gerät. Auf dem iPhone wird die installierte Web-App benötigt.</p>
                 @elseif ($available)
                     <p class="whitespace-pre-line text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">{{ $permissions['location_text'] }}</p>
                     <p class="text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">Mit Freigabe und Geräteberechtigung wird während aktiver App-Nutzung dein letzter präziser Punkt gespeichert. Im Standby werden keine neuen Positionen erfasst. Eine fehlende oder veraltete Position verschlechtert deine Einsatzberechtigung nicht.</p>
+                @endif
                 @endif
                 @if ($available)
                     <div class="grid gap-2 sm:grid-cols-2">
@@ -25,19 +27,29 @@
                             <x-ui.buttons.button-basic mode="secondary" x-on:click="decline('{{ $purpose }}')" x-bind:disabled="busy !== null" wire:loading.attr="disabled" class="min-h-11 rounded-xl" data-permission-decline="{{ $purpose }}">Ohne {{ $purpose === 'push' ? 'Push' : 'Standort' }} fortfahren</x-ui.buttons.button-basic>
                         @endif
                     </div>
-                    @if ($purpose === 'location' && $decision === 'accepted')
+                    @if ($automatic && $purpose === 'location' && $decision === 'accepted')
                         <p class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Ein Widerruf beendet die Erfassung und die Routing-Nutzung; gespeicherte Punkte dieser Freigabe werden gelöscht.</p>
                     @endif
                 @else
+                    @if ($automatic)
                     <p class="text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">{{ $purpose === 'push' ? 'Push ist serverseitig noch nicht eingerichtet oder ausgeschaltet.' : 'Arbeitsstandorte sind für dein Konto derzeit nicht aktiviert.' }}</p>
-                    @if ($decision === 'accepted')
-                        <p class="text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">Deine gespeicherte Freigabe kannst du auch bei ausgeschalteter Funktion widerrufen.</p>
-                        <x-ui.buttons.button-basic mode="secondary" wire:click="revoke('{{ $purpose }}')" x-bind:disabled="busy !== null" wire:loading.attr="disabled" class="min-h-11 rounded-xl" data-permission-withdraw="{{ $purpose }}">Freigabe widerrufen</x-ui.buttons.button-basic>
                     @endif
+                    @if ($decision === 'accepted')
+                        @if ($automatic)
+                        <p class="text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">Deine gespeicherte Freigabe kannst du auch bei ausgeschalteter Funktion widerrufen.</p>
+                        @endif
+                        <x-ui.buttons.button-basic mode="secondary" wire:click="revoke('{{ $purpose }}')" x-bind:disabled="busy !== null" wire:loading.attr="disabled" class="min-h-11 rounded-xl" data-permission-withdraw="{{ $purpose }}">Freigabe widerrufen</x-ui.buttons.button-basic>
+                    @elseif (! $automatic)
+                        <x-ui.buttons.button-basic mode="secondary" disabled class="min-h-11 rounded-xl">Derzeit nicht verfügbar</x-ui.buttons.button-basic>
+                    @endif
+                @endif
+                @if (! $automatic && $purpose === 'location')
+                    <livewire:settings.chat-location-privacy :compact="true" />
                 @endif
             </div>
         </details>
     @endforeach
+    @if ($automatic)
     <details class="rounded-xl border border-rt-border/70 dark:border-rt-dark-border/70" data-session-permission-validity>
         <summary class="min-h-11 cursor-pointer rounded-xl p-3 text-sm font-semibold text-rt-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent dark:text-rt-dark-muted">Gültigkeit und Einstellungen</summary>
         <div class="space-y-3 px-4 pb-4 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
@@ -55,6 +67,7 @@
             @endif
         </div>
     </details>
+    @endif
     @error('permissions')<p role="alert" class="rounded-xl bg-red-50 p-3 text-sm text-red-800 dark:bg-red-500/10 dark:text-red-200">{{ $message }}</p>@enderror
     @error('location')<p role="alert" class="rounded-xl bg-red-50 p-3 text-sm text-red-800 dark:bg-red-500/10 dark:text-red-200">{{ $message }}</p>@enderror
     @error('push')<p role="alert" class="rounded-xl bg-red-50 p-3 text-sm text-red-800 dark:bg-red-500/10 dark:text-red-200">{{ $message }}</p>@enderror

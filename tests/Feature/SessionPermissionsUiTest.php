@@ -261,9 +261,9 @@ class SessionPermissionsUiTest extends TestCase
     {
         $this->state['location_decision'] = 'accepted';
         Livewire::actingAs($this->employee)->test(SessionPermissions::class, ['automatic' => false])
-            ->assertSet('dialogOpen', false)->assertSee('Deine Freigaben')->assertSee('Freigabe widerrufen')
+            ->assertSet('dialogOpen', false)->assertSee('Standort für die Einsatzplanung')->assertSee('Freigabe widerrufen')
             ->assertSee('data-session-permissions="profile"', false)->assertDontSee('id="session-permissions-dialog"', false)
-            ->call('revoke', 'location')->assertHasNoErrors()->assertSee('Für diese Sitzung abgelehnt');
+            ->call('revoke', 'location')->assertHasNoErrors()->assertDontSee('data-permission-withdraw="location"', false);
         $this->assertSame(['location'], $this->revocations);
         $this->assertSame([], $this->decisions);
     }
@@ -392,7 +392,7 @@ class SessionPermissionsUiTest extends TestCase
     {
         $view = file_get_contents(resource_path('views/livewire/profile/profile-tab-content.blade.php'));
         $this->assertStringContainsString('<livewire:settings.session-permissions :automatic="false" />', $view);
-        $this->assertStringContainsString('<livewire:settings.push-settings />', $view);
+        $this->assertStringNotContainsString('<livewire:settings.push-settings />', $view);
         $this->assertStringContainsString('<livewire:profile.logout-other-browser-sessions-form />', $view);
         $layout = file_get_contents(resource_path('views/layouts/master.blade.php'));
         $this->assertStringContainsString("@if (\$chrome)\n                <livewire:settings.session-permissions />", str_replace("\r\n", "\n", $layout));
