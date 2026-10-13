@@ -68,7 +68,7 @@ class DispositionMailboxWorkflowService
     {
         return OperationsTransaction::run(function () use ($actor, $context): array {
             [$intake, $settings, $review] = $this->current($actor, $context, true);
-            $this->confirmedCustomer($intake, $review);
+            $this->confirmedCustomer($intake, $review, $actor);
             abort_unless(($intake->analysis['intent'] ?? '') === 'inquiry' && ($intake->analysis['extraction_complete'] ?? false) && ! ($intake->analysis['overflow'] ?? true)
                 && $intake->proposals()->where('source_revision', $intake->source_revision)->where('status', '!=', 'stale')->exists(), 422, 'Die erkannten Angaben zuerst in der Anfrageprüfung vervollständigen.');
             app(AiIntakeService::class)->createInquiries($intake, $actor, $context['intake_revision']);
@@ -81,7 +81,7 @@ class DispositionMailboxWorkflowService
     {
         return OperationsTransaction::run(function () use ($actor, $context): array {
             [$intake, $settings, $review] = $this->current($actor, $context, true);
-            $this->confirmedCustomer($intake, $review);
+            $this->confirmedCustomer($intake, $review, $actor);
             app(AiIntakeMailService::class)->prepareManualClarification($intake, $actor, $context['intake_revision'], $context['settings_revision']);
 
             return $this->snapshot($actor, $intake->fresh(), $settings, $context['folder'], $context['uid'], $context['uid_validity']);
@@ -166,10 +166,35 @@ class DispositionMailboxWorkflowService
         abort_unless($review->reviewed_by && $review->classification === 'inquiry', 422, 'Bitte zuerst bestätigen, dass diese Mail eine Anfrage ist.');
     }
 
-    private function confirmedCustomer(AiIntake $intake, DispositionMailboxReview $review): void
+    private function confirmedCustomer(AiIntake $intake, DispositionMailboxReview $review, User $actor): void
     {
         $this->confirmedInquiry($review);
-        abort_unless($intake->customer_id && $intake->match_method === 'manual' && ! in_array($intake->status, ['paused', 'completed'], true), 422, 'Bitte zuerst die Kundenzuordnung bestätigen.');
+        abort_unless($this->customerResolved($intake, $actor) && ! in_array($intake->status, ['paused', 'completed'], true), 422, 'Bitte zuerst die Kundenzuordnung bestätigen.');
+    }
+
+    private function customerResolved(AiIntake $intake, User $actor): bool
+    {
+        $customer = $intake->customer_id ? Customer::active()->find($intake->customer_id) : null;
+        if (! $customer) {
+            return false;
+        }
+        if ($intake->match_method === 'manual') {
+            return true;
+        }
+        if ($intake->match_method === 'source_context') {
+            return app(AiIntakeCustomerContextService::class)->assignmentIsCurrent($intake, $actor);
+        }
+        $message = $intake->messages()->whereKey($intake->latest_inbound_message_id)->where('direction', 'inbound')->first();
+        $sender = strtolower(trim((string) $message?->sender_email));
+        if (! filter_var($sender, FILTER_VALIDATE_EMAIL)) {
+            return false;
+        }
+        if ($intake->match_method === 'customer_email') {
+            return hash_equals($sender, strtolower(trim((string) $customer->email)));
+        }
+        $contact = $intake->customer_contact_id ? CustomerContact::where('is_active', true)->where('customer_id', $customer->id)->find($intake->customer_contact_id) : null;
+
+        return $intake->match_method === 'contact_email' && $contact && hash_equals($sender, strtolower(trim((string) $contact->email)));
     }
 
     private function snapshot(User $actor, AiIntake $intake, array $settings, string $folder, int $uid, int $validity): array
@@ -232,6 +257,7 @@ class DispositionMailboxWorkflowService
             'intake_status' => $intake->status,
             'context_hints' => app(AiIntakeContextHints::class)->forReview($intake, $actor),
             'customer_id' => $intake->customer_id, 'contact_id' => $intake->customer_contact_id, 'customer_name' => $intake->customer?->company_name,
+            'customer_resolved' => $this->customerResolved($intake, $actor),
             'customer_suggestions' => array_values(array_filter(array_map(fn ($candidate) => isset($customers[$candidate['customer_id']]) ? ['id' => $candidate['customer_id'], 'name' => $customers[$candidate['customer_id']]->company_name, 'reasons' => $candidate['reasons']] : null, $suggestions))),
             'can_create_inquiries' => ($analysis['intent'] ?? '') === 'inquiry' && ($analysis['extraction_complete'] ?? false) && ! ($analysis['overflow'] ?? true) && $proposalPositions !== [] && collect($proposalPositions)->contains(fn ($position) => empty($position['inquiry_id'])),
             'can_prepare_clarification' => (bool) $canClarify && AiCustomerCommunicationSchema::ready() && ($analysis['intent'] ?? '') === 'inquiry' && count(array_intersect(array_column($missing, 'key'), ['starts_at', 'ends_at', 'timezone', 'location_name', 'role_name', 'required_staff', 'segments', 'qualification_ids'])) > 0,

@@ -118,6 +118,30 @@ class AiIntakeInboxEmbeddedTest extends TestCase
         $this->noSideEffects();
     }
 
+    public function test_recognized_customer_is_shown_as_assigned_and_can_still_be_corrected(): void
+    {
+        $customer = Customer::create(['company_name' => 'Recognized Rail Customer', 'is_active' => true]);
+        $replacement = Customer::create(['company_name' => 'Personally Corrected Customer', 'is_active' => true]);
+        $intake = $this->intake(['customer_id' => $customer->id, 'match_method' => 'source_context',
+            'analysis' => ['intent' => 'inquiry', 'customer_draft' => ['company_name' => 'Obsolete new-customer draft']]]);
+
+        $component = Livewire::test(AiIntakeInbox::class, ['embedded' => true, 'initialIntakeId' => $intake->id])
+            ->assertSet('assignCustomerId', (string) $customer->id)
+            ->assertSee('Automatisch erkannt und zugeordnet')->assertSee('Kundenzuordnung ändern')
+            ->assertDontSee('Zuordnung bestätigen')->assertDontSee('Obsolete new-customer draft')
+            ->assertDontSee('Neuen Kunden prüfen und anlegen');
+        $form = $this->dom($component->html())->query('//form[@*[name()="wire:submit"]="assignCustomer"]')->item(0);
+        $this->assertSame('editingCustomer', $form->getAttribute('x-show'));
+        $this->assertTrue($form->hasAttribute('x-cloak'));
+        $this->assertSame($customer->id, $intake->fresh()->customer_id);
+
+        $component->set('assignCustomerId', (string) $replacement->id)->call('assignCustomer')->assertHasNoErrors()
+            ->assertSee('Kunde zugeordnet')->assertDontSee('Automatisch erkannt und zugeordnet');
+        $this->assertSame($replacement->id, $intake->fresh()->customer_id);
+        $this->assertSame('manual', $intake->fresh()->match_method);
+        $this->noSideEffects();
+    }
+
     public function test_search_status_and_pagination_keep_the_complete_scoped_inbox_browsable(): void
     {
         for ($index = 1; $index <= 14; $index++) {

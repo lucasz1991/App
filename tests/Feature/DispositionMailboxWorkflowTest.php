@@ -80,7 +80,7 @@ class DispositionMailboxWorkflowTest extends TestCase
         Schema::table('shifts', fn (Blueprint $table) => $table->json('disposition_details')->nullable());
         $this->admin = User::factory()->create(['role' => 'admin', 'status' => true]);
         $this->actingAs($this->admin);
-        $this->customer = Customer::create(['company_name' => 'Synthetic Rail GmbH', 'email' => 'office@rail.example.test', 'is_active' => true]);
+        $this->customer = Customer::create(['company_name' => 'Existing Synthetic Rail Company', 'email' => 'office@rail.example.test', 'is_active' => true]);
         $this->withoutVite();
         Queue::fake();
         Mail::fake();
@@ -717,6 +717,106 @@ class DispositionMailboxWorkflowTest extends TestCase
             ->assertSet('guidedStep', 'done')->assertSet('showMailbox', true)
             ->assertSet('guidedReview.classification', 'not_inquiry');
 
+        $this->assertSame(0, OperationInquiry::count());
+        $this->assertSame(0, AiIntakeDelivery::count());
+        $this->noAutomaticEffects();
+    }
+
+    public function test_recognized_customer_advances_to_actions_only_after_classification_and_can_still_be_changed(): void
+    {
+        $this->customer->update(['company_name' => 'Synthetic Rail GmbH']);
+        $component = $this->openMessage()->call('startRecognition')->assertHasNoErrors()
+            ->assertSet('guidedStep', 'recognition')->assertSet('guidedReview.customer_id', $this->customer->id)
+            ->assertSet('guidedReview.customer_resolved', true)->assertSet('guidedReview.can_prepare_clarification', false);
+        $intake = AiIntake::firstOrFail();
+        $this->assertSame('source_context', $intake->match_method);
+        $this->assertNull($intake->customer_contact_id);
+        $source = AiIntakeMessage::firstOrFail()->getRawOriginal();
+        $this->assertSame(0, OperationInquiry::count());
+        $this->assertSame(0, AiIntakeDelivery::count());
+
+        $component->set('customerId', '999999')->call('confirmGuidedClassification', true)->assertHasNoErrors()
+            ->assertSet('guidedStep', 'actions')->assertSet('guidedReview.customer_id', $this->customer->id)
+            ->assertSet('guidedReview.customer_resolved', true);
+        $this->assertSame(0, OperationInquiry::count());
+        $component->call('guidedBack')->assertHasNoErrors()->assertSet('guidedStep', 'customer');
+        $contact = $this->contact();
+        $component->set('customerId', (string) $this->customer->id)->set('contactId', (string) $contact->id)
+            ->call('confirmGuidedCustomer')->assertHasNoErrors()->assertSet('guidedStep', 'actions')
+            ->call('createGuidedInquiries')->assertHasNoErrors();
+        $this->assertSame($this->customer->id, OperationInquiry::firstOrFail()->customer_id);
+        $this->assertSame('manual', $intake->fresh()->match_method);
+        $this->assertSame($source, AiIntakeMessage::firstOrFail()->getRawOriginal());
+        $this->assertSame(0, AiIntakeDelivery::count());
+        $this->noAutomaticEffects();
+    }
+
+    public function test_recognized_customer_allows_explicit_native_capture_without_redundant_customer_confirmation(): void
+    {
+        $this->customer->update(['company_name' => 'Synthetic Rail GmbH']);
+        $component = $this->openMessage()->call('startRecognition')->call('confirmGuidedClassification', true)
+            ->assertHasNoErrors()->assertSet('guidedStep', 'actions')->assertSet('guidedReview.customer_resolved', true);
+        $this->assertSame(0, OperationInquiry::count());
+        $component->call('createGuidedInquiries')->assertHasNoErrors();
+        $this->assertSame($this->customer->id, OperationInquiry::firstOrFail()->customer_id);
+        $this->assertSame('source_context', AiIntake::firstOrFail()->match_method);
+        $this->assertNull(AiIntake::firstOrFail()->customer_contact_id);
+        $this->assertSame(0, AiIntakeDelivery::count());
+        $this->noAutomaticEffects();
+    }
+
+    public function test_existing_personal_customer_assignment_skips_the_redundant_customer_step(): void
+    {
+        $intake = app(AiIntakeService::class)->receiveEmail($this->email(), $this->admin);
+        app(AiIntakeService::class)->assignCustomer($intake, $this->admin, $this->customer->id, null, $intake->revision);
+        $this->openMessage()->call('startRecognition')->assertHasNoErrors()
+            ->assertSet('guidedReview.customer_resolved', true)->call('confirmGuidedClassification', true)
+            ->assertHasNoErrors()->assertSet('guidedStep', 'actions');
+        $this->assertSame('manual', $intake->fresh()->match_method);
+        $this->assertSame($this->customer->id, $intake->fresh()->customer_id);
+        $this->assertSame(0, OperationInquiry::count());
+        $this->assertSame(0, AiIntakeDelivery::count());
+        $this->noAutomaticEffects();
+    }
+
+    public function test_assigned_customer_cannot_skip_the_customer_step_with_stale_or_unknown_assignment_proof(): void
+    {
+        foreach (['source_revision', 'message_id', 'source_hash', 'customer_id', 'method', 'unknown_method'] as $invalid) {
+            $this->customer->update(['company_name' => 'Synthetic Rail GmbH']);
+            $component = $this->openMessage()->call('startRecognition')->assertHasNoErrors()
+                ->assertSet('guidedReview.customer_resolved', true);
+            $intake = AiIntake::firstOrFail();
+            $analysis = $intake->analysis;
+            if ($invalid === 'unknown_method') {
+                $intake->update(['match_method' => 'unverified_model_choice']);
+            } else {
+                $analysis['customer_match'][$invalid] = in_array($invalid, ['source_hash', 'method'], true) ? 'invalid' : 999999;
+                $intake->update(['analysis' => $analysis]);
+            }
+            $component->call('confirmGuidedClassification', true)->assertHasNoErrors()
+                ->assertSet('guidedReview.customer_id', $this->customer->id)->assertSet('guidedReview.customer_resolved', false)
+                ->assertSet('guidedStep', 'customer');
+            $this->rejected([422], fn () => app(DispositionMailboxWorkflowService::class)->createInquiries($this->admin, $component->get('guidedReview')));
+            $this->assertSame(0, OperationInquiry::count());
+            $this->assertSame(0, AiIntakeDelivery::count());
+            $intake->proposals()->delete();
+            $intake->runs()->delete();
+            DispositionMailboxReview::query()->delete();
+            $intake->messages()->delete();
+            $intake->delete();
+        }
+        $this->noAutomaticEffects();
+    }
+
+    public function test_inactive_recognized_customer_returns_to_customer_selection_without_business_side_effects(): void
+    {
+        $this->customer->update(['company_name' => 'Synthetic Rail GmbH']);
+        $component = $this->openMessage()->call('startRecognition')->assertHasNoErrors()
+            ->assertSet('guidedReview.customer_resolved', true);
+        $this->customer->update(['is_active' => false]);
+        $component->call('confirmGuidedClassification', true)->assertHasNoErrors()
+            ->assertSet('guidedReview.customer_resolved', false)->assertSet('guidedStep', 'customer');
+        $this->rejected([422], fn () => app(DispositionMailboxWorkflowService::class)->createInquiries($this->admin, $component->get('guidedReview')));
         $this->assertSame(0, OperationInquiry::count());
         $this->assertSame(0, AiIntakeDelivery::count());
         $this->noAutomaticEffects();

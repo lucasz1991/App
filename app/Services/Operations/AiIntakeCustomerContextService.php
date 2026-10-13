@@ -50,11 +50,55 @@ class AiIntakeCustomerContextService
         return $this->context($intake, $actor)['candidates'];
     }
 
+    /** One complete, current original-source identity; model IDs and domain-only hints cannot bind. */
+    public function assignmentCandidate(AiIntake $intake, User $actor): ?array
+    {
+        $context = $this->context($intake, $actor);
+        $message = $intake->messages()->whereKey($context['message_id'])->first();
+        if (! $context['source_available'] || $context['lookup_truncated'] || $context['ambiguous']
+            || count($context['candidates']) !== 1 || ! $message?->raw_path || ! $message->raw_hash) {
+            return null;
+        }
+        $candidate = $context['candidates'][0];
+        $identityReasons = ['sender_email', 'cc_email', 'forwarded_email', 'body_email', 'signature_email',
+            'company_name_exact', 'signature_company', 'body_company'];
+        $signals = array_values(array_filter($candidate['matched_signals'], fn ($signal) => ($signal['message_id'] ?? null) === $context['message_id']
+            && in_array($signal['match'] ?? '', $identityReasons, true)));
+        if ($signals === []) {
+            return null;
+        }
+
+        return ['customer_id' => $candidate['customer_id'], 'name' => $candidate['name'], 'method' => 'source_context',
+            'source_revision' => $context['source_revision'], 'settings_revision' => $context['settings_revision'],
+            'message_id' => $context['message_id'], 'source_hash' => $context['source_hash'], 'lookup_version' => self::VERSION,
+            'reasons' => array_values(array_unique(array_column($signals, 'match'))), 'matched_signals' => $signals];
+    }
+
+    /** Cheap persisted proof validation for review/navigation; never backfills a customer during rendering. */
+    public function assignmentIsCurrent(AiIntake $intake, User $actor): bool
+    {
+        [$current, $actor, $snapshot, $message] = $this->begin($intake, $actor);
+        $proof = $current->analysis['customer_match'] ?? [];
+        if ($current->source_type !== 'email' || $current->match_method !== 'source_context' || ! $current->customer_id
+            || ! Customer::active()->whereKey($current->customer_id)->exists()
+            || ($proof['method'] ?? null) !== 'source_context' || ($proof['customer_id'] ?? null) !== $current->customer_id
+            || ($proof['source_revision'] ?? null) !== $current->source_revision || ($proof['message_id'] ?? null) !== $message?->id
+            || ($proof['settings_revision'] ?? null) !== $snapshot['settings_revision'] || ($proof['lookup_version'] ?? null) !== self::VERSION
+            || ! $message?->raw_path || ! $message->raw_hash) {
+            return false;
+        }
+        [$text, , $available] = $this->source($message);
+        $this->assertCurrent($current, $actor, $snapshot);
+
+        return $available && is_string($proof['source_hash'] ?? null)
+            && hash_equals($proof['source_hash'], hash('sha256', $this->withoutBlindCopies($text)));
+    }
+
     /** Metadata is server-created, outside any model-returned analysis. */
     public function context(AiIntake $intake, User $actor): array
     {
         [$current, $actor, $snapshot, $message, $settings] = $this->begin($intake, $actor);
-        [$text, $signals, $sourceAvailable] = $this->source($message);
+        [$text, $signals, $sourceAvailable, $headersTruncated] = $this->source($message);
         $text = $this->withoutBlindCopies($text);
         $signature = $this->signature($text);
         $internalDomains = $internalEmails = [];
@@ -66,12 +110,13 @@ class AiIntakeCustomerContextService
                 }
             }
         }
-        $signals = [...$signals, ...$this->bodySignals($text, $signature)];
+        $bodySignals = $this->bodySignals($text, $signature, $bodyTruncated);
+        $signals = [...$signals, ...$bodySignals];
         $signalEmails = array_values(array_unique(array_column($signals, 'value')));
         $internalEmails = array_merge($internalEmails, User::whereIn(DB::raw('LOWER(TRIM(email))'), $signalEmails)->pluck('email')->map(fn ($value) => $this->email($value))->filter()->all());
         $signals = array_values(array_filter($signals, fn ($signal) => ! in_array($signal['value'], $internalEmails, true) && ! in_array($this->domain($signal['value']), $internalDomains, true)));
         $customers = Customer::active()->orderBy('id')->limit(2001)->get(['id', 'company_name', 'email']);
-        $lookupTruncated = $customers->count() > 2000;
+        $lookupTruncated = $customers->count() > 2000 || $headersTruncated || $bodyTruncated;
         $customers = $customers->take(2000)->keyBy('id');
         if ($current->customer_id && ($linked = Customer::find($current->customer_id))) {
             $customers->put($linked->id, $linked);
@@ -262,16 +307,18 @@ class AiIntakeCustomerContextService
     private function source(?AiIntakeMessage $message): array
     {
         if (! $message) {
-            return ['', [], false];
+            return ['', [], false, false];
         }
         try {
             $text = app(AiIntakeMessageContent::class)->forMessage($message);
             $signals = [];
+            $truncated = false;
             if ($message->raw_path) {
                 $raw = app(AiIntakeAttachmentService::class)->bytes($message->intake, $message->raw_path, $message->raw_hash);
                 $headers = preg_split('/\r?\n\r?\n/', $raw, 2)[0];
                 $parsed = Message::fromString($headers."\r\n\r\n");
                 foreach (['sender' => $parsed->getFrom(), 'cc' => $parsed->getCc()] as $kind => $addresses) {
+                    $truncated = $truncated || count($addresses->all()) > 32;
                     foreach (array_slice($addresses->all(), 0, 32) as $address) {
                         if ($email = $this->email($address->mail ?? '')) {
                             $signals[] = ['source' => $kind, 'value' => $email];
@@ -282,7 +329,7 @@ class AiIntakeCustomerContextService
                 $signals[] = ['source' => 'sender', 'value' => $email];
             }
 
-            return [$text, $signals, true];
+            return [$text, $signals, true, $truncated];
         } catch (HttpException $error) {
             if (! in_array($error->getStatusCode(), [404, 409], true)) {
                 throw $error;
@@ -294,10 +341,10 @@ class AiIntakeCustomerContextService
         }
 
         // Fail closed for inferred identity; never replace a corrupt archive with its flattened body.
-        return ['', [], false];
+        return ['', [], false, false];
     }
 
-    private function bodySignals(string $text, string $signature): array
+    private function bodySignals(string $text, string $signature, ?bool &$truncated = null): array
     {
         $signals = [];
         $lines = explode("\n", $text);
@@ -309,6 +356,8 @@ class AiIntakeCustomerContextService
                 $signals[$kind.'|'.$email] = ['source' => $kind, 'value' => $email];
             }
         }
+
+        $truncated = count($signals) > 64;
 
         return array_slice(array_values($signals), 0, 64);
     }

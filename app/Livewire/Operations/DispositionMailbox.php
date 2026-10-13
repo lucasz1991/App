@@ -333,7 +333,7 @@ class DispositionMailbox extends Component
         abort_unless($this->guidedStep === 'recognition', 422);
         $this->performGuided(function () use ($actor, $inquiry): void {
             $this->syncGuidedReview($this->workflow()->confirmClassification($actor, $this->guidedReview, $inquiry));
-            $this->guidedStep = $inquiry ? 'customer' : 'done';
+            $this->guidedStep = $inquiry ? ($this->guidedReview['customer_resolved'] ? 'actions' : 'customer') : 'done';
             $this->dispatch('disposition-mailbox-updated');
         });
     }

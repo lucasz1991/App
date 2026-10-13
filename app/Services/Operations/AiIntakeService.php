@@ -254,14 +254,16 @@ class AiIntakeService
             if (! $intake) {
                 return;
             }
+            $recognitionSnapshot = $this->recognitionSnapshot($intake);
             $extracted = app(AiIntakeExtractionService::class)->extract($intake);
             $result = $this->validateExtraction($intake, $extracted['result']);
             $result['context_hints'] = $extracted['context_hints'] ?? [];
             $result = $this->requireHistoricalReview($result);
-            OperationsTransaction::run(function () use ($intake, $run, $settings, $result, $extracted): void {
+            OperationsTransaction::run(function () use ($intake, $run, $settings, $result, $extracted, $recognitionSnapshot): void {
                 $current = AiIntake::lockForUpdate()->findOrFail($intake->id);
                 $activeRun = $run->fresh();
-                if ($current->source_revision !== $run->source_revision || in_array($current->status, ['paused', 'completed', 'not_inquiry'], true) || $activeRun?->status !== 'running' || (int) AiDispositionSettings::all()['revision'] !== $run->settings_revision) {
+                if ($current->source_revision !== $run->source_revision || in_array($current->status, ['paused', 'completed', 'not_inquiry'], true) || $activeRun?->status !== 'running' || (int) AiDispositionSettings::all()['revision'] !== $run->settings_revision
+                    || $recognitionSnapshot !== $this->recognitionSnapshot($current)) {
                     if ($activeRun?->status === 'running') {
                         $activeRun->update(['status' => 'stale', 'result' => $result, 'error_code' => 'source_changed', 'finished_at' => now()->utc()]);
                     }
@@ -271,6 +273,7 @@ class AiIntakeService
                 $supervisor = User::findOrFail($run->supervising_user_id);
                 OperationsAccess::authorize($supervisor, 'operations.inquiries.manage');
                 abort_unless(AiDispositionSettings::enabled(), 409);
+                $result = $this->recognizeCustomer($current, $supervisor, $run, $result);
                 $snapshot = $run->input_snapshot;
                 $snapshot['attachment_extractions'] = $current->attachments()->get()->map(fn ($file) => ['attachment_id' => $file->id, 'file_hash' => $file->file_hash, 'text' => $file->extracted_text, 'metadata' => $file->metadata])->all();
                 $run->update(['input_snapshot' => $snapshot, 'input_hash' => hash('sha256', json_encode($snapshot, JSON_THROW_ON_ERROR))]);
@@ -369,6 +372,7 @@ class AiIntakeService
                 return $current;
             });
             app(AiDispositionClient::class)->assertManualContext($run);
+            $recognitionSnapshot = $this->recognitionSnapshot($current);
             $extracted = $reviewContext
                 ? app(AiIntakeExtractionService::class)->extract($current, $run, $reviewContext)
                 : app(AiIntakeExtractionService::class)->extract($current, $run);
@@ -377,10 +381,12 @@ class AiIntakeService
             $result['context_hints'] = $extracted['context_hints'] ?? [];
             $result = $this->requireHistoricalReview($result);
 
-            return OperationsTransaction::run(function () use ($current, $actor, $run, $result, $extracted): AiIntake {
+            return OperationsTransaction::run(function () use ($current, $actor, $run, $result, $extracted, $recognitionSnapshot): AiIntake {
                 $this->access($actor);
                 $fresh = AiIntake::lockForUpdate()->findOrFail($current->id);
                 app(AiDispositionClient::class)->assertManualContext($run);
+                abort_unless($recognitionSnapshot === $this->recognitionSnapshot($fresh), 409, 'Die Kundenzuordnung oder Mailquelle wurde geändert.');
+                $result = $this->recognizeCustomer($fresh, $actor, $run, $result);
                 $fresh->update(['analysis' => $result, 'title' => $result['title'], 'summary' => $result['summary'], 'confidence' => $result['confidence'],
                     'last_analyzed_at' => now()->utc(), 'processed_source_revision' => $fresh->source_revision,
                     'status' => 'review', 'error_code' => 'mailbox_test_review', 'revision' => $fresh->revision + 1]);
@@ -1095,7 +1101,7 @@ class AiIntakeService
 
     private function matchCustomer(AiIntake $intake, string $sender): void
     {
-        if ($sender === '' || $intake->match_method === 'manual') {
+        if ($sender === '' || in_array($intake->match_method, ['manual', 'source_context'], true)) {
             return;
         }
         $contacts = Schema::hasTable('customer_contacts') ? CustomerContact::where('is_active', true)->whereRaw('LOWER(TRIM(email)) = ?', [$sender])->whereHas('customer', fn ($q) => $q->where('is_active', true))->get() : collect();
@@ -1110,6 +1116,57 @@ class AiIntakeService
             $intake->customer_contact_id = null;
             $intake->match_method = null;
         }
+    }
+
+    private function recognitionSnapshot(AiIntake $intake): array
+    {
+        return ['revision' => $intake->revision, 'source_revision' => $intake->source_revision,
+            'customer_id' => $intake->customer_id, 'customer_contact_id' => $intake->customer_contact_id,
+            'match_method' => $intake->match_method, 'message_id' => $intake->latest_inbound_message_id,
+            'message_hashes' => $intake->messages()->where('direction', 'inbound')->get()->mapWithKeys(fn ($message) => [$message->id => [
+                hash('sha256', $message->body), $message->raw_hash, hash('sha256', json_encode($message->metadata, JSON_THROW_ON_ERROR)),
+            ]])->all(), 'attachment_hashes' => $intake->attachments()->pluck('file_hash', 'id')->all(),
+            'proposal_revisions' => $intake->proposals()->pluck('revision', 'id')->all()];
+    }
+
+    /** Server identity proof binds only the intake; it cannot approve business records or recipients. */
+    private function recognizeCustomer(AiIntake $intake, User $actor, AiIntakeRun $run, array $result): array
+    {
+        unset($result['customer_match']);
+        if ($intake->source_type !== 'email' || $intake->customer_contact_id
+            || ($intake->customer_id && $intake->match_method !== 'source_context')
+            || $intake->match_method === 'manual' || in_array($intake->status, ['paused', 'completed', 'not_inquiry'], true)
+            || ! empty($intake->inquiry_ids) || $intake->proposals()->where(fn ($query) => $query->whereNotNull('inquiry_id')->orWhereIn('status', ['approved', 'applied']))->exists()) {
+            return $result;
+        }
+        $helper = app(AiIntakeCustomerContextService::class);
+        $proof = $helper->assignmentCandidate($intake, $actor);
+        if ($proof && (! $intake->customer_id || $intake->customer_id === $proof['customer_id'])) {
+            $customer = Customer::active()->lockForUpdate()->find($proof['customer_id']);
+            if ($customer && $customer->company_name === $proof['name']) {
+                $freshProof = $helper->assignmentCandidate($intake, $actor);
+                abort_unless($proof === $freshProof, 409, 'Der erkannte Kunde wurde inzwischen geändert.');
+                $this->access($actor);
+                abort_unless((int) AiDispositionSettings::all(true)['revision'] === $run->settings_revision, 409, 'Postfacheinstellungen wurden geändert.');
+                $intake->customer_id = $customer->id;
+                $intake->match_method = 'source_context';
+                $result['customer_match'] = $proof + ['run_id' => $run->id];
+                app(OperationsAuditService::class)->record($intake, User::findOrFail($actor->id), 'ai.customer_auto_assigned', [
+                    'customer_id' => $customer->id, 'run_id' => $run->id, 'analysis_kind' => $run->kind,
+                    'source_revision' => $intake->source_revision, 'message_id' => $proof['message_id'], 'reasons' => $proof['reasons'],
+                ]);
+            }
+        }
+        if ($intake->match_method === 'source_context' && $intake->customer_id) {
+            foreach ($result['positions'] as &$position) {
+                $position['assumptions']['customer_match'] = ['basis' => 'automatic_customer_match',
+                    'label' => 'Bestandskunde automatisch zugeordnet',
+                    'reason' => 'Die Kundenzuordnung ist gespeichert. Geschäftliche Erfassung weiterhin separat prüfen und freigeben.'];
+            }
+            unset($position);
+        }
+
+        return $result;
     }
 
     private function replyIntake(array $message, string $sender): ?AiIntake

@@ -1,4 +1,9 @@
-@if(($showCandidateHints ?? true) && !empty($contextHints['candidates']))
+@if(($showCandidateHints ?? true) && !empty($assignedCustomerName))
+<section class="mt-3 text-sm" aria-label="Erkannter Kunde">
+    <h5 class="font-semibold">Zugeordneter Kunde</h5>
+    <p class="mt-2 break-words"><strong>{{ $assignedCustomerName }}</strong></p>
+</section>
+@elseif(($showCandidateHints ?? true) && !empty($contextHints['candidates']))
 <section class="mt-3 text-sm" aria-label="Kundenhinweise">
     <h5 class="font-semibold">{{ !empty($contextHints['ambiguous']) ? 'Mehrere Kunden kommen infrage' : 'Vermuteter Kunde' }}</h5>
     @foreach($contextHints['candidates'] as $candidate)
