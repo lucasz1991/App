@@ -15,15 +15,17 @@ use App\Models\OperationAudit;
 use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Notifications\EmployeeRequestWebPushNotification;
+use App\Support\Operations\OperationsAccess;
 use App\Support\Push\PushDelivery;
 use Closure;
+use Illuminate\Bus\UniqueLock;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use LogicException;
-use RuntimeException;
 use NotificationChannels\WebPush\WebPushChannel;
+use RuntimeException;
 use Throwable;
 
 /** Only explicit request transitions create receipts. No historical-request scan. */
@@ -71,7 +73,7 @@ final class EmployeeRequestNotificationService
             $id = $receipt->id;
             DB::afterCommit(function () use ($id): void {
                 try {
-                    DeliverEmployeeRequestNotification::dispatch($id);
+                    $this->dispatchReceipt($id);
                 } catch (Throwable $exception) {
                     // The committed receipt remains retryable via the dedicated
                     // dispatcher, without recreating business requests.
@@ -86,7 +88,28 @@ final class EmployeeRequestNotificationService
 
     public function ready(): bool
     {
-        return Schema::hasTable('employee_request_notifications');
+        return Schema::hasTable('employee_request_notifications') && Schema::hasColumns('employee_request_notifications', [
+            'event_key', 'request_type', 'request_id', 'request_revision', 'user_id', 'requested_by',
+            'message_id', 'mail_id', 'push_claim_token', 'push_claimed_at', 'mail_failure_version',
+        ]);
+    }
+
+    public function dispatchReceipt(int $receiptId): void
+    {
+        $job = new DeliverEmployeeRequestNotification($receiptId);
+        try {
+            DeliverEmployeeRequestNotification::dispatch($receiptId);
+        } catch (Throwable $exception) {
+            // PendingDispatch acquired the unique lock before touching the queue.
+            // An enqueue outage must not block the receipt's scheduled recovery.
+            try {
+                (new UniqueLock(app('cache')->store()))->release($job);
+            } catch (Throwable) {
+                // Preserve the original queue failure for diagnostics and retry.
+            }
+            $this->failed($receiptId, $exception);
+            throw $exception;
+        }
     }
 
     public function mayNotify(int $receiptId, int $userId): bool
@@ -160,8 +183,12 @@ final class EmployeeRequestNotificationService
             $receipt->refresh();
             if ($receipt->mail_id && ! $receipt->mail_enqueued_at && ! $receipt->mail_skipped_at) {
                 if ($this->source($receipt)) {
+                    $failureVersion = $receipt->mail_failure_version;
                     ProcessMailJob::dispatch(Mail::findOrFail($receipt->mail_id));
-                    $receipt->update(['mail_enqueued_at' => now()->utc()]);
+                    // A fast child can fail before dispatch returns. Only this
+                    // unchanged attempt may mark the native job enqueued.
+                    EmployeeRequestNotification::whereKey($receipt->id)->where('mail_failure_version', $failureVersion)
+                        ->whereNull('mail_skipped_at')->update(['mail_enqueued_at' => now()->utc()]);
                 } else {
                     $receipt->update(['mail_skipped_at' => now()->utc()]);
                 }
@@ -169,7 +196,11 @@ final class EmployeeRequestNotificationService
             $receipt->refresh();
             if ($receipt->message_id && ($receipt->mail_enqueued_at || $receipt->mail_skipped_at)
                 && ($receipt->push_enqueued_at || $receipt->push_skipped_at)) {
-                $receipt->update(['enqueued_at' => now()->utc(), 'last_error_class' => null]);
+                // A child can also fail after this final refresh. Completion
+                // must never overwrite the failure's reopened recovery state.
+                EmployeeRequestNotification::whereKey($receipt->id)->where('mail_failure_version', $receipt->mail_failure_version)
+                    ->whereNull('enqueued_at')->whereNull('skipped_at')
+                    ->update(['enqueued_at' => now()->utc(), 'last_error_class' => null]);
             }
         } catch (Throwable $exception) {
             $this->failed($receiptId, $exception);
@@ -184,32 +215,58 @@ final class EmployeeRequestNotificationService
         if (! $target || ! $this->ready()) {
             return false;
         }
-        $receipt = EmployeeRequestNotification::where('message_id', $message->id)->first();
-        if (! $receipt) {
+        $receiptId = EmployeeRequestNotification::where('message_id', $message->id)->value('id');
+        if (! $receiptId) {
             return false;
         }
-        if ($receipt->push_enqueued_at || $receipt->push_skipped_at || $receipt->skipped_at) {
-            return true;
-        }
-        $recipient = User::find($receipt->user_id);
-        if (! $recipient || (int) $message->to_user !== $recipient->id
-            || $target !== [$receipt->request_type, $receipt->request_id, $receipt->request_revision]
-            || ! $this->source($receipt)) {
-            $receipt->update(['push_skipped_at' => now()->utc()]);
+        if (DB::transactionLevel() > 0) {
+            DB::afterCommit(fn () => $this->queueMessagePush($message));
 
             return true;
         }
-        $notification = new EmployeeRequestWebPushNotification($receipt->id, 'message:'.$message->id, $message->subject,
-            Str::of($message->message)->stripTags()->squish()->limit(160)->toString(), $message->action_url);
-        if (! $notification->shouldSend($recipient, WebPushChannel::class)) {
-            $receipt->update(['push_skipped_at' => now()->utc()]);
+        $claim = DB::transaction(function () use ($receiptId, $message, $target): ?array {
+            $receipt = EmployeeRequestNotification::lockForUpdate()->find($receiptId);
+            if (! $receipt || $receipt->push_enqueued_at || $receipt->push_skipped_at || $receipt->skipped_at
+                || ($receipt->push_claim_token && $receipt->push_claimed_at?->gt(now()->subMinutes(5)))) {
+                return null;
+            }
+            $recipient = User::find($receipt->user_id);
+            if (! $recipient || (int) $message->to_user !== $recipient->id
+                || $target !== [$receipt->request_type, $receipt->request_id, $receipt->request_revision]
+                || ! $this->source($receipt)) {
+                $receipt->update(['push_skipped_at' => now()->utc(), 'push_claim_token' => null, 'push_claimed_at' => null]);
 
+                return null;
+            }
+            $notification = new EmployeeRequestWebPushNotification($receipt->id, 'message:'.$message->id, $message->subject,
+                Str::of($message->message)->stripTags()->squish()->limit(160)->toString(), $message->action_url);
+            if (! $notification->shouldSend($recipient, WebPushChannel::class)) {
+                $receipt->update(['push_skipped_at' => now()->utc(), 'push_claim_token' => null, 'push_claimed_at' => null]);
+
+                return null;
+            }
+            $token = (string) Str::uuid();
+            $receipt->update(['push_claim_token' => $token, 'push_claimed_at' => now()->utc()]);
+
+            return ['token' => $token, 'recipient' => $recipient, 'notification' => $notification];
+        }, 3);
+        if (! $claim) {
             return true;
         }
-        // Exceptions intentionally reach the outbox job so this one unfinished
-        // channel can retry; ordinary PushDelivery calls retain their own logging.
-        $recipient->notify($notification);
-        $receipt->update(['push_enqueued_at' => now()->utc()]);
+        try {
+            // No transaction surrounds the queue boundary: acceptance is known
+            // before the receipt marks it enqueued. A concurrent worker sees the
+            // committed lease instead of scheduling a second native notification.
+            $claim['recipient']->notify($claim['notification']);
+            EmployeeRequestNotification::whereKey($receiptId)->where('push_claim_token', $claim['token'])->update([
+                'push_enqueued_at' => now()->utc(), 'push_claim_token' => null, 'push_claimed_at' => null,
+            ]);
+        } catch (Throwable $exception) {
+            EmployeeRequestNotification::whereKey($receiptId)->where('push_claim_token', $claim['token'])->update([
+                'push_claim_token' => null, 'push_claimed_at' => null, 'last_error_class' => Str::limit($exception::class, 190, ''),
+            ]);
+            throw $exception;
+        }
 
         return true;
     }
@@ -258,7 +315,11 @@ final class EmployeeRequestNotificationService
             // A queue exception after the transaction committed leaves a durable
             // channel to retry, not an incorrectly completed native Mail marker.
             $mail->refresh()->update(['status' => false]);
-            $this->failed((int) ($mail->content['employee_request_receipt_id'] ?? 0), $exception);
+            $receiptId = (int) ($mail->content['employee_request_receipt_id'] ?? 0);
+            EmployeeRequestNotification::whereKey($receiptId)->where('mail_id', $mail->id)->update([
+                'mail_enqueued_at' => null, 'enqueued_at' => null, 'mail_failure_version' => DB::raw('mail_failure_version + 1'),
+            ]);
+            $this->failed($receiptId, $exception);
             throw $exception;
         }
     }
@@ -266,7 +327,7 @@ final class EmployeeRequestNotificationService
     private function source(EmployeeRequestNotification $receipt): ShiftAssignment|CustomerCapacityCommitment|null
     {
         $recipient = User::find($receipt->user_id);
-        if (! $recipient || ! $recipient->status || $recipient->role !== 'staff') {
+        if (! OperationsAccess::isEmployee($recipient)) {
             return null;
         }
         if (EmployeeRequestNotification::where('request_type', $receipt->request_type)->where('request_id', $receipt->request_id)

@@ -1,7 +1,7 @@
 <section class="rt-today-card rt-personal-requests" aria-labelledby="personal-requests-heading" data-personal-requests>
     <header class="rt-personal-requests__heading">
         <div><h3 id="personal-requests-heading">Deine Antwort ist gefragt</h3><p>{{ $pendingRequests->total() ? 'Bitte prüfe die Anfragen und gib deine Rückmeldung.' : 'Aktuell gibt es keine offenen Anfragen, die deine Zustimmung benötigen.' }}</p></div>
-        @if($pendingRequests->total())<span class="rt-personal-requests__count" aria-label="{{ $pendingRequests->total() }} offene Anfragen">{{ $pendingRequests->total() }} offen</span>@endif
+        @if($pendingRequests->total())<span class="rt-personal-requests__count" aria-label="{{ $pendingRequests->total() }} {{ $pendingRequests->total() === 1 ? 'offene Anfrage' : 'offene Anfragen' }}">{{ $pendingRequests->total() }} offen</span>@endif
     </header>
     @if($pendingRequests->total())
         <ul class="rt-personal-requests__list">

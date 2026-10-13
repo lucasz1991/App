@@ -12,6 +12,7 @@ use App\Services\Operations\UnifiedOperationsInboxService;
 use App\Support\Operations\OperationsAccess;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Livewire\Attributes\Locked;
+use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -136,6 +137,18 @@ class AttentionCenter extends Component
         $this->access();
         abort_unless($this->personal, 403);
         app(OperationsReminderService::class)->syncUser(auth()->user());
+    }
+
+    #[On('personal-request-answered')]
+    public function refreshPersonalRequests(): void
+    {
+        $this->access();
+        if (! $this->personal || $this->mode !== 'inbox' || $this->tab !== 'inbox') {
+            $this->skipRender();
+
+            return;
+        }
+        $this->resetPage();
     }
 
     public function edit(?int $id = null): void

@@ -2,10 +2,10 @@
 
 namespace App\Console\Commands;
 
-use App\Jobs\DeliverEmployeeRequestNotification;
 use App\Models\EmployeeRequestNotification;
 use App\Services\Operations\EmployeeRequestNotificationService;
 use Illuminate\Console\Command;
+use Throwable;
 
 class DispatchEmployeeRequestNotifications extends Command
 {
@@ -22,11 +22,17 @@ class DispatchEmployeeRequestNotifications extends Command
         }
         $limit = max(1, min(1000, (int) $this->option('limit')));
         $ids = EmployeeRequestNotification::whereNull('enqueued_at')->whereNull('skipped_at')->orderBy('id')->limit($limit)->pluck('id');
+        $failures = 0;
         foreach ($ids as $id) {
-            DeliverEmployeeRequestNotification::dispatch((int) $id);
+            try {
+                $service->dispatchReceipt((int) $id);
+            } catch (Throwable $exception) {
+                $failures++;
+                $this->warn('Receipt #'.$id.': Queue nicht verfügbar ('.$exception::class.').');
+            }
         }
         $this->info($ids->count().' vorhandene Benachrichtigungsreceipts zur Queue angeboten.');
 
-        return self::SUCCESS;
+        return $failures ? self::FAILURE : self::SUCCESS;
     }
 }

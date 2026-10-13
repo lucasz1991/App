@@ -75,6 +75,7 @@ class ProcessMailJob implements ShouldQueue
                         Log::warning("Benutzer mit ID {$userId} nicht gefunden.", [
                             'mail_id' => $this->mail->id,
                         ]);
+
                         continue;
                     }
 
@@ -96,12 +97,14 @@ class ProcessMailJob implements ShouldQueue
                     }
 
                     $recipient['status'] = $didProcess;
+
                     continue;
                 }
 
                 if ($sendMailTo && filter_var($email, FILTER_VALIDATE_EMAIL)) {
                     Notification::route('mail', $email)->notify($this->notification());
                     $recipient['status'] = true;
+
                     continue;
                 }
 

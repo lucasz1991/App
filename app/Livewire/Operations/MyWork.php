@@ -357,6 +357,7 @@ class MyWork extends Component
         }
         $this->closeConsentRequest();
         $this->resetPage('requestsPage');
+        $this->dispatch('personal-request-answered')->to(AttentionCenter::class);
         session()->flash('operations.saved', $message);
     }
 

@@ -87,15 +87,16 @@ class NativeOperationsWorkflowTest extends TestCase
         $this->assertFalse($adminLinks->contains('title', 'Kundenübersicht'));
         $this->assertSame(0, $adminLinks->where('title', 'Vorgänge & Aufträge')->count());
         $this->assertSame(1, $adminLinks->where('title', 'Schichtplanung')->count());
-        $this->assertSame(['Ressourcen & Kapazität'], $adminLinks->where('group', 'Planung')->pluck('title')->all());
-        $this->assertSame(['Eingang', 'Aufträge', 'Schichtplanung', 'Kalender', 'Leitstelle'], collect($sections['Disposition'])->whereNull('group')->pluck('title')->values()->all());
+        $this->assertSame([], $adminLinks->where('group', 'Planung')->pluck('title')->all());
+        $this->assertSame(['Eingang', 'Aufträge', 'Schichtplanung', 'Kalender', 'Ressourcen & Kapazität', 'Leitstelle'], collect($sections['Disposition'])->whereNull('group')->pluck('title')->values()->all());
         $this->assertTrue(collect($sections['Mein Arbeitsplatz'])->contains(fn ($link) => $link['title'] === 'Wagenliste' && $link['group'] === 'Arbeitsmittel'));
         $this->assertFalse(collect($sections['Disposition'])->contains('title', 'Wagenliste'));
         $this->assertTrue(collect($sections['Personal'])->contains(fn ($link) => ($link['parameters']['page'] ?? '') === 'time-review' && $link['group'] === 'Zeitwirtschaft'));
         $this->assertFalse($adminLinks->contains('route', 'admin.operations.preview'));
         $employeeSections = ApplicationNavigation::sections($this->employee);
         $employeeLinks = collect($employeeSections)->flatten(1);
-        $this->assertSame('Mein Arbeitsplatz', array_keys($employeeSections)[1]);
+        $this->assertSame('Mein Arbeitsplatz', array_key_first($employeeSections));
+        $this->assertFalse($employeeLinks->contains('route', 'dashboard'));
         $this->assertTrue($employeeLinks->contains('route', 'operations.mine'));
         $this->assertFalse($employeeLinks->contains('route', 'operations.page'));
         $this->assertTrue($employeeLinks->contains('route', 'operations.wagon-list'));
@@ -278,7 +279,8 @@ class NativeOperationsWorkflowTest extends TestCase
         foreach (['records', 'absences'] as $focus) {
             Livewire::test(MyWork::class, ['focus' => $focus])->assertSet('tab', $focus)->assertOk()->assertDontSee('WILSON');
         }
-        $this->get(route('dashboard'))->assertOk()->assertSee('data-native-dashboard', false)->assertDontSee('planning_not_connected');
+        $this->get(route('dashboard'))->assertRedirect(route('operations.mine'));
+        $this->get(route('operations.mine'))->assertOk()->assertSee('data-personal-workspace', false)->assertDontSee('planning_not_connected');
         // Das Dashboard ist seit dem individuellen Widget-Raster kein festes
         // Cockpit-Embed mehr, sondern App\Livewire\Dashboard\WidgetGrid.
         $this->actingAs($this->admin)->get(route('admin.dashboard'))->assertOk()->assertSee('data-dashboard-widget-grid', false);

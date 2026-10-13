@@ -19,6 +19,7 @@ class Kernel extends ConsoleKernel
     {
         $schedule->command('dropbox:recover')->everyMinute()->withoutOverlapping();
         $schedule->command('operations:attention-run')->everyMinute()->withoutOverlapping();
+        $schedule->command('operations:dispatch-employee-requests')->everyMinute()->withoutOverlapping();
         $schedule->command('operations:ai-intake-poll')->everyMinute()->withoutOverlapping();
         $schedule->command('operations:staffing-automation')->everyMinute()->withoutOverlapping();
         $schedule->command('routing:purge-cache')->everyMinute()->withoutOverlapping();
