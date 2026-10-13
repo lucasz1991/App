@@ -3,7 +3,7 @@
         @if(\App\Services\Operations\SiteSnapshotService::confirmed($record->location_snapshot))
             <p class="text-sm">{{ $record->location_snapshot['name'] }} · {{ $record->location_snapshot['address'] }}<span class="block text-rt-muted">Bestätigt · {{ $record->location_snapshot['latitude'] }}, {{ $record->location_snapshot['longitude'] }} · Stand {{ $record->location_snapshot['revision'] }}</span></p>
         @else
-            <p class="text-sm text-amber-700 dark:text-amber-300">Standort noch nicht präzise bestätigt. Bei aktivierter Routenplanung ist eine verbindliche Zuteilung oder Veröffentlichung erst nach Bestätigung möglich.</p>
+            <p class="text-sm text-amber-700 dark:text-amber-300">Standort noch nicht präzise bestätigt. Eine neue verbindliche Zuteilung oder Veröffentlichung erfordert einen bestätigten Einsatzstandort.</p>
         @endif
     </div>
     <form wire:submit="save" class="flex flex-wrap items-end gap-3">

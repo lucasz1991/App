@@ -170,7 +170,7 @@ class TimelinePlanningSuggestionServiceTest extends TestCase
         $preview = $this->service->preview('2027-05-12', '2027-05-14', $this->manager);
         $this->assertCount(1, $preview['proposals']);
         $this->assertSame($this->ben->id, $preview['proposals']->first()['user']->id);
-        $this->assertContains('Keine Planungskonflikte', $preview['proposals']->first()['reasons']);
+        $this->assertContains('Keine bekannten Planungskonflikte', $preview['proposals']->first()['reasons']);
         $this->assertSame($before, [ShiftAssignment::count(), DB::table('operation_audits')->count(), $shift->fresh()->getAttributes()]);
         $choices = $this->service->cellChoices($this->anna->id, '2027-05-13', '2027-05-12', '2027-05-14', $this->manager);
         $this->assertContains('qualification_'.$type->id, array_column($choices->first()['issues'], 'code'));
@@ -228,8 +228,11 @@ class TimelinePlanningSuggestionServiceTest extends TestCase
         $training = PersonnelTraining::create(['title' => 'Lehrgang', 'starts_at' => '2027-05-13T10:00', 'ends_at' => '2027-05-13T12:00', 'timezone' => 'Europe/Berlin', 'capacity' => 1, 'created_by' => $this->manager->id]);
         PersonnelTrainingParticipant::create(['personnel_training_id' => $training->id, 'user_id' => $this->ben->id, 'status' => 'confirmed', 'created_by' => $this->manager->id]);
         $this->assertCount(0, $this->service->rankedCandidates($target, $this->manager));
-        $choices = $this->service->cellChoices($this->anna->id, '2027-05-13', '2027-05-13', '2027-05-13', $this->manager);
-        $this->assertContains('already_assigned', array_column($choices->first()['issues'], 'code'));
+        foreach ([false, true] as $displayOnly) {
+            $choices = $this->service->cellChoices($this->anna->id, '2027-05-13', '2027-05-13', '2027-05-13', $this->manager, $displayOnly);
+            $this->assertContains('already_assigned', array_column($choices->first()['issues'], 'code'));
+            $this->assertFalse($choices->first()['eligible']);
+        }
         $benChoices = $this->service->cellChoices($this->ben->id, '2027-05-13', '2027-05-13', '2027-05-13', $this->manager);
         $this->assertFalse($benChoices->first()['eligible']);
     }

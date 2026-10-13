@@ -57,7 +57,7 @@ class TimelinePlanningSuggestionService
             $detail = $displayOnly ? app(PlanningTravelDisplay::class)->current($shift, collect([$user]), $stored[$shift->id] ?? [])[$user->id]
                 : app(StaffEligibilityService::class)->assessDetailedMany($shift, collect([$user]))[$user->id];
             $detail += app(PlanningTravelDisplay::class)->status($detail);
-            $issues = array_merge($detail['issues'], $this->capacityIssues($shift, $user));
+            $issues = $this->selectionIssues($shift, $user, $detail['issues']);
 
             return ['shift' => $shift, 'revision' => (int) $shift->revision, 'eligible' => $issues === [], 'issues' => $issues, 'travel' => $detail, 'warnings' => $detail['warnings']];
         }));
@@ -282,9 +282,8 @@ class TimelinePlanningSuggestionService
             && (int) $shift->reserved_count < $shift->required_staff;
     }
 
-    private function issues(Shift $shift, User $user): array
+    private function selectionIssues(Shift $shift, User $user, array $issues): array
     {
-        $issues = app(StaffEligibilityService::class)->assessMany($shift, collect([$user]))[$user->id];
         if ($shift->assignments()->blocking()->where('user_id', $user->id)->exists()) {
             $issues[] = ['code' => 'already_assigned', 'message' => 'Mitarbeiter ist dieser Schicht bereits zugewiesen.'];
         }
