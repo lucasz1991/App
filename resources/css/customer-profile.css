@@ -41,7 +41,7 @@
 .customer-profile[data-customer-profile] .customer-profile__groups .customer-profile__group[aria-current='page'] { color: var(--customer-profile-signal); }
 .customer-profile__group:focus-visible { outline: 2px solid var(--customer-profile-signal) !important; outline-offset: -3px; }
 .customer-profile__tab-row { min-width: 0; margin-top: 8px; padding: 4px; border-radius: 10px; background: var(--customer-profile-inset); }
-.customer-profile__tabs.rt-ops-panel__tabs { position: relative; display: flex; gap: 4px; max-width: 100%; overflow-x: auto; padding: 0; border: 0; scrollbar-width: thin; }
+.customer-profile__tabs.rt-ops-panel__tabs { position: relative; display: flex; gap: 4px; max-width: 100%; overflow-x: auto; overflow-y: hidden; padding: 0; border: 0; scrollbar-width: thin; }
 .customer-profile__tabs .rt-ops-panel__tab { position: relative; display: inline-flex; align-items: center; flex: 0 0 auto; gap: 6px; min-height: 44px; padding: 10px 12px !important; border: 0; border-radius: 6px; color: var(--customer-profile-muted); background: transparent; box-shadow: none; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .customer-profile__tabs .rt-ops-panel__tab[aria-selected='true'] { color: theme('colors.white'); background: var(--customer-profile-selection); }
 .customer-profile__tabs .rt-ops-panel__tab:hover { color: var(--customer-profile-ink); background: var(--customer-profile-paper); }
@@ -66,8 +66,8 @@
 .customer-profile__portal-navigation { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 16px; }
 .customer-profile__overview { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .customer-profile__metrics { min-width: 0; gap: 4px; padding: 8px; border-radius: 12px; background: var(--customer-profile-inset); }
-.customer-profile__metrics .customer-profile__metric { height: 100%; min-height: 88px; padding: 12px !important; border: 0; border-radius: 8px; background: transparent !important; box-shadow: none !important; transform: none !important; }
-.customer-profile__metrics .customer-profile__metric dt { color: var(--customer-profile-muted); font-size: 11px; text-transform: none; letter-spacing: 0; }
+.customer-profile__metrics .customer-profile__metric { height: 100%; min-height: 76px !important; padding: 12px !important; border: 0; border-radius: 8px; background: transparent !important; box-shadow: none !important; transform: none !important; }
+.customer-profile__metrics .customer-profile__metric dt { color: var(--customer-profile-muted); font-size: 11px; text-transform: none !important; letter-spacing: 0; }
 .customer-profile__metrics .customer-profile__metric dd { color: var(--customer-profile-ink); font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .customer-profile__metrics > a:hover { background: var(--customer-profile-paper); }
 .customer-profile__overview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 16px; min-width: 0; }
@@ -87,6 +87,9 @@
 .customer-profile__portal-details dd { font-size: 13px; overflow-wrap: anywhere; }
 .customer-profile__card :is(a, button):focus-visible { outline: 2px solid var(--customer-profile-signal); outline-offset: 2px; }
 @keyframes customer-profile-panel-enter { from { opacity: .6; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@media (min-width: 1024px) {
+    .customer-profile__metrics { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) !important; }
+}
 @media (max-width: 767.98px) {
     .customer-profile__identity { flex-wrap: wrap; gap: 8px; padding: 12px; }
     .customer-profile__name-line h2 { font-size: 20px; }

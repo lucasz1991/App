@@ -19,6 +19,8 @@ use App\Support\Ai\AssistantSettings;
 use App\Support\Operations\AiDispositionSettings;
 use App\Support\Operations\OperationsPages;
 use App\Support\Operations\UnifiedInboxProjection;
+use DOMDocument;
+use DOMXPath;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
@@ -276,5 +278,37 @@ class AiIntakePanelNavigationTest extends TestCase
         $this->assertStringNotContainsString('data-railtime-chatbot-root', $html);
         $this->assertSame(1, substr_count($html, 'class="rt-ai-assist__launcher"'));
         $this->assertSame(1, substr_count($html, 'data-ai-intake-inbox'));
+    }
+
+    public function test_initially_selected_embedded_intake_preserves_the_composer_wrapper_key_when_returning_to_the_list(): void
+    {
+        $intake = $this->intake();
+        $before = $intake->getRawOriginal();
+        $component = Livewire::test(AiIntakeInbox::class, ['embedded' => true, 'initialIntakeId' => $intake->id]);
+        $children = $component->snapshot['memo']['children'];
+        $this->assertNotEmpty($children);
+        $expectedKey = 'intake-composer-host-'.$component->snapshot['memo']['id'];
+        $wrapper = function () use ($component, $expectedKey): \DOMElement {
+            $document = new DOMDocument;
+            $document->loadHTML('<?xml encoding="utf-8" ?>'.$component->html(), LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+            $nodes = (new DOMXPath($document))->query('//div[contains(concat(" ",normalize-space(@class)," ")," ai-intake-panel__composer ")]');
+            $this->assertSame(1, $nodes->length);
+            $node = $nodes->item(0);
+            $this->assertSame($expectedKey, $node->getAttribute('wire:key'), 'The wrapper needs a stable morph key even when its tabpanel id changes.');
+
+            return $node;
+        };
+        $this->assertNotSame('', $wrapper()->getAttribute('id'));
+        $component->call('closeDetail')->assertSet('detailOpen', false)->assertSet('selectedId', null)
+            ->assertDispatched('ai-intake-assistant-overview', customerId: null, componentId: $component->snapshot['memo']['id']);
+        $this->assertSame('', $wrapper()->getAttribute('id'));
+        $this->assertSame($children, $component->snapshot['memo']['children']);
+        $component->call('openCapture');
+        $this->assertTrue($wrapper()->hasAttribute('hidden'));
+        $this->assertSame($children, $component->snapshot['memo']['children']);
+        $component->call('closeCapture')->call('select', $intake->id);
+        $this->assertNotSame('', $wrapper()->getAttribute('id'));
+        $this->assertSame($children, $component->snapshot['memo']['children']);
+        $this->noBusinessChanges($intake, $before);
     }
 }

@@ -337,13 +337,23 @@ class MyWork extends Component
 
             return;
         }
-        if ($this->requestType === 'capacity') {
-            $this->validate(['requestConfirmed' => 'accepted'], ['requestConfirmed.accepted' => 'Bitte prüfe und bestätige den angefragten Zeitraum.']);
-            app(CustomerCapacityService::class)->consent($actor, $this->requestId, $this->requestRevision, $accept);
-            $message = $accept ? 'Verfügbarkeit bestätigt.' : 'Kapazitätsanfrage abgelehnt.';
-        } else {
-            app(PlanPublicationService::class)->respond($this->requestId, $this->requestRevision, $accept, $actor);
-            $message = $accept ? 'Dienst bestätigt.' : 'Dienst abgelehnt.';
+        try {
+            if ($this->requestType === 'capacity') {
+                $this->validate(['requestConfirmed' => 'accepted'], ['requestConfirmed.accepted' => 'Bitte prüfe und bestätige den angefragten Zeitraum.']);
+                app(CustomerCapacityService::class)->consent($actor, $this->requestId, $this->requestRevision, $accept);
+                $message = $accept ? 'Verfügbarkeit bestätigt.' : 'Kapazitätsanfrage abgelehnt.';
+            } else {
+                app(PlanPublicationService::class)->respond($this->requestId, $this->requestRevision, $accept, $actor);
+                $message = $accept ? 'Dienst bestätigt.' : 'Dienst abgelehnt.';
+            }
+        } catch (HttpException $exception) {
+            if ($exception->getStatusCode() !== 409) {
+                throw $exception;
+            }
+            $this->requestConfirmed = false;
+            $this->addError('request', 'Die Anfrage wurde zwischenzeitlich geändert oder beantwortet. Prüfe den aktuellen Stand erneut.');
+
+            return;
         }
         $this->closeConsentRequest();
         $this->resetPage('requestsPage');

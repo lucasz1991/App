@@ -1,5 +1,5 @@
 <div class="rt-ops ops-stack customer-workspace" data-customer-workspace @if(!$customerId) data-customer-directory-scroll @endif>
-    <x-ui.page title="Kunden" :auto-intro="false" :show-back="false" :title-in-topbar="true">
+    <x-ui.page :title="$customerId ? 'Kundenprofil' : 'Kunden'" :auto-intro="false" :show-back="false" :title-in-topbar="!$customerId">
         <x-slot:actions>
             @if(!$customerId)
                 <div class="customer-directory__toolbar" wire:key="customer-directory-toolbar">
