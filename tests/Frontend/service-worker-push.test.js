@@ -14,11 +14,23 @@ class TestMessageChannel {
     }
 }
 
-function client({ chatId = 0, ack = true, focused = true, visible = true, url = 'https://railtime.example/app/chat', fail = false } = {}) {
+function client({ chatId = 0, ack = true, focused = true, visible = true, url = 'https://railtime.example/app/chat', fail = false, navigateFail = false } = {}) {
     return {
         url,
         visibilityState: visible ? 'visible' : 'hidden',
         messages: [],
+        navigations: [],
+        focusCount: 0,
+        async navigate(target) {
+            if (navigateFail) throw new Error('Client was closed before navigation');
+            this.navigations.push(target);
+            this.url = target;
+            return this;
+        },
+        async focus() {
+            this.focusCount++;
+            return this;
+        },
         postMessage(message, [port]) {
             this.messages.push(message);
             if (fail) throw new Error('Client was closed');
@@ -43,6 +55,7 @@ function harness({ clients = [], enumerateError = false, displayError = false } 
     const listeners = new Map();
     const notifications = [];
     const requests = [];
+    const openedWindows = [];
     const order = [];
     let enumerations = 0;
     const self = {
@@ -61,6 +74,10 @@ function harness({ clients = [], enumerateError = false, displayError = false } 
                 if (enumerateError) throw new Error('Client enumeration failed');
                 return clients;
             },
+            async openWindow(url) {
+                openedWindows.push(url);
+                return null;
+            },
         },
         addEventListener(type, callback) { listeners.set(type, callback); },
     };
@@ -70,7 +87,7 @@ function harness({ clients = [], enumerateError = false, displayError = false } 
         fetch: async (url, options) => { order.push('ring'); requests.push({ url, options }); },
     });
     return {
-        notifications, requests, order,
+        notifications, requests, order, openedWindows,
         get enumerations() { return enumerations; },
         async push(payload) {
             let pending;
@@ -79,6 +96,16 @@ function harness({ clients = [], enumerateError = false, displayError = false } 
                 waitUntil(promise) { pending = promise; },
             });
             await pending;
+        },
+        async clickNotification(url) {
+            let pending;
+            let closed = false;
+            listeners.get('notificationclick')({
+                notification: { data: { url }, close() { closed = true; } },
+                waitUntil(promise) { pending = promise; },
+            });
+            await pending;
+            return closed;
         },
     };
 }
@@ -186,4 +213,42 @@ test('repeated push events each honor the visible notification promise while ret
     assert.equal(worker.notifications.length, 2);
     assert.equal(worker.notifications[0].tag, worker.notifications[1].tag);
     assert.ok(worker.notifications.every((notification) => notification.silent === true));
+});
+
+for (const requestType of ['shift', 'capacity']) {
+    test(`${requestType} request push opens the exact workday request in an existing application window`, async () => {
+        const foreground = client({ url: 'https://railtime.example/app/mein-arbeitstag' });
+        const worker = harness({ clients: [foreground] });
+        const request = payload('messages');
+        request.data.url = `mein-arbeitstag?tab=today&request_type=${requestType}&request_id=41&request_revision=7`;
+        await worker.push(request);
+
+        const target = `https://railtime.example/app/${request.data.url}`;
+        assert.equal(worker.notifications[0].data.url, target);
+        assert.equal(await worker.clickNotification(worker.notifications[0].data.url), true);
+        assert.deepEqual(foreground.navigations, [target]);
+        assert.equal(foreground.focusCount, 1);
+        assert.equal(worker.openedWindows.length, 0);
+        assert.equal(worker.requests.length, 0, 'Opening a request must not submit a business response');
+    });
+}
+
+test('workday request click opens a new application window when no matching client remains', async () => {
+    const foreign = client({ url: 'https://other.example/app/' });
+    const outside = client({ url: 'https://railtime.example/another/' });
+    const closed = client({ navigateFail: true });
+    const worker = harness({ clients: [foreign, outside, closed] });
+    const target = 'https://railtime.example/app/mein-arbeitstag?tab=today&request_type=shift&request_id=42&request_revision=3';
+
+    await worker.clickNotification(target);
+    assert.deepEqual(worker.openedWindows, [target]);
+    assert.equal(foreign.navigations.length + outside.navigations.length + closed.navigations.length, 0);
+    assert.equal(worker.requests.length, 0);
+});
+
+test('request notification click keeps foreign targets inside the application scope', async () => {
+    const worker = harness();
+    await worker.clickNotification('https://other.example/mein-arbeitstag?request_id=41');
+    assert.deepEqual(worker.openedWindows, ['https://railtime.example/app/']);
+    assert.equal(worker.requests.length, 0);
 });

@@ -74,6 +74,10 @@ class ShiftAssignmentService
                 ->lockForUpdate()
                 ->first() ?? new ShiftAssignment;
 
+            $newRequest = $assignmentStatus === ShiftAssignmentStatus::Requested
+                && (! $assignment->exists || $assignment->status !== ShiftAssignmentStatus::Requested
+                    || $assignment->plan_revision !== $lockedShift->revision);
+
             if (OperationsAccess::ready()) {
                 if ($assignment->exists && WorkTimeEntry::where('shift_assignment_id', $assignment->id)->exists()) {
                     throw ValidationException::withMessages(['workflow' => 'Für diesen Dienst wurden bereits Zeiten erfasst.']);
@@ -96,6 +100,9 @@ class ShiftAssignmentService
                         'status' => $assignment->status->value, 'plan_revision' => $assignment->plan_revision,
                         'confirmed_at' => now()->utc()->toIso8601String(),
                     ]);
+                }
+                if ($newRequest) {
+                    app(EmployeeRequestNotificationService::class)->shiftRequested($assignment, $actor);
                 }
             }
 

@@ -4,7 +4,9 @@ namespace App\Jobs;
 
 use App\Models\Mail;
 use App\Models\User;
+use App\Notifications\EmployeeRequestMailNotification;
 use App\Notifications\MailNotification;
+use App\Services\Operations\EmployeeRequestNotificationService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -35,6 +37,19 @@ class ProcessMailJob implements ShouldQueue
      * (message), eine E-Mail (mail) oder beides (both) verschickt.
      */
     public function handle(): void
+    {
+        if (! empty($this->mail->content['employee_request_receipt_id'])) {
+            app(EmployeeRequestNotificationService::class)->processMail($this->mail, function (Mail $mail): void {
+                $this->mail = $mail;
+                $this->processRecipients();
+            });
+
+            return;
+        }
+        $this->processRecipients();
+    }
+
+    private function processRecipients(): void
     {
         $recipients = is_array($this->mail->recipients) ? $this->mail->recipients : [];
         $files = $this->mail->files ?? [];
@@ -76,7 +91,7 @@ class ProcessMailJob implements ShouldQueue
                     }
 
                     if ($sendMailTo) {
-                        $user->notify(new MailNotification($this->mail));
+                        $user->notify($this->notification());
                         $didProcess = true;
                     }
 
@@ -85,7 +100,7 @@ class ProcessMailJob implements ShouldQueue
                 }
 
                 if ($sendMailTo && filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                    Notification::route('mail', $email)->notify(new MailNotification($this->mail));
+                    Notification::route('mail', $email)->notify($this->notification());
                     $recipient['status'] = true;
                     continue;
                 }
@@ -110,5 +125,12 @@ class ProcessMailJob implements ShouldQueue
             'recipients' => $recipients,
             'status' => ! empty($recipients) && collect($recipients)->every(fn ($recipient) => (bool) ($recipient['status'] ?? false)),
         ]);
+    }
+
+    private function notification(): MailNotification
+    {
+        return ! empty($this->mail->content['employee_request_receipt_id'])
+            ? new EmployeeRequestMailNotification($this->mail)
+            : new MailNotification($this->mail);
     }
 }

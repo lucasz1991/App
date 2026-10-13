@@ -419,7 +419,7 @@ class AdminDashboardCommandBoardTest extends TestCase
             ->assertDontSee('data-dashboard-action="devices-manage"', escape: false);
     }
 
-    public function test_employee_and_guest_dashboards_keep_the_segmented_layout_with_personal_data(): void
+    public function test_employee_dashboard_redirects_to_workday_and_guest_keeps_segmented_layout_with_personal_data(): void
     {
         $owner = User::factory()->create(['role' => 'admin']);
         $employeeTeam = Team::forceCreate([
@@ -438,13 +438,6 @@ class AdminDashboardCommandBoardTest extends TestCase
         ]);
         $employee = User::factory()->create(['role' => 'staff', 'current_team_id' => $employeeTeam->id]);
         $guest = User::factory()->create(['role' => 'staff', 'current_team_id' => $guestTeam->id]);
-        $employeeMessage = Message::create([
-            'subject' => 'Persönliche Einsatzunterlagen',
-            'message' => 'Die Unterlagen wurden aktualisiert.',
-            'from_user' => $owner->id,
-            'to_user' => $employee->id,
-            'status' => 1,
-        ]);
         $guestMessage = Message::create([
             'subject' => 'Persönliche Willkommensinformation',
             'message' => 'Die Information wurde aktualisiert.',
@@ -455,29 +448,7 @@ class AdminDashboardCommandBoardTest extends TestCase
 
         Livewire::actingAs($employee)
             ->test(UserDashboard::class)
-            ->assertViewHas('messageActivity', fn (array $activity): bool => $activity['total'] === 1)
-            ->assertSee('data-dashboard-layout="segmented"', escape: false)
-            ->assertSee('data-dashboard-layout-contract="role-hero-workday-device-news-profile-files-trend"', escape: false)
-            ->assertSee('data-dashboard-personal-header', escape: false)
-            ->assertSee('data-dashboard-role-hero-variant="personal"', escape: false)
-            ->assertSee('data-dashboard-stat-variant="minimal"', escape: false)
-            ->assertSee('data-dashboard-work-focus', escape: false)
-            ->assertSee('data-dashboard-primary-action="wagon-list"', escape: false)
-            ->assertSee('data-dashboard-focus-variant="minimal"', escape: false)
-            ->assertSee('data-dashboard-data-source="live"', escape: false)
-            ->assertSee('data-dashboard-data-source="preview"', escape: false)
-            ->assertSee('data-dashboard-preview-label', escape: false)
-            ->assertSee(__('app.planning_not_connected'))
-            ->assertSee('data-dashboard-device-variant="panel"', escape: false)
-            ->assertSee('data-dashboard-device-scope="personal"', escape: false)
-            ->assertSee('href="'.route('devices.mine').'"', escape: false)
-            ->assertDontSee('href="'.route('devices.index').'"', escape: false)
-            ->assertDontSee('data-dashboard-action="devices-manage"', escape: false)
-            ->assertSee('href="'.route('messages', ['open' => $employeeMessage->id]).'"', escape: false)
-            ->assertSee(__('app.unread'))
-            ->assertSee('data-dashboard-real-series', escape: false)
-            ->assertSee('data-dashboard-chart-variant="minimal"', escape: false)
-            ->assertSee('data-series-source="received-messages"', escape: false);
+            ->assertRedirect(route('operations.mine'));
 
         Livewire::actingAs($guest)
             ->test(UserDashboard::class)
@@ -524,7 +495,7 @@ class AdminDashboardCommandBoardTest extends TestCase
         $owner = User::factory()->create(['role' => 'admin']);
         $team = Team::forceCreate([
             'user_id' => $owner->id,
-            'name' => 'Mitarbeiter',
+            'name' => 'Gäste',
             'personal_team' => false,
             'rbac_permissions' => [],
         ]);
@@ -591,7 +562,7 @@ class AdminDashboardCommandBoardTest extends TestCase
         $owner = User::factory()->create(['role' => 'admin']);
         $team = Team::forceCreate([
             'user_id' => $owner->id,
-            'name' => 'Mitarbeiter',
+            'name' => 'Gäste',
             'personal_team' => false,
             'rbac_permissions' => [],
         ]);

@@ -59,8 +59,10 @@ class PlanPublicationService
                 return;
             }
             $changes = app(PlanChangeService::class)->changes($record);
+            $changedPlan = $record->published_revision > 0;
             app(DutyActivityService::class)->validateSections($record);
-            foreach ($record->assignments()->blocking()->orderBy('user_id')->get() as $assignment) {
+            $assignments = $record->assignments()->blocking()->orderBy('user_id')->get();
+            foreach ($assignments as $assignment) {
                 $user = User::lockForUpdate()->findOrFail($assignment->user_id);
                 app(ShiftAssignmentExceptionService::class)->assertEligibleForAssignment($record, $user, $assignment, ['travel_preflight' => $preflight]);
                 // Published changes require the employee to respond to the new revision.
@@ -68,6 +70,10 @@ class PlanPublicationService
             }
             $record->forceFill(['published_revision' => $revision, 'published_at' => now()->utc(), 'published_snapshot' => $record->only(['order_id', 'title', 'role_name', 'starts_at', 'ends_at', 'timezone', 'location_name', 'customer_location_id', 'location_snapshot', 'planned_break_minutes']) + ['sections' => app(DutyActivityService::class)->snapshot($record)], 'status' => $record->status->value === 'draft' ? 'open' : $record->status])->save();
             app(OperationsAuditService::class)->record($record, $actor, 'shift.published', ['changes' => $changes, 'snapshot' => $record->published_snapshot, 'requirements' => $record->qualifications()->orderBy('name')->pluck('name')->implode(', ') ?: '—']);
+            foreach ($assignments as $assignment) {
+                $assignment->setRelation('shift', $record);
+                app(EmployeeRequestNotificationService::class)->shiftRequested($assignment, $actor, $changedPlan);
+            }
         }, 3);
     }
 

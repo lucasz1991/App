@@ -7,6 +7,7 @@ use App\Models\Message;
 use App\Models\RoomInvitation;
 use App\Models\User;
 use App\Notifications\RailtimeWebPushNotification;
+use App\Services\Operations\EmployeeRequestNotificationService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
@@ -15,6 +16,9 @@ class PushDelivery
 {
     public function messageReceived(Message $message): void
     {
+        if (app(EmployeeRequestNotificationService::class)->queueMessagePush($message)) {
+            return;
+        }
         $recipient = $message->recipient()->first();
 
         if (! $recipient) {

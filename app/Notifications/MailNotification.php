@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\Mail as MailModel;
+use App\Services\Operations\EmployeeRequestNotificationService;
 use App\Support\CompanyData;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -26,6 +27,11 @@ class MailNotification extends Notification implements ShouldQueue
     public function via($notifiable): array
     {
         return ['mail'];
+    }
+
+    public function shouldSend(object $notifiable, string $channel): bool
+    {
+        return $channel !== 'mail' || app(EmployeeRequestNotificationService::class)->mayMail($this->mail, $notifiable);
     }
 
     public function toMail(object $notifiable): MailMessage
@@ -66,7 +72,7 @@ class MailNotification extends Notification implements ShouldQueue
         }
 
         if (! empty($link)) {
-            $m->action(__('app.continue'), $link);
+            $m->action(! empty($content['employee_request_receipt_id']) ? 'Anfrage ansehen & antworten' : __('app.continue'), $link);
         }
 
         $m->salutation(__('app.mail_salutation', ['app' => $company['name']]));

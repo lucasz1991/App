@@ -37,6 +37,7 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Mockery\MockInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
@@ -724,6 +725,179 @@ class AiIntakeManualRecognitionTest extends TestCase
         $this->assertNull($result->analysis['positions'][0]['required_staff']);
         $this->assertSame([], $result->analysis['positions'][0]['assumptions']);
         $this->assertSame(0, $result->proposals()->count());
+        $this->noBindingOrSending();
+    }
+
+    private function positionWithoutStaff(AiIntake $intake, string $body, array $segments = []): array
+    {
+        $position = $this->extractionResult($intake)['positions'][0];
+        $position['required_staff'] = null;
+        $position['segments'] = $segments;
+        $position['missing_fields'] = ['required_staff'];
+        $position['evidence'] = array_values(array_filter($position['evidence'], fn ($item) => $item['field'] !== 'required_staff'
+            && ($segments !== [] || $item['field'] !== 'segments')));
+        foreach ($position['evidence'] as &$evidence) {
+            $evidence['quote'] = $body;
+        }
+        unset($evidence);
+
+        return $position;
+    }
+
+    public static function incompleteRecognitionKinds(): array
+    {
+        return [
+            'new inquiry' => ['inquiry', 'new_inquiry'],
+            'amendment' => ['amendment', 'amendment'],
+        ];
+    }
+
+    #[DataProvider('incompleteRecognitionKinds')]
+    public function test_incomplete_recognition_still_shows_staffing_default_without_enabling_native_capture(string $intent, string $classification): void
+    {
+        $body = 'Nachbestellung Tf Hamburg 2027-05-13T08:00 2027-05-13T16:00.';
+        $intake = $this->capture(['text' => $body, 'raw' => $this->raw($body)]);
+        $original = $intake->messages()->firstOrFail();
+        $rawBytes = app(AiIntakeAttachmentService::class)->bytes($intake, $original->raw_path, $original->raw_hash);
+        $position = $this->positionWithoutStaff($intake, $body);
+        $this->expectResult($intake, ['intent' => $intent, 'classification' => $classification, 'extraction_complete' => false,
+            'positions' => [$position], 'questions' => [['field' => 'required_staff', 'question' => 'Wie viele?']]]);
+
+        $recognized = $this->recognize($intake);
+        $position = $recognized->analysis['positions'][0];
+        $this->assertFalse($recognized->analysis['extraction_complete']);
+        $this->assertFalse($recognized->analysis['overflow']);
+        $this->assertSame($classification, $recognized->analysis['classification']);
+        $this->assertSame(1, $position['required_staff']);
+        $this->assertSame('default', $position['assumptions']['required_staff']['basis']);
+        $this->assertArrayNotHasKey('required_staff', $position['evidence']);
+        $this->assertNotContains('required_staff', $position['missing_fields']);
+        $this->assertSame([], $recognized->analysis['questions']);
+        $this->assertSame('review', $recognized->status);
+        $this->assertSame(0, $recognized->proposals()->count());
+        $this->assertSame($body, $original->fresh()->body);
+        $this->assertSame($rawBytes, app(AiIntakeAttachmentService::class)->bytes($recognized, $original->raw_path, $original->raw_hash));
+        $this->noBindingOrSending();
+    }
+
+    public static function unknownSegmentQuantities(): array
+    {
+        return [
+            'absent legacy quantity' => [[]],
+            'unknown nullable quantity' => [['required_staff' => null]],
+            'unknown legacy zero quantity' => [['required_staff' => 0]],
+            'one person' => [['required_staff' => 1]],
+        ];
+    }
+
+    #[DataProvider('unknownSegmentQuantities')]
+    public function test_staffing_default_normalizes_only_unknown_segment_quantities_and_preserves_other_segment_facts(array $quantity): void
+    {
+        $body = 'Tf Hamburg 2027-05-13T08:00 2027-05-13T16:00, Pause 30 Minuten.';
+        $intake = $this->capture(['text' => $body, 'raw' => $this->raw($body)]);
+        $segment = ['starts_at' => '2027-05-13T08:00', 'ends_at' => '2027-05-13T16:00', 'timezone' => 'Europe/Berlin',
+            'planned_break_minutes' => 30] + $quantity;
+        $position = $this->positionWithoutStaff($intake, $body, [$segment]);
+        $this->expectResult($intake, ['positions' => [$position]]);
+
+        $recognized = $this->recognize($intake);
+        $position = $recognized->analysis['positions'][0];
+        $this->assertSame(1, $position['required_staff']);
+        $this->assertSame([array_replace($segment, ['required_staff' => 1])], $position['segments']);
+        $this->assertSame('default', $position['assumptions']['required_staff']['basis']);
+        $this->assertSame($body, $position['evidence']['segments']['quote']);
+        $this->assertArrayNotHasKey('required_staff', $position['evidence']);
+        $this->assertSame($position['segments'], $recognized->proposals()->firstOrFail()->payload['segments']);
+        $this->assertSame($body, $recognized->messages()->firstOrFail()->body);
+        $this->noBindingOrSending();
+    }
+
+    public static function explicitSegmentQuantities(): array
+    {
+        return ['two people' => [2], 'seven people' => [7]];
+    }
+
+    #[DataProvider('explicitSegmentQuantities')]
+    public function test_explicit_larger_segment_quantity_prevents_a_contradicting_one_person_default(int $quantity): void
+    {
+        $body = 'Tf Hamburg 2027-05-13T08:00 2027-05-13T16:00, '.$quantity.' Mitarbeiter, Pause 30 Minuten.';
+        $intake = $this->capture(['text' => $body, 'raw' => $this->raw($body)]);
+        $segment = ['starts_at' => '2027-05-13T08:00', 'ends_at' => '2027-05-13T16:00', 'timezone' => 'Europe/Berlin',
+            'required_staff' => $quantity, 'planned_break_minutes' => 30];
+        $position = $this->positionWithoutStaff($intake, $body, [$segment]);
+        $this->expectResult($intake, ['positions' => [$position]]);
+
+        $recognized = $this->recognize($intake);
+        $position = $recognized->analysis['positions'][0];
+        $this->assertNull($position['required_staff']);
+        $this->assertSame([$segment], $position['segments']);
+        $this->assertSame([], $position['assumptions']);
+        $this->assertContains('required_staff', $recognized->proposals()->firstOrFail()->payload['missing_fields']);
+        $this->noBindingOrSending();
+    }
+
+    public static function ineligibleStaffingDefaults(): array
+    {
+        return [
+            'overflow' => ['inquiry', 'new_inquiry', true],
+            'unrelated' => ['other', 'unrelated', false],
+            'automatic response' => ['other', 'auto_reply', false],
+            'cancellation' => ['cancel', 'cancellation', false],
+        ];
+    }
+
+    #[DataProvider('ineligibleStaffingDefaults')]
+    public function test_incomplete_or_unknown_staffing_never_defaults_for_overflow_or_non_inquiries(string $intent, string $classification, bool $overflow): void
+    {
+        $body = 'Tf Hamburg 2027-05-13T08:00 2027-05-13T16:00.';
+        $intake = $this->capture(['text' => $body, 'raw' => $this->raw($body)]);
+        $position = $this->positionWithoutStaff($intake, $body);
+        $this->expectResult($intake, ['intent' => $intent, 'classification' => $classification, 'extraction_complete' => false,
+            'overflow' => $overflow, 'positions' => [$position], 'questions' => [['field' => 'required_staff', 'question' => 'Wie viele?']]]);
+
+        $recognized = $this->recognize($intake);
+        $position = $recognized->analysis['positions'][0];
+        $this->assertNull($position['required_staff']);
+        $this->assertSame([], $position['assumptions']);
+        $this->assertContains('required_staff', $position['missing_fields']);
+        $this->assertCount(1, $recognized->analysis['questions']);
+        $this->assertSame(0, $recognized->proposals()->count());
+        $this->noBindingOrSending();
+    }
+
+    public function test_explicit_original_staffing_remains_unchanged_in_an_incomplete_amendment(): void
+    {
+        $intake = $this->capture();
+        $this->expectResult($intake, ['intent' => 'amendment', 'classification' => 'amendment', 'extraction_complete' => false]);
+
+        $recognized = $this->recognize($intake);
+        $position = $recognized->analysis['positions'][0];
+        $this->assertSame(2, $position['required_staff']);
+        $this->assertSame(2, $position['segments'][0]['required_staff']);
+        $this->assertSame([], $position['assumptions']);
+        $this->assertSame(self::SOURCE, $position['evidence']['required_staff']['quote']);
+        $this->assertFalse($recognized->analysis['extraction_complete']);
+        $this->assertSame(0, $recognized->proposals()->count());
+        $this->noBindingOrSending();
+    }
+
+    public function test_staffing_schema_is_nullable_positive_and_prompt_distinguishes_coverage_from_missing_fields(): void
+    {
+        $position = AiIntakeExtractionService::schema()['properties']['positions']['items'];
+        foreach ([$position['properties']['required_staff'], $position['properties']['segments']['items']['properties']['required_staff']] as $quantitySchema) {
+            $this->assertSame(['integer', 'null'], $quantitySchema['type']);
+            $this->assertSame(1, $quantitySchema['minimum']);
+            $this->assertSame(999, $quantitySchema['maximum']);
+        }
+        $intake = $this->capture();
+        $this->provider->shouldReceive('complete')->once()->andReturnUsing(function (array $messages) use ($intake): OpenRouterChatResponse {
+            $this->assertStringContainsString('nicht die Vollständigkeit der Pflichtangaben', $messages[0]['content']);
+            $this->assertStringContainsString('sie allein machen extraction_complete nicht false', $messages[0]['content']);
+            $this->assertStringContainsString('required_staff bleibt auch in Schichtsegmenten null', $messages[0]['content']);
+
+            return new OpenRouterChatResponse(json_encode($this->extractionResult($intake), JSON_THROW_ON_ERROR));
+        });
+        $this->recognize($intake);
         $this->noBindingOrSending();
     }
 

@@ -22,7 +22,8 @@
             </section>
             @include('livewire.operations.partials.ai-intake-context-hints', ['showCandidateHints' => false])
             <section class="border-t border-rt-border pt-3 dark:border-rt-dark-border"><h3 class="font-semibold">Positionen und Planungsvorschläge</h3><p class="mt-2 ops-muted">Freigegebene Vorschläge werden nach der regulären Beauftragung als unbesetzte Schichtentwürfe vorbereitet.</p>
-                @forelse($selected->proposals as $proposal)
+                @php($currentProposals = $selected->proposals->where('source_revision', $selected->source_revision)->where('status', '!=', 'stale'))
+                @forelse($currentProposals as $proposal)
                     @php($payload = $proposal->payload ?? [])
                     @php($currentProposal = $proposal->source_revision === $selected->source_revision && $selected->revision === $selectedRevision)
                     @php($canCorrect = $currentProposal && !in_array($proposal->status,['applied','stale'],true) && (!$proposal->inquiry || in_array($proposal->inquiry->status,['new','verified'],true)))
@@ -56,14 +57,23 @@
                         @elseif($canCorrect)<div class="ops-actions mt-3"><x-ui.buttons.button-basic type="button" wire:click="editProposal({{ $proposal->id }})">Angaben korrigieren</x-ui.buttons.button-basic>@if($canApprove && $proposal->status === 'proposed' && $proposal->inquiry && $proposal->inquiry->verified_revision === $proposal->inquiry->revision)<x-ui.buttons.button-basic type="button" mode="primary" wire:click="approveProposal({{ $proposal->id }},{{ $proposal->revision }})" wire:confirm="Diesen Vorschlag zur Entwurfserstellung nach der regulären Beauftragung freigeben?" wire:loading.attr="disabled">Vorschlag freigeben</x-ui.buttons.button-basic>@endif</div>@endif
                     </article>
                 @empty
-                    @if($selected->processed_source_revision === $selected->source_revision && !empty($selected->analysis['positions']))
-                        @foreach($selected->analysis['positions'] as $position)
-                            <article class="mt-3 border-t border-rt-border pt-3 dark:border-rt-dark-border"><h4 class="font-semibold">{{ $position['title'] }}</h4><p class="mt-1 ops-muted">{{ implode(' · ', array_filter([$position['role_name'] ?? '', $position['location_name'] ?? ''])) }}</p><p class="text-sm">{{ $position['starts_at'] ?? 'Beginn offen' }} → {{ $position['ends_at'] ?? 'Ende offen' }}</p>@if(!empty($position['required_staff']))<p class="text-sm">{{ $position['required_staff'] }} {{ (int)$position['required_staff'] === 1 ? 'Person' : 'Personen' }} benötigt</p>@endif
-                            @if(($position['assumptions']['required_staff']['basis'] ?? '') === 'default')<p class="mt-2 ops-muted">Standardvorschlag: 1 Person · Bitte bestätigen oder anpassen.</p>@endif</article>
+                    @if($selected->processed_source_revision === $selected->source_revision && is_array($selected->analysis['positions'] ?? null) && !empty($selected->analysis['positions']))
+                        @foreach($selected->analysis['positions'] as $index => $position)
+                            @continue(!is_array($position))
+                            <article class="mt-3 border-t border-rt-border pt-3 dark:border-rt-dark-border" data-ai-intake-analysis-preview wire:key="ai-analysis-{{ $selected->id }}-{{ $selected->source_revision }}-{{ $selected->revision }}-{{ $index }}">
+                                <h4 class="font-semibold">{{ $position['title'] ?? 'Position '.($index + 1) }}</h4>
+                                <dl class="mt-2 grid gap-2 text-sm sm:grid-cols-2">@foreach(['role_name'=>'Tätigkeit','location_name'=>'Einsatzort','starts_at'=>'Beginn','ends_at'=>'Ende','timezone'=>'Zeitzone','required_staff'=>'Personalbedarf'] as $key=>$label)<div><dt class="ops-muted">{{ $label }}</dt><dd class="break-words">{{ $position[$key] ?? 'Noch offen' }}</dd></div>@endforeach</dl>
+                                @if(($position['assumptions']['required_staff']['basis'] ?? '') === 'default')<p class="mt-2 ops-muted" role="status"><i class="far fa-info-circle" aria-hidden="true"></i> Standardvorschlag: 1 Person · In der Mail fehlt eine Personalanzahl. Bitte bestätigen oder anpassen.</p>@endif
+                                @if(!empty($position['assumptions']['history_review']))<p class="mt-2 ops-muted">Historische Vergleichsdaten verwendet · Angaben vor der Übernahme mit der aktuellen Mail abgleichen.</p>@endif
+                                @php($previewMissing = array_values(array_unique(array_intersect(array_filter((array) ($position['missing_fields'] ?? []), 'is_string'), array_keys($fieldLabels)))))
+                                @if($previewMissing)<p class="mt-2 ops-muted">Noch zu prüfen: {{ implode(' · ', array_map(fn ($field) => $fieldLabels[$field], $previewMissing)) }}</p>@endif
+                            </article>
                         @endforeach
                         <p class="mt-2 ops-muted">Erkannte Angaben zur Prüfung des bestehenden Vorgangs.</p>
                     @else<p class="mt-3 ops-muted">Noch keine Positionen ausgewertet.</p>@endif
                 @endforelse
+                @php($historicalReferences = $selected->proposals->filter(fn ($proposal) => ($proposal->source_revision !== $selected->source_revision || $proposal->status === 'stale') && $proposal->inquiry)->unique('inquiry_id'))
+                @if($historicalReferences->isNotEmpty())<section class="mt-3 border-t border-rt-border pt-3 dark:border-rt-dark-border" aria-label="Frühere native Anfragen"><h4 class="font-semibold">Frühere Anfragen</h4><p class="ops-muted">Verknüpfungen aus früheren Prüfständen.</p>@foreach($historicalReferences as $reference)<x-ui.buttons.button-basic mode="link" :href="\App\Support\Operations\OperationsPages::url('cases',['view'=>'inbox','inquiry'=>$reference->inquiry_id])" data-no-navigate>Native Anfrage {{ $reference->inquiry->number }} öffnen</x-ui.buttons.button-basic>@endforeach</section>@endif
             </section>
             @endif
             </div>

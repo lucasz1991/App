@@ -15,9 +15,17 @@ class PersonalWorkspace extends Component
     #[Locked]
     public string $initialTab = '';
 
+    #[Locked]
+    public array $initialRequest = [];
+
     public function mount(): void
     {
-        [$this->area, $this->initialTab] = PersonalWorkspaceAreas::resolve(request()->query('area'), request()->query('tab'));
+        $area = request()->query('area');
+        $tab = request()->query('tab');
+        [$this->area, $this->initialTab] = PersonalWorkspaceAreas::resolve(is_string($area) ? $area : null, is_string($tab) ? $tab : null);
+        if ($this->area === 'work') {
+            $this->initialRequest = request()->only(['request_type', 'request_id', 'request_revision']);
+        }
     }
 
     public function render()

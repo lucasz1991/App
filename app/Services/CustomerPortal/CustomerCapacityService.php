@@ -16,6 +16,7 @@ use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Services\Operations\PersonnelScopeService;
+use App\Services\Operations\EmployeeRequestNotificationService;
 use App\Services\Operations\SiteSnapshotService;
 use App\Services\Operations\StaffEligibilityService;
 use App\Services\Operations\WorkforceAccountService;
@@ -53,6 +54,7 @@ final class CustomerCapacityService
 
             $record = CustomerCapacityCommitment::create($data + ['customer_id' => $customerId, 'created_by' => $actor->id, 'status' => 'requested', 'revision' => 1]);
             $this->audit($record, $actor, 'capacity_requested');
+            app(EmployeeRequestNotificationService::class)->capacityRequested($record, $actor);
 
             return $record;
         });

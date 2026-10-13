@@ -31,6 +31,7 @@
                 class="rt-customer-table"
                 label="Kundenliste"
                 table-key="customer-list"
+                data-table-pagination-key="customer-list"
                 :flush-top="true"
                 :scroll-body="true"
                 :mobile-header="true"

@@ -70,14 +70,14 @@ class OperationsPageNavigationTest extends TestCase
         }
     }
 
-    public function test_dashboard_is_alone_at_top_without_worklist_permission_personal_at_bottom_and_wagon_list_is_own_work_equipment(): void
+    public function test_employee_workday_is_at_top_without_worklist_permission_personal_at_bottom_and_wagon_list_is_own_work_equipment(): void
     {
         $this->operations();
         $actor = $this->actor(['operations.manage', 'operations.inquiries.manage', 'employees.view', 'employees.master-data.view', 'operations.time.review', 'operations.time.export', 'operations.absences.review', 'operations.qualifications.manage', 'operations.rules.manage']);
         $sections = ApplicationNavigation::sections($actor);
-        $this->assertSame('', array_key_first($sections));
-        $this->assertCount(1, $sections['']);
-        $this->assertSame('Dashboard', $sections[''][0]['title']);
+        $this->assertArrayNotHasKey('', $sections);
+        $this->assertSame('Mein Arbeitsplatz', array_key_first($sections));
+        $this->assertSame('Mein Arbeitstag', $sections['Mein Arbeitsplatz'][0]['title']);
         $this->assertSame('Persönlich', array_key_last($sections));
         $personal = array_column(\App\Support\Operations\PersonalWorkspaceAreas::links()['Persönlich'] ?? [], 'title');
         $this->assertSame(['Meine Geräte', ...(\App\Support\Operations\OperationsAccess::isEmployee($actor) ? $personal : []), 'Profil'], array_column($sections['Persönlich'], 'title'));

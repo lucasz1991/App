@@ -53,19 +53,24 @@ class NavigationWorkflowStructureTest extends TestCase
     {
         $this->installSchema($schema);
         $actor = $this->actor($role, $abilities, $active, $team);
-        $before = $this->withPersonalWorkspaceAreas($this->originalSections($actor), $actor);
+        $before = $this->withEmployeeWorkdayHome($this->withPersonalWorkspaceAreas($this->originalSections($actor), $actor), $actor);
         $after = ApplicationNavigation::sections($actor);
 
-        $this->assertSame($this->contracts($this->withRequestedPlanningUpdates($this->consolidatePeople($before), $actor)), $this->contracts($after), 'Only the requested employee consolidation, offer destination, planning caption and resource-page title may change; every other leaf contract stays unchanged.');
+        $this->assertSame($this->contracts($this->withRequestedPlanningUpdates($this->consolidatePeople($before), $actor)), $this->contracts($after), 'Only the requested employee workday home, employee consolidation, offer destination, planning caption and resource-page title may change; every other leaf contract stays unchanged.');
         $peopleLinks = collect($after)->flatten(1)->filter(fn (array $link): bool => $link['route'] === 'operations.page' && ($link['parameters']['page'] ?? '') === 'people');
         $this->assertCount(isset(OperationsPages::availableFor($actor)['people']) ? 1 : 0, $peopleLinks);
         foreach (array_diff(array_unique([...array_keys($before), ...array_keys($after)]), ['', 'Disposition', 'Personal']) as $section) {
             $withoutWorklist = fn (array $links): array => array_values(array_filter($links, fn (array $link): bool => ($link['parameters']['page'] ?? '') !== 'attention'));
             $this->assertSame($withoutWorklist($before[$section] ?? []), $withoutWorklist($after[$section] ?? []), 'Unrelated section changed: '.$section);
         }
-        $this->assertSame('', array_key_first($after));
-        $this->assertSame('Dashboard', $after[''][0]['title']);
-        $this->assertCount(1, $after['']);
+        if ($actor->usesPersonalWorkspaceAsHome()) {
+            $this->assertArrayNotHasKey('', $after);
+            $this->assertSame('Mein Arbeitsplatz', array_key_first($after));
+        } else {
+            $this->assertSame('', array_key_first($after));
+            $this->assertSame('Dashboard', $after[''][0]['title']);
+            $this->assertCount(1, $after['']);
+        }
         $worklists = collect($after)->flatten(1)->where('parameters.page', 'attention');
         if ($worklists->isNotEmpty()) {
             $this->assertSame('attention', $after['Mein Arbeitsplatz'][0]['parameters']['page']);
@@ -444,6 +449,21 @@ class NavigationWorkflowStructureTest extends TestCase
         if (isset($sections['Persönlich']) && ($personal['Persönlich'] ?? []) !== []) {
             $profile = array_pop($sections['Persönlich']);
             $sections['Persönlich'] = [...$sections['Persönlich'], ...$personal['Persönlich'], $profile];
+        }
+
+        return $sections;
+    }
+
+    /** Employees enter their workday; other audience dashboards stay unchanged. */
+    private function withEmployeeWorkdayHome(array $sections, User $actor): array
+    {
+        if (! $actor->usesPersonalWorkspaceAsHome()) {
+            return $sections;
+        }
+
+        unset($sections['']);
+        if (! OperationsAccess::ready()) {
+            array_unshift($sections['Mein Arbeitsplatz'], ['title' => 'Mein Arbeitstag', 'route' => 'operations.mine', 'icon' => 'clock', 'parameters' => [], 'navigate' => true, 'group' => null, 'excludedSections' => []]);
         }
 
         return $sections;

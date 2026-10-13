@@ -3,7 +3,7 @@
     <div class="rt-table-record customer-directory__identity">
     <x-operations.company-avatar :customer="$item" :size="40" :initials-only="true" />
     <div class="rt-table-record__body">
-        <button type="button" wire:click="selectCustomer({{ $item->id }})" class="flex min-h-10 max-w-full flex-col justify-center text-left text-rt-text hover:text-rt-red focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40 dark:text-rt-dark-text" title="Kundenprofil öffnen: {{ $item->company_name }}">
+        <button type="button" wire:click="selectCustomer({{ $item->id }})" x-on:keydown.enter.stop class="flex min-h-10 max-w-full flex-col justify-center text-left text-rt-text hover:text-rt-red focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40 dark:text-rt-dark-text" title="Kundenprofil öffnen: {{ $item->company_name }}">
             <span class="block w-full truncate font-semibold">{{ $item->company_name }}</span>
             @if($hasMasterFields)<span class="mt-0.5 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $item->customer_number }}</span>@endif
         </button>

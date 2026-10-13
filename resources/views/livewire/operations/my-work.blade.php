@@ -23,6 +23,7 @@
     @elseif($tab === 'today')
         <div class="rt-today">
             @include('livewire.operations.partials.personal-today-hero')
+            @include('livewire.operations.partials.personal-requests')
             @include('livewire.operations.partials.personal-glance')
             <div class="rt-today-grid">
                 <section class="rt-today-card rt-today-tasks rt-today-enter" style="--i:2" aria-label="Meine Aufgaben">
@@ -65,4 +66,5 @@
     @else
         <x-operations.modal wire:model="absenceOpen" title="Abwesenheit beantragen"><form wire:submit="requestAbsence" class="ops-form rt-personal-form"><x-operations.field label="Art" model="absence.kind" type="select"><option value="vacation">Urlaub</option><option value="unavailable">Nicht verfügbar</option><option value="other">Abwesenheit</option></x-operations.field><x-operations.field label="Zeitzone" model="absence.timezone" required /><x-operations.field label="Beginn" model="absence.starts_at" type="datetime-local" required /><x-operations.field label="Ende" model="absence.ends_at" type="datetime-local" required /><x-operations.field label="Notiz (optional)" model="absence.note" maxlength="1000" :wide="true" /><div class="ops-full"><p class="ops-muted">Der Antrag wird nach dem Einreichen geprüft. Den Status siehst du in deiner Übersicht.</p></div><div class="ops-full"><x-ui.buttons.button-basic mode="primary" type="submit" wire:loading.attr="disabled">Antrag einreichen</x-ui.buttons.button-basic></div></form></x-operations.modal><x-tables.table class="rt-personal-record-list" label="Meine Abwesenheiten" :columns="[['label'=>'Abwesenheit','key'=>'record']]" :items="$absences" row-view="components.tables.rows.operations.personal-absence" empty="Noch keine Abwesenheiten. Beantrage hier Urlaub oder einen anderen Zeitraum." />{{ $absences->links() }}
     @endif
+    @include('livewire.operations.partials.personal-request-dialog')
 </div>

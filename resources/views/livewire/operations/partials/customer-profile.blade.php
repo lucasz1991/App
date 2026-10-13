@@ -81,7 +81,7 @@
             @if($key !== $view)<section hidden role="tabpanel" id="{{ $profilePrefix }}-panel-{{ $key }}" aria-labelledby="{{ $profilePrefix }}-tab-{{ $key }}"></section>@endif
         @endforeach
     @endif
-    <section class="customer-profile__content" data-customer-profile-content
+    <section class="customer-profile__content" data-customer-profile-content wire:key="{{ $profilePrefix }}-content-{{ $view }}"
         role="tabpanel" tabindex="0" id="{{ $profilePrefix }}-panel-{{ $view }}" aria-labelledby="{{ $profilePrefix }}-tab-{{ $view }}"
         wire:loading.class="customer-profile__content--loading" wire:target="setView">
         @if($view==='master')

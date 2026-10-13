@@ -906,9 +906,13 @@ class AiIntakeService
             if (blank($position['required_staff'] ?? null)
                 && in_array($result['intent'], ['inquiry', 'amendment'], true)
                 && in_array($result['classification'], ['new_inquiry', 'reply', 'amendment'], true)
-                && collect($position['segments'])->every(fn ($segment) => ($segment['required_staff'] ?? null) === 1)
-                && $result['extraction_complete'] && ! $result['overflow']) {
+                && collect($position['segments'])->every(fn ($segment) => is_array($segment) && in_array($segment['required_staff'] ?? null, [null, 0, 1], true))
+                && ! $result['overflow']) {
                 $position['required_staff'] = 1;
+                foreach ($position['segments'] as &$segment) {
+                    $segment['required_staff'] = 1;
+                }
+                unset($segment);
                 $position['assumptions']['required_staff'] = [
                     'value' => 1, 'basis' => 'default', 'label' => 'Standardvorschlag: 1 Person',
                     'reason' => 'Keine Personalanzahl in der Mail belegt. Bei der Prüfung bestätigen oder anpassen.',

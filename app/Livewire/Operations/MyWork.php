@@ -20,12 +20,12 @@ use App\Services\Operations\PlanChangeService;
 use App\Services\Operations\PlanPublicationService;
 use App\Services\Operations\WorkTimeExtensionService;
 use App\Services\Operations\WorkTimeService;
-use App\Support\Operations\OperationsAccess;
+use App\Support\CustomerPortal\CustomerPortalIntakeSchema;
 use App\Support\Operations\GermanyMap;
+use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\PersonalSchedule;
 use App\Support\Operations\ReportingPeriod;
 use App\Support\Operations\WorkTimeSchema;
-use App\Support\CustomerPortal\CustomerPortalIntakeSchema;
 use Carbon\CarbonImmutable;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -355,7 +355,8 @@ class MyWork extends Component
     {
         $unavailable = ['can_respond' => false, 'notice' => 'Diese Anfrage ist nicht mehr verfügbar.', 'row' => null, 'changes' => []];
         if ($type === 'shift') {
-            $owned = ShiftAssignment::where('user_id', $actor->id)->findOrFail($id);
+            $owned = ShiftAssignment::where('user_id', $actor->id)->find($id);
+            abort_unless($owned, 404);
             if ($owned->status->value !== 'requested') {
                 return array_replace($unavailable, ['notice' => 'Diese Anfrage wurde bereits beantwortet oder zurückgenommen.']);
             }
@@ -382,7 +383,8 @@ class MyWork extends Component
         if (! CustomerPortalIntakeSchema::ready()) {
             return $unavailable;
         }
-        $record = CustomerCapacityCommitment::where('user_id', $actor->id)->findOrFail($id);
+        $record = CustomerCapacityCommitment::where('user_id', $actor->id)->find($id);
+        abort_unless($record, 404);
         $notice = match (true) {
             $record->status !== 'requested' => 'Diese Kapazitätsanfrage wurde bereits beantwortet oder zurückgenommen.',
             ! $record->starts_at->isFuture() => 'Der angefragte Zeitraum hat bereits begonnen. Eine Antwort ist nicht mehr möglich.',
@@ -726,7 +728,9 @@ class MyWork extends Component
             // Ein Abruf für Dienstliste (14 Tage) und Mini-Kalender (Monatsraster).
             $monthAnchor = CarbonImmutable::now($this->displayTimezone())->startOfMonth()->addMonthsNoOverflow($this->miniMonth);
             $miniMonth = ['anchor' => $monthAnchor, 'from' => $monthAnchor->startOfWeek(), 'to' => $monthAnchor->endOfMonth()->endOfWeek()->addDay()->startOfDay()];
-            $loaded = app(PersonalSchedule::class)->assignments(auth()->user(), $rangeStart->min($miniMonth['from']), $rangeEnd->max($miniMonth['to']));
+            // Keep the 14-day duty view and month intact while the request inbox
+            // covers every future published request, including later months.
+            $loaded = app(PersonalSchedule::class)->assignments(auth()->user(), $rangeStart->min($miniMonth['from']));
             $visible = $loaded->filter(fn ($assignment) => $assignment->shift->ends_at->gt($rangeStart) && $assignment->shift->starts_at->lt($rangeEnd))->values();
         } else {
             $visible = app(PersonalSchedule::class)->assignments(auth()->user(), $rangeStart, $rangeEnd);
@@ -760,6 +764,17 @@ class MyWork extends Component
                 $this->closeCalendarEvent();
             }
         }
+        $selectedRequest = null;
+        if ($this->requestOpen && $this->requestId && $this->requestRevision && in_array($this->requestType, ['shift', 'capacity'], true)) {
+            try {
+                $selectedRequest = $this->consentRequest($this->requestActor(), $this->requestType, $this->requestId, $this->requestRevision);
+            } catch (HttpException $exception) {
+                if ($exception->getStatusCode() !== 404) {
+                    throw $exception;
+                }
+                $selectedRequest = ['can_respond' => false, 'notice' => 'Diese Anfrage ist nicht mehr verfügbar.', 'row' => null, 'changes' => []];
+            }
+        }
 
         return view('livewire.operations.my-work', [
             'timeCompleteness' => $this->tab === 'time' && WorkTimeSchema::ready() ? app(WorkTimeExtensionService::class)->completeness(auth()->user(), $this->timeFrom ?: now($this->displayTimezone())->startOfMonth()->toDateString(), $this->timeUntil ?: now($this->displayTimezone())->toDateString(), auth()->user()) : null,
@@ -776,6 +791,8 @@ class MyWork extends Component
                 default => $from->format('d.m.').' – '.$to->subDay()->format('d.m.Y'),
             },
             'assignments' => $visible,
+            'pendingRequests' => $this->tab === 'today' ? $this->pendingRequests($loaded) : null,
+            'selectedRequest' => $selectedRequest,
             'activeTime' => $activeTime,
             'glance' => $this->tab === 'today' ? $this->glance() : [],
             'miniCalendar' => $miniMonth ? $this->miniCalendar($miniMonth, $loaded) : null,

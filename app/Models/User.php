@@ -19,6 +19,7 @@ use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Jetstream\HasProfilePhoto;
@@ -393,7 +394,8 @@ class User extends Authenticatable implements HasLocalePreference, MustVerifyEma
         ?int $fromUserId = null,
         $files = null,
         ?string $actionUrl = null,
-        ?string $actionLabel = null
+        ?string $actionLabel = null,
+        bool $afterCommit = false,
     ): Message {
         $receivedMessage = Message::create([
             'subject' => $subject,
@@ -418,7 +420,11 @@ class User extends Authenticatable implements HasLocalePreference, MustVerifyEma
             }
         }
 
-        $this->broadcastMessageReceived($receivedMessage);
+        if ($afterCommit) {
+            DB::afterCommit(fn () => $this->broadcastMessageReceived($receivedMessage));
+        } else {
+            $this->broadcastMessageReceived($receivedMessage);
+        }
 
         return $receivedMessage;
     }

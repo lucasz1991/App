@@ -231,6 +231,64 @@ class AiIntakeInboxEmbeddedTest extends TestCase
         $this->noSideEffects();
     }
 
+    public function test_stale_proposals_do_not_hide_current_amendment_analysis_or_offer_old_edit_controls(): void
+    {
+        $intake = $this->intake(['source_type' => 'email', 'processed_source_revision' => 1, 'analysis' => ['intent' => 'amendment', 'classification' => 'reply',
+            'positions' => [['title' => 'Fresh amendment preview', 'role_name' => 'WU', 'location_name' => 'Hamburg Hohe Schaar',
+                'starts_at' => '2027-05-13T16:00', 'ends_at' => '2027-05-13T18:00', 'timezone' => 'Europe/Berlin', 'required_staff' => 1,
+                'missing_fields' => ['required_staff', 'qualification_ids', 'unknown_private_key'],
+                'assumptions' => ['required_staff' => ['basis' => 'default'], 'history_review' => true]]]]]);
+        $oldPayload = $this->payload();
+        $oldPayload['demand']['title'] = 'Obsolete proposal without times';
+        $oldPayload['demand']['starts_at'] = $oldPayload['demand']['ends_at'] = null;
+        $proposal = $intake->proposals()->create(['source_revision' => 1, 'position_index' => 0, 'revision' => 1, 'status' => 'stale', 'payload' => $oldPayload]);
+        $component = Livewire::test(AiIntakeInbox::class, ['embedded' => true, 'initialIntakeId' => $intake->id])
+            ->assertSee('Fresh amendment preview')->assertSee('2027-05-13T16:00')->assertSee('2027-05-13T18:00')->assertSee('Hamburg Hohe Schaar')
+            ->assertSee('Standardvorschlag: 1 Person')->assertSee('Historische Vergleichsdaten verwendet')
+            ->assertSee('Noch zu prüfen: Personalbedarf · Qualifikationen')->assertDontSee('unknown_private_key')->assertDontSee('Obsolete proposal without times')
+            ->assertDontSeeHtml('wire:click="editProposal('.$proposal->id.')"')->assertDontSeeHtml('wire:click="createInquiries"');
+        $preview = $this->dom($component->html())->query('//*[@data-ai-intake-analysis-preview]');
+        $this->assertSame(1, $preview->length);
+        $this->assertSame(0, $this->dom($component->html())->query('//*[@data-ai-intake-analysis-preview]//button')->length);
+        $this->assertSame('stale', $proposal->fresh()->status);
+        $this->assertSame($oldPayload, $proposal->fresh()->payload);
+        $this->noSideEffects();
+    }
+
+    public function test_current_native_proposal_remains_primary_and_older_sources_are_not_editable(): void
+    {
+        $intake = $this->intake(['source_revision' => 2, 'processed_source_revision' => 2, 'analysis' => ['positions' => [['title' => 'Analysis should not replace corrected proposal']]]]);
+        $oldPayload = $this->payload();
+        $oldPayload['demand']['title'] = 'Obsolete source position';
+        $old = $intake->proposals()->create(['source_revision' => 1, 'position_index' => 0, 'revision' => 1, 'status' => 'proposed', 'payload' => $oldPayload]);
+        $currentPayload = $this->payload();
+        $currentPayload['demand']['title'] = 'Current personally corrected position';
+        $current = $intake->proposals()->create(['source_revision' => 2, 'position_index' => 0, 'revision' => 2, 'status' => 'proposed', 'payload' => $currentPayload]);
+        Livewire::test(AiIntakeInbox::class, ['embedded' => true, 'initialIntakeId' => $intake->id])
+            ->assertSee('Current personally corrected position')->assertDontSee('Obsolete source position')->assertDontSee('Analysis should not replace corrected proposal')
+            ->assertSeeHtml('wire:click="editProposal('.$current->id.')"')->assertDontSeeHtml('wire:click="editProposal('.$old->id.')"')
+            ->assertDontSeeHtml('data-ai-intake-analysis-preview');
+        $this->noSideEffects();
+    }
+
+    public function test_unprocessed_analysis_is_not_previewed_but_historical_native_links_remain_readonly(): void
+    {
+        $intake = $this->intake(['source_revision' => 2, 'processed_source_revision' => 1, 'analysis' => ['positions' => [['title' => 'Outdated analysis facts']]]]);
+        $inquiry = OperationInquiry::create(['channel' => 'manual', 'title' => 'Previously captured native inquiry', 'status' => 'new', 'timezone' => 'Europe/Berlin',
+            'original' => 'Synthetic prior native source', 'created_by' => $this->actor->id, 'updated_by' => $this->actor->id]);
+        $payload = $this->payload();
+        $payload['demand']['title'] = 'Obsolete linked position facts';
+        $proposal = $intake->proposals()->create(['source_revision' => 1, 'position_index' => 0, 'revision' => 1, 'status' => 'stale', 'inquiry_id' => $inquiry->id, 'payload' => $payload]);
+        Livewire::test(AiIntakeInbox::class, ['embedded' => true, 'initialIntakeId' => $intake->id])
+            ->assertSee('Noch keine Positionen ausgewertet.')->assertDontSee('Outdated analysis facts')->assertDontSee('Obsolete linked position facts')
+            ->assertSee('Frühere Anfragen')->assertSee('Native Anfrage '.$inquiry->number.' öffnen')
+            ->assertDontSeeHtml('wire:click="editProposal('.$proposal->id.')"')->assertDontSeeHtml('wire:click="createInquiries"');
+        $this->assertSame(1, OperationInquiry::count());
+        $this->assertSame(1, $inquiry->fresh()->revision);
+        Mail::assertNothingSent();
+        Queue::assertNothingPushed();
+    }
+
     public function test_new_customer_form_handoff_and_source_accordions_remain_native_and_escaped(): void
     {
         $intake = $this->intake(['title' => '<script>private title</script>']);
