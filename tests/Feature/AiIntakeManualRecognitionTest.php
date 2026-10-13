@@ -29,6 +29,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Mockery\MockInterface;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\Support\BuildsMinimalRailTimeSchema;
@@ -222,7 +223,7 @@ class AiIntakeManualRecognitionTest extends TestCase
         try {
             $this->recognize($intake, str_repeat('x', 2001));
             $this->fail('Review guidance must be bounded.');
-        } catch (\Illuminate\Validation\ValidationException $error) {
+        } catch (ValidationException $error) {
             $this->assertArrayHasKey('review_prompt', $error->errors());
         }
         $this->assertSame(0, AiIntakeRun::count());

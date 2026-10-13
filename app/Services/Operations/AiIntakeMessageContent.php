@@ -32,7 +32,7 @@ final class AiIntakeMessageContent
     public function forMessage(AiIntakeMessage $message): string
     {
         $metadata = $message->metadata ?? [];
-        if (($metadata['raw_archive_complete'] ?? true) === false) {
+        if (($metadata['raw_archive_complete'] ?? true) !== true) {
             throw new RuntimeException('mailbox_content_invalid');
         }
         $path = (string) $message->raw_path;
@@ -44,7 +44,7 @@ final class AiIntakeMessageContent
 
             return $this->fromRaw(app(AiIntakeAttachmentService::class)->bytes($message->intake, $path, $hash));
         }
-        if (($metadata['text_archive_complete'] ?? true) === false) {
+        if (($metadata['text_archive_complete'] ?? true) !== true) {
             throw new RuntimeException('mailbox_content_invalid');
         }
 
@@ -88,6 +88,9 @@ final class AiIntakeMessageContent
         $document = $this->document($html);
         $hasTable = false;
         foreach ($document->getElementsByTagName('table') as $table) {
+            if (! $this->renderable($table)) {
+                continue;
+            }
             foreach ($table->getElementsByTagName('tr') as $row) {
                 if ($this->ownerTable($row) === $table && $this->cells($row) !== []) {
                     $hasTable = true;
@@ -113,7 +116,10 @@ final class AiIntakeMessageContent
         // MIME already decoded UTF-8. Outlook's old charset meta must not decode it again.
         $html = preg_replace('/<meta\b[^>]*>/is', '', $html) ?? '';
         $html = preg_replace('/<\?xml\b.*?\?>/is', '', $html) ?? '';
-        $html = mb_encode_numericentity($html, [0x80, 0x10ffff, 0, 0x1fffff], 'UTF-8');
+        if (trim($html) === '') {
+            $html = '<html><body></body></html>';
+        }
+        $html = mb_encode_numericentity($html, [0x80, 0x10FFFF, 0, 0x1FFFFF], 'UTF-8');
         $document = new DOMDocument('1.0', 'UTF-8');
         $previous = libxml_use_internal_errors(true);
         try {
@@ -190,6 +196,7 @@ final class AiIntakeMessageContent
 
     private function table(DOMElement $table, string &$output, array &$budget): void
     {
+        $this->assertTableStructure($table);
         if (++$budget['tables'] > 100) {
             throw new RuntimeException('mailbox_content_limit');
         }
@@ -256,6 +263,49 @@ final class AiIntakeMessageContent
             $this->append($output, "[/ROW]\n", $budget);
         }
         $this->append($output, "[/TABLE]\n", $budget);
+    }
+
+    private function assertTableStructure(DOMElement $table): void
+    {
+        $stack = iterator_to_array($table->childNodes);
+        while ($stack !== []) {
+            $node = array_pop($stack);
+            if ($node->nodeType === XML_TEXT_NODE && trim($this->clean((string) $node->nodeValue)) !== '') {
+                throw new RuntimeException('mailbox_content_invalid');
+            }
+            if (! $node instanceof DOMElement) {
+                continue;
+            }
+            $name = strtolower($node->tagName);
+            if (in_array($name, self::IGNORED, true) || $name === 'caption') {
+                continue;
+            }
+            if (in_array($name, ['td', 'th'], true)) {
+                if (! $node->parentNode instanceof DOMElement || strtolower($node->parentNode->tagName) !== 'tr') {
+                    throw new RuntimeException('mailbox_content_invalid');
+                }
+
+                // Cell contents, including nested tables, are rendered separately and completely.
+                continue;
+            }
+            if ($name === 'table') {
+                throw new RuntimeException('mailbox_content_invalid');
+            }
+            foreach ($node->childNodes as $child) {
+                $stack[] = $child;
+            }
+        }
+    }
+
+    private function renderable(DOMNode $node): bool
+    {
+        for ($parent = $node->parentNode; $parent instanceof DOMElement; $parent = $parent->parentNode) {
+            if (in_array(strtolower($parent->tagName), self::IGNORED, true)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function cells(DOMNode $row): array

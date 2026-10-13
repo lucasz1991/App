@@ -114,7 +114,10 @@ class SessionPermissions extends Component
     /** The browser calls this after its permission setup, without declining anything. */
     public function complete(): bool
     {
-        if ($this->needsDecision($this->state())) {
+        $state = $this->state();
+        if ($this->needsDecision($state)) {
+            $this->syncVersions($state);
+
             return false;
         }
         $this->dialogOpen = false;

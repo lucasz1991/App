@@ -89,7 +89,18 @@ class AiIntakeServiceTest extends TestCase
 
     private function receive(array $extra = []): AiIntake
     {
-        return $this->service->receiveEmail($extra + ['mailbox_id' => 'synthetic-mailbox', 'uid_validity' => 100, 'uid' => 1, 'from' => 'known@example.test', 'reply_to' => 'known@example.test', 'message_id' => '<synthetic-1@example.test>', 'subject' => 'Synthetic inquiry', 'text' => self::SOURCE, 'raw' => 'Synthetic immutable MIME source']);
+        return $this->service->receiveEmail($this->emailPayload($extra));
+    }
+
+    private function emailPayload(array $extra = []): array
+    {
+        $email = $extra + ['mailbox_id' => 'synthetic-mailbox', 'uid_validity' => 100, 'uid' => 1, 'from' => 'known@example.test',
+            'reply_to' => 'known@example.test', 'message_id' => '<synthetic-1@example.test>', 'subject' => 'Synthetic inquiry', 'text' => self::SOURCE];
+        $email['raw'] ??= 'From: '.$email['from']."\r\nTo: dispatch@example.test\r\nSubject: ".$email['subject']
+            ."\r\nMessage-ID: ".$email['message_id']."\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8"
+            ."\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n".quoted_printable_encode($email['text']);
+
+        return $email;
     }
 
     private function extractionResult(AiIntake $intake, array $changes = []): array
@@ -158,7 +169,7 @@ class AiIntakeServiceTest extends TestCase
         $message = $intake->messages()->first();
         $this->assertStringNotContainsString(self::SOURCE, DB::table('ai_intake_messages')->value('body'));
         $this->assertStringNotContainsString('known@example.test', DB::table('ai_intake_messages')->value('sender_email'));
-        $this->assertSame('Synthetic immutable MIME source', $this->service->rawBytes($message, $this->admin));
+        $this->assertSame($this->emailPayload()['raw'], $this->service->rawBytes($message, $this->admin));
         $this->assertArrayNotHasKey('raw_path', $message->toArray());
         $this->expectException(HttpException::class);
         $message->update(['body' => 'Overwrite']);

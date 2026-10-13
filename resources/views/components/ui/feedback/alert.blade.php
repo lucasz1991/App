@@ -1,4 +1,4 @@
-@props(['type' => 'info', 'title' => null])
+@props(['type' => 'info', 'title' => null, 'inline' => false])
 
 @php
     $styles = match ($type) {
@@ -21,11 +21,11 @@
     };
 @endphp
 
-<div data-rt-tone="{{ $type }}" {{ $attributes->class("rt-ui-alert flex gap-3 rounded-xl border p-4 shadow-rt-xs {$styles}") }} role="alert">
-    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg {{ $iconStyles }}" aria-hidden="true">
+<div data-rt-tone="{{ $type }}" {{ $attributes->class("rt-ui-alert flex gap-3 rounded-xl border p-4 shadow-rt-xs {$styles}") }} @if($inline) style="align-items:center;gap:.5rem;padding:.25rem .75rem;box-shadow:none" @endif role="alert">
+    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg {{ $iconStyles }}" @if($inline) style="width:1.25rem;height:1.25rem;background:transparent" @endif aria-hidden="true">
         <i class="far {{ $icon }}"></i>
     </span>
-    <div class="min-w-0 text-sm">
+    <div @class(['min-w-0 text-sm', 'flex-1' => $inline])>
         @if ($title)
             <p class="font-semibold">{{ $title }}</p>
         @endif

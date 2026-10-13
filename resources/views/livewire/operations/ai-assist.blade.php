@@ -257,6 +257,9 @@
                                 @foreach($labels as $value => $label)<option value="{{ $value }}">{{ $label }}</option>@endforeach
                             </select>
                         </div>
+                        @if($intakesReady)
+                            <livewire:operations.ai-intake-assistant :key="'ai-assist-intake-discussion'" />
+                        @endif
                         @if($intakes->isEmpty())
                             <p class="rt-ai-assist__note">Noch keine AI-Eingänge für diese Auswahl.</p>
                         @else
@@ -271,6 +274,10 @@
                                             <span class="rt-ai-assist__activity-text"><strong>{{ $intake->title ?: 'Eingang #'.$intake->id }}</strong><small>{{ $intake->customer?->company_name ?? 'Bitte prüfen und zuordnen' }}</small></span>
                                             <span class="rt-ai-assist__activity-side"><span>{{ \Carbon\CarbonImmutable::parse($intake->updated_at)->setTimezone(config('operations.display_timezone', 'Europe/Berlin'))->format('d.m. H:i') }}</span><span class="rt-ai-assist__badge" data-tone="{{ $tone }}">{{ $labels[$intake->status] ?? $intake->status }}</span></span>
                                         </a>
+                                        <div class="flex justify-end px-3 pb-2">
+                                            <button type="button" class="rt-ai-assist__btn" wire:click="$dispatch('select-ai-intake-assistant', { intakeId: {{ $intake->id }} })"
+                                                aria-label="{{ ($intake->title ?: 'Eingang #'.$intake->id).' mit AI besprechen' }}"><i class="far fa-comment-alt" aria-hidden="true"></i>Mit AI besprechen</button>
+                                        </div>
                                     </li>
                                 @endforeach
                             </ol>

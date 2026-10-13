@@ -1,6 +1,7 @@
 <div
     data-session-permissions="{{ $automatic ? 'prompt' : 'profile' }}"
     x-data="{
+        automatic: @js($automatic),
         dialogOpen: $wire.entangle('dialogOpen'),
         busy: null,
         generation: 0,
@@ -128,7 +129,7 @@
             }
         },
         async finish(generation) {
-            if (this.$el.dataset.sessionPermissions !== 'prompt' || generation !== this.generation) return;
+            if (!this.automatic || generation !== this.generation) return;
             this.finishing = true;
             let completed = false;
             try {
