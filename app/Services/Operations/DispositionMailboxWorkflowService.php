@@ -182,7 +182,7 @@ class DispositionMailboxWorkflowService
             default => 'unreviewed',
         };
         $classification = $review->reviewed_by ? $review->classification : $detected;
-        $positions = $intake->proposals()->where('source_revision', $intake->source_revision)->where('status', '!=', 'stale')->with('inquiry')->orderBy('position_index')->get()->map(function ($proposal): array {
+        $proposalPositions = $intake->proposals()->where('source_revision', $intake->source_revision)->where('status', '!=', 'stale')->with('inquiry')->orderBy('position_index')->get()->map(function ($proposal): array {
             $demand = $proposal->payload['demand'] ?? [];
 
             return array_intersect_key($demand, array_flip(['title', 'starts_at', 'ends_at', 'timezone', 'location_name', 'role_name', 'required_staff'])) + [
@@ -192,9 +192,24 @@ class DispositionMailboxWorkflowService
                 'order_url' => $proposal->inquiry?->order_id ? OperationsPages::url('cases', ['view' => 'orders', 'section' => 'planning', 'order' => $proposal->inquiry->order_id]) : null,
             ];
         })->all();
+        $positions = $proposalPositions;
+        $previewMissing = [];
+        if ($positions === [] && $intake->processed_source_revision === $intake->source_revision && is_array($analysis['positions'] ?? null)) {
+            foreach (array_values($analysis['positions']) as $index => $position) {
+                if (! is_array($position)) {
+                    continue;
+                }
+                $positionMissing = array_values(array_intersect(array_filter((array) ($position['missing_fields'] ?? []), 'is_string'), array_keys(self::FIELDS)));
+                $previewMissing = array_merge($previewMissing, $positionMissing);
+                $positions[] = array_intersect_key($position, array_flip(['title', 'starts_at', 'ends_at', 'timezone', 'location_name', 'role_name', 'required_staff'])) + [
+                    'id' => 'analysis-'.($index + 1), 'missing_fields' => $positionMissing, 'inquiry_id' => null,
+                    'inquiry_number' => null, 'order_id' => null, 'inquiry_url' => null, 'order_url' => null,
+                ];
+            }
+        }
         $suggestions = app(AiIntakeCustomerSuggestions::class)->suggest($intake, $actor);
         $customers = Customer::active()->whereIn('id', array_column($suggestions, 'customer_id'))->get(['id', 'company_name'])->keyBy('id');
-        $missing = array_map(fn ($field) => ['key' => is_string($field) ? $field : '', 'label' => self::FIELDS[is_string($field) ? $field : ''] ?? 'Angabe prüfen'], $intake->missing_fields ?? []);
+        $missing = array_map(fn ($field) => ['key' => is_string($field) ? $field : '', 'label' => self::FIELDS[is_string($field) ? $field : ''] ?? 'Angabe prüfen'], array_values(array_unique(array_merge($intake->missing_fields ?? [], $previewMissing))));
         $delivery = AiCustomerCommunicationSchema::ready() ? $intake->deliveries()->where('source_revision', $intake->source_revision)->where('message_type', 'clarification')->latest('id')->first() : null;
         $contact = $intake->contact;
         $message = $intake->messages()->whereKey($intake->latest_inbound_message_id)->first(['id', 'sender_email', 'reply_to_email', 'metadata']);
@@ -217,7 +232,7 @@ class DispositionMailboxWorkflowService
             'intake_status' => $intake->status,
             'customer_id' => $intake->customer_id, 'contact_id' => $intake->customer_contact_id, 'customer_name' => $intake->customer?->company_name,
             'customer_suggestions' => array_values(array_filter(array_map(fn ($candidate) => isset($customers[$candidate['customer_id']]) ? ['id' => $candidate['customer_id'], 'name' => $customers[$candidate['customer_id']]->company_name, 'reasons' => $candidate['reasons']] : null, $suggestions))),
-            'can_create_inquiries' => ($analysis['intent'] ?? '') === 'inquiry' && ($analysis['extraction_complete'] ?? false) && ! ($analysis['overflow'] ?? true) && $positions !== [] && collect($positions)->contains(fn ($position) => empty($position['inquiry_id'])),
+            'can_create_inquiries' => ($analysis['intent'] ?? '') === 'inquiry' && ($analysis['extraction_complete'] ?? false) && ! ($analysis['overflow'] ?? true) && $proposalPositions !== [] && collect($proposalPositions)->contains(fn ($position) => empty($position['inquiry_id'])),
             'can_prepare_clarification' => (bool) $canClarify && AiCustomerCommunicationSchema::ready() && ($analysis['intent'] ?? '') === 'inquiry' && count(array_intersect(array_column($missing, 'key'), ['starts_at', 'ends_at', 'timezone', 'location_name', 'role_name', 'required_staff', 'segments', 'qualification_ids'])) > 0,
             'clarification' => $delivery ? ['id' => $delivery->id, 'to' => $delivery->recipient_email, 'subject' => $delivery->subject, 'body' => $delivery->body, 'status' => $delivery->status, 'status_label' => ($delivery->metadata['manual_mailbox_test'] ?? false) ? 'Testentwurf · ohne Versand' : (AiIntakeDelivery::STATUS_LABELS[$delivery->status] ?? 'Versand prüfen')] : null,
         ];

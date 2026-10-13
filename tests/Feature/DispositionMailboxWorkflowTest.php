@@ -242,6 +242,97 @@ class DispositionMailboxWorkflowTest extends TestCase
         $this->noAutomaticEffects();
     }
 
+    public function test_validated_amendment_facts_are_visible_without_becoming_inquiry_proposals(): void
+    {
+        $review = $this->recognize(['required_staff' => null, 'missing_fields' => ['required_staff', 'required_staff', 'untrusted_extra'],
+            'inquiry_id' => 991, 'order_id' => 992, 'inquiry_url' => 'https://invalid.example.test', 'status' => 'approved'],
+            ['intent' => 'amendment', 'classification' => 'reply']);
+
+        $position = $review['positions'][0];
+        $this->assertSame('analysis-1', $position['id']);
+        $this->assertSame('Hamburg', $position['location_name']);
+        $this->assertSame('2026-10-19T08:00', $position['starts_at']);
+        $this->assertSame('2026-10-19T16:00', $position['ends_at']);
+        $this->assertSame('Tf', $position['role_name']);
+        $this->assertNull($position['required_staff']);
+        $this->assertNull($position['inquiry_id']);
+        $this->assertNull($position['order_id']);
+        $this->assertNull($position['inquiry_url']);
+        $this->assertNull($position['order_url']);
+        $this->assertArrayNotHasKey('status', $position);
+        $this->assertArrayNotHasKey('evidence', $position);
+        $this->assertSame(['customer_id', 'required_staff'], array_column($review['missing_fields'], 'key'));
+        $this->assertContains(['key' => 'required_staff', 'label' => 'Personalbedarf'], $review['missing_fields']);
+        $this->assertFalse($review['can_create_inquiries']);
+        $this->assertSame('unreviewed', $review['detected_classification']);
+        $this->assertSame('amendment', AiIntake::firstOrFail()->analysis['intent']);
+        $this->assertSame(0, AiIntakeProposal::count());
+        $this->assertSame(0, OperationInquiry::count());
+        $this->assertSame(0, AiIntakeDelivery::count());
+        $this->noAutomaticEffects();
+    }
+
+    public function test_preview_only_inquiry_stays_unavailable_for_capture_after_personal_confirmation(): void
+    {
+        $review = $this->recognize([], ['extraction_complete' => false]);
+        $this->assertSame('analysis-1', $review['positions'][0]['id']);
+        $this->assertFalse($review['can_create_inquiries']);
+        $review = $this->confirmedCustomer($review);
+        $this->assertFalse($review['can_create_inquiries']);
+        $this->rejected([422], fn () => app(DispositionMailboxWorkflowService::class)->createInquiries($this->admin, $review));
+
+        $this->assertSame(0, AiIntakeProposal::count());
+        $this->assertSame(0, OperationInquiry::count());
+        $this->assertSame(0, AiIntakeDelivery::count());
+        $this->noAutomaticEffects();
+    }
+
+    public function test_real_current_proposals_take_precedence_over_the_analysis_preview(): void
+    {
+        $review = $this->recognize(['missing_fields' => ['required_staff']]);
+        $proposal = AiIntakeProposal::firstOrFail();
+        $payload = $proposal->payload;
+        $payload['demand']['location_name'] = 'Personally corrected current place';
+        $proposal->update(['payload' => $payload]);
+
+        $fresh = app(DispositionMailboxWorkflowService::class)->refresh($this->admin, $review);
+
+        $this->assertSame($proposal->id, $fresh['positions'][0]['id']);
+        $this->assertSame('Personally corrected current place', $fresh['positions'][0]['location_name']);
+        $this->assertCount(1, $fresh['positions']);
+        $this->assertNotContains('required_staff', array_column($fresh['missing_fields'], 'key'));
+        $this->assertTrue($fresh['can_create_inquiries']);
+        $this->assertSame(0, OperationInquiry::count());
+        $this->noAutomaticEffects();
+    }
+
+    public function test_unprocessed_analysis_and_stale_proposals_never_supply_a_preview_or_capture_action(): void
+    {
+        $review = $this->recognize();
+        AiIntake::findOrFail($review['intake_id'])->update(['processed_source_revision' => null]);
+        AiIntakeProposal::firstOrFail()->update(['status' => 'stale', 'error_code' => 'manual_recognition_requested']);
+
+        $fresh = app(DispositionMailboxWorkflowService::class)->refresh($this->admin, $review);
+
+        $this->assertSame([], $fresh['positions']);
+        $this->assertFalse($fresh['can_create_inquiries']);
+        $this->assertSame('stale', AiIntakeProposal::firstOrFail()->status);
+        $this->assertSame(0, OperationInquiry::count());
+        $this->noAutomaticEffects();
+    }
+
+    public function test_guided_mail_view_displays_amendment_facts_and_explicit_missing_fields_without_capture(): void
+    {
+        $this->openMessage(['required_staff' => null, 'missing_fields' => ['required_staff']], ['intent' => 'amendment', 'classification' => 'reply'])
+            ->call('startRecognition')->assertHasNoErrors()->assertSet('guidedReview.positions.0.id', 'analysis-1')
+            ->assertSet('guidedReview.can_create_inquiries', false)->assertSee('Hamburg')->assertSee('Personalbedarf');
+
+        $this->assertSame(0, AiIntakeProposal::count());
+        $this->assertSame(0, OperationInquiry::count());
+        $this->assertSame(0, AiIntakeDelivery::count());
+        $this->noAutomaticEffects();
+    }
+
     public function test_classification_and_customer_each_require_an_explicit_step_before_native_capture(): void
     {
         $workflow = app(DispositionMailboxWorkflowService::class);

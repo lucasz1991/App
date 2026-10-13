@@ -611,20 +611,40 @@ class AiIntakeServiceTest extends TestCase
         $this->assertSame('synthetic-audio-extraction', AiIntakeRun::first()->model);
     }
 
-    public function test_pdf_csv_and_image_keep_originals_and_use_shared_multimodal_profiles(): void
+    public function test_pdf_csv_and_image_keep_originals_and_multimodal_parts_with_the_data_model(): void
     {
         $intake = $this->service->submit($this->admin, self::SOURCE, [UploadedFile::fake()->createWithContent('request.pdf', "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF"), UploadedFile::fake()->createWithContent('table.csv', "role;location\nTf;Hamburg\n"), UploadedFile::fake()->image('request.png', 24, 24)], ['customer_id' => $this->customer->id]);
+        $originals = $intake->attachments()->get()->mapWithKeys(fn ($file) => [$file->id => [
+            'hash' => $file->file_hash, 'bytes' => Storage::disk('local')->get($file->file_path),
+        ]])->all();
         $result = $this->extractionResult($intake);
-        $this->mock(AiDispositionClient::class, fn ($m) => $m->shouldReceive('structured')->once()->withArgs(function ($task, $messages, $schema, $profile, $plugins) {
-            $types = array_column($messages[1]['content'], 'type');
+        $request = null;
+        $this->mock(AiDispositionClient::class, function ($mock) use (&$request, $result): void {
+            $mock->shouldReceive('structured')->once()->andReturnUsing(function ($task, $messages, $schema, $profile, $plugins) use (&$request, $result) {
+                $request = compact('task', 'messages', 'schema', 'profile', 'plugins');
 
-            return $profile === OpenRouterModelProfile::ImageUnderstanding && in_array('file', $types, true) && in_array('image_url', $types, true) && $plugins[0]['id'] === 'file-parser';
-        })->andReturn(new OpenRouterChatResponse(json_encode($result))));
+                return new OpenRouterChatResponse(json_encode($result), model: 'synthetic-data-multimodal');
+            });
+        });
         $this->service->analyze($intake->id);
+
+        $this->assertNotNull($request);
+        $this->assertSame('intake', $request['task']);
+        $this->assertSame(OpenRouterModelProfile::Data, $request['profile']);
+        $types = array_column($request['messages'][1]['content'], 'type');
+        $this->assertContains('file', $types);
+        $this->assertContains('image_url', $types);
+        $this->assertSame('file-parser', $request['plugins'][0]['id']);
+        $this->assertSame('succeeded', AiIntakeRun::sole()->status);
+        $this->assertSame('synthetic-data-multimodal', AiIntakeRun::sole()->model);
         $this->assertSame(3, AiIntakeAttachment::count());
         $this->assertSame(3, $intake->attachments()->where('status', 'extracted')->count());
-        $this->assertSame('verified', OperationInquiry::first()->status);
+        $this->assertSame('verified', OperationInquiry::sole()->status);
         $this->assertStringContainsString('Tf | Hamburg', $intake->attachments()->where('kind', 'text')->first()->extracted_text);
+        foreach ($intake->attachments()->get() as $file) {
+            $this->assertSame($originals[$file->id]['hash'], $file->file_hash);
+            $this->assertSame($originals[$file->id]['bytes'], Storage::disk('local')->get($file->file_path));
+        }
     }
 
     public function test_text_and_csv_parser_caps_never_silently_drop_tail_rows_into_native_request(): void
