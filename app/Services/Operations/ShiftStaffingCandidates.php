@@ -68,7 +68,20 @@ class ShiftStaffingCandidates
             $hard = count($issues) - $temporal;
             $state = $hard > 0 ? 'blocked' : ($temporal > 0 ? 'review' : 'eligible');
             $regionalAdjustment = (int) ($region['score_adjustment'] ?? 0);
-            $temporalPenalty = $temporal > 0 ? 20 + 10 * ($temporal - 1) : 0;
+            $scoredTemporal = $temporal;
+            if (in_array('rest_overlap', array_column($issues, 'code'), true)) {
+                // Keep both authoritative reasons, but do not score the same
+                // insufficient rest gap again when its route becomes known.
+                foreach (['before', 'after'] as $direction) {
+                    $leg = $details[$user->id]['travel'][$direction] ?? [];
+                    if (in_array('travel_'.$direction, array_column($issues, 'code'), true)
+                        && isset($leg['available_seconds'], $leg['rest_minutes'])
+                        && $leg['available_seconds'] < $leg['rest_minutes'] * 60) {
+                        $scoredTemporal--;
+                    }
+                }
+            }
+            $temporalPenalty = $scoredTemporal > 0 ? 20 + 10 * ($scoredTemporal - 1) : 0;
             $hardPenalty = $hard * 40;
             $cap = match ($state) {
                 'review' => 74,
@@ -76,14 +89,15 @@ class ShiftStaffingCandidates
                 default => 100,
             };
             $score = max(0, min($cap, 85 + $regionalAdjustment - $temporalPenalty - $hardPenalty));
-            $reasons = $issues === [] ? ['Keine Konflikte in den hinterlegten Planungsregeln.'] : array_column($issues, 'message');
+            $unchecked = in_array($details[$user->id]['route_state'] ?? '', ['pending', 'unknown'], true);
+            $reasons = $issues === [] ? [$unchecked ? 'Kernregeln erfüllt; Fahrten noch nicht oder derzeit nicht geprüft.' : 'Keine Konflikte in den hinterlegten Planungsregeln.'] : array_column($issues, 'message');
             if (filled($region['detail'] ?? null)) {
                 $reasons[] = $region['detail'];
             }
             $label = match ($state) {
                 'review' => 'Zeitkonflikt prüfen',
                 'blocked' => 'Nicht einsetzbar',
-                default => 'Geeignet',
+                default => $unchecked ? 'Kernregeln erfüllt' : 'Geeignet',
             };
             $user->setAttribute('staffing_score', $score);
             $user->setAttribute('staffing_state', $state);

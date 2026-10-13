@@ -130,6 +130,10 @@ class TravelAssessmentService
     /** Only after a workflow validated its unchanged projections under PlanningLocks. */
     public function rebasePreflight(Shift $saved, User $user, TravelPreflight $projected, array $context = []): TravelPreflight
     {
+        $this->assertBindingPreflight($projected);
+        if (! isset($projected->assessments[$user->id])) {
+            throw ValidationException::withMessages(['workflow' => 'Die geprüfte Personalbesetzung wurde geändert. Bitte erneut prüfen.']);
+        }
         $current = $this->assessMany($saved, collect([$user]), ['skip_provider' => true] + $context, true)[$user->id];
         $previous = $projected->assessments[$user->id] ?? [];
         $compare = fn ($legs) => collect($legs)->map(fn ($leg) => array_intersect_key($leg, array_flip([
@@ -140,7 +144,7 @@ class TravelAssessmentService
         }
         $previous['basis'] = $current['basis'];
         foreach ($current['travel'] as $direction => $leg) {
-            $previous['travel'][$direction] = array_replace($previous['travel'][$direction], array_intersect_key($leg, array_flip(['shift_id', 'title', 'origin_label', 'destination_label'])));
+            $previous['travel'][$direction] = array_replace($previous['travel'][$direction], array_intersect_key($leg, array_flip(['shift_id', 'title', 'origin_label', 'destination_label', 'origin_title', 'destination_title', 'origin_ends_at', 'destination_starts_at'])));
         }
 
         return new TravelPreflight([$user->id => $previous], $context, $projected->preparedOutsideTransaction, $projected->peerExceptions);
@@ -345,7 +349,8 @@ class TravelAssessmentService
             $value = $points[$user->id] ?? ['status' => 'unavailable', 'reason' => 'location_disabled', 'point' => null];
             $point = $value['point'] ?? null;
             $valid = $this->validEmployeePoint($point, $now);
-            $results[$user->id]['arrival'] = ['status' => 'unknown', 'reason' => $value['reason'] ?? 'point_unavailable', 'label' => 'Aktueller Anfahrtsweg nicht verfügbar', 'departure_assumption' => 'jetzt'];
+            $reason = $target === null ? 'site_unconfirmed' : ($value['reason'] ?? 'point_unavailable');
+            $results[$user->id]['arrival'] = ['status' => 'unknown', 'reason' => $reason, 'label' => 'Aktueller Anfahrtsweg nicht verfügbar', 'departure_assumption' => 'jetzt'];
             if ($valid && $target !== null && TomTomSettings::all()['enabled']) {
                 $requests[$user->id] = ['origin' => $point, 'destination' => $target, 'departure' => $now];
                 $results[$user->id]['arrival'] += ['measured_at' => $point['measured_at'], 'accuracy_m' => $point['accuracy_m']];
@@ -412,6 +417,7 @@ class TravelAssessmentService
             'schema_missing' => 'Routenplanung noch nicht eingerichtet',
             'provider_limit' => 'TomTom-Limit erreicht', 'transaction_requires_preflight' => 'Vorprüfung fehlt',
             'calculation_pending' => 'Eine gleiche Route wird bereits berechnet; bitte kurz erneut prüfen',
+            'pending' => 'Die Fahrzeitprüfung steht noch aus',
             'provider_unavailable' => 'Anbieter derzeit nicht erreichbar', 'provider_timeout' => 'Zeitlimit der Fahrtprüfung erreicht', default => 'Route derzeit nicht berechenbar',
         };
     }

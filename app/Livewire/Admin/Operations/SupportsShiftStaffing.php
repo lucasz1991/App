@@ -6,6 +6,7 @@ use App\Enums\ShiftAssignmentStatus;
 use App\Models\Shift;
 use App\Models\User;
 use App\Services\Operations\AiPlanningService;
+use App\Services\Operations\PlanningTravelDisplay;
 use App\Services\Operations\ShiftAssignmentExceptionService;
 use App\Services\Operations\ShiftAssignmentService;
 use App\Services\Operations\StaffRegionalPreferenceService;
@@ -130,6 +131,10 @@ trait SupportsShiftStaffing
             'exceptionAcknowledged.accepted' => 'Bitte die Prüfung der Konflikte und Pflichten ausdrücklich bestätigen.',
         ]);
         $review = app(ShiftAssignmentExceptionService::class)->review(Shift::findOrFail($this->selectedShiftId), User::findOrFail($this->employeeId), auth()->user());
+        if (isset($review['travel_assessment'])) {
+            $this->planningTravel[$this->selectedShiftId][$this->employeeId] = app(PlanningTravelDisplay::class)->stamp([$this->employeeId => $review['travel_assessment']])[$this->employeeId];
+            unset($review['travel_assessment']);
+        }
         if (! ($review['can_override'] ?? false) || ($review['fingerprint'] ?? '') !== ($this->assignmentReview['fingerprint'] ?? null)) {
             $this->assignmentReview = $review;
             $this->exceptionPrepared = false;

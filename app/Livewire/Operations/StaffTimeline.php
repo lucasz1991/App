@@ -11,13 +11,13 @@ use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Services\Operations\PersonnelScopeService;
 use App\Services\Operations\PlanningTravelDisplay;
-use App\Services\Operations\StaffEligibilityService;
 use App\Services\Operations\ShiftAssignmentService;
+use App\Services\Operations\StaffEligibilityService;
 use App\Services\Operations\StaffTimelineLayout;
 use App\Services\Operations\TimelinePlanningSuggestionService;
 use App\Services\Operations\TimelineWorkloadService;
-use App\Services\Routing\TravelAssessmentService;
 use App\Services\Routing\TomTomRoutingService;
+use App\Services\Routing\TravelAssessmentService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsNavigation;
 use App\Support\Operations\OperationsTransaction;
@@ -123,6 +123,16 @@ class StaffTimeline extends Component
     public array $planningTravel = [];
 
     #[On('shift-travel-refresh-requested')]
+    public function refreshPlanningTravel(int $shiftId): void
+    {
+        if (! ($this->assignmentOpen && $this->planningShiftId === $shiftId && $this->planningUserId)) {
+            $this->skipRender();
+
+            return;
+        }
+        $this->loadPlanningTravel($shiftId);
+    }
+
     public function loadPlanningTravel(int $shiftId): void
     {
         $this->ensurePlanning();
@@ -153,7 +163,7 @@ class StaffTimeline extends Component
         return ['state' => $eligible > 0 ? 'suitable' : ($choices->isEmpty() ? 'empty' : 'blocked'),
             'label' => $eligible > 0 ? $eligible.' passend'.($choices->count() === 30 ? ' · Auswahl begrenzt' : '')
                 : ($choices->isEmpty() ? 'Keine offenen Dienste' : 'Keine passende Schicht'),
-            'detail' => $eligible > 0 ? 'Kernregeln geprüft · Fahrten beim Auswählen prüfen'
+            'detail' => $eligible > 0 ? (TomTomSettings::all()['enabled'] ? 'Kernregeln geprüft · Fahrten beim Auswählen prüfen' : 'Vorläufig geprüft · zum Auswählen klicken')
                 : ($choices->isEmpty() ? 'Für diesen Tag ist nichts zu verteilen.' : 'Details und Konfliktgründe per Klick anzeigen.')];
     }
 

@@ -24,6 +24,15 @@ class PlanningTravelDisplay
                 $detail['issues'] = array_values(array_filter($previous['issues'] ?? [], fn ($issue) => str_starts_with($issue['code'] ?? '', 'travel_')));
             }
             $detail['issues'] = collect(array_merge($core[$id] ?? [], $detail['issues'] ?? []))->unique('code')->values()->all();
+            foreach ($detail['warnings'] as &$warning) {
+                if (($warning['reason'] ?? '') === 'pending') {
+                    $warning['message'] = 'Fahrzeitprüfung steht noch aus.';
+                }
+            }
+            unset($warning);
+            if ($settings['enabled'] && TravelAssessmentService::point($shift) === null) {
+                $detail['warnings'][] = ['code' => 'travel_site_unconfirmed', 'message' => 'Fahrt ungeprüft: Der Einsatzstandort ist noch nicht bestätigt.', 'reason' => 'site_unconfirmed'];
+            }
             $detail += $this->status($detail, (bool) $settings['enabled']);
         }
         unset($detail);
@@ -73,7 +82,7 @@ class PlanningTravelDisplay
         $state = ! $enabled ? 'disabled'
             : (collect($detail['issues'] ?? [])->contains(fn ($issue) => str_starts_with($issue['code'] ?? '', 'travel_')) ? 'conflict'
                 : ($legs->contains(fn ($leg) => ($leg['status'] ?? null) !== 'known')
-                    ? ($legs->contains(fn ($leg) => ($leg['reason'] ?? '') === 'pending') ? 'pending' : 'unknown') : 'known'));
+                    ? ($legs->contains(fn ($leg) => ($leg['reason'] ?? '') === 'pending') ? 'pending' : 'unknown') : (! empty($detail['warnings']) ? 'unknown' : 'known')));
 
         return ['route_state' => $state,
             'route_label' => ['disabled' => 'Fahrzeitprüfung deaktiviert', 'pending' => 'Fahrt noch nicht geprüft', 'unknown' => 'Fahrt ungeprüft', 'conflict' => 'Fahrzeitkonflikt', 'known' => $legs->isEmpty() ? 'Keine benachbarten Einsätze' : 'Fahrten geprüft'][$state],

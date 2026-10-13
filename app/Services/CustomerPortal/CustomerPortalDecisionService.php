@@ -84,8 +84,10 @@ final class CustomerPortalDecisionService
     public function evaluate(int $submissionId): CustomerPortalSubmission
     {
         CustomerPortalIntakeSchema::requireReady();
+        $base = CustomerPortalSubmission::findOrFail($submissionId);
+        $prepared = $this->prepareCapacityRouting($base);
 
-        return OperationsTransaction::run(function () use ($submissionId) {
+        return OperationsTransaction::run(function () use ($submissionId, $prepared) {
             $base = CustomerPortalSubmission::findOrFail($submissionId);
             $identity = CustomerPortalIdentity::findOrFail($base->identity_id);
             try {
@@ -154,7 +156,7 @@ final class CustomerPortalDecisionService
                 return $this->finish($submission, 'offered', 'Ein aktuelles Angebot liegt zur Prüfung vor.', $actor, true);
             }
             try {
-                return OperationsTransaction::run(fn () => $this->apply($actor, $submission->fresh(), 'accept', 'Leistung gemäß freigegebenen Bedingungen bestätigt.', true));
+                return OperationsTransaction::run(fn () => $this->apply($actor, $submission->fresh(), 'accept', 'Leistung gemäß freigegebenen Bedingungen bestätigt.', true, $prepared));
             } catch (ValidationException $exception) {
                 return $this->finish($submission->fresh(), 'review', 'Kapazität oder Bestellgrundlage muss manuell geprüft werden.', $actor, true);
             } catch (HttpException $exception) {
@@ -171,19 +173,58 @@ final class CustomerPortalDecisionService
     {
         CustomerPortalIntakeSchema::requireReady();
         Validator::make(compact('action', 'note'), ['action' => 'required|in:offer,accept,reject,review', 'note' => 'required|string|min:5|max:2000'])->validate();
+        app(CustomerPortalScope::class)->authorizeManager($actor, $customerId);
+        OperationsAccess::authorize($actor, 'operations.inquiries.manage');
+        $initial = CustomerPortalSubmission::where('customer_id', $customerId)->findOrFail($submissionId);
+        if ($action === 'accept') {
+            app(CustomerPortalScope::class)->authorizeManager($actor, $customerId, 'customers.portal.publish');
+        }
+        $prepared = $action === 'accept' ? app(CustomerCapacityService::class)->prepareReservations($initial) : null;
 
-        return OperationsTransaction::run(function () use ($actor, $customerId, $submissionId, $revision, $action, $note) {
+        return OperationsTransaction::run(function () use ($actor, $customerId, $submissionId, $revision, $action, $note, $prepared) {
             Customer::whereKey($customerId)->lockForUpdate()->firstOrFail();
             app(CustomerPortalScope::class)->authorizeManager($actor, $customerId);
             OperationsAccess::authorize($actor, 'operations.inquiries.manage');
             $submission = CustomerPortalSubmission::where('customer_id', $customerId)->lockForUpdate()->findOrFail($submissionId);
             abort_unless($submission->revision === $revision && ! in_array($submission->status, ['accepted', 'rejected'], true), 409, 'Anfragestand wurde geändert oder abgeschlossen.');
 
-            return $this->apply($actor, $submission, $action, $note, false);
+            return $this->apply($actor, $submission, $action, $note, false, $prepared);
         });
     }
 
-    private function apply(User $actor, CustomerPortalSubmission $s, string $action, string $note, bool $automatic): CustomerPortalSubmission
+    private function prepareCapacityRouting(CustomerPortalSubmission $submission): ?array
+    {
+        if (DB::transactionLevel() > 0 || in_array($submission->status, ['accepted', 'rejected'], true)) {
+            return null;
+        }
+        $profile = CustomerPortalAutomationProfile::where('customer_id', $submission->customer_id)->first();
+        $actor = $profile?->approved_at && $profile->mode === 'accept' ? User::find($profile->approved_by) : null;
+        if (! $actor?->status) {
+            return null;
+        }
+        try {
+            app(CustomerPortalScope::class)->authorizeManager($actor, $submission->customer_id, 'customers.portal.automation');
+            app(CustomerPortalScope::class)->authorizeManager($actor, $submission->customer_id, 'customers.portal.publish');
+            OperationsAccess::authorize($actor, 'operations.inquiries.manage');
+            $identity = CustomerPortalIdentity::findOrFail($submission->identity_id);
+            $membership = app(CustomerPortalScope::class)->membership($identity, $submission->customer_id, 'requests.create', true);
+            if ($membership->setting->automation_mode !== 'accept' || ($this->assessment($submission)['outcome'] ?? '') !== 'ready') {
+                return null;
+            }
+
+            return app(CustomerCapacityService::class)->prepareReservations($submission);
+        } catch (ValidationException|AuthorizationException $exception) {
+            return null;
+        } catch (HttpException $exception) {
+            if (! in_array($exception->getStatusCode(), [403, 409, 422], true)) {
+                throw $exception;
+            }
+
+            return null;
+        }
+    }
+
+    private function apply(User $actor, CustomerPortalSubmission $s, string $action, string $note, bool $automatic, ?array $prepared = null): CustomerPortalSubmission
     {
         $identity = CustomerPortalIdentity::findOrFail($s->identity_id);
         if ($automatic || in_array($action, ['offer', 'accept'], true)) {
@@ -222,7 +263,7 @@ final class CustomerPortalDecisionService
                     app(CommercialOfferService::class)->accept($inquiry->offer['commercial_offer_id'], CommercialOfferRevision::findOrFail($inquiry->offer['commercial_offer_id'])->state_version, 'Ausdrückliche Rahmenbuchung über Kundenportal.', true, $identity);
                 }
             }
-            $reservations = app(CustomerCapacityService::class)->reserve($s->fresh()->load('items'));
+            $reservations = app(CustomerCapacityService::class)->reserve($s->fresh()->load('items'), $prepared);
             foreach ($s->items as $item) {
                 $inquiry = OperationInquiry::findOrFail($item->inquiry_id);
                 $converted = app(InquiryWorkflowService::class)->transition($inquiry, $inquiry->revision, 'convert', [], $actor);

@@ -167,7 +167,7 @@ class ShiftTravelPanel extends Component
         foreach ($users as $user) {
             $fresh = $current[$user->id];
             $saved = $this->assessments[$user->id] ?? [];
-            $valid = $this->loaded && app(PlanningTravelDisplay::class)->reusable($fresh, $saved);
+            $valid = $this->loaded && app(PlanningTravelDisplay::class)->reusable($fresh, $saved, $settings);
             $detail = $valid ? array_intersect_key($saved, array_flip(['issues', 'warnings', 'travel', 'arrival', 'basis', '_display_checked_at'])) : $fresh;
             if (isset($detail['arrival'])) {
                 if (! $valid || $this->arrivalIdentity($detail['arrival']) !== $this->arrivalIdentity($fresh['arrival'] ?? []) || CarbonImmutable::parse($saved['_display_checked_at'])->addMinute()->lte(now())) {

@@ -55,7 +55,7 @@ final class CustomerPortalSubmissionService
         $hash = hash('sha256', json_encode($data, JSON_THROW_ON_ERROR));
         $storedPaths = [];
         try {
-            return OperationsTransaction::run(function () use ($identity, $customerId, $uuid, $data, $hash, $attachments, &$storedPaths) {
+            $submission = OperationsTransaction::run(function () use ($identity, $customerId, $uuid, $data, $hash, $attachments, &$storedPaths) {
                 $scope = app(CustomerPortalScope::class);
                 $membership = $scope->membership($identity, $customerId, 'requests.create', true);
                 $existing = CustomerPortalSubmission::where('customer_id', $customerId)->where('uuid', $uuid)->lockForUpdate()->first();
@@ -101,18 +101,25 @@ final class CustomerPortalSubmissionService
                     'url' => route('customer-portal.workspace', ['customer' => $customerId, 'section' => 'requests']),
                 ]);
 
-                return app(CustomerPortalDecisionService::class)->evaluate($submission->id)->load('items');
+                return $submission->load('items');
             });
         } catch (\Throwable $exception) {
             app(CustomerPortalIntakeAttachmentService::class)->discardRolledBack($customerId, $storedPaths);
             throw $exception;
         }
+
+        // Intake and attachments are already safe; provider work must not hold their locks.
+        if (! $submission->wasRecentlyCreated) {
+            return $submission;
+        }
+
+        return app(CustomerPortalDecisionService::class)->evaluate($submission->id)->load('items');
     }
 
     public function acceptOffer(CustomerPortalIdentity $identity, int $customerId, int $offerId, int $stateVersion, string $note): void
     {
         CustomerPortalIntakeSchema::requireReady();
-        OperationsTransaction::run(function () use ($identity, $customerId, $offerId, $stateVersion, $note) {
+        $submissionId = OperationsTransaction::run(function () use ($identity, $customerId, $offerId, $stateVersion, $note) {
             app(CustomerPortalScope::class)->membership($identity, $customerId, 'offers.accept', true);
             $offer = CommercialOfferRevision::findOrFail($offerId);
             $subject = match ($offer->subject_type) {
@@ -126,10 +133,15 @@ final class CustomerPortalSubmissionService
             if ($subject instanceof OperationInquiry) {
                 $item = CustomerPortalSubmissionItem::where('customer_id', $customerId)->where('inquiry_id', $subject->id)->first();
                 if ($item) {
-                    app(CustomerPortalDecisionService::class)->evaluate($item->submission_id);
+                    return $item->submission_id;
                 }
             }
+
+            return null;
         });
+        if ($submissionId) {
+            app(CustomerPortalDecisionService::class)->evaluate($submissionId);
+        }
     }
 
     public function frameworkTerms(CustomerPortalIdentity $identity, int $customerId, string $startsAt, string $timezone): array

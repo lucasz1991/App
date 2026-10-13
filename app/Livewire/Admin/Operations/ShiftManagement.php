@@ -47,8 +47,8 @@ use Livewire\WithPagination;
 class ShiftManagement extends Component
 {
     use SupportsOperationsUi;
-    use SupportsServiceTableSelection;
     use SupportsPlanningTravel;
+    use SupportsServiceTableSelection;
     use SupportsShiftStaffing;
     use WithPagination;
 
@@ -149,6 +149,10 @@ class ShiftManagement extends Component
         try {
             app(StaffRegionalPreferenceService::class)->assertAllowed($shift, $user);
             $review = app(ShiftAssignmentExceptionService::class)->review($shift, $user, auth()->user());
+            if (isset($review['travel_assessment'])) {
+                $this->planningTravel[$shift->id][$user->id] = app(PlanningTravelDisplay::class)->stamp([$user->id => $review['travel_assessment']])[$user->id];
+                unset($review['travel_assessment']);
+            }
             if (! empty($review['blocking_issues']) || (! empty($review['issues']) && ! $review['can_override'])) {
                 $this->addError('assignment', collect($review['blocking_issues'] ?: $review['issues'])->pluck('message')->implode(' '));
                 $this->addError('workflow', collect($review['blocking_issues'] ?: $review['issues'])->pluck('message')->implode(' '));
@@ -932,6 +936,7 @@ class ShiftManagement extends Component
             ...$this->pendingDistribution($from, $to),
             'distributionShift' => $distributionShift,
             'distributionCandidates' => $distributionCandidates,
+            'distributionTravelAutoKey' => $distributionShift ? $this->travelContextKey($distributionShift->id, (int) $distributionShift->revision) : '',
             'nativeOperations' => OperationsAccess::ready(),
             'qualificationTypes' => OperationsAccess::ready() ? QualificationType::where('is_active', true)->orderBy('name')->get() : collect(),
             'shifts' => $shifts,
@@ -948,6 +953,7 @@ class ShiftManagement extends Component
             'displayTimezone' => (string) config('operations.display_timezone', 'Europe/Berlin'),
             'selectedShift' => $selectedShift,
             'candidates' => $candidates,
+            'staffingTravelAutoKey' => $selectedShift ? $this->travelContextKey($selectedShift->id, (int) $selectedShift->revision) : '',
             'candidateTotal' => $rankedCandidates->count(),
             'candidateFilterOptions' => $native && $this->detailOpen && $this->candidatesReady ? app(ShiftStaffingCandidates::class)->filterOptions($selectedShift) : ['qualifications' => [], 'pools' => []],
             'selectedCandidate' => $this->employeeId ? User::with(['profile', 'currentTeam'])->find($this->employeeId) : null,

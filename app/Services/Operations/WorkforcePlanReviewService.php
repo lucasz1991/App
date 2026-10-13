@@ -8,6 +8,8 @@ use App\Models\OperationsRuleProfile;
 use App\Models\PersonnelPlanReview;
 use App\Models\ShiftAssignment;
 use App\Models\User;
+use App\Services\Routing\TravelAssessmentService;
+use App\Services\Routing\TravelPreflight;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsTransaction;
 use Illuminate\Database\Eloquent\Model;
@@ -65,8 +67,10 @@ class WorkforcePlanReviewService
         abort_if((int) $actor->id === (int) $review->user_id, 403);
         abort_unless($this->ready(), 503);
         Validator::make(['note' => $note], ['note' => 'required|string|min:5|max:1000'])->validate();
+        $initialAssignment = ShiftAssignment::with(['shift' => fn ($query) => $query->withTrashed()])->findOrFail($review->shift_assignment_id);
+        $travel = app(TravelAssessmentService::class)->preflight($initialAssignment->shift, collect([User::findOrFail($review->user_id)]));
 
-        OperationsTransaction::run(function () use ($review, $revision, $note, $actor): void {
+        OperationsTransaction::run(function () use ($review, $revision, $note, $actor, $travel): void {
             // Only the employee and review change: no user→shift lock inversion.
             User::lockForUpdate()->findOrFail($review->user_id);
             $record = PersonnelPlanReview::lockForUpdate()->findOrFail($review->id);
@@ -75,7 +79,7 @@ class WorkforcePlanReviewService
             $this->check($record->revision === $revision && in_array($record->status, ['review', 'conflict', 'stale'], true), 'Prüffall wurde bereits bearbeitet.');
             $assignment = ShiftAssignment::with(['shift' => fn ($query) => $query->withTrashed()])->findOrFail($record->shift_assignment_id);
             $this->check((int) $assignment->user_id === (int) $record->user_id, 'Zuweisung gehört nicht mehr zum Prüffall.');
-            $snapshot = $this->assessment($assignment, User::findOrFail($record->user_id));
+            $snapshot = $this->assessment($assignment, User::findOrFail($record->user_id), $travel);
             if ($snapshot['issues'] === []) {
                 abort_if((int) $record->created_by === (int) $actor->id, 403, 'Eine andere Person muss den Prüffall abschließen.');
             }
@@ -85,7 +89,7 @@ class WorkforcePlanReviewService
         }, 3);
     }
 
-    private function assessment(ShiftAssignment $assignment, User $user): array
+    private function assessment(ShiftAssignment $assignment, User $user, ?TravelPreflight $travel = null): array
     {
         $shift = $assignment->shift;
         $snapshot = ['at' => now()->utc()->toIso8601String(), 'shift' => ['id' => $shift->id, 'public_id' => $shift->public_id, 'title' => $shift->title, 'starts_at' => $shift->starts_at->toIso8601String(), 'ends_at' => $shift->ends_at->toIso8601String(), 'timezone' => $shift->timezone, 'revision' => $shift->revision, 'published_revision' => $shift->published_revision], 'assignment' => ['id' => $assignment->id, 'status' => $assignment->status->value, 'plan_revision' => $assignment->plan_revision], 'issues' => []];
@@ -103,7 +107,15 @@ class WorkforcePlanReviewService
         } elseif ($shift->published_revision <= 0 || ! $shift->published_at || $shift->revision !== $shift->published_revision || $assignment->plan_revision !== $shift->published_revision) {
             $snapshot['issues'][] = ['code' => 'plan_revision_changed', 'message' => 'Aktueller Dienststand ist noch nicht verbindlich veröffentlicht.'];
         } else {
-            $snapshot['issues'] = app(StaffEligibilityService::class)->assessMany($shift, collect([$user]))[$user->id] ?? [['code' => 'eligibility_unknown', 'message' => 'Eignungsprüfung ist nicht verfügbar.']];
+            $detail = app(StaffEligibilityService::class)->assessDetailedMany($shift, collect([$user]), false, ['travel_preflight' => $travel])[$user->id] ?? null;
+            $snapshot['issues'] = array_map(fn ($issue) => in_array($issue['code'], ['travel_before', 'travel_after'], true)
+                ? ['code' => $issue['code'], 'message' => 'Geplante Fahrt, Reserve und Ruhezeit reichen nicht aus. In der Schichtplanung aktuell prüfen.'] : $issue,
+                $detail['issues'] ?? [['code' => 'eligibility_unknown', 'message' => 'Eignungsprüfung ist nicht verfügbar.']]);
+            // Review findings are advisory. A transaction cannot calculate a
+            // route, so retain that uncertainty until an explicit fresh review.
+            foreach ($detail['warnings'] ?? [] as $warning) {
+                $snapshot['issues'][] = ['code' => $warning['code'], 'message' => $warning['message']];
+            }
         }
 
         return $snapshot;
@@ -116,7 +128,7 @@ class WorkforcePlanReviewService
         }
         $unknown = ['rules_missing', 'contract_missing', 'contract_weekly_allocation_unknown', 'training_rules_missing', 'eligibility_unknown', 'plan_already_started'];
 
-        return collect($issues)->contains(fn ($issue) => ! in_array($issue['code'], $unknown, true)) ? 'conflict' : 'review';
+        return collect($issues)->contains(fn ($issue) => ! in_array($issue['code'], $unknown, true) && ! str_starts_with($issue['code'], 'travel_unchecked_')) ? 'conflict' : 'review';
     }
 
     private function authorizeSource(User $user, Model $source, User $actor): void

@@ -6,8 +6,10 @@ use App\Models\EmployeeQualification;
 use App\Models\OperationWorkflow;
 use App\Models\Shift;
 use App\Models\User;
+use App\Services\Routing\TravelAssessmentService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsTransaction;
+use App\Support\Operations\PlanningLocks;
 use Illuminate\Support\Facades\Validator;
 
 class OperationsPartnerService
@@ -52,11 +54,18 @@ class OperationsPartnerService
 
     public function prepare(int $id, int $revision, User $actor): OperationWorkflow
     {
-        return app(OperationsWorkflowService::class)->change($id, $revision, $actor, function ($r) {
+        $initial = OperationWorkflow::findOrFail($id);
+        app(OperationsWorkflowService::class)->authorize($initial, $actor, true);
+        abort_unless($initial->kind === 'partner' && $initial->status === 'draft' && ($initial->payload['consent'] ?? false), 409, 'Freigabe der betroffenen Person erforderlich.');
+        abort_unless($initial->revision === $revision && now()->lt($initial->payload['deadline']), 409, 'Partneranfrage wurde geändert oder ist abgelaufen.');
+        $travel = app(TravelAssessmentService::class)->preflight(Shift::findOrFail($initial->shift_id), collect([User::findOrFail($initial->user_id)]));
+
+        return app(OperationsWorkflowService::class)->change($id, $revision, $actor, function ($r) use ($travel) {
             abort_unless($r->kind === 'partner' && $r->status === 'draft' && ($r->payload['consent'] ?? false), 409, 'Freigabe der betroffenen Person erforderlich.');
+            PlanningLocks::acquire([$r->shift_id], [$r->user_id]);
             $shift = Shift::lockForUpdate()->findOrFail($r->shift_id);
             abort_unless($shift->revision === $r->payload['shift_revision'] && now()->lt($r->payload['deadline']), 409);
-            app(StaffEligibilityService::class)->assertEligible($shift, User::findOrFail($r->user_id));
+            app(StaffEligibilityService::class)->assertEligible($shift, User::findOrFail($r->user_id), ['travel_preflight' => $travel]);
             foreach ($r->payload['sharing'] as $shared) {
                 $q = EmployeeQualification::where('user_id', $r->user_id)->where('status', 'approved')->findOrFail($shared['id']);
                 abort_unless($q->revision === $shared['revision'] && $q->valid_until->gte($shift->ends_at->setTimezone($shift->timezone)->startOfDay()), 409);

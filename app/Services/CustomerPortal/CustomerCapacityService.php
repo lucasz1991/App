@@ -16,8 +16,11 @@ use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Services\Operations\PersonnelScopeService;
+use App\Services\Operations\SiteSnapshotService;
 use App\Services\Operations\StaffEligibilityService;
 use App\Services\Operations\WorkforceAccountService;
+use App\Services\Routing\TomTomRoutingService;
+use App\Services\Routing\TravelAssessmentService;
 use App\Support\CustomerPortal\CustomerPortalDateTime as OperationsDateTime;
 use App\Support\CustomerPortal\CustomerPortalIntakeSchema;
 use App\Support\CustomerPortal\CustomerPortalScope;
@@ -26,6 +29,7 @@ use App\Support\Operations\OperationsTransaction;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -75,17 +79,22 @@ final class CustomerCapacityService
     {
         CustomerPortalIntakeSchema::requireReady();
         app(CustomerPortalScope::class)->authorizeManager($actor, $customerId, 'customers.portal.automation');
+        $initial = CustomerCapacityCommitment::where('customer_id', $customerId)->findOrFail($id);
+        app(PersonnelScopeService::class)->authorize($actor, (int) $initial->user_id, 'employees.master-data.view');
+        abort_unless($initial->created_by !== $actor->id && $initial->revision === $revision && $initial->status === 'consented' && $initial->consented_at && $initial->starts_at->isFuture(), 409, 'Mitarbeiterzustimmung und zweite Freigabe erforderlich.');
+        $travel = app(TravelAssessmentService::class)->preflight($this->shift($initial), collect([User::findOrFail($initial->user_id)]));
 
-        return OperationsTransaction::run(function () use ($actor, $customerId, $id, $revision) {
+        return OperationsTransaction::run(function () use ($actor, $customerId, $id, $revision, $travel) {
             $reference = CustomerCapacityCommitment::where('customer_id', $customerId)->findOrFail($id);
             User::whereKey($reference->user_id)->lockForUpdate()->firstOrFail();
             $record = CustomerCapacityCommitment::where('customer_id', $customerId)->lockForUpdate()->findOrFail($id);
+            CustomerLocation::where('customer_id', $customerId)->where('is_active', true)->lockForUpdate()->findOrFail($record->location_id);
             app(CustomerPortalScope::class)->authorizeManager($actor, $customerId, 'customers.portal.automation');
             app(PersonnelScopeService::class)->authorize($actor, (int) $record->user_id, 'employees.master-data.view');
             abort_unless(OperationsAccess::ready(), 503);
             abort_unless($record->created_by !== $actor->id && $record->revision === $revision && $record->status === 'consented' && $record->consented_at && $record->starts_at->isFuture(), 409, 'Mitarbeiterzustimmung und zweite Freigabe erforderlich.');
             abort_unless(QualificationType::whereIn('id', $record->qualification_ids ?? [])->where('is_active', true)->count() === count($record->qualification_ids ?? []), 409, 'Nachweisgrundlagen fehlen.');
-            app(StaffEligibilityService::class)->assertEligible($this->shift($record), User::findOrFail($record->user_id));
+            app(StaffEligibilityService::class)->assertEligible($this->shift($record), User::findOrFail($record->user_id), ['travel_preflight' => $travel]);
             $record->forceFill(['status' => 'approved', 'approved_by' => $actor->id, 'approved_at' => now()->utc(), 'revision' => $revision + 1])->save();
             $this->audit($record, $actor, 'capacity_approved');
 
@@ -93,62 +102,107 @@ final class CustomerCapacityService
         });
     }
 
+    /** Ephemeral selection, prepared before any customer/submission/staff lock. */
+    public function prepareReservations(CustomerPortalSubmission $submission): array
+    {
+        abort_unless(DB::transactionLevel() === 0, 409, 'Kapazitätsfahrten müssen vor der verbindlichen Prüfung vorbereitet werden.');
+
+        return TomTomRoutingService::withinOperation(function () use ($submission): array {
+            $all = CustomerCapacityCommitment::where('customer_id', $submission->customer_id)->where('status', 'approved')->whereNotNull('approved_at')->whereNotNull('consented_at')->orderBy('user_id')->get();
+            $selected = [];
+            foreach ($submission->load('items')->items as $item) {
+                $inquiry = OperationInquiry::findOrFail($item->inquiry_id);
+                $candidates = $all->filter(fn ($c) => $c->location_id === $item->location_id && $c->role_name === $inquiry->role_name && $c->starts_at->lte($inquiry->starts_at) && $c->ends_at->gte($inquiry->ends_at))->unique('user_id');
+                $count = 0;
+                foreach ($candidates as $candidate) {
+                    if (! $this->usableCommitment($candidate, $submission, $inquiry)) {
+                        continue;
+                    }
+                    $shift = $this->shift($candidate, $inquiry);
+                    $user = User::findOrFail($candidate->user_id);
+                    $additional = collect($selected)->where('user_id', $user->id)->pluck('shift')->all();
+                    $context = ['additional_shifts' => $additional];
+                    $eligibility = app(StaffEligibilityService::class);
+                    if (($eligibility->assessPreviewCoreMany($shift, collect([$user]), $context)[$user->id] ?? []) !== []
+                        || ($eligibility->assessDetailedMany($shift, collect([$user]), false, $context)[$user->id]['issues'] ?? []) !== []) {
+                        continue;
+                    }
+                    $selected[] = ['item_id' => $item->id, 'commitment_id' => $candidate->id, 'commitment_revision' => $candidate->revision, 'user_id' => $user->id, 'shift' => $shift];
+                    if (++$count >= $inquiry->required_staff) {
+                        break;
+                    }
+                }
+                abort_unless($count === $inquiry->required_staff, 409, 'Kapazität nicht belastbar reservierbar.');
+            }
+            foreach ($selected as $index => $entry) {
+                $additional = collect($selected)->filter(fn ($other, $key) => $key !== $index && $other['user_id'] === $entry['user_id'])->pluck('shift')->all();
+                $selected[$index]['preflight'] = app(TravelAssessmentService::class)->preflight($entry['shift'], collect([User::findOrFail($entry['user_id'])]), ['additional_shifts' => $additional]);
+            }
+
+            return ['revision' => $submission->revision, 'selected' => $selected];
+        });
+    }
+
     /** Caller holds customer and submission locks. Staff locks serialize with every existing assignment. */
-    public function reserve(CustomerPortalSubmission $submission): array
+    public function reserve(CustomerPortalSubmission $submission, ?array $prepared = null): array
     {
         CustomerPortalIntakeSchema::requireReady();
         abort_unless(OperationsAccess::ready(), 503);
-        $all = CustomerCapacityCommitment::where('customer_id', $submission->customer_id)->where('status', 'approved')->whereNotNull('approved_at')->whereNotNull('consented_at')->orderBy('user_id')->get();
-        User::whereIn('id', $all->pluck('user_id')->unique())->orderBy('id')->lockForUpdate()->get();
-        $reservations = [];
+        abort_unless(is_array($prepared) && ($prepared['revision'] ?? null) === $submission->revision, 409, 'Kapazitätsfahrten müssen vor der verbindlichen Prüfung erneut vorbereitet werden.');
+        $selected = $prepared['selected'] ?? [];
+        User::whereIn('id', array_column($selected, 'user_id'))->orderBy('id')->lockForUpdate()->get();
+        $commitments = CustomerCapacityCommitment::whereIn('id', array_column($selected, 'commitment_id'))->orderBy('id')->lockForUpdate()->get();
+        CustomerLocation::whereIn('id', $commitments->pluck('location_id'))->orderBy('id')->lockForUpdate()->get();
+        $validated = [];
         foreach ($submission->items as $item) {
             $inquiry = OperationInquiry::lockForUpdate()->findOrFail($item->inquiry_id);
-            $candidates = $all->filter(fn ($c) => $c->location_id === $item->location_id && $c->role_name === $inquiry->role_name && $c->starts_at->lte($inquiry->starts_at) && $c->ends_at->gte($inquiry->ends_at))->sortBy('user_id')->unique('user_id');
-            $selected = 0;
-            foreach ($candidates as $candidate) {
-                $commitment = CustomerCapacityCommitment::lockForUpdate()->findOrFail($candidate->id);
-                if ($commitment->status !== 'approved' || ! $commitment->consented_at || ! $commitment->approved_at) {
-                    continue;
-                }
-                $approver = User::find($commitment->approved_by);
-                if (! $approver?->status || ! CustomerLocation::whereKey($commitment->location_id)->where('customer_id', $submission->customer_id)->where('is_active', true)->exists()) {
-                    continue;
-                }
-                try {
-                    app(CustomerPortalScope::class)->authorizeManager($approver, $submission->customer_id, 'customers.portal.automation');
-                    app(PersonnelScopeService::class)->authorize($approver, (int) $commitment->user_id, 'employees.master-data.view');
-                } catch (AuthorizationException $exception) {
-                    continue;
-                } catch (HttpException $exception) {
-                    if ($exception->getStatusCode() !== 403) {
-                        throw $exception;
-                    }
-
-                    continue;
-                }
+            $entries = collect($selected)->where('item_id', $item->id);
+            abort_unless($entries->count() === $inquiry->required_staff && $entries->unique('user_id')->count() === $entries->count(), 409, 'Die Kapazitätsauswahl wurde geändert.');
+            foreach ($entries as $entry) {
+                $commitment = CustomerCapacityCommitment::where('customer_id', $submission->customer_id)->lockForUpdate()->findOrFail($entry['commitment_id']);
+                abort_unless($commitment->revision === $entry['commitment_revision'] && $commitment->user_id === $entry['user_id']
+                    && $commitment->location_id === $item->location_id && $commitment->role_name === $inquiry->role_name
+                    && $commitment->starts_at->lte($inquiry->starts_at) && $commitment->ends_at->gte($inquiry->ends_at)
+                    && $this->usableCommitment($commitment, $submission, $inquiry), 409, 'Die freigegebene Kapazität wurde geändert.');
                 $shift = $this->shift($commitment, $inquiry);
                 $user = User::findOrFail($commitment->user_id);
-                if (QualificationType::whereIn('id', $commitment->qualification_ids ?? [])->where('is_active', true)->count() !== count($commitment->qualification_ids ?? [])) {
-                    continue;
-                }
-                $accounts = app(WorkforceAccountService::class);
-                if (! $accounts->ready() || ! $accounts->effectiveModel($user, $inquiry->starts_at) || ! $accounts->effectiveRules($user, $inquiry->starts_at)) {
-                    continue;
-                }
-                $issues = app(StaffEligibilityService::class)->assessMany($shift, collect([$user]), true)[$user->id];
-                if ($issues !== []) {
-                    continue;
-                }
-                $reservations[] = CustomerCapacityReservation::create(['commitment_id' => $commitment->id, 'commitment_revision' => $commitment->revision, 'submission_id' => $submission->id, 'inquiry_id' => $inquiry->id, 'customer_id' => $submission->customer_id, 'user_id' => $user->id, 'role_name' => $inquiry->role_name, 'location_name' => $inquiry->location_name, 'planned_break_minutes' => $shift->planned_break_minutes, 'starts_at' => $inquiry->starts_at->utc(), 'ends_at' => $inquiry->ends_at->utc(), 'status' => 'held']);
-                $selected++;
-                if ($selected >= $inquiry->required_staff) {
-                    break;
-                }
+                app(StaffEligibilityService::class)->assertEligible($shift, $user, ['travel_preflight' => $entry['preflight'] ?? null]);
+                $validated[] = ['commitment_id' => $commitment->id, 'commitment_revision' => $commitment->revision, 'submission_id' => $submission->id, 'inquiry_id' => $inquiry->id, 'customer_id' => $submission->customer_id, 'user_id' => $user->id, 'role_name' => $inquiry->role_name, 'location_name' => $inquiry->location_name, 'planned_break_minutes' => $shift->planned_break_minutes, 'starts_at' => $inquiry->starts_at->utc(), 'ends_at' => $inquiry->ends_at->utc(), 'status' => 'held'];
             }
-            abort_unless($selected === $inquiry->required_staff, 409, 'Kapazität nicht belastbar reservierbar.');
         }
 
-        return $reservations;
+        // Validate the complete virtual selection before any reservation changes its neighbours.
+        return array_map(fn ($attributes) => CustomerCapacityReservation::create($attributes), $validated);
+    }
+
+    private function usableCommitment(CustomerCapacityCommitment $commitment, CustomerPortalSubmission $submission, OperationInquiry $inquiry): bool
+    {
+        if ($commitment->status !== 'approved' || ! $commitment->consented_at || ! $commitment->approved_at) {
+            return false;
+        }
+        $approver = User::find($commitment->approved_by);
+        if (! $approver?->status || ! CustomerLocation::whereKey($commitment->location_id)->where('customer_id', $submission->customer_id)->where('is_active', true)->exists()) {
+            return false;
+        }
+        try {
+            app(CustomerPortalScope::class)->authorizeManager($approver, $submission->customer_id, 'customers.portal.automation');
+            app(PersonnelScopeService::class)->authorize($approver, (int) $commitment->user_id, 'employees.master-data.view');
+        } catch (AuthorizationException $exception) {
+            return false;
+        } catch (HttpException $exception) {
+            if ($exception->getStatusCode() !== 403) {
+                throw $exception;
+            }
+
+            return false;
+        }
+        if (QualificationType::whereIn('id', $commitment->qualification_ids ?? [])->where('is_active', true)->count() !== count($commitment->qualification_ids ?? [])) {
+            return false;
+        }
+        $accounts = app(WorkforceAccountService::class);
+        $user = User::findOrFail($commitment->user_id);
+
+        return $accounts->ready() && $accounts->effectiveModel($user, $inquiry->starts_at) && $accounts->effectiveRules($user, $inquiry->starts_at);
     }
 
     public function planningIssues(Shift $shift, User $user): array
@@ -210,7 +264,11 @@ final class CustomerCapacityService
 
     private function shift(CustomerCapacityCommitment $c, ?OperationInquiry $inquiry = null): Shift
     {
-        $shift = new Shift(['timezone' => $c->timezone, 'role_name' => $c->role_name, 'location_name' => CustomerLocation::findOrFail($c->location_id)->name, 'starts_at' => $inquiry?->starts_at ?? $c->starts_at, 'ends_at' => $inquiry?->ends_at ?? $c->ends_at, 'planned_break_minutes' => $c->planned_break_minutes, 'required_staff' => 1]);
+        $location = CustomerLocation::findOrFail($c->location_id);
+        $shift = new Shift(['timezone' => $c->timezone, 'role_name' => $c->role_name, 'location_name' => $location->name, 'starts_at' => $inquiry?->starts_at ?? $c->starts_at, 'ends_at' => $inquiry?->ends_at ?? $c->ends_at, 'planned_break_minutes' => $c->planned_break_minutes, 'required_staff' => 1]);
+        if ($location->coordinates_confirmed_at && $location->is_active) {
+            $shift->location_snapshot = app(SiteSnapshotService::class)->snapshotForLocation($location);
+        }
         $shift->setRelation('qualifications', QualificationType::whereIn('id', $c->qualification_ids)->get());
 
         return $shift;

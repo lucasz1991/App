@@ -283,7 +283,7 @@
                 </fieldset>
                 <footer class="rt-timeline-planner__footer">
                     @if($planningDate)<x-ui.buttons.button-basic type="button" mode="secondary" class="rt-timeline-planner__back" wire:click="backToCellChoices" wire:loading.attr="disabled"><i class="far fa-arrow-left" aria-hidden="true"></i> Andere Schicht</x-ui.buttons.button-basic>@endif
-                    <x-ui.buttons.button-basic type="submit" mode="primary" class="rt-timeline-planner__confirm" wire:loading.attr="disabled" :disabled="!empty($planningAssessment['issues'])">
+                    <x-ui.buttons.button-basic type="submit" mode="primary" class="rt-timeline-planner__confirm" wire:loading.attr="disabled" :disabled="!empty($planningAssessment['issues']) ? true : null">
                         <span wire:loading.remove wire:target="confirmAssignment">Einteilen</span>
                         <span wire:loading.inline-flex wire:target="confirmAssignment"><i class="far fa-spinner-third" aria-hidden="true"></i> Wird eingeteilt</span>
                     </x-ui.buttons.button-basic>

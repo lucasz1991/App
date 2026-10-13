@@ -336,6 +336,22 @@ class TomTomRoutingTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_valid_employee_point_explains_missing_confirmed_target_without_provider_request(): void
+    {
+        $this->enable(['use_employee_locations' => true]);
+        $target = $this->shift('06:30', '07:30');
+        $target->forceFill(['location_snapshot' => null])->save();
+        $point = ['latitude' => 53.0, 'longitude' => 13.0, 'accuracy_m' => 12, 'measured_at' => now()->subMinutes(5)->toIso8601String()];
+        $reader = \Mockery::mock(EmployeeLocationReader::class);
+        $reader->shouldReceive('latestForMany')->once()->andReturn([$this->employee->id => ['status' => 'available', 'reason' => null, 'point' => $point]]);
+        $this->app->instance(EmployeeLocationReader::class, $reader);
+        $detail = app(TravelAssessmentService::class)->assessMany($target, collect([$this->employee]), ['include_employee_location' => true, 'actor' => $this->actor])[$this->employee->id];
+        $this->assertSame('site_unconfirmed', $detail['arrival']['reason']);
+        $this->assertSame('Einsatzstandort nicht bestätigt', TravelAssessmentService::reasonLabel($detail['arrival']['reason']));
+        $this->assertSame([], $detail['issues']);
+        Http::assertNothingSent();
+    }
+
     public function test_route_geometry_for_planned_leg_is_lazy_without_a_summary_request(): void
     {
         $this->fakeRoute();

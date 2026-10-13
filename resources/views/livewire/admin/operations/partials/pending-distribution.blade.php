@@ -104,6 +104,14 @@
                                             </div>
                                         </div>
                                         @error('distribution')<p class="rt-shift-distribution__error" role="alert">{{ $message }}</p>@enderror
+                                        @php
+                                            $travelEmployeeIds = collect($distributionCandidates)->pluck('user.id')->all();
+                                            $distributionRouteInitial = array_intersect_key($planningTravel[$item->id] ?? [], array_flip($travelEmployeeIds));
+                                            $distributionRoutesPending = collect($distributionCandidates)->contains(fn($candidate) => ($candidate['travel']['route_state'] ?? '') === 'pending' || !isset($distributionRouteInitial[$candidate['user']->id]));
+                                        @endphp
+                                        @if(\App\Support\Routing\TomTomSettings::all()['enabled'] && $distributionRoutesPending && empty($planningTravelAutoLoaded[$distributionTravelAutoKey]))
+                                            <div x-data x-intersect.once="$wire.loadShiftTravel({{ $item->id }})" wire:key="distribution-route-start-{{ $distributionTravelAutoKey }}" role="status" class="rt-shift-distribution__note">Fahrzeiten werden nachgeladen …</div>
+                                        @endif
                                         @forelse($distributionCandidates as $candidate)
                                             <div class="rt-shift-distribution__candidate" wire:key="distribution-candidate-{{ $item->id }}-{{ $candidate['user']->id }}">
                                                 <x-user.public-info :user="$candidate['user']" :size="7" :show-email="false" :show-presence="false" />
@@ -114,12 +122,7 @@
                                             <p class="rt-shift-distribution__note">{{ $item->starts_at->isPast() ? 'Die Schicht hat bereits begonnen. Besetzung über die Schichtdetails bearbeiten.' : 'Niemand ist ohne Planungskonflikt frei. Über die Schichtdetails lassen sich weitere Mitarbeitende mit Begründung prüfen.' }}</p>
                                         @endforelse
                                         @if(\App\Support\Routing\TomTomSettings::all()['enabled'] && count($distributionCandidates) > 0)
-                                            @php($travelEmployeeIds = collect($distributionCandidates)->pluck('user.id')->all())
-                                            @php
-                                                $distributionRouteInitial = array_intersect_key($planningTravel[$item->id] ?? [], array_flip($travelEmployeeIds));
-                                                $distributionRoutesPending = collect($distributionCandidates)->contains(fn($candidate) => ($candidate['travel']['route_state'] ?? '') === 'pending' || !isset($distributionRouteInitial[$candidate['user']->id]));
-                                            @endphp
-                                            @if($distributionRoutesPending)<div x-data x-intersect.once="$wire.loadShiftTravel({{ $item->id }})" wire:key="distribution-route-start-{{ $item->id }}-{{ $item->revision }}-{{ md5(implode(',', $travelEmployeeIds)) }}" role="status" class="rt-shift-distribution__note">Fahrzeiten werden nachgeladen …</div>@endif
+                                            @if($distributionRoutesPending && !empty($planningTravelAutoLoaded[$distributionTravelAutoKey]))<button type="button" class="underline min-h-11" wire:click="loadShiftTravel({{ $item->id }})" wire:loading.attr="disabled">Fahrten der weiteren Vorschläge prüfen</button>@endif
                                             <livewire:operations.shift-travel-panel :shift-id="$item->id" :employee-ids="$travelEmployeeIds" :initial-assessments="$distributionRouteInitial ?: null" :parent-managed="true" :key="'distribution-travel-'.$item->id.'-'.$item->revision.'-'.md5(implode(',', $travelEmployeeIds).json_encode($distributionRouteInitial))" />
                                         @endif
                                         <div class="rt-shift-distribution__assign-foot">

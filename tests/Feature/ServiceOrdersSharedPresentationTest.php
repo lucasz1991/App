@@ -74,10 +74,10 @@ class ServiceOrdersSharedPresentationTest extends TestCase
         foreach ([[$orders, 'orders', 'selectOrder', 'openDetails'], [$services, 'service-overview', 'openServiceDetails', 'openServiceDetails']] as [$component, $key, $selection, $details]) {
             $xpath = $this->xpath($component->html());
             $table = $this->table($xpath, $key);
-            $this->assertSame(self::CELL_LABELS, $this->texts($xpath->query('.//*[@role="table"]/*[@role="row"]/*[@role="columnheader"]', $table)));
+            $this->assertSame(['Auswahl', ...self::CELL_LABELS], $this->texts($xpath->query('.//*[@role="table"]/*[@role="row"]/*[@role="columnheader"]', $table)));
             $row = $xpath->query('.//*[@data-table-row-interactive]', $table)->item(0);
             $this->assertInstanceOf(DOMElement::class, $row);
-            $this->assertSame(self::CELL_LABELS, $this->attributes($xpath->query('.//*[contains(concat(" ",normalize-space(@class)," ")," rt-table-row-grid ")]/*[@data-rt-table-label]', $row), 'data-rt-table-label'));
+            $this->assertSame(self::CELL_LABELS, $this->attributes($xpath->query('.//*[contains(concat(" ",normalize-space(@class)," ")," rt-table-row-grid ")]/*[@data-service-column]', $row), 'data-rt-table-label'));
             $this->assertSame(self::CELL_KEYS, $this->attributes($xpath->query('.//*[@data-service-column]', $row), 'data-service-column'));
             $this->assertStringContainsString("selectionAction: '$selection'", $row->getAttribute('x-data'));
             $this->assertStringContainsString("detailAction: '$details'", $row->getAttribute('x-data'));
@@ -219,11 +219,13 @@ class ServiceOrdersSharedPresentationTest extends TestCase
         $xpath = $this->xpath($component->html());
         $this->assertSame(1, $xpath->query('//template[@*[name()="x-teleport" and .="[data-page-header-search]"]]//*[@data-orders-list-controls]')->length);
         $this->assertSame(1, $xpath->query('//template[@*[name()="x-teleport" and .="[data-page-header-actions]"]]//*[@data-orders-filter-trigger]')->length);
-        $bulk = $xpath->query('//*[@data-orders-list-controls]//*[@data-orders-bulk-trigger and @data-tables-bulk-unavailable]')->item(0);
+        $bulk = $xpath->query('//*[@data-orders-list-controls]//*[@data-service-selection-controls]//*[@data-tables-bulk]')->item(0);
         $this->assertInstanceOf(DOMElement::class, $bulk);
-        $this->assertTrue($bulk->hasAttribute('disabled'));
-        $this->assertFalse($bulk->hasAttribute('wire:click'));
-        $this->assertStringContainsString('keine Sammelaktionen', $bulk->getAttribute('aria-label'));
+        $this->assertSame(1, $xpath->query('.//button[@*[name()="wire:click" and .="toggleSelectAllServices"]]', $bulk)->length);
+        $this->assertSame(0, $xpath->query('//*[@data-tables-bulk-unavailable]')->length);
+        $component->call('toggleSelectAllServices');
+        $selected = $this->xpath($component->html());
+        $this->assertSame(1, $selected->query('//*[@data-service-selection-clear and @*[name()="wire:click" and .="clearServiceSelection"]]')->length);
         $this->assertGreaterThan(0, $xpath->query('//*[@data-autosave-model="perPage"]')->length);
         $this->assertSame(0, $xpath->query('//*[@data-tables-toolbar]')->length);
         $this->assertSame(0, $xpath->query('//*[@data-orders-list-scroll]//*[@data-orders-list-controls]')->length);
@@ -260,7 +262,7 @@ class ServiceOrdersSharedPresentationTest extends TestCase
         $table = $this->table($xpath, 'orders');
         $this->assertFalse($table->hasAttribute('data-table-scroll'));
         $this->assertSame('ordersPage', $table->getAttribute('data-list-page-name'));
-        $this->assertSame(self::CELL_LABELS, $this->texts($xpath->query('.//*[@role="table"]/*[@role="row"]/*[@role="columnheader"]', $table)));
+        $this->assertSame(['Auswahl', ...self::CELL_LABELS], $this->texts($xpath->query('.//*[@role="table"]/*[@role="row"]/*[@role="columnheader"]', $table)));
         $this->assertSame(0, $xpath->query('//template[starts-with(@*[name()="x-teleport"],"[data-page-header-")]')->length);
         $this->assertSame(1, $xpath->query('//nav[@data-table-pagination-key="orders"]')->length);
         $this->assertSame(1, $xpath->query('//*[@data-orders-list-controls]')->length);
@@ -330,9 +332,12 @@ class ServiceOrdersSharedPresentationTest extends TestCase
         }
         $this->assertStringContainsString('<x-tables.table', $component);
         $this->assertStringContainsString('row-view="components.tables.rows.operations.service-overview"', $component);
-        $this->assertStringContainsString('class="rt-service-table"', $component);
-        $this->assertSame(1, substr_count($orders, '<x-operations.service-table'));
-        $this->assertSame(1, substr_count($services, '<x-operations.service-table'));
+        $this->assertStringContainsString('rt-service-table--selectable', $component);
+        $this->assertSame(1, substr_count($orders, '<x-operations.service-table '));
+        $this->assertSame(1, substr_count($services, '<x-operations.service-table '));
+        $this->assertStringContainsString('grid-template-columns: 44px repeat(6, minmax(0, 1fr))', $css);
+        $this->assertStringContainsString('grid-template-columns: 44px minmax(0, 1fr) minmax(0, 1fr)', $css);
+        $this->assertStringContainsString('[data-service-selection-column]', $css);
         $this->assertStringNotContainsString('<x-tables.table', $orders);
         $this->assertStringNotContainsString('<x-tables.table', $services);
     }

@@ -206,6 +206,7 @@ class TimelinePlanningSuggestionService
     private function routeCandidates(Collection $candidates, array $details): Collection
     {
         $enabled = (bool) TomTomSettings::all()['enabled'];
+
         return $candidates->filter(fn ($candidate) => isset($details[$candidate['user']->id]) && $details[$candidate['user']->id]['issues'] === [])
             ->map(function ($candidate) use ($details, $enabled) {
                 $detail = $details[$candidate['user']->id];

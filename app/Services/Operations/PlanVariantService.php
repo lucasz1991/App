@@ -11,6 +11,7 @@ use App\Models\Shift;
 use App\Models\User;
 use App\Models\WorkTimeEntry;
 use App\Services\Routing\RoutingSiteSelection;
+use App\Services\Routing\TomTomRoutingService;
 use App\Services\Routing\TravelAssessmentService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsDateTime;
@@ -287,6 +288,11 @@ class PlanVariantService
     }
 
     private function routingPreflights(PlanVariant $variant): array
+    {
+        return TomTomRoutingService::withinOperation(fn () => $this->prepareRoutingPreflights($variant));
+    }
+
+    private function prepareRoutingPreflights(PlanVariant $variant): array
     {
         $projections = collect($variant->entries)->map(fn ($entry) => ['shift' => $this->routingProjection($entry), 'user_ids' => $entry['user_ids']]);
         $exclude = array_values(array_filter(array_column($variant->entries, 'shift_id')));

@@ -172,6 +172,8 @@ class ShiftAssignmentExceptionService
         ];
 
         return [
+            'warnings' => $assessment['warnings'] ?? [],
+            'travel_assessment' => $assessment,
             'issues' => $issues, 'temporal_issues' => $temporal, 'blocking_issues' => $blocking,
             'can_override' => $this->canOverride($actor) && $temporal !== [] && $blocking === [],
             'fingerprint' => hash_hmac('sha256', json_encode($snapshot, JSON_THROW_ON_ERROR), (string) config('app.key')),
@@ -197,6 +199,7 @@ class ShiftAssignmentExceptionService
         }
 
         // Audit the decision and our inputs, never provider durations or geometry.
+        unset($review['travel_assessment'], $review['warnings']);
         $review['issues'] = $this->withoutProviderFacts($review['issues']);
         $review['temporal_issues'] = $this->withoutProviderFacts($review['temporal_issues']);
 

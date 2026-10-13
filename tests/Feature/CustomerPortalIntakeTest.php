@@ -34,13 +34,19 @@ use App\Services\CustomerPortal\CustomerPortalSubmissionService;
 use App\Services\Operations\InquiryWorkflowService;
 use App\Services\Operations\StaffEligibilityService;
 use App\Services\Operations\WorkforceAccountService;
+use App\Services\Routing\TravelAssessmentService;
+use App\Services\Routing\TravelPreflight;
 use App\Support\Operations\UnifiedInboxProjection;
+use App\Support\Routing\TomTomSettings;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Livewire;
@@ -163,6 +169,121 @@ class CustomerPortalIntakeTest extends TestCase
         $commitment = $service->consent($this->employee, $commitment->id, $commitment->revision, true);
 
         return $service->approve($this->reviewer, $this->customer->id, $commitment->id, $commitment->revision);
+    }
+
+    private function enableRoutingFixture(): void
+    {
+        (require database_path('migrations/2026_10_11_120100_create_routing_monthly_usage_table.php'))->up();
+        Schema::table('customer_locations', function ($table): void {
+            $table->decimal('latitude', 10, 7)->nullable();
+            $table->decimal('longitude', 10, 7)->nullable();
+            $table->timestamp('coordinates_confirmed_at')->nullable();
+        });
+        Schema::table('shifts', fn ($table) => $table->json('location_snapshot')->nullable());
+        $this->location->forceFill(['latitude' => 52, 'longitude' => 10, 'coordinates_confirmed_at' => now()])->save();
+        OperationsRuleProfile::query()->update(['minimum_rest_minutes' => 0]);
+        TomTomSettings::save(array_replace(TomTomSettings::DEFAULTS, ['enabled' => true]), 'portal-routing-fixture-012345');
+        Http::preventStrayRequests();
+        $order = Order::create(['customer_id' => $this->customer->id, 'title' => 'Previous routing duty', 'service_type' => 'Tf', 'status' => 'confirmed', 'priority' => 'normal', 'timezone' => 'Europe/Berlin', 'starts_at' => '2027-05-01T00:00', 'ends_at' => '2027-06-01T00:00', 'required_staff' => 1, 'created_by' => $this->author->id]);
+        $shift = Shift::create(['order_id' => $order->id, 'title' => 'Previous', 'role_name' => 'Tf', 'timezone' => 'Europe/Berlin', 'starts_at' => '2027-05-13T06:00:00+02:00', 'ends_at' => '2027-05-13T07:00:00+02:00', 'required_staff' => 1, 'planned_break_minutes' => 0, 'status' => 'open', 'location_name' => 'Other confirmed yard', 'location_snapshot' => ['name' => 'Other confirmed yard', 'latitude' => 51, 'longitude' => 10, 'revision' => 1, 'confirmed' => true], 'created_by' => $this->author->id]);
+        ShiftAssignment::create(['shift_id' => $shift->id, 'user_id' => $this->employee->id, 'status' => 'confirmed', 'assigned_by' => $this->author->id, 'plan_revision' => 1]);
+    }
+
+    public function test_routing_enabled_portal_approval_and_automatic_reservation_run_provider_before_locks(): void
+    {
+        $this->enableRoutingFixture();
+        Http::fake(function () {
+            $this->assertSame(0, DB::transactionLevel());
+
+            return Http::response(['routes' => [['summary' => ['travelTimeInSeconds' => 300, 'lengthInMeters' => 1000]]]]);
+        });
+        $this->profile('accept');
+        $this->capacity();
+        $submission = $this->submit($this->framework(['positions' => [$this->data(['ends_at' => '2027-05-13T10:00', 'quantity' => '2.000']), $this->data(['starts_at' => '2027-05-13T11:00', 'ends_at' => '2027-05-13T13:00', 'quantity' => '2.000'])]]));
+        $this->assertSame('accepted', $submission->status);
+        $this->assertSame(2, CustomerCapacityReservation::where('status', 'committed')->count());
+        $this->assertSame(1, ShiftAssignment::count(), 'Capacity decisions never assign employees automatically.');
+        $this->assertSame(0, DB::table('work_time_entries')->count());
+        Http::assertSentCount(2); // Approval + one operation-wide deduplicated prior route.
+    }
+
+    public function test_routing_outage_does_not_block_portal_capacity_without_a_known_conflict(): void
+    {
+        $this->enableRoutingFixture();
+        Http::fake(function () {
+            $this->assertSame(0, DB::transactionLevel());
+
+            return Http::response([], 503);
+        });
+        $this->profile('accept');
+        $this->capacity();
+        // The previous duty already uses one of the day's eight contract hours.
+        $submission = $this->submit($this->framework(['ends_at' => '2027-05-13T14:00', 'quantity' => '6.000']));
+        $this->assertSame('accepted', $submission->status);
+        $this->assertSame(1, CustomerCapacityReservation::count());
+    }
+
+    public function test_routing_basis_change_leaves_committed_intake_in_review_without_duplicate_request(): void
+    {
+        $this->enableRoutingFixture();
+        Http::fake(['api.tomtom.com/*' => Http::response(['routes' => [['summary' => ['travelTimeInSeconds' => 300, 'lengthInMeters' => 1000]]]])]);
+        $this->profile('accept');
+        $this->capacity();
+        $this->app->instance(TravelAssessmentService::class, new class($this->location->id) extends TravelAssessmentService
+        {
+            public function __construct(private int $locationId) {}
+
+            public function preflight(Shift $shift, Collection $users, array $context = []): TravelPreflight
+            {
+                $prepared = parent::preflight($shift, $users, $context);
+                CustomerLocation::whereKey($this->locationId)->update(['latitude' => 53, 'revision' => 2]);
+
+                return $prepared;
+            }
+        });
+        $uuid = (string) Str::uuid();
+        $input = $this->framework(['ends_at' => '2027-05-13T14:00', 'quantity' => '6.000']);
+        $submission = $this->submit($input, $uuid);
+        $this->assertSame('review', $submission->status);
+        $this->assertSame(0, CustomerCapacityReservation::count());
+        $this->assertSame($submission->id, $this->submit($input, $uuid)->id);
+        $this->assertSame(1, CustomerPortalSubmission::count());
+        $this->assertSame(1, Order::count(), 'Only the existing previous-duty order remains.');
+    }
+
+    public function test_routing_unprepared_nested_automation_stays_review_without_provider_under_locks(): void
+    {
+        $this->enableRoutingFixture();
+        Http::fake(function () {
+            $this->assertSame(0, DB::transactionLevel());
+
+            return Http::response(['routes' => [['summary' => ['travelTimeInSeconds' => 300, 'lengthInMeters' => 1000]]]]);
+        });
+        $this->profile('accept');
+        $this->capacity();
+        $submission = DB::transaction(fn () => $this->submit($this->framework(['ends_at' => '2027-05-13T14:00', 'quantity' => '6.000'])));
+        $this->assertSame('review', $submission->status);
+        $this->assertSame(0, CustomerCapacityReservation::count());
+        Http::assertSentCount(1); // Only the explicitly approved capacity outside the outer transaction.
+    }
+
+    public function test_routing_manual_portal_acceptance_uses_same_prepared_guard(): void
+    {
+        $this->enableRoutingFixture();
+        Http::fake(function () {
+            $this->assertSame(0, DB::transactionLevel());
+
+            return Http::response(['routes' => [['summary' => ['travelTimeInSeconds' => 300, 'lengthInMeters' => 1000]]]]);
+        });
+        $this->capacity();
+        $this->setting->update(['booking_authority' => true]);
+        $submission = $this->submit($this->framework(['ends_at' => '2027-05-13T14:00', 'quantity' => '6.000']));
+        $service = app(CustomerPortalDecisionService::class);
+        $submission = $service->decide($this->author, $this->customer->id, $submission->id, $submission->revision, 'offer', 'Aktuelle Bedingungen ausdrücklich anbieten.');
+        $accepted = $service->decide($this->author, $this->customer->id, $submission->id, $submission->revision, 'accept', 'Fahrt und Kapazität ausdrücklich bestätigen.');
+        $this->assertSame('accepted', $accepted->status);
+        $this->assertSame(1, CustomerCapacityReservation::count());
+        Http::assertSentCount(2);
     }
 
     protected function denied(callable $action, int $status): void
