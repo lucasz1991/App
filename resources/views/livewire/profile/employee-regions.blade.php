@@ -14,14 +14,15 @@
                 <x-ui.germany-map :height="510" :interactive="true" label="Einsatzgebiete auf der Deutschlandkarte. Bundesland der gewählten Zone zuordnen." class="rt-regions__map">
                     <x-slot:markers>
                         <svg class="rt-regions__overlay" viewBox="0 0 1154 1363" aria-label="Bundesländer auswählen" role="group">
+                            <defs aria-hidden="true"><clipPath id="region-outline-{{ $this->getId() }}">@foreach($statePaths as $code => $path)<use href="#region-shape-{{ $this->getId() }}-{{ $code }}" />@endforeach</clipPath></defs>
                             @foreach($statePaths as $code => $path)
                                 @php($zone = $selectedStates[$code] ?? 'none')
-                                <path d="{{ $path }}" fill-rule="evenodd" class="rt-regions__state" data-zone="{{ $zone }}" role="button" tabindex="0" aria-label="{{ $states[$code] }}: {{ $zones[$zone]['label'] ?? 'Nicht zugeordnet' }}" aria-pressed="{{ $zone === $activeZone ? 'true' : 'false' }}"
+                                <path id="region-shape-{{ $this->getId() }}-{{ $code }}" d="{{ $path }}" fill-rule="evenodd" class="rt-regions__state" data-zone="{{ $zone }}" role="button" tabindex="0" aria-label="{{ $states[$code] }}: {{ $zones[$zone]['label'] ?? 'Nicht zugeordnet' }}" aria-pressed="{{ $zone === $activeZone ? 'true' : 'false' }}"
                                     wire:key="region-state-{{ $code }}" wire:click="toggleState('{{ $code }}')" x-on:keydown.enter.prevent="$wire.toggleState('{{ $code }}')" x-on:keydown.space.prevent="$wire.toggleState('{{ $code }}')">
                                     <title>{{ $states[$code] }} · {{ $zones[$zone]['label'] ?? 'Nicht zugeordnet' }}</title>
                                 </path>
                             @endforeach
-                            <g aria-hidden="true" class="rt-regions__radii">
+                            <g aria-hidden="true" class="rt-regions__radii" clip-path="url(#region-outline-{{ $this->getId() }})">
                                 @foreach($rings as $zone => $path)<path d="{{ $path }}" data-zone="{{ $zone }}" />@endforeach
                                 @if($basePoint)<circle cx="{{ $basePoint['x'] }}" cy="{{ $basePoint['y'] }}" r="11" class="rt-regions__origin" />@endif
                             </g>
