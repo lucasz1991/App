@@ -2,10 +2,10 @@
     <label class="ai-intake-panel__search"><i class="far fa-search" aria-hidden="true"></i><span class="sr-only">AI-Eingang suchen</span>
         <input type="search" wire:model.live.debounce.300ms="search" maxlength="100" placeholder="Eingänge suchen" /></label>
     <label class="sr-only" for="intake-status-{{ $this->getId() }}">Bearbeitungsstand</label>
-    <select id="intake-status-{{ $this->getId() }}" class="ai-intake-panel__filter" wire:model.live="statusFilter">
-        <option value="all">Alle Zustände</option>
-        @foreach($labels as $value => $label)<option value="{{ $value }}">{{ $label }}</option>@endforeach
-    </select>
+    <x-ui.forms.select id="intake-status-{{ $this->getId() }}" class="ai-intake-panel__filter" wire:model.live="statusFilter" aria-label="Bearbeitungsstand">
+        <option value="all" data-icon-class="far fa-layer-group">Alle Zustände</option>
+        @foreach($labels as $value => $label)<option value="{{ $value }}" data-icon-class="{{ ['received'=>'far fa-inbox','analyzing'=>'far fa-cog','review'=>'far fa-search','waiting_customer'=>'far fa-reply','ready'=>'far fa-check-circle','paused'=>'far fa-pause','not_inquiry'=>'far fa-ban','failed'=>'far fa-exclamation-circle','completed'=>'far fa-check'][$value] ?? 'far fa-inbox' }}">{{ $label }}</option>@endforeach
+    </x-ui.forms.select>
 </div>
 <div class="ai-intake-panel__list" x-ref="intakeList">
     @if($intakes->isEmpty())

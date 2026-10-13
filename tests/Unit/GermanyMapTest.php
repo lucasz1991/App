@@ -98,7 +98,7 @@ class GermanyMapTest extends TestCase
             $this->assertSame($map['points'][$index]['key'], $button->getAttribute('data-map-highlight-key'));
             $this->assertSame('button', $button->getAttribute('type'));
             $this->assertSame('Werkstor "Nord"', $button->getAttribute('data-place'));
-            $this->assertSame('$wire.showLocation($el.dataset.place)', $button->getAttribute('x-on:click'));
+            $this->assertSame('$wire.showLocation($el.dataset.place, $el.dataset.mapHighlightKey)', $button->getAttribute('x-on:click'));
             $this->assertSame("if (\$event.pointerType !== 'touch') mapHover(\$el.dataset.mapHighlightKey)", $button->getAttribute('x-on:pointerenter'));
             $this->assertSame('mapUnhover($el.dataset.mapHighlightKey)', $button->getAttribute('x-on:pointerleave'));
             $this->assertSame('mapUnhover($el.dataset.mapHighlightKey)', $button->getAttribute('x-on:pointercancel'));
@@ -146,5 +146,18 @@ class GermanyMapTest extends TestCase
         libxml_use_internal_errors($previous);
 
         return new \DOMXPath($dom);
+    }
+
+    public function test_multiple_previews_keep_distinct_places_without_inventing_a_single_coordinate(): void
+    {
+        $hamburg = TimelineLocationPreview::fromShift($this->shift('Hamburg'));
+        $berlin = TimelineLocationPreview::fromShift($this->shift('Berlin'));
+        $preview = ['state' => 'multiple', 'label' => 'Mehrere Orte · ungefähr', 'points' => [$hamburg, $berlin, $hamburg, ['state' => 'unknown']]];
+        $this->assertNull(GermanyMap::fromPreview($preview));
+        $points = GermanyMap::pointsFromPreview($preview);
+        $this->assertCount(2, $points);
+        $this->assertSame(['Hamburg', 'Berlin'], array_column($points, 'label'));
+        $this->assertSame(GermanyMap::fromPreview($hamburg), $points[0]);
+        $this->assertSame(GermanyMap::fromPreview($berlin, true), GermanyMap::pointsFromPreview($preview, true)[1]);
     }
 }

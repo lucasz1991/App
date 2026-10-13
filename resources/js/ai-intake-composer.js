@@ -6,6 +6,7 @@ export function aiIntakeComposer(wire, options = {}, environment = {}) {
     let state;
     let destroyed = false;
     let generation = 0;
+    let inputGeneration = 0;
     let hidden = null;
     let pendingPreviewStart = 0;
     const target = environment.events ?? globalThis.window;
@@ -35,7 +36,7 @@ export function aiIntakeComposer(wire, options = {}, environment = {}) {
         attachmentCount() { return this.getFiles().length + (wire.audioUpload ? 1 : 0); },
         contextKey() {
             return options.mode === 'assistant'
-                ? [wire.intakeId, wire.intakeRevision, wire.sourceRevision, wire.settingsRevision].join(':')
+                ? [wire.intakeId, wire.intakeRevision, wire.sourceRevision, wire.settingsRevision, wire.overviewFingerprint].join(':')
                 : String(wire.captureOpen);
         },
         init() {
@@ -56,10 +57,11 @@ export function aiIntakeComposer(wire, options = {}, environment = {}) {
         async bindContext() {
             if (options.mode !== 'assistant') return true;
             const version = generation;
+            const inputVersion = inputGeneration;
             const key = this.contextKey();
             try {
                 await wire.beginContextUpload();
-                return !destroyed && version === generation && key === this.contextKey() && !wire.contextChanged;
+                return !destroyed && version === generation && inputVersion === inputGeneration && key === this.contextKey() && !wire.contextChanged;
             } catch {
                 this.uploadError = 'Der Eingang wurde geändert. Bitte den aktuellen Stand laden.';
                 return false;
@@ -175,6 +177,7 @@ export function aiIntakeComposer(wire, options = {}, environment = {}) {
         },
         cancel() { this.resetContext(); },
         pause() {
+            ++inputGeneration;
             const pendingAudio = this.uploading;
             nativeCancel.call(this);
             if (this.uploadActive) this.cancelFileUpload();

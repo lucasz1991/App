@@ -85,6 +85,20 @@ class AiDispositionClient
         return $response;
     }
 
+    /** Only a fresh, actor-scoped server overview may request advice with automation paused. */
+    public function structuredIntakeOverview(AiIntakeOverviewContext $context, array $messages, array $schema, array $plugins = []): OpenRouterChatResponse
+    {
+        $guard = app(AiIntakeAssistantService::class);
+        $guard->assertOverviewCurrent($context);
+        if (! $this->client->isConfiguredFor(OpenRouterModelProfile::Data)) {
+            throw new OpenRouterChatException('disposition_not_configured');
+        }
+        $response = $this->request('intake_overview', $messages, $schema, OpenRouterModelProfile::Data, $plugins, AiDispositionSettings::all(true));
+        $guard->assertOverviewCurrent($context);
+
+        return $response;
+    }
+
     private function request(string $task, array $messages, array $schema, OpenRouterModelProfile $profile, array $plugins, array $settings): OpenRouterChatResponse
     {
         $key = 'operations-ai:hour:'.now()->utc()->format('YmdH');

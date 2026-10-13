@@ -107,6 +107,53 @@ class TimelineSharedEventDetailTest extends TestCase
         $this->assertStringContainsString('layer-group="staff-timeline-events"', $view);
     }
 
+    public function test_multiple_named_sites_keep_both_map_points_in_the_popover_and_mini_map(): void
+    {
+        [$event, $row] = $this->fixture();
+        $event['location_name'] = 'Eidelstedt/Maschen';
+        $preview = [
+            'state' => 'multiple', 'label' => 'Mehrere genannte Orte · ungefähr', 'place' => 'Hamburg-Eidelstedt / Maschen',
+            'points' => [
+                ['state' => 'located', 'label' => 'Bahnhofslage · ungefähr', 'place' => 'Hamburg-Eidelstedt', 'latitude' => 53.596, 'longitude' => 9.906],
+                ['state' => 'located', 'label' => 'Bahnhofslage · ungefähr', 'place' => 'Maschen', 'latitude' => 53.405, 'longitude' => 10.049],
+            ],
+        ];
+        $event['location_preview'] = $preview;
+        $map = TimelineEventDetail::forEvent($event, $row, 'Europe/Berlin', false, 'confirmed')['map'];
+        $this->assertNull($map['point'], 'A compound location must not invent a single primary point.');
+        $this->assertCount(2, $map['points']);
+        $this->assertNotSame($map['points'][0]['top'], $map['points'][1]['top']);
+        $this->assertSame(['Hamburg-Eidelstedt', 'Maschen'], array_column($map['points'], 'title'));
+        $this->assertStringNotContainsString('latitude', json_encode($map));
+        $this->assertStringNotContainsString('longitude', json_encode($map));
+        $this->assertStringContainsString('Hamburg-Eidelstedt / Maschen', $map['accessibleLabel']);
+        $html = Blade::render('<x-operations.timeline-mini-map :preview="$preview" location="Eidelstedt/Maschen" />', compact('preview'));
+        $this->assertSame(2, substr_count($html, 'data-location-marker'));
+        $this->assertStringContainsString('data-map-state="multiple"', $html);
+        $this->assertStringContainsString('Mehrere genannte Orte · ungefähr', $html);
+        $this->assertStringContainsString('title="Hamburg-Eidelstedt"', $html);
+        $this->assertStringContainsString('title="Maschen"', $html);
+        $source = file_get_contents(resource_path('views/livewire/operations/partials/timeline-shared-event-detail.blade.php'));
+        $this->assertStringContainsString('x-for="(point, pointIndex) in (detail.map.points', $source);
+        $this->assertStringContainsString(':key="pointIndex"', $source);
+    }
+
+    public function test_a_ranked_location_proposal_is_visible_but_never_presented_as_confirmed(): void
+    {
+        [$event, $row] = $this->fixture();
+        $preview = ['state' => 'located', 'label' => 'Ortsvorschlag · ungefähr', 'place' => 'Sulzdorf', 'latitude' => 49.105, 'longitude' => 9.854, 'estimated' => true];
+        $event['location_preview'] = $preview;
+        $map = TimelineEventDetail::forEvent($event, $row, 'Europe/Berlin', false, 'confirmed')['map'];
+        $this->assertCount(1, $map['points']);
+        $this->assertNotNull($map['point']);
+        $this->assertSame('Ortsvorschlag · ungefähr', $map['precision']);
+        $this->assertStringContainsString('keine bestätigte Einsatzadresse', $map['accessibleLabel']);
+        $html = Blade::render('<x-operations.timeline-mini-map :preview="$preview" location="Sulzdorf" />', compact('preview'));
+        $this->assertSame(1, substr_count($html, 'data-location-marker'));
+        $this->assertStringContainsString('Ortsvorschlag · ungefähr', $html);
+        $this->assertStringNotContainsString('bestätigter Einsatzstandort.', $html);
+    }
+
     public function test_timeline_renders_one_shared_surface_and_only_compact_facts_per_badge(): void
     {
         $view = file_get_contents(resource_path('views/livewire/operations/staff-timeline.blade.php'));

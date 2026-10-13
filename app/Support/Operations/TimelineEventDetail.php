@@ -18,9 +18,11 @@ final class TimelineEventDetail
         $calendar = TimelineMiniCalendar::forIntervalSeed($start, $end);
         $preview = $event['location_preview'] ?? ['state' => 'unknown', 'label' => 'Standort nicht verortet'];
         $point = GermanyMap::fromPreview($preview);
+        $points = GermanyMap::pointsFromPreview($preview);
+        $located = $points !== [];
         $location = $event['location_name'] ?? null;
         $name = (string) $row['user']->name;
-        $precision = ($preview['confirmed'] ?? false) ? 'bestätigter Einsatzstandort.' : 'ungefähre Ortslage, keine genaue Einsatzadresse.';
+        $precision = ($preview['confirmed'] ?? false) ? 'bestätigter Einsatzstandort.' : (($preview['estimated'] ?? false) ? 'Ortsvorschlag, keine bestätigte Einsatzadresse.' : 'ungefähre Ortslage, keine genaue Einsatzadresse.');
         $planned = $row['planned_hours_by_week'][$event['iso_week']] ?? null;
 
         return [
@@ -48,8 +50,9 @@ final class TimelineEventDetail
             // Preserve the existing approximate/confirmed distinction without exposing coordinates.
             'map' => [
                 'state' => $preview['state'], 'point' => $point ? ['left' => $point['left'], 'top' => $point['top']] : null,
-                'accessibleLabel' => 'Deutschland: '.($point ? $preview['place'].' – '.$precision : $preview['label']),
-                'place' => $point ? $preview['place'] : ($location ?: 'Kein Einsatzort'),
+                'points' => array_map(fn (array $pin): array => ['left' => $pin['left'], 'top' => $pin['top'], 'title' => $pin['label']], $points),
+                'accessibleLabel' => 'Deutschland: '.($located ? $preview['place'].' – '.$precision : $preview['label']),
+                'place' => $located ? $preview['place'] : ($location ?: 'Kein Einsatzort'),
                 'title' => $location ?: ($preview['place'] ?? 'Kein Einsatzort hinterlegt'), 'precision' => $preview['label'],
             ],
         ];

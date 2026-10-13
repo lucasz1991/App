@@ -125,7 +125,7 @@ final class DispatchMapData
             'totals' => $totals, 'shiftsCount' => $totals['shifts'], 'inquiriesCount' => $totals['inquiries'],
             'undatedCount' => $totals['undated'], 'understaffedCount' => $understaffed, 'locatedCount' => $totals['located'], 'unlocatedCount' => $totals['unlocated'],
             'items' => $items, 'markers' => array_values($markers),
-            'unlocatedItems' => array_values(array_filter($items, fn (array $item) => $item['location']['state'] !== 'located')),
+            'unlocatedItems' => array_values(array_filter($items, fn (array $item) => $item['locationKeys'] === [])),
             'count' => $count, 'displayedCount' => count($items), 'displayedByType' => $displayed,
             'truncated' => $count > count($items), 'itemLimit' => self::ITEMS_PER_TYPE * ((int) $canViewShifts + (int) $canViewInquiries),
             'itemsPerType' => self::ITEMS_PER_TYPE,
@@ -138,10 +138,17 @@ final class DispatchMapData
     {
         $totals[$type]++;
         $totals['undated'] += (int) $item['undated'];
-        $located = $item['location']['state'] === 'located';
+        $locations = [];
+        foreach (($item['location']['state'] ?? '') === 'multiple' ? ($item['location']['points'] ?? []) : [$item['location']] as $location) {
+            if (is_array($location) && GermanyMap::fromPreview($location) !== null) {
+                $locations[$this->locationKey($location)] ??= $location;
+            }
+        }
+        $located = $locations !== [];
         $totals[$located ? 'located' : 'unlocated']++;
         $retained = $displayed[$type] < self::ITEMS_PER_TYPE;
-        $item['locationKey'] = $located ? $this->locationKey($item['location']) : 'unlocated';
+        $item['locationKeys'] = array_keys($locations);
+        $item['locationKey'] = count($locations) === 1 ? $item['locationKeys'][0] : ($located ? 'multiple' : 'unlocated');
 
         if ($retained) {
             $items[] = $item;
@@ -151,8 +158,13 @@ final class DispatchMapData
             return;
         }
 
-        $key = $item['locationKey'];
-        $location = $item['location'];
+        foreach ($locations as $key => $location) {
+            $this->aggregateMarker($key, $location, $item, $type, $retained, $markers);
+        }
+    }
+
+    private function aggregateMarker(string $key, array $location, array $item, string $type, bool $retained, array &$markers): void
+    {
         $point = GermanyMap::fromPreview($location);
         $markers[$key] ??= [
             'key' => $key, 'place' => $location['place'], 'label' => $location['label'],
@@ -194,7 +206,8 @@ final class DispatchMapData
             'key' => 'shift-'.$shift->id, 'type' => 'shift', 'id' => $shift->id, 'title' => $shift->title,
             'number' => $shift->order?->title, 'customer' => $shift->order?->customer?->company_name,
             'roleName' => $shift->role_name, 'status' => $shift->status->value, 'statusLabel' => $shift->status->label(),
-            'locationLabel' => (($location['confirmed'] ?? false) || ($location['detail'] ?? false)) ? $location['place'] : ($shift->location_name ?: ($shift->order?->location_name ?: $shift->order?->city)),
+            'locationLabel' => (($location['confirmed'] ?? false) || ($location['detail'] ?? false) || ($location['estimated'] ?? false) || ($location['state'] ?? '') === 'multiple') ? $location['place'] : ($shift->location_name ?: ($shift->order?->location_name ?: $shift->order?->city)),
+            'originalLocationLabel' => $shift->location_name ?: ($shift->order?->location_name ?: $shift->order?->city),
             'location' => $location,
             'href' => OperationsPages::moduleUrl('shift-management', ['shift' => $shift->id, 'from' => $date, 'until' => $date]),
             'requiredStaff' => (int) $shift->required_staff, 'assignedStaff' => (int) $shift->assigned_staff,

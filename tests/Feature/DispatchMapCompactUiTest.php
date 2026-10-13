@@ -221,9 +221,11 @@ class DispatchMapCompactUiTest extends TestCase
         $this->assertSame(4, $rows->length);
         $known = [];
         foreach ($rows as $row) {
-            foreach (['pointerleave' => 'mapUnhover', 'pointercancel' => 'mapUnhover', 'focusin' => 'mapFocus', 'focusout' => 'mapBlur'] as $event => $method) {
-                $this->assertSame($method.'($el.dataset.dispatchLocationKey)', $row->getAttribute('x-on:'.$event));
+            foreach (['pointerleave' => 'mapUnhover', 'pointercancel' => 'mapUnhover', 'focusout' => 'mapBlur'] as $event => $method) {
+                $this->assertSame($method.'($el.dataset.dispatchRowKey)', $row->getAttribute('x-on:'.$event));
             }
+            $this->assertSame('mapFocus($el.dataset.dispatchRowKey, JSON.parse($el.dataset.dispatchLocationKeys))', $row->getAttribute('x-on:focusin'));
+            $this->assertNotSame('', $row->getAttribute('data-dispatch-row-key'));
             $this->assertStringContainsString('pointerType', $row->getAttribute('x-on:pointerenter'));
             $this->assertStringContainsString('mapHover', $row->getAttribute('x-on:pointerenter'));
             $key = $row->getAttribute('data-dispatch-location-key');

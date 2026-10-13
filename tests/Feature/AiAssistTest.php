@@ -20,6 +20,7 @@ use App\Models\User;
 use App\Services\Operations\AiAssistService;
 use App\Support\Operations\AiDispositionSettings;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
@@ -186,9 +187,12 @@ class AiAssistTest extends TestCase
             ->assertSet('tab', 'intake')->assertSet('intakeMounted', true)->assertSet('intakeCapture', true)
             ->assertSet('intakeCustomerId', $this->customer->id)->assertSeeLivewire(AiIntakeInbox::class)
             ->assertDispatched('ai-assist-intake-opened');
+        $children = $component->snapshot['memo']['children'];
         $component->call('setTab', 'chat')->assertDispatched('ai-intake-panel-hidden')
-            ->assertSet('intakeMounted', true)->assertSeeLivewire(AiIntakeInbox::class);
+            ->assertSet('intakeMounted', true);
+        $this->assertSame($children, $component->snapshot['memo']['children']);
         $component->call('setTab', 'intake')->assertSet('intakeCapture', true);
+        $this->assertSame($children, $component->snapshot['memo']['children']);
         $this->assertSame(0, AiIntake::count());
     }
 
@@ -197,8 +201,9 @@ class AiAssistTest extends TestCase
         $other = Customer::create(['company_name' => 'Other synthetic scope', 'is_active' => true]);
         $intake = AiIntake::create(['source_type' => 'email', 'status' => 'review', 'title' => 'Private scoped intake', 'customer_id' => $other->id]);
         $this->assist()->call('openIntake', $intake->id, false, $this->customer->id)->assertStatus(404);
-        $this->assist()->call('openIntake', 999999, false)->assertStatus(404);
         $this->assertSame(1, AiIntake::count());
+        $this->expectException(ModelNotFoundException::class);
+        $this->assist()->call('openIntake', 999999, false);
     }
 
     public function test_existing_panel_receives_selection_without_creating_a_second_workspace(): void

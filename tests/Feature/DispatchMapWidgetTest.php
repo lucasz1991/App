@@ -150,6 +150,35 @@ class DispatchMapWidgetTest extends TestCase
         $this->assertSame([true, false], array_map(fn (array $item) => $item['location']['confirmed'] ?? false, $data['markers'][0]['items']));
     }
 
+    public function test_multiple_named_places_count_one_shift_and_each_point_keeps_the_same_native_entry(): void
+    {
+        $shift = $this->shift(['location_name' => 'Eidelstedt/Maschen']);
+        $this->shift(['location_name' => 'Unknown synthetic locality']);
+        $data = $this->map();
+        $item = collect($data['items'])->firstWhere('id', $shift->id);
+        $this->assertSame('multiple', $item['location']['state']);
+        $this->assertArrayNotHasKey('latitude', $item['location']);
+        $this->assertCount(2, $item['locationKeys']);
+        $this->assertCount(2, $data['markers']);
+        $this->assertSame([2, 2, 1, 1], [$data['shiftsCount'], $data['understaffedCount'], $data['locatedCount'], $data['unlocatedCount']]);
+        $this->assertCount(1, $data['unlocatedItems']);
+        foreach ($data['markers'] as $marker) {
+            $this->assertSame(1, $marker['count']);
+            $this->assertSame(1, $marker['shiftCount']);
+            $this->assertContains($marker['key'], $item['locationKeys']);
+            $this->assertSame('shift-'.$shift->id, $marker['items'][0]['key']);
+            $this->assertSame($item['locationKeys'], $marker['items'][0]['locationKeys']);
+        }
+        $html = $this->grid($this->admin)->assertOk()->html();
+        $xpath = $this->xpath($html);
+        $row = $xpath->query('//a[@data-dispatch-entry="shift" and @data-dispatch-location-key="multiple"]')->item(0);
+        $this->assertNotNull($row);
+        $this->assertSame($item['locationKeys'], json_decode($row->getAttribute('data-dispatch-location-keys'), true));
+        $this->assertStringContainsString('mapMatchesPlace', $row->getAttribute('x-show'));
+        $this->assertSame('Eidelstedt/Maschen', $shift->fresh()->location_name);
+        $this->assertNull($shift->fresh()->location_snapshot);
+    }
+
     public function test_service_title_and_description_refine_dashboard_points_without_exposing_internal_text(): void
     {
         $shift = $this->shift();

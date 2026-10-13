@@ -118,6 +118,8 @@ final class OperationsPages
                 $parameters['source'] = 'ai-intake';
             }
             unset($parameters['section'], $parameters['intake']);
+            $parameters = ['view' => 'inbox', 'assistant' => 'intake', 'source' => $parameters['source'] ?? null,
+                'record' => $parameters['record'] ?? null, 'customer' => $parameters['customer'] ?? null] + $parameters;
         }
 
         if ($page === 'shifts') {

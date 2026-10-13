@@ -38,7 +38,7 @@
                             x-on:pointerenter="if ($event.pointerType !== 'touch') mapHover($el.dataset.mapHighlightKey)"
                             x-on:pointerleave="mapUnhover($el.dataset.mapHighlightKey)" x-on:pointercancel="mapUnhover($el.dataset.mapHighlightKey)"
                             x-on:focus="mapFocus($el.dataset.mapHighlightKey)" x-on:blur="mapBlur($el.dataset.mapHighlightKey)"
-                            x-on:click="$wire.showLocation($el.dataset.place)" title="Schichten in {{ $point['label'] }} als Tabelle zeigen">
+                            x-on:click="$wire.showLocation($el.dataset.place, $el.dataset.mapHighlightKey)" title="Schichten in {{ $point['label'] }} als Tabelle zeigen">
                             <i data-tone="{{ $point['tone'] }}" aria-hidden="true"></i>
                             <span>
                                 <strong>{{ $point['label'] }}</strong>

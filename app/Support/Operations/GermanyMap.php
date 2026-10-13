@@ -91,6 +91,34 @@ final class GermanyMap
         return ['left' => $left, 'top' => $top, 'label' => (string) ($preview['place'] ?? ''), 'precision' => (string) ($preview['label'] ?? '')];
     }
 
+    /** Display all named places without inventing a midpoint or route between them. */
+    public static function pointsFromPreview(array $preview, bool $coarse = false): array
+    {
+        $locations = ($preview['state'] ?? null) === 'multiple' ? ($preview['points'] ?? []) : [$preview];
+        $points = [];
+        foreach ($locations as $location) {
+            $point = is_array($location) ? self::fromPreview($location, $coarse) : null;
+            if ($point !== null) {
+                $key = $coarse ? $point['left'].'|'.$point['top']
+                    : number_format((float) $location['latitude'], 6, '.', '').','.number_format((float) $location['longitude'], 6, '.', '');
+                $points[$key] ??= $point;
+            }
+        }
+
+        return array_values($points);
+    }
+
+    /** Query-free display points; employee maps continue to use coarse coordinates. */
+    public static function locateAll(Shift $shift, bool $coarse = false): array
+    {
+        $preview = TimelineLocationPreview::fromShift($shift);
+
+        return array_map(fn (array $point): array => [
+            'label' => ($preview['state'] ?? null) === 'multiple' ? $point['label'] : self::label($shift),
+            'place' => $point['label'],
+        ] + $point, self::pointsFromPreview($preview, $coarse));
+    }
+
     /**
      * label = Einsatzort der Schicht, place = aufgelöster Ort (z. B. „Hamburg“ für „Hamburg-Billwerder“).
      *
@@ -114,16 +142,23 @@ final class GermanyMap
         $unplaced = 0;
         $upcoming = $assignments->filter(fn ($assignment) => $assignment->shift?->ends_at?->isFuture())->values();
         foreach ($upcoming as $index => $assignment) {
-            $place = $assignment->shift instanceof Shift ? self::locate($assignment->shift, true) : null;
-            if ($place === null) {
+            $places = $assignment->shift instanceof Shift ? self::locateAll($assignment->shift, true) : [];
+            if ($places === []) {
                 $unplaced++;
 
                 continue;
             }
-            $key = $place['left'].'|'.$place['top'];
-            $points[$key] ??= ['left' => $place['left'], 'top' => $place['top'], 'label' => $place['label'], 'count' => 0, 'next' => false, 'date' => $assignment->shift->starts_at->setTimezone($timezone)->locale('de')->isoFormat('dd, D. MMM')];
-            $points[$key]['count']++;
-            $points[$key]['next'] = $points[$key]['next'] || $index === 0;
+            $seen = [];
+            foreach ($places as $place) {
+                $key = $place['left'].'|'.$place['top'];
+                if (isset($seen[$key])) {
+                    continue;
+                }
+                $seen[$key] = true;
+                $points[$key] ??= ['left' => $place['left'], 'top' => $place['top'], 'label' => $place['label'], 'count' => 0, 'next' => false, 'date' => $assignment->shift->starts_at->setTimezone($timezone)->locale('de')->isoFormat('dd, D. MMM')];
+                $points[$key]['count']++;
+                $points[$key]['next'] = $points[$key]['next'] || $index === 0;
+            }
         }
 
         return ['points' => array_values($points), 'unplaced' => $unplaced, 'total' => $upcoming->count()];
@@ -139,19 +174,26 @@ final class GermanyMap
         $points = [];
         $unplaced = 0;
         foreach ($shifts as $shift) {
-            $place = self::locate($shift);
-            if ($place === null) {
+            $places = self::locateAll($shift);
+            if ($places === []) {
                 $unplaced++;
 
                 continue;
             }
             [$tone, $open] = self::staffing($shift);
-            $key = $place['left'].'|'.$place['top'];
-            $points[$key] ??= ['key' => $key, 'left' => $place['left'], 'top' => $place['top'], 'label' => $place['place'], 'count' => 0, 'open' => 0, 'tone' => 'closed'];
-            $points[$key]['count']++;
-            $points[$key]['open'] += $open;
-            if (self::TONE_RANK[$tone] > self::TONE_RANK[$points[$key]['tone']]) {
-                $points[$key]['tone'] = $tone;
+            $seen = [];
+            foreach ($places as $place) {
+                $key = $place['left'].'|'.$place['top'];
+                if (isset($seen[$key])) {
+                    continue;
+                }
+                $seen[$key] = true;
+                $points[$key] ??= ['key' => $key, 'left' => $place['left'], 'top' => $place['top'], 'label' => $place['place'], 'count' => 0, 'open' => 0, 'tone' => 'closed'];
+                $points[$key]['count']++;
+                $points[$key]['open'] += $open;
+                if (self::TONE_RANK[$tone] > self::TONE_RANK[$points[$key]['tone']]) {
+                    $points[$key]['tone'] = $tone;
+                }
             }
         }
         $points = array_values($points);

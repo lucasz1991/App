@@ -11,6 +11,7 @@ use App\Models\Order;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
+use App\Support\Operations\GermanyMap;
 use App\Support\Operations\OperationsPages;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Carbon;
@@ -65,6 +66,42 @@ class ShiftManagementViewsTest extends TestCase
             'user_id' => User::factory()->create(['role' => 'staff', 'status' => true])->id,
             'status' => $status, 'assigned_by' => $this->admin->id,
         ]);
+    }
+
+    public function test_map_location_click_uses_fresh_resolved_membership_instead_of_searching_the_generated_name(): void
+    {
+        $shift = $this->shift('Hasselbrook Nachtdienst');
+        $other = $this->shift('Berliner Dienst', ['location_name' => 'Berlin']);
+        $point = GermanyMap::locate($shift);
+        $key = $point['left'].'|'.$point['top'];
+        $component = Livewire::actingAs($this->admin)->test(ShiftManagement::class)
+            ->call('setView', 'map')->assertOk()
+            ->call('showLocation', $point['place'], $key)->assertOk()
+            ->assertSet('mapLocationKey', $key)->assertSet('search', 'Hamburg-Hasselbrook')
+            ->assertViewHas('shifts', fn ($shifts) => $shifts->pluck('id')->all() === [$shift->id]);
+        $this->assertSame('Hamburg', $shift->fresh()->location_name);
+        $shift->update(['title' => 'Generic replacement']);
+        $component->call('$refresh')->assertViewHas('shifts', fn ($shifts) => $shifts->isEmpty());
+        $component->set('search', 'Berliner')->assertSet('mapLocationKey', null)
+            ->assertViewHas('shifts', fn ($shifts) => $shifts->pluck('id')->all() === [$other->id]);
+        $component->call('showLocation', 'missing', '0|0')->assertViewHas('shifts', fn ($shifts) => $shifts->isEmpty());
+        $component->call('setView', 'map')->assertSet('mapLocationKey', null)->assertSet('search', '');
+        $component->call('showLocation', 'missing', '0|0')->call('selectServicesView', 'orders')
+            ->assertSet('mapLocationKey', null)->assertSet('search', '');
+    }
+
+    public function test_map_location_click_finds_a_multi_place_shift_under_either_point(): void
+    {
+        $shift = $this->shift('Combined duty', ['location_name' => 'Eidelstedt/Maschen']);
+        $this->shift('Other duty', ['location_name' => 'Berlin']);
+        $points = GermanyMap::locateAll($shift);
+        $this->assertCount(2, $points);
+        $component = Livewire::actingAs($this->admin)->test(ShiftManagement::class)->call('setView', 'map');
+        foreach ($points as $point) {
+            $component->call('showLocation', $point['place'], $point['left'].'|'.$point['top'])->assertOk()
+                ->assertViewHas('shifts', fn ($shifts) => $shifts->pluck('id')->all() === [$shift->id]);
+        }
+        Http::assertNothingSent();
     }
 
     public function test_header_distribution_counts_only_unallocated_active_shifts_independently_of_list_filters(): void

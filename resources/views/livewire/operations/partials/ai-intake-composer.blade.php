@@ -69,7 +69,7 @@
             aria-describedby="intake-assistant-help-{{ $this->getId() }}"></textarea>
         <button type="submit" class="rt-intake-composer__send shrink-0 rounded-lg bg-rt-red p-2 text-white" x-bind:disabled="!canSubmit()" aria-label="{{ $assistantComposer ? 'Frage oder Prüfhinweis senden' : 'Als AI-Eingang erfassen' }}"><i class="far fa-paper-plane" aria-hidden="true"></i></button>
     </div>
-    <p id="intake-assistant-help-{{ $this->getId() }}" class="text-xs ops-muted">{{ $assistantComposer ? 'Fragen erklären den aktuellen Eingang. Erneutes Prüfen aktualisiert unverbindliche Vorschläge; Originalbelege und persönliche Freigaben bleiben maßgeblich.' : 'Der Eingang wird zur persönlichen Prüfung erfasst. Enter sendet, Umschalt+Enter fügt einen Absatz hinzu.' }}</p>
+    <p id="intake-assistant-help-{{ $this->getId() }}" class="text-xs ops-muted">{{ $assistantComposer ? 'Ergänzte Dateien und Sprache dienen nur dieser Prüfung als Zusatzhinweis, nicht als Originalanlage. Erneutes Prüfen aktualisiert unverbindliche Vorschläge; Originalbelege und persönliche Freigaben bleiben maßgeblich.' : 'Der Eingang wird zur persönlichen Prüfung erfasst. Enter sendet, Umschalt+Enter fügt einen Absatz hinzu.' }}</p>
     @foreach([$composerField, 'promptMode', 'uploads', 'uploads.*', 'audioUpload'] as $errorField)
         @error($errorField)<p class="rt-ai-assist__error text-sm text-rt-red" role="alert">{{ $message }}</p>@enderror
     @endforeach

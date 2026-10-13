@@ -1,7 +1,8 @@
-<section @class(['ops-stack min-w-0', 'ai-intake-panel' => $embedded]) data-ai-intake-inbox data-embedded="{{ $embedded ? 'true' : 'false' }}" wire:poll.visible.10s
+<section @class(['ops-stack min-w-0', 'ai-intake-panel' => $embedded]) data-ai-intake-inbox data-embedded="{{ $embedded ? 'true' : 'false' }}" data-detail-tab="{{ $detailTab }}" data-mode="{{ $captureOpen ? 'capture' : ($detailOpen && $selectedId ? 'detail' : 'list') }}" wire:poll.visible.10s
     x-data="{ panelMode: null }" @if($embedded) x-effect="const next = $wire.captureOpen ? 'capture' : ($wire.detailOpen && $wire.selectedId ? 'detail-' + $wire.selectedId : 'list'); if (next !== panelMode) { const previous = panelMode; panelMode = next; $nextTick(() => { if (next !== 'list') $refs.intakePanelHeading?.focus(); else if (previous?.startsWith('detail-')) $refs.intakeList?.querySelector('[data-intake-id=&quot;' + previous.slice(7) + '&quot;]')?.focus(); }); }" @endif>
     @if($embedded)
-        <div wire:loading.attr="inert" wire:target="submit,assignCustomer,reanalyze,pause,createInquiries,saveProposal,approveProposal,retryPreparation,mapProposal,prepareCustomer">
+        <x-operations.feedback :show-offline="false" />
+        <div class="ai-intake-panel__content" wire:loading.attr="inert" wire:target="submit,assignCustomer,reanalyze,pause,createInquiries,saveProposal,approveProposal,retryPreparation,mapProposal,prepareCustomer">
             @if(!$ready)
                 <p class="ops-muted" role="status">Die AI-Annahme ist noch nicht eingerichtet.</p>
             @elseif($captureOpen)
@@ -19,6 +20,11 @@
                 @include('livewire.operations.partials.ai-intake-list')
             @endif
         </div>
+        @if($ready)
+            <div class="ai-intake-panel__composer" @if($detailOpen && $selected) id="intake-{{ $this->getId() }}-panel-assistant" role="tabpanel" aria-labelledby="intake-{{ $this->getId() }}-tab-assistant" @endif @if($captureOpen) hidden @endif>
+                <livewire:operations.ai-intake-assistant :initial-intake-id="$detailOpen ? $selectedId : null" :customer-id="$customerId" :overview="true" :host-component-id="$this->getId()" :key="'inbox-assistant-'.$this->getId()" />
+            </div>
+        @endif
         <p class="ops-muted" wire:loading wire:target="submit,assignCustomer,reanalyze,pause,createInquiries,saveProposal,approveProposal,retryPreparation,mapProposal" role="status" aria-live="polite">Der Eingang wird bearbeitet …</p>
         <p class="ops-errors" wire:offline role="status">Offline · Änderungen können gerade nicht gespeichert werden.</p>
     @else
@@ -38,6 +44,7 @@
             @endif
         @endunless
         <x-operations.modal wire:model.live="captureOpen" title="Eingang erfassen" max-width="3xl">
+            <x-operations.feedback :show-offline="false" />
             @include('livewire.operations.partials.ai-intake-composer', ['composerMode' => 'capture', 'maxCharacters' => 20000, 'maxAttachmentCount' => $limits['max_attachment_count'], 'maxAudioKilobytes' => $limits['max_audio_kilobytes']])
         </x-operations.modal>
         <x-operations.modal wire:model.live="detailOpen" title="AI-Eingang prüfen" max-width="4xl" variant="drawer">

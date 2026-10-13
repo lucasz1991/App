@@ -62,19 +62,41 @@ class AiIntakeAssistant extends Component
     #[Locked]
     public ?int $contextActorId = null;
 
-    public function mount(?int $initialIntakeId = null): void
+    #[Locked]
+    public ?int $customerId = null;
+
+    #[Locked]
+    public bool $overview = false;
+
+    #[Locked]
+    public ?string $hostComponentId = null;
+
+    #[Locked]
+    public string $overviewFingerprint = '';
+
+    private bool $manualAttempt = false;
+
+    public function mount(?int $initialIntakeId = null, ?int $customerId = null, bool $overview = false, ?string $hostComponentId = null): void
     {
         $this->contextActorId = $this->actor()->id;
+        $this->customerId = $customerId;
+        $this->overview = $overview;
+        $this->hostComponentId = $hostComponentId;
         if ($initialIntakeId) {
             $this->select($initialIntakeId);
+        } elseif ($overview) {
+            $this->loadOverview();
         }
     }
 
     #[On('select-ai-intake-assistant')]
-    public function select(int $intakeId): void
+    public function select(int $intakeId, ?string $componentId = null): void
     {
+        if ($componentId !== null && $componentId !== $this->hostComponentId) {
+            return;
+        }
         $this->actor();
-        $intake = AiIntake::findOrFail($intakeId);
+        $intake = AiIntake::when($this->customerId, fn ($query) => $query->where('customer_id', $this->customerId))->findOrFail($intakeId);
         $this->discardTemporaryUploads();
         $this->intakeId = $intake->id;
         $this->intakeRevision = $intake->revision;
@@ -91,6 +113,10 @@ class AiIntakeAssistant extends Component
         $this->actor();
         if ($this->intakeId) {
             $this->select($this->intakeId);
+        } elseif ($this->overview) {
+            $this->discardTemporaryUploads();
+            $this->prompt = '';
+            $this->loadOverview();
         }
     }
 
@@ -103,11 +129,37 @@ class AiIntakeAssistant extends Component
         $this->feedback = $this->prompt = '';
         $this->contextChanged = false;
         $this->resetValidation();
+        if ($this->overview) {
+            $this->loadOverview();
+        }
+    }
+
+    #[On('ai-intake-assistant-overview')]
+    public function returnToOverview(?int $customerId = null, ?string $componentId = null): void
+    {
+        if ($componentId !== null && $componentId !== $this->hostComponentId) {
+            return;
+        }
+        abort_unless($customerId === $this->customerId, 403);
+        $this->close();
+    }
+
+    private function loadOverview(): void
+    {
+        $actor = $this->actor();
+        $this->settingsRevision = (int) AiDispositionSettings::all(true)['revision'];
+        $this->overviewFingerprint = app(AiIntakeAssistantService::class)->overviewFingerprint($actor, $this->customerId);
+        $this->contextChanged = false;
+        $this->promptMode = 'question';
+        $this->resetValidation();
     }
 
     #[On('ai-intake-selected')]
     public function selectedContextChanged(int $intakeId, ?int $customerId = null, ?string $componentId = null, ?int $intakeRevision = null, ?int $sourceRevision = null): void
     {
+        if ($componentId !== null && $componentId !== $this->hostComponentId) {
+            return;
+        }
         $this->actor();
         if ($intakeId === $this->intakeId) {
             $this->current();
@@ -117,7 +169,8 @@ class AiIntakeAssistant extends Component
     public function beginContextUpload(): void
     {
         $this->actor();
-        abort_unless($this->current(), 409, 'Den aktuellen Eingang vor dem Hochladen erneut auswählen.');
+        $intake = $this->current();
+        abort_unless($intake || ($this->overview && ! $this->intakeId && ! $this->contextChanged), 409, 'Den aktuellen Eingang vor dem Hochladen erneut auswählen.');
         abort_if(($this->uploads !== [] || $this->audioUpload) && $this->uploadContext !== $this->contextKey(), 409, 'Alte zusätzliche Dateien zuerst entfernen.');
         $this->uploadContext = $this->contextKey();
     }
@@ -188,10 +241,14 @@ class AiIntakeAssistant extends Component
 
     public function ask(): void
     {
-        $this->perform(function (User $actor, AiIntake $intake): void {
+        $this->perform(function (User $actor, ?AiIntake $intake): void {
             $this->prompt = trim($this->prompt);
             $this->validatePrompt();
-            app(AiIntakeAssistantService::class)->ask($intake, $actor, $this->intakeRevision, $this->prompt, $this->uploads, $this->audioUpload, $this->settingsRevision);
+            if ($intake) {
+                app(AiIntakeAssistantService::class)->ask($intake, $actor, $this->intakeRevision, $this->prompt, $this->uploads, $this->audioUpload, $this->settingsRevision);
+            } else {
+                app(AiIntakeAssistantService::class)->askOverview($actor, $this->customerId, $this->settingsRevision, $this->overviewFingerprint, $this->prompt, $this->uploads, $this->audioUpload);
+            }
             $this->prompt = '';
             $this->discardTemporaryUploads();
             $this->dispatch('ai-intake-composer-submitted', componentId: $this->getId());
@@ -200,13 +257,14 @@ class AiIntakeAssistant extends Component
 
     public function review(): void
     {
-        $this->perform(function (User $actor, AiIntake $intake): void {
+        $this->perform(function (User $actor, ?AiIntake $intake): void {
             $this->prompt = trim($this->prompt);
             $this->validatePrompt();
-            abort_unless($intake->source_type === 'email', 422);
+            abort_unless($intake?->source_type === 'email', 422);
             $context = $this->uploads !== [] || $this->audioUpload
                 ? app(AiIntakeAssistantService::class)->prepareReviewContext($intake, $actor, $this->intakeRevision, $this->settingsRevision, $this->uploads, $this->audioUpload)
                 : null;
+            $this->manualAttempt = true;
             $recognized = $context
                 ? app(AiIntakeService::class)->analyzeManually($intake, $actor, $this->intakeRevision, $this->settingsRevision, $this->prompt, $context)
                 : app(AiIntakeService::class)->analyzeManually($intake, $actor, $this->intakeRevision, $this->settingsRevision, $this->prompt);
@@ -230,12 +288,16 @@ class AiIntakeAssistant extends Component
 
     private function contextKey(): string
     {
+        if ($this->overview && ! $this->intakeId) {
+            return 'overview:'.$this->customerId.':'.$this->overviewFingerprint.':'.$this->settingsRevision;
+        }
         return implode(':', [$this->intakeId, $this->intakeRevision, $this->sourceRevision, $this->settingsRevision]);
     }
 
     private function uploadsCurrent(): bool
     {
-        if (! $this->current() || $this->uploadContext === '' || $this->uploadContext !== $this->contextKey()) {
+        $intake = $this->current();
+        if ((! $intake && (! $this->overview || $this->intakeId || $this->contextChanged)) || $this->uploadContext === '' || $this->uploadContext !== $this->contextKey()) {
             $this->discardTemporaryUploads();
             $this->addError('uploads', 'Der Eingang wurde geändert. Bitte die zusätzlichen Hinweise erneut auswählen.');
 
@@ -281,10 +343,17 @@ class AiIntakeAssistant extends Component
     private function current(): ?AiIntake
     {
         if (! $this->intakeId) {
+            if ($this->overview && ((int) AiDispositionSettings::all(true)['revision'] !== $this->settingsRevision
+                || ! hash_equals($this->overviewFingerprint, app(AiIntakeAssistantService::class)->overviewFingerprint($this->actor(), $this->customerId)))) {
+                $this->contextChanged = true;
+                $this->prompt = $this->feedback = '';
+                $this->discardTemporaryUploads();
+            }
             return null;
         }
         $intake = AiIntake::findOrFail($this->intakeId);
         if ($intake->revision !== $this->intakeRevision || $intake->source_revision !== $this->sourceRevision
+            || ($this->customerId && $intake->customer_id !== $this->customerId)
             || (int) AiDispositionSettings::all(true)['revision'] !== $this->settingsRevision) {
             $this->contextChanged = true;
             $this->prompt = $this->feedback = '';
@@ -302,7 +371,7 @@ class AiIntakeAssistant extends Component
         $this->resetValidation();
         $this->feedback = '';
         $intake = $this->current();
-        if (! $intake) {
+        if (! $intake && (! $this->overview || $this->intakeId || $this->contextChanged)) {
             return;
         }
         try {
@@ -339,6 +408,20 @@ class AiIntakeAssistant extends Component
                 'intake_id' => $this->intakeId, 'actor_id' => $actor->id]);
             $this->addError('assistant', 'Der Eingang konnte gerade nicht geprüft werden. Bitte erneut versuchen.');
         }
+        if ($this->manualAttempt) {
+            $fresh = AiIntake::find($this->intakeId);
+            $failed = $fresh?->runs()->where('kind', 'mailbox_test')->where('status', 'failed')->latest('id')->first();
+            if ($fresh && $fresh->source_revision === $this->sourceRevision && $fresh->revision === $this->intakeRevision + 1
+                && $fresh->status === 'review' && $fresh->error_code === 'mailbox_test_review'
+                && $failed?->supervising_user_id === $actor->id && $failed->source_revision === $this->sourceRevision
+                && $failed->settings_revision === $this->settingsRevision && ($failed->configuration['intake_revision'] ?? 0) === $fresh->revision
+                && (int) AiDispositionSettings::all(true)['revision'] === $this->settingsRevision) {
+                $this->intakeRevision = $fresh->revision;
+                if ($this->uploads !== [] || $this->audioUpload) {
+                    $this->uploadContext = $this->contextKey();
+                }
+            }
+        }
     }
 
     public function render()
@@ -352,7 +435,10 @@ class AiIntakeAssistant extends Component
                 && ($run->configuration['extraction_version'] ?? null) === AiIntakeMessageContent::VERSION)
             ->reverse() : collect();
 
-        return view('livewire.operations.ai-intake-assistant', ['intake' => $intake, 'history' => $history,
+        $overviewHistory = $this->overview && ! $this->intakeId && ! $this->contextChanged
+            ? app(AiIntakeAssistantService::class)->overviewHistory($actor, $this->customerId, $this->settingsRevision, $this->overviewFingerprint) : [];
+
+        return view('livewire.operations.ai-intake-assistant', ['intake' => $intake, 'history' => $history, 'overviewHistory' => $overviewHistory,
             'canReview' => $intake?->source_type === 'email' && ! $intake->paused_at && ! in_array($intake->status, ['paused', 'completed', 'not_inquiry', 'analyzing'], true),
             'intakeUrl' => $intake ? OperationsPages::url('cases', ['view' => 'inbox', 'section' => 'ai-intake', 'source' => 'ai-intake', 'record' => $intake->id]) : null]);
     }

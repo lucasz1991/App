@@ -73,13 +73,8 @@ class AiAssist extends Component
         $this->actor();
         $context = app(AiAssistService::class)->context($page, $view, $section);
         [$this->page, $this->pageLabel, $this->from, $this->until] = [$context['page'], $context['label'], $context['from'], $context['until']];
-        if (request()->query('assistant') === 'intake' || $section === 'ai-intake') {
-            $record = request()->query('source') === 'ai-intake' ? request()->query('record') : request()->query('intake');
-            $customer = request()->query('customer');
-            foreach ([$record, $customer] as $id) {
-                abort_if($id !== null && filter_var($id, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) === false, 404);
-            }
-            $this->openIntake($record === null ? null : (int) $record, request()->query('capture') === '1', $customer === null ? null : (int) $customer);
+        if ($intakeContext = OperationsPages::intakePanelContext(request())) {
+            $this->openIntake($intakeContext['intakeId'], $intakeContext['create'], $intakeContext['customerId']);
         }
     }
 

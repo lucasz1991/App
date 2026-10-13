@@ -59,7 +59,7 @@
                 <p class="wv-dispatch-map__empty">Keine {{ $entryKinds }} für diesen Tag.</p>
             @endforelse
             @if($data['items'] !== [])
-                <p class="wv-dispatch-map__empty" x-cloak x-show="!Array.from($el.parentElement.querySelectorAll('[data-dispatch-entry]')).some(entry => (kind === 'all' || kind === entry.dataset.dispatchEntry) && (place === 'all' || place === entry.dataset.dispatchLocationKey))">Keine Einträge für diesen Filter.</p>
+                <p class="wv-dispatch-map__empty" x-cloak x-show="!Array.from($el.parentElement.querySelectorAll('[data-dispatch-entry]')).some(entry => (kind === 'all' || kind === entry.dataset.dispatchEntry) && mapMatchesPlace(place, JSON.parse(entry.dataset.dispatchLocationKeys)))">Keine Einträge für diesen Filter.</p>
             @endif
             @if($data['undatedCount'] > 0)<p class="wv-dispatch-map__point-note">{{ $data['undatedCount'] }} {{ $data['undatedCount'] === 1 ? 'Anfrage ohne Termin' : 'Anfragen ohne Termin' }}</p>@endif
             @if($data['truncated'])<p class="wv-dispatch-map__point-note">Liste: {{ $data['displayedCount'] }} von {{ $data['count'] }} · Karte zeigt alle ermittelten Orte.</p>@endif

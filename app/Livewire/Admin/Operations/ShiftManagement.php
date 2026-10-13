@@ -21,7 +21,6 @@ use App\Services\Operations\ShiftAssignmentExceptionService;
 use App\Services\Operations\ShiftAssignmentService;
 use App\Services\Operations\ShiftSchedulingService;
 use App\Services\Operations\ShiftStaffingCandidates;
-use App\Services\Operations\StaffEligibilityService;
 use App\Services\Operations\StaffRegionalPreferenceService;
 use App\Services\Operations\TimelinePlanningSuggestionService;
 use App\Services\Routing\TravelAssessmentService;
@@ -97,6 +96,7 @@ class ShiftManagement extends Component
 
     public function updatedSearch(): void
     {
+        $this->mapLocationKey = null;
         $this->resetPage('servicesPage');
     }
 
@@ -188,6 +188,9 @@ class ShiftManagement extends Component
 
     public string $search = '';
 
+    #[Locked]
+    public ?string $mapLocationKey = null;
+
     public string $statusFilter = 'all';
 
     #[Locked]
@@ -215,6 +218,10 @@ class ShiftManagement extends Component
     {
         $this->ensureAdmin();
         abort_unless(in_array($view, ['table', 'day', 'staffing', 'orders', 'timeline', 'map'], true), 422);
+        if ($this->mapLocationKey !== null) {
+            $this->search = '';
+            $this->mapLocationKey = null;
+        }
         if ($view === 'timeline') {
             $this->reset(['search', 'statusFilter', 'orderFilter', 'customerFilter', 'attentionFilter']);
         }
@@ -225,11 +232,14 @@ class ShiftManagement extends Component
     }
 
     /** Aus der Kartenansicht: Schichten eines Ortes als Tabelle zeigen. */
-    public function showLocation(string $place): void
+    public function showLocation(string $place, ?string $pointKey = null): void
     {
         $this->ensureAdmin();
+        abort_unless($pointKey === null || preg_match('/^\d{1,3}(?:\.\d)?\|\d{1,3}(?:\.\d)?$/D', $pointKey), 422);
+        $this->mapLocationKey = $pointKey;
         $this->search = mb_substr(trim($place), 0, 120);
         $this->viewMode = 'table';
+        $this->resetPage('servicesPage');
         $this->dispatch('shift-plan-view-changed', view: 'table');
     }
 
@@ -238,6 +248,10 @@ class ShiftManagement extends Component
     {
         $this->ensureAdmin();
         abort_unless($view === 'orders', 422);
+        if ($this->mapLocationKey !== null) {
+            $this->search = '';
+            $this->mapLocationKey = null;
+        }
         $this->viewMode = $view;
         $this->resetPage('servicesPage');
     }
@@ -744,7 +758,7 @@ class ShiftManagement extends Component
             ->where('starts_at', '<=', $to->copy()->utc())
             ->when($this->orderFilter !== 'all', fn (Builder $query) => $query->where('order_id', (int) $this->orderFilter))
             ->when($this->statusFilter !== 'all', fn (Builder $query) => $query->where('status', $this->statusFilter))
-            ->when(trim($this->search) !== '', function (Builder $query): void {
+            ->when($this->mapLocationKey === null && trim($this->search) !== '', function (Builder $query): void {
                 $term = '%'.mb_substr(trim($this->search), 0, 180).'%';
                 $query->where(fn (Builder $search) => $search
                     ->where('title', 'like', $term)
@@ -781,6 +795,13 @@ class ShiftManagement extends Component
         $shifts = $this->viewMode === 'timeline' && $this->attentionFilter === 'all'
             && $this->orderFilter === 'all' && $this->customerFilter === 'all' && $this->statusFilter === 'all' && trim($this->search) === ''
             ? collect() : $shiftQuery->orderBy('id')->get();
+
+        if ($this->mapLocationKey !== null) {
+            // Re-evaluate the current scoped records, including names inferred
+            // from public service text; never trust stale client-provided IDs.
+            $shifts = $shifts->filter(fn (Shift $shift): bool => collect(GermanyMap::locateAll($shift))
+                ->contains(fn (array $point): bool => $this->mapLocationKey === $point['left'].'|'.$point['top']))->values();
+        }
 
         if (in_array($this->viewMode, ['table', 'orders'], true) && $this->sortBy === 'staffing') {
             // Compare the actual reserved/required coverage, not confirmed replies.

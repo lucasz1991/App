@@ -76,12 +76,12 @@ trait InteractsWithOperationsAssist
         if ($intakeId !== null) {
             AiIntake::query()->when($customerId !== null, fn ($query) => $query->where('customer_id', $customerId))->findOrFail($intakeId);
         }
+        $this->operationsIntakeId = $intakeId;
+        $this->operationsIntakeCapture = $create;
         if ($this->operationsIntakeMounted && $this->operationsIntakeCustomerId === $customerId) {
             $this->dispatch('open-ai-intake', intakeId: $intakeId, create: $create)->to(AiIntakeInbox::class);
         } else {
-            $this->operationsIntakeId = $intakeId;
             $this->operationsIntakeCustomerId = $customerId;
-            $this->operationsIntakeCapture = $create;
             $this->operationsIntakeMounted = true;
         }
         $this->operationsIntakeRequested = true;

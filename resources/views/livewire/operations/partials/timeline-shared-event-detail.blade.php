@@ -83,9 +83,9 @@
                                 <div class="rt-germany-map rt-event-mini-map__canvas" style="--rt-map-default-height: 112px; --rt-map-land: url({{ asset('rt-brand/illustrations/germany-outline.svg') }}); --rt-map-borders: url({{ asset('rt-brand/illustrations/germany-borders.svg') }})" role="img" x-bind:aria-label="detail.map.accessibleLabel">
                                     <div class="rt-germany-map__stage">
                                         <span class="rt-germany-map__land" aria-hidden="true"></span><span class="rt-germany-map__borders" aria-hidden="true"></span>
-                                        <template x-if="detail.map.point">
+                                        <template x-for="(point, pointIndex) in (detail.map.points ?? (detail.map.point ? [detail.map.point] : []))" :key="pointIndex">
                                             <span class="rt-germany-map__pin" aria-hidden="true" data-tone="open" data-location-marker
-                                                x-bind:style="{ left: detail.map.point.left + '%', top: detail.map.point.top + '%' }" x-bind:title="detail.map.title"></span>
+                                                x-bind:style="{ left: point.left + '%', top: point.top + '%' }" x-bind:title="point.title ?? detail.map.title"></span>
                                         </template>
                                     </div>
                                 </div>

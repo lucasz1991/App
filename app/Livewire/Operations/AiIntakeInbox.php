@@ -7,6 +7,7 @@ use App\Models\Customer;
 use App\Models\CustomerContact;
 use App\Models\QualificationType;
 use App\Models\User;
+use App\Services\Ai\OpenRouterChatException;
 use App\Services\Operations\AiIntakeCustomerSuggestions;
 use App\Services\Operations\AiIntakeService;
 use App\Support\Operations\AiDispositionSettings;
@@ -143,6 +144,9 @@ class AiIntakeInbox extends Component
         $this->resetValidation();
         $this->dispatch('ai-intake-selected', intakeId: $id, customerId: $this->customerId, componentId: $this->getId(),
             intakeRevision: $record->revision, sourceRevision: $record->source_revision);
+        if ($this->embedded) {
+            $this->dispatch('select-ai-intake-assistant', intakeId: $id, componentId: $this->getId());
+        }
     }
 
     #[On('open-ai-intake')]
@@ -171,6 +175,9 @@ class AiIntakeInbox extends Component
         $this->assignCustomerId = $this->assignContactId = '';
         $this->detailTab = 'review';
         $this->resetValidation();
+        if ($this->embedded) {
+            $this->dispatch('ai-intake-assistant-overview', customerId: $this->customerId, componentId: $this->getId());
+        }
     }
 
     public function closeCapture(): void
@@ -185,12 +192,18 @@ class AiIntakeInbox extends Component
         $this->selected();
         abort_unless(in_array($tab, ['review', 'sources', 'communication', 'assistant'], true), 422);
         $this->detailTab = $tab;
+        if ($tab === 'assistant' && $this->embedded) {
+            $this->dispatch('ai-intake-discussion-open', componentId: $this->getId());
+        }
     }
 
     public function discuss(int $id): void
     {
         $this->select($id);
         $this->detailTab = 'assistant';
+        if ($this->embedded) {
+            $this->dispatch('ai-intake-discussion-open', componentId: $this->getId());
+        }
     }
 
     public function updatedSearch(): void
@@ -215,6 +228,7 @@ class AiIntakeInbox extends Component
         $this->captureOpen = true;
         if ($this->embedded) {
             $this->detailOpen = false;
+            $this->dispatch('ai-intake-assistant-overview', customerId: $this->customerId, componentId: $this->getId());
         }
     }
 
@@ -222,8 +236,10 @@ class AiIntakeInbox extends Component
     {
         $this->actor();
         abort_unless($index >= 0 && array_key_exists($index, $this->uploads), 422);
-        if ($this->uploads[$index] instanceof TemporaryUploadedFile) {
-            $this->uploads[$index]->delete();
+        if (! $this->uploads[$index] instanceof TemporaryUploadedFile || ! $this->uploads[$index]->delete()) {
+            $this->addError('uploads', 'Die temporäre Datei konnte nicht entfernt werden. Bitte erneut versuchen.');
+
+            return;
         }
         unset($this->uploads[$index]);
         $this->uploads = array_values($this->uploads);
@@ -232,11 +248,29 @@ class AiIntakeInbox extends Component
     public function removeAudio(): void
     {
         $this->actor();
-        if ($this->audioUpload instanceof TemporaryUploadedFile) {
-            $this->audioUpload->delete();
+        if ($this->audioUpload && (! $this->audioUpload instanceof TemporaryUploadedFile || ! $this->audioUpload->delete())) {
+            $this->addError('audioUpload', 'Die temporäre Aufnahme konnte nicht entfernt werden. Bitte erneut versuchen.');
+
+            return;
         }
         $this->audioUpload = null;
-        $this->dispatch('ai-intake-submitted');
+        $this->resetValidation('audioUpload');
+        $this->dispatch('ai-intake-composer-audio-removed', componentId: $this->getId());
+    }
+
+    public function discardUploads(): void
+    {
+        $this->actor();
+        foreach (array_keys($this->uploads) as $index) {
+            $file = $this->uploads[$index];
+            if ($file instanceof TemporaryUploadedFile && $file->delete()) {
+                unset($this->uploads[$index]);
+            } else {
+                $this->addError('uploads', 'Eine temporäre Datei konnte nicht entfernt werden. Bitte erneut versuchen.');
+            }
+        }
+        $this->uploads = array_values($this->uploads);
+        $this->removeAudio();
     }
 
     public function submit(): void
@@ -397,6 +431,15 @@ class AiIntakeInbox extends Component
                 throw $exception;
             }
             $this->addError('intake', $exception->getMessage() ?: 'Der Vorgang konnte nicht übernommen werden. Aktuellen Stand prüfen.');
+        } catch (OpenRouterChatException $exception) {
+            $this->addError('intake', match (true) {
+                in_array($exception->reasonCode, ['not_configured', 'disposition_not_configured', 'endpoint_not_allowed'], true) => 'Die AI-Verbindung ist nicht vollständig eingerichtet. Die AI-Einstellungen prüfen.',
+                in_array($exception->reasonCode, ['rate_limit', 'disposition_rate_limit'], true) || $exception->upstreamStatus === 429 => 'Die AI-Prüfung ist derzeit ausgelastet. Bitte später erneut versuchen.',
+                $exception->upstreamStatus === 404 => 'Der Anbieter unterstützt das eingestellte AI-Modell oder die angeforderten Funktionen derzeit nicht. Die AI-Verbindung in den Einstellungen prüfen.',
+                in_array($exception->upstreamStatus, [401, 403], true) => 'Der AI-Anbieter hat den Zugriff abgelehnt. Die AI-Zugangsdaten und Modellfreigabe prüfen.',
+                $exception->upstreamStatus === 402 => 'Das Guthaben beim AI-Anbieter reicht für diese Prüfung nicht aus. Guthaben oder Abrechnung prüfen.',
+                default => 'Die AI-Prüfung konnte gerade nicht abgeschlossen werden. Bitte erneut versuchen.',
+            });
         }
     }
 
