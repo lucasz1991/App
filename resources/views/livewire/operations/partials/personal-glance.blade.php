@@ -1,4 +1,4 @@
-{{-- Kennzahlen des Tages als schlanke Leiste in einer Zeile; Handlungsbedarf ist farbig markiert. --}}
+{{-- Bestehende eigene Statusprojektion und passende Schnellaktionen in einem Segment. --}}
 @php
     $weekEnd = now($displayTimezone)->addDays(7);
     $weekDuties = $assignments->filter(fn ($assignment) => $assignment->shift?->ends_at?->isFuture() && $assignment->shift->starts_at->lt($weekEnd));
@@ -11,17 +11,20 @@
         ['icon' => 'fas fa-umbrella-beach', 'label' => 'Abwesenheit', 'value' => $glance['pending_absences'] ? $glance['pending_absences'].' in Prüfung' : ($glance['next_absence'] ? 'Ab '.$glance['next_absence']->format('d.m.') : 'Nichts geplant'), 'hint' => $glance['pending_absences'] ? 'Antrag wird bearbeitet' : ($glance['next_absence'] ? 'Genehmigt' : 'Urlaub planen'), 'attention' => false, 'area' => 'absences'],
         ['icon' => 'fas fa-award', 'label' => 'Qualifikationen', 'value' => $glance['expiring_qualifications'] ? $glance['expiring_qualifications'].' laufen ab' : 'Alle gültig', 'hint' => $glance['expiring_qualifications'] ? 'In den nächsten 30 Tagen' : 'Keine Frist offen', 'attention' => $glance['expiring_qualifications'] > 0, 'area' => 'qualifications'],
     ]));
+    $actions = ['schedule' => 'Kalender öffnen', 'time' => 'Zeiten ansehen', 'absences' => 'Urlaub planen', 'qualifications' => 'Nachweis einreichen'];
+    foreach ($tiles as &$tile) {
+        $tile['key'] = $tile['tab'] ?? $tile['area'];
+        $tile['action'] = $actions[$tile['key']];
+        if ($tile['key'] === 'absences' && $tile['hint'] === 'Urlaub planen') {
+            $tile['hint'] = 'Deine Planung';
+        }
+        if (isset($tile['area'])) {
+            $tile['href'] = route('operations.mine', ['area' => $tile['area']]);
+            $tile['action_href'] = route('operations.mine', ['area' => $tile['area'], 'new' => 1]);
+        }
+    }
+    unset($tile);
+    $sicknessUrl = isset(\App\Support\Operations\PersonalWorkspaceAreas::all()['sickness'])
+        ? route('operations.mine', ['area' => 'sickness']) : null;
 @endphp
-<nav class="rt-today-stats rt-today-enter" style="--i:1" aria-label="Auf einen Blick">
-    @foreach($tiles as $tile)
-        @if(isset($tile['tab']))
-            <button type="button" class="rt-today-stat" wire:click="showTab('{{ $tile['tab'] }}')" wire:loading.attr="disabled" wire:target="showTab" @if($tile['attention']) data-attention @endif>
-        @else
-            <a class="rt-today-stat" href="{{ route('operations.mine', ['area' => $tile['area']]) }}" wire:navigate @if($tile['attention']) data-attention @endif>
-        @endif
-                <span class="rt-today-stat__label"><i class="{{ $tile['icon'] }}" aria-hidden="true"></i>{{ $tile['label'] }}</span>
-                <strong class="rt-today-stat__value">{{ $tile['value'] }}</strong>
-                <span class="rt-today-stat__hint">{{ $tile['hint'] }}</span>
-        @if(isset($tile['tab']))</button>@else</a>@endif
-    @endforeach
-</nav>
+<x-operations.workday-shortcuts :items="$tiles" :sickness-url="$sicknessUrl" />

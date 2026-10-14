@@ -1,0 +1,44 @@
+/* One shared status/action segment, with mobile-only Swiper geometry. */
+.rt-workday-shortcuts { grid-column: 1 / -1; min-width: 0; color: var(--personal-ink); border-top: 1px solid var(--personal-line); padding-top: 8px; }
+.rt-workday-shortcuts__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+.rt-workday-shortcuts__head h3 { margin: 0; font-size: 14px; font-weight: 650; }
+.rt-workday-shortcuts__sickness { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--personal-signal); font-size: 12px; text-decoration: none; }
+.rt-workday-shortcuts__viewport { min-width: 0; }
+.rt-workday-shortcuts__track { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 16px; width: 100%; height: auto; }
+.rt-workday-shortcut { min-width: 0; width: auto; height: auto; display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0 16px 0 0; border-right: 1px solid var(--personal-line); }
+.rt-workday-shortcut:last-child { border-right: 0; }
+.rt-workday-shortcut__summary { display: grid; align-content: start; gap: 4px; width: 100%; min-width: 0; text-align: left; color: var(--personal-ink); text-decoration: none; }
+.rt-workday-shortcut__summary strong { font-size: 16px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.rt-workday-shortcut__label { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--personal-muted); }
+.rt-workday-shortcut__hint { color: var(--personal-muted); font-size: 12px; line-height: 1.5; }
+.rt-workday-shortcut strong[data-attention] { color: var(--personal-signal); }
+.rt-workday-shortcut .rt-workday-shortcut__action { display: inline-flex; align-items: center; justify-content: space-between !important; gap: 10px; min-height: 44px; padding: 4px 0 !important; margin-top: auto; text-align: left !important; color: var(--personal-signal); background: transparent !important; border: 0 !important; box-shadow: none !important; font-size: 12px !important; font-weight: 600; line-height: 1.4 !important; white-space: normal !important; text-decoration: none; }
+.rt-workday-shortcuts :is(a, button):focus-visible { outline: 2px solid var(--personal-signal); outline-offset: 2px; border-radius: 4px; }
+.rt-workday-shortcuts :is(a, button):hover { color: var(--personal-signal); }
+.rt-workday-shortcuts__controls { display: none; }
+@media (min-width: 768px) {
+    .rt-today-hero:has(> .rt-workday-shortcuts) { row-gap: 16px; }
+}
+@media (max-width: 767.98px) {
+    .rt-today-hero__intro { order: 1; }
+    .rt-today-hero > .rt-workday-shortcuts { order: 2; }
+    .rt-today-hero__clock { order: 3; }
+    .rt-workday-shortcuts { padding-top: 12px; }
+    .rt-workday-shortcuts__head { gap: 8px; margin-bottom: 8px; }
+    .rt-workday-shortcuts__head h3 { font-size: 13px; }
+    .rt-workday-shortcuts__sickness { gap: 5px; font-size: 12px; }
+    .rt-workday-shortcuts__sickness > i:first-child { display: none; }
+    .rt-workday-shortcuts__viewport { overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
+    .rt-workday-shortcuts[data-carousel-ready="true"] .rt-workday-shortcuts__viewport { overflow: hidden; scroll-snap-type: none; touch-action: pan-y; }
+    .rt-workday-shortcuts__track { display: flex; gap: 0; align-items: stretch; }
+    .rt-workday-shortcut { flex: 0 0 calc(100% - 28px); width: calc(100% - 28px); min-height: 128px; padding: 12px 14px 4px; border: 1px solid var(--personal-line); border-radius: 12px; background: var(--personal-sheet); scroll-snap-align: start; }
+    .rt-workday-shortcut:last-child { border-right: 1px solid var(--personal-line); }
+    .rt-workday-shortcuts__viewport:not(.swiper-initialized) .rt-workday-shortcut + .rt-workday-shortcut { margin-left: 10px; }
+    .rt-workday-shortcuts__controls { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; }
+    .rt-workday-shortcuts__pages { display: flex; }
+    .rt-workday-shortcuts__pages button { display: grid; place-items: center; width: 44px; min-height: 44px; }
+    .rt-workday-shortcuts__pages span { width: 6px; height: 6px; border-radius: 50%; background: var(--personal-line); }
+    .rt-workday-shortcuts__pages [aria-pressed="true"] span { width: 16px; border-radius: 4px; background: var(--personal-signal); }
+    .rt-workday-shortcuts__toggle { display: inline-flex; align-items: center; justify-content: end; gap: 7px; min-width: 60px; min-height: 44px; font-size: 12px; color: var(--personal-muted); }
+    .rt-workday-shortcuts__toggle:disabled { cursor: default; }
+}

@@ -3,8 +3,8 @@
     "file": "assets/installSVGRenderer-BPfOPR9k.js",
     "name": "installSVGRenderer"
   },
-  "_leaflet-src-BBrgpEPN.js": {
-    "file": "assets/leaflet-src-BBrgpEPN.js",
+  "_leaflet-src-DzpfH0oN.js": {
+    "file": "assets/leaflet-src-DzpfH0oN.js",
     "name": "leaflet-src",
     "isDynamicEntry": true,
     "imports": [
@@ -47,8 +47,14 @@
     "file": "assets/leaflet-CG6DamIu.css",
     "src": "node_modules/leaflet/dist/leaflet.css"
   },
+  "node_modules/swiper/swiper.mjs": {
+    "file": "assets/swiper-4HV4xD2b.js",
+    "name": "swiper",
+    "src": "node_modules/swiper/swiper.mjs",
+    "isDynamicEntry": true
+  },
   "resources/css/app.css": {
-    "file": "assets/app-BNBl5PR1.css",
+    "file": "assets/app-COIDO9Wb.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
@@ -81,7 +87,7 @@
     ]
   },
   "resources/js/admin-dashboard-motion.js": {
-    "file": "assets/admin-dashboard-motion-Do8zeTuC.js",
+    "file": "assets/admin-dashboard-motion-D9AxVfWe.js",
     "name": "admin-dashboard-motion",
     "src": "resources/js/admin-dashboard-motion.js",
     "isDynamicEntry": true,
@@ -91,7 +97,7 @@
     ]
   },
   "resources/js/app.js": {
-    "file": "assets/app-Cj9w9pB1.js",
+    "file": "assets/app-BKfLGZrB.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
@@ -99,7 +105,8 @@
       "_modal-body-BWkHbPQD.js"
     ],
     "dynamicImports": [
-      "_leaflet-src-BBrgpEPN.js",
+      "node_modules/swiper/swiper.mjs",
+      "_leaflet-src-DzpfH0oN.js",
       "resources/js/admin-dashboard-echarts.js",
       "resources/js/admin-dashboard-motion.js",
       "resources/js/operations-charts.js"

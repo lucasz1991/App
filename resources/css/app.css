@@ -41,6 +41,8 @@
 @import './personal-request-dialog.css';
 @import './personal-request-calendar.css';
 @import './workday-app.css';
+@import 'swiper/css';
+@import './workday-shortcuts.css';
 @import './germany-map.css';
 
 @tailwind base;

@@ -29,7 +29,6 @@
                 <i class="far fa-chevron-right" aria-hidden="true"></i>
             </button>
             @include('livewire.operations.partials.personal-requests')
-            @include('livewire.operations.partials.personal-glance')
             <div class="rt-today-grid">
                 <section class="rt-today-card rt-today-tasks rt-today-enter" style="--i:2" aria-label="Meine Aufgaben">
                     <livewire:operations.attention-center :personal="true" :key="'personal-tasks-'.auth()->id()" />

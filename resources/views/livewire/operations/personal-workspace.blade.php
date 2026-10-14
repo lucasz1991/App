@@ -1,5 +1,12 @@
 @section('title', $definition['label'])
-<x-ui.page :title="$definition['label']" :auto-intro="false" :title-in-topbar="$area === 'work'" :class="$area === 'work' ? 'rt-personal-workspace-page rt-workday-page' : 'rt-personal-workspace-page'" content-class="rt-personal-workspace-content">
+<x-ui.page :title="$area === 'work' ? null : $definition['label']" :auto-intro="false" :class="$area === 'work' ? 'rt-personal-workspace-page rt-workday-page' : 'rt-personal-workspace-page'" content-class="rt-personal-workspace-content">
+    @if($area === 'work')
+        <div x-data style="display: contents" data-workday-title>
+            <template x-teleport="[data-topbar-page-title]">
+                <h1 class="rt-shell-page-title" title="{{ $definition['label'] }}">{{ $definition['label'] }}</h1>
+            </template>
+        </div>
+    @endif
     @switch($definition['view'])
         @case('my-work')<livewire:operations.my-work :focus="(string) $definition['tab']" :initial-tab="$initialTab" :initial-request="$initialRequest" :key="'my-work-'.$area" />@break
         @case('capacity')<livewire:operations.customer-capacity-consent />@break

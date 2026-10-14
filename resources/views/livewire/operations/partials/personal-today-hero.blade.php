@@ -1,4 +1,4 @@
-{{-- Kopf von „Heute“: links Begrüßung, Dienststatus und Schnellaktionen, rechts die Zeiterfassung. --}}
+{{-- Begrüßung und Zeiterfassung mit gemeinsamem Status- und Aktionsbereich. --}}
 @php
     $now = now($displayTimezone);
     $greeting = match (true) { $now->hour < 11 => 'Guten Morgen', $now->hour < 18 => 'Guten Tag', default => 'Guten Abend' };
@@ -13,7 +13,6 @@
         $nextStart->isSameDay($now->copy()->addDay()) => ['soon', 'Morgen ab '.$nextStart->format('H:i')],
         default => ['later', 'Nächster Dienst '.$nextStart->locale('de')->isoFormat('dd, D. MMM')],
     };
-    $areas = \App\Support\Operations\PersonalWorkspaceAreas::all();
 @endphp
 <section class="rt-today-hero rt-today-enter" style="--i:0" aria-labelledby="rt-today-greeting">
     <div class="rt-today-hero__intro">
@@ -30,14 +29,9 @@
                 @endif
             </div>
         </div>
-        <nav class="rt-today-quick" aria-label="Schnellaktionen">
-            <button type="button" class="rt-today-quick__action" data-href="{{ route('operations.mine', ['area' => 'absences', 'new' => 1]) }}" x-on:click="Livewire.navigate($el.dataset.href)"><i class="fas fa-umbrella-beach" aria-hidden="true"></i>Urlaub planen</button>
-            @isset($areas['sickness'])<a class="rt-today-quick__action" href="{{ route('operations.mine', ['area' => 'sickness']) }}" wire:navigate><i class="fas fa-notes-medical" aria-hidden="true"></i>Krankmeldung</a>@endisset
-            <button type="button" class="rt-today-quick__action" data-href="{{ route('operations.mine', ['area' => 'qualifications', 'new' => 1]) }}" x-on:click="Livewire.navigate($el.dataset.href)"><i class="fas fa-file-upload" aria-hidden="true"></i>Nachweis einreichen</button>
-            <button type="button" class="rt-today-quick__action" wire:click="showTab('schedule')" wire:loading.attr="disabled" wire:target="showTab"><i class="far fa-calendar-alt" aria-hidden="true"></i>Kalender</button>
-        </nav>
     </div>
     <div class="rt-today-hero__clock">
         @include('livewire.operations.partials.personal-clock', ['withLocation' => false])
     </div>
+    @include('livewire.operations.partials.personal-glance')
 </section>
