@@ -74,14 +74,13 @@ class AiIntakeAssistantTest extends TestCase
         $intake = $this->intake(['title' => '<img src=x onerror=alert(1)>']);
         $component = Livewire::test(AiIntakeAssistant::class)->assertSee('Eingang mit AI besprechen')->assertDontSee('Frage stellen')
             ->dispatch('select-ai-intake-assistant', intakeId: $intake->id)->assertSet('intakeId', $intake->id)
-            ->assertSee('Frage stellen')->assertSee('data-rt-custom-select', false)->assertSee('Frage oder Prüfhinweis')->assertDispatched('ai-intake-assistant-selected');
-        preg_match('/data-rt-select-options="([^"]+)"/', $component->html(), $options);
-        $this->assertContains('Mit Hinweis erneut prüfen', array_column(json_decode(html_entity_decode($options[1], ENT_QUOTES), true), 'label'));
+            ->assertDontSee('Frage stellen')->assertDontSee('data-rt-custom-select', false)->assertSee('Frage oder Prüfhinweis')->assertDispatched('ai-intake-assistant-selected');
+        $this->assertStringNotContainsString('promptMode', $component->html());
         $this->assertStringNotContainsString('<img src=x onerror=', $component->html());
         $this->assertStringContainsString('source=ai-intake', $component->html());
         $this->assertStringContainsString('record='.$intake->id, $component->html());
         $this->assertStringContainsString('wire:loading.attr="inert"', $component->html());
-        $this->assertStringContainsString('aria-describedby="intake-assistant-help-', $component->html());
+        $this->assertStringNotContainsString('intake-assistant-help-', $component->html());
         $this->unchangedBusiness();
     }
 
@@ -114,7 +113,8 @@ class AiIntakeAssistantTest extends TestCase
             });
 
         Livewire::test(AiIntakeAssistant::class)->call('select', $intake->id)->set('prompt', '  Warum fehlen Tabellenzeilen?  ')->call('ask')
-            ->assertHasNoErrors()->assertSet('prompt', '')->assertSee('Die zweite Tabellenzeile muss geprüft werden.');
+            ->assertHasNoErrors()->assertSet('prompt', '')->assertSee('Die zweite Tabellenzeile muss geprüft werden.')
+            ->assertDispatched('ai-intake-question-answered');
         $this->assertSame(1, $intake->fresh()->revision);
         $this->unchangedBusiness();
     }
@@ -179,7 +179,7 @@ class AiIntakeAssistantTest extends TestCase
     {
         foreach ([['source_type' => 'manual'], ['status' => 'not_inquiry'], ['status' => 'completed'], ['status' => 'paused']] as $changes) {
             $intake = $this->intake($changes);
-            Livewire::test(AiIntakeAssistant::class)->call('select', $intake->id)->assertSee('Frage stellen')->assertDontSee('wire:click="review"', false);
+            Livewire::test(AiIntakeAssistant::class)->call('select', $intake->id)->assertSee('Frage oder Prüfhinweis')->assertDontSee('Frage stellen')->assertDontSee('wire:click="review"', false);
         }
         $this->unchangedBusiness();
     }

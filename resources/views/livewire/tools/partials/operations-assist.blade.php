@@ -1,7 +1,6 @@
 @php
     $opsContext = $operationsAssist['context'];
     $opsTab = $operationsTab ?? 'chat';
-    $opsService = app(\App\Services\Operations\AiAssistService::class);
     $opsLabels = $operationsAssist['labels'];
 @endphp
 <div class="rt-ai-assist rt-assistant-operations" data-assistant-operations>
@@ -14,12 +13,6 @@
         @if(auth()->user()->isSuperAdmin())<a class="rt-ai-assist__btn" href="{{ route('admin.settings', ['tab' => 'ai-disposition', 'section' => 'configuration']) }}" wire:navigate>AI-Disposition einrichten</a>@endif
     </details>
     @endunless
-    <nav class="rt-ai-assist__tabs" aria-label="Assistentenbereiche" role="tablist">
-        @foreach(['chat' => 'Chat', 'intake' => 'AI-Annahme', 'actions' => 'Aktionen', 'activity' => 'Aktivitäten'] as $key => $label)
-            @continue($key === 'intake' && !in_array('intake', $opsService->permitted(auth()->user()), true))
-            <button type="button" role="tab" id="railtime-assistant-tab-{{ $key }}" aria-controls="railtime-assistant-content" aria-selected="{{ $opsTab === $key ? 'true' : 'false' }}" wire:click="setOperationsTab('{{ $key }}')" wire:loading.attr="disabled">{{ $label }}@if($key === 'intake' && $operationsAssist['reviewCount'])<span class="rt-ai-assist__count">{{ $operationsAssist['reviewCount'] }}</span>@endif</button>
-        @endforeach
-    </nav>
     @if($opsTab === 'chat')
         <div class="rt-assistant-operations__quickbar" role="group" aria-label="Dispositionsaktionen im Chat">
             @foreach(array_slice($operationsAssist['actions']['page'], 0, 2) as $action)

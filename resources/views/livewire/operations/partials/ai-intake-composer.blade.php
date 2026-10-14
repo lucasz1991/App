@@ -17,14 +17,6 @@
         <label class="sr-only" for="{{ $composerId }}-contact">Antwortadresse</label>
         <x-ui.forms.input id="{{ $composerId }}-contact" wire:model="contactEmail" type="email" placeholder="Antwortadresse (optional)" />
         <x-ui.forms.input-error for="contactEmail" />
-    @elseif($canReview ?? false)
-        <div class="rt-intake-composer__mode flex flex-wrap items-center gap-2 text-xs">
-            <label class="sr-only" for="{{ $composerId }}-mode">Frage oder Prüfhinweis</label>
-            <x-ui.forms.select id="{{ $composerId }}-mode" wire:model="promptMode" class="rt-intake-composer__mode-select min-w-0">
-                <option value="question">Frage stellen</option>
-                @if($canReview ?? false)<option value="review">Mit Hinweis erneut prüfen</option>@endif
-            </x-ui.forms.select>
-        </div>
     @elseif($overview ?? false)
         <span class="rt-intake-composer__scope text-xs ops-muted">{{ $intakeId ? 'Ausgewählter Eingang' : ($customerId ? 'Eingänge dieses Kunden' : 'Alle Eingänge') }}</span>
     @endif
@@ -66,11 +58,11 @@
         <textarea id="{{ $composerId }}-prompt" class="rt-intake-composer__input min-h-10 min-w-0 flex-1 resize-none border-0 bg-transparent px-1 py-2 text-sm focus:ring-0"
             rows="1" maxlength="{{ $composerLimit }}" wire:model="{{ $composerField }}" x-ref="prompt" x-on:input="updateInput()" x-on:keydown.enter="enter($event)"
             x-bind:disabled="busy" placeholder="{{ $assistantComposer ? 'Frage oder Hinweis …' : 'Anfrage beschreiben …' }}"
-            aria-describedby="intake-assistant-help-{{ $this->getId() }}"></textarea>
+            @if(!$assistantComposer) aria-describedby="intake-assistant-help-{{ $this->getId() }}" @endif></textarea>
         <button type="submit" class="rt-intake-composer__send shrink-0 rounded-lg bg-rt-red p-2 text-white" x-bind:disabled="!canSubmit()" aria-label="{{ $assistantComposer ? 'Frage oder Prüfhinweis senden' : 'Als AI-Eingang erfassen' }}"><i class="far fa-paper-plane" aria-hidden="true"></i></button>
     </div>
-    <p id="intake-assistant-help-{{ $this->getId() }}" class="text-xs ops-muted" title="{{ $assistantComposer ? 'Zusatzdateien und Sprache werden nur für diese Frage oder Prüfung verwendet, nicht als Originalanlagen gespeichert. Freigaben bleiben persönlich; Umschalt+Enter fügt einen Absatz hinzu.' : 'Der Eingang wird zur persönlichen Prüfung erfasst; Umschalt+Enter fügt einen Absatz hinzu.' }}">{{ $assistantComposer ? 'Dateien und Sprache: Zusatzhinweise nur für diese Prüfung.' : 'Unverbindlich zur Prüfung erfassen.' }}</p>
-    @foreach([$composerField, 'promptMode', 'uploads', 'uploads.*', 'audioUpload'] as $errorField)
+    @if(!$assistantComposer)<p id="intake-assistant-help-{{ $this->getId() }}" class="text-xs ops-muted" title="Der Eingang wird zur persönlichen Prüfung erfasst; Umschalt+Enter fügt einen Absatz hinzu.">Unverbindlich zur Prüfung erfassen.</p>@endif
+    @foreach([$composerField, 'uploads', 'uploads.*', 'audioUpload'] as $errorField)
         @error($errorField)<p class="rt-ai-assist__error text-sm text-rt-red" role="alert">{{ $message }}</p>@enderror
     @endforeach
     <p x-cloak x-show="uploadError || error" x-text="uploadError || error" class="text-sm text-rt-red" role="alert"></p>

@@ -12,30 +12,7 @@
                 </div>
             @elseif($detailOpen && $selected)
                 <div class="ai-intake-panel__detail">
-                    @php($headerLabel = $labels[$selected->status] ?? 'Prüfung nötig')
-                    @php($headerIcon = ['received'=>'fa-inbox','analyzing'=>'fa-sync-alt','review'=>'fa-exclamation-circle','waiting_customer'=>'fa-comment-alt','ready'=>'fa-check-circle','paused'=>'fa-pause-circle','not_inquiry'=>'fa-ban','failed'=>'fa-exclamation-triangle','completed'=>'fa-check-double'][$selected->status] ?? 'fa-inbox')
-                    @php($headerId = 'AI-'.str_pad((string) $selected->id, 6, '0', STR_PAD_LEFT))
-                    <header class="ai-intake-panel__toolbar ai-intake-panel__record-header" data-ai-intake-record-header wire:key="intake-record-header-{{ $this->getId() }}-{{ $selected->id }}">
-                        <button type="button" class="ai-intake-panel__back" wire:click="closeDetail" aria-label="Zurück zu den Eingängen" title="Zurück zu den Eingängen"><i class="far fa-arrow-left" aria-hidden="true"></i></button>
-                        <span class="ai-intake-panel__record-status" data-state="{{ $selected->status }}" role="img" aria-label="Bearbeitung: {{ $headerLabel }}" title="{{ $headerLabel }}"><i class="far {{ $headerIcon }}" aria-hidden="true"></i></span>
-                        <span class="ai-intake-panel__record-id" aria-label="{{ $headerId }}">#{{ str_pad((string) $selected->id, 6, '0', STR_PAD_LEFT) }}</span>
-                        <h2 class="ai-intake-panel__record-title" x-ref="intakePanelHeading" tabindex="-1" title="{{ $selected->title ?: 'Eingang prüfen' }}">{{ $selected->title ?: 'Eingang prüfen' }}</h2>
-                        <x-ui.dropdown.anchor-dropdown align="right" width="80" :open-on-hover="true" :hover-open-delay="220" :hover-close-delay="180" :max-height="360"
-                            :dropdown-id="'intake-header-'.$this->getId().'-'.$selected->id" layer-group="ai-intake-header" content-role="dialog" content-label="Eingangsdetails"
-                            class="ai-intake-panel__record-info" dropdown-classes="ai-intake-panel__record-popover" content-classes="ai-intake-panel__record-details bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text">
-                            <x-slot:trigger>
-                                <button type="button" class="ai-intake-panel__record-info-button" aria-label="Titel, Zusammenfassung und Bearbeitungsstand anzeigen" aria-haspopup="dialog" aria-controls="rt-dropdown-intake-header-{{ $this->getId() }}-{{ $selected->id }}-content"
-                                    @focus="if ($el.matches(':focus-visible') && !$event.relatedTarget?.closest('[data-rt-dropdown-owner]')) openDropdown(false)"><i class="far fa-info-circle" aria-hidden="true"></i></button>
-                            </x-slot:trigger>
-                            <x-slot:content>
-                                <div data-rt-dropdown-keep-open>
-                                    <div class="ai-intake-panel__record-details-head"><strong>{{ $selected->title ?: 'Eingang prüfen' }}</strong><button type="button" class="ai-intake-panel__record-info-button" aria-label="Eingangsdetails schließen" data-dropdown-initial-focus @click.stop="close(true)"><i class="far fa-times" aria-hidden="true"></i></button></div>
-                                    <p class="ai-intake-panel__record-details-meta">{{ $headerId }} · {{ $headerLabel }}</p>
-                                    @if(trim((string) $selected->summary) !== '')<p class="ai-intake-panel__record-summary">{{ $selected->summary }}</p>@endif
-                                </div>
-                            </x-slot:content>
-                        </x-ui.dropdown.anchor-dropdown>
-                    </header>
+                    <x-operations.intake.record-navigation :record="$selected" :labels="$labels" :component-id="$this->getId()" :active-tab="$detailTab" />
                     @include('livewire.operations.partials.ai-intake-detail')
                 </div>
             @else

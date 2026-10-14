@@ -22,6 +22,8 @@
 @import './disposition-mailbox.css';
 @import './shift-distribution-panel.css';
 @import './ai-assist.css';
+@import './ai-assist-navigation.css';
+@import './ai-intake-review.css';
 @import './operations-panel.css';
 @import './table-records.css';
 @import './table-scroll.css';

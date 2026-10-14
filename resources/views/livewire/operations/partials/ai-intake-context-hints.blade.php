@@ -14,7 +14,7 @@
 @endif
 @if(!empty($contextHints['history']))
 <div class="ai-intake-context-hints ai-intake-panel__accordion mt-3 text-sm" x-data="{ openAccordionSection: null, toggleAccordionSection(section) { this.openAccordionSection = this.openAccordionSection === section ? null : section } }">
-    <x-ui.accordion.section section="history" label="Vergleich mit früheren Vorgängen" icon="far fa-history" :id-prefix="'intake-history-'.($contextHintId ?? $this->getId())">
+    <x-ui.accordion.section compact section="history" label="Vergleich mit früheren Vorgängen" icon="far fa-history" :id-prefix="'intake-history-'.($contextHintId ?? $this->getId())">
     <p class="mt-2 ops-muted">Historische Hinweise zur Prüfung. Angaben aus der aktuellen Mail haben Vorrang.</p>
     @foreach($contextHints['history'] as $history)
         <section class="mt-3 space-y-2">

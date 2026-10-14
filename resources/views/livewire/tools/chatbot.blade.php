@@ -328,7 +328,7 @@
         x-trap.inert.noscroll="open && !isDesktopDocked && !pageBuilderActive"
         x-on:keydown.escape.window.capture="handlePanelEscape($event)"
     >
-        <header class="rt-chatbot__header">
+        <header @class(['rt-chatbot__header', 'rt-assistant-header' => $operationsAvailable]) @if($operationsAvailable) data-assistant-header @endif>
             <div class="rt-chatbot__identity">
                 <span
                     class="rt-chatbot__avatar"
@@ -343,11 +343,17 @@
                     @if ($isPageBuilderPage)
                         <span class="rt-chatbot__identity-mode">PageBuilder Copilot</span>
                     @elseif($operationsAvailable)
-                        <span class="rt-chatbot__identity-mode">Disposition &amp; AI-Annahme</span>
+                        <span class="rt-chatbot__identity-mode sr-only">Disposition &amp; AI-Annahme</span>
                     @endif
                 </div>
             </div>
 
+            @if($operationsAvailable)
+                @php
+                    $operationsNavTabs = array_filter(['chat' => 'Chat', 'intake' => in_array('intake', app(\App\Services\Operations\AiAssistService::class)->permitted(auth()->user()), true) ? 'AI-Annahme' : null, 'actions' => 'Aktionen', 'activity' => 'Aktivitäten']);
+                @endphp
+                <x-operations.assistant-navigation :tabs="$operationsNavTabs" :selected="$operationsTab" action="setOperationsTab" id-prefix="railtime-assistant" controls="railtime-assistant-content" :review-count="$operationsAssist['reviewCount']" />
+            @endif
             <div class="rt-chatbot__header-actions">
                 <div
                     class="rt-chatbot__settings"

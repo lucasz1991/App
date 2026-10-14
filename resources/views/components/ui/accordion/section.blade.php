@@ -4,6 +4,7 @@
     'description' => null,
     'icon' => 'fad fa-sliders-h',
     'idPrefix' => 'rt-accordion',
+    'compact' => false,
 ])
 
 @php
@@ -14,7 +15,7 @@
 @endphp
 
 <section
-    {{ $attributes->class('overflow-hidden rounded-2xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70') }}
+    {{ $attributes->class(['overflow-hidden rounded-2xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70', 'rt-accordion-compact' => $compact]) }}
     data-rt-accordion-section="{{ $sectionKey }}"
 >
     <h2>

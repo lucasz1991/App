@@ -142,6 +142,53 @@ class AiIntakeInboxEmbeddedTest extends TestCase
         $this->noSideEffects();
     }
 
+    public function test_review_actions_remain_outside_the_scroll_area_and_disclosures_preserve_evidence(): void
+    {
+        $intake = $this->intake(['source_type' => 'email']);
+        $proposal = $intake->proposals()->create(['revision' => 1, 'source_revision' => 1, 'position_index' => 0, 'status' => 'proposed', 'payload' => $this->payload()]);
+        $component = Livewire::test(AiIntakeInbox::class, ['embedded' => true, 'initialIntakeId' => $intake->id])->assertSee('Erneut prüfen')->assertSee('Anfragen übernehmen');
+        $dom = $this->dom($component->html());
+        $dock = $dom->query('//*[@role="group" and @aria-label="Eingang bearbeiten"]')->item(0);
+        $this->assertNotNull($dock);
+        $this->assertSame(0, $dom->query('ancestor::*[@role="tabpanel"]', $dock)->length);
+        $this->assertSame(1, $dom->query('.//button[@*[name()="wire:click"]="reanalyze"]', $dock)->length);
+        $this->assertSame(1, $dom->query('.//button[@*[name()="wire:click"]="createInquiries"]', $dock)->length);
+        $this->assertSame(6, $dom->query('//*[contains(@class,"rt-intake-facts__item")]')->length);
+        $component->assertSee('13.05.2027 · 08:00')->assertSee('2 Personen')->assertSee('Original Hamburg');
+        $this->assertSame(1, $dom->query('//*[@data-rt-accordion-section="position-'.$proposal->id.'"]')->length);
+        $this->assertSame(1, $dom->query('//*[@data-rt-accordion-section="evidence"]')->length);
+        $component->call('setDetailTab', 'sources');
+        $this->assertSame(0, $this->dom($component->html())->query('//*[@role="group" and @aria-label="Eingang bearbeiten"]')->length);
+        $component->call('setDetailTab', 'review')->call('editProposal', $proposal->id)->assertSet('editingProposalId', $proposal->id)->assertSee('Korrektur speichern');
+        $this->noSideEffects();
+    }
+
+    public function test_non_inquiry_keeps_original_access_without_active_review_dock(): void
+    {
+        $intake = $this->intake(['status' => 'not_inquiry']);
+        $component = Livewire::test(AiIntakeInbox::class, ['embedded' => true, 'initialIntakeId' => $intake->id])->assertSee('Keine Anfrage')->assertDontSee('Anfragen übernehmen');
+        $this->assertSame(0, $this->dom($component->html())->query('//*[@role="group" and @aria-label="Eingang bearbeiten"]')->length);
+        $component->call('setDetailTab', 'sources')->assertSee('Original synthetic panel source');
+        $this->noSideEffects();
+    }
+
+    public function test_default_staff_and_historical_values_stay_marked_outside_collapsed_evidence(): void
+    {
+        $intake = $this->intake();
+        $payload = $this->payload();
+        $payload['demand']['required_staff'] = 1;
+        $payload['assumptions'] = ['required_staff' => ['basis' => 'default'], 'history_review' => true];
+        $intake->proposals()->create(['revision' => 1, 'source_revision' => 1, 'position_index' => 0, 'status' => 'proposed', 'payload' => $payload]);
+        $component = Livewire::test(AiIntakeInbox::class, ['embedded' => true, 'initialIntakeId' => $intake->id]);
+        $dom = $this->dom($component->html());
+        foreach (['Standardvorschlag: 1 Person', 'Historische Vergleichsdaten verwendet'] as $notice) {
+            $item = $dom->query('//p[contains(text(),"'.$notice.'")]')->item(0);
+            $this->assertNotNull($item);
+            $this->assertSame(0, $dom->query('ancestor::*[@data-rt-accordion-section="evidence"]', $item)->length);
+        }
+        $this->noSideEffects();
+    }
+
     public function test_search_status_and_pagination_keep_the_complete_scoped_inbox_browsable(): void
     {
         for ($index = 1; $index <= 14; $index++) {
@@ -177,6 +224,18 @@ class AiIntakeInboxEmbeddedTest extends TestCase
             ->assertDispatched('ai-intake-selected', intakeId: $intake->id, customerId: null)->assertDispatched('select-ai-intake-assistant', intakeId: $intake->id)
             ->call('discuss', $intake->id)->assertSet('detailTab', 'assistant')->assertDispatched('ai-intake-discussion-open')
             ->call('closeDetail')->assertSet('selectedId', null)->assertSet('detailOpen', false)->assertDispatched('ai-intake-assistant-overview', customerId: null);
+        $this->noSideEffects();
+    }
+
+    public function test_answer_opens_only_the_current_host_discussion_without_resetting_selected_state(): void
+    {
+        $intake = $this->intake();
+        $component = Livewire::test(AiIntakeInbox::class, ['embedded' => true, 'initialIntakeId' => $intake->id]);
+        $component->dispatch('ai-intake-question-answered', hostComponentId: 'another-host', intakeId: $intake->id)->assertSet('detailTab', 'review');
+        $component->dispatch('ai-intake-question-answered', hostComponentId: $component->instance()->getId(), intakeId: $intake->id + 1)->assertSet('detailTab', 'review');
+        $component->dispatch('ai-intake-question-answered', hostComponentId: $component->instance()->getId(), intakeId: $intake->id)
+            ->assertSet('detailTab', 'assistant')->assertSet('selectedId', $intake->id)->assertSet('selectedRevision', 1)
+            ->assertDispatched('ai-intake-discussion-open');
         $this->noSideEffects();
     }
 
@@ -228,7 +287,7 @@ class AiIntakeInboxEmbeddedTest extends TestCase
         $service->shouldReceive('analyzeManually')->once()->with(Mockery::on(fn ($value) => $value->id === $intake->id), Mockery::on(fn ($value) => $value->id === $this->actor->id), 1, 5)->andReturn($intake);
         $service->shouldNotReceive('reanalyze');
 
-        Livewire::test(AiIntakeInbox::class, ['embedded' => true, 'initialIntakeId' => $intake->id])->assertSee('Erneut erkennen')->call('reanalyze')->assertHasNoErrors();
+        Livewire::test(AiIntakeInbox::class, ['embedded' => true, 'initialIntakeId' => $intake->id])->assertSee('Erneut prüfen')->call('reanalyze')->assertHasNoErrors();
         $this->noSideEffects();
     }
 
@@ -267,7 +326,7 @@ class AiIntakeInboxEmbeddedTest extends TestCase
         $oldPayload['demand']['starts_at'] = $oldPayload['demand']['ends_at'] = null;
         $proposal = $intake->proposals()->create(['source_revision' => 1, 'position_index' => 0, 'revision' => 1, 'status' => 'stale', 'payload' => $oldPayload]);
         $component = Livewire::test(AiIntakeInbox::class, ['embedded' => true, 'initialIntakeId' => $intake->id])
-            ->assertSee('Fresh amendment preview')->assertSee('2027-05-13T16:00')->assertSee('2027-05-13T18:00')->assertSee('Hamburg Hohe Schaar')
+            ->assertSee('Fresh amendment preview')->assertSee('13.05.2027 · 16:00')->assertSee('13.05.2027 · 18:00')->assertSee('Hamburg Hohe Schaar')
             ->assertSee('Standardvorschlag: 1 Person')->assertSee('Historische Vergleichsdaten verwendet')
             ->assertSee('Noch zu prüfen: Personalbedarf · Qualifikationen')->assertDontSee('unknown_private_key')->assertDontSee('Obsolete proposal without times')
             ->assertDontSeeHtml('wire:click="editProposal('.$proposal->id.')"')->assertDontSeeHtml('wire:click="createInquiries"');

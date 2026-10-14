@@ -79,7 +79,7 @@ class AiIntakeInboxHeaderTest extends TestCase
         $component = Livewire::test(AiIntakeInbox::class, ['embedded' => true, 'initialIntakeId' => $record->id]);
         $dom = $this->dom($component->html());
         $this->assertSame(1, $dom->query('//*[@data-ai-intake-record-header]')->length);
-        $this->assertSame(1, $dom->query('//*[contains(@class,"ai-intake-panel__detail")]/header')->length);
+        $this->assertSame(1, $dom->query('//*[contains(@class,"ai-intake-panel__record-navigation")]/header')->length);
         $this->assertSame(1, $dom->query('//*[@data-ai-intake-record-header]/h2')->length);
         $heading = $dom->query('//*[@data-ai-intake-record-header]/h2')->item(0);
         $this->assertSame($record->title, $heading->textContent);

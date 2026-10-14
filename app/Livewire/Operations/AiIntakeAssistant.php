@@ -10,6 +10,7 @@ use App\Services\Ai\Attachments\AssistantAttachmentProcessor;
 use App\Services\Ai\OpenRouterChatException;
 use App\Services\Operations\AiIntakeAssistantService;
 use App\Services\Operations\AiIntakeMessageContent;
+use App\Services\Operations\AiIntakeReviewContext;
 use App\Services\Operations\AiIntakeService;
 use App\Support\Operations\AiDispositionSettings;
 use App\Support\Operations\AiIntakeSchema;
@@ -49,8 +50,6 @@ class AiIntakeAssistant extends Component
     public string $feedback = '';
 
     public string $prompt = '';
-
-    public string $promptMode = 'question';
 
     public array $uploads = [];
 
@@ -150,7 +149,6 @@ class AiIntakeAssistant extends Component
         $this->settingsRevision = (int) AiDispositionSettings::all(true)['revision'];
         $this->overviewFingerprint = app(AiIntakeAssistantService::class)->overviewFingerprint($actor, $this->customerId);
         $this->contextChanged = false;
-        $this->promptMode = 'question';
         $this->resetValidation();
     }
 
@@ -223,8 +221,28 @@ class AiIntakeAssistant extends Component
 
     public function submitPrompt(): void
     {
-        $this->validate(['promptMode' => 'required|in:question,review']);
-        $this->promptMode === 'review' ? $this->review() : $this->ask();
+        $this->perform(function (User $actor, ?AiIntake $intake): void {
+            $this->prompt = trim($this->prompt);
+            $this->validatePrompt();
+            if ($intake) {
+                $response = app(AiIntakeAssistantService::class)->respond($intake, $actor, $this->intakeRevision,
+                    $this->prompt, $this->uploads, $this->audioUpload, $this->settingsRevision);
+                if (($response['action'] ?? null) === 'review') {
+                    $this->applyReview($intake, $actor, $response['review_prompt'], $response['review_context']);
+
+                    return;
+                }
+            } else {
+                app(AiIntakeAssistantService::class)->askOverview($actor, $this->customerId, $this->settingsRevision,
+                    $this->overviewFingerprint, $this->prompt, $this->uploads, $this->audioUpload);
+            }
+            $this->prompt = '';
+            $this->discardTemporaryUploads();
+            $this->dispatch('ai-intake-composer-submitted', componentId: $this->getId());
+            if ($intake) {
+                $this->dispatch('ai-intake-question-answered', hostComponentId: $this->hostComponentId, intakeId: $intake->id);
+            }
+        });
     }
 
     public function ask(): void
@@ -240,6 +258,9 @@ class AiIntakeAssistant extends Component
             $this->prompt = '';
             $this->discardTemporaryUploads();
             $this->dispatch('ai-intake-composer-submitted', componentId: $this->getId());
+            if ($intake) {
+                $this->dispatch('ai-intake-question-answered', hostComponentId: $this->hostComponentId, intakeId: $intake->id);
+            }
         });
     }
 
@@ -252,18 +273,23 @@ class AiIntakeAssistant extends Component
             $context = $this->uploads !== [] || $this->audioUpload
                 ? app(AiIntakeAssistantService::class)->prepareReviewContext($intake, $actor, $this->intakeRevision, $this->settingsRevision, $this->uploads, $this->audioUpload)
                 : null;
-            $this->manualAttempt = true;
-            $recognized = $context
-                ? app(AiIntakeService::class)->analyzeManually($intake, $actor, $this->intakeRevision, $this->settingsRevision, $this->prompt, $context)
-                : app(AiIntakeService::class)->analyzeManually($intake, $actor, $this->intakeRevision, $this->settingsRevision, $this->prompt);
-            $this->intakeRevision = $recognized->revision;
-            $this->sourceRevision = $recognized->source_revision;
-            $this->prompt = '';
-            $this->discardTemporaryUploads();
-            $this->feedback = 'Die Mail wurde mit deinem Hinweis erneut erkannt. Ergebnis und offene Angaben im Eingang prüfen; Anfragen und Versand bleiben persönlich freizugeben.';
-            $this->dispatch('disposition-mailbox-updated');
-            $this->dispatch('ai-intake-composer-submitted', componentId: $this->getId());
+            $this->applyReview($intake, $actor, $this->prompt, $context);
         });
+    }
+
+    private function applyReview(AiIntake $intake, User $actor, string $instruction, ?AiIntakeReviewContext $context): void
+    {
+        $this->manualAttempt = true;
+        $recognized = $context
+            ? app(AiIntakeService::class)->analyzeManually($intake, $actor, $this->intakeRevision, $this->settingsRevision, $instruction, $context)
+            : app(AiIntakeService::class)->analyzeManually($intake, $actor, $this->intakeRevision, $this->settingsRevision, $instruction);
+        $this->intakeRevision = $recognized->revision;
+        $this->sourceRevision = $recognized->source_revision;
+        $this->prompt = '';
+        $this->discardTemporaryUploads();
+        $this->feedback = 'Die Mail wurde mit deinem Hinweis erneut erkannt. Ergebnis und offene Angaben im Eingang prüfen; Anfragen und Versand bleiben persönlich freizugeben.';
+        $this->dispatch('disposition-mailbox-updated');
+        $this->dispatch('ai-intake-composer-submitted', componentId: $this->getId());
     }
 
     private function validatePrompt(): void
@@ -368,7 +394,7 @@ class AiIntakeAssistant extends Component
             $action($actor, $intake);
         } catch (ValidationException $error) {
             foreach ($error->errors() as $field => $messages) {
-                $target = $field === 'review_prompt' ? 'prompt' : (str_starts_with($field, 'uploads') ? 'uploads' : (in_array($field, ['prompt', 'promptMode', 'audioUpload'], true) ? $field : 'assistant'));
+                $target = $field === 'review_prompt' ? 'prompt' : (str_starts_with($field, 'uploads') ? 'uploads' : (in_array($field, ['prompt', 'audioUpload'], true) ? $field : 'assistant'));
                 $this->addError($target, implode(' ', $messages));
             }
         } catch (HttpException $error) {

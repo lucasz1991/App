@@ -46,12 +46,13 @@
         </div>
 
         <section class="rt-ai-assist__panel" id="{{ $panelId }}" role="dialog" aria-modal="false" aria-labelledby="{{ $panelId }}-title" x-show="open" style="display: none">
-            <header class="rt-ai-assist__head">
+            <header class="rt-ai-assist__head rt-assistant-header" data-assistant-header>
                 <span class="rt-ai-assist__avatar"><span class="rt-ai-assist__orb rt-ai-assist__orb--head" data-assistant-cloud-slot="header" aria-hidden="true"><span class="rt-assistant-cloud__fallback"></span></span></span>
                 <div class="rt-ai-assist__identity">
-                    <span class="rt-ai-assist__mode">{{ $modeLabel }}</span>
-                    <h2 class="rt-ai-assist__title" id="{{ $panelId }}-title">AI-Assist</h2>
+                    <span class="rt-ai-assist__mode sr-only">{{ $modeLabel }}</span>
+                    <h2 class="rt-ai-assist__title" id="{{ $panelId }}-title" title="{{ $modeLabel }}">AI-Assist</h2>
                 </div>
+                <x-operations.assistant-navigation :tabs="$tabs" :selected="$tab" action="setTab" :id-prefix="$panelId" :controls="$panelId.'-body'" :review-count="$reviewCount" label="AI-Assist" />
                 <div class="rt-ai-assist__head-actions">
                     <button class="rt-ai-assist__icon-btn" type="button" :aria-expanded="settingsOpen ? 'true' : 'false'" aria-expanded="false" aria-label="Assistenz-Einstellungen" title="Einstellungen"
                         x-on:click="settingsOpen = !settingsOpen; @if($canConfigure) if (settingsOpen) $wire.openSettings(); @endif"><i class="far fa-cog" aria-hidden="true"></i></button>
@@ -131,13 +132,6 @@
                 @endif
             </details>
 
-            <nav class="rt-ai-assist__tabs" role="tablist" aria-label="AI-Assist">
-                @foreach($tabs as $key => $label)
-                    <button type="button" role="tab" id="{{ $panelId }}-tab-{{ $key }}" aria-controls="{{ $panelId }}-body" aria-selected="{{ $tab === $key ? 'true' : 'false' }}" wire:click="setTab('{{ $key }}')">
-                        {{ $label }}@if($key === 'intake' && $reviewCount > 0)<span class="rt-ai-assist__count">{{ $reviewCount }}</span>@endif
-                    </button>
-                @endforeach
-            </nav>
             <p class="rt-ai-assist__error" x-show="callError" style="display:none" role="alert" x-text="callError"></p>
 
             <div class="rt-ai-assist__body" id="{{ $panelId }}-body" role="tabpanel" aria-labelledby="{{ $panelId }}-tab-{{ $tab }}" @if(in_array($tab, ['intake', 'activity'], true)) wire:poll.20s.visible @endif>
