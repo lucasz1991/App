@@ -332,7 +332,8 @@ class AiIntakeInboxEmbeddedTest extends TestCase
             ->assertDontSeeHtml('wire:click="editProposal('.$proposal->id.')"')->assertDontSeeHtml('wire:click="createInquiries"');
         $preview = $this->dom($component->html())->query('//*[@data-ai-intake-analysis-preview]');
         $this->assertSame(1, $preview->length);
-        $this->assertSame(0, $this->dom($component->html())->query('//*[@data-ai-intake-analysis-preview]//button')->length);
+        $this->assertSame(1, $this->dom($component->html())->query('//*[@data-ai-intake-analysis-preview]//button[@aria-controls]')->length);
+        $this->assertSame(0, $this->dom($component->html())->query('//*[@data-ai-intake-analysis-preview]//button[@*[name()="wire:click"]]')->length);
         $this->assertSame('stale', $proposal->fresh()->status);
         $this->assertSame($oldPayload, $proposal->fresh()->payload);
         $this->noSideEffects();

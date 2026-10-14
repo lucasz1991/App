@@ -76,13 +76,14 @@
                     @if($selected->processed_source_revision === $selected->source_revision && is_array($selected->analysis['positions'] ?? null) && !empty($selected->analysis['positions']))
                         @foreach($selected->analysis['positions'] as $index => $position)
                             @continue(!is_array($position))
-                            <article class="mt-3 border-t border-rt-border pt-3 dark:border-rt-dark-border" data-ai-intake-analysis-preview wire:key="ai-analysis-{{ $selected->id }}-{{ $selected->source_revision }}-{{ $selected->revision }}-{{ $index }}">
-                                <h4 class="font-semibold">{{ $position['title'] ?? 'Position '.($index + 1) }}</h4>
+                            <article class="ai-intake-panel__position" data-ai-intake-analysis-preview wire:key="ai-analysis-{{ $selected->id }}-{{ $selected->source_revision }}-{{ $selected->revision }}-{{ $index }}" x-data="{ openAccordionSection: @js($loop->first ? 'analysis-'.$index : null), toggleAccordionSection(section) { this.openAccordionSection = this.openAccordionSection === section ? null : section } }">
+                                <x-ui.accordion.section compact :section="'analysis-'.$index" :label="$position['title'] ?? 'Position '.($index + 1)" description="Erkannte Angaben" icon="far fa-clipboard-list" :id-prefix="'intake-analysis-'.$this->getId()">
                                 <x-operations.intake.facts :demand="$position" />
-                                @if(($position['assumptions']['required_staff']['basis'] ?? '') === 'default')<p class="mt-2 ops-muted" role="status"><i class="far fa-info-circle" aria-hidden="true"></i> Standardvorschlag: 1 Person · In der Mail fehlt eine Personalanzahl. Bitte bestätigen oder anpassen.</p>@endif
-                                @if(!empty($position['assumptions']['history_review']))<p class="mt-2 ops-muted">Historische Vergleichsdaten verwendet · Angaben vor der Übernahme mit der aktuellen Mail abgleichen.</p>@endif
+                                @if(($position['assumptions']['required_staff']['basis'] ?? '') === 'default')<p class="ops-muted" role="status" title="In der Mail fehlt eine Personalanzahl. Bitte bestätigen oder anpassen."><i class="far fa-info-circle" aria-hidden="true"></i> Standardvorschlag: 1 Person · Bitte prüfen</p>@endif
+                                @if(!empty($position['assumptions']['history_review']))<p class="ops-muted" title="Angaben vor der Übernahme mit der aktuellen Mail abgleichen."><i class="far fa-history" aria-hidden="true"></i> Historische Vergleichsdaten verwendet</p>@endif
                                 @php($previewMissing = array_values(array_unique(array_intersect(array_filter((array) ($position['missing_fields'] ?? []), 'is_string'), array_keys($fieldLabels)))))
                                 @if($previewMissing)<p class="mt-2 ops-muted">Noch zu prüfen: {{ implode(' · ', array_map(fn ($field) => $fieldLabels[$field], $previewMissing)) }}</p>@endif
+                                </x-ui.accordion.section>
                             </article>
                         @endforeach
                         <p class="mt-2 ops-muted">Erkannte Angaben zur Prüfung des bestehenden Vorgangs.</p>
