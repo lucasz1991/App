@@ -76,7 +76,7 @@ final class PersonalWorkspaceAreas
             default => $area,
         };
         $key = isset($areas[$legacy]) ? $legacy : 'work';
-        $workTab = $key === 'work' && in_array($tab, ['today', 'schedule', 'time'], true) ? $tab : '';
+        $workTab = $key === 'work' && in_array($tab, ['today', 'requests', 'schedule', 'time'], true) ? $tab : '';
 
         return [$key, $workTab];
     }

@@ -1,0 +1,139 @@
+/* The workday reuses the shell's viewport mode and its keyboard inset.
+   One content region scrolls; the document and the native area dock stay put. */
+.rt-viewport-layout:has(.rt-workday-page) .rt-page-content {
+    display: flex;
+    flex-direction: column;
+    padding: 16px !important;
+}
+#main-content.rt-viewport-layout:has(.rt-workday-page) { padding-bottom: 0 !important; }
+.rt-workday-page {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    gap: 12px;
+}
+.rt-workday-page > * { margin-top: 0 !important; }
+.rt-workday-page > [data-page-header] { flex: 0 0 auto; }
+.rt-workday-page > [data-page-loading-region],
+.rt-workday-page .rt-personal-workspace-content,
+.rt-workday-page .rt-personal-work {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    max-width: none;
+    height: 100%;
+    overflow: hidden;
+    gap: 0;
+}
+.rt-workday-page .rt-workday-screen {
+    flex: 1 1 0;
+    min-height: 0;
+    min-width: 0;
+    padding: 2px 3px 20px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--personal-line) transparent;
+    scroll-padding: 12px;
+    align-content: start;
+    -webkit-overflow-scrolling: touch;
+}
+.rt-workday-screen:focus-visible { outline: 2px solid var(--personal-focus); outline-offset: -2px; border-radius: 12px; }
+.rt-workday-screen > [aria-live="polite"]:not(:has(*)),
+.rt-workday-screen > [aria-live="polite"]:has(> [wire\:offline]:only-child:is(:not([style]), [style*="display: none"])) { display: none; }
+.rt-workday-section-heading { display: flex; align-items: center; gap: 16px; padding: 4px 0; }
+.rt-personal-work .rt-workday-section-heading h2 { margin: 3px 0 5px; font-size: 24px; letter-spacing: -.035em; }
+.rt-workday-request-summary { display: none; }
+
+@media (max-width: 767.98px) {
+    .rt-shell-topbar.rt-ui-topbar:has([data-workday-navigation]) .rt-shell-brand-mark { display: none !important; }
+    .rt-shell-topbar:has([data-workday-navigation]) .rt-shell-page-title-host { max-width: 165px; }
+    /* Reserve the native 56px safe-area dock inside the existing viewport. */
+    .rt-viewport-layout:has(.rt-workday-page) .rt-page-content {
+        padding: 12px 12px calc(68px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+    .rt-workday-page { gap: 8px; }
+    .rt-workday-page .rt-workday-screen { gap: 14px; padding: 2px 2px 14px; }
+    .rt-workday-page .rt-today { gap: 12px; }
+    .rt-workday-page .rt-today-hero {
+        gap: 14px;
+        padding: 18px;
+        border-radius: 20px;
+        background: var(--personal-sheet);
+        box-shadow: 0 0 0 1px var(--personal-line);
+    }
+    .rt-workday-page .rt-today-hero::before,
+    .rt-workday-page .rt-today-hero::after { display: none; }
+    .rt-workday-page .rt-today-hero__intro { gap: 10px; }
+    .rt-workday-page .rt-today-hero h2 { margin: 0; font-size: 26px; line-height: 1.15; }
+    .rt-workday-page .rt-today-hero__date { font-size: 12px; }
+    .rt-workday-page .rt-today-hero__duty { gap: 8px; }
+    .rt-workday-page .rt-today-hero__duty strong { font-size: 14px; }
+    .rt-workday-page .rt-today-hero__duty > div > span { font-size: 12px; line-height: 1.45; }
+    .rt-workday-page .rt-today-quick { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 2px; }
+    .rt-workday-page .rt-today-quick__action { min-height: 44px; padding: 0 8px; gap: 6px; font-size: 12px; border-radius: 10px; }
+    .rt-workday-page .rt-today-hero__clock .rt-personal-work-clock { padding: 12px; gap: 10px; border-radius: 14px; }
+    .rt-workday-page .rt-today-hero__clock .rt-personal-clock-idle { gap: 10px; }
+    .rt-workday-page .rt-today-hero__clock .rt-personal-clock-idle .ops-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .rt-workday-page .rt-today-hero__clock .rt-personal-clock-idle .ops-actions .rt-ui-button { min-width: 0; min-height: 44px; padding-inline: 8px; font-size: 12px; white-space: normal; }
+    .rt-workday-page .rt-today-hero__clock .rt-personal-work-clock > .ops-toolbar h2 { font-size: 14px; }
+    .rt-workday-page .rt-today-hero__clock .rt-personal-clock-idle > .ops-muted { font-size: 12px; line-height: 1.45; }
+    .rt-workday-page .rt-workday-request-summary {
+        display: grid;
+        grid-template-columns: 40px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        min-height: 72px;
+        padding: 12px 14px;
+        border: 1px solid var(--personal-line);
+        border-radius: 16px;
+        background: var(--personal-sheet);
+        color: var(--personal-ink);
+        text-align: left;
+    }
+    .rt-workday-request-summary__icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--personal-signal-soft); color: var(--personal-signal); font-size: 18px; }
+    .rt-workday-request-summary > span:nth-child(2) { display: grid; min-width: 0; gap: 4px; }
+    .rt-workday-request-summary strong { font-size: 13px; line-height: 1.4; }
+    .rt-workday-request-summary small { color: var(--personal-muted); font-size: 12px; }
+    .rt-workday-request-summary > i { color: var(--personal-muted); font-size: 12px; }
+    .rt-workday-request-summary:focus-visible { outline: 2px solid var(--personal-signal); outline-offset: 2px; }
+    .rt-workday-page [data-personal-work-tab="today"] .rt-personal-requests { display: none; }
+    .rt-workday-page .rt-today-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; overflow: visible; border-radius: 16px; }
+    .rt-workday-page .rt-today-stat { width: 100%; min-width: 0; min-height: 84px; padding: 12px; }
+    .rt-workday-page .rt-today-stat::before { display: none; }
+    .rt-workday-page .rt-today-stat:nth-child(2n) { border-left: 1px solid var(--personal-line); }
+    .rt-workday-page .rt-today-stat:nth-child(n+3) { border-top: 1px solid var(--personal-line); }
+    .rt-workday-page .rt-today-stat__label { font-size: 11px; }
+    .rt-workday-page .rt-today-stat__hint { font-size: 11px; white-space: normal; }
+    .rt-workday-page .rt-today-card { padding: 16px; gap: 14px; border-radius: 18px; box-shadow: 0 0 0 1px var(--personal-line); }
+    .rt-workday-page .rt-today-grid { gap: 12px; }
+    .rt-workday-page .rt-today-card__head h3 { font-size: 16px; }
+    .rt-workday-page .rt-personal-request { gap: 10px; padding: 16px 0; }
+    .rt-workday-page .rt-personal-requests__heading { gap: 10px; }
+    .rt-workday-page .rt-personal-requests__heading h3 { font-size: 16px; }
+    .rt-workday-page .rt-personal-requests__heading p { font-size: 12px; line-height: 1.5; }
+    .rt-workday-page .rt-personal-request__body h4 { font-size: 14px; }
+    .rt-workday-page .rt-personal-request__period,
+    .rt-workday-page .rt-personal-request__meta { font-size: 12px; line-height: 1.5; }
+    .rt-workday-page .rt-calendar-header { gap: 12px; }
+    .rt-workday-page .rt-calendar-heading { align-items: flex-start; }
+    .rt-workday-page .rt-calendar-period { font-size: 18px; }
+    .rt-workday-page .rt-calendar-summary { font-size: 11px; gap: 8px; }
+    .rt-workday-page .rt-calendar-controls { gap: 8px; }
+    .rt-workday-page .rt-calendar-agenda-day { border-radius: 16px; }
+    .rt-workday-page .rt-personal-time-filters .rt-ui-button { white-space: normal; height: auto; min-height: 44px; }
+}
+@media (max-width: 359px) {
+    .rt-shell-topbar:has([data-workday-navigation]) .rt-shell-page-title-host { max-width: 140px; }
+    .rt-shell-topbar:has([data-workday-navigation]) .rt-shell-page-title { font-size: 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .rt-workday-page .rt-today-enter { animation: none; }
+}

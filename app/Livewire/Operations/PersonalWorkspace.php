@@ -35,6 +35,7 @@ class PersonalWorkspace extends Component
         $definition = PersonalWorkspaceAreas::get($this->area);
         abort_unless($definition, 503);
 
-        return view('livewire.operations.personal-workspace', ['definition' => $definition])->layout('layouts.master');
+        return view('livewire.operations.personal-workspace', ['definition' => $definition])
+            ->layout('layouts.master', ['contentMode' => $this->area === 'work' ? 'viewport' : null]);
     }
 }

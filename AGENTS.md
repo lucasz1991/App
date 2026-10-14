@@ -11,7 +11,7 @@
 <!-- project-design:begin -->
 ## Project design gallery
 
-Before UI/UX work, consult `C:/Users/L. Zacharias/Documents/RailTime/project-design/index.php` and the original project components. Reuse and improve existing components before introducing duplicates. Keep the standalone gallery examples and source inventory in sync with UI changes.
+Before UI/UX work, consult `C:/Users/L. Zacharias/Documents/RailTime/project-design/index.html` and the original project components. Reuse and improve existing components before introducing duplicates. Keep the standalone gallery examples and source inventory in sync with UI changes.
 
-The gallery is stored beside the canonical `.lmzdev` directory and is served independently with PHP. It must not be exposed through Laravel routes, require application login, bootstrap the app, read business records or call providers/SMTP. Show synthetic presentation examples and label backend-dependent actions honestly.
+The gallery is stored beside the canonical `.lmzdev` directory. Open `index.html` directly in a browser; viewing requires no XAMPP, PHP, web server or application login. Keep assets local and file-compatible. Optional native component exporters are development tools, not runtime dependencies. Do not expose the gallery through Laravel routes, bootstrap the app, read business records or call providers/SMTP. Show synthetic presentation examples and label backend-dependent actions honestly.
 <!-- project-design:end -->

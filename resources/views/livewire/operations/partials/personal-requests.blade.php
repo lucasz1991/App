@@ -4,7 +4,7 @@
         @if($pendingRequests->total())<span class="rt-personal-requests__count" aria-label="{{ $pendingRequests->total() }} {{ $pendingRequests->total() === 1 ? 'offene Anfrage' : 'offene Anfragen' }}">{{ $pendingRequests->total() }} offen</span>@endif
     </header>
     @if($pendingRequests->total())
-        <ul class="rt-personal-requests__list">
+        <ul class="rt-personal-requests__list" wire:loading.class="pointer-events-none" wire:target="openConsentRequest" wire:loading.attr="aria-busy">
             @foreach($pendingRequests as $request)
                 @php
                     $start = $request['starts_at']->setTimezone($request['timezone']);
@@ -18,7 +18,7 @@
                         <p class="rt-personal-request__period">{{ $start->locale('de')->isoFormat('dd, D. MMM YYYY') }} · {{ $start->format('H:i') }} – {{ $end->format($start->isSameDay($end) ? 'H:i' : 'd.m.Y H:i') }} <span>{{ $request['timezone'] }}</span></p>
                         <p class="rt-personal-request__meta">{{ $request['customer'] ?: 'Kunde nicht hinterlegt' }} · {{ $request['location'] ?: 'Einsatzort nicht hinterlegt' }}@if($request['type'] === 'shift' && $request['role']) · {{ $request['role'] }}@endif</p>
                     </div>
-                    <x-ui.buttons.button-basic mode="primary" type="button" wire:click="openConsentRequest('{{ $request['type'] }}', {{ $request['id'] }}, {{ $request['revision'] }})" wire:loading.attr="disabled" wire:target="openConsentRequest,respondToRequest" aria-label="{{ $request['label'] }} {{ $request['title'] }} vom {{ $start->format('d.m.Y') }} prüfen und beantworten">Prüfen & antworten</x-ui.buttons.button-basic>
+                    <x-ui.buttons.button-basic mode="primary" type="button" wire:click="openConsentRequest('{{ $request['type'] }}', {{ $request['id'] }}, {{ $request['revision'] }})" wire:loading.attr="disabled" wire:target="respondToRequest" aria-label="{{ $request['label'] }} {{ $request['title'] }} vom {{ $start->format('d.m.Y') }} prüfen und beantworten">Prüfen & antworten</x-ui.buttons.button-basic>
                 </li>
             @endforeach
         </ul>

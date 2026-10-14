@@ -25,6 +25,7 @@ use App\Support\Operations\GermanyMap;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\PersonalSchedule;
 use App\Support\Operations\ReportingPeriod;
+use App\Support\Operations\TimelineMiniCalendar;
 use App\Support\Operations\WorkTimeSchema;
 use Carbon\CarbonImmutable;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -142,7 +143,7 @@ class MyWork extends Component
         return match ($this->focus) {
             'absences' => ['absences' => 'Urlaub & Abwesenheit'],
             'records' => ['records' => 'Qualifikationen'],
-            default => ['today' => 'Heute', 'schedule' => 'Kalender', 'time' => 'Zeiten'],
+            default => ['today' => 'Heute', 'requests' => 'Anfragen', 'schedule' => 'Kalender', 'time' => 'Zeiten'],
         };
     }
 
@@ -225,7 +226,8 @@ class MyWork extends Component
         $this->eventKey = (string) Str::uuid();
         $this->today();
         $this->focus = in_array($focus, ['absences', 'records'], true) ? $focus : '';
-        $initialTab = $initialTab ?: (string) request()->query('tab', '');
+        $queryTab = request()->query('tab', '');
+        $initialTab = $initialTab ?: (is_string($queryTab) ? $queryTab : '');
         $this->tab = $this->focus ?: (array_key_exists($initialTab, $this->tabs()) ? $initialTab : 'today');
         // "Urlaub planen" auf dem Arbeitstag öffnet den Antrag direkt.
         if ($this->focus === 'absences' && request()->boolean('new')) {
@@ -712,6 +714,57 @@ class MyWork extends Component
         return ['label' => $month['anchor']->locale('de')->isoFormat('MMMM YYYY'), 'days' => $days, 'offset' => $this->miniMonth];
     }
 
+    /** Read-only calendar context for the owned request, using published shift projections. */
+    private function requestCalendar(?array $request): ?array
+    {
+        $row = $request['row'] ?? null;
+        if (! $row) {
+            return null;
+        }
+        $actor = $this->requestActor();
+        $zone = $row['timezone'];
+        $start = CarbonImmutable::instance($row['starts_at'])->setTimezone($zone);
+        $month = TimelineMiniCalendar::forIntervalSeed($start, CarbonImmutable::instance($row['ends_at'])->setTimezone($zone));
+        $from = CarbonImmutable::parse($month['gridStart'], $zone);
+        $to = $from->addDays($month['count']);
+        $events = app(PersonalSchedule::class)->assignments($actor, $from, $to)->map(fn ($assignment) => [
+            'id' => 'shift-'.$assignment->id, 'kind' => 'shift', 'title' => $assignment->shift->title,
+            'starts_at' => CarbonImmutable::instance($assignment->shift->starts_at)->setTimezone($zone),
+            'ends_at' => CarbonImmutable::instance($assignment->shift->ends_at)->setTimezone($zone),
+            'location' => $assignment->shift->location_name, 'status' => $assignment->status->value,
+            'is_request' => $row['type'] === 'shift' && (int) $row['id'] === (int) $assignment->id,
+        ]);
+        $absenceLabels = ['vacation' => 'Urlaub', 'unavailable' => 'Nicht verfügbar', 'other' => 'Abwesenheit', 'sick' => 'Krankmeldung'];
+        $events = $events->concat(AbsenceRequest::where('user_id', $actor->id)->whereIn('status', ['pending', 'approved', 'reported'])
+            ->where('starts_at', '<', $to->utc())->where('ends_at', '>', $from->utc())->get()
+            ->map(fn ($absence) => [
+                'id' => 'absence-'.$absence->id, 'kind' => 'absence', 'title' => $absenceLabels[$absence->kind] ?? 'Abwesenheit',
+                'starts_at' => CarbonImmutable::instance($absence->starts_at)->setTimezone($zone),
+                'ends_at' => CarbonImmutable::instance($absence->ends_at)->setTimezone($zone),
+                'location' => null, 'status' => $absence->status, 'is_request' => false,
+            ]));
+        if (Schema::hasTable('personnel_trainings') && Schema::hasTable('personnel_training_participants')) {
+            $events = $events->concat(PersonnelTraining::where('status', 'scheduled')
+                ->whereHas('participants', fn ($query) => $query->where('user_id', $actor->id)->whereIn('status', ['confirmed', 'attended']))
+                ->where('starts_at', '<', $to->utc())->where('ends_at', '>', $from->utc())->get()
+                ->map(fn ($training) => [
+                    'id' => 'training-'.$training->id, 'kind' => 'training', 'title' => $training->title,
+                    'starts_at' => CarbonImmutable::instance($training->starts_at)->setTimezone($zone),
+                    'ends_at' => CarbonImmutable::instance($training->ends_at)->setTimezone($zone),
+                    'location' => null, 'status' => $training->status, 'is_request' => false,
+                ]));
+        }
+        if ($row['type'] === 'capacity') {
+            $events = $events->push([
+                'id' => 'capacity-'.$row['id'], 'kind' => 'capacity', 'title' => $row['title'],
+                'starts_at' => $start, 'ends_at' => CarbonImmutable::instance($row['ends_at'])->setTimezone($zone),
+                'location' => $row['location'], 'status' => 'requested', 'is_request' => true,
+            ]);
+        }
+
+        return ['timezone' => $zone, 'from' => $from, 'to' => $to, 'events' => $events->sortBy(fn ($event) => $event['starts_at']->getTimestamp())->values()->all()];
+    }
+
     public function render()
     {
         $this->access();
@@ -742,6 +795,9 @@ class MyWork extends Component
             // Keep the 14-day duty view and month intact while the request inbox
             // covers every future published request, including later months.
             $loaded = app(PersonalSchedule::class)->assignments(auth()->user(), $rangeStart->min($miniMonth['from']));
+            $visible = $loaded->filter(fn ($assignment) => $assignment->shift->ends_at->gt($rangeStart) && $assignment->shift->starts_at->lt($rangeEnd))->values();
+        } elseif ($this->tab === 'requests') {
+            $loaded = app(PersonalSchedule::class)->assignments(auth()->user(), $rangeStart);
             $visible = $loaded->filter(fn ($assignment) => $assignment->shift->ends_at->gt($rangeStart) && $assignment->shift->starts_at->lt($rangeEnd))->values();
         } else {
             $visible = app(PersonalSchedule::class)->assignments(auth()->user(), $rangeStart, $rangeEnd);
@@ -802,8 +858,9 @@ class MyWork extends Component
                 default => $from->format('d.m.').' – '.$to->subDay()->format('d.m.Y'),
             },
             'assignments' => $visible,
-            'pendingRequests' => $this->tab === 'today' ? $this->pendingRequests($loaded) : null,
+            'pendingRequests' => in_array($this->tab, ['today', 'requests'], true) ? $this->pendingRequests($loaded) : null,
             'selectedRequest' => $selectedRequest,
+            'requestCalendar' => $this->requestCalendar($selectedRequest),
             'activeTime' => $activeTime,
             'glance' => $this->tab === 'today' ? $this->glance() : [],
             'miniCalendar' => $miniMonth ? $this->miniCalendar($miniMonth, $loaded) : null,

@@ -1,12 +1,9 @@
 <div class="rt-ops ops-stack rt-personal-work" data-personal-workspace data-personal-work-tab="{{ $tab }}" wire:poll.60s
     @if($workTimeReady) x-data="rtWorkTimeCapture({actorId:{{ auth()->id() }},timezone:@js($displayTimezone),bootstrapUrl:@js(route('operations.capture.bootstrap')),syncUrl:@js(route('operations.capture.sync'))})" x-on:work-clock="capture($event.detail)" x-on:worktime-synced.window.debounce.300ms="$wire.$refresh()" x-on:time-sections-saved.window="$wire.closeSections()" @endif>
     @if(count($personalTabs) > 1)
-    <nav class="ops-tabs ops-personal-tabs" aria-label="Mein Arbeitstag">
-        @foreach($personalTabs as $key => $label)
-            <button type="button" wire:key="personal-work-tab-{{ $key }}" wire:click="showTab('{{ $key }}')" wire:loading.attr="disabled" wire:target="showTab" aria-pressed="{{ $tab === $key ? 'true' : 'false' }}">{{ $label }}</button>
-        @endforeach
-    </nav>
+        <x-operations.workday-navigation :tabs="$personalTabs" :selected="$tab" :request-count="$pendingRequests?->total() ?? 0" />
     @endif
+    <div class="ops-stack rt-workday-screen" data-workday-screen wire:key="workday-screen-{{ $tab }}" role="region" tabindex="0" aria-label="{{ $personalTabs[$tab] ?? 'Mein Arbeitstag' }}">
     @if($tab === 'time')
         <header class="rt-personal-work-heading"><div><h2>Meine Zeiten</h2><p class="ops-muted">Erfasste Zeiten prüfen, ergänzen und einreichen.</p></div></header>
     @elseif($tab === 'records')
@@ -18,11 +15,19 @@
     @if($tab === 'time')
         @include('livewire.operations.partials.personal-clock')
     @endif
-    @if($tab === 'schedule')
+    @if($tab === 'requests')
+        <header class="rt-workday-section-heading"><div><p class="ops-kicker">Deine Rückmeldungen</p><h2>Anfragen</h2><p class="ops-muted">Dienste und Zeiträume prüfen und direkt beantworten.</p></div></header>
+        @include('livewire.operations.partials.personal-requests')
+    @elseif($tab === 'schedule')
         @include('livewire.operations.partials.personal-calendar')
     @elseif($tab === 'today')
         <div class="rt-today">
             @include('livewire.operations.partials.personal-today-hero')
+            <button type="button" class="rt-workday-request-summary" wire:click="showTab('requests')" wire:loading.attr="disabled" wire:target="showTab" data-workday-request-summary>
+                <span class="rt-workday-request-summary__icon"><i class="far fa-inbox" aria-hidden="true"></i></span>
+                <span><strong>{{ $pendingRequests->total() ? $pendingRequests->total().' '.($pendingRequests->total() === 1 ? 'Anfrage wartet auf dich' : 'Anfragen warten auf dich') : 'Alle Anfragen beantwortet' }}</strong><small>{{ $pendingRequests->total() ? 'Prüfen und antworten' : 'Deine Rückmeldungen im Überblick' }}</small></span>
+                <i class="far fa-chevron-right" aria-hidden="true"></i>
+            </button>
             @include('livewire.operations.partials.personal-requests')
             @include('livewire.operations.partials.personal-glance')
             <div class="rt-today-grid">
@@ -66,5 +71,6 @@
     @else
         <x-operations.modal wire:model="absenceOpen" title="Abwesenheit beantragen"><form wire:submit="requestAbsence" class="ops-form rt-personal-form"><x-operations.field label="Art" model="absence.kind" type="select"><option value="vacation">Urlaub</option><option value="unavailable">Nicht verfügbar</option><option value="other">Abwesenheit</option></x-operations.field><x-operations.field label="Zeitzone" model="absence.timezone" required /><x-operations.field label="Beginn" model="absence.starts_at" type="datetime-local" required /><x-operations.field label="Ende" model="absence.ends_at" type="datetime-local" required /><x-operations.field label="Notiz (optional)" model="absence.note" maxlength="1000" :wide="true" /><div class="ops-full"><p class="ops-muted">Der Antrag wird nach dem Einreichen geprüft. Den Status siehst du in deiner Übersicht.</p></div><div class="ops-full"><x-ui.buttons.button-basic mode="primary" type="submit" wire:loading.attr="disabled">Antrag einreichen</x-ui.buttons.button-basic></div></form></x-operations.modal><x-tables.table class="rt-personal-record-list" label="Meine Abwesenheiten" :columns="[['label'=>'Abwesenheit','key'=>'record']]" :items="$absences" row-view="components.tables.rows.operations.personal-absence" empty="Noch keine Abwesenheiten. Beantrage hier Urlaub oder einen anderen Zeitraum." />{{ $absences->links() }}
     @endif
-    @include('livewire.operations.partials.personal-request-dialog')
+    </div>
+    <x-operations.personal-request-dialog :request="$selectedRequest" :calendar="$requestCalendar" :open="$requestOpen" :notice="$requestNotice" :requested-revision="$requestRevision" :id="'personal-request-'.$this->getId()" wire:model="requestOpen" />
 </div>
