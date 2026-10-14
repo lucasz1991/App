@@ -129,6 +129,7 @@
 }
 @media (max-width: 359px) {
     .rt-request-dialog .rt-request-dialog__tabs .rt-carousel-tab-icon { display: none; }
+    .rt-request-dialog[data-has-activity="true"] .rt-request-dialog__tabs .rt-carousel-tab { padding-inline: 1px; font-size: 12px; }
     .rt-request-dialog__detail-period { grid-template-columns: minmax(0, 1fr); gap: 20px; }
     .rt-request-dialog__detail-period > .rt-request-dialog__mini-calendar { max-width: 240px; width: 100%; }
 }

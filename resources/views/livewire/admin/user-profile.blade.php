@@ -55,7 +55,7 @@
         </x-ui.dropdown.page-actions>
     </x-slot:actions>
 
-      @if ($canInviteEmployee && $user->role === 'staff')
+      @if ($canInviteEmployee && $user->role === 'staff' && ! $user->hasVerifiedEmail())
         <x-ui.feedback.alert type="warning" :inline="true" aria-label="Mitarbeiterzugang" data-account-invitation class="mb-3"
             wire:key="{{ $profilePrefix }}-account-invitation" wire:ignore.self>
           <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
@@ -65,7 +65,7 @@
               @elseif ($accountInvitationNotice)
                 Einladung versendet.
               @else
-                {{ ! $user->isActive() ? 'Konto inaktiv – bitte zuerst aktivieren.' : ($user->hasVerifiedEmail() ? 'Zugang eingerichtet.' : 'E-Mail noch nicht bestätigt.') }}
+                {{ ! $user->isActive() ? 'Konto inaktiv – bitte zuerst aktivieren.' : 'E-Mail noch nicht bestätigt.' }}
               @endif
             </span>
           <button type="button" class="rt-ui-alert__action" @disabled(!$user->isActive())

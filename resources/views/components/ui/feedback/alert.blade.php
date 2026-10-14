@@ -23,26 +23,22 @@
 
 <div class="rt-ui-alert-viewport" style="overflow:clip">
 <div x-data="{
-    visible: false,
-    revealTimer: null,
+    visible: true,
+    entrance: null,
     init() {
-        this.revealTimer = setTimeout(() => {
-            this.visible = true
-            this.$nextTick(() => {
-                if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-                    this.$el.animate(
-                        [{ transform: 'translateX(100%)' }, { transform: 'translateX(0)' }],
-                        { duration: 650, easing: 'cubic-bezier(.22, 1, .36, 1)' }
-                    )
-                }
-            })
-        }, 1000)
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches
+            || typeof this.$el.animate !== 'function') return
+
+        this.entrance = this.$el.animate(
+            [{ opacity: 0, transform: 'translateY(-6px)' }, { opacity: 1, transform: 'translateY(0)' }],
+            { duration: 220, easing: 'cubic-bezier(.23, 1, .32, 1)' }
+        )
     },
     destroy() {
-        clearTimeout(this.revealTimer)
-        this.$el.getAnimations().forEach(animation => animation.cancel())
+        this.entrance?.cancel()
+        this.entrance = null
     }
-}" x-show.important="visible" x-cloak @if (!$attributes->has('wire:ignore.self')) wire:ignore.self @endif data-rt-tone="{{ $type }}" {{ $attributes->class(["rt-ui-alert relative flex rounded-xl border {$styles}", 'gap-3 p-4 shadow-rt-xs' => ! $inline, 'rt-ui-alert--dismissible' => $dismissible]) }} @if($inline) style="align-items:center;gap:.5rem;padding:.25rem .75rem;box-shadow:none" @endif role="alert">
+}" x-show.important="visible" @if (!$attributes->has('wire:ignore.self')) wire:ignore.self @endif data-rt-tone="{{ $type }}" {{ $attributes->class(["rt-ui-alert relative flex rounded-xl border {$styles}", 'gap-3 p-4 shadow-rt-xs' => ! $inline, 'rt-ui-alert--dismissible' => $dismissible]) }} @if($inline) style="align-items:center;gap:.5rem;padding:.25rem .75rem;box-shadow:none" @endif role="alert">
     <style>
         .rt-ui-alert--dismissible { padding-right: 2.75rem !important; }
         .rt-ui-alert__close { position: absolute; top: .375rem; right: .375rem; display: flex; align-items: center; justify-content: center; width: 1.75rem; height: 1.75rem; padding: 0; border: 0; border-radius: .375rem; color: inherit; background: transparent; opacity: .55; cursor: pointer; }

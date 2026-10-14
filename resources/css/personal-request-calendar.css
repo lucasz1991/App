@@ -46,6 +46,8 @@
 .rt-request-schedule__legend { display: flex; flex-wrap: wrap; gap: 7px 14px; margin-top: 13px; color: var(--rt-request-schedule-muted); font-size: 11px; line-height: 1.4; }
 .rt-request-schedule__legend > span { display: inline-flex; align-items: center; gap: 6px; }
 .rt-request-schedule__key { display: inline-block; width: 12px; height: 6px; border-radius: 2px; background: var(--rt-request-schedule-duty); }
+.rt-request-schedule__key.rt-request-schedule__bar--absence { background: var(--rt-request-schedule-absence); }
+.rt-request-schedule__key.rt-request-schedule__bar--training { background: var(--rt-request-schedule-training); }
 .rt-request-schedule__key.is-request { background: var(--rt-request-schedule-accent); }
 .rt-request-schedule__empty { margin: 12px 0 0; color: var(--rt-request-schedule-muted); font-size: 12px; line-height: 1.6; }
 @media (max-width: 359px) {

@@ -5,11 +5,19 @@ namespace Tests\Feature;
 use App\Livewire\Operations\MyWork;
 use App\Models\AbsenceRequest;
 use App\Models\Customer;
+use App\Models\OperationAudit;
 use App\Models\Order;
+use App\Models\PersonnelTraining;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
+use App\Models\ShiftSection;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
@@ -20,15 +28,48 @@ class PersonalCalendarTest extends TestCase
 
     private User $employee;
 
+    private string $compiledViews;
+
+    private array $previousCompiledEnvironment;
+
     protected function setUp(): void
     {
+        $this->previousCompiledEnvironment = [getenv('VIEW_COMPILED_PATH'), $_ENV['VIEW_COMPILED_PATH'] ?? null, $_SERVER['VIEW_COMPILED_PATH'] ?? null];
+        $this->compiledViews = sys_get_temp_dir().'/railtime-calendar-dialog-'.bin2hex(random_bytes(8));
+        mkdir($this->compiledViews, 0777, true);
+        putenv('VIEW_COMPILED_PATH='.$this->compiledViews);
+        $_ENV['VIEW_COMPILED_PATH'] = $_SERVER['VIEW_COMPILED_PATH'] = $this->compiledViews;
         parent::setUp();
         $this->buildMinimalRailTimeSchema();
         (require database_path('migrations/2026_09_15_190000_create_operations_workflow_tables.php'))->up();
         (require database_path('migrations/2026_07_18_000001_create_activity_log_table.php'))->up();
         $this->travelTo(CarbonImmutable::parse('2026-09-17 08:00', 'Europe/Berlin'));
         config(['operations.display_timezone' => 'Europe/Berlin']);
+        Http::preventStrayRequests();
+        Mail::fake();
+        Notification::fake();
+        Queue::fake();
         $this->employee = User::factory()->create(['role' => 'staff', 'status' => true]);
+    }
+
+    protected function tearDown(): void
+    {
+        try {
+            Http::assertNothingSent();
+        } finally {
+            if (str_starts_with($this->compiledViews, sys_get_temp_dir().'/railtime-calendar-dialog-')) {
+                File::deleteDirectory($this->compiledViews);
+            }
+            parent::tearDown();
+            putenv($this->previousCompiledEnvironment[0] === false ? 'VIEW_COMPILED_PATH' : 'VIEW_COMPILED_PATH='.$this->previousCompiledEnvironment[0]);
+            foreach (['_ENV', '_SERVER'] as $index => $environment) {
+                if ($this->previousCompiledEnvironment[$index + 1] === null) {
+                    unset($GLOBALS[$environment]['VIEW_COMPILED_PATH']);
+                } else {
+                    $GLOBALS[$environment]['VIEW_COMPILED_PATH'] = $this->previousCompiledEnvironment[$index + 1];
+                }
+            }
+        }
     }
 
     private function assignment(?User $user = null, array $values = []): ShiftAssignment
@@ -151,5 +192,82 @@ class PersonalCalendarTest extends TestCase
         foreach ([['role' => 'staff', 'status' => false], ['role' => 'admin', 'status' => true]] as $values) {
             Livewire::actingAs(User::factory()->create($values))->test(MyWork::class)->assertForbidden();
         }
+    }
+
+    public function test_calendar_shift_uses_the_shared_dialog_with_native_actions_and_one_opening_audit(): void
+    {
+        $assignment = $this->assignment();
+        $this->absence();
+        $ui = Livewire::actingAs($this->employee)->test(MyWork::class)->call('showTab', 'schedule')->call('openCalendarEvent', 'shift-'.$assignment->id)
+            ->assertSeeHtml('data-personal-request-dialog')->assertSeeHtml('data-personal-request-map')->assertSeeHtml('data-request-calendar')
+            ->assertSeeHtml('wire:key="personal-calendar-shift-dialog-')->assertDontSeeHtml('wire:key="personal-calendar-other-dialog-')
+            ->assertSeeHtml('data-has-activity="false"')->assertSee('Dein Dienst')->assertSee('Dienst bestätigen')->assertDontSeeHtml('wire:click="respondToRequest(true)"');
+        $this->assertStringContainsString(".entangle('calendarEventOpen').live", html_entity_decode($ui->html(), ENT_QUOTES));
+        $selected = $ui->viewData('selectedCalendarRequest');
+        $this->assertFalse($selected['can_respond']);
+        $this->assertSame('', $selected['notice']);
+        $this->assertSame($assignment->id, $selected['row']['id']);
+        $this->assertSame('requested', $selected['row']['status']);
+        $this->assertSame('Hamburg', $selected['row']['location_preview']['place']);
+        $this->assertCount(2, $ui->viewData('selectedCalendarContext')['events']);
+        $this->assertSame(1, OperationAudit::where('action', 'assignment.opened')->where('subject_id', $assignment->id)->count());
+        $assignment->forceFill(['status' => 'confirmed'])->save();
+        $this->travelTo(CarbonImmutable::parse('2026-09-17 10:15', 'Europe/Berlin'));
+        $ui->call('$refresh')->assertSee('Bestätigt')->assertSee('Dienst starten')->assertDontSee('Dienst bestätigen');
+        $this->assertSame('Dienst', $ui->viewData('selectedCalendarRequest')['row']['label']);
+        $this->assertSame('confirmed', $ui->viewData('selectedCalendarRequest')['row']['status']);
+        $this->assertSame(1, OperationAudit::where('action', 'assignment.opened')->where('subject_id', $assignment->id)->count());
+        $ui->call('closeCalendarEvent')->assertSet('calendarEventOpen', false)->assertSet('selectedCalendarEventId', null)
+            ->assertSeeHtml('wire:key="personal-calendar-other-dialog-')->assertDontSeeHtml('wire:key="personal-calendar-shift-dialog-');
+        $this->assertNull($ui->viewData('selectedCalendarRequest'));
+        $this->assertNull($ui->viewData('selectedCalendarContext'));
+    }
+
+    public function test_calendar_shift_changes_come_from_its_owned_published_revision(): void
+    {
+        $assignment = $this->assignment(null, ['revision' => 2, 'published_revision' => 2]);
+        $assignment->forceFill(['plan_revision' => 2])->save();
+        $change = ['label' => 'Einsatzort', 'before' => 'Public previous location', 'after' => 'Public released location'];
+        foreach ([[1, []], [2, ['changes' => [$change]]]] as [$revision, $data]) {
+            OperationAudit::create(['subject_type' => 'Shift', 'subject_id' => $assignment->shift_id, 'actor_id' => $this->employee->id, 'action' => 'shift.published', 'revision' => $revision, 'data' => $data, 'created_at' => now()]);
+        }
+        OperationAudit::create(['subject_type' => 'Shift', 'subject_id' => $assignment->shift_id, 'actor_id' => $this->employee->id, 'action' => 'shift.changed', 'revision' => 3, 'data' => ['changes' => [['label' => 'Private draft difference', 'before' => '', 'after' => 'Secret']]], 'created_at' => now()]);
+        $ui = Livewire::actingAs($this->employee)->test(MyWork::class)->call('showTab', 'schedule')->call('openCalendarEvent', 'shift-'.$assignment->id)
+            ->assertSee('Was sich geändert hat')->assertSee('Public previous location')->assertSee('Public released location')->assertDontSee('Private draft difference');
+        $this->assertSame([$change], $ui->viewData('selectedCalendarRequest')['changes']);
+        $this->assertSame(2, $ui->viewData('selectedCalendarRequest')['row']['revision']);
+    }
+
+    public function test_calendar_service_tab_preserves_only_the_published_employee_activity(): void
+    {
+        (require database_path('migrations/2026_09_17_180000_create_operations_planning_extensions.php'))->up();
+        $assignment = $this->assignment();
+        $shift = $assignment->shift;
+        $publishedSection = ['id' => 9, 'kind' => 'preparation', 'label' => 'Own published preparation', 'starts_at' => $shift->starts_at->toIso8601String(), 'ends_at' => $shift->starts_at->addHour()->toIso8601String(), 'timezone' => 'Europe/Berlin'];
+        $shift->forceFill(['published_snapshot' => $shift->only(['order_id', 'title', 'role_name', 'starts_at', 'ends_at', 'timezone', 'location_name', 'planned_break_minutes']) + ['sections' => [$publishedSection]], 'revision' => 2])->save();
+        ShiftSection::create(['shift_id' => $shift->id, 'kind' => 'travel', 'label' => 'Private current draft activity', 'starts_at' => $shift->starts_at, 'ends_at' => $shift->starts_at->addHour(), 'timezone' => 'Europe/Berlin']);
+        $ui = Livewire::actingAs($this->employee)->test(MyWork::class)->call('showTab', 'schedule')->call('openCalendarEvent', 'shift-'.$assignment->id)
+            ->assertSeeHtml('data-has-activity="true"')->assertSee('Own published preparation')->assertDontSee('Private current draft activity')
+            ->assertSee('Planänderung in Prüfung')->assertDontSee('Dienst bestätigen')->assertDontSee('Dienst starten');
+        $this->assertFalse($ui->viewData('selectedCalendarRequest')['can_respond']);
+        $this->assertSame(1, $ui->viewData('selectedCalendarRequest')['row']['revision']);
+        $this->assertNotSame('', $ui->viewData('selectedCalendarRequest')['notice']);
+        $this->assertStringContainsString('-activity', $ui->html());
+    }
+
+    public function test_absence_and_training_keep_their_existing_modal_without_shift_adapters(): void
+    {
+        (require database_path('migrations/2026_10_04_120000_create_workforce_personnel_foundations.php'))->up();
+        $absence = $this->absence();
+        $training = PersonnelTraining::create(['title' => 'Own personal training', 'starts_at' => now()->addDay(), 'ends_at' => now()->addDay()->addHours(4), 'timezone' => 'Europe/Berlin', 'capacity' => 5, 'status' => 'scheduled', 'created_by' => $this->employee->id]);
+        $training->participants()->create(['user_id' => $this->employee->id, 'status' => 'confirmed', 'created_by' => $this->employee->id]);
+        $ui = Livewire::actingAs($this->employee)->test(MyWork::class)->call('showTab', 'schedule')->call('openCalendarEvent', 'absence-'.$absence->id)
+            ->assertSee('Meine persönliche Notiz')->assertSee('Antrag zurückziehen')->assertDontSeeHtml('data-personal-request-map');
+        $this->assertNull($ui->viewData('selectedCalendarRequest'));
+        $this->assertNull($ui->viewData('selectedCalendarContext'));
+        $ui->call('openCalendarEvent', 'training-'.$training->id)->assertSee('Own personal training')->assertDontSee('Antrag zurückziehen')->assertDontSeeHtml('data-personal-request-map');
+        $this->assertNull($ui->viewData('selectedCalendarRequest'));
+        $this->assertNull($ui->viewData('selectedCalendarContext'));
+        $this->assertSame(0, OperationAudit::where('action', 'assignment.opened')->count());
     }
 }
