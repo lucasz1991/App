@@ -9,7 +9,7 @@ use App\Support\CustomerPortal\CustomerPortalIntakeSchema;
 /**
  * Einzige Quelle für die persönlichen Arbeitsbereiche unter /mein-arbeitstag.
  * Seite und Menü lesen dieselbe Liste, damit jeder Menüpunkt genau eine
- * Ansicht öffnet und "Mein Arbeitstag" selbst nur noch den Tag trägt.
+ * Ansicht öffnet und die Übersicht die vier Bereiche des Arbeitstags bündelt.
  */
 final class PersonalWorkspaceAreas
 {
@@ -29,9 +29,9 @@ final class PersonalWorkspaceAreas
         $operations = OperationsNavigation::enhancementReady('operations-enhancements');
         $area = static fn (string $label, string $icon, string $group, string $view, ?string $tab = null, string $section = 'Mein Arbeitsplatz'): array => compact('label', 'icon', 'group', 'section', 'view', 'tab');
 
-        // Die persönliche Arbeitsliste ist Teil von „Mein Arbeitstag“ (Abschnitt „Meine Aufgaben“).
+        // Die persönliche Arbeitsliste ist Teil der Übersicht (Abschnitt „Meine Aufgaben“).
         return array_filter([
-            'work' => $area('Mein Arbeitstag', 'clock', '', 'my-work'),
+            'work' => $area('Übersicht', 'clock', '', 'my-work'),
 
             'absences' => $area('Urlaub & Abwesenheit', 'sun', 'Abwesenheit & Planung', 'my-work', 'absences'),
             'sickness' => $personnel ? $area('Krankmeldungen', 'thermometer', 'Abwesenheit & Planung', 'personnel', 'sickness') : null,

@@ -1,6 +1,68 @@
 import { loadLeaflet } from './live-location-map.js';
 
 export function registerRoutingMap(Alpine, leafletLoader = loadLeaflet) {
+    Alpine.data('rtTravelPreview', (wire) => ({
+        activeKey: '',
+        loading: false,
+        errorText: '',
+        disposed: false,
+        requestVersion: 0,
+        queuedRequest: null,
+        requestRunning: false,
+        requestRoute(employeeId, direction) {
+            if (this.disposed) return;
+            const id = Number(employeeId);
+            if (!Number.isSafeInteger(id) || id <= 0 || !['before', 'after', 'arrival'].includes(direction)) return;
+            const key = `${id}:${direction}`;
+            if (this.activeKey === key) return;
+
+            this.activeKey = key;
+            this.loading = true;
+            this.errorText = '';
+            this.queuedRequest = { employeeId: id, direction, key, version: ++this.requestVersion };
+            if (!this.requestRunning) return this.drainRequests();
+        },
+        async drainRequests() {
+            this.requestRunning = true;
+            while (!this.disposed && this.queuedRequest) {
+                const request = this.queuedRequest;
+                this.queuedRequest = null;
+                let failed = false;
+                try {
+                    // Keep the shared Livewire geometry state ordered. A newer hover
+                    // waits for the in-flight response and replaces only the queued one.
+                    await wire.showRoute(request.employeeId, request.direction);
+                } catch {
+                    failed = true;
+                }
+                if (this.disposed) return;
+                if (this.activeKey === request.key && this.requestVersion === request.version) {
+                    this.errorText = failed ? 'Route nicht verfügbar' : '';
+                    this.loading = false;
+                }
+            }
+            if (!this.disposed) this.requestRunning = false;
+        },
+        dismissRoute(key) {
+            // Exclusive dropdowns can deliver the old close after the new open.
+            if (this.disposed || this.activeKey !== key) return;
+            ++this.requestVersion;
+            this.activeKey = '';
+            this.loading = false;
+            this.errorText = '';
+            this.queuedRequest = null;
+        },
+        destroy() {
+            this.disposed = true;
+            ++this.requestVersion;
+            this.activeKey = '';
+            this.loading = false;
+            this.errorText = '';
+            this.queuedRequest = null;
+            this.requestRunning = false;
+        },
+    }));
+
     Alpine.data('rtRoutingMap', (points, tileUrl) => ({
         map: null,
         tiles: null,

@@ -4,7 +4,8 @@
         @if($pendingRequests->total())<span class="rt-personal-requests__count" aria-label="{{ $pendingRequests->total() }} {{ $pendingRequests->total() === 1 ? 'offene Anfrage' : 'offene Anfragen' }}">{{ $pendingRequests->total() }} offen</span>@endif
     </header>
     @if($pendingRequests->total())
-        <ul class="rt-personal-requests__list" wire:loading.class="pointer-events-none" wire:target="openConsentRequest" wire:loading.attr="aria-busy">
+        <ul class="rt-personal-requests__list" x-data="{}" wire:loading.class="pointer-events-none" wire:target="openConsentRequest" wire:loading.attr="aria-busy"
+            x-on:click.capture="if ($el.hasAttribute('aria-busy')) { $event.preventDefault(); $event.stopImmediatePropagation(); }">
             @foreach($pendingRequests as $request)
                 @php
                     $start = $request['starts_at']->setTimezone($request['timezone']);

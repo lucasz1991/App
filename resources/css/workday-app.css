@@ -52,7 +52,6 @@
 .rt-workday-request-summary { display: none; }
 
 @media (max-width: 767.98px) {
-    .rt-shell-topbar.rt-ui-topbar:has([data-workday-navigation]) .rt-shell-brand-mark { display: none !important; }
     .rt-shell-topbar:has([data-workday-navigation]) .rt-shell-page-title-host { max-width: 165px; }
     /* Reserve the native 56px safe-area dock inside the existing viewport. */
     .rt-viewport-layout:has(.rt-workday-page) .rt-page-content {

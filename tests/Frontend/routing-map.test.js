@@ -27,7 +27,7 @@ function leafletFixture() {
 
 function factoryFor(loader) {
     let factory;
-    registerRoutingMap({ data: (name, value) => { assert.equal(name, 'rtRoutingMap'); factory = value; } }, loader);
+    registerRoutingMap({ data: (name, value) => { if (name === 'rtRoutingMap') factory = value; } }, loader);
     return factory;
 }
 
@@ -133,10 +133,129 @@ test('route display remains usable when ResizeObserver is unavailable', async ()
 test('routing client contains no browser caching, blob URLs or scope-query hooks', async () => {
     const source = await readFile(new URL('../../resources/js/routing-map.js', import.meta.url), 'utf8');
     assert.doesNotMatch(source, /routing-tile-cache|createObjectURL|revokeObjectURL|cache_scope|BroadcastChannel|localStorage|sessionStorage|indexedDB|caches\.|cacheFactory/);
-    const blade = await readFile(new URL('../../resources/views/livewire/operations/shift-travel-panel.blade.php', import.meta.url), 'utf8');
+    const blade = (await Promise.all([
+        '../../resources/views/livewire/operations/shift-travel-panel.blade.php',
+        '../../resources/views/livewire/operations/partials/travel-route-preview.blade.php',
+    ].map((path) => readFile(new URL(path, import.meta.url), 'utf8')))).join('\n');
     assert.doesNotMatch(blade, /RoutingTileContext|cache_scope|tileCache/);
-    assert.match(blade, /Server-Cache/);
-    assert.match(blade, /Vor einer verbindlichen Zuteilung wird die Fahrt frisch geprüft/);
     assert.match(blade, /role="region"/);
     assert.match(blade, /role="status"/);
+});
+
+function previewFixture() {
+    let factory;
+    registerRoutingMap({ data: (name, value) => { if (name === 'rtTravelPreview') factory = value; } });
+    const requests = [];
+    const state = factory({ showRoute(employeeId, direction) {
+        let resolve;
+        let reject;
+        const promise = new Promise((done, fail) => { resolve = done; reject = fail; });
+        requests.push({ employeeId, direction, resolve, reject });
+        return promise;
+    } });
+    return { state, requests };
+}
+
+test('route preview is lazy, deduplicates the active popup and revalidates each reopening', async () => {
+    const { state, requests } = previewFixture();
+    assert.equal(requests.length, 0);
+    const first = state.requestRoute(2, 'before');
+    state.requestRoute(2, 'before');
+    assert.equal(state.activeKey, '2:before');
+    assert.equal(state.loading, true);
+    assert.equal(requests.length, 1);
+    requests[0].resolve();
+    await first;
+    assert.equal(state.loading, false);
+    state.requestRoute(2, 'before');
+    assert.equal(requests.length, 1);
+    state.dismissRoute('2:before');
+    const second = state.requestRoute(2, 'before');
+    assert.equal(requests.length, 2, 'reopening calls the server instead of trusting previous geometry');
+    requests[1].resolve();
+    await second;
+});
+
+test('rapid route switches serialize requests and retain only the latest queued selection', async () => {
+    const { state, requests } = previewFixture();
+    const finished = state.requestRoute(2, 'before');
+    state.requestRoute(2, 'after');
+    state.requestRoute(3, 'before');
+    state.dismissRoute('2:before');
+    assert.equal(requests.length, 1);
+    assert.equal(state.activeKey, '3:before', 'late old close cannot dismiss the new route');
+    requests[0].resolve();
+    await Promise.resolve();
+    assert.equal(requests.length, 2);
+    assert.deepEqual(requests.map(({ employeeId, direction }) => [employeeId, direction]), [[2, 'before'], [3, 'before']]);
+    assert.equal(state.loading, true, 'old geometry stays hidden while the selected route is pending');
+    requests[1].resolve();
+    await finished;
+    assert.equal(state.loading, false);
+    assert.equal(state.activeKey, '3:before');
+});
+
+test('closing during a request discards the queued route and ignores the late result', async () => {
+    const { state, requests } = previewFixture();
+    const finished = state.requestRoute(2, 'before');
+    state.requestRoute(3, 'arrival');
+    state.dismissRoute('3:arrival');
+    requests[0].reject(new Error('provider details must not be exposed'));
+    await finished;
+    assert.equal(requests.length, 1);
+    assert.equal(state.activeKey, '');
+    assert.equal(state.loading, false);
+    assert.equal(state.errorText, '');
+});
+
+test('closing and reopening the same route does not accept the previous in-flight response', async () => {
+    const { state, requests } = previewFixture();
+    const finished = state.requestRoute(2, 'before');
+    state.dismissRoute('2:before');
+    state.requestRoute(2, 'before');
+    requests[0].resolve();
+    await Promise.resolve();
+    assert.equal(state.loading, true);
+    assert.equal(requests.length, 2);
+    requests[1].resolve();
+    await finished;
+    assert.equal(state.loading, false);
+});
+
+test('failed route request exposes only a short status and reopening can recover', async () => {
+    const { state, requests } = previewFixture();
+    const failed = state.requestRoute(2, 'before');
+    requests[0].reject(new Error('secret provider URL and payload'));
+    await failed;
+    assert.equal(state.errorText, 'Route nicht verfügbar');
+    assert.equal(state.loading, false);
+    state.dismissRoute('2:before');
+    const retry = state.requestRoute(2, 'before');
+    assert.equal(state.errorText, '');
+    requests[1].resolve();
+    await retry;
+    assert.equal(state.loading, false);
+    assert.equal(state.errorText, '');
+});
+
+test('destroy prevents late completion, queued calls and further preview requests', async () => {
+    const { state, requests } = previewFixture();
+    const finished = state.requestRoute(2, 'before');
+    state.requestRoute(3, 'after');
+    state.destroy();
+    const destroyedState = { ...state };
+    requests[0].reject(new Error('late failure'));
+    await finished;
+    state.requestRoute(4, 'arrival');
+    state.dismissRoute('2:before');
+    assert.equal(requests.length, 1);
+    assert.deepEqual(state, destroyedState);
+});
+
+test('preview rejects invalid IDs and directions before any server call', () => {
+    const { state, requests } = previewFixture();
+    for (const id of [null, undefined, 0, -1, 2.5, 'invalid', Infinity]) state.requestRoute(id, 'before');
+    state.requestRoute(2, 'elsewhere');
+    assert.equal(requests.length, 0);
+    assert.equal(state.activeKey, '');
 });

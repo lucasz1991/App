@@ -41,15 +41,19 @@ class ShiftTravelPanel extends Component
     public bool $parentManaged = false;
 
     #[Locked]
+    public bool $sameDayTransfersOnly = false;
+
+    #[Locked]
     public array $geometryBasis = [];
 
-    public function mount(int $shiftId, array $employeeIds, ?array $initialAssessments = null, bool $parentManaged = false): void
+    public function mount(int $shiftId, array $employeeIds, ?array $initialAssessments = null, bool $parentManaged = false, bool $sameDayTransfersOnly = false): void
     {
         $this->shiftId = $shiftId;
         $shift = $this->shift();
         $this->revision = (int) $shift->revision;
         $this->employeeIds = array_slice(array_values(array_unique(array_map('intval', $employeeIds))), 0, 24);
         $this->parentManaged = $parentManaged;
+        $this->sameDayTransfersOnly = $sameDayTransfersOnly;
         if ($initialAssessments !== null) {
             // Mount arguments come from the parent server render. Later requests retain
             // only signed, locked state; the current planning basis is still rechecked.
@@ -219,6 +223,21 @@ class ShiftTravelPanel extends Component
         $users = $this->users();
         $this->refreshAssessments($shift, $users);
 
-        return view('livewire.operations.shift-travel-panel', ['names' => $users->pluck('name', 'id'), 'shift' => $shift]);
+        $displayAssessments = $this->assessments;
+        if ($this->sameDayTransfersOnly) {
+            $displayAssessments = [];
+            foreach ($this->assessments as $employeeId => $assessment) {
+                if (($assessment['display_state'] ?? null) === 'disabled') {
+                    continue;
+                }
+                // Presentation only: retain every assessed transition for assignment guards.
+                $assessment['travel'] = app(PlanningTravelDisplay::class)->sameDayTransfers($shift, $assessment['travel'] ?? []);
+                if ($assessment['travel'] !== []) {
+                    $displayAssessments[$employeeId] = $assessment;
+                }
+            }
+        }
+
+        return view('livewire.operations.shift-travel-panel', ['names' => $users->pluck('name', 'id'), 'shift' => $shift, 'displayAssessments' => $displayAssessments]);
     }
 }

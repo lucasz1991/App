@@ -1,7 +1,7 @@
 <div class="rt-ops ops-stack rt-personal-work" data-personal-workspace data-personal-work-tab="{{ $tab }}" wire:poll.60s
     @if($workTimeReady) x-data="rtWorkTimeCapture({actorId:{{ auth()->id() }},timezone:@js($displayTimezone),bootstrapUrl:@js(route('operations.capture.bootstrap')),syncUrl:@js(route('operations.capture.sync'))})" x-on:work-clock="capture($event.detail)" x-on:worktime-synced.window.debounce.300ms="$wire.$refresh()" x-on:time-sections-saved.window="$wire.closeSections()" @endif>
     @if(count($personalTabs) > 1)
-        <x-operations.workday-navigation :tabs="$personalTabs" :selected="$tab" :request-count="$pendingRequests?->total() ?? 0" />
+        <x-operations.workday-navigation :tabs="$personalTabs" :selected="$tab" :request-count="$requestCount" />
     @endif
     <div class="ops-stack rt-workday-screen" data-workday-screen wire:key="workday-screen-{{ $tab }}" role="region" tabindex="0" aria-label="{{ $personalTabs[$tab] ?? 'Mein Arbeitstag' }}">
     @if($tab === 'time')
@@ -72,5 +72,5 @@
         <x-operations.modal wire:model="absenceOpen" title="Abwesenheit beantragen"><form wire:submit="requestAbsence" class="ops-form rt-personal-form"><x-operations.field label="Art" model="absence.kind" type="select"><option value="vacation">Urlaub</option><option value="unavailable">Nicht verfügbar</option><option value="other">Abwesenheit</option></x-operations.field><x-operations.field label="Zeitzone" model="absence.timezone" required /><x-operations.field label="Beginn" model="absence.starts_at" type="datetime-local" required /><x-operations.field label="Ende" model="absence.ends_at" type="datetime-local" required /><x-operations.field label="Notiz (optional)" model="absence.note" maxlength="1000" :wide="true" /><div class="ops-full"><p class="ops-muted">Der Antrag wird nach dem Einreichen geprüft. Den Status siehst du in deiner Übersicht.</p></div><div class="ops-full"><x-ui.buttons.button-basic mode="primary" type="submit" wire:loading.attr="disabled">Antrag einreichen</x-ui.buttons.button-basic></div></form></x-operations.modal><x-tables.table class="rt-personal-record-list" label="Meine Abwesenheiten" :columns="[['label'=>'Abwesenheit','key'=>'record']]" :items="$absences" row-view="components.tables.rows.operations.personal-absence" empty="Noch keine Abwesenheiten. Beantrage hier Urlaub oder einen anderen Zeitraum." />{{ $absences->links() }}
     @endif
     </div>
-    <x-operations.personal-request-dialog :request="$selectedRequest" :calendar="$requestCalendar" :open="$requestOpen" :notice="$requestNotice" :requested-revision="$requestRevision" :id="'personal-request-'.$this->getId()" wire:model="requestOpen" />
+    <x-operations.personal-request-dialog :request="$selectedRequest" :calendar="$requestCalendar" :open="$requestOpen" :notice="$requestNotice" :requested-revision="$requestRevision" :id="'personal-request-'.$this->getId()" wire:model.live="requestOpen" />
 </div>

@@ -25,7 +25,7 @@ final class ApplicationNavigation
             $sections['Mein Arbeitsplatz'][] = $link;
         }
         if (! $ready && $user->usesPersonalWorkspaceAsHome()) {
-            $add('Mein Arbeitsplatz', 'Mein Arbeitstag', 'operations.mine', 'clock');
+            $add('Mein Arbeitsplatz', 'Übersicht', 'operations.mine', 'clock');
         }
         foreach (OperationsPages::availableFor($user) as $page => $definition) {
             if ($page === 'cases') {

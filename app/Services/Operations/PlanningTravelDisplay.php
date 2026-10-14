@@ -11,6 +11,30 @@ use Illuminate\Support\Collection;
 /** Request-local display projection. Never an assignment permission or a provider call. */
 class PlanningTravelDisplay
 {
+    /** Display only: overnight shifts use the actual transition day, never their start date. */
+    public function sameDayTransfers(Shift $shift, array $travel): array
+    {
+        return array_filter($travel, function (array $leg, string $direction) use ($shift): bool {
+            if (! in_array($direction, ['before', 'after'], true) || ($leg['same_location'] ?? false)) {
+                return false;
+            }
+            $departure = $leg['origin_ends_at'] ?? $leg['departure'] ?? null;
+            if (! $departure) {
+                return false;
+            }
+            try {
+                $originEnd = CarbonImmutable::parse($departure)->setTimezone($shift->timezone ?: 'Europe/Berlin');
+                $destinationStart = isset($leg['destination_starts_at'])
+                    ? CarbonImmutable::parse($leg['destination_starts_at'])->setTimezone($originEnd->timezone)
+                    : (isset($leg['available_seconds']) ? $originEnd->addSeconds((int) $leg['available_seconds']) : null);
+
+                return $destinationStart !== null && $originEnd->isSameDay($destinationStart);
+            } catch (\Throwable) {
+                return false;
+            }
+        }, ARRAY_FILTER_USE_BOTH);
+    }
+
     public function current(Shift $shift, Collection $users, array $stored = [], array $context = []): array
     {
         $core = app(StaffEligibilityService::class)->assessPreviewCoreMany($shift, $users, $context);

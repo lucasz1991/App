@@ -643,6 +643,7 @@ class StaffTimeline extends Component
             ? app(TimelinePlanningSuggestionService::class)->cellChoices($this->planningUserId, $this->planningDate, $this->from, $this->until, auth()->user(), true, $this->planningTravel)->map(fn ($choice) => (object) [
                 'id' => $choice['shift']->id, 'title' => $choice['shift']->title, 'revision' => $choice['revision'],
                 'period' => $this->planningPeriod($choice['shift'], $zone),
+                'showTravel' => ($choice['travel']['route_state'] ?? 'disabled') !== 'disabled' && app(PlanningTravelDisplay::class)->sameDayTransfers($choice['shift'], $choice['travel']['travel'] ?? []) !== [],
                 'open' => max(0, $choice['shift']->required_staff - $choice['shift']->reserved_count), 'eligible' => $choice['eligible'], 'issues' => $choice['issues'], 'travel' => $choice['travel'],
             ]) : collect();
 

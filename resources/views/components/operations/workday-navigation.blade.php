@@ -22,7 +22,7 @@
 @if(filter_var($teleport, FILTER_VALIDATE_BOOL))
     <template x-teleport="[data-area-menu-host]" wire:key="{{ $id }}-teleport">
 @endif
-        <x-ui.navigation.area-menu :id="$id" label="Mein Arbeitstag" :value="$current" action="showTab" :options="$options" :disabled="$disabled" {{ $attributes->merge(['data-workday-navigation' => '']) }} />
+        <x-ui.navigation.area-menu :id="$id" label="Mein Arbeitsplatz" :value="$current" action="showTab" :options="$options" :disabled="$disabled" {{ $attributes->merge(['data-workday-navigation' => '']) }} />
 @if(filter_var($teleport, FILTER_VALIDATE_BOOL))
     </template>
 @endif

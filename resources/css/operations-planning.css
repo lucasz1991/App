@@ -599,3 +599,74 @@
     }
 }
 @keyframes rt-timeline-reveal-fallback { to { opacity: 1; } }
+
+/* Route duration leads; the native anchored preview owns map and calculation detail. */
+.rt-travel, .rt-travel-preview {
+    --travel-ink: var(--rt-text, #172b46);
+    --travel-muted: var(--rt-muted, #71819a);
+    --travel-paper: var(--rt-surface, #fff);
+    --travel-soft: var(--rt-surface-muted, #f5f7fa);
+    --travel-line: var(--rt-border, #dbe3ee);
+    --travel-ok: #00846b;
+    --travel-warning: #a45e09;
+    --travel-conflict: #c52845;
+    color: var(--travel-ink);
+    font-size: 13px;
+    line-height: 1.4;
+}
+.dark :is(.rt-travel, .rt-travel-preview) {
+    --travel-ink: var(--rt-dark-text, #e8edf5);
+    --travel-muted: var(--rt-dark-muted, #a5afbd);
+    --travel-paper: var(--rt-dark-surface, #171d28);
+    --travel-soft: var(--rt-dark-surface-muted, #222b39);
+    --travel-line: var(--rt-dark-border, #303846);
+    --travel-ok: #83d4bc;
+    --travel-warning: #ecc084;
+    --travel-conflict: #f39dac;
+}
+.rt-travel { padding: 8px 0; min-width: 0; }
+.rt-travel__header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.rt-travel__header h3 { font-size: 13px; font-weight: 600; }
+.rt-travel__icon { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; height: 44px; border-radius: 10px; color: var(--travel-muted); }
+.rt-travel__icon:hover { color: var(--travel-ink); background: var(--travel-soft); }
+.rt-travel__icon:focus-visible, .rt-travel__route:focus-visible { outline: 2px solid var(--rt-red, #ed0038); outline-offset: 2px; }
+.rt-travel__icon:disabled { opacity: .5; cursor: wait; }
+.rt-travel__person + .rt-travel__person { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--travel-line); }
+.rt-travel__name { display: block; margin-bottom: 4px; font-size: 13px; font-weight: 600; }
+.rt-travel__empty, .rt-travel__notice { margin: 4px 0 8px; color: var(--travel-muted); font-size: 12px; }
+.rt-travel__notice { color: var(--travel-warning); }
+.rt-travel__anchor { display: flex; width: 100%; min-width: 0; }
+.rt-travel__route { display: grid; grid-template-columns: minmax(64px, 1fr) auto auto 10px; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 7px 8px; border-radius: 10px; text-align: left; transition: background-color .15s; }
+.rt-travel__route:hover, .rt-travel__route[aria-expanded="true"] { background: var(--travel-soft); }
+.rt-travel__direction { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.rt-travel__direction i, .rt-travel__chevron { color: var(--travel-muted); font-size: 12px; }
+.rt-travel__value { display: grid; gap: 1px; text-align: right; font-variant-numeric: tabular-nums; }
+.rt-travel__value strong { font-size: 14px; font-weight: 600; }
+.rt-travel__value small { color: var(--travel-muted); font-size: 11px; }
+.rt-travel__balance { color: var(--travel-ok); font-size: 11px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rt-travel__route[data-state="conflict"] .rt-travel__balance { color: var(--travel-conflict); }
+.rt-travel__route[data-state="warning"] :is(.rt-travel__balance, .rt-travel__value strong) { color: var(--travel-warning); }
+.rt-travel-popover { width: min(384px, calc(100vw - 24px)); }
+.rt-travel-preview { padding: 12px; }
+.rt-travel-preview__header { display: flex; align-items: start; justify-content: space-between; gap: 6px; margin: -4px -4px 8px 0; }
+.rt-travel-preview__places { display: grid; gap: 4px; min-width: 0; padding-top: 5px; overflow-wrap: anywhere; }
+.rt-travel-preview__places strong { font-size: 13px; font-weight: 600; }
+.rt-travel-preview__places span { display: flex; align-items: baseline; gap: 6px; color: var(--travel-muted); font-size: 12px; }
+.rt-travel-preview__map-slot { position: relative; isolation: isolate; height: clamp(156px, 27dvh, 224px); overflow: hidden; border-radius: 8px; background: var(--travel-soft); }
+.rt-travel-preview__map { position: absolute; inset: 0; z-index: 0; }
+.rt-travel-preview__map-state { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; color: var(--travel-muted); font-size: 12px; text-align: center; }
+.rt-travel-preview__map-error { position: absolute; bottom: 22px; left: 6px; right: 6px; z-index: 1000; padding: 6px; background: var(--travel-paper); color: var(--travel-muted); font-size: 11px; border-radius: 6px; pointer-events: none; }
+.rt-travel-preview__metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 12px 0 0; }
+.rt-travel-preview__metrics dt { color: var(--travel-muted); font-size: 11px; }
+.rt-travel-preview__metrics dd { margin-top: 3px; font-weight: 600; font-size: 14px; font-variant-numeric: tabular-nums; }
+.rt-travel-preview__footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--travel-line); font-size: 11px; color: var(--travel-muted); }
+.rt-travel-preview__footer strong { color: var(--travel-ok); font-weight: 600; }
+.rt-travel-preview__footer[data-state="conflict"] strong { color: var(--travel-conflict); }
+.rt-travel-preview__notice { padding: 8px 0; font-size: 12px; color: var(--travel-muted); }
+.rt-travel-preview__notice[data-state="warning"] { color: var(--travel-warning); }
+@media (max-width: 359px) {
+    .rt-travel__route { gap: 6px; padding-inline: 4px; }
+    .rt-travel__direction { gap: 5px; font-size: 12px; }
+    .rt-travel__balance { font-size: 10px; }
+}
+@media (prefers-reduced-motion: reduce) { .rt-travel__route { transition: none; } }

@@ -1,26 +1,38 @@
-@props(['calendar' => null, 'start', 'end'])
-<div class="rt-request-calendar" data-request-calendar>
-    <div class="rt-request-calendar__month">
-        <p class="rt-request-dialog__eyebrow">Monat des Einsatzbeginns</p>
-        <x-operations.timeline-mini-calendar :start="$start" :end="$end" />
-        <p class="rt-request-dialog__muted">Markiert ist der angefragte Zeitraum.</p>
+@props(['calendar' => null, 'start', 'end', 'selectedLabel' => 'Diese Anfrage'])
+@php($schedule = \App\Support\Operations\PersonalRequestCalendar::layout($calendar, $start, $end, $selectedLabel))
+<section {{ $attributes->class('rt-request-schedule') }} data-request-calendar aria-label="{{ $schedule['aria_label'] }}">
+    <header class="rt-request-schedule__header"><h3>{{ $schedule['month_label'] }}</h3><p>{{ $schedule['timezone'] }}</p></header>
+    <div class="rt-request-schedule__weekdays" aria-hidden="true">
+        @foreach(['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'] as $weekday)
+            <span>{{ $weekday }}</span>
+        @endforeach
     </div>
-    <section class="rt-request-calendar__agenda" aria-label="Eigene Termine im Umfeld">
-        <header><h4>Meine Termine im Umfeld</h4><p>{{ $calendar['timezone'] ?? $start->getTimezone()->getName() }}</p></header>
-        @if($calendar && count($calendar['events']))
-            <ol class="rt-request-calendar__events">
-                @foreach($calendar['events'] as $event)
-                    <li @class(['rt-request-calendar__event', 'is-request' => $event['is_request']]) data-request-context-event="{{ $event['id'] }}">
-                        <div class="rt-request-calendar__event-head"><span>{{ ['shift' => 'Dienst', 'capacity' => 'Kapazität', 'absence' => 'Abwesenheit', 'training' => 'Schulung'][$event['kind']] ?? 'Termin' }}</span>@if($event['is_request'])<strong>Diese Anfrage</strong>@endif</div>
-                        <h5>{{ $event['title'] }}</h5>
-                        <p class="rt-request-calendar__period">{{ $event['starts_at']->format('d.m. H:i') }} – {{ $event['ends_at']->format($event['starts_at']->isSameDay($event['ends_at']) ? 'H:i' : 'd.m. H:i') }}</p>
-                        @if($event['location'])<p class="rt-request-dialog__muted">{{ $event['location'] }}</p>@endif
-                        <x-operations.status :value="$event['status']" />
-                    </li>
+    <div class="rt-request-schedule__weeks">
+        @foreach($schedule['weeks'] as $week)
+            <div class="rt-request-schedule__week" role="group" aria-label="{{ $week['week_label'] }}" style="--rt-request-schedule-lanes: {{ max(1, $week['lane_count']) }}">
+                @foreach($week['days'] as $day)
+                    <div @class(['rt-request-schedule__day', 'is-outside' => $day['outside'], 'has-request' => $day['has_request']]) data-request-schedule-date="{{ $day['date'] }}"><time datetime="{{ $day['date'] }}" aria-label="{{ $day['day_label'] }}">{{ $day['number'] }}</time></div>
                 @endforeach
-            </ol>
-        @else
-            <p class="rt-request-dialog__empty">Keine weiteren eigenen Termine in diesem Monatsraster.</p>
-        @endif
-    </section>
-</div>
+                <div class="rt-request-schedule__tracks">
+                    @foreach($week['events'] as $event)
+                        <span @class(['rt-request-schedule__bar', 'rt-request-schedule__bar--'.$event['kind'], 'is-request' => $event['is_request'], 'continues-before' => $event['continues_before'], 'continues-after' => $event['continues_after']]) role="img" aria-label="{{ $event['aria_label'] }}" title="{{ $event['aria_label'] }}" data-request-context-event="{{ $event['id'] }}" data-request-event-kind="{{ $event['kind'] }}" style="--rt-request-schedule-left: {{ $event['left_percent'] }}%; --rt-request-schedule-width: {{ $event['width_percent'] }}%; --rt-request-schedule-lane: {{ $event['lane'] }}"></span>
+                    @endforeach
+                </div>
+            </div>
+        @endforeach
+    </div>
+    @if($schedule['event_count'])
+        <div class="rt-request-schedule__legend" aria-hidden="true">
+            @if($schedule['has_request'])
+                <span><i class="rt-request-schedule__key is-request"></i>{{ $schedule['selected_label'] }}</span>
+            @endif
+            @foreach(['shift' => 'Dienste', 'absence' => 'Abwesenheit', 'training' => 'Schulung'] as $kind => $label)
+                @if(in_array($kind, $schedule['kinds'], true))
+                    <span><i class="rt-request-schedule__key rt-request-schedule__bar--{{ $kind }}"></i>{{ $label }}</span>
+                @endif
+            @endforeach
+        </div>
+    @else
+        <p class="rt-request-schedule__empty">{{ $schedule['source_available'] ? 'Keine eigenen Termine in diesem Monatsraster.' : 'Kalenderdaten sind für diesen Vorgang nicht verfügbar.' }}</p>
+    @endif
+</section>

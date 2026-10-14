@@ -1,1 +1,1 @@
-<x-operations.personal-request-dialog :request="$selectedRequest" :calendar="$requestCalendar ?? null" :open="$requestOpen" :notice="$requestNotice" :requested-revision="$requestRevision" :id="'personal-request-'.$this->getId()" wire:model="requestOpen" />
+<x-operations.personal-request-dialog :request="$selectedRequest" :calendar="$requestCalendar ?? null" :open="$requestOpen" :notice="$requestNotice" :requested-revision="$requestRevision" :id="'personal-request-'.$this->getId()" wire:model.live="requestOpen" />

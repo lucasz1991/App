@@ -10,6 +10,7 @@ use App\Models\EmployeeQualification;
 use App\Models\OperationAudit;
 use App\Models\PersonnelTraining;
 use App\Models\QualificationType;
+use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Models\WorkTimeEntry;
@@ -25,6 +26,7 @@ use App\Support\Operations\GermanyMap;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\PersonalSchedule;
 use App\Support\Operations\ReportingPeriod;
+use App\Support\Operations\TimelineLocationPreview;
 use App\Support\Operations\TimelineMiniCalendar;
 use App\Support\Operations\WorkTimeSchema;
 use Carbon\CarbonImmutable;
@@ -328,6 +330,13 @@ class MyWork extends Component
         $this->resetErrorBag(['request', 'requestConfirmed']);
     }
 
+    public function updatedRequestOpen(bool $open): void
+    {
+        if (! $open) {
+            $this->closeConsentRequest();
+        }
+    }
+
     public function respondToRequest(bool $accept): void
     {
         $actor = $this->requestActor();
@@ -383,6 +392,8 @@ class MyWork extends Component
                 return $unavailable;
             }
             $row = $this->shiftRequestRow($assignment, $this->firstPublishedRevisions(collect([$assignment])));
+            $snapshot = array_key_exists('location_snapshot', $assignment->shift->getAttributes()) ? $assignment->shift->getAttribute('location_snapshot') : null;
+            $row['location_preview'] = $this->requestLocationPreview($row, $snapshot);
             $changes = app(PlanChangeService::class)->publishedChanges($assignment->shift_id, $assignment->plan_revision);
             $notice = match (true) {
                 $assignment->plan_is_stale => 'Der Dienst wird gerade überarbeitet. Eine Antwort ist nach der Veröffentlichung wieder möglich.',
@@ -405,7 +416,32 @@ class MyWork extends Component
             default => '',
         };
 
-        return ['can_respond' => $notice === '', 'notice' => $notice, 'row' => $record->status === 'requested' ? $this->capacityRequestRows(collect([$record]))->first() : null, 'changes' => []];
+        $row = $record->status === 'requested' ? $this->capacityRequestRows(collect([$record]))->first() : null;
+        if ($row) {
+            $row['location_preview'] = $this->requestLocationPreview($row);
+        }
+
+        return ['can_respond' => $notice === '', 'notice' => $notice, 'row' => $row, 'changes' => []];
+    }
+
+    /** Local map facts for the selected own publication; never borrow a live order or directory address. */
+    private function requestLocationPreview(array $row, ?array $snapshot = null): array
+    {
+        $shift = new Shift;
+        $shift->forceFill(['location_name' => $row['location'], 'title' => $row['title'], 'role_name' => $row['role'],
+            'location_snapshot' => $snapshot ? array_intersect_key($snapshot, array_flip(['name', 'latitude', 'longitude', 'confirmed'])) : null]);
+        $shift->setRelation('order', null);
+        $preview = TimelineLocationPreview::fromShift($shift);
+        $safe = function (array $location) use (&$safe): array {
+            $facts = array_intersect_key($location, array_flip(['state', 'label', 'place', 'confirmed', 'estimated', 'latitude', 'longitude']));
+            if (isset($location['points'])) {
+                $facts['points'] = array_map($safe, $location['points']);
+            }
+
+            return $facts;
+        };
+
+        return $safe($preview);
     }
 
     private function firstPublishedRevisions(Collection $assignments): Collection
@@ -419,9 +455,12 @@ class MyWork extends Component
         $shift = $assignment->shift;
         $changed = isset($firstRevisions[$shift->id]) && (int) $firstRevisions[$shift->id] < $assignment->plan_revision;
 
+        // Internal notes are not part of the employee publication contract.
         return ['type' => 'shift', 'id' => $assignment->id, 'revision' => $assignment->plan_revision, 'changed_plan' => $changed,
             'label' => $changed ? 'Planänderung' : 'Dienstanfrage', 'title' => $shift->title, 'role' => $shift->role_name,
             'customer' => $shift->order?->customer?->company_name, 'location' => $shift->location_name,
+            'order_reference' => $shift->order?->order_number, 'notes' => null, 'status' => $assignment->status->value,
+            'duration_minutes' => intdiv($shift->ends_at->getTimestamp() - $shift->starts_at->getTimestamp(), 60),
             'starts_at' => $shift->starts_at, 'ends_at' => $shift->ends_at, 'timezone' => $shift->timezone, 'break_minutes' => $shift->planned_break_minutes];
     }
 
@@ -439,6 +478,8 @@ class MyWork extends Component
             return ['type' => 'capacity', 'id' => $record->id, 'revision' => $record->revision, 'changed_plan' => false,
                 'label' => 'Kapazitätsanfrage', 'title' => $record->role_name, 'role' => $record->role_name,
                 'customer' => $customers->get($record->customer_id), 'location' => $location && (int) $location->customer_id === (int) $record->customer_id ? $location->name : 'Einsatzort nicht verfügbar',
+                'order_reference' => null, 'notes' => null, 'status' => $record->status,
+                'duration_minutes' => intdiv($record->ends_at->getTimestamp() - $record->starts_at->getTimestamp(), 60),
                 'starts_at' => $record->starts_at, 'ends_at' => $record->ends_at, 'timezone' => $record->timezone, 'break_minutes' => $record->planned_break_minutes];
         });
     }
@@ -803,6 +844,13 @@ class MyWork extends Component
             $visible = app(PersonalSchedule::class)->assignments(auth()->user(), $rangeStart, $rangeEnd);
         }
 
+        $requestInbox = null;
+        if ($this->focus === '') {
+            $requestAssignments = in_array($this->tab, ['today', 'requests'], true) ? $loaded
+                : app(PersonalSchedule::class)->assignments(auth()->user(), CarbonImmutable::now($this->displayTimezone())->startOfDay());
+            $requestInbox = $this->pendingRequests($requestAssignments);
+        }
+
         $activeTime = WorkTimeEntry::where('user_id', auth()->id())->whereIn('status', ['running', 'paused'])->first();
         $visible->each(fn ($assignment) => $assignment->setAttribute('has_active_time', $activeTime !== null));
 
@@ -831,6 +879,17 @@ class MyWork extends Component
                 $this->closeCalendarEvent();
             }
         }
+        $selectedPlanChanges = $selected?->kind === 'shift' ? app(PlanChangeService::class)->publishedChanges($selected->record->shift_id, $selected->record->plan_revision) : [];
+        $selectedCalendarRequest = null;
+        if ($selected?->kind === 'shift') {
+            $assignment = $selected->record;
+            $row = $this->shiftRequestRow($assignment, $this->firstPublishedRevisions(collect([$assignment])));
+            $row['label'] = $assignment->status->value === 'requested' ? $row['label'] : 'Dienst';
+            $snapshot = array_key_exists('location_snapshot', $assignment->shift->getAttributes()) ? $assignment->shift->getAttribute('location_snapshot') : null;
+            $row['location_preview'] = $this->requestLocationPreview($row, $snapshot);
+            $selectedCalendarRequest = ['can_respond' => false, 'notice' => $assignment->plan_is_stale ? 'Der Dienst wird gerade überarbeitet. Angezeigt wird der veröffentlichte Stand.' : '',
+                'row' => $row, 'changes' => $row['changed_plan'] ? $selectedPlanChanges : []];
+        }
         $selectedRequest = null;
         if ($this->requestOpen && $this->requestId && $this->requestRevision && in_array($this->requestType, ['shift', 'capacity'], true)) {
             try {
@@ -850,7 +909,9 @@ class MyWork extends Component
             'clockTrainings' => Schema::hasTable('personnel_trainings') && Schema::hasTable('personnel_training_participants') ? PersonnelTraining::where('status', 'scheduled')->whereHas('participants', fn ($q) => $q->where('user_id', auth()->id())->whereIn('status', ['confirmed', 'attended']))->orderBy('starts_at')->limit(100)->get() : collect(),
             'from' => $from, 'to' => $to,
             'calendarDays' => $days, 'calendarEvents' => $events, 'selectedCalendarEvent' => $selected,
-            'selectedPlanChanges' => $selected?->kind === 'shift' ? app(PlanChangeService::class)->publishedChanges($selected->record->shift_id, $selected->record->plan_revision) : [],
+            'selectedPlanChanges' => $selectedPlanChanges,
+            'selectedCalendarRequest' => $selectedCalendarRequest,
+            'selectedCalendarContext' => $this->requestCalendar($selectedCalendarRequest),
             'displayTimezone' => $this->displayTimezone(),
             'periodLabel' => match ($this->viewMode) {
                 'day' => $anchor->locale('de')->isoFormat('dddd, D. MMMM YYYY'),
@@ -858,7 +919,8 @@ class MyWork extends Component
                 default => $from->format('d.m.').' – '.$to->subDay()->format('d.m.Y'),
             },
             'assignments' => $visible,
-            'pendingRequests' => in_array($this->tab, ['today', 'requests'], true) ? $this->pendingRequests($loaded) : null,
+            'pendingRequests' => in_array($this->tab, ['today', 'requests'], true) ? $requestInbox : null,
+            'requestCount' => $requestInbox?->total() ?? 0,
             'selectedRequest' => $selectedRequest,
             'requestCalendar' => $this->requestCalendar($selectedRequest),
             'activeTime' => $activeTime,

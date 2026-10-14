@@ -463,7 +463,7 @@ class NavigationWorkflowStructureTest extends TestCase
 
         unset($sections['']);
         if (! OperationsAccess::ready()) {
-            array_unshift($sections['Mein Arbeitsplatz'], ['title' => 'Mein Arbeitstag', 'route' => 'operations.mine', 'icon' => 'clock', 'parameters' => [], 'navigate' => true, 'group' => null, 'excludedSections' => []]);
+            array_unshift($sections['Mein Arbeitsplatz'], ['title' => 'Übersicht', 'route' => 'operations.mine', 'icon' => 'clock', 'parameters' => [], 'navigate' => true, 'group' => null, 'excludedSections' => []]);
         }
 
         return $sections;
