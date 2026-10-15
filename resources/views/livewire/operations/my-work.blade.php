@@ -21,24 +21,10 @@
     @elseif($tab === 'schedule')
         @include('livewire.operations.partials.personal-calendar')
     @elseif($tab === 'today')
-        <div class="rt-today">
-            @include('livewire.operations.partials.personal-today-hero')
-            <button type="button" class="rt-workday-request-summary" wire:click="showTab('requests')" wire:loading.attr="disabled" wire:target="showTab" data-workday-request-summary>
-                <span class="rt-workday-request-summary__icon"><i class="far fa-inbox" aria-hidden="true"></i></span>
-                <span><strong>{{ $pendingRequests->total() ? $pendingRequests->total().' '.($pendingRequests->total() === 1 ? 'Anfrage wartet auf dich' : 'Anfragen warten auf dich') : 'Alle Anfragen beantwortet' }}</strong><small>{{ $pendingRequests->total() ? 'Prüfen und antworten' : 'Deine Rückmeldungen im Überblick' }}</small></span>
-                <i class="far fa-chevron-right" aria-hidden="true"></i>
-            </button>
-            @include('livewire.operations.partials.personal-requests')
-            <div class="rt-today-grid">
-                <section class="rt-today-card rt-today-tasks rt-today-enter" style="--i:2" aria-label="Meine Aufgaben">
-                    <livewire:operations.attention-center :personal="true" :key="'personal-tasks-'.auth()->id()" />
-                </section>
-                @include('livewire.operations.partials.personal-duty-timeline')
-            </div>
-            <div class="rt-today-grid">
-                @include('livewire.operations.partials.personal-mini-calendar')
-                @include('livewire.operations.partials.personal-duty-map')
-            </div>
+        <div class="rt-today rt-workday-overview-page">
+            @include('livewire.operations.partials.personal-glance')
+            @include('livewire.operations.partials.personal-workday-actions')
+            <x-operations.workday-overview :overview="$workdayOverview" :timezone="$displayTimezone" :sickness-url="route('operations.mine', ['area' => 'sickness'])" />
             <div class="rt-today-install rt-today-enter" style="--i:6">@include('livewire.operations.partials.pwa-install-card')</div>
         </div>
     @elseif($tab === 'time')
@@ -71,5 +57,14 @@
         <x-operations.modal wire:model="absenceOpen" title="Abwesenheit beantragen"><form wire:submit="requestAbsence" class="ops-form rt-personal-form"><x-operations.field label="Art" model="absence.kind" type="select"><option value="vacation">Urlaub</option><option value="unavailable">Nicht verfügbar</option><option value="other">Abwesenheit</option></x-operations.field><x-operations.field label="Zeitzone" model="absence.timezone" required /><x-operations.field label="Beginn" model="absence.starts_at" type="datetime-local" required /><x-operations.field label="Ende" model="absence.ends_at" type="datetime-local" required /><x-operations.field label="Notiz (optional)" model="absence.note" maxlength="1000" :wide="true" /><div class="ops-full"><p class="ops-muted">Der Antrag wird nach dem Einreichen geprüft. Den Status siehst du in deiner Übersicht.</p></div><div class="ops-full"><x-ui.buttons.button-basic mode="primary" type="submit" wire:loading.attr="disabled">Antrag einreichen</x-ui.buttons.button-basic></div></form></x-operations.modal><x-tables.table class="rt-personal-record-list" label="Meine Abwesenheiten" :columns="[['label'=>'Abwesenheit','key'=>'record']]" :items="$absences" row-view="components.tables.rows.operations.personal-absence" empty="Noch keine Abwesenheiten. Beantrage hier Urlaub oder einen anderen Zeitraum." />{{ $absences->links() }}
     @endif
     </div>
+    @if($tab === 'today')
+        @include('livewire.operations.partials.personal-calendar-dialog')
+    @endif
+    <x-operations.modal wire:model.live="tasksOpen" title="Meine Aufgaben" :id="'workday-tasks-'.$this->getId()">
+        @if($tasksOpen)
+            <livewire:operations.attention-center :personal="true" :key="'personal-tasks-'.auth()->id()" />
+        @endif
+        <x-slot:footer><x-ui.buttons.button-basic wire:click="closeTasks">Schließen</x-ui.buttons.button-basic></x-slot:footer>
+    </x-operations.modal>
     <x-operations.personal-request-dialog :request="$selectedRequest" :calendar="$requestCalendar" :open="$requestOpen" :notice="$requestNotice" :requested-revision="$requestRevision" :id="'personal-request-'.$this->getId()" wire:model.live="requestOpen" />
 </div>

@@ -245,7 +245,9 @@ export function railtimeTabs(config = {}) {
         focusTabPicker(panel, edge = 'selected') {
             const choices = Array.from(panel?.querySelectorAll('[data-tab-choice]') ?? []);
             const selected = choices.find((choice) => choice.dataset.tabChoiceId === this.openTab);
-            (edge === 'last' ? choices.at(-1) : selected ?? choices[0])?.focus({ preventScroll: true });
+            const choice = edge === 'last' ? choices.at(-1) : selected ?? choices[0];
+            choice?.focus({ preventScroll: true });
+            choice?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
         },
 
         moveTabPickerFocus(event) {
@@ -261,6 +263,7 @@ export function railtimeTabs(config = {}) {
             event.preventDefault();
             event.stopPropagation();
             choices[next].focus({ preventScroll: true });
+            choices[next].scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
         },
 
         configureTabsForViewport(mobile) {

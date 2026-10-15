@@ -44,6 +44,8 @@
 @import 'swiper/css';
 @import './workday-shortcuts.css';
 @import './germany-map.css';
+@import './workday-overview.css';
+@import './workday-actions.css';
 
 @tailwind base;
 @tailwind components;

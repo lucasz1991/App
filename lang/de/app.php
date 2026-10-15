@@ -721,6 +721,7 @@ return [
     'user_delete_failed' => 'Benutzer konnte nicht gelöscht werden.',
     'user_deleted' => 'Benutzer wurde gelöscht.',
     'contact_information' => 'Kontaktdaten & Anschrift',
+    'profile_contact' => 'Kontakt',
     'contact_information_description' => 'Telefonnummern, Anschrift und Geburtsdatum für Ihr Profil.',
     'profile_password_description' => 'Ändern Sie Ihr Passwort und schützen Sie den Zugang zu Ihrem Konto.',
     'profile_two_factor_description' => 'Sichern Sie Ihr Konto zusätzlich mit der Zwei-Faktor-Authentifizierung.',

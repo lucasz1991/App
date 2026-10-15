@@ -1,0 +1,96 @@
+/* Native clock and duty actions, compact only in the workday overview. */
+.rt-workday-actions {
+    display: grid;
+    grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+    gap: 12px 20px;
+    align-items: center;
+    min-width: 0;
+    padding: 12px 16px;
+    border: 1px solid var(--personal-line);
+    border-radius: 16px;
+    background: var(--personal-sheet);
+}
+
+.rt-workday-actions:not(:has(.rt-workday-actions__duty)),
+.rt-workday-actions:not(:has(.rt-workday-actions__clock)) { grid-template-columns: minmax(0, 1fr); }
+
+.rt-workday-actions__duty {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-width: 0;
+}
+
+.rt-workday-actions__summary { display: grid; gap: 4px; min-width: 0; }
+.rt-workday-actions__summary p { color: var(--personal-muted); font-size: 12px; line-height: 1.4; }
+.rt-workday-actions__summary strong { color: var(--personal-ink); font-size: 14px; font-weight: 650; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rt-workday-actions__duty-controls { flex: 0 0 auto; max-width: 48%; }
+.rt-workday-actions__duty-controls:empty { display: none; }
+.rt-workday-actions__duty-controls .ops-badge { white-space: normal; }
+.rt-workday-actions__clock { min-width: 0; }
+.rt-workday-actions__duty + .rt-workday-actions__clock { padding-inline-start: 20px; border-inline-start: 1px solid var(--personal-line); }
+
+.rt-personal-work .rt-workday-actions .rt-personal-clock-block > section {
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.rt-personal-work .rt-personal-work-clock--action {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 16px;
+}
+
+.rt-personal-work .rt-personal-work-clock--action > .ops-toolbar { display: grid; gap: 3px; flex: 1 1 100px; min-width: 0; }
+.rt-personal-work .rt-personal-work-clock--action > .ops-toolbar h2 { min-width: 0; font-size: 14px; font-weight: 650; line-height: 1.4; overflow-wrap: anywhere; }
+.rt-personal-work-clock--action > .ops-toolbar .ops-badge { justify-self: start; max-width: 100%; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--personal-muted); font-size: 11px; line-height: 1.4; white-space: normal; }
+.rt-personal-work-clock--action > .ops-errors { flex-basis: 100%; order: 3; margin: 0; }
+.rt-personal-work .rt-personal-work-clock--action .rt-personal-clock-idle { display: block; flex: 0 1 auto; min-width: 0; }
+.rt-personal-work-clock--action .rt-personal-clock-idle .ops-actions { display: flex; gap: 8px; width: auto; }
+.rt-workday-actions .rt-ui-button { min-height: 44px; min-width: 0; padding-inline: 12px; font-size: 12px; line-height: 1.35; white-space: normal; }
+
+.rt-personal-work-clock--action .rt-personal-clock-running { flex: 1 1 100%; grid-template-columns: minmax(100px, .65fr) minmax(0, 1fr); gap: 12px 20px; }
+.rt-personal-work-clock--action .rt-personal-clock-reading { gap: 3px; }
+.rt-personal-work-clock--action .rt-personal-clock-reading .ops-clock { margin: 0; font-size: 25px; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.rt-personal-work-clock--action .rt-personal-clock-reading .ops-muted { font-size: 11px; line-height: 1.4; }
+.rt-personal-work-clock--action .rt-personal-clock-controls { gap: 8px; min-width: 0; }
+.rt-personal-work-clock--action .rt-personal-clock-controls .ops-actions { display: flex; flex-wrap: wrap; gap: 8px; width: auto; }
+.rt-personal-work-clock--action .rt-personal-clock-controls fieldset { gap: 4px; }
+.rt-personal-work-clock--action .rt-personal-clock-controls fieldset > label { font-size: 11px; }
+.rt-personal-work-clock--action .rt-personal-clock-controls fieldset select { min-height: 44px; }
+.rt-workday-actions .rt-personal-clock-block > .ops-service { gap: 10px; }
+.rt-workday-actions .ops-service > .ops-toolbar h2 { font-size: 14px; line-height: 1.4; }
+.rt-workday-actions .ops-service > .ops-clock { margin: 0; font-size: 25px; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.rt-clock-label-short { display: none; }
+
+@media (max-width: 1023px) {
+    .rt-workday-actions { grid-template-columns: minmax(0, 1fr); }
+    .rt-workday-actions__duty + .rt-workday-actions__clock { padding: 10px 0 0; border-inline-start: 0; border-top: 1px solid var(--personal-line); }
+}
+
+@media (max-width: 479px) {
+    .rt-workday-actions { padding: 10px 12px; gap: 10px; }
+    .rt-workday-actions__summary p { font-size: 11px; }
+    .rt-workday-actions__summary strong { font-size: 13px; }
+    .rt-workday-actions .rt-ui-button { padding-inline: 10px; }
+    .rt-workday-actions .rt-clock-label-full { display: none; }
+    .rt-workday-actions .rt-clock-label-short { display: inline; font-size: 12px; }
+    .rt-personal-work .rt-personal-work-clock--action { display: grid; grid-template-columns: minmax(64px, .65fr) minmax(0, 1.8fr); gap: 8px; }
+    .rt-personal-work .rt-personal-work-clock--action > .ops-toolbar { display: grid; align-content: center; gap: 4px; }
+    .rt-personal-work .rt-personal-work-clock--action > .ops-toolbar h2 { font-size: 12px; }
+    .rt-personal-work-clock--action > .ops-toolbar .ops-badge { font-size: 10px; }
+    .rt-personal-work .rt-personal-work-clock--action:is([data-clock-state="running"], [data-clock-state="paused"]) > .ops-toolbar { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+    .rt-personal-work .rt-personal-work-clock--action .rt-personal-clock-idle { grid-column: 2; }
+    .rt-personal-work-clock--action > .ops-errors, .rt-personal-work-clock--action > .rt-ui-button { grid-column: 1 / -1; }
+    .rt-personal-work-clock--action .rt-personal-clock-idle .ops-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .rt-personal-work-clock--action .rt-personal-clock-running { grid-column: 1 / -1; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+    .rt-personal-work-clock--action .rt-personal-clock-reading { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+    .rt-personal-work-clock--action .rt-personal-clock-reading .ops-clock { grid-column: 2; grid-row: 1 / 3; }
+    .rt-personal-work-clock--action .rt-personal-clock-controls .ops-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

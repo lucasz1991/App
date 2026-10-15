@@ -1,5 +1,19 @@
-@props(['items' => [], 'sicknessUrl' => null, 'preview' => false])
+@props(['items' => [], 'sicknessUrl' => null, 'preview' => false, 'compact' => false])
 
+@if($compact)
+<section class="rt-workday-kpis" aria-label="Mein Arbeitstag im Überblick" data-workday-kpis>
+    @foreach($items as $item)
+        @php($action = isset($item['method']) ? $item['method'].'()' : "showTab('".$item['tab']."')")
+        <button type="button" class="rt-workday-kpi" wire:key="workday-kpi-{{ $item['key'] }}"
+            data-tone="{{ $item['tone'] ?? 'neutral' }}" aria-label="{{ $item['label'] }}: {{ $item['value'] }}. {{ $item['hint'] }}"
+            @if($preview) disabled @else wire:click="{{ $action }}" wire:loading.attr="disabled" wire:target="showTab,openTasks" @endif>
+            <strong>@if(($item['tone'] ?? '') === 'success')<i aria-hidden="true"></i>@endif{{ $item['value'] }}</strong>
+            <span>{{ $item['label'] }}</span>
+            <small>{{ $item['hint'] }}</small>
+        </button>
+    @endforeach
+</section>
+@else
 <section class="rt-workday-shortcuts" aria-label="Auf einen Blick und Schnellaktionen"
     x-data="workdayShortcuts" wire:key="workday-shortcuts" wire:ignore.self
     :data-carousel-ready="ready ? 'true' : 'false'" data-workday-shortcuts data-no-sidebar-swipe
@@ -63,3 +77,4 @@
         </button>
     </div>
 </section>
+@endif

@@ -18,27 +18,7 @@
     @if ($ready)
         @switch($tab)
             @case('personal')
-                <div
-                    x-data="{
-                        openAccordionSection: 'contact',
-                        toggleAccordionSection(section) {
-                            this.openAccordionSection = this.openAccordionSection === section ? null : section;
-                        },
-                    }"
-                    class="flex flex-col gap-3"
-                    data-profile-accordion="personal"
-                    wire:ignore.self
-                >
-                    <x-ui.accordion.section
-                        section="contact"
-                        :label="__('app.contact_information')"
-                        :description="__('app.contact_information_description')"
-                        icon="fad fa-address-card"
-                        id-prefix="profile-personal"
-                    >
-                        <livewire:profile.update-contact-information-form />
-                    </x-ui.accordion.section>
-                </div>
+                <livewire:profile.update-contact-information-form />
                 @break
 
             @case('security')
@@ -62,7 +42,6 @@
                         <x-ui.accordion.section
                             section="password"
                             :label="__('app.password')"
-                            :description="__('app.profile_password_description')"
                             icon="fad fa-key"
                             id-prefix="profile-security"
                         >
@@ -74,7 +53,6 @@
                         <x-ui.accordion.section
                             section="two-factor"
                             :label="__('app.two_factor_authentication')"
-                            :description="__('app.profile_two_factor_description')"
                             icon="fad fa-shield-check"
                             id-prefix="profile-security"
                         >
@@ -85,7 +63,6 @@
                     <x-ui.accordion.section
                         section="sessions"
                         :label="__('app.sessions')"
-                        :description="__('app.profile_sessions_description')"
                         icon="fad fa-laptop"
                         id-prefix="profile-security"
                     >
@@ -109,16 +86,14 @@
                     <x-ui.accordion.section
                         section="display"
                         :label="__('app.display_settings')"
-                        :description="__('app.appearance_hint')"
                         icon="fad fa-palette"
                         id-prefix="profile-app"
                     >
-                        <x-ui.display-settings />
+                        <x-ui.display-settings :embedded="true" />
                     </x-ui.accordion.section>
                     <x-ui.accordion.section
                         section="sounds"
                         :label="__('app.sound_settings')"
-                        :description="__('app.sound_preferences_hint')"
                         icon="fad fa-volume"
                         id-prefix="profile-app"
                     >

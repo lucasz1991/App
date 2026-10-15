@@ -15,10 +15,13 @@ use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Models\WorkTimeEntry;
 use App\Services\CustomerPortal\CustomerCapacityService;
+use App\Services\Operations\OperationsReminderService;
 use App\Services\Operations\OperationsReportService;
+use App\Services\Operations\PersonnelEnhancementService;
 use App\Services\Operations\PersonnelWorkflowService;
 use App\Services\Operations\PlanChangeService;
 use App\Services\Operations\PlanPublicationService;
+use App\Services\Operations\UnifiedOperationsInboxService;
 use App\Services\Operations\WorkTimeExtensionService;
 use App\Services\Operations\WorkTimeService;
 use App\Support\CustomerPortal\CustomerPortalIntakeSchema;
@@ -28,6 +31,7 @@ use App\Support\Operations\PersonalSchedule;
 use App\Support\Operations\ReportingPeriod;
 use App\Support\Operations\TimelineLocationPreview;
 use App\Support\Operations\TimelineMiniCalendar;
+use App\Support\Operations\WorkdayOverview;
 use App\Support\Operations\WorkTimeSchema;
 use Carbon\CarbonImmutable;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -55,6 +59,10 @@ class MyWork extends Component
 
     /** Monatsversatz des Mini-Kalenders auf „Heute“ (0 = aktueller Monat). */
     public int $miniMonth = 0;
+
+    public string $overviewDate = '';
+
+    public bool $tasksOpen = false;
 
     public bool $calendarEventOpen = false;
 
@@ -227,6 +235,7 @@ class MyWork extends Component
         $this->access();
         $this->eventKey = (string) Str::uuid();
         $this->today();
+        $this->overviewDate = CarbonImmutable::now($this->displayTimezone())->toDateString();
         $this->focus = in_array($focus, ['absences', 'records'], true) ? $focus : '';
         $queryTab = request()->query('tab', '');
         $initialTab = $initialTab ?: (is_string($queryTab) ? $queryTab : '');
@@ -256,7 +265,7 @@ class MyWork extends Component
         $this->tab = $tab;
         $this->closeCalendarEvent();
         $this->closeConsentRequest();
-        $this->reset(['manualOpen', 'correctionOpen', 'qualificationOpen', 'absenceOpen']);
+        $this->reset(['manualOpen', 'correctionOpen', 'qualificationOpen', 'absenceOpen', 'tasksOpen']);
         $this->resetValidation();
     }
 
@@ -571,6 +580,62 @@ class MyWork extends Component
         return (string) config('operations.display_timezone', 'Europe/Berlin');
     }
 
+    public function selectOverviewDay(string $date): void
+    {
+        $this->access();
+        abort_unless($this->focus === '' && WorkdayOverview::date($date, $this->displayTimezone()), 404);
+        $this->overviewDate = $date;
+        $this->tab = 'today';
+    }
+
+    public function moveOverviewDays(int $direction): void
+    {
+        $this->access();
+        abort_unless(in_array($direction, [-1, 1], true), 404);
+        $this->selectOverviewDay($this->overviewDay()->addDays($direction * 7)->toDateString());
+    }
+
+    public function resetOverviewDay(): void
+    {
+        $this->selectOverviewDay(CarbonImmutable::now($this->displayTimezone())->toDateString());
+    }
+
+    public function updatedOverviewDate(): void
+    {
+        $this->selectOverviewDay($this->overviewDate);
+    }
+
+    private function overviewDay(): CarbonImmutable
+    {
+        $date = WorkdayOverview::date($this->overviewDate ?: CarbonImmutable::now($this->displayTimezone())->toDateString(), $this->displayTimezone());
+        abort_unless($date, 404);
+
+        return $date;
+    }
+
+    public function openTasks(): void
+    {
+        $this->access();
+        abort_unless($this->focus === '', 404);
+        $this->tasksOpen = true;
+    }
+
+    public function closeTasks(): void
+    {
+        $this->access();
+        $this->tasksOpen = false;
+    }
+
+    private function taskCount(): ?int
+    {
+        if (! Schema::hasTable('personnel_tasks') && ! app(OperationsReminderService::class)->ready()
+            && ! app(PersonnelEnhancementService::class)->ready() && ! CustomerPortalIntakeSchema::ready()) {
+            return null;
+        }
+
+        return app(UnifiedOperationsInboxService::class)->items(auth()->user(), true)->count();
+    }
+
     private function anchor(): CarbonImmutable
     {
         try {
@@ -830,12 +895,12 @@ class MyWork extends Component
         $rangeEnd = $this->tab === 'schedule' ? $to : $rangeStart->addDays(14);
         $miniMonth = null;
         if ($this->tab === 'today') {
-            // Ein Abruf für Dienstliste (14 Tage) und Mini-Kalender (Monatsraster).
+            // Gemeinsame veröffentlichte Quelle für Tagesleiste, Dienste und den bisherigen Mini-Kalender.
             $monthAnchor = CarbonImmutable::now($this->displayTimezone())->startOfMonth()->addMonthsNoOverflow($this->miniMonth);
             $miniMonth = ['anchor' => $monthAnchor, 'from' => $monthAnchor->startOfWeek(), 'to' => $monthAnchor->endOfMonth()->endOfWeek()->addDay()->startOfDay()];
             // Keep the 14-day duty view and month intact while the request inbox
             // covers every future published request, including later months.
-            $loaded = app(PersonalSchedule::class)->assignments(auth()->user(), $rangeStart->min($miniMonth['from']));
+            $loaded = app(PersonalSchedule::class)->assignments(auth()->user(), $rangeStart->min($miniMonth['from'])->min(WorkdayOverview::stripStart($this->overviewDay())));
             $visible = $loaded->filter(fn ($assignment) => $assignment->shift->ends_at->gt($rangeStart) && $assignment->shift->starts_at->lt($rangeEnd))->values();
         } elseif ($this->tab === 'requests') {
             $loaded = app(PersonalSchedule::class)->assignments(auth()->user(), $rangeStart);
@@ -853,6 +918,10 @@ class MyWork extends Component
 
         $activeTime = WorkTimeEntry::where('user_id', auth()->id())->whereIn('status', ['running', 'paused'])->first();
         $visible->each(fn ($assignment) => $assignment->setAttribute('has_active_time', $activeTime !== null));
+        $workdayOverview = $this->tab === 'today' ? WorkdayOverview::make($loaded, $this->overviewDay(), CarbonImmutable::now($this->displayTimezone())) : null;
+        if ($workdayOverview !== null) {
+            $workdayOverview['assignments']->each(fn ($assignment) => $assignment->setAttribute('has_active_time', $activeTime !== null));
+        }
 
         $events = $this->tab === 'schedule' ? $visible->map(fn ($assignment) => $this->event($assignment, 'shift'))
             ->concat(AbsenceRequest::where('user_id', auth()->id())->whereIn('status', ['pending', 'approved', 'reported'])
@@ -924,6 +993,8 @@ class MyWork extends Component
             'selectedRequest' => $selectedRequest,
             'requestCalendar' => $this->requestCalendar($selectedRequest),
             'activeTime' => $activeTime,
+            'workdayOverview' => $workdayOverview,
+            'taskCount' => $this->tab === 'today' ? $this->taskCount() : null,
             'glance' => $this->tab === 'today' ? $this->glance() : [],
             'miniCalendar' => $miniMonth ? $this->miniCalendar($miniMonth, $loaded) : null,
             'dutyMap' => $this->tab === 'today' ? GermanyMap::personal($visible, $this->displayTimezone()) : null,

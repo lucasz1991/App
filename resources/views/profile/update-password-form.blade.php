@@ -1,11 +1,9 @@
-<x-form-section submit="updatePassword">
+<x-form-section submit="updatePassword" class="employee-own-profile__password-form">
     <x-slot name="title">
         {{ __('Passwort aktualisieren') }}
     </x-slot>
 
-    <x-slot name="description">
-        {{ __('Stellen Sie sicher, dass Ihr Konto ein langes, zufälliges Passwort verwendet.') }}
-    </x-slot>
+    <x-slot name="description"></x-slot>
 
     <x-slot name="form">
         <div class="col-span-6 sm:col-span-4">

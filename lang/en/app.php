@@ -721,6 +721,7 @@ return [
     'user_delete_failed' => 'User could not be deleted.',
     'user_deleted' => 'User has been deleted.',
     'contact_information' => 'Contact details & address',
+    'profile_contact' => 'Contact',
     'contact_information_description' => 'Phone numbers, address and date of birth for your profile.',
     'profile_password_description' => 'Change your password and protect access to your account.',
     'profile_two_factor_description' => 'Add another layer of protection with two-factor authentication.',

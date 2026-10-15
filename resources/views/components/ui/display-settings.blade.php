@@ -4,6 +4,7 @@
     Kein Livewire noetig: Sprache wechselt per Route, Darstellung und Toene
     leben in den Alpine-Stores ($store.theme / $store.sound).
 --}}
+@props(['embedded' => false])
 @php
     $rtLocales = [
         'de' => ['flag' => 'rt-brand/flags/de.svg', 'label' => __('app.german')],
@@ -15,9 +16,10 @@
 @endphp
 
 <section
-    class="overflow-hidden rounded-2xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60"
+    @class(['overflow-hidden', 'rounded-2xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60' => ! $embedded])
     data-testid="display-settings"
 >
+    @unless ($embedded)
     <div class="flex items-start gap-3 border-b border-rt-border/60 p-4 dark:border-rt-dark-border/60 sm:p-6">
         <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent">
             <i class="far fa-palette text-lg" aria-hidden="true"></i>
@@ -31,13 +33,16 @@
             </p>
         </div>
     </div>
+    @endunless
 
     <div class="divide-y divide-rt-border/60 dark:divide-rt-dark-border/60">
         {{-- Sprache --}}
         <div class="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
             <div class="min-w-0">
                 <p class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ __('app.language') }}</p>
-                <p class="mt-0.5 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.language_hint') }}</p>
+                @unless ($embedded)
+                    <p class="mt-0.5 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.language_hint') }}</p>
+                @endunless
             </div>
             <div class="w-full sm:!w-56">
                 <x-ui.forms.select
@@ -60,7 +65,9 @@
         <div class="flex items-center justify-between gap-3 p-4 sm:p-6">
             <div class="min-w-0">
                 <p class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ __('app.appearance') }}</p>
-                <p class="mt-0.5 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.appearance_hint') }}</p>
+                @unless ($embedded)
+                    <p class="mt-0.5 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.appearance_hint') }}</p>
+                @endunless
             </div>
             <button
                 type="button"
@@ -87,7 +94,9 @@
         <div class="flex items-center justify-between gap-3 p-4 sm:p-6">
             <div class="min-w-0">
                 <p class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ __('app.sound') }}</p>
-                <p class="mt-0.5 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.sound_hint') }}</p>
+                @unless ($embedded)
+                    <p class="mt-0.5 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.sound_hint') }}</p>
+                @endunless
             </div>
             <button
                 type="button"

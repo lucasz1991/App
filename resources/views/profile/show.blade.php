@@ -15,7 +15,6 @@
     @endphp
 
     <x-ui.page
-        :title="__('app.profile')"
         class="employee-workspace employee-own-profile"
     >
         <div class="space-y-4 sm:space-y-5">
@@ -23,6 +22,8 @@
 
             <x-ui.accordion.tabs
                 :tabs="$profileTabs"
+                appearance="underline"
+                :all-tabs="true"
                 :collapse-at="'md'"
                 :default="$requestedProfileTab"
                 :force-default="request()->filled('tab')"
