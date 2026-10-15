@@ -3,7 +3,9 @@
 namespace App\Livewire\Calls;
 
 use App\Models\RoomInvitation;
+use App\Services\Calls\CallAvailabilityService;
 use App\Services\Calls\CallInvitationService;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 /**
@@ -15,6 +17,9 @@ use Livewire\Component;
  */
 class IncomingCallOverlay extends Component
 {
+    #[Locked]
+    public bool $embedded = false;
+
     /**
      * "Bei mir laeutet es gerade" — gemeldet, sobald das Overlay sichtbar wird.
      *
@@ -38,11 +43,24 @@ class IncomingCallOverlay extends Component
     {
         $invitation = $this->ownInvitation($invitationId);
 
+        if (app(CallAvailabilityService::class)->activeRoomFor(auth()->user(), $invitation->room)) {
+            $this->dispatch('swal:toast', type: 'warning', text: 'Bitte den laufenden Anruf zuerst beenden.');
+
+            return null;
+        }
+
         // Ohne dieses Signal bliebe die Karte stehen: Alpine hat beim Klick
         // bereits stopRinging() ausgefuehrt und blockiert mit visible=true
         // jeden spaeteren eingehenden Anruf.
         if (! $invitation->room->isActive() || ! $invitations->accept($invitation)) {
             $this->dispatch('rt:call-gone', invitationId: $invitationId);
+
+            return null;
+        }
+
+        if ($this->embedded) {
+            $this->dispatch('rt:call-gone', invitationId: $invitationId);
+            $this->dispatch('communication:call', roomUuid: $invitation->room->uuid);
 
             return null;
         }

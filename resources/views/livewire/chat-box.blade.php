@@ -7,6 +7,7 @@
     data-keyboard-open="false"
     data-topbar-inset="70"
     data-no-sidebar-swipe
+    data-communication-chat="{{ $embedded ? 'true' : 'false' }}"
     x-bind:data-mobile-pane="mobilePane"
     x-bind:data-keyboard-open="keyboardOpen ? 'true' : 'false'"
     x-bind:data-topbar-inset="Math.round(topbarInset)"
@@ -15,7 +16,9 @@
     x-on:chat:pane-list.window="showList()"
     x-on:touchstart.passive="touchStart($event)"
     x-on:touchend.passive="touchEnd($event)"
+    x-on:touchmove.passive="touchMove($event)"
     x-on:touchcancel="cancelSwipe()"
+    @if($embedded) x-on:click.capture="consumeSwipeClick($event)" @endif
     wire:loading.class="cursor-wait"
 >
     @php

@@ -7,11 +7,13 @@ use App\Events\CallInvitationExpired;
 use App\Events\CallInvitationRinging;
 use App\Events\CallInvitationSent;
 use App\Jobs\ExpireCallInvitation;
+use App\Models\CommunicationMeeting;
 use App\Models\Room;
 use App\Models\RoomInvitation;
 use App\Models\User;
 use App\Support\Push\PushDelivery;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Einladungs- und Klingel-Logik: DB-Zeile + Reverb-Broadcast + Web-Push +
@@ -23,11 +25,10 @@ class CallInvitationService
         protected PushDelivery $push,
         protected CallConversationService $conversations,
         protected RoomEventRecorder $events,
-    ) {
-    }
+    ) {}
 
     /**
-     * @param Collection<int, User> $invitees
+     * @param  Collection<int, User>  $invitees
      * @return Collection<int, RoomInvitation>
      */
     public function invite(Room $room, User $inviter, Collection $invitees): Collection
@@ -92,7 +93,7 @@ class CallInvitationService
      * zaehlt: sonst wuerden mehrere Geraete desselben Nutzers denselben
      * Zustand mehrfach broadcasten.
      *
-     * @param string $via 'browser' (offene Sitzung) oder 'app' (Service Worker)
+     * @param  string  $via  'browser' (offene Sitzung) oder 'app' (Service Worker)
      * @return bool true, wenn dies die erste Klingel-Meldung war.
      */
     public function markRinging(RoomInvitation $invitation, string $via = 'browser'): bool
@@ -114,37 +115,67 @@ class CallInvitationService
     /**
      * Einladung annehmen.
      *
-     * @param bool $allowExpired Nur fuer Einstiegswege, bei denen der Nutzer
-     *   nachweislich schon im Anruf-Fenster steht (Push-Deep-Link). Ueber das
-     *   Klingel-Overlay bleibt eine abgelaufene Einladung unbeantwortbar –
-     *   sonst laesst sich ein laengst verpasster Anruf noch annehmen, wenn der
-     *   Queue-Worker den Ring-Timeout nicht ausgefuehrt hat.
-     *
+     * @param  bool  $allowExpired  Nur fuer Einstiegswege, bei denen der Nutzer
+     *                              nachweislich schon im Anruf-Fenster steht (Push-Deep-Link). Ueber das
+     *                              Klingel-Overlay bleibt eine abgelaufene Einladung unbeantwortbar –
+     *                              sonst laesst sich ein laengst verpasster Anruf noch annehmen, wenn der
+     *                              Queue-Worker den Ring-Timeout nicht ausgefuehrt hat.
      * @return bool true, wenn die Einladung jetzt 'accepted' ist.
      */
     public function accept(RoomInvitation $invitation, bool $allowExpired = false): bool
     {
-        if (! $invitation->isPending()) {
-            return false;
-        }
+        return DB::transaction(function () use ($invitation, $allowExpired): bool {
+            $invitee = User::whereKey($invitation->invitee_id)->lockForUpdate()->first();
+            if (! $invitee) {
+                return false;
+            }
+            $invitation->refresh();
+            $room = Room::whereKey($invitation->room_id)->lockForUpdate()->first();
+            if (! $room) {
+                return false;
+            }
+            $invitation->refresh();
+            $invitation->setRelation('room', $room);
+            if (! $invitation->isPending()) {
+                return false;
+            }
 
-        if ($invitation->isExpired() && ! $allowExpired) {
-            $this->expire($invitation);
+            if ($invitation->isExpired() && ! $allowExpired) {
+                $this->expire($invitation);
 
-            return false;
-        }
+                return false;
+            }
 
-        $invitation->forceFill(['status' => 'accepted', 'responded_at' => now()])->save();
+            $latestId = $room->invitations()->where('invitee_id', $invitee->id)->max('id');
+            $meetingId = $room->communicationMeetingId();
+            if (! $room->isActive() || (int) $latestId !== (int) $invitation->id
+                || ! $room->canAccessMeeting($invitee) || $room->participantFor($invitee)?->isRemoved()
+                || ($meetingId && CommunicationMeeting::find($meetingId)?->status !== 'scheduled')) {
+                return false;
+            }
+            app(CallAvailabilityService::class)->assertAvailable($invitee, $room);
 
-        $invitation->loadMissing(['room.callChat', 'invitee']);
-        if ($invitation->invitee) {
-            $this->conversations->attachParticipant($invitation->room, $invitation->invitee);
-            $this->events->record($invitation->room, 'accepted', $invitation->invitee);
-        }
+            if (! RoomInvitation::whereKey($invitation->id)->where('status', 'pending')
+                ->update(['status' => 'accepted', 'responded_at' => now()])) {
+                $invitation->refresh();
 
-        broadcast(new CallInvitationAnswered($invitation))->toOthers();
+                return false;
+            }
+            $invitation->refresh();
+            $invitation->setRelation('room', $room);
 
-        return true;
+            $invitation->loadMissing(['room.callChat', 'invitee']);
+            if ($invitation->invitee) {
+                $this->conversations->attachParticipant($invitation->room, $invitation->invitee);
+                $this->events->record($invitation->room, 'accepted', $invitation->invitee);
+            }
+
+            DB::afterCommit(static function () use ($invitation): void {
+                broadcast(new CallInvitationAnswered($invitation))->toOthers();
+            });
+
+            return true;
+        });
     }
 
     public function decline(RoomInvitation $invitation): bool
@@ -159,7 +190,13 @@ class CallInvitationService
             return false;
         }
 
-        $invitation->forceFill(['status' => 'declined', 'responded_at' => now()])->save();
+        if (! RoomInvitation::whereKey($invitation->id)->where('status', 'pending')
+            ->update(['status' => 'declined', 'responded_at' => now()])) {
+            $invitation->refresh();
+
+            return false;
+        }
+        $invitation->refresh();
 
         $this->events->record($invitation->room, 'declined', $invitation->invitee_id);
 
@@ -175,7 +212,13 @@ class CallInvitationService
             return;
         }
 
-        $invitation->forceFill(['status' => $status, 'responded_at' => now()])->save();
+        if (! RoomInvitation::whereKey($invitation->id)->where('status', 'pending')
+            ->update(['status' => $status, 'responded_at' => now()])) {
+            $invitation->refresh();
+
+            return;
+        }
+        $invitation->refresh();
 
         $this->events->record($invitation->room, $status, $invitation->invitee_id);
 

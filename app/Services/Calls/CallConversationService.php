@@ -36,6 +36,10 @@ class CallConversationService
         $room->forceFill(['call_chat_id' => $chat->id])->save();
         $room->setRelation('callChat', $chat);
 
+        if ($room->wasRecentlyCreated) {
+            app(CallTimelineService::class)->ensureForRoom($room);
+        }
+
         return $chat;
     }
 

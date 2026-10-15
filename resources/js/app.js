@@ -3,6 +3,8 @@
 // einem dieser Module wird dadurch bereits erfasst (siehe alpine-watchdog.js).
 import './alpine-watchdog';
 import './bootstrap';
+import { communicationModule } from './communication-module';
+import '../css/communication-module.css';
 // Meldungen (swal:toast/swal:alert/showAlert) auf SweetAlert2. Frueh
 // importieren, damit auch Meldungen aus dem Seitenaufbau ankommen.
 import './rt-alerts';
@@ -689,6 +691,7 @@ Alpine.data('rtListScrollPagination', listScrollPagination);
 Alpine.data('systemHealth', systemHealth);
 Alpine.data('welcomeIntro', welcomeIntro);
 Alpine.data('railtimeChatbot', railtimeChatbot);
+Alpine.data('communicationModule', communicationModule);
 Alpine.data('railtimeAssistantCloud', railtimeAssistantCloud);
 Alpine.data('rtAiAssist', aiAssist);
 Alpine.data('rtCalendarReveal', calendarReveal);
@@ -732,6 +735,12 @@ Alpine.data('chatRealtime', (config) => ({
         }
 
         this.channel = window.Echo.private(`chat.${config.chatId}`)
+            .listen('.call.timeline.changed', (event) => {
+                if (rtNotificationContext.isLocalChatVisible(Number(event.chatId))) {
+                    Livewire.dispatchTo('chat-box', 'chat:timeline-refresh');
+                }
+                Livewire.dispatch('inbox:refresh');
+            })
             .listen('.chat.message.sent', (event) => {
                 if (rtNotificationContext.isLocalChatVisible(Number(event.chatId))) {
                     Livewire.dispatch('chat:refresh', { chatId: Number(event.chatId) });
@@ -1494,6 +1503,9 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
     listCollapsed: localStorage.getItem('rt-chat-list-collapsed') === 'true',
     touchStartX: null,
     touchStartY: null,
+    touchChatId: null,
+    touchStartedAt: 0,
+    swipeClick: null,
     viewportHandler: null,
     viewportFrame: null,
     focusHandler: null,
@@ -1540,6 +1552,9 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
         this.$root.addEventListener('focusout', this.focusHandler);
 
         this.viewportHandler();
+        if (this.$root.dataset.communicationChat === 'true') {
+            this.$watch('mobilePane', () => window.dispatchEvent(new CustomEvent('communication:chat-pane')));
+        }
     },
 
     queueVisualViewportSync() {
@@ -1671,35 +1686,50 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
     },
 
     touchStart(event) {
-        if (window.innerWidth >= 768 || event.touches.length !== 1) {
+        this.swipeClick = null;
+        if ((window.innerWidth >= 768 && this.$root.dataset.communicationChat !== 'true') || event.touches.length !== 1) {
             this.cancelSwipe();
             return;
         }
 
-        if (event.target.closest('input, textarea, select, button, audio, video, [role="dialog"], [data-no-chat-swipe]')) {
+        const row = this.$root.dataset.communicationChat === 'true' ? event.target.closest('[data-chat-swipe-id]') : null;
+        if (event.target.closest('input, textarea, select, a, audio, video, [role="dialog"], [data-no-chat-swipe]')
+            || (!row && event.target.closest('button')) || window.getSelection?.()?.toString()) {
             this.cancelSwipe();
             return;
         }
 
         this.touchStartX = event.touches[0].clientX;
         this.touchStartY = event.touches[0].clientY;
+        this.touchChatId = row ? Number(row.dataset.chatSwipeId) : null;
+        this.touchStartedAt = performance.now();
+    },
+
+    touchMove(event) {
+        if (this.touchStartX === null) return;
+        if (event.touches.length !== 1) { this.cancelSwipe(); return; }
+        const dx = event.touches[0].clientX - this.touchStartX, dy = event.touches[0].clientY - this.touchStartY;
+        if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx)) this.cancelSwipe();
     },
 
     touchEnd(event) {
-        if (window.innerWidth >= 768 || this.touchStartX === null || event.changedTouches.length !== 1) {
+        if ((window.innerWidth >= 768 && this.$root.dataset.communicationChat !== 'true') || this.touchStartX === null || event.changedTouches.length !== 1) {
             this.cancelSwipe();
             return;
         }
 
         const deltaX = event.changedTouches[0].clientX - this.touchStartX;
         const deltaY = event.changedTouches[0].clientY - this.touchStartY;
-        const threshold = Math.max(72, Math.min(140, window.innerWidth * 0.22));
+        if (performance.now() - this.touchStartedAt > 650 || window.getSelection?.()?.toString()) { this.cancelSwipe(); return; }
+        const threshold = this.$root.dataset.communicationChat === 'true' ? 64 : Math.max(72, Math.min(140, window.innerWidth * 0.22));
 
         if (Math.abs(deltaX) >= threshold && Math.abs(deltaX) > Math.abs(deltaY) * 1.25) {
             if (deltaX > 0 && this.mobilePane === 'chat') {
                 this.showList();
+                this.swipeClick = { x: event.changedTouches[0].clientX, y: event.changedTouches[0].clientY, until: performance.now() + 450 };
             } else if (deltaX < 0 && this.mobilePane === 'list') {
-                this.resumeLastChat();
+                if (this.touchChatId) this.$wire.openChat(this.touchChatId); else this.resumeLastChat();
+                this.swipeClick = { x: event.changedTouches[0].clientX, y: event.changedTouches[0].clientY, until: performance.now() + 450 };
             }
         }
 
@@ -1709,6 +1739,15 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
     cancelSwipe() {
         this.touchStartX = null;
         this.touchStartY = null;
+        this.touchChatId = null;
+    },
+
+    consumeSwipeClick(event) {
+        const pending = this.swipeClick;
+        if (!pending || !event.detail || (event.pointerType && event.pointerType !== 'touch')) return;
+        if (performance.now() > pending.until) { this.swipeClick = null; return; }
+        if (Math.hypot(event.clientX - pending.x, event.clientY - pending.y) > 40) return;
+        this.swipeClick = null; event.preventDefault(); event.stopImmediatePropagation();
     },
 
     destroy() {

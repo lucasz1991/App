@@ -15,6 +15,7 @@ use App\Models\ChatMessageReaction;
 use App\Models\ChatMessageView;
 use App\Models\File;
 use App\Models\User;
+use App\Services\Calls\CallAvailabilityService;
 use App\Services\Calls\CallInfrastructureUnavailable;
 use App\Services\Calls\CallInvitationService;
 use App\Services\Calls\RoomLifecycleService;
@@ -25,11 +26,11 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
-use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
@@ -45,8 +46,14 @@ class ChatBox extends Component
 
     private const MEMBER_PICKER_PER_PAGE = 6;
 
-    #[Url(as: 'chat')]
     public ?int $selectedChatId = null;
+
+    #[Locked]
+    public bool $embedded = false;
+
+    public bool $conversationVisible = false;
+
+    public string $listFilter = 'all';
 
     public string $messageText = '';
 
@@ -111,8 +118,13 @@ class ChatBox extends Component
     protected $listeners = ['refreshComponent' => '$refresh'];
 
     /** Beim Einstieg den zuletzt geoeffneten, weiterhin erlaubten Chat anzeigen. */
-    public function mount(): void
+    public function mount(bool $embedded = false): void
     {
+        $this->embedded = $embedded;
+        if ($embedded) {
+            return;
+        }
+        $this->selectedChatId ??= request()->integer('chat') ?: null;
         if ($this->selectedChatId) {
             $this->openChat($this->selectedChatId);
 
@@ -152,9 +164,18 @@ class ChatBox extends Component
             ->when($visibleSince, fn ($query) => $query->where('created_at', '>=', $visibleSince));
     }
 
+    #[On('communication:chat')]
     public function openChat(int $chatId): void
     {
         $chat = $this->myChat($chatId);
+        $this->conversationVisible = true;
+
+        if ($this->embedded && $this->selectedChatId === $chat->id) {
+            $this->markChatRead($chat);
+            $this->dispatch('chat:pane-open');
+
+            return;
+        }
 
         $this->selectedChatId = $chat->id;
         $this->messageText = '';
@@ -165,6 +186,28 @@ class ChatBox extends Component
         $chat->participants()->updateExistingPivot(auth()->id(), ['last_opened_at' => now()]);
         $this->markChatRead($chat);
         $this->dispatch('chat:pane-open');
+    }
+
+    #[On('communication:visibility')]
+    public function setConversationVisibility(bool $visible): void
+    {
+        $this->conversationVisible = $visible;
+        if ($visible && $this->selectedChatId) {
+            $this->markChatRead($this->myChat($this->selectedChatId));
+            $this->dispatch('inbox:refresh');
+        }
+    }
+
+    #[On('communication:new-chat')]
+    public function newCommunicationChat(): void
+    {
+        $this->showNewChat = true;
+    }
+
+    #[On('chat:timeline-refresh')]
+    public function refreshTimeline(): void
+    {
+        // Render the existing window again without resetting draft/cursor state.
     }
 
     public function send(): void
@@ -596,13 +639,27 @@ class ChatBox extends Component
 
         abort_unless(auth()->user()->isAdmin() || auth()->user()->hasRbacPermission('calls.start'), 403);
 
+        if (! Schema::hasTable('rooms')) {
+            $this->dispatch('swal:toast', type: 'error', text: __('app.calls_unavailable'));
+
+            return null;
+        }
+
         $chat = $this->myChat((int) $this->selectedChatId);
+
+        $activeTarget = $chat->activeRoom()->first();
+        if (app(CallAvailabilityService::class)->activeRoomFor(auth()->user(), $activeTarget)) {
+            $this->dispatch('swal:toast', type: 'warning', text: 'Bitte den laufenden Anruf zuerst beenden.');
+
+            return null;
+        }
 
         // Pruefen und Anlegen unter einer Sperre auf der Chat-Zeile: ohne sie
         // erzeugen zwei gleichzeitige Klicks zwei konkurrierende Raeume, und
         // die beiden Haelften des Chats klingeln in getrennten Anrufen.
         try {
             $result = DB::transaction(function () use ($chat, $lifecycle, $video) {
+                User::whereKey(auth()->id())->lockForUpdate()->firstOrFail();
                 Chat::whereKey($chat->id)->lockForUpdate()->first();
 
                 $existing = $chat->activeRoom()->first();
@@ -621,6 +678,12 @@ class ChatBox extends Component
 
         // Laeuft bereits ein Anruf, direkt beitreten statt doppelt zu starten.
         if (! $result['created']) {
+            if ($this->embedded) {
+                $this->dispatch('communication:call', roomUuid: $result['room']->uuid);
+
+                return null;
+            }
+
             return redirect()->route('calls.window', $result['room']);
         }
 
@@ -629,6 +692,12 @@ class ChatBox extends Component
             auth()->user(),
             $chat->participants()->where('users.id', '!=', auth()->id())->where('users.status', true)->get(),
         );
+
+        if ($this->embedded) {
+            $this->dispatch('communication:call', roomUuid: $result['room']->uuid);
+
+            return null;
+        }
 
         return redirect()->route('calls.window', $result['room']);
     }
@@ -1003,6 +1072,9 @@ class ChatBox extends Component
 
     protected function markChatRead(Chat $chat): void
     {
+        if ($this->embedded && ! $this->conversationVisible) {
+            return;
+        }
         $participant = $chat->participants->firstWhere('id', auth()->id());
         $lastReadAt = $participant?->pivot?->last_read_at;
         $latestOtherMessageAt = $this->visibleMessagesFor($chat)
@@ -1136,6 +1208,10 @@ class ChatBox extends Component
                         'files',
                         'liveLocation',
                         'views:id,chat_message_id,user_id,viewed_at',
+                        'callRoom.participants',
+                        'callRoom.invitations',
+                        'callRoom.events',
+                        'callRoom.callChat.participants',
                         'reactions' => fn ($query) => $query
                             ->select(['id', 'chat_message_id', 'user_id', 'emoji'])
                             ->with('user:id,name'),
@@ -1146,6 +1222,9 @@ class ChatBox extends Component
                     ])
                     ->orderBy('id')
                     ->get();
+
+                $messages->filter(fn (ChatMessage $message) => $message->isCall())
+                    ->each(fn (ChatMessage $message) => $message->setRelation('chat', $selectedChat));
 
                 $firstMessageId = $messages->first()?->id;
                 $hasOlderMessages = $firstMessageId

@@ -115,7 +115,8 @@
         </div>
     @endif
 
-    @if ($selectedChat->activeRoom)
+    @php $chatCallsReady = \Illuminate\Support\Facades\Schema::hasTable('rooms'); @endphp
+    @if ($chatCallsReady && $selectedChat->activeRoom)
         @can('calls.join')
             <a
                 href="{{ route('calls.window', $selectedChat->activeRoom) }}"
@@ -132,7 +133,7 @@
                 <i class="far fa-video md:hidden" aria-hidden="true"></i>
             </a>
         @endcan
-    @else
+    @elseif($chatCallsReady)
         @can('calls.start')
             {{-- Sprachanruf: derselbe Raum, nur ohne Kamera beim Beitritt. --}}
             <x-chat.icon-button

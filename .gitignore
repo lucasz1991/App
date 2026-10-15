@@ -331,3 +331,9 @@ auth.json
 
 !/tests/Frontend/service-worker-push.test.js
 !/tests/Frontend/distribution-accordion.test.js
+
+!/tests/Feature/CommunicationModuleTest.php
+!/tests/Feature/CommunicationCallHistoryTest.php
+!/tests/Feature/CommunicationBackendTest.php
+!/tests/Feature/HeaderInboxSeparationTest.php
+!/tests/Frontend/communication-module.test.js

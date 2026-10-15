@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Services\Calls\MeetingPlanningService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -148,6 +150,13 @@ class Room extends Model
      */
     public function mayJoin(User $user): bool
     {
+        if (! $this->canAccessMeeting($user)) {
+            return false;
+        }
+        $meetingId = $this->communicationMeetingId();
+        if ($meetingId && CommunicationMeeting::find($meetingId)?->status !== 'scheduled') {
+            return false;
+        }
         $participant = $this->participantFor($user);
 
         if (! $participant) {
@@ -191,6 +200,70 @@ class Room extends Model
         return $this->type === 'meeting'
             || $participant->joined_at !== null
             || in_array($participant->connectionState(), ['joined', 'left'], true);
+    }
+
+    public function canAccessMeeting(User $user): bool
+    {
+        $meetingId = $this->communicationMeetingId();
+        $legacyId = data_get($this->settings, 'communication_meeting_id');
+        if ($legacyId && $this->getAttribute('communication_meeting_id')
+            && (int) $legacyId !== (int) $this->getAttribute('communication_meeting_id')) {
+            return false;
+        }
+
+        return ! $meetingId || (app(MeetingPlanningService::class)->ready()
+            && CommunicationMeeting::find($meetingId)?->involves($user));
+    }
+
+    public function communicationMeetingId(): ?int
+    {
+        $id = $this->getAttribute('communication_meeting_id') ?? data_get($this->settings, 'communication_meeting_id');
+
+        return $id ? (int) $id : null;
+    }
+
+    /** Reading an entry point does not itself accept the invitation. */
+    public function mayEnter(User $user): bool
+    {
+        if (! $this->isActive() || ! $user->status || ! $this->canAccessMeeting($user)) {
+            return false;
+        }
+        if (data_get($this->settings, 'provisioning')) {
+            return false;
+        }
+        $participant = $this->participantFor($user);
+        if (! $participant || $participant->isRemoved()) {
+            return false;
+        }
+        $meetingId = $this->communicationMeetingId();
+        if ($meetingId && CommunicationMeeting::find($meetingId)?->status !== 'scheduled') {
+            return false;
+        }
+        if ($this->mayJoin($user)) {
+            return true;
+        }
+        $latest = $this->invitations()->where('invitee_id', $user->id)->latest('id')->first();
+
+        return $latest && $latest->isPending() && ! $latest->isExpired();
+    }
+
+    public function scopeAccessibleMeetings(Builder $query, User $user): Builder
+    {
+        return $query->where(function (Builder $visible) use ($user): void {
+            if (app(MeetingPlanningService::class)->ready()) {
+                $visible->where(fn ($open) => $open->whereNull('communication_meeting_id')->whereNull('settings->communication_meeting_id'))
+                    ->orWhere(function ($private) use ($user): void {
+                        $private->whereIn('communication_meeting_id', CommunicationMeeting::query()->visibleTo($user)->select('id'))
+                            ->where(fn ($consistent) => $consistent->whereNull('settings->communication_meeting_id')
+                                ->orWhereColumn('settings->communication_meeting_id', 'communication_meeting_id'));
+                    })->orWhere(function ($legacy) use ($user): void {
+                        $legacy->whereNull('communication_meeting_id')
+                            ->whereIn('settings->communication_meeting_id', CommunicationMeeting::query()->visibleTo($user)->select('id'));
+                    });
+            } else {
+                $visible->whereNull('settings->communication_meeting_id');
+            }
+        });
     }
 
     /** Darf der Nutzer diesen Raum moderieren (auflegen, stummschalten, entfernen)? */

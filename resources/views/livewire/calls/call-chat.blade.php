@@ -29,6 +29,15 @@
     x-on:call-chat:scroll-bottom.window="scrollBottom()"
     x-on:call-chat:older-loaded.window="restoreOlderScroll()"
     x-on:call-chat:focus-composer.window="$nextTick(() => $refs.composer?.focus())"
+    @if($embedded)
+        @if($readOnly)
+            x-effect="$wire.setVisible(open && tab === 'calls' && showHistory && !showCall && document.visibilityState === 'visible')"
+            x-on:visibilitychange.document="$wire.setVisible(open && tab === 'calls' && showHistory && !showCall && document.visibilityState === 'visible')"
+        @else
+            x-effect="$wire.setVisible(open && tab === 'calls' && showCall && panelOpen && panelTab === 'chat' && document.visibilityState === 'visible')"
+            x-on:visibilitychange.document="$wire.setVisible(open && tab === 'calls' && showCall && panelOpen && panelTab === 'chat' && document.visibilityState === 'visible')"
+        @endif
+    @endif
 >
     <div x-ref="transcript" class="scroll-container min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-4">
         @if ($hasOlder)

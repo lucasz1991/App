@@ -2,8 +2,10 @@
 
 namespace App\Livewire\Concerns;
 
+use App\Livewire\Admin\Users\Messages\MessageForm;
 use App\Models\Chat;
 use App\Models\User;
+use App\Services\Calls\CallAvailabilityService;
 use App\Services\Calls\CallInfrastructureUnavailable;
 use App\Services\Calls\CallInvitationService;
 use App\Services\Calls\RoomLifecycleService;
@@ -34,7 +36,9 @@ trait InteractsWithPersonQuickActions
             fn (): Chat => Chat::directBetween(auth()->user(), $other)
         );
 
-        return $this->redirectRoute('chat', ['chat' => $chat->id], navigate: true);
+        $this->dispatch('communication:open', tab: 'chats', chatId: $chat->id);
+
+        return null;
     }
 
     /**
@@ -61,9 +65,11 @@ trait InteractsWithPersonQuickActions
         // erzeugen zwei gleichzeitige Klicks zwei konkurrierende Raeume.
         try {
             $result = DB::transaction(function () use ($chat, $viewer, $lifecycle, $mode): array {
+                User::query()->whereKey($viewer->id)->lockForUpdate()->firstOrFail();
                 Chat::query()->whereKey($chat->id)->lockForUpdate()->firstOrFail();
 
                 $existing = $chat->activeRoom()->first();
+                app(CallAvailabilityService::class)->assertAvailable($viewer, $existing);
 
                 if ($existing) {
                     return ['room' => $existing, 'created' => false];
@@ -84,7 +90,9 @@ trait InteractsWithPersonQuickActions
             $invitations->invite($result['room'], $viewer, collect([$other]));
         }
 
-        return redirect()->route('calls.window', $result['room']);
+        $this->dispatch('communication:call', roomUuid: $result['room']->uuid);
+
+        return null;
     }
 
     /**
@@ -95,7 +103,7 @@ trait InteractsWithPersonQuickActions
         Gate::authorize('users.messages.create');
 
         $this->dispatch('openMailModal', payload: $userId)
-            ->to(\App\Livewire\Admin\Users\Messages\MessageForm::class);
+            ->to(MessageForm::class);
     }
 
     /**

@@ -353,7 +353,7 @@ test('premium stacked lists are shared by the topbar, chat sidebar, and creation
     assert.match(component, /rt-chat-stacked-item__rail/);
     assert.match(component, /fa-chevron-right/);
 
-    assert.equal((inbox.match(/<x-chat\.stacked-list-item/g) || []).length, 2);
+    assert.equal((inbox.match(/<x-chat\.stacked-list-item/g) || []).length, 1);
     assert.match(inbox, /data-rt-inbox-premium-list/);
     assert.match(inbox, /rt-chat-stacked-list--inbox/);
     assert.match(list, /<x-chat\.stacked-list-item/);
@@ -367,7 +367,8 @@ test('premium stacked lists are shared by the topbar, chat sidebar, and creation
     assert.match(picker, /<\/x-user\.person-anchor-preview>[\s\S]*?<x-ui\.forms\.checkbox/);
     assert.match(publicInfo, /rt-user-public-info__context/);
 
-    assert.match(headerInbox, /withMax\('activities as last_activity_at', 'created_at'\)/);
+    assert.doesNotMatch(headerInbox, /recentChats\(|unreadPerChat\(/);
+    assert.match(headerInbox, /'totalUnreadCount' => \$this->unreadMessagesCount,/);
     assert.ok((chatBox.match(/withMax\('activities as last_activity_at', 'created_at'\)/g) || []).length >= 3);
     assert.match(styles, /\.rt-chat-stacked-item__avatar/);
     assert.match(styles, /\.rt-chat-stacked-item\.is-active \.rt-chat-stacked-item__rail/);

@@ -3,7 +3,19 @@
     class="rt-chat-list-pane flex min-h-0 w-full shrink-0 flex-col overflow-hidden md:w-[21.5rem]"
     data-anim="left"
     x-bind:class="{ 'rt-chat-list-collapsed': listCollapsed }"
+    @if($embedded) x-bind:inert="mobilePane !== 'list'" @endif
 >
+    @if($embedded)
+        <div class="rt-comm-toolbar">
+            <label class="rt-comm-search"><i class="far fa-search" aria-hidden="true"></i><span class="sr-only">{{ __('app.search') }}</span>
+                <input type="search" wire:model.live.debounce.300ms="search" placeholder="Gespräche suchen …" autocomplete="off">
+            </label>
+            <select wire:model.live="listFilter" class="rt-comm-filter" aria-label="Chats filtern">
+                <option value="all">Alle</option><option value="unread">Ungelesen</option><option value="groups">Gruppen</option>
+            </select>
+            <button type="button" wire:click="$set('showNewChat', true)" class="rt-comm-icon" aria-label="{{ __('app.new_chat') }}" title="{{ __('app.new_chat') }}"><i class="far fa-plus" aria-hidden="true"></i></button>
+        </div>
+    @else
     <div class="rt-chat-list-header shrink-0 px-4 pb-3 pt-4 sm:px-5 sm:pt-5">
         <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
@@ -55,6 +67,7 @@
         </div>
     </div>
 
+    @endif
     <div class="rt-chat-list rt-chat-stacked-list min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-2 pb-3 sm:px-3">
         @forelse ($chats as $chat)
             @php
@@ -70,6 +83,7 @@
                     ? ($latest->created_at->isToday() ? $latest->created_at->format('H:i') : $latest->created_at->format('d.m.'))
                     : '';
             @endphp
+            @continue($embedded && (($listFilter === 'unread' && $unread === 0) || ($listFilter === 'groups' && !$chat->isGroup())))
 
             <div
                 wire:key="chat-item-{{ $chat->id }}"
@@ -79,6 +93,7 @@
                     wire:click="openChat({{ $chat->id }})"
                     x-on:click="showChat()"
                     data-chat-list-item
+                    data-chat-swipe-id="{{ $chat->id }}"
                     aria-current="{{ $isActive ? 'page' : 'false' }}"
                     :active="$isActive"
                     :unread="$unread > 0"

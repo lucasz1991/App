@@ -44,7 +44,7 @@ document.addEventListener('alpine:init', () => {
         screenShareBusy: false,
         statusLabel: config.labels.connecting,
         participantCount: 1,
-        panelOpen: window.innerWidth >= 1024,
+        panelOpen: !config.embedded && window.innerWidth >= 1024,
         panelTab: 'participants',
         panelTrigger: null,
         participantMayPublish: Boolean(config.canPublish),

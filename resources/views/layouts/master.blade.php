@@ -58,7 +58,7 @@
     {{-- Das Anrufmodul registriert callRoom vor dem Alpine-Start im App-Modul. --}}
     @vite(array_merge(
         ['resources/css/app.css', 'resources/css/shell-redesign.css', 'resources/css/tabs-redesign.css', 'resources/css/chat-redesign.css'],
-        ($callWindow ?? false) ? ['resources/js/calls.js'] : [],
+        auth()->check() ? ['resources/js/calls.js'] : [],
         ['resources/js/app.js'],
     ))
     @livewireStyles
@@ -136,13 +136,23 @@
         </main>
         @auth
             @if ($chrome)
+                @persist('railtime-communication-'.auth()->id())
+                    <div data-communication-persist>
+                        <livewire:communication :key="'global-communication-'.auth()->id()" />
+                        <livewire:calls.incoming-call-overlay :embedded="true" :key="'global-incoming-call-'.auth()->id()" />
+                    </div>
+                @endpersist
+            @endif
+            @if ($chrome)
                 <livewire:settings.session-permissions />
             @endif
             <livewire:messages.message-viewer-modal />
             <livewire:tools.file-pools.file-preview-modal />
             <x-chat.live-location-preview />
             {{-- Globales Klingel-Overlay fuer eingehende Videoanrufe --}}
-            <livewire:calls.incoming-call-overlay />
+            @if (! $chrome)
+                <livewire:calls.incoming-call-overlay />
+            @endif
             @if ($assistantShouldRender)
                 {{-- Zentral autorisierter RailTime-Assistent; ausgeschlossene
                      Seiten und chromelose Anruffenster bleiben bewusst frei. --}}

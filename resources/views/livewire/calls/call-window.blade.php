@@ -12,6 +12,7 @@
     data-rt-overlay-layer
     data-rt-overlay-base="200"
     x-data="callRoom({
+        embedded: @js($embedded),
         roomUuid: @js($room->uuid),
         tokenUrl: @js(route('calls.token', $room)),
         recordingAcknowledgementUrl: @js(route('calls.recording.acknowledge')),
@@ -568,7 +569,7 @@
 
                 <div id="rt-call-chat-{{ $room->id }}" aria-labelledby="rt-call-chat-tab-{{ $room->id }}" x-show="panelTab === 'chat'" class="min-h-0 flex-1" role="tabpanel">
                     @if ($room->callChat)
-                        <livewire:calls.call-chat :room="$room" :key="'active-call-chat-'.$room->id" />
+                        <livewire:calls.call-chat :room="$room" :embedded="$embedded" :key="'active-call-chat-'.$room->id" />
                     @endif
                 </div>
             </aside>

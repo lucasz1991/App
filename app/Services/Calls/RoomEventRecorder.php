@@ -19,7 +19,7 @@ class RoomEventRecorder
         $userId = $actor instanceof User ? $actor->id : $actor;
 
         if ($externalId) {
-            return RoomEvent::firstOrCreate(
+            $event = RoomEvent::firstOrCreate(
                 ['external_id' => $externalId],
                 [
                     'room_id' => $room->id,
@@ -29,13 +29,22 @@ class RoomEventRecorder
                     'occurred_at' => now(),
                 ],
             );
+            if ($event->wasRecentlyCreated) {
+                app(CallTimelineService::class)->changed($room);
+            }
+
+            return $event;
         }
 
-        return $room->events()->create([
+        $event = $room->events()->create([
             'user_id' => $userId,
             'type' => $type,
             'metadata' => $metadata ?: null,
             'occurred_at' => now(),
         ]);
+
+        app(CallTimelineService::class)->changed($room);
+
+        return $event;
     }
 }

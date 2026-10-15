@@ -44,6 +44,13 @@ export function activeVisibleChatId({
         return 0;
     }
 
+    const communication = chatPage.closest?.('[data-communication-host]');
+    if (communication && (communication.dataset.communicationOpen !== 'true'
+        || communication.dataset.communicationTab !== 'chats'
+        || chatPage.dataset.mobilePane !== 'chat')) {
+        return 0;
+    }
+
     if (
         Number(windowLike?.innerWidth || 0) < MOBILE_CHAT_BREAKPOINT
         && chatPage.dataset.mobilePane !== 'chat'

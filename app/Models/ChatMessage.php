@@ -27,6 +27,31 @@ class ChatMessage extends Model
         'voice_waveform' => 'array',
     ];
 
+    protected static function booted(): void
+    {
+        static::saving(function (ChatMessage $message): void {
+            if ($message->exists && ($message->getRawOriginal('call_room_id') !== null || $message->getRawOriginal('message_type') === 'call')) {
+                abort_if($message->isDirty(['chat_id', 'call_room_id', 'message_type', 'body']), 403);
+            }
+            if ($message->isCall()) {
+                $room = Room::find($message->call_room_id);
+                abort_unless($room && (int) $room->chat_id === (int) $message->chat_id, 422);
+                abort_if($message->exists && $message->isDirty(['chat_id', 'call_room_id', 'message_type', 'body']), 403);
+            }
+        });
+        static::deleting(fn (ChatMessage $message) => abort_if($message->isCall(), 403));
+    }
+
+    public function isCall(): bool
+    {
+        return $this->message_type === 'call' || $this->getAttribute('call_room_id') !== null;
+    }
+
+    public function callRoom(): BelongsTo
+    {
+        return $this->belongsTo(Room::class, 'call_room_id');
+    }
+
     public function chat(): BelongsTo
     {
         return $this->belongsTo(Chat::class);
@@ -130,6 +155,10 @@ class ChatMessage extends Model
             return __('app.chat_original_message_unavailable');
         }
 
+        if ($this->isCall()) {
+            return $this->callRoom?->startsWithVideo() ? __('app.calls_video_call') : __('app.calls_audio_call');
+        }
+
         if ($this->isLiveLocation()) {
             return __('app.chat_live_location');
         }
@@ -157,6 +186,9 @@ class ChatMessage extends Model
 
     public function previewText(int $limit = 160): string
     {
+        if ($this->isCall()) {
+            return $this->replyPreviewText();
+        }
         if ($this->isLiveLocation()) {
             return __('app.chat_live_location');
         }

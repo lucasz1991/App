@@ -5,7 +5,6 @@ namespace App\Livewire\Tools;
 use App\Models\ChatMessage;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -14,6 +13,7 @@ class HeaderInbox extends Component
 {
     public int $unreadMessagesCount = 0;
 
+    // Keep the chat polling fallback until the communication host owns it.
     public int $unreadChatMessagesCount = 0;
 
     public int $latestUnreadMessageId = 0;
@@ -132,88 +132,6 @@ class HeaderInbox extends Component
     }
 
     /**
-     * Letzte Chats fuer das gemeinsame Posteingangs-Dropdown.
-     *
-     * Bewusst NICHT als oeffentliche Livewire-Eigenschaft: die Chat-Modelle
-     * muessten sonst bei jedem Request serialisiert und rehydriert werden und
-     * verlieren dabei ihre geladenen Beziehungen (participants/latestMessage),
-     * die displayNameFor() und die sichere Vorschau brauchen. Frisch im
-     * render() geladen bleiben diese Beziehungen garantiert vorhanden.
-     */
-    protected function recentChats(): Collection
-    {
-        $user = Auth::user();
-
-        if (! $user) {
-            return collect();
-        }
-
-        $chats = $user->chats()
-            ->with([
-                'participants' => fn ($query) => $query
-                    ->withMax('activities as last_activity_at', 'created_at'),
-            ])
-            ->where('chats.type', '!=', 'call')
-            ->orderByDesc('chats.updated_at')
-            ->limit(3)
-            ->get();
-
-        if ($chats->isEmpty()) {
-            return $chats;
-        }
-
-        // latestMessage darf nach Beitritt/Leeren nicht auf einen aelteren
-        // Klartext zurueckfallen. Die IDs werden in einer gebuendelten Query
-        // bestimmt und danach als echte (verschluesselt gecastete) Modelle
-        // geladen.
-        $latestMessageIds = $this->visibleChatMessagesFor($user)
-            ->whereIn('chat_messages.chat_id', $chats->pluck('id'))
-            ->groupBy('chat_messages.chat_id')
-            ->selectRaw('MAX(chat_messages.id) as latest_message_id')
-            ->pluck('latest_message_id');
-
-        $latestMessages = ChatMessage::query()
-            ->whereKey($latestMessageIds)
-            ->get()
-            ->keyBy('chat_id');
-
-        return $chats->each(
-            fn ($chat) => $chat->setRelation('latestMessage', $latestMessages->get($chat->id))
-        );
-    }
-
-    /**
-     * Ungelesene Chat-Nachrichten je Chat — in EINER Abfrage.
-     *
-     * Chat::unreadCountFor() wuerde pro Chat eine eigene COUNT-Abfrage
-     * ausloesen (N+1 auf jeder Seite, weil die Topbar ueberall rendert). Die
-     * Bedingung ist absichtlich identisch zu der in loadInbox(), damit der
-     * Gesamtzaehler und die Zeilen-Badges nie auseinanderlaufen koennen.
-     *
-     * @return array<int, int>
-     */
-    protected function unreadPerChat(): array
-    {
-        $user = Auth::user();
-
-        if (! $user) {
-            return [];
-        }
-
-        return $this->visibleChatMessagesFor($user)
-            ->where('chat_messages.user_id', '!=', $user->id)
-            ->where(function ($query) {
-                $query->whereNull('chat_user.last_read_at')
-                    ->orWhereColumn('chat_messages.created_at', '>', 'chat_user.last_read_at');
-            })
-            ->groupBy('chat_messages.chat_id')
-            ->selectRaw('chat_messages.chat_id as chat_id, count(*) as aggregate')
-            ->pluck('aggregate', 'chat_id')
-            ->map(fn ($value): int => (int) $value)
-            ->all();
-    }
-
-    /**
      * Nachrichten eines nicht ausgeblendeten Chats innerhalb der persoenlichen
      * Sichtbarkeitsgrenze (Beitritt bzw. spaeteres Leeren des Verlaufs).
      */
@@ -240,9 +158,7 @@ class HeaderInbox extends Component
     public function render()
     {
         return view('livewire.tools.header-inbox', [
-            'recentChats' => $this->recentChats(),
-            'unreadPerChat' => $this->unreadPerChat(),
-            'totalUnreadCount' => $this->unreadMessagesCount + $this->unreadChatMessagesCount,
+            'totalUnreadCount' => $this->unreadMessagesCount,
         ]);
     }
 }

@@ -303,7 +303,7 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         ->name('managed-documents.download');
     Route::get('/messages', MessageBox::class)->name('messages');
     // Chat steht ALLEN angemeldeten Benutzern offen (Admin- wie Nutzerbereich).
-    Route::get('/chat', ChatBox::class)->name('chat');
+    Route::get('/chat', \App\Livewire\CommunicationPage::class)->name('chat');
     Route::get('/chat/live-locations/active', [ChatLiveLocationController::class, 'active'])
         ->middleware('throttle:chat-live-location-sync')
         ->name('chat.live-locations.active');
@@ -324,10 +324,10 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
     // nie im Livewire-Snapshot – siehe LIVEKIT_INTEGRATION_PLAN.md).
     // Uebersichten: Anrufverlauf und offene Besprechungsraeume. Muessen VOR
     // der {room:uuid}-Route stehen, damit /calls nicht als UUID gelesen wird.
-    Route::get('/calls', CallHistory::class)->name('calls.index');
-    Route::get('/meetings', fn () => redirect()->route('calls.index'))->name('meetings');
-    Route::get('/calls/{room:uuid}/history', CallDetails::class)->name('calls.history');
-    Route::get('/calls/{room:uuid}', CallWindow::class)->name('calls.window');
+    Route::get('/calls', \App\Livewire\CommunicationPage::class)->name('calls.index');
+    Route::get('/meetings', \App\Livewire\CommunicationPage::class)->name('meetings');
+    Route::get('/calls/{room:uuid}/history', \App\Livewire\CommunicationPage::class)->name('calls.history');
+    Route::get('/calls/{room:uuid}', \App\Livewire\CommunicationPage::class)->name('calls.window');
     Route::post('/calls/{room:uuid}/token', [CallTokenController::class, 'store'])
         ->middleware('throttle:20,1')
         ->name('calls.token');

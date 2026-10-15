@@ -8,6 +8,7 @@ use App\Models\Room;
 use App\Models\RoomInvitation;
 use App\Models\RoomParticipant;
 use App\Models\User;
+use App\Services\Calls\CallAvailabilityService;
 use App\Services\Calls\CallConversationService;
 use App\Services\Calls\CallInvitationService;
 use App\Services\Calls\LiveKitService;
@@ -15,6 +16,7 @@ use App\Services\Calls\RoomEventRecorder;
 use App\Services\Calls\RoomLifecycleService;
 use App\Services\Chat\ChatLiveLocationService;
 use Illuminate\Support\Collection;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\Renderless;
 use Livewire\Component;
 
@@ -27,17 +29,22 @@ use Livewire\Component;
  */
 class CallWindow extends Component
 {
+    #[Locked]
+    public bool $embedded = false;
+
     public Room $room;
 
     public array $inviteeIds = [];
 
-    public function mount(Room $room, CallConversationService $conversations): void
+    public function mount(Room $room, CallConversationService $conversations, bool $embedded = false): void
     {
+        $this->embedded = $embedded;
         $user = auth()->user();
 
         abort_unless($user->isAdmin() || $user->hasRbacPermission('calls.join'), 403);
 
         abort_unless($room->isActive(), 410, __('app.calls_ended'));
+        app(CallAvailabilityService::class)->assertAvailable($user, $room);
 
         // Jeder Einstiegsweg muss dieselbe Zustandsaenderung ausloesen. Der
         // Deep-Link der Web-Push-Benachrichtigung fuehrt direkt hierher und
@@ -339,6 +346,12 @@ class CallWindow extends Component
 
     protected function redirectAfterCall(): void
     {
+        if ($this->embedded) {
+            $this->dispatch('communication:call-ended', roomUuid: $this->room->uuid);
+
+            return;
+        }
+
         $this->redirect(
             $this->room->call_chat_id
                 ? route('calls.history', $this->room)

@@ -30,6 +30,11 @@ class CallChat extends Component
     #[Locked]
     public bool $readOnly = false;
 
+    #[Locked]
+    public bool $embedded = false;
+
+    public bool $visible = false;
+
     public string $messageText = '';
 
     /** @var array<int, TemporaryUploadedFile> */
@@ -41,8 +46,9 @@ class CallChat extends Component
     #[Locked]
     public ?int $oldestLoadedId = null;
 
-    public function mount(Room $room, bool $readOnly = false): void
+    public function mount(Room $room, bool $readOnly = false, bool $embedded = false): void
     {
+        $this->embedded = $embedded;
         $this->room = $room;
         $this->readOnly = $readOnly;
         $this->syncReadOnlyState();
@@ -74,6 +80,14 @@ class CallChat extends Component
     {
         $this->syncReadOnlyState();
         $this->markRead($this->authorizedChat());
+    }
+
+    public function setVisible(bool $visible): void
+    {
+        $this->visible = $visible;
+        if ($visible) {
+            $this->markRead($this->authorizedChat());
+        }
     }
 
     public function loadOlder(): void
@@ -306,6 +320,9 @@ class CallChat extends Component
 
     protected function markRead(Chat $chat): void
     {
+        if ($this->embedded && ! $this->visible) {
+            return;
+        }
         $chat->participants()->updateExistingPivot(auth()->id(), [
             'last_read_at' => now(),
             'last_opened_at' => now(),

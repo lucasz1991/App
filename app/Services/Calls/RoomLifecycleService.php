@@ -40,6 +40,8 @@ class RoomLifecycleService
     public function createForChat(Chat $chat, User $owner, bool $video = true): Room
     {
         $room = DB::transaction(function () use ($chat, $owner, $video): Room {
+            User::whereKey($owner->id)->lockForUpdate()->firstOrFail();
+            app(CallAvailabilityService::class)->assertAvailable($owner);
             $room = Room::create([
                 'name' => $chat->displayNameFor($owner),
                 'type' => $chat->isGroup() ? 'group' : 'direct',
@@ -93,14 +95,14 @@ class RoomLifecycleService
     /** Webhook room_started bzw. erster Beitritt. */
     public function markActive(Room $room): void
     {
-        if (! in_array($room->status, ['pending'], true)) {
-            return;
-        }
-
-        $room->forceFill([
+        $updated = Room::whereKey($room->id)->where('status', 'pending')->update([
             'status' => 'active',
             'started_at' => $room->started_at ?? now(),
-        ])->save();
+        ]);
+        $room->refresh();
+        if ($updated === 0) {
+            return;
+        }
 
         $this->events->record($room, 'started');
     }
@@ -108,6 +110,10 @@ class RoomLifecycleService
     /** Anruf beenden (UI-Aktion oder Webhook room_finished). */
     public function markEnded(Room $room, string $reason = 'ended'): void
     {
+        $room->refresh();
+        if (! $room->isActive()) {
+            return;
+        }
         $this->recordings->requestStop($room);
 
         if ($room->call_chat_id) {
@@ -117,15 +123,13 @@ class RoomLifecycleService
             );
         }
 
-        if (in_array($room->status, ['ended', 'cancelled'], true)) {
+        $updated = Room::whereKey($room->id)->whereIn('status', ['pending', 'active'])->update([
+            'status' => 'ended', 'ended_at' => $room->ended_at ?? now(), 'ended_reason' => $reason,
+        ]);
+        $room->refresh();
+        if ($updated === 0) {
             return;
         }
-
-        $room->forceFill([
-            'status' => 'ended',
-            'ended_at' => $room->ended_at ?? now(),
-            'ended_reason' => $reason,
-        ])->save();
 
         $this->expirePendingInvitations($room);
 
@@ -145,6 +149,7 @@ class RoomLifecycleService
      */
     public function cancel(Room $room, string $reason = 'cancelled'): void
     {
+        $room->refresh();
         if ($room->call_chat_id) {
             $this->liveLocations->stopForChat(
                 (int) $room->call_chat_id,
@@ -159,11 +164,13 @@ class RoomLifecycleService
         $this->recordings->requestStop($room);
         $this->livekit->deleteRoom($room);
 
-        $room->forceFill([
-            'status' => 'cancelled',
-            'ended_at' => $room->ended_at ?? now(),
-            'ended_reason' => $reason,
-        ])->save();
+        $updated = Room::whereKey($room->id)->whereIn('status', ['pending', 'active'])->update([
+            'status' => 'cancelled', 'ended_at' => $room->ended_at ?? now(), 'ended_reason' => $reason,
+        ]);
+        $room->refresh();
+        if ($updated === 0) {
+            return;
+        }
 
         $this->expirePendingInvitations($room);
 
@@ -297,6 +304,7 @@ class RoomLifecycleService
     /** Webhook participant_joined. */
     public function markParticipantJoined(Room $room, string $identity): void
     {
+        $room->refresh();
         // LiveKit wiederholt Webhooks und kann sie verspaetet oder verdreht
         // zustellen: ein Nachzuegler darf einen beendeten Raum nicht wiederbeleben.
         if (in_array($room->status, ['ended', 'cancelled'], true)) {
@@ -343,6 +351,7 @@ class RoomLifecycleService
     /** Webhook participant_left. */
     public function markParticipantLeft(Room $room, string $identity): void
     {
+        $room->refresh();
         if (in_array($room->status, ['ended', 'cancelled'], true)) {
             return;
         }

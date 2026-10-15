@@ -1,4 +1,4 @@
-<div class="relative" wire:loading.class="cursor-wait">
+<div @class(['relative', 'rt-comm-details' => $embedded]) wire:loading.class="cursor-wait">
     <x-ui.page
         :title="$room->name"
         :eyebrow="__('app.calls_history')"
@@ -37,7 +37,7 @@
                 </header>
 
                 @if ($room->callChat)
-                    <livewire:calls.call-chat :room="$room" :read-only="true" :key="'call-history-chat-'.$room->id" />
+                    <livewire:calls.call-chat :room="$room" :read-only="true" :embedded="$embedded" :key="'call-history-chat-'.$room->id" />
                 @endif
             </section>
 

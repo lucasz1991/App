@@ -10,7 +10,10 @@ use App\Services\Calls\LiveKitService;
 use App\Services\Calls\RoomEventRecorder;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
+use Livewire\Attributes\Locked;
+use Livewire\Attributes\On;
 use Livewire\Component;
+use Livewire\WithoutUrlPagination;
 use Livewire\WithPagination;
 
 /**
@@ -20,7 +23,13 @@ use Livewire\WithPagination;
  */
 class CallHistory extends Component
 {
+    use WithoutUrlPagination;
     use WithPagination;
+
+    #[Locked]
+    public bool $embedded = false;
+
+    public string $search = '';
 
     /** all|missed|active|meetings|recordings */
     public string $filter = 'all';
@@ -34,6 +43,11 @@ class CallHistory extends Component
         $user = auth()->user();
 
         abort_unless($user->isAdmin() || $user->hasRbacPermission('calls.join'), 403);
+
+        if ($this->embedded) {
+            // The global child must not inherit or change its workspace's page.
+            $this->paginators['page'] = 1;
+        }
     }
 
     public function setFilter(string $filter): void
@@ -42,6 +56,23 @@ class CallHistory extends Component
             ? $filter
             : 'all';
         $this->resetPage();
+    }
+
+    public function updatedSearch(): void
+    {
+        $this->resetPage();
+    }
+
+    #[On('communication:call-ready')]
+    #[On('communication:call-released')]
+    public function refreshCalls(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedFilter(): void
+    {
+        $this->setFilter($this->filter);
     }
 
     /** @return array<string, array<int, string>> */
@@ -101,7 +132,7 @@ class CallHistory extends Component
         $this->reset(['name', 'video']);
         $this->video = true;
 
-        return redirect()->route('calls.window', $room);
+        return $this->openCall($room);
     }
 
     public function join(
@@ -120,6 +151,7 @@ class CallHistory extends Component
                 ->findOrFail($roomId);
 
             abort_unless($room->isActive(), 410, __('app.calls_ended'));
+            abort_unless($room->canAccessMeeting($user), 403, __('app.calls_permission_denied'));
 
             $participant = $room->participants()
                 ->where('user_id', $user->id)
@@ -196,6 +228,17 @@ class CallHistory extends Component
             broadcast(new CallInvitationAnswered($answeredInvitation))->toOthers();
         }
 
+        return $this->openCall($room);
+    }
+
+    protected function openCall(Room $room)
+    {
+        if ($this->embedded) {
+            $this->dispatch('communication:call', roomUuid: $room->uuid);
+
+            return null;
+        }
+
         return redirect()->route('calls.window', $room);
     }
 
@@ -205,6 +248,7 @@ class CallHistory extends Component
         $userId = auth()->id();
 
         return Room::query()
+            ->accessibleMeetings(auth()->user())
             ->with([
                 'owner',
                 'chat',
@@ -214,6 +258,12 @@ class CallHistory extends Component
                 'invitations' => fn ($query) => $query->where('invitee_id', $userId)->latest('id'),
             ])
             ->whereHas('participants', fn ($q) => $q->where('user_id', $userId))
+            ->when(trim($this->search) !== '', function ($query): void {
+                $search = '%'.trim($this->search).'%';
+                $query->where(fn ($matches) => $matches
+                    ->where('name', 'like', $search)
+                    ->orWhereHas('participants.user', fn ($users) => $users->where('name', 'like', $search)));
+            })
             ->when($this->filter === 'active', fn ($q) => $q->whereIn('status', ['pending', 'active']))
             ->when($this->filter === 'meetings', fn ($q) => $q->where('type', 'meeting'))
             ->when($this->filter === 'missed', fn ($q) => $q->whereHas(
@@ -238,16 +288,19 @@ class CallHistory extends Component
     {
         $userId = auth()->id();
 
-        return view('livewire.calls.call-history', [
+        $view = view('livewire.calls.call-history', [
             'rooms' => $this->rooms(),
             'currentUserId' => $userId,
-            'liveMeetings' => Room::query()
+            'liveMeetings' => $this->embedded ? collect() : Room::query()
+                ->accessibleMeetings(auth()->user())
                 ->with(['owner', 'participants'])
                 ->where('type', 'meeting')
                 ->whereIn('status', ['pending', 'active'])
                 ->latest('id')
                 ->get(),
             'canStart' => auth()->user()->isAdmin() || auth()->user()->hasRbacPermission('calls.start'),
-        ])->layout('layouts.master');
+        ]);
+
+        return $this->embedded ? $view : $view->layout('layouts.master');
     }
 }

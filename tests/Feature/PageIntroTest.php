@@ -241,24 +241,24 @@ class PageIntroTest extends TestCase
         $this->assertStringContainsString("Alpine.data('welcomeIntro', welcomeIntro);", $application);
     }
 
-    public function test_inbox_dropdown_uses_tabs_and_preselects_the_tab_with_news(): void
+    public function test_inbox_dropdown_only_shows_normal_messages_and_their_unread_count(): void
     {
         $sender = User::factory()->create(['role' => 'admin']);
         $recipient = User::factory()->create();
 
-        // Nur eine ungelesene CHAT-Nachricht -> Chats-Tab vorausgewaehlt.
+        // Chat notifications retain their fallback, but do not appear in the inbox.
         $chat = Chat::create(['type' => 'direct', 'created_by' => $sender->id]);
         $chat->participants()->attach([$sender->id, $recipient->id]);
         ChatMessage::create(['chat_id' => $chat->id, 'user_id' => $sender->id, 'body' => 'Hallo!']);
 
         $html = Livewire::actingAs($recipient)->test(HeaderInbox::class)->html();
-        $this->assertStringContainsString('data-inbox-tab="chats"', $html);
-        $this->assertStringContainsString('data-inbox-tab="messages"', $html);
-        $this->assertStringContainsString('data-inbox-panel="chats"', $html);
         $this->assertStringContainsString('data-inbox-panel="messages"', $html);
-        $this->assertStringContainsString("inboxTab: 'chats'", $html);
+        $this->assertStringContainsString('data-inbox-total="0"', $html);
+        $this->assertStringNotContainsString('data-inbox-tabs', $html);
+        $this->assertStringNotContainsString('data-inbox-panel="chats"', $html);
+        $this->assertStringNotContainsString('Hallo!', $html);
 
-        // Mehr ungelesene NACHRICHTEN als Chats -> Nachrichten-Tab vorne.
+        // Only the two normal messages count toward the inbox badge.
         foreach (['Info 1', 'Info 2'] as $subject) {
             Message::create([
                 'subject' => $subject,
@@ -270,7 +270,9 @@ class PageIntroTest extends TestCase
         }
 
         $html = Livewire::actingAs($recipient)->test(HeaderInbox::class)->html();
-        $this->assertStringContainsString("inboxTab: 'messages'", $html);
+        $this->assertStringContainsString('data-inbox-total="2"', $html);
+        $this->assertStringContainsString('Info 1', $html);
+        $this->assertStringContainsString('Info 2', $html);
     }
 
     private function team(User $owner, string $name): Team

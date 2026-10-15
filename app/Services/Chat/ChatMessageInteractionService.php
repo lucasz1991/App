@@ -46,7 +46,10 @@ class ChatMessageInteractionService
 
     public function replyTarget(Chat $chat, User $user, ?int $messageId): ?ChatMessage
     {
-        return $messageId ? $this->visibleMessage($chat, $user, $messageId) : null;
+        $message = $messageId ? $this->visibleMessage($chat, $user, $messageId) : null;
+        abort_if($message?->isCall(), 403);
+
+        return $message;
     }
 
     public function toggleReaction(
@@ -59,6 +62,7 @@ class ChatMessageInteractionService
 
         return DB::transaction(function () use ($chat, $user, $messageId, $emoji): ?ChatMessageReaction {
             $message = $this->visibleMessage($chat, $user, $messageId, forUpdate: true);
+            abort_if($message->isCall(), 403);
             abort_if((int) $message->user_id === (int) $user->id, 403);
 
             $reaction = ChatMessageReaction::query()
@@ -97,6 +101,7 @@ class ChatMessageInteractionService
 
         return DB::transaction(function () use ($chat, $user, $messageId, $emoji): ChatMessageReaction {
             $message = $this->visibleMessage($chat, $user, $messageId, forUpdate: true);
+            abort_if($message->isCall(), 403);
             abort_if((int) $message->user_id === (int) $user->id, 403);
 
             $reaction = ChatMessageReaction::query()
@@ -128,6 +133,7 @@ class ChatMessageInteractionService
     ): void {
         DB::transaction(function () use ($chat, $user, $messageId): void {
             $message = $this->visibleMessage($chat, $user, $messageId, forUpdate: true);
+            abort_if($message->isCall(), 403);
             abort_if((int) $message->user_id === (int) $user->id, 403);
 
             ChatMessageReaction::query()
@@ -141,6 +147,7 @@ class ChatMessageInteractionService
     {
         return DB::transaction(function () use ($chat, $user, $messageId): ChatMessage {
             $message = $this->visibleMessage($chat, $user, $messageId, forUpdate: true);
+            abort_if($message->isCall(), 403);
             abort_unless((int) $message->user_id === (int) $user->id, 403);
 
             $message->loadMissing('files');

@@ -28,6 +28,9 @@
     @endphp
 
     @foreach ($items as $index => $message)
+        @if($message->isCall())
+            @include('livewire.chat.partials.call-timeline-entry')
+        @else
         @php
             $prev = $index > 0 ? $items[$index - 1] : null;
             $own = (int) $message->user_id === (int) $me->id;
@@ -246,6 +249,7 @@
                 </div>
             </div>
         </div>
+        @endif
     @endforeach
 
     <div
