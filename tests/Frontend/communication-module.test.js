@@ -7,6 +7,7 @@ import { parseHTML } from 'linkedom';
 
 const source = await readFile(new URL('../../resources/js/communication-module.js', import.meta.url), 'utf8');
 const view = await readFile(new URL('../../resources/views/livewire/communication.blade.php', import.meta.url), 'utf8');
+const styles = await readFile(new URL('../../resources/css/communication-module.css', import.meta.url), 'utf8');
 
 // Actual production module, isolated DOM and explicit test-only scheduling,
 // geometry, style and WAAPI stubs. No browser, provider or device is opened.
@@ -19,8 +20,8 @@ function fixture({ width = 1440, height = 1000, reduced = false, animate = true 
         <div id="persistent-call"></div></section></div>
     </body></html>`);
     const root = document.querySelector('[data-communication-host]'), panel = document.querySelector('#panel'), launcher = document.querySelector('#launcher');
-    const nextTicks = [], rafs = new Map(), animations = [], calls = [], dispatches = [], captures = new Map();
-    let component, active = document.body, rafId = 0, now = 1000, visibility = 'visible';
+    const nextTicks = [], timers = new Map(), rafs = new Map(), animations = [], calls = [], dispatches = [], captures = new Map();
+    let component, active = document.body, rafId = 0, timerId = 0, now = 1000, visibility = 'visible';
     Object.defineProperty(document, 'activeElement', { configurable: true, get: () => active });
     Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => visibility });
     dom.HTMLElement.prototype.focus = function () { active = this; };
@@ -46,7 +47,7 @@ function fixture({ width = 1440, height = 1000, reduced = false, animate = true 
             const corner = component?.corner || 'bottom-right';
             return shape(parseFloat(panel.style.left) || (corner.endsWith('left') ? 24 : width - w - 24), parseFloat(panel.style.top) || (corner.startsWith('top') ? 94 : height - h - 24), w, h);
         }
-        if (element === launcher) return shape(width - 80, height - 80, 56, 56);
+        if (element === launcher) return component?.open ? shape(0, 0, 0, 0) : shape(width - 80, height - 80, 56, 56);
         if (element.matches('[data-rt-shell-topbar]')) return shape(0, 0, width, 70);
         if (element.matches('.rt-app-page-frame')) return shape(224, 70, width - 224, height - 70);
         return shape(0, 0, 0, 0);
@@ -67,7 +68,8 @@ function fixture({ width = 1440, height = 1000, reduced = false, animate = true 
         window, document, URL, CustomEvent: dom.CustomEvent, MutationObserver: Observer,
         performance: { now: () => now },
         requestAnimationFrame: fn => { const id = ++rafId; rafs.set(id, fn); return id; }, cancelAnimationFrame: id => rafs.delete(id),
-        getComputedStyle: element => ({ display: element.testDisplay || 'block', visibility: element.testVisibility || 'visible', opacity: element.testOpacity ?? '1' }),
+        setTimeout: fn => { const id = ++timerId; timers.set(id, fn); return id; }, clearTimeout: id => timers.delete(id),
+        getComputedStyle: element => ({ display: element.testDisplay || 'block', visibility: element.testVisibility || 'visible', opacity: element.testOpacity ?? '1', borderRadius: '20px' }),
     });
     vm.runInContext(source.replace(/export function /g, 'function ') + '\nglobalThis.testExports={communicationModule,communicationLink,cornerForPoint};', context);
     component = context.testExports.communicationModule();
@@ -76,9 +78,10 @@ function fixture({ width = 1440, height = 1000, reduced = false, animate = true 
     component.$wire = { openCall: uuid => calls.push({ action: 'open', uuid }), openHistory: uuid => calls.push({ action: 'history', uuid }) };
     component.init();
     const flush = () => {
-        for (let guard = 0; nextTicks.length || rafs.size; guard++) {
+        for (let guard = 0; nextTicks.length || rafs.size || timers.size; guard++) {
             assert.ok(guard < 50, 'Unbounded test scheduler');
             nextTicks.splice(0).forEach(fn => fn()); const batch = [...rafs.values()]; rafs.clear(); batch.forEach(fn => fn());
+            const pending = [...timers.values()]; timers.clear(); pending.forEach(fn => fn());
         }
     };
     const event = (target, type, data = {}) => {
@@ -117,7 +120,19 @@ test('closed shell starts without motion and opening mini preserves existing unr
     const f = fixture(); assert.equal(f.component.open, false); assert.equal(f.component.visible, false); assert.equal(f.animations.length, 0);
     f.component.show(); f.flush();
     assert.equal(f.component.mode, 'mini'); assert.equal(f.component.open, true); assert.equal(f.component.visible, true);
+    assert.match(f.animations.at(-1).frames[0].transform, /translate\(.+\) scale\(0\./);
+    assert.equal(f.animations.at(-1).options.duration, 340);
     assert.equal(f.root.dataset.appBadgeCount, '3'); f.finish(); f.component.destroy();
+});
+
+test('CSS motion fallback covers browsers without Element.animate', () => {
+    assert.match(view, /:data-motion="motion"/);
+    assert.match(styles, /@keyframes rt-communication-open/);
+    assert.match(styles, /@keyframes rt-communication-close/);
+    const f = fixture({ animate: false });
+    f.component.show(); f.flush(); assert.equal(f.component.open, true); assert.equal(f.component.visible, true);
+    f.component.close(); f.flush(); assert.equal(f.component.visible, false); assert.equal(f.component.motion, 'idle');
+    f.component.destroy();
 });
 
 test('close keeps real panel visible until WAAPI finish while logical open and accessibility close immediately', () => {
@@ -263,6 +278,25 @@ test('launcher clears the visible AI orb and ignores hidden zero or offscreen or
         f.component.measureLayout(); assert.equal(f.root.style.getPropertyValue('--comm-launcher-bottom'), '20px', visibility);
     }
     orb.remove(); f.component.measureLayout(); assert.equal(f.root.style.getPropertyValue('--comm-launcher-bottom'), '20px'); f.component.destroy();
+});
+
+test('mobile has only closed and fullscreen states and its launcher clears the bottom area menu', () => {
+    const f = fixture({ width: 390, height: 844 });
+    const menu = f.document.createElement('nav'); menu.setAttribute('data-area-menu', '');
+    menu.testRect = { left: 0, top: 788, right: 390, bottom: 844, width: 390, height: 56 };
+    f.document.body.append(menu); f.component.measureLayout();
+    assert.equal(f.root.style.getPropertyValue('--comm-launcher-bottom'), '68px');
+    f.component.show('mini'); f.flush();
+    assert.equal(f.component.mode, 'fullscreen'); assert.equal(f.component.open, true);
+    assert.equal(f.document.querySelector('#main-content').inert, true);
+    assert.match(f.animations.at(-1).frames[0].transform, /scale\(0\./);
+    f.finish(); f.component.resize(); f.flush();
+    assert.equal(f.component.mode, 'fullscreen');
+    f.event(f.document, 'livewire:navigating');
+    assert.equal(f.component.mode, 'fullscreen');
+    f.component.close(); f.flush(); f.finish(); assert.equal(f.component.visible, false);
+    assert.match(view, /data-comm-resize x-show="wide"/);
+    f.component.destroy();
 });
 
 test('native tabs retain arrow home end and cleanup removes global shell event handlers', () => {

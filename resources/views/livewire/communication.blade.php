@@ -17,7 +17,7 @@
     </button>
 
     <section id="railtime-communication" x-ref="panel" class="rt-communication" x-cloak wire:ignore.self
-        x-show="visible" :data-mode="mode" :data-corner="corner" :data-dragging="dragging.toString()"
+        x-show="visible" :data-mode="mode" :data-motion="motion" :data-corner="corner" :data-dragging="dragging.toString()"
         :inert="!open" :aria-hidden="(!open).toString()" aria-label="Chats, Anrufe und Meetings" role="region">
         <header class="rt-comm-head" x-on:pointerdown="dragStart($event)">
             <div class="rt-comm-tabs" role="tablist" aria-label="Bereiche" x-on:keydown="tabKey($event)">
@@ -33,7 +33,7 @@
             <div class="rt-comm-drag-handle" :tabindex="canDrag ? 0 : -1" role="group" aria-label="Fensterposition"
                 title="Ziehen oder mit Alt und Pfeiltasten in eine Ecke setzen" x-on:keydown="cornerKey($event)"></div>
             <div class="rt-comm-window-actions">
-                <button type="button" x-on:click="resize()" :title="mode === 'fullscreen' ? 'Mini-Modus öffnen' : 'Vollbild öffnen'"
+                <button type="button" data-comm-resize x-show="wide" x-cloak x-on:click="resize()" :title="mode === 'fullscreen' ? 'Mini-Modus öffnen' : 'Vollbild öffnen'"
                     :aria-label="mode === 'fullscreen' ? 'Mini-Modus öffnen' : 'Vollbild öffnen'">
                     <i class="far" :class="mode === 'fullscreen' ? 'fa-compress-alt' : 'fa-expand-alt'" aria-hidden="true"></i>
                 </button>

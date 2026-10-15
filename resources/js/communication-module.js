@@ -34,6 +34,7 @@ export function communicationLink(href, base) {
 /** Presentation state only. The persistent Livewire child owns the call session. */
 export function communicationModule() {
     let animation = null, generation = 0, drag = null, clickGuard = null, layoutFrame = null;
+    let fallbackTimer = null, fallbackComplete = null;
     let main = null, mainWasInert = false, mainAria = null, observer = null;
     const cleanups = [];
     const touches = new Set();
@@ -44,7 +45,7 @@ export function communicationModule() {
     };
 
     return {
-        open: false, visible: false, mode: 'mini', corner: 'bottom-right', tab: 'chats',
+        open: false, visible: false, mode: 'mini', motion: 'idle', corner: 'bottom-right', tab: 'chats',
         activeCall: false, showCall: false, showHistory: false, dragging: false, wide: window.innerWidth > 760,
         init() {
             this.$root.setAttribute('data-communication-ready', '');
@@ -74,12 +75,15 @@ export function communicationModule() {
             listen(window.visualViewport, 'resize', () => { this.cancelDrag(); this.finishMotion(); this.queueLayout(); });
             listen(window.visualViewport, 'scroll', () => this.queueLayout());
             listen(window, 'blur', () => this.cancelDrag());
+            listen(this.$refs.panel, 'animationend', event => {
+                if (event.target === this.$refs.panel) fallbackComplete?.();
+            });
             listen(document, 'visibilitychange', () => { this.cancelDrag(); this.finishMotion(); this.syncVisibility(); });
             listen(document, 'livewire:navigating', () => {
                 this.setMainInert(false);
                 this.cancelDrag();
                 this.finishMotion();
-                if (this.open && this.mode === 'fullscreen') this.mode = 'mini';
+                if (this.open && this.mode === 'fullscreen' && this.wide) this.mode = 'mini';
             });
             listen(document, 'livewire:navigated', () => { this.queueLayout(); this.routeIntent(); });
             listen(document, 'click', event => {
@@ -98,7 +102,7 @@ export function communicationModule() {
                 } else if (this.showCall || this.showHistory) {
                     this.showHistory = false;
                     this.showCall = false; this.syncVisibility(); event.preventDefault();
-                } else if (this.mode === 'fullscreen') { this.resize(); event.preventDefault(); }
+                } else if (this.mode === 'fullscreen' && this.wide) { this.resize(); event.preventDefault(); }
                 else { this.close(); event.preventDefault(); }
             });
             listen(document, 'pointerdown', event => {
@@ -135,7 +139,7 @@ export function communicationModule() {
             if (intent.roomUuid) this.requestCall(intent.roomUuid);
             if (intent.historyRoomUuid) this.$wire.openHistory(intent.historyRoomUuid);
         },
-        show(size = 'mini') { this.transition(true, size); },
+        show(size = 'mini') { this.transition(true, this.wide ? size : 'fullscreen'); },
         async requestCall(roomUuid) {
             if (!roomUuid) return;
             if (this.activeCall || requestedRoom) {
@@ -165,7 +169,10 @@ export function communicationModule() {
             this.transition(false, this.mode);
             this.$nextTick(() => { if (!this.open) this.$refs.launcher.focus({ preventScroll: true }); });
         },
-        resize() { this.transition(true, this.mode === 'mini' ? 'fullscreen' : 'mini'); },
+        resize() {
+            if (!this.wide) { this.show('fullscreen'); return; }
+            this.transition(true, this.mode === 'mini' ? 'fullscreen' : 'mini');
+        },
         selectTab(tab) {
             if (!TABS.includes(tab)) return;
             this.tab = tab;
@@ -210,28 +217,64 @@ export function communicationModule() {
         finishMotion() {
             generation++;
             animation?.cancel(); animation = null;
+            if (fallbackTimer !== null) clearTimeout(fallbackTimer);
+            fallbackTimer = null; fallbackComplete = null; this.motion = 'idle';
+            this.$refs.panel.style.removeProperty('--comm-motion-x');
+            this.$refs.panel.style.removeProperty('--comm-motion-y');
+            this.$refs.panel.style.removeProperty('--comm-motion-scale');
             if (!this.open) this.visible = false;
         },
         transition(open, mode) {
             const panel = this.$refs.panel;
             const focusAfterOpen = open && !this.open;
+            const launcherFrom = focusAfterOpen ? this.$refs.launcher.getBoundingClientRect() : null;
             const from = this.visible ? panel.getBoundingClientRect() : null;
             this.finishMotion(); this.cancelDrag();
-            this.mode = mode; this.open = open; this.visible = true;
+            this.mode = this.wide ? mode : 'fullscreen'; this.open = open; this.visible = true;
             this.syncVisibility(); this.queueLayout();
             const revision = ++generation;
             this.$nextTick(() => {
                 if (revision !== generation) return;
                 if (focusAfterOpen) this.$root.querySelector(`[data-comm-tab="${this.tab}"]`)?.focus({ preventScroll: true });
                 const to = panel.getBoundingClientRect();
-                if (!panel.animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches || !to.width || !to.height) {
+                if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || !to.width || !to.height) {
                     this.visible = open; return;
                 }
                 const frame = rect => ({ left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px` });
-                const small = this.$refs.launcher.getBoundingClientRect();
-                const start = from ? { ...frame(from), opacity: 1 } : { ...frame(to), transform: `translate(${small.left + small.width / 2 - to.right}px,${small.top + small.height / 2 - to.bottom}px) scale(.92)`, opacity: 0 };
-                const end = open ? { ...frame(to), transform: 'none', opacity: 1 } : { ...frame(from || to), transform: 'translateY(18px) scale(.96)', opacity: 0 };
-                animation = panel.animate([start, end], { duration: from && open ? 380 : 280, easing: 'cubic-bezier(.22,.8,.25,1)', fill: 'both' });
+                const small = open ? launcherFrom : this.$refs.launcher.getBoundingClientRect();
+                const collapse = rect => {
+                    if (!small?.width || !small?.height) return { x: 0, y: 18, scale: .96 };
+                    const scale = Math.max(.08, Math.min(.22, small.width / rect.width, small.height / rect.height));
+                    const x = small.left + small.width / 2 - (rect.left + rect.width / 2);
+                    const y = small.top + small.height / 2 - (rect.top + rect.height / 2);
+                    return { x, y, scale };
+                };
+                const collapsed = rect => {
+                    const state = collapse(rect);
+                    return { ...frame(rect), transform: `translate(${state.x}px,${state.y}px) scale(${state.scale})`, transformOrigin: 'center', borderRadius: '18px', opacity: .16 };
+                };
+                const duration = focusAfterOpen ? 340 : (from && open ? 380 : 280);
+                if (!panel.animate) {
+                    const state = collapse(from || to);
+                    panel.style.setProperty('--comm-motion-x', `${state.x}px`);
+                    panel.style.setProperty('--comm-motion-y', `${state.y}px`);
+                    panel.style.setProperty('--comm-motion-scale', String(state.scale));
+                    this.motion = open ? 'opening' : 'closing';
+                    fallbackComplete = () => {
+                        if (revision !== generation || !fallbackComplete) return;
+                        if (fallbackTimer !== null) clearTimeout(fallbackTimer);
+                        fallbackTimer = null; fallbackComplete = null; this.motion = 'idle';
+                        panel.style.removeProperty('--comm-motion-x');
+                        panel.style.removeProperty('--comm-motion-y');
+                        panel.style.removeProperty('--comm-motion-scale');
+                        this.visible = open;
+                    };
+                    fallbackTimer = setTimeout(() => fallbackComplete?.(), duration + 60);
+                    return;
+                }
+                const start = from ? { ...frame(from), transform: 'none', opacity: 1 } : collapsed(to);
+                const end = open ? { ...frame(to), transform: 'none', borderRadius: getComputedStyle(panel).borderRadius, opacity: 1 } : collapsed(from || to);
+                animation = panel.animate([start, end], { duration, easing: 'cubic-bezier(.22,.8,.25,1)', fill: 'both' });
                 const current = animation;
                 current.onfinish = () => {
                     if (revision !== generation || animation !== current) return;
@@ -245,6 +288,10 @@ export function communicationModule() {
         },
         measureLayout() {
             this.wide = window.innerWidth > 760;
+            if (!this.wide && this.open && this.mode !== 'fullscreen') {
+                this.mode = 'fullscreen';
+                this.syncVisibility();
+            }
             const viewport = window.visualViewport;
             const top = Math.max(0, viewport?.offsetTop || 0);
             const height = viewport?.height || window.innerHeight;
@@ -255,6 +302,14 @@ export function communicationModule() {
             this.$root.style.setProperty('--comm-bottom', `${Math.max(0, window.innerHeight - top - height)}px`);
             this.$root.style.setProperty('--comm-left', `${Math.max(0, page?.left || 0)}px`);
             let bottom = 20, right = 24;
+            if (!this.wide) {
+                for (const menu of document.querySelectorAll('[data-area-menu]')) {
+                    const rect = menu.getBoundingClientRect();
+                    const styles = getComputedStyle(menu);
+                    if (!rect.width || !rect.height || styles.display === 'none' || styles.visibility === 'hidden' || Number(styles.opacity) === 0 || rect.top >= window.innerHeight || rect.bottom <= 0) continue;
+                    bottom = Math.max(bottom, window.innerHeight - rect.top + 12);
+                }
+            }
             for (const orb of document.querySelectorAll('.rt-ai-assist__launcher,.rt-chatbot__pet-launcher')) {
                 const rect = orb.getBoundingClientRect();
                 const styles = getComputedStyle(orb);
