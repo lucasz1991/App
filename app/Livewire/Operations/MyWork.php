@@ -27,6 +27,7 @@ use App\Services\Operations\WorkTimeService;
 use App\Support\CustomerPortal\CustomerPortalIntakeSchema;
 use App\Support\Operations\GermanyMap;
 use App\Support\Operations\OperationsAccess;
+use App\Support\Operations\PersonalCalendarLayout;
 use App\Support\Operations\PersonalSchedule;
 use App\Support\Operations\ReportingPeriod;
 use App\Support\Operations\TimelineLocationPreview;
@@ -688,6 +689,14 @@ class MyWork extends Component
         $this->viewMode = 'day';
     }
 
+    /** Select a date without leaving the month or week overview. */
+    public function selectCalendarDay(string $date): void
+    {
+        $this->access();
+        $this->anchorDate = $date;
+        $this->updatedAnchorDate();
+    }
+
     public function shiftMiniMonth(int $direction): void
     {
         $this->access();
@@ -978,6 +987,7 @@ class MyWork extends Component
             'clockTrainings' => Schema::hasTable('personnel_trainings') && Schema::hasTable('personnel_training_participants') ? PersonnelTraining::where('status', 'scheduled')->whereHas('participants', fn ($q) => $q->where('user_id', auth()->id())->whereIn('status', ['confirmed', 'attended']))->orderBy('starts_at')->limit(100)->get() : collect(),
             'from' => $from, 'to' => $to,
             'calendarDays' => $days, 'calendarEvents' => $events, 'selectedCalendarEvent' => $selected,
+            'calendarLayout' => $this->tab === 'schedule' ? PersonalCalendarLayout::make($days, $anchor) : null,
             'selectedPlanChanges' => $selectedPlanChanges,
             'selectedCalendarRequest' => $selectedCalendarRequest,
             'selectedCalendarContext' => $this->requestCalendar($selectedCalendarRequest),

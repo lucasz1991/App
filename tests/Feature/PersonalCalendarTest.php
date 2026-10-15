@@ -86,6 +86,21 @@ class PersonalCalendarTest extends TestCase
         return AbsenceRequest::create(array_merge(['user_id' => ($user ?? $this->employee)->id, 'kind' => 'vacation', 'status' => 'pending', 'timezone' => 'Europe/Berlin', 'starts_at' => '2026-09-18 00:00', 'ends_at' => '2026-09-20 00:00', 'note' => 'Meine persönliche Notiz'], $values));
     }
 
+    private function assertAgendaTimeGutter(string $html, string $day, string $eventId, array $expected): void
+    {
+        $document = new \DOMDocument;
+        $document->loadHTML('<?xml encoding="UTF-8">'.$html, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+        $xpath = new \DOMXPath($document);
+        $gutters = $xpath->query('//section[contains(@aria-labelledby, "-'.$day.'-title")]//button[@data-personal-event="'.$eventId.'"]/span[contains(concat(" ", normalize-space(@class), " "), " rt-pcal-agenda-time ")]');
+        $this->assertSame(1, $gutters->length, 'Expected one visible agenda gutter for '.$eventId.' on '.$day);
+        $gutter = $gutters->item(0);
+        $parts = $xpath->query('./span', $gutter);
+        $actual = $parts->length > 0
+            ? array_map(fn (\DOMNode $part): string => trim($part->textContent), iterator_to_array($parts))
+            : [trim($gutter->textContent)];
+        $this->assertSame($expected, $actual, 'Actual gutter text must show times independently of accessible labels.');
+    }
+
     public function test_calendar_views_contain_only_own_visible_events_with_shared_controls(): void
     {
         $this->assignment();
@@ -269,5 +284,87 @@ class PersonalCalendarTest extends TestCase
         $this->assertNull($ui->viewData('selectedCalendarRequest'));
         $this->assertNull($ui->viewData('selectedCalendarContext'));
         $this->assertSame(0, OperationAudit::where('action', 'assignment.opened')->count());
+    }
+
+    public function test_selecting_a_calendar_day_preserves_month_or_week_and_exposes_only_its_owned_published_events(): void
+    {
+        $this->assignment(null, ['title' => 'Own previous day']);
+        $next = $this->assignment(null, ['title' => 'Own selected day', 'starts_at' => '2026-09-18 08:00', 'ends_at' => '2026-09-18 12:00']);
+        $other = User::factory()->create(['role' => 'staff']);
+        $this->assignment($other, ['title' => 'Foreign selected day', 'starts_at' => '2026-09-18 08:00', 'ends_at' => '2026-09-18 12:00']);
+        $this->assignment(null, ['title' => 'Private selected draft', 'starts_at' => '2026-09-18 08:00', 'ends_at' => '2026-09-18 12:00', 'published_revision' => 0]);
+        $ui = Livewire::actingAs($this->employee)->test(MyWork::class)->call('showTab', 'schedule');
+        foreach (['month', 'week'] as $view) {
+            $ui->call('switchView', $view)->call('selectCalendarDay', '2026-09-18')
+                ->assertSet('viewMode', $view)->assertSet('anchorDate', '2026-09-18')
+                ->assertDontSee('Foreign selected day')->assertDontSee('Private selected draft');
+            $selected = $ui->viewData('calendarLayout')['selected_day'];
+            $this->assertSame('2026-09-18', $selected['date']->toDateString());
+            $this->assertTrue($selected['selected']);
+            $this->assertSame(['shift-'.$next->id], $selected['events']->pluck('id')->all());
+            $this->assertSame(['shift-'.$next->id], array_map(fn (array $segment): string => $segment['event']->id, $selected['segments']));
+            $ui->call('openCalendarEvent', 'shift-'.$next->id)->assertSet('calendarEventOpen', true)
+                ->assertSeeHtml('data-personal-request-dialog')
+                ->call('selectCalendarDay', '2026-09-19')->assertSet('calendarEventOpen', false)
+                ->assertSet('selectedCalendarEventId', null)->assertSet('viewMode', $view);
+            $this->assertSame([], $ui->viewData('calendarLayout')['selected_day']['segments']);
+        }
+    }
+
+    public function test_calendar_day_selection_validates_dates_and_an_open_detail_reauthorizes_after_ownership_changes(): void
+    {
+        $assignment = $this->assignment();
+        $ui = Livewire::actingAs($this->employee)->test(MyWork::class)->call('showTab', 'schedule')
+            ->call('switchView', 'month')->call('openCalendarEvent', 'shift-'.$assignment->id)
+            ->call('selectCalendarDay', '2026-02-31')->assertHasErrors('anchorDate')
+            ->assertSet('calendarEventOpen', false)->assertSet('viewMode', 'month')
+            ->call('today')->assertHasNoErrors('anchorDate')->assertSet('anchorDate', '2026-09-17')
+            ->call('selectCalendarDay', '2026-09-17')->call('openCalendarEvent', 'shift-'.$assignment->id)
+            ->assertSet('calendarEventOpen', true);
+        $other = User::factory()->create(['role' => 'staff']);
+        $assignment->forceFill(['user_id' => $other->id])->save();
+        $ui->call('$refresh')->assertSet('calendarEventOpen', false)->assertSet('selectedCalendarEventId', null)
+            ->assertDontSee('Mein veröffentlichter Dienst');
+        $this->assertSame([], $ui->viewData('calendarLayout')['selected_day']['segments']);
+        $ui->call('openCalendarEvent', 'shift-'.$assignment->id)->assertNotFound();
+    }
+
+    public function test_all_four_views_keep_real_overnight_overlap_and_all_day_data_with_native_event_actions(): void
+    {
+        $night = $this->assignment(null, ['title' => 'Own night duty', 'starts_at' => '2026-09-16 22:00', 'ends_at' => '2026-09-17 06:00']);
+        $overlap = $this->assignment(null, ['title' => 'Own overlapping duty', 'starts_at' => '2026-09-17 05:30', 'ends_at' => '2026-09-17 08:00']);
+        $later = $this->assignment(null, ['title' => 'Own later duty', 'starts_at' => '2026-09-17 11:00', 'ends_at' => '2026-09-17 13:00']);
+        $boundary = $this->assignment(null, ['title' => 'Own midnight boundary', 'starts_at' => '2026-09-16 18:00', 'ends_at' => '2026-09-17 00:00']);
+        $absence = $this->absence(null, ['starts_at' => '2026-09-17 00:00', 'ends_at' => '2026-09-18 00:00']);
+        $ui = Livewire::actingAs($this->employee)->test(MyWork::class)->call('showTab', 'schedule');
+        foreach (['day', 'week', 'month', 'list'] as $view) {
+            $ui->call('switchView', $view)->assertSeeHtml('data-calendar-view="'.$view.'"');
+            $layout = $ui->viewData('calendarLayout');
+            $segments = collect($layout['selected_day']['segments'])->keyBy(fn (array $segment): string => $segment['event']->id);
+            $this->assertCount(4, $segments);
+            $this->assertArrayNotHasKey('shift-'.$boundary->id, $segments->all());
+            $nightPart = $segments['shift-'.$night->id];
+            $this->assertTrue($nightPart['continues_before']);
+            $this->assertFalse($nightPart['continues_after']);
+            $this->assertEqualsWithDelta(0, $nightPart['start_minute'], 0.00001);
+            $this->assertEqualsWithDelta(360, $nightPart['end_minute'], 0.00001);
+            $this->assertEqualsWithDelta(25, $nightPart['width'], 0.00001);
+            $this->assertSame(2, $nightPart['display_lanes']);
+            $this->assertNotSame($nightPart['display_lane'], $segments['shift-'.$overlap->id]['display_lane']);
+            $this->assertSame(1, $segments['shift-'.$later->id]['display_lanes']);
+            $this->assertSame(['absence-'.$absence->id], array_map(fn (array $segment): string => $segment['event']->id, $layout['selected_day']['all_day']));
+            foreach ([$night, $overlap, $later] as $assignment) {
+                $this->assertStringContainsString("wire:click=\"openCalendarEvent('shift-".$assignment->id."')\"", html_entity_decode($ui->html(), ENT_QUOTES));
+            }
+            $this->assertAgendaTimeGutter($ui->html(), '2026-09-17', 'shift-'.$night->id, ['00:00', '06:00']);
+            $this->assertAgendaTimeGutter($ui->html(), '2026-09-17', 'shift-'.$overlap->id, ['05:30', '08:00']);
+            $this->assertAgendaTimeGutter($ui->html(), '2026-09-17', 'absence-'.$absence->id, ['Ganztägig']);
+            if ($view === 'list') {
+                $this->assertAgendaTimeGutter($ui->html(), '2026-09-16', 'shift-'.$boundary->id, ['18:00', '24:00']);
+            }
+            $ui->call('openCalendarEvent', 'shift-'.$night->id)->assertSet('calendarEventOpen', true)
+                ->assertSet('selectedCalendarEventId', 'shift-'.$night->id)->assertSeeHtml('data-personal-request-dialog')
+                ->call('closeCalendarEvent')->assertSet('calendarEventOpen', false);
+        }
     }
 }

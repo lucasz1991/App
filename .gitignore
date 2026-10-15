@@ -214,6 +214,7 @@ auth.json
 !/tests/Feature/DispositionDateControlsTest.php
 !/tests/Frontend/date-time-field.test.js
 !/tests/Feature/PersonalCalendarTest.php
+!/tests/Unit/PersonalCalendarLayoutTest.php
 !/tests/Feature/Operations/
 /tests/Feature/Operations/*
 !/tests/Feature/Operations/PersonalScheduleTest.php

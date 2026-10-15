@@ -46,6 +46,7 @@
 @import './germany-map.css';
 @import './workday-overview.css';
 @import './workday-actions.css';
+@import './personal-calendar.css';
 
 @tailwind base;
 @tailwind components;
