@@ -29,7 +29,8 @@
                         <a class="rt-workday-shortcut__summary" href="{{ $preview ? '#' : $item['href'] }}"
                             @if($preview) aria-disabled="true" x-on:click.prevent @else wire:navigate @endif>
                     @endif
-                        <span class="rt-workday-shortcut__label"><i class="{{ $item['icon'] }}" aria-hidden="true"></i>{{ $item['label'] }}</span>
+                        <i class="{{ $item['icon'] }} rt-workday-shortcut__icon" aria-hidden="true"></i>
+                        <span class="rt-workday-shortcut__label">{{ $item['label'] }}</span>
                         <strong @if($item['attention']) data-attention @endif>{{ $item['value'] }}</strong>
                         <span class="rt-workday-shortcut__hint">{{ $item['hint'] }}</span>
                     @if(isset($item['tab']))</button>@else</a>@endif

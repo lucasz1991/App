@@ -7,7 +7,10 @@
 .rt-workday-shortcuts__track { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 16px; width: 100%; height: auto; }
 .rt-workday-shortcut { min-width: 0; width: auto; height: auto; display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0 16px 0 0; border-right: 1px solid var(--personal-line); }
 .rt-workday-shortcut:last-child { border-right: 0; }
-.rt-workday-shortcut__summary { display: grid; align-content: start; gap: 4px; width: 100%; min-width: 0; text-align: left; color: var(--personal-ink); text-decoration: none; }
+.rt-workday-shortcut__summary { display: grid; grid-template-columns: 14px minmax(0, 1fr); align-content: start; gap: 4px 7px; width: 100%; min-width: 0; text-align: left; color: var(--personal-ink); text-decoration: none; }
+.rt-workday-shortcut__icon { grid-column: 1; grid-row: 1; align-self: center; font-size: 12px; color: var(--personal-muted); }
+.rt-workday-shortcut__label { grid-column: 2; }
+.rt-workday-shortcut__summary :is(strong, .rt-workday-shortcut__hint) { grid-column: 1 / -1; }
 .rt-workday-shortcut__summary strong { font-size: 16px; font-weight: 650; font-variant-numeric: tabular-nums; }
 .rt-workday-shortcut__label { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--personal-muted); }
 .rt-workday-shortcut__hint { color: var(--personal-muted); font-size: 12px; line-height: 1.5; }
@@ -23,15 +26,19 @@
     .rt-today-hero__intro { order: 1; }
     .rt-today-hero > .rt-workday-shortcuts { order: 2; }
     .rt-today-hero__clock { order: 3; }
-    .rt-workday-shortcuts { padding-top: 12px; }
-    .rt-workday-shortcuts__head { gap: 8px; margin-bottom: 8px; }
-    .rt-workday-shortcuts__head h3 { font-size: 13px; }
+    .rt-workday-shortcuts { padding: 8px 16px 0; border: 1px solid var(--personal-line); border-radius: 16px; background: var(--personal-sheet); }
+    .rt-workday-shortcuts__head { gap: 8px; margin-bottom: 4px; }
+    .rt-workday-shortcuts__head h3 { font-size: 15px; }
     .rt-workday-shortcuts__sickness { gap: 5px; font-size: 12px; }
     .rt-workday-shortcuts__sickness > i:first-child { display: none; }
     .rt-workday-shortcuts__viewport { overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
     .rt-workday-shortcuts[data-carousel-ready="true"] .rt-workday-shortcuts__viewport { overflow: hidden; scroll-snap-type: none; touch-action: pan-y; }
     .rt-workday-shortcuts__track { display: flex; gap: 0; align-items: stretch; }
-    .rt-workday-shortcut { flex: 0 0 calc(100% - 28px); width: calc(100% - 28px); min-height: 128px; padding: 12px 14px 4px; border: 1px solid var(--personal-line); border-radius: 12px; background: var(--personal-sheet); scroll-snap-align: start; }
+    .rt-workday-shortcut { flex: 0 0 100%; width: 100%; min-height: 132px; padding: 16px 16px 4px; border: 1px solid var(--personal-line); border-radius: 12px; background: var(--personal-sheet); scroll-snap-align: start; }
+    .rt-workday-shortcut__summary { grid-template-columns: 36px minmax(0, 1fr); column-gap: 12px; }
+    .rt-workday-shortcut__icon { grid-column: 1; grid-row: 1 / 4; align-self: start; margin-top: 3px; font-size: 28px; color: var(--personal-ink); }
+    .rt-workday-shortcut__summary :is(strong, .rt-workday-shortcut__hint) { grid-column: 2; }
+    .rt-workday-shortcut .rt-workday-shortcut__action { margin-left: 48px; }
     .rt-workday-shortcut:last-child { border-right: 1px solid var(--personal-line); }
     .rt-workday-shortcuts__viewport:not(.swiper-initialized) .rt-workday-shortcut + .rt-workday-shortcut { margin-left: 10px; }
     .rt-workday-shortcuts__controls { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; }

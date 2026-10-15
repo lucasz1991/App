@@ -1,7 +1,16 @@
-<section class="ops-panel ops-stack rt-personal-work-clock" aria-label="Arbeitszeiterfassung" x-bind:data-clock-state="active?.status ?? 'idle'" data-worktime-capture wire:ignore>
+<section class="ops-panel ops-stack rt-personal-work-clock" aria-label="Arbeitszeiterfassung" x-bind:data-clock-state="active?.status ?? 'idle'" data-worktime-capture wire:ignore
+    @if($compactMobileClock ?? false) x-data="{ overviewClockExpanded: false }" x-id="['overview-clock-details']" data-compact-clock data-overview-expanded="false" :data-overview-expanded="overviewClockExpanded ? 'true' : 'false'" :data-overview-idle="!active || !['running','paused'].includes(active.status) ? 'true' : 'false'" @endif>
     <header class="ops-toolbar">
+        @if($compactMobileClock ?? false)<i class="far fa-clock rt-personal-clock-overview-icon" aria-hidden="true"></i>@endif
         <h2 x-text="active && ['running','paused'].includes(active.status) ? active.title : 'Arbeitszeit erfassen'"></h2>
+        @if($compactMobileClock ?? false)<span class="rt-personal-clock-overview-label" x-show="!active || !['running','paused'].includes(active.status)">Arbeitszeit</span>@endif
         <span class="ops-badge" aria-live="polite" x-text="!ready ? 'Online anmelden' : (conflicts ? conflicts + ' zu prüfen' : (pending ? pending + ' ausstehend' : (offline ? 'Offline' : 'Synchronisiert')))"></span>
+        @if($compactMobileClock ?? false)
+            <x-ui.buttons.button-basic mode="link" class="rt-personal-clock-expand" x-show="!active || !['running','paused'].includes(active.status)"
+                x-bind:aria-expanded="overviewClockExpanded" x-bind:aria-controls="$id('overview-clock-details')" x-on:click="overviewClockExpanded = !overviewClockExpanded">
+                <span x-text="overviewClockExpanded ? 'Weniger' : 'Erfassen'"></span><i class="far fa-chevron-down" :class="{ 'rotate-180': overviewClockExpanded }" aria-hidden="true"></i>
+            </x-ui.buttons.button-basic>
+        @endif
     </header>
     <p class="ops-errors" role="alert" x-show="error" x-text="error" x-cloak></p>
     <template x-if="active && ['running','paused'].includes(active.status)">
@@ -22,7 +31,7 @@
         </div>
     </template>
     <template x-if="!active || !['running','paused'].includes(active.status)">
-        <div class="rt-personal-clock-idle">
+        <div class="rt-personal-clock-idle" @if($compactMobileClock ?? false) :id="$id('overview-clock-details')" @endif>
             <p class="ops-muted">Erfasse interne Arbeit, Schulungen oder ungeplante Tätigkeiten. Einen Dienst startest du direkt im Dienstplan.</p>
             <div class="ops-actions"><x-ui.buttons.button-basic mode="primary" x-bind:disabled="busy || !ready || conflicts > 0" x-on:click="startDialogOpen=true">Arbeit starten</x-ui.buttons.button-basic><x-ui.buttons.button-basic wire:click="openGeneralManual">Zeit nachtragen</x-ui.buttons.button-basic></div>
         </div>

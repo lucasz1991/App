@@ -144,17 +144,24 @@ class AiIntakeInboxEmbeddedTest extends TestCase
 
     public function test_review_actions_remain_outside_the_scroll_area_and_disclosures_preserve_evidence(): void
     {
-        $intake = $this->intake(['source_type' => 'email']);
+        $customer = Customer::create(['company_name' => 'Synthetic review customer', 'is_active' => true]);
+        $intake = $this->intake(['source_type' => 'email', 'customer_id' => $customer->id, 'processed_source_revision' => 1,
+            'analysis' => ['intent' => 'inquiry', 'classification' => 'new_inquiry', 'extraction_complete' => true, 'overflow' => false,
+                'positions' => [$this->payload()['demand']]]]);
         $proposal = $intake->proposals()->create(['revision' => 1, 'source_revision' => 1, 'position_index' => 0, 'status' => 'proposed', 'payload' => $this->payload()]);
-        $component = Livewire::test(AiIntakeInbox::class, ['embedded' => true, 'initialIntakeId' => $intake->id])->assertSee('Erneut prüfen')->assertSee('Anfragen übernehmen');
+        $component = Livewire::test(AiIntakeInbox::class, ['embedded' => true, 'initialIntakeId' => $intake->id])->assertSee('Erneut prüfen')->assertSee('Bestätigen');
         $dom = $this->dom($component->html());
         $dock = $dom->query('//*[@role="group" and @aria-label="Eingang bearbeiten"]')->item(0);
         $this->assertNotNull($dock);
         $this->assertSame(0, $dom->query('ancestor::*[@role="tabpanel"]', $dock)->length);
         $this->assertSame(1, $dom->query('.//button[@*[name()="wire:click"]="reanalyze"]', $dock)->length);
-        $this->assertSame(1, $dom->query('.//button[@*[name()="wire:click"]="createInquiries"]', $dock)->length);
-        $this->assertSame(6, $dom->query('//*[contains(@class,"rt-intake-facts__item")]')->length);
-        $component->assertSee('13.05.2027 · 08:00')->assertSee('2 Personen')->assertSee('Original Hamburg');
+        $this->assertSame(1, $dom->query('.//button[@*[name()="wire:click"]="confirmReview"]', $dock)->length);
+        $this->assertSame(1, $dom->query('//*[@data-facts-layout="review"]')->length);
+        $this->assertStringContainsString('13.05.2027', $dom->query('//*[@data-field="date"]/dd')->item(0)->textContent);
+        $this->assertStringContainsString('08:00', $dom->query('//*[@data-field="starts_at"]/dd')->item(0)->textContent);
+        $component->assertSee('2 Personen')->assertSee('Original Hamburg');
+        $this->assertNotNull($dom->query('//*[@data-rt-accordion-section="history"]')->item(0));
+        $this->assertNotNull($dom->query('//*[@data-rt-accordion-section="hints"]')->item(0));
         $this->assertSame(1, $dom->query('//*[@data-rt-accordion-section="position-'.$proposal->id.'"]')->length);
         $this->assertSame(1, $dom->query('//*[@data-rt-accordion-section="evidence"]')->length);
         $component->call('setDetailTab', 'sources');
@@ -182,7 +189,7 @@ class AiIntakeInboxEmbeddedTest extends TestCase
         $component = Livewire::test(AiIntakeInbox::class, ['embedded' => true, 'initialIntakeId' => $intake->id]);
         $dom = $this->dom($component->html());
         foreach (['Standardvorschlag: 1 Person', 'Historische Vergleichsdaten verwendet'] as $notice) {
-            $item = $dom->query('//p[contains(text(),"'.$notice.'")]')->item(0);
+            $item = $dom->query('//*[self::p or self::small][contains(text(),"'.$notice.'")]')->item(0);
             $this->assertNotNull($item);
             $this->assertSame(0, $dom->query('ancestor::*[@data-rt-accordion-section="evidence"]', $item)->length);
         }
@@ -283,7 +290,7 @@ class AiIntakeInboxEmbeddedTest extends TestCase
     public function test_email_recognition_uses_locked_revisions_when_automation_is_off(): void
     {
         $intake = $this->intake(['source_type' => 'email']);
-        $service = $this->mock(AiIntakeService::class);
+        $service = $this->partialMock(AiIntakeService::class);
         $service->shouldReceive('analyzeManually')->once()->with(Mockery::on(fn ($value) => $value->id === $intake->id), Mockery::on(fn ($value) => $value->id === $this->actor->id), 1, 5)->andReturn($intake);
         $service->shouldNotReceive('reanalyze');
 
@@ -294,7 +301,7 @@ class AiIntakeInboxEmbeddedTest extends TestCase
     public function test_provider_failure_is_safe_and_keeps_the_selected_intake_available(): void
     {
         $intake = $this->intake(['source_type' => 'email']);
-        $service = $this->mock(AiIntakeService::class);
+        $service = $this->partialMock(AiIntakeService::class);
         $service->shouldReceive('analyzeManually')->once()->andThrow(new OpenRouterChatException('upstream_http_error', 404, new \RuntimeException('synthetic-private-provider-body')));
 
         Livewire::test(AiIntakeInbox::class, ['embedded' => true, 'initialIntakeId' => $intake->id])->call('reanalyze')->assertHasErrors('intake')->assertSet('selectedId', $intake->id)
@@ -326,7 +333,7 @@ class AiIntakeInboxEmbeddedTest extends TestCase
         $oldPayload['demand']['starts_at'] = $oldPayload['demand']['ends_at'] = null;
         $proposal = $intake->proposals()->create(['source_revision' => 1, 'position_index' => 0, 'revision' => 1, 'status' => 'stale', 'payload' => $oldPayload]);
         $component = Livewire::test(AiIntakeInbox::class, ['embedded' => true, 'initialIntakeId' => $intake->id])
-            ->assertSee('Fresh amendment preview')->assertSee('13.05.2027 · 16:00')->assertSee('13.05.2027 · 18:00')->assertSee('Hamburg Hohe Schaar')
+            ->assertSee('Fresh amendment preview')->assertSee('13.05.2027')->assertSee('16:00')->assertSee('18:00')->assertSee('Hamburg Hohe Schaar')
             ->assertSee('Standardvorschlag: 1 Person')->assertSee('Historische Vergleichsdaten verwendet')
             ->assertSee('Noch zu prüfen: Personalbedarf · Qualifikationen')->assertDontSee('unknown_private_key')->assertDontSee('Obsolete proposal without times')
             ->assertDontSeeHtml('wire:click="editProposal('.$proposal->id.')"')->assertDontSeeHtml('wire:click="createInquiries"');

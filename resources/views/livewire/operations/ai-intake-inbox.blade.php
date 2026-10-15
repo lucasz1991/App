@@ -2,7 +2,7 @@
     x-data="{ panelMode: null }" @if($embedded) x-effect="const next = $wire.captureOpen ? 'capture' : ($wire.detailOpen && $wire.selectedId ? 'detail-' + $wire.selectedId : 'list'); if (next !== panelMode) { const previous = panelMode; panelMode = next; $nextTick(() => { if (next !== 'list') $refs.intakePanelHeading?.focus(); else if (previous?.startsWith('detail-')) $refs.intakeList?.querySelector('[data-intake-id=&quot;' + previous.slice(7) + '&quot;]')?.focus(); }); }" @endif>
     @if($embedded)
         <x-operations.feedback :show-offline="false" />
-        <div class="ai-intake-panel__content" wire:loading.attr="inert" wire:target="submit,assignCustomer,reanalyze,pause,createInquiries,saveProposal,approveProposal,retryPreparation,mapProposal,prepareCustomer">
+        <div class="ai-intake-panel__content" wire:loading.attr="inert" wire:target="submit,assignCustomer,reanalyze,pause,createInquiries,confirmReview,saveProposal,approveProposal,retryPreparation,mapProposal,prepareCustomer">
             @if(!$ready)
                 <p class="ops-muted" role="status">Die AI-Annahme ist noch nicht eingerichtet.</p>
             @elseif($captureOpen)
@@ -12,6 +12,7 @@
                 </div>
             @elseif($detailOpen && $selected)
                 <div class="ai-intake-panel__detail">
+                    <p class="ai-intake-panel__section-title">AI-Annahme</p>
                     <x-operations.intake.record-navigation :record="$selected" :labels="$labels" :component-id="$this->getId()" :active-tab="$detailTab" />
                     @include('livewire.operations.partials.ai-intake-detail')
                 </div>
@@ -25,7 +26,7 @@
                 <livewire:operations.ai-intake-assistant :initial-intake-id="$detailOpen ? $selectedId : null" :customer-id="$customerId" :overview="true" :host-component-id="$this->getId()" :key="'inbox-assistant-'.$this->getId()" />
             </div>
         @endif
-        <p class="ops-muted" wire:loading wire:target="submit,assignCustomer,reanalyze,pause,createInquiries,saveProposal,approveProposal,retryPreparation,mapProposal" role="status" aria-live="polite">Der Eingang wird bearbeitet …</p>
+        <p class="ops-muted" wire:loading wire:target="submit,assignCustomer,reanalyze,pause,createInquiries,confirmReview,saveProposal,approveProposal,retryPreparation,mapProposal" role="status" aria-live="polite">Der Eingang wird bearbeitet …</p>
         <p class="ops-errors" wire:offline role="status">Offline · Änderungen können gerade nicht gespeichert werden.</p>
     @else
         @unless($modalOnly)

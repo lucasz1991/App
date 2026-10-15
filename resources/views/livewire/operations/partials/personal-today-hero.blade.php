@@ -31,7 +31,7 @@
         </div>
     </div>
     <div class="rt-today-hero__clock">
-        @include('livewire.operations.partials.personal-clock', ['withLocation' => false])
+        @include('livewire.operations.partials.personal-clock', ['withLocation' => false, 'compactMobileClock' => true])
     </div>
     @include('livewire.operations.partials.personal-glance')
 </section>

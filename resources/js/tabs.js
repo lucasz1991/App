@@ -240,6 +240,29 @@ export function railtimeTabs(config = {}) {
             this.selectTab(position === 'start' ? this.items[0].id : this.items.at(-1).id, true);
         },
 
+        // The optional complete selector delegates selection to the same rail.
+        // Its teleported native dropdown owns opening, closing and focus return.
+        focusTabPicker(panel, edge = 'selected') {
+            const choices = Array.from(panel?.querySelectorAll('[data-tab-choice]') ?? []);
+            const selected = choices.find((choice) => choice.dataset.tabChoiceId === this.openTab);
+            (edge === 'last' ? choices.at(-1) : selected ?? choices[0])?.focus({ preventScroll: true });
+        },
+
+        moveTabPickerFocus(event) {
+            if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+            const list = event.currentTarget;
+            const choices = Array.from(list?.querySelectorAll('[data-tab-choice]') ?? []);
+            if (!choices.length) return;
+
+            const current = choices.indexOf(document.activeElement);
+            const next = event.key === 'Home' ? 0
+                : event.key === 'End' ? choices.length - 1
+                    : (Math.max(0, current) + (event.key === 'ArrowDown' ? 1 : -1) + choices.length) % choices.length;
+            event.preventDefault();
+            event.stopPropagation();
+            choices[next].focus({ preventScroll: true });
+        },
+
         configureTabsForViewport(mobile) {
             // Dialogs disable only sticky positioning, never mobile gestures.
             this.cancelSettleAnimation();

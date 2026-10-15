@@ -1,28 +1,36 @@
         @if($selected)
+            @php
+                $confirmationState = array_replace(['enabled' => false, 'completed' => false, 'reason' => 'Die erkannte Grundlage zuerst prüfen.'], is_array($confirmation ?? null) ? $confirmation : []);
+                if ($editingProposalId !== null) {
+                    $confirmationState['enabled'] = false;
+                    $confirmationState['reason'] = 'Korrektur zuerst speichern.';
+                }
+                $openFieldCount = count($selected->missing_fields ?? []);
+            @endphp
             @unless($embedded)<x-operations.feedback :show-offline="false" />@endunless
             @unless($embedded)<header><div class="ops-actions"><x-operations.status :value="$selected->status" :label="$labels[$selected->status] ?? 'Prüfung nötig'" /><span class="ops-muted">AI-{{ str_pad((string)$selected->id,6,'0',STR_PAD_LEFT) }}</span></div><h2 class="mt-2 text-lg font-semibold break-words">{{ $selected->title }}</h2><p class="mt-2 ops-muted break-words">{{ $selected->summary }}</p></header>@endunless
             @if($selected->revision !== $selectedRevision || $selectedSettingsRevision !== $settingsRevision)<div class="ops-actions" role="status"><p class="ops-muted">Dieser Eingang oder seine Einstellungen wurden inzwischen geändert. Vor einer Änderung den aktuellen Stand laden.</p><x-ui.buttons.button-basic type="button" wire:click="select({{ $selected->id }})">Aktualisieren</x-ui.buttons.button-basic></div>@endif
-            <div class="ai-intake-panel__detail-pane" @if($embedded) id="intake-{{ $this->getId() }}-panel-review" role="tabpanel" aria-labelledby="intake-{{ $this->getId() }}-tab-review" @if($detailTab !== 'review') hidden @endif @endif>
+            <div @class(['ai-intake-panel__detail-pane', 'ai-intake-panel__review' => $embedded]) @if($embedded) id="intake-{{ $this->getId() }}-panel-review" role="tabpanel" aria-labelledby="intake-{{ $this->getId() }}-tab-review" @if($detailTab !== 'review') hidden @endif @endif>
             @unless($embedded)
             @if($selected->status !== 'not_inquiry')<div class="ops-actions"><x-ui.buttons.button-basic type="button" wire:click="reanalyze" wire:loading.attr="disabled" :disabled="((!$enabled && $selected->source_type !== 'email') || in_array($selected->status, ['paused', 'completed', 'analyzing'], true)) ? true : null">{{ $selected->source_type === 'email' ? 'Erneut erkennen' : 'Erneut analysieren' }}</x-ui.buttons.button-basic><x-ui.buttons.button-basic type="button" wire:click="pause" wire:loading.attr="disabled">Pausieren</x-ui.buttons.button-basic>@if($selected->proposals->where('source_revision',$selected->source_revision)->where('status','!=','stale')->isNotEmpty() && empty($selected->inquiry_ids))<x-ui.buttons.button-basic type="button" wire:click="createInquiries" wire:loading.attr="disabled">Anfragen übernehmen</x-ui.buttons.button-basic>@endif</div>@else<p class="ops-muted" role="status">Als „Keine Anfrage“ abgeschlossen und aus der Dispositions-Eingangsliste entfernt. Zum erneuten Prüfen die Markierung im Postfach zurücksetzen.</p>@endif
             @endunless
             @if($embedded && $selected->status === 'not_inquiry')<p class="ops-muted" role="status">Keine Anfrage · Im Postfach kann die Markierung zurückgesetzt werden.</p>@endif
             @if(!$enabled && $selected->source_type !== 'email')<p class="ops-muted" role="status">Die automatische Auswertung ist aus. Dieser Eingang und seine Anlagen bleiben erhalten; erneut analysieren ist nach Aktivierung verfügbar.</p>@endif
             <x-ui.forms.input-error for="intake" />
-            @if($selected->error_code && $selected->status !== 'not_inquiry')<p class="ops-muted" role="alert">Die Verarbeitung benötigt eine Prüfung. Quellen und erkannte Angaben bleiben erhalten.</p>@endif
-            @if($selected->missing_fields)
+            @if($selected->error_code && $selected->status !== 'not_inquiry' && (!$embedded || $selected->error_code !== 'mailbox_test_review'))<p class="ops-muted" role="alert">Die Verarbeitung benötigt eine Prüfung. Quellen und erkannte Angaben bleiben erhalten.</p>@endif
+            @if(!$embedded && $selected->missing_fields)
                 <div class="ai-intake-panel__accordion ai-intake-panel__missing" x-data="{ openAccordionSection: null, toggleAccordionSection(section) { this.openAccordionSection = this.openAccordionSection === section ? null : section } }">
                     <x-ui.accordion.section compact section="missing" :label="count($selected->missing_fields).' offene Angaben'" icon="far fa-exclamation-circle" :id-prefix="'intake-missing-'.$this->getId()">
                         <ul class="space-y-2 text-sm">@foreach($selected->missing_fields as $field)@php($fieldKey = is_array($field) ? ($field['field'] ?? '') : $field)<li>{{ is_array($field) && isset($field['question']) ? $field['question'] : ($fieldLabels[$fieldKey] ?? 'Angabe prüfen') }}</li>@endforeach</ul>
                     </x-ui.accordion.section>
                 </div>
             @endif
-            @if($selected->status !== 'not_inquiry')<section class="border-t border-rt-border pt-3 dark:border-rt-dark-border" x-data="{ editingCustomer: false }" wire:key="intake-customer-{{ $selected->id }}-{{ $selected->revision }}" data-intake-customer-assignment>
+            @if($selected->status !== 'not_inquiry')<section class="ai-intake-panel__customer border-t border-rt-border pt-3 dark:border-rt-dark-border" x-data="{ editingCustomer: false }" wire:key="intake-customer-{{ $selected->id }}-{{ $selected->revision }}" data-intake-customer-assignment>
                 @if($selected->customer)
                     <div class="flex min-w-0 items-center gap-2" x-show="!editingCustomer">
                         <i class="far fa-building text-rt-muted" aria-hidden="true"></i>
                         <div class="min-w-0 flex-1"><h3 class="break-words font-semibold">{{ $selected->customer->company_name }}</h3><p class="ops-muted">{{ $selected->match_method === 'source_context' ? 'Automatisch erkannt und zugeordnet' : 'Kunde zugeordnet' }}@if($selected->contact) · {{ $selected->contact->name }}@endif</p></div>
-                        <x-ui.buttons.button-basic type="button" size="sm" x-on:click="editingCustomer = true; $nextTick(() => $refs.customerEditor.querySelector('[role=combobox],select,button')?.focus())" aria-label="Kundenzuordnung ändern" title="Kundenzuordnung ändern"><i class="far fa-pen" aria-hidden="true"></i></x-ui.buttons.button-basic>
+                        <x-ui.buttons.button-basic type="button" size="sm" x-ref="customerEditTrigger" x-on:click="editingCustomer = true; $nextTick(() => $refs.customerEditor.querySelector('[role=combobox],select,button')?.focus())" aria-label="Kundenzuordnung ändern" title="Kundenzuordnung ändern"><i class="far fa-pen" aria-hidden="true"></i></x-ui.buttons.button-basic>
                     </div>
                 @else
                     <h3 class="font-semibold">Kundenzuordnung</h3>
@@ -30,12 +38,12 @@
                 <form wire:submit="assignCustomer" class="ops-form mt-3" x-ref="customerEditor" @if($selected->customer) x-show="editingCustomer" x-cloak @endif>
                 <div class="ops-full"><x-ui.forms.label :for="'ai-intake-customer-'.$this->getId()" value="Kunde" /><x-ui.forms.select :id="'ai-intake-customer-'.$this->getId()" wire:model.live="assignCustomerId"><option value="">Bitte prüfen und zuordnen</option>@foreach($customers as $customer)<option value="{{ $customer->id }}">{{ $customer->company_name }}</option>@endforeach</x-ui.forms.select><x-ui.forms.input-error for="assignCustomerId" /></div>
                 <div class="ops-full"><x-ui.forms.label :for="'ai-intake-contact-'.$this->getId()" value="Kontakt" /><x-ui.forms.select :id="'ai-intake-contact-'.$this->getId()" wire:model="assignContactId"><option value="">Hauptkontakt des Kunden</option>@foreach($contacts as $contact)<option value="{{ $contact->id }}">{{ $contact->name }}{{ $contact->email ? ' · '.$contact->email : '' }}</option>@endforeach</x-ui.forms.select><x-ui.forms.input-error for="assignContactId" /></div>
-                <div class="ops-actions ops-full"><x-ui.buttons.button-basic type="submit" wire:loading.attr="disabled">{{ $selected->customer ? 'Zuordnung speichern' : 'Zuordnung bestätigen' }}</x-ui.buttons.button-basic>@if($selected->customer)<x-ui.buttons.button-basic type="button" x-on:click="editingCustomer = false">Abbrechen</x-ui.buttons.button-basic>@endif</div>
+                <div class="ops-actions ops-full"><x-ui.buttons.button-basic type="submit" wire:loading.attr="disabled">{{ $selected->customer ? 'Zuordnung speichern' : 'Zuordnung bestätigen' }}</x-ui.buttons.button-basic>@if($selected->customer)<x-ui.buttons.button-basic type="button" x-on:click="editingCustomer = false; $nextTick(() => $refs.customerEditTrigger?.focus())">Abbrechen</x-ui.buttons.button-basic>@endif</div>
             </form>
             @if($customerSuggestions)<p class="mt-3 ops-muted">Mögliche Kunden anhand von Absender, CC, Inhalt und Signatur. Die Zuordnung bitte bestätigen.</p><ul class="mt-2 space-y-2 text-sm">@foreach($customerSuggestions as $suggestion)@if($suggestedCustomer = $customers->firstWhere('id',$suggestion['customer_id']))<li>{{ $suggestedCustomer->company_name }} · {{ implode(', ',array_map(fn($reason)=>\App\Services\Operations\AiIntakeCustomerContextService::REASON_LABELS[$reason] ?? 'Zuordnung prüfen',$suggestion['reasons'])) }}</li>@endif @endforeach</ul>@endif
             @if(!$selected->customer_id && $canApprove && !$customerId)<div class="mt-3 ops-stack">@if($selected->analysis['customer_draft'] ?? null)<p class="text-sm">Vorbereiteter Kunde: {{ $selected->analysis['customer_draft']['company_name'] ?? 'Firmenname prüfen' }}{{ !empty($selected->analysis['customer_draft']['contact_name']) ? ' · '.$selected->analysis['customer_draft']['contact_name'] : '' }}</p>@endif<x-ui.buttons.button-basic type="button" wire:click="prepareCustomer">Neuen Kunden prüfen und anlegen</x-ui.buttons.button-basic></div>@endif
             </section>
-            @include('livewire.operations.partials.ai-intake-context-hints', ['showCandidateHints' => false])
+            @unless($embedded) @include('livewire.operations.partials.ai-intake-context-hints', ['showCandidateHints' => false]) @endunless
             <section class="ai-intake-panel__positions" aria-label="Positionen und Planungsvorschläge">
                 @php($currentProposals = $selected->proposals->where('source_revision', $selected->source_revision)->where('status', '!=', 'stale'))
                 @forelse($currentProposals as $proposal)
@@ -43,9 +51,9 @@
                     @php($currentProposal = $proposal->source_revision === $selected->source_revision && $selected->revision === $selectedRevision)
                     @php($canCorrect = $currentProposal && !in_array($proposal->status,['applied','stale'],true) && (!$proposal->inquiry || in_array($proposal->inquiry->status,['new','verified'],true)))
                     <article class="ai-intake-panel__position" wire:key="ai-proposal-{{ $proposal->id }}-{{ $proposal->revision }}" x-data="{ openAccordionSection: @js($loop->first || $editingProposalId === $proposal->id ? 'position-'.$proposal->id : null), toggleAccordionSection(section) { this.openAccordionSection = this.openAccordionSection === section ? null : section } }" x-effect="if ($wire.editingProposalId === {{ $proposal->id }}) openAccordionSection = @js('position-'.$proposal->id)">
-                        <x-ui.accordion.section compact :section="'position-'.$proposal->id" :label="$payload['demand']['title'] ?? 'Position '.($proposal->position_index+1)" :description="['proposed'=>'Vorschlag','approved'=>'Freigegeben','applied'=>'Entwürfe erstellt','stale'=>'Erneut prüfen','failed'=>'Übernahme prüfen'][$proposal->status] ?? 'Prüfung nötig'" icon="far fa-clipboard-list" :id-prefix="'intake-position-'.$this->getId()">
-                        <x-operations.intake.facts :demand="$payload['demand'] ?? []" />
-                        @if(($payload['assumptions']['required_staff']['basis'] ?? '') === 'default')<p class="ops-muted" role="status" title="In der Mail fehlt eine Personalanzahl. Bitte bestätigen oder anpassen."><i class="far fa-info-circle" aria-hidden="true"></i> Standardvorschlag: 1 Person · Bitte prüfen</p>@endif
+                        <x-ui.accordion.section compact class="ai-intake-panel__recognized" :section="'position-'.$proposal->id" :label="$embedded ? 'Erkannte Angaben'.($currentProposals->count() > 1 ? ' · Position '.($proposal->position_index+1) : '') : ($payload['demand']['title'] ?? 'Position '.($proposal->position_index+1))" :description="($embedded ? ($payload['demand']['title'] ?? '').' · ' : '').(['proposed'=>'Vorschlag','approved'=>'Freigegeben','applied'=>'Entwürfe erstellt','stale'=>'Erneut prüfen','failed'=>'Übernahme prüfen'][$proposal->status] ?? 'Prüfung nötig')" icon="far fa-clipboard-list" :id-prefix="'intake-position-'.$this->getId()">
+                        <x-operations.intake.facts :demand="$payload['demand'] ?? []" :variant="$embedded ? 'review' : 'grid'" :assumptions="$payload['assumptions'] ?? []" :confirmed="$embedded && (bool) $confirmationState['completed']" />
+                        @if(!$embedded && ($payload['assumptions']['required_staff']['basis'] ?? '') === 'default')<p class="ops-muted" role="status" title="In der Mail fehlt eine Personalanzahl. Bitte bestätigen oder anpassen."><i class="far fa-info-circle" aria-hidden="true"></i> Standardvorschlag: 1 Person · Bitte prüfen</p>@endif
                         @if(!empty($payload['assumptions']['history_review']))<p class="ops-muted" title="Angaben vor der Übernahme mit der aktuellen Mail abgleichen."><i class="far fa-history" aria-hidden="true"></i> Historische Vergleichsdaten verwendet</p>@endif
                         @if($proposal->inquiry)<x-ui.buttons.button-basic mode="link" :href="\App\Support\Operations\OperationsPages::url('cases',['view'=>'inbox','inquiry'=>$proposal->inquiry_id])" data-no-navigate>Native Anfrage {{ $proposal->inquiry->number }} öffnen</x-ui.buttons.button-basic>@endif
                         <div class="ai-intake-panel__accordion mt-2" x-data="{ openAccordionSection: null, toggleAccordionSection(section) { this.openAccordionSection = this.openAccordionSection === section ? null : section } }">
@@ -77,21 +85,40 @@
                         @foreach($selected->analysis['positions'] as $index => $position)
                             @continue(!is_array($position))
                             <article class="ai-intake-panel__position" data-ai-intake-analysis-preview wire:key="ai-analysis-{{ $selected->id }}-{{ $selected->source_revision }}-{{ $selected->revision }}-{{ $index }}" x-data="{ openAccordionSection: @js($loop->first ? 'analysis-'.$index : null), toggleAccordionSection(section) { this.openAccordionSection = this.openAccordionSection === section ? null : section } }">
-                                <x-ui.accordion.section compact :section="'analysis-'.$index" :label="$position['title'] ?? 'Position '.($index + 1)" description="Erkannte Angaben" icon="far fa-clipboard-list" :id-prefix="'intake-analysis-'.$this->getId()">
-                                <x-operations.intake.facts :demand="$position" />
-                                @if(($position['assumptions']['required_staff']['basis'] ?? '') === 'default')<p class="ops-muted" role="status" title="In der Mail fehlt eine Personalanzahl. Bitte bestätigen oder anpassen."><i class="far fa-info-circle" aria-hidden="true"></i> Standardvorschlag: 1 Person · Bitte prüfen</p>@endif
+                                <x-ui.accordion.section compact class="ai-intake-panel__recognized" :section="'analysis-'.$index" :label="$embedded ? 'Erkannte Angaben'.(count($selected->analysis['positions']) > 1 ? ' · Position '.($index + 1) : '') : ($position['title'] ?? 'Position '.($index + 1))" :description="$embedded ? ($position['title'] ?? null) : 'Erkannte Angaben'" icon="far fa-clipboard-list" :id-prefix="'intake-analysis-'.$this->getId()">
+                                <x-operations.intake.facts :demand="$position" :variant="$embedded ? 'review' : 'grid'" :assumptions="$position['assumptions'] ?? []" />
+                                @if(!$embedded && ($position['assumptions']['required_staff']['basis'] ?? '') === 'default')<p class="ops-muted" role="status" title="In der Mail fehlt eine Personalanzahl. Bitte bestätigen oder anpassen."><i class="far fa-info-circle" aria-hidden="true"></i> Standardvorschlag: 1 Person · Bitte prüfen</p>@endif
                                 @if(!empty($position['assumptions']['history_review']))<p class="ops-muted" title="Angaben vor der Übernahme mit der aktuellen Mail abgleichen."><i class="far fa-history" aria-hidden="true"></i> Historische Vergleichsdaten verwendet</p>@endif
                                 @php($previewMissing = array_values(array_unique(array_intersect(array_filter((array) ($position['missing_fields'] ?? []), 'is_string'), array_keys($fieldLabels)))))
                                 @if($previewMissing)<p class="mt-2 ops-muted">Noch zu prüfen: {{ implode(' · ', array_map(fn ($field) => $fieldLabels[$field], $previewMissing)) }}</p>@endif
                                 </x-ui.accordion.section>
                             </article>
                         @endforeach
-                        <p class="mt-2 ops-muted">Erkannte Angaben zur Prüfung des bestehenden Vorgangs.</p>
+                        <p class="mt-2 ops-muted">Erkannte Angaben aus dem aktuellen Eingang. Vor der Bestätigung prüfen.</p>
                     @else<p class="mt-3 ops-muted">Noch keine Positionen ausgewertet.</p>@endif
                 @endforelse
                 @php($historicalReferences = $selected->proposals->filter(fn ($proposal) => ($proposal->source_revision !== $selected->source_revision || $proposal->status === 'stale') && $proposal->inquiry)->unique('inquiry_id'))
                 @if($historicalReferences->isNotEmpty())<section class="mt-3 border-t border-rt-border pt-3 dark:border-rt-dark-border" aria-label="Frühere native Anfragen"><h4 class="font-semibold">Frühere Anfragen</h4><p class="ops-muted">Verknüpfungen aus früheren Prüfständen.</p>@foreach($historicalReferences as $reference)<x-ui.buttons.button-basic mode="link" :href="\App\Support\Operations\OperationsPages::url('cases',['view'=>'inbox','inquiry'=>$reference->inquiry_id])" data-no-navigate>Native Anfrage {{ $reference->inquiry->number }} öffnen</x-ui.buttons.button-basic>@endforeach</section>@endif
             </section>
+            @endif
+            @if($embedded)
+                @if(!empty($contextHints['history']))
+                    @include('livewire.operations.partials.ai-intake-context-hints', ['showCandidateHints' => false, 'historyLabel' => 'Frühere Aufträge'])
+                @else
+                    <div class="ai-intake-context-hints ai-intake-panel__accordion" x-data="{ openAccordionSection: null, toggleAccordionSection(section) { this.openAccordionSection = this.openAccordionSection === section ? null : section } }">
+                        <x-ui.accordion.section compact section="history" label="Frühere Aufträge" icon="far fa-history" :id-prefix="'intake-history-'.$this->getId()"><p class="ops-muted">Für diesen Eingang liegen keine aktuell geprüften Vergleichshinweise vor.</p></x-ui.accordion.section>
+                    </div>
+                @endif
+                <div class="ai-intake-panel__accordion ai-intake-panel__hints" x-data="{ openAccordionSection: null, toggleAccordionSection(section) { this.openAccordionSection = this.openAccordionSection === section ? null : section } }">
+                    <x-ui.accordion.section compact section="hints" label="Hinweise" :description="$openFieldCount > 0 ? $openFieldCount.' offene Angaben' : null" icon="far fa-info-circle" :id-prefix="'intake-hints-'.$this->getId()">
+                        @if($selected->error_code === 'mailbox_test_review')<p class="ops-muted">Erkannte Angaben sind zur persönlichen Prüfung vorgemerkt.</p>@endif
+                        @if($selected->summary)<p class="break-words text-sm">{{ $selected->summary }}</p>@endif
+                        @if($selected->missing_fields)
+                            <ul class="space-y-2 text-sm">@foreach($selected->missing_fields as $field)@php($fieldKey = is_array($field) ? ($field['field'] ?? '') : $field)<li>{{ is_array($field) && isset($field['question']) ? $field['question'] : ($fieldLabels[$fieldKey] ?? 'Angabe prüfen') }}</li>@endforeach</ul>
+                        @else<p class="ops-muted">Keine weiteren offenen Angaben hinterlegt. Erkannte Angaben und Original vor der Bestätigung prüfen.</p>@endif
+                        @if($selected->status !== 'not_inquiry')<x-ui.buttons.button-basic type="button" size="sm" wire:click="pause" wire:loading.attr="disabled"><i class="far fa-pause" aria-hidden="true"></i>Eingang pausieren</x-ui.buttons.button-basic>@endif
+                    </x-ui.accordion.section>
+                </div>
             @endif
             </div>
             <section class="ai-intake-panel__detail-pane border-t border-rt-border pt-3 dark:border-rt-dark-border" @if($embedded) id="intake-{{ $this->getId() }}-panel-sources" role="tabpanel" aria-labelledby="intake-{{ $this->getId() }}-tab-sources" @if($detailTab !== 'sources') hidden @endif @endif><h3 class="font-semibold">Nachrichten und Anlagen</h3>
@@ -120,13 +147,11 @@
                 </x-ui.accordion.section></div>@endif
             </section>
             @if($embedded && $detailTab === 'review' && $selected->status !== 'not_inquiry')
-                <x-operations.panel.action-bar class="ai-intake-panel__action-bar" wire:key="intake-actions-{{ $this->getId() }}-{{ $selected->id }}">
-                    <x-slot:secondary><x-ui.buttons.button-basic type="button" size="sm" wire:click="pause" wire:loading.attr="disabled" aria-label="Eingang pausieren" title="Eingang pausieren"><i class="far fa-pause" aria-hidden="true"></i></x-ui.buttons.button-basic></x-slot:secondary>
-                    <x-ui.buttons.button-basic type="button" wire:click="reanalyze" wire:loading.attr="disabled" :disabled="((!$enabled && $selected->source_type !== 'email') || in_array($selected->status, ['paused', 'completed', 'analyzing'], true)) ? true : null"><i class="far fa-sync-alt" aria-hidden="true"></i>Erneut prüfen</x-ui.buttons.button-basic>
-                    @if($selected->proposals->where('source_revision',$selected->source_revision)->where('status','!=','stale')->isNotEmpty() && empty($selected->inquiry_ids))
-                        <x-ui.buttons.button-basic type="button" mode="primary" wire:click="createInquiries" wire:loading.attr="disabled"><i class="far fa-check" aria-hidden="true"></i>Anfragen übernehmen</x-ui.buttons.button-basic>
-                    @endif
+                <x-operations.panel.action-bar class="ai-intake-panel__action-bar ai-intake-panel__confirmation" wire:key="intake-actions-{{ $this->getId() }}-{{ $selected->id }}">
+                    <x-ui.buttons.button-basic type="button" wire:click="reanalyze" wire:loading.attr="disabled" :disabled="((!$enabled && $selected->source_type !== 'email') || in_array($selected->status, ['paused', 'completed', 'analyzing', 'not_inquiry'], true)) ? true : null"><i class="far fa-sync-alt" aria-hidden="true"></i>Erneut prüfen</x-ui.buttons.button-basic>
+                    <x-ui.buttons.button-basic type="button" mode="primary" wire:click="confirmReview" wire:loading.attr="disabled" :disabled="!$confirmationState['enabled'] ? true : null" :title="$confirmationState['reason']" :aria-describedby="$confirmationState['reason'] ? 'intake-confirmation-'.$this->getId() : null"><i class="far fa-check" aria-hidden="true"></i>{{ $confirmationState['completed'] ? 'Bestätigt' : 'Bestätigen' }}</x-ui.buttons.button-basic>
                 </x-operations.panel.action-bar>
+                @if($confirmationState['reason'])<p class="ai-intake-panel__confirmation-note" id="intake-confirmation-{{ $this->getId() }}" role="status">{{ $confirmationState['reason'] }}</p>@endif
             @endif
         @endif
 

@@ -70,7 +70,7 @@ export function workdayShortcuts({ loadSwiper = () => import('swiper').then(modu
                 const Swiper = await loadSwiper();
                 if (disposed || token !== generation || !this.mobile) return;
                 slider = new Swiper(this.$refs.viewport, {
-                    slidesPerView: 'auto', spaceBetween: 10, rewind: true,
+                    slidesPerView: 1, spaceBetween: 10, rewind: true,
                     speed: this.reduced ? 0 : 260, initialSlide: this.active,
                     watchOverflow: true, resizeObserver: true,
                     on: {

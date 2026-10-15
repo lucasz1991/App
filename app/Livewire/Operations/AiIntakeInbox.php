@@ -45,6 +45,12 @@ class AiIntakeInbox extends Component
     public int $selectedSettingsRevision = 0;
 
     #[Locked]
+    public int $selectedSourceRevision = 0;
+
+    #[Locked]
+    public array $confirmationProposalRevisions = [];
+
+    #[Locked]
     public ?int $editingProposalId = null;
 
     #[Locked]
@@ -136,6 +142,8 @@ class AiIntakeInbox extends Component
         $this->selectedId = $id;
         $this->selectedRevision = $record->revision;
         $this->selectedSettingsRevision = (int) AiDispositionSettings::all(true)['revision'];
+        $this->selectedSourceRevision = $record->source_revision;
+        $this->confirmationProposalRevisions = $record->proposals()->where('source_revision', $record->source_revision)->pluck('revision', 'id')->all();
         $this->assignCustomerId = (string) ($record->customer_id ?? '');
         $this->assignContactId = (string) ($record->customer_contact_id ?? '');
         $this->editingProposalId = null;
@@ -176,6 +184,8 @@ class AiIntakeInbox extends Component
         $this->detailOpen = false;
         $this->selectedId = $this->editingProposalId = null;
         $this->selectedRevision = $this->selectedSettingsRevision = $this->proposalRevision = 0;
+        $this->selectedSourceRevision = 0;
+        $this->confirmationProposalRevisions = [];
         $this->proposalForm = $this->mappingInquiryIds = [];
         $this->assignCustomerId = $this->assignContactId = '';
         $this->detailTab = 'review';
@@ -341,6 +351,23 @@ class AiIntakeInbox extends Component
         $this->perform(fn () => app(AiIntakeService::class)->createInquiries($this->selected(), $this->actor(), $this->selectedRevision));
     }
 
+    public function confirmReview(): void
+    {
+        $this->perform(function (): void {
+            abort_if($this->editingProposalId !== null, 409, 'Die offene Korrektur zuerst speichern.');
+            $intake = $this->selected();
+            abort_if($this->hasUnsavedAssignment($intake), 409, 'Die geänderte Kunden- oder Kontaktzuordnung zuerst speichern.');
+            app(AiIntakeService::class)->confirmReview($intake, $this->actor(), $this->selectedRevision,
+                $this->selectedSourceRevision, $this->selectedSettingsRevision, $this->confirmationProposalRevisions);
+        });
+    }
+
+    private function hasUnsavedAssignment(AiIntake $intake): bool
+    {
+        return $this->assignCustomerId !== (string) ($intake->customer_id ?? '')
+            || $this->assignContactId !== (string) ($intake->customer_contact_id ?? '');
+    }
+
     public function editProposal(int $id): void
     {
         $proposal = $this->selected()->proposals()->findOrFail($id);
@@ -465,6 +492,12 @@ class AiIntakeInbox extends Component
         abort_unless(in_array($this->detailTab, ['review', 'sources', 'communication', 'assistant'], true), 422);
         $query = $ready ? $this->scope()->with('customer')->when($this->statusFilter !== 'all', fn ($query) => $query->where('status', $this->statusFilter))->when(trim($this->search) !== '', fn ($query) => $query->where('title', 'like', '%'.mb_substr(trim($this->search), 0, 100).'%')) : null;
         $selected = $ready && $this->selectedId ? $this->selected()->load(['customer', 'contact', 'messages', 'attachments', 'runs', 'deliveries', 'proposals.inquiry']) : null;
+        $confirmation = $selected ? app(AiIntakeService::class)->confirmationState($selected) : ['enabled' => false, 'completed' => false, 'reason' => ''];
+        if ($this->editingProposalId !== null) {
+            $confirmation = ['enabled' => false, 'completed' => false, 'reason' => 'Die offene Korrektur zuerst speichern.'];
+        } elseif ($selected && $this->hasUnsavedAssignment($selected)) {
+            $confirmation = ['enabled' => false, 'completed' => false, 'reason' => 'Die geänderte Kunden- oder Kontaktzuordnung zuerst speichern.'];
+        }
 
         return view('livewire.operations.ai-intake-inbox', [
             'ready' => $ready, 'enabled' => AiDispositionSettings::enabled(), 'labels' => self::LABELS, 'fieldLabels' => self::FIELD_LABELS,
@@ -472,6 +505,7 @@ class AiIntakeInbox extends Component
             'customers' => Customer::active()->when($this->customerId, fn ($query) => $query->whereKey($this->customerId))->orderBy('company_name')->get(),
             'contacts' => $this->assignCustomerId !== '' ? CustomerContact::where('customer_id', (int) $this->assignCustomerId)->where('is_active', true)->orderBy('name')->get() : collect(),
             'canApprove' => $actor->can('operations.manage'),
+            'confirmation' => $confirmation,
             'qualifications' => QualificationType::where('is_active', true)->orderBy('name')->get(),
             'mappingInquiries' => $selected?->proposals->pluck('inquiry')->filter()->unique('id')->keyBy('id') ?? collect(),
             'customerSuggestions' => $selected ? app(AiIntakeCustomerSuggestions::class)->suggest($selected, $actor) : [],

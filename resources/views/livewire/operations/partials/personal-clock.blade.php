@@ -1,7 +1,7 @@
 {{-- Zeiterfassung; gemeinsam für „Heute“ und „Zeiten“. --}}
 <div class="rt-personal-clock-block ops-stack">
     @if($workTimeReady)
-        @include('operations.partials.work-clock')
+        @include('operations.partials.work-clock', ['compactMobileClock' => $compactMobileClock ?? false])
         <x-operations.modal wire:model="generalManualOpen" title="Arbeitszeit nachtragen"><form wire:submit="saveGeneralManual" class="ops-form rt-personal-form">
             <x-operations.field label="Arbeitskontext" model="generalManual.work_context" type="select"><option value="internal">Interne Arbeit</option><option value="unplanned">Ungeplante Arbeit</option><option value="training">Schulung</option></x-operations.field>
             <x-operations.field label="Tätigkeit" model="generalManual.title" required maxlength="180" />

@@ -532,6 +532,130 @@ class AiIntakeService
         });
     }
 
+    /** The review button confirms a demand, never an order, a delivery or staffing. */
+    public function confirmReview(AiIntake $intake, User $actor, int $expectedRevision, int $expectedSourceRevision, int $expectedSettingsRevision, array $expectedProposalRevisions): void
+    {
+        $this->access($actor);
+        OperationsTransaction::run(function () use ($intake, $actor, $expectedRevision, $expectedSourceRevision, $expectedSettingsRevision, $expectedProposalRevisions): void {
+            $this->access($actor);
+            $current = $this->current($intake, $expectedRevision);
+            abort_unless($current->source_revision === $expectedSourceRevision, 409, 'Die Mailquelle wurde geändert. Bitte neu laden.');
+            abort_unless((int) AiDispositionSettings::all(true)['revision'] === $expectedSettingsRevision, 409, 'Die AI-Einstellungen wurden geändert. Bitte neu öffnen.');
+            $proposals = $current->proposals()->lockForUpdate()->get();
+            $actualRevisions = $proposals->where('source_revision', $current->source_revision)->pluck('revision', 'id')->all();
+            abort_unless($actualRevisions == $expectedProposalRevisions, 409, 'Die erkannten Angaben wurden geändert. Bitte neu laden.');
+            $current->setRelation('proposals', $proposals);
+            $state = $this->confirmationState($current);
+            abort_unless($state['enabled'], 422, $state['reason']);
+            Customer::active()->whereKey($current->customer_id)->lockForUpdate()->firstOrFail();
+
+            foreach ($this->confirmationPayloads($current) as $index => $payload) {
+                $proposal = $proposals->first(fn ($record) => $record->source_revision === $current->source_revision && $record->position_index === $index);
+                $proposal ??= $current->proposals()->make(['source_revision' => $current->source_revision, 'position_index' => $index, 'revision' => 0]);
+                // Keep original AI classification and provenance. Only this click is a human confirmation.
+                $payload['review_confirmation'] = ['actor_id' => $actor->id, 'source_revision' => $current->source_revision,
+                    'intake_revision' => $expectedRevision, 'at' => now()->utc()->toIso8601String()];
+                $proposal->fill(['status' => 'proposed', 'error_code' => null, 'payload' => $payload, 'revision' => $proposal->revision + 1])->save();
+                abort_unless($this->createInquiry($current, $proposal, $actor), 409, 'Die bestehende Anfrage muss zuerst persönlich geprüft werden.');
+            }
+            $current->update(['revision' => $current->revision + 1]);
+            $this->refreshReviewState($current);
+            app(OperationsAuditService::class)->record($current, $actor, 'intake.review_confirmed', [
+                'source_revision' => $current->source_revision, 'inquiry_ids' => $current->inquiry_ids,
+                'recognized_intent' => $current->analysis['intent'] ?? null,
+            ]);
+        });
+    }
+
+    /** Read-only availability shared by the UI and the transactional confirmation. */
+    public function confirmationState(AiIntake $intake): array
+    {
+        $state = ['enabled' => false, 'completed' => false, 'reason' => ''];
+        $intake->loadMissing('proposals.inquiry');
+        $linked = $intake->proposals->whereNotNull('inquiry_id');
+        if ($linked->isNotEmpty() || ! empty($intake->inquiry_ids)) {
+            $current = $intake->proposals->where('source_revision', $intake->source_revision)->where('status', '!=', 'stale');
+            $state['completed'] = $intake->processed_source_revision === $intake->source_revision && $current->isNotEmpty()
+                && $current->count() === count($intake->analysis['positions'] ?? [])
+                && $current->every(function ($proposal) use ($intake): bool {
+                    $inquiry = $proposal->inquiry;
+                    if (! $inquiry || $proposal->status === 'failed' || $inquiry->duplicate_of_id || in_array($inquiry->status, ['rejected', 'duplicate'], true)
+                        || $proposal->inquiry_revision !== $inquiry->revision || $inquiry->verified_revision !== $inquiry->revision
+                        || $inquiry->customer_id !== $intake->customer_id || ! $proposal->inquiry_fingerprint
+                        || ! hash_equals($proposal->inquiry_fingerprint, $this->fingerprint($inquiry))) {
+                        return false;
+                    }
+                    try {
+                        return $this->demandMatches($inquiry, $proposal->payload['demand']);
+                    } catch (ValidationException) {
+                        return false;
+                    }
+                });
+            $state['reason'] = $state['completed'] ? 'Als Anfrage bestätigt. Die weitere Bearbeitung erfolgt in der verknüpften Anfrage.' : 'Bereits mit einer Anfrage verknüpft. Änderungen dort prüfen.';
+
+            return $state;
+        }
+        if ($intake->paused_at || ! in_array($intake->status, ['review', 'ready', 'waiting_customer'], true)) {
+            $state['reason'] = 'Diesen Eingang zuerst wieder zur Prüfung öffnen.';
+        } elseif ($intake->processed_source_revision !== $intake->source_revision) {
+            $state['reason'] = 'Die aktuelle Mailquelle zuerst erneut prüfen.';
+        } elseif (! $intake->customer_id || ! Customer::active()->whereKey($intake->customer_id)->exists()) {
+            $state['reason'] = 'Zuerst einen aktiven Kunden zuordnen.';
+        } elseif ($intake->error_code !== 'mailbox_test_review' && (str_starts_with((string) $intake->error_code, 'mailbox_')
+            || in_array($intake->error_code, ['sender_unverified', 'attachments_review', 'automatic_message_review'], true))) {
+            $state['reason'] = 'Die vollständige Mailquelle und Anlagen zuerst prüfen.';
+        } else {
+            $run = $intake->runs()->whereIn('kind', ['analysis', 'mailbox_test'])->latest('id')->first();
+            if ($run && ($run->status !== 'succeeded' || $run->source_revision !== $intake->source_revision)) {
+                $state['reason'] = 'Die letzte Analyse ist nicht abgeschlossen. Bitte erneut prüfen.';
+            } else {
+                try {
+                    $this->confirmationPayloads($intake);
+                    $state['enabled'] = true;
+                    $state['reason'] = 'Erkannte Angaben einschließlich Vorschlägen bestätigen und als Anfrage übernehmen.';
+                } catch (ValidationException) {
+                    $state['reason'] = 'Die erkannten Angaben sind noch unvollständig oder ungültig. Bitte korrigieren oder erneut prüfen.';
+                } catch (HttpException $exception) {
+                    $state['reason'] = $exception->getMessage();
+                }
+            }
+        }
+
+        return $state;
+    }
+
+    private function confirmationPayloads(AiIntake $intake): array
+    {
+        $analysis = $intake->analysis ?? [];
+        abort_unless(in_array($analysis['intent'] ?? '', ['inquiry', 'amendment'], true)
+            && in_array($analysis['classification'] ?? '', ['new_inquiry', 'reply', 'amendment'], true)
+            && ($analysis['extraction_complete'] ?? false) === true && ($analysis['overflow'] ?? true) === false
+            && is_array($analysis['positions'] ?? null) && count($analysis['positions']) > 0 && count($analysis['positions']) <= 20,
+            422, 'Es liegt noch keine vollständige Anfrageerkennung vor. Bitte erneut prüfen.');
+        $current = $intake->proposals->where('source_revision', $intake->source_revision)->where('status', '!=', 'stale')->keyBy('position_index');
+        abort_if($current->isNotEmpty() && $current->keys()->all() !== range(0, count($analysis['positions']) - 1), 422, 'Die erkannten Positionen zuerst erneut prüfen.');
+        $payloads = [];
+        foreach (array_values($analysis['positions']) as $index => $position) {
+            $proposal = $current->get($index);
+            if ($proposal) {
+                abort_unless($proposal->status === 'proposed' && ! $proposal->inquiry_id, 422, 'Die bestehende Anfrage zuerst prüfen.');
+                $payload = $proposal->payload;
+            } else {
+                [$qualificationIds, $unmapped] = $this->qualifications($position);
+                $payload = ['demand' => array_intersect_key($position, array_flip(['title', 'starts_at', 'ends_at', 'timezone', 'location_name', 'role_name', 'required_staff'])) + ['qualification_ids' => $qualificationIds],
+                    'segments' => $position['segments'] ?? [], 'evidence' => $position['evidence'] ?? [], 'assumptions' => $position['assumptions'] ?? [],
+                    'raw_requirements' => $position['qualification_requirements'] ?? [], 'unmapped_requirements' => $unmapped];
+            }
+            abort_if(! empty($payload['unmapped_requirements']), 422, 'Die erkannten Qualifikationen zuerst zuordnen und prüfen.');
+            $validated = $this->validateProposal($payload, false);
+            abort_if($validated['missing_fields'] !== [], 422, 'Beginn, Ende, Einsatzort, Tätigkeit und Personalbedarf müssen vollständig sein.');
+            OperationsDateTime::interval($validated['demand']['starts_at'], $validated['demand']['ends_at'], $validated['demand']['timezone']);
+            $payloads[$index] = array_replace($payload, $validated);
+        }
+
+        return $payloads;
+    }
+
     public function mapProposalInquiry(AiIntakeProposal $proposal, User $actor, int $inquiryId, ?int $expectedRevision = null): AiIntakeProposal
     {
         $this->access($actor);
@@ -1036,7 +1160,10 @@ class AiIntakeService
     private function refreshReviewState(AiIntake $intake): void
     {
         $missing = $intake->customer_id ? [] : ['customer_id'];
-        $proposals = $intake->proposals()->where('source_revision', $intake->source_revision)->with('inquiry')->get();
+        $proposals = $intake->proposals()->where('source_revision', $intake->source_revision)
+            ->where(fn ($query) => $query->where('status', '!=', 'stale')->orWhereNull('error_code')
+                ->orWhere('error_code', '!=', 'manual_recognition_requested')->orWhereNotNull('inquiry_id'))
+            ->with('inquiry')->get();
         if ($proposals->isEmpty()) {
             $missing[] = 'native_review';
         }
