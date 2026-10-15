@@ -25,7 +25,7 @@
     x-on:keydown.window="shortcut($event)" x-on:keydown.escape="escape($event)" x-on:railtime-assistant-open.window="toggle(true)"
     x-on:railtime-ai-intake-open.window="openIntake($event.detail)"
     x-on:ai-assist-intake-opened.window="if ($event.detail.componentId === @js($this->getId())) toggle(true)" data-ai-assist>
-    <div x-data="railtimeAssistantCloud()" :data-state="orbState" data-state="idle">
+    <div x-data="railtimeAssistantCloud()" :data-state="orbState" x-bind:data-pet-open="open.toString()" data-state="idle">
         <div class="rt-ai-assist__stage">
             <div class="rt-ai-assist__bubble" role="status" aria-live="polite" x-show="bubble && !open && prefs.proactive && hints.length > 0" style="display: none">
                 <span x-text="hints[0]?.text"></span>

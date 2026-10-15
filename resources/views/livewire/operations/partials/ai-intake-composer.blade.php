@@ -17,8 +17,8 @@
         <label class="sr-only" for="{{ $composerId }}-contact">Antwortadresse</label>
         <x-ui.forms.input id="{{ $composerId }}-contact" wire:model="contactEmail" type="email" placeholder="Antwortadresse (optional)" />
         <x-ui.forms.input-error for="contactEmail" />
-    @elseif($overview ?? false)
-        <span class="rt-intake-composer__scope text-xs ops-muted">{{ $intakeId ? 'Ausgewählter Eingang' : ($customerId ? 'Eingänge dieses Kunden' : 'Alle Eingänge') }}</span>
+    @elseif(($overview ?? false) && !$intakeId)
+        <span class="rt-intake-composer__scope text-xs ops-muted">{{ $customerId ? 'Eingänge dieses Kunden' : 'Alle Eingänge' }}</span>
     @endif
     @if($fileCount)
         <div class="rt-intake-composer__files flex min-w-0 flex-wrap gap-1.5" aria-label="Ausgewählte Dateien">

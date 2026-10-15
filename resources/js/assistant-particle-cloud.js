@@ -57,6 +57,8 @@ const PRESETS = {
 };
 const FRAMES = { ribbon: frameRibbon, globe: frameGlobe, wave: frameWave };
 const presets = new Map();
+const activeRenderers = new WeakMap();
+const HOST_SELECTOR = '.rt-chatbot, [data-ai-assist]';
 
 export function resolveAssistantOrb(state = 'idle', size = 64) {
     const resolvedState = STATES[state] || STATES.idle;
@@ -81,21 +83,46 @@ export function createAssistantCloudRenderer(controllerElement, options = {}) {
     const view = options.windowObject || documentObject.defaultView;
     const reducedMotion = view.matchMedia('(prefers-reduced-motion: reduce)');
     const forcedColors = view.matchMedia('(forced-colors: active)');
-    const root = controllerElement.closest('.rt-chatbot') || documentObject;
+    const root = controllerElement.closest(HOST_SELECTOR) || controllerElement;
+    activeRenderers.get(root)?.destroy();
     const surfaces = [];
+
+    function ownsSlot(slot) {
+        return slot.isConnected && root.contains(slot) && (slot.closest(HOST_SELECTOR) || root) === root;
+    }
+
+    function releaseSurface(surface) {
+        resizeObserver?.unobserve(surface.slot);
+        intersectionObserver?.unobserve(surface.slot);
+        surface.canvas.remove();
+        surface.slot.classList.remove('is-cloud-ready');
+    }
+
+    function restoreSurface(surface) {
+        if (surface.canvas.parentNode !== surface.slot) {
+            // A Livewire morph may preserve the slot but remove or replace its client-owned canvas.
+            surface.slot.querySelectorAll('.rt-assistant-cloud__canvas').forEach((canvas) => canvas.remove());
+            surface.slot.appendChild(surface.canvas);
+            surface.staticKey = null;
+            surface.slot.classList.remove('is-cloud-ready');
+        } else if (!surface.slot.classList.contains('is-cloud-ready')) {
+            surface.staticKey = null;
+        }
+    }
 
     // Messages are inserted/removed by Livewire; all slots share one clock.
     function syncSurfaces() {
         for (let index = surfaces.length - 1; index >= 0; index--) {
             const surface = surfaces[index];
-            if (surface.slot.isConnected) continue;
-            resizeObserver?.unobserve(surface.slot);
-            intersectionObserver?.unobserve(surface.slot);
-            surface.canvas.remove();
-            surface.slot.classList.remove('is-cloud-ready');
-            surfaces.splice(index, 1);
+            if (!ownsSlot(surface.slot)) {
+                releaseSurface(surface);
+                surfaces.splice(index, 1);
+            } else {
+                restoreSurface(surface);
+            }
         }
         root.querySelectorAll('[data-assistant-cloud-slot]').forEach((slot) => {
+            if (!ownsSlot(slot)) return;
             if (surfaces.some((surface) => surface.slot === slot)) return;
             const canvas = documentObject.createElement('canvas');
             canvas.className = 'rt-assistant-cloud__canvas';
@@ -103,8 +130,10 @@ export function createAssistantCloudRenderer(controllerElement, options = {}) {
             let context;
             try { context = canvas.getContext('2d', { alpha: true }); } catch (_) { return; }
             if (!context) return;
+            // A remounted controller owns one canvas, including after an interrupted teardown.
+            slot.querySelectorAll('.rt-assistant-cloud__canvas').forEach((existing) => existing.remove());
             slot.appendChild(canvas);
-            slot.classList.add('is-cloud-ready');
+            slot.classList.remove('is-cloud-ready');
             surfaces.push({ slot, canvas, context, visible: true, role: slot.dataset.assistantCloudSlot });
             resizeObserver?.observe(slot);
             intersectionObserver?.observe(slot);
@@ -149,8 +178,7 @@ export function createAssistantCloudRenderer(controllerElement, options = {}) {
             const restingMessage = messageState === 'idle' || messageState === 'offline';
             const cacheKey = staticFrame || restingMessage
                 ? `${size}-${dpr}-${dark}-${messageState || currentState}` : null;
-            if (cacheKey && surface.staticKey === cacheKey) return;
-            surface.staticKey = cacheKey;
+            if (cacheKey && surface.staticKey === cacheKey && surface.slot.classList.contains('is-cloud-ready')) return;
             if (surface.canvas.width !== pixels || surface.cssSize !== size) {
                 surface.canvas.width = pixels;
                 surface.canvas.height = pixels;
@@ -160,12 +188,16 @@ export function createAssistantCloudRenderer(controllerElement, options = {}) {
             surface.context.clearRect(0, 0, size, size);
             if (messageState) {
                 drawSurface(surface, messageState, 1, staticFrame || restingMessage, dark);
+                surface.staticKey = cacheKey;
+                if (!surface.slot.classList.contains('is-cloud-ready')) surface.slot.classList.add('is-cloud-ready');
                 return;
             }
             if (blend < 1 && previousState !== currentState) {
                 drawSurface(surface, previousState, 1 - blend, staticFrame, dark);
             }
             drawSurface(surface, currentState, blend < 1 && previousState !== currentState ? blend : 1, staticFrame, dark);
+            surface.staticKey = cacheKey;
+            if (!surface.slot.classList.contains('is-cloud-ready')) surface.slot.classList.add('is-cloud-ready');
         });
     }
 
@@ -219,14 +251,20 @@ export function createAssistantCloudRenderer(controllerElement, options = {}) {
         reconcile();
     }) : null;
     const slotObserver = new view.MutationObserver((records) => {
-        const slotsChanged = records.some((record) => record.type === 'childList'
-            && [...record.addedNodes, ...record.removedNodes].some((node) =>
-                node.nodeType === 1 && (node.matches('[data-assistant-cloud-slot]')
-                    || node.querySelector('[data-assistant-cloud-slot]'))));
-        if (slotsChanged) syncSurfaces();
-        if (slotsChanged || records.some((record) => record.type === 'attributes')) reconcile();
+        const surfacesChanged = records.some((record) => {
+            if (record.type === 'attributes') return record.target.matches?.('[data-assistant-cloud-slot]');
+            if (record.type !== 'childList') return false;
+            return record.target.matches?.('[data-assistant-cloud-slot]')
+                || [...record.addedNodes, ...record.removedNodes].some((node) =>
+                    node.nodeType === 1 && (node.matches('[data-assistant-cloud-slot]')
+                        || node.querySelector('[data-assistant-cloud-slot]')));
+        });
+        if (surfacesChanged) {
+            syncSurfaces();
+            reconcile();
+        }
     });
-    slotObserver.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-state'] });
+    slotObserver.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-state', 'class'] });
     const themeObserver = new view.MutationObserver(reconcile);
     themeObserver.observe(documentObject.documentElement, { attributes: true, attributeFilter: ['class'] });
     syncSurfaces();
@@ -235,7 +273,7 @@ export function createAssistantCloudRenderer(controllerElement, options = {}) {
     forcedColors.addEventListener('change', reconcile);
     view.addEventListener('resize', reconcile);
 
-    return {
+    const renderer = {
         get surfaceCount() { return surfaces.length; },
         start() {
             if (started || destroyed) return;
@@ -243,6 +281,7 @@ export function createAssistantCloudRenderer(controllerElement, options = {}) {
             reconcile();
         },
         destroy() {
+            if (destroyed) return;
             destroyed = true;
             started = false;
             if (animationFrame !== null) view.cancelAnimationFrame(animationFrame);
@@ -255,25 +294,34 @@ export function createAssistantCloudRenderer(controllerElement, options = {}) {
             reducedMotion.removeEventListener('change', reconcile);
             forcedColors.removeEventListener('change', reconcile);
             view.removeEventListener('resize', reconcile);
-            surfaces.forEach(({ canvas, slot }) => {
-                canvas.remove();
-                slot.classList.remove('is-cloud-ready');
-            });
+            surfaces.forEach(releaseSurface);
+            surfaces.length = 0;
+            if (activeRenderers.get(root) === renderer) activeRenderers.delete(root);
         },
     };
+    activeRenderers.set(root, renderer);
+    return renderer;
 }
 
 export function railtimeAssistantCloud() {
     return {
         cloudRenderer: null,
+        cloudGeneration: 0,
+        cloudDestroyed: false,
         init() {
+            const element = this.$el;
+            const generation = ++this.cloudGeneration;
+            this.cloudDestroyed = false;
             this.$nextTick(() => {
-                if (!this.$el?.isConnected) return;
-                this.cloudRenderer = createAssistantCloudRenderer(this.$el);
+                if (this.cloudDestroyed || generation !== this.cloudGeneration || !element?.isConnected) return;
+                this.cloudRenderer?.destroy();
+                this.cloudRenderer = createAssistantCloudRenderer(element);
                 this.cloudRenderer?.start();
             });
         },
         destroy() {
+            this.cloudDestroyed = true;
+            this.cloudGeneration += 1;
             this.cloudRenderer?.destroy();
             this.cloudRenderer = null;
         },

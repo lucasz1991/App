@@ -22,8 +22,6 @@
 
             <x-ui.accordion.tabs
                 :tabs="$profileTabs"
-                appearance="underline"
-                :all-tabs="true"
                 :collapse-at="'md'"
                 :default="$requestedProfileTab"
                 :force-default="request()->filled('tab')"

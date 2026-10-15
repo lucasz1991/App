@@ -535,7 +535,6 @@ body:has([data-employee-directory-scroll]) {
 .employee-profile__confidential-note p { margin: 0; }
 
 /* Own profile: the app header and native editing controls remain intact. */
-.employee-own-profile { max-width: 64rem; margin-inline: auto; }
 .employee-own-profile [data-profile-identity] {
     border-color: var(--employee-line);
     box-shadow: none;

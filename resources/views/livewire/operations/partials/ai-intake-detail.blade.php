@@ -94,7 +94,6 @@
                                 </x-ui.accordion.section>
                             </article>
                         @endforeach
-                        <p class="mt-2 ops-muted">Erkannte Angaben aus dem aktuellen Eingang. Vor der Bestätigung prüfen.</p>
                     @else<p class="mt-3 ops-muted">Noch keine Positionen ausgewertet.</p>@endif
                 @endforelse
                 @php($historicalReferences = $selected->proposals->filter(fn ($proposal) => ($proposal->source_revision !== $selected->source_revision || $proposal->status === 'stale') && $proposal->inquiry)->unique('inquiry_id'))
@@ -151,7 +150,7 @@
                     <x-ui.buttons.button-basic type="button" wire:click="reanalyze" wire:loading.attr="disabled" :disabled="((!$enabled && $selected->source_type !== 'email') || in_array($selected->status, ['paused', 'completed', 'analyzing', 'not_inquiry'], true)) ? true : null"><i class="far fa-sync-alt" aria-hidden="true"></i>Erneut prüfen</x-ui.buttons.button-basic>
                     <x-ui.buttons.button-basic type="button" mode="primary" wire:click="confirmReview" wire:loading.attr="disabled" :disabled="!$confirmationState['enabled'] ? true : null" :title="$confirmationState['reason']" :aria-describedby="$confirmationState['reason'] ? 'intake-confirmation-'.$this->getId() : null"><i class="far fa-check" aria-hidden="true"></i>{{ $confirmationState['completed'] ? 'Bestätigt' : 'Bestätigen' }}</x-ui.buttons.button-basic>
                 </x-operations.panel.action-bar>
-                @if($confirmationState['reason'])<p class="ai-intake-panel__confirmation-note" id="intake-confirmation-{{ $this->getId() }}" role="status">{{ $confirmationState['reason'] }}</p>@endif
+                @if($confirmationState['reason'])<p class="sr-only" id="intake-confirmation-{{ $this->getId() }}" role="status">{{ $confirmationState['reason'] }}</p>@endif
             @endif
         @endif
 
