@@ -48,11 +48,18 @@ export function aiAssist({ embedded = false } = {}) {
         slashIndex: 0,
         prefs: { ...DEFAULT_PREFS },
         bubbleTimer: null,
+        mobile: false,
+        _resizeHandler: null,
         init() {
             root = this.$el;
+            this._resizeHandler = () => this.syncLayout();
+            window.addEventListener('resize', this._resizeHandler, { passive: true });
+            window.visualViewport?.addEventListener?.('resize', this._resizeHandler, { passive: true });
+            this.syncLayout();
             if (root?.dataset.intakeOpen === 'true') {
                 this.open = true;
                 this.loaded = true;
+                this.syncLayout();
             }
             try {
                 this.prefs = readAiAssistPrefs(window.localStorage);
@@ -76,6 +83,9 @@ export function aiAssist({ embedded = false } = {}) {
             this.disposed = true;
             this.callVersion++;
             clearTimeout(this.bubbleTimer);
+            window.removeEventListener('resize', this._resizeHandler);
+            window.visualViewport?.removeEventListener?.('resize', this._resizeHandler);
+            document.body?.classList?.remove('rt-ai-assist-fullscreen');
             root = null;
         },
         get hints() {
@@ -97,6 +107,7 @@ export function aiAssist({ embedded = false } = {}) {
             if (this.disposed) return;
             this.open = open;
             this.bubble = false;
+            this.syncLayout();
             if (!open) {
                 this.settingsOpen = false;
                 window.dispatchEvent(new CustomEvent('ai-intake-panel-hidden'));
@@ -113,11 +124,23 @@ export function aiAssist({ embedded = false } = {}) {
             });
             if (open) void this.ensureLoaded();
         },
+        syncLayout() {
+            if (!root) return;
+            this.mobile = window.innerWidth <= 760;
+            const viewport = window.visualViewport;
+            const viewportTop = Math.max(0, viewport?.offsetTop || 0);
+            const viewportHeight = viewport?.height || window.innerHeight;
+            const topbar = document.querySelector?.('[data-rt-shell-topbar]')?.getBoundingClientRect?.();
+            root.style.setProperty('--rt-assistant-top', `${Math.max(viewportTop, topbar?.bottom || 70)}px`);
+            root.style.setProperty('--rt-assistant-bottom', `${Math.max(0, window.innerHeight - viewportTop - viewportHeight)}px`);
+            document.body?.classList?.toggle('rt-ai-assist-fullscreen', this.open && this.mobile);
+        },
         async openIntake(detail = {}) {
             if (this.disposed || this.busy) return false;
             this.open = true;
             this.bubble = false;
             this.settingsOpen = false;
+            this.syncLayout();
             const success = await this.call('openIntake', detail.intakeId ?? null, detail.create === true, detail.customerId ?? null);
             if (success && !this.disposed) this.loaded = true;
             return success;

@@ -10,6 +10,7 @@ const view = await readFile(new URL('../../resources/views/livewire/communicatio
 const styles = await readFile(new URL('../../resources/css/communication-module.css', import.meta.url), 'utf8');
 const chatbotStyles = await readFile(new URL('../../resources/css/chatbot.css', import.meta.url), 'utf8');
 const aiAssistStyles = await readFile(new URL('../../resources/css/ai-assist.css', import.meta.url), 'utf8');
+const aiAssistSource = await readFile(new URL('../../resources/js/ai-assist.js', import.meta.url), 'utf8');
 const chatbotView = await readFile(new URL('../../resources/views/livewire/tools/chatbot.blade.php', import.meta.url), 'utf8');
 const aiAssistView = await readFile(new URL('../../resources/views/livewire/operations/ai-assist.blade.php', import.meta.url), 'utf8');
 const launcherComponent = await readFile(new URL('../../resources/views/components/ui/floating/launcher.blade.php', import.meta.url), 'utf8');
@@ -150,6 +151,17 @@ test('assistant launchers share the communication button size white surface and 
     for (const source of [view, chatbotView, aiAssistView]) assert.match(source, /<x-ui\.floating\.window\b/);
     assert.match(windowComponent, /rt-floating-window/);
     assert.match(styles, /\.rt-floating-window\s*\{[^}]*display:\s*flex[^}]*flex-direction:\s*column/);
+});
+
+test('standalone and global assistant use the communication fullscreen contract on mobile', () => {
+    assert.match(aiAssistStyles, /@media \(max-width: 760px\)[\s\S]*?\.rt-ai-assist__panel\s*\{[\s\S]*?top:\s*var\(--rt-assistant-top,\s*70px\)[\s\S]*?bottom:\s*var\(--rt-assistant-bottom,\s*0px\)[\s\S]*?border-radius:\s*0/);
+    assert.doesNotMatch(aiAssistStyles, /height:\s*min\(86dvh/);
+    assert.match(aiAssistStyles, /body\.rt-ai-assist-fullscreen \[data-area-menu\]/);
+    assert.match(chatbotStyles, /body\.rt-chatbot-fullscreen \[data-area-menu\]/);
+    assert.match(aiAssistSource, /this\.mobile = window\.innerWidth <= 760/);
+    assert.match(aiAssistSource, /classList\?\.toggle\('rt-ai-assist-fullscreen', this\.open && this\.mobile\)/);
+    assert.match(aiAssistView, /x-bind:data-window-mode="mobile \? 'fullscreen' : 'mini'"/);
+    assert.match(aiAssistView, /x-trap\.inert\.noscroll="open && mobile"/);
 });
 
 test('dragging either fixed launcher moves and persists the shared left or right group', () => {

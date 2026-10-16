@@ -45,7 +45,9 @@
             </x-ui.floating.launcher>
         </div>
 
-        <x-ui.floating.window class="rt-ai-assist__panel" id="{{ $panelId }}" role="dialog" aria-modal="false" aria-labelledby="{{ $panelId }}-title" x-show="open" style="display: none">
+        <x-ui.floating.window class="rt-ai-assist__panel" id="{{ $panelId }}" role="dialog" ::aria-modal="mobile ? 'true' : 'false'"
+            x-bind:data-window-mode="mobile ? 'fullscreen' : 'mini'" aria-labelledby="{{ $panelId }}-title"
+            x-trap.inert.noscroll="open && mobile" x-show="open" style="display: none">
             <x-slot:header class="rt-ai-assist__head rt-assistant-header" data-assistant-header>
                 <span class="rt-ai-assist__avatar"><span class="rt-ai-assist__orb rt-ai-assist__orb--head" data-assistant-cloud-slot="header" aria-hidden="true"><span class="rt-assistant-cloud__fallback"></span></span></span>
                 <div class="rt-ai-assist__identity">

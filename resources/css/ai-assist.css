@@ -21,6 +21,7 @@
     --ai-spring: cubic-bezier(0.16, 1, 0.3, 1);
     color: var(--ai-text);
 }
+body.rt-ai-assist-fullscreen { overflow: hidden; }
 .dark .rt-ai-assist {
     --ai-bg: var(--rt-shell-surface-solid, #101923);
     --ai-panel: var(--rt-shell-panel, #172332);
@@ -254,8 +255,23 @@ a.rt-ai-assist__activity-item:hover { background: var(--ai-panel); }
 .rt-ai-assist__slash-item[aria-selected='true'], .rt-ai-assist__slash-item:hover { background: var(--ai-panel); }
 .rt-ai-assist__slash-empty { margin: 6px 8px; color: var(--ai-muted); font-size: 12px; }
 
-@media (max-width: 639px) {
-    .rt-ai-assist__panel { right: 0; bottom: 0; left: 0; width: 100%; height: min(86dvh, calc(100dvh - 60px)); border-width: 1px 0 0; border-radius: 24px 24px 0 0; backdrop-filter: none; }
+@media (max-width: 760px) {
+    .rt-ai-assist__panel {
+        top: var(--rt-assistant-top, 70px);
+        right: 0;
+        bottom: var(--rt-assistant-bottom, 0px);
+        left: 0;
+        width: auto;
+        height: auto;
+        max-width: none;
+        max-height: none;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+        backdrop-filter: none;
+        transform-origin: 50% 100%;
+    }
+    body.rt-ai-assist-fullscreen [data-area-menu] { visibility: hidden !important; pointer-events: none !important; }
 }
 
 /* One conversation surface; disposition details stay secondary to messages. */
@@ -294,7 +310,7 @@ a.rt-ai-assist__activity-item:hover { background: var(--ai-panel); }
 .rt-assistant-operations__quickbar button { min-height: 34px; padding: 6px 9px; border: 1px solid var(--ai-border); border-radius: 10px; background: var(--ai-panel); color: var(--ai-text); font-size: 11px; text-align: left; }
 .rt-chatbot:has([data-assistant-operations]) .rt-chatbot__message-action { flex: 0 0 auto; min-height: 38px; }
 .rt-ai-assist :is(button, a, summary):focus-visible { outline: 2px solid var(--ai-accent); outline-offset: 3px; }
-@media (max-width: 639px) {
+@media (max-width: 760px) {
     .rt-ai-assist__panel { padding-bottom: env(safe-area-inset-bottom); }
     .rt-ai-assist__activity-item { gap: 7px; padding: 9px 4px; }
     .rt-ai-assist__activity-side { max-width: 38%; }

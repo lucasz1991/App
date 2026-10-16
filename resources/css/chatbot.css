@@ -20,6 +20,9 @@
 }
 
 body.rt-chatbot-fullscreen { overflow: hidden; }
+@media (max-width: 760px) {
+    body.rt-chatbot-fullscreen [data-area-menu] { visibility: hidden !important; pointer-events: none !important; }
+}
 
 .dark .rt-chatbot {
     --rt-chatbot-bg: var(--rt-shell-surface-solid, #101923);
