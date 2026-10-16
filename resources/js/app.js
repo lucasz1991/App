@@ -2808,10 +2808,14 @@ function setDesktopSidebarExpanded(expanded) {
     }
 
     const nextExpanded = Boolean(expanded);
+    const wasExpanded = document.body.getAttribute('data-sidebar-expanded') === 'true';
 
     Alpine.store('shell').setDesktopSidebarExpanded(nextExpanded);
     document.body.setAttribute('data-sidebar-expanded', nextExpanded ? 'true' : 'false');
     syncSidebarToggleState();
+    if (nextExpanded && !wasExpanded) {
+        window.dispatchEvent(new window.CustomEvent('railtime-sidebar-opened'));
+    }
 }
 
 function captureDesktopSidebarState() {
@@ -2842,12 +2846,17 @@ function setMobileSidebarOpen(open) {
     const sidebar = document.getElementById('app-sidebar');
     const canOpen = (document.body.dataset.sidebarDrawer === 'true' || window.innerWidth < MOBILE_SIDEBAR_BREAKPOINT)
         && sidebar?.isConnected === true;
+    const wasOpen = document.body.classList.contains('sidebar-enable');
+    const nextOpen = Boolean(open) && canOpen;
 
-    document.body.classList.toggle('sidebar-enable', Boolean(open) && canOpen);
+    document.body.classList.toggle('sidebar-enable', nextOpen);
     if (!open && sidebar?.contains(document.activeElement)) {
         document.getElementById('vertical-menu-btn')?.focus({ preventScroll: true });
     }
     syncSidebarToggleState();
+    if (nextOpen && !wasOpen) {
+        window.dispatchEvent(new window.CustomEvent('railtime-sidebar-opened'));
+    }
 }
 
 /*

@@ -53,9 +53,9 @@
 .rt-ai-assist__stage { position: fixed; right: max(1rem, calc(env(safe-area-inset-right) + 0.5rem)); bottom: max(1rem, calc(env(safe-area-inset-bottom) + 0.6rem)); z-index: 81; display: grid; place-items: end; pointer-events: none; transition: opacity 200ms ease, transform 280ms var(--ai-spring); }
 body:has(.rt-chatbot__pet-stage) .rt-ai-assist__stage { right: max(8.25rem, calc(env(safe-area-inset-right) + 8rem)); bottom: max(1.35rem, calc(env(safe-area-inset-bottom) + 1rem)); }
 .rt-ai-assist[data-open='true'] .rt-ai-assist__stage { opacity: 0; transform: translateY(10px) scale(0.92); }
-.rt-ai-assist__launcher { position: relative; display: grid; width: 4.5rem; height: 4.5rem; place-items: center; padding: 0; border: 0; border-radius: 50%; background: transparent; pointer-events: auto; -webkit-tap-highlight-color: transparent; }
+.rt-ai-assist__launcher { position: relative; display: grid; width: 56px; height: 56px; place-items: center; padding: 0; border: 1px solid #e1e6ed; border-radius: 18px; background: #fff; box-shadow: 0 8px 28px rgb(21 37 57 / 16%); pointer-events: auto; -webkit-tap-highlight-color: transparent; }
 .rt-ai-assist[data-open='true'] .rt-ai-assist__launcher { pointer-events: none; }
-.rt-ai-assist__halo { position: absolute; inset: 0; border: 0; border-radius: 50%; background: radial-gradient(circle at center, color-mix(in srgb, var(--ai-bg) 78%, transparent) 0%, color-mix(in srgb, var(--ai-bg) 48%, transparent) 36%, color-mix(in srgb, var(--ai-bg) 16%, transparent) 58%, transparent 74%); box-shadow: none; pointer-events: none; transition: transform 240ms var(--ai-spring), opacity 240ms ease; }
+.rt-ai-assist__halo { position: absolute; inset: 0; border: 0; border-radius: 17px; background: transparent; box-shadow: none; pointer-events: none; transition: transform 240ms var(--ai-spring), opacity 240ms ease; }
 .rt-ai-assist__launcher:hover .rt-ai-assist__halo { transform: scale(1.05); opacity: .85; }
 .rt-ai-assist__launcher:active .rt-ai-assist__halo { transform: scale(0.96); }
 .rt-ai-assist__launcher .rt-ai-assist__orb { z-index: 1; width: 48px; height: 48px; }

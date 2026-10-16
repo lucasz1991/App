@@ -203,6 +203,8 @@ export function railtimeChatbot(config = {}) {
 
     return {
         open: false,
+        assistantMode: 'mini',
+        assistantMotion: 'idle',
         assistantReturnFocus: null,
         isDesktopDocked: false,
         pageBuilderRoute: Boolean(config.pageBuilderMode),
@@ -374,12 +376,15 @@ export function railtimeChatbot(config = {}) {
         _attachmentCleanupAckHandler: null,
         _attachmentCleanupEventUnsubscribe: null,
         _attachmentCommitUnhook: null,
+        _assistantMotionTimer: null,
 
         init() {
             this.dockMediaQuery = window.matchMedia?.(CHATBOT_DESKTOP_QUERY) ?? null;
             this.isDesktopDocked = this.dockMediaQuery
                 ? this.dockMediaQuery.matches
                 : window.innerWidth >= 1140;
+            this.assistantMode = window.innerWidth <= 760 ? 'fullscreen' : 'mini';
+            this.syncAssistantLayout();
 
             this.autoRead = this.readBool('railtime-chatbot-auto-read', this.autoRead);
             this.autoListen = this.readBool('railtime-chatbot-auto-listen', this.autoListen);
@@ -403,6 +408,7 @@ export function railtimeChatbot(config = {}) {
 
             this._dockChangeHandler = (event) => {
                 this.isDesktopDocked = Boolean(event.matches);
+                this.syncAssistantLayout();
                 this.$nextTick(() => this.scrollMessages(false));
             };
             this._navigationHandler = () => {
@@ -461,7 +467,14 @@ export function railtimeChatbot(config = {}) {
             if (this.dockMediaQuery?.addEventListener) {
                 this.dockMediaQuery.addEventListener('change', this._dockChangeHandler);
             } else {
-                this._windowResizeHandler = () => this.syncDockLayout();
+                this._windowResizeHandler = () => {
+                    this.syncDockLayout();
+                    this.syncAssistantLayout();
+                };
+                window.addEventListener('resize', this._windowResizeHandler);
+            }
+            if (!this._windowResizeHandler) {
+                this._windowResizeHandler = () => this.syncAssistantLayout();
                 window.addEventListener('resize', this._windowResizeHandler);
             }
             document.addEventListener('livewire:navigating', this._navigationHandler);
@@ -552,6 +565,8 @@ export function railtimeChatbot(config = {}) {
                 window.removeEventListener('resize', this._windowResizeHandler);
                 this._windowResizeHandler = null;
             }
+            clearTimeout(this._assistantMotionTimer);
+            document.body?.classList?.remove('rt-chatbot-fullscreen');
             if (this._navigationHandler) {
                 document.removeEventListener('livewire:navigating', this._navigationHandler);
             }
@@ -1294,6 +1309,62 @@ export function railtimeChatbot(config = {}) {
                 : window.innerWidth >= 1140;
         },
 
+        syncAssistantLayout() {
+            if (this.pageBuilderActive) {
+                document.body?.classList?.remove('rt-chatbot-fullscreen');
+                return;
+            }
+
+            if (window.innerWidth <= 760) this.assistantMode = 'fullscreen';
+            const viewport = window.visualViewport;
+            const viewportTop = Math.max(0, viewport?.offsetTop || 0);
+            const viewportHeight = viewport?.height || window.innerHeight;
+            const topbar = document.querySelector?.('[data-rt-shell-topbar]')?.getBoundingClientRect?.();
+            const page = document.querySelector?.('.rt-app-page-frame')?.getBoundingClientRect?.();
+            this.$root?.style?.setProperty?.('--rt-assistant-top', `${Math.max(viewportTop, topbar?.bottom || 70)}px`);
+            this.$root?.style?.setProperty?.('--rt-assistant-bottom', `${Math.max(0, window.innerHeight - viewportTop - viewportHeight)}px`);
+            this.$root?.style?.setProperty?.('--rt-assistant-left', `${Math.max(0, page?.left || 0)}px`);
+            document.body?.classList?.toggle('rt-chatbot-fullscreen', this.open && this.assistantMode === 'fullscreen');
+        },
+
+        assistantResizable() {
+            return !this.pageBuilderActive && window.innerWidth > 760;
+        },
+
+        toggleAssistantMode() {
+            if (!this.assistantResizable()) {
+                this.assistantMode = 'fullscreen';
+                this.syncAssistantLayout();
+                return;
+            }
+
+            const panel = this.$refs?.assistantPanel;
+            const from = panel?.getBoundingClientRect?.();
+            this.assistantMode = this.assistantMode === 'mini' ? 'fullscreen' : 'mini';
+            this.syncAssistantLayout();
+            this.$nextTick(() => {
+                const to = panel?.getBoundingClientRect?.();
+                if (!panel || !from || !to || !to.width || !to.height) return;
+                if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) {
+                    this.assistantMotion = 'idle';
+                    return;
+                }
+                clearTimeout(this._assistantMotionTimer);
+                panel.style.setProperty('--rt-assistant-motion-x', `${from.left - to.left}px`);
+                panel.style.setProperty('--rt-assistant-motion-y', `${from.top - to.top}px`);
+                panel.style.setProperty('--rt-assistant-motion-scale-x', `${from.width / to.width}`);
+                panel.style.setProperty('--rt-assistant-motion-scale-y', `${from.height / to.height}`);
+                this.assistantMotion = 'resizing';
+                this._assistantMotionTimer = setTimeout(() => {
+                    this.assistantMotion = 'idle';
+                    panel.style.removeProperty('--rt-assistant-motion-x');
+                    panel.style.removeProperty('--rt-assistant-motion-y');
+                    panel.style.removeProperty('--rt-assistant-motion-scale-x');
+                    panel.style.removeProperty('--rt-assistant-motion-scale-y');
+                }, 390);
+            });
+        },
+
         requestPageBuilderContext() {
             if (typeof window.dispatchEvent !== 'function' || typeof CustomEvent !== 'function') {
                 return false;
@@ -1317,6 +1388,7 @@ export function railtimeChatbot(config = {}) {
                 this.clearPetReactionTimers();
             }
             this.syncPageBuilderAssistState();
+            this.syncAssistantLayout();
 
             return contextMatches;
         },
@@ -1381,10 +1453,12 @@ export function railtimeChatbot(config = {}) {
             document.documentElement?.removeAttribute?.('data-rt-pagebuilder-assist-open');
         },
 
-        setOpen(value, focusComposer = false) {
+        setOpen(value, focusComposer = false, restoreFocus = true) {
             if (this.operationsDisposed) return;
             const wasOpen = this.open;
             this.open = Boolean(value);
+            if (this.open && window.innerWidth <= 760) this.assistantMode = 'fullscreen';
+            this.syncAssistantLayout();
             this.syncPageBuilderAssistState();
             if (!this.open) {
                 const returnFocus = this.assistantReturnFocus;
@@ -1394,7 +1468,7 @@ export function railtimeChatbot(config = {}) {
                 this.abortSpeechInput();
                 this.cancelSpeechStatusRefresh(true);
                 if (this.autoHelp) this.schedulePetBubble(false);
-                if (wasOpen) {
+                if (wasOpen && restoreFocus) {
                     this.$nextTick(() => {
                         if (this.pageBuilderActive) {
                             const pageBuilderTrigger = this.pageBuilderAssistTrigger() ?? returnFocus;
@@ -1405,6 +1479,10 @@ export function railtimeChatbot(config = {}) {
                     });
                 }
                 return;
+            }
+
+            if (!wasOpen && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+                window.dispatchEvent(new CustomEvent('railtime-assistant-opened'));
             }
 
             this.petPrimed = false;

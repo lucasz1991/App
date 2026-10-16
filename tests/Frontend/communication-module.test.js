@@ -8,6 +8,8 @@ import { parseHTML } from 'linkedom';
 const source = await readFile(new URL('../../resources/js/communication-module.js', import.meta.url), 'utf8');
 const view = await readFile(new URL('../../resources/views/livewire/communication.blade.php', import.meta.url), 'utf8');
 const styles = await readFile(new URL('../../resources/css/communication-module.css', import.meta.url), 'utf8');
+const chatbotStyles = await readFile(new URL('../../resources/css/chatbot.css', import.meta.url), 'utf8');
+const aiAssistStyles = await readFile(new URL('../../resources/css/ai-assist.css', import.meta.url), 'utf8');
 
 // Actual production module, isolated DOM and explicit test-only scheduling,
 // geometry, style and WAAPI stubs. No browser, provider or device is opened.
@@ -133,6 +135,35 @@ test('CSS motion fallback covers browsers without Element.animate', () => {
     f.component.show(); f.flush(); assert.equal(f.component.open, true); assert.equal(f.component.visible, true);
     f.component.close(); f.flush(); assert.equal(f.component.visible, false); assert.equal(f.component.motion, 'idle');
     f.component.destroy();
+});
+
+test('assistant launchers share the communication button size white surface and rounding', () => {
+    for (const source of [styles, chatbotStyles, aiAssistStyles]) {
+        assert.match(source, /width:\s*56px/);
+        assert.match(source, /height:\s*56px/);
+        assert.match(source, /border-radius:\s*18px/);
+        assert.match(source, /background:\s*(?:#fff|var\(--comm-surface\))/);
+        assert.match(source, /box-shadow:\s*0 8px 28px rgb\(21 37 57 \/ 16%\)/);
+    }
+});
+
+test('communication and assistant surfaces close each other while the call DOM stays mounted', () => {
+    const f = fixture(); let assistantClose = 0;
+    f.window.addEventListener('railtime-assistant-close', () => assistantClose++);
+    f.component.show(); f.flush(); f.finish();
+    assert.equal(assistantClose, 1); assert.equal(f.component.open, true);
+    const call = f.document.querySelector('#persistent-call');
+    f.emit('communication:call-ready'); f.flush(); f.finish();
+    f.emit('railtime-assistant-opened'); f.flush();
+    assert.equal(f.component.open, false); assert.equal(f.component.activeCall, true);
+    assert.notEqual(f.document.activeElement, f.launcher, 'the newly opened surface retains focus');
+    assert.equal(f.document.querySelector('#persistent-call'), call);
+    f.component.show(); f.flush(); f.finish();
+    f.emit('railtime-sidebar-opened'); f.flush();
+    assert.equal(f.component.open, false); assert.equal(f.component.activeCall, true);
+    assert.notEqual(f.document.activeElement, f.launcher, 'the sidebar retains focus');
+    assert.equal(f.document.querySelector('#persistent-call'), call);
+    f.finish(); f.component.destroy();
 });
 
 test('close keeps real panel visible until WAAPI finish while logical open and accessibility close immediately', () => {

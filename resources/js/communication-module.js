@@ -51,6 +51,8 @@ export function communicationModule() {
             this.$root.setAttribute('data-communication-ready', '');
             this.$watch('tab', () => this.syncVisibility());
             listen(window, 'communication:open', event => this.openIntent(event.detail || {}, event.detail?.mode));
+            listen(window, 'railtime-assistant-opened', () => { if (this.open) this.close(false); });
+            listen(window, 'railtime-sidebar-opened', () => { if (this.open) this.close(false); });
             listen(window, 'communication:call', event => this.requestCall(event.detail?.roomUuid));
             listen(window, 'communication:call-ready', () => {
                 this.activeCall = true;
@@ -165,9 +167,9 @@ export function communicationModule() {
                 await held;
             });
         },
-        close() {
+        close(restoreFocus = true) {
             this.transition(false, this.mode);
-            this.$nextTick(() => { if (!this.open) this.$refs.launcher.focus({ preventScroll: true }); });
+            if (restoreFocus) this.$nextTick(() => { if (!this.open) this.$refs.launcher.focus({ preventScroll: true }); });
         },
         resize() {
             if (!this.wide) { this.show('fullscreen'); return; }
@@ -228,6 +230,9 @@ export function communicationModule() {
             const panel = this.$refs.panel;
             const focusAfterOpen = open && !this.open;
             const launcherFrom = focusAfterOpen ? this.$refs.launcher.getBoundingClientRect() : null;
+            if (focusAfterOpen && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+                window.dispatchEvent(new CustomEvent('railtime-assistant-close'));
+            }
             const from = this.visible ? panel.getBoundingClientRect() : null;
             this.finishMotion(); this.cancelDrag();
             this.mode = this.wide ? mode : 'fullscreen'; this.open = open; this.visible = true;

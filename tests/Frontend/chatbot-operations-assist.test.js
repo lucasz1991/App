@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
 import test, { afterEach } from 'node:test';
+import { readFile } from 'node:fs/promises';
 import { railtimeChatbot } from '../../resources/js/chatbot.js';
 
 const originalWindow = globalThis.window;
 const originalDocument = globalThis.document;
+const originalCustomEvent = globalThis.CustomEvent;
+const chatbotView = await readFile(new URL('../../resources/views/livewire/tools/chatbot.blade.php', import.meta.url), 'utf8');
 const fixtures = [];
 const flush = () => new Promise(resolve => setImmediate(resolve));
 
@@ -13,6 +16,8 @@ afterEach(() => {
     else globalThis.window = originalWindow;
     if (originalDocument === undefined) delete globalThis.document;
     else globalThis.document = originalDocument;
+    if (originalCustomEvent === undefined) delete globalThis.CustomEvent;
+    else globalThis.CustomEvent = originalCustomEvent;
 });
 
 function fixture(config = {}) {
@@ -73,6 +78,30 @@ test('opening sole assistant loads operational panel once and never submits an i
     assert.equal(bot.operationsPanelLoaded, true);
     assert.equal(bot.operationsLoading, false);
     assert.equal(bot.$refs.composer.value, 'Eine Anfrage');
+});
+
+test('opening the assistant announces its surface so communication can close', () => {
+    const { bot } = fixture(); const events = [];
+    globalThis.CustomEvent = class { constructor(type) { this.type = type; } };
+    window.dispatchEvent = event => events.push(event.type);
+    bot.setOpen(true);
+    bot.setOpen(true);
+    bot.setOpen(false);
+    assert.deepEqual(events.filter(type => type === 'railtime-assistant-opened'), ['railtime-assistant-opened']);
+    assert.equal(bot.open, false);
+});
+
+test('the assistant closes when the sidebar announces that it opened', () => {
+    assert.match(chatbotView, /x-on:railtime-sidebar-opened\.window="setOpen\(false, false, false\)"/);
+});
+
+test('automatic surface exclusion closes without stealing focus from the newly opened UI', () => {
+    const { bot } = fixture(); let focused = 0;
+    bot.$refs.launcher.focus = () => focused++;
+    bot.open = true; bot.setOpen(false, false, false);
+    assert.equal(focused, 0);
+    bot.open = true; bot.setOpen(false);
+    assert.equal(focused, 1);
 });
 
 test('first operational load failure is shown and a new opening retries successfully', async () => {

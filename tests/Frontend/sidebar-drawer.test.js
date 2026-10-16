@@ -22,12 +22,16 @@ function drawer(width = 1440) {
 test('all viewport sizes start closed and inert, open by button state and close completely', () => {
     for (const width of [320, 390, 960, 1024, 1389, 1920]) {
         const state = drawer(width);
+        let opened = 0;
+        state.window.addEventListener('railtime-sidebar-opened', () => opened++);
         const sidebar = state.document.getElementById('app-sidebar');
         const button = state.document.getElementById('vertical-menu-btn');
         state.syncSidebarToggleState();
         assert.equal(state.isDesktopHoverSidebar(), false);
         assert.equal(sidebar.inert, true);
         state.setMobileSidebarOpen(true);
+        state.setMobileSidebarOpen(true);
+        assert.equal(opened, 1, 'only the transition to an open drawer is announced');
         assert.equal(state.document.body.classList.contains('sidebar-enable'), true);
         assert.equal(sidebar.inert, false);
         assert.equal(sidebar.getAttribute('aria-hidden'), 'false');

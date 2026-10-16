@@ -212,6 +212,8 @@
     x-on:operations-assist-reply.window="handleOperationsReply($event.detail)"
     x-on:railtime-assistant-cleared.window="stopSpeaking(); clearPhraseAudioCache(); resetAttachmentUi(); knownAssistantMessageKeys = []; $nextTick(() => { updateComposerState(); scrollMessages(true) })"
     x-on:railtime-assistant-open.window="handleAssistantOpen($event.detail)"
+    x-on:railtime-assistant-close.window="setOpen(false, false, false)"
+    x-on:railtime-sidebar-opened.window="setOpen(false, false, false)"
     x-on:railtime-ai-intake-open.window="$wire.openOperationsIntake($event.detail?.intakeId ?? null, $event.detail?.create === true, $event.detail?.customerId ?? null)"
     @if($operationsIntakeRequested) x-init="$nextTick(() => handleAssistantOpen())" @endif
     x-on:railtime-assistant-client-action.window="handleClientAction($event.detail)"
@@ -222,13 +224,14 @@
     x-on:railtime-pagebuilder-assistant-result.window="$wire.recordAssistantActionResult($event.detail)"
     x-on:railtime-pagebuilder-assistant-claim-failed.window="$wire.recordAssistantActionClaimFailure($event.detail)"
     x-bind:data-pagebuilder-active="pageBuilderActive.toString()"
+    x-bind:data-window-mode="assistantMode"
 >
     <button
         type="button"
         class="rt-chatbot__backdrop"
         aria-label="{{ $isGerman ? 'Assistent schließen' : 'Close assistant' }}"
         x-cloak
-        x-show="open && !isDesktopDocked && !pageBuilderActive"
+        x-show="open && assistantMode === 'fullscreen' && !pageBuilderActive"
         x-transition.opacity
         x-on:click="setOpen(false)"
     ></button>
@@ -312,6 +315,9 @@
     <section
         id="railtime-chatbot-panel"
         class="rt-chatbot__panel"
+        x-ref="assistantPanel"
+        x-bind:data-window-mode="assistantMode"
+        x-bind:data-motion="assistantMotion"
         data-empty-chat="{{ count($history) === 0 ? 'true' : 'false' }}"
         x-bind:data-settings-open="settingsOpen.toString()"
         x-cloak
@@ -322,10 +328,10 @@
         x-transition:leave="rt-chatbot__panel-leave"
         x-transition:leave-start="rt-chatbot__panel-enter-end"
         x-transition:leave-end="rt-chatbot__panel-enter-start"
-        x-bind:role="isDesktopDocked || pageBuilderActive ? 'complementary' : 'dialog'"
-        x-bind:aria-modal="isDesktopDocked || pageBuilderActive ? null : 'true'"
+        x-bind:role="pageBuilderActive || assistantMode === 'mini' ? 'complementary' : 'dialog'"
+        x-bind:aria-modal="pageBuilderActive || assistantMode === 'mini' ? null : 'true'"
         aria-labelledby="railtime-chatbot-title"
-        x-trap.inert.noscroll="open && !isDesktopDocked && !pageBuilderActive"
+        x-trap.inert.noscroll="open && !pageBuilderActive && assistantMode === 'fullscreen'"
         x-on:keydown.escape.window.capture="handlePanelEscape($event)"
     >
         <header @class(['rt-chatbot__header', 'rt-assistant-header' => $operationsAvailable]) @if($operationsAvailable) data-assistant-header @endif>
@@ -355,6 +361,18 @@
                 <x-operations.assistant-navigation :tabs="$operationsNavTabs" :selected="$operationsTab" action="setOperationsTab" id-prefix="railtime-assistant" controls="railtime-assistant-content" :review-count="$operationsAssist['reviewCount']" />
             @endif
             <div class="rt-chatbot__header-actions">
+                <button
+                    type="button"
+                    class="rt-chatbot__icon-button rt-chatbot__resize-button"
+                    x-cloak
+                    x-show="assistantResizable()"
+                    x-on:click="toggleAssistantMode()"
+                    x-bind:title="assistantMode === 'mini' ? 'Assistent im Vollbild öffnen' : 'Assistent verkleinern'"
+                    x-bind:aria-label="assistantMode === 'mini' ? 'Assistent im Vollbild öffnen' : 'Assistent verkleinern'"
+                >
+                    <svg x-show="assistantMode === 'mini'" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 4H4v4M16 4h4v4M20 16v4h-4M4 16v4h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <svg x-show="assistantMode === 'fullscreen'" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M20 15h-5v5M4 15h5v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
                 <div
                     class="rt-chatbot__settings"
                     x-on:click.outside="if (settingsOpen) closeSettings(false)"
