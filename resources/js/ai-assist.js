@@ -53,7 +53,7 @@ export function aiAssist({ embedded = false } = {}) {
         init() {
             root = this.$el;
             this._resizeHandler = () => this.syncLayout();
-            window.addEventListener('resize', this._resizeHandler, { passive: true });
+            window.addEventListener?.('resize', this._resizeHandler, { passive: true });
             window.visualViewport?.addEventListener?.('resize', this._resizeHandler, { passive: true });
             this.syncLayout();
             if (root?.dataset.intakeOpen === 'true') {
@@ -83,9 +83,9 @@ export function aiAssist({ embedded = false } = {}) {
             this.disposed = true;
             this.callVersion++;
             clearTimeout(this.bubbleTimer);
-            window.removeEventListener('resize', this._resizeHandler);
+            window.removeEventListener?.('resize', this._resizeHandler);
             window.visualViewport?.removeEventListener?.('resize', this._resizeHandler);
-            document.body?.classList?.remove('rt-ai-assist-fullscreen');
+            if (typeof document !== 'undefined') document.body?.classList?.remove('rt-ai-assist-fullscreen');
             root = null;
         },
         get hints() {
@@ -130,10 +130,11 @@ export function aiAssist({ embedded = false } = {}) {
             const viewport = window.visualViewport;
             const viewportTop = Math.max(0, viewport?.offsetTop || 0);
             const viewportHeight = viewport?.height || window.innerHeight;
-            const topbar = document.querySelector?.('[data-rt-shell-topbar]')?.getBoundingClientRect?.();
-            root.style.setProperty('--rt-assistant-top', `${Math.max(viewportTop, topbar?.bottom || 70)}px`);
-            root.style.setProperty('--rt-assistant-bottom', `${Math.max(0, window.innerHeight - viewportTop - viewportHeight)}px`);
-            document.body?.classList?.toggle('rt-ai-assist-fullscreen', this.open && this.mobile);
+            const documentRef = typeof document === 'undefined' ? null : document;
+            const topbar = documentRef?.querySelector?.('[data-rt-shell-topbar]')?.getBoundingClientRect?.();
+            root.style?.setProperty?.('--rt-assistant-top', `${Math.max(viewportTop, topbar?.bottom || 70)}px`);
+            root.style?.setProperty?.('--rt-assistant-bottom', `${Math.max(0, window.innerHeight - viewportTop - viewportHeight)}px`);
+            documentRef?.body?.classList?.toggle('rt-ai-assist-fullscreen', this.open && this.mobile);
         },
         async openIntake(detail = {}) {
             if (this.disposed || this.busy) return false;
