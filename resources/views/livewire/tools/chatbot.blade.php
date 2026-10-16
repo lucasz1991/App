@@ -3,6 +3,7 @@
     $assistantIsAvailable = (bool) ($assistantAvailable ?? false);
     $operationsAssist = $operationsAssist ?? ['available' => false];
     $operationsCards = $operationsCards ?? [];
+    $operationsIntakeRequested = (bool) ($operationsIntakeRequested ?? false);
     $operationsAvailable = (bool) ($operationsAssist['available'] ?? false) && !($pageBuilderUi['active'] ?? false);
     $speechIsAvailable = (bool) ($speechAvailable ?? false);
     $historySource = $chatHistory ?? [];
@@ -244,49 +245,28 @@
         aria-hidden="true"
     ></span>
 
-    <div
+    <x-ui.dropdown.anchor-dropdown
+        align="launcher"
+        width="auto"
+        :max-height="320"
+        :offset="10"
+        :external-trigger="true"
+        dropdown-id="assistant-pet-bubble"
+        layer-group="floating-assistant-hint"
+        content-role=""
+        content-label="{{ $isGerman ? 'Aktionen des Assistenten' : 'Assistant actions' }}"
+        trigger-classes="inline-flex"
+        dropdown-classes="rt-chatbot__pet-dropdown !rounded-none !shadow-none"
+        content-classes="!overflow-visible !border-0 !bg-transparent !p-0 !shadow-none"
+        x-on:dropdown-closed.window="if ($event.detail?.id === 'rt-dropdown-assistant-pet-bubble') petBubbleDropdownClosed()"
         class="rt-chatbot__pet-stage"
         x-cloak
         x-show="!open && !pageBuilderActive"
         x-transition
         x-bind:data-state="petState()"
     >
-        <div
-            class="rt-chatbot__pet-bubble"
-            x-cloak
-            x-show="petBubbleVisible"
-            x-transition:enter="rt-chatbot__pet-bubble-enter"
-            x-transition:enter-start="rt-chatbot__pet-bubble-enter-start"
-            x-transition:enter-end="rt-chatbot__pet-bubble-enter-end"
-            x-transition:leave="rt-chatbot__pet-bubble-leave"
-            x-transition:leave-start="rt-chatbot__pet-bubble-enter-end"
-            x-transition:leave-end="rt-chatbot__pet-bubble-enter-start"
-            x-bind:role="petBubbleActions.length ? 'group' : (petBubbleAnnounce ? 'status' : null)"
-            x-bind:aria-live="petBubbleAnnounce ? 'polite' : 'off'"
-            x-bind:aria-hidden="(!petBubbleAnnounce && petBubbleActions.length === 0).toString()"
-            aria-label="{{ $isGerman ? 'Aktionen des Assistenten' : 'Assistant actions' }}"
-        >
-            <span x-text="petBubbleText"></span>
-            <div
-                class="rt-chatbot__pet-bubble-actions"
-                x-cloak
-                x-show="petBubbleActions.length"
-            >
-                <template x-for="action in petBubbleActions" x-bind:key="action.key">
-                    <button
-                        type="button"
-                        class="rt-chatbot__pet-bubble-action"
-                        x-bind:data-primary="action.primary.toString()"
-                        x-bind:disabled="navigationCleanupInFlight && ['start_voice', 'wagon_voice_start'].includes(action.key)"
-                        x-on:click.stop="runPetBubbleAction(action)"
-                        x-text="action.label"
-                    ></button>
-                </template>
-            </div>
-        </div>
-
-        <button
-            type="button"
+        <x-slot:trigger>
+        <x-ui.floating.launcher
             class="rt-chatbot__pet-launcher"
             x-ref="launcher"
             x-on:mouseenter="showPetBubble(strings.petHint, 4_500)"
@@ -309,15 +289,42 @@
                 class="rt-chatbot__pet-presence {{ $assistantIsAvailable ? '' : 'rt-chatbot__pet-presence--offline' }}"
                 aria-hidden="true"
             ></span>
-        </button>
-    </div>
+        </x-ui.floating.launcher>
+        </x-slot:trigger>
 
-    <section
+        <x-slot:content>
+            <div
+                class="rt-chatbot__pet-bubble"
+                x-bind:role="petBubbleActions.length ? 'group' : (petBubbleAnnounce ? 'status' : null)"
+                x-bind:aria-live="petBubbleAnnounce ? 'polite' : 'off'"
+                x-bind:aria-hidden="(!petBubbleAnnounce && petBubbleActions.length === 0).toString()"
+                aria-label="{{ $isGerman ? 'Aktionen des Assistenten' : 'Assistant actions' }}"
+            >
+                <span x-text="petBubbleText"></span>
+                <div class="rt-chatbot__pet-bubble-actions" x-cloak x-show="petBubbleActions.length">
+                    <template x-for="action in petBubbleActions" x-bind:key="action.key">
+                        <button
+                            type="button"
+                            class="rt-chatbot__pet-bubble-action"
+                            x-bind:data-primary="action.primary.toString()"
+                            x-bind:disabled="navigationCleanupInFlight && ['start_voice', 'wagon_voice_start'].includes(action.key)"
+                            x-on:click.stop="runPetBubbleAction(action)"
+                            x-text="action.label"
+                        ></button>
+                    </template>
+                </div>
+            </div>
+        </x-slot:content>
+    </x-ui.dropdown.anchor-dropdown>
+
+    <x-ui.floating.window
         id="railtime-chatbot-panel"
         class="rt-chatbot__panel"
         x-ref="assistantPanel"
         x-bind:data-window-mode="assistantMode"
         x-bind:data-motion="assistantMotion"
+        x-bind:data-corner="assistantCorner"
+        x-bind:data-dragging="assistantDragging.toString()"
         data-empty-chat="{{ count($history) === 0 ? 'true' : 'false' }}"
         x-bind:data-settings-open="settingsOpen.toString()"
         x-cloak
@@ -333,9 +340,15 @@
         aria-labelledby="railtime-chatbot-title"
         x-trap.inert.noscroll="open && !pageBuilderActive && assistantMode === 'fullscreen'"
         x-on:keydown.escape.window.capture="handlePanelEscape($event)"
+        x-on:pointermove.window="assistantDragMove($event)"
+        x-on:pointerup.window="assistantDragEnd($event)"
+        x-on:pointercancel.window="assistantCancelDrag()"
+        x-on:lostpointercapture="assistantLostPointerCapture($event)"
     >
-        <header @class(['rt-chatbot__header', 'rt-assistant-header' => $operationsAvailable]) @if($operationsAvailable) data-assistant-header @endif>
-            <div class="rt-chatbot__identity">
+        <x-slot:header class="rt-chatbot__header{{ $operationsAvailable ? ' rt-assistant-header' : '' }}">
+            <div class="rt-chatbot__identity" :tabindex="canDragAssistant ? 0 : -1" role="group" aria-label="Fensterposition"
+                title="Ziehen oder mit Alt und Pfeiltasten in eine Ecke setzen"
+                x-on:pointerdown="assistantDragStart($event)" x-on:keydown="assistantCornerKey($event)">
                 <span
                     class="rt-chatbot__avatar"
                     data-assistant-cloud-slot="header"
@@ -579,7 +592,7 @@
                     </svg>
                 </button>
             </div>
-        </header>
+        </x-slot:header>
 
         <div
             class="rt-chatbot__service-alert"
@@ -1251,5 +1264,5 @@
             </form>
             @endif
         </div>
-    </section>
+    </x-ui.floating.window>
 </div>

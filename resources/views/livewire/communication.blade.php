@@ -8,18 +8,18 @@
     wire:poll.60s="refreshUnread"
 >
     <span hidden data-app-badge-count="{{ $unreadCount }}"></span>
-    <button type="button" class="rt-comm-launcher" x-ref="launcher" x-show="!open" x-cloak
-        x-on:click="activeCall ? resumeCall() : show('mini')" aria-controls="railtime-communication" :aria-expanded="open.toString()"
-        :aria-label="activeCall ? 'Laufenden Anruf öffnen' : 'Chats öffnen'" title="Chats und Anrufe öffnen">
+    <x-ui.floating.launcher class="rt-comm-launcher" x-ref="launcher" x-show="!open" x-cloak
+        x-on:click="activeCall ? resumeCall() : show('mini')" aria-controls="railtime-communication" ::aria-expanded="open.toString()"
+        ::aria-label="activeCall ? 'Laufenden Anruf öffnen' : 'Chats öffnen'" title="Chats und Anrufe öffnen">
         <i class="far" :class="activeCall ? 'fa-phone' : 'fa-comments'" aria-hidden="true"></i>
         <span x-show="activeCall" class="rt-comm-call-dot" aria-hidden="true"></span>
         @if($unreadCount > 0)<span class="rt-comm-badge">{{ $unreadCount > 99 ? '99+' : $unreadCount }}</span>@endif
-    </button>
+    </x-ui.floating.launcher>
 
-    <section id="railtime-communication" x-ref="panel" class="rt-communication" x-cloak wire:ignore.self
-        x-show="visible" :data-mode="mode" :data-motion="motion" :data-corner="corner" :data-dragging="dragging.toString()"
-        :inert="!open" :aria-hidden="(!open).toString()" aria-label="Chats, Anrufe und Meetings" role="region">
-        <header class="rt-comm-head" x-on:pointerdown="dragStart($event)">
+    <x-ui.floating.window id="railtime-communication" x-ref="panel" class="rt-communication" x-cloak wire:ignore.self
+        x-show="visible" ::data-mode="mode" ::data-motion="motion" ::data-corner="corner" ::data-dragging="dragging.toString()"
+        ::inert="!open" ::aria-hidden="(!open).toString()" label="Chats, Anrufe und Meetings" role="region">
+        <x-slot:header class="rt-comm-head" x-on:pointerdown="dragStart($event)">
             <div class="rt-comm-tabs" role="tablist" aria-label="Bereiche" x-on:keydown="tabKey($event)">
                 @foreach(['chats' => ['fa-comments', 'Chats'], 'calls' => ['fa-phone', 'Anrufe'], 'meetings' => ['fa-video', 'Meetings']] as $key => [$icon, $label])
                     <button type="button" id="communication-tab-{{ $key }}" role="tab" data-comm-tab="{{ $key }}"
@@ -41,7 +41,7 @@
                     <i class="far fa-times" aria-hidden="true"></i>
                 </button>
             </div>
-        </header>
+        </x-slot:header>
         <button type="button" class="rt-comm-resume" x-show="activeCall && !(tab === 'calls' && showCall)" x-cloak x-on:click="resumeCall()">
             <span class="rt-comm-call-dot"></span><span>Laufender Anruf</span><span class="ml-auto">Zum Anruf <i class="far fa-arrow-right" aria-hidden="true"></i></span>
         </button>
@@ -74,5 +74,5 @@
                 @endif
             </div>
         </div>
-    </section>
+    </x-ui.floating.window>
 </div>

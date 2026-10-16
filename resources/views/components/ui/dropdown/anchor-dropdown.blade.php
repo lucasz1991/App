@@ -47,8 +47,12 @@
   $anchorPlacement = match((string) $align) {
     'left' => 'bottom-start',
     'top' => 'top-end',
+    'launcher' => 'side-auto',
     default => 'bottom-end',
   };
+  $horizontalAlign = str_ends_with($anchorPlacement, '-start')
+    ? 'left'
+    : (str_ends_with($anchorPlacement, '-auto') ? 'auto' : 'right');
   $anchorOffset = max(0, (int) $offset);
   $anchorCaretX = str_ends_with($anchorPlacement, '-start')
     ? '1.75rem'
@@ -74,8 +78,10 @@
       'layerGroup' => $resolvedLayerGroup,
       'layerId' => $resolvedDropdownId,
       'anchorSelector' => filled($anchorSelector) ? (string) $anchorSelector : null,
-      'horizontalAlign' => str_ends_with($anchorPlacement, '-start') ? 'left' : 'right',
-      'preferredPlacement' => str_starts_with($anchorPlacement, 'top') ? 'top' : 'bottom',
+      'horizontalAlign' => $horizontalAlign,
+      'preferredPlacement' => str_starts_with($anchorPlacement, 'side')
+        ? 'side'
+        : (str_starts_with($anchorPlacement, 'top') ? 'top' : 'bottom'),
       'offset' => $anchorOffset,
       'maximumHeight' => max(160, min(960, (int) $maxHeight)),
       'fixedHeight' => (bool) $fixedHeight,
@@ -103,7 +109,7 @@
     class="rt-ui-dropdown-trigger {{ $triggerClasses }}"
     x-ref="trigger"
     data-rt-dropdown-trigger
-    @click="toggle()"
+    @unless($externalTrigger) @click="toggle()" @endunless
     @pointerenter="enterHover($event, 'trigger')"
     @pointerleave="leaveHover($event, 'trigger')"
     @focusin="retainHoverFocus()"

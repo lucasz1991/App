@@ -64,32 +64,20 @@ body.rt-chatbot-fullscreen { overflow: hidden; }
 
 /* Pet launcher */
 .rt-chatbot__pet-stage {
-    position: fixed;
+    position: fixed !important;
     right: max(0.75rem, calc(env(safe-area-inset-right) + 0.25rem));
     bottom: max(0.6rem, calc(env(safe-area-inset-bottom) + 0.2rem));
-    z-index: 80;
+    z-index: 24;
     display: grid;
     width: 56px;
     height: 56px;
     place-items: end center;
     pointer-events: none;
 }
+html[data-rt-launcher-side='left'] .rt-chatbot__pet-stage { left: max(0.75rem,calc(env(safe-area-inset-left) + 0.25rem)); right: auto; }
 
 .rt-chatbot__pet-launcher {
-    position: relative;
-    display: grid;
-    width: 56px;
-    height: 56px;
-    place-items: center;
-    border: 1px solid #e1e6ed;
-    border-radius: 18px;
-    padding: 0;
     color: var(--rt-chatbot-accent);
-    background: #fff;
-    box-shadow: 0 8px 28px rgb(21 37 57 / 16%);
-    cursor: pointer;
-    pointer-events: auto;
-    -webkit-tap-highlight-color: transparent;
 }
 
 .rt-chatbot__pet-halo {
@@ -243,6 +231,20 @@ body.rt-chatbot-fullscreen { overflow: hidden; }
     pointer-events: auto;
     backdrop-filter: blur(16px) saturate(1.1);
 }
+
+.rt-chatbot__pet-dropdown {
+    width: max-content !important;
+    max-width: min(16rem,calc(100vw - 1.5rem)) !important;
+}
+
+.rt-chatbot__pet-dropdown .rt-chatbot__pet-bubble {
+    position: relative;
+    right: auto;
+    bottom: auto;
+    max-width: min(16rem,calc(100vw - 1.5rem));
+}
+
+.rt-chatbot__pet-dropdown .rt-chatbot__pet-bubble::after { display: none; }
 
 .rt-chatbot__pet-bubble-actions {
     display: grid;
@@ -2341,8 +2343,8 @@ html.rt-pagebuilder-fullscreen-open .rt-chatbot__panel {
         bottom: calc(24px + var(--rt-assistant-bottom,0px));
         left: auto;
         top: auto;
-        width: min(560px,calc(100vw - 48px));
-        height: min(660px,calc(100dvh - var(--rt-assistant-top,70px) - 48px - var(--rt-assistant-bottom,0px)));
+        width: min(520px,calc(100vw - 48px));
+        height: min(600px,calc(100dvh - var(--rt-assistant-top,70px) - 48px - var(--rt-assistant-bottom,0px)));
         max-width: none;
         max-height: none;
         border-radius: 18px;
@@ -2359,6 +2361,13 @@ html.rt-pagebuilder-fullscreen-open .rt-chatbot__panel {
     .rt-chatbot:not([data-pagebuilder-active='true']) .rt-chatbot__panel[data-window-mode='mini'] .rt-assistant-nav { padding: 2px; border-radius: 10px; }
     .rt-chatbot:not([data-pagebuilder-active='true']) .rt-chatbot__panel[data-window-mode='mini'] .rt-assistant-nav__tab { width: 34px; min-height: 34px; border-radius: 8px; }
     .rt-chatbot:not([data-pagebuilder-active='true']) .rt-chatbot__panel[data-window-mode='mini'] .rt-assistant-nav__tab svg { width: 16px; height: 16px; }
+    .rt-chatbot:not([data-pagebuilder-active='true']) .rt-chatbot__panel[data-window-mode='mini'][data-corner='top-left'] { top: calc(var(--rt-assistant-top,70px) + 24px); right: auto; bottom: auto; left: 24px; }
+    .rt-chatbot:not([data-pagebuilder-active='true']) .rt-chatbot__panel[data-window-mode='mini'][data-corner='top-right'] { top: calc(var(--rt-assistant-top,70px) + 24px); right: 24px; bottom: auto; left: auto; }
+    .rt-chatbot:not([data-pagebuilder-active='true']) .rt-chatbot__panel[data-window-mode='mini'][data-corner='bottom-left'] { top: auto; right: auto; bottom: calc(24px + var(--rt-assistant-bottom,0px)); left: 24px; }
+    .rt-chatbot:not([data-pagebuilder-active='true']) .rt-chatbot__panel[data-window-mode='mini'][data-corner='bottom-right'] { top: auto; right: 24px; bottom: calc(24px + var(--rt-assistant-bottom,0px)); left: auto; }
+    .rt-chatbot__panel[data-window-mode='mini'] .rt-chatbot__identity { cursor: grab; touch-action: none; user-select: none; }
+    .rt-chatbot__panel[data-dragging='true'] .rt-chatbot__identity { cursor: grabbing; }
+    .rt-chatbot__panel[data-window-mode='mini'] .rt-chatbot__identity:focus-visible { outline: 2px solid var(--rt-chatbot-accent); outline-offset: 2px; border-radius: 8px; }
     .rt-chatbot:not([data-pagebuilder-active='true']) .rt-chatbot__panel[data-window-mode='fullscreen'] {
         top: calc(var(--rt-assistant-top,70px) + 16px);
         right: 16px;

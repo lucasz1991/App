@@ -27,6 +27,7 @@ const PET_BUBBLE_INITIAL_DELAY_MS = 1_200;
 const PET_BUBBLE_VISIBLE_MS = 4_800;
 const PET_BUBBLE_CYCLE_MS = 38_000;
 const PET_PRIMER_VISIBLE_MS = 14_000;
+const PET_BUBBLE_DROPDOWN_ID = 'rt-dropdown-assistant-pet-bubble';
 const PET_REACTION_MIN_DELAY_MS = 7_000;
 const PET_REACTION_DELAY_RANGE_MS = 9_000;
 const SPEECH_STATUS_RETRY_DELAYS_MS = [2_000, 5_000, 15_000, 30_000];
@@ -200,11 +201,14 @@ function normalizedEventDetail(detail) {
  */
 export function railtimeChatbot(config = {}) {
     const strings = { ...DEFAULT_STRINGS, ...(config.strings ?? {}) };
+    let assistantDrag = null;
 
     return {
         open: false,
         assistantMode: 'mini',
         assistantMotion: 'idle',
+        assistantCorner: 'bottom-right',
+        assistantDragging: false,
         assistantReturnFocus: null,
         isDesktopDocked: false,
         pageBuilderRoute: Boolean(config.pageBuilderMode),
@@ -556,6 +560,7 @@ export function railtimeChatbot(config = {}) {
         destroy() {
             this.operationsDisposed = true;
             this.operationsVersion++;
+            this.assistantCancelDrag();
             if (this._operationsShortcutHandler) document.removeEventListener('keydown', this._operationsShortcutHandler);
             this._operationsShortcutHandler = null;
             if (this.dockMediaQuery?.removeEventListener && this._dockChangeHandler) {
@@ -784,9 +789,11 @@ export function railtimeChatbot(config = {}) {
             this.petBubblePhraseKey = String(phraseKey ?? '').trim();
             this.petBubbleText = message;
             this.petBubbleVisible = true;
+            this.openPetBubbleDropdown();
             this.petBubbleTimer = window.setTimeout(() => {
                 const resetPrimer = this.petBubbleOrigin === 'pet-status';
                 this.petBubbleVisible = false;
+                this.closePetBubbleDropdown();
                 this.petBubbleAnnounce = false;
                 this.petBubbleOrigin = null;
                 this.petBubbleActionKey = '';
@@ -803,6 +810,7 @@ export function railtimeChatbot(config = {}) {
             window.clearTimeout(this.petBubbleTimer);
             this.petBubbleTimer = null;
             this.petBubbleVisible = false;
+            this.closePetBubbleDropdown();
             this.petBubbleAnnounce = false;
             this.petBubbleOrigin = null;
             this.petBubbleActionKey = '';
@@ -810,6 +818,28 @@ export function railtimeChatbot(config = {}) {
             this.petBubbleActions = [];
             this.petBubblePhraseKey = '';
             if (resetPrimer) this.petPrimed = false;
+        },
+
+        openPetBubbleDropdown() {
+            if (typeof window.dispatchEvent !== 'function' || typeof CustomEvent !== 'function') return;
+            this.$nextTick(() => {
+                const anchor = this.$refs?.launcher;
+                if (!anchor) return;
+                window.dispatchEvent(new CustomEvent('rt-anchor-dropdown-open', {
+                    detail: { id: PET_BUBBLE_DROPDOWN_ID, anchor },
+                }));
+            });
+        },
+
+        closePetBubbleDropdown() {
+            if (typeof window.dispatchEvent !== 'function' || typeof CustomEvent !== 'function') return;
+            window.dispatchEvent(new CustomEvent('rt-anchor-dropdown-close', {
+                detail: { id: PET_BUBBLE_DROPDOWN_ID },
+            }));
+        },
+
+        petBubbleDropdownClosed() {
+            this.petBubbleVisible = false;
         },
 
         petStatusActions() {
@@ -978,6 +1008,7 @@ export function railtimeChatbot(config = {}) {
             this.petBubbleTimer = null;
             this.petBubbleCycleTimer = null;
             this.petBubbleVisible = false;
+            this.closePetBubbleDropdown();
             this.petBubbleAnnounce = false;
             this.petBubbleOrigin = null;
             this.petBubbleActionKey = '';
@@ -1311,11 +1342,15 @@ export function railtimeChatbot(config = {}) {
 
         syncAssistantLayout() {
             if (this.pageBuilderActive) {
+                this.assistantCancelDrag();
                 document.body?.classList?.remove('rt-chatbot-fullscreen');
                 return;
             }
 
-            if (window.innerWidth <= 760) this.assistantMode = 'fullscreen';
+            if (window.innerWidth <= 760) {
+                this.assistantCancelDrag();
+                this.assistantMode = 'fullscreen';
+            }
             const viewport = window.visualViewport;
             const viewportTop = Math.max(0, viewport?.offsetTop || 0);
             const viewportHeight = viewport?.height || window.innerHeight;
@@ -1331,24 +1366,74 @@ export function railtimeChatbot(config = {}) {
             return !this.pageBuilderActive && window.innerWidth > 760;
         },
 
-        toggleAssistantMode() {
-            if (!this.assistantResizable()) {
-                this.assistantMode = 'fullscreen';
-                this.syncAssistantLayout();
-                return;
-            }
+        get canDragAssistant() {
+            return this.open && this.assistantMode === 'mini' && !this.pageBuilderActive && window.innerWidth > 760;
+        },
 
+        assistantDragStart(event) {
+            if (!this.canDragAssistant || event.isPrimary === false || event.button !== 0 || event.target.closest?.('button,a,input,textarea,select,[role="tab"],[role="dialog"],[contenteditable="true"]')) return;
+            assistantDrag = { id: event.pointerId, x: event.clientX, y: event.clientY, locked: false, rect: null };
+        },
+
+        assistantDragMove(event) {
+            if (!assistantDrag || assistantDrag.id !== event.pointerId) return;
+            if (!this.canDragAssistant) { this.assistantCancelDrag(); return; }
+            const dx = event.clientX - assistantDrag.x, dy = event.clientY - assistantDrag.y;
             const panel = this.$refs?.assistantPanel;
-            const from = panel?.getBoundingClientRect?.();
-            this.assistantMode = this.assistantMode === 'mini' ? 'fullscreen' : 'mini';
-            this.syncAssistantLayout();
+            if (!assistantDrag.locked) {
+                if (Math.hypot(dx, dy) < 6 || !panel) return;
+                assistantDrag.rect = panel.getBoundingClientRect();
+                assistantDrag.locked = true;
+                this.assistantDragging = true;
+                panel.setPointerCapture?.(event.pointerId);
+            }
+            event.preventDefault?.();
+            const top = parseFloat(this.$root?.style?.getPropertyValue?.('--rt-assistant-top')) || 70;
+            const x = Math.max(12, Math.min(window.innerWidth - assistantDrag.rect.width - 12, assistantDrag.rect.left + dx));
+            const y = Math.max(top + 12, Math.min(window.innerHeight - assistantDrag.rect.height - 12, assistantDrag.rect.top + dy));
+            Object.assign(panel.style, { left: `${x}px`, top: `${y}px`, right: 'auto', bottom: 'auto' });
+        },
+
+        assistantCancelDrag() {
+            const previous = assistantDrag;
+            assistantDrag = null;
+            this.assistantDragging = false;
+            const panel = this.$refs?.assistantPanel;
+            if (!panel) return;
+            for (const property of ['left', 'top', 'right', 'bottom']) panel.style.removeProperty(property);
+            if (previous && panel.hasPointerCapture?.(previous.id)) panel.releasePointerCapture(previous.id);
+        },
+
+        assistantDragEnd(event) {
+            if (!assistantDrag || assistantDrag.id !== event.pointerId) return;
+            const panel = this.$refs?.assistantPanel;
+            const rect = panel?.getBoundingClientRect?.();
+            const locked = assistantDrag.locked;
+            this.assistantCancelDrag();
+            if (!locked || !rect) return;
+            this.assistantCorner = `${rect.top + rect.height / 2 < ((parseFloat(this.$root?.style?.getPropertyValue?.('--rt-assistant-top')) || 70) + window.innerHeight) / 2 ? 'top' : 'bottom'}-${rect.left + rect.width / 2 < window.innerWidth / 2 ? 'left' : 'right'}`;
+            this.animateAssistantGeometry(rect, 240);
+        },
+
+        assistantLostPointerCapture(event) {
+            if (assistantDrag?.id === event.pointerId) this.assistantCancelDrag();
+        },
+
+        assistantCornerKey(event) {
+            if (!this.canDragAssistant || !event.altKey || !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+            event.preventDefault();
+            const from = this.$refs?.assistantPanel?.getBoundingClientRect?.();
+            const [vertical, horizontal] = this.assistantCorner.split('-');
+            this.assistantCorner = `${event.key === 'ArrowUp' ? 'top' : event.key === 'ArrowDown' ? 'bottom' : vertical}-${event.key === 'ArrowLeft' ? 'left' : event.key === 'ArrowRight' ? 'right' : horizontal}`;
+            this.animateAssistantGeometry(from, 240);
+        },
+
+        animateAssistantGeometry(from, duration = 380) {
+            const panel = this.$refs?.assistantPanel;
+            this.assistantMotion = 'idle';
             this.$nextTick(() => {
                 const to = panel?.getBoundingClientRect?.();
-                if (!panel || !from || !to || !to.width || !to.height) return;
-                if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) {
-                    this.assistantMotion = 'idle';
-                    return;
-                }
+                if (!panel || !from || !to || !to.width || !to.height || window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) return;
                 clearTimeout(this._assistantMotionTimer);
                 panel.style.setProperty('--rt-assistant-motion-x', `${from.left - to.left}px`);
                 panel.style.setProperty('--rt-assistant-motion-y', `${from.top - to.top}px`);
@@ -1361,8 +1446,24 @@ export function railtimeChatbot(config = {}) {
                     panel.style.removeProperty('--rt-assistant-motion-y');
                     panel.style.removeProperty('--rt-assistant-motion-scale-x');
                     panel.style.removeProperty('--rt-assistant-motion-scale-y');
-                }, 390);
+                }, duration + 10);
             });
+        },
+
+        toggleAssistantMode() {
+            if (!this.assistantResizable()) {
+                this.assistantCancelDrag();
+                this.assistantMode = 'fullscreen';
+                this.syncAssistantLayout();
+                return;
+            }
+
+            const panel = this.$refs?.assistantPanel;
+            const from = panel?.getBoundingClientRect?.();
+            this.assistantCancelDrag();
+            this.assistantMode = this.assistantMode === 'mini' ? 'fullscreen' : 'mini';
+            this.syncAssistantLayout();
+            this.animateAssistantGeometry(from, 380);
         },
 
         requestPageBuilderContext() {
@@ -1457,6 +1558,7 @@ export function railtimeChatbot(config = {}) {
             if (this.operationsDisposed) return;
             const wasOpen = this.open;
             this.open = Boolean(value);
+            if (!this.open) this.assistantCancelDrag();
             if (this.open && window.innerWidth <= 760) this.assistantMode = 'fullscreen';
             this.syncAssistantLayout();
             this.syncPageBuilderAssistState();

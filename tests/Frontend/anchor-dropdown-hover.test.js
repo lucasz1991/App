@@ -172,6 +172,22 @@ test('overlapping preview retains optional right alignment instead of forcing a 
     assert.equal(f.refs.panel.style.top, '100px');
 });
 
+test('launcher alignment opens toward the viewport when the shared launcher group changes sides', () => {
+    const f = geometryFixture({}, { anchorLeft: 500, anchorWidth: 56, panelWidth: 240 });
+    f.dropdown.horizontalAlign = 'auto';
+    f.dropdown.preferredPlacement = 'side';
+    f.document.documentElement.dataset.rtLauncherSide = 'left';
+    f.position();
+    assert.equal(f.dropdown.placement, 'right');
+    assert.equal(f.refs.panel.style.left, '564px');
+    f.document.documentElement.dataset.rtLauncherSide = 'right';
+    f.position();
+    assert.equal(f.dropdown.placement, 'left');
+    assert.equal(f.refs.panel.style.left, '252px');
+    assert.match(blade, /'launcher'\s*=>\s*'side-auto'/);
+    assert.match(blade, /@unless\(\$externalTrigger\)\s*@click="toggle\(\)"/);
+});
+
 test('overlapping wide mobile preview preserves anchor alignment instead of centering', () => {
     const f = geometryFixture({ overlapAnchor: true }, { width: 360, height: 568, panelWidth: 280, anchorLeft: 30, anchorTop: 270 });
     f.position();

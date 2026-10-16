@@ -50,10 +50,12 @@
 .rt-ai-assist__orb--empty { width: 104px; height: 104px; }
 
 /* Starter: links neben dem Chatbot-Starter */
-.rt-ai-assist__stage { position: fixed; right: max(1rem, calc(env(safe-area-inset-right) + 0.5rem)); bottom: max(1rem, calc(env(safe-area-inset-bottom) + 0.6rem)); z-index: 81; display: grid; place-items: end; pointer-events: none; transition: opacity 200ms ease, transform 280ms var(--ai-spring); }
+.rt-ai-assist__stage { position: fixed; right: max(1rem, calc(env(safe-area-inset-right) + 0.5rem)); bottom: max(1rem, calc(env(safe-area-inset-bottom) + 0.6rem)); z-index: 24; display: grid; place-items: end; pointer-events: none; transition: opacity 200ms ease, transform 280ms var(--ai-spring), left 260ms var(--ai-spring), right 260ms var(--ai-spring); }
+html[data-rt-launcher-side='left'] .rt-ai-assist__stage { left: max(1rem,calc(env(safe-area-inset-left) + 0.5rem)); right: auto; }
 body:has(.rt-chatbot__pet-stage) .rt-ai-assist__stage { right: max(8.25rem, calc(env(safe-area-inset-right) + 8rem)); bottom: max(1.35rem, calc(env(safe-area-inset-bottom) + 1rem)); }
+html[data-rt-launcher-side='left'] body:has(.rt-chatbot__pet-stage) .rt-ai-assist__stage { left: max(8.25rem,calc(env(safe-area-inset-left) + 8rem)); right: auto; }
 .rt-ai-assist[data-open='true'] .rt-ai-assist__stage { opacity: 0; transform: translateY(10px) scale(0.92); }
-.rt-ai-assist__launcher { position: relative; display: grid; width: 56px; height: 56px; place-items: center; padding: 0; border: 1px solid #e1e6ed; border-radius: 18px; background: #fff; box-shadow: 0 8px 28px rgb(21 37 57 / 16%); pointer-events: auto; -webkit-tap-highlight-color: transparent; }
+.rt-ai-assist__launcher { color: var(--ai-accent); }
 .rt-ai-assist[data-open='true'] .rt-ai-assist__launcher { pointer-events: none; }
 .rt-ai-assist__halo { position: absolute; inset: 0; border: 0; border-radius: 17px; background: transparent; box-shadow: none; pointer-events: none; transition: transform 240ms var(--ai-spring), opacity 240ms ease; }
 .rt-ai-assist__launcher:hover .rt-ai-assist__halo { transform: scale(1.05); opacity: .85; }
@@ -300,6 +302,7 @@ a.rt-ai-assist__activity-item:hover { background: var(--ai-panel); }
 }
 @media (max-width: 639px) {
     body:has(.rt-chatbot__pet-stage) .rt-ai-assist__stage { right: max(1.6rem, calc(env(safe-area-inset-right) + 1.2rem)); bottom: max(8.4rem, calc(env(safe-area-inset-bottom) + 8rem)); }
+    html[data-rt-launcher-side='left'] body:has(.rt-chatbot__pet-stage) .rt-ai-assist__stage { left: max(1.6rem,calc(env(safe-area-inset-left) + 1.2rem)); right: auto; }
 }
 @media (prefers-reduced-motion: reduce) {
     .rt-ai-assist__panel, .rt-ai-assist__row, .rt-ai-assist__msg--typing i, .rt-ai-assist__bubble, .rt-ai-assist__settings, .rt-ai-assist__slash { animation: none; }

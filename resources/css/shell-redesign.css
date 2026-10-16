@@ -1132,6 +1132,22 @@ body[data-mode='dark'] .rt-viewport-dropdown .rt-ui-dropdown-panel {
     transform: translate(-50%, 100%) rotate(180deg);
 }
 
+.rt-viewport-dropdown[data-placement='right'] .rt-ui-dropdown-caret {
+    top: var(--rt-dropdown-caret-y, 50%);
+    right: auto;
+    bottom: auto;
+    left: 0;
+    transform: translate(-100%, -50%) rotate(-90deg);
+}
+
+.rt-viewport-dropdown[data-placement='left'] .rt-ui-dropdown-caret {
+    top: var(--rt-dropdown-caret-y, 50%);
+    right: 0;
+    bottom: auto;
+    left: auto;
+    transform: translate(100%, -50%) rotate(90deg);
+}
+
 .rt-ui-dropdown-link[data-rt-dropdown-item],
 .rt-topbar-profile-panel .rt-ui-dropdown-link {
     margin-block: 0.1rem;

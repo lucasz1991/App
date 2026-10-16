@@ -33,7 +33,7 @@ class ChatbotViewMarkupTest extends TestCase
 
     public function test_view_exposes_the_livewire_chat_contract_with_escaped_messages(): void
     {
-        $this->assertStringContainsString('wire:submit.prevent="sendMessage"', $this->view);
+        $this->assertStringContainsString('x-on:submit.prevent="submitComposer($event)"', $this->view);
         $this->assertStringContainsString('wire:model="message"', $this->view);
         $this->assertStringContainsString('wire:click="clearChat"', $this->view);
         $this->assertStringContainsString('wire:click="quickAction(', $this->view);
@@ -211,8 +211,8 @@ class ChatbotViewMarkupTest extends TestCase
     {
         $this->assertStringContainsString('x-data="railtimeChatbot({', $this->view);
         $this->assertStringContainsString('x-on:railtime-assistant-reply.window', $this->view);
-        $this->assertStringContainsString("isDesktopDocked || pageBuilderActive ? 'complementary' : 'dialog'", $this->view);
-        $this->assertStringContainsString('x-trap.inert.noscroll="open && !isDesktopDocked && !pageBuilderActive"', $this->view);
+        $this->assertStringContainsString("pageBuilderActive || assistantMode === 'mini' ? 'complementary' : 'dialog'", $this->view);
+        $this->assertStringContainsString('x-trap.inert.noscroll="open && !pageBuilderActive && assistantMode === \'fullscreen\'"', $this->view);
         $this->assertStringContainsString('aria-labelledby="railtime-chatbot-title"', $this->view);
     }
 
@@ -242,8 +242,10 @@ class ChatbotViewMarkupTest extends TestCase
         $this->assertStringContainsString('class="rt-chatbot__pet-launcher"', $this->view);
         $this->assertStringNotContainsString('<x-railtime-assistant-pet', $this->view);
         $this->assertSame(4, substr_count($this->view, 'data-assistant-cloud-slot="message"'));
-        $this->assertStringContainsString('x-on:click="handlePetClick()"', $this->view);
-        $this->assertStringContainsString('x-show="petBubbleVisible"', $this->view);
+        $this->assertStringContainsString('x-on:click="operationsAvailable ? handleAssistantOpen() : handlePetClick()"', $this->view);
+        $this->assertStringContainsString('<x-ui.dropdown.anchor-dropdown', $this->view);
+        $this->assertStringContainsString('align="launcher"', $this->view);
+        $this->assertStringContainsString('dropdown-id="assistant-pet-bubble"', $this->view);
         $this->assertStringContainsString('x-for="action in petBubbleActions"', $this->view);
         $this->assertStringContainsString('x-on:click.stop="runPetBubbleAction(action)"', $this->view);
         $this->assertStringContainsString('async handlePetClick()', $this->javascript);
@@ -258,7 +260,7 @@ class ChatbotViewMarkupTest extends TestCase
         $this->assertStringContainsString("petBubbleAnnounce ? 'polite' : 'off'", $this->view);
         $this->assertStringNotContainsString('class="rt-chatbot__launcher"', $this->view);
 
-        preg_match('/<div\s+class="rt-chatbot__pet-stage"(?<attributes>[^>]*)>/s', $this->view, $stage);
+        preg_match('/<x-ui\.dropdown\.anchor-dropdown(?<attributes>[^>]*)\s+class="rt-chatbot__pet-stage"[^>]*>/s', $this->view, $stage);
         $this->assertStringNotContainsString('x-data=', $stage['attributes'] ?? '');
         $this->assertStringContainsString('x-ref="launcher"', $this->view);
         $this->assertLessThan(

@@ -10,13 +10,17 @@ const view = await readFile(new URL('../../resources/views/livewire/communicatio
 const styles = await readFile(new URL('../../resources/css/communication-module.css', import.meta.url), 'utf8');
 const chatbotStyles = await readFile(new URL('../../resources/css/chatbot.css', import.meta.url), 'utf8');
 const aiAssistStyles = await readFile(new URL('../../resources/css/ai-assist.css', import.meta.url), 'utf8');
+const chatbotView = await readFile(new URL('../../resources/views/livewire/tools/chatbot.blade.php', import.meta.url), 'utf8');
+const aiAssistView = await readFile(new URL('../../resources/views/livewire/operations/ai-assist.blade.php', import.meta.url), 'utf8');
+const launcherComponent = await readFile(new URL('../../resources/views/components/ui/floating/launcher.blade.php', import.meta.url), 'utf8');
+const windowComponent = await readFile(new URL('../../resources/views/components/ui/floating/window.blade.php', import.meta.url), 'utf8');
 
 // Actual production module, isolated DOM and explicit test-only scheduling,
 // geometry, style and WAAPI stubs. No browser, provider or device is opened.
 function fixture({ width = 1440, height = 1000, reduced = false, animate = true } = {}) {
     const { document, window: dom } = parseHTML(`<html><body>
         <header data-rt-shell-topbar></header><main id="main-content"><div class="rt-app-page-frame"></div></main>
-        <div data-communication-host data-app-badge-count="3"><button id="launcher"></button><section id="panel">
+        <div data-communication-host data-app-badge-count="3"><button id="launcher" data-rt-floating-launcher></button><section id="panel">
         <header id="head"><div role="tablist">${['chats', 'calls', 'meetings'].map(tab => `<button role="tab" data-comm-tab="${tab}">${tab}</button>`).join('')}</div><div id="handle" aria-label="Fensterposition"></div></header>
         <div data-communication-chat="true" data-mobile-pane="list"><textarea id="draft"></textarea></div>
         <div id="persistent-call"></div></section></div>
@@ -29,8 +33,10 @@ function fixture({ width = 1440, height = 1000, reduced = false, animate = true 
     dom.HTMLElement.prototype.focus = function () { active = this; };
     const listeners = new Map(), mediaListeners = new Set();
     const preference = { matches: reduced, addEventListener: (name, fn) => mediaListeners.add(fn), removeEventListener: (name, fn) => mediaListeners.delete(fn) };
+    const stored = new Map();
     const window = {
         innerWidth: width, innerHeight: height, location: { href: 'https://railtime.example/arbeitsplatz/ansicht/orders' },
+        localStorage: { getItem: key => stored.get(key) ?? null, setItem: (key, value) => stored.set(key, value) },
         addEventListener(name, fn) { if (!listeners.has(name)) listeners.set(name, new Set()); listeners.get(name).add(fn); },
         removeEventListener: (name, fn) => listeners.get(name)?.delete(fn),
         dispatchEvent(event) { for (const fn of listeners.get(event.type) ?? []) fn(event); return !event.defaultPrevented; },
@@ -94,7 +100,7 @@ function fixture({ width = 1440, height = 1000, reduced = false, animate = true 
     const pointer = (type, target, data = {}) => event(target, type, { pointerType: 'touch', pointerId: 1, isPrimary: true, button: 0, clientX: 900, clientY: 250, ...data });
     flush();
     return {
-        ...context.testExports, component, document, root, panel, launcher, window, animations, captures, calls, dispatches, preference, flush, event, emit, pointer,
+        ...context.testExports, component, document, root, panel, launcher, window, stored, animations, captures, calls, dispatches, preference, flush, event, emit, pointer,
         tick: ms => { now += ms; }, finish: () => { animations.at(-1)?.finish(); flush(); },
         reduce: () => { preference.matches = true; for (const fn of mediaListeners) fn({ matches: true }); },
         visibility: value => { visibility = value; event(document, 'visibilitychange'); flush(); },
@@ -138,13 +144,28 @@ test('CSS motion fallback covers browsers without Element.animate', () => {
 });
 
 test('assistant launchers share the communication button size white surface and rounding', () => {
-    for (const source of [styles, chatbotStyles, aiAssistStyles]) {
-        assert.match(source, /width:\s*56px/);
-        assert.match(source, /height:\s*56px/);
-        assert.match(source, /border-radius:\s*18px/);
-        assert.match(source, /background:\s*(?:#fff|var\(--comm-surface\))/);
-        assert.match(source, /box-shadow:\s*0 8px 28px rgb\(21 37 57 \/ 16%\)/);
-    }
+    assert.match(launcherComponent, /data-rt-floating-launcher/);
+    assert.match(styles, /\.rt-floating-launcher\s*\{[^}]*width:\s*56px[^}]*height:\s*56px[^}]*border-radius:\s*18px[^}]*background:\s*var\(--rt-floating-surface,#fff\)[^}]*box-shadow:\s*0 8px 28px rgb\(21 37 57 \/ 16%\)/s);
+    for (const source of [view, chatbotView, aiAssistView]) assert.match(source, /<x-ui\.floating\.launcher\b/);
+    for (const source of [view, chatbotView, aiAssistView]) assert.match(source, /<x-ui\.floating\.window\b/);
+    assert.match(windowComponent, /rt-floating-window/);
+    assert.match(styles, /\.rt-floating-window\s*\{[^}]*display:\s*flex[^}]*flex-direction:\s*column/);
+});
+
+test('dragging either fixed launcher moves and persists the shared left or right group', () => {
+    const f = fixture({ width: 1200 });
+    assert.equal(f.document.documentElement.dataset.rtLauncherSide, 'right');
+    f.pointer('pointerdown', f.launcher, { clientX: 1120, clientY: 900 });
+    f.pointer('pointermove', f.launcher, { clientX: 80, clientY: 900 });
+    assert.equal(f.document.documentElement.dataset.rtLauncherSide, 'left');
+    f.pointer('pointerup', f.launcher, { clientX: 80, clientY: 900 });
+    assert.equal(f.stored.get('railtime-floating-launcher-side'), 'left');
+    f.event(f.launcher, 'keydown', { altKey: true, key: 'ArrowRight' });
+    assert.equal(f.document.documentElement.dataset.rtLauncherSide, 'right');
+    assert.equal(f.stored.get('railtime-floating-launcher-side'), 'right');
+    assert.match(styles, /\.rt-comm-launcher[^}]*position:\s*fixed[^}]*z-index:\s*24/);
+    assert.match(chatbotStyles, /\.rt-chatbot__pet-stage\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*24/);
+    f.component.destroy();
 });
 
 test('communication and assistant surfaces close each other while the call DOM stays mounted', () => {

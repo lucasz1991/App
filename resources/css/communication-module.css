@@ -1,5 +1,13 @@
 /* Shared native communication shell. Message/voice components keep their own styles. */
 body.rt-communication-fullscreen { overflow: hidden; }
+.rt-floating-launcher {
+    position: relative; display: grid; width: 56px; height: 56px; place-items: center; padding: 0;
+    border: 1px solid var(--rt-floating-line,#e1e6ed); border-radius: 18px;
+    background: var(--rt-floating-surface,#fff); box-shadow: 0 8px 28px rgb(21 37 57 / 16%);
+    cursor: grab; pointer-events: auto; touch-action: none; user-select: none; -webkit-tap-highlight-color: transparent;
+}
+.rt-floating-window { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+.rt-floating-window__header { flex: none; }
 [data-communication-host] {
     --comm-surface: #fff;
     --comm-canvas: #e4e8ee;
@@ -57,7 +65,8 @@ body.rt-communication-fullscreen { overflow: hidden; }
 .rt-comm-card { display: flex; align-items: center; gap: 14px; min-width: 0; padding: 18px; border: 1px solid color-mix(in srgb,var(--comm-line) 60%,transparent); border-radius: 14px; margin-bottom: 8px; background: var(--comm-surface); }
 .rt-comm-resume { display: flex; flex: none; align-items: center; gap: 9px; min-height: 38px; padding: 8px 16px; background: #eaf6ee; color: #197448; font-size: 11px; border-bottom: 1px solid #cbe7d5; text-align: left; }
 .rt-comm-call-dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; background: #21a260; }
-.rt-comm-launcher { position: fixed; bottom: max(var(--comm-launcher-bottom,20px),env(safe-area-inset-bottom)); right: max(var(--comm-launcher-right,24px),env(safe-area-inset-right)); z-index: 90; display: grid; width: 56px; height: 56px; place-items: center; border: 1px solid var(--comm-line); border-radius: 18px; color: #e4002b; background: var(--comm-surface); box-shadow: 0 8px 28px rgb(21 37 57 / 16%); font-size: 21px; }
+.rt-comm-launcher { --rt-floating-line:var(--comm-line); --rt-floating-surface:var(--comm-surface); position: fixed; bottom: max(var(--comm-launcher-bottom,20px),env(safe-area-inset-bottom)); right: max(var(--comm-launcher-right,24px),env(safe-area-inset-right)); z-index: 24; color: #e4002b; font-size: 21px; transition: left 260ms cubic-bezier(.22,.8,.25,1),right 260ms cubic-bezier(.22,.8,.25,1),bottom 220ms ease; }
+html[data-rt-launcher-side='left'] .rt-comm-launcher { left: max(var(--comm-launcher-left,24px),env(safe-area-inset-left)); right: auto; }
 .rt-comm-launcher .rt-comm-call-dot { position: absolute; right: 6px; bottom: 6px; box-shadow: 0 0 0 3px var(--comm-surface); }
 .rt-comm-badge { position: absolute; top: -6px; right: -6px; display: grid; place-items: center; min-width: 20px; height: 20px; padding: 0 4px; border-radius: 12px; color: white; background: #e4002b; font-size: 10px; font-weight: 700; }
 /* The transcript's only visual change: its background. */
@@ -91,8 +100,8 @@ body.rt-communication-fullscreen { overflow: hidden; }
 @container communication (max-width:700px) { .rt-comm-details .xl\:grid-cols-\[minmax\(0\,1fr\)_minmax\(20rem\,0\.45fr\)\] { grid-template-columns: minmax(0,1fr) !important; } }
 @media(min-width:761px) {
     .rt-communication[data-mode='mini'] {
-        width: min(560px,calc(100vw - 48px));
-        height: min(660px,calc(100dvh - var(--comm-top) - 48px - var(--comm-bottom)));
+        width: min(520px,calc(100vw - 48px));
+        height: min(600px,calc(100dvh - var(--comm-top) - 48px - var(--comm-bottom)));
         border-radius: 18px;
     }
     .rt-communication[data-mode='mini'] .rt-comm-head { min-height: 56px; gap: 8px; padding: 6px 10px; }

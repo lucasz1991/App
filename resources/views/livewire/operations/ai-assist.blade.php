@@ -34,19 +34,19 @@
                     <button type="button" x-on:click="bubble = false">Später</button>
                 </div>
             </div>
-            <button class="rt-ai-assist__launcher" type="button" x-ref="launcher" x-on:click="toggle()" x-on:mouseenter="hover()"
-                :aria-expanded="open ? 'true' : 'false'" aria-expanded="false" aria-controls="{{ $panelId }}"
+            <x-ui.floating.launcher class="rt-ai-assist__launcher" x-ref="launcher" x-on:click="toggle()" x-on:mouseenter="hover()"
+                ::aria-expanded="open ? 'true' : 'false'" aria-expanded="false" aria-controls="{{ $panelId }}"
                 aria-label="AI-Assist öffnen{{ $reviewCount ? ' · '.$reviewCount.' AI-Eingänge zur Prüfung' : '' }}" title="AI-Assist (Strg J)">
                 <span class="rt-ai-assist__halo" aria-hidden="true"></span>
                 <span class="rt-ai-assist__orb" data-assistant-cloud-slot="launcher" aria-hidden="true"><span class="rt-assistant-cloud__fallback"></span></span>
                 @if($reviewCount > 0)
                     <span class="rt-ai-assist__presence" aria-hidden="true">{{ $reviewCount > 9 ? '9+' : $reviewCount }}</span>
                 @endif
-            </button>
+            </x-ui.floating.launcher>
         </div>
 
-        <section class="rt-ai-assist__panel" id="{{ $panelId }}" role="dialog" aria-modal="false" aria-labelledby="{{ $panelId }}-title" x-show="open" style="display: none">
-            <header class="rt-ai-assist__head rt-assistant-header" data-assistant-header>
+        <x-ui.floating.window class="rt-ai-assist__panel" id="{{ $panelId }}" role="dialog" aria-modal="false" aria-labelledby="{{ $panelId }}-title" x-show="open" style="display: none">
+            <x-slot:header class="rt-ai-assist__head rt-assistant-header" data-assistant-header>
                 <span class="rt-ai-assist__avatar"><span class="rt-ai-assist__orb rt-ai-assist__orb--head" data-assistant-cloud-slot="header" aria-hidden="true"><span class="rt-assistant-cloud__fallback"></span></span></span>
                 <div class="rt-ai-assist__identity">
                     <span class="rt-ai-assist__mode sr-only">{{ $modeLabel }}</span>
@@ -114,7 +114,7 @@
                     @endif
                     <p class="rt-ai-assist__privacy"><i class="far fa-info-circle" aria-hidden="true"></i><span>Mailinhalte und ergänzte Dateien werden über die eingerichtete AI-Verbindung geprüft. Kundenzuordnung, Erfassung und Versand bleiben persönlich freizugeben.@if($supervisor) Verantwortlich: {{ $supervisor }}.@endif</span></p>
                 </div>
-            </header>
+            </x-slot:header>
 
             <details class="rt-ai-assist__context rt-ai-assist__context--compact" x-show="prefs.context && $wire.tab !== 'intake'">
                 <summary><i class="far fa-eye" aria-hidden="true"></i><span>{{ $pageLabel }}</span><small>{{ $reviewCount }} zur Prüfung</small><i class="far fa-chevron-down" aria-hidden="true"></i></summary>
@@ -322,6 +322,6 @@
                     <p class="rt-ai-assist__hint">Vorschläge wirken erst nach deiner Freigabe · <kbd>/</kbd> Aktionen · <kbd>Strg</kbd> <kbd>J</kbd> öffnen</p>
                 </form>
             @endif
-        </section>
+        </x-ui.floating.window>
     </div>
 </div>

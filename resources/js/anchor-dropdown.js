@@ -396,7 +396,10 @@ export function anchorDropdown(config) {
       // Viewportgrenzen muss trotzdem die untransformierte Layoutbreite
       // gelten, sonst verliert die fertige Karte rechts einige Pixel Abstand.
       const panelWidth = Math.min(panel.offsetWidth || panelRect.width, maximumViewportWidth);
-      const anchoredLeft = this.horizontalAlign === 'left'
+      const resolvedHorizontalAlign = this.horizontalAlign === 'auto'
+        ? (document.documentElement?.dataset?.rtLauncherSide === 'left' ? 'left' : 'right')
+        : this.horizontalAlign;
+      const anchoredLeft = resolvedHorizontalAlign === 'left'
         ? triggerRect.left
         : triggerRect.right - panelWidth;
       if (this.overlapAnchor) {
@@ -435,6 +438,47 @@ export function anchorDropdown(config) {
       const caretWidth = caret
         ? (caret.offsetWidth || Number.parseFloat(window.getComputedStyle(caret).width) || 18)
         : 18;
+      if (this.preferredPlacement === 'side') {
+        const maximumPanelHeight = Math.floor(Math.min(this.maximumHeight, maximumViewportHeight));
+        if (panelScroll) {
+          panelScroll.style.maxHeight = `${maximumPanelHeight}px`;
+          if (this.fixedHeight) panelScroll.style.height = `${maximumPanelHeight}px`;
+        }
+        const renderedPanelHeight = Math.min(
+          panel.offsetHeight || panel.getBoundingClientRect().height,
+          maximumPanelHeight,
+        );
+        const launcherSide = document.documentElement?.dataset?.rtLauncherSide === 'left' ? 'left' : 'right';
+        const resolvedPlacement = launcherSide === 'left' ? 'right' : 'left';
+        const sideLeft = resolvedPlacement === 'right'
+          ? triggerRect.right + this.offset
+          : triggerRect.left - this.offset - panelWidth;
+        const resolvedLeft = this.clamp(
+          sideLeft,
+          viewportLeft + viewportInset,
+          viewportLeft + viewportWidth - viewportInset - panelWidth,
+        );
+        const triggerCenterY = triggerRect.top + (triggerRect.height / 2);
+        const resolvedTop = this.clamp(
+          triggerCenterY - (renderedPanelHeight / 2),
+          viewportTop + viewportInset,
+          viewportTop + viewportHeight - viewportInset - renderedPanelHeight,
+        );
+        const caretY = this.clamp(triggerCenterY - resolvedTop, 16, Math.max(16, renderedPanelHeight - 16));
+
+        this.placement = resolvedPlacement;
+        Object.assign(panel.style, {
+          left: `${resolvedLeft}px`,
+          top: `${resolvedTop}px`,
+          visibility: '',
+        });
+        panel.dataset.wideCentered = 'false';
+        panel.style.setProperty('--rt-dropdown-caret-y', `${Math.round(caretY)}px`);
+        panel.style.setProperty('--rt-dropdown-connector-size', `${Math.max(6, this.offset + 2)}px`);
+        caret?.toggleAttribute('hidden', false);
+        panel.style.removeProperty('visibility');
+        return;
+      }
       // Keep the whole caret base on the straight card edge, not just its
       // tip inside the panel. Use both corner pairs so flipping above/below
       // does not shift a mobile panel; viewport-edge anchors may be offset.
