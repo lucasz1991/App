@@ -159,9 +159,14 @@ test('standalone and global assistant use the communication fullscreen contract 
     assert.match(aiAssistStyles, /body\.rt-ai-assist-fullscreen \[data-area-menu\]/);
     assert.match(chatbotStyles, /body\.rt-chatbot-fullscreen \[data-area-menu\]/);
     assert.match(aiAssistSource, /this\.mobile = window\.innerWidth <= 760/);
-    assert.match(aiAssistSource, /classList\?\.toggle\('rt-ai-assist-fullscreen', this\.open && this\.mobile\)/);
-    assert.match(aiAssistView, /x-bind:data-window-mode="mobile \? 'fullscreen' : 'mini'"/);
-    assert.match(aiAssistView, /x-trap\.inert\.noscroll="open && mobile"/);
+    assert.match(aiAssistSource, /classList\?\.toggle\('rt-ai-assist-fullscreen', this\.open && this\.mode === 'fullscreen'\)/);
+    assert.match(aiAssistView, /x-bind:data-window-mode="mode"/);
+    assert.match(aiAssistView, /x-trap\.inert\.noscroll="open && mode === 'fullscreen'"/);
+    assert.match(aiAssistView, /x-on:click="resizeSurface\(\)"/);
+    assert.match(aiAssistView, /x-on:pointerdown="dragStart\(\$event\)"/);
+    assert.match(aiAssistSource, /get canDrag\(\)[\s\S]*?this\.mode === 'mini' && this\.wide/);
+    assert.match(aiAssistStyles, /\.rt-ai-assist__panel\[data-window-mode='mini'\][\s\S]*?width:\s*min\(520px/);
+    assert.match(aiAssistStyles, /\.rt-ai-assist__panel\[data-window-mode='fullscreen'\]/);
 });
 
 test('dragging either fixed launcher moves and persists the shared left or right group', () => {

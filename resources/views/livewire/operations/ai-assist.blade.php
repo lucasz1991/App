@@ -23,6 +23,7 @@
 <div class="rt-ai-assist" x-data="rtAiAssist" :data-open="open ? 'true' : 'false'" data-open="false" data-intake-open="{{ $intakeRequested ? 'true' : 'false' }}"
     data-hints="{{ json_encode($hints, JSON_UNESCAPED_UNICODE) }}" data-actions="{{ json_encode($allActions, JSON_UNESCAPED_UNICODE) }}"
     x-on:keydown.window="shortcut($event)" x-on:keydown.escape="escape($event)" x-on:railtime-assistant-open.window="toggle(true)"
+    x-on:railtime-assistant-close.window="toggle(false)"
     x-on:railtime-ai-intake-open.window="openIntake($event.detail)"
     x-on:ai-assist-intake-opened.window="if ($event.detail.componentId === @js($this->getId())) toggle(true)" data-ai-assist>
     <div x-data="railtimeAssistantCloud()" :data-state="orbState" x-bind:data-pet-open="open.toString()" data-state="idle">
@@ -45,17 +46,26 @@
             </x-ui.floating.launcher>
         </div>
 
-        <x-ui.floating.window class="rt-ai-assist__panel" id="{{ $panelId }}" role="dialog" ::aria-modal="mobile ? 'true' : 'false'"
-            x-bind:data-window-mode="mobile ? 'fullscreen' : 'mini'" aria-labelledby="{{ $panelId }}-title"
-            x-trap.inert.noscroll="open && mobile" x-show="open" style="display: none">
+        <x-ui.floating.window class="rt-ai-assist__panel" id="{{ $panelId }}" x-ref="panel" role="dialog" ::aria-modal="mode === 'fullscreen' ? 'true' : 'false'"
+            x-bind:data-window-mode="mode" x-bind:data-motion="motion" x-bind:data-corner="corner" x-bind:data-dragging="dragging.toString()" aria-labelledby="{{ $panelId }}-title"
+            x-trap.inert.noscroll="open && mode === 'fullscreen'" x-show="visible" style="display: none"
+            x-on:pointermove.window="dragMove($event)" x-on:pointerup.window="dragEnd($event)" x-on:pointercancel.window="cancelDrag()" x-on:lostpointercapture="lostPointerCapture($event)">
             <x-slot:header class="rt-ai-assist__head rt-assistant-header" data-assistant-header>
-                <span class="rt-ai-assist__avatar"><span class="rt-ai-assist__orb rt-ai-assist__orb--head" data-assistant-cloud-slot="header" aria-hidden="true"><span class="rt-assistant-cloud__fallback"></span></span></span>
-                <div class="rt-ai-assist__identity">
+                <div class="rt-ai-assist__identity" :tabindex="canDrag ? 0 : -1" role="group" aria-label="Fensterposition"
+                    title="Ziehen oder mit Alt und Pfeiltasten in eine Ecke setzen" x-on:pointerdown="dragStart($event)" x-on:keydown="cornerKey($event)">
+                    <span class="rt-ai-assist__avatar"><span class="rt-ai-assist__orb rt-ai-assist__orb--head" data-assistant-cloud-slot="header" aria-hidden="true"><span class="rt-assistant-cloud__fallback"></span></span></span>
+                    <span class="rt-ai-assist__identity-copy">
                     <span class="rt-ai-assist__mode sr-only">{{ $modeLabel }}</span>
                     <h2 class="rt-ai-assist__title" id="{{ $panelId }}-title" title="{{ $modeLabel }}">AI-Assist</h2>
+                    </span>
                 </div>
                 <x-operations.assistant-navigation :tabs="$tabs" :selected="$tab" action="setTab" :id-prefix="$panelId" :controls="$panelId.'-body'" :review-count="$reviewCount" label="AI-Assist" />
                 <div class="rt-ai-assist__head-actions">
+                    <button class="rt-ai-assist__icon-btn" type="button" x-cloak x-show="wide" x-on:click="resizeSurface()"
+                        :aria-label="mode === 'fullscreen' ? 'AI-Assist verkleinern' : 'AI-Assist im Vollbild öffnen'"
+                        :title="mode === 'fullscreen' ? 'Verkleinern' : 'Vollbild öffnen'">
+                        <i class="far" :class="mode === 'fullscreen' ? 'fa-compress-alt' : 'fa-expand-alt'" aria-hidden="true"></i>
+                    </button>
                     <button class="rt-ai-assist__icon-btn" type="button" :aria-expanded="settingsOpen ? 'true' : 'false'" aria-expanded="false" aria-label="Assistenz-Einstellungen" title="Einstellungen"
                         x-on:click="settingsOpen = !settingsOpen; @if($canConfigure) if (settingsOpen) $wire.openSettings(); @endif"><i class="far fa-cog" aria-hidden="true"></i></button>
                     @if($tab === 'chat')<button class="rt-ai-assist__icon-btn" type="button" aria-label="Neues Gespräch" title="Neues Gespräch" wire:click="resetConversation" @disabled($messages === [])><i class="far fa-edit" aria-hidden="true"></i></button>@endif

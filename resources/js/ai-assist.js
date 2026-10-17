@@ -33,8 +33,16 @@ function parse(json) {
 export function aiAssist({ embedded = false } = {}) {
     // Wurzel festhalten: in der verschachtelten Orb-Ebene zeigt $root auf das innere Element.
     let root = null;
+    let drag = null;
+    let motionTimer = null;
     return {
         open: false,
+        visible: false,
+        mode: 'mini',
+        motion: 'idle',
+        corner: 'bottom-right',
+        dragging: false,
+        wide: false,
         settingsOpen: false,
         busy: false,
         loaded: false,
@@ -58,9 +66,16 @@ export function aiAssist({ embedded = false } = {}) {
             this.syncLayout();
             if (root?.dataset.intakeOpen === 'true') {
                 this.open = true;
+                this.visible = true;
                 this.loaded = true;
                 this.syncLayout();
             }
+            this._pointerMoveHandler = event => this.dragMove(event);
+            this._pointerUpHandler = event => this.dragEnd(event);
+            this._pointerCancelHandler = () => this.cancelDrag();
+            window.addEventListener?.('pointermove', this._pointerMoveHandler, { passive: false });
+            window.addEventListener?.('pointerup', this._pointerUpHandler);
+            window.addEventListener?.('pointercancel', this._pointerCancelHandler);
             try {
                 this.prefs = readAiAssistPrefs(window.localStorage);
             } catch {
@@ -85,6 +100,11 @@ export function aiAssist({ embedded = false } = {}) {
             clearTimeout(this.bubbleTimer);
             window.removeEventListener?.('resize', this._resizeHandler);
             window.visualViewport?.removeEventListener?.('resize', this._resizeHandler);
+            window.removeEventListener?.('pointermove', this._pointerMoveHandler);
+            window.removeEventListener?.('pointerup', this._pointerUpHandler);
+            window.removeEventListener?.('pointercancel', this._pointerCancelHandler);
+            clearTimeout(motionTimer);
+            this.cancelDrag();
             if (typeof document !== 'undefined') document.body?.classList?.remove('rt-ai-assist-fullscreen');
             root = null;
         },
@@ -105,16 +125,27 @@ export function aiAssist({ embedded = false } = {}) {
         },
         toggle(open = !this.open) {
             if (this.disposed) return;
-            this.open = open;
+            const next = Boolean(open);
+            if (next === this.open) return;
+            const opening = next && !this.open;
+            const from = this.visible
+                ? this.$refs.panel?.getBoundingClientRect?.()
+                : this.$refs.launcher?.getBoundingClientRect?.();
+            this.open = next;
+            this.visible = true;
             this.bubble = false;
             this.syncLayout();
-            if (!open) {
+            if (!next) {
                 this.settingsOpen = false;
+                this.cancelDrag();
                 window.dispatchEvent(new CustomEvent('ai-intake-panel-hidden'));
             }
             this.$nextTick(() => {
-                if (this.disposed || this.open !== open) return;
-                if (open) {
+                if (this.disposed || this.open !== next) return;
+                const panel = this.$refs.panel;
+                const to = panel?.getBoundingClientRect?.();
+                this.animateGeometry(from, to, opening ? 340 : 280);
+                if (next) {
                     this.scrollDown();
                     this.resize();
                     this.$refs.input?.focus();
@@ -122,11 +153,16 @@ export function aiAssist({ embedded = false } = {}) {
                     this.$refs.launcher?.focus();
                 }
             });
-            if (open) void this.ensureLoaded();
+            if (opening) {
+                window.dispatchEvent(new CustomEvent('railtime-assistant-opened'));
+                void this.ensureLoaded();
+            }
         },
         syncLayout() {
             if (!root) return;
             this.mobile = window.innerWidth <= 760;
+            this.wide = !this.mobile;
+            if (this.mobile) { this.mode = 'fullscreen'; this.cancelDrag(); }
             const viewport = window.visualViewport;
             const viewportTop = Math.max(0, viewport?.offsetTop || 0);
             const viewportHeight = viewport?.height || window.innerHeight;
@@ -134,11 +170,107 @@ export function aiAssist({ embedded = false } = {}) {
             const topbar = documentRef?.querySelector?.('[data-rt-shell-topbar]')?.getBoundingClientRect?.();
             root.style?.setProperty?.('--rt-assistant-top', `${Math.max(viewportTop, topbar?.bottom || 70)}px`);
             root.style?.setProperty?.('--rt-assistant-bottom', `${Math.max(0, window.innerHeight - viewportTop - viewportHeight)}px`);
-            documentRef?.body?.classList?.toggle('rt-ai-assist-fullscreen', this.open && this.mobile);
+            const page = documentRef?.querySelector?.('.rt-app-page-frame')?.getBoundingClientRect?.();
+            root.style?.setProperty?.('--rt-assistant-left', `${Math.max(0, page?.left || 0)}px`);
+            documentRef?.body?.classList?.toggle('rt-ai-assist-fullscreen', this.open && this.mode === 'fullscreen');
+        },
+        get canDrag() {
+            return this.open && this.mode === 'mini' && this.wide;
+        },
+        resizeSurface() {
+            if (!this.wide) return;
+            const from = this.$refs.panel?.getBoundingClientRect?.();
+            this.cancelDrag();
+            this.mode = this.mode === 'mini' ? 'fullscreen' : 'mini';
+            this.syncLayout();
+            this.$nextTick(() => this.animateGeometry(from, this.$refs.panel?.getBoundingClientRect?.(), 380));
+        },
+        dragStart(event) {
+            if (!this.canDrag || event.isPrimary === false || event.button !== 0 || event.target.closest?.('button,a,input,textarea,select,[role="tab"],[role="dialog"],[contenteditable="true"]')) return;
+            drag = { id: event.pointerId, x: event.clientX, y: event.clientY, locked: false, rect: null };
+        },
+        dragMove(event) {
+            if (!drag || drag.id !== event.pointerId) return;
+            if (!this.canDrag) { this.cancelDrag(); return; }
+            const panel = this.$refs.panel;
+            const dx = event.clientX - drag.x;
+            const dy = event.clientY - drag.y;
+            if (!drag.locked) {
+                if (Math.hypot(dx, dy) < 6 || !panel) return;
+                drag.rect = panel.getBoundingClientRect();
+                drag.locked = true;
+                this.dragging = true;
+                panel.setPointerCapture?.(event.pointerId);
+            }
+            event.preventDefault?.();
+            const top = parseFloat(root?.style?.getPropertyValue?.('--rt-assistant-top')) || 70;
+            const x = Math.max(12, Math.min(window.innerWidth - drag.rect.width - 12, drag.rect.left + dx));
+            const y = Math.max(top + 12, Math.min(window.innerHeight - drag.rect.height - 12, drag.rect.top + dy));
+            Object.assign(panel.style, { left: `${x}px`, top: `${y}px`, right: 'auto', bottom: 'auto' });
+        },
+        cancelDrag() {
+            const previous = drag;
+            drag = null;
+            this.dragging = false;
+            const panel = this.$refs?.panel;
+            if (!panel) return;
+            for (const property of ['left', 'top', 'right', 'bottom']) panel.style.removeProperty(property);
+            if (previous && panel.hasPointerCapture?.(previous.id)) panel.releasePointerCapture(previous.id);
+        },
+        dragEnd(event) {
+            if (!drag || drag.id !== event.pointerId) return;
+            const panel = this.$refs?.panel;
+            const rect = panel?.getBoundingClientRect?.();
+            const locked = drag.locked;
+            this.cancelDrag();
+            if (!locked || !rect) return;
+            const top = parseFloat(root?.style?.getPropertyValue?.('--rt-assistant-top')) || 70;
+            this.corner = `${rect.top + rect.height / 2 < (top + window.innerHeight) / 2 ? 'top' : 'bottom'}-${rect.left + rect.width / 2 < window.innerWidth / 2 ? 'left' : 'right'}`;
+            this.$nextTick(() => this.animateGeometry(rect, panel.getBoundingClientRect(), 240));
+        },
+        lostPointerCapture(event) {
+            if (drag?.id === event.pointerId) this.cancelDrag();
+        },
+        cornerKey(event) {
+            if (!this.canDrag || !event.altKey || !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+            event.preventDefault();
+            const from = this.$refs.panel?.getBoundingClientRect?.();
+            const [vertical, horizontal] = this.corner.split('-');
+            this.corner = `${event.key === 'ArrowUp' ? 'top' : event.key === 'ArrowDown' ? 'bottom' : vertical}-${event.key === 'ArrowLeft' ? 'left' : event.key === 'ArrowRight' ? 'right' : horizontal}`;
+            this.$nextTick(() => this.animateGeometry(from, this.$refs.panel?.getBoundingClientRect?.(), 240));
+        },
+        animateGeometry(from, to, duration) {
+            clearTimeout(motionTimer);
+            if (!from || !to || !to.width || !to.height || window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) {
+                this.motion = 'idle';
+                if (!this.open) this.visible = false;
+                return;
+            }
+            const closing = !this.open;
+            const source = from;
+            const target = closing ? this.$refs.launcher?.getBoundingClientRect?.() || to : to;
+            const x = closing ? target.left - source.left : source.left - target.left;
+            const y = closing ? target.top - source.top : source.top - target.top;
+            const sx = Math.max(.08, Math.min(1, closing ? target.width / source.width : source.width / target.width));
+            const sy = Math.max(.08, Math.min(1, closing ? target.height / source.height : source.height / target.height));
+            const panel = this.$refs.panel;
+            panel.style.setProperty('--rt-ai-motion-x', `${x}px`);
+            panel.style.setProperty('--rt-ai-motion-y', `${y}px`);
+            panel.style.setProperty('--rt-ai-motion-scale-x', String(sx));
+            panel.style.setProperty('--rt-ai-motion-scale-y', String(sy));
+            this.motion = closing ? 'closing' : 'resizing';
+            motionTimer = setTimeout(() => {
+                this.motion = 'idle';
+                panel.style.removeProperty('--rt-ai-motion-x');
+                panel.style.removeProperty('--rt-ai-motion-y');
+                panel.style.removeProperty('--rt-ai-motion-scale-x');
+                panel.style.removeProperty('--rt-ai-motion-scale-y');
+                if (!this.open) this.visible = false;
+            }, duration + 10);
         },
         async openIntake(detail = {}) {
             if (this.disposed || this.busy) return false;
-            this.open = true;
+            this.toggle(true);
             this.bubble = false;
             this.settingsOpen = false;
             this.syncLayout();
@@ -254,6 +386,7 @@ export function aiAssist({ embedded = false } = {}) {
             event.stopPropagation();
             if (this.slash) this.text = '';
             else if (this.settingsOpen) this.settingsOpen = false;
+            else if (this.mode === 'fullscreen' && this.wide) this.resizeSurface();
             else this.toggle(false);
         },
         shortcut(event) {
