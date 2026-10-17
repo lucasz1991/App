@@ -1,8 +1,16 @@
 // AI-Assist der Disposition: Öffnen/Schließen, Aktionsliste („/“), Hinweisblase und persönliche
 // Einstellungen. Inhalte und Aktionen kommen aus Livewire (App\Livewire\Operations\AiAssist).
+import { animateFloatingWindowGeometry } from './floating-window-motion.js';
+
 export const AI_ASSIST_PREFS_KEY = 'rt-ai-assist-prefs';
 export const AI_ASSIST_BUBBLE_KEY = 'rt-ai-assist-bubble';
 const DEFAULT_PREFS = Object.freeze({ context: true, proactive: true });
+const FLOATING_WINDOW_INTERACTIVE = 'button,a,input,textarea,select,[role="tab"],[role="dialog"],[contenteditable="true"]';
+
+function dragTargetIsInteractive(target, panel) {
+    const interactive = target?.closest?.(FLOATING_WINDOW_INTERACTIVE);
+    return Boolean(interactive && interactive !== panel);
+}
 
 export function readAiAssistPrefs(storage) {
     try {
@@ -35,6 +43,7 @@ export function aiAssist({ embedded = false } = {}) {
     let root = null;
     let drag = null;
     let motionTimer = null;
+    let geometryAnimation = null;
     return {
         open: false,
         visible: false,
@@ -70,12 +79,6 @@ export function aiAssist({ embedded = false } = {}) {
                 this.loaded = true;
                 this.syncLayout();
             }
-            this._pointerMoveHandler = event => this.dragMove(event);
-            this._pointerUpHandler = event => this.dragEnd(event);
-            this._pointerCancelHandler = () => this.cancelDrag();
-            window.addEventListener?.('pointermove', this._pointerMoveHandler, { passive: false });
-            window.addEventListener?.('pointerup', this._pointerUpHandler);
-            window.addEventListener?.('pointercancel', this._pointerCancelHandler);
             try {
                 this.prefs = readAiAssistPrefs(window.localStorage);
             } catch {
@@ -100,10 +103,9 @@ export function aiAssist({ embedded = false } = {}) {
             clearTimeout(this.bubbleTimer);
             window.removeEventListener?.('resize', this._resizeHandler);
             window.visualViewport?.removeEventListener?.('resize', this._resizeHandler);
-            window.removeEventListener?.('pointermove', this._pointerMoveHandler);
-            window.removeEventListener?.('pointerup', this._pointerUpHandler);
-            window.removeEventListener?.('pointercancel', this._pointerCancelHandler);
             clearTimeout(motionTimer);
+            geometryAnimation?.cancel?.();
+            geometryAnimation = null;
             this.cancelDrag();
             if (typeof document !== 'undefined') document.body?.classList?.remove('rt-ai-assist-fullscreen');
             root = null;
@@ -131,6 +133,7 @@ export function aiAssist({ embedded = false } = {}) {
             const from = this.visible
                 ? this.$refs.panel?.getBoundingClientRect?.()
                 : this.$refs.launcher?.getBoundingClientRect?.();
+            if (opening) this.motion = 'preparing';
             this.open = next;
             this.visible = true;
             this.bubble = false;
@@ -144,7 +147,7 @@ export function aiAssist({ embedded = false } = {}) {
                 if (this.disposed || this.open !== next) return;
                 const panel = this.$refs.panel;
                 const to = panel?.getBoundingClientRect?.();
-                this.animateGeometry(from, to, opening ? 340 : 280);
+                this.animateGeometry(from, to, opening ? 340 : 280, opening ? 'opening' : 'closing');
                 if (next) {
                     this.scrollDown();
                     this.resize();
@@ -154,6 +157,7 @@ export function aiAssist({ embedded = false } = {}) {
                 }
             });
             if (opening) {
+                window.dispatchEvent(new CustomEvent('rt-floating-surface-opened', { detail: { surface: 'assist' } }));
                 window.dispatchEvent(new CustomEvent('railtime-assistant-opened'));
                 void this.ensureLoaded();
             }
@@ -186,7 +190,7 @@ export function aiAssist({ embedded = false } = {}) {
             this.$nextTick(() => this.animateGeometry(from, this.$refs.panel?.getBoundingClientRect?.(), 380));
         },
         dragStart(event) {
-            if (!this.canDrag || event.isPrimary === false || event.button !== 0 || event.target.closest?.('button,a,input,textarea,select,[role="tab"],[role="dialog"],[contenteditable="true"]')) return;
+            if (!this.canDrag || event.isPrimary === false || event.button !== 0 || dragTargetIsInteractive(event.target, this.$refs?.panel)) return;
             drag = { id: event.pointerId, x: event.clientX, y: event.clientY, locked: false, rect: null };
         },
         dragMove(event) {
@@ -229,7 +233,7 @@ export function aiAssist({ embedded = false } = {}) {
             this.$nextTick(() => this.animateGeometry(rect, panel.getBoundingClientRect(), 240));
         },
         lostPointerCapture(event) {
-            if (drag?.id === event.pointerId) this.cancelDrag();
+            if (event.target === this.$refs?.panel && drag?.id === event.pointerId) this.cancelDrag();
         },
         cornerKey(event) {
             if (!this.canDrag || !event.altKey || !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return;
@@ -239,26 +243,49 @@ export function aiAssist({ embedded = false } = {}) {
             this.corner = `${event.key === 'ArrowUp' ? 'top' : event.key === 'ArrowDown' ? 'bottom' : vertical}-${event.key === 'ArrowLeft' ? 'left' : event.key === 'ArrowRight' ? 'right' : horizontal}`;
             this.$nextTick(() => this.animateGeometry(from, this.$refs.panel?.getBoundingClientRect?.(), 240));
         },
-        animateGeometry(from, to, duration) {
+        animateGeometry(from, to, duration, kind = 'resizing') {
             clearTimeout(motionTimer);
+            geometryAnimation?.cancel?.();
+            geometryAnimation = null;
             if (!from || !to || !to.width || !to.height || window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) {
                 this.motion = 'idle';
                 if (!this.open) this.visible = false;
                 return;
             }
-            const closing = !this.open;
+            const panel = this.$refs.panel;
+            if (kind === 'resizing' && panel?.animate) {
+                this.motion = 'resizing';
+                const currentMode = this.mode;
+                geometryAnimation = animateFloatingWindowGeometry(panel, from, to, {
+                    duration,
+                    fromRadius: currentMode === 'fullscreen' ? '18px' : '20px',
+                    toRadius: currentMode === 'fullscreen' ? '20px' : '18px',
+                    onFinish: animation => {
+                        if (geometryAnimation !== animation) return;
+                        geometryAnimation = null;
+                        this.motion = 'idle';
+                    },
+                });
+                if (geometryAnimation) return;
+            }
+            const closing = kind === 'closing' || !this.open;
             const source = from;
             const target = closing ? this.$refs.launcher?.getBoundingClientRect?.() || to : to;
-            const x = closing ? target.left - source.left : source.left - target.left;
-            const y = closing ? target.top - source.top : source.top - target.top;
-            const sx = Math.max(.08, Math.min(1, closing ? target.width / source.width : source.width / target.width));
-            const sy = Math.max(.08, Math.min(1, closing ? target.height / source.height : source.height / target.height));
-            const panel = this.$refs.panel;
-            panel.style.setProperty('--rt-ai-motion-x', `${x}px`);
-            panel.style.setProperty('--rt-ai-motion-y', `${y}px`);
+            const sourceCenter = { x: source.left + source.width / 2, y: source.top + source.height / 2 };
+            const targetCenter = { x: target.left + target.width / 2, y: target.top + target.height / 2 };
+            const x = closing ? targetCenter.x - sourceCenter.x : sourceCenter.x - targetCenter.x;
+            const y = closing ? targetCenter.y - sourceCenter.y : sourceCenter.y - targetCenter.y;
+            let sx = Math.max(.08, Math.min(1, closing ? target.width / source.width : source.width / target.width));
+            let sy = Math.max(.08, Math.min(1, closing ? target.height / source.height : source.height / target.height));
+            if (kind === 'opening' || closing) {
+                sx = .96;
+                sy = .96;
+            }
+            panel.style.setProperty('--rt-ai-motion-x', `${kind === 'opening' || closing ? Math.max(-24, Math.min(24, x * .08)) : x}px`);
+            panel.style.setProperty('--rt-ai-motion-y', `${kind === 'opening' || closing ? Math.max(-30, Math.min(30, y * .08)) : y}px`);
             panel.style.setProperty('--rt-ai-motion-scale-x', String(sx));
             panel.style.setProperty('--rt-ai-motion-scale-y', String(sy));
-            this.motion = closing ? 'closing' : 'resizing';
+            this.motion = closing ? 'closing' : (kind === 'opening' ? 'opening' : 'resizing');
             motionTimer = setTimeout(() => {
                 this.motion = 'idle';
                 panel.style.removeProperty('--rt-ai-motion-x');

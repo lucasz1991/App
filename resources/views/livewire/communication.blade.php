@@ -6,6 +6,7 @@
     data-communication-tab="chats"
     data-communication-call="false"
     wire:poll.60s="refreshUnread"
+    x-on:rt-floating-surface-opened.window="if ($event.detail?.surface === 'assist') close(false)"
 >
     <span hidden data-app-badge-count="{{ $unreadCount }}"></span>
     <x-ui.floating.launcher class="rt-comm-launcher" x-ref="launcher" x-show="!open" x-cloak
@@ -18,8 +19,11 @@
 
     <x-ui.floating.window id="railtime-communication" x-ref="panel" class="rt-communication" x-cloak wire:ignore.self
         x-show="visible" ::data-mode="mode" ::data-motion="motion" ::data-corner="corner" ::data-dragging="dragging.toString()"
-        ::inert="!open" ::aria-hidden="(!open).toString()" label="Chats, Anrufe und Meetings" role="region">
-        <x-slot:header class="rt-comm-head" x-on:pointerdown="dragStart($event)">
+        ::inert="!open" ::aria-hidden="(!open).toString()" label="Chats, Anrufe und Meetings" role="region"
+        drag-pointerdown="dragStart($event)" drag-pointermove="dragMove($event)" drag-pointerup="dragPointerUp($event)"
+        drag-pointercancel="dragPointerCancel($event)" drag-lostpointercapture="lostPointerCapture($event)"
+        drag-keydown="cornerKey($event)" drag-enabled="canDrag">
+        <x-slot:header class="rt-comm-head">
             <div class="rt-comm-tabs" role="tablist" aria-label="Bereiche" x-on:keydown="tabKey($event)">
                 @foreach(['chats' => ['fa-comments', 'Chats'], 'calls' => ['fa-phone', 'Anrufe'], 'meetings' => ['fa-video', 'Meetings']] as $key => [$icon, $label])
                     <button type="button" id="communication-tab-{{ $key }}" role="tab" data-comm-tab="{{ $key }}"
@@ -30,8 +34,7 @@
                     </button>
                 @endforeach
             </div>
-            <div class="rt-comm-drag-handle" :tabindex="canDrag ? 0 : -1" role="group" aria-label="Fensterposition"
-                title="Ziehen oder mit Alt und Pfeiltasten in eine Ecke setzen" x-on:keydown="cornerKey($event)"></div>
+            <span class="rt-comm-drag-handle" aria-hidden="true"></span>
             <div class="rt-comm-window-actions">
                 <button type="button" data-comm-resize x-show="wide" x-cloak x-on:click="resize()" :title="mode === 'fullscreen' ? 'Mini-Modus öffnen' : 'Vollbild öffnen'"
                     :aria-label="mode === 'fullscreen' ? 'Mini-Modus öffnen' : 'Vollbild öffnen'">

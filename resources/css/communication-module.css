@@ -8,6 +8,7 @@ body.rt-communication-fullscreen { overflow: hidden; }
 }
 .rt-floating-window { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
 .rt-floating-window__header { flex: none; }
+.rt-floating-window__header-spacer { min-width: 20px; flex: 1; align-self: stretch; border-radius: 8px; }
 [data-communication-host] {
     --comm-surface: #fff;
     --comm-canvas: #e4e8ee;
@@ -31,6 +32,7 @@ body.rt-communication-fullscreen { overflow: hidden; }
     top: calc(var(--comm-top) + 16px); left: calc(var(--comm-left) + 16px); right: 16px;
     bottom: calc(16px + var(--comm-bottom)); width: auto; height: auto; box-shadow: none;
 }
+.rt-communication[data-motion='preparing'] { visibility: hidden; opacity: 0; pointer-events: none; }
 .rt-communication[data-motion='opening'] { animation: rt-communication-open 340ms cubic-bezier(.22,.8,.25,1) both; }
 .rt-communication[data-motion='closing'] { animation: rt-communication-close 280ms cubic-bezier(.22,.8,.25,1) both; pointer-events: none; }
 @keyframes rt-communication-open {
@@ -65,10 +67,26 @@ body.rt-communication-fullscreen { overflow: hidden; }
 .rt-comm-card { display: flex; align-items: center; gap: 14px; min-width: 0; padding: 18px; border: 1px solid color-mix(in srgb,var(--comm-line) 60%,transparent); border-radius: 14px; margin-bottom: 8px; background: var(--comm-surface); }
 .rt-comm-resume { display: flex; flex: none; align-items: center; gap: 9px; min-height: 38px; padding: 8px 16px; background: #eaf6ee; color: #197448; font-size: 11px; border-bottom: 1px solid #cbe7d5; text-align: left; }
 .rt-comm-call-dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; background: #21a260; }
-.rt-comm-launcher { --rt-floating-line:var(--comm-line); --rt-floating-surface:var(--comm-surface); position: fixed; bottom: max(var(--comm-launcher-bottom,20px),env(safe-area-inset-bottom)); right: max(var(--comm-launcher-right,24px),env(safe-area-inset-right)); z-index: 24; color: #e4002b; font-size: 21px; transition: left 260ms cubic-bezier(.22,.8,.25,1),right 260ms cubic-bezier(.22,.8,.25,1),bottom 220ms ease; }
+.rt-comm-launcher { --rt-floating-line:var(--comm-line); --rt-floating-surface:var(--comm-surface); position: fixed; bottom: max(var(--comm-launcher-bottom,20px),env(safe-area-inset-bottom)); right: max(var(--comm-launcher-right,24px),env(safe-area-inset-right)); z-index: 24; color: #e4002b; font-size: 21px; transition: left 260ms cubic-bezier(.22,.8,.25,1),right 260ms cubic-bezier(.22,.8,.25,1),bottom 220ms ease,opacity 160ms ease,visibility 160ms ease; }
 html[data-rt-launcher-side='left'] .rt-comm-launcher { left: max(var(--comm-launcher-left,24px),env(safe-area-inset-left)); right: auto; }
 .rt-comm-launcher .rt-comm-call-dot { position: absolute; right: 6px; bottom: 6px; box-shadow: 0 0 0 3px var(--comm-surface); }
 .rt-comm-badge { position: absolute; top: -6px; right: -6px; display: grid; place-items: center; min-width: 20px; height: 20px; padding: 0 4px; border-radius: 12px; color: white; background: #e4002b; font-size: 10px; font-weight: 700; }
+/* Keep the peer launcher available. If both use the same lower corner, move the
+   launcher rail beside the open 520px mini surface instead of covering it. */
+@media(min-width:761px) {
+    html:not([data-rt-launcher-side='left']) body:has(.rt-ai-assist[data-open='true'] .rt-ai-assist__panel[data-window-mode='mini'][data-corner='bottom-right']) .rt-comm-launcher,
+    html:not([data-rt-launcher-side='left']) body:has(.rt-chatbot[data-open='true'] .rt-chatbot__panel[data-window-mode='mini'][data-corner='bottom-right']) .rt-comm-launcher,
+    html:not([data-rt-launcher-side='left']) body:has([data-communication-host][data-communication-open='true'] .rt-communication[data-mode='mini'][data-corner='bottom-right']) .rt-ai-assist__stage,
+    html:not([data-rt-launcher-side='left']) body:has([data-communication-host][data-communication-open='true'] .rt-communication[data-mode='mini'][data-corner='bottom-right']) .rt-chatbot__pet-stage {
+        right: calc(min(520px, calc(100vw - 48px)) + 40px);
+    }
+    html[data-rt-launcher-side='left'] body:has(.rt-ai-assist[data-open='true'] .rt-ai-assist__panel[data-window-mode='mini'][data-corner='bottom-left']) .rt-comm-launcher,
+    html[data-rt-launcher-side='left'] body:has(.rt-chatbot[data-open='true'] .rt-chatbot__panel[data-window-mode='mini'][data-corner='bottom-left']) .rt-comm-launcher,
+    html[data-rt-launcher-side='left'] body:has([data-communication-host][data-communication-open='true'] .rt-communication[data-mode='mini'][data-corner='bottom-left']) .rt-ai-assist__stage,
+    html[data-rt-launcher-side='left'] body:has([data-communication-host][data-communication-open='true'] .rt-communication[data-mode='mini'][data-corner='bottom-left']) .rt-chatbot__pet-stage {
+        left: calc(min(520px, calc(100vw - 48px)) + 40px);
+    }
+}
 /* The transcript's only visual change: its background. */
 .rt-communication .rt-chat-transcript { background: var(--comm-canvas); }
 .rt-communication .rt-chat-page { position: relative !important; inset: auto !important; width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; z-index: auto; }

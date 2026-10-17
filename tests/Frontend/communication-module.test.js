@@ -1,4 +1,5 @@
 import { activeVisibleChatId } from '../../resources/js/notification-presentation.js';
+import { animateFloatingWindowGeometry } from '../../resources/js/floating-window-motion.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -11,6 +12,7 @@ const styles = await readFile(new URL('../../resources/css/communication-module.
 const chatbotStyles = await readFile(new URL('../../resources/css/chatbot.css', import.meta.url), 'utf8');
 const aiAssistStyles = await readFile(new URL('../../resources/css/ai-assist.css', import.meta.url), 'utf8');
 const aiAssistSource = await readFile(new URL('../../resources/js/ai-assist.js', import.meta.url), 'utf8');
+const chatbotSource = await readFile(new URL('../../resources/js/chatbot.js', import.meta.url), 'utf8');
 const chatbotView = await readFile(new URL('../../resources/views/livewire/tools/chatbot.blade.php', import.meta.url), 'utf8');
 const aiAssistView = await readFile(new URL('../../resources/views/livewire/operations/ai-assist.blade.php', import.meta.url), 'utf8');
 const launcherComponent = await readFile(new URL('../../resources/views/components/ui/floating/launcher.blade.php', import.meta.url), 'utf8');
@@ -136,12 +138,45 @@ test('closed shell starts without motion and opening mini preserves existing unr
 
 test('CSS motion fallback covers browsers without Element.animate', () => {
     assert.match(view, /:data-motion="motion"/);
+    assert.match(styles, /\.rt-communication\[data-motion='preparing'\][^}]*visibility:\s*hidden/);
     assert.match(styles, /@keyframes rt-communication-open/);
     assert.match(styles, /@keyframes rt-communication-close/);
     const f = fixture({ animate: false });
     f.component.show(); f.flush(); assert.equal(f.component.open, true); assert.equal(f.component.visible, true);
     f.component.close(); f.flush(); assert.equal(f.component.visible, false); assert.equal(f.component.motion, 'idle');
     f.component.destroy();
+});
+
+test('assistant opening uses one prepared geometry animation without a competing base animation', () => {
+    assert.match(aiAssistSource, /if \(opening\) this\.motion = 'preparing'/);
+    assert.match(aiAssistSource, /opening \? 'opening' : 'closing'/);
+    assert.match(aiAssistStyles, /\.rt-ai-assist__panel\[data-motion='preparing'\][^}]*visibility:\s*hidden/);
+    assert.match(aiAssistStyles, /\.rt-ai-assist__panel\[data-motion='opening'\][^}]*rt-ai-surface-open/);
+    assert.doesNotMatch(aiAssistStyles, /\.rt-ai-assist__panel\s*\{[^}]*animation:/s);
+});
+
+test('assistant resize animates box geometry without stretching its rendered content', () => {
+    let frames = null, options = null, cancelled = 0, finished = 0;
+    const animation = { onfinish: null, oncancel: null, cancel() { cancelled++; this.oncancel?.(); } };
+    const panel = { animate(value, config) { frames = value; options = config; return animation; } };
+    const result = animateFloatingWindowGeometry(
+        panel,
+        { left: 24, top: 94, width: 520, height: 600 },
+        { left: 240, top: 86, width: 1184, height: 882 },
+        { onFinish: () => finished++ },
+    );
+    assert.equal(result, animation);
+    assert.deepEqual(frames, [
+        { left: '24px', top: '94px', width: '520px', height: '600px', borderRadius: '18px' },
+        { left: '240px', top: '86px', width: '1184px', height: '882px', borderRadius: '20px' },
+    ]);
+    assert.equal(options.duration, 380);
+    assert.equal(frames.some(frame => Object.hasOwn(frame, 'transform')), false);
+    animation.onfinish();
+    assert.equal(cancelled, 1, 'finished fill is released back to the responsive CSS geometry');
+    assert.equal(finished, 1);
+    assert.doesNotMatch(aiAssistStyles, /@keyframes rt-ai-surface-resize/);
+    assert.doesNotMatch(chatbotStyles, /@keyframes rt-chatbot-window-resize/);
 });
 
 test('assistant launchers share the communication button size white surface and rounding', () => {
@@ -151,6 +186,26 @@ test('assistant launchers share the communication button size white surface and 
     for (const source of [view, chatbotView, aiAssistView]) assert.match(source, /<x-ui\.floating\.window\b/);
     assert.match(windowComponent, /rt-floating-window/);
     assert.match(styles, /\.rt-floating-window\s*\{[^}]*display:\s*flex[^}]*flex-direction:\s*column/);
+    assert.match(windowComponent, /dragPointerdown/);
+    assert.match(windowComponent, /dragPointermove/);
+    assert.match(windowComponent, /dragPointerup/);
+    assert.match(windowComponent, /dragPointercancel/);
+    assert.match(windowComponent, /dragLostpointercapture/);
+    assert.match(windowComponent, /x-on:pointerdown/);
+    assert.match(windowComponent, /x-on:pointermove\.window/);
+    assert.match(windowComponent, /x-on:pointerup\.window/);
+    assert.match(windowComponent, /x-on:pointercancel\.window/);
+    assert.match(windowComponent, /x-on:lostpointercapture\.self/);
+    assert.match(windowComponent, /x-on:keydown/);
+    for (const source of [view, chatbotView, aiAssistView]) {
+        assert.match(source, /drag-pointerdown=/);
+        assert.match(source, /drag-pointermove=/);
+        assert.match(source, /drag-pointerup=/);
+        assert.match(source, /drag-pointercancel=/);
+        assert.match(source, /drag-lostpointercapture=/);
+        assert.match(source, /drag-keydown=/);
+        assert.match(source, /drag-enabled=/);
+    }
 });
 
 test('standalone and global assistant use the communication fullscreen contract on mobile', () => {
@@ -163,7 +218,7 @@ test('standalone and global assistant use the communication fullscreen contract 
     assert.match(aiAssistView, /x-bind:data-window-mode="mode"/);
     assert.match(aiAssistView, /x-trap\.inert\.noscroll="open && mode === 'fullscreen'"/);
     assert.match(aiAssistView, /x-on:click="resizeSurface\(\)"/);
-    assert.match(aiAssistView, /x-on:pointerdown="dragStart\(\$event\)"/);
+    assert.match(aiAssistView, /drag-pointerdown="dragStart\(\$event\)"/);
     assert.match(aiAssistSource, /get canDrag\(\)[\s\S]*?this\.mode === 'mini' && this\.wide/);
     assert.match(aiAssistStyles, /\.rt-ai-assist__panel\[data-window-mode='mini'\][\s\S]*?width:\s*min\(520px/);
     assert.match(aiAssistStyles, /\.rt-ai-assist__panel\[data-window-mode='fullscreen'\]/);
@@ -182,6 +237,15 @@ test('dragging either fixed launcher moves and persists the shared left or right
     assert.equal(f.stored.get('railtime-floating-launcher-side'), 'right');
     assert.match(styles, /\.rt-comm-launcher[^}]*position:\s*fixed[^}]*z-index:\s*24/);
     assert.match(chatbotStyles, /\.rt-chatbot__pet-stage\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*24/);
+    assert.match(aiAssistStyles, /\.rt-ai-assist__stage\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*24/);
+    assert.match(aiAssistStyles, /\.rt-ai-assist__panel\s*\{[^}]*z-index:\s*86/);
+    assert.doesNotMatch(aiAssistView, /rt-ai-assist__orb--head/);
+    assert.match(aiAssistView, /class="rt-ai-assist__tabs"/);
+    assert.match(chatbotView, /x-bind:data-open="open\.toString\(\)"/);
+    assert.match(styles, /body:has\(\.rt-ai-assist\[data-open='true'\] \.rt-ai-assist__panel\[data-window-mode='mini'\]\[data-corner='bottom-right'\]\) \.rt-comm-launcher/);
+    assert.match(styles, /body:has\(\[data-communication-host\]\[data-communication-open='true'\] \.rt-communication\[data-mode='mini'\]\[data-corner='bottom-right'\]\) \.rt-ai-assist__stage/);
+    assert.match(styles, /right:\s*calc\(min\(520px, calc\(100vw - 48px\)\) \+ 40px\)/);
+    assert.doesNotMatch(styles, /body:has\(\.rt-ai-assist\[data-open='true'\]\) \.rt-comm-launcher[\s\S]*?visibility:\s*hidden/);
     f.component.destroy();
 });
 
@@ -202,6 +266,13 @@ test('communication and assistant surfaces close each other while the call DOM s
     assert.notEqual(f.document.activeElement, f.launcher, 'the sidebar retains focus');
     assert.equal(f.document.querySelector('#persistent-call'), call);
     f.finish(); f.component.destroy();
+});
+
+test('surface-open event is shared by communication and AI Assist without call termination', () => {
+    assert.match(source, /rt-floating-surface-opened[\s\S]*surface: 'communication'/);
+    assert.match(aiAssistSource, /rt-floating-surface-opened[\s\S]*surface: 'assist'/);
+    assert.match(view, /rt-floating-surface-opened\.window[\s\S]*surface === 'assist'/);
+    assert.match(aiAssistView, /rt-floating-surface-opened\.window[\s\S]*surface === 'communication'/);
 });
 
 test('close keeps real panel visible until WAAPI finish while logical open and accessibility close immediately', () => {
@@ -280,11 +351,11 @@ test('touch and pen implicit capture transfer do not cancel the stable panel dra
         const handle = f.document.querySelector('#handle');
         f.pointer('pointerdown', handle, { pointerType });
         f.component.dragStart({ target: handle, pointerType, pointerId: 1, isPrimary: true, button: 0, clientX: 900, clientY: 250 });
-        f.pointer('pointermove', f.panel, { pointerType, clientX: 800, clientY: 200 });
+        f.component.dragMove({ target: f.panel, pointerType, pointerId: 1, clientX: 800, clientY: 200, preventDefault() {} });
         assert.equal(f.captures.get(1), f.panel); assert.equal(f.component.dragging, true);
-        f.event(handle, 'lostpointercapture', { pointerId: 1 }); assert.equal(f.component.dragging, true);
-        f.event(f.panel, 'lostpointercapture', { pointerId: 99 }); assert.equal(f.component.dragging, true);
-        f.event(f.panel, 'lostpointercapture', { pointerId: 1 }); assert.equal(f.component.dragging, false); assert.equal(f.captures.size, 0);
+        f.component.lostPointerCapture({ target: handle, pointerId: 1 }); assert.equal(f.component.dragging, true);
+        f.component.lostPointerCapture({ target: f.panel, pointerId: 99 }); assert.equal(f.component.dragging, true);
+        f.component.lostPointerCapture({ target: f.panel, pointerId: 1 }); assert.equal(f.component.dragging, false); assert.equal(f.captures.size, 0);
         f.component.destroy();
     }
 });
@@ -309,13 +380,36 @@ test('completed header drags snap to all four corners and controls cannot begin 
         const start = { pointerType: 'mouse', pointerId: 1, button: 0, isPrimary: true, clientX: frame.left + 100, clientY: frame.top + 20 };
         f.component.dragStart({ target: handle, ...start });
         const end = { ...start, clientX: start.clientX + left - frame.left, clientY: start.clientY + top - frame.top };
-        f.pointer('pointermove', f.panel, end); f.pointer('pointerup', f.panel, end); f.flush();
+        f.component.dragMove({ target: f.panel, ...end, preventDefault() {} }); f.component.dragPointerUp(end); f.flush();
         assert.equal(f.component.corner, corner); assert.equal(f.animations.at(-1).options.duration, 240);
         assert.equal(f.captures.size, 0); assert.equal(f.component.dragging, false); f.finish();
         f.component.dragStart({ target: f.root.querySelector('[role="tab"]'), ...start });
-        f.pointer('pointermove', f.panel, { ...start, clientX: 500 });
+        f.component.dragMove({ target: f.panel, ...start, clientX: 500, preventDefault() {} });
         assert.equal(f.component.dragging, false); f.component.destroy();
     }
+});
+
+test('the outer dialog is the draggable surface while header controls and nested dialogs stay interactive', () => {
+    const f = fixture();
+    f.panel.setAttribute('role', 'dialog');
+    f.component.show(); f.flush(); f.finish();
+    const handle = f.document.querySelector('#handle');
+    const start = { pointerType: 'mouse', pointerId: 7, button: 0, isPrimary: true, clientX: 900, clientY: 250 };
+    f.component.dragStart({ target: handle, ...start });
+    f.component.dragMove({ target: f.panel, ...start, clientX: 760, clientY: 170, preventDefault() {} });
+    assert.equal(f.component.dragging, true, 'the panel role=dialog must not block its own blank header');
+    f.component.dragPointerCancel({ pointerId: 7 });
+
+    const nested = f.document.createElement('div');
+    nested.setAttribute('role', 'dialog');
+    handle.append(nested);
+    f.component.dragStart({ target: nested, ...start, pointerId: 8 });
+    f.component.dragMove({ target: f.panel, ...start, pointerId: 8, clientX: 760, preventDefault() {} });
+    assert.equal(f.component.dragging, false, 'nested dialogs must keep pointer interaction');
+
+    assert.match(aiAssistSource, /dragTargetIsInteractive\(event\.target, this\.\$refs\?\.panel\)/);
+    assert.match(chatbotSource, /assistantDragTargetIsInteractive\(event\.target, this\.\$refs\?\.assistantPanel\)/);
+    f.component.destroy();
 });
 
 test('history intent uses native authorization entry while preserving an ongoing call', () => {

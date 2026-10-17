@@ -18,12 +18,12 @@
         $canPlan ? 'Wer kann heute einen offenen Dienst übernehmen?' : null,
         auth()->user()->can('operations.inquiries.manage') ? 'Fasse die neuen Anfragen zusammen.' : null,
     ]));
-    $modeLabel = 'Disposition · '.($enabled ? ($mode === 'assisted' ? 'Assistiert' : 'Automatisch') : 'AI-Eingang aus');
 @endphp
 <div class="rt-ai-assist" x-data="rtAiAssist" :data-open="open ? 'true' : 'false'" data-open="false" data-intake-open="{{ $intakeRequested ? 'true' : 'false' }}"
     data-hints="{{ json_encode($hints, JSON_UNESCAPED_UNICODE) }}" data-actions="{{ json_encode($allActions, JSON_UNESCAPED_UNICODE) }}"
     x-on:keydown.window="shortcut($event)" x-on:keydown.escape="escape($event)" x-on:railtime-assistant-open.window="toggle(true)"
     x-on:railtime-assistant-close.window="toggle(false)"
+    x-on:rt-floating-surface-opened.window="if ($event.detail?.surface === 'communication') toggle(false)"
     x-on:railtime-ai-intake-open.window="openIntake($event.detail)"
     x-on:ai-assist-intake-opened.window="if ($event.detail.componentId === @js($this->getId())) toggle(true)" data-ai-assist>
     <div x-data="railtimeAssistantCloud()" :data-state="orbState" x-bind:data-pet-open="open.toString()" data-state="idle">
@@ -47,19 +47,14 @@
         </div>
 
         <x-ui.floating.window class="rt-ai-assist__panel" id="{{ $panelId }}" x-ref="panel" role="dialog" ::aria-modal="mode === 'fullscreen' ? 'true' : 'false'"
-            x-bind:data-window-mode="mode" x-bind:data-motion="motion" x-bind:data-corner="corner" x-bind:data-dragging="dragging.toString()" aria-labelledby="{{ $panelId }}-title"
+            x-bind:data-window-mode="mode" x-bind:data-motion="motion" x-bind:data-corner="corner" x-bind:data-dragging="dragging.toString()" aria-label="AI-Assist"
             x-trap.inert.noscroll="open && mode === 'fullscreen'" x-show="visible" style="display: none"
-            x-on:pointermove.window="dragMove($event)" x-on:pointerup.window="dragEnd($event)" x-on:pointercancel.window="cancelDrag()" x-on:lostpointercapture="lostPointerCapture($event)">
+            drag-pointerdown="dragStart($event)" drag-pointermove="dragMove($event)" drag-pointerup="dragEnd($event)"
+            drag-pointercancel="cancelDrag()" drag-lostpointercapture="lostPointerCapture($event)"
+            drag-keydown="cornerKey($event)" drag-enabled="canDrag">
             <x-slot:header class="rt-ai-assist__head rt-assistant-header" data-assistant-header>
-                <div class="rt-ai-assist__identity" :tabindex="canDrag ? 0 : -1" role="group" aria-label="Fensterposition"
-                    title="Ziehen oder mit Alt und Pfeiltasten in eine Ecke setzen" x-on:pointerdown="dragStart($event)" x-on:keydown="cornerKey($event)">
-                    <span class="rt-ai-assist__avatar"><span class="rt-ai-assist__orb rt-ai-assist__orb--head" data-assistant-cloud-slot="header" aria-hidden="true"><span class="rt-assistant-cloud__fallback"></span></span></span>
-                    <span class="rt-ai-assist__identity-copy">
-                    <span class="rt-ai-assist__mode sr-only">{{ $modeLabel }}</span>
-                    <h2 class="rt-ai-assist__title" id="{{ $panelId }}-title" title="{{ $modeLabel }}">AI-Assist</h2>
-                    </span>
-                </div>
-                <x-operations.assistant-navigation :tabs="$tabs" :selected="$tab" action="setTab" :id-prefix="$panelId" :controls="$panelId.'-body'" :review-count="$reviewCount" label="AI-Assist" />
+                <x-operations.assistant-navigation class="rt-ai-assist__tabs" :tabs="$tabs" :selected="$tab" action="setTab" :id-prefix="$panelId" :controls="$panelId.'-body'" :review-count="$reviewCount" label="AI-Assist" />
+                <span class="rt-floating-window__header-spacer" aria-hidden="true"></span>
                 <div class="rt-ai-assist__head-actions">
                     <button class="rt-ai-assist__icon-btn" type="button" x-cloak x-show="wide" x-on:click="resizeSurface()"
                         :aria-label="mode === 'fullscreen' ? 'AI-Assist verkleinern' : 'AI-Assist im Vollbild öffnen'"

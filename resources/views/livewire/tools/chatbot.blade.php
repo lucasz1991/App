@@ -224,6 +224,8 @@
     x-on:railtime-pagebuilder-context-updated.window="if (handlePageBuilderContextUpdated($event.detail) && open) $wire.updatePageBuilderAssistantContext($event.detail)"
     x-on:railtime-pagebuilder-assistant-result.window="$wire.recordAssistantActionResult($event.detail)"
     x-on:railtime-pagebuilder-assistant-claim-failed.window="$wire.recordAssistantActionClaimFailure($event.detail)"
+    x-bind:data-open="open.toString()"
+    data-open="false"
     x-bind:data-pagebuilder-active="pageBuilderActive.toString()"
     x-bind:data-window-mode="assistantMode"
 >
@@ -340,15 +342,16 @@
         aria-labelledby="railtime-chatbot-title"
         x-trap.inert.noscroll="open && !pageBuilderActive && assistantMode === 'fullscreen'"
         x-on:keydown.escape.window.capture="handlePanelEscape($event)"
-        x-on:pointermove.window="assistantDragMove($event)"
-        x-on:pointerup.window="assistantDragEnd($event)"
-        x-on:pointercancel.window="assistantCancelDrag()"
-        x-on:lostpointercapture="assistantLostPointerCapture($event)"
+        drag-pointerdown="assistantDragStart($event)"
+        drag-pointermove="assistantDragMove($event)"
+        drag-pointerup="assistantDragEnd($event)"
+        drag-pointercancel="assistantCancelDrag()"
+        drag-lostpointercapture="assistantLostPointerCapture($event)"
+        drag-keydown="assistantCornerKey($event)"
+        drag-enabled="canDragAssistant"
     >
         <x-slot:header class="rt-chatbot__header{{ $operationsAvailable ? ' rt-assistant-header' : '' }}">
-            <div class="rt-chatbot__identity" :tabindex="canDragAssistant ? 0 : -1" role="group" aria-label="Fensterposition"
-                title="Ziehen oder mit Alt und Pfeiltasten in eine Ecke setzen"
-                x-on:pointerdown="assistantDragStart($event)" x-on:keydown="assistantCornerKey($event)">
+            <div class="rt-chatbot__identity">
                 <span
                     class="rt-chatbot__avatar"
                     data-assistant-cloud-slot="header"

@@ -129,7 +129,7 @@ test('assistant mini window drags and keyboard-docks to the same four screen cor
     bot.assistantCornerKey({ altKey: true, key: 'ArrowDown', preventDefault() {} });
     bot.assistantCornerKey({ altKey: true, key: 'ArrowRight', preventDefault() {} });
     assert.equal(bot.assistantCorner, 'bottom-right');
-    assert.match(chatbotView, /x-on:pointerdown="assistantDragStart\(\$event\)"/);
+    assert.match(chatbotView, /drag-pointerdown="assistantDragStart\(\$event\)"/);
 });
 
 test('automatic surface exclusion closes without stealing focus from the newly opened UI', () => {

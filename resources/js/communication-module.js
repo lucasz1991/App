@@ -2,6 +2,11 @@ const TABS = ['chats', 'calls', 'meetings'];
 const INTERACTIVE = 'button,a,input,textarea,select,[role="tab"],[role="dialog"],[contenteditable="true"]';
 const FLOATING_LAUNCHER_SIDE_KEY = 'railtime-floating-launcher-side';
 
+function dragTargetIsInteractive(target, panel) {
+    const interactive = target?.closest?.(INTERACTIVE);
+    return Boolean(interactive && interactive !== panel);
+}
+
 export function initializeFloatingLauncherGroup(doc = document, win = window) {
     const html = doc?.documentElement;
     if (!html || html.dataset.rtLauncherGroupReady === 'true') return;
@@ -167,12 +172,6 @@ export function communicationModule() {
                 clickGuard = null;
                 if (event.pointerType === 'touch') { touches.add(event.pointerId); if (touches.size > 1) this.cancelDrag(); }
             }, true);
-            listen(document, 'pointermove', event => this.dragMove(event), { passive: false });
-            listen(document, 'pointerup', event => { touches.delete(event.pointerId); this.dragEnd(event); });
-            listen(document, 'pointercancel', event => { touches.delete(event.pointerId); this.cancelDrag(); });
-            listen(document, 'lostpointercapture', event => {
-                if (event.target === this.$refs.panel && drag?.id === event.pointerId) this.cancelDrag();
-            });
             const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
             listen(preference, 'change', () => this.finishMotion());
             observer = new MutationObserver(() => this.queueLayout());
@@ -288,10 +287,13 @@ export function communicationModule() {
             const launcherFrom = focusAfterOpen ? this.$refs.launcher.getBoundingClientRect() : null;
             if (focusAfterOpen && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
                 window.dispatchEvent(new CustomEvent('railtime-assistant-close'));
+                window.dispatchEvent(new CustomEvent('rt-floating-surface-opened', { detail: { surface: 'communication' } }));
             }
             const from = this.visible ? panel.getBoundingClientRect() : null;
             this.finishMotion(); this.cancelDrag();
-            this.mode = this.wide ? mode : 'fullscreen'; this.open = open; this.visible = true;
+            this.mode = this.wide ? mode : 'fullscreen'; this.open = open;
+            this.motion = open && !from ? 'preparing' : 'idle';
+            this.visible = true;
             this.syncVisibility(); this.queueLayout();
             const revision = ++generation;
             this.$nextTick(() => {
@@ -305,14 +307,17 @@ export function communicationModule() {
                 const small = open ? launcherFrom : this.$refs.launcher.getBoundingClientRect();
                 const collapse = rect => {
                     if (!small?.width || !small?.height) return { x: 0, y: 18, scale: .96 };
-                    const scale = Math.max(.08, Math.min(.22, small.width / rect.width, small.height / rect.height));
-                    const x = small.left + small.width / 2 - (rect.left + rect.width / 2);
-                    const y = small.top + small.height / 2 - (rect.top + rect.height / 2);
-                    return { x, y, scale };
+                    const rawX = small.left + small.width / 2 - (rect.left + rect.width / 2);
+                    const rawY = small.top + small.height / 2 - (rect.top + rect.height / 2);
+                    return {
+                        x: Math.max(-24, Math.min(24, rawX * .08)),
+                        y: Math.max(-30, Math.min(30, rawY * .08)),
+                        scale: .96,
+                    };
                 };
                 const collapsed = rect => {
                     const state = collapse(rect);
-                    return { ...frame(rect), transform: `translate(${state.x}px,${state.y}px) scale(${state.scale})`, transformOrigin: 'center', borderRadius: '18px', opacity: .16 };
+                    return { ...frame(rect), transform: `translate(${state.x}px,${state.y}px) scale(${state.scale})`, transformOrigin: 'center', borderRadius: '18px', opacity: .2 };
                 };
                 const duration = focusAfterOpen ? 340 : (from && open ? 380 : 280);
                 if (!panel.animate) {
@@ -336,6 +341,7 @@ export function communicationModule() {
                 const start = from ? { ...frame(from), transform: 'none', opacity: 1 } : collapsed(to);
                 const end = open ? { ...frame(to), transform: 'none', borderRadius: getComputedStyle(panel).borderRadius, opacity: 1 } : collapsed(from || to);
                 animation = panel.animate([start, end], { duration, easing: 'cubic-bezier(.22,.8,.25,1)', fill: 'both' });
+                this.motion = 'idle';
                 const current = animation;
                 current.onfinish = () => {
                     if (revision !== generation || animation !== current) return;
@@ -387,7 +393,7 @@ export function communicationModule() {
             this.$root.style.setProperty('--comm-launcher-left', `${left}px`);
         },
         dragStart(event) {
-            if (!this.canDrag || touches.size > 1 || event.isPrimary === false || event.button !== 0 || event.target.closest(INTERACTIVE)) return;
+            if (!this.canDrag || touches.size > 1 || event.isPrimary === false || event.button !== 0 || dragTargetIsInteractive(event.target, this.$refs?.panel)) return;
             if (Array.from(document.querySelectorAll('dialog[open],[role="dialog"][aria-modal="true"]')).some(dialog => {
                 const rect = dialog.getBoundingClientRect();
                 return rect.width > 0 && rect.height > 0 && getComputedStyle(dialog).visibility !== 'hidden';
@@ -410,6 +416,17 @@ export function communicationModule() {
             const x = Math.max(12, Math.min(window.innerWidth - drag.rect.width - 12, drag.rect.left + dx));
             const y = Math.max(minTop, Math.min(window.innerHeight - drag.rect.height - 12, drag.rect.top + dy));
             Object.assign(panel.style, { left: `${x}px`, top: `${y}px`, right: 'auto', bottom: 'auto' });
+        },
+        dragPointerUp(event) {
+            touches.delete(event.pointerId);
+            this.dragEnd(event);
+        },
+        dragPointerCancel(event) {
+            touches.delete(event.pointerId);
+            this.cancelDrag();
+        },
+        lostPointerCapture(event) {
+            if (event.target === this.$refs.panel && drag?.id === event.pointerId) this.cancelDrag();
         },
         cancelDrag() {
             const previous = drag; drag = null; this.dragging = false;

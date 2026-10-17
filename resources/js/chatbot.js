@@ -3,6 +3,7 @@ import {
     holdMicrophoneStream,
     releaseMicrophoneStream,
 } from './microphone-stream.js';
+import { animateFloatingWindowGeometry } from './floating-window-motion.js';
 import { ensureRailTimeNavigationCoordinator } from './navigation-coordinator.js';
 import {
     acquirePageBuilderAssistantActionDispatcher,
@@ -23,6 +24,12 @@ const CHATBOT_DESKTOP_QUERY = '(min-width: 1140px)';
 const VOICE_CAPTURE_LIMIT_MS = 45_000;
 const MAX_TTS_TEXT_LENGTH = 4_000;
 const MAX_KNOWN_MESSAGE_KEYS = 500;
+const FLOATING_WINDOW_INTERACTIVE = 'button,a,input,textarea,select,[role="tab"],[role="dialog"],[contenteditable="true"]';
+
+function assistantDragTargetIsInteractive(target, panel) {
+    const interactive = target?.closest?.(FLOATING_WINDOW_INTERACTIVE);
+    return Boolean(interactive && interactive !== panel);
+}
 const PET_BUBBLE_INITIAL_DELAY_MS = 1_200;
 const PET_BUBBLE_VISIBLE_MS = 4_800;
 const PET_BUBBLE_CYCLE_MS = 38_000;
@@ -381,6 +388,7 @@ export function railtimeChatbot(config = {}) {
         _attachmentCleanupEventUnsubscribe: null,
         _attachmentCommitUnhook: null,
         _assistantMotionTimer: null,
+        _assistantGeometryAnimation: null,
 
         init() {
             this.dockMediaQuery = window.matchMedia?.(CHATBOT_DESKTOP_QUERY) ?? null;
@@ -571,6 +579,8 @@ export function railtimeChatbot(config = {}) {
                 this._windowResizeHandler = null;
             }
             clearTimeout(this._assistantMotionTimer);
+            this._assistantGeometryAnimation?.cancel?.();
+            this._assistantGeometryAnimation = null;
             document.body?.classList?.remove('rt-chatbot-fullscreen');
             if (this._navigationHandler) {
                 document.removeEventListener('livewire:navigating', this._navigationHandler);
@@ -1371,7 +1381,7 @@ export function railtimeChatbot(config = {}) {
         },
 
         assistantDragStart(event) {
-            if (!this.canDragAssistant || event.isPrimary === false || event.button !== 0 || event.target.closest?.('button,a,input,textarea,select,[role="tab"],[role="dialog"],[contenteditable="true"]')) return;
+            if (!this.canDragAssistant || event.isPrimary === false || event.button !== 0 || assistantDragTargetIsInteractive(event.target, this.$refs?.assistantPanel)) return;
             assistantDrag = { id: event.pointerId, x: event.clientX, y: event.clientY, locked: false, rect: null };
         },
 
@@ -1430,23 +1440,26 @@ export function railtimeChatbot(config = {}) {
 
         animateAssistantGeometry(from, duration = 380) {
             const panel = this.$refs?.assistantPanel;
+            this._assistantGeometryAnimation?.cancel?.();
+            this._assistantGeometryAnimation = null;
             this.assistantMotion = 'idle';
             this.$nextTick(() => {
                 const to = panel?.getBoundingClientRect?.();
                 if (!panel || !from || !to || !to.width || !to.height || window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) return;
                 clearTimeout(this._assistantMotionTimer);
-                panel.style.setProperty('--rt-assistant-motion-x', `${from.left - to.left}px`);
-                panel.style.setProperty('--rt-assistant-motion-y', `${from.top - to.top}px`);
-                panel.style.setProperty('--rt-assistant-motion-scale-x', `${from.width / to.width}`);
-                panel.style.setProperty('--rt-assistant-motion-scale-y', `${from.height / to.height}`);
                 this.assistantMotion = 'resizing';
-                this._assistantMotionTimer = setTimeout(() => {
-                    this.assistantMotion = 'idle';
-                    panel.style.removeProperty('--rt-assistant-motion-x');
-                    panel.style.removeProperty('--rt-assistant-motion-y');
-                    panel.style.removeProperty('--rt-assistant-motion-scale-x');
-                    panel.style.removeProperty('--rt-assistant-motion-scale-y');
-                }, duration + 10);
+                const currentMode = this.assistantMode;
+                this._assistantGeometryAnimation = animateFloatingWindowGeometry(panel, from, to, {
+                    duration,
+                    fromRadius: currentMode === 'fullscreen' ? '18px' : '20px',
+                    toRadius: currentMode === 'fullscreen' ? '20px' : '18px',
+                    onFinish: animation => {
+                        if (this._assistantGeometryAnimation !== animation) return;
+                        this._assistantGeometryAnimation = null;
+                        this.assistantMotion = 'idle';
+                    },
+                });
+                if (!this._assistantGeometryAnimation) this.assistantMotion = 'idle';
             });
         },
 

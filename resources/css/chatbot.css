@@ -516,11 +516,7 @@ html.rt-pagebuilder-fullscreen-open .rt-chatbot__panel {
 
 .rt-chatbot__panel-leave { transition-duration: 280ms; }
 .rt-chatbot__panel[data-motion='resizing'] {
-    animation: rt-chatbot-window-resize 380ms cubic-bezier(.22,.8,.25,1) both;
-}
-@keyframes rt-chatbot-window-resize {
-    from { transform: translate(var(--rt-assistant-motion-x,0),var(--rt-assistant-motion-y,0)) scale(var(--rt-assistant-motion-scale-x,1),var(--rt-assistant-motion-scale-y,1)); transform-origin: top left; }
-    to { transform: none; }
+    pointer-events: none;
 }
 
 .rt-chatbot__panel::before {

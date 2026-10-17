@@ -14,7 +14,7 @@
     padding: 5px 8px;
     border-bottom: 1px solid color-mix(in srgb, var(--assistant-nav-muted) 13%, transparent);
 }
-.rt-ai-assist__head.rt-assistant-header { grid-template-columns: 24px minmax(0, 1fr) auto auto; }
+.rt-ai-assist__head.rt-assistant-header { display: flex; grid-template-columns: none; }
 .rt-assistant-header .rt-ai-assist__avatar,
 .rt-assistant-header .rt-chatbot__avatar { width: 24px; height: 24px; border-radius: 8px; box-shadow: none; }
 .rt-assistant-header .rt-ai-assist__orb--head { width: 24px; height: 24px; }
@@ -64,12 +64,38 @@
 .rt-assistant-nav__tooltip[x-cloak] { display: none !important; }
 .dark .rt-assistant-nav__count { color: #231014; }
 
+/* Standalone AI-Assist uses the same segmented header menu as Communication. */
+.rt-ai-assist__head .rt-ai-assist__tabs {
+    gap: 2px;
+    padding: 2px;
+    border: 1px solid var(--ai-border);
+    border-radius: 12px;
+    background: transparent;
+}
+.rt-ai-assist__head .rt-ai-assist__tabs .rt-assistant-nav__tab {
+    width: 44px;
+    min-height: 44px;
+    border-radius: 7px;
+}
+.rt-ai-assist__head .rt-ai-assist__tabs .rt-assistant-nav__tab[aria-selected='true'] {
+    color: #fff;
+    background: var(--ai-accent);
+    box-shadow: none;
+}
+.rt-ai-assist__head .rt-ai-assist__tabs .rt-assistant-nav__tab:hover:not(:disabled):not([aria-selected='true']) {
+    background: var(--ai-panel);
+}
+.rt-ai-assist__panel[data-window-mode='mini'] .rt-ai-assist__tabs { border-radius: 10px; }
+.rt-ai-assist__panel[data-window-mode='mini'] .rt-ai-assist__tabs .rt-assistant-nav__tab { width: 38px; min-height: 38px; border-radius: 7px; }
+.rt-ai-assist__panel[data-window-mode='mini'] .rt-ai-assist__tabs .rt-assistant-nav__tab svg { width: 16px; height: 16px; }
+
 @media (max-width: 639px) {
     .rt-assistant-header { grid-template-columns: minmax(0, 1fr) auto; row-gap: 3px; min-height: 0; padding: 3px 6px 5px; }
-    .rt-ai-assist__head.rt-assistant-header { grid-template-columns: 24px minmax(0, 1fr) auto; }
+    .rt-ai-assist__head.rt-assistant-header { display: flex; grid-template-columns: none; }
     .rt-assistant-header .rt-ai-assist__head-actions,
     .rt-assistant-header .rt-chatbot__header-actions { grid-column: -2 / -1; grid-row: 1; }
     .rt-assistant-header .rt-assistant-nav { grid-column: 1 / -1; grid-row: 2; justify-content: center; padding: 2px; }
+    .rt-ai-assist__head .rt-ai-assist__tabs { grid-column: auto; grid-row: auto; justify-content: flex-start; }
     .rt-assistant-header .rt-ai-assist__icon-btn,
     .rt-assistant-header .rt-chatbot__icon-button { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
     .rt-assistant-nav__tab { width: 44px; min-height: 44px; }
