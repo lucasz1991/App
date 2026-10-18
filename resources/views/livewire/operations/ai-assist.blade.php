@@ -47,16 +47,14 @@
         </div>
 
         <x-ui.floating.window class="rt-ai-assist__panel" id="{{ $panelId }}" x-ref="panel" role="dialog" ::aria-modal="mode === 'fullscreen' ? 'true' : 'false'"
-            x-bind:data-window-mode="mode" x-bind:data-motion="motion" x-bind:data-corner="corner" x-bind:data-dragging="dragging.toString()" aria-label="AI-Assist"
-            x-trap.inert.noscroll="open && mode === 'fullscreen'" x-show="visible" style="display: none"
-            drag-pointerdown="dragStart($event)" drag-pointermove="dragMove($event)" drag-pointerup="dragEnd($event)"
-            drag-pointercancel="cancelDrag()" drag-lostpointercapture="lostPointerCapture($event)"
-            drag-keydown="cornerKey($event)" drag-enabled="canDrag">
+            x-bind:data-window-mode="mode" x-bind:data-corner="corner" aria-label="AI-Assist"
+            x-trap.inert.noscroll="open && mode === 'fullscreen'" style="display: none"
+            layout-action="syncLayout();">
             <x-slot:header class="rt-ai-assist__head rt-assistant-header" data-assistant-header>
                 <x-operations.assistant-navigation class="rt-ai-assist__tabs" :tabs="$tabs" :selected="$tab" action="setTab" :id-prefix="$panelId" :controls="$panelId.'-body'" :review-count="$reviewCount" label="AI-Assist" />
                 <span class="rt-floating-window__header-spacer" aria-hidden="true"></span>
                 <div class="rt-ai-assist__head-actions">
-                    <button class="rt-ai-assist__icon-btn" type="button" x-cloak x-show="wide" x-on:click="resizeSurface()"
+                    <button class="rt-ai-assist__icon-btn" type="button" x-cloak x-show="wide" x-on:click="resizeWindow()"
                         :aria-label="mode === 'fullscreen' ? 'AI-Assist verkleinern' : 'AI-Assist im Vollbild öffnen'"
                         :title="mode === 'fullscreen' ? 'Verkleinern' : 'Vollbild öffnen'">
                         <i class="far" :class="mode === 'fullscreen' ? 'fa-compress-alt' : 'fa-expand-alt'" aria-hidden="true"></i>

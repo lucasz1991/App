@@ -95,43 +95,6 @@ test('the assistant closes when the sidebar announces that it opened', () => {
     assert.match(chatbotView, /x-on:railtime-sidebar-opened\.window="setOpen\(false, false, false\)"/);
 });
 
-test('assistant mini window drags and keyboard-docks to the same four screen corners', () => {
-    const { bot } = fixture();
-    window.innerHeight = 900;
-    const style = {
-        setProperty(name, value) { this[name] = value; },
-        removeProperty(name) { delete this[name]; },
-    };
-    const panel = {
-        style,
-        captured: null,
-        getBoundingClientRect() {
-            const width = 520, height = 600;
-            const left = Number.parseFloat(style.left) || (bot.assistantCorner.endsWith('left') ? 24 : window.innerWidth - width - 24);
-            const top = Number.parseFloat(style.top) || (bot.assistantCorner.startsWith('top') ? 94 : window.innerHeight - height - 24);
-            return { left, top, width, height, right: left + width, bottom: top + height };
-        },
-        setPointerCapture(id) { this.captured = id; },
-        hasPointerCapture(id) { return this.captured === id; },
-        releasePointerCapture() { this.captured = null; },
-    };
-    bot.$refs.assistantPanel = panel;
-    bot.$root = { style: { getPropertyValue: () => '70' } };
-    bot.open = true;
-    bot.assistantMode = 'mini';
-    const target = { closest: () => null };
-    bot.assistantDragStart({ isPrimary: true, button: 0, pointerId: 7, clientX: 1000, clientY: 500, target });
-    bot.assistantDragMove({ pointerId: 7, clientX: 80, clientY: 100, preventDefault() {} });
-    bot.assistantDragEnd({ pointerId: 7 });
-    assert.equal(bot.assistantCorner, 'top-left');
-    assert.equal(bot.assistantDragging, false);
-    assert.equal(panel.captured, null);
-    bot.assistantCornerKey({ altKey: true, key: 'ArrowDown', preventDefault() {} });
-    bot.assistantCornerKey({ altKey: true, key: 'ArrowRight', preventDefault() {} });
-    assert.equal(bot.assistantCorner, 'bottom-right');
-    assert.match(chatbotView, /drag-pointerdown="assistantDragStart\(\$event\)"/);
-});
-
 test('automatic surface exclusion closes without stealing focus from the newly opened UI', () => {
     const { bot } = fixture(); let focused = 0;
     bot.$refs.launcher.focus = () => focused++;

@@ -324,31 +324,17 @@
         class="rt-chatbot__panel"
         x-ref="assistantPanel"
         x-bind:data-window-mode="assistantMode"
-        x-bind:data-motion="assistantMotion"
         x-bind:data-corner="assistantCorner"
-        x-bind:data-dragging="assistantDragging.toString()"
         data-empty-chat="{{ count($history) === 0 ? 'true' : 'false' }}"
         x-bind:data-settings-open="settingsOpen.toString()"
         x-cloak
-        x-show="open"
-        x-transition:enter="rt-chatbot__panel-enter"
-        x-transition:enter-start="rt-chatbot__panel-enter-start"
-        x-transition:enter-end="rt-chatbot__panel-enter-end"
-        x-transition:leave="rt-chatbot__panel-leave"
-        x-transition:leave-start="rt-chatbot__panel-enter-end"
-        x-transition:leave-end="rt-chatbot__panel-enter-start"
         x-bind:role="pageBuilderActive || assistantMode === 'mini' ? 'complementary' : 'dialog'"
         x-bind:aria-modal="pageBuilderActive || assistantMode === 'mini' ? null : 'true'"
         aria-labelledby="railtime-chatbot-title"
         x-trap.inert.noscroll="open && !pageBuilderActive && assistantMode === 'fullscreen'"
         x-on:keydown.escape.window.capture="handlePanelEscape($event)"
-        drag-pointerdown="assistantDragStart($event)"
-        drag-pointermove="assistantDragMove($event)"
-        drag-pointerup="assistantDragEnd($event)"
-        drag-pointercancel="assistantCancelDrag()"
-        drag-lostpointercapture="assistantLostPointerCapture($event)"
-        drag-keydown="assistantCornerKey($event)"
-        drag-enabled="canDragAssistant"
+        mode-state="assistantMode" corner-state="assistantCorner" enabled-state="!pageBuilderActive"
+        layout-action="syncAssistantLayout();"
     >
         <x-slot:header class="rt-chatbot__header{{ $operationsAvailable ? ' rt-assistant-header' : '' }}">
             <div class="rt-chatbot__identity">
@@ -382,7 +368,7 @@
                     class="rt-chatbot__icon-button rt-chatbot__resize-button"
                     x-cloak
                     x-show="assistantResizable()"
-                    x-on:click="toggleAssistantMode()"
+                    x-on:click="resizeWindow()"
                     x-bind:title="assistantMode === 'mini' ? 'Assistent im Vollbild öffnen' : 'Assistent verkleinern'"
                     x-bind:aria-label="assistantMode === 'mini' ? 'Assistent im Vollbild öffnen' : 'Assistent verkleinern'"
                 >

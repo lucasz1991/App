@@ -1,66 +1,4 @@
 const TABS = ['chats', 'calls', 'meetings'];
-const INTERACTIVE = 'button,a,input,textarea,select,[role="tab"],[role="dialog"],[contenteditable="true"]';
-const FLOATING_LAUNCHER_SIDE_KEY = 'railtime-floating-launcher-side';
-
-function dragTargetIsInteractive(target, panel) {
-    const interactive = target?.closest?.(INTERACTIVE);
-    return Boolean(interactive && interactive !== panel);
-}
-
-export function initializeFloatingLauncherGroup(doc = document, win = window) {
-    const html = doc?.documentElement;
-    if (!html || html.dataset.rtLauncherGroupReady === 'true') return;
-    html.dataset.rtLauncherGroupReady = 'true';
-    let drag = null, suppressClickUntil = 0;
-    const normalize = value => value === 'left' ? 'left' : 'right';
-    const apply = (side, persist = false) => {
-        const value = normalize(side);
-        html.dataset.rtLauncherSide = value;
-        if (persist) {
-            try { win.localStorage?.setItem(FLOATING_LAUNCHER_SIDE_KEY, value); } catch {}
-        }
-        win.dispatchEvent?.(new CustomEvent('railtime-launcher-side', { detail: { side: value } }));
-    };
-    let initial = 'right';
-    try { initial = normalize(win.localStorage?.getItem(FLOATING_LAUNCHER_SIDE_KEY)); } catch {}
-    apply(initial);
-    doc.addEventListener('pointerdown', event => {
-        const launcher = event.target.closest?.('[data-rt-floating-launcher]');
-        if (!launcher || event.isPrimary === false || event.button !== 0) return;
-        drag = { launcher, id: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
-    }, true);
-    doc.addEventListener('pointermove', event => {
-        if (!drag || drag.id !== event.pointerId) return;
-        if (!drag.moved && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 8) return;
-        drag.moved = true;
-        drag.launcher.setPointerCapture?.(event.pointerId);
-        apply(event.clientX < win.innerWidth / 2 ? 'left' : 'right');
-        event.preventDefault();
-    }, { capture: true, passive: false });
-    const finish = event => {
-        if (!drag || drag.id !== event.pointerId) return;
-        const current = drag; drag = null;
-        if (current.launcher.hasPointerCapture?.(event.pointerId)) current.launcher.releasePointerCapture(event.pointerId);
-        if (!current.moved) return;
-        apply(event.clientX < win.innerWidth / 2 ? 'left' : 'right', true);
-        suppressClickUntil = performance.now() + 450;
-        event.preventDefault();
-    };
-    doc.addEventListener('pointerup', finish, true);
-    doc.addEventListener('pointercancel', event => { if (drag?.id === event.pointerId) drag = null; }, true);
-    doc.addEventListener('click', event => {
-        if (performance.now() <= suppressClickUntil && event.target.closest?.('[data-rt-floating-launcher]')) {
-            event.preventDefault(); event.stopImmediatePropagation();
-        }
-    }, true);
-    doc.addEventListener('keydown', event => {
-        if (!event.altKey || !['ArrowLeft', 'ArrowRight'].includes(event.key) || !event.target.closest?.('[data-rt-floating-launcher]')) return;
-        event.preventDefault();
-        apply(event.key === 'ArrowLeft' ? 'left' : 'right', true);
-    });
-}
-
-if (typeof document !== 'undefined' && typeof window !== 'undefined') initializeFloatingLauncherGroup();
 
 // Register before Livewire.start(): wire:navigate's delegated click handler must
 // not start a page visit for a link that belongs to the persistent module.
@@ -94,11 +32,9 @@ export function communicationLink(href, base) {
 
 /** Presentation state only. The persistent Livewire child owns the call session. */
 export function communicationModule() {
-    let animation = null, generation = 0, drag = null, clickGuard = null, layoutFrame = null;
-    let fallbackTimer = null, fallbackComplete = null;
+    let clickGuard = null, layoutFrame = null;
     let main = null, mainWasInert = false, mainAria = null, observer = null;
     const cleanups = [];
-    const touches = new Set();
     let releaseCallLock = null, requestedRoom = null;
     const listen = (target, name, fn, options) => {
         target?.addEventListener(name, fn, options);
@@ -106,8 +42,8 @@ export function communicationModule() {
     };
 
     return {
-        open: false, visible: false, mode: 'mini', motion: 'idle', corner: 'bottom-right', tab: 'chats',
-        activeCall: false, showCall: false, showHistory: false, dragging: false, wide: window.innerWidth > 760,
+        open: false, mode: 'mini', corner: 'bottom-right', tab: 'chats',
+        activeCall: false, showCall: false, showHistory: false, wide: window.innerWidth > 760,
         init() {
             this.$root.setAttribute('data-communication-ready', '');
             this.$watch('tab', () => this.syncVisibility());
@@ -134,18 +70,12 @@ export function communicationModule() {
             listen(window, 'chat:pane-open', () => this.syncVisibility());
             listen(window, 'chat:pane-list', () => this.syncVisibility());
             listen(window, 'communication:chat-pane', () => this.syncVisibility());
-            listen(window, 'resize', () => { this.cancelDrag(); this.finishMotion(); this.queueLayout(); });
-            listen(window.visualViewport, 'resize', () => { this.cancelDrag(); this.finishMotion(); this.queueLayout(); });
+            listen(window, 'resize', () => { this.queueLayout(); });
+            listen(window.visualViewport, 'resize', () => { this.queueLayout(); });
             listen(window.visualViewport, 'scroll', () => this.queueLayout());
-            listen(window, 'blur', () => this.cancelDrag());
-            listen(this.$refs.panel, 'animationend', event => {
-                if (event.target === this.$refs.panel) fallbackComplete?.();
-            });
-            listen(document, 'visibilitychange', () => { this.cancelDrag(); this.finishMotion(); this.syncVisibility(); });
+            listen(document, 'visibilitychange', () => this.syncVisibility());
             listen(document, 'livewire:navigating', () => {
                 this.setMainInert(false);
-                this.cancelDrag();
-                this.finishMotion();
                 if (this.open && this.mode === 'fullscreen' && this.wide) this.mode = 'mini';
             });
             listen(document, 'livewire:navigated', () => { this.queueLayout(); this.routeIntent(); });
@@ -157,7 +87,6 @@ export function communicationModule() {
             }, true);
             listen(document, 'keydown', event => {
                 if (event.key !== 'Escape' || event.defaultPrevented) return;
-                if (drag) { event.preventDefault(); this.cancelDrag(); return; }
                 if (!this.open || !this.$refs.panel.contains(event.target)) return;
                 if (event.target.closest('[role="dialog"],dialog,[data-anchor-dropdown-content]')) return;
                 if (this.tab === 'chats' && this.$root.querySelector('[data-mobile-pane="chat"]')) {
@@ -170,10 +99,7 @@ export function communicationModule() {
             });
             listen(document, 'pointerdown', event => {
                 clickGuard = null;
-                if (event.pointerType === 'touch') { touches.add(event.pointerId); if (touches.size > 1) this.cancelDrag(); }
             }, true);
-            const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
-            listen(preference, 'change', () => this.finishMotion());
             observer = new MutationObserver(() => this.queueLayout());
             observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'hidden', 'data-open', 'data-pet-open', 'data-sidebar-expanded'] });
             this.queueLayout();
@@ -271,83 +197,16 @@ export function communicationModule() {
                 target.inert = true; target.setAttribute('aria-hidden', 'true');
             }
         },
-        finishMotion() {
-            generation++;
-            animation?.cancel(); animation = null;
-            if (fallbackTimer !== null) clearTimeout(fallbackTimer);
-            fallbackTimer = null; fallbackComplete = null; this.motion = 'idle';
-            this.$refs.panel.style.removeProperty('--comm-motion-x');
-            this.$refs.panel.style.removeProperty('--comm-motion-y');
-            this.$refs.panel.style.removeProperty('--comm-motion-scale');
-            if (!this.open) this.visible = false;
-        },
         transition(open, mode) {
-            const panel = this.$refs.panel;
-            const focusAfterOpen = open && !this.open;
-            const launcherFrom = focusAfterOpen ? this.$refs.launcher.getBoundingClientRect() : null;
-            if (focusAfterOpen && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+            const newlyOpen = open && !this.open;
+            this.mode = this.wide ? mode : 'fullscreen';
+            this.open = open;
+            this.syncVisibility(); this.queueLayout();
+            if (newlyOpen) {
                 window.dispatchEvent(new CustomEvent('railtime-assistant-close'));
                 window.dispatchEvent(new CustomEvent('rt-floating-surface-opened', { detail: { surface: 'communication' } }));
+                this.$nextTick(() => this.$root.querySelector('[data-comm-tab="'+this.tab+'"]')?.focus({ preventScroll: true }));
             }
-            const from = this.visible ? panel.getBoundingClientRect() : null;
-            this.finishMotion(); this.cancelDrag();
-            this.mode = this.wide ? mode : 'fullscreen'; this.open = open;
-            this.motion = open && !from ? 'preparing' : 'idle';
-            this.visible = true;
-            this.syncVisibility(); this.queueLayout();
-            const revision = ++generation;
-            this.$nextTick(() => {
-                if (revision !== generation) return;
-                if (focusAfterOpen) this.$root.querySelector(`[data-comm-tab="${this.tab}"]`)?.focus({ preventScroll: true });
-                const to = panel.getBoundingClientRect();
-                if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || !to.width || !to.height) {
-                    this.visible = open; return;
-                }
-                const frame = rect => ({ left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px` });
-                const small = open ? launcherFrom : this.$refs.launcher.getBoundingClientRect();
-                const collapse = rect => {
-                    if (!small?.width || !small?.height) return { x: 0, y: 18, scale: .96 };
-                    const rawX = small.left + small.width / 2 - (rect.left + rect.width / 2);
-                    const rawY = small.top + small.height / 2 - (rect.top + rect.height / 2);
-                    return {
-                        x: Math.max(-24, Math.min(24, rawX * .08)),
-                        y: Math.max(-30, Math.min(30, rawY * .08)),
-                        scale: .96,
-                    };
-                };
-                const collapsed = rect => {
-                    const state = collapse(rect);
-                    return { ...frame(rect), transform: `translate(${state.x}px,${state.y}px) scale(${state.scale})`, transformOrigin: 'center', borderRadius: '18px', opacity: .2 };
-                };
-                const duration = focusAfterOpen ? 340 : (from && open ? 380 : 280);
-                if (!panel.animate) {
-                    const state = collapse(from || to);
-                    panel.style.setProperty('--comm-motion-x', `${state.x}px`);
-                    panel.style.setProperty('--comm-motion-y', `${state.y}px`);
-                    panel.style.setProperty('--comm-motion-scale', String(state.scale));
-                    this.motion = open ? 'opening' : 'closing';
-                    fallbackComplete = () => {
-                        if (revision !== generation || !fallbackComplete) return;
-                        if (fallbackTimer !== null) clearTimeout(fallbackTimer);
-                        fallbackTimer = null; fallbackComplete = null; this.motion = 'idle';
-                        panel.style.removeProperty('--comm-motion-x');
-                        panel.style.removeProperty('--comm-motion-y');
-                        panel.style.removeProperty('--comm-motion-scale');
-                        this.visible = open;
-                    };
-                    fallbackTimer = setTimeout(() => fallbackComplete?.(), duration + 60);
-                    return;
-                }
-                const start = from ? { ...frame(from), transform: 'none', opacity: 1 } : collapsed(to);
-                const end = open ? { ...frame(to), transform: 'none', borderRadius: getComputedStyle(panel).borderRadius, opacity: 1 } : collapsed(from || to);
-                animation = panel.animate([start, end], { duration, easing: 'cubic-bezier(.22,.8,.25,1)', fill: 'both' });
-                this.motion = 'idle';
-                const current = animation;
-                current.onfinish = () => {
-                    if (revision !== generation || animation !== current) return;
-                    animation = null; current.cancel(); this.visible = open;
-                };
-            });
         },
         queueLayout() {
             if (layoutFrame !== null) return;
@@ -368,7 +227,8 @@ export function communicationModule() {
             this.$root.style.setProperty('--comm-top', `${inset}px`);
             this.$root.style.setProperty('--comm-bottom', `${Math.max(0, window.innerHeight - top - height)}px`);
             this.$root.style.setProperty('--comm-left', `${Math.max(0, page?.left || 0)}px`);
-            let bottom = 20, right = 24, left = 24;
+            let bottom = 20;
+            const right = 16, left = 16;
             if (!this.wide) {
                 for (const menu of document.querySelectorAll('[data-area-menu]')) {
                     const rect = menu.getBoundingClientRect();
@@ -382,91 +242,16 @@ export function communicationModule() {
                 const styles = getComputedStyle(orb);
                 if (!rect.width || !rect.height || styles.display === 'none' || styles.visibility === 'hidden' || Number(styles.opacity) === 0 || rect.top >= window.innerHeight || rect.bottom <= 0) continue;
                 bottom = Math.max(bottom, window.innerHeight - rect.top + 12);
-                if (rect.right > window.innerWidth / 2) {
-                    right = Math.max(12, window.innerWidth - rect.right + (rect.width - 56) / 2);
-                } else {
-                    left = Math.max(12, rect.left + (rect.width - 56) / 2);
-                }
+                // Horizontal placement is owned by the shared launcher rail.
             }
             this.$root.style.setProperty('--comm-launcher-bottom', `${bottom}px`);
             this.$root.style.setProperty('--comm-launcher-right', `${right}px`);
             this.$root.style.setProperty('--comm-launcher-left', `${left}px`);
         },
-        dragStart(event) {
-            if (!this.canDrag || touches.size > 1 || event.isPrimary === false || event.button !== 0 || dragTargetIsInteractive(event.target, this.$refs?.panel)) return;
-            if (Array.from(document.querySelectorAll('dialog[open],[role="dialog"][aria-modal="true"]')).some(dialog => {
-                const rect = dialog.getBoundingClientRect();
-                return rect.width > 0 && rect.height > 0 && getComputedStyle(dialog).visibility !== 'hidden';
-            })) return;
-            drag = { id: event.pointerId, x: event.clientX, y: event.clientY, locked: false };
-        },
-        dragMove(event) {
-            if (!drag || drag.id !== event.pointerId) return;
-            if (!this.canDrag) { this.cancelDrag(); return; }
-            const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
-            const panel = this.$refs.panel;
-            if (!drag.locked) {
-                if (Math.hypot(dx, dy) < 6) return;
-                const rect = panel.getBoundingClientRect();
-                this.finishMotion(); drag.rect = rect; drag.locked = true; this.dragging = true;
-                panel.setPointerCapture?.(event.pointerId);
-            }
-            event.preventDefault();
-            const minTop = parseFloat(this.$root.style.getPropertyValue('--comm-top')) + 12;
-            const x = Math.max(12, Math.min(window.innerWidth - drag.rect.width - 12, drag.rect.left + dx));
-            const y = Math.max(minTop, Math.min(window.innerHeight - drag.rect.height - 12, drag.rect.top + dy));
-            Object.assign(panel.style, { left: `${x}px`, top: `${y}px`, right: 'auto', bottom: 'auto' });
-        },
-        dragPointerUp(event) {
-            touches.delete(event.pointerId);
-            this.dragEnd(event);
-        },
-        dragPointerCancel(event) {
-            touches.delete(event.pointerId);
-            this.cancelDrag();
-        },
-        lostPointerCapture(event) {
-            if (event.target === this.$refs.panel && drag?.id === event.pointerId) this.cancelDrag();
-        },
-        cancelDrag() {
-            const previous = drag; drag = null; this.dragging = false;
-            const panel = this.$refs.panel;
-            for (const property of ['left', 'top', 'right', 'bottom']) panel.style.removeProperty(property);
-            if (previous && panel.hasPointerCapture?.(previous.id)) panel.releasePointerCapture(previous.id);
-        },
-        dragEnd(event) {
-            if (!drag || drag.id !== event.pointerId) return;
-            const rect = this.$refs.panel.getBoundingClientRect(), locked = drag.locked;
-            this.cancelDrag();
-            if (!locked) return;
-            clickGuard = { x: event.clientX, y: event.clientY, until: performance.now() + 450 };
-            this.corner = cornerForPoint(rect.left + rect.width / 2, rect.top + rect.height / 2, window.innerWidth, window.innerHeight);
-            this.animateDock(rect);
-        },
-        animateDock(from) {
-            this.finishMotion();
-            const revision = generation;
-            this.$nextTick(() => {
-                if (revision !== generation) return;
-                if (!this.canDrag || !this.$refs.panel.animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-                const to = this.$refs.panel.getBoundingClientRect();
-                animation = this.$refs.panel.animate([{ transform: `translate(${from.left - to.left}px,${from.top - to.top}px)` }, { transform: 'none' }], { duration: 240, easing: 'cubic-bezier(.22,.8,.25,1)' });
-                const current = animation;
-                current.onfinish = () => { if (animation === current) { animation = null; current.cancel(); } };
-            });
-        },
-        cornerKey(event) {
-            if (!this.canDrag || !event.altKey || !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return;
-            event.preventDefault();
-            const from = this.$refs.panel.getBoundingClientRect();
-            const [vertical, horizontal] = this.corner.split('-');
-            this.corner = `${event.key === 'ArrowUp' ? 'top' : event.key === 'ArrowDown' ? 'bottom' : vertical}-${event.key === 'ArrowLeft' ? 'left' : event.key === 'ArrowRight' ? 'right' : horizontal}`;
-            this.animateDock(from);
-        },
         destroy() {
             this.$root.removeAttribute('data-communication-ready');
             releaseCallLock?.(); releaseCallLock = null; requestedRoom = null;
-            this.finishMotion(); this.cancelDrag(); this.setMainInert(false); observer?.disconnect();
+            this.setMainInert(false); observer?.disconnect();
             if (layoutFrame !== null) cancelAnimationFrame(layoutFrame);
             cleanups.splice(0).forEach(cleanup => cleanup());
         },

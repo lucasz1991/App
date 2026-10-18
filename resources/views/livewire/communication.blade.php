@@ -18,11 +18,9 @@
     </x-ui.floating.launcher>
 
     <x-ui.floating.window id="railtime-communication" x-ref="panel" class="rt-communication" x-cloak wire:ignore.self
-        x-show="visible" ::data-mode="mode" ::data-motion="motion" ::data-corner="corner" ::data-dragging="dragging.toString()"
+        ::data-mode="mode" ::data-corner="corner"
         ::inert="!open" ::aria-hidden="(!open).toString()" label="Chats, Anrufe und Meetings" role="region"
-        drag-pointerdown="dragStart($event)" drag-pointermove="dragMove($event)" drag-pointerup="dragPointerUp($event)"
-        drag-pointercancel="dragPointerCancel($event)" drag-lostpointercapture="lostPointerCapture($event)"
-        drag-keydown="cornerKey($event)" drag-enabled="canDrag">
+        layout-action="syncVisibility(); queueLayout();">
         <x-slot:header class="rt-comm-head">
             <div class="rt-comm-tabs" role="tablist" aria-label="Bereiche" x-on:keydown="tabKey($event)">
                 @foreach(['chats' => ['fa-comments', 'Chats'], 'calls' => ['fa-phone', 'Anrufe'], 'meetings' => ['fa-video', 'Meetings']] as $key => [$icon, $label])
@@ -36,7 +34,7 @@
             </div>
             <span class="rt-comm-drag-handle" aria-hidden="true"></span>
             <div class="rt-comm-window-actions">
-                <button type="button" data-comm-resize x-show="wide" x-cloak x-on:click="resize()" :title="mode === 'fullscreen' ? 'Mini-Modus öffnen' : 'Vollbild öffnen'"
+                <button type="button" data-comm-resize x-show="wide" x-cloak x-on:click="resizeWindow()" :title="mode === 'fullscreen' ? 'Mini-Modus öffnen' : 'Vollbild öffnen'"
                     :aria-label="mode === 'fullscreen' ? 'Mini-Modus öffnen' : 'Vollbild öffnen'">
                     <i class="far" :class="mode === 'fullscreen' ? 'fa-compress-alt' : 'fa-expand-alt'" aria-hidden="true"></i>
                 </button>

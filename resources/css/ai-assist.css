@@ -51,7 +51,7 @@ body.rt-ai-assist-fullscreen { overflow: hidden; }
 .rt-ai-assist__orb--empty { width: 104px; height: 104px; }
 
 /* Starter: links neben dem Chatbot-Starter */
-.rt-ai-assist__stage { position: fixed; right: max(1rem, calc(env(safe-area-inset-right) + 0.5rem)); bottom: max(1rem, calc(env(safe-area-inset-bottom) + 0.6rem)); z-index: 24; display: grid; place-items: end; pointer-events: none; transition: opacity 200ms ease, transform 280ms var(--ai-spring), left 260ms var(--ai-spring), right 260ms var(--ai-spring); }
+.rt-ai-assist__stage { position: fixed; right: max(1rem, calc(env(safe-area-inset-right) + 0.5rem)); bottom: max(1rem, calc(env(safe-area-inset-bottom) + 0.6rem)); z-index: 24; display: grid; place-items: end; pointer-events: none; transition: opacity 160ms ease, transform 160ms ease; }
 html[data-rt-launcher-side='left'] .rt-ai-assist__stage { left: max(1rem,calc(env(safe-area-inset-left) + 0.5rem)); right: auto; }
 body:has(.rt-chatbot__pet-stage) .rt-ai-assist__stage { right: max(8.25rem, calc(env(safe-area-inset-right) + 8rem)); bottom: max(1.35rem, calc(env(safe-area-inset-bottom) + 1rem)); }
 html[data-rt-launcher-side='left'] body:has(.rt-chatbot__pet-stage) .rt-ai-assist__stage { left: max(8.25rem,calc(env(safe-area-inset-left) + 8rem)); right: auto; }
@@ -92,20 +92,20 @@ html[data-rt-launcher-side='left'] body:has(.rt-chatbot__pet-stage) .rt-ai-assis
 @media (min-width: 761px) {
     .rt-ai-assist__panel[data-window-mode='mini'] {
         top: auto;
-        right: 24px;
-        bottom: calc(24px + var(--rt-assistant-bottom, 0px));
+        right: 8px;
+        bottom: calc(8px + var(--rt-assistant-bottom, 0px));
         left: auto;
-        width: min(520px, calc(100vw - 48px));
-        height: min(600px, calc(100dvh - var(--rt-assistant-top, 70px) - 48px - var(--rt-assistant-bottom, 0px)));
+        width: min(520px, calc(100vw - 16px));
+        height: min(600px, calc(100dvh - var(--rt-assistant-top, 70px) - 16px - var(--rt-assistant-bottom, 0px)));
         max-width: none;
         max-height: none;
         border-radius: 18px;
         transform-origin: center;
     }
-    .rt-ai-assist__panel[data-window-mode='mini'][data-corner='top-left'] { top: calc(var(--rt-assistant-top, 70px) + 24px); right: auto; bottom: auto; left: 24px; }
-    .rt-ai-assist__panel[data-window-mode='mini'][data-corner='top-right'] { top: calc(var(--rt-assistant-top, 70px) + 24px); right: 24px; bottom: auto; left: auto; }
-    .rt-ai-assist__panel[data-window-mode='mini'][data-corner='bottom-left'] { top: auto; right: auto; bottom: calc(24px + var(--rt-assistant-bottom, 0px)); left: 24px; }
-    .rt-ai-assist__panel[data-window-mode='mini'][data-corner='bottom-right'] { top: auto; right: 24px; bottom: calc(24px + var(--rt-assistant-bottom, 0px)); left: auto; }
+    .rt-ai-assist__panel[data-window-mode='mini'][data-corner='top-left'] { top: calc(var(--rt-assistant-top, 70px) + 8px); right: auto; bottom: auto; left: 8px; }
+    .rt-ai-assist__panel[data-window-mode='mini'][data-corner='top-right'] { top: calc(var(--rt-assistant-top, 70px) + 8px); right: 8px; bottom: auto; left: auto; }
+    .rt-ai-assist__panel[data-window-mode='mini'][data-corner='bottom-left'] { top: auto; right: auto; bottom: calc(8px + var(--rt-assistant-bottom, 0px)); left: 8px; }
+    .rt-ai-assist__panel[data-window-mode='mini'][data-corner='bottom-right'] { top: auto; right: 8px; bottom: calc(8px + var(--rt-assistant-bottom, 0px)); left: auto; }
     .rt-ai-assist__panel[data-window-mode='fullscreen'] {
         top: calc(var(--rt-assistant-top, 70px) + 16px);
         right: 16px;
@@ -124,19 +124,6 @@ html[data-rt-launcher-side='left'] body:has(.rt-chatbot__pet-stage) .rt-ai-assis
     .rt-ai-assist__panel[data-window-mode='mini'] .rt-ai-assist__head { cursor: grab; touch-action: none; user-select: none; }
     .rt-ai-assist__panel[data-dragging='true'] .rt-ai-assist__head { cursor: grabbing; }
 }
-.rt-ai-assist__panel[data-motion='preparing'] { visibility: hidden; opacity: 0; pointer-events: none; }
-.rt-ai-assist__panel[data-motion='opening'] { animation: rt-ai-surface-open 340ms cubic-bezier(.22,.8,.25,1) both; }
-@keyframes rt-ai-surface-open {
-    from { transform: translate(var(--rt-ai-motion-x, 0px), var(--rt-ai-motion-y, 12px)) scale(var(--rt-ai-motion-scale-x, .96)); opacity: .2; }
-    to { transform: none; opacity: 1; }
-}
-.rt-ai-assist__panel[data-motion='resizing'] { pointer-events: none; }
-.rt-ai-assist__panel[data-motion='closing'] { animation: rt-ai-surface-close 280ms cubic-bezier(.22,.8,.25,1) both; pointer-events: none; }
-@keyframes rt-ai-surface-close {
-    from { transform: none; opacity: 1; }
-    to { transform: translate(var(--rt-ai-motion-x, 0px), var(--rt-ai-motion-y, 0px)) scale(var(--rt-ai-motion-scale-x, .12), var(--rt-ai-motion-scale-y, .12)); opacity: .16; }
-}
-
 /* Einstellungen */
 .rt-ai-assist__settings { position: absolute; top: calc(100% - 4px); right: 10px; z-index: 6; width: min(350px, calc(100% - 20px)); max-height: min(620px, calc(100dvh - 190px)); overflow-y: auto; border: 1px solid var(--ai-border); border-radius: 18px; background: var(--ai-bg); box-shadow: 0 26px 60px -28px rgba(19, 33, 50, 0.5); animation: rt-ai-pop 180ms var(--ai-spring); overscroll-behavior: contain; }
 @keyframes rt-ai-pop { from { opacity: 0; transform: translateY(-4px) scale(0.98); } to { opacity: 1; transform: none; } }

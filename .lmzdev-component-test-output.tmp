@@ -1,0 +1,160 @@
+TAP version 13
+# Subtest: opening sole assistant loads operational panel once and never submits an intake
+ok 1 - opening sole assistant loads operational panel once and never submits an intake
+  ---
+  duration_ms: 11.3276
+  ...
+# Subtest: opening the assistant announces its surface so communication can close
+ok 2 - opening the assistant announces its surface so communication can close
+  ---
+  duration_ms: 0.9758
+  ...
+# Subtest: the assistant closes when the sidebar announces that it opened
+ok 3 - the assistant closes when the sidebar announces that it opened
+  ---
+  duration_ms: 0.4552
+  ...
+# Subtest: automatic surface exclusion closes without stealing focus from the newly opened UI
+ok 4 - automatic surface exclusion closes without stealing focus from the newly opened UI
+  ---
+  duration_ms: 0.7647
+  ...
+# Subtest: first operational load failure is shown and a new opening retries successfully
+ok 5 - first operational load failure is shown and a new opening retries successfully
+  ---
+  duration_ms: 3.8672
+  ...
+# Subtest: only explicit intake form or Enter submits intake and shared admission blocks double submit
+ok 6 - only explicit intake form or Enter submits intake and shared admission blocks double submit
+  ---
+  duration_ms: 6.6507
+  ...
+# Subtest: operational actions switch to native chat without clearing an unsent draft
+ok 7 - operational actions switch to native chat without clearing an unsent draft
+  ---
+  duration_ms: 1.2412
+  ...
+# Subtest: failed HTTP commit shows a safe error and releases native busy admission
+ok 8 - failed HTTP commit shows a safe error and releases native busy admission
+  ---
+  duration_ms: 1.1386
+  ...
+# Subtest: local operational replies and local DOM history never enter external TTS or auto listening
+ok 9 - local operational replies and local DOM history never enter external TTS or auto listening
+  ---
+  duration_ms: 1.5969
+  ...
+# Subtest: CtrlJ listener belongs to sole central owner and navigation destruction cancels late UI completion
+ok 10 - CtrlJ listener belongs to sole central owner and navigation destruction cancels late UI completion
+  ---
+  duration_ms: 3.7649
+  ...
+# Subtest: general chatbot keeps native submission when operational feature is unavailable
+ok 11 - general chatbot keeps native submission when operational feature is unavailable
+  ---
+  duration_ms: 0.7581
+  ...
+# Subtest: locked loaded state is read-only and avoids redundant loader requests
+ok 12 - locked loaded state is read-only and avoids redundant loader requests
+  ---
+  duration_ms: 1.2527
+  ...
+# Subtest: IME confirmation, provider processing and attachment cleanup cannot submit another request
+ok 13 - IME confirmation, provider processing and attachment cleanup cannot submit another request
+  ---
+  duration_ms: 0.4266
+  ...
+# Subtest: communication links resolve only same-origin native entry routes and distinguish call history
+ok 14 - communication links resolve only same-origin native entry routes and distinguish call history
+  ---
+  duration_ms: 11.6606
+  ...
+# Subtest: panel centres select four available viewport corners without changing the two corner axes
+ok 15 - panel centres select four available viewport corners without changing the two corner axes
+  ---
+  duration_ms: 2.006
+  ...
+# Subtest: communication and assistant surfaces close each other while the call DOM stays mounted
+ok 16 - communication and assistant surfaces close each other while the call DOM stays mounted
+  ---
+  duration_ms: 11.5716
+  ...
+# Subtest: surface-open event is shared by communication and AI Assist without call termination
+ok 17 - surface-open event is shared by communication and AI Assist without call termination
+  ---
+  duration_ms: 0.4038
+  ...
+# Subtest: one persistent call DOM and session survive tabs resize close reopen and wire navigation
+ok 18 - one persistent call DOM and session survive tabs resize close reopen and wire navigation
+  ---
+  duration_ms: 4.0723
+  ...
+# Subtest: workspace accessibility restores existing inert and aria state after mini and navigation
+ok 19 - workspace accessibility restores existing inert and aria state after mini and navigation
+  ---
+  duration_ms: 3.5304
+  ...
+# Subtest: chat read visibility is false when closed another tab or hidden and tracks the actual chat pane
+ok 20 - chat read visibility is false when closed another tab or hidden and tracks the actual chat pane
+  ---
+  duration_ms: 2.9848
+  ...
+# Subtest: history intent uses native authorization entry while preserving an ongoing call
+ok 21 - history intent uses native authorization entry while preserving an ongoing call
+  ---
+  duration_ms: 3.7496
+  ...
+# Subtest: launcher clears the visible AI orb and ignores hidden zero or offscreen orbs
+ok 22 - launcher clears the visible AI orb and ignores hidden zero or offscreen orbs
+  ---
+  duration_ms: 5.6892
+  ...
+# Subtest: mobile has only closed and fullscreen states and its launcher clears the bottom area menu
+ok 23 - mobile has only closed and fullscreen states and its launcher clears the bottom area menu
+  ---
+  duration_ms: 2.7786
+  ...
+# Subtest: native tabs retain arrow home end and cleanup removes global shell event handlers
+ok 24 - native tabs retain arrow home end and cleanup removes global shell event handlers
+  ---
+  duration_ms: 2.4019
+  ...
+# Subtest: hidden unified conversation never suppresses incoming notifications on desktop
+ok 25 - hidden unified conversation never suppresses incoming notifications on desktop
+  ---
+  duration_ms: 2.0752
+  ...
+# Subtest: cross-tab browser lock refuses a second media owner before mounting a call
+ok 26 - cross-tab browser lock refuses a second media owner before mounting a call
+  ---
+  duration_ms: 1.8802
+  ...
+# Subtest: media ownership remains held through close and releases only on actual call release
+ok 27 - media ownership remains held through close and releases only on actual call release
+  ---
+  duration_ms: 3.602
+  ...
+# Subtest: native list touch-left selects the touched contact and suppresses its compatibility click
+ok 28 - native list touch-left selects the touched contact and suppresses its compatibility click
+  ---
+  duration_ms: 5.4067
+  ...
+# Subtest: native chat touch-right returns to list while vertical scroll and controls retain their actions
+ok 29 - native chat touch-right returns to list while vertical scroll and controls retain their actions
+  ---
+  duration_ms: 2.0709
+  ...
+# Subtest: native swipe rejects pinch long-press and selected message text
+ok 30 - native swipe rejects pinch long-press and selected message text
+  ---
+  duration_ms: 1.5359
+  ...
+1..30
+# tests 30
+# suites 0
+# pass 30
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2008.4585

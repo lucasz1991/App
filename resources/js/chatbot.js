@@ -3,7 +3,6 @@ import {
     holdMicrophoneStream,
     releaseMicrophoneStream,
 } from './microphone-stream.js';
-import { animateFloatingWindowGeometry } from './floating-window-motion.js';
 import { ensureRailTimeNavigationCoordinator } from './navigation-coordinator.js';
 import {
     acquirePageBuilderAssistantActionDispatcher,
@@ -24,12 +23,6 @@ const CHATBOT_DESKTOP_QUERY = '(min-width: 1140px)';
 const VOICE_CAPTURE_LIMIT_MS = 45_000;
 const MAX_TTS_TEXT_LENGTH = 4_000;
 const MAX_KNOWN_MESSAGE_KEYS = 500;
-const FLOATING_WINDOW_INTERACTIVE = 'button,a,input,textarea,select,[role="tab"],[role="dialog"],[contenteditable="true"]';
-
-function assistantDragTargetIsInteractive(target, panel) {
-    const interactive = target?.closest?.(FLOATING_WINDOW_INTERACTIVE);
-    return Boolean(interactive && interactive !== panel);
-}
 const PET_BUBBLE_INITIAL_DELAY_MS = 1_200;
 const PET_BUBBLE_VISIBLE_MS = 4_800;
 const PET_BUBBLE_CYCLE_MS = 38_000;
@@ -208,14 +201,11 @@ function normalizedEventDetail(detail) {
  */
 export function railtimeChatbot(config = {}) {
     const strings = { ...DEFAULT_STRINGS, ...(config.strings ?? {}) };
-    let assistantDrag = null;
 
     return {
         open: false,
         assistantMode: 'mini',
-        assistantMotion: 'idle',
         assistantCorner: 'bottom-right',
-        assistantDragging: false,
         assistantReturnFocus: null,
         isDesktopDocked: false,
         pageBuilderRoute: Boolean(config.pageBuilderMode),
@@ -387,8 +377,6 @@ export function railtimeChatbot(config = {}) {
         _attachmentCleanupAckHandler: null,
         _attachmentCleanupEventUnsubscribe: null,
         _attachmentCommitUnhook: null,
-        _assistantMotionTimer: null,
-        _assistantGeometryAnimation: null,
 
         init() {
             this.dockMediaQuery = window.matchMedia?.(CHATBOT_DESKTOP_QUERY) ?? null;
@@ -568,7 +556,6 @@ export function railtimeChatbot(config = {}) {
         destroy() {
             this.operationsDisposed = true;
             this.operationsVersion++;
-            this.assistantCancelDrag();
             if (this._operationsShortcutHandler) document.removeEventListener('keydown', this._operationsShortcutHandler);
             this._operationsShortcutHandler = null;
             if (this.dockMediaQuery?.removeEventListener && this._dockChangeHandler) {
@@ -578,9 +565,6 @@ export function railtimeChatbot(config = {}) {
                 window.removeEventListener('resize', this._windowResizeHandler);
                 this._windowResizeHandler = null;
             }
-            clearTimeout(this._assistantMotionTimer);
-            this._assistantGeometryAnimation?.cancel?.();
-            this._assistantGeometryAnimation = null;
             document.body?.classList?.remove('rt-chatbot-fullscreen');
             if (this._navigationHandler) {
                 document.removeEventListener('livewire:navigating', this._navigationHandler);
@@ -1352,14 +1336,12 @@ export function railtimeChatbot(config = {}) {
 
         syncAssistantLayout() {
             if (this.pageBuilderActive) {
-                this.assistantCancelDrag();
-                document.body?.classList?.remove('rt-chatbot-fullscreen');
+                    document.body?.classList?.remove('rt-chatbot-fullscreen');
                 return;
             }
 
             if (window.innerWidth <= 760) {
-                this.assistantCancelDrag();
-                this.assistantMode = 'fullscreen';
+                    this.assistantMode = 'fullscreen';
             }
             const viewport = window.visualViewport;
             const viewportTop = Math.max(0, viewport?.offsetTop || 0);
@@ -1376,107 +1358,9 @@ export function railtimeChatbot(config = {}) {
             return !this.pageBuilderActive && window.innerWidth > 760;
         },
 
-        get canDragAssistant() {
-            return this.open && this.assistantMode === 'mini' && !this.pageBuilderActive && window.innerWidth > 760;
-        },
-
-        assistantDragStart(event) {
-            if (!this.canDragAssistant || event.isPrimary === false || event.button !== 0 || assistantDragTargetIsInteractive(event.target, this.$refs?.assistantPanel)) return;
-            assistantDrag = { id: event.pointerId, x: event.clientX, y: event.clientY, locked: false, rect: null };
-        },
-
-        assistantDragMove(event) {
-            if (!assistantDrag || assistantDrag.id !== event.pointerId) return;
-            if (!this.canDragAssistant) { this.assistantCancelDrag(); return; }
-            const dx = event.clientX - assistantDrag.x, dy = event.clientY - assistantDrag.y;
-            const panel = this.$refs?.assistantPanel;
-            if (!assistantDrag.locked) {
-                if (Math.hypot(dx, dy) < 6 || !panel) return;
-                assistantDrag.rect = panel.getBoundingClientRect();
-                assistantDrag.locked = true;
-                this.assistantDragging = true;
-                panel.setPointerCapture?.(event.pointerId);
-            }
-            event.preventDefault?.();
-            const top = parseFloat(this.$root?.style?.getPropertyValue?.('--rt-assistant-top')) || 70;
-            const x = Math.max(12, Math.min(window.innerWidth - assistantDrag.rect.width - 12, assistantDrag.rect.left + dx));
-            const y = Math.max(top + 12, Math.min(window.innerHeight - assistantDrag.rect.height - 12, assistantDrag.rect.top + dy));
-            Object.assign(panel.style, { left: `${x}px`, top: `${y}px`, right: 'auto', bottom: 'auto' });
-        },
-
-        assistantCancelDrag() {
-            const previous = assistantDrag;
-            assistantDrag = null;
-            this.assistantDragging = false;
-            const panel = this.$refs?.assistantPanel;
-            if (!panel) return;
-            for (const property of ['left', 'top', 'right', 'bottom']) panel.style.removeProperty(property);
-            if (previous && panel.hasPointerCapture?.(previous.id)) panel.releasePointerCapture(previous.id);
-        },
-
-        assistantDragEnd(event) {
-            if (!assistantDrag || assistantDrag.id !== event.pointerId) return;
-            const panel = this.$refs?.assistantPanel;
-            const rect = panel?.getBoundingClientRect?.();
-            const locked = assistantDrag.locked;
-            this.assistantCancelDrag();
-            if (!locked || !rect) return;
-            this.assistantCorner = `${rect.top + rect.height / 2 < ((parseFloat(this.$root?.style?.getPropertyValue?.('--rt-assistant-top')) || 70) + window.innerHeight) / 2 ? 'top' : 'bottom'}-${rect.left + rect.width / 2 < window.innerWidth / 2 ? 'left' : 'right'}`;
-            this.animateAssistantGeometry(rect, 240);
-        },
-
-        assistantLostPointerCapture(event) {
-            if (assistantDrag?.id === event.pointerId) this.assistantCancelDrag();
-        },
-
-        assistantCornerKey(event) {
-            if (!this.canDragAssistant || !event.altKey || !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return;
-            event.preventDefault();
-            const from = this.$refs?.assistantPanel?.getBoundingClientRect?.();
-            const [vertical, horizontal] = this.assistantCorner.split('-');
-            this.assistantCorner = `${event.key === 'ArrowUp' ? 'top' : event.key === 'ArrowDown' ? 'bottom' : vertical}-${event.key === 'ArrowLeft' ? 'left' : event.key === 'ArrowRight' ? 'right' : horizontal}`;
-            this.animateAssistantGeometry(from, 240);
-        },
-
-        animateAssistantGeometry(from, duration = 380) {
-            const panel = this.$refs?.assistantPanel;
-            this._assistantGeometryAnimation?.cancel?.();
-            this._assistantGeometryAnimation = null;
-            this.assistantMotion = 'idle';
-            this.$nextTick(() => {
-                const to = panel?.getBoundingClientRect?.();
-                if (!panel || !from || !to || !to.width || !to.height || window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) return;
-                clearTimeout(this._assistantMotionTimer);
-                this.assistantMotion = 'resizing';
-                const currentMode = this.assistantMode;
-                this._assistantGeometryAnimation = animateFloatingWindowGeometry(panel, from, to, {
-                    duration,
-                    fromRadius: currentMode === 'fullscreen' ? '18px' : '20px',
-                    toRadius: currentMode === 'fullscreen' ? '20px' : '18px',
-                    onFinish: animation => {
-                        if (this._assistantGeometryAnimation !== animation) return;
-                        this._assistantGeometryAnimation = null;
-                        this.assistantMotion = 'idle';
-                    },
-                });
-                if (!this._assistantGeometryAnimation) this.assistantMotion = 'idle';
-            });
-        },
-
         toggleAssistantMode() {
-            if (!this.assistantResizable()) {
-                this.assistantCancelDrag();
-                this.assistantMode = 'fullscreen';
-                this.syncAssistantLayout();
-                return;
-            }
-
-            const panel = this.$refs?.assistantPanel;
-            const from = panel?.getBoundingClientRect?.();
-            this.assistantCancelDrag();
-            this.assistantMode = this.assistantMode === 'mini' ? 'fullscreen' : 'mini';
+            this.assistantMode = this.assistantResizable() && this.assistantMode === 'fullscreen' ? 'mini' : 'fullscreen';
             this.syncAssistantLayout();
-            this.animateAssistantGeometry(from, 380);
         },
 
         requestPageBuilderContext() {
@@ -1571,7 +1455,6 @@ export function railtimeChatbot(config = {}) {
             if (this.operationsDisposed) return;
             const wasOpen = this.open;
             this.open = Boolean(value);
-            if (!this.open) this.assistantCancelDrag();
             if (this.open && window.innerWidth <= 760) this.assistantMode = 'fullscreen';
             this.syncAssistantLayout();
             this.syncPageBuilderAssistState();
