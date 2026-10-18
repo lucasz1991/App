@@ -11,11 +11,12 @@ const launcherCode = launcher.match(/<script data-rt-floating-launcher-controlle
 
 function fixture({width=1223, reduced=false, animate=true}={}) {
     const {document, window:dom} = parseHTML('<html><body><section role="dialog"><header><span id="blank"></span><button>Tab</button><div role="dialog" id="settings"></div></header><div id="session"></div></section></body></html>');
-    const panel=document.querySelector('section'), ticks=[], watchers=[], animations=[], timers=new Map();
-    let id=0, disposed=0, captured=null;
+    const panel=document.querySelector('section'), ticks=[], nextTicks=[], watchers=[], animations=[], timers=new Map();
+    let id=0, disposed=0, captured=null, rendered=null;
     const state={open:false,mode:'mini',corner:'bottom-right'};
     const win={innerWidth:width,innerHeight:1252,matchMedia:()=>({matches:reduced})};
     panel.getBoundingClientRect=()=>{
+        if(rendered) return rendered.rect;
         const size=state.mode==='mini'?[520,600]:[width-32,1150];
         const x=Number.parseFloat(panel.style.left)||(state.mode==='fullscreen'?16:state.corner.endsWith('left')?8:width-size[0]-8);
         const y=Number.parseFloat(panel.style.top)||(state.mode==='fullscreen'?86:state.corner.startsWith('top')?78:1252-size[1]-8);
@@ -25,23 +26,27 @@ function fixture({width=1223, reduced=false, animate=true}={}) {
     panel.hasPointerCapture=value=>captured===value;
     panel.releasePointerCapture=()=>captured=null;
     if(animate) panel.animate=(frames,options)=>{
-        const result={frames,options,onfinish:null,cancelled:0,cancel(){this.cancelled++}};
+        const result={frames,options,onfinish:null,cancelled:0,cancel(){this.cancelled++;rendered=null;}};
         animations.push(result); return result;
     };
     const context=vm.createContext({window:win,document,queueMicrotask:fn=>ticks.push(fn),
-        getComputedStyle:()=>({getPropertyValue:()=>70,visibility:'visible',transform:'matrix(0.99,0,0,0.99,0,4)',opacity:'.6'}),
+        getComputedStyle:()=>({getPropertyValue:()=>70,visibility:'visible',transform:'none',opacity:String(rendered?.opacity??1)}),
         setTimeout:fn=>{timers.set(++id,fn);return id;},clearTimeout:key=>timers.delete(key)});
     vm.runInContext(code,context);
-    const data={destroy(){disposed++},$watch(fn,callback){watchers.push({fn,callback,last:fn()})},$nextTick:fn=>ticks.push(fn)};
+    const data={destroy(){disposed++},$watch(fn,callback){watchers.push({fn,callback,last:fn()})},$nextTick:fn=>nextTicks.push(fn)};
     const config={opened:()=>state.open,mode:()=>state.mode,corner:()=>state.corner,enabled:()=>true,
         setMode:value=>state.mode=value,setCorner:value=>state.corner=value};
     Object.assign(data,context.window.rtFloatingWindow(config,panel,data));
     data.initWindow();
-    const flush=()=>{
+    const flush=({beforePaint=false}={})=>{
         for(let i=0;i<20;i++){
             let changed=false;
             for(const w of watchers){const now=w.fn();if(now!==w.last){w.last=now;w.callback(now);changed=true}}
-            if(!ticks.length&&!changed)return;
+            if(!ticks.length&&!changed){
+                if(beforePaint||!nextTicks.length)return;
+                nextTicks.splice(0).forEach(fn=>fn());
+                continue;
+            }
             ticks.splice(0).forEach(fn=>fn());
         }
         assert.fail('Unbounded window work');
@@ -50,7 +55,8 @@ function fixture({width=1223, reduced=false, animate=true}={}) {
     return {data,state,panel,document,win,animations,flush,
         open(value){state.open=value;flush()},
         finish(){animations.at(-1)?.onfinish?.();flush()},
-        timers, disposeCount:()=>disposed,capture:()=>captured};
+        timers, render: (rect,opacity=1)=>rendered=rect?{rect,opacity}:null,
+        disposeCount:()=>disposed,capture:()=>captured};
 }
 
 test('shared opening is compositor-only and never depends on the moving peer launcher',()=>{
@@ -58,7 +64,7 @@ test('shared opening is compositor-only and never depends on the moving peer lau
     const a=f.animations.at(-1);
     assert.equal(a.options.duration,260);
     assert.deepEqual(Object.keys(a.frames[0]).sort(),['opacity','transform']);
-    assert.match(a.frames[0].transform,/scale\(\.985\)/);
+    assert.equal(a.frames[0].transform,'translateY(8px)');
     assert.equal(f.data.windowVisible,true);f.finish();assert.equal(f.data.windowMotion,'idle');
     assert.equal(a.cancelled,1);
 });
@@ -77,9 +83,51 @@ test('resize uses real geometry and preserves the selected docking corner',()=>{
     assert.equal(f.state.mode,'fullscreen');
     const a=f.animations.at(-1);
     assert.equal(a.frames[0].width,'520px');assert.equal(a.frames[1].width,'1191px');
-    assert.equal(Object.hasOwn(a.frames[0],'transform'),false);
+    assert.equal(a.frames[0].transform,'none');
     f.finish();f.data.resizeWindow();f.flush();f.finish();
     assert.equal(f.state.mode,'mini');assert.equal(f.state.corner,'bottom-right');
+});
+
+test('resize starts before a timer or paint can expose the target box',()=>{
+    const f=fixture();f.open(true);f.finish();
+    const count=f.animations.length;
+    f.data.resizeWindow();f.flush({beforePaint:true});
+    assert.equal(f.animations.length,count+1, 'first resize frame must exist before Alpine nextTick');
+    assert.equal(f.animations.at(-1).frames[0].left,'695px');
+    assert.equal(f.animations.at(-1).frames[1].left,'16px');
+});
+
+test('opening and choosing fullscreen in the same update starts only one reveal',()=>{
+    const f=fixture();f.state.mode='fullscreen';f.state.open=true;f.flush({beforePaint:true});
+    assert.equal(f.animations.length,1);
+    assert.equal(f.data.windowMotion,'opening');
+    assert.deepEqual(Object.keys(f.animations[0].frames[0]).sort(),['opacity','transform']);
+    assert.match(blade,/:hidden="!windowVisible"/);
+    assert.doesNotMatch(blade,/x-show="windowVisible"/, 'Alpine x-show delays visibility until another frame');
+});
+
+test('reversing a resize continues from its rendered partial box',()=>{
+    const f=fixture();f.open(true);f.finish();f.data.resizeWindow();f.flush();
+    const old=f.animations.at(-1), stale=old.onfinish;
+    f.render({left:400,top:350,width:810,height:890},.8);
+    f.data.resizeWindow();f.render(null);f.flush({beforePaint:true});
+    const a=f.animations.at(-1);
+    assert.equal(a.frames[0].left,'400px');assert.equal(a.frames[0].width,'810px');
+    assert.equal(a.frames[0].opacity,.8);assert.equal(a.frames[1].width,'520px');
+    stale();assert.equal(f.data.windowMotion,'resizing');f.finish();assert.equal(f.state.mode,'mini');
+});
+
+test('closing during resize and reopening keeps geometry and opacity continuous',()=>{
+    const f=fixture();f.open(true);f.finish();f.data.resizeWindow();f.flush();
+    f.render({left:400,top:350,width:810,height:890},.8);f.open(false);
+    const closing=f.animations.at(-1);
+    assert.equal(closing.frames[0].width,'810px');assert.equal(closing.frames[1].width,'810px');
+    assert.equal(closing.frames[0].opacity,.8);
+    f.render({left:400,top:354,width:810,height:890},.3);f.open(true);
+    const opening=f.animations.at(-1);
+    assert.equal(opening.frames[0].top,'354px');assert.equal(opening.frames[0].opacity,.3);
+    assert.equal(opening.frames[1].width,'1191px');
+    f.render(null);f.finish();assert.equal(f.data.windowVisible,true);
 });
 
 test('the outer dialog can drag while header buttons and nested dialogs cannot',()=>{

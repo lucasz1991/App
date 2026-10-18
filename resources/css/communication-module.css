@@ -7,16 +7,17 @@ body.rt-communication-fullscreen { overflow: hidden; }
     cursor: grab; pointer-events: auto; touch-action: none; user-select: none; -webkit-tap-highlight-color: transparent;
 }
 .rt-floating-window { --rt-floating-top: var(--comm-top, var(--rt-assistant-top,70px)); display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+.rt-floating-window[hidden] { display: none !important; }
 .rt-floating-window__header { flex: none; }
 .rt-ai-assist__stage,.rt-chatbot__pet-stage { transform:none !important; transition:opacity 160ms ease; }
 .rt-floating-window { transform-origin: var(--rt-floating-origin,right bottom); }
 .rt-floating-window[data-motion='preparing'] { visibility: hidden; opacity: 0; pointer-events: none; }
-.rt-floating-window:is([data-motion='opening'],[data-motion='closing']) { will-change: transform,opacity; backdrop-filter: none; }
+.rt-floating-window:is([data-motion='opening'],[data-motion='closing']) { will-change: transform,opacity; }
 .rt-floating-window[data-motion='opening']:not([data-rt-window-motion-driver='waapi']) { animation: rt-floating-open 260ms cubic-bezier(.22,.8,.25,1) both; }
-.rt-floating-window[data-motion='closing']:not([data-rt-window-motion-driver='waapi']) { animation: rt-floating-close 200ms cubic-bezier(.22,.8,.25,1) both; }
+.rt-floating-window[data-motion='closing']:not([data-rt-window-motion-driver='waapi']) { animation: rt-floating-close 180ms cubic-bezier(.22,.8,.25,1) both; }
 .rt-floating-window[data-motion='closing'] { pointer-events: none; }
-@keyframes rt-floating-open { from { transform: translateY(var(--rt-floating-reveal-y,10px)) scale(.985); opacity:0; } to { transform:none; opacity:1; } }
-@keyframes rt-floating-close { from { transform:none; opacity:1; } to { transform:translateY(var(--rt-floating-reveal-y,10px)) scale(.985); opacity:0; } }
+@keyframes rt-floating-open { from { transform: translateY(var(--rt-floating-reveal-y,8px)); opacity:0; } to { transform:none; opacity:1; } }
+@keyframes rt-floating-close { from { transform:none; opacity:1; } to { transform:translateY(var(--rt-floating-reveal-y,8px)); opacity:0; } }
 .rt-floating-dock-target { position:fixed; z-index:85; pointer-events:none; border:2px solid rgb(228 0 43 / 25%); border-radius:18px; background:rgb(228 0 43 / 3%); }
 @media(prefers-reduced-motion:reduce) { .rt-floating-window[data-motion] { animation:none !important; will-change:auto; } }
 

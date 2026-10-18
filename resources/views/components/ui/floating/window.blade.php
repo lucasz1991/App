@@ -20,10 +20,11 @@ window.rtFloatingWindow = (bindings, panel) => {
         setCorner: value => Alpine.evaluate(panel, bindings.corner+' = rtWindowValue', {scope:{rtWindowValue:value}}),
     } : bindings;
     let animation = null, timer = null, revision = 0, pointer = null;
-    let settled = null, pending = null, previousLayout = '', disposed = false;
+    let settled = null, pending = null, previousLayout = '', previousOpen = false, disposed = false;
     let media = null, reduceMotion = null;
     const easing = 'cubic-bezier(.22,.8,.25,1)';
     const rectFrame = r => ({left: r.left+'px', top: r.top+'px', width: r.width+'px', height: r.height+'px'});
+    const sample = () => ({rect: panel.getBoundingClientRect(), opacity: Number(getComputedStyle(panel).opacity)});
     return {
         windowVisible: false, windowMotion: 'idle', windowDragging: false, windowDockTarget: null,
         initWindow() {
@@ -31,14 +32,17 @@ window.rtFloatingWindow = (bindings, panel) => {
             reduceMotion = () => this.resetWindow();
             media.addEventListener?.('change', reduceMotion);
             this.windowVisible = Boolean(state.opened());
+            previousOpen = this.windowVisible;
             previousLayout = state.mode()+':'+state.corner();
-            this.$watch(() => state.opened(), value => this.revealWindow(Boolean(value)));
-            this.$watch(() => state.mode()+':'+state.corner(), value => {
-                if (value === previousLayout) return;
-                previousLayout = value;
-                if (state.opened() && this.windowVisible) this.layoutWindow();
+            // One watcher coalesces opening + mode changes into one transition.
+            this.$watch(() => [state.opened(), state.mode(), state.corner()].join(':'), () => {
+                const opened = Boolean(state.opened()), layout = state.mode()+':'+state.corner();
+                const visibilityChanged = opened !== previousOpen, layoutChanged = layout !== previousLayout;
+                previousOpen = opened; previousLayout = layout;
+                if (visibilityChanged) this.revealWindow(opened);
+                else if (opened && this.windowVisible && layoutChanged) this.layoutWindow();
             });
-            this.$nextTick(() => { if (this.windowVisible) settled = panel.getBoundingClientRect(); });
+            this.$nextTick(() => { if (this.windowVisible) settled = sample(); });
         },
         destroyWindow() { disposed = true; this.finishWindowMotion(); this.windowCancelDrag(); media?.removeEventListener?.('change', reduceMotion); },
         canMoveWindow() { return Boolean(state.opened() && state.enabled() && state.mode() === 'mini' && window.innerWidth > 760); },
@@ -77,8 +81,9 @@ window.rtFloatingWindow = (bindings, panel) => {
         },
         revealWindow(opening) {
             const interrupted = this.windowVisible && this.windowMotion !== 'idle';
-            const sampled = interrupted ? getComputedStyle(panel) : null;
-            const from = sampled ? {transform:sampled.transform, opacity:Number(sampled.opacity)} : null;
+            // Sample the rendered box BEFORE cancelling, including a partial resize.
+            const from = interrupted ? sample() : null;
+            pending = null;
             this.finishWindowMotion(); this.windowCancelDrag();
             if (!opening && !this.windowVisible) return;
             if (opening && !interrupted) panel.style.visibility = 'hidden';
@@ -88,35 +93,43 @@ window.rtFloatingWindow = (bindings, panel) => {
             queueMicrotask(() => {
                 if (disposed || version !== revision) return;
                 const upper = state.corner().startsWith('top');
-                panel.style.setProperty('--rt-floating-reveal-y', upper ? '-10px' : '10px');
-                panel.style.setProperty('--rt-floating-origin', (state.corner().endsWith('left') ? 'left' : 'right')+' '+(upper ? 'top' : 'bottom'));
-                const collapsed = {transform:'translateY('+(upper ? -10 : 10)+'px) scale(.985)', opacity:0};
+                panel.style.setProperty('--rt-floating-reveal-y', upper ? '-8px' : '8px');
+                const collapsed = {transform:'translateY('+(upper ? -8 : 8)+'px)', opacity:0};
                 const expanded = {transform:'none', opacity:1};
+                const target = panel.getBoundingClientRect();
+                // A reversed close/reopen keeps its current position and size.
+                const frames = from
+                    ? [{...rectFrame(from.rect), transform:'none', opacity:from.opacity},
+                        {...rectFrame(opening ? target : from.rect), ...(opening ? expanded : collapsed)}]
+                    : [opening ? collapsed : expanded, opening ? expanded : collapsed];
                 this.setWindowMotion(opening ? 'opening' : 'closing');
-                this.playWindow([from || (opening ? collapsed : expanded), opening ? expanded : collapsed], opening ? 260 : 200, () => {
+                this.playWindow(frames, opening ? 260 : 180, () => {
                     this.setWindowMotion('idle'); this.windowVisible = opening;
-                    if (opening) settled = panel.getBoundingClientRect();
+                    if (opening) settled = {rect:target, opacity:1};
                 });
                 panel.style.removeProperty('visibility');
             });
         },
         resizeWindow() {
             if (!state.enabled() || window.innerWidth <= 760) return;
-            pending = panel.getBoundingClientRect();
+            pending = sample();
             state.setMode(state.mode() === 'mini' ? 'fullscreen' : 'mini');
         },
         layoutWindow() {
-            const from = pending || (animation ? panel.getBoundingClientRect() : settled);
+            const from = pending || (animation ? sample() : settled);
             pending = null; this.finishWindowMotion();
             const version = revision;
-            this.$nextTick(() => {
+            // Alpine's nextTick yields to a timer and can paint the target size
+            // before the animation starts. Bindings have flushed before this
+            // watcher; finish setup in this microtask, before the next paint.
+            queueMicrotask(() => {
                 if (disposed || version !== revision || !state.opened()) return;
                 const to = panel.getBoundingClientRect();
-                if (!from?.width || !to.width) { settled = to; return; }
+                if (!from?.rect.width || !to.width) { settled = {rect:to, opacity:1}; return; }
                 this.setWindowMotion('resizing');
                 // Real box geometry avoids stretching text and controls.
-                this.playWindow([rectFrame(from), rectFrame(to)], 300, () => {
-                    this.setWindowMotion('idle'); settled = to;
+                this.playWindow([{...rectFrame(from.rect), transform:'none', opacity:from.opacity}, {...rectFrame(to), transform:'none', opacity:1}], 300, () => {
+                    this.setWindowMotion('idle'); settled = {rect:to, opacity:1};
                 });
             });
         },
@@ -147,7 +160,7 @@ window.rtFloatingWindow = (bindings, panel) => {
         windowDragEnd(event) {
             if (!pointer || pointer.id !== event.pointerId) return;
             const corner = this.windowDockTarget;
-            pending = pointer.rect ? panel.getBoundingClientRect() : null;
+            pending = pointer.rect ? sample() : null;
             this.windowCancelDrag();
             if (corner) {
                 if (corner === state.corner()) this.layoutWindow();
@@ -162,13 +175,13 @@ window.rtFloatingWindow = (bindings, panel) => {
         },
         windowDockKey(event) {
             if (!this.canMoveWindow() || !event.altKey || !['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)) return;
-            event.preventDefault(); pending = panel.getBoundingClientRect();
+            event.preventDefault(); pending = sample();
             const [v,h] = state.corner().split('-');
             state.setCorner((event.key === 'ArrowUp' ? 'top' : event.key === 'ArrowDown' ? 'bottom' : v)+'-'+(event.key === 'ArrowLeft' ? 'left' : event.key === 'ArrowRight' ? 'right' : h));
         },
         resetWindow() {
             this.windowCancelDrag(); this.finishWindowMotion(); this.windowVisible = Boolean(state.opened());
-            this.$nextTick(() => { if (this.windowVisible) settled = panel.getBoundingClientRect(); });
+            this.$nextTick(() => { if (this.windowVisible) settled = sample(); });
         },
     };
 };
@@ -194,7 +207,7 @@ else document.addEventListener('alpine:init', registerRailTimeWindow, {once:true
     x-rt-window="{
         opened: @js($openState), mode: @js($modeState), corner: @js($cornerState), enabled: @js($enabledState), layout: @js($layoutAction)
     }"
-    x-show="windowVisible" x-cloak
+    :hidden="!windowVisible" x-cloak
     :data-motion="windowMotion" :data-dragging="windowDragging.toString()" :data-floating-open="({{ $openState }}).toString()"
     x-on:pointermove.window="windowDragMove($event)" x-on:pointerup.window="windowDragEnd($event)"
     x-on:keydown.escape="if (windowDragging) { windowCancelDrag(); $event.preventDefault(); $event.stopPropagation(); }"
