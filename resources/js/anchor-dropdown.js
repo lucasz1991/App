@@ -438,6 +438,7 @@ export function anchorDropdown(config) {
       const caretWidth = caret
         ? (caret.offsetWidth || Number.parseFloat(window.getComputedStyle(caret).width) || 18)
         : 18;
+      let verticalFallbackPlacement = null;
       if (this.preferredPlacement === 'side') {
         const maximumPanelHeight = Math.floor(Math.min(this.maximumHeight, maximumViewportHeight));
         if (panelScroll) {
@@ -449,35 +450,45 @@ export function anchorDropdown(config) {
           maximumPanelHeight,
         );
         const launcherSide = document.documentElement?.dataset?.rtLauncherSide === 'left' ? 'left' : 'right';
-        const resolvedPlacement = launcherSide === 'left' ? 'right' : 'left';
-        const sideLeft = resolvedPlacement === 'right'
-          ? triggerRect.right + this.offset
-          : triggerRect.left - this.offset - panelWidth;
-        const resolvedLeft = this.clamp(
-          sideLeft,
-          viewportLeft + viewportInset,
-          viewportLeft + viewportWidth - viewportInset - panelWidth,
-        );
-        const triggerCenterY = triggerRect.top + (triggerRect.height / 2);
-        const resolvedTop = this.clamp(
-          triggerCenterY - (renderedPanelHeight / 2),
-          viewportTop + viewportInset,
-          viewportTop + viewportHeight - viewportInset - renderedPanelHeight,
-        );
-        const caretY = this.clamp(triggerCenterY - resolvedTop, 16, Math.max(16, renderedPanelHeight - 16));
+        const preferredSide = launcherSide === 'left' ? 'right' : 'left';
+        const availableSides = {
+          right: viewportLeft + viewportWidth - viewportInset - triggerRect.right - this.offset,
+          left: triggerRect.left - viewportLeft - viewportInset - this.offset,
+        };
+        const resolvedPlacement = [preferredSide, preferredSide === 'right' ? 'left' : 'right']
+          .find(side => availableSides[side] >= panelWidth);
 
-        this.placement = resolvedPlacement;
-        Object.assign(panel.style, {
-          left: `${resolvedLeft}px`,
-          top: `${resolvedTop}px`,
-          visibility: '',
-        });
-        panel.dataset.wideCentered = 'false';
-        panel.style.setProperty('--rt-dropdown-caret-y', `${Math.round(caretY)}px`);
-        panel.style.setProperty('--rt-dropdown-connector-size', `${Math.max(6, this.offset + 2)}px`);
-        caret?.toggleAttribute('hidden', false);
-        panel.style.removeProperty('visibility');
-        return;
+        if (resolvedPlacement) {
+          const resolvedLeft = resolvedPlacement === 'right'
+            ? triggerRect.right + this.offset
+            : triggerRect.left - this.offset - panelWidth;
+          const triggerCenterY = triggerRect.top + (triggerRect.height / 2);
+          const resolvedTop = this.clamp(
+            triggerCenterY - (renderedPanelHeight / 2),
+            viewportTop + viewportInset,
+            viewportTop + viewportHeight - viewportInset - renderedPanelHeight,
+          );
+          const caretY = this.clamp(triggerCenterY - resolvedTop, 16, Math.max(16, renderedPanelHeight - 16));
+
+          this.placement = resolvedPlacement;
+          Object.assign(panel.style, {
+            left: `${resolvedLeft}px`,
+            top: `${resolvedTop}px`,
+            visibility: '',
+          });
+          panel.dataset.wideCentered = 'false';
+          panel.style.setProperty('--rt-dropdown-caret-y', `${Math.round(caretY)}px`);
+          panel.style.setProperty('--rt-dropdown-connector-size', `${Math.max(6, this.offset + 2)}px`);
+          caret?.toggleAttribute('hidden', false);
+          panel.style.removeProperty('visibility');
+          return;
+        }
+
+        const belowTop = triggerRect.bottom + this.offset;
+        const aboveBottom = triggerRect.top - this.offset;
+        const availableBelow = Math.max(0, viewportTop + viewportHeight - viewportInset - belowTop);
+        const availableAbove = Math.max(0, aboveBottom - (viewportTop + viewportInset));
+        verticalFallbackPlacement = availableBelow >= availableAbove ? 'bottom' : 'top';
       }
       // Keep the whole caret base on the straight card edge, not just its
       // tip inside the panel. Use both corner pairs so flipping above/below
@@ -529,7 +540,7 @@ export function anchorDropdown(config) {
         this.maximumHeight,
         maximumViewportHeight,
       );
-      let resolvedPlacement = this.preferredPlacement;
+      let resolvedPlacement = verticalFallbackPlacement || this.preferredPlacement;
       const anchoredSpace = resolvedPlacement === 'top' ? availableAbove : availableBelow;
       const alternateSpace = resolvedPlacement === 'top' ? availableBelow : availableAbove;
 

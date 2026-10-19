@@ -245,7 +245,8 @@ export function communicationModule() {
             this.$root.style.setProperty('--comm-launcher-bottom', `${bottom}px`);
             this.$root.style.setProperty('--comm-launcher-right', `${right}px`);
             this.$root.style.setProperty('--comm-launcher-left', `${left}px`);
-            document.documentElement.style.setProperty('--ai-assist-launcher-bottom', `${bottom + LAUNCHER_STACK_OFFSET}px`);
+            const assistBottom = this.open ? bottom : bottom + LAUNCHER_STACK_OFFSET;
+            document.documentElement.style.setProperty('--ai-assist-launcher-bottom', `${assistBottom}px`);
         },
         destroy() {
             this.$root.removeAttribute('data-communication-ready');

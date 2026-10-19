@@ -234,6 +234,12 @@ body:has(.rt-ai-assist[data-open='true'] .rt-ai-assist__panel[data-window-mode='
     background: rgb(255 255 255 / 15%);
     color: #fff;
 }
+.rt-ai-assist__head-actions .rt-ai-assist__context--header > .rt-ai-assist__icon-btn:hover,
+.rt-ai-assist__head-actions .rt-ai-assist__context--header > .rt-ai-assist__icon-btn[aria-expanded='true'] {
+    border-color: transparent;
+    background: transparent;
+    color: #fff;
+}
 .rt-communication :is(button, a):focus-visible,
 .rt-ai-assist__panel :is(button, a):focus-visible {
     outline: 2px solid #fff;

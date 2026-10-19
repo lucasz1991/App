@@ -186,6 +186,7 @@ test('communication and AI Assist share the red window frame, header, and tab me
     assert.match(styles, /\.rt-comm-head,\s*\.rt-ai-assist__head\s*\{[\s\S]*background: linear-gradient\(112deg, #a81632 0%, #c21f3d 56%, #a81632 100%\)/);
     assert.match(styles, /\.rt-comm-tabs,\s*\.rt-ai-assist__head \.rt-ai-assist__tabs\s*\{/);
     assert.match(styles, /\.rt-comm-window-actions button,\s*\.rt-ai-assist__head-actions \.rt-ai-assist__icon-btn\s*\{/);
+    assert.match(styles, /\.rt-ai-assist__context--header > \.rt-ai-assist__icon-btn:hover,\s*\.rt-ai-assist__head-actions \.rt-ai-assist__context--header > \.rt-ai-assist__icon-btn\[aria-expanded='true'\]\s*\{\s*border-color: transparent;\s*background: transparent;\s*color: #fff;/);
 });
 
 test('one persistent call DOM and session survive tabs resize close reopen and wire navigation', () => {
@@ -247,6 +248,10 @@ test('chat launcher stays at the bottom while AI Assist occupies the upper stack
     f.component.measureLayout();
 
     assert.equal(f.root.style.getPropertyValue('--comm-launcher-bottom'), '20px');
+    assert.equal(f.document.documentElement.style.getPropertyValue('--ai-assist-launcher-bottom'), '88px');
+    f.component.show('mini'); f.component.measureLayout();
+    assert.equal(f.document.documentElement.style.getPropertyValue('--ai-assist-launcher-bottom'), '20px');
+    f.component.close(); f.component.measureLayout();
     assert.equal(f.document.documentElement.style.getPropertyValue('--ai-assist-launcher-bottom'), '88px');
     f.component.destroy();
     assert.equal(f.document.documentElement.style.getPropertyValue('--ai-assist-launcher-bottom'), undefined);

@@ -104,6 +104,20 @@ class AiAssistNavigationHeaderTest extends TestCase
         $this->assertSame(1, $dom->query('//*[@data-assistant-header]//*[@role="dialog" and @aria-label="Assistenz-Einstellungen"]')->length);
     }
 
+    public function test_context_dropdown_is_available_in_the_header_independent_of_the_assist_tab(): void
+    {
+        $component = Livewire::test(AiAssist::class, ['page' => 'cases', 'view' => 'inbox'])->call('setTab', 'activity');
+        $html = $component->html();
+        $component->assertSeeHtml('aria-label="Seitenkontext anzeigen"')
+            ->assertSeeHtml('x-show="prefs.context"')
+            ->assertSeeHtml('Aktueller Seitenkontext')
+            ->assertDontSeeHtml('$wire.tab !== \'intake\'');
+
+        $dom = $this->dom($html);
+        $this->assertSame(1, $dom->query('//*[@data-assistant-header]//details[contains(@class,"rt-ai-assist__context--compact")]')->length);
+        $this->assertSame(1, $dom->query('//details[contains(@class,"rt-ai-assist__context--compact")]')->length);
+    }
+
     public function test_orb_hint_uses_the_shared_hover_anchor_dropdown_without_a_timed_dismissal(): void
     {
         $component = Livewire::test(AiAssist::class, ['page' => 'cases', 'view' => 'inbox']);

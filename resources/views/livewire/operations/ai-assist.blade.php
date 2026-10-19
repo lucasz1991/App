@@ -63,6 +63,27 @@
                 <x-operations.assistant-navigation class="rt-ai-assist__tabs" :tabs="$tabs" :selected="$tab" action="setTab" :id-prefix="$panelId" :controls="$panelId.'-body'" :review-count="$reviewCount" label="AI-Assist" />
                 <span class="rt-floating-window__header-spacer" aria-hidden="true"></span>
                 <div class="rt-ai-assist__head-actions">
+                    <details class="rt-ai-assist__context rt-ai-assist__context--compact rt-ai-assist__context--header" x-cloak x-show="prefs.context"
+                        x-on:toggle="$el.querySelector('summary').setAttribute('aria-expanded', $el.open ? 'true' : 'false')"
+                        x-on:click.outside="$el.open = false" x-on:keydown.escape.stop="$el.open = false">
+                        <summary class="rt-ai-assist__icon-btn" data-no-drag aria-label="Seitenkontext anzeigen" title="Seitenkontext" aria-expanded="false">
+                            <i class="far fa-info-circle" aria-hidden="true"></i>
+                        </summary>
+                        <div class="rt-ai-assist__context-menu" role="group" aria-label="Aktueller Seitenkontext">
+                            <div class="rt-ai-assist__chips">
+                                @foreach($chips as [$label, $value])
+                                    <span class="rt-ai-assist__chip"><small>{{ $label }}</small><strong>{{ $value }}</strong></span>
+                                @endforeach
+                            </div>
+                            @if($actions['page'] !== [])
+                                <div class="rt-ai-assist__quickbar">
+                                    @foreach(array_slice($actions['page'], 0, 2) as $action)
+                                        <button type="button" class="rt-ai-assist__quick" x-on:click="run(@js($action['key'])); $el.closest('details').open = false" :disabled="busy"><span>{{ $action['title'] }}</span><i class="far fa-arrow-right" aria-hidden="true"></i></button>
+                                    @endforeach
+                                </div>
+                            @endif
+                        </div>
+                    </details>
                     <button class="rt-ai-assist__icon-btn" type="button" x-cloak x-show="wide" x-on:click="resizeWindow()"
                         :aria-label="mode === 'fullscreen' ? 'AI-Assist verkleinern' : 'AI-Assist im Vollbild öffnen'"
                         :title="mode === 'fullscreen' ? 'Verkleinern' : 'Vollbild öffnen'">
@@ -93,7 +114,7 @@
                     <p class="rt-ai-assist__group">Persönlich auf diesem Gerät</p>
                     <div class="rt-ai-assist__list">
                         <label class="rt-ai-assist__setting">
-                            <span class="rt-ai-assist__setting-copy"><strong>Seitenkontext zeigen</strong><small>Seite, Zeitraum und Schnellaktionen über dem Chat</small></span>
+                            <span class="rt-ai-assist__setting-copy"><strong>Seitenkontext zeigen</strong><small>Seite, Zeitraum und Schnellaktionen im Info-Menü der Kopfzeile</small></span>
                             <input type="checkbox" :checked="prefs.context" x-on:change="setPref('context', $event.target.checked)"><span class="rt-ai-assist__switch" aria-hidden="true"></span>
                         </label>
                         <label class="rt-ai-assist__setting">
@@ -129,22 +150,6 @@
                     <p class="rt-ai-assist__privacy"><i class="far fa-info-circle" aria-hidden="true"></i><span>Mailinhalte und ergänzte Dateien werden über die eingerichtete AI-Verbindung geprüft. Kundenzuordnung, Erfassung und Versand bleiben persönlich freizugeben.@if($supervisor) Verantwortlich: {{ $supervisor }}.@endif</span></p>
                 </div>
             </x-slot:header>
-
-            <details class="rt-ai-assist__context rt-ai-assist__context--compact" x-show="prefs.context && $wire.tab !== 'intake'">
-                <summary><i class="far fa-eye" aria-hidden="true"></i><span>{{ $pageLabel }}</span><small>{{ $reviewCount }} zur Prüfung</small><i class="far fa-chevron-down" aria-hidden="true"></i></summary>
-                <div class="rt-ai-assist__chips">
-                    @foreach($chips as [$label, $value])
-                        <span class="rt-ai-assist__chip"><small>{{ $label }}</small><strong>{{ $value }}</strong></span>
-                    @endforeach
-                </div>
-                @if($actions['page'] !== [])
-                    <div class="rt-ai-assist__quickbar">
-                        @foreach(array_slice($actions['page'], 0, 2) as $action)
-                            <button type="button" class="rt-ai-assist__quick" x-on:click="run(@js($action['key']))" :disabled="busy"><span>{{ $action['title'] }}</span><i class="far fa-arrow-right" aria-hidden="true"></i></button>
-                        @endforeach
-                    </div>
-                @endif
-            </details>
 
             <p class="rt-ai-assist__error" x-show="callError" style="display:none" role="alert" x-text="callError"></p>
 

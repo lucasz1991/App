@@ -188,7 +188,7 @@ window.rtFloatingWindow = (bindings, panel) => {
         },
         windowDragStart(event) {
             if (!this.canMoveWindow() || event.isPrimary === false || event.button !== 0) return;
-            const control = event.target.closest('button,a,input,textarea,select,[role="tab"],[role="dialog"],[contenteditable="true"]');
+            const control = event.target.closest('button,a,input,textarea,select,[role="tab"],[role="dialog"],[contenteditable="true"],[data-no-drag]');
             if (control && control !== panel) return;
             if (Array.from(document.querySelectorAll('dialog[open],[role="dialog"][aria-modal="true"]')).some(d => d !== panel && d.getClientRects().length && getComputedStyle(d).visibility !== 'hidden')) return;
             pointer = {id:event.pointerId, x:event.clientX, y:event.clientY, rect:null};

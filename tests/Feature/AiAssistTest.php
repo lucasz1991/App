@@ -89,8 +89,11 @@ class AiAssistTest extends TestCase
         $this->assertStringContainsString('x-on:click="toggleRecording()"', $html);
         $this->assertStringNotContainsString('Vorschläge wirken erst nach deiner Freigabe', $html);
         $reviewStyles = file_get_contents(resource_path('css/ai-intake-review.css'));
-        $this->assertStringContainsString('.ai-intake-panel__composer { padding: 10px 12px; }', $reviewStyles);
+        $this->assertStringContainsString('.ai-intake-panel__composer { padding: 8px 10px; }', $reviewStyles);
         $this->assertStringNotContainsString('.ai-intake-panel__composer .rt-intake-composer__shell { border: 0', $reviewStyles);
+        $assistStyles = file_get_contents(resource_path('css/ai-assist.css'));
+        $this->assertStringContainsString('.rt-ai-assist__composer { position: relative; flex: none; padding: 8px 10px;', $assistStyles);
+        $this->assertStringContainsString('.rt-ai-assist__composer .rt-intake-composer__shell { gap: 0; padding: 0; border: 0; border-radius: 0;', $assistStyles);
     }
 
     public function test_chat_submission_keeps_safe_attachment_metadata_and_answers_the_question(): void
@@ -182,6 +185,9 @@ class AiAssistTest extends TestCase
         $this->assertStringNotContainsString('!bg-transparent', $html);
         $this->assertStringNotContainsString('!border-0', $html);
         $this->assertStringContainsString('background-color: var(--ai-bg, var(--rt-shell-surface-solid, #fff))', $styles);
+        $this->assertStringContainsString('border-radius: 18px;', $styles);
+        $this->assertStringContainsString(".rt-ai-assist__hint-dropdown[data-placement='right'] .rt-ui-dropdown-caret { transform: translate(calc(-100% + 2px), -50%) rotate(-90deg); }", $styles);
+        $this->assertStringContainsString(".rt-ai-assist__hint-dropdown[data-placement='left'] .rt-ui-dropdown-caret { transform: translate(calc(100% - 2px), -50%) rotate(90deg); }", $styles);
         $this->assertStringContainsString('.rt-ai-assist__hint-dropdown.rt-motion-pop-leave { transition: none !important; }', $styles);
         $this->assertStringContainsString("body[data-mode='dark'] .rt-viewport-dropdown .rt-ai-assist__orb-hint", $styles);
     }

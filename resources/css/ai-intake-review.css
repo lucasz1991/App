@@ -38,7 +38,7 @@
 .ai-intake-panel__missing { margin-bottom: 10px; }
 .ai-intake-panel__missing > .rt-accordion-compact { color: var(--ai-warn); }
 .ai-intake-panel__action-bar { z-index: 1; }
-.ai-intake-panel__composer { padding: 10px 12px; }
+.ai-intake-panel__composer { padding: 8px 10px; }
 .ai-intake-panel__composer .rt-ai-intake-assistant__history { padding: 12px; }
 .ai-intake-panel[data-mode='detail']:not([data-detail-tab='assistant']) .rt-ai-intake-assistant__history { display: none; }
 .ai-intake-panel[data-mode='detail'][data-detail-tab='assistant'] > .ai-intake-panel__content { max-height: none; }

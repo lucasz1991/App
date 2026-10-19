@@ -5,6 +5,7 @@ import { parseHTML } from 'linkedom';
 
 const blade = await readFile(new URL('../../resources/views/components/ui/dropdown/anchor-dropdown.blade.php', import.meta.url), 'utf8');
 const dropdownSource = await readFile(new URL('../../resources/js/anchor-dropdown.js', import.meta.url), 'utf8');
+const aiAssistView = await readFile(new URL('../../resources/views/livewire/operations/ai-assist.blade.php', import.meta.url), 'utf8');
 const servicePreviewSources = await Promise.all(['service-cell-preview', 'service-staffing'].map(async name => ({
     name,
     source: await readFile(new URL(`../../resources/views/components/operations/${name}.blade.php`, import.meta.url), 'utf8'),
@@ -186,6 +187,38 @@ test('launcher alignment opens toward the viewport when the shared launcher grou
     assert.equal(f.refs.panel.style.left, '252px');
     assert.match(blade, /'launcher'\s*=>\s*'side-auto'/);
     assert.match(blade, /@unless\(\$externalTrigger\)\s*@click="toggle\(\)"/);
+});
+
+test('side-aligned bubbles use the opposite side or vertical placement when horizontal space is insufficient', () => {
+    const oppositeSide = geometryFixture({}, { width: 900, anchorLeft: 380, anchorWidth: 56, panelWidth: 400 });
+    oppositeSide.dropdown.horizontalAlign = 'auto';
+    oppositeSide.dropdown.preferredPlacement = 'side';
+    oppositeSide.document.documentElement.dataset.rtLauncherSide = 'right';
+    oppositeSide.position();
+    assert.equal(oppositeSide.dropdown.placement, 'right');
+    assert.equal(oppositeSide.refs.panel.style.left, '444px');
+
+    const verticalFallback = geometryFixture({}, { width: 600, anchorLeft: 272, anchorWidth: 56, panelWidth: 384 });
+    verticalFallback.dropdown.horizontalAlign = 'auto';
+    verticalFallback.dropdown.preferredPlacement = 'side';
+    verticalFallback.document.documentElement.dataset.rtLauncherSide = 'right';
+    verticalFallback.position();
+    assert.equal(verticalFallback.dropdown.placement, 'bottom');
+    assert.equal(verticalFallback.refs.panel.style.top, '136px');
+
+    const topFallback = geometryFixture({}, { width: 600, anchorLeft: 272, anchorTop: 900, anchorWidth: 56, panelWidth: 384 });
+    topFallback.dropdown.horizontalAlign = 'auto';
+    topFallback.dropdown.preferredPlacement = 'side';
+    topFallback.document.documentElement.dataset.rtLauncherSide = 'right';
+    topFallback.position();
+    assert.equal(topFallback.dropdown.placement, 'top');
+    assert.equal(topFallback.refs.panel.style.top, '652px');
+
+    const defaultPlacement = geometryFixture();
+    defaultPlacement.position();
+    assert.equal(defaultPlacement.dropdown.placement, 'bottom');
+    assert.match(blade, /default\s*=>\s*'bottom-end'/);
+    assert.match(aiAssistView, /<x-ui\.dropdown\.anchor-dropdown class="rt-ai-assist__stage" align="launcher"/);
 });
 
 test('overlapping wide mobile preview preserves anchor alignment instead of centering', () => {
