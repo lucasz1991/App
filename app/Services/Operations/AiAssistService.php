@@ -147,7 +147,7 @@ class AiAssistService
         };
     }
 
-    /** Proaktive Hinweise für die Sprechblase am Orb (nur Zählabfragen). @return list<array{text: string, run: string, label: string}> */
+    /** Hinweise für das Hover-Menü an der Orb (nur Zählabfragen). @return list<array{text: string, run: string, label: string}> */
     public function hints(User $actor): array
     {
         $hints = [];

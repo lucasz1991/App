@@ -14,7 +14,7 @@ afterEach(() => {
 });
 
 function fixture(options = {}) {
-    globalThis.window = { dispatchEvent() {}, localStorage: { getItem: () => null }, sessionStorage: { getItem: () => '1', setItem() {} } };
+    globalThis.window = { dispatchEvent() {}, innerWidth: 1280, localStorage: { getItem: () => null }, sessionStorage: { getItem: () => '1', setItem() {} } };
     const component = aiAssist(options);
     Object.assign(component, {
         $wire: { load: async () => {}, ask: async () => {}, run: async () => {} },
@@ -46,7 +46,7 @@ test('keyboard: slash navigation wraps, Enter submits the selected action, Ctrl+
     const calls = [];
     Object.assign(component, { $wire: { load: async () => {}, run: key => { calls.push(['run', key]); return Promise.resolve(); }, ask: q => { calls.push(['ask', q]); return Promise.resolve(); } },
         $nextTick: fn => fn(), $refs: {}, $el: { dataset: { actions: JSON.stringify([{ key: 'period', title: 'Besetzung' }, { key: 'day', title: 'Tageslage' }]), hints: '[]' } } });
-    globalThis.window = { localStorage: { getItem: () => null }, sessionStorage: { getItem: () => '1', setItem() {} } };
+    globalThis.window = { dispatchEvent() {}, innerWidth: 1280, localStorage: { getItem: () => null }, sessionStorage: { getItem: () => '1', setItem() {} } };
     component.text = '/';
     const keydown = key => { let prevented = false; component.keydown({ key, shiftKey: false, preventDefault: () => { prevented = true; } }); return prevented; };
     assert.equal(keydown('ArrowUp'), true);
@@ -189,6 +189,18 @@ test('intake opening captures the requested identity and waits for native server
     assert.equal(component.busy, false);
 });
 
+test('a hovered hint opens the assist and runs its action without a competing load request', async () => {
+    const component = fixture();
+    const calls = [];
+    component.$wire.run = async key => { calls.push(['run', key]); };
+    component.$wire.load = async () => { calls.push(['load']); };
+
+    assert.equal(await component.openHint({ run: 'intake' }), true);
+    assert.equal(component.open, true);
+    assert.equal(component.loaded, true);
+    assert.deepEqual(calls, [['run', 'intake']]);
+});
+
 test('intake opening rejects duplicate pending calls and leaves an actionable error on failure', async () => {
     const component = fixture();
     let release;
@@ -208,6 +220,7 @@ test('closing the assistant notifies capture controls to release the microphone'
     const component = fixture();
     const events = [];
     globalThis.window.dispatchEvent = event => events.push(event.type);
+    component.open = true;
     component.toggle(false);
     assert.deepEqual(events, ['ai-intake-panel-hidden']);
 });

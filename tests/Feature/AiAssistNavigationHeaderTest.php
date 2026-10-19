@@ -104,6 +104,19 @@ class AiAssistNavigationHeaderTest extends TestCase
         $this->assertSame(1, $dom->query('//*[@data-assistant-header]//*[@role="dialog" and @aria-label="Assistenz-Einstellungen"]')->length);
     }
 
+    public function test_orb_hint_uses_the_shared_hover_anchor_dropdown_without_a_timed_dismissal(): void
+    {
+        $component = Livewire::test(AiAssist::class, ['page' => 'cases', 'view' => 'inbox']);
+        $html = $component->html();
+
+        $component->assertSeeHtml('data-rt-dropdown-root')
+            ->assertSeeHtml('openOnHover')
+            ->assertSeeHtml('rt-ai-assist__orb-hint')
+            ->assertSeeHtml('x-on:click.stop="openHint(hints[0])"')
+            ->assertDontSee('Später');
+        $this->assertStringNotContainsString('rt-ai-assist__bubble', $html);
+    }
+
     public function test_real_tab_actions_keep_selected_panel_and_persistent_intake_after_leaving_it(): void
     {
         $component = Livewire::test(AiAssist::class, ['page' => 'cases', 'view' => 'inbox']);

@@ -1,7 +1,6 @@
-// AI-Assist der Disposition: Öffnen/Schließen, Aktionsliste („/“), Hinweisblase und persönliche
+// AI-Assist der Disposition: Öffnen/Schließen, Aktionsliste („/“), Orb-Hinweis und persönliche
 // Einstellungen. Inhalte und Aktionen kommen aus Livewire (App\Livewire\Operations\AiAssist).
 export const AI_ASSIST_PREFS_KEY = 'rt-ai-assist-prefs';
-export const AI_ASSIST_BUBBLE_KEY = 'rt-ai-assist-bubble';
 const DEFAULT_PREFS = Object.freeze({ context: true, proactive: true });
 export function readAiAssistPrefs(storage) {
     try {
@@ -45,11 +44,9 @@ export function aiAssist({ embedded = false } = {}) {
         callError: '',
         messagesPinned: true,
         unseenOutput: false,
-        bubble: false,
         text: '',
         slashIndex: 0,
         prefs: { ...DEFAULT_PREFS },
-        bubbleTimer: null,
         mobile: false,
         _resizeHandler: null,
         init() {
@@ -68,23 +65,10 @@ export function aiAssist({ embedded = false } = {}) {
             } catch {
                 this.prefs = { ...DEFAULT_PREFS };
             }
-            // Einmal je Sitzung meldet sich der Orb mit dem wichtigsten Hinweis.
-            this.bubbleTimer = setTimeout(() => {
-                if (this.disposed || this.open || !this.prefs.proactive || !this.hints.length) return;
-                try {
-                    if (window.sessionStorage.getItem(AI_ASSIST_BUBBLE_KEY)) return;
-                    window.sessionStorage.setItem(AI_ASSIST_BUBBLE_KEY, '1');
-                } catch {
-                    return;
-                }
-                this.bubble = true;
-                this.bubbleTimer = setTimeout(() => { if (!this.disposed) this.bubble = false; }, 9000);
-            }, 1400);
         },
         destroy() {
             this.disposed = true;
             this.callVersion++;
-            clearTimeout(this.bubbleTimer);
             window.removeEventListener?.('resize', this._resizeHandler);
             window.visualViewport?.removeEventListener?.('resize', this._resizeHandler);
             if (typeof document !== 'undefined') document.body?.classList?.remove('rt-ai-assist-fullscreen');
@@ -105,13 +89,12 @@ export function aiAssist({ embedded = false } = {}) {
         get slashList() {
             return filterAiAssistActions(this.actions, this.text);
         },
-        toggle(open = !this.open) {
+        toggle(open = !this.open, { load = true } = {}) {
             if (this.disposed) return;
             const next = Boolean(open);
             if (next === this.open) return;
             const opening = next && !this.open;
             this.open = next;
-            this.bubble = false;
             this.syncLayout();
             if (!next) {
                 this.settingsOpen = false;
@@ -130,7 +113,7 @@ export function aiAssist({ embedded = false } = {}) {
             if (opening) {
                 window.dispatchEvent(new CustomEvent('rt-floating-surface-opened', { detail: { surface: 'assist' } }));
                 window.dispatchEvent(new CustomEvent('railtime-assistant-opened'));
-                void this.ensureLoaded();
+                if (load) void this.ensureLoaded();
             }
         },
         syncLayout() {
@@ -156,8 +139,9 @@ export function aiAssist({ embedded = false } = {}) {
         },
         async openIntake(detail = {}) {
             if (this.disposed || this.busy) return false;
-            this.toggle(true);
-            this.bubble = false;
+            // openIntake setzt serverseitig bereits loaded und den richtigen Tab. Ein
+            // paralleles load() würde den eigentlichen Öffnungs-Request blockieren.
+            this.toggle(true, { load: false });
             this.settingsOpen = false;
             this.syncLayout();
             const success = await this.call('openIntake', detail.intakeId ?? null, detail.create === true, detail.customerId ?? null);
@@ -281,13 +265,16 @@ export function aiAssist({ embedded = false } = {}) {
             event.preventDefault();
             this.toggle();
         },
-        hover() {
-            if (!this.disposed && !this.open && this.prefs.proactive && this.hints.length) this.bubble = true;
-        },
-        bubbleRun(run) {
-            this.bubble = false;
-            this.toggle(true);
-            this.run(run);
+        openHint(hint) {
+            if (this.disposed || !hint) return Promise.resolve(false);
+            // Die Aktion lädt den Assist selbst. So konkurriert sie nicht mit einem zweiten
+            // Load-Request, wenn der Hinweis aus dem Anchor-Dropdown geöffnet wird.
+            this.toggle(true, { load: false });
+            if (!hint.run) return Promise.resolve(true);
+            return this.run(hint.run).then(success => {
+                if (success && !this.disposed) this.loaded = true;
+                return success;
+            });
         },
         setPref(key, value) {
             this.prefs = { ...this.prefs, [key]: Boolean(value) };

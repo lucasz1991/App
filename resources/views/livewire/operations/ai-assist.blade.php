@@ -27,15 +27,14 @@
     x-on:railtime-ai-intake-open.window="openIntake($event.detail)"
     x-on:ai-assist-intake-opened.window="if ($event.detail.componentId === @js($this->getId())) toggle(true)" data-ai-assist>
     <div x-data="railtimeAssistantCloud()" :data-state="orbState" x-bind:data-pet-open="open.toString()" data-state="idle">
-        <div class="rt-ai-assist__stage">
-            <div class="rt-ai-assist__bubble" role="status" aria-live="polite" x-show="bubble && !open && prefs.proactive && hints.length > 0" style="display: none">
-                <span x-text="hints[0]?.text"></span>
-                <div class="rt-ai-assist__bubble-actions">
-                    <button type="button" data-primary="true" x-on:click="bubbleRun(hints[0].run)" x-text="hints[0]?.label"></button>
-                    <button type="button" x-on:click="bubble = false">Später</button>
-                </div>
-            </div>
-            <x-ui.floating.launcher class="rt-ai-assist__launcher" x-ref="launcher" x-on:click="toggle()" x-on:mouseenter="hover()"
+        <x-ui.dropdown.anchor-dropdown class="rt-ai-assist__stage" align="launcher" width="auto" :max-height="320" :offset="12"
+            :open-on-hover="true" :hover-open-delay="140" :hover-close-delay="180" dropdown-id="ai-assist-hint-{{ $this->getId() }}"
+            layer-group="floating-assistant-hint" trigger-classes="inline-flex pointer-events-auto" content-role="dialog" content-label="AI-Eingang zur Prüfung"
+            dropdown-classes="rt-ai-assist__hint-dropdown !rounded-none !shadow-none"
+            content-classes="!overflow-visible !border-0 !bg-transparent !p-0 !shadow-none">
+            <x-slot:trigger>
+            <x-ui.floating.launcher class="rt-ai-assist__launcher" x-ref="launcher" x-on:click.stop="toggle()"
+                x-on:focus="if ($el.matches(':focus-visible') && prefs.proactive && hints.length && !$event.relatedTarget?.closest('[data-rt-dropdown-owner]')) openDropdown(false)"
                 ::aria-expanded="open ? 'true' : 'false'" aria-expanded="false" aria-controls="{{ $panelId }}"
                 aria-label="AI-Assist öffnen{{ $reviewCount ? ' · '.$reviewCount.' AI-Eingänge zur Prüfung' : '' }}" title="AI-Assist (Strg J)">
                 <span class="rt-ai-assist__halo" aria-hidden="true"></span>
@@ -44,7 +43,14 @@
                     <span class="rt-ai-assist__presence" aria-hidden="true">{{ $reviewCount > 9 ? '9+' : $reviewCount }}</span>
                 @endif
             </x-ui.floating.launcher>
-        </div>
+            </x-slot:trigger>
+            <x-slot:content>
+                <div class="rt-ai-assist__orb-hint" x-show="prefs.proactive && hints.length > 0" style="display: none">
+                    <span x-text="hints[0]?.text"></span>
+                    <button type="button" x-on:click.stop="openHint(hints[0])" x-text="hints[0]?.label"></button>
+                </div>
+            </x-slot:content>
+        </x-ui.dropdown.anchor-dropdown>
 
         <x-ui.floating.window class="rt-ai-assist__panel" id="{{ $panelId }}" x-ref="panel" role="dialog" ::aria-modal="mode === 'fullscreen' ? 'true' : 'false'"
             x-bind:data-window-mode="mode" x-bind:data-corner="corner" aria-label="AI-Assist"
@@ -88,7 +94,7 @@
                             <input type="checkbox" :checked="prefs.context" x-on:change="setPref('context', $event.target.checked)"><span class="rt-ai-assist__switch" aria-hidden="true"></span>
                         </label>
                         <label class="rt-ai-assist__setting">
-                            <span class="rt-ai-assist__setting-copy"><strong>Proaktive Hinweise</strong><small>Offene Dienste und Freigaben am Orb melden</small></span>
+                            <span class="rt-ai-assist__setting-copy"><strong>Hinweise an der Orb</strong><small>Bei Hover offene Dienste und Freigaben anzeigen</small></span>
                             <input type="checkbox" :checked="prefs.proactive" x-on:change="setPref('proactive', $event.target.checked)"><span class="rt-ai-assist__switch" aria-hidden="true"></span>
                         </label>
                     </div>
