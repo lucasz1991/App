@@ -17,6 +17,7 @@ use App\Models\ShiftAssignment;
 use App\Models\ShiftOffer;
 use App\Models\StaffingAutomationRun;
 use App\Models\User;
+use App\Services\Ai\AssistantSpeechRouter;
 use App\Services\Operations\AiAssistService;
 use App\Support\Operations\AiDispositionSettings;
 use Carbon\CarbonImmutable;
@@ -25,6 +26,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Http\UploadedFile;
 use Livewire\Livewire;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
@@ -74,6 +76,65 @@ class AiAssistTest extends TestCase
         return Livewire::actingAs($this->manager)->test(AiAssist::class, $params);
     }
 
+    public function test_chat_uses_the_shared_intake_composer_with_file_and_recording_controls(): void
+    {
+        $html = $this->assist()->html();
+
+        $this->assertStringContainsString('aiIntakeComposer($wire', $html);
+        $this->assertStringContainsString('operations-chat', $html);
+        $this->assertStringContainsString('submitChat', $html);
+        $this->assertStringContainsString('wire:model="uploads"', $html);
+        $this->assertStringContainsString('wire:model="prompt"', $html);
+        $this->assertStringContainsString('x-on:click="chooseFiles()"', $html);
+        $this->assertStringContainsString('x-on:click="toggleRecording()"', $html);
+        $this->assertStringNotContainsString('Vorschläge wirken erst nach deiner Freigabe', $html);
+        $reviewStyles = file_get_contents(resource_path('css/ai-intake-review.css'));
+        $this->assertStringContainsString('.ai-intake-panel__composer { padding: 10px 12px; }', $reviewStyles);
+        $this->assertStringNotContainsString('.ai-intake-panel__composer .rt-intake-composer__shell { border: 0', $reviewStyles);
+    }
+
+    public function test_chat_submission_keeps_safe_attachment_metadata_and_answers_the_question(): void
+    {
+        $attachmentContent = "%PDF-1.4\nSynthetic private test attachment\n%%EOF";
+        $component = $this->assist()
+            ->set('prompt', 'Wer kann heute übernehmen?')
+            ->set('uploads', [UploadedFile::fake()->createWithContent('diensthinweis.pdf', $attachmentContent)]);
+        file_put_contents($component->get('uploads')[0]->getRealPath(), $attachmentContent);
+        $component->call('submitChat')
+            ->assertHasNoErrors()
+            ->assertSet('prompt', '')
+            ->assertSet('uploads', []);
+
+        $messages = session('operations.ai_assist.messages');
+        $this->assertSame('Wer kann heute übernehmen?', $messages[0]['text']);
+        $this->assertSame([['name' => 'diensthinweis.pdf', 'size' => strlen($attachmentContent)]], $messages[0]['attachments']);
+        $this->assertSame('open-today', $messages[1]['action']);
+        $component->assertSee('diensthinweis.pdf');
+        Http::assertNothingSent();
+    }
+
+    public function test_chat_transcribes_voice_recording_into_the_question(): void
+    {
+        $this->mock(AssistantSpeechRouter::class)
+            ->shouldReceive('transcribe')
+            ->once()
+            ->andReturn(['text' => 'Wer kann heute übernehmen?', 'provider' => 'local']);
+
+        $component = $this->assist()
+            ->set('audioUpload', UploadedFile::fake()->create('Sprachanfrage.webm', 12, 'audio/webm'))
+            ->call('submitChat')
+            ->assertHasNoErrors()
+            ->assertSet('audioUpload', null);
+
+        $messages = session('operations.ai_assist.messages');
+        $this->assertSame('Wer kann heute übernehmen?', $messages[0]['text']);
+        $this->assertSame('Sprachanfrage.webm', $messages[0]['attachments'][0]['name']);
+        $this->assertTrue($messages[0]['attachments'][0]['audio']);
+        $this->assertSame('open-today', $messages[1]['action']);
+        $component->assertSee('Sprachanfrage.webm');
+        Http::assertNothingSent();
+    }
+
     public function test_launcher_and_panel_render_page_context_actions_and_safe_defaults(): void
     {
         $component = $this->assist()->assertSet('page', 'shifts')->assertSet('pageLabel', 'Schichtplan')
@@ -83,6 +144,7 @@ class AiAssistTest extends TestCase
         $this->assertStringContainsString('aria-label="AI-Assist öffnen', $html);
         $styles = file_get_contents(resource_path('css/ai-assist.css'));
         $this->assertStringContainsString('background: radial-gradient(circle at center', $styles);
+        $this->assertStringContainsString('.rt-ai-assist .rt-ai-assist__stage { position: fixed !important;', $styles);
         foreach (['rt-ai-assist__launcher', 'AI-Assist (Strg J)', 'data-assistant-cloud-slot="launcher"', 'data-assistant-cloud-slot="header"',
             'Besetzung für den Zeitraum vorschlagen', 'Was steht als Nächstes an?', 'role="tablist"', 'Disposition · AI-Eingang aus'] as $needle) {
             $this->assertStringContainsString($needle, $html);
@@ -91,6 +153,37 @@ class AiAssistTest extends TestCase
         $this->assertStringNotContainsString('wire:click="saveSettings"', $html);
         $this->assertStringContainsString('Ändern nur durch die Systemverwaltung', $html);
         $this->assertSame(0, ShiftAssignment::count());
+    }
+
+    public function test_launcher_stage_layout_overrides_dropdown_wrapper_utilities(): void
+    {
+        $styles = file_get_contents(resource_path('css/ai-assist.css'));
+
+        $this->assertStringContainsString('.rt-ai-assist .rt-ai-assist__stage { position: fixed !important;', $styles);
+        $this->assertStringContainsString('bottom: max(var(--ai-assist-launcher-bottom, 88px)', $styles);
+        $this->assertStringContainsString('z-index: 24; display: grid !important;', $styles);
+    }
+
+    public function test_launcher_dispatches_to_its_owner_and_panel_has_no_static_hidden_style(): void
+    {
+        $html = $this->assist()->html();
+
+        $this->assertStringContainsString('x-on:click.stop="$dispatch(\'railtime-assistant-open\')"', $html);
+        $this->assertSame(1, preg_match('/<section\b(?=[^>]*class="[^"]*rt-ai-assist__panel")[^>]*>/s', $html, $panel));
+        $this->assertDoesNotMatchRegularExpression('/style\s*=\s*(["\'])display:\s*none\1/i', $panel[0]);
+    }
+
+    public function test_opening_assistant_closes_hint_dropdown_and_hint_has_opaque_theme_surface(): void
+    {
+        $html = $this->assist()->html();
+        $styles = file_get_contents(resource_path('css/ai-assist.css'));
+
+        $this->assertStringContainsString('x-on:railtime-assistant-open.window="close()"', $html);
+        $this->assertStringNotContainsString('!bg-transparent', $html);
+        $this->assertStringNotContainsString('!border-0', $html);
+        $this->assertStringContainsString('background-color: var(--ai-bg, var(--rt-shell-surface-solid, #fff))', $styles);
+        $this->assertStringContainsString('.rt-ai-assist__hint-dropdown.rt-motion-pop-leave { transition: none !important; }', $styles);
+        $this->assertStringContainsString("body[data-mode='dark'] .rt-viewport-dropdown .rt-ai-assist__orb-hint", $styles);
     }
 
     public function test_period_action_builds_a_real_proposal_and_apply_assigns_requested_with_undo(): void

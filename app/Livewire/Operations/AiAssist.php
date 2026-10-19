@@ -5,6 +5,10 @@ namespace App\Livewire\Operations;
 use App\Models\AiIntake;
 use App\Models\Customer;
 use App\Models\User;
+use App\Services\Ai\AssistantSpeechException;
+use App\Services\Ai\AssistantSpeechRouter;
+use App\Services\Ai\Attachments\AssistantAttachmentException;
+use App\Services\Ai\Attachments\AssistantAttachmentProcessor;
 use App\Services\Operations\AiAssistService;
 use App\Support\Operations\AiDispositionSettings;
 use App\Support\Operations\AiIntakeSchema;
@@ -12,13 +16,17 @@ use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsPages;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Component;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
+use Livewire\WithFileUploads;
 use Symfony\Component\HttpKernel\Exception\HttpException;
+use Throwable;
 
 /**
  * AI-Assist: übergreifender Disposition-Assistent (Chat, Eingänge, Aktionen, Aktivitäten) im
@@ -27,9 +35,17 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
  */
 class AiAssist extends Component
 {
+    use WithFileUploads;
+
     private const SESSION = 'operations.ai_assist.messages';
 
     private const MAX_MESSAGES = 24;
+
+    public string $prompt = '';
+
+    public array $uploads = [];
+
+    public $audioUpload = null;
 
     #[Locked]
     public string $page = 'other';
@@ -131,6 +147,9 @@ class AiAssist extends Component
     {
         $this->actor();
         abort_unless(in_array($tab, ['chat', 'intake', 'actions', 'activity'], true), 422);
+        if ($this->tab === 'chat' && $tab !== 'chat') {
+            $this->dispatch('rt-ai-assist-composer-hidden');
+        }
         if ($tab === 'intake') {
             OperationsAccess::authorize($this->actor(), 'operations.inquiries.manage');
             AiIntakeSchema::requireReady();
@@ -150,6 +169,8 @@ class AiAssist extends Component
         abort_unless($lock->get(), 409, 'Der Assistent bearbeitet gerade eine Aktion. Bitte kurz warten.');
         try {
             $this->runAction($action, $actor);
+            $this->prompt = '';
+            $this->dispatch('ai-intake-composer-submitted', componentId: $this->getId());
         } finally {
             $lock->release();
         }
@@ -182,18 +203,179 @@ class AiAssist extends Component
 
     private function askText(string $text, User $actor): void
     {
-        $text = trim(mb_substr($text, 0, 500));
-        if ($text === '') {
+        $this->answerText(trim(mb_substr($text, 0, 500)), $actor);
+    }
+
+    /** Accept a chat question with the same local attachments and speech input as AI-Annahme. */
+    public function submitChat(): void
+    {
+        $actor = $this->actor();
+        $lock = Cache::lock('operations:assist:'.session()->getId().':'.$actor->id, 60);
+        abort_unless($lock->get(), 409, 'Der Assistent bearbeitet gerade eine Aktion. Bitte kurz warten.');
+        try {
+            $this->resetValidation(['prompt', 'uploads', 'uploads.*', 'audioUpload']);
+            $hasAttachment = $this->uploads !== [] || $this->audioUpload !== null;
+            $this->validate([
+                'prompt' => [$hasAttachment ? 'nullable' : 'required', 'string', 'max:500'],
+                'uploads' => ['array', 'max:3'],
+                'uploads.*' => ['file', 'max:10240'],
+                'audioUpload' => ['nullable', 'file', 'max:8192'],
+            ]);
+            if ($this->uploads !== []) {
+                app(AssistantAttachmentProcessor::class)->validate($this->uploads);
+            }
+
+            $text = trim($this->prompt);
+            if ($this->audioUpload) {
+                $transcription = app(AssistantSpeechRouter::class)->transcribe($this->audioUpload, 'de');
+                $transcript = trim((string) ($transcription['text'] ?? ''));
+                if ($transcript === '' || ! mb_check_encoding($transcript, 'UTF-8')) {
+                    throw ValidationException::withMessages(['audioUpload' => 'Die Sprachaufnahme enthielt keinen verwendbaren Text. Bitte erneut aufnehmen.']);
+                }
+                $text = trim($text.($text === '' ? '' : "\n").$transcript);
+            }
+            if (mb_strlen($text) > 500) {
+                throw ValidationException::withMessages(['prompt' => 'Die Nachricht darf höchstens 500 Zeichen enthalten. Bitte kürzen.']);
+            }
+            if ($text === '' && $this->uploads === []) {
+                throw ValidationException::withMessages(['prompt' => 'Bitte eine Frage eingeben oder eine Datei anhängen.']);
+            }
+
+            $attachmentMetadata = array_map(
+                static fn ($file): array => [
+                    'name' => $file->getClientOriginalName(),
+                    'size' => (int) $file->getSize(),
+                ],
+                $this->uploads,
+            );
+            if ($this->audioUpload instanceof TemporaryUploadedFile) {
+                $attachmentMetadata[] = [
+                    'name' => $this->audioUpload->getClientOriginalName(),
+                    'size' => (int) $this->audioUpload->getSize(),
+                    'audio' => true,
+                ];
+            }
+            $this->answerText($text, $actor, $attachmentMetadata);
+            $this->prompt = '';
+            $this->discardChatUploads();
+            $this->dispatch('ai-intake-composer-submitted', componentId: $this->getId());
+        } catch (AssistantAttachmentException $error) {
+            $this->addError('uploads', $error->userMessage);
+        } catch (AssistantSpeechException $error) {
+            $this->addError('audioUpload', 'Die Sprachaufnahme konnte nicht verarbeitet werden. Bitte erneut versuchen oder Text eingeben.');
+        } catch (Throwable $error) {
+            if ($error instanceof ValidationException) {
+                throw $error;
+            }
+            Log::warning('AI Assist chat attachment processing failed.', [
+                'exception_class' => str_contains($error::class, '@anonymous') ? (get_parent_class($error) ?: Throwable::class) : $error::class,
+                'actor_id' => $actor->id,
+            ]);
+            $this->addError('assistant', 'Die Nachricht konnte gerade nicht verarbeitet werden. Bitte erneut versuchen.');
+        } finally {
+            $lock->release();
+        }
+    }
+
+    public function updatedUploads(): void
+    {
+        $this->actor();
+        $this->resetValidation(['uploads', 'uploads.*']);
+        $this->validate(['uploads' => ['array', 'max:3'], 'uploads.*' => ['file', 'max:10240']]);
+        try {
+            app(AssistantAttachmentProcessor::class)->validate($this->uploads);
+        } catch (AssistantAttachmentException $error) {
+            $this->addError('uploads', $error->userMessage);
+        }
+    }
+
+    public function updatedAudioUpload(): void
+    {
+        $this->actor();
+        $this->resetValidation('audioUpload');
+        $this->validate(['audioUpload' => ['nullable', 'file', 'max:8192']]);
+    }
+
+    public function removeUpload(int $index): void
+    {
+        $this->actor();
+        if (! isset($this->uploads[$index])) {
             return;
+        }
+        $file = $this->uploads[$index];
+        if (! $file instanceof TemporaryUploadedFile || ! $file->delete()) {
+            $this->addError('uploads', 'Die temporäre Datei konnte nicht entfernt werden. Bitte erneut versuchen.');
+
+            return;
+        }
+        unset($this->uploads[$index]);
+        $this->uploads = array_values($this->uploads);
+        $this->resetValidation(['uploads', 'uploads.*']);
+    }
+
+    public function removeAudio(): void
+    {
+        $this->actor();
+        if ($this->audioUpload instanceof TemporaryUploadedFile && ! $this->audioUpload->delete()) {
+            $this->addError('audioUpload', 'Die temporäre Aufnahme konnte nicht entfernt werden. Bitte erneut entfernen.');
+
+            return;
+        }
+        $this->audioUpload = null;
+        $this->resetValidation('audioUpload');
+        $this->dispatch('ai-intake-composer-audio-removed', componentId: $this->getId());
+    }
+
+    private function answerText(string $text, User $actor, array $attachments = []): void
+    {
+        $emptyQuestion = $text === '';
+        if ($text === '') {
+            if ($attachments === []) {
+                return;
+            }
+            $text = 'Datei angehängt';
         }
         $this->consumeAssistRate($actor);
         $service = app(AiAssistService::class);
         $this->loaded = true;
         $this->setTab('chat');
-        $this->push(['role' => 'user', 'text' => $text]);
-        $action = $service->route($text);
+        $requestedAction = null;
+        if (preg_match('/^\/([a-z][a-z0-9-]*)$/i', $text, $match)) {
+            $candidate = strtolower($match[1]);
+            if (in_array($candidate, $service->permitted($actor), true)) {
+                $requestedAction = $candidate;
+            }
+        }
+        $this->push([
+            'role' => 'user',
+            'text' => $requestedAction ? $service->title($requestedAction) : $text,
+            'attachments' => $attachments,
+        ]);
+        if ($attachments !== [] && $emptyQuestion) {
+            $this->push(['role' => 'assistant', 'action' => null, 'lead' => 'Dieser AI-Assist beantwortet Fragen anhand der aktuellen Dispositionsdaten. Er wertet Dateiinhalte nicht aus. Stelle bitte eine konkrete Frage oder nutze AI-Annahme für eine inhaltliche Datei-Prüfung.']);
+
+            return;
+        }
+        $action = $requestedAction ?? $service->route($text);
         $known = $action && in_array($action, $service->permitted($actor), true);
         $this->push(['role' => 'assistant', 'action' => $known ? $action : null] + ($known ? $service->answer($action, $actor, $this->context()) : $service->help()));
+    }
+
+    private function discardChatUploads(): void
+    {
+        $remaining = [];
+        foreach ($this->uploads as $file) {
+            if (! $file instanceof TemporaryUploadedFile || ! $file->delete()) {
+                $remaining[] = $file;
+                $this->addError('uploads', 'Eine temporäre Datei konnte nicht entfernt werden. Bitte erneut entfernen.');
+            }
+        }
+        $this->uploads = $remaining;
+        if ($this->audioUpload instanceof TemporaryUploadedFile && ! $this->audioUpload->delete()) {
+            $this->addError('audioUpload', 'Die temporäre Aufnahme konnte nicht entfernt werden. Bitte erneut entfernen.');
+        } else {
+            $this->audioUpload = null;
+        }
     }
 
     /** Karten-Aktion auf eine eigene Nachricht: apply | undo | dismiss | tab:… */

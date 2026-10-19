@@ -1,4 +1,5 @@
 const TABS = ['chats', 'calls', 'meetings'];
+const LAUNCHER_STACK_OFFSET = 56 + 12;
 
 // Register before Livewire.start(): wire:navigate's delegated click handler must
 // not start a page visit for a link that belongs to the persistent module.
@@ -48,7 +49,10 @@ export function communicationModule() {
             this.$root.setAttribute('data-communication-ready', '');
             this.$watch('tab', () => this.syncVisibility());
             listen(window, 'communication:open', event => this.openIntent(event.detail || {}, event.detail?.mode));
-            listen(window, 'railtime-assistant-opened', () => { if (this.open) this.close(false); });
+            listen(window, 'railtime-assistant-opened', event => {
+                const detail = event.detail || {};
+                if (this.open && (!this.wide || window.innerWidth <= 760 || detail.mobile || !detail.corner || detail.corner === this.corner)) this.close(false);
+            });
             listen(window, 'railtime-sidebar-opened', () => { if (this.open) this.close(false); });
             listen(window, 'communication:call', event => this.requestCall(event.detail?.roomUuid));
             listen(window, 'communication:call-ready', () => {
@@ -101,7 +105,7 @@ export function communicationModule() {
                 clickGuard = null;
             }, true);
             observer = new MutationObserver(() => this.queueLayout());
-            observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'hidden', 'data-open', 'data-pet-open', 'data-sidebar-expanded'] });
+            observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'hidden', 'data-open', 'data-pet-open', 'data-communication-open', 'data-sidebar-expanded'] });
             this.queueLayout();
             this.$nextTick(() => this.routeIntent());
         },
@@ -203,8 +207,9 @@ export function communicationModule() {
             this.open = open;
             this.syncVisibility(); this.queueLayout();
             if (newlyOpen) {
-                window.dispatchEvent(new CustomEvent('railtime-assistant-close'));
-                window.dispatchEvent(new CustomEvent('rt-floating-surface-opened', { detail: { surface: 'communication' } }));
+                const detail = { surface: 'communication', corner: this.corner, mobile: window.innerWidth <= 760 };
+                window.dispatchEvent(new CustomEvent('railtime-assistant-close', { detail }));
+                window.dispatchEvent(new CustomEvent('rt-floating-surface-opened', { detail }));
                 this.$nextTick(() => this.$root.querySelector('[data-comm-tab="'+this.tab+'"]')?.focus({ preventScroll: true }));
             }
         },
@@ -237,19 +242,14 @@ export function communicationModule() {
                     bottom = Math.max(bottom, window.innerHeight - rect.top + 12);
                 }
             }
-            for (const orb of document.querySelectorAll('.rt-ai-assist__launcher,.rt-chatbot__pet-launcher')) {
-                const rect = orb.getBoundingClientRect();
-                const styles = getComputedStyle(orb);
-                if (!rect.width || !rect.height || styles.display === 'none' || styles.visibility === 'hidden' || Number(styles.opacity) === 0 || rect.top >= window.innerHeight || rect.bottom <= 0) continue;
-                bottom = Math.max(bottom, window.innerHeight - rect.top + 12);
-                // Horizontal placement is owned by the shared launcher rail.
-            }
             this.$root.style.setProperty('--comm-launcher-bottom', `${bottom}px`);
             this.$root.style.setProperty('--comm-launcher-right', `${right}px`);
             this.$root.style.setProperty('--comm-launcher-left', `${left}px`);
+            document.documentElement.style.setProperty('--ai-assist-launcher-bottom', `${bottom + LAUNCHER_STACK_OFFSET}px`);
         },
         destroy() {
             this.$root.removeAttribute('data-communication-ready');
+            document.documentElement.style.removeProperty('--ai-assist-launcher-bottom');
             releaseCallLock?.(); releaseCallLock = null; requestedRoom = null;
             this.setMainInert(false); observer?.disconnect();
             if (layoutFrame !== null) cancelAnimationFrame(layoutFrame);

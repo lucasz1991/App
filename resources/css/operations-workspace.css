@@ -142,7 +142,13 @@ a.ops-kpi:hover, a.ops-tile:hover { transform:translateY(-1px); border-color:tra
 .wv-dispatch-map__content--loading { opacity:.45; }
 .wv-dispatch-map__figure { position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:0; min-height:0; margin:0; background:transparent; }
 .wv-dispatch-map__canvas { width:100%; height:var(--dispatch-map-height); }
-.wv-dispatch-map__point { position:absolute!important; transform:translate(-50%, -50%); }
+/*
+ * The shared anchor dropdown starts with Tailwind's `relative inline-flex`
+ * utility classes.  tailwind.min.css is loaded after this bundle on some
+ * Livewire navigation paths, where `.relative { position:relative!important }`
+ * would otherwise win and put map pins back into the inline flow.
+ */
+.rt-germany-map__stage > .wv-dispatch-map__point.relative { position:absolute!important; display:block!important; transform:translate(-50%, -50%); }
 .wv-dispatch-map__marker { display:inline-flex; align-items:center; justify-content:center; gap:1px; width:24px; height:24px; padding:0; border:0; border-radius:50%; background:color-mix(in srgb, var(--ops-signal) 12%, transparent); cursor:pointer; }
 .wv-dispatch-map__marker:hover, .wv-dispatch-map__marker[aria-expanded="true"] { background:color-mix(in srgb, var(--ops-signal) 23%, transparent); }
 .wv-dispatch-map__marker:focus-visible { outline:2px solid var(--ops-signal); outline-offset:2px; }

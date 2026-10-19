@@ -19,18 +19,55 @@ window.rtFloatingWindow = (bindings, panel) => {
         setMode: value => Alpine.evaluate(panel, bindings.mode+' = rtWindowValue; '+bindings.layout, {scope:{rtWindowValue:value}}),
         setCorner: value => Alpine.evaluate(panel, bindings.corner+' = rtWindowValue', {scope:{rtWindowValue:value}}),
     } : bindings;
-    let animation = null, timer = null, revision = 0, pointer = null;
+    let animation = null, timer = null, revision = 0, pointer = null, lastLauncherRect = null;
     let settled = null, pending = null, previousLayout = '', previousOpen = false, disposed = false;
     let media = null, reduceMotion = null;
     const easing = 'cubic-bezier(.22,.8,.25,1)';
     const rectFrame = r => ({left: r.left+'px', top: r.top+'px', width: r.width+'px', height: r.height+'px'});
     const sample = () => ({rect: panel.getBoundingClientRect(), opacity: Number(getComputedStyle(panel).opacity)});
+    const measureLauncher = launcher => {
+        let rect = launcher?.getBoundingClientRect();
+        if (rect?.width && rect?.height) return rect;
+
+        const changed = [];
+        try {
+            for (let element = launcher; element && element !== document.body.parentElement; element = element.parentElement) {
+                if (getComputedStyle(element).display !== 'none') continue;
+                changed.push({
+                    element,
+                    display: element.style.getPropertyValue('display'),
+                    priority: element.style.getPropertyPriority('display'),
+                });
+                element.style.setProperty('display', element === launcher ? 'inline-flex' : 'block', 'important');
+            }
+            rect = launcher?.getBoundingClientRect();
+        } finally {
+            changed.reverse().forEach(({element, display, priority}) => {
+                if (display) element.style.setProperty('display', display, priority);
+                else element.style.removeProperty('display');
+            });
+        }
+        return rect;
+    };
+    const launcherRect = () => {
+        if (!panel.id) return null;
+        const launchers = Array.from(document.querySelectorAll('[data-rt-window-launcher-for],button[aria-controls],a[aria-controls],[role="button"][aria-controls]'));
+        const launcher = launchers.find(element => element.getAttribute('data-rt-window-launcher-for') === panel.id)
+            || launchers.find(element => element.getAttribute('aria-controls')?.split(/\s+/).includes(panel.id));
+        const rect = measureLauncher(launcher);
+        if (rect?.width && rect?.height) {
+            lastLauncherRect = {left:rect.left, top:rect.top, width:rect.width, height:rect.height};
+        }
+        return lastLauncherRect;
+    };
     return {
         windowVisible: false, windowMotion: 'idle', windowDragging: false, windowDockTarget: null,
         initWindow() {
             media = window.matchMedia('(prefers-reduced-motion: reduce)');
             reduceMotion = () => this.resetWindow();
             media.addEventListener?.('change', reduceMotion);
+            window.addEventListener('resize', launcherRect);
+            window.addEventListener('railtime-launcher-side', launcherRect);
             this.windowVisible = Boolean(state.opened());
             previousOpen = this.windowVisible;
             previousLayout = state.mode()+':'+state.corner();
@@ -42,9 +79,17 @@ window.rtFloatingWindow = (bindings, panel) => {
                 if (visibilityChanged) this.revealWindow(opened);
                 else if (opened && this.windowVisible && layoutChanged) this.layoutWindow();
             });
-            this.$nextTick(() => { if (this.windowVisible) settled = sample(); });
+            this.$nextTick(() => {
+                launcherRect();
+                if (this.windowVisible) settled = sample();
+            });
         },
-        destroyWindow() { disposed = true; this.finishWindowMotion(); this.windowCancelDrag(); media?.removeEventListener?.('change', reduceMotion); },
+        destroyWindow() {
+            disposed = true; this.finishWindowMotion(); this.windowCancelDrag();
+            media?.removeEventListener?.('change', reduceMotion);
+            window.removeEventListener('resize', launcherRect);
+            window.removeEventListener('railtime-launcher-side', launcherRect);
+        },
         canMoveWindow() { return Boolean(state.opened() && state.enabled() && state.mode() === 'mini' && window.innerWidth > 760); },
         windowDockStyle() {
             const c = this.windowDockTarget || state.corner();
@@ -82,7 +127,8 @@ window.rtFloatingWindow = (bindings, panel) => {
         revealWindow(opening) {
             const interrupted = this.windowVisible && this.windowMotion !== 'idle';
             // Sample the rendered box BEFORE cancelling, including a partial resize.
-            const from = interrupted ? sample() : null;
+            const from = interrupted || !opening ? sample() : null;
+            const launcher = launcherRect();
             pending = null;
             this.finishWindowMotion(); this.windowCancelDrag();
             if (!opening && !this.windowVisible) return;
@@ -97,13 +143,20 @@ window.rtFloatingWindow = (bindings, panel) => {
                 const collapsed = {transform:'translateY('+(upper ? -8 : 8)+'px)', opacity:0};
                 const expanded = {transform:'none', opacity:1};
                 const target = panel.getBoundingClientRect();
-                // A reversed close/reopen keeps its current position and size.
-                const frames = from
-                    ? [{...rectFrame(from.rect), transform:'none', opacity:from.opacity},
-                        {...rectFrame(opening ? target : from.rect), ...(opening ? expanded : collapsed)}]
-                    : [opening ? collapsed : expanded, opening ? expanded : collapsed];
+                const start = from || (opening && launcher ? {rect:launcher, opacity:1} : null);
+                const end = !opening && launcher ? launcher : (opening ? target : from?.rect);
+                const useGeometry = Boolean((opening && (launcher || interrupted)) || (!opening && launcher));
+                // Real box geometry makes opening/closing continuous with resize and docking.
+                // Interrupted transitions continue from their currently rendered frame.
+                const frames = useGeometry && start && end
+                    ? [{...rectFrame(start.rect), transform:'none', opacity:start.opacity},
+                        {...rectFrame(end), transform:'none', opacity:opening ? 1 : (launcher ? 1 : 0)}]
+                    : from
+                        ? [{...rectFrame(from.rect), transform:'none', opacity:from.opacity},
+                            {...rectFrame(from.rect), ...(opening ? expanded : collapsed)}]
+                        : [opening ? collapsed : expanded, opening ? expanded : collapsed];
                 this.setWindowMotion(opening ? 'opening' : 'closing');
-                this.playWindow(frames, opening ? 260 : 180, () => {
+                this.playWindow(frames, 300, () => {
                     this.setWindowMotion('idle'); this.windowVisible = opening;
                     if (opening) settled = {rect:target, opacity:1};
                 });

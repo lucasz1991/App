@@ -271,6 +271,7 @@
         <x-ui.floating.launcher
             class="rt-chatbot__pet-launcher"
             x-ref="launcher"
+            data-rt-window-launcher-for="railtime-chatbot-panel"
             x-on:mouseenter="showPetBubble(strings.petHint, 4_500)"
             x-on:focus="showPetBubble(strings.petHint, 4_500)"
             x-on:click="operationsAvailable ? handleAssistantOpen() : handlePetClick()"

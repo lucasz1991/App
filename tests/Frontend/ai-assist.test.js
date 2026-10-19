@@ -14,7 +14,8 @@ afterEach(() => {
 });
 
 function fixture(options = {}) {
-    globalThis.window = { dispatchEvent() {}, innerWidth: 1280, localStorage: { getItem: () => null }, sessionStorage: { getItem: () => '1', setItem() {} } };
+    const events = options.events || [];
+    globalThis.window = { dispatchEvent: event => events.push(event), innerWidth: options.width || 1280, localStorage: { getItem: () => null }, sessionStorage: { getItem: () => '1', setItem() {} } };
     const component = aiAssist(options);
     Object.assign(component, {
         $wire: { load: async () => {}, ask: async () => {}, run: async () => {} },
@@ -69,10 +70,12 @@ test('keyboard: slash navigation wraps, Enter submits the selected action, Ctrl+
 
 test('closing keeps the unsent draft and first opening loads once with retry after failure', async () => {
     const component = fixture();
+    component.mode = 'fullscreen';
     let loads = 0;
     component.$wire.load = async () => { if (++loads === 1) throw new Error('offline'); };
     component.text = 'Ungesendeter Entwurf';
     component.toggle(true);
+    assert.equal(component.mode, 'mini', 'desktop launcher opening always starts in mini mode');
     await flush();
     assert.match(component.callError, /erneut/);
     assert.equal(component.loaded, false);
@@ -87,6 +90,16 @@ test('closing keeps the unsent draft and first opening loads once with retry aft
     await flush();
     assert.equal(loads, 2);
     assert.equal(component.text, 'Ungesendeter Entwurf');
+});
+
+test('opening dispatches the assistant corner and mobile state for surface coordination', () => {
+    const events = [];
+    const component = fixture({ events });
+    component.corner = 'top-left';
+    component.toggle(true, { load: false });
+    const opened = events.find(event => event.type === 'rt-floating-surface-opened');
+    assert.deepEqual(opened.detail, { surface: 'assist', corner: 'top-left', mobile: false });
+    component.toggle(false);
 });
 
 test('busy admission prevents duplicate calls and rejected submit restores its exact draft', async () => {

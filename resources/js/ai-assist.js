@@ -94,6 +94,7 @@ export function aiAssist({ embedded = false } = {}) {
             const next = Boolean(open);
             if (next === this.open) return;
             const opening = next && !this.open;
+            if (opening && window.innerWidth > 760) this.mode = 'mini';
             this.open = next;
             this.syncLayout();
             if (!next) {
@@ -111,8 +112,9 @@ export function aiAssist({ embedded = false } = {}) {
                 }
             });
             if (opening) {
-                window.dispatchEvent(new CustomEvent('rt-floating-surface-opened', { detail: { surface: 'assist' } }));
-                window.dispatchEvent(new CustomEvent('railtime-assistant-opened'));
+                const detail = { surface: 'assist', corner: this.corner, mobile: window.innerWidth <= 760 };
+                window.dispatchEvent(new CustomEvent('rt-floating-surface-opened', { detail }));
+                window.dispatchEvent(new CustomEvent('railtime-assistant-opened', { detail }));
                 if (load) void this.ensureLoaded();
             }
         },

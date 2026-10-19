@@ -8,13 +8,15 @@ const blade = await readFile(new URL('../../resources/views/components/ui/floati
 const code = blade.match(/<script data-rt-floating-window-controller>([\s\S]*?)<\/script>/)[1];
 const launcher = await readFile(new URL('../../resources/views/components/ui/floating/launcher.blade.php', import.meta.url),'utf8');
 const launcherCode = launcher.match(/<script data-rt-floating-launcher-controller>([\s\S]*?)<\/script>/)[1];
+const assistant = await readFile(new URL('../../resources/views/livewire/operations/ai-assist.blade.php', import.meta.url),'utf8');
 
 function fixture({width=1223, reduced=false, animate=true}={}) {
-    const {document, window:dom} = parseHTML('<html><body><section role="dialog"><header><span id="blank"></span><button>Tab</button><div role="dialog" id="settings"></div></header><div id="session"></div></section></body></html>');
-    const panel=document.querySelector('section'), ticks=[], nextTicks=[], watchers=[], animations=[], timers=new Map();
+    const {document, window:dom} = parseHTML('<html><body><button id="launcher" data-rt-window-launcher-for="window">Launch</button><section id="window" role="dialog"><header><span id="blank"></span><button>Tab</button><div role="dialog" id="settings"></div></header><div id="session"></div></section></body></html>');
+    const panel=document.querySelector('section'), launcher=document.querySelector('#launcher'), ticks=[], nextTicks=[], watchers=[], animations=[], timers=new Map();
+    if (typeof launcher.style.getPropertyPriority !== 'function') launcher.style.getPropertyPriority=()=> '';
     let id=0, disposed=0, captured=null, rendered=null;
     const state={open:false,mode:'mini',corner:'bottom-right'};
-    const win={innerWidth:width,innerHeight:1252,matchMedia:()=>({matches:reduced})};
+    const win={innerWidth:width,innerHeight:1252,matchMedia:()=>({matches:reduced}),addEventListener(){},removeEventListener(){}};
     panel.getBoundingClientRect=()=>{
         if(rendered) return rendered.rect;
         const size=state.mode==='mini'?[520,600]:[width-32,1150];
@@ -22,6 +24,7 @@ function fixture({width=1223, reduced=false, animate=true}={}) {
         const y=Number.parseFloat(panel.style.top)||(state.mode==='fullscreen'?86:state.corner.startsWith('top')?78:1252-size[1]-8);
         return {left:x,top:y,width:size[0],height:size[1]};
     };
+    launcher.getBoundingClientRect=()=>launcher.style.display==='none'?{left:0,top:0,width:0,height:0}:launcher.testRect||({left:width-64,top:1180,width:56,height:56});
     panel.setPointerCapture=value=>captured=value;
     panel.hasPointerCapture=value=>captured===value;
     panel.releasePointerCapture=()=>captured=null;
@@ -30,7 +33,7 @@ function fixture({width=1223, reduced=false, animate=true}={}) {
         animations.push(result); return result;
     };
     const context=vm.createContext({window:win,document,queueMicrotask:fn=>ticks.push(fn),
-        getComputedStyle:()=>({getPropertyValue:()=>70,visibility:'visible',transform:'none',opacity:String(rendered?.opacity??1)}),
+        getComputedStyle:element=>({getPropertyValue:()=>70,display:element.style.display||'block',visibility:'visible',transform:'none',opacity:String(rendered?.opacity??1)}),
         setTimeout:fn=>{timers.set(++id,fn);return id;},clearTimeout:key=>timers.delete(key)});
     vm.runInContext(code,context);
     const data={destroy(){disposed++},$watch(fn,callback){watchers.push({fn,callback,last:fn()})},$nextTick:fn=>nextTicks.push(fn)};
@@ -52,19 +55,20 @@ function fixture({width=1223, reduced=false, animate=true}={}) {
         assert.fail('Unbounded window work');
     };
     flush();
-    return {data,state,panel,document,win,animations,flush,
+    return {data,state,panel,launcher,document,win,animations,flush,
         open(value){state.open=value;flush()},
         finish(){animations.at(-1)?.onfinish?.();flush()},
         timers, render: (rect,opacity=1)=>rendered=rect?{rect,opacity}:null,
         disposeCount:()=>disposed,capture:()=>captured};
 }
 
-test('shared opening is compositor-only and never depends on the moving peer launcher',()=>{
+test('opening grows from its launcher into the target window geometry',()=>{
     const f=fixture();f.open(true);
     const a=f.animations.at(-1);
-    assert.equal(a.options.duration,260);
-    assert.deepEqual(Object.keys(a.frames[0]).sort(),['opacity','transform']);
-    assert.equal(a.frames[0].transform,'translateY(8px)');
+    assert.equal(a.options.duration,300);
+    assert.equal(a.frames[0].left,'1159px');assert.equal(a.frames[0].top,'1180px');
+    assert.equal(a.frames[0].width,'56px');assert.equal(a.frames[0].height,'56px');
+    assert.equal(a.frames[1].left,'695px');assert.equal(a.frames[1].width,'520px');
     assert.equal(f.data.windowVisible,true);f.finish();assert.equal(f.data.windowMotion,'idle');
     assert.equal(a.cancelled,1);
 });
@@ -101,9 +105,21 @@ test('opening and choosing fullscreen in the same update starts only one reveal'
     const f=fixture();f.state.mode='fullscreen';f.state.open=true;f.flush({beforePaint:true});
     assert.equal(f.animations.length,1);
     assert.equal(f.data.windowMotion,'opening');
-    assert.deepEqual(Object.keys(f.animations[0].frames[0]).sort(),['opacity','transform']);
+    assert.equal(f.animations[0].frames[0].width,'56px');
+    assert.equal(f.animations[0].frames[1].width,'1191px');
     assert.match(blade,/:hidden="!windowVisible"/);
     assert.doesNotMatch(blade,/x-show="windowVisible"/, 'Alpine x-show delays visibility until another frame');
+});
+
+test('AI-Assist launcher opens through its owner and the window controls visibility',()=>{
+    const launcherMarkup = assistant.match(/<x-ui\.floating\.launcher\b[\s\S]*?<\/x-ui\.floating\.launcher>/)?.[0] || '';
+    const windowMarkup = assistant.match(/<x-ui\.floating\.window\b[\s\S]*?layout-action="syncLayout\(\);">/)?.[0] || '';
+    assert.match(launcherMarkup,/x-on:click\.stop="\$dispatch\('railtime-assistant-open'\)"/);
+    assert.doesNotMatch(launcherMarkup,/x-on:click\.stop="toggle\(\)"/);
+    assert.match(launcherMarkup,/data-rt-window-launcher-for="\{\{ \$panelId \}\}"/);
+    assert.match(assistant,/<x-ui\.dropdown\.anchor-dropdown[\s\S]*?x-on:railtime-assistant-open\.window="close\(\)"/);
+    assert.match(windowMarkup,/<x-ui\.floating\.window\b/);
+    assert.doesNotMatch(windowMarkup,/style=["']display:\s*none/i);
 });
 
 test('reversing a resize continues from its rendered partial box',()=>{
@@ -121,13 +137,48 @@ test('closing during resize and reopening keeps geometry and opacity continuous'
     const f=fixture();f.open(true);f.finish();f.data.resizeWindow();f.flush();
     f.render({left:400,top:350,width:810,height:890},.8);f.open(false);
     const closing=f.animations.at(-1);
-    assert.equal(closing.frames[0].width,'810px');assert.equal(closing.frames[1].width,'810px');
+    assert.equal(closing.frames[0].width,'810px');assert.equal(closing.frames[1].width,'56px');
     assert.equal(closing.frames[0].opacity,.8);
     f.render({left:400,top:354,width:810,height:890},.3);f.open(true);
     const opening=f.animations.at(-1);
     assert.equal(opening.frames[0].top,'354px');assert.equal(opening.frames[0].opacity,.3);
     assert.equal(opening.frames[1].width,'1191px');
     f.render(null);f.finish();assert.equal(f.data.windowVisible,true);
+});
+
+test('closing from fullscreen shrinks back to the launcher button',()=>{
+    const f=fixture();f.open(true);f.finish();f.data.resizeWindow();f.flush();f.finish();
+    assert.equal(f.state.mode,'fullscreen');
+    f.open(false);
+    const closing=f.animations.at(-1);
+    assert.equal(closing.frames[0].width,'1191px');
+    assert.equal(closing.frames[1].left,'1159px');
+    assert.equal(closing.frames[1].width,'56px');
+    assert.equal(closing.frames[1].height,'56px');
+    f.finish();
+    assert.equal(f.data.windowVisible,false);
+});
+
+test('closing from another docked corner returns to the repositioned launcher',()=>{
+    const f=fixture();f.state.corner='top-left';f.open(true);f.finish();
+    f.launcher.testRect={left:8,top:1180,width:56,height:56};
+    f.open(false);
+    const closing=f.animations.at(-1);
+    assert.equal(closing.frames[1].left,'8px');
+    assert.equal(closing.frames[1].top,'1180px');
+    assert.equal(closing.frames[1].width,'56px');
+    f.finish();
+});
+
+test('hidden launcher closing uses its last measured position',()=>{
+    const f=fixture();f.open(true);f.finish();
+    f.launcher.testRect={left:8,top:1180,width:56,height:56};
+    f.launcher.style.setProperty('display','none');
+    f.open(false);
+    const closing=f.animations.at(-1);
+    assert.equal(closing.frames[1].left,'8px');
+    assert.equal(closing.frames[1].top,'1180px');
+    assert.equal(closing.frames[1].width,'56px');
 });
 
 test('the outer dialog can drag while header buttons and nested dialogs cannot',()=>{

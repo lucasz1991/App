@@ -6,10 +6,10 @@
     data-communication-tab="chats"
     data-communication-call="false"
     wire:poll.60s="refreshUnread"
-    x-on:rt-floating-surface-opened.window="if ($event.detail?.surface === 'assist') close(false)"
+    x-on:rt-floating-surface-opened.window="if ($event.detail?.surface === 'assist' && (!wide || window.innerWidth <= 760 || $event.detail?.mobile || !$event.detail?.corner || corner === $event.detail.corner)) close(false)"
 >
     <span hidden data-app-badge-count="{{ $unreadCount }}"></span>
-    <x-ui.floating.launcher class="rt-comm-launcher" x-ref="launcher" x-show="!open" x-cloak
+    <x-ui.floating.launcher class="rt-comm-launcher" x-ref="launcher" data-rt-window-launcher-for="railtime-communication" x-show="!open" x-cloak
         x-on:click="activeCall ? resumeCall() : show('mini')" aria-controls="railtime-communication" ::aria-expanded="open.toString()"
         ::aria-label="activeCall ? 'Laufenden Anruf öffnen' : 'Chats öffnen'" title="Chats und Anrufe öffnen">
         <i class="far" :class="activeCall ? 'fa-phone' : 'fa-comments'" aria-hidden="true"></i>

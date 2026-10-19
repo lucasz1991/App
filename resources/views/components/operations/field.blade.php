@@ -1,6 +1,6 @@
-@props(['label', 'model', 'type' => 'text', 'wide' => false, 'searchModel' => null])
+@props(['label', 'model', 'type' => 'text', 'wide' => false, 'searchModel' => null, 'scope' => null])
 @php
-    $fieldId = 'ops-'.str_replace('.', '-', $model);
+    $fieldId = ($scope ? 'intake-'.$scope.'-' : 'ops-').str_replace('.', '-', $model);
 @endphp
 <div @class(['min-w-0 space-y-1.5', 'ops-full' => $wide])>
     <x-ui.forms.label :for="$fieldId" :value="$label" />

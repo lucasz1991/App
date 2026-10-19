@@ -128,9 +128,13 @@ test('panel centres select four available viewport corners without changing the 
 
 test('communication and assistant surfaces close each other while the call DOM stays mounted', () => {
     const f = fixture(); let assistantClose = 0;
-    f.window.addEventListener('railtime-assistant-close', () => assistantClose++);
+    let closeDetail;
+    f.window.addEventListener('railtime-assistant-close', event => { assistantClose++; closeDetail = event.detail; });
     f.component.show(); f.flush(); f.finish();
     assert.equal(assistantClose, 1); assert.equal(f.component.open, true);
+    assert.deepEqual({ surface: closeDetail.surface, corner: closeDetail.corner, mobile: closeDetail.mobile }, {
+        surface: 'communication', corner: 'bottom-right', mobile: false,
+    });
     const call = f.document.querySelector('#persistent-call');
     f.emit('communication:call-ready'); f.flush(); f.finish();
     f.emit('railtime-assistant-opened'); f.flush();
@@ -145,11 +149,43 @@ test('communication and assistant surfaces close each other while the call DOM s
     f.finish(); f.component.destroy();
 });
 
+test('desktop surfaces only close each other at the same corner while mobile always closes', () => {
+    const f = fixture();
+    const corners = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
+    for (const corner of corners) {
+        f.component.corner = corner;
+        f.component.show(); f.flush(); f.finish();
+        f.emit('railtime-assistant-opened', { corner: corners.find(candidate => candidate !== corner), mobile: false });
+        assert.equal(f.component.open, true, `a different desktop corner keeps communication open from ${corner}`);
+        f.emit('railtime-assistant-opened', { corner, mobile: false });
+        assert.equal(f.component.open, false, `the same desktop corner closes communication at ${corner}`);
+        f.flush(); f.finish();
+    }
+
+    f.component.show(); f.flush(); f.finish();
+    f.emit('railtime-assistant-opened', { corner: 'bottom-right', mobile: true });
+    assert.equal(f.component.open, false, 'mobile closes communication regardless of corner');
+    f.flush(); f.finish(); f.component.destroy();
+});
+
 test('surface-open event is shared by communication and AI Assist without call termination', () => {
-    assert.match(source, /rt-floating-surface-opened[\s\S]*surface: 'communication'/);
-    assert.match(aiAssistSource, /rt-floating-surface-opened[\s\S]*surface: 'assist'/);
-    assert.match(view, /rt-floating-surface-opened\.window[\s\S]*surface === 'assist'/);
-    assert.match(aiAssistView, /rt-floating-surface-opened\.window[\s\S]*surface === 'communication'/);
+    assert.match(source, /const detail = \{ surface: 'communication', corner: this\.corner, mobile: window\.innerWidth <= 760 \}/);
+    assert.match(source, /corner: this\.corner, mobile: window\.innerWidth <= 760/);
+    assert.match(aiAssistSource, /const detail = \{ surface: 'assist', corner: this\.corner, mobile: window\.innerWidth <= 760 \}/);
+    assert.match(view, /rt-floating-surface-opened\.window[\s\S]*surface === 'assist'[\s\S]*corner === \$event\.detail\.corner/);
+    assert.match(aiAssistView, /rt-floating-surface-opened\.window[\s\S]*surface === 'communication'[\s\S]*corner === \$event\.detail\.corner/);
+    assert.match(aiAssistView, /railtime-assistant-close\.window[\s\S]*corner === \$event\.detail\.corner/);
+    assert.match(view, /data-rt-window-launcher-for="railtime-communication"/);
+    assert.match(aiAssistStyles, /\.rt-ai-assist\[data-open='true'\] .rt-ai-assist__stage[\s\S]*pointer-events: none/);
+    assert.match(styles, /body:has\(\.rt-ai-assist\[data-open='true'\] \.rt-ai-assist__panel\[data-window-mode='fullscreen'\]\) \.rt-comm-launcher \{ z-index: -1; pointer-events: none; \}/);
+    assert.match(styles, /transition: bottom 220ms/);
+});
+
+test('communication and AI Assist share the red window frame, header, and tab menu treatment', () => {
+    assert.match(styles, /\.rt-communication,\s*\.rt-ai-assist__panel\s*\{[\s\S]*border: 1px solid color-mix[\s\S]*background: var\(--rt-floating-window-surface\)/);
+    assert.match(styles, /\.rt-comm-head,\s*\.rt-ai-assist__head\s*\{[\s\S]*background: linear-gradient\(112deg, #a81632 0%, #c21f3d 56%, #a81632 100%\)/);
+    assert.match(styles, /\.rt-comm-tabs,\s*\.rt-ai-assist__head \.rt-ai-assist__tabs\s*\{/);
+    assert.match(styles, /\.rt-comm-window-actions button,\s*\.rt-ai-assist__head-actions \.rt-ai-assist__icon-btn\s*\{/);
 });
 
 test('one persistent call DOM and session survive tabs resize close reopen and wire navigation', () => {
@@ -198,17 +234,22 @@ test('history intent uses native authorization entry while preserving an ongoing
     f.component.resumeCall(); f.flush(); assert.equal(f.component.showCall, true); f.component.destroy();
 });
 
-test('launcher clears the visible AI orb and ignores hidden zero or offscreen orbs', () => {
-    const f = fixture(); f.component.measureLayout(); assert.equal(f.root.style.getPropertyValue('--comm-launcher-bottom'), '20px');
-    const orb = f.document.createElement('button'); orb.className = 'rt-chatbot__pet-launcher';
-    orb.testRect = { left: 1340, right: 1404, top: 900, bottom: 964, width: 64, height: 64 }; f.document.body.append(orb);
-    f.component.measureLayout(); assert.equal(f.root.style.getPropertyValue('--comm-launcher-bottom'), '112px');
-    for (const visibility of ['display', 'visibility', 'opacity', 'offscreen']) {
-        orb.testDisplay = visibility === 'display' ? 'none' : 'block'; orb.testVisibility = visibility === 'visibility' ? 'hidden' : 'visible'; orb.testOpacity = visibility === 'opacity' ? '0' : '1';
-        orb.testRect = { left: 1340, right: 1404, top: visibility === 'offscreen' ? 1100 : 900, bottom: visibility === 'offscreen' ? 1164 : 964, width: 64, height: 64 };
-        f.component.measureLayout(); assert.equal(f.root.style.getPropertyValue('--comm-launcher-bottom'), '20px', visibility);
-    }
-    orb.remove(); f.component.measureLayout(); assert.equal(f.root.style.getPropertyValue('--comm-launcher-bottom'), '20px'); f.component.destroy();
+test('chat launcher stays at the bottom while AI Assist occupies the upper stack position', () => {
+    const f = fixture();
+    f.component.measureLayout();
+    assert.equal(f.root.style.getPropertyValue('--comm-launcher-bottom'), '20px');
+    assert.equal(f.document.documentElement.style.getPropertyValue('--ai-assist-launcher-bottom'), '88px');
+
+    const orb = f.document.createElement('button');
+    orb.className = 'rt-ai-assist__launcher';
+    orb.testRect = { left: 1340, right: 1404, top: 900, bottom: 964, width: 64, height: 64 };
+    f.document.body.append(orb);
+    f.component.measureLayout();
+
+    assert.equal(f.root.style.getPropertyValue('--comm-launcher-bottom'), '20px');
+    assert.equal(f.document.documentElement.style.getPropertyValue('--ai-assist-launcher-bottom'), '88px');
+    f.component.destroy();
+    assert.equal(f.document.documentElement.style.getPropertyValue('--ai-assist-launcher-bottom'), undefined);
 });
 
 test('mobile has only closed and fullscreen states and its launcher clears the bottom area menu', () => {
@@ -217,6 +258,7 @@ test('mobile has only closed and fullscreen states and its launcher clears the b
     menu.testRect = { left: 0, top: 788, right: 390, bottom: 844, width: 390, height: 56 };
     f.document.body.append(menu); f.component.measureLayout();
     assert.equal(f.root.style.getPropertyValue('--comm-launcher-bottom'), '68px');
+    assert.equal(f.document.documentElement.style.getPropertyValue('--ai-assist-launcher-bottom'), '136px');
     f.component.show('mini'); f.flush();
     assert.equal(f.component.mode, 'fullscreen'); assert.equal(f.component.open, true);
     assert.equal(f.document.querySelector('#main-content').inert, true);

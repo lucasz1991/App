@@ -55,6 +55,26 @@ class OperationsNumberInputTest extends TestCase
         $this->assertStringContainsString('@paste="acceptDecimalSeparator($event)"', $html);
     }
 
+    public function test_scoped_intake_fields_share_the_operations_field_and_keep_legacy_ids(): void
+    {
+        $source = '<x-operations.field :scope="$scope" label="Beginn" model="proposalForm.demand.starts_at" type="datetime-local" required />';
+        $shared = html_entity_decode(Blade::render($source, ['scope' => 'host-7']), ENT_QUOTES);
+        $legacy = html_entity_decode(Blade::render(str_replace('operations.field', 'operations.intake-field', $source), ['scope' => 'host-7']), ENT_QUOTES);
+
+        foreach ([$shared, $legacy] as $html) {
+            $this->assertStringContainsString('for="intake-host-7-proposalForm-demand-starts_at"', $html);
+            $this->assertStringContainsString('id="intake-host-7-proposalForm-demand-starts_at"', $html);
+            $this->assertStringContainsString('data-rt-date-time-field', $html);
+            $this->assertStringContainsString("entangle('proposalForm.demand.starts_at')", $html);
+            $this->assertStringContainsString('required', $html);
+        }
+
+        $this->assertSame(
+            preg_replace('/\s+/', ' ', trim($shared)),
+            preg_replace('/\s+/', ' ', trim($legacy)),
+        );
+    }
+
     public function test_compact_number_fields_keep_keyboard_and_spinbutton_semantics(): void
     {
         $html = Blade::render('<x-ui.forms.number-input :stepper="false" min="0" max="60" wire:model.live="minutes" />');

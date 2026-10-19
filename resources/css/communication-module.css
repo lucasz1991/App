@@ -69,10 +69,11 @@ body.rt-communication-fullscreen { overflow: hidden; }
 .rt-comm-card { display: flex; align-items: center; gap: 14px; min-width: 0; padding: 18px; border: 1px solid color-mix(in srgb,var(--comm-line) 60%,transparent); border-radius: 14px; margin-bottom: 8px; background: var(--comm-surface); }
 .rt-comm-resume { display: flex; flex: none; align-items: center; gap: 9px; min-height: 38px; padding: 8px 16px; background: #eaf6ee; color: #197448; font-size: 11px; border-bottom: 1px solid #cbe7d5; text-align: left; }
 .rt-comm-call-dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; background: #21a260; }
-.rt-comm-launcher { --rt-floating-line:var(--comm-line); --rt-floating-surface:var(--comm-surface); position: fixed; bottom: max(var(--comm-launcher-bottom,20px),env(safe-area-inset-bottom)); right: max(var(--comm-launcher-right,16px),env(safe-area-inset-right)); z-index: 24; color: #e4002b; font-size: 21px; transition: opacity 160ms ease,visibility 160ms ease; }
+.rt-comm-launcher { --rt-floating-line:var(--comm-line); --rt-floating-surface:var(--comm-surface); position: fixed; bottom: max(var(--comm-launcher-bottom,20px),env(safe-area-inset-bottom)); right: max(var(--comm-launcher-right,16px),env(safe-area-inset-right)); z-index: 24; color: #e4002b; font-size: 21px; transition: bottom 220ms cubic-bezier(.22,.8,.25,1), left 220ms cubic-bezier(.22,.8,.25,1), right 220ms cubic-bezier(.22,.8,.25,1), opacity 160ms ease,visibility 160ms ease; }
 html[data-rt-launcher-side='left'] .rt-comm-launcher { left: max(var(--comm-launcher-left,16px),env(safe-area-inset-left)); right: auto; }
 .rt-comm-launcher .rt-comm-call-dot { position: absolute; right: 6px; bottom: 6px; box-shadow: 0 0 0 3px var(--comm-surface); }
 .rt-comm-badge { position: absolute; top: -6px; right: -6px; display: grid; place-items: center; min-width: 20px; height: 20px; padding: 0 4px; border-radius: 12px; color: white; background: #e4002b; font-size: 10px; font-weight: 700; }
+body:has(.rt-ai-assist[data-open='true'] .rt-ai-assist__panel[data-window-mode='fullscreen']) .rt-comm-launcher { z-index: -1; pointer-events: none; }
 /* Keep the peer launcher available. If both use the same lower corner, move the
    launcher rail beside the open 520px mini surface instead of covering it. */
 @media(min-width:761px) {
@@ -161,6 +162,119 @@ html[data-rt-launcher-side='left'] .rt-comm-launcher { left: max(var(--comm-laun
     .rt-call-window .rt-call-header-actions button { min-width: 36px !important; height: 40px !important; padding: 8px !important; }
     .rt-call-window .rt-call-header-actions button span:not(.sr-only) { display: none; }
     .rt-call-window .rt-call-panel { position: absolute !important; inset: 0 0 0 auto; z-index: 30; width: min(360px,100%) !important; max-width: 100%; }
+}
+
+/* Shared shell chrome for communication and the operational assistant. */
+.rt-communication,
+.rt-ai-assist__panel {
+    --rt-floating-window-surface: var(--rt-shell-surface-solid, #fff);
+    border: 1px solid color-mix(in srgb, #bc1e3b 68%, var(--rt-shell-border, #d6dee7));
+    border-radius: 20px;
+    background: var(--rt-floating-window-surface);
+    box-shadow: 0 20px 52px -26px rgb(120 18 39 / 34%), 0 3px 12px rgb(34 25 29 / 10%);
+}
+.rt-comm-head,
+.rt-ai-assist__head {
+    min-height: 66px;
+    gap: 10px;
+    padding: 8px 14px;
+    border-bottom: 1px solid rgb(255 255 255 / 22%);
+    background: linear-gradient(112deg, #a81632 0%, #c21f3d 56%, #a81632 100%);
+    color: #fff;
+}
+.rt-comm-tabs,
+.rt-ai-assist__head .rt-ai-assist__tabs {
+    flex: none;
+    gap: 2px;
+    margin: 0;
+    padding: 2px;
+    border: 1px solid rgb(255 255 255 / 28%);
+    border-radius: 12px;
+    background: rgb(70 0 14 / 18%);
+}
+.rt-comm-tabs button,
+.rt-ai-assist__head .rt-ai-assist__tabs .rt-assistant-nav__tab {
+    width: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    height: 44px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: rgb(255 255 255 / 82%);
+    transition: background-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+.rt-comm-tabs button[aria-selected='true'],
+.rt-ai-assist__head .rt-ai-assist__tabs .rt-assistant-nav__tab[aria-selected='true'] {
+    color: #a81632;
+    background: #fff;
+    box-shadow: 0 2px 8px rgb(62 0 14 / 18%);
+}
+.rt-comm-tabs button:hover:not([aria-selected='true']),
+.rt-ai-assist__head .rt-ai-assist__tabs .rt-assistant-nav__tab:hover:not(:disabled):not([aria-selected='true']) {
+    color: #fff;
+    background: rgb(255 255 255 / 15%);
+}
+.rt-comm-window-actions button,
+.rt-ai-assist__head-actions .rt-ai-assist__icon-btn {
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+    min-height: 40px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    background: transparent;
+    color: rgb(255 255 255 / 92%);
+    transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+.rt-comm-window-actions button:hover,
+.rt-ai-assist__head-actions .rt-ai-assist__icon-btn:hover:not(:disabled),
+.rt-ai-assist__head-actions .rt-ai-assist__icon-btn[aria-expanded='true'] {
+    border-color: rgb(255 255 255 / 30%);
+    background: rgb(255 255 255 / 15%);
+    color: #fff;
+}
+.rt-communication :is(button, a):focus-visible,
+.rt-ai-assist__panel :is(button, a):focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+}
+@media (min-width: 761px) {
+    .rt-communication[data-mode='mini'],
+    .rt-ai-assist__panel[data-window-mode='mini'] { border-radius: 18px; }
+    .rt-communication[data-mode='mini'] .rt-comm-head,
+    .rt-ai-assist__panel[data-window-mode='mini'] .rt-ai-assist__head {
+        min-height: 56px;
+        gap: 8px;
+        padding: 6px 10px;
+    }
+    .rt-communication[data-mode='mini'] .rt-comm-tabs button,
+    .rt-ai-assist__panel[data-window-mode='mini'] .rt-ai-assist__tabs .rt-assistant-nav__tab {
+        width: 38px;
+        min-width: 38px;
+        min-height: 38px;
+        height: 38px;
+    }
+    .rt-communication[data-mode='mini'] .rt-comm-window-actions button,
+    .rt-ai-assist__panel[data-window-mode='mini'] .rt-ai-assist__head-actions .rt-ai-assist__icon-btn {
+        width: 34px;
+        min-width: 34px;
+        min-height: 34px;
+        height: 34px;
+        border-radius: 8px;
+    }
+}
+@media (max-width: 760px) {
+    .rt-communication[data-mode],
+    .rt-ai-assist__panel { border: 1px solid color-mix(in srgb, #bc1e3b 68%, var(--rt-shell-border, #d6dee7)); }
+    .rt-comm-head,
+    .rt-ai-assist__head { min-height: 62px; gap: 6px; padding: 6px 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .rt-comm-tabs button,
+    .rt-ai-assist__head .rt-ai-assist__tabs .rt-assistant-nav__tab,
+    .rt-comm-window-actions button,
+    .rt-ai-assist__head-actions .rt-ai-assist__icon-btn { transition: none; }
 }
 @media(prefers-reduced-motion:reduce) {
     .rt-communication[data-motion] { animation: none !important; }

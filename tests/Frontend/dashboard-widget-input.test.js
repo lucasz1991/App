@@ -10,11 +10,20 @@ assert.ok(start >= 0 && end > start, 'Actual dashboard controller source must be
 const controllerSource = source.slice(start, end);
 
 const mapBlade = readFileSync(new URL('../../resources/views/dashboard/widgets/operations_dispatch_map.blade.php', import.meta.url), 'utf8');
+const mapStyles = readFileSync(new URL('../../resources/css/operations-workspace.css', import.meta.url), 'utf8');
 const pointArrowDown = mapBlade.match(/data-dispatch-marker="[^"]+"[\s\S]*?x-on:keydown\.arrow-down\.prevent\.stop="([^"]+)"/)?.[1];
 assert.ok(pointArrowDown, 'Actual map point ArrowDown expression must be available.');
 const dropdownController = readFileSync(new URL('../../resources/js/anchor-dropdown.js', import.meta.url), 'utf8');
 const focusHoverMethod = dropdownController.match(/^    focusHoverPanel\(\) \{([\s\S]*?)^    \},/m)?.[1];
 assert.ok(focusHoverMethod, 'Actual shared dropdown keyboard focus method must be available.');
+
+test('dispatch map pins override the shared relative dropdown utility after Livewire renders', () => {
+    assert.match(mapBlade, /<x-ui\.dropdown\.anchor-dropdown class="wv-dispatch-map__point"/);
+    assert.match(
+        mapStyles,
+        /\.rt-germany-map__stage\s*>\s*\.wv-dispatch-map__point\.relative\s*\{[^}]*position\s*:\s*absolute\s*!important;[^}]*display\s*:\s*block\s*!important;/s,
+    );
+});
 
 function fixture() {
     const { document, window } = parseHTML(`

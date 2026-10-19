@@ -1,14 +1,16 @@
 @php
-    $assistantComposer = ($composerMode ?? 'assistant') === 'assistant';
+    $composerMode = $composerMode ?? 'assistant';
+    $assistantComposer = in_array($composerMode, ['assistant', 'operations-chat'], true);
+    $operationsChatComposer = $composerMode === 'operations-chat';
     $composerField = $assistantComposer ? 'prompt' : 'text';
-    $composerAction = $assistantComposer ? 'submitPrompt' : 'submit';
+    $composerAction = $operationsChatComposer ? 'submitChat' : ($assistantComposer ? 'submitPrompt' : 'submit');
     $composerId = 'intake-composer-'.$this->getId();
-    $composerLimit = $maxCharacters ?? ($assistantComposer ? 2000 : 20000);
+    $composerLimit = $maxCharacters ?? ($operationsChatComposer ? 500 : ($assistantComposer ? 2000 : 20000));
     $fileCount = count($uploads ?? []);
     $composerMaximum = max(1, min(3, (int) ($maxAttachmentCount ?? ($limits['max_attachment_count'] ?? 3))));
 @endphp
 <form class="rt-intake-composer grid min-w-0 gap-2"
-    x-data="aiIntakeComposer($wire, @js(['mode' => $assistantComposer ? 'assistant' : 'capture', 'field' => $composerField, 'action' => $composerAction, 'componentId' => $this->getId(), 'maxFiles' => $composerMaximum]))"
+    x-data="aiIntakeComposer($wire, @js(['mode' => $composerMode, 'field' => $composerField, 'action' => $composerAction, 'componentId' => $this->getId(), 'maxFiles' => $composerMaximum]))"
     x-effect="syncContext()" x-on:submit.prevent.stop="submit()"
     x-on:ai-intake-composer-submitted.window="submitted($event.detail.componentId)"
     x-on:ai-intake-submitted.window="submitted(@js($this->getId()))"
@@ -17,7 +19,7 @@
         <label class="sr-only" for="{{ $composerId }}-contact">Antwortadresse</label>
         <x-ui.forms.input id="{{ $composerId }}-contact" wire:model="contactEmail" type="email" placeholder="Antwortadresse (optional)" />
         <x-ui.forms.input-error for="contactEmail" />
-    @elseif(($overview ?? false) && !$intakeId)
+    @elseif($composerMode === 'assistant' && ($overview ?? false) && !$intakeId)
         <span class="rt-intake-composer__scope text-xs ops-muted">{{ $customerId ? 'Eingänge dieses Kunden' : 'Alle Eingänge' }}</span>
     @endif
     @if($fileCount)
@@ -54,17 +56,23 @@
             x-on:livewire-upload-finish="finishUpload()" x-on:livewire-upload-error="failUpload()" x-on:livewire-upload-cancel="cancelUpload()" />
         <button type="button" class="rt-intake-composer__tool shrink-0 rounded-lg p-2" x-on:click="chooseFiles()" x-bind:disabled="busy || uploadActive || recording || requesting || attachmentCount() >= {{ $composerMaximum }}" title="Dateien anhängen" aria-label="Dateien anhängen"><i class="far fa-paperclip" aria-hidden="true"></i></button>
         <button type="button" class="rt-intake-composer__tool shrink-0 rounded-lg p-2" x-on:click="toggleRecording()" x-bind:disabled="busy || uploadActive || uploading || requesting || !!$wire.audioUpload || attachmentCount() >= {{ $composerMaximum }}" x-bind:aria-pressed="recording.toString()" title="Sprache aufnehmen" aria-label="Sprache aufnehmen"><i class="far fa-microphone" aria-hidden="true"></i></button>
-        <label class="sr-only" for="{{ $composerId }}-prompt">{{ $assistantComposer ? 'Frage oder Prüfhinweis' : 'Anfrage beschreiben' }}</label>
+        <label class="sr-only" for="{{ $composerId }}-prompt">{{ $operationsChatComposer ? 'Nachricht an AI-Assist' : ($assistantComposer ? 'Frage oder Prüfhinweis' : 'Anfrage beschreiben') }}</label>
         <textarea id="{{ $composerId }}-prompt" class="rt-intake-composer__input min-h-10 min-w-0 flex-1 resize-none border-0 bg-transparent px-1 py-2 text-sm focus:ring-0"
-            rows="1" maxlength="{{ $composerLimit }}" wire:model="{{ $composerField }}" x-ref="prompt" x-on:input="updateInput()" x-on:keydown.enter="enter($event)"
-            x-bind:disabled="busy" placeholder="{{ $assistantComposer ? 'Frage oder Hinweis …' : 'Anfrage beschreiben …' }}"
+            rows="1" maxlength="{{ $composerLimit }}" wire:model="{{ $composerField }}" x-ref="prompt"
+            x-on:input="updateInput(); @if($operationsChatComposer) $dispatch('ai-assist-composer-input', { value: $el.value }) @endif"
+            x-on:keydown.enter="enter($event)"
+            x-bind:disabled="busy" placeholder="{{ $operationsChatComposer ? 'Frage stellen oder / für Aktionen' : ($assistantComposer ? 'Frage oder Hinweis …' : 'Anfrage beschreiben …') }}"
+            @if($operationsChatComposer) aria-label="Nachricht an AI-Assist" @endif
             @if(!$assistantComposer) aria-describedby="intake-assistant-help-{{ $this->getId() }}" @endif></textarea>
-        <button type="submit" class="rt-intake-composer__send shrink-0 rounded-lg bg-rt-red p-2 text-white" x-bind:disabled="!canSubmit()" aria-label="{{ $assistantComposer ? 'Frage oder Prüfhinweis senden' : 'Als AI-Eingang erfassen' }}"><i class="far fa-paper-plane" aria-hidden="true"></i></button>
+        <button type="submit" class="rt-intake-composer__send shrink-0 rounded-lg bg-rt-red p-2 text-white" x-bind:disabled="!canSubmit()" aria-label="{{ $operationsChatComposer ? 'Nachricht an AI-Assist senden' : ($assistantComposer ? 'Frage oder Prüfhinweis senden' : 'Als AI-Eingang erfassen') }}"><i class="far fa-paper-plane" aria-hidden="true"></i></button>
     </div>
     @if(!$assistantComposer)<p id="intake-assistant-help-{{ $this->getId() }}" class="text-xs ops-muted" title="Der Eingang wird zur persönlichen Prüfung erfasst; Umschalt+Enter fügt einen Absatz hinzu.">Unverbindlich zur Prüfung erfassen.</p>@endif
     @foreach([$composerField, 'uploads', 'uploads.*', 'audioUpload'] as $errorField)
         @error($errorField)<p class="rt-ai-assist__error text-sm text-rt-red" role="alert">{{ $message }}</p>@enderror
     @endforeach
+    @if($operationsChatComposer)
+        @error('assistant')<p class="rt-ai-assist__error text-sm text-rt-red" role="alert">{{ $message }}</p>@enderror
+    @endif
     <p x-cloak x-show="uploadError || error" x-text="uploadError || error" class="text-sm text-rt-red" role="alert"></p>
-    <p x-cloak x-show="busy" class="text-xs ops-muted" role="status" aria-live="polite">{{ $assistantComposer ? 'Die AI prüft diesen Eingang …' : 'Eingang wird gespeichert …' }}</p>
+    <p x-cloak x-show="busy" class="text-xs ops-muted" role="status" aria-live="polite">{{ $operationsChatComposer ? 'AI-Assist wird aktualisiert …' : ($assistantComposer ? 'Die AI prüft diesen Eingang …' : 'Eingang wird gespeichert …') }}</p>
 </form>

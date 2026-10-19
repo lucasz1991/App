@@ -104,6 +104,24 @@ test('configured capture count includes recorded audio and requires no question 
     const f = fixture({ mode: 'capture', maxFiles: 1 }); f.wire.audioUpload = {}; await f.state.chooseFiles(); assert.equal(f.calls.length, 0); f.wire.audioUpload = null; await f.state.chooseFiles(); assert.deepEqual(f.calls, ['picker']); f.state.destroy();
 });
 
+test('operations chat reuses the composer without intake context binding', async () => {
+    const f = fixture({ mode: 'operations-chat', action: 'submitChat' }, { wire: { async submitChat() { f.calls.push('chat-submit'); } } });
+    await f.state.chooseFiles();
+    assert.deepEqual(f.calls, ['picker']);
+    f.state.updateInput();
+    await f.state.submit();
+    assert.deepEqual(f.calls, ['picker', 'chat-submit']);
+    f.state.destroy();
+});
+
+test('recorder uses the configured audio upload field', async () => {
+    const f = fixture({ audioField: 'voiceUpload' });
+    await f.state.start();
+    f.state.stop();
+    assert.equal(f.uploads[0].name, 'voiceUpload');
+    f.state.destroy();
+});
+
 test('successful matching submission clears previews, other component event is ignored', () => {
     const f = fixture(); f.state.previewAudio(new File(['a'], 'voice.wav')); f.state.submitted('other'); assert.ok(f.state.audioPreview); f.state.submitted('fixture'); assert.equal(f.state.audioPreview, ''); f.state.destroy();
 });

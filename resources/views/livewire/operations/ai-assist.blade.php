@@ -22,8 +22,10 @@
 <div class="rt-ai-assist" x-data="rtAiAssist" :data-open="open ? 'true' : 'false'" data-open="false" data-intake-open="{{ $intakeRequested ? 'true' : 'false' }}"
     data-hints="{{ json_encode($hints, JSON_UNESCAPED_UNICODE) }}" data-actions="{{ json_encode($allActions, JSON_UNESCAPED_UNICODE) }}"
     x-on:keydown.window="shortcut($event)" x-on:keydown.escape="escape($event)" x-on:railtime-assistant-open.window="toggle(true)"
-    x-on:railtime-assistant-close.window="toggle(false)"
-    x-on:rt-floating-surface-opened.window="if ($event.detail?.surface === 'communication') toggle(false)"
+    x-on:railtime-assistant-close.window="if (!wide || window.innerWidth <= 760 || $event.detail?.mobile || !$event.detail?.corner || corner === $event.detail.corner) toggle(false)"
+    x-on:rt-floating-surface-opened.window="if ($event.detail?.surface === 'communication' && (!wide || window.innerWidth <= 760 || $event.detail?.mobile || !$event.detail?.corner || corner === $event.detail.corner)) toggle(false)"
+    x-on:ai-assist-composer-input.window="text = $event.detail.value; typed()"
+    x-on:ai-intake-composer-submitted.window="if ($event.detail?.componentId === @js($this->getId())) { text = ''; typed() }"
     x-on:railtime-ai-intake-open.window="openIntake($event.detail)"
     x-on:ai-assist-intake-opened.window="if ($event.detail.componentId === @js($this->getId())) toggle(true)" data-ai-assist>
     <div x-data="railtimeAssistantCloud()" :data-state="orbState" x-bind:data-pet-open="open.toString()" data-state="idle">
@@ -31,9 +33,10 @@
             :open-on-hover="true" :hover-open-delay="140" :hover-close-delay="180" dropdown-id="ai-assist-hint-{{ $this->getId() }}"
             layer-group="floating-assistant-hint" trigger-classes="inline-flex pointer-events-auto" content-role="dialog" content-label="AI-Eingang zur Prüfung"
             dropdown-classes="rt-ai-assist__hint-dropdown !rounded-none !shadow-none"
-            content-classes="!overflow-visible !border-0 !bg-transparent !p-0 !shadow-none">
+            content-classes="!overflow-visible !p-0 !shadow-none"
+            x-on:railtime-assistant-open.window="close()">
             <x-slot:trigger>
-            <x-ui.floating.launcher class="rt-ai-assist__launcher" x-ref="launcher" x-on:click.stop="toggle()"
+            <x-ui.floating.launcher class="rt-ai-assist__launcher" x-ref="launcher" data-rt-window-launcher-for="{{ $panelId }}" x-on:click.stop="$dispatch('railtime-assistant-open')"
                 x-on:focus="if ($el.matches(':focus-visible') && prefs.proactive && hints.length && !$event.relatedTarget?.closest('[data-rt-dropdown-owner]')) openDropdown(false)"
                 ::aria-expanded="open ? 'true' : 'false'" aria-expanded="false" aria-controls="{{ $panelId }}"
                 aria-label="AI-Assist öffnen{{ $reviewCount ? ' · '.$reviewCount.' AI-Eingänge zur Prüfung' : '' }}" title="AI-Assist (Strg J)">
@@ -54,7 +57,7 @@
 
         <x-ui.floating.window class="rt-ai-assist__panel" id="{{ $panelId }}" x-ref="panel" role="dialog" ::aria-modal="mode === 'fullscreen' ? 'true' : 'false'"
             x-bind:data-window-mode="mode" x-bind:data-corner="corner" aria-label="AI-Assist"
-            x-trap.inert.noscroll="open && mode === 'fullscreen'" style="display: none"
+            x-trap.inert.noscroll="open && mode === 'fullscreen'"
             layout-action="syncLayout();">
             <x-slot:header class="rt-ai-assist__head rt-assistant-header" data-assistant-header>
                 <x-operations.assistant-navigation class="rt-ai-assist__tabs" :tabs="$tabs" :selected="$tab" action="setTab" :id-prefix="$panelId" :controls="$panelId.'-body'" :review-count="$reviewCount" label="AI-Assist" />
@@ -186,7 +189,14 @@
                         @endif
                         @foreach($messages as $message)
                             @if(($message['role'] ?? '') === 'user')
-                                <div class="rt-ai-assist__row rt-ai-assist__row--user" wire:key="ai-assist-message-{{ $message['id'] }}"><div class="rt-ai-assist__msg">{{ $message['text'] }}</div></div>
+                                <div class="rt-ai-assist__row rt-ai-assist__row--user" wire:key="ai-assist-message-{{ $message['id'] }}">
+                                    <div class="rt-ai-assist__msg">
+                                        {{ $message['text'] }}
+                                        @foreach($message['attachments'] ?? [] as $attachment)
+                                            <span class="rt-ai-assist__attachment"><i class="far {{ !empty($attachment['audio']) ? 'fa-microphone' : 'fa-paperclip' }}" aria-hidden="true"></i> {{ $attachment['name'] }}</span>
+                                        @endforeach
+                                    </div>
+                                </div>
                             @else
                                 @php
                                     $card = $message['card'] ?? null;
@@ -315,24 +325,17 @@
                 @endif
             </div>
 
-            @if($tab === 'chat')
-                <form class="rt-ai-assist__composer" x-on:submit.prevent="submit()">
-                    <div class="rt-ai-assist__slash" role="listbox" aria-label="Aktionen" x-show="slash" style="display: none">
-                        <template x-for="(action, index) in slashList" :key="action.key">
-                            <button type="button" role="option" class="rt-ai-assist__slash-item" :aria-selected="index === slashIndex ? 'true' : 'false'" x-on:click="run(action.key)">
-                                <i class="far" :class="action.icon" aria-hidden="true"></i><span x-text="action.title"></span>
-                            </button>
-                        </template>
-                        <p class="rt-ai-assist__slash-empty" x-show="slashList.length === 0">Keine passende Aktion.</p>
-                    </div>
-                    <div class="rt-ai-assist__shell">
-                        <textarea x-ref="input" rows="1" maxlength="500" placeholder="Frage stellen oder / für Aktionen" aria-label="Nachricht an AI-Assist"
-                            x-model="text" x-on:input="typed()" x-on:keydown="keydown($event)" :disabled="busy"></textarea>
-                        <button class="rt-ai-assist__send" type="submit" aria-label="Senden" :disabled="busy || text.trim() === ''"><i class="far fa-paper-plane" aria-hidden="true"></i></button>
-                    </div>
-                    <p class="rt-ai-assist__hint">Vorschläge wirken erst nach deiner Freigabe · <kbd>/</kbd> Aktionen · <kbd>Strg</kbd> <kbd>J</kbd> öffnen</p>
-                </form>
-            @endif
+            <div class="rt-ai-assist__composer" x-show="$wire.tab === 'chat'" x-cloak>
+                <div class="rt-ai-assist__slash" role="listbox" aria-label="Aktionen" x-show="slash" style="display: none">
+                    <template x-for="(action, index) in slashList" :key="action.key">
+                        <button type="button" role="option" class="rt-ai-assist__slash-item" :aria-selected="index === slashIndex ? 'true' : 'false'" x-on:click="run(action.key)">
+                            <i class="far" :class="action.icon" aria-hidden="true"></i><span x-text="action.title"></span>
+                        </button>
+                    </template>
+                    <p class="rt-ai-assist__slash-empty" x-show="slashList.length === 0">Keine passende Aktion.</p>
+                </div>
+                @include('livewire.operations.partials.ai-intake-composer', ['composerMode' => 'operations-chat'])
+            </div>
         </x-ui.floating.window>
     </div>
 </div>

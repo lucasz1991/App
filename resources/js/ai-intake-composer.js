@@ -13,9 +13,9 @@ export function aiIntakeComposer(wire, options = {}, environment = {}) {
     const recorderWire = {
         upload(name, file, success, failure) {
             state.previewAudio(file);
-            wire.upload(name, file, success, failure);
+            wire.upload(options.audioField ?? 'audioUpload', file, success, failure);
         },
-        cancelUpload(name) { wire.cancelUpload?.(name); },
+        cancelUpload(name) { wire.cancelUpload?.(name === 'audioUpload' ? (options.audioField ?? 'audioUpload') : name); },
     };
     const native = aiIntakeRecorder(recorderWire, environment);
     const nativeInit = native.init;
@@ -34,8 +34,9 @@ export function aiIntakeComposer(wire, options = {}, environment = {}) {
         previewName: '',
         wireKey: '',
         sourceKey: '',
-        getFiles() { return wire.uploads ?? []; },
-        attachmentCount() { return this.getFiles().length + (wire.audioUpload ? 1 : 0); },
+        getFiles() { return wire[options.uploadsField ?? 'uploads'] ?? []; },
+        getAudio() { return wire[options.audioField ?? 'audioUpload']; },
+        attachmentCount() { return this.getFiles().length + (this.getAudio() ? 1 : 0); },
         contextKey() {
             return options.mode === 'assistant'
                 ? [wire.intakeId, wire.intakeRevision, wire.sourceRevision, wire.settingsRevision, wire.overviewFingerprint].join(':')
@@ -47,13 +48,15 @@ export function aiIntakeComposer(wire, options = {}, environment = {}) {
             this.sourceKey = [wire.intakeId, wire.sourceRevision, wire.settingsRevision, wire.overviewFingerprint].join(':');
             hidden = () => this.pause();
             target?.addEventListener('ai-intake-panel-hidden', hidden);
+            target?.addEventListener('rt-ai-assist-composer-hidden', hidden);
             this.updateInput();
         },
         syncContext() {
+            if (options.mode !== 'assistant') return;
             const next = this.contextKey();
             if (next !== this.wireKey) {
                 const source = [wire.intakeId, wire.sourceRevision, wire.settingsRevision, wire.overviewFingerprint].join(':');
-                const retained = source === this.sourceKey && !!wire.uploadContext && (this.getFiles().length > 0 || !!wire.audioUpload);
+                const retained = source === this.sourceKey && !!wire.uploadContext && (this.getFiles().length > 0 || !!this.getAudio());
                 this.wireKey = next;
                 this.sourceKey = source;
                 if (retained) this.pause();
@@ -111,10 +114,10 @@ export function aiIntakeComposer(wire, options = {}, environment = {}) {
             wire.cancelUpload?.('audioUpload');
             this.cancelUpload();
             this.filePreviews.splice(pendingPreviewStart).forEach(file => { if (file.url) urls.revokeObjectURL(file.url); });
-            if (!wire.audioUpload) this.clearAudioPreview();
+            if (!this.getAudio()) this.clearAudioPreview();
         },
         async start() {
-            if (this.busy || this.uploadActive || wire.audioUpload || this.attachmentCount() >= (options.maxFiles ?? 3)) return;
+            if (this.busy || this.uploadActive || this.getAudio() || this.attachmentCount() >= (options.maxFiles ?? 3)) return;
             if (await this.bindContext()) await nativeStart.call(this);
         },
         async toggleRecording() { this.recording ? this.stop() : await this.start(); },
@@ -132,17 +135,27 @@ export function aiIntakeComposer(wire, options = {}, environment = {}) {
         async removeAudio() {
             nativeCancel.call(this);
             await wire.removeAudio();
-            if (!destroyed && !wire.audioUpload) this.clearAudioPreview();
+            if (!destroyed && !this.getAudio()) this.clearAudioPreview();
         },
         canSubmit() {
             return !destroyed && !this.busy && !this.uploadActive && !this.uploading && !this.recording && !this.requesting
-                && !wire.contextChanged && (this.hasText || this.getFiles().length > 0 || !!wire.audioUpload);
+                && (options.mode !== 'assistant' || !wire.contextChanged) && (this.hasText || this.getFiles().length > 0 || !!this.getAudio());
         },
         async submit() {
             if (!this.canSubmit()) return;
             this.busy = true;
             const version = generation;
-            try { await wire[options.action ?? 'submitPrompt'](); }
+            try {
+                if (options.mode === 'operations-chat') {
+                    const assistRoot = this.$el?.closest?.('[data-ai-assist]');
+                    const assist = globalThis.Alpine?.$data?.(assistRoot);
+                    if (assist?.slash && this.attachmentCount() === 0) {
+                        await assist.submit();
+                        return;
+                    }
+                }
+                await wire[options.action ?? 'submitPrompt']();
+            }
             finally { if (!destroyed && version === generation) { this.busy = false; this.resize(); } }
         },
         enter(event) {
@@ -193,7 +206,7 @@ export function aiIntakeComposer(wire, options = {}, environment = {}) {
             const pendingAudio = this.uploading;
             nativeCancel.call(this);
             if (this.uploadActive) this.cancelFileUpload();
-            if (pendingAudio && !wire.audioUpload) this.clearAudioPreview();
+            if (pendingAudio && !this.getAudio()) this.clearAudioPreview();
         },
         destroy() {
             destroyed = true;
@@ -201,6 +214,7 @@ export function aiIntakeComposer(wire, options = {}, environment = {}) {
             this.clearFilePreviews();
             this.clearAudioPreview();
             target?.removeEventListener('ai-intake-panel-hidden', hidden);
+            target?.removeEventListener('rt-ai-assist-composer-hidden', hidden);
         },
     };
     return state;
