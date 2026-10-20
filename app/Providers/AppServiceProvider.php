@@ -14,9 +14,11 @@ use App\Support\Calls\CallSettings;
 use App\Support\Database\CachedSchemaBuilder;
 use App\Support\Database\SchemaIntrospectionCache;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
+use App\Support\Mail\SystemMailMarkdown;
 use App\Support\OutlookAddin\OutlookAddinSnapshotRefreshScheduler;
 use App\Support\OutlookAddin\OutlookAddinUserSnapshotStore;
 use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Mail\Markdown;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
@@ -31,6 +33,13 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(CallEgressGateway::class, LiveKitEgressGateway::class);
         $this->app->scoped(PublishedMailDocumentSnapshotStore::class);
+        // Extend the deferred framework binding, so notifications and Markdown
+        // mailables share the same guarded final CSS-inlining path.
+        $this->app->extend(Markdown::class, static fn (Markdown $markdown, $app) => new SystemMailMarkdown($app->make('view'), [
+            'theme' => $app['config']->get('mail.markdown.theme', 'default'),
+            'paths' => $app['config']->get('mail.markdown.paths', []),
+            'extensions' => $app['config']->get('mail.markdown.extensions', []),
+        ]));
         $this->app->scoped(OutlookAddinUserSnapshotStore::class);
         $this->app->scoped(OutlookAddinSnapshotRefreshScheduler::class);
         // Schema-Existenzfragen je Anfrage/Job merken; Schema::connection(...) bleibt ungemerkt.
