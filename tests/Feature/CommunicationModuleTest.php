@@ -142,6 +142,18 @@ class CommunicationModuleTest extends TestCase
             ->dispatch('communication:chat', chatId: $chat->id)->assertForbidden();
     }
 
+    public function test_communication_header_filter_updates_only_to_supported_chat_filters(): void
+    {
+        [$recipient] = $this->chatFixture();
+
+        $component = Livewire::actingAs($recipient)->test(ChatBox::class, ['embedded' => true])
+            ->dispatch('communication:filter', filter: 'groups')
+            ->assertSet('listFilter', 'groups');
+
+        $component->dispatch('communication:filter', filter: 'forged')
+            ->assertSet('listFilter', 'all');
+    }
+
     public function test_embedded_call_chat_reads_only_while_its_actual_panel_is_visible(): void
     {
         [$host, $guest, $room] = $this->roomFixture();

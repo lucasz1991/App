@@ -285,6 +285,20 @@ test('native tabs retain arrow home end and cleanup removes global shell event h
     f.component.destroy(); f.emit('communication:call-ready'); assert.equal(f.component.activeCall, false);
 });
 
+test('chat filter stays in the communication header and dispatches only supported values', () => {
+    const f = fixture();
+    assert.match(view, /dropdown-id="communication-chat-filter"/);
+    assert.doesNotMatch(view, /<select wire:model\.live="listFilter" class="rt-comm-filter"/);
+    f.component.selectChatFilter('groups');
+    assert.equal(f.component.chatFilter, 'groups');
+    assert.equal(f.dispatches.at(-1).target, 'chat-box');
+    assert.equal(f.dispatches.at(-1).name, 'communication:filter');
+    assert.equal(f.dispatches.at(-1).payload.filter, 'groups');
+    f.component.selectChatFilter('forged');
+    assert.equal(f.component.chatFilter, 'groups');
+    f.component.destroy();
+});
+
 
 test('hidden unified conversation never suppresses incoming notifications on desktop', () => {
     const f = fixture();

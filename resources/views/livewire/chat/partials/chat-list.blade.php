@@ -10,9 +10,6 @@
             <label class="rt-comm-search"><i class="far fa-search" aria-hidden="true"></i><span class="sr-only">{{ __('app.search') }}</span>
                 <input type="search" wire:model.live.debounce.300ms="search" placeholder="Gespräche suchen …" autocomplete="off">
             </label>
-            <select wire:model.live="listFilter" class="rt-comm-filter" aria-label="Chats filtern">
-                <option value="all">Alle</option><option value="unread">Ungelesen</option><option value="groups">Gruppen</option>
-            </select>
             <button type="button" wire:click="$set('showNewChat', true)" class="rt-comm-icon" aria-label="{{ __('app.new_chat') }}" title="{{ __('app.new_chat') }}"><i class="far fa-plus" aria-hidden="true"></i></button>
         </div>
     @else

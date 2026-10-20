@@ -43,7 +43,7 @@ export function communicationModule() {
     };
 
     return {
-        open: false, mode: 'mini', corner: 'bottom-right', tab: 'chats',
+        open: false, mode: 'mini', corner: 'bottom-right', tab: 'chats', chatFilter: 'all',
         activeCall: false, showCall: false, showHistory: false, wide: window.innerWidth > 760,
         init() {
             this.$root.setAttribute('data-communication-ready', '');
@@ -111,6 +111,11 @@ export function communicationModule() {
         },
         get canDrag() { return this.open && this.mode === 'mini' && this.wide; },
         dispatchChat(name, payload = {}) { window.Livewire?.dispatchTo('chat-box', name, payload); },
+        selectChatFilter(filter) {
+            if (!['all', 'unread', 'groups'].includes(filter)) return;
+            this.chatFilter = filter;
+            this.dispatchChat('communication:filter', { filter });
+        },
         routeIntent() {
             const entry = document.querySelector('[data-communication-entry]');
             if (entry) this.openIntent({ tab: entry.dataset.tab, chatId: Number(entry.dataset.chatId) || null, roomUuid: entry.dataset.roomUuid || null, historyRoomUuid: entry.dataset.historyRoomUuid || null }, 'fullscreen');

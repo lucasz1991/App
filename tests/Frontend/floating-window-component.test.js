@@ -19,7 +19,7 @@ function fixture({width=1223, reduced=false, animate=true}={}) {
     const win={innerWidth:width,innerHeight:1252,matchMedia:()=>({matches:reduced}),addEventListener(){},removeEventListener(){}};
     panel.getBoundingClientRect=()=>{
         if(rendered) return rendered.rect;
-        const size=state.mode==='mini'?[520,600]:[width-32,1150];
+        const size=state.mode==='mini'?[442,510]:[width-32,1150];
         const x=Number.parseFloat(panel.style.left)||(state.mode==='fullscreen'?16:state.corner.endsWith('left')?8:width-size[0]-8);
         const y=Number.parseFloat(panel.style.top)||(state.mode==='fullscreen'?86:state.corner.startsWith('top')?78:1252-size[1]-8);
         return {left:x,top:y,width:size[0],height:size[1]};
@@ -68,7 +68,7 @@ test('opening grows from its launcher into the target window geometry',()=>{
     assert.equal(a.options.duration,300);
     assert.equal(a.frames[0].left,'1159px');assert.equal(a.frames[0].top,'1180px');
     assert.equal(a.frames[0].width,'56px');assert.equal(a.frames[0].height,'56px');
-    assert.equal(a.frames[1].left,'695px');assert.equal(a.frames[1].width,'520px');
+    assert.equal(a.frames[1].left,'773px');assert.equal(a.frames[1].width,'442px');
     assert.equal(f.data.windowVisible,true);f.finish();assert.equal(f.data.windowMotion,'idle');
     assert.equal(a.cancelled,1);
 });
@@ -86,7 +86,7 @@ test('resize uses real geometry and preserves the selected docking corner',()=>{
     const f=fixture();f.open(true);f.finish();f.data.resizeWindow();f.flush();
     assert.equal(f.state.mode,'fullscreen');
     const a=f.animations.at(-1);
-    assert.equal(a.frames[0].width,'520px');assert.equal(a.frames[1].width,'1191px');
+    assert.equal(a.frames[0].width,'442px');assert.equal(a.frames[1].width,'1191px');
     assert.equal(a.frames[0].transform,'none');
     f.finish();f.data.resizeWindow();f.flush();f.finish();
     assert.equal(f.state.mode,'mini');assert.equal(f.state.corner,'bottom-right');
@@ -97,7 +97,7 @@ test('resize starts before a timer or paint can expose the target box',()=>{
     const count=f.animations.length;
     f.data.resizeWindow();f.flush({beforePaint:true});
     assert.equal(f.animations.length,count+1, 'first resize frame must exist before Alpine nextTick');
-    assert.equal(f.animations.at(-1).frames[0].left,'695px');
+    assert.equal(f.animations.at(-1).frames[0].left,'773px');
     assert.equal(f.animations.at(-1).frames[1].left,'16px');
 });
 
@@ -129,7 +129,7 @@ test('reversing a resize continues from its rendered partial box',()=>{
     f.data.resizeWindow();f.render(null);f.flush({beforePaint:true});
     const a=f.animations.at(-1);
     assert.equal(a.frames[0].left,'400px');assert.equal(a.frames[0].width,'810px');
-    assert.equal(a.frames[0].opacity,.8);assert.equal(a.frames[1].width,'520px');
+    assert.equal(a.frames[0].opacity,.8);assert.equal(a.frames[1].width,'442px');
     stale();assert.equal(f.data.windowMotion,'resizing');f.finish();assert.equal(f.state.mode,'mini');
 });
 

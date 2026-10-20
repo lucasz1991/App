@@ -204,6 +204,14 @@ class ChatBox extends Component
         $this->showNewChat = true;
     }
 
+    #[On('communication:filter')]
+    public function setCommunicationFilter(string $filter = 'all'): void
+    {
+        $this->listFilter = in_array($filter, ['all', 'unread', 'groups'], true)
+            ? $filter
+            : 'all';
+    }
+
     #[On('chat:timeline-refresh')]
     public function refreshTimeline(): void
     {

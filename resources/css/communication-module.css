@@ -75,20 +75,20 @@ html[data-rt-launcher-side='left'] .rt-comm-launcher { left: max(var(--comm-laun
 .rt-comm-badge { position: absolute; top: -6px; right: -6px; display: grid; place-items: center; min-width: 20px; height: 20px; padding: 0 4px; border-radius: 12px; color: white; background: #e4002b; font-size: 10px; font-weight: 700; }
 body:has(.rt-ai-assist[data-open='true'] .rt-ai-assist__panel[data-window-mode='fullscreen']) .rt-comm-launcher { z-index: -1; pointer-events: none; }
 /* Keep the peer launcher available. If both use the same lower corner, move the
-   launcher rail beside the open 520px mini surface instead of covering it. */
+   launcher rail beside the shared mini surface instead of covering it. */
 @media(min-width:761px) {
     html:not([data-rt-launcher-side='left']) body:has(.rt-ai-assist[data-open='true'] .rt-ai-assist__panel[data-window-mode='mini'][data-corner='bottom-right']) .rt-comm-launcher,
     html:not([data-rt-launcher-side='left']) body:has(.rt-chatbot[data-open='true'] .rt-chatbot__panel[data-window-mode='mini'][data-corner='bottom-right']) .rt-comm-launcher,
     html:not([data-rt-launcher-side='left']) body:has([data-communication-host][data-communication-open='true'] .rt-communication[data-mode='mini'][data-corner='bottom-right']) .rt-ai-assist__stage,
     html:not([data-rt-launcher-side='left']) body:has([data-communication-host][data-communication-open='true'] .rt-communication[data-mode='mini'][data-corner='bottom-right']) .rt-chatbot__pet-stage {
-        right: calc(min(520px, calc(100vw - 16px)) + 20px);
+        right: calc(min(var(--rt-floating-mini-width), calc(100vw - 16px)) + 20px);
         bottom: 8px;
     }
     html[data-rt-launcher-side='left'] body:has(.rt-ai-assist[data-open='true'] .rt-ai-assist__panel[data-window-mode='mini'][data-corner='bottom-left']) .rt-comm-launcher,
     html[data-rt-launcher-side='left'] body:has(.rt-chatbot[data-open='true'] .rt-chatbot__panel[data-window-mode='mini'][data-corner='bottom-left']) .rt-comm-launcher,
     html[data-rt-launcher-side='left'] body:has([data-communication-host][data-communication-open='true'] .rt-communication[data-mode='mini'][data-corner='bottom-left']) .rt-ai-assist__stage,
     html[data-rt-launcher-side='left'] body:has([data-communication-host][data-communication-open='true'] .rt-communication[data-mode='mini'][data-corner='bottom-left']) .rt-chatbot__pet-stage {
-        left: calc(min(520px, calc(100vw - 16px)) + 20px);
+        left: calc(min(var(--rt-floating-mini-width), calc(100vw - 16px)) + 20px);
         bottom: 8px;
     }
 }
@@ -123,8 +123,6 @@ body:has(.rt-ai-assist[data-open='true'] .rt-ai-assist__panel[data-window-mode='
 @container communication (max-width:700px) { .rt-comm-details .xl\:grid-cols-\[minmax\(0\,1fr\)_minmax\(20rem\,0\.45fr\)\] { grid-template-columns: minmax(0,1fr) !important; } }
 @media(min-width:761px) {
     .rt-communication[data-mode='mini'] {
-        width: min(520px,calc(100vw - 16px));
-        height: min(600px,calc(100dvh - var(--comm-top) - 16px - var(--comm-bottom)));
         border-radius: 18px;
     }
     .rt-communication[data-mode='mini'] .rt-comm-head { min-height: 56px; gap: 8px; padding: 6px 10px; }

@@ -94,6 +94,12 @@ class AiAssistTest extends TestCase
         $assistStyles = file_get_contents(resource_path('css/ai-assist.css'));
         $this->assertStringContainsString('.rt-ai-assist__composer { position: relative; flex: none; padding: 8px 10px;', $assistStyles);
         $this->assertStringContainsString('.rt-ai-assist__composer .rt-intake-composer__shell { gap: 0; padding: 0; border: 0; border-radius: 0;', $assistStyles);
+        $this->assertStringContainsString('--ai-canvas: #e4e8ee;', $assistStyles);
+        $this->assertStringContainsString('margin-top: 0; border-top: 1px solid var(--ai-border); background: var(--ai-canvas);', $assistStyles);
+        $this->assertStringContainsString('.rt-ai-assist__head .rt-ai-assist__context--header { position: static; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }', $assistStyles);
+        $this->assertStringContainsString(".rt-ai-assist__head .rt-ai-assist__context--header > summary[aria-expanded='true'] { border: 0; background: transparent;", $assistStyles);
+        $this->assertStringNotContainsString('Dateien werden hochgeladen', $html);
+        $this->assertStringNotContainsString('cancelFileUpload()', $html);
     }
 
     public function test_chat_submission_keeps_safe_attachment_metadata_and_answers_the_question(): void

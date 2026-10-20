@@ -2321,8 +2321,6 @@ html.rt-pagebuilder-fullscreen-open .rt-chatbot__panel {
         bottom: calc(8px + var(--rt-assistant-bottom,0px));
         left: auto;
         top: auto;
-        width: min(520px,calc(100vw - 16px));
-        height: min(600px,calc(100dvh - var(--rt-assistant-top,70px) - 16px - var(--rt-assistant-bottom,0px)));
         max-width: none;
         max-height: none;
         border-radius: 18px;

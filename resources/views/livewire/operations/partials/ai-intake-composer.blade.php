@@ -41,13 +41,10 @@
             <audio x-show="audioPreview" x-bind:src="audioPreview || null" controls preload="metadata" class="h-9 w-full" aria-label="Sprachaufnahme vorhören"></audio>
         </div>
     @endif
-    <div class="rt-intake-composer__progress flex items-center gap-2 text-xs" x-cloak x-show="uploadActive" role="progressbar" aria-label="Dateien werden hochgeladen" aria-valuemin="0" aria-valuemax="100" x-bind:aria-valuenow="Math.round(uploadProgress)">
-        <progress max="100" x-bind:value="uploadProgress" class="min-w-0 flex-1"></progress><span x-text="`${Math.round(uploadProgress)} %`"></span><button type="button" x-on:click="cancelFileUpload()" aria-label="Dateiupload abbrechen"><i class="far fa-times" aria-hidden="true"></i></button>
-    </div>
-    <div x-cloak x-show="recording || requesting || uploading" class="flex flex-wrap items-center gap-2 text-xs" role="status" aria-live="polite">
-        <span x-show="requesting">Mikrofonfreigabe ausstehend …</span><span x-show="recording">Aufnahme · <span x-text="seconds"></span> s</span><span x-show="uploading">Aufnahme wird hochgeladen …</span>
+    <div x-cloak x-show="recording || requesting" class="flex flex-wrap items-center gap-2 text-xs" role="status" aria-live="polite">
+        <span x-show="requesting">Mikrofonfreigabe ausstehend …</span><span x-show="recording">Aufnahme · <span x-text="seconds"></span> s</span>
         <button type="button" x-show="recording" x-on:click="stop()" class="rounded-lg border border-rt-border px-2 py-1">Aufnahme übernehmen</button>
-        <button type="button" x-on:click="cancelRecording()" class="rounded-lg border border-rt-border px-2 py-1">Abbrechen</button>
+        <button type="button" x-show="recording || requesting" x-on:click="cancelRecording()" class="rounded-lg border border-rt-border px-2 py-1">Abbrechen</button>
     </div>
     <div class="rt-intake-composer__shell flex min-w-0 items-end gap-1 rounded-xl border border-rt-border bg-rt-surface p-1.5">
         <input id="{{ $composerId }}-files" class="sr-only" type="file" multiple tabindex="-1" x-ref="files" wire:model="uploads"

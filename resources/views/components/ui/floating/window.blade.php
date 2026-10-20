@@ -6,6 +6,15 @@
 ])
 
 @once
+<style data-rt-floating-window-geometry>
+:root { --rt-floating-mini-width: 442px; --rt-floating-mini-height: 510px; }
+@media (min-width: 761px) {
+    .rt-floating-window[data-floating-mode='mini'] {
+        width: min(var(--rt-floating-mini-width), calc(100vw - 16px));
+        height: min(var(--rt-floating-mini-height), calc(100dvh - var(--rt-floating-top, 70px) - 16px - var(--comm-bottom, var(--rt-assistant-bottom, 0px))));
+    }
+}
+</style>
 <script data-rt-floating-window-controller>
 (() => {
 // The component owns all window presentation; feature controllers keep their sessions.
@@ -261,6 +270,7 @@ else document.addEventListener('alpine:init', registerRailTimeWindow, {once:true
         opened: @js($openState), mode: @js($modeState), corner: @js($cornerState), enabled: @js($enabledState), layout: @js($layoutAction)
     }"
     :hidden="!windowVisible" x-cloak
+    :data-floating-mode="({{ $enabledState }}) ? {{ $modeState }} : 'custom'"
     :data-motion="windowMotion" :data-dragging="windowDragging.toString()" :data-floating-open="({{ $openState }}).toString()"
     x-on:pointermove.window="windowDragMove($event)" x-on:pointerup.window="windowDragEnd($event)"
     x-on:keydown.escape="if (windowDragging) { windowCancelDrag(); $event.preventDefault(); $event.stopPropagation(); }"
