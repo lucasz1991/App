@@ -181,7 +181,7 @@ final class SystemMailResponsiveDeliveryTest extends TestCase
         self::assertStringContainsString('company@railtime.test', $html);
         self::assertMatchesRegularExpression('/@media[^{}]*max-width:\s*860px/i', $html);
         self::assertMatchesRegularExpression('/\.rt-delivery-wide-column[^{}]*\{[^}]*display:\s*block\s*!important/i', $html);
-        $logo = $this->xpath($html)->query('//img[contains(concat(" ",normalize-space(@class)," ")," rt-logo ")]')->item(0);
+        $logo = $this->xpath($html)->query('//img[contains(concat(" ",normalize-space(@class)," ")," rt-system-delivery-logo ")]')->item(0);
         self::assertInstanceOf(DOMElement::class, $logo);
         self::assertMatchesRegularExpression('/(?:^|;)\s*width:\s*100%/', $logo->getAttribute('style'));
         self::assertMatchesRegularExpression('/(?:^|;)\s*max-width:\s*180px/', $logo->getAttribute('style'));

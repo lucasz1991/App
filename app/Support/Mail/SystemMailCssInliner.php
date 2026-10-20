@@ -27,15 +27,24 @@ final class SystemMailCssInliner extends CssToInlineStyles
                 // Mail clients may discard data-* attributes. These selectors
                 // must still match the actual delivery rows after that cleanup.
                 $html = preg_replace_callback('~<style\b[^>]*>(.*?)</style>~is', static function (array $match): string {
-                    return str_replace(
+                    $style = str_replace(
                         array_map(static fn (string $version): string => 'tr[data-rt-artifact-version="'.$version.'"]', ['v27', 'v28', 'v29']),
                         array_map(static fn (string $version): string => 'tr.rt-system-signature-'.$version, ['v27', 'v28', 'v29']),
                         $match[0],
                     );
+
+                    // Retained legacy media queries must never force a fixed
+                    // width on the bounded ledger logo when later CSS is lost.
+                    return preg_replace_callback('~tr\.rt-system-signature-v(?:27|28|29)\b[^{}]*\{~', static fn (array $selector): string => preg_replace(
+                        '~(\.rt-sign-ledger\b[^,{}]*?)\bimg\.rt-logo(?![\w-])~',
+                        '$1img.rt-system-delivery-logo', $selector[0],
+                    ) ?? $selector[0], $style) ?? $style;
                 }, $html) ?? $html;
             }
 
-            return parent::convert($html, $css);
+            $output = parent::convert($html, $css);
+
+            return $this->systemMail ? $this->splitRuntimeStyles($output) : $output;
         } finally {
             $this->systemMail = false;
         }
@@ -45,6 +54,24 @@ final class SystemMailCssInliner extends CssToInlineStyles
     {
         $document = parent::createDomDocumentFromHtml($html);
         if ($this->systemMail) {
+            foreach ((new DOMXPath($document))->query('//a') as $link) {
+                if (preg_match('~^https?://\S+$~u', trim($link->textContent)) !== 1) {
+                    continue;
+                }
+                // Invitation fallback URLs contain long signed tokens. Without
+                // a real min-content break they widen every enclosing table.
+                $wrap = 'word-break:break-all;overflow-wrap:anywhere;';
+                $link->setAttribute('style', rtrim($link->getAttribute('style'), ';').';'.$wrap);
+                for ($parent = $link->parentNode; $parent instanceof DOMElement; $parent = $parent->parentNode) {
+                    if (strtolower($parent->tagName) === 'p') {
+                        $parent->setAttribute('style', rtrim($parent->getAttribute('style'), ';').';'.$wrap);
+                        break;
+                    }
+                    if (strtolower($parent->tagName) === 'td') {
+                        break;
+                    }
+                }
+            }
             foreach ((new DOMXPath($document))->query('//tr[@data-rt-artifact-version]') as $row) {
                 $version = $row->getAttribute('data-rt-artifact-version');
                 if (in_array($version, ['v27', 'v28', 'v29'], true)) {
@@ -52,6 +79,9 @@ final class SystemMailCssInliner extends CssToInlineStyles
                     $classes = preg_split('/\s+/', trim($row->getAttribute('class'))) ?: [];
                     if (! in_array($class, $classes, true)) {
                         $row->setAttribute('class', trim($row->getAttribute('class').' '.$class));
+                    }
+                    foreach ((new DOMXPath($document))->query('.//table[contains(concat(" ",normalize-space(@class)," ")," rt-sign-ledger ")]//img[contains(concat(" ",normalize-space(@class)," ")," rt-logo ")]', $row) as $logo) {
+                        $logo->setAttribute('class', trim(preg_replace('/(^|\s)rt-logo(?=\s|$)/', '$1rt-system-delivery-logo', $logo->getAttribute('class'))));
                     }
                 }
             }
@@ -74,5 +104,82 @@ final class SystemMailCssInliner extends CssToInlineStyles
         }
 
         return parent::inlineCssOnElement($element, $properties);
+    }
+
+    /** Keep a client retaining only the first media block from losing later rules. */
+    private function splitRuntimeStyles(string $html): string
+    {
+        return preg_replace_callback('~(<style\b[^>]*>)(.*?)(</style>)~is', static function (array $match): string {
+            if (! str_contains($match[2], TrustedEmailCss::RUNTIME_MARKER)) {
+                return $match[0];
+            }
+
+            $css = $match[2];
+            $chunks = [];
+            $start = 0;
+            $depth = 0;
+            $media = false;
+            $quote = null;
+            $comment = false;
+            $length = strlen($css);
+            for ($i = 0; $i < $length; $i++) {
+                $character = $css[$i];
+                $next = $css[$i + 1] ?? '';
+                if ($comment) {
+                    if ($character === '*' && $next === '/') {
+                        $comment = false;
+                        $i++;
+                    }
+
+                    continue;
+                }
+                if ($quote !== null) {
+                    if ($character === '\\') {
+                        $i++;
+                    } elseif ($character === $quote) {
+                        $quote = null;
+                    }
+
+                    continue;
+                }
+                if ($character === '/' && $next === '*') {
+                    $comment = true;
+                    $i++;
+
+                    continue;
+                }
+                if ($character === '"' || $character === "'") {
+                    $quote = $character;
+
+                    continue;
+                }
+                if ($depth === 0 && strcasecmp(substr($css, $i, 6), '@media') === 0
+                    && preg_match('/\s|\(/', $css[$i + 6] ?? '') === 1) {
+                    if (trim(substr($css, $start, $i - $start)) !== '') {
+                        $chunks[] = substr($css, $start, $i - $start);
+                    }
+                    $start = $i;
+                    $media = true;
+                }
+                if ($character === '{') {
+                    $depth++;
+                } elseif ($character === '}') {
+                    $depth--;
+                    if ($media && $depth === 0) {
+                        $chunks[] = substr($css, $start, $i + 1 - $start);
+                        $start = $i + 1;
+                        $media = false;
+                    }
+                }
+            }
+            if ($depth !== 0 || $quote !== null || $comment) {
+                return $match[0];
+            }
+            if (trim(substr($css, $start)) !== '') {
+                $chunks[] = substr($css, $start);
+            }
+
+            return implode("\n", array_map(static fn (string $chunk): string => $match[1].$chunk.$match[3], $chunks));
+        }, $html) ?? $html;
     }
 }
