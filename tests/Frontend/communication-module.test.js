@@ -7,6 +7,7 @@ import { parseHTML } from 'linkedom';
 
 const source = await readFile(new URL('../../resources/js/communication-module.js', import.meta.url), 'utf8');
 const view = await readFile(new URL('../../resources/views/livewire/communication.blade.php', import.meta.url), 'utf8');
+const listView = await readFile(new URL('../../resources/views/livewire/chat/partials/chat-list.blade.php', import.meta.url), 'utf8');
 const styles = await readFile(new URL('../../resources/css/communication-module.css', import.meta.url), 'utf8');
 const chatbotStyles = await readFile(new URL('../../resources/css/chatbot.css', import.meta.url), 'utf8');
 const aiAssistStyles = await readFile(new URL('../../resources/css/ai-assist.css', import.meta.url), 'utf8');
@@ -285,10 +286,11 @@ test('native tabs retain arrow home end and cleanup removes global shell event h
     f.component.destroy(); f.emit('communication:call-ready'); assert.equal(f.component.activeCall, false);
 });
 
-test('chat filter stays in the communication header and dispatches only supported values', () => {
+test('chat filter stays in the search toolbar and dispatches only supported values', () => {
     const f = fixture();
-    assert.match(view, /dropdown-id="communication-chat-filter"/);
-    assert.doesNotMatch(view, /<select wire:model\.live="listFilter" class="rt-comm-filter"/);
+    assert.doesNotMatch(view, /dropdown-id="communication-chat-filter"/);
+    assert.match(listView, /dropdown-id="communication-chat-filter"/);
+    assert.doesNotMatch(listView, /<select wire:model\.live="listFilter" class="rt-comm-filter"/);
     f.component.selectChatFilter('groups');
     assert.equal(f.component.chatFilter, 'groups');
     assert.equal(f.dispatches.at(-1).target, 'chat-box');

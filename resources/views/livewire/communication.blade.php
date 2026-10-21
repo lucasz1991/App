@@ -32,23 +32,8 @@
                     </button>
                 @endforeach
             </div>
-            <span class="rt-comm-drag-handle" aria-hidden="true"></span>
-            <div class="rt-comm-window-actions">
-                <x-ui.dropdown.anchor-dropdown align="right" width="48" :offset="6" dropdown-id="communication-chat-filter" layer-group="communication-controls" content-label="Chats filtern" x-show="tab === 'chats'" x-cloak>
-                    <x-slot:trigger>
-                        <button type="button" class="rt-comm-icon" aria-haspopup="menu" :aria-label="`Chats filtern: ${chatFilter === 'unread' ? 'Ungelesen' : (chatFilter === 'groups' ? 'Gruppen' : 'Alle')}`" title="Chats filtern">
-                            <i class="far fa-sliders-h" aria-hidden="true"></i>
-                        </button>
-                    </x-slot:trigger>
-                    <x-slot:content>
-                        @foreach(['all' => ['Alle', 'fa-comments'], 'unread' => ['Ungelesen', 'fa-envelope'], 'groups' => ['Gruppen', 'fa-users']] as $filter => [$label, $icon])
-                            <x-ui.dropdown.dropdown-link role="menuitemradio" :aria-checked="false" x-bind:aria-checked="(chatFilter === '{{ $filter }}').toString()" x-on:click="selectChatFilter('{{ $filter }}'); close()">
-                                <i class="far {{ $icon }}" aria-hidden="true"></i><span>{{ $label }}</span>
-                                <i class="far fa-check ml-auto" aria-hidden="true" x-show="chatFilter === '{{ $filter }}'"></i>
-                            </x-ui.dropdown.dropdown-link>
-                        @endforeach
-                    </x-slot:content>
-                </x-ui.dropdown.anchor-dropdown>
+        </x-slot:header>
+        <x-slot:actions class="rt-comm-window-actions">
                 <button type="button" data-comm-resize x-show="wide" x-cloak x-on:click="resizeWindow()" :title="mode === 'fullscreen' ? 'Mini-Modus öffnen' : 'Vollbild öffnen'"
                     :aria-label="mode === 'fullscreen' ? 'Mini-Modus öffnen' : 'Vollbild öffnen'">
                     <i class="far" :class="mode === 'fullscreen' ? 'fa-compress-alt' : 'fa-expand-alt'" aria-hidden="true"></i>
@@ -56,8 +41,7 @@
                 <button type="button" x-on:click="close()" aria-label="Modul schließen" title="Schließen – ein laufender Anruf läuft weiter">
                     <i class="far fa-times" aria-hidden="true"></i>
                 </button>
-            </div>
-        </x-slot:header>
+        </x-slot:actions>
         <button type="button" class="rt-comm-resume" x-show="activeCall && !(tab === 'calls' && showCall)" x-cloak x-on:click="resumeCall()">
             <span class="rt-comm-call-dot"></span><span>Laufender Anruf</span><span class="ml-auto">Zum Anruf <i class="far fa-arrow-right" aria-hidden="true"></i></span>
         </button>

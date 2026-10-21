@@ -10,6 +10,21 @@
             <label class="rt-comm-search"><i class="far fa-search" aria-hidden="true"></i><span class="sr-only">{{ __('app.search') }}</span>
                 <input type="search" wire:model.live.debounce.300ms="search" placeholder="Gespräche suchen …" autocomplete="off">
             </label>
+            <x-ui.dropdown.anchor-dropdown align="right" width="48" :offset="6" dropdown-id="communication-chat-filter" layer-group="communication-controls" content-label="Chats filtern">
+                <x-slot:trigger>
+                    <button type="button" class="rt-comm-icon" aria-haspopup="menu" :aria-label="`Chats filtern: ${chatFilter === 'unread' ? 'Ungelesen' : (chatFilter === 'groups' ? 'Gruppen' : 'Alle')}`" title="Chats filtern">
+                        <i class="far fa-sliders-h" aria-hidden="true"></i>
+                    </button>
+                </x-slot:trigger>
+                <x-slot:content>
+                    @foreach(['all' => ['Alle', 'fa-comments'], 'unread' => ['Ungelesen', 'fa-envelope'], 'groups' => ['Gruppen', 'fa-users']] as $filter => [$label, $icon])
+                        <x-ui.dropdown.dropdown-link role="menuitemradio" :aria-checked="false" x-bind:aria-checked="(chatFilter === '{{ $filter }}').toString()" x-on:click="selectChatFilter('{{ $filter }}'); close()">
+                            <i class="far {{ $icon }}" aria-hidden="true"></i><span>{{ $label }}</span>
+                            <i class="far fa-check ml-auto" aria-hidden="true" x-show="chatFilter === '{{ $filter }}'"></i>
+                        </x-ui.dropdown.dropdown-link>
+                    @endforeach
+                </x-slot:content>
+            </x-ui.dropdown.anchor-dropdown>
             <button type="button" wire:click="$set('showNewChat', true)" class="rt-comm-icon" aria-label="{{ __('app.new_chat') }}" title="{{ __('app.new_chat') }}"><i class="far fa-plus" aria-hidden="true"></i></button>
         </div>
     @else

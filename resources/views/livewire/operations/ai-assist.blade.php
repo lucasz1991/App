@@ -61,8 +61,7 @@
             layout-action="syncLayout();">
             <x-slot:header class="rt-ai-assist__head rt-assistant-header" data-assistant-header>
                 <x-operations.assistant-navigation class="rt-ai-assist__tabs" :tabs="$tabs" :selected="$tab" action="setTab" :id-prefix="$panelId" :controls="$panelId.'-body'" :review-count="$reviewCount" label="AI-Assist" />
-                <span class="rt-floating-window__header-spacer" aria-hidden="true"></span>
-                <div class="rt-ai-assist__head-actions">
+                <x-slot:actions class="rt-ai-assist__head-actions">
                     <details class="rt-ai-assist__context rt-ai-assist__context--compact rt-ai-assist__context--header" x-cloak x-show="prefs.context"
                         x-on:toggle="$el.querySelector('summary').setAttribute('aria-expanded', $el.open ? 'true' : 'false')"
                         x-on:click.outside="$el.open = false" x-on:keydown.escape.stop="$el.open = false">
@@ -93,7 +92,7 @@
                         x-on:click="settingsOpen = !settingsOpen; @if($canConfigure) if (settingsOpen) $wire.openSettings(); @endif"><i class="far fa-cog" aria-hidden="true"></i></button>
                     @if($tab === 'chat')<button class="rt-ai-assist__icon-btn" type="button" aria-label="Neues Gespräch" title="Neues Gespräch" wire:click="resetConversation" @disabled($messages === [])><i class="far fa-edit" aria-hidden="true"></i></button>@endif
                     <button class="rt-ai-assist__icon-btn" type="button" aria-label="AI-Assist schließen" title="Schließen (Esc)" x-on:click="toggle(false)"><i class="far fa-times" aria-hidden="true"></i></button>
-                </div>
+                </x-slot:actions>
 
                 <div class="rt-ai-assist__settings" role="dialog" aria-label="Assistenz-Einstellungen" x-show="settingsOpen" style="display: none" x-on:click.outside="settingsOpen = false">
                     <div class="rt-ai-assist__settings-head">

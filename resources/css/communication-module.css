@@ -60,8 +60,9 @@ body.rt-communication-fullscreen { overflow: hidden; }
 .rt-comm-content { position: relative; flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
 .rt-comm-pane { display: flex; flex-direction: column; height: 100%; min-width: 0; min-height: 0; overflow: hidden; }
 .rt-comm-pane > [wire\:id] { min-height: 0; height: 100%; }
-.rt-comm-toolbar { display: flex; flex: none; align-items: center; gap: 8px; padding: 12px 14px; background: var(--comm-surface); border-bottom: 1px solid var(--comm-line); }
-.rt-comm-search { display: flex; align-items: center; flex: 1; min-width: 0; gap: 10px; padding: 0 12px; height: 42px; border: 1px solid var(--comm-line); border-radius: 10px; background: color-mix(in srgb,var(--comm-canvas) 35%,var(--comm-surface)); color: var(--comm-muted); }
+.rt-comm-toolbar { display: flex; flex: none; align-items: center; gap: 6px; padding: 6px 12px; background: var(--comm-surface); border-bottom: 1px solid var(--comm-line); }
+.rt-comm-search { display: flex; align-items: center; flex: 1; min-width: 0; gap: 8px; padding: 0 10px; height: 34px; border: 1px solid var(--comm-line); border-radius: 9px; background: color-mix(in srgb,var(--comm-canvas) 35%,var(--comm-surface)); color: var(--comm-muted); }
+.rt-comm-toolbar .rt-comm-icon { width: 34px; min-width: 34px; height: 34px; }
 .rt-comm-search input { width: 100%; min-width: 0; padding: 0; border: 0; background: transparent; font-size: 12px; color: var(--comm-ink); outline: 0; box-shadow: none; }
 .rt-comm-search:focus-within { outline: 2px solid #e4002b; outline-offset: 1px; }
 .rt-comm-filter { max-width: 136px; height: 42px; padding: 0 28px 0 10px; border: 1px solid var(--comm-line); border-radius: 10px; background-color: var(--comm-surface); color: var(--comm-muted); font-size: 11px; }
@@ -147,7 +148,7 @@ body:has(.rt-ai-assist[data-open='true'] .rt-ai-assist__panel[data-window-mode='
     .rt-comm-tabs button[aria-selected='true'] { background: #fff0f3; color: #e4002b; }
     .rt-comm-drag-handle { min-width: 0; }
     .rt-comm-window-actions button { width: 36px; min-width: 36px; }
-    .rt-comm-toolbar { gap: 6px; padding: 10px; }
+    .rt-comm-toolbar { gap: 6px; padding: 6px 10px; }
     .rt-comm-filter { max-width: 105px; padding-left: 8px; }
     .rt-comm-icon { width: 36px; min-width: 36px; }
     .rt-comm-card { padding: 14px; gap: 10px; }

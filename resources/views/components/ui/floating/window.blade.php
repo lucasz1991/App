@@ -8,8 +8,20 @@
 @once
 <style data-rt-floating-window-geometry>
 :root { --rt-floating-mini-width: 442px; --rt-floating-mini-height: 510px; }
+.rt-floating-window__header > .rt-floating-window__actions { display: flex; flex: none; align-items: center; gap: 2px; }
+.rt-floating-window__header > .rt-floating-window__actions > button,
+.rt-floating-window__header > .rt-floating-window__actions > details > summary {
+    display: inline-flex; flex: none; align-items: center; justify-content: center; padding: 0;
+    width: var(--rt-floating-action-size, 40px); min-width: var(--rt-floating-action-size, 40px);
+    height: var(--rt-floating-action-size, 40px); min-height: var(--rt-floating-action-size, 40px);
+    border: 0; border-radius: var(--rt-floating-action-radius, 10px); background: transparent;
+    color: #fff; font-size: 14px; line-height: 1;
+}
+.rt-floating-window__header > .rt-floating-window__actions > button:hover:not(:disabled),
+.rt-floating-window__header > .rt-floating-window__actions > button[aria-expanded='true'] { background: rgb(255 255 255 / 15%); color: #fff; }
 @media (min-width: 761px) {
     .rt-floating-window[data-floating-mode='mini'] {
+        --rt-floating-action-size: 34px; --rt-floating-action-radius: 8px;
         width: min(var(--rt-floating-mini-width), calc(100vw - 16px));
         height: min(var(--rt-floating-mini-height), calc(100dvh - var(--rt-floating-top, 70px) - 16px - var(--comm-bottom, var(--rt-assistant-bottom, 0px))));
     }
@@ -287,6 +299,10 @@ else document.addEventListener('alpine:init', registerRailTimeWindow, {once:true
             role="group" aria-label="{{ $dragLabel }}" title="Ziehen oder mit Alt und Pfeiltasten in eine Ecke setzen"
             {{ $header->attributes->class('rt-floating-window__header') }}>
             {{ $header }}
+            @isset($actions)
+                <span class="rt-floating-window__header-spacer" aria-hidden="true"></span>
+                <div {{ $actions->attributes->class('rt-floating-window__actions') }}>{{ $actions }}</div>
+            @endisset
         </header>
     @endisset
     {{ $slot }}
