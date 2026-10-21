@@ -41,6 +41,8 @@ final class SyncLabels
             'availability_row_invalid' => 'Strukturierte Verfügbarkeit enthält ungültige Angaben',
             'availability_sheet_missing' => 'Blatt für strukturierte Verfügbarkeiten fehlt',
             'planning_headers_missing' => 'Überschriften für Einsatzort und Datum fehlen',
+            'contact_headers_missing' => 'Eindeutige Überschriften für Name und E-Mail fehlen',
+            'contact_headers_ambiguous' => 'Kontaktspalten sind mehrfach oder widersprüchlich beschriftet',
             default => 'Verarbeitung benötigt Aufmerksamkeit ('.$code.')',
         };
     }

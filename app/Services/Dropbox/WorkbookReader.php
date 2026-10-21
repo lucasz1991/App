@@ -142,9 +142,15 @@ class WorkbookReader
             if (! $start || ! $end) {
                 $warnings[] = ['sheet' => $sheet->getTitle(), 'row' => $row, 'reason' => 'planning_time_missing', 'fields' => array_values(array_filter(['starts' => ! $start ? 'starts' : null, 'ends' => ! $end ? 'ends' : null])), 'retained' => true];
             }
-            $fields['draft'] = str_contains($fields['notes'] ?? '', '[ENTWURF]');
-            $fields['notes'] = trim(str_replace('[ENTWURF]', '', $fields['notes'] ?? ''));
-            $fields['cancelled'] = (bool) preg_match('/\bstorno\b|\bstorniert\b/iu', ($fields['cancellation'] ?? '').' '.($fields['notes'] ?? ''));
+            if (array_key_exists('notes', $fields)) {
+                $fields['draft'] = str_contains($fields['notes'], '[ENTWURF]');
+                $fields['notes'] = trim(str_replace('[ENTWURF]', '', $fields['notes']));
+            }
+            $cancelled = (bool) preg_match('/\bstorno\b|\bstorniert\b/iu', ($fields['cancellation'] ?? '').' '.($fields['notes'] ?? ''));
+            // A personal copy without the cancellation column cannot revoke the master's cancellation.
+            if (array_key_exists('cancellation', $fields) || $cancelled) {
+                $fields['cancelled'] = $cancelled;
+            }
             if (isset($fields['ordered_at']) && $fields['ordered_at'] !== '') {
                 $fields['ordered_at'] = $this->date($fields['ordered_at']) ?? $fields['ordered_at'];
             }
@@ -221,10 +227,16 @@ class WorkbookReader
         $isStaff = $title === 'mitarbeiter übersicht';
         $isStaffFullName = in_array($title, ['kontaktliste rail time', 'kontaktliste railtime'], true);
         $isProvider = in_array($title, ['dienstleister übersicht', 'kontaktliste extern dl'], true);
-        if ($isStaff || $isStaffFullName || $isProvider) {
+        if ($isStaffFullName) {
+            return $this->fullNameContacts($sheet);
+        }
+        if ($isStaff || $isProvider) {
             $columns = $isStaff
                 ? ['B' => 'last_name', 'C' => 'first_name', 'D' => 'reported_qualifications', 'E' => 'contact_email', 'F' => 'phone', 'G' => 'mobile', 'H' => 'city', 'I' => 'deployment_region', 'J' => 'birth_date', 'K' => 'birth_place', 'L' => 'nationality']
                 : ['B' => 'name', 'C' => 'reported_qualifications', 'D' => 'contact_email', 'E' => 'phone', 'F' => 'mobile', 'G' => 'city', 'H' => 'deployment_region', 'I' => 'notes'];
+            if ($title === 'kontaktliste extern dl' && trim($this->value($sheet, 'I1').' '.$this->value($sheet, 'I2')) === '') {
+                unset($columns['I']);
+            }
             for ($row = 3; $row <= $last; $row++) {
                 if (! is_numeric($this->value($sheet, 'A'.$row))) {
                     continue;
@@ -280,6 +292,62 @@ class WorkbookReader
         }
 
         return [$entries, ['kind' => $kind, 'columns' => $labels, 'last_row' => $last], $warnings];
+    }
+
+    private function fullNameContacts(Worksheet $sheet): array
+    {
+        $aliases = [
+            'name' => 'name', 'mitarbeiter' => 'name', 'mitarbeitername' => 'name',
+            'kontakt' => 'phone', 'telefon' => 'phone', 'telefon dienst' => 'phone',
+            'e-mail' => 'contact_email', 'email' => 'contact_email',
+            'position - qualifikation' => 'reported_qualifications', 'qualifikation' => 'reported_qualifications',
+            'qualifikationen' => 'reported_qualifications', 'qualitfikationen' => 'reported_qualifications',
+            'mobil' => 'mobile', 'mobiltelefon' => 'mobile', 'handy' => 'mobile', 'telefon privat' => 'mobile',
+            'wohnort' => 'city', 'stadt' => 'city', 'einsatz in' => 'deployment_region', 'einsatzgebiet' => 'deployment_region',
+            'sonstiges' => 'notes', 'bemerkungen' => 'notes', 'notiz' => 'notes',
+        ];
+        $last = $sheet->getHighestDataRow();
+        $maxColumn = min(60, Coordinate::columnIndexFromString($sheet->getHighestDataColumn()));
+        $columns = [];
+        $header = null;
+        for ($row = 1; $row <= $last; $row++) {
+            $candidate = [];
+            for ($column = 1; $column <= $maxColumn; $column++) {
+                $letter = Coordinate::stringFromColumnIndex($column);
+                $label = self::normalize($this->value($sheet, $letter.$row));
+                if (isset($aliases[$label])) {
+                    $candidate[$letter] = $aliases[$label];
+                }
+            }
+            if (in_array('name', $candidate, true) && in_array('contact_email', $candidate, true)) {
+                if (count($candidate) !== count(array_unique($candidate))) {
+                    return [[], null, [['reason' => 'contact_headers_ambiguous', 'sheet' => $sheet->getTitle(), 'row' => $row]]];
+                }
+                $columns = $candidate;
+                $header = $row;
+
+                break;
+            }
+        }
+        if (! $header) {
+            return [[], null, [['reason' => 'contact_headers_missing', 'sheet' => $sheet->getTitle()]]];
+        }
+        $entries = [];
+        for ($row = $header + 1; $row <= $last; $row++) {
+            $values = [];
+            $cells = [];
+            foreach ($columns as $column => $field) {
+                $values[$field] = $this->value($sheet, $column.$row);
+                $cells[$field] = $column.$row;
+            }
+            $subject = $values['name'];
+            if ($subject === '' || in_array(self::normalize($subject), ['name', 'mitarbeiter', 'mitarbeitername'], true)) {
+                continue;
+            }
+            $entries[] = $this->entry('contacts', $sheet->getTitle(), (string) $row, $values, ['row' => $row, 'cells' => $cells, 'columns' => $columns, 'subject' => $subject, 'kind' => 'employee']);
+        }
+
+        return [$entries, ['kind' => 'employee', 'columns' => $columns, 'header' => $header, 'last_row' => $last], []];
     }
 
     private function coverage(WorkbookPackage $package, array $rows, array $sheets, array $issues): array

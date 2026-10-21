@@ -15,7 +15,7 @@ use App\Models\ShiftAssignment;
 /** Counts source evidence and native results independently of chunk operations. */
 class SourceSyncReport
 {
-    public const VERSION = '2026-10-11-weekly-v2';
+    public const VERSION = '2026-10-21-reconciliation-v3';
 
     public function build(DropboxSource $source, array $parsed, array $summary, int $processed, int $total): array
     {

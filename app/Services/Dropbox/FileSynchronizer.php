@@ -51,7 +51,7 @@ class FileSynchronizer
         app(WeeklyAvailability::class)->ignoreGroups($source, $parsed, $preview);
         $summary = ['rows' => count($parsed['rows']), 'imported' => 0, 'exported' => 0, 'conflicts' => 0, 'new' => 0, 'preview' => $preview];
         $issueKeys = array_map(fn ($i) => ($i['reason'] ?? '').':'.($i['sheet'] ?? '').':'.($i['row'] ?? ''), $parsed['issues']);
-        DropboxConflict::where('source_id', $source->id)->whereIn('reason', ['invalid_date', 'planning_headers_missing', 'planning_date_missing', 'planning_time_missing', 'planning_columns_missing', 'availability_headers_missing', 'availability_row_invalid', 'availability_week_missing'])->get()
+        DropboxConflict::where('source_id', $source->id)->whereIn('reason', ['invalid_date', 'planning_headers_missing', 'planning_date_missing', 'planning_time_missing', 'planning_columns_missing', 'contact_headers_missing', 'contact_headers_ambiguous', 'availability_headers_missing', 'availability_row_invalid', 'availability_week_missing'])->get()
             ->filter(fn ($c) => ! in_array($c->reason.':'.($c->snapshot['sheet'] ?? '').':'.($c->snapshot['row'] ?? ''), $issueKeys, true))->each(fn ($c) => $c->update(['state' => 'resolved']));
         foreach ($parsed['issues'] as $issue) {
             $this->conflicts->put($connection, $source, null, $issue['reason'], $issue, ($issue['sheet'] ?? '').':'.($issue['row'] ?? ''));
@@ -93,17 +93,12 @@ class FileSynchronizer
                 }
             }
         }
-        $reserved = [];
-        foreach ($entries as $entry) {
-            $unchanged = $exact->get($this->exactKey($entry['sheet'], $entry['locator'], $entry['fingerprint']), collect());
-            if ($unchanged->count() === 1) {
-                $reserved[$unchanged->first()->id] = $entry['sheet'].'!'.$entry['slot'];
-            }
-        }
-        $mappingDecisions = DropboxConflict::where('source_id', $source->id)->where('state', 'open')->whereIn('reason', ['mapping_required', 'ambiguous_row'])->whereNotNull('decision')->get()->groupBy(fn ($c) => ($c->snapshot['sheet'] ?? '').'!'.($c->snapshot['fingerprint'] ?? ''));
-        foreach ($entries as $entry) {
+        $pending = collect($entries)->keyBy(fn ($entry) => $entry['sheet'].'!'.$entry['slot'])->all();
+        $contentCounts = collect($entries)->countBy(fn ($entry) => $entry['sheet'].'!'.$entry['fingerprint']);
+        $mappingDecisions = DropboxConflict::where('source_id', $source->id)->whereIn('state', ['open', 'rechecking'])->whereIn('reason', ['mapping_required', 'ambiguous_row'])->whereNotNull('decision')->get()->groupBy(fn ($c) => ($c->snapshot['sheet'] ?? '').'!'.($c->snapshot['fingerprint'] ?? ''));
+        foreach ($pending as $key => $entry) {
             $decisions = $mappingDecisions->get($entry['sheet'].'!'.$entry['fingerprint']);
-            $manual = ! $preview && $decisions ? DB::transaction(function () use ($connection, $source, $entry, $decisions) {
+            $manual = ! $preview && $decisions && $contentCounts[$entry['sheet'].'!'.$entry['fingerprint']] === 1 ? DB::transaction(function () use ($connection, $source, $entry, $decisions) {
                 $this->guard->current($connection, lock: true);
 
                 return app(RowMapping::class)->apply($connection, $source, $entry, $decisions);
@@ -111,26 +106,80 @@ class FileSynchronizer
             if ($manual && ! isset($used[$manual->id])) {
                 $used[$manual->id] = true;
                 $bound[] = ['entry' => $entry, 'appearance' => $manual];
-
-                continue;
+                unset($pending[$key]);
             }
+        }
+        // Exact pairs are reserved together, before any approximate candidate can take one.
+        $exactCounts = collect($pending)->countBy(fn ($entry) => $this->exactKey($entry['sheet'], $entry['locator'], $entry['fingerprint']));
+        foreach ($pending as $key => $entry) {
+            $exactKey = $this->exactKey($entry['sheet'], $entry['locator'], $entry['fingerprint']);
             $matches = $exact->get($this->exactKey($entry['sheet'], $entry['locator'], $entry['fingerprint']), collect())->filter(fn ($a) => ! isset($used[$a->id]));
-            if ($matches->count() !== 1) {
-                $candidates = $entry['domain'] === 'planning'
-                    ? $this->planningCandidates($entry, $planningIndex)
-                    : $bySubject->get($this->subjectKey($entry['sheet'], $entry['locator']), collect());
-                $matches = $candidates->filter(fn ($a) => ! isset($used[$a->id]) && (! isset($reserved[$a->id]) || $reserved[$a->id] === $entry['sheet'].'!'.$entry['slot']) && $this->sameIdentity($a, $entry));
-                if ($matches->count() > 1 && $entry['domain'] === 'planning') {
-                    $scores = $matches->mapWithKeys(fn ($a) => [$a->id => count(array_intersect_assoc(array_intersect_key($a->last_excel, array_flip(['date', 'starts', 'ends', 'employee', 'train_reference', 'location', 'customer', 'role'])), $entry['values']))]);
-                    $best = $scores->max();
-                    $matches = $matches->filter(fn ($a) => $scores[$a->id] === $best);
+            if ($matches->count() === 1 && $exactCounts[$exactKey] === 1) {
+                $appearance = $matches->first();
+                $used[$appearance->id] = true;
+                $bound[] = ['entry' => $entry, 'appearance' => $appearance];
+                unset($pending[$key]);
+            }
+        }
+        $candidates = [];
+        foreach ($pending as $key => $entry) {
+            $pool = $entry['domain'] === 'planning' ? $this->planningCandidates($entry, $planningIndex)
+                : $bySubject->get($this->subjectKey($entry['sheet'], $entry['locator']), collect());
+            $candidates[$key] = $pool->filter(fn ($appearance) => ! isset($used[$appearance->id]) && $this->sameIdentity($appearance, $entry))
+                ->mapWithKeys(fn ($appearance) => [$appearance->id => ['appearance' => $appearance, 'score' => $this->matchScore($appearance, $entry)]])->all();
+        }
+        // A pair is safe only when both the row and the existing appearance prefer each other uniquely.
+        do {
+            $reverse = [];
+            foreach ($pending as $key => $entry) {
+                foreach ($candidates[$key] ?? [] as $id => $candidate) {
+                    if (! isset($used[$id])) {
+                        $reverse[$id][$key] = $candidate['score'];
+                    }
                 }
             }
-            if ($matches->count() === 1) {
-                $a = $matches->first();
-                $used[$a->id] = true;
-                $bound[] = ['entry' => $entry, 'appearance' => $a];
-            } elseif ($matches->count() > 1) {
+            $pairs = [];
+            foreach ($pending as $key => $entry) {
+                $available = array_filter($candidates[$key] ?? [], fn ($candidate) => ! isset($used[$candidate['appearance']->id]));
+                if (! $available) {
+                    continue;
+                }
+                $best = max(array_column($available, 'score'));
+                $preferred = array_filter($available, fn ($candidate) => $candidate['score'] === $best);
+                if (count($preferred) !== 1) {
+                    continue;
+                }
+                $candidate = reset($preferred);
+                $owners = $reverse[$candidate['appearance']->id];
+                $owners = array_filter($owners, fn ($score) => $score === max($owners));
+                if (count($owners) === 1 && isset($owners[$key])) {
+                    $pairs[$key] = $candidate['appearance'];
+                }
+            }
+            foreach ($pairs as $key => $appearance) {
+                $used[$appearance->id] = true;
+                $bound[] = ['entry' => $pending[$key], 'appearance' => $appearance];
+                unset($pending[$key]);
+            }
+        } while ($pairs);
+        // Repeated cells of one fact are copies of the same identity, not competing people.
+        foreach ($pending as $key => $entry) {
+            if ($entry['domain'] === 'planning') {
+                continue;
+            }
+            $available = collect($candidates[$key] ?? [])->filter(fn ($candidate) => ! isset($used[$candidate['appearance']->id]));
+            if ($available->isEmpty() || $available->pluck('appearance.record_id')->unique()->count() !== 1) {
+                continue;
+            }
+            $appearance = $available->pluck('appearance')->first(fn ($candidate) => $candidate->slot === $entry['slot'])
+                ?? $available->pluck('appearance')->sort(fn ($left, $right) => strnatcmp($left->slot, $right->slot))->first();
+            $used[$appearance->id] = true;
+            $bound[] = ['entry' => $entry, 'appearance' => $appearance];
+            unset($pending[$key]);
+        }
+        foreach ($pending as $key => $entry) {
+            $available = array_filter($candidates[$key] ?? [], fn ($candidate) => ! isset($used[$candidate['appearance']->id]));
+            if ($available) {
                 $this->conflicts->put($connection, $source, null, 'ambiguous_row', app(RowMapping::class)->snapshot($connection, $entry), $entry['sheet'].'!'.$entry['slot']);
                 $summary['conflicts']++;
             } else {
@@ -174,12 +223,10 @@ class FileSynchronizer
                         throw ValidationException::withMessages(['sync' => 'Zeile enthält andere Einsatzdaten als bisher. Vor einer Neuanlage die Zuordnung prüfen.']);
                     }
                     $related = $this->related($connection, $source, $entry);
+                    $baseline = $entry['values'];
                     if ($related) {
                         $values = $this->domain->current($related);
-                        $different = array_filter($entry['values'], fn ($v, $k) => ! in_array($k, ['draft'], true) && ($values[$k] ?? null) !== $v, ARRAY_FILTER_USE_BOTH);
-                        if ($different) {
-                            throw ValidationException::withMessages(['sync' => 'Neue Kopie weicht vom bestehenden App-Datensatz ab. Zuordnung und Werte prüfen.']);
-                        }
+                        $baseline = app(InitialCopyBaseline::class)->forCopy($values, $entry['values'], DropboxAppearance::where('record_id', $related->id)->get(), $entry['domain']);
                         $record = $related;
                     } else {
                         $record = $this->domain->create($connection, $entry);
@@ -188,7 +235,7 @@ class FileSynchronizer
                     if ($collision) {
                         $collision->update(['slot' => 'missing:'.$collision->id]);
                     }
-                    $appearance = DropboxAppearance::create(['source_id' => $source->id, 'record_id' => $record->id, 'sheet' => $entry['sheet'], 'slot' => $entry['slot'], 'locator' => $entry['locator'], 'fingerprint' => $entry['fingerprint'], 'baseline' => $entry['values'], 'last_excel' => $entry['values'], 'seen_rev' => $rev]);
+                    $appearance = DropboxAppearance::create(['source_id' => $source->id, 'record_id' => $record->id, 'sheet' => $entry['sheet'], 'slot' => $entry['slot'], 'locator' => $entry['locator'], 'fingerprint' => $entry['fingerprint'], 'baseline' => $baseline, 'last_excel' => $entry['values'], 'seen_rev' => $rev]);
 
                     return ['entry' => $entry, 'appearance' => $appearance];
                 }, 3);
@@ -332,6 +379,9 @@ class FileSynchronizer
         $summary['file_outgoing'] = ($offset > 0 ? (int) ($source->progress['outgoing_total'] ?? 0) : 0) + $summary['outgoing'];
         $summary['file_exported'] = ($offset > 0 ? (int) ($source->progress['exported_total'] ?? 0) : 0) + $summary['exported'];
         if (! $more) {
+            if (! $preview) {
+                app(RowMapping::class)->reconcile($source, $entries, $parsed['issues'], $parsed['coverage']['ignored_sheets'] ?? []);
+            }
             $summary['conflicts'] = DropboxConflict::where('source_id', $source->id)->whereIn('state', ['open', 'rechecking'])->count();
         }
         $source->forceFill(['weeks' => $parsed['weeks'], 'rev' => $rev, 'state' => $more ? 'processing' : ($summary['conflicts'] ? 'conflicts' : ($preview ? 'preview' : ($summary['file_outgoing'] > $summary['file_exported'] ? 'pending_export' : 'synchronized')))]);
@@ -404,11 +454,24 @@ class FileSynchronizer
         }
         $old = $appearance->last_excel;
         $new = $entry['values'];
+        if (empty($old['date']) || ($old['date'] ?? null) !== ($new['date'] ?? null)) {
+            return false; // A copied row in another week is a new occurrence, not a moved shift.
+        }
         // At least four semantic anchors, including time or reference; no row-index identity.
         $keys = ['date', 'starts', 'ends', 'employee', 'train_reference', 'location', 'customer', 'role'];
         $matching = array_filter($keys, fn ($key) => ! empty($old[$key]) && ($old[$key] ?? null) === ($new[$key] ?? null));
 
         return count($matching) >= 5 && (in_array('starts', $matching, true) || in_array('train_reference', $matching, true));
+    }
+
+    private function matchScore(DropboxAppearance $appearance, array $entry): int
+    {
+        if ($entry['domain'] !== 'planning') {
+            return 1;
+        }
+
+        return count(array_filter(['date', 'starts', 'ends', 'employee', 'train_reference', 'location', 'customer', 'role'],
+            fn ($key) => ! empty($appearance->last_excel[$key]) && ($appearance->last_excel[$key] ?? null) === ($entry['values'][$key] ?? null)));
     }
 
     /** Preserve the previous employee's copy as a visible cancellation; the exporter adds the new employee's sheet. */

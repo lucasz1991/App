@@ -101,7 +101,7 @@ class DomainAdapter
                 }
             }
 
-            return $values;
+            return array_map(fn ($value) => $value === null ? '' : $value, $values);
         }
 
         return EmployeeCompetencyFact::findOrFail($record->model_id)->value;

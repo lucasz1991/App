@@ -11,6 +11,7 @@ use App\Services\Dropbox\FileSynchronizer;
 use App\Services\Dropbox\RecordExporter;
 use App\Services\Dropbox\SourceScanner;
 use App\Services\Dropbox\SourceSyncReport;
+use App\Services\Dropbox\SyncGuard;
 use App\Services\Dropbox\WorkLedger;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -51,7 +52,7 @@ class ProcessDropboxWork implements ShouldQueue
             $item->forceFill(['running_until' => now()->addSeconds(330), 'attempts' => $item->attempts + 1])->save();
             match ($item->kind) {
                 'scan' => app(SourceScanner::class)->scan($connection, $preview),
-                'file' => app(FileSynchronizer::class)->sync($connection, DropboxSource::where('connection_id', $connection->id)->findOrFail($item->payload['source_id']), $preview),
+                'file' => $this->syncSource($connection, (int) $item->payload['source_id'], $preview),
                 'export' => app(RecordExporter::class)->export($connection, $item->payload['type'], $item->payload['id'], $preview),
                 'archive' => app(ClosingService::class)->archive($connection, DropboxSource::where('connection_id', $connection->id)->findOrFail($item->payload['source_id'])),
                 'finish' => app(ClosingService::class)->finish($connection),
@@ -79,5 +80,19 @@ class ProcessDropboxWork implements ShouldQueue
             $lock->release();
         }
         app(WorkLedger::class)->dispatch($connection->id);
+    }
+
+    private function syncSource(DropboxConnection $connection, int $sourceId, bool $preview): void
+    {
+        $source = DropboxSource::where('connection_id', $connection->id)->findOrFail($sourceId);
+        if (in_array($source->state, ['missing', 'excluded'], true)) {
+            return; // The scanner retains the source hint; obsolete work is done.
+        }
+        if (! app(SyncGuard::class)->pathAllowed($connection, $source->path)) {
+            $source->update(['state' => 'excluded']);
+
+            return;
+        }
+        app(FileSynchronizer::class)->sync($connection, $source, $preview);
     }
 }

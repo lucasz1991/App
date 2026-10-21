@@ -276,6 +276,9 @@ class RecordExporter
                 }
                 DropboxConnection::whereKey($connection->id)->update(['exported_at' => now()]);
             });
+            // Own uploads are skipped by the cursor once processed_rev matches.
+            // Recheck once so the durable per-file result includes appended rows.
+            $this->ledger->enqueue($connection, 'file', 'file:'.$source->id, ['source_id' => $source->id], 0);
         } finally {
             $lock->release();
         }

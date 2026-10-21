@@ -5,6 +5,7 @@ namespace App\Services\Dropbox;
 use App\Models\DropboxConflict;
 use App\Models\DropboxConnection;
 use App\Models\DropboxSource;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class SourceScanner
@@ -81,7 +82,25 @@ class SourceScanner
     {
         $path = $entry['path_lower'] ?? $entry['path_display'] ?? '';
         if (($entry['.tag'] ?? '') === 'deleted') {
+            if (! $this->guard->pathAllowed($connection, $path)) {
+                return null;
+            }
+            // Cursor entries can include the deletion of a file that has already
+            // been replaced at the same path. The current path wins in either order.
+            try {
+                $current = $this->client->rpc($connection, 'files/get_metadata', ['path' => $path]);
+                if (($current['.tag'] ?? 'file') === 'file') {
+                    return $this->register($connection, $current, $preview);
+                }
+            } catch (DropboxApiException $e) {
+                if ($e->reason !== 'not_found') {
+                    throw $e;
+                }
+            }
             foreach (DropboxSource::where('connection_id', $connection->id)->where('path', $path)->get() as $source) {
+                if (isset($source->last_report['replacement_source_id'])) {
+                    continue; // A superseded baseline remains excluded evidence.
+                }
                 $source->update(['state' => 'missing']);
                 app(ConflictStore::class)->put($connection, $source, null, 'source_missing', ['path' => $path]);
             }
@@ -92,6 +111,9 @@ class SourceScanner
             return null;
         }
         $source = DropboxSource::where('connection_id', $connection->id)->where('file_id', $entry['id'])->first();
+        if ($source && isset($source->last_report['replacement_source_id'])) {
+            return null; // Historical cursor entries cannot reactivate an audited replacement.
+        }
         $isMatrix = $connection->option('matrix_path') && mb_strtolower($connection->option('matrix_path')) === mb_strtolower($path);
         $configured = collect($connection->option('additional_sources'))->first(fn ($s) => mb_strtolower($s['path']) === mb_strtolower($path));
         $isMatrix = $isMatrix || ($configured['profile'] ?? '') === 'matrix';
@@ -105,6 +127,9 @@ class SourceScanner
         }
         if (! $source && ! $connection->option('auto_discover') && ! $isMatrix && ! $configured) {
             return null;
+        }
+        if (! $source) {
+            $source = $this->replacement($connection, $path, $isMatrix ? 'matrix' : 'weekly', $entry);
         }
         $source ??= new DropboxSource(['connection_id' => $connection->id, 'file_id' => $entry['id'], 'first_seen_at' => now()]);
         if (in_array($source->state, ['missing', 'excluded'], true)) {
@@ -122,5 +147,48 @@ class SourceScanner
         }
 
         return $source;
+    }
+
+    private function replacement(DropboxConnection $connection, string $path, string $profile, array $entry): ?DropboxSource
+    {
+        $candidates = DropboxSource::where('connection_id', $connection->id)->where('path', $path)->where('profile', $profile)->get()
+            ->reject(fn ($source) => isset($source->last_report['replacement_source_id']));
+        if ($candidates->count() !== 1) {
+            return null;
+        }
+        $candidate = $candidates->first();
+        $lock = Cache::store(config('dropbox.lock_store'))->lock('dropbox-file:'.$connection->id.':'.$candidate->file_id, 330);
+        if (! $lock->get()) {
+            throw new DropboxApiException('file_busy', 5);
+        }
+        try {
+            try {
+                $this->client->rpc($connection, 'files/get_metadata', ['path' => $candidate->file_id]);
+
+                return null; // A moved or still-active file keeps its own baseline.
+            } catch (DropboxApiException $e) {
+                if ($e->reason !== 'not_found') {
+                    throw $e;
+                }
+            }
+
+            return DB::transaction(function () use ($connection, $candidate, $entry, $path, $profile) {
+                $this->guard->current($connection, lock: true);
+                if (DropboxSource::where('connection_id', $connection->id)->where('file_id', $entry['id'])->exists()) {
+                    return DropboxSource::where('connection_id', $connection->id)->where('file_id', $entry['id'])->first();
+                }
+                $fresh = DropboxSource::lockForUpdate()->findOrFail($candidate->id);
+                if ($fresh->path !== $path || $fresh->profile !== $profile || $fresh->file_id !== $candidate->file_id) {
+                    throw new DropboxApiException('file_busy', 5);
+                }
+                // Dropbox revisions belong to a file ID. Preserve the common row
+                // baselines but discard every progress/own-revision shortcut.
+                $fresh->forceFill(['file_id' => $entry['id'], 'state' => 'new', 'processed_rev' => null, 'own_rev' => null, 'progress' => null])->save();
+
+                return $fresh;
+            });
+        } finally {
+            $lock->release();
+        }
     }
 }
