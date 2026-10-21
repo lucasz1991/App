@@ -338,7 +338,7 @@
         x-trap.inert.noscroll="open && !pageBuilderActive && assistantMode === 'fullscreen'"
         x-on:keydown.escape.window.capture="handlePanelEscape($event)"
         mode-state="assistantMode" corner-state="assistantCorner" enabled-state="!pageBuilderActive"
-        layout-action="syncAssistantLayout();"
+        layout-action="syncAssistantLayout();" session-key="assist" session-restore="restoreWindowSession(rtWindowSession)" session-enabled-state="!pageBuilderActive"
     >
         <x-slot:header class="rt-chatbot__header{{ $operationsAvailable ? ' rt-assistant-header' : '' }}">
             <div class="rt-chatbot__identity">

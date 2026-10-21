@@ -482,7 +482,7 @@ body:has(#main-content .rt-shift-plan) { height: 100%; min-height: 0; overflow: 
 .rt-unified-inbox__toolbar > .ops-actions { margin-left: auto; gap: 6px; }
 .rt-unified-inbox__toolbar .rt-ui-button, .rt-unified-inbox__toolbar [role="combobox"] { min-height: 44px; height: 44px; padding-block: 6px; }
 .rt-unified-inbox__toolbar .rt-unified-inbox__create { flex: none; width: 44px; min-width: 44px; padding: 0; }
-.rt-unified-inbox__statuses { flex: 1; }
+.rt-unified-inbox__statuses { flex: 0 1 auto; }
 .rt-unified-inbox__more summary:focus-visible { outline: 2px solid #ef0031; outline-offset: 2px; }
 .rt-unified-inbox__select { width: 186px; max-width: 100%; }
 .rt-unified-inbox__more { position: relative; }
@@ -496,7 +496,7 @@ body[data-mode="dark"] .rt-unified-inbox__more summary { border-color: #334155; 
 @media (max-width: 767.98px) {
     .rt-unified-inbox__toolbar { flex-wrap: wrap; gap: 8px; }
     .rt-unified-inbox__toolbar > .ops-actions { min-width: 0; }
-    .rt-unified-inbox__statuses { flex-basis: 100%; }
+    .rt-unified-inbox__statuses { max-width: 100%; }
     .rt-unified-inbox__select { width: 44px; }
     .rt-unified-inbox__select [role="combobox"] { justify-content: center; padding: 0; gap: 0; }
     .rt-unified-inbox__select [role="combobox"] > span:first-child { flex: none; }

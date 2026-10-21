@@ -9,6 +9,15 @@ use Tests\TestCase;
 
 class FloatingWindowTabsTest extends TestCase
 {
+    public function test_window_renders_opt_in_session_bindings_without_changing_feature_owners(): void
+    {
+        $html = Blade::render('<x-ui.floating.window session-key="communication" session-restore="restoreWindowSession(rtWindowSession)">Content</x-ui.floating.window>');
+        $this->assertStringContainsString('sessionKey:', $html);
+        $this->assertStringContainsString('restoreWindowSession(rtWindowSession)', $html);
+        $this->assertStringContainsString('window.sessionStorage', $html);
+        $this->assertStringContainsString('Content', $html);
+    }
+
     private function dom(string $html): DOMXPath
     {
         $previous = libxml_use_internal_errors(true);

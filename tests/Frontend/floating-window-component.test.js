@@ -11,13 +11,17 @@ const launcherGroup = await readFile(new URL('../../resources/views/components/u
 const launcherCode = launcherGroup.match(/<script data-rt-floating-launcher-controller>([\s\S]*?)<\/script>/)[1];
 const assistant = await readFile(new URL('../../resources/views/livewire/operations/ai-assist.blade.php', import.meta.url),'utf8');
 
-function fixture({width=1223, reduced=false, animate=true}={}) {
-    const {document, window:dom} = parseHTML('<html><body><button id="launcher" data-rt-window-launcher-for="window">Launch</button><section id="window" role="dialog"><header><span id="blank"></span><button>Tab</button><div role="dialog" id="settings"></div></header><div id="session"></div></section></body></html>');
+function fixture({width=1223, reduced=false, animate=true, storage=null, sessionKey=null, sessionAllowed=true, user='current'}={}) {
+    const {document, window:dom} = parseHTML('<html><head><meta name="rt-user-id"></head><body><button id="launcher" data-rt-window-launcher-for="window">Launch</button><section id="window" role="dialog"><header><span id="blank"></span><button>Tab</button><div role="dialog" id="settings"></div></header><div id="session"></div></section></body></html>');
+    document.querySelector('meta').content=user;
     const panel=document.querySelector('section'), launcher=document.querySelector('#launcher'), ticks=[], nextTicks=[], watchers=[], animations=[], timers=new Map();
     if (typeof launcher.style.getPropertyPriority !== 'function') launcher.style.getPropertyPriority=()=> '';
     let id=0, disposed=0, captured=null, rendered=null;
     const state={open:false,mode:'mini',corner:'bottom-right'};
-    const win={innerWidth:width,innerHeight:1252,matchMedia:()=>({matches:reduced}),addEventListener(){},removeEventListener(){}};
+    const listeners=new Map();
+    const win={innerWidth:width,innerHeight:1252,sessionStorage:storage,matchMedia:()=>({matches:reduced}),
+        addEventListener(name,fn){if(!listeners.has(name))listeners.set(name,new Set());listeners.get(name).add(fn)},
+        removeEventListener(name,fn){listeners.get(name)?.delete(fn)}};
     panel.getBoundingClientRect=()=>{
         if(rendered) return rendered.rect;
         const size=state.mode==='mini'?[442,510]:[width-32,1150];
@@ -39,7 +43,8 @@ function fixture({width=1223, reduced=false, animate=true}={}) {
     vm.runInContext(code,context);
     const data={destroy(){disposed++},$watch(fn,callback){watchers.push({fn,callback,last:fn()})},$nextTick:fn=>nextTicks.push(fn)};
     const config={opened:()=>state.open,mode:()=>state.mode,corner:()=>state.corner,enabled:()=>true,
-        setMode:value=>state.mode=value,setCorner:value=>state.corner=value};
+        setMode:value=>state.mode=value,setCorner:value=>state.corner=value,sessionKey,sessionEnabled:()=>sessionAllowed,
+        restore(saved){state.corner=saved.corner;state.mode=width<=760?'fullscreen':saved.mode;state.open=saved.open;}};
     Object.assign(data,context.window.rtFloatingWindow(config,panel,data));
     data.initWindow();
     const flush=({beforePaint=false}={})=>{
@@ -60,8 +65,69 @@ function fixture({width=1223, reduced=false, animate=true}={}) {
         open(value){state.open=value;flush()},
         finish(){animations.at(-1)?.onfinish?.();flush()},
         timers, render: (rect,opacity=1)=>rendered=rect?{rect,opacity}:null,
-        disposeCount:()=>disposed,capture:()=>captured};
+        disposeCount:()=>disposed,capture:()=>captured,emit(name){listeners.get(name)?.forEach(fn=>fn())},listeners};
 }
+
+const sessionStorageFixture=()=>{
+    const values=new Map();
+    return {values,getItem:key=>values.get(key)||null,setItem:(key,value)=>values.set(key,value)};
+};
+
+test('session restores open and closed mode/corner on reload without an opening animation',()=>{
+    const storage=sessionStorageFixture(), first=fixture({storage,sessionKey:'communication'});
+    first.state.mode='fullscreen';first.state.corner='top-left';first.open(true);first.finish();
+    const restored=fixture({storage,sessionKey:'communication'});
+    assert.deepEqual(restored.state,{open:true,mode:'fullscreen',corner:'top-left'});
+    assert.equal(restored.data.windowVisible,true);
+    assert.equal(restored.animations.length,0,'restored windows start in their saved geometry');
+    restored.open(false);restored.finish();
+    assert.deepEqual(fixture({storage,sessionKey:'communication'}).state,{open:false,mode:'fullscreen',corner:'top-left'});
+});
+
+test('session separates both windows and accounts and skips custom PageBuilder surfaces',()=>{
+    const storage=sessionStorageFixture(), chat=fixture({storage,sessionKey:'communication',user:'101'});
+    chat.state.corner='bottom-left';chat.open(true);
+    const assist=fixture({storage,sessionKey:'assist',user:'101'});
+    assist.state.corner='top-right';assist.state.mode='fullscreen';assist.open(true);
+    assert.equal(fixture({storage,sessionKey:'communication',user:'101'}).state.corner,'bottom-left');
+    assert.equal(fixture({storage,sessionKey:'assist',user:'101'}).state.mode,'fullscreen');
+    assert.equal(fixture({storage,sessionKey:'communication',user:'102'}).state.open,false);
+    const before=[...storage.values],custom=fixture({storage,sessionKey:'assist',user:'101',sessionAllowed:false});
+    assert.equal(custom.state.open,false);custom.open(true);custom.emit('pagehide');
+    assert.deepEqual([...storage.values],before);
+});
+
+test('mobile reload uses fullscreen while retaining desktop mode and docking preference',()=>{
+    const storage=sessionStorageFixture(),desktop=fixture({storage,sessionKey:'assist'});
+    desktop.state.corner='top-left';desktop.open(true);
+    const mobile=fixture({storage,sessionKey:'assist',width:390});
+    assert.deepEqual(mobile.state,{open:true,mode:'fullscreen',corner:'top-left'});
+    mobile.open(false);mobile.emit('pagehide');
+    assert.deepEqual(fixture({storage,sessionKey:'assist'}).state,{open:false,mode:'mini',corner:'top-left'});
+    mobile.win.innerWidth=1223;mobile.data.resetWindow();mobile.flush();mobile.emit('pagehide');
+    assert.equal(mobile.state.mode,'mini','returning to desktop removes only responsive fullscreen');
+    assert.deepEqual(fixture({storage,sessionKey:'assist'}).state,{open:false,mode:'mini',corner:'top-left'});
+});
+
+test('session ignores invalid records and tolerates denied reads and writes',()=>{
+    for(const record of ['broken', 'null', '[]', '{"version":2,"open":true,"mode":"mini","corner":"top-left"}',
+        '{"version":1,"open":"true","mode":"mini","corner":"top-left"}',
+        '{"version":1,"open":true,"mode":"invalid","corner":"top-left"}',
+        '{"version":1,"open":true,"mode":"mini","corner":"invalid"}']){
+        const f=fixture({sessionKey:'communication',storage:{getItem:()=>record,setItem(){}}});
+        assert.equal(f.state.open,false);assert.equal(f.state.corner,'bottom-right');
+    }
+    const denied=fixture({sessionKey:'communication',storage:{getItem(){throw Error('denied')},setItem(){throw Error('quota')}}});
+    assert.doesNotThrow(()=>{denied.open(true);denied.emit('pagehide');denied.data.destroyWindow()});
+});
+
+test('pagehide saves synchronous changes and teardown removes its listener without rewriting state',()=>{
+    const storage=sessionStorageFixture(),f=fixture({storage,sessionKey:'communication'});
+    f.state.open=true;f.state.mode='fullscreen';f.state.corner='top-right';f.emit('pagehide');
+    assert.deepEqual(fixture({storage,sessionKey:'communication'}).state,{open:true,mode:'fullscreen',corner:'top-right'});
+    const before=[...storage.values];f.data.destroyWindow();f.state.open=false;f.emit('pagehide');
+    assert.equal(f.listeners.get('pagehide').size,0);assert.deepEqual([...storage.values],before);
+});
 
 test('opening grows from its launcher into the target window geometry',()=>{
     const f=fixture();f.open(true);
@@ -114,7 +180,7 @@ test('opening and choosing fullscreen in the same update starts only one reveal'
 
 test('AI-Assist launcher opens through its owner and the window controls visibility',()=>{
     const launcherMarkup = assistant.match(/<x-ui\.floating\.launcher\b[\s\S]*?<\/x-ui\.floating\.launcher>/)?.[0] || '';
-    const windowMarkup = assistant.match(/<x-ui\.floating\.window\b[\s\S]*?layout-action="syncLayout\(\);">/)?.[0] || '';
+    const windowMarkup = assistant.match(/<x-ui\.floating\.window\b[\s\S]*?layout-action="syncLayout\(\);"[^>]*>/)?.[0] || '';
     assert.match(launcherMarkup,/x-on:click\.stop="\$dispatch\('railtime-assistant-open'\)"/);
     assert.doesNotMatch(launcherMarkup,/x-on:click\.stop="toggle\(\)"/);
     assert.match(launcherMarkup,/data-rt-window-launcher-for="\{\{ \$panelId \}\}"/);
@@ -383,7 +449,8 @@ function launcherGroupFixture() {
         visualViewport:{...target(),height:1000,offsetTop:0},MutationObserver,ResizeObserver,
         localStorage:{getItem:key=>storage.get(key),setItem:(key,value)=>storage.set(key,value)},
         getComputedStyle:node=>({display:node.testDisplay||'block',visibility:'visible',opacity:'1',
-            overflowX:'visible',overflowY:'visible',position:node.testPosition||'static'}),
+            overflowX:'visible',overflowY:'visible',position:node.testPosition||'static',
+            getPropertyValue:key=>key==='--rt-floating-safe-bottom'?String(win.safeBottom||0):'0'}),
         requestAnimationFrame:callback=>{const id=++frameId;rafs.set(id,callback);return id;},
         cancelAnimationFrame:id=>rafs.delete(id),
     };
@@ -406,7 +473,7 @@ function launcherGroupFixture() {
 
 test('shared coordinator reacts to footer changes, scrolling, dock visibility, and hidden launchers without accumulating offsets',()=>{
     const f=launcherGroupFixture();f.api.register(f.chat);f.api.register(f.assist);f.flush();
-    assert.equal(f.bottom(f.group),136);
+    assert.equal(f.bottom(f.group),16);
     assert.equal(f.chat.getBoundingClientRect().top-f.assist.getBoundingClientRect().bottom,12);
     for(const node of [f.chat,f.assist,f.stage,f.chatItem,f.assistItem]){
         assert.equal(node.style.getPropertyValue('--rt-floating-launcher-bottom'),undefined,'the shared container owns every launcher offset');
@@ -416,14 +483,28 @@ test('shared coordinator reacts to footer changes, scrolling, dock visibility, a
     assert.equal(f.bottom(f.group),182);
     f.scroll();assert.equal(f.bottom(f.group),182,'repeated measurement never adds a second footer lift');
     f.footer.testRect=f.shape(0,1050,1000,50);f.scroll();
-    assert.equal(f.bottom(f.group),136);
+    assert.equal(f.bottom(f.group),16);
     f.dock.testRect=f.shape(0,850,1000,150);f.mutate();
-    assert.equal(f.bottom(f.group),136,'desktop navigation is not a bottom dock');
+    assert.equal(f.bottom(f.group),16,'desktop navigation is not a bottom dock');
     f.dock.testPosition='fixed';f.mutate();
     assert.equal(f.bottom(f.group),162);
     f.dock.testDisplay='none';f.chat.testDisplay='none';f.mutate();
-    assert.equal(f.bottom(f.group),136,'the remaining visible assistant occupies the bottom of the group');
+    assert.equal(f.bottom(f.group),16,'the remaining visible assistant occupies the bottom of the group');
     assert.equal(f.group.getBoundingClientRect().height,56);
+    f.api.destroy();
+});
+
+test('bottom placement respects the device safe area and keyboard viewport without retaining a removed dock offset',()=>{
+    const f=launcherGroupFixture();f.api.register(f.chat);f.api.register(f.assist);f.flush();
+    assert.equal(f.bottom(f.group),16);
+    f.win.safeBottom=34;f.win.dispatchEvent({type:'resize'});f.flush();
+    assert.equal(f.bottom(f.group),34);
+    f.win.visualViewport.height=700;f.win.visualViewport.dispatchEvent({type:'resize'});f.flush();
+    assert.equal(f.bottom(f.group),334);
+    f.dock.testPosition='fixed';f.dock.testRect=f.shape(0,620,1000,80);f.mutate();
+    assert.equal(f.bottom(f.group),392);
+    f.dock.testDisplay='none';f.win.visualViewport.height=1000;f.win.visualViewport.dispatchEvent({type:'resize'});f.flush();
+    assert.equal(f.bottom(f.group),34);
     f.api.destroy();
 });
 
@@ -450,7 +531,7 @@ test('a short viewport uses one compact launcher row above the footer and dock t
         assert.equal(node.style.getPropertyValue('--rt-floating-launcher-x'),undefined);
         assert.equal(node.style.getPropertyValue('--rt-floating-launcher-bottom'),undefined);
     }
-    assert.equal(f.bottom(f.group),136);
+    assert.equal(f.bottom(f.group),16);
     assert.equal(f.chat.getBoundingClientRect().top-f.assist.getBoundingClientRect().bottom,12);
     releaseChat();releaseAssist();
 });
@@ -470,7 +551,7 @@ test('last launcher cleanup disconnects observers and events and permits a fresh
     assert.equal(f.rafs.size,0,'disposed listeners cannot restart background layout work');
     const next=f.win.rtInitializeFloatingLauncherGroup(f.document,f.win);
     assert.notEqual(next,f.api);const release=next.register(f.chat);f.flush();
-    assert.equal(f.bottom(f.group),136);release();
+    assert.equal(f.bottom(f.group),16);release();
     assert.equal(f.resizes[1].disconnected,true);
 });
 
@@ -479,7 +560,7 @@ test('navigation remeasures a replacement shared rail while preserving both regi
     const next=f.document.createElement('div');next.setAttribute('data-rt-floating-launcher-group','');next.dataset.rtLauncherLayout='stack';
     next.append(f.chatItem,f.assistItem);f.group.replaceWith(next);
     f.event(f.document,'livewire:navigated');f.flush();
-    assert.equal(f.bottom(next),136);assert.equal(f.chatItem.parentElement,next);assert.equal(f.assistItem.parentElement,next);
+    assert.equal(f.bottom(next),16);assert.equal(f.chatItem.parentElement,next);assert.equal(f.assistItem.parentElement,next);
     assert.equal(f.chat.getBoundingClientRect().top-f.assist.getBoundingClientRect().bottom,12);
     assert.equal(f.resizes[0].observed.has(f.group),false);
     assert.equal(f.resizes[0].observed.has(next),true);
@@ -492,7 +573,7 @@ test('the shared rail moves beside an open mini window and returns together when
     const panel=f.document.createElement('section');panel.className='rt-floating-window';
     panel.dataset.floatingMode='mini';panel.dataset.floatingOpen='true';panel.testRect=f.shape(700,300,284,684);
     f.document.body.append(panel);f.mutate();
-    assert.equal(f.bottom(f.group),136,'a free lateral position preserves the preferred height');
+    assert.equal(f.bottom(f.group),16,'a free lateral position preserves the preferred height');
     assert.equal(f.group.getBoundingClientRect().right,panel.testRect.left-12);
     assert.equal(f.chatItem.parentElement,f.group);assert.equal(f.assistItem.parentElement,f.group);
     assert.equal(f.chat.getBoundingClientRect().top-f.assist.getBoundingClientRect().bottom,12);

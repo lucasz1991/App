@@ -94,7 +94,6 @@ export function aiAssist({ embedded = false } = {}) {
             const next = Boolean(open);
             if (next === this.open) return;
             const opening = next && !this.open;
-            if (opening && window.innerWidth > 760) this.mode = 'mini';
             this.open = next;
             this.syncLayout();
             if (!next) {
@@ -133,6 +132,12 @@ export function aiAssist({ embedded = false } = {}) {
             const page = documentRef?.querySelector?.('.rt-app-page-frame')?.getBoundingClientRect?.();
             root.style?.setProperty?.('--rt-assistant-left', `${Math.max(0, page?.left || 0)}px`);
             documentRef?.body?.classList?.toggle('rt-ai-assist-fullscreen', this.open && this.mode === 'fullscreen');
+        },
+        restoreWindowSession(saved) {
+            this.corner = saved.corner;
+            this.toggle(saved.open || root?.dataset.intakeOpen === 'true');
+            this.mode = this.mobile ? 'fullscreen' : saved.mode;
+            this.syncLayout();
         },
         resizeSurface() {
             if (!this.wide) return;

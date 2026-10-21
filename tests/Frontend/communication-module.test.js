@@ -173,6 +173,16 @@ test('desktop surfaces only close each other at the same corner while mobile alw
     f.flush(); f.finish(); f.component.destroy();
 });
 
+test('session restoration uses native communication visibility and keeps its docking corner', () => {
+    const f=fixture();
+    f.component.restoreWindowSession({open:true,mode:'fullscreen',corner:'top-left'});f.flush();
+    assert.equal(f.component.open,true);assert.equal(f.component.mode,'fullscreen');assert.equal(f.component.corner,'top-left');
+    assert.equal(f.component.$root.dataset.communicationOpen,'true');
+    f.component.restoreWindowSession({open:false,mode:'mini',corner:'bottom-left'});f.flush();
+    assert.equal(f.component.open,false);assert.equal(f.component.corner,'bottom-left');
+    f.component.destroy();
+});
+
 test('surface-open event is shared by communication and AI Assist without call termination', () => {
     assert.match(source, /const detail = \{ surface: 'communication', corner: this\.corner, mobile: window\.innerWidth <= 760 \}/);
     assert.match(source, /corner: this\.corner, mobile: window\.innerWidth <= 760/);
@@ -195,6 +205,17 @@ test('communication and AI Assist share the red window frame, header, and tab me
     assert.doesNotMatch(windowTabsStyles, /@media[^}]*\.rt-window-tabs__label[^{]*\{[^}]*display: none/);
     assert.match(styles, /\.rt-comm-window-actions button,\s*\.rt-ai-assist__head-actions \.rt-ai-assist__icon-btn\s*\{/);
     assert.match(styles, /\.rt-ai-assist__context--header > \.rt-ai-assist__icon-btn:hover,\s*\.rt-ai-assist__head-actions \.rt-ai-assist__context--header > \.rt-ai-assist__icon-btn\[aria-expanded='true'\]\s*\{\s*border-color: transparent;\s*background: transparent;\s*color: #fff;/);
+});
+
+test('navigation loader stays below the shared launchers and the body-teleported assistant', async () => {
+    const shellStyles=await readFile(new URL('../../resources/css/app.css',import.meta.url),'utf8');
+    const loaderLayer=Number(shellStyles.match(/body\[data-sidebar-collapsible\] \.rt-nav-overlay\s*\{[^}]*z-index:\s*(\d+)/)?.[1]);
+    const launcherLayer=Number(launcherGroupComponent.match(/\[data-rt-floating-launcher-group\]\s*\{[^}]*z-index:\s*(\d+)/)?.[1]);
+    const panelLayer=Number(aiAssistStyles.match(/\.rt-ai-assist__panel\s*\{[^}]*z-index:\s*(\d+)/)?.[1]);
+    assert.ok(loaderLayer<launcherLayer&&launcherLayer<panelLayer,'closed buttons and windows must paint above the shell loader');
+    assert.match(aiAssistView,/<div data-ai-assist-host>\s*@teleport\('body'\)\s*<div class="rt-ai-assist rt-ops" x-data="rtAiAssist"/,
+        'the entire native assistant scope must escape main-content stacking contexts together');
+    assert.match(aiAssistView,/@endteleport\s*<\/div>\s*$/);
 });
 
 function windowTabsFixture(direction = 'ltr') {

@@ -1499,6 +1499,13 @@ export function railtimeChatbot(config = {}) {
             });
         },
 
+        restoreWindowSession(saved) {
+            if (this.pageBuilderActive) return;
+            this.assistantCorner = saved.corner;
+            this.assistantMode = window.innerWidth <= 760 ? 'fullscreen' : saved.mode;
+            this.setOpen(saved.open, false, false);
+        },
+
         toggleOpen() {
             this.setOpen(!this.open, !this.open);
         },

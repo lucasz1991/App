@@ -75,7 +75,7 @@ test('closing keeps the unsent draft and first opening loads once with retry aft
     component.$wire.load = async () => { if (++loads === 1) throw new Error('offline'); };
     component.text = 'Ungesendeter Entwurf';
     component.toggle(true);
-    assert.equal(component.mode, 'mini', 'desktop launcher opening always starts in mini mode');
+    assert.equal(component.mode, 'fullscreen', 'opening retains the selected desktop display mode');
     await flush();
     assert.match(component.callError, /erneut/);
     assert.equal(component.loaded, false);
@@ -90,6 +90,26 @@ test('closing keeps the unsent draft and first opening loads once with retry aft
     await flush();
     assert.equal(loads, 2);
     assert.equal(component.text, 'Ungesendeter Entwurf');
+});
+
+test('session restore loads once, restores mode/corner and retains them when reopening', async () => {
+    const events=[],component=fixture({events});
+    let loads=0;component.$wire.load=async()=>{loads++};
+    component.restoreWindowSession({open:true,mode:'fullscreen',corner:'top-left'});
+    await flush();
+    assert.equal(component.open,true);assert.equal(component.mode,'fullscreen');assert.equal(component.corner,'top-left');
+    assert.equal(component.loaded,true);assert.equal(loads,1);
+    assert.equal(events.find(e=>e.type==='railtime-assistant-opened').detail.corner,'top-left');
+    component.toggle(false);component.toggle(true);await flush();
+    assert.equal(component.mode,'fullscreen');assert.equal(loads,1);
+});
+
+test('session restore respects mobile fullscreen and an explicit intake-opening request', () => {
+    const component=fixture({width:390});
+    component.$el.dataset.intakeOpen='true';
+    component.restoreWindowSession({open:false,mode:'mini',corner:'top-right'});
+    assert.equal(component.open,true,'an explicit intake request wins over the stored closed state');
+    assert.equal(component.mode,'fullscreen');assert.equal(component.corner,'top-right');
 });
 
 test('opening dispatches the assistant corner and mobile state for surface coordination', () => {

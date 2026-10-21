@@ -4,9 +4,10 @@
 [data-rt-floating-launcher-group] {
     --rt-floating-safe-left: env(safe-area-inset-left, 0px);
     --rt-floating-safe-right: env(safe-area-inset-right, 0px);
+    --rt-floating-safe-bottom: env(safe-area-inset-bottom, 0px);
     position: fixed; left: var(--rt-floating-launcher-x, auto); right: 16px;
-    bottom: var(--rt-floating-launcher-bottom, calc(36px + 10dvh));
-    z-index: 24; display: flex; flex-direction: column; align-items: flex-end;
+    bottom: var(--rt-floating-launcher-bottom, max(16px, env(safe-area-inset-bottom, 0px)));
+    z-index: 26; display: flex; flex-direction: column; align-items: flex-end;
     gap: 12px; width: max-content; max-width: calc(100vw - 24px); padding: 0;
     pointer-events: none; transition: left 220ms cubic-bezier(.22,.8,.25,1);
 }
@@ -103,7 +104,8 @@ window.rtInitializeFloatingLauncherGroup = function(doc = document, win = window
         const railStyle = win.getComputedStyle(rail);
         const edgeLeft = Math.max(16, parseFloat(railStyle.getPropertyValue?.('--rt-floating-safe-left')) || 0);
         const edgeRight = Math.max(16, parseFloat(railStyle.getPropertyValue?.('--rt-floating-safe-right')) || 0);
-        const preferredBottom = win.innerHeight - viewportBottom + 36 + viewportHeight * .1;
+        const edgeBottom = Math.max(16, parseFloat(railStyle.getPropertyValue?.('--rt-floating-safe-bottom')) || 0);
+        const preferredBottom = win.innerHeight - viewportBottom + edgeBottom;
         const choosePosition = (width, height) => {
             const preferredX = html.dataset.rtLauncherSide === 'left' ? edgeLeft : win.innerWidth - edgeRight - width;
             const candidates = [preferredX, ...panels.flatMap(rect => [rect.left - width - 12, rect.right + 12])];

@@ -1,11 +1,10 @@
 <section class="rt-disposition rt-unified-inbox" aria-label="Gemeinsamer Eingang" wire:poll.visible.15s x-data="{}">
-    <template x-teleport="[data-page-header-search]" wire:key="unified-inbox-status-{{ $this->getId() }}">
-        <x-ui.navigation.status-menu class="rt-unified-inbox__statuses"
-            :options="$this::FILTERS" :value="$status" action="setStatus"
-            :counts="collect($this::FILTERS)->map(fn ($label, $key) => $key === 'all' ? $counts->sum() : ($counts[$key] ?? 0))->all()" />
-    </template>
     <template x-teleport="[data-page-header-action-list]" wire:key="unified-inbox-actions-{{ $this->getId() }}">
         <div class="ops-actions rt-unified-inbox__actions">
+                <x-ui.navigation.status-menu class="rt-unified-inbox__statuses" variant="dropdown"
+                    :dropdown-id="'unified-inbox-status-'.$this->getId()"
+                    :options="$this::FILTERS" :value="$status" action="setStatus"
+                    :counts="collect($this::FILTERS)->map(fn ($label, $key) => $key === 'all' ? $counts->sum() : ($counts[$key] ?? 0))->all()" />
                 <label class="sr-only" for="unified-channel-{{ $this->getId() }}">Quelle oder Verarbeitung</label>
                 <x-ui.forms.select id="unified-channel-{{ $this->getId() }}" class="rt-unified-inbox__select" wire:model.live="channel" aria-label="Quelle oder Verarbeitung">
                     <option value="all" data-icon-class="far fa-layer-group">Alle Quellen</option>

@@ -19,7 +19,9 @@
         auth()->user()->can('operations.inquiries.manage') ? 'Fasse die neuen Anfragen zusammen.' : null,
     ]));
 @endphp
-<div class="rt-ai-assist" x-data="rtAiAssist" :data-open="open ? 'true' : 'false'" data-open="false" data-intake-open="{{ $intakeRequested ? 'true' : 'false' }}"
+<div data-ai-assist-host>
+@teleport('body')
+<div class="rt-ai-assist rt-ops" x-data="rtAiAssist" :data-open="open ? 'true' : 'false'" data-open="false" data-intake-open="{{ $intakeRequested ? 'true' : 'false' }}"
     data-hints="{{ json_encode($hints, JSON_UNESCAPED_UNICODE) }}" data-actions="{{ json_encode($allActions, JSON_UNESCAPED_UNICODE) }}"
     x-on:keydown.window="shortcut($event)" x-on:keydown.escape="escape($event)" x-on:railtime-assistant-open.window="toggle(true)"
     x-on:railtime-assistant-close.window="if (!wide || window.innerWidth <= 760 || $event.detail?.mobile || !$event.detail?.corner || corner === $event.detail.corner) toggle(false)"
@@ -61,7 +63,7 @@
         <x-ui.floating.window class="rt-ai-assist__panel" id="{{ $panelId }}" x-ref="panel" role="dialog" ::aria-modal="mode === 'fullscreen' ? 'true' : 'false'"
             x-bind:data-window-mode="mode" x-bind:data-corner="corner" aria-label="AI-Assist"
             x-trap.inert.noscroll="open && mode === 'fullscreen'"
-            layout-action="syncLayout();">
+            layout-action="syncLayout();" session-key="assist" session-restore="restoreWindowSession(rtWindowSession)">
             <x-slot:header class="rt-ai-assist__head rt-assistant-header" data-assistant-header>
                 <x-operations.assistant-navigation class="rt-ai-assist__tabs" appearance="window" :tabs="$tabs" :selected="$tab" action="setTab" :id-prefix="$panelId" :controls="$panelId.'-body'" :review-count="$reviewCount" label="AI-Assist" />
             </x-slot:header>
@@ -356,4 +358,6 @@
             </div>
         </x-ui.floating.window>
     </div>
+</div>
+@endteleport
 </div>

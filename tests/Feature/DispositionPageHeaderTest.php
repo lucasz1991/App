@@ -74,20 +74,33 @@ class DispositionPageHeaderTest extends TestCase
         $inquiry = $this->inquiry('Header inquiry');
         $component = Livewire::test(UnifiedInbox::class)->assertSee($inquiry->title);
         $xpath = $this->xpath($component->html());
-        $statusHost = '//template[@*[name()="x-teleport" and .="[data-page-header-search]"]]';
         $actionsHost = '//template[@*[name()="x-teleport" and .="[data-page-header-action-list]"]]';
+        $statusHost = $actionsHost;
+        $this->assertSame(0, $xpath->query('//template[@*[name()="x-teleport" and .="[data-page-header-search]"]]')->length);
         $this->assertSame(5, $xpath->query($statusHost.'//button[@data-status-value]')->length);
+        $this->assertSame(1, $xpath->query($actionsHost.'//button[@aria-label="Bearbeitungsstand: Alle (1)"]')->length);
+        $this->assertSame(0, $xpath->query($actionsHost.'//button[contains(@class,"rt-status-menu__trigger") and @disabled]')->length);
         $this->assertSame(1, $xpath->query($actionsHost.'//*[@data-rt-custom-select and @data-autosave-model="channel"]')->length);
         $this->assertSame(1, $xpath->query($actionsHost.'//button[@aria-label="Eingang erfassen"]')->length);
         $this->assertSame(0, $xpath->query('//section[contains(@class,"rt-disposition-panel")]//nav')->length);
 
         $component->call('setStatus', 'waiting')->assertDontSee($inquiry->title);
         $xpath = $this->xpath($component->html());
-        $this->assertSame(1, $xpath->query($statusHost.'//button[@data-status-value="waiting" and @aria-pressed="true"]')->length);
-        $this->assertSame(0, $xpath->query($statusHost.'//button[@data-status-value="all" and @aria-pressed="true"]')->length);
+        $this->assertSame(1, $xpath->query($statusHost.'//button[@data-status-value="waiting" and @aria-checked="true"]')->length);
+        $this->assertSame(0, $xpath->query($statusHost.'//button[@data-status-value="all" and @aria-checked="true"]')->length);
+        $this->assertSame(1, $xpath->query($actionsHost.'//button[@aria-label="Bearbeitungsstand: Rückmeldung offen (0)"]')->length);
         $component->call('setStatus', 'review')->assertSee($inquiry->title);
         $this->assertSame('new', $inquiry->fresh()->status);
         $this->assertNull($inquiry->fresh()->order_id);
+    }
+
+    public function test_status_dropdown_disables_its_trigger_and_actions_without_a_safe_action(): void
+    {
+        $xpath = $this->xpath(Blade::render('<x-ui.navigation.status-menu variant="dropdown" :options="[\'all\' => \'Alle\']" value="all" action="invalid.action" />'));
+
+        $this->assertSame(1, $xpath->query('//button[contains(@class,"rt-status-menu__trigger") and @disabled]')->length);
+        $this->assertSame(1, $xpath->query('//button[@role="menuitemradio" and @aria-checked="true" and @disabled]')->length);
+        $this->assertSame(0, $xpath->query('//*[@*[name()="wire:click"]]')->length);
     }
 
     public function test_offers_use_page_controls_only_when_requested_and_keep_search_status_and_customer_scope(): void

@@ -2,6 +2,7 @@
     'label' => null, 'role' => null,
     'openState' => 'open', 'modeState' => 'mode', 'cornerState' => 'corner',
     'enabledState' => 'wide', 'layoutAction' => '',
+    'sessionKey' => null, 'sessionRestore' => '', 'sessionEnabledState' => 'true',
     'dragLabel' => 'Fensterposition',
 ])
 
@@ -59,10 +60,34 @@ window.rtFloatingWindow = (bindings, panel) => {
         enabled: () => Alpine.evaluate(panel, bindings.enabled),
         setMode: value => Alpine.evaluate(panel, bindings.mode+' = rtWindowValue; '+bindings.layout, {scope:{rtWindowValue:value}}),
         setCorner: value => Alpine.evaluate(panel, bindings.corner+' = rtWindowValue', {scope:{rtWindowValue:value}}),
+        sessionEnabled: () => Alpine.evaluate(panel, bindings.sessionEnabled),
+        restore: value => Alpine.evaluate(panel, bindings.sessionRestore, {scope:{rtWindowSession:value}}),
     } : bindings;
     let animation = null, timer = null, revision = 0, pointer = null, lastLauncherRect = null;
     let settled = null, pending = null, previousLayout = '', previousOpen = false, disposed = false;
     let media = null, reduceMotion = null;
+    let sessionStore = null, sessionKey = null, sessionMode = 'mini';
+    let sessionWide = window.innerWidth > 760;
+    const modes = ['mini', 'fullscreen'], corners = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
+    const sessionEnabled = () => Boolean(bindings.sessionKey && state.sessionEnabled?.() !== false);
+    const readSession = () => {
+        if (!sessionEnabled()) return null;
+        try {
+            sessionStore = window.sessionStorage;
+            const user = document.querySelector('meta[name="rt-user-id"]')?.content || 'current';
+            sessionKey = 'rt-floating-window:v1:'+encodeURIComponent(user)+':'+bindings.sessionKey;
+            const saved = JSON.parse(sessionStore.getItem(sessionKey) || 'null');
+            return saved?.version === 1 && typeof saved.open === 'boolean' && modes.includes(saved.mode) && corners.includes(saved.corner) ? saved : null;
+        } catch { return null; }
+    };
+    const saveSession = () => {
+        if (disposed || !sessionEnabled() || !sessionStore || !sessionKey) return;
+        const mode = state.mode(), corner = state.corner();
+        if (!modes.includes(mode) || !corners.includes(corner)) return;
+        // Mobile fullscreen is required by the viewport, not a new desktop preference.
+        if (window.innerWidth > 760 && sessionWide) sessionMode = mode;
+        try { sessionStore.setItem(sessionKey, JSON.stringify({version:1, open:Boolean(state.opened()), mode:sessionMode, corner})); } catch {}
+    };
     const easing = 'cubic-bezier(.22,.8,.25,1)';
     const rectFrame = r => ({left: r.left+'px', top: r.top+'px', width: r.width+'px', height: r.height+'px'});
     const sample = () => ({rect: panel.getBoundingClientRect(), opacity: Number(getComputedStyle(panel).opacity)});
@@ -104,6 +129,10 @@ window.rtFloatingWindow = (bindings, panel) => {
     return {
         windowVisible: false, windowMotion: 'idle', windowDragging: false, windowDockTarget: null,
         initWindow() {
+            sessionMode = window.innerWidth > 760 && modes.includes(state.mode()) ? state.mode() : 'mini';
+            const saved = readSession();
+            if (saved) { sessionMode = saved.mode; state.restore(saved); }
+            window.addEventListener('pagehide', saveSession);
             media = window.matchMedia('(prefers-reduced-motion: reduce)');
             reduceMotion = () => this.resetWindow();
             media.addEventListener?.('change', reduceMotion);
@@ -117,6 +146,7 @@ window.rtFloatingWindow = (bindings, panel) => {
                 const opened = Boolean(state.opened()), layout = state.mode()+':'+state.corner();
                 const visibilityChanged = opened !== previousOpen, layoutChanged = layout !== previousLayout;
                 previousOpen = opened; previousLayout = layout;
+                saveSession();
                 if (visibilityChanged) this.revealWindow(opened);
                 else if (opened && this.windowVisible && layoutChanged) this.layoutWindow();
             });
@@ -130,6 +160,7 @@ window.rtFloatingWindow = (bindings, panel) => {
             media?.removeEventListener?.('change', reduceMotion);
             window.removeEventListener('resize', launcherRect);
             window.removeEventListener('railtime-launcher-side', launcherRect);
+            window.removeEventListener('pagehide', saveSession);
         },
         canMoveWindow() { return Boolean(state.opened() && state.enabled() && state.mode() === 'mini' && window.innerWidth > 760); },
         windowDockStyle() {
@@ -274,6 +305,11 @@ window.rtFloatingWindow = (bindings, panel) => {
             state.setCorner((event.key === 'ArrowUp' ? 'top' : event.key === 'ArrowDown' ? 'bottom' : v)+'-'+(event.key === 'ArrowLeft' ? 'left' : event.key === 'ArrowRight' ? 'right' : h));
         },
         resetWindow() {
+            if (sessionEnabled()) {
+                const wide = window.innerWidth > 760;
+                if (wide && !sessionWide) state.setMode(sessionMode);
+                sessionWide = wide;
+            }
             this.windowCancelDrag(); this.finishWindowMotion(); this.windowVisible = Boolean(state.opened());
             this.$nextTick(() => { if (this.windowVisible) settled = sample(); });
         },
@@ -299,7 +335,8 @@ else document.addEventListener('alpine:init', registerRailTimeWindow, {once:true
 
 <section
     x-rt-window="{
-        opened: @js($openState), mode: @js($modeState), corner: @js($cornerState), enabled: @js($enabledState), layout: @js($layoutAction)
+        opened: @js($openState), mode: @js($modeState), corner: @js($cornerState), enabled: @js($enabledState), layout: @js($layoutAction),
+        sessionKey: @js($sessionKey), sessionRestore: @js($sessionRestore), sessionEnabled: @js($sessionEnabledState)
     }"
     :hidden="!windowVisible" x-cloak
     :data-floating-mode="({{ $enabledState }}) ? {{ $modeState }} : 'custom'"

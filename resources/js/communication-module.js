@@ -131,6 +131,10 @@ export function communicationModule() {
             if (intent.historyRoomUuid) this.$wire.openHistory(intent.historyRoomUuid);
         },
         show(size = 'mini') { this.transition(true, this.wide ? size : 'fullscreen'); },
+        restoreWindowSession(saved) {
+            this.corner = saved.corner;
+            this.transition(saved.open, saved.mode);
+        },
         async requestCall(roomUuid) {
             if (!roomUuid) return;
             if (this.activeCall || requestedRoom) {
