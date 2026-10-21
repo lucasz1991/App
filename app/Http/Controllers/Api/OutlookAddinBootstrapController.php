@@ -8,6 +8,7 @@ use App\Support\OutlookAddin\EntraAccessTokenValidator;
 use App\Support\OutlookAddin\OutlookAddinException;
 use App\Support\OutlookAddin\OutlookAddinIdentityResolver;
 use App\Support\OutlookAddin\OutlookAddinUserSnapshotStore;
+use App\Support\OutlookAddin\OutlookClientPresentation;
 use App\Support\OutlookAddin\OutlookMobileSignature;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -54,6 +55,7 @@ final class OutlookAddinBootstrapController extends Controller
             if ($request->header('X-RailTime-Outlook-Profile') === OutlookMobileSignature::PROFILE) {
                 $payload = OutlookMobileSignature::payload($payload);
             }
+            $payload = OutlookClientPresentation::payload($payload);
             // Der persoenliche Snapshot ist wiederverwendbar, die Freigabe
             // fuer den aktuellen Absender dagegen strikt requestgebunden.
             $payload['binding'] = $resolved['binding'];
