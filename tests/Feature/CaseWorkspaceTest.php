@@ -514,7 +514,7 @@ class CaseWorkspaceTest extends TestCase
         $this->assertSame(['inbox'], array_keys(CaseWorkspace::availableViews($employee)));
         $this->assertSame(['portal'], array_keys(CaseWorkspace::availableSections($employee)));
         Livewire::test(CaseWorkspace::class, ['initialView' => '', 'context' => ['customer' => $this->customer->id]])
-            ->assertSet('view', 'inbox')->assertSet('section', 'overview')->assertSee('Posteingang')->assertDontSee('inquiry-filters', false);
+            ->assertSet('view', 'inbox')->assertSet('section', 'overview')->assertSee('aria-label="Gemeinsamer Eingang"', false)->assertDontSee('inquiry-filters', false);
         Livewire::test(CaseWorkspace::class, ['initialView' => 'inbox', 'initialSection' => 'overview', 'context' => ['customer' => $this->customer->id]])->assertSeeLivewire(UnifiedInbox::class);
         $this->assertDatabaseCount('customer_portal_invitations', 0);
         $this->assertDatabaseCount('customer_portal_deliveries', 0);

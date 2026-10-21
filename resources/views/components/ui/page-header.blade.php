@@ -8,34 +8,38 @@
     'backLabel' => null,
     'showBack' => true,
     'titleInTopbar' => false,
+    'variant' => 'default',
 ])
 
+@php($compact = $variant === 'compact')
+
 <header
-    {{ $attributes->class('relative flex min-w-0 items-center gap-3 sm:gap-4') }}
+    {{ $attributes->class(['relative flex min-w-0 items-center gap-3 sm:gap-4', 'rt-page-header--compact' => $compact]) }}
     data-anim="fade-up"
     data-page-header
+    data-page-header-variant="{{ $compact ? 'compact' : 'default' }}"
     @if($titleInTopbar) x-data="{}" data-page-title-in-topbar @endif
 >
     @if($showBack)
         <x-ui.buttons.backbutton :href="$backUrl" :label="$backLabel" />
     @endif
 
-    <div class="flex min-w-0 flex-1 items-center gap-3">
+    <div class="rt-page-header-primary flex min-w-0 flex-1 items-center gap-3">
         @if($titleInTopbar)
             <template x-teleport="[data-topbar-page-title]">
                 <h1 class="rt-shell-page-title" title="{{ $title }}">{{ $title }}</h1>
             </template>
         @else
-        <h1 class="min-w-0 truncate text-xl font-semibold leading-tight tracking-[-0.03em] text-rt-text sm:text-2xl dark:text-rt-dark-text" title="{{ $title }}">
+        <h1 @class(['sr-only' => $compact, 'min-w-0 truncate text-xl font-semibold leading-tight tracking-[-0.03em] text-rt-text sm:text-2xl dark:text-rt-dark-text' => ! $compact]) title="{{ $title }}">
             {{ $title }}
         </h1>
         @endif
-        <div class="rt-page-header-search min-w-0 shrink-0" data-page-header-search></div>
+        <div class="rt-page-header-search min-w-0 shrink-0" data-page-header-search>@isset($controls){{ $controls }}@endisset</div>
     </div>
 
     <div class="rt-page-header-metrics min-w-0 flex-1" data-page-header-metrics></div>
 
-    @if (isset($actions) || $help)
+    @if ($compact || isset($actions) || $help)
         <div class="flex shrink-0 flex-nowrap items-center justify-end gap-1.5" data-page-header-actions>
             <div class="empty:hidden flex min-w-0 flex-nowrap items-center justify-end gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-page-header-action-list>
                 @isset($actions)

@@ -427,13 +427,15 @@ class ResponsiveShiftPlanControlsTest extends TestCase
     public function test_responsive_rules_use_one_command_row_icon_views_and_accessible_secondary_action_overflow(): void
     {
         $css = file_get_contents(resource_path('css/disposition-workspace.css'));
+        $sharedHeader = file_get_contents(resource_path('css/page-header.css'));
         $start = strpos($css, '/* One command row, with only secondary actions moving to the existing menu. */');
         $this->assertNotFalse($start);
         // This contract belongs to the shift-plan command row, not the later
         // order/inbox toolbars whose status controls may legitimately wrap.
         $end = strpos($css, '/* Auftragsübersicht:', $start);
         $commands = substr($css, $start, $end === false ? null : $end - $start);
-        $this->assertMatchesRegularExpression('/\.rt-disposition-page:has\(\.rt-shift-plan\) > \[data-page-header\]\s*\{[^}]*display:\s*grid !important;[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto;/s', $commands);
+        $this->assertMatchesRegularExpression('/\.rt-page-header--compact\[data-page-header\]\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto;/s', $sharedHeader);
+        $this->assertMatchesRegularExpression('/\.rt-disposition-page:has\(\.rt-shift-plan\) > \[data-page-header\]:not\(\.rt-page-header--compact\)\s*\{[^}]*display:\s*grid !important;/s', $commands);
         $this->assertStringNotContainsString('grid-row: 2', $commands);
         $this->assertStringNotContainsString('flex-wrap: wrap', $commands);
         $this->assertStringContainsString('.rt-shift-plan-header-controls { flex-wrap: nowrap; }', $commands);
@@ -444,11 +446,17 @@ class ResponsiveShiftPlanControlsTest extends TestCase
         $this->assertMatchesRegularExpression('/\.rt-shift-plan-view-trigger\.rt-ui-button\s*\{[^}]*width:\s*44px;[^}]*min-width:\s*44px !important;[^}]*justify-content:\s*center;/s', $tablet);
         $this->assertMatchesRegularExpression('/\.rt-shift-plan-view-trigger \.rt-shift-plan-control__label,\s*\.rt-shift-plan-view-trigger \.rt-shift-plan-control__chevron\s*\{\s*display:\s*none;\s*\}/s', $tablet);
         $mobile = $this->mediaBody($commands, 600);
-        $this->assertStringContainsString('grid-template-columns: minmax(0, 1fr) auto', $mobile);
+        $sharedMobile = $this->mediaBody($sharedHeader, 600);
+        $this->assertStringNotContainsString('grid-template-columns:', $sharedMobile);
+        $this->assertMatchesRegularExpression('/@media \(max-width: 767\.98px\)\s*\{\s*\.rt-page-header--compact\[data-page-header\]\s*\{\s*--rt-page-header-gap:\s*4px;\s*\}/s', $sharedHeader);
         $this->assertStringNotContainsString('[data-page-header-control]:first-child', $mobile);
-        $this->assertStringContainsString('[data-page-info-button] { display: none !important; }', $mobile);
+        $this->assertStringContainsString('.rt-page-header--compact:has([data-shift-plan-header-controls]) > [data-page-header-actions] > [data-page-info-button] { display: none !important; }', $sharedMobile);
         $this->assertStringContainsString('.rt-shift-plan-compact-action { display: flex; }', $mobile);
         $narrow = $this->mediaBody($commands, 480);
+        $sharedNarrow = $this->mediaBody($sharedHeader, 480);
+        $this->assertStringContainsString('.rt-page-header--compact:has([data-shift-plan-header-controls]) .rt-shift-plan-create,', $sharedNarrow);
+        $this->assertStringContainsString('div:has(> .rt-shift-plan-create) { display: none !important; }', $sharedNarrow);
+        $this->assertMatchesRegularExpression('/\.rt-page-header--compact:has\(\[data-timeline-filter-owner\]\)\s*\{\s*grid-template-columns:\s*minmax\(0, 1fr\);\s*\}/s', $this->mediaBody($sharedHeader, 379));
         $this->assertStringContainsString('.rt-shift-plan-compact-create { display: flex; }', $narrow);
         $this->assertStringContainsString('.rt-shift-plan-create', $narrow);
         $this->assertMatchesRegularExpression('/\.rt-shift-plan-period-controls \.rt-shift-plan-period-trigger\s*\{[^}]*width:\s*44px;/s', $narrow);

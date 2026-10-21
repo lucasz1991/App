@@ -46,8 +46,12 @@ class CommercialOfferIndex extends Component
 
     public string $status = 'all';
 
-    public function mount(?int $customerId = null, ?int $inquiryId = null, ?int $orderId = null, ?int $initialRevision = null): void
+    #[Locked]
+    public bool $headerInPage = false;
+
+    public function mount(?int $customerId = null, ?int $inquiryId = null, ?int $orderId = null, ?int $initialRevision = null, bool $headerInPage = false): void
     {
+        $this->headerInPage = $headerInPage;
         $this->customerId = $customerId;
         $this->inquiryId = $inquiryId;
         $this->orderId = $orderId;

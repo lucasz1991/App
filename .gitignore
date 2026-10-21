@@ -32,6 +32,7 @@ Homestead.json
 !/tests/Feature/PlanningTopbarNavigationTest.php
 !/tests/Feature/OperationsPageIntegrationTest.php
 !/tests/Feature/CaseWorkspaceTest.php
+!/tests/Feature/DispositionPageHeaderTest.php
 !/tests/Feature/CustomerWorkspaceTest.php
 !/tests/Feature/PersonalPageWorkspaceTest.php
 !/tests/Feature/DropboxSyncTest.php

@@ -36,7 +36,7 @@
     @elseif($view === 'shifts')
         <livewire:operations.planning-page-workspace page="shifts" :initial-view="$section" :context="$context" :embedded="true" :key="'case-shifts-'.$section" />
     @elseif($view === 'offers')
-        <livewire:operations.commercial-offer-index :customer-id="$context['customer'] ?? null" :inquiry-id="$context['inquiry'] ?? null" :order-id="$context['order'] ?? null" :initial-revision="$context['revision'] ?? null" :key="'case-offers-'.md5(json_encode($context))" />
+        <livewire:operations.commercial-offer-index :header-in-page="true" :customer-id="$context['customer'] ?? null" :inquiry-id="$context['inquiry'] ?? null" :order-id="$context['order'] ?? null" :initial-revision="$context['revision'] ?? null" :key="'case-offers-'.md5(json_encode($context))" />
     @elseif($view === 'orders')
         @if($costsOnly)
             <livewire:operations.operations-enhancements tab="costs" :order-id="$context['order'] ?? null" :embedded="true" :key="'case-costs-'.($context['order'] ?? 'all')" />

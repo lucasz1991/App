@@ -291,7 +291,7 @@ body:has(#main-content [data-orders-list-scroll]) { height: 100%; min-height: 0;
     flex-direction: column;
 }
 .page-content.rt-app-page-frame:has([data-orders-list-scroll]) > .rt-page-content { min-height: 0 !important; overflow: hidden; flex: 1 1 auto; }
-.rt-disposition-page:has([data-orders-list-scroll]) > [data-page-header] { flex: none; }
+.rt-disposition-page:has([data-orders-list-scroll]) > [data-page-header]:not(.rt-page-header--compact) { flex: none; }
 .rt-disposition-page:has([data-orders-list-scroll]) { gap: 16px; }
 .rt-disposition-page:has([data-orders-list-scroll]) > * + * { margin-top: 0 !important; }
 [data-page-live-content]:has([data-orders-list-scroll]),
@@ -320,14 +320,14 @@ body:has(#main-content [data-orders-list-scroll]) { height: 100%; min-height: 0;
 }
 /* The header is a single row at every width. The disabled bulk placeholder is
    the only control omitted on phones; date/filter/create/help keep 44px hits. */
-.rt-disposition-page:has([data-orders-list-scroll]) > [data-page-header] {
+.rt-disposition-page:has([data-orders-list-scroll]) > [data-page-header]:not(.rt-page-header--compact) {
     display: flex !important;
     flex-wrap: nowrap !important;
     gap: 8px;
     padding-block: 0;
 }
-.rt-disposition-page:has([data-orders-list-scroll]) > [data-page-header] > div:first-child { flex: 0 0 auto; }
-.rt-disposition-page:has([data-orders-list-scroll]) > [data-page-header] > [data-page-header-actions] {
+.rt-disposition-page:has([data-orders-list-scroll]) > [data-page-header]:not(.rt-page-header--compact) > div:first-child { flex: 0 0 auto; }
+.rt-disposition-page:has([data-orders-list-scroll]) > [data-page-header]:not(.rt-page-header--compact) > [data-page-header-actions] {
     flex: 0 0 auto;
     width: auto;
     margin-left: auto;
@@ -343,17 +343,17 @@ body:has(#main-content [data-orders-list-scroll]) { height: 100%; min-height: 0;
     .rt-orders-period-trigger > span, .rt-orders-period-trigger .rt-shift-plan-control__chevron { display: none; }
 }
 @media (max-width: 767.98px) {
-    .rt-disposition-page:has([data-orders-list-scroll]) > [data-page-header] { gap: 4px; }
-    .rt-disposition-page:has([data-orders-list-scroll]) > [data-page-header] > div:first-child { display: none; }
+    .rt-disposition-page:has([data-orders-list-scroll]) > [data-page-header]:not(.rt-page-header--compact) { gap: 4px; }
+    .rt-disposition-page:has([data-orders-list-scroll]) > [data-page-header]:not(.rt-page-header--compact) > div:first-child { display: none; }
     .rt-orders-table-filters { flex: none; gap: 4px; }
-    .rt-disposition-page:has([data-orders-list-scroll]) [data-page-header-action-list] { gap: 4px; overflow: visible; }
-    .rt-disposition-page:has([data-orders-list-scroll]) > [data-page-header] > div:first-child:has([data-service-selection-controls]) { display: flex; }
+    .rt-disposition-page:has([data-orders-list-scroll]) [data-page-header]:not(.rt-page-header--compact) [data-page-header-action-list] { gap: 4px; overflow: visible; }
+    .rt-disposition-page:has([data-orders-list-scroll]) > [data-page-header]:not(.rt-page-header--compact) > div:first-child:has([data-service-selection-controls]) { display: flex; }
     .rt-service-selection-controls .rt-table-bulk-trigger:disabled { display: none; }
     /* Like Personal, one selected-count control replaces the page checkbox.
        Page selection remains available inside its native anchored menu. */
     .rt-service-selection-controls .rt-table-bulk:has([data-tables-bulk-menu]) > .rt-table-select-trigger { display: none !important; }
 }
 @media (max-width: 480px) {
-    .rt-disposition-page:has([data-service-overview]) [data-page-header] .rt-shift-plan-header-action { gap: 4px; }
-    .rt-disposition-page:has([data-service-overview]) [data-page-header] .rt-shift-plan-distribution-trigger.rt-ui-button { width: 44px; min-width: 44px; padding-inline: 2px; }
+    .rt-disposition-page:has([data-service-overview]) [data-page-header]:not(.rt-page-header--compact) .rt-shift-plan-header-action { gap: 4px; }
+    .rt-disposition-page:has([data-service-overview]) [data-page-header]:not(.rt-page-header--compact) .rt-shift-plan-distribution-trigger.rt-ui-button { width: 44px; min-width: 44px; padding-inline: 2px; }
 }
