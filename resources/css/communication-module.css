@@ -65,6 +65,14 @@ body.rt-communication-fullscreen { overflow: hidden; }
 .rt-comm-toolbar .rt-comm-icon { width: 34px; min-width: 34px; height: 34px; }
 .rt-comm-search input { width: 100%; min-width: 0; padding: 0; border: 0; background: transparent; font-size: 12px; color: var(--comm-ink); outline: 0; box-shadow: none; }
 .rt-comm-search:focus-within { outline: 2px solid #e4002b; outline-offset: 1px; }
+.rt-communication .rt-chat-conversation-header { min-height: 47px; gap: 8px !important; padding: 6px 12px !important; background: var(--comm-surface); box-shadow: none; backdrop-filter: none; }
+.rt-communication .rt-chat-conversation-header .rt-chat-avatar > :is(img, span:first-child) { width: 32px !important; height: 32px !important; font-size: 11px !important; }
+.rt-communication .rt-chat-conversation-header :is(.rt-chat-icon-button, .rt-chat-options-trigger, .rt-chat-header-call-link) { width: 34px !important; min-width: 34px !important; height: 34px !important; min-height: 34px !important; padding: 0 !important; border-radius: 9px; }
+.rt-communication .rt-chat-header-name { font-size: 13px !important; line-height: 16px !important; }
+.rt-communication .rt-chat-header-identity > span:not(.rt-chat-avatar) { display: flex; flex-direction: column; justify-content: center; }
+.rt-communication .rt-chat-header-person-trigger { padding-block: 0 !important; }
+.rt-communication .rt-chat-header-status { display: flex !important; align-items: center; min-height: 0 !important; margin-top: 0 !important; line-height: 14px; }
+.rt-communication .rt-chat-header-status :is(.rt-chat-presence, .rt-chat-typing, p) { line-height: 14px; }
 .rt-comm-filter { max-width: 136px; height: 42px; padding: 0 28px 0 10px; border: 1px solid var(--comm-line); border-radius: 10px; background-color: var(--comm-surface); color: var(--comm-muted); font-size: 11px; }
 .rt-comm-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; background: var(--comm-canvas); padding: 12px; }
 .rt-comm-card { display: flex; align-items: center; gap: 14px; min-width: 0; padding: 18px; border: 1px solid color-mix(in srgb,var(--comm-line) 60%,transparent); border-radius: 14px; margin-bottom: 8px; background: var(--comm-surface); }

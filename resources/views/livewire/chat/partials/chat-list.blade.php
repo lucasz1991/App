@@ -6,10 +6,8 @@
     @if($embedded) x-bind:inert="mobilePane !== 'list'" @endif
 >
     @if($embedded)
-        <div class="rt-comm-toolbar">
-            <label class="rt-comm-search"><i class="far fa-search" aria-hidden="true"></i><span class="sr-only">{{ __('app.search') }}</span>
-                <input type="search" wire:model.live.debounce.300ms="search" placeholder="Gespräche suchen …" autocomplete="off">
-            </label>
+        <div class="rt-comm-toolbar rt-floating-toolbar" role="search" aria-label="Chats durchsuchen und filtern">
+            <x-ui.forms.search context="floating" id="communication-chat-search" wire:model.live.debounce.300ms="search" placeholder="Gespräche suchen …" />
             <x-ui.dropdown.anchor-dropdown align="right" width="48" :offset="6" dropdown-id="communication-chat-filter" layer-group="communication-controls" content-label="Chats filtern">
                 <x-slot:trigger>
                     <button type="button" class="rt-comm-icon" aria-haspopup="menu" :aria-label="`Chats filtern: ${chatFilter === 'unread' ? 'Ungelesen' : (chatFilter === 'groups' ? 'Gruppen' : 'Alle')}`" title="Chats filtern">

@@ -67,23 +67,24 @@
             class="sr-only"
         >
 
-        <div
+        <x-ui.floating.composer-row
             x-show.important="!recording && !sendingVoice"
             data-chat-composer-mode="text"
-            class="rt-chat-composer-row flex min-w-0 flex-1 items-center gap-2"
+            class="rt-chat-composer-row"
+            control-class="rt-chat-composer-control"
         >
+            <x-slot:leading>
             <button
                 type="button"
                 @click="$refs.attachmentInput.click()"
                 title="{{ __('app.add_attachment') }}"
                 aria-label="{{ __('app.add_attachment') }}"
-                class="rt-chat-composer-action rt-chat-composer-action--detached flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full"
+                class="rt-floating-composer-attachment rt-chat-composer-action rt-chat-composer-action--detached flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full"
                 data-chat-composer-attachment
             >
                 <i class="far fa-plus" aria-hidden="true"></i>
             </button>
-
-            <div class="rt-chat-composer-control flex min-h-12 min-w-0 flex-1 items-center gap-1 rounded-full px-1.5 py-1" data-chat-input-capsule>
+            </x-slot:leading>
                 <x-chat.live-location-share
                     :chat-id="$selectedChat->id"
                     :start-url="route('chat.live-locations.store', ['chat' => $selectedChat])"
@@ -116,8 +117,7 @@
                     <i class="far fa-microphone" aria-hidden="true"></i>
                     <span class="sr-only">{{ __('app.voice_message') }}</span>
                 </button>
-            </div>
-
+            <x-slot:actions>
             <button
                 x-cloak
                 x-show.important="draft.trim().length > 0 || @js($uploads !== [])"
@@ -132,13 +132,14 @@
                 wire:target="send"
                 title="{{ __('app.send_message') }}"
                 aria-label="{{ __('app.send_message') }}"
-                class="rt-chat-send-button flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white disabled:cursor-wait disabled:opacity-70"
+                class="rt-floating-composer-send rt-chat-send-button flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white disabled:cursor-wait disabled:opacity-70"
                 data-chat-send-button
             >
                 <i wire:loading.remove wire:target="send" class="far fa-paper-plane" aria-hidden="true"></i>
                 <i wire:loading wire:target="send" class="fas fa-spinner fa-spin" aria-hidden="true"></i>
             </button>
-        </div>
+            </x-slot:actions>
+        </x-ui.floating.composer-row>
 
         <div
             x-cloak

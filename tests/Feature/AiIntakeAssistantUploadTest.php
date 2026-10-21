@@ -276,7 +276,8 @@ class AiIntakeAssistantUploadTest extends TestCase
     public function test_livewire_overview_is_always_present_and_foreign_host_events_are_ignored(): void
     {
         $component = Livewire::test(AiIntakeAssistant::class, ['overview' => true, 'hostComponentId' => 'owner'])
-            ->assertSee('Alle Eingänge')->assertSee('Dateien anhängen')->assertDontSee('Bei einem Eingang „Mit AI besprechen“ wählen.');
+            ->assertDontSee('Alle Eingänge')->assertSeeHtml('>Frage oder Prüfhinweis</label>')
+            ->assertSeeHtml('wire:model="prompt"')->assertSee('Dateien anhängen')->assertDontSee('Bei einem Eingang „Mit AI besprechen“ wählen.');
         $component->dispatch('select-ai-intake-assistant', intakeId: 99999, componentId: 'foreign')->assertSet('intakeId', null);
         $component->dispatch('ai-intake-assistant-overview', customerId: null, componentId: 'foreign')->assertSet('overview', true);
         $component->call('beginContextUpload')->assertSet('contextChanged', false);
@@ -397,8 +398,10 @@ class AiIntakeAssistantUploadTest extends TestCase
         $this->assertContains('ai-intake-assistant-overview', $listeners);
         $this->assertNotContains('ai-intake-selected', $listeners);
         $component->set('prompt', 'Unsent overview draft')->dispatch('select-ai-intake-assistant', intakeId: $intake->id, componentId: 'owner')
-            ->assertSet('intakeId', $intake->id)->assertSet('prompt', '')->assertSet('intakeRevision', $intake->revision)->assertDontSee('Alle Eingänge');
-        $component->dispatch('ai-intake-assistant-overview', customerId: null, componentId: 'owner')->assertSet('intakeId', null)->assertSee('Alle Eingänge');
+            ->assertSet('intakeId', $intake->id)->assertSet('prompt', '')->assertSet('intakeRevision', $intake->revision)->assertDontSee('Alle Eingänge')
+            ->assertSeeHtml('>Frage oder Prüfhinweis</label>')->assertSeeHtml('wire:model="prompt"');
+        $component->dispatch('ai-intake-assistant-overview', customerId: null, componentId: 'owner')->assertSet('intakeId', null)->assertDontSee('Alle Eingänge')
+            ->assertSeeHtml('>Frage oder Prüfhinweis</label>')->assertSeeHtml('wire:model="prompt"');
         $this->noBusinessWrites();
     }
 }

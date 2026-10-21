@@ -60,18 +60,18 @@
                     <x-slot:trigger>
                         <button
                             type="button"
-                            class="group block min-w-0 max-w-full rounded-lg px-0.5 py-0.5 text-left outline-none transition-colors hover:text-rt-red focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:hover:text-rt-dark-accent"
+                            class="rt-chat-header-person-trigger group block min-w-0 max-w-full rounded-lg px-0.5 py-0.5 text-left outline-none transition-colors hover:text-rt-red focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:hover:text-rt-dark-accent"
                             title="{{ __('app.open_person_preview') }}"
                             aria-label="{{ __('app.open_person_preview') }}: {{ $headerPerson->name }}"
                             data-no-chat-swipe
                         >
-                            <span class="block truncate text-sm font-extrabold tracking-[-0.025em] text-rt-text transition-colors group-hover:text-rt-red dark:text-rt-dark-text dark:group-hover:text-rt-dark-accent sm:text-[15px]">
+                            <span class="rt-chat-header-name block truncate text-sm font-extrabold tracking-[-0.025em] text-rt-text transition-colors group-hover:text-rt-red dark:text-rt-dark-text dark:group-hover:text-rt-dark-accent sm:text-[15px]">
                                 {{ $selectedChat->displayNameFor($me) }}
                             </span>
                         </button>
                     </x-slot:trigger>
                 </x-user.person-anchor-preview>
-                <span class="mt-0.5 block min-h-[1rem]" aria-live="polite" aria-atomic="true">
+                <span class="rt-chat-header-status mt-0.5 block min-h-[1rem]" aria-live="polite" aria-atomic="true">
                     <span
                         x-show.important="!typingLabel"
                         class="rt-chat-presence {{ $headerIsOnline ? 'is-online' : 'is-offline' }} inline-flex items-center gap-1.5 text-[10px] font-semibold"
@@ -98,10 +98,10 @@
         />
 
         <div class="min-w-0 flex-1">
-            <p class="truncate text-sm font-extrabold tracking-[-0.025em] text-rt-text dark:text-rt-dark-text sm:text-[15px]">
+            <p class="rt-chat-header-name truncate text-sm font-extrabold tracking-[-0.025em] text-rt-text dark:text-rt-dark-text sm:text-[15px]">
                 {{ $selectedChat->displayNameFor($me) }}
             </p>
-            <div class="mt-0.5 min-h-[1rem]" aria-live="polite" aria-atomic="true">
+            <div class="rt-chat-header-status mt-0.5 min-h-[1rem]" aria-live="polite" aria-atomic="true">
                 <p x-show.important="!typingLabel" class="truncate text-[10px] font-medium uppercase tracking-[0.08em] text-rt-muted dark:text-rt-dark-muted">
                     {{ trans_choice('app.members_count', $selectedChat->participants->count()) }}
                 </p>

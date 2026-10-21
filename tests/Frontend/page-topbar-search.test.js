@@ -6,7 +6,7 @@ const template = readFileSync(new URL('../../resources/views/components/tables/s
 const match = template.match(/x-data="(\{[\s\S]*?\})"\s+x-cloak/);
 assert.ok(match, 'The shared search controller is the source under test.');
 
-function setup({ page = true, topbarPage = true, mobile = true } = {}) {
+function setup({ page = true, topbarPage = true, mobile = true, floating = false } = {}) {
     const listeners = new Map();
     const classes = new Set();
     const focused = [];
@@ -42,6 +42,7 @@ function setup({ page = true, topbarPage = true, mobile = true } = {}) {
     const source = match[1]
         .replace(/value: @entangle[^\n]*,/, "value: '',")
         .replace('isTopbar: @js($isTopbarSearch)', 'isTopbar: true')
+        .replace('isFloating: @js($isFloatingSearch)', `isFloating: ${floating}`)
         .replace('isPageSearch: @js($isPageSearch)', `isPageSearch: ${page}`)
         .replace('isPageTopbarSearch: @js($isPageTopbarSearch)', `isPageTopbarSearch: ${topbarPage}`)
         .replace(/layerId: @js[^\n]*,/, "layerId: 'page-list-search',");
@@ -136,4 +137,22 @@ test('viewport changes release page scroll locking and global search keeps its o
     const global = setup({ page: false, topbarPage: false });
     global.state.open();
     assert.equal(global.state.isMobileLayerOpen(), true);
+});
+
+test('floating search expands inline on mobile and keeps the global topbar scroll lock independent', () => {
+    const current = setup({ page: false, topbarPage: false, floating: true });
+    current.classes.add('rt-topbar-search-open');
+    current.state.handleTriggerClick();
+    assert.equal(current.state.isExpanded(), true);
+    assert.equal(current.state.isMobileLayerOpen(), false);
+    assert.equal(current.events[0].detail.group, 'floating-search');
+    current.state.value = 'Team';
+    current.state.handleLayerOpen({ detail: { group: 'topbar', id: 'preferences' } });
+    current.state.handleSearchClose({ detail: {} });
+    assert.equal(current.state.isExpanded(), true);
+    current.state.handleTriggerClick();
+    assert.equal(current.state.isExpanded(), false);
+    assert.equal(current.state.value, 'Team');
+    current.state.destroy();
+    assert.equal(current.classes.has('rt-topbar-search-open'), true);
 });

@@ -165,7 +165,13 @@ export function aiIntakeComposer(wire, options = {}, environment = {}) {
         },
         resize() {
             const field = this.$refs?.prompt;
-            if (field) { field.style.height = 'auto'; field.style.height = `${Math.min(160, Math.max(40, field.scrollHeight))}px`; }
+            if (field) {
+                const styles = (environment.getComputedStyle ?? globalThis.getComputedStyle)?.(field);
+                const minimum = parseFloat(styles?.minHeight) || 40;
+                const maximum = parseFloat(styles?.maxHeight) || 160;
+                field.style.height = 'auto';
+                field.style.height = `${Math.min(maximum, Math.max(minimum, field.scrollHeight))}px`;
+            }
         },
         updateInput() {
             this.hasText = !!this.$refs?.prompt?.value?.trim();

@@ -17,7 +17,6 @@
                     @include('livewire.operations.partials.ai-intake-detail')
                 </div>
             @else
-                <header class="ai-intake-panel__toolbar"><span class="ops-muted">{{ $intakes->total() }} {{ $intakes->total() === 1 ? 'Eingang' : 'Eingänge' }}</span><x-ui.buttons.button-basic type="button" wire:click="openCapture" aria-label="Eingang erfassen" title="Eingang erfassen"><i class="far fa-plus" aria-hidden="true"></i></x-ui.buttons.button-basic></header>
                 @include('livewire.operations.partials.ai-intake-list')
             @endif
         </div>

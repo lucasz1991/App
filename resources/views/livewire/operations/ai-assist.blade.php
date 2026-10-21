@@ -61,14 +61,17 @@
             layout-action="syncLayout();">
             <x-slot:header class="rt-ai-assist__head rt-assistant-header" data-assistant-header>
                 <x-operations.assistant-navigation class="rt-ai-assist__tabs" :tabs="$tabs" :selected="$tab" action="setTab" :id-prefix="$panelId" :controls="$panelId.'-body'" :review-count="$reviewCount" label="AI-Assist" />
-                <x-slot:actions class="rt-ai-assist__head-actions">
-                    <details class="rt-ai-assist__context rt-ai-assist__context--compact rt-ai-assist__context--header" x-cloak x-show="prefs.context"
-                        x-on:toggle="$el.querySelector('summary').setAttribute('aria-expanded', $el.open ? 'true' : 'false')"
-                        x-on:click.outside="$el.open = false" x-on:keydown.escape.stop="$el.open = false">
-                        <summary class="rt-ai-assist__icon-btn" data-no-drag aria-label="Seitenkontext anzeigen" title="Seitenkontext" aria-expanded="false">
-                            <i class="far fa-info-circle" aria-hidden="true"></i>
-                        </summary>
-                        <div class="rt-ai-assist__context-menu" role="group" aria-label="Aktueller Seitenkontext">
+            </x-slot:header>
+            <x-slot:actions class="rt-ai-assist__head-actions">
+                <x-ui.dropdown.anchor-dropdown align="right" width="96" :offset="6" :max-height="420"
+                    :dropdown-id="$panelId.'-context'" :layer-group="$panelId.'-header'" content-role="group" content-label="Aktueller Seitenkontext"
+                    class="rt-ai-assist__header-dropdown" x-show="prefs.context" x-cloak
+                    x-effect="if (!Alpine.$data($el.closest('.rt-ai-assist')).open) close()">
+                    <x-slot:trigger>
+                        <button type="button" class="rt-floating-window__action rt-ai-assist__icon-btn" data-no-drag aria-label="Seitenkontext anzeigen" title="Seitenkontext"><i class="far fa-info-circle" aria-hidden="true"></i></button>
+                    </x-slot:trigger>
+                    <x-slot:content>
+                        <div class="rt-ai-assist rt-ai-assist__context-menu">
                             <div class="rt-ai-assist__chips">
                                 @foreach($chips as [$label, $value])
                                     <span class="rt-ai-assist__chip"><small>{{ $label }}</small><strong>{{ $value }}</strong></span>
@@ -77,78 +80,86 @@
                             @if($actions['page'] !== [])
                                 <div class="rt-ai-assist__quickbar">
                                     @foreach(array_slice($actions['page'], 0, 2) as $action)
-                                        <button type="button" class="rt-ai-assist__quick" x-on:click="run(@js($action['key'])); $el.closest('details').open = false" :disabled="busy"><span>{{ $action['title'] }}</span><i class="far fa-arrow-right" aria-hidden="true"></i></button>
+                                        <button type="button" class="rt-ai-assist__quick" x-on:click="run(@js($action['key']))" :disabled="busy"><span>{{ $action['title'] }}</span><i class="far fa-arrow-right" aria-hidden="true"></i></button>
                                     @endforeach
                                 </div>
                             @endif
                         </div>
-                    </details>
+                    </x-slot:content>
+                </x-ui.dropdown.anchor-dropdown>
                     <button class="rt-ai-assist__icon-btn" type="button" x-cloak x-show="wide" x-on:click="resizeWindow()"
                         :aria-label="mode === 'fullscreen' ? 'AI-Assist verkleinern' : 'AI-Assist im Vollbild öffnen'"
                         :title="mode === 'fullscreen' ? 'Verkleinern' : 'Vollbild öffnen'">
                         <i class="far" :class="mode === 'fullscreen' ? 'fa-compress-alt' : 'fa-expand-alt'" aria-hidden="true"></i>
                     </button>
-                    <button class="rt-ai-assist__icon-btn" type="button" :aria-expanded="settingsOpen ? 'true' : 'false'" aria-expanded="false" aria-label="Assistenz-Einstellungen" title="Einstellungen"
-                        x-on:click="settingsOpen = !settingsOpen; @if($canConfigure) if (settingsOpen) $wire.openSettings(); @endif"><i class="far fa-cog" aria-hidden="true"></i></button>
+
+                <x-ui.dropdown.anchor-dropdown align="right" width="96" :offset="6" :max-height="620"
+                    :dropdown-id="$panelId.'-settings'" :layer-group="$panelId.'-header'" content-role="dialog" content-label="Assistenz-Einstellungen"
+                    class="rt-ai-assist__header-dropdown" x-init="$watch('open', value => settingsOpen = value)"
+                    x-effect="if (!Alpine.$data($el.closest('.rt-ai-assist')).open) close()">
+                    <x-slot:trigger>
+                        <button type="button" class="rt-floating-window__action rt-ai-assist__icon-btn" aria-label="Assistenz-Einstellungen" title="Einstellungen" @if($canConfigure) x-on:click="if (!open) $wire.openSettings()" @endif><i class="far fa-cog" aria-hidden="true"></i></button>
+                    </x-slot:trigger>
+                    <x-slot:content>
+                        <div class="rt-ai-assist rt-ai-assist__settings" data-rt-dropdown-keep-open>
+                            <div class="rt-ai-assist__settings-head">
+                                <div><span class="rt-ai-assist__kicker">AI-Assist</span><strong>Assistenz-Einstellungen</strong></div>
+                                <button class="rt-ai-assist__icon-btn" type="button" aria-label="Einstellungen schließen" x-on:click="close(true)"><i class="far fa-times" aria-hidden="true"></i></button>
+                            </div>
+                            <div class="rt-ai-assist__status">
+                                <span class="rt-ai-assist__status-dot" data-on="{{ $enabled ? 'true' : 'false' }}"></span>
+                                <div>
+                                    <strong>{{ $enabled ? 'AI-Eingang aktiv' : 'AI-Eingang pausiert' }}</strong>
+                                    <small>
+                                        Datenmodell {{ $status['configured'] ? 'eingerichtet' : 'fehlt' }} · Bildverständnis {{ $status['image_configured'] ? 'eingerichtet' : 'fehlt' }}
+                                        · Postfach {{ $status['mailbox_configured'] ? 'verbunden' : 'nicht verbunden' }} · Versand {{ $status['smtp_configured'] ? 'eingerichtet' : 'fehlt' }}
+                                    </small>
+                                </div>
+                            </div>
+
+                            <p class="rt-ai-assist__group">Persönlich auf diesem Gerät</p>
+                            <div class="rt-ai-assist__list">
+                                <label class="rt-ai-assist__setting">
+                                    <span class="rt-ai-assist__setting-copy"><strong>Seitenkontext zeigen</strong><small>Seite, Zeitraum und Schnellaktionen im Info-Menü der Kopfzeile</small></span>
+                                    <input type="checkbox" :checked="prefs.context" x-on:change="setPref('context', $event.target.checked)"><span class="rt-ai-assist__switch" aria-hidden="true"></span>
+                                </label>
+                                <label class="rt-ai-assist__setting">
+                                    <span class="rt-ai-assist__setting-copy"><strong>Hinweise an der Orb</strong><small>Bei Hover offene Dienste und Freigaben anzeigen</small></span>
+                                    <input type="checkbox" :checked="prefs.proactive" x-on:change="setPref('proactive', $event.target.checked)"><span class="rt-ai-assist__switch" aria-hidden="true"></span>
+                                </label>
+                            </div>
+
+                            <p class="rt-ai-assist__group">AI-Eingang</p>
+                            @if($canConfigure)
+                                <div class="rt-ai-assist__list">
+                                    <label class="rt-ai-assist__setting"><span class="rt-ai-assist__setting-copy"><strong>Automatisierung</strong><small>Assistiert: jede Änderung erst nach Freigabe</small></span>
+                                        <select wire:model="config.automation_mode"><option value="assisted">Assistiert</option><option value="automatic">Automatisch</option></select></label>
+                                    <label class="rt-ai-assist__setting"><span class="rt-ai-assist__setting-copy"><strong>Rückfragen an Kunden</strong><small>Höchstens so viele Runden je Eingang</small></span>
+                                        <select wire:model="config.max_rounds"><option value="1">1 Runde</option><option value="2">2 Runden</option></select></label>
+                                    <label class="rt-ai-assist__setting"><span class="rt-ai-assist__setting-copy"><strong>Antwortfrist</strong><small>Danach als Kundenantwort ausstehend markieren</small></span>
+                                        <select wire:model="config.reply_timeout_hours"><option value="24">24 Stunden</option><option value="48">48 Stunden</option><option value="72">72 Stunden</option></select></label>
+                                    <label class="rt-ai-assist__setting"><span class="rt-ai-assist__setting-copy"><strong>AI-Aufrufe je Stunde</strong><small>Obergrenze für automatische Auswertungen</small></span>
+                                        <select wire:model="config.max_ai_calls_per_hour"><option value="50">50</option><option value="100">100</option><option value="250">250</option></select></label>
+                                </div>
+                                @error('config')<p class="rt-ai-assist__error" role="alert">{{ $message }}</p>@enderror
+                                <div class="rt-ai-assist__settings-foot">
+                                    <a href="{{ route('admin.settings', ['tab' => 'ai-disposition', 'section' => 'configuration']) }}">Postfach &amp; Verbindung einrichten</a>
+                                    <button type="button" class="rt-ai-assist__btn" data-primary="true" wire:click="saveSettings" wire:loading.attr="disabled" wire:target="saveSettings">Speichern</button>
+                                </div>
+                            @else
+                                <div class="rt-ai-assist__list">
+                                    <div class="rt-ai-assist__setting"><span class="rt-ai-assist__setting-copy"><strong>Automatisierung</strong><small>Ändern nur durch die Systemverwaltung</small></span><b>{{ $mode === 'assisted' ? 'Assistiert' : 'Automatisch' }}</b></div>
+                                    <div class="rt-ai-assist__setting"><span class="rt-ai-assist__setting-copy"><strong>Rückfragen an Kunden</strong><small>Höchstens je Eingang</small></span><b>{{ $values['max_rounds'] }} {{ (int) $values['max_rounds'] === 1 ? 'Runde' : 'Runden' }}</b></div>
+                                    <div class="rt-ai-assist__setting"><span class="rt-ai-assist__setting-copy"><strong>Antwortfrist</strong><small>Kundenantwort</small></span><b>{{ $values['reply_timeout_hours'] }} Stunden</b></div>
+                                </div>
+                            @endif
+                            <p class="rt-ai-assist__privacy"><i class="far fa-info-circle" aria-hidden="true"></i><span>Mailinhalte und ergänzte Dateien werden über die eingerichtete AI-Verbindung geprüft. Kundenzuordnung, Erfassung und Versand bleiben persönlich freizugeben.@if($supervisor) Verantwortlich: {{ $supervisor }}.@endif</span></p>
+                        </div>
+                    </x-slot:content>
+                </x-ui.dropdown.anchor-dropdown>
                     @if($tab === 'chat')<button class="rt-ai-assist__icon-btn" type="button" aria-label="Neues Gespräch" title="Neues Gespräch" wire:click="resetConversation" @disabled($messages === [])><i class="far fa-edit" aria-hidden="true"></i></button>@endif
                     <button class="rt-ai-assist__icon-btn" type="button" aria-label="AI-Assist schließen" title="Schließen (Esc)" x-on:click="toggle(false)"><i class="far fa-times" aria-hidden="true"></i></button>
-                </x-slot:actions>
-
-                <div class="rt-ai-assist__settings" role="dialog" aria-label="Assistenz-Einstellungen" x-show="settingsOpen" style="display: none" x-on:click.outside="settingsOpen = false">
-                    <div class="rt-ai-assist__settings-head">
-                        <div><span class="rt-ai-assist__kicker">AI-Assist</span><strong>Assistenz-Einstellungen</strong></div>
-                        <button class="rt-ai-assist__icon-btn" type="button" aria-label="Einstellungen schließen" x-on:click="settingsOpen = false"><i class="far fa-times" aria-hidden="true"></i></button>
-                    </div>
-                    <div class="rt-ai-assist__status">
-                        <span class="rt-ai-assist__status-dot" data-on="{{ $enabled ? 'true' : 'false' }}"></span>
-                        <div>
-                            <strong>{{ $enabled ? 'AI-Eingang aktiv' : 'AI-Eingang pausiert' }}</strong>
-                            <small>
-                                Datenmodell {{ $status['configured'] ? 'eingerichtet' : 'fehlt' }} · Bildverständnis {{ $status['image_configured'] ? 'eingerichtet' : 'fehlt' }}
-                                · Postfach {{ $status['mailbox_configured'] ? 'verbunden' : 'nicht verbunden' }} · Versand {{ $status['smtp_configured'] ? 'eingerichtet' : 'fehlt' }}
-                            </small>
-                        </div>
-                    </div>
-
-                    <p class="rt-ai-assist__group">Persönlich auf diesem Gerät</p>
-                    <div class="rt-ai-assist__list">
-                        <label class="rt-ai-assist__setting">
-                            <span class="rt-ai-assist__setting-copy"><strong>Seitenkontext zeigen</strong><small>Seite, Zeitraum und Schnellaktionen im Info-Menü der Kopfzeile</small></span>
-                            <input type="checkbox" :checked="prefs.context" x-on:change="setPref('context', $event.target.checked)"><span class="rt-ai-assist__switch" aria-hidden="true"></span>
-                        </label>
-                        <label class="rt-ai-assist__setting">
-                            <span class="rt-ai-assist__setting-copy"><strong>Hinweise an der Orb</strong><small>Bei Hover offene Dienste und Freigaben anzeigen</small></span>
-                            <input type="checkbox" :checked="prefs.proactive" x-on:change="setPref('proactive', $event.target.checked)"><span class="rt-ai-assist__switch" aria-hidden="true"></span>
-                        </label>
-                    </div>
-
-                    <p class="rt-ai-assist__group">AI-Eingang</p>
-                    @if($canConfigure)
-                        <div class="rt-ai-assist__list">
-                            <label class="rt-ai-assist__setting"><span class="rt-ai-assist__setting-copy"><strong>Automatisierung</strong><small>Assistiert: jede Änderung erst nach Freigabe</small></span>
-                                <select wire:model="config.automation_mode"><option value="assisted">Assistiert</option><option value="automatic">Automatisch</option></select></label>
-                            <label class="rt-ai-assist__setting"><span class="rt-ai-assist__setting-copy"><strong>Rückfragen an Kunden</strong><small>Höchstens so viele Runden je Eingang</small></span>
-                                <select wire:model="config.max_rounds"><option value="1">1 Runde</option><option value="2">2 Runden</option></select></label>
-                            <label class="rt-ai-assist__setting"><span class="rt-ai-assist__setting-copy"><strong>Antwortfrist</strong><small>Danach als Kundenantwort ausstehend markieren</small></span>
-                                <select wire:model="config.reply_timeout_hours"><option value="24">24 Stunden</option><option value="48">48 Stunden</option><option value="72">72 Stunden</option></select></label>
-                            <label class="rt-ai-assist__setting"><span class="rt-ai-assist__setting-copy"><strong>AI-Aufrufe je Stunde</strong><small>Obergrenze für automatische Auswertungen</small></span>
-                                <select wire:model="config.max_ai_calls_per_hour"><option value="50">50</option><option value="100">100</option><option value="250">250</option></select></label>
-                        </div>
-                        @error('config')<p class="rt-ai-assist__error" role="alert">{{ $message }}</p>@enderror
-                        <div class="rt-ai-assist__settings-foot">
-                            <a href="{{ route('admin.settings', ['tab' => 'ai-disposition', 'section' => 'configuration']) }}">Postfach &amp; Verbindung einrichten</a>
-                            <button type="button" class="rt-ai-assist__btn" data-primary="true" wire:click="saveSettings" wire:loading.attr="disabled" wire:target="saveSettings">Speichern</button>
-                        </div>
-                    @else
-                        <div class="rt-ai-assist__list">
-                            <div class="rt-ai-assist__setting"><span class="rt-ai-assist__setting-copy"><strong>Automatisierung</strong><small>Ändern nur durch die Systemverwaltung</small></span><b>{{ $mode === 'assisted' ? 'Assistiert' : 'Automatisch' }}</b></div>
-                            <div class="rt-ai-assist__setting"><span class="rt-ai-assist__setting-copy"><strong>Rückfragen an Kunden</strong><small>Höchstens je Eingang</small></span><b>{{ $values['max_rounds'] }} {{ (int) $values['max_rounds'] === 1 ? 'Runde' : 'Runden' }}</b></div>
-                            <div class="rt-ai-assist__setting"><span class="rt-ai-assist__setting-copy"><strong>Antwortfrist</strong><small>Kundenantwort</small></span><b>{{ $values['reply_timeout_hours'] }} Stunden</b></div>
-                        </div>
-                    @endif
-                    <p class="rt-ai-assist__privacy"><i class="far fa-info-circle" aria-hidden="true"></i><span>Mailinhalte und ergänzte Dateien werden über die eingerichtete AI-Verbindung geprüft. Kundenzuordnung, Erfassung und Versand bleiben persönlich freizugeben.@if($supervisor) Verantwortlich: {{ $supervisor }}.@endif</span></p>
-                </div>
-            </x-slot:header>
+            </x-slot:actions>
 
             <p class="rt-ai-assist__error" x-show="callError" style="display:none" role="alert" x-text="callError"></p>
 

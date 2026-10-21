@@ -19,8 +19,6 @@
         <label class="sr-only" for="{{ $composerId }}-contact">Antwortadresse</label>
         <x-ui.forms.input id="{{ $composerId }}-contact" wire:model="contactEmail" type="email" placeholder="Antwortadresse (optional)" />
         <x-ui.forms.input-error for="contactEmail" />
-    @elseif($composerMode === 'assistant' && ($overview ?? false) && !$intakeId)
-        <span class="rt-intake-composer__scope text-xs ops-muted">{{ $customerId ? 'Eingänge dieses Kunden' : 'Alle Eingänge' }}</span>
     @endif
     @if($fileCount)
         <div class="rt-intake-composer__files flex min-w-0 flex-wrap gap-1.5" aria-label="Ausgewählte Dateien">
@@ -46,13 +44,14 @@
         <button type="button" x-show="recording" x-on:click="stop()" class="rounded-lg border border-rt-border px-2 py-1">Aufnahme übernehmen</button>
         <button type="button" x-show="recording || requesting" x-on:click="cancelRecording()" class="rounded-lg border border-rt-border px-2 py-1">Abbrechen</button>
     </div>
-    <div class="rt-intake-composer__shell flex min-w-0 items-end gap-1 rounded-xl border border-rt-border bg-rt-surface p-1.5">
+    <x-ui.floating.composer-row control-class="rt-intake-composer__shell border border-rt-border bg-rt-surface">
+        <x-slot:leading>
         <input id="{{ $composerId }}-files" class="sr-only" type="file" multiple tabindex="-1" x-ref="files" wire:model="uploads"
             accept=".txt,.md,.csv,.json,.pdf,.jpg,.jpeg,.png,.webp,.docx,.xlsx,.pptx,.wav,.mp3,.ogg,.webm,.m4a,.mp4,.aac,.flac"
             x-on:change="filesSelected($event)" x-on:livewire-upload-start="beginUpload()" x-on:livewire-upload-progress="progressUpload($event.detail)"
             x-on:livewire-upload-finish="finishUpload()" x-on:livewire-upload-error="failUpload()" x-on:livewire-upload-cancel="cancelUpload()" />
-        <button type="button" class="rt-intake-composer__tool shrink-0 rounded-lg p-2" x-on:click="chooseFiles()" x-bind:disabled="busy || uploadActive || recording || requesting || attachmentCount() >= {{ $composerMaximum }}" title="Dateien anhängen" aria-label="Dateien anhängen"><i class="far fa-paperclip" aria-hidden="true"></i></button>
-        <button type="button" class="rt-intake-composer__tool shrink-0 rounded-lg p-2" x-on:click="toggleRecording()" x-bind:disabled="busy || uploadActive || uploading || requesting || !!$wire.audioUpload || attachmentCount() >= {{ $composerMaximum }}" x-bind:aria-pressed="recording.toString()" title="Sprache aufnehmen" aria-label="Sprache aufnehmen"><i class="far fa-microphone" aria-hidden="true"></i></button>
+        <button type="button" class="rt-floating-composer-attachment rt-intake-composer__tool shrink-0 rounded-full p-2" x-on:click="chooseFiles()" x-bind:disabled="busy || uploadActive || recording || requesting || attachmentCount() >= {{ $composerMaximum }}" title="Dateien anhängen" aria-label="Dateien anhängen"><i class="far fa-plus" aria-hidden="true"></i></button>
+        </x-slot:leading>
         <label class="sr-only" for="{{ $composerId }}-prompt">{{ $operationsChatComposer ? 'Nachricht an AI-Assist' : ($assistantComposer ? 'Frage oder Prüfhinweis' : 'Anfrage beschreiben') }}</label>
         <textarea id="{{ $composerId }}-prompt" class="rt-intake-composer__input min-h-10 min-w-0 flex-1 resize-none border-0 bg-transparent px-1 py-2 text-sm focus:ring-0"
             rows="1" maxlength="{{ $composerLimit }}" wire:model="{{ $composerField }}" x-ref="prompt"
@@ -61,8 +60,11 @@
             x-bind:disabled="busy" placeholder="{{ $operationsChatComposer ? 'Frage stellen oder / für Aktionen' : ($assistantComposer ? 'Frage oder Hinweis …' : 'Anfrage beschreiben …') }}"
             @if($operationsChatComposer) aria-label="Nachricht an AI-Assist" @endif
             @if(!$assistantComposer) aria-describedby="intake-assistant-help-{{ $this->getId() }}" @endif></textarea>
-        <button type="submit" class="rt-intake-composer__send shrink-0 rounded-lg bg-rt-red p-2 text-white" x-bind:disabled="!canSubmit()" aria-label="{{ $operationsChatComposer ? 'Nachricht an AI-Assist senden' : ($assistantComposer ? 'Frage oder Prüfhinweis senden' : 'Als AI-Eingang erfassen') }}"><i class="far fa-paper-plane" aria-hidden="true"></i></button>
-    </div>
+        <button type="button" class="rt-intake-composer__tool shrink-0 rounded-full p-2" x-on:click="toggleRecording()" x-bind:disabled="busy || uploadActive || uploading || requesting || !!$wire.audioUpload || attachmentCount() >= {{ $composerMaximum }}" x-bind:aria-pressed="recording.toString()" title="Sprache aufnehmen" aria-label="Sprache aufnehmen"><i class="far fa-microphone" aria-hidden="true"></i></button>
+        <x-slot:actions>
+        <button type="submit" x-cloak x-show="hasText || attachmentCount() > 0 || busy" class="rt-floating-composer-send rt-intake-composer__send shrink-0 rounded-full bg-rt-red p-2 text-white" x-bind:disabled="!canSubmit()" aria-label="{{ $operationsChatComposer ? 'Nachricht an AI-Assist senden' : ($assistantComposer ? 'Frage oder Prüfhinweis senden' : 'Als AI-Eingang erfassen') }}"><i class="far fa-paper-plane" aria-hidden="true"></i></button>
+        </x-slot:actions>
+    </x-ui.floating.composer-row>
     @if(!$assistantComposer)<p id="intake-assistant-help-{{ $this->getId() }}" class="text-xs ops-muted" title="Der Eingang wird zur persönlichen Prüfung erfasst; Umschalt+Enter fügt einen Absatz hinzu.">Unverbindlich zur Prüfung erfassen.</p>@endif
     @foreach([$composerField, 'uploads', 'uploads.*', 'audioUpload'] as $errorField)
         @error($errorField)<p class="rt-ai-assist__error text-sm text-rt-red" role="alert">{{ $message }}</p>@enderror

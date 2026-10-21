@@ -88,16 +88,13 @@ class AiAssistTest extends TestCase
         $this->assertStringContainsString('x-on:click="chooseFiles()"', $html);
         $this->assertStringContainsString('x-on:click="toggleRecording()"', $html);
         $this->assertStringNotContainsString('Vorschläge wirken erst nach deiner Freigabe', $html);
-        $reviewStyles = file_get_contents(resource_path('css/ai-intake-review.css'));
-        $this->assertStringContainsString('.ai-intake-panel__composer { padding: 8px 10px; }', $reviewStyles);
-        $this->assertStringNotContainsString('.ai-intake-panel__composer .rt-intake-composer__shell { border: 0', $reviewStyles);
+        $this->assertStringContainsString('rt-floating-composer-row', $html);
+        $this->assertStringContainsString('rt-floating-composer-control', $html);
         $assistStyles = file_get_contents(resource_path('css/ai-assist.css'));
-        $this->assertStringContainsString('.rt-ai-assist__composer { position: relative; flex: none; padding: 8px 10px;', $assistStyles);
-        $this->assertStringContainsString('.rt-ai-assist__composer .rt-intake-composer__shell { gap: 0; padding: 0; border: 0; border-radius: 0;', $assistStyles);
         $this->assertStringContainsString('--ai-canvas: #e4e8ee;', $assistStyles);
         $this->assertStringContainsString('margin-top: 0; border-top: 1px solid var(--ai-border); background: var(--ai-canvas);', $assistStyles);
-        $this->assertStringContainsString('.rt-ai-assist__head .rt-ai-assist__context--header { position: static; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }', $assistStyles);
-        $this->assertStringContainsString(".rt-ai-assist__head .rt-ai-assist__context--header > summary[aria-expanded='true'] { border: 0; background: transparent;", $assistStyles);
+        $this->assertStringContainsString('aria-label="Aktueller Seitenkontext"', $html);
+        $this->assertStringContainsString('aria-label="Assistenz-Einstellungen"', $html);
         $this->assertStringNotContainsString('Dateien werden hochgeladen', $html);
         $this->assertStringNotContainsString('cancelFileUpload()', $html);
     }

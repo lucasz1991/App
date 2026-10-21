@@ -107,14 +107,17 @@ class AiIntakeInboxEmbeddedTest extends TestCase
         $this->assertSame(1, $icons->length);
         $this->assertSame('', trim($icons->item(0)->textContent));
         $this->assertStringContainsString('mit AI besprechen', $icons->item(0)->getAttribute('aria-label'));
-        $filter = $dom->query('//*[@data-rt-custom-select and @data-autosave-model="statusFilter"]');
+        $filter = $dom->query('//*[@role="search" and @aria-label="AI-Eingänge filtern"]');
         $this->assertSame(1, $filter->length);
-        foreach (json_decode($filter->item(0)->getAttribute('data-rt-select-options'), true, 32, JSON_THROW_ON_ERROR) as $option) {
-            $this->assertNull($option['icon']);
-            $this->assertStringStartsWith('far fa-', $option['iconClass']);
+        $this->assertSame(1, $dom->query('//*[@role="search"]//button[@aria-label="Eingang erfassen"]')->length);
+        foreach ($dom->query('//*[@role="menuitemradio"]') as $option) {
+            $this->assertStringStartsWith('far fa-', $dom->query('.//i', $option)->item(0)->getAttribute('class'));
         }
         $this->assertSame(0, $dom->query('//*[@role="dialog"]')->length);
         $this->assertSame(1, $dom->query('//*[contains(@class,"ai-intake-panel__composer")]')->length);
+        $component->set('statusFilter', 'completed')->assertDontSee('Synthetic panel intake');
+        $component->set('statusFilter', 'all')->assertSee('Synthetic panel intake');
+        $component->set('search', 'No matching intake')->assertDontSee('Synthetic panel intake');
         $this->noSideEffects();
     }
 

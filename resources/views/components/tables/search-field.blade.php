@@ -14,8 +14,9 @@
     $noResults = $hasResultsSignal && (int) $resultsCount === 0;
     $ph = $placeholder ?? __('app.search');
     $isPageTopbarSearch = $context === 'page-topbar';
+    $isFloatingSearch = $context === 'floating';
     $isPageSearch = $context === 'page' || $isPageTopbarSearch;
-    $searchContext = $isPageSearch ? 'topbar' : (in_array($context, ['table', 'topbar'], true) ? $context : 'table');
+    $searchContext = $isPageSearch || $isFloatingSearch ? 'topbar' : (in_array($context, ['table', 'topbar'], true) ? $context : 'table');
     $isTopbarSearch = $searchContext === 'topbar';
     $searchAttributes = $inputAttributes instanceof \Illuminate\View\ComponentAttributeBag
         ? $inputAttributes
@@ -27,9 +28,10 @@
   x-data="{
         value: @entangle($searchAttributes->wire('model')),
         isTopbar: @js($isTopbarSearch),
+        isFloating: @js($isFloatingSearch),
         isPageSearch: @js($isPageSearch),
         isPageTopbarSearch: @js($isPageTopbarSearch),
-        layerId: @js($isPageSearch ? 'page-list-search' : ($isTopbarSearch ? 'topbar-search' : null)),
+        layerId: @js($isFloatingSearch ? ($searchAttributes->get('id') ?: 'floating-search-'.\Illuminate\Support\Str::uuid()) : ($isPageSearch ? 'page-list-search' : ($isTopbarSearch ? 'topbar-search' : null))),
         expanded: false,
         mobile: false,
         mobileQuery: null,
@@ -71,7 +73,7 @@
                 document.removeEventListener('livewire:navigating', this.navigationListener);
             }
 
-            if (this.isTopbar) {
+            if (this.isTopbar && !this.isFloating) {
                 document.documentElement.classList.remove('rt-topbar-search-open');
             }
         },
@@ -79,16 +81,16 @@
             return !this.isTopbar || this.expanded;
         },
         isMobileLayerOpen() {
-            return this.isTopbar && (!this.isPageSearch || this.isPageTopbarSearch) && this.mobile && this.expanded;
+            return !this.isFloating && this.isTopbar && (!this.isPageSearch || this.isPageTopbarSearch) && this.mobile && this.expanded;
         },
         syncPageScrollLock() {
-            if (!this.isTopbar) return;
+            if (!this.isTopbar || this.isFloating) return;
             document.documentElement.classList.toggle('rt-topbar-search-open', this.isMobileLayerOpen());
         },
         open() {
             if (this.isTopbar) {
                 window.dispatchEvent(new CustomEvent('rt-topbar-layer-open', {
-                    detail: { group: 'topbar', id: this.layerId },
+                    detail: { group: this.isFloating ? 'floating-search' : 'topbar', id: this.layerId },
                 }));
             }
 
@@ -157,18 +159,22 @@
         handleLayerOpen(event) {
             if (
                 this.isTopbar
-                && event.detail?.group === 'topbar'
+                && event.detail?.group === (this.isFloating ? 'floating-search' : 'topbar')
                 && event.detail?.id !== this.layerId
             ) {
                 this.close(false);
             }
         },
         handleSearchClose(event) {
-            if (this.isTopbar) {
+            if (this.isTopbar && !this.isFloating) {
                 this.close(event.detail?.restoreFocus !== false);
             }
         },
         handleTriggerClick() {
+            if (this.isFloating && this.isExpanded()) {
+                this.close(true);
+                return;
+            }
             if (this.isMobileLayerOpen()) {
                 this.close(true);
                 return;
@@ -200,6 +206,7 @@
     x-bind:aria-modal="isMobileLayerOpen() ? 'true' : null"
     x-bind:aria-label="isMobileLayerOpen() ? @js($ph) : null"
     data-search-context="{{ $searchContext }}"
+    @if($isFloatingSearch) data-floating-search @endif
     data-rt-search
     data-tables-search
     @if ($wireModel)
