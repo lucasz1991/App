@@ -86,6 +86,9 @@ final class OutlookMobileCombinedComposeDocument
         if (self::rewrite($output, array_flip($map)) !== $joined) {
             throw new RuntimeException('Die mobile Klassenprojektion ist nicht verlustfrei umkehrbar.');
         }
+        if (self::canRemoveStyleNodes($joined)) {
+            $output = OutlookMobileHtmlSerialization::project($output);
+        }
         $version = substr(hash('sha256', self::MODE."\0".$output."\0".json_encode($media, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)), 0, 16);
         $output = str_replace($placeholder, self::VERSION_MARKER.$version, $output, $markers);
         preg_match_all('~<style\b[^>]*>(.*?)</style\s*>~is', $output, $styles);

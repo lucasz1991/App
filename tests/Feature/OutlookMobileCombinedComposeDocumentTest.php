@@ -59,10 +59,10 @@ final class OutlookMobileCombinedComposeDocumentTest extends TestCase
         $this->assertSame('true', $metadata->item(0)->getAttribute('aria-hidden'));
         $this->assertSame('td', $metadata->item(0)->parentNode->nodeName);
         $this->assertSame(1, substr_count($html, 'border-left:6px solid #e90032;'));
-        $this->assertSame(2, substr_count($html, 'padding-left:18px;padding-right:18px;'));
-        $this->assertGreaterThanOrEqual(2, substr_count($html, 'padding-left:18px!important;padding-right:18px!important;'));
-        $this->assertSame(2, substr_count($html, 'border-left:0;'));
-        $this->assertSame(2, substr_count($html, 'border-left:0!important;'));
+        $this->assertSame(2, preg_match_all('/padding-left:18px;padding-right:18px(?:;|")/', $html));
+        $this->assertGreaterThanOrEqual(2, preg_match_all('/padding-left:18px!important;padding-right:18px!important(?:;|})/', $html));
+        $this->assertSame(2, preg_match_all('/border-left:0(?:;|")/', $html));
+        $this->assertSame(2, preg_match_all('/border-left:0!important(?:;|})/', $html));
         $this->assertSame($this->images($template['composeHtml'].$template['signature']['html']), $this->images($html));
         $this->assertSame($this->links($template['composeHtml'].$template['signature']['html']), $this->links($html));
         $expected = array_column(array_merge($before['templates'][0]['composeMedia'], $template['signature']['media']), null, 'contentId');
@@ -113,7 +113,7 @@ final class OutlookMobileCombinedComposeDocumentTest extends TestCase
         $opaque = '.'.$scope[0].' .oic{padding-top:99px;content:".rt-ledger-brand $1 \\rail";}/* .rt-contact-text */';
         $mobile['templates'][0]['signature']['html'] .= '<style>'.$opaque.'</style>';
         $result = OutlookMobileCombinedComposeDocument::build($desktop['templates'][0], $desktop['templates'][0]['signature'], $mobile['templates'][0]['signature']);
-        $this->assertStringContainsString('style="padding-top:13px;">Outside alias', $result['html']);
+        $this->assertMatchesRegularExpression('/style="padding-top:13px;?">Outside alias/', $result['html']);
         $this->assertStringContainsString('padding-top:99px;content:".rt-ledger-brand $1 \\rail";', $result['html']);
         $this->assertStringContainsString('/* .rt-contact-text */', $result['html']);
     }
@@ -475,8 +475,31 @@ final class OutlookMobileCombinedComposeDocumentTest extends TestCase
     private function images(string $html): array
     {
         preg_match_all('~<img\b(?:[^"\'<>]|"[^"]*"|\'[^\']*\')*>~is', $html, $matches);
+        // Include conditional Word IMG branches as real isolated tags too.
+        // Compare browser-decoded attributes independently, never normalize the
+        // expected side by calling the serializer under test.
+        $xpath = $this->xpath(implode('', $matches[0]));
+        $images = [];
+        foreach ($xpath->query('//img') as $image) {
+            $attributes = [];
+            foreach ($image->attributes as $attribute) {
+                if ($attribute->name === 'class') {
+                    continue;
+                }
+                $value = $attribute->value;
+                if ($attribute->name === 'style') {
+                    $value = trim($value, "; \t\r\n");
+                    $value = preg_replace('/\s*([;:])\s*/', '$1', $value);
+                    $value = preg_replace('/\s*!important/', '!important', $value);
+                    $value = preg_replace('/(?<![\w.])0(?:pt|px|em|rem)\b/', '0', $value);
+                    $value = preg_replace_callback('/#([a-f0-9])([a-f0-9])([a-f0-9])(?=[; ]|\z|!important)/i', static fn (array $color): string => '#'.$color[1].$color[1].$color[2].$color[2].$color[3].$color[3], $value);
+                }
+                $attributes[$attribute->name] = $value;
+            }
+            $images[] = $attributes;
+        }
 
-        return array_map(static fn (string $tag): string => preg_replace('~\sclass\s*=\s*(["\'])(.*?)\1~s', '', $tag), $matches[0]);
+        return $images;
     }
 
     private function links(string $html): array
