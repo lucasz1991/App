@@ -9,6 +9,7 @@
     x-on:rt-floating-surface-opened.window="if ($event.detail?.surface === 'assist' && (!wide || window.innerWidth <= 760 || $event.detail?.mobile || !$event.detail?.corner || corner === $event.detail.corner)) close(false)"
 >
     <span hidden data-app-badge-count="{{ $unreadCount }}"></span>
+    <x-ui.floating.launcher-item kind="communication" x-show="!open" x-cloak>
     <x-ui.floating.launcher class="rt-comm-launcher" x-ref="launcher" data-rt-window-launcher-for="railtime-communication" x-show="!open" x-cloak
         x-on:click="activeCall ? resumeCall() : show('mini')" aria-controls="railtime-communication" ::aria-expanded="open.toString()"
         ::aria-label="activeCall ? 'Laufenden Anruf öffnen' : 'Chats öffnen'" title="Chats und Anrufe öffnen">
@@ -16,22 +17,20 @@
         <span x-show="activeCall" class="rt-comm-call-dot" aria-hidden="true"></span>
         @if($unreadCount > 0)<span class="rt-comm-badge">{{ $unreadCount > 99 ? '99+' : $unreadCount }}</span>@endif
     </x-ui.floating.launcher>
+    </x-ui.floating.launcher-item>
 
     <x-ui.floating.window id="railtime-communication" x-ref="panel" class="rt-communication" x-cloak wire:ignore.self
         ::data-mode="mode" ::data-corner="corner"
         ::inert="!open" ::aria-hidden="(!open).toString()" label="Chats, Anrufe und Meetings" role="region"
         layout-action="syncVisibility(); queueLayout();">
         <x-slot:header class="rt-comm-head">
-            <div class="rt-comm-tabs" role="tablist" aria-label="Bereiche" x-on:keydown="tabKey($event)">
-                @foreach(['chats' => ['fa-comments', 'Chats'], 'calls' => ['fa-phone', 'Anrufe'], 'meetings' => ['fa-video', 'Meetings']] as $key => [$icon, $label])
-                    <button type="button" id="communication-tab-{{ $key }}" role="tab" data-comm-tab="{{ $key }}"
-                        :aria-selected="(tab === '{{ $key }}').toString()" :tabindex="tab === '{{ $key }}' ? 0 : -1"
-                        aria-label="{{ $label }}" title="{{ $label }}" aria-controls="communication-{{ $key }}"
-                        x-on:click="selectTab('{{ $key }}')">
-                        <i class="far {{ $icon }}" aria-hidden="true"></i><span>{{ $label }}</span>
-                    </button>
-                @endforeach
-            </div>
+            <x-ui.floating.window-tabs class="rt-comm-tabs" id-prefix="communication" label="Bereiche"
+                client-state="tab" client-action="selectTab" client-keyboard-action="tabKey" tab-data-attribute="data-comm-tab"
+                :tabs="[
+                    'chats' => ['icon' => 'fa-comments', 'label' => 'Chat', 'controls' => 'communication-chats'],
+                    'calls' => ['icon' => 'fa-phone', 'label' => 'Call', 'controls' => 'communication-calls'],
+                    'meetings' => ['icon' => 'fa-video', 'label' => 'Meet', 'controls' => 'communication-meetings'],
+                ]" />
         </x-slot:header>
         <x-slot:actions class="rt-comm-window-actions">
                 <button type="button" data-comm-resize x-show="wide" x-cloak x-on:click="resizeWindow()" :title="mode === 'fullscreen' ? 'Mini-Modus öffnen' : 'Vollbild öffnen'"

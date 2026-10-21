@@ -3,7 +3,7 @@
     $allActions = collect($actions['page'])->concat($actions['global'])->values();
     // Antworttexte: erst escapen, dann **Hervorhebung** und Zeilenumbrüche erlauben.
     $format = fn (?string $text) => preg_replace('/\*\*(.+?)\*\*/u', '<strong>$1</strong>', e((string) $text));
-    $tabs = array_filter(['chat' => 'Chat', 'intake' => $intakesReady ? 'AI-Annahme' : null, 'actions' => 'Aktionen', 'activity' => 'Aktivitäten']);
+    $tabs = array_filter(['chat' => 'Chat', 'intake' => $intakesReady ? 'Inbox' : null, 'actions' => 'Tasks', 'activity' => 'Logs']);
     $period = \Carbon\CarbonImmutable::parse($from)->format('d.m.').' – '.\Carbon\CarbonImmutable::parse($until)->format('d.m.');
     $chips = [['Seite', $pageLabel]];
     if (in_array($page, ['shifts', 'calendar', 'planning'], true)) {
@@ -29,6 +29,8 @@
     x-on:railtime-ai-intake-open.window="openIntake($event.detail)"
     x-on:ai-assist-intake-opened.window="if ($event.detail.componentId === @js($this->getId())) toggle(true)" data-ai-assist>
     <div x-data="railtimeAssistantCloud()" :data-state="orbState" x-bind:data-pet-open="open.toString()" data-state="idle">
+        <x-ui.floating.launcher-item class="rt-ai-assist" x-data="railtimeAssistantCloud()" ::data-state="orbState"
+            ::data-open="open ? 'true' : 'false'" x-show="!open" x-cloak>
         <x-ui.dropdown.anchor-dropdown class="rt-ai-assist__stage" align="launcher" width="auto" :max-height="320" :offset="12"
             :open-on-hover="true" :hover-open-delay="140" :hover-close-delay="180" dropdown-id="ai-assist-hint-{{ $this->getId() }}"
             layer-group="floating-assistant-hint" trigger-classes="inline-flex pointer-events-auto" content-role="dialog" content-label="AI-Eingang zur Prüfung"
@@ -55,12 +57,13 @@
             </x-slot:content>
         </x-ui.dropdown.anchor-dropdown>
 
+        </x-ui.floating.launcher-item>
         <x-ui.floating.window class="rt-ai-assist__panel" id="{{ $panelId }}" x-ref="panel" role="dialog" ::aria-modal="mode === 'fullscreen' ? 'true' : 'false'"
             x-bind:data-window-mode="mode" x-bind:data-corner="corner" aria-label="AI-Assist"
             x-trap.inert.noscroll="open && mode === 'fullscreen'"
             layout-action="syncLayout();">
             <x-slot:header class="rt-ai-assist__head rt-assistant-header" data-assistant-header>
-                <x-operations.assistant-navigation class="rt-ai-assist__tabs" :tabs="$tabs" :selected="$tab" action="setTab" :id-prefix="$panelId" :controls="$panelId.'-body'" :review-count="$reviewCount" label="AI-Assist" />
+                <x-operations.assistant-navigation class="rt-ai-assist__tabs" appearance="window" :tabs="$tabs" :selected="$tab" action="setTab" :id-prefix="$panelId" :controls="$panelId.'-body'" :review-count="$reviewCount" label="AI-Assist" />
             </x-slot:header>
             <x-slot:actions class="rt-ai-assist__head-actions">
                 <x-ui.dropdown.anchor-dropdown align="right" width="96" :offset="6" :max-height="420"

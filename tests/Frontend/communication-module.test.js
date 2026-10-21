@@ -16,17 +16,21 @@ const chatbotSource = await readFile(new URL('../../resources/js/chatbot.js', im
 const chatbotView = await readFile(new URL('../../resources/views/livewire/tools/chatbot.blade.php', import.meta.url), 'utf8');
 const aiAssistView = await readFile(new URL('../../resources/views/livewire/operations/ai-assist.blade.php', import.meta.url), 'utf8');
 const launcherComponent = await readFile(new URL('../../resources/views/components/ui/floating/launcher.blade.php', import.meta.url), 'utf8');
+const launcherGroupComponent = await readFile(new URL('../../resources/views/components/ui/floating/launcher-group.blade.php', import.meta.url), 'utf8');
 const windowComponent = await readFile(new URL('../../resources/views/components/ui/floating/window.blade.php', import.meta.url), 'utf8');
+const windowTabsComponent = await readFile(new URL('../../resources/views/components/ui/floating/window-tabs.blade.php', import.meta.url), 'utf8');
+const windowTabsStyles = await readFile(new URL('../../resources/css/window-tabs.css', import.meta.url), 'utf8');
 
 // Actual production module, isolated DOM and explicit test-only scheduling,
 // geometry, style and WAAPI stubs. No browser, provider or device is opened.
 function fixture({ width = 1440, height = 1000, reduced = false, animate = true } = {}) {
     const { document, window: dom } = parseHTML(`<html><body>
         <header data-rt-shell-topbar></header><main id="main-content"><div class="rt-app-page-frame"></div></main>
-        <div data-communication-host data-app-badge-count="3"><button id="launcher" data-rt-floating-launcher></button><section id="panel">
+        <div data-communication-host data-app-badge-count="3"><section id="panel">
         <header id="head"><div role="tablist">${['chats', 'calls', 'meetings'].map(tab => `<button role="tab" data-comm-tab="${tab}">${tab}</button>`).join('')}</div><div id="handle" aria-label="Fensterposition"></div></header>
         <div data-communication-chat="true" data-mobile-pane="list"><textarea id="draft"></textarea></div>
         <div id="persistent-call"></div></section></div>
+        <div data-rt-floating-launcher-group><div data-rt-floating-launcher-item="communication"><button id="launcher" data-rt-floating-launcher></button></div></div>
     </body></html>`);
     const root = document.querySelector('[data-communication-host]'), panel = document.querySelector('#panel'), launcher = document.querySelector('#launcher');
     const nextTicks = [], timers = new Map(), rafs = new Map(), animations = [], calls = [], dispatches = [], captures = new Map();
@@ -177,17 +181,72 @@ test('surface-open event is shared by communication and AI Assist without call t
     assert.match(aiAssistView, /rt-floating-surface-opened\.window[\s\S]*surface === 'communication'[\s\S]*corner === \$event\.detail\.corner/);
     assert.match(aiAssistView, /railtime-assistant-close\.window[\s\S]*corner === \$event\.detail\.corner/);
     assert.match(view, /data-rt-window-launcher-for="railtime-communication"/);
-    assert.match(aiAssistStyles, /\.rt-ai-assist\[data-open='true'\] .rt-ai-assist__stage[\s\S]*pointer-events: none/);
-    assert.match(styles, /body:has\(\.rt-ai-assist\[data-open='true'\] \.rt-ai-assist__panel\[data-window-mode='fullscreen'\]\) \.rt-comm-launcher \{ z-index: -1; pointer-events: none; \}/);
-    assert.match(styles, /transition: bottom 220ms/);
+    assert.match(launcherGroupComponent, /body:has\(\.rt-floating-window\[data-floating-open='true'\]:is\(\[data-floating-mode='fullscreen'\], \[data-mode='fullscreen'\], \[data-window-mode='fullscreen'\]\)\) \[data-rt-floating-launcher-group\] \{ visibility: hidden; pointer-events: none; \}/);
+    assert.doesNotMatch(launcherComponent,/\bx-data\b/,'teleported launcher refs retain their feature owner');
 });
 
 test('communication and AI Assist share the red window frame, header, and tab menu treatment', () => {
     assert.match(styles, /\.rt-communication,\s*\.rt-ai-assist__panel\s*\{[\s\S]*border: 1px solid color-mix[\s\S]*background: var\(--rt-floating-window-surface\)/);
     assert.match(styles, /\.rt-comm-head,\s*\.rt-ai-assist__head\s*\{[\s\S]*background: linear-gradient\(112deg, #a81632 0%, #c21f3d 56%, #a81632 100%\)/);
-    assert.match(styles, /\.rt-comm-tabs,\s*\.rt-ai-assist__head \.rt-ai-assist__tabs\s*\{/);
+    assert.match(view, /<x-ui\.floating\.window-tabs[\s\S]*client-state="tab"[\s\S]*client-action="selectTab"[\s\S]*client-keyboard-action="tabKey"/);
+    assert.match(aiAssistView, /<x-operations\.assistant-navigation[^>]*appearance="window"/);
+    assert.match(windowTabsStyles, /\.rt-window-tabs > \.rt-window-tabs__tab\s*\{[\s\S]*flex-direction: column;[\s\S]*min-width: 44px;/);
+    assert.match(windowTabsStyles, /\.rt-window-tabs__label\s*\{ display: block;/);
+    assert.doesNotMatch(windowTabsStyles, /@media[^}]*\.rt-window-tabs__label[^{]*\{[^}]*display: none/);
     assert.match(styles, /\.rt-comm-window-actions button,\s*\.rt-ai-assist__head-actions \.rt-ai-assist__icon-btn\s*\{/);
     assert.match(styles, /\.rt-ai-assist__context--header > \.rt-ai-assist__icon-btn:hover,\s*\.rt-ai-assist__head-actions \.rt-ai-assist__context--header > \.rt-ai-assist__icon-btn\[aria-expanded='true'\]\s*\{\s*border-color: transparent;\s*background: transparent;\s*color: #fff;/);
+});
+
+function windowTabsFixture(direction = 'ltr') {
+    const { document, window: dom } = parseHTML('<html><body><nav data-window-tabs><button data-window-tab data-tab="chat"></button><button data-window-tab data-tab="intake" disabled></button><button data-window-tab data-tab="activity"></button></nav><button id="outside"></button></body></html>');
+    const root = document.querySelector('nav');
+    let active = document.body, observer;
+    Object.defineProperty(document, 'activeElement', { get: () => active });
+    dom.HTMLElement.prototype.focus = function () { active = this; };
+    class Observer {
+        constructor(callback) { this.callback = callback; observer = this; }
+        observe() {}
+        disconnect() { this.disconnected = true; }
+    }
+    const code = windowTabsComponent.match(/x-data="([\s\S]*?)"\s+x-on:keydown=/)[1];
+    const component = vm.runInNewContext(`(${code})`, { document, MutationObserver: Observer, getComputedStyle: () => ({ direction }) });
+    component.$root = root; component.$nextTick = callback => callback(); component.init();
+    return { component, root, document, observer };
+}
+
+test('shared server tabs keep manual keyboard activation, skip disabled tabs and respect RTL', () => {
+    for (const direction of ['ltr', 'rtl']) {
+        const f = windowTabsFixture(direction);
+        const first = f.root.querySelector('[data-tab="chat"]'), last = f.root.querySelector('[data-tab="activity"]');
+        first.focus();
+        let prevented = false;
+        f.component.handleKey({ target: first, key: direction === 'rtl' ? 'ArrowLeft' : 'ArrowRight', preventDefault() { prevented = true; } });
+        assert.equal(prevented, true); assert.equal(f.document.activeElement, last);
+        assert.equal(first.getAttribute('tabindex'), '-1'); assert.equal(last.getAttribute('tabindex'), '0');
+        assert.equal(last.hasAttribute('aria-selected'), false, 'focus navigation does not activate a Livewire tab');
+        f.component.handleKey({ target: last, key: 'Home', preventDefault() {} });
+        assert.equal(f.document.activeElement, first);
+        f.component.handleKey({ target: first, key: 'End', preventDefault() {} });
+        assert.equal(f.document.activeElement, last);
+        f.component.destroy(); assert.equal(f.observer.disconnected, true);
+    }
+});
+
+test('shared server tabs restore focus after loading without taking it from another control', () => {
+    const f = windowTabsFixture();
+    const first = f.root.querySelector('[data-tab="chat"]'), last = f.root.querySelector('[data-tab="activity"]');
+    first.focus(); f.component.rememberFocus({ target: first });
+    f.root.setAttribute('aria-busy', 'true'); f.observer.callback();
+    f.component.handleKey({ target: first, key: 'End', preventDefault() {} });
+    assert.equal(f.document.activeElement, first, 'busy menus cannot move to a tab that is being replaced');
+    f.document.body.focus(); f.root.removeAttribute('aria-busy'); f.observer.callback();
+    assert.equal(f.document.activeElement, first);
+    f.component.rememberFocus({ target: last });
+    f.root.setAttribute('aria-busy', 'true'); f.observer.callback();
+    const outside = f.document.querySelector('#outside'); outside.focus();
+    f.root.removeAttribute('aria-busy'); f.observer.callback();
+    assert.equal(f.document.activeElement, outside);
+    f.component.destroy();
 });
 
 test('one persistent call DOM and session survive tabs resize close reopen and wire navigation', () => {
@@ -236,11 +295,11 @@ test('history intent uses native authorization entry while preserving an ongoing
     f.component.resumeCall(); f.flush(); assert.equal(f.component.showCall, true); f.component.destroy();
 });
 
-test('chat launcher stays at the bottom while AI Assist occupies the upper stack position', () => {
-    const f = fixture();
+test('communication requests shared launcher layout without owning the assistant or chat offsets', () => {
+    const f = fixture(); let layoutRequests = 0;
+    f.window.addEventListener('rt-floating-launcher-layout', () => layoutRequests++);
     f.component.measureLayout();
-    assert.equal(f.root.style.getPropertyValue('--comm-launcher-bottom'), '20px');
-    assert.equal(f.document.documentElement.style.getPropertyValue('--ai-assist-launcher-bottom'), '88px');
+    assert.equal(layoutRequests, 1);
 
     const orb = f.document.createElement('button');
     orb.className = 'rt-ai-assist__launcher';
@@ -248,23 +307,24 @@ test('chat launcher stays at the bottom while AI Assist occupies the upper stack
     f.document.body.append(orb);
     f.component.measureLayout();
 
-    assert.equal(f.root.style.getPropertyValue('--comm-launcher-bottom'), '20px');
-    assert.equal(f.document.documentElement.style.getPropertyValue('--ai-assist-launcher-bottom'), '88px');
     f.component.show('mini'); f.component.measureLayout();
-    assert.equal(f.document.documentElement.style.getPropertyValue('--ai-assist-launcher-bottom'), '20px');
     f.component.close(); f.component.measureLayout();
-    assert.equal(f.document.documentElement.style.getPropertyValue('--ai-assist-launcher-bottom'), '88px');
+    assert.ok(layoutRequests >= 4, 'opening and closing schedules a shared group measurement');
+    assert.equal(f.root.style.getPropertyValue('--comm-launcher-bottom'), undefined);
+    assert.equal(f.document.documentElement.style.getPropertyValue('--ai-assist-launcher-bottom'), undefined);
     f.component.destroy();
     assert.equal(f.document.documentElement.style.getPropertyValue('--ai-assist-launcher-bottom'), undefined);
 });
 
 test('mobile has only closed and fullscreen states and its launcher clears the bottom area menu', () => {
-    const f = fixture({ width: 390, height: 844 });
+    const f = fixture({ width: 390, height: 844 }); let layoutRequests = 0;
+    f.window.addEventListener('rt-floating-launcher-layout', () => layoutRequests++);
     const menu = f.document.createElement('nav'); menu.setAttribute('data-area-menu', '');
     menu.testRect = { left: 0, top: 788, right: 390, bottom: 844, width: 390, height: 56 };
     f.document.body.append(menu); f.component.measureLayout();
-    assert.equal(f.root.style.getPropertyValue('--comm-launcher-bottom'), '68px');
-    assert.equal(f.document.documentElement.style.getPropertyValue('--ai-assist-launcher-bottom'), '136px');
+    assert.equal(layoutRequests, 1, 'the shared coordinator will measure the current bottom menu');
+    assert.equal(f.root.style.getPropertyValue('--comm-launcher-bottom'), undefined);
+    assert.equal(f.document.documentElement.style.getPropertyValue('--ai-assist-launcher-bottom'), undefined);
     f.component.show('mini'); f.flush();
     assert.equal(f.component.mode, 'fullscreen'); assert.equal(f.component.open, true);
     assert.equal(f.document.querySelector('#main-content').inert, true);

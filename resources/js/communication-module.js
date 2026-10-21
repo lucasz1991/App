@@ -1,5 +1,4 @@
 const TABS = ['chats', 'calls', 'meetings'];
-const LAUNCHER_STACK_OFFSET = 56 + 12;
 
 // Register before Livewire.start(): wire:navigate's delegated click handler must
 // not start a page visit for a link that belongs to the persistent module.
@@ -237,25 +236,10 @@ export function communicationModule() {
             this.$root.style.setProperty('--comm-top', `${inset}px`);
             this.$root.style.setProperty('--comm-bottom', `${Math.max(0, window.innerHeight - top - height)}px`);
             this.$root.style.setProperty('--comm-left', `${Math.max(0, page?.left || 0)}px`);
-            let bottom = 20;
-            const right = 16, left = 16;
-            if (!this.wide) {
-                for (const menu of document.querySelectorAll('[data-area-menu]')) {
-                    const rect = menu.getBoundingClientRect();
-                    const styles = getComputedStyle(menu);
-                    if (!rect.width || !rect.height || styles.display === 'none' || styles.visibility === 'hidden' || Number(styles.opacity) === 0 || rect.top >= window.innerHeight || rect.bottom <= 0) continue;
-                    bottom = Math.max(bottom, window.innerHeight - rect.top + 12);
-                }
-            }
-            this.$root.style.setProperty('--comm-launcher-bottom', `${bottom}px`);
-            this.$root.style.setProperty('--comm-launcher-right', `${right}px`);
-            this.$root.style.setProperty('--comm-launcher-left', `${left}px`);
-            const assistBottom = this.open ? bottom : bottom + LAUNCHER_STACK_OFFSET;
-            document.documentElement.style.setProperty('--ai-assist-launcher-bottom', `${assistBottom}px`);
+            window.dispatchEvent(new CustomEvent('rt-floating-launcher-layout'));
         },
         destroy() {
             this.$root.removeAttribute('data-communication-ready');
-            document.documentElement.style.removeProperty('--ai-assist-launcher-bottom');
             releaseCallLock?.(); releaseCallLock = null; requestedRoom = null;
             this.setMainInert(false); observer?.disconnect();
             if (layoutFrame !== null) cancelAnimationFrame(layoutFrame);

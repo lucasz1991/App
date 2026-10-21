@@ -22,7 +22,8 @@ body.rt-communication-fullscreen { overflow: hidden; }
 @media(prefers-reduced-motion:reduce) { .rt-floating-window[data-motion] { animation:none !important; will-change:auto; } }
 
 .rt-floating-window__header-spacer { min-width: 20px; flex: 1; align-self: stretch; border-radius: 8px; }
-[data-communication-host] {
+[data-communication-host],
+.rt-floating-launcher-item--communication {
     --comm-surface: #fff;
     --comm-canvas: #e4e8ee;
     --comm-line: #e1e6ed;
@@ -32,7 +33,7 @@ body.rt-communication-fullscreen { overflow: hidden; }
     --comm-left: 0px;
     --comm-bottom: 0px;
 }
-.dark [data-communication-host] { --comm-surface: #17212d; --comm-canvas: #101923; --comm-line: #2b3847; --comm-ink: #f0f3f7; --comm-muted: #a2b1c2; }
+.dark [data-communication-host], .dark .rt-floating-launcher-item--communication { --comm-surface: #17212d; --comm-canvas: #101923; --comm-line: #2b3847; --comm-ink: #f0f3f7; --comm-muted: #a2b1c2; }
 .rt-communication {
     position: fixed; z-index: 86; display: flex; flex-direction: column; overflow: hidden;
     width: min(640px,calc(100vw - 48px)); height: min(744px,calc(100dvh - var(--comm-top) - 48px - var(--comm-bottom)));
@@ -46,12 +47,6 @@ body.rt-communication-fullscreen { overflow: hidden; }
     bottom: calc(16px + var(--comm-bottom)); width: auto; height: auto; box-shadow: none;
 }
 .rt-comm-head { display: flex; flex: none; align-items: center; min-height: 66px; gap: 12px; padding: 8px 14px; border-bottom: 1px solid var(--comm-line); background: var(--comm-surface); }
-.rt-comm-tabs { display: inline-flex; flex: none; gap: 2px; padding: 2px; border: 1px solid var(--comm-line); border-radius: 12px; }
-.rt-comm-tabs button { display: flex; align-items: center; justify-content: center; width: 44px; min-width: 44px; height: 44px; border: 0; border-radius: 7px; background: transparent; color: var(--comm-muted); }
-.rt-comm-tabs button i { font-size: 18px; }
-.rt-comm-tabs button span { display: none; }
-.rt-comm-tabs button[aria-selected='true'] { color: #fff; background: #e4002b; }
-.rt-comm-tabs button:hover:not([aria-selected='true']) { background: var(--comm-canvas); }
 .rt-comm-drag-handle { min-width: 20px; flex: 1; align-self: stretch; border-radius: 8px; }
 .rt-comm-window-actions { display: flex; flex: none; gap: 2px; }
 .rt-comm-window-actions button,.rt-comm-icon { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 40px; min-width: 40px; height: 40px; border-radius: 9px; border: 0; color: var(--comm-ink); background: transparent; }
@@ -83,24 +78,6 @@ html[data-rt-launcher-side='left'] .rt-comm-launcher { left: max(var(--comm-laun
 .rt-comm-launcher .rt-comm-call-dot { position: absolute; right: 6px; bottom: 6px; box-shadow: 0 0 0 3px var(--comm-surface); }
 .rt-comm-badge { position: absolute; top: -6px; right: -6px; display: grid; place-items: center; min-width: 20px; height: 20px; padding: 0 4px; border-radius: 12px; color: white; background: #e4002b; font-size: 10px; font-weight: 700; }
 body:has(.rt-ai-assist[data-open='true'] .rt-ai-assist__panel[data-window-mode='fullscreen']) .rt-comm-launcher { z-index: -1; pointer-events: none; }
-/* Keep the peer launcher available. If both use the same lower corner, move the
-   launcher rail beside the shared mini surface instead of covering it. */
-@media(min-width:761px) {
-    html:not([data-rt-launcher-side='left']) body:has(.rt-ai-assist[data-open='true'] .rt-ai-assist__panel[data-window-mode='mini'][data-corner='bottom-right']) .rt-comm-launcher,
-    html:not([data-rt-launcher-side='left']) body:has(.rt-chatbot[data-open='true'] .rt-chatbot__panel[data-window-mode='mini'][data-corner='bottom-right']) .rt-comm-launcher,
-    html:not([data-rt-launcher-side='left']) body:has([data-communication-host][data-communication-open='true'] .rt-communication[data-mode='mini'][data-corner='bottom-right']) .rt-ai-assist__stage,
-    html:not([data-rt-launcher-side='left']) body:has([data-communication-host][data-communication-open='true'] .rt-communication[data-mode='mini'][data-corner='bottom-right']) .rt-chatbot__pet-stage {
-        right: calc(min(var(--rt-floating-mini-width), calc(100vw - 16px)) + 20px);
-        bottom: calc(max(8px, env(safe-area-inset-bottom)) + var(--rt-floating-launcher-lift,16px));
-    }
-    html[data-rt-launcher-side='left'] body:has(.rt-ai-assist[data-open='true'] .rt-ai-assist__panel[data-window-mode='mini'][data-corner='bottom-left']) .rt-comm-launcher,
-    html[data-rt-launcher-side='left'] body:has(.rt-chatbot[data-open='true'] .rt-chatbot__panel[data-window-mode='mini'][data-corner='bottom-left']) .rt-comm-launcher,
-    html[data-rt-launcher-side='left'] body:has([data-communication-host][data-communication-open='true'] .rt-communication[data-mode='mini'][data-corner='bottom-left']) .rt-ai-assist__stage,
-    html[data-rt-launcher-side='left'] body:has([data-communication-host][data-communication-open='true'] .rt-communication[data-mode='mini'][data-corner='bottom-left']) .rt-chatbot__pet-stage {
-        left: calc(min(var(--rt-floating-mini-width), calc(100vw - 16px)) + 20px);
-        bottom: calc(max(8px, env(safe-area-inset-bottom)) + var(--rt-floating-launcher-lift,16px));
-    }
-}
 /* The transcript's only visual change: its background. */
 .rt-communication .rt-chat-transcript { background: var(--comm-canvas); }
 .rt-communication .rt-chat-page { position: relative !important; inset: auto !important; width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; z-index: auto; }
@@ -134,11 +111,7 @@ body:has(.rt-ai-assist[data-open='true'] .rt-ai-assist__panel[data-window-mode='
     .rt-communication[data-mode='mini'] {
         border-radius: 18px;
     }
-    .rt-communication[data-mode='mini'] .rt-comm-head { min-height: 56px; gap: 8px; padding: 6px 10px; }
-    .rt-communication[data-mode='mini'] .rt-comm-tabs { border-radius: 10px; }
-    .rt-communication[data-mode='mini'] .rt-comm-tabs button { width: 38px; min-width: 38px; height: 38px; }
-    .rt-communication[data-mode='mini'] .rt-comm-tabs button i { font-size: 15px; }
-    .rt-communication[data-mode='mini'] .rt-comm-window-actions button { width: 34px; min-width: 34px; height: 34px; border-radius: 8px; }
+    .rt-communication[data-mode='mini'] .rt-comm-head { min-height: 56px; gap: 8px; padding: 6px 10px; }    .rt-communication[data-mode='mini'] .rt-comm-window-actions button { width: 34px; min-width: 34px; height: 34px; border-radius: 8px; }
     .rt-communication[data-mode='mini'] .rt-comm-head { cursor: grab; touch-action: none; user-select: none; }
     .rt-communication[data-dragging='true'] .rt-comm-head { cursor: grabbing; }
     .rt-communication[data-mode='mini'][data-corner='top-left'] { left: 8px; right: auto; top: calc(var(--comm-top) + 8px); bottom: auto; }
@@ -149,12 +122,7 @@ body:has(.rt-ai-assist[data-open='true'] .rt-ai-assist__panel[data-window-mode='
 @media(max-width:760px) {
     .rt-communication,.rt-communication[data-mode='mini'],.rt-communication[data-mode='fullscreen'] { top: var(--comm-top); left: 0; right: 0; bottom: var(--comm-bottom); width: auto; height: auto; border: 0; border-radius: 0; box-shadow: none; }
     .rt-comm-window-actions [data-comm-resize] { display: none !important; }
-    .rt-comm-head { gap: 6px; min-height: 62px; padding: 6px 8px; }
-    .rt-comm-tabs button { flex-direction: column; width: 50px; gap: 3px; }
-    .rt-comm-tabs button i { font-size: 16px; }
-    .rt-comm-tabs button span { display: block; font-size: 9.5px; line-height: 1.2; }
-    .rt-comm-tabs button[aria-selected='true'] { background: #fff0f3; color: #e4002b; }
-    .rt-comm-drag-handle { min-width: 0; }
+    .rt-comm-head { gap: 6px; min-height: 62px; padding: 6px 8px; }    .rt-comm-drag-handle { min-width: 0; }
     .rt-comm-window-actions button { width: 36px; min-width: 36px; }
     .rt-comm-toolbar { gap: 6px; padding: 6px 10px; }
     .rt-comm-filter { max-width: 105px; padding-left: 8px; }
@@ -188,39 +156,6 @@ body:has(.rt-ai-assist[data-open='true'] .rt-ai-assist__panel[data-window-mode='
     border-bottom: 1px solid rgb(255 255 255 / 22%);
     background: linear-gradient(112deg, #a81632 0%, #c21f3d 56%, #a81632 100%);
     color: #fff;
-}
-.rt-comm-tabs,
-.rt-ai-assist__head .rt-ai-assist__tabs {
-    flex: none;
-    gap: 2px;
-    margin: 0;
-    padding: 2px;
-    border: 1px solid rgb(255 255 255 / 28%);
-    border-radius: 12px;
-    background: rgb(70 0 14 / 18%);
-}
-.rt-comm-tabs button,
-.rt-ai-assist__head .rt-ai-assist__tabs .rt-assistant-nav__tab {
-    width: 44px;
-    min-width: 44px;
-    min-height: 44px;
-    height: 44px;
-    border: 0;
-    border-radius: 8px;
-    background: transparent;
-    color: rgb(255 255 255 / 82%);
-    transition: background-color 160ms ease, color 160ms ease, transform 160ms ease;
-}
-.rt-comm-tabs button[aria-selected='true'],
-.rt-ai-assist__head .rt-ai-assist__tabs .rt-assistant-nav__tab[aria-selected='true'] {
-    color: #a81632;
-    background: #fff;
-    box-shadow: 0 2px 8px rgb(62 0 14 / 18%);
-}
-.rt-comm-tabs button:hover:not([aria-selected='true']),
-.rt-ai-assist__head .rt-ai-assist__tabs .rt-assistant-nav__tab:hover:not(:disabled):not([aria-selected='true']) {
-    color: #fff;
-    background: rgb(255 255 255 / 15%);
 }
 .rt-comm-window-actions button,
 .rt-ai-assist__head-actions .rt-ai-assist__icon-btn {
@@ -261,13 +196,6 @@ body:has(.rt-ai-assist[data-open='true'] .rt-ai-assist__panel[data-window-mode='
         gap: 8px;
         padding: 6px 10px;
     }
-    .rt-communication[data-mode='mini'] .rt-comm-tabs button,
-    .rt-ai-assist__panel[data-window-mode='mini'] .rt-ai-assist__tabs .rt-assistant-nav__tab {
-        width: 38px;
-        min-width: 38px;
-        min-height: 38px;
-        height: 38px;
-    }
     .rt-communication[data-mode='mini'] .rt-comm-window-actions button,
     .rt-ai-assist__panel[data-window-mode='mini'] .rt-ai-assist__head-actions .rt-ai-assist__icon-btn {
         width: 34px;
@@ -278,14 +206,10 @@ body:has(.rt-ai-assist[data-open='true'] .rt-ai-assist__panel[data-window-mode='
     }
 }
 @media (max-width: 760px) {
-    .rt-communication[data-mode],
-    .rt-ai-assist__panel { border: 1px solid color-mix(in srgb, #bc1e3b 68%, var(--rt-shell-border, #d6dee7)); }
     .rt-comm-head,
     .rt-ai-assist__head { min-height: 62px; gap: 6px; padding: 6px 8px; }
 }
 @media (prefers-reduced-motion: reduce) {
-    .rt-comm-tabs button,
-    .rt-ai-assist__head .rt-ai-assist__tabs .rt-assistant-nav__tab,
     .rt-comm-window-actions button,
     .rt-ai-assist__head-actions .rt-ai-assist__icon-btn { transition: none; }
 }

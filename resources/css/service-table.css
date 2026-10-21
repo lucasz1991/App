@@ -33,10 +33,6 @@
     gap: 0;
 }
 
-body:has(.rt-ai-assist__stage) .rt-service-pagination {
-    padding-right: 84px;
-}
-
 .rt-service-filter-trigger.rt-ui-button,
 .rt-service-bulk-trigger.rt-ui-button {
     position: relative;
@@ -96,7 +92,6 @@ body:has(.rt-ai-assist__stage) .rt-service-pagination {
 
 @media (max-width: 767px) {
     .rt-service-pagination { padding-inline: 8px; }
-    body:has(.rt-ai-assist__stage) .rt-service-pagination { padding-right: 76px; }
 }
 
 /* Services and Orders share the record layout. Container width, not viewport

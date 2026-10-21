@@ -135,6 +135,7 @@
             </div>
         </main>
         @auth
+            <x-ui.floating.launcher-group />
             @if ($chrome)
                 @persist('railtime-communication-'.auth()->id())
                     <div data-communication-persist>

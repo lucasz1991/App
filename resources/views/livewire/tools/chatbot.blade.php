@@ -247,6 +247,8 @@
         aria-hidden="true"
     ></span>
 
+    <x-ui.floating.launcher-item class="rt-chatbot" x-data="railtimeAssistantCloud()" ::data-state="petState()"
+        x-show="!open && !pageBuilderActive" x-cloak>
     <x-ui.dropdown.anchor-dropdown
         align="launcher"
         width="auto"
@@ -320,6 +322,7 @@
         </x-slot:content>
     </x-ui.dropdown.anchor-dropdown>
 
+    </x-ui.floating.launcher-item>
     <x-ui.floating.window
         id="railtime-chatbot-panel"
         class="rt-chatbot__panel"
@@ -359,7 +362,7 @@
 
             @if($operationsAvailable)
                 @php
-                    $operationsNavTabs = array_filter(['chat' => 'Chat', 'intake' => in_array('intake', app(\App\Services\Operations\AiAssistService::class)->permitted(auth()->user()), true) ? 'AI-Annahme' : null, 'actions' => 'Aktionen', 'activity' => 'Aktivitäten']);
+                    $operationsNavTabs = array_filter(['chat' => 'Chat', 'intake' => in_array('intake', app(\App\Services\Operations\AiAssistService::class)->permitted(auth()->user()), true) ? 'Inbox' : null, 'actions' => 'Tasks', 'activity' => 'Logs']);
                 @endphp
                 <x-operations.assistant-navigation :tabs="$operationsNavTabs" :selected="$operationsTab" action="setOperationsTab" id-prefix="railtime-assistant" controls="railtime-assistant-content" :review-count="$operationsAssist['reviewCount']" />
             @endif

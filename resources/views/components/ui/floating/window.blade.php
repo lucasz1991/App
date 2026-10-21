@@ -8,6 +8,9 @@
 @once
 <style data-rt-floating-window-geometry>
 :root { --rt-floating-mini-width: 442px; --rt-floating-mini-height: 510px; }
+.rt-floating-window__header:has(> .rt-window-tabs) { flex-wrap: wrap; row-gap: 4px; }
+.rt-floating-window__header:has(> .rt-window-tabs) > .rt-floating-window__header-spacer { flex: 1 1 0; min-width: 0; }
+.rt-floating-window__header:has(> .rt-window-tabs) > .rt-floating-window__actions { margin-left: auto; }
 .rt-floating-window__header > .rt-floating-window__actions { display: flex; flex: none; align-items: center; gap: 2px; }
 .rt-floating-window__header > .rt-floating-window__actions > button,
 .rt-floating-window__header > .rt-floating-window__actions .rt-floating-window__action,
@@ -36,6 +39,11 @@
         --rt-floating-action-size: 34px; --rt-floating-action-radius: 8px;
         width: min(var(--rt-floating-mini-width), calc(100vw - 16px));
         height: min(var(--rt-floating-mini-height), calc(100dvh - var(--rt-floating-top, 70px) - 16px - var(--comm-bottom, var(--rt-assistant-bottom, 0px))));
+    }
+}
+@media (max-width: 760px) {
+    .rt-floating-window[data-floating-mode] {
+        border: 0; border-radius: 0; box-shadow: none;
     }
 }
 </style>
