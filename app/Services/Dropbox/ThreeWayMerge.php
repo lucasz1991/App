@@ -18,22 +18,40 @@ final class ThreeWayMerge
                 $base = $appearance['baseline'][$field] ?? null;
                 $excel = $appearance['excel'][$field];
                 $local = $app[$field] ?? null;
-                if ($excel === $base) {
+                $excelKey = $this->comparisonValue($field, $excel);
+                $baseKey = $this->comparisonValue($field, $base);
+                $localKey = $this->comparisonValue($field, $local);
+                if ($excelKey === $baseKey) {
                     continue;
                 }
-                if ($local !== $base && $local !== $excel) {
+                if ($localKey !== $baseKey && $localKey !== $excelKey) {
                     $conflicts[$field][] = ['baseline' => $base, 'excel' => $excel, 'app' => $local, 'origin' => $appearance['origin'] ?? null];
                 }
-                $proposals[json_encode($excel, JSON_THROW_ON_ERROR)] = $excel;
+                $proposalKey = json_encode($excelKey, JSON_THROW_ON_ERROR);
+                if (! array_key_exists($proposalKey, $proposals)) {
+                    $proposals[$proposalKey] = $excel;
+                }
             }
             if (count($proposals) > 1) {
                 $conflicts[$field][] = ['reason' => 'appearances_disagree', 'values' => array_values($proposals)];
             }
             if (count($proposals) === 1 && ! isset($conflicts[$field])) {
-                $merged[$field] = reset($proposals);
+                $proposal = reset($proposals);
+                if (! array_key_exists($field, $app) || $this->comparisonValue($field, $app[$field] ?? null) !== $this->comparisonValue($field, $proposal)) {
+                    $merged[$field] = $proposal;
+                }
             }
         }
 
         return ['values' => $merged, 'conflicts' => $conflicts];
+    }
+
+    private function comparisonValue(string $field, mixed $value): mixed
+    {
+        if (in_array($field, ['phone', 'mobile'], true) && is_string($value)) {
+            return preg_replace('/\s+/u', '', $value) ?? $value;
+        }
+
+        return $value;
     }
 }
