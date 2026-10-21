@@ -113,6 +113,7 @@
                     <x-slot:avatar>
                         <x-chat.avatar
                             :src="$avatarUrl"
+                            :size="$embedded ? 'sm' : 'md'"
                             :name="$chat->displayNameFor($me)"
                             :signal="$previewPersonIsOnline"
                             decorative

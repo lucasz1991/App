@@ -337,4 +337,5 @@ auth.json
 !/tests/Feature/CommunicationBackendTest.php
 !/tests/Feature/HeaderInboxSeparationTest.php
 !/tests/Frontend/communication-module.test.js
+!/tests/Frontend/chat-pane-morph-reactivity.test.js
 !/tests/Frontend/floating-window-component.test.js

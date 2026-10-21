@@ -300,7 +300,12 @@ test('composer preserves every input path in the detached premium control layout
     assert.match(composer, /aria-label="\{\{ __\('app\.add_attachment'\) \}\}"/);
     assert.match(composer, /<x-chat\.live-location-share/);
     assert.match(composer, /@click="startRecording\(\)"/);
-    assert.match(composer, /data-chat-input-capsule/);
+    assert.match(composer, /<x-ui\.floating\.composer-row/);
+    const sharedRow = await readFile(
+        new URL('../../resources/views/components/ui/floating/composer-row.blade.php', import.meta.url),
+        'utf8',
+    );
+    assert.match(sharedRow, /data-chat-input-capsule/);
     assert.match(composer, /data-chat-send-button/);
     assert.match(composer, /x-show\.important="draft\.trim\(\)\.length > 0/);
     assert.match(composer, /wire:loading\.attr="disabled"/);

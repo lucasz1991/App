@@ -227,6 +227,9 @@
     @else
         <span class="rt-expandable-search__trigger" aria-hidden="true">
     @endif
+        @if ($isFloatingSearch)
+            <i class="far fa-search rt-expandable-search__icon" aria-hidden="true"></i>
+        @else
         <svg
             @if ($isTopbarSearch) x-show="!isMobileLayerOpen()" @endif
             xmlns="http://www.w3.org/2000/svg"
@@ -240,7 +243,8 @@
             <circle cx="10.75" cy="10.75" r="6.75" />
             <path stroke-linecap="round" d="m16 16 4.25 4.25" />
         </svg>
-        @if ($isTopbarSearch)
+        @endif
+        @if ($isTopbarSearch && !$isFloatingSearch)
             <svg
                 x-show="isMobileLayerOpen()"
                 x-cloak
@@ -256,9 +260,13 @@
             </svg>
         @endif
         @if ($wireModel)
+            @if ($isFloatingSearch)
+            <i class="far fa-spinner-third rt-expandable-search__spinner" aria-hidden="true"></i>
+            @else
             <svg class="rt-expandable-search__spinner h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
                 <path stroke-linecap="round" d="M20 12a8 8 0 1 1-8-8" />
             </svg>
+            @endif
         @endif
     @if ($isTopbarSearch)
         </button>
@@ -307,9 +315,13 @@
         class="rt-expandable-search__clear"
         aria-label="{{ __('app.clear_search') }}"
     >
+        @if ($isFloatingSearch)
+        <i class="far fa-times" aria-hidden="true"></i>
+        @else
         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
         </svg>
+        @endif
     </button>
 
     @if ($isTopbarSearch)

@@ -1,6 +1,9 @@
 @props(['type' => 'button'])
 
 @once
+<style data-rt-floating-launcher-geometry>
+:root { --rt-floating-launcher-lift: 16px; }
+</style>
 <script data-rt-floating-launcher-controller>
 window.rtInitializeFloatingLauncherGroup = function(doc = document, win = window) {
     const html = doc?.documentElement;

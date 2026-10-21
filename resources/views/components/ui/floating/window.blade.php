@@ -30,6 +30,7 @@
 .rt-floating-toolbar [data-floating-search] .rt-expandable-search__input { width: 100%; height: 34px !important; min-height: 34px; padding: 0 34px !important; border: 1px solid var(--rt-shell-border, #e1e6ed); border-radius: 9px !important; background: var(--rt-shell-panel, #f4f7fa); color: var(--rt-shell-text, #182538); font-size: 12px; box-shadow: none !important; }
 .rt-floating-toolbar [data-floating-search] .rt-expandable-search__clear { width: 34px; height: 34px; }
 .rt-floating-toolbar :is(.rt-comm-icon, .ai-intake-panel__filter-trigger, .ai-intake-panel__new) { color: var(--rt-shell-text, #182538); }
+.rt-floating-toolbar button > i { width: 16px; height: 16px; font-size: 14px; line-height: 16px; text-align: center; }
 @media (min-width: 761px) {
     .rt-floating-window[data-floating-mode='mini'] {
         --rt-floating-action-size: 34px; --rt-floating-action-radius: 8px;

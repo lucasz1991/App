@@ -33,6 +33,7 @@ function fixture(options = {}, custom = {}) {
     const state = aiIntakeComposer(wire, { mode: 'assistant', componentId: 'fixture', ...options }, {
         events, mediaDevices: { getUserMedia: custom.getUserMedia ?? (() => Promise.resolve(stream)) },
         MediaRecorder: Recorder, timers: { setInterval: () => 1, clearInterval() {} },
+        getComputedStyle: custom.getComputedStyle,
         URL: { createObjectURL(file) { const value = `blob:${created.length}`; created.push({ value, file }); return value; }, revokeObjectURL(value) { revoked.push(value); } },
     });
     state.$refs = { prompt: { value: 'Synthetic question', style: {}, scrollHeight: 50 }, files: { click() { calls.push('picker'); } } };
@@ -135,4 +136,20 @@ test('typing into an initially empty composer changes reactive submit availabili
     f.state.$refs.prompt.value = 'Typed question'; f.state.updateInput(); assert.equal(f.state.hasText, true); assert.equal(f.state.canSubmit(), true);
     await f.state.submit(); assert.deepEqual(f.calls, ['submit']);
     f.state.$refs.prompt.value = '  '; f.state.updateInput(); assert.equal(f.state.hasText, false); assert.equal(f.state.canSubmit(), false); f.state.destroy();
+});
+
+test('compact composer grows with multiline text, caps its height and shrinks after clearing', () => {
+    const f = fixture({}, { getComputedStyle: () => ({ minHeight: '32px', maxHeight: '120px' }) });
+    const input = f.state.$refs.prompt;
+
+    input.value = ''; input.scrollHeight = 20; f.state.updateInput();
+    assert.equal(input.style.height, '32px');
+    input.value = 'First line\nSecond line'; input.scrollHeight = 72; f.state.updateInput();
+    assert.equal(input.style.height, '72px');
+    input.value = 'A longer multiline question'; input.scrollHeight = 200; f.state.updateInput();
+    assert.equal(input.style.height, '120px');
+    input.value = ''; input.scrollHeight = 20; f.state.updateInput();
+    assert.equal(input.style.height, '32px');
+    assert.equal(f.state.canSubmit(), false);
+    f.state.destroy();
 });

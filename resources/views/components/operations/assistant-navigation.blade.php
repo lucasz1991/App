@@ -9,10 +9,10 @@
 ])
 @php
     $icons = [
-        'chat' => ['M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6 4V6a2 2 0 0 1 2-2Z', 'M7 9h10M7 13h6'],
-        'intake' => ['M5 4h14l3 10v5a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-5L5 4Z', 'M2 14h6l2 3h4l2-3h6M8 8h8'],
-        'actions' => ['m12 3 1.8 6.2L20 11l-6.2 1.8L12 19l-1.8-6.2L4 11l6.2-1.8L12 3Z', 'M19 17v5M16.5 19.5h5'],
-        'activity' => ['M21 12a9 9 0 1 1-2.6-6.4L21 8', 'M21 3v5h-5M12 7v5l3 2'],
+        'chat' => 'fa-comments',
+        'intake' => 'fa-inbox',
+        'actions' => 'fa-sparkles',
+        'activity' => 'fa-history',
     ];
     $safeTabs = array_intersect_key(is_array($tabs) ? $tabs : [], $icons);
     $safeAction = in_array($action, ['setTab', 'setOperationsTab'], true) ? $action : null;
@@ -93,7 +93,7 @@
             x-on:focus="if (!touchInteraction) showTooltip($el)" x-on:blur="hideTooltip()"
             x-bind:title="tooltipOpen && tooltipTarget === $el ? null : $el.dataset.tooltipText"
             x-bind:aria-describedby="tooltipOpen && tooltipTarget === $el ? $id('assistant-nav-tooltip') : null">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">@foreach($icons[$key] as $path)<path d="{{ $path }}" />@endforeach</svg>
+            <i class="far {{ $icons[$key] }}" aria-hidden="true"></i>
             <span class="sr-only">{{ $tabLabel }}</span>
             @if($key === 'intake' && $count > 0)<span class="rt-assistant-nav__count" aria-hidden="true">{{ $count > 99 ? '99+' : $count }}</span>@endif
         </button>

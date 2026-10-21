@@ -53,9 +53,9 @@ body.rt-ai-assist-fullscreen { overflow: hidden; }
 .rt-ai-assist__orb--empty { width: 104px; height: 104px; }
 
 /* Keep the floating stage outside page flow despite the dropdown's relative utility. */
-.rt-ai-assist .rt-ai-assist__stage { position: fixed !important; right: max(1rem, calc(env(safe-area-inset-right) + 0.5rem)); bottom: max(var(--ai-assist-launcher-bottom, 88px), calc(env(safe-area-inset-bottom) + 0.6rem)); z-index: 24; display: grid !important; place-items: end; pointer-events: none; transition: opacity 160ms ease, transform 160ms ease, bottom 220ms cubic-bezier(.22,.8,.25,1), left 220ms cubic-bezier(.22,.8,.25,1), right 220ms cubic-bezier(.22,.8,.25,1); }
+.rt-ai-assist .rt-ai-assist__stage { position: fixed !important; right: max(1rem, calc(env(safe-area-inset-right) + 0.5rem)); bottom: calc(max(var(--ai-assist-launcher-bottom, 88px), calc(env(safe-area-inset-bottom) + 0.6rem)) + var(--rt-floating-launcher-lift,16px)); z-index: 24; display: grid !important; place-items: end; pointer-events: none; transition: opacity 160ms ease, transform 160ms ease, bottom 220ms cubic-bezier(.22,.8,.25,1), left 220ms cubic-bezier(.22,.8,.25,1), right 220ms cubic-bezier(.22,.8,.25,1); }
 html[data-rt-launcher-side='left'] .rt-ai-assist__stage { left: max(1rem,calc(env(safe-area-inset-left) + 0.5rem)); right: auto; }
-body:has(.rt-chatbot__pet-stage) .rt-ai-assist__stage { right: max(8.25rem, calc(env(safe-area-inset-right) + 8rem)); bottom: max(1.35rem, calc(env(safe-area-inset-bottom) + 1rem)); }
+body:has(.rt-chatbot__pet-stage) .rt-ai-assist__stage { right: max(8.25rem, calc(env(safe-area-inset-right) + 8rem)); bottom: calc(max(1.35rem, calc(env(safe-area-inset-bottom) + 1rem)) + var(--rt-floating-launcher-lift,16px)); }
 html[data-rt-launcher-side='left'] body:has(.rt-chatbot__pet-stage) .rt-ai-assist__stage { left: max(8.25rem,calc(env(safe-area-inset-left) + 8rem)); right: auto; }
 .rt-ai-assist[data-open='true'] .rt-ai-assist__stage { opacity: 0; transform: translateY(10px) scale(0.92); }
 .rt-ai-assist[data-open='true'] .rt-ai-assist__stage,
@@ -362,7 +362,7 @@ a.rt-ai-assist__activity-item:hover { background: var(--ai-panel); }
     .rt-ai-assist__tabs button { padding-inline: 5px; font-size: 11px; }
 }
 @media (max-width: 639px) {
-    body:has(.rt-chatbot__pet-stage) .rt-ai-assist__stage { right: max(1.6rem, calc(env(safe-area-inset-right) + 1.2rem)); bottom: max(8.4rem, calc(env(safe-area-inset-bottom) + 8rem)); }
+    body:has(.rt-chatbot__pet-stage) .rt-ai-assist__stage { right: max(1.6rem, calc(env(safe-area-inset-right) + 1.2rem)); bottom: calc(max(8.4rem, calc(env(safe-area-inset-bottom) + 8rem)) + var(--rt-floating-launcher-lift,16px)); }
     html[data-rt-launcher-side='left'] body:has(.rt-chatbot__pet-stage) .rt-ai-assist__stage { left: max(1.6rem,calc(env(safe-area-inset-left) + 1.2rem)); right: auto; }
 }
 @media (prefers-reduced-motion: reduce) {

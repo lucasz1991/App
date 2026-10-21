@@ -475,21 +475,18 @@ body:has(#main-content .rt-shift-plan) { height: 100%; min-height: 0; overflow: 
     .rt-disposition-page:has([data-case-workspace='orders']) > [data-page-header] .rt-page-header-search { width: 40px; }
     .rt-disposition-page:has([data-case-workspace='orders']) > [data-page-header] > [data-page-header-actions] { width: auto; gap: 4px; }
 }
-.rt-unified-inbox { display: grid; gap: 16px; min-width: 0; }
-.rt-unified-inbox__toolbar { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 10px 12px; }
-.rt-unified-inbox__toolbar h2 { flex: none; margin: 0; font-size: 14px; font-weight: 600; white-space: nowrap; }
+.rt-unified-inbox { display: grid; gap: 12px; min-width: 0; }
+.rt-disposition.rt-unified-inbox > * + * { margin-top: 0; }
+.rt-unified-inbox .rt-table-head { border-radius: 11px 11px 0 0 !important; }
+.rt-unified-inbox__toolbar { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 0; }
 .rt-unified-inbox__toolbar > .ops-actions { margin-left: auto; gap: 6px; }
 .rt-unified-inbox__toolbar .rt-ui-button, .rt-unified-inbox__toolbar [role="combobox"] { min-height: 44px; height: 44px; padding-block: 6px; }
 .rt-unified-inbox__toolbar .rt-unified-inbox__create { flex: none; width: 44px; min-width: 44px; padding: 0; }
-.rt-unified-inbox__statuses { display: flex; flex: 1; min-width: 0; gap: 2px; overflow-x: auto; scrollbar-width: none; }
-.rt-unified-inbox__statuses::-webkit-scrollbar { display: none; }
-.rt-unified-inbox__statuses button { display: inline-flex; flex: none; align-items: center; gap: 6px; min-height: 44px; padding: 8px 10px; border-radius: 8px; color: var(--rt-shell-muted, #64748b); font-size: 12px; font-weight: 600; white-space: nowrap; }
-.rt-unified-inbox__statuses button[aria-pressed="true"] { background: #ef0031; color: white; }
-.rt-unified-inbox__statuses button span { font-variant-numeric: tabular-nums; opacity: .8; }
-.rt-unified-inbox__statuses button:focus-visible, .rt-unified-inbox__more summary:focus-visible { outline: 2px solid #ef0031; outline-offset: 2px; }
+.rt-unified-inbox__statuses { flex: 1; }
+.rt-unified-inbox__more summary:focus-visible { outline: 2px solid #ef0031; outline-offset: 2px; }
 .rt-unified-inbox__select { width: 186px; max-width: 100%; }
 .rt-unified-inbox__more { position: relative; }
-.rt-unified-inbox__more summary { display: grid; place-items: center; width: 44px; height: 44px; cursor: pointer; list-style: none; border: 1px solid #d8e0ec; border-radius: 8px; }
+.rt-unified-inbox__more summary { display: grid; place-items: center; width: 44px; height: 44px; cursor: pointer; list-style: none; border: 1px solid #d8e0ec; border-radius: 8px; background: var(--dispo-surface); }
 .rt-unified-inbox__more summary::-webkit-details-marker { display: none; }
 .rt-unified-inbox__more > div { position: absolute; top: 48px; right: 0; z-index: 30; width: 230px; padding: 4px; border: 1px solid #d8e0ec; border-radius: 8px; background: #fff; box-shadow: 0 8px 24px #18223014; }
 .rt-unified-inbox__more button { display: block; width: 100%; min-height: 44px; padding: 10px; text-align: left; font-size: 12px; }
@@ -497,11 +494,9 @@ body:has(#main-content .rt-shift-plan) { height: 100%; min-height: 0; overflow: 
 body[data-mode="dark"] .rt-unified-inbox__more > div { background: #101827; border-color: #334155; }
 body[data-mode="dark"] .rt-unified-inbox__more summary { border-color: #334155; }
 @media (max-width: 767.98px) {
-    .rt-unified-inbox__toolbar { flex-wrap: wrap; gap: 4px 8px; padding: 8px; }
+    .rt-unified-inbox__toolbar { flex-wrap: wrap; gap: 8px; }
     .rt-unified-inbox__toolbar > .ops-actions { min-width: 0; }
-    .rt-unified-inbox__statuses { order: 3; flex-basis: 100%; }
-    .rt-unified-inbox__statuses::-webkit-scrollbar { display: none; }
-    .rt-unified-inbox__statuses button { flex: 0 0 auto; white-space: nowrap; padding: 8px; font-size: 11px; }
+    .rt-unified-inbox__statuses { flex-basis: 100%; }
     .rt-unified-inbox__select { width: 44px; }
     .rt-unified-inbox__select [role="combobox"] { justify-content: center; padding: 0; gap: 0; }
     .rt-unified-inbox__select [role="combobox"] > span:first-child { flex: none; }

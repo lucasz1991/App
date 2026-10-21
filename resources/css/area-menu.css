@@ -89,8 +89,8 @@
     .rt-area-menu.rt-multi-toggle[data-area-indicator-ready] .rt-multi-toggle__button.rt-ui-button:is([aria-current='page'], [aria-pressed='true']) { background: transparent !important; }
     .rt-area-menu.rt-multi-toggle[data-area-indicator-ready] .rt-multi-toggle__button.rt-ui-button:is([aria-current='page'], [aria-pressed='true']) { color: var(--rt-shell-muted) !important; }
     body:has([data-area-menu]) #main-content { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important; }
-    body:has([data-area-menu]) .rt-ai-assist__stage,
-    body:has([data-area-menu]) .rt-chatbot__pet-stage { bottom: calc(68px + env(safe-area-inset-bottom, 0px)); }
+    body:has([data-area-menu]) .rt-ai-assist__stage { bottom: calc(max(var(--ai-assist-launcher-bottom, 68px), calc(68px + env(safe-area-inset-bottom, 0px))) + var(--rt-floating-launcher-lift, 16px)); }
+    body:has([data-area-menu]) .rt-chatbot__pet-stage { bottom: calc(68px + env(safe-area-inset-bottom, 0px) + var(--rt-floating-launcher-lift, 16px)); }
     /* The topbar no longer needs six compressed mobile targets next to its tools. */
     .rt-shell-topbar.rt-ui-topbar:has([data-area-menu]) .rt-shell-brand-mark { display: flex !important; }
     .rt-shell-topbar:has([data-area-menu]) .vertical-menu-btn { width: 44px !important; }

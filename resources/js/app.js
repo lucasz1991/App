@@ -1517,6 +1517,9 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
     topbarInset: 70,
 
     init() {
+        // Keep x-data stable across Livewire morphs. Read the initial selection
+        // once; subsequent list/chat navigation belongs to this Alpine scope.
+        this.mobilePane = this.$root.dataset.hasSelectedChat === 'true' ? 'chat' : 'list';
         this.viewportHandler = () => this.queueVisualViewportSync();
         this.focusHandler = () => this.queueVisualViewportSync();
 
