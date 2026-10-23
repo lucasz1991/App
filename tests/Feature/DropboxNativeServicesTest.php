@@ -8,12 +8,14 @@ use App\Models\DropboxAppearance;
 use App\Models\DropboxConflict;
 use App\Models\DropboxConnection;
 use App\Models\DropboxIdentity;
+use App\Models\DropboxRecord;
 use App\Models\DropboxSource;
 use App\Models\DropboxWorkItem;
 use App\Models\Order;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
+use App\Models\WorkTimeEntry;
 use App\Services\Dropbox\DomainAdapter;
 use App\Services\Dropbox\DropboxClient;
 use App\Services\Dropbox\FileSynchronizer;
@@ -22,6 +24,7 @@ use App\Services\Dropbox\SourceScanner;
 use App\Services\Dropbox\SyncContext;
 use App\Services\Dropbox\WorkbookReader;
 use App\Services\Dropbox\WorkbookWriter;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -213,6 +216,141 @@ class DropboxNativeServicesTest extends TestCase
         $this->assertSame(0, DropboxConflict::where('state', 'open')->count());
         $rows = app(WorkbookReader::class)->read($this->client->download($this->connection, $source->file_id)['bytes'], 'weekly')['rows'];
         $this->assertCount(55, array_filter($rows, fn ($row) => filled($row['values']['service_reference'] ?? null)));
+    }
+
+    public function test_service_fields_with_recorded_time_sync_without_mutating_shift_assignment_or_proof(): void
+    {
+        [$source, $shift, $assignment, $time] = $this->sourceWithTimeProof();
+        $shiftBefore = $shift->getRawOriginal();
+        $assignmentBefore = $assignment->getRawOriginal();
+        $timeBefore = $time->getRawOriginal();
+
+        $this->edit($source, ['service_title' => 'Bearbeitete Leistung', 'service_type' => 'Wagenprüfung', 'service_location' => 'Leistungsbereich Süd']);
+        app(FileSynchronizer::class)->sync($this->connection, $source->fresh());
+
+        $order = $shift->order->fresh();
+        $this->assertSame('Bearbeitete Leistung', $order->title);
+        $this->assertSame('Wagenprüfung', $order->service_type);
+        $this->assertSame('Leistungsbereich Süd', $order->location_name);
+        $this->assertSame($shiftBefore, $shift->fresh()->getRawOriginal());
+        $this->assertSame($assignmentBefore, $assignment->fresh()->getRawOriginal());
+        $this->assertSame($timeBefore, $time->fresh()->getRawOriginal());
+        $this->assertSame(1, Shift::count());
+        $this->assertSame(1, ShiftAssignment::count());
+        $this->assertSame(1, WorkTimeEntry::count());
+        $this->assertSame(0, DropboxConflict::where('state', 'open')->count());
+        app(FileSynchronizer::class)->sync($this->connection, $source->fresh());
+        $this->assertSame($shiftBefore, $shift->fresh()->getRawOriginal());
+        $this->assertSame($assignmentBefore, $assignment->fresh()->getRawOriginal());
+        $this->assertSame($timeBefore, $time->fresh()->getRawOriginal());
+    }
+
+    public function test_actual_shift_schedule_change_with_recorded_time_still_blocks_the_whole_import(): void
+    {
+        [$source, $shift, $assignment, $time] = $this->sourceWithTimeProof();
+        $orderBefore = $shift->order->getRawOriginal();
+        $shiftBefore = $shift->getRawOriginal();
+        $assignmentBefore = $assignment->getRawOriginal();
+        $timeBefore = $time->getRawOriginal();
+
+        $this->edit($source, ['service_title' => 'Darf nicht übernommen werden', 'starts' => '09:00']);
+        app(FileSynchronizer::class)->sync($this->connection, $source->fresh());
+
+        $this->assertSame($orderBefore, $shift->order->fresh()->getRawOriginal());
+        $this->assertSame($shiftBefore, $shift->fresh()->getRawOriginal());
+        $this->assertSame($assignmentBefore, $assignment->fresh()->getRawOriginal());
+        $this->assertSame($timeBefore, $time->fresh()->getRawOriginal());
+        $conflict = DropboxConflict::where('reason', 'business_rule')->where('state', 'open')->firstOrFail();
+        $this->assertSame(['Für diese Schicht wurden bereits Zeiten erfasst.'], $conflict->snapshot['messages']['workflow']);
+        $this->assertSame('09:00', $this->row($source)['values']['starts']);
+    }
+
+    public function test_service_only_edit_preserves_nullable_native_shift_fields_and_recorded_time(): void
+    {
+        [$source, $shift, $assignment, $time] = $this->sourceWithTimeProof();
+        SyncContext::import(fn () => $shift->update(['notes' => null, 'disposition_details' => null]));
+        app(FileSynchronizer::class)->sync($this->connection, $source->fresh());
+        $shiftBefore = $shift->fresh()->getRawOriginal();
+        $assignmentBefore = $assignment->getRawOriginal();
+        $timeBefore = $time->getRawOriginal();
+
+        $this->edit($source, ['service_type' => 'Wagenprüfung']);
+        app(FileSynchronizer::class)->sync($this->connection, $source->fresh());
+
+        $this->assertSame('Wagenprüfung', $shift->order->fresh()->service_type);
+        $this->assertSame($shiftBefore, $shift->fresh()->getRawOriginal());
+        $this->assertSame($assignmentBefore, $assignment->fresh()->getRawOriginal());
+        $this->assertSame($timeBefore, $time->fresh()->getRawOriginal());
+        $this->assertSame(0, DropboxConflict::where('state', 'open')->count());
+    }
+
+    public function test_actual_shift_detail_change_with_recorded_time_remains_guarded(): void
+    {
+        [$source, $shift, $assignment, $time] = $this->sourceWithTimeProof();
+        $orderBefore = $shift->order->getRawOriginal();
+        $shiftBefore = $shift->getRawOriginal();
+        $assignmentBefore = $assignment->getRawOriginal();
+        $timeBefore = $time->getRawOriginal();
+
+        $this->edit($source, ['service_type' => 'Darf nicht übernommen werden', 'information' => 'Neue Einsatzinformation']);
+        app(FileSynchronizer::class)->sync($this->connection, $source->fresh());
+
+        $this->assertSame($orderBefore, $shift->order->fresh()->getRawOriginal());
+        $this->assertSame($shiftBefore, $shift->fresh()->getRawOriginal());
+        $this->assertSame($assignmentBefore, $assignment->fresh()->getRawOriginal());
+        $this->assertSame($timeBefore, $time->fresh()->getRawOriginal());
+        $conflict = DropboxConflict::where('reason', 'business_rule')->where('state', 'open')->firstOrFail();
+        $this->assertSame(['Für diese Schicht wurden bereits Zeiten erfasst.'], $conflict->snapshot['messages']['workflow']);
+    }
+
+    public function test_employee_change_cannot_bypass_recorded_time_guards_when_shift_attributes_match(): void
+    {
+        [, $shift, $assignment, $time] = $this->sourceWithTimeProof();
+        $record = DropboxRecord::where('model_type', 'Shift')->where('model_id', $shift->id)->firstOrFail();
+        SyncContext::import(fn () => $record->update(['assignment_id' => null]));
+        $person = User::factory()->create(['name' => 'Andere Person', 'role' => 'staff', 'status' => true]);
+        DropboxIdentity::create(['connection_id' => $this->connection->id, 'alias' => 'andere person', 'kind' => 'employee', 'user_id' => $person->id, 'details' => ['display_name' => 'Andere Person']]);
+        $values = [...app(DomainAdapter::class)->current($record), 'employee' => 'Andere Person'];
+        $orderBefore = $shift->order->getRawOriginal();
+        $shiftBefore = $shift->getRawOriginal();
+        $assignmentBefore = $assignment->getRawOriginal();
+        $timeBefore = $time->getRawOriginal();
+
+        try {
+            DB::transaction(fn () => app(DomainAdapter::class)->apply($this->connection, $record, $values));
+            $this->fail('An employee change must retain the native time-proof guard.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(['Für diese Schicht wurden bereits Zeiten erfasst.'], $exception->errors()['workflow']);
+        }
+
+        $this->assertSame($orderBefore, $shift->order->fresh()->getRawOriginal());
+        $this->assertSame($shiftBefore, $shift->fresh()->getRawOriginal());
+        $this->assertSame($assignmentBefore, $assignment->fresh()->getRawOriginal());
+        $this->assertSame($timeBefore, $time->fresh()->getRawOriginal());
+        $this->assertSame(1, ShiftAssignment::count());
+        $this->assertNull($record->fresh()->assignment_id);
+    }
+
+    private function sourceWithTimeProof(): array
+    {
+        $source = $this->source();
+        app(FileSynchronizer::class)->sync($this->connection, $source);
+        $record = DropboxRecord::where('model_type', 'Shift')->firstOrFail();
+        $shift = Shift::findOrFail($record->model_id);
+        $person = User::factory()->create(['name' => 'Erika Muster', 'role' => 'staff', 'status' => true]);
+        DropboxIdentity::create(['connection_id' => $this->connection->id, 'alias' => 'erika muster', 'kind' => 'employee', 'user_id' => $person->id, 'details' => ['display_name' => 'Erika Muster']]);
+        [$assignment, $time] = SyncContext::import(function () use ($record, $shift, $person) {
+            $shift->update(['status' => ShiftStatus::Completed]);
+            $assignment = ShiftAssignment::create(['shift_id' => $shift->id, 'user_id' => $person->id, 'status' => 'confirmed', 'assigned_by' => 1]);
+            $record->update(['assignment_id' => $assignment->id, 'metadata' => [...$record->metadata, 'employee_label' => $person->name, 'user_id' => $person->id]]);
+            $time = WorkTimeEntry::create(['shift_assignment_id' => $assignment->id, 'user_id' => $person->id, 'status' => 'approved', 'timezone' => 'Europe/Berlin',
+                'starts_at' => $shift->starts_at, 'ends_at' => $shift->ends_at, 'plan_snapshot' => ['proof' => 'Unverändert'], 'reviewed_by' => 1, 'reviewed_at' => now()]);
+
+            return [$assignment, $time];
+        });
+        app(FileSynchronizer::class)->sync($this->connection, $source->fresh());
+
+        return [$source->fresh(), $shift->fresh(), $assignment->fresh(), $time->fresh()];
     }
 
     private function source(): DropboxSource

@@ -222,9 +222,11 @@ class DomainAdapter
             throw ValidationException::withMessages(['sync' => 'Eine stornierte Schicht kann durch Entfernen des Excel-Stornos nicht wieder geöffnet werden. Die Stornorücknahme bitte in der App prüfen.']);
         }
         $historical = $historical || (($record->metadata['imported_order'] ?? false) && $shift->status === ShiftStatus::Completed && $end->isPast());
+        $serviceOnly = false;
         if ($shift->exists) {
             $current = $this->current($record);
             $changed = array_filter($values, fn ($value, $key) => ($current[$key] ?? null) !== $value, ARRAY_FILTER_USE_BOTH);
+            $serviceOnly = $changed && ! array_diff(array_keys($changed), PlanningServiceProjection::FIELDS);
             if ($changed && ! array_diff(array_keys($changed), ['actual_end'])) {
                 $time = $record->assignment_id ? WorkTimeEntry::where('shift_assignment_id', $record->assignment_id)->first() : null;
                 $record->metadata = array_merge($record->metadata ?? [], ['actual_end' => $values['actual_end'], 'time_entry_version' => $time ? $this->timeVersion($time) : null, 'actual_end_origin' => 'reported']);
@@ -261,13 +263,23 @@ class DomainAdapter
             app(ShiftAssignmentService::class)->cancel($oldAssignment, $actor, 'Excel-Zuordnung geändert');
             $record->assignment_id = null;
         }
-        $shift = app(ShiftSchedulingService::class)->save($shift, [
+        $shiftAttributes = [
             'order_id' => $order->id, 'title' => $shift->title ?: $values['location'], 'role_name' => $values['role'] ?: 'Einsatz',
             'starts_at' => $start, 'ends_at' => $end, 'timezone' => $zone, 'location_name' => $values['location'],
             'required_staff' => $shift->required_staff ?: 1, 'notes' => $values['notes'] ?? '', 'disposition_details' => $details,
             'status' => ($values['cancelled'] ?? false) && ! $cancelAssignmentOnly ? ShiftStatus::Cancelled : ($shift->status ?? ShiftStatus::Draft),
-            'expected_revision' => $shift->revision,
-        ], $actor);
+        ];
+        // A service edit must preserve nullable notes and every existing shift-only detail.
+        if ($serviceOnly) {
+            $shiftAttributes['notes'] = $shift->notes;
+            $shiftAttributes['disposition_details'] = $shift->disposition_details;
+        }
+        $candidate = clone $shift;
+        $candidate->fill($shiftAttributes);
+        // Pure service edits must not reschedule a shift that already has time proof.
+        if (! $shift->exists || ! $serviceOnly || $candidate->isDirty()) {
+            $shift = app(ShiftSchedulingService::class)->save($shift, [...$shiftAttributes, 'expected_revision' => $shift->revision], $actor);
+        }
         if ($historical || $oldAssignment?->status === ShiftAssignmentStatus::Reported) {
             $record->assignment_id = app(HistoricalEmployeeAssignmentService::class)->sync($connection, $record, $shift, $identity, $actor, $historical, (bool) ($values['cancelled'] ?? false), ! ($values['cancelled'] ?? false))?->id;
             $oldAssignment = $record->assignment_id ? ShiftAssignment::find($record->assignment_id) : null;
