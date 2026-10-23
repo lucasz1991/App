@@ -58,7 +58,7 @@ class WorkbookServiceMetadata
         foreach ($requested as $sheet => $fields) {
             $part = $package->sheets()[$sheet] ?? throw new RuntimeException('sheet_missing');
             $document = $package->xml($part);
-            [$headers, $occupied, $lastColumn] = $this->inventory($document, $strings);
+            [$headers, $occupied, $lastColumn, $merged] = $this->inventory($document, $strings);
             if (! $headers) {
                 throw new RuntimeException('planning_headers_missing');
             }
@@ -91,6 +91,7 @@ class WorkbookServiceMetadata
                 $nextHeader = $headerRows[$position + 1] ?? PHP_INT_MAX;
                 foreach (array_keys($fields) as $field) {
                     $column = $map[$field];
+                    $this->assertVisibleTarget($column, $row, $merged);
                     if (isset($header['services'][$field])) {
                         continue;
                     }
@@ -108,7 +109,7 @@ class WorkbookServiceMetadata
             if ($newColumns) {
                 $package->setXml($part, $document);
             }
-            $maps[$sheet] = ['columns' => array_intersect_key($map, $fields), 'headers' => $headers];
+            $maps[$sheet] = ['columns' => array_intersect_key($map, $fields), 'headers' => $headers, 'merged' => $merged];
         }
         $package->patch($headerChanges);
         foreach ($changes as &$change) {
@@ -133,6 +134,7 @@ class WorkbookServiceMetadata
                 if (! array_key_exists($field, $change['values'])) {
                     continue;
                 }
+                $this->assertVisibleTarget($column, $row, $maps[$sheet]['merged']);
                 $entry['locator']['cells'][$field] = $column.$row;
                 $entry['locator']['columns'][$column] = $field;
                 $locationColumn = preg_replace('/\d+$/D', '', $entry['locator']['cells']['location'] ?? 'B');
@@ -194,13 +196,26 @@ class WorkbookServiceMetadata
                 $headers[$rowNumber] = ['services' => $services, 'style' => $style, 'data_style' => 0];
             }
         }
+        $merged = [];
         foreach ($document->getElementsByTagNameNS(WorkbookPackage::NS, 'mergeCell') as $merge) {
-            [, $end] = Coordinate::rangeBoundaries($merge->getAttribute('ref'));
+            [$start, $end] = Coordinate::rangeBoundaries($merge->getAttribute('ref'));
+            $merged[] = [$start, $end];
             $lastColumn = max($lastColumn, $end[0]);
         }
         ksort($headers);
 
-        return [$headers, $occupied, $lastColumn];
+        return [$headers, $occupied, $lastColumn, $merged];
+    }
+
+    private function assertVisibleTarget(string $column, int $row, array $merged): void
+    {
+        $index = Coordinate::columnIndexFromString($column);
+        foreach ($merged as [$start, $end]) {
+            if ($index >= $start[0] && $index <= $end[0] && $row >= $start[1] && $row <= $end[1]
+                && ($index !== $start[0] || $row !== $start[1])) {
+                throw new RuntimeException('service_merged_target_requires_review');
+            }
+        }
     }
 
     private function value(DOMElement $cell, array $strings): string

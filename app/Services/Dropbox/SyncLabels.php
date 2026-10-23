@@ -11,6 +11,7 @@ final class SyncLabels
         'draft' => 'Entwurf', 'cancelled' => 'Storniert', 'first_name' => 'Vorname', 'last_name' => 'Nachname', 'name' => 'Name', 'contact_email' => 'Kontakt-E-Mail',
         'phone' => 'Diensttelefon', 'mobile' => 'Privattelefon', 'city' => 'Wohnort', 'birth_date' => 'Geburtsdatum', 'birth_place' => 'Geburtsort', 'nationality' => 'Nationalität',
         'deployment_region' => 'Einsatzgebiet', 'reported_qualifications' => 'Gemeldete Qualifikationen', 'value' => 'Gemeldeter Wert', 'color' => 'Zellfarbe',
+        'service_reference' => 'Leistungs-ID', 'service_title' => 'Leistungstitel', 'service_type' => 'Leistungsart', 'service_location' => 'Leistungsort',
     ];
 
     public static function error(?string $code): string
@@ -43,6 +44,8 @@ final class SyncLabels
             'planning_headers_missing' => 'Überschriften für Einsatzort und Datum fehlen',
             'contact_headers_missing' => 'Eindeutige Überschriften für Name und E-Mail fehlen',
             'contact_headers_ambiguous' => 'Kontaktspalten sind mehrfach oder widersprüchlich beschriftet',
+            'service_headers_ambiguous', 'service_columns_inconsistent' => 'Leistungsspalten sind mehrfach oder widersprüchlich beschriftet',
+            'service_columns_unavailable', 'service_header_collision', 'service_merged_target_requires_review' => 'Kein sicherer Platz für Leistungsspalten; Excel-Aufbau prüfen',
             default => 'Verarbeitung benötigt Aufmerksamkeit ('.$code.')',
         };
     }
