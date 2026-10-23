@@ -65,6 +65,9 @@ final class OutlookMobileSignature
             return [$document, null];
         }
         $logoTrain = SignatureTableOverlapDelivery::usesLogoTrain($html);
+        if ($logoTrain) {
+            SignatureTableOverlapDelivery::assertRuntime($html);
+        }
         $dom = new DOMDocument('1.0', 'UTF-8');
         $previous = libxml_use_internal_errors(true);
         try {
@@ -126,7 +129,7 @@ final class OutlookMobileSignature
         foreach ($xpath->query(self::classQuery('rt-sign-ledger-content')) as $cell) {
             // The flow-delivery train has its own row. Reserve overlap space
             // only for an older, already compiled signature, never twice.
-            $bottom = str_contains($html, 'rt-delivery-train') ? '10px' : '52px';
+            $bottom = $logoTrain ? '0' : (str_contains($html, 'rt-delivery-train') ? '10px' : '52px');
             self::style($cell, 'padding:20px '.($logoTrain ? '0' : '18px').' '.$bottom.';vertical-align:top;font-family:Arial,sans-serif;');
         }
         // Only the explicitly authored outer hotline cell follows the phone
@@ -158,6 +161,22 @@ final class OutlookMobileSignature
                 throw new RuntimeException('Der mobile Logo-Zug besitzt einen fremden Markenkopfabstand.');
             }
             self::style($heading, $style);
+            $gaps = $xpath->query(self::classQuery('rt-delivery-train-gap', 'td'));
+            $trains = $xpath->query(self::classQuery('rt-delivery-train-cell', 'td'));
+            $contents = $xpath->query(self::classQuery('rt-sign-ledger-content', 'td'));
+            if ($gaps->length !== 1 || $trains->length !== 1 || $contents->length !== 1) {
+                throw new RuntimeException('Der mobile Logo-Zug besitzt keine eindeutige letzte Tabellenzeile.');
+            }
+            $gap = $gaps->item(0);
+            $train = $trains->item(0);
+            if (! $gap->parentNode->isSameNode($train->parentNode)
+                || $gap->childElementCount !== 0 || trim($gap->textContent) !== '') {
+                throw new RuntimeException('Der mobile Logo-Zug besitzt keine leere rechte Abstandszelle.');
+            }
+            $gap->parentNode->removeChild($gap);
+            $contents->item(0)->removeAttribute('colspan');
+            $train->setAttribute('width', '100%');
+            self::style($train, 'width:100%;padding:0;border:0;font-size:0;line-height:0;vertical-align:bottom;');
         }
         foreach ($xpath->query(self::classQuery('rt-contact', 'table')) as $table) {
             $table->setAttribute('width', '100%');
@@ -921,6 +940,7 @@ final class OutlookMobileSignature
             $prefix.'.rt-ledger-brand.rt-delivery-wide-column,'.$prefix.'.rt-ledger-contacts.rt-delivery-wide-column{display:block!important;width:100%!important;border:0!important;box-sizing:border-box!important;}',
             $prefix.'.rt-ledger-brand.rt-delivery-wide-column{padding:0 22px 0 0!important;}',
             $prefix.'.rt-ledger-contacts.rt-delivery-wide-column{padding:14px 22px 0!important;}',
+            $prefix.'.rt-delivery-train-cell{width:100%!important;padding:0 22px 0 0!important;border:0!important;}',
         ] : [
             $prefix.'.rt-ledger-brand.rt-delivery-wide-column{width:32%!important;padding:0 22px 0 0!important;border-right:1px solid #e60033!important;}',
             $prefix.'.rt-ledger-contacts.rt-delivery-wide-column{width:68%!important;padding:0 0 0 22px!important;border:0!important;}',
