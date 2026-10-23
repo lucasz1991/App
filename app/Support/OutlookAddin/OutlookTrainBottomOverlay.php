@@ -36,6 +36,9 @@ final class OutlookTrainBottomOverlay
 
     public static function projectMobile(string $html): string
     {
+        if (SignatureTableOverlapDelivery::usesLogoTrain($html)) {
+            return self::projectVariant($html, true);
+        }
         if (str_contains($html, self::ATTRIBUTE)) {
             if (! str_contains($html, self::ATTRIBUTE.'="'.self::MOBILE_MARKER.'"')) {
                 self::fail();
@@ -53,6 +56,14 @@ final class OutlookTrainBottomOverlay
 
     private static function projectVariant(string $html, bool $mobile): string
     {
+        if (SignatureTableOverlapDelivery::usesLogoTrain($html)) {
+            if (str_contains($html, self::ATTRIBUTE)) {
+                self::fail();
+            }
+            SignatureTableOverlapDelivery::assertRuntime($html);
+
+            return $html;
+        }
         if (str_contains($html, self::ATTRIBUTE)) {
             self::assertRuntime($html);
 

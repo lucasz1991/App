@@ -29,6 +29,14 @@ final class OutlookNativePersonalSignature
 
     public static function project(string $html): string
     {
+        if (SignatureTableOverlapDelivery::usesLogoTrain($html)) {
+            if (str_contains($html, self::ATTRIBUTE)) {
+                self::fail();
+            }
+            SignatureTableOverlapDelivery::assertRuntime($html);
+
+            return $html;
+        }
         if (str_contains($html, self::ATTRIBUTE)) {
             self::restore($html);
 
