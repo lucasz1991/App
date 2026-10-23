@@ -103,6 +103,10 @@
                                     \App\Enums\ShiftAssignmentStatus::blockingValues(),
                                     true,
                                 ))->count() }}/{{ $shift->required_staff }} reserviert</p>
+                                @php($historicalPeople = $shift->assignments->filter(fn ($assignment) => $assignment->status === \App\Enums\ShiftAssignmentStatus::Reported)->map(fn ($assignment) => $assignment->user?->name)->filter()->unique())
+                                @if($historicalPeople->isNotEmpty())
+                                    <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">Historisch gemeldet: {{ $historicalPeople->implode(', ') }}</p>
+                                @endif
                             </div>
                         @empty
                             <p class="px-4 py-6 text-center text-sm text-rt-muted dark:text-rt-dark-muted">Noch keine Schichten angelegt.</p>

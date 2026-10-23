@@ -11,7 +11,6 @@ use App\Models\DropboxConnection;
 use App\Models\DropboxIdentity;
 use App\Models\DropboxRecord;
 use App\Models\EmployeeCompetencyFact;
-use App\Models\Order;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
@@ -84,7 +83,7 @@ class DomainAdapter
                 $values['cancellation'] = trim('Storno '.$values['cancellation']);
             }
 
-            return $values;
+            return [...$values, ...app(PlanningServiceProjection::class)->current($record, $shift->order)];
         }
         if ($record->domain === 'contacts') {
             $identity = DropboxIdentity::findOrFail($record->model_id);
@@ -181,6 +180,8 @@ class DomainAdapter
             'date' => 'required|date_format:Y-m-d', 'starts' => 'required|date_format:H:i', 'ends' => 'required|date_format:H:i',
             'customer' => 'required|string|max:191', 'location' => 'required|string|max:191', 'role' => 'nullable|string|max:191',
             'employee' => 'nullable|string|max:191', 'notes' => 'nullable|string|max:20000', 'actual_end' => 'nullable|date_format:H:i',
+            'service_reference' => 'nullable|string|max:191', 'service_title' => 'nullable|string|max:191',
+            'service_type' => 'nullable|string|max:191', 'service_location' => 'nullable|string|max:191',
         ])->validate();
         $actor = User::findOrFail(1);
         abort_unless($actor->isSuperAdmin() && $actor->status, 403);
@@ -217,6 +218,7 @@ class DomainAdapter
         }
         $customer = $customers->first() ?? Customer::create(['company_name' => $values['customer'], 'is_active' => true]);
         $shift = $record->model_id ? Shift::lockForUpdate()->findOrFail($record->model_id) : new Shift;
+        $historical = $historical || (($record->metadata['imported_order'] ?? false) && $shift->status === ShiftStatus::Completed && $end->isPast());
         if ($shift->exists) {
             $current = $this->current($record);
             $changed = array_filter($values, fn ($value, $key) => ($current[$key] ?? null) !== $value, ARRAY_FILTER_USE_BOTH);
@@ -228,13 +230,13 @@ class DomainAdapter
                 return;
             }
         }
-        $order = $shift->exists ? Order::lockForUpdate()->findOrFail($shift->order_id) : new Order;
+        $order = app(PlanningServiceProjection::class)->order($connection, $record, $shift, $customer, $values);
         if ($order->exists && $order->customer_id !== $customer->id && $order->shifts()->where('id', '!=', $shift->id)->exists()) {
             throw ValidationException::withMessages(['sync' => 'Kundenwechsel betrifft weitere Schichten dieses Auftrags. Bitte in der Auftragsverwaltung prüfen.']);
         }
         $order = app(OrderSchedulingService::class)->save($order, [
-            'customer_id' => $customer->id, 'title' => $order->title ?: $values['location'],
-            'service_type' => $order->service_type ?: ($values['role'] ?: 'Einsatz'), 'status' => $order->status ?? OrderStatus::Requested,
+            'customer_id' => $customer->id, ...app(PlanningServiceProjection::class)->attributes($order, $values, ! $shift->exists),
+            'status' => $order->status ?? OrderStatus::Requested,
             'priority' => $order->priority ?? 'normal', 'timezone' => $zone, 'required_staff' => $order->required_staff ?: 1,
             'starts_at' => $order->exists ? min($order->starts_at->utc(), $start) : $start,
             'ends_at' => $order->exists ? max($order->ends_at->utc(), $end) : $end,
@@ -249,10 +251,10 @@ class DomainAdapter
             $details['actual_end'] = $shift->disposition_details['actual_end'] ?? null;
         }
         $cancelAssignmentOnly = ($values['cancelled'] ?? false) && $oldAssignment && $shift->assignments()->where('id', '!=', $oldAssignment->id)->whereNotIn('status', ['cancelled', 'declined'])->exists();
-        if ($cancelAssignmentOnly && $oldAssignment->status !== ShiftAssignmentStatus::Cancelled) {
+        if ($cancelAssignmentOnly && ! in_array($oldAssignment->status, [ShiftAssignmentStatus::Cancelled, ShiftAssignmentStatus::Reported], true)) {
             app(ShiftAssignmentService::class)->cancel($oldAssignment, $actor, 'Excel-Stornierung dieser Zuordnung');
         }
-        if ($oldAssignment && (int) $oldAssignment->user_id !== (int) $identity?->user_id) {
+        if ($oldAssignment && $oldAssignment->status !== ShiftAssignmentStatus::Reported && (int) $oldAssignment->user_id !== (int) $identity?->user_id) {
             app(ShiftAssignmentService::class)->cancel($oldAssignment, $actor, 'Excel-Zuordnung geändert');
             $record->assignment_id = null;
         }
@@ -263,6 +265,10 @@ class DomainAdapter
             'status' => ($values['cancelled'] ?? false) && ! $cancelAssignmentOnly ? ShiftStatus::Cancelled : ($shift->status ?? ShiftStatus::Draft),
             'expected_revision' => $shift->revision,
         ], $actor);
+        if ($historical || $oldAssignment?->status === ShiftAssignmentStatus::Reported) {
+            $record->assignment_id = app(HistoricalEmployeeAssignmentService::class)->sync($connection, $record, $shift, $identity, $actor, $historical, (bool) ($values['cancelled'] ?? false), ! ($values['cancelled'] ?? false))?->id;
+            $oldAssignment = $record->assignment_id ? ShiftAssignment::find($record->assignment_id) : null;
+        }
         if ($identity?->kind === 'employee' && ! ($values['cancelled'] ?? false) && ! $historical) {
             if (! $oldAssignment || $oldAssignment->user_id !== $identity->user_id || $oldAssignment->status === ShiftAssignmentStatus::Cancelled) {
                 try {
@@ -276,12 +282,42 @@ class DomainAdapter
                 }
             }
         }
-        $record->forceFill(['model_id' => $shift->id, 'metadata' => array_merge($record->metadata ?? [], ['employee_label' => $values['employee'] ?? '', 'user_id' => $identity?->user_id, 'cancellation' => $values['cancellation'] ?? '', 'actual_end' => $values['actual_end'] ?? null, 'assignment_pending' => $assignmentPending])])->save();
+        $record->forceFill(['model_id' => $shift->id, 'metadata' => array_merge($record->metadata ?? [], ['employee_label' => $values['employee'] ?? '', 'user_id' => $identity?->user_id, 'cancellation' => $values['cancellation'] ?? '', 'actual_end' => $values['actual_end'] ?? null, 'assignment_pending' => $assignmentPending, 'native_service_projection' => 1])])->save();
         if ($assignmentPending) {
             app(ConflictStore::class)->put($connection, null, $record, 'assignment_pending', ['messages' => $assignmentPending, 'values' => $values]);
         } else {
             DropboxConflict::where('record_id', $record->id)->where('reason', 'assignment_pending')->update(['state' => 'resolved']);
         }
+    }
+
+    /** Repair native projections even when the Excel values themselves did not change. */
+    public function reconcileNative(DropboxConnection $connection, DropboxRecord $record): void
+    {
+        if ($record->domain !== 'planning' || $record->model_type !== 'Shift' || isset($record->metadata['historical_values'])) {
+            return;
+        }
+        SyncContext::import(function () use ($connection, $record) {
+            $shift = Shift::with('order')->findOrFail($record->model_id);
+            app(PlanningServiceProjection::class)->backfill($record, $shift->order);
+            if (($record->metadata['native_service_projection'] ?? 0) < 1) {
+                $record->metadata = [...($record->metadata ?? []), 'native_service_projection' => 1];
+                $record->save();
+            }
+            $historical = ($record->metadata['imported_order'] ?? false)
+                && (app(HistoricalImportCompletion::class)->confirmedPast($connection, CarbonImmutable::instance($shift->ends_at))
+                    || ($shift->status === ShiftStatus::Completed && $shift->ends_at->isPast()));
+            if (! $historical || ! in_array('assignments', $connection->option('domains'), true)) {
+                return;
+            }
+            $identity = ! empty($record->metadata['employee_label']) ? $this->identity($connection, $record->metadata['employee_label']) : null;
+            $assignment = app(HistoricalEmployeeAssignmentService::class)->sync($connection, $record, $shift, $identity, User::findOrFail(1), true);
+            if ($assignment) {
+                $record->assignment_id = $assignment->id;
+                $record->metadata = [...($record->metadata ?? []), 'user_id' => $identity?->user_id, 'assignment_pending' => null];
+                $record->save();
+                DropboxConflict::where('record_id', $record->id)->where('reason', 'assignment_pending')->update(['state' => 'resolved']);
+            }
+        });
     }
 
     /** All changed application entities resolve to records, including new draft assignments. */
@@ -308,7 +344,6 @@ class DomainAdapter
                     $record = DropboxRecord::where('connection_id', $connection->id)->where('model_type', 'Shift')->where('model_id', $shift->id)->where('assignment_id', $assignment->id)->first();
                     if (! $record && $existingUnassigned) {
                         $existingUnassigned->assignment_id = $assignment->id;
-                        $existingUnassigned->metadata = [];
                         $existingUnassigned->save();
                         $existingUnassigned = null;
                     } elseif (! $record) {

@@ -496,7 +496,7 @@ class StaffTimeline extends Component
             'staffPresence' => ['required', 'string', Rule::in(['all', 'assigned', 'unassigned'])],
             'shiftRole' => ['bail', 'required', 'string', 'max:255'],
             'shiftStatus' => ['required', 'string', Rule::in(['all', ...array_values(array_diff(ShiftStatus::values(), [ShiftStatus::Cancelled->value]))])],
-            'assignmentStatusFilter' => ['required', 'string', Rule::in(['all', ...ShiftAssignmentStatus::blockingValues()])],
+            'assignmentStatusFilter' => ['required', 'string', Rule::in(['all', ...ShiftAssignmentStatus::blockingValues(), ShiftAssignmentStatus::Reported->value])],
         ];
     }
 
@@ -573,7 +573,8 @@ class StaffTimeline extends Component
         $until = $axisUntil;
         $weekFrom = $from->startOfWeek(CarbonImmutable::MONDAY);
         $weekUntil = $until->subDay()->startOfWeek(CarbonImmutable::MONDAY)->addWeek();
-        $assignments = $this->absencesOnly ? collect() : ShiftAssignment::blocking()->whereIn('user_id', $users->pluck('id'))->whereHas('shift', fn ($q) => $q->notCancelled()->during($weekFrom, $weekUntil))->with('shift.order.customer')->get()->groupBy('user_id');
+        $assignments = $this->absencesOnly ? collect() : ShiftAssignment::visibleInTimeline()->whereIn('user_id', $users->pluck('id'))->whereHas('shift', fn ($q) => $q->notCancelled()->during($weekFrom, $weekUntil))->with('shift.order.customer')->get()->groupBy('user_id');
+        $blockingAssignments = $assignments->map(fn ($items) => $items->filter(fn ($assignment) => $assignment->status->blocksAvailability()));
         $absences = AbsenceRequest::whereIn('user_id', $users->pluck('id'))
             ->when(! $this->absencesOnly || $this->absenceStatus === 'all', fn ($q) => $q->where(fn ($statuses) => $statuses->whereIn('status', ['pending', 'approved'])->orWhere(fn ($reported) => $reported->where('kind', 'sick')->where('status', 'reported'))))
             ->when($this->absencesOnly && $this->absenceKind !== 'all', fn ($q) => $q->where('kind', $this->absenceKind))
@@ -587,16 +588,16 @@ class StaffTimeline extends Component
         $timelineRoleOptions = $this->planningEnabled && ! $this->absencesOnly ? $this->timelineRoleOptions($axisFrom, $axisUntil) : [];
         $timelineShiftStatusOptions = collect(ShiftStatus::cases())->reject(fn (ShiftStatus $status) => $status === ShiftStatus::Cancelled)
             ->map(fn (ShiftStatus $status) => ['value' => $status->value, 'label' => $status->label()])->values()->all();
-        $timelineAssignmentStatusOptions = collect(ShiftAssignmentStatus::cases())->filter(fn (ShiftAssignmentStatus $status) => $status->blocksAvailability())
+        $timelineAssignmentStatusOptions = collect(ShiftAssignmentStatus::cases())->filter(fn (ShiftAssignmentStatus $status) => $status->blocksAvailability() || $status === ShiftAssignmentStatus::Reported)
             ->map(fn (ShiftAssignmentStatus $status) => ['value' => $status->value, 'label' => $status->label()])->values()->all();
         $timelineFilterCount = (int) filled(trim($this->search)) + (int) ($this->staffPresence !== 'all') + (int) ($this->shiftRole !== 'all')
             + (int) ($this->shiftStatus !== 'all') + (int) ($this->assignmentStatusFilter !== 'all');
         $workloads = $this->planningEnabled && ! $this->absencesOnly
-            ? app(TimelineWorkloadService::class)->forRows($users->getCollection(), $assignments,
+            ? app(TimelineWorkloadService::class)->forRows($users->getCollection(), $blockingAssignments,
                 $absences->map(fn ($items) => $items->filter(fn ($absence) => $absence->starts_at->lt($selectedUntil) && $absence->ends_at->gt($selectedFrom))),
                 $selectedDays) : collect();
         $layout = app(StaffTimelineLayout::class);
-        $rows = $users->getCollection()->map(function ($user) use ($days, $selectedDays, $from, $until, $assignments, $absences, $layout) {
+        $rows = $users->getCollection()->map(function ($user) use ($days, $selectedDays, $from, $until, $assignments, $blockingAssignments, $absences, $layout) {
             $events = collect();
             foreach ($assignments->get($user->id, collect()) as $assignment) {
                 $shift = $assignment->shift;
@@ -612,7 +613,7 @@ class StaffTimeline extends Component
             $rowLaneCount = $events->isEmpty() ? 1 : (int) $events->max('lane') + 1;
 
             return ['user' => $user, 'weekly_working_hours' => $this->absencesOnly ? null : $user->profile?->weekly_working_hours,
-                'planned_hours_by_week' => $layout->plannedHoursByWeek($assignments->get($user->id, collect()), $selectedDays),
+                'planned_hours_by_week' => $layout->plannedHoursByWeek($blockingAssignments->get($user->id, collect()), $selectedDays),
                 'events' => $layout->periodEvents($days, $events),
                 'lane_count' => $rowLaneCount,
                 'days' => $days->map(function ($day) use ($events, $layout, $rowLaneCount) {
@@ -762,11 +763,11 @@ class StaffTimeline extends Component
 
     private function staffQuery(CarbonImmutable $from, CarbonImmutable $until): Builder
     {
-        $assigned = fn () => ShiftAssignment::blocking()->whereHas('shift', fn ($shiftQuery) => $shiftQuery->notCancelled()->during($from, $until))->select('user_id');
+        $assigned = fn () => ShiftAssignment::visibleInTimeline()->whereHas('shift', fn ($shiftQuery) => $shiftQuery->notCancelled()->during($from, $until))->select('user_id');
         $query = User::with(['profile:id,user_id,first_name,last_name,position,weekly_working_hours', 'currentTeam'])
             ->where('role', 'staff')
             ->where(fn ($query) => $query->where('status', true)
-                ->orWhereIn('id', ShiftAssignment::blocking()
+                ->orWhereIn('id', ShiftAssignment::visibleInTimeline()
                     ->whereHas('shift', fn ($shiftQuery) => $shiftQuery->notCancelled()->during($from, $until))
                     ->select('user_id')))
             ->when(filled($this->search), fn ($query) => $query->where('name', 'like', '%'.mb_substr($this->search, 0, 100).'%'))

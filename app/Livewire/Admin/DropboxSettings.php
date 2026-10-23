@@ -505,7 +505,7 @@ class DropboxSettings extends Component
             $detected[$key] = $count(data_get($report, 'detected.'.$key));
             $stored[$key] = $count(data_get($report, 'stored.'.$key));
         }
-        foreach (['orders', 'assigned_shifts', 'unassigned_shifts'] as $key) {
+        foreach (['orders', 'assigned_shifts', 'unassigned_shifts', 'active_shifts', 'completed_shifts', 'cancelled_shifts', 'active_assigned_shifts', 'unassigned_active_shifts', 'historical_assigned_shifts', 'recognized_employee_shifts', 'historical_recognized_shifts'] as $key) {
             $stored[$key] = $count(data_get($report, 'stored.'.$key));
         }
         $missing = [];
@@ -544,6 +544,7 @@ class DropboxSettings extends Component
             'generated_at' => $generatedAt, 'preview' => (bool) ($report['preview'] ?? false),
             'complete' => (bool) ($report['complete'] ?? false),
             'has_counts' => isset($report['detected']) || isset($report['stored']),
+            'has_staffing_counts' => isset($report['stored']['active_shifts'], $report['stored']['historical_assigned_shifts']),
             'error' => ! empty($report['error_code']) ? SyncLabels::error((string) $report['error_code']) : null,
             'newer_revision' => isset($report['rev']) && $source->rev !== null && $report['rev'] !== $source->rev,
             'processed' => $count($report['processed'] ?? 0), 'total' => $count($report['total'] ?? 0),
@@ -554,6 +555,10 @@ class DropboxSettings extends Component
             'matched_providers' => $count($report['matched_providers'] ?? 0),
             'identity_review_count' => $count(data_get($report, 'missing.employee_unresolved', count($identityReview))),
             'identity_review' => $identityReview,
+            'has_planning_identity_counts' => array_key_exists('planning_employee_references', $report),
+            'planning_employee_references' => $count($report['planning_employee_references'] ?? 0),
+            'planning_matched_employees' => $count($report['planning_matched_employees'] ?? 0),
+            'planning_matched_providers' => $count($report['planning_matched_providers'] ?? 0),
             'pending_export' => $count($report['pending_export'] ?? 0),
             'returned' => isset($report['returned']) ? $count($report['returned']) : null,
         ];

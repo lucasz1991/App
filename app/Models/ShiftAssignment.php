@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ShiftAssignmentStatus;
+use App\Enums\ShiftStatus;
 use App\Models\Concerns\CapturesDropboxChanges;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -53,5 +54,12 @@ class ShiftAssignment extends Model
     public function scopeBlocking(Builder $query): Builder
     {
         return $query->whereIn('status', ShiftAssignmentStatus::blockingValues());
+    }
+
+    public function scopeVisibleInTimeline(Builder $query): Builder
+    {
+        return $query->where(fn (Builder $visible) => $visible->whereIn('status', ShiftAssignmentStatus::blockingValues())
+            ->orWhere(fn (Builder $history) => $history->where('status', ShiftAssignmentStatus::Reported)
+                ->whereHas('shift', fn (Builder $shift) => $shift->where('status', ShiftStatus::Completed)->where('ends_at', '<=', now()->utc()))));
     }
 }

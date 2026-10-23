@@ -261,7 +261,9 @@ class RecordExporter
                 $package->patch($extraCells);
                 $bytes = $package->bytes();
             }
-            $bytes = app(WorkbookWriter::class)->write($bytes, $changes, $profile);
+            $written = app(WorkbookWriter::class)->writeChanges($bytes, $changes, $profile);
+            $bytes = $written['bytes'];
+            $changes = $written['changes'];
             $metadata = app(RevisionUploader::class)->upload($connection, $path, $bytes, $rev, $changes);
             DB::transaction(function () use ($connection, &$source, $metadata, $path, $profile, $week, $changes) {
                 $source ??= new DropboxSource(['connection_id' => $connection->id, 'file_id' => $metadata['id'], 'first_seen_at' => now()]);

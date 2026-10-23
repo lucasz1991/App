@@ -8,6 +8,7 @@ enum ShiftAssignmentStatus: string
     case Confirmed = 'confirmed';
     case Declined = 'declined';
     case Cancelled = 'cancelled';
+    case Reported = 'reported';
 
     public function label(): string
     {
@@ -16,6 +17,7 @@ enum ShiftAssignmentStatus: string
             self::Confirmed => 'Bestätigt',
             self::Declined => 'Abgelehnt',
             self::Cancelled => 'Storniert',
+            self::Reported => 'Historisch gemeldet',
         };
     }
 

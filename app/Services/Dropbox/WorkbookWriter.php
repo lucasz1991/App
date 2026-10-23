@@ -17,6 +17,9 @@ class WorkbookWriter
         $cells = [];
         $loc = $entry['locator'];
         foreach ($loc['cells'] as $field => $address) {
+            if (isset(WorkbookServiceMetadata::HEADERS[$field]) && ! array_key_exists($field, $values)) {
+                continue;
+            }
             if (isset($entry['fingerprint'])) {
                 $dependencies = match ($field) {
                     'time' => ['starts', 'ends', 'actual_end'], 'notes' => ['notes', 'draft'], 'cancellation' => ['cancellation', 'cancelled'], default => [$field]
@@ -63,7 +66,13 @@ class WorkbookWriter
 
     public function write(string $bytes, array $changes, string $profile): string
     {
+        return $this->writeChanges($bytes, $changes, $profile)['bytes'];
+    }
+
+    public function writeChanges(string $bytes, array $changes, string $profile): array
+    {
         $package = new WorkbookPackage($bytes);
+        $changes = app(WorkbookServiceMetadata::class)->prepare($package, $changes);
         $patch = [];
         foreach ($changes as $change) {
             $entry = $change['entry'];
@@ -88,12 +97,15 @@ class WorkbookWriter
                 throw new \RuntimeException('written_row_unreadable');
             }
             foreach ($change['values'] as $field => $value) {
+                if (isset(WorkbookServiceMetadata::HEADERS[$field]) && ! array_key_exists($field, $index[$key]['values'])) {
+                    throw new \RuntimeException('written_service_unreadable:'.$field);
+                }
                 if (array_key_exists($field, $index[$key]['values']) && $index[$key]['values'][$field] !== $value) {
                     throw new \RuntimeException('written_value_mismatch:'.$field);
                 }
             }
         }
 
-        return $output;
+        return ['bytes' => $output, 'changes' => $changes];
     }
 }

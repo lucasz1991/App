@@ -9,6 +9,8 @@ use App\Models\DropboxConnection;
 use App\Models\DropboxRecord;
 use App\Models\DropboxSource;
 use App\Models\EmployeeCompetencyFact;
+use App\Models\Order;
+use App\Models\Shift;
 use App\Models\User;
 use App\Support\Operations\OperationsTransaction;
 use Illuminate\Support\Collection;
@@ -256,8 +258,15 @@ class FileSynchronizer
                 $result = OperationsTransaction::run(function () use ($connection, $source, $rev, $recordId, $rows, $preview) {
                     $this->guard->current($connection, preview: $preview, lock: true);
                     $record = DropboxRecord::lockForUpdate()->findOrFail($recordId);
+                    if ($record->domain === 'planning' && $record->model_type === 'Shift') {
+                        // The service is shared by multiple records. Lock it before
+                        // reading the merge basis, not only when applying that basis.
+                        $shift = Shift::lockForUpdate()->findOrFail($record->model_id);
+                        Order::lockForUpdate()->findOrFail($shift->order_id);
+                    }
                     if (! $preview) {
                         app(HistoricalImportCompletion::class)->apply($record, User::findOrFail(1));
+                        $this->domain->reconcileNative($connection, $record);
                     }
                     $local = $this->domain->current($record);
                     $versions = $rows->map(fn ($b) => ['baseline' => $b['appearance']->baseline, 'excel' => $b['entry']['values'], 'origin' => $b['entry']['sheet'].'!'.$b['entry']['slot']])->all();
@@ -299,6 +308,9 @@ class FileSynchronizer
                             $appearance->record_id = $retired[$appearance->id]['record_id'];
                         }
                         $represented = array_intersect_key($rowTarget, $entry['values']);
+                        if ($record->domain === 'planning' && ! isset($record->metadata['historical_values'])) {
+                            $represented += array_intersect_key($rowTarget, array_flip(PlanningServiceProjection::FIELDS));
+                        }
                         if (WorkbookReader::fingerprint($represented) !== WorkbookReader::fingerprint($entry['values'])) {
                             $out[] = ['entry' => $entry, 'values' => $represented, 'appearance_id' => $appearance->id];
                         }
@@ -319,6 +331,12 @@ class FileSynchronizer
                     }
                     if ($changed && ! $preview && ! $connection->isLocalImport()) {
                         $this->ledger->enqueue($connection, 'export', $record->model_type.':'.$record->model_id, ['type' => $record->model_type, 'id' => $record->model_id]);
+                        if ($record->domain === 'planning' && array_intersect_key($incoming, array_flip(PlanningServiceProjection::FIELDS)) !== array_intersect_key($local, array_flip(PlanningServiceProjection::FIELDS))) {
+                            $orderId = Shift::find($record->model_id)?->order_id;
+                            if ($orderId) {
+                                $this->ledger->enqueue($connection, 'export', 'Order:'.$orderId, ['type' => 'Order', 'id' => $orderId]);
+                            }
+                        }
                         foreach (DropboxAppearance::where('record_id', $record->id)->where('source_id', '!=', $source->id)->pluck('source_id')->unique() as $other) {
                             $this->ledger->enqueue($connection, 'file', 'file:'.$other, ['source_id' => $other]);
                         }
@@ -364,12 +382,14 @@ class FileSynchronizer
         }
         $summary['outgoing'] = count($changes);
         if ($changes && ! $preview && $connection->mode === DropboxMode::Bidirectional) {
-            $bytes = app(WorkbookWriter::class)->write($download['bytes'], $changes, $source->profile);
+            $written = app(WorkbookWriter::class)->writeChanges($download['bytes'], $changes, $source->profile);
+            $bytes = $written['bytes'];
+            $changes = $written['changes'];
             $metadata = app(RevisionUploader::class)->upload($connection, $source->path, $bytes, $rev, $changes);
             DB::transaction(function () use ($changes, $source, $metadata, &$rev, &$summary) {
                 $rev = $metadata['rev'];
                 foreach ($changes as $change) {
-                    DropboxAppearance::findOrFail($change['appearance_id'])->forceFill(['baseline' => $change['values'], 'last_excel' => $change['values'], 'fingerprint' => WorkbookReader::fingerprint($change['values']), 'seen_rev' => $rev])->save();
+                    DropboxAppearance::findOrFail($change['appearance_id'])->forceFill(['locator' => $change['entry']['locator'], 'baseline' => $change['values'], 'last_excel' => $change['values'], 'fingerprint' => WorkbookReader::fingerprint($change['values']), 'seen_rev' => $rev])->save();
                 }
                 $source->own_rev = $rev;
                 $summary['exported'] = count($changes);
@@ -516,6 +536,14 @@ class FileSynchronizer
             }
             foreach (['date', 'starts', 'ends', 'employee', 'train_reference', 'location', 'customer', 'role'] as $key) {
                 if (($a->last_excel[$key] ?? '') !== ($entry['values'][$key] ?? '')) {
+                    return false;
+                }
+            }
+            $reference = trim((string) ($entry['values']['service_reference'] ?? ''));
+            if ($reference !== '') {
+                $record = DropboxRecord::find($a->record_id);
+                $knownReference = $a->last_excel['service_reference'] ?? ($record ? ($this->domain->current($record)['service_reference'] ?? '') : '');
+                if ($knownReference !== '' && $knownReference !== $reference) {
                     return false;
                 }
             }

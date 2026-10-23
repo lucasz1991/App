@@ -102,8 +102,17 @@ class WorkbookReader
                 if (in_array($value, ['mitarbeiter', 'mitarbeitername'], true)) {
                     $candidate[$letter] = 'employee';
                 }
+                if ($field = WorkbookServiceMetadata::field($value)) {
+                    $candidate[$letter] = $field;
+                }
             }
             if (in_array('date', $candidate, true) && in_array('location', $candidate, true)) {
+                $counts = array_count_values($candidate);
+                $ambiguous = array_values(array_filter(array_keys(WorkbookServiceMetadata::HEADERS), fn ($field) => ($counts[$field] ?? 0) > 1));
+                if ($ambiguous) {
+                    $warnings[] = ['sheet' => $sheet->getTitle(), 'row' => $row, 'reason' => 'service_headers_ambiguous', 'fields' => $ambiguous, 'retained' => true];
+                    $candidate = array_filter($candidate, fn ($field) => ! in_array($field, $ambiguous, true));
+                }
                 $columns = $candidate;
                 $header ??= $row;
 
@@ -134,6 +143,9 @@ class WorkbookReader
                 continue;
             }
             $fields = array_map(fn ($v) => trim((string) $v), $fields);
+            if (! array_filter(array_intersect_key($fields, WorkbookServiceMetadata::HEADERS), fn ($value) => $value !== '')) {
+                $fields = array_diff_key($fields, WorkbookServiceMetadata::HEADERS);
+            }
             $fields['date'] = $date;
             [$start, $end, $actual] = $this->times($fields['time'] ?? '');
             $fields['starts'] = $start;

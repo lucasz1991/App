@@ -124,11 +124,21 @@
                                 </tbody>
                             </table>
                             @if($report['detected']['planning'] > 0 || $report['stored']['planning'] > 0)
-                                <p class="text-xs leading-5 tabular-nums"><strong>{{ $report['stored']['orders'] }} zugehörige Aufträge</strong> · {{ $report['stored']['assigned_shifts'] }} Schichten mit Mitarbeiterzuordnung · {{ $report['stored']['unassigned_shifts'] }} ohne Mitarbeiterzuordnung</p>
+                                <p class="text-xs leading-5 tabular-nums"><strong>{{ $report['stored']['orders'] }} zugehörige Aufträge</strong> · {{ $report['stored']['planning'] }} gespeicherte Schichten</p>
+                                @if($report['has_staffing_counts'])
+                                    <p class="text-xs leading-5 tabular-nums" data-dropbox-report-staffing>Aktive Planung: {{ $report['stored']['active_shifts'] }} Schichten · {{ $report['stored']['active_assigned_shifts'] }} mit aktiver Mitarbeiterzuordnung · {{ $report['stored']['unassigned_active_shifts'] }} ohne aktive Mitarbeiterzuordnung.</p>
+                                    <p class="text-xs leading-5 tabular-nums" data-dropbox-report-history>Historie: {{ $report['stored']['completed_shifts'] }} abgeschlossene Schichten · {{ $report['stored']['historical_recognized_shifts'] }} mit erkanntem Mitarbeiterbeleg · {{ $report['stored']['historical_assigned_shifts'] }} mit historischer Mitarbeiterzuordnung. {{ $report['stored']['cancelled_shifts'] }} Schichten storniert.</p>
+                                    <p class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Abgeschlossene und stornierte Schichten sind gespeichert und zählen nicht zum offenen Verteilungsbedarf. Ein Mitarbeiterbeleg und eine native Zuordnung werden getrennt gezählt.</p>
+                                @else
+                                    <p class="text-xs leading-5 tabular-nums">Bisheriger Prüfstand: {{ $report['stored']['assigned_shifts'] }} Schichten mit Mitarbeiterzuordnung · {{ $report['stored']['unassigned_shifts'] }} ohne Mitarbeiterzuordnung. Die Aufteilung in aktive Planung und Historie folgt beim nächsten Abgleich.</p>
+                                @endif
+                                @if($report['has_planning_identity_counts'])
+                                    <p class="text-xs leading-5 tabular-nums">Einsatzzeilen: {{ $report['planning_employee_references'] }} Personen- oder Dienstleisterbezeichnungen · {{ $report['planning_matched_employees'] }} Mitarbeiterkonten erkannt · {{ $report['planning_matched_providers'] }} Dienstleister erkannt.</p>
+                                @endif
                                 @if($report['missing_employee'] > 0)<p class="text-xs leading-5">Bei {{ $report['missing_employee'] }} Einsatzzeilen fehlt eine Mitarbeiterangabe in Excel. Offene Zuordnungen stehen unter „Konflikte“.</p>@endif
                             @endif
                             @if($report['detected']['availability_cells'] > 0)<p class="text-xs leading-5 tabular-nums">{{ $report['employee_references'] }} Personen in der Verfügbarkeitsliste · Verfügbarkeitsfelder einschließlich leerer Felder: {{ $report['detected']['availability_cells'] }} erkannt, {{ $report['stored']['availability_cells'] }} gespeichert.</p>@endif
-                            @if($report['has_identity_counts'])<p class="text-xs leading-5 tabular-nums">Personenzuordnung: {{ $report['matched_employees'] }} {{ $report['matched_employees'] === 1 ? 'Mitarbeiterkonto' : 'Mitarbeiterkonten' }} erkannt · {{ $report['matched_providers'] }} Dienstleister erkannt · {{ $report['identity_review_count'] }} {{ $report['identity_review_count'] === 1 ? 'Zuordnung' : 'Zuordnungen' }} offen.</p>@endif
+                            @if($report['has_identity_counts'])<p class="text-xs leading-5 tabular-nums">Verfügbarkeitsliste: {{ $report['matched_employees'] }} {{ $report['matched_employees'] === 1 ? 'Mitarbeiterkonto' : 'Mitarbeiterkonten' }} erkannt · {{ $report['matched_providers'] }} Dienstleister erkannt · {{ $report['identity_review_count'] }} {{ $report['identity_review_count'] === 1 ? 'Zuordnung' : 'Zuordnungen' }} offen.</p>@endif
                             <p class="text-xs leading-5 tabular-nums">
                                 Rückübertragung: {{ $report['pending_export'] }} offen
                                 @if($report['returned'] !== null)

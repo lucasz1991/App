@@ -30,6 +30,9 @@ class ShiftAssignmentService
     ): ShiftAssignment {
         OperationsAccess::authorize($actor, 'operations.manage');
         $assignmentStatus = $this->normalizeStatus($status);
+        if ($assignmentStatus === ShiftAssignmentStatus::Reported) {
+            throw ValidationException::withMessages(['status' => 'Historische Meldungen werden ausschließlich aus bestätigten Importquellen übernommen.']);
+        }
         if ($assignmentStatus->blocksAvailability()) {
             app(TravelAssessmentService::class)->assertBindingPreflight($travelPreflight);
             $travelPreflight ??= app(TravelAssessmentService::class)->preflight($shift->fresh() ?? $shift, collect([$assignee]));
