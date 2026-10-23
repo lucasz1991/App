@@ -18,7 +18,7 @@ use App\Models\User;
 /** Counts source evidence and native results independently of chunk operations. */
 class SourceSyncReport
 {
-    public const VERSION = '2026-10-23-rolling-history-v6';
+    public const VERSION = '2026-10-23-rolling-history-v7';
 
     public function build(DropboxSource $source, array $parsed, array $summary, int $processed, int $total): array
     {

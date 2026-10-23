@@ -50,7 +50,18 @@ class FileSynchronizer
         $source->rev = $rev;
         $parsed = $connection->isLocalImport() && $prepared !== null ? $prepared : app(WorkbookReader::class)->read($download['bytes'], $source->profile);
         $parsed = app(WeeklyAvailability::class)->contextualize($parsed, $source);
-        $parsed = app(PlanningEmployeeEvidence::class)->annotate($connection, $parsed);
+        if (! $preview) {
+            $people = app(HistoricalContactProvisioner::class)->reconcile($connection, [...$parsed, 'source_id' => $source->id], User::findOrFail(1));
+            if ($people['mapped'] > 0) {
+                // New contact evidence can resolve old MA labels in an unchanged earlier week.
+                foreach (DropboxSource::where('connection_id', $connection->id)->whereKeyNot($source->id)->whereNotIn('state', ['missing', 'excluded'])->pluck('id') as $otherSourceId) {
+                    $this->ledger->enqueue($connection, 'file', 'file:'.$otherSourceId, ['source_id' => $otherSourceId], 0);
+                }
+            }
+        }
+        if (! $connection->isLocalImport()) {
+            $parsed = app(PlanningEmployeeEvidence::class)->annotate($connection, $parsed);
+        }
         app(WeeklyAvailability::class)->ignoreGroups($source, $parsed, $preview);
         $summary = ['rows' => count($parsed['rows']), 'imported' => 0, 'exported' => 0, 'conflicts' => 0, 'new' => 0, 'preview' => $preview];
         $issueKeys = array_map(fn ($i) => ($i['reason'] ?? '').':'.($i['sheet'] ?? '').':'.($i['row'] ?? ''), $parsed['issues']);

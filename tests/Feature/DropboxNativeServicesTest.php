@@ -11,6 +11,7 @@ use App\Models\DropboxIdentity;
 use App\Models\DropboxRecord;
 use App\Models\DropboxSource;
 use App\Models\DropboxWorkItem;
+use App\Models\OperationAudit;
 use App\Models\Order;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
@@ -24,7 +25,10 @@ use App\Services\Dropbox\SourceScanner;
 use App\Services\Dropbox\SyncContext;
 use App\Services\Dropbox\WorkbookReader;
 use App\Services\Dropbox\WorkbookWriter;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -333,7 +337,7 @@ class DropboxNativeServicesTest extends TestCase
 
     public function test_unchanged_past_import_is_completed_with_its_service_under_rolling_policy(): void
     {
-        $this->travelTo(\Carbon\CarbonImmutable::parse('2026-10-23T12:00:00+02:00'));
+        $this->travelTo(CarbonImmutable::parse('2026-10-23T12:00:00+02:00'));
         $source = $this->source();
         app(FileSynchronizer::class)->sync($this->connection, $source);
         $this->assertSame(ShiftStatus::Draft, Shift::first()->status);
@@ -352,9 +356,9 @@ class DropboxNativeServicesTest extends TestCase
 
     public function test_new_past_employee_is_reported_without_request_or_time_entry(): void
     {
-        $this->travelTo(\Carbon\CarbonImmutable::parse('2026-10-23T12:00:00+02:00'));
-        \Illuminate\Support\Facades\Notification::fake();
-        \Illuminate\Support\Facades\Mail::fake();
+        $this->travelTo(CarbonImmutable::parse('2026-10-23T12:00:00+02:00'));
+        Notification::fake();
+        Mail::fake();
         $person = User::factory()->create(['name' => 'Erika Muster', 'role' => 'staff', 'status' => true]);
         DropboxIdentity::create(['connection_id' => $this->connection->id, 'alias' => 'erika muster', 'kind' => 'employee', 'user_id' => $person->id]);
         $this->connection->update(['settings' => [...$this->connection->settings, 'historical_auto_complete' => true, 'historical_completed_before' => '2026-09-01T00:00:00Z']]);
@@ -366,13 +370,13 @@ class DropboxNativeServicesTest extends TestCase
         $this->assertSame($person->id, ShiftAssignment::first()->user_id);
         $this->assertSame(0, WorkTimeEntry::count());
         $this->assertSame(0, ShiftAssignment::blocking()->count());
-        \Illuminate\Support\Facades\Notification::assertNothingSent();
-        \Illuminate\Support\Facades\Mail::assertNothingSent();
+        Notification::assertNothingSent();
+        Mail::assertNothingSent();
     }
 
     public function test_current_excel_move_into_future_is_merged_before_historical_classification(): void
     {
-        $this->travelTo(\Carbon\CarbonImmutable::parse('2026-09-15T13:00:00+02:00'));
+        $this->travelTo(CarbonImmutable::parse('2026-09-15T13:00:00+02:00'));
         $source = $this->source();
         app(FileSynchronizer::class)->sync($this->connection, $source);
         $this->connection->update(['settings' => [...$this->connection->settings, 'historical_auto_complete' => true]]);
@@ -381,12 +385,12 @@ class DropboxNativeServicesTest extends TestCase
         $this->assertSame(ShiftStatus::Draft, Shift::firstOrFail()->status);
         $this->assertSame('18:00', Shift::first()->ends_at->setTimezone('Europe/Berlin')->format('H:i'));
         $this->assertNotNull($source->fresh()->last_report['next_history_due_at']);
-        $this->assertSame(0, \App\Models\OperationAudit::where('action', 'shift.import_history_completed')->count());
+        $this->assertSame(0, OperationAudit::where('action', 'shift.import_history_completed')->count());
     }
 
     public function test_unresolved_schedule_conflict_cannot_auto_complete_the_old_date(): void
     {
-        $this->travelTo(\Carbon\CarbonImmutable::parse('2026-09-15T15:00:00+02:00'));
+        $this->travelTo(CarbonImmutable::parse('2026-09-15T15:00:00+02:00'));
         $source = $this->source();
         app(FileSynchronizer::class)->sync($this->connection, $source);
         SyncContext::import(fn () => Shift::first()->update(['ends_at' => '2026-09-15T12:00:00Z']));
@@ -395,12 +399,12 @@ class DropboxNativeServicesTest extends TestCase
         app(FileSynchronizer::class)->sync($this->connection, $source->fresh());
         $this->assertTrue(DropboxConflict::where('state', 'open')->where('reason', 'field_conflict')->exists());
         $this->assertSame(ShiftStatus::Draft, Shift::first()->status);
-        $this->assertSame(0, \App\Models\OperationAudit::where('action', 'shift.import_history_completed')->count());
+        $this->assertSame(0, OperationAudit::where('action', 'shift.import_history_completed')->count());
     }
 
     public function test_personal_sheet_evidence_creates_one_historical_shift_and_writes_both_employee_cells(): void
     {
-        $this->travelTo(\Carbon\CarbonImmutable::parse('2026-10-23T12:00:00+02:00'));
+        $this->travelTo(CarbonImmutable::parse('2026-10-23T12:00:00+02:00'));
         $person = User::factory()->create(['name' => 'Erika Muster', 'role' => 'staff', 'status' => true]);
         $this->connection->update(['settings' => [...$this->connection->settings, 'historical_auto_complete' => true]]);
         $source = app(SourceScanner::class)->register($this->connection, $this->client->put('/Disposition/Aufträge KW 38 2026.xlsx', $this->workbook(personal: 'Erika Muster')));
@@ -428,7 +432,7 @@ class DropboxNativeServicesTest extends TestCase
 
     public function test_inactive_existing_employee_can_be_recognized_for_history_without_reactivation(): void
     {
-        $this->travelTo(\Carbon\CarbonImmutable::parse('2026-10-23T12:00:00+02:00'));
+        $this->travelTo(CarbonImmutable::parse('2026-10-23T12:00:00+02:00'));
         $person = User::factory()->create(['name' => 'Erika Muster', 'role' => 'staff', 'status' => false]);
         $this->connection->update(['settings' => [...$this->connection->settings, 'historical_auto_complete' => true]]);
         $source = $this->source();
@@ -442,7 +446,7 @@ class DropboxNativeServicesTest extends TestCase
 
     public function test_original_explicit_employee_clear_is_not_reinferred_on_second_scan(): void
     {
-        $this->travelTo(\Carbon\CarbonImmutable::parse('2026-10-23T12:00:00+02:00'));
+        $this->travelTo(CarbonImmutable::parse('2026-10-23T12:00:00+02:00'));
         User::factory()->create(['name' => 'Erika Muster', 'role' => 'staff', 'status' => true]);
         $this->connection->update(['settings' => [...$this->connection->settings, 'historical_auto_complete' => true]]);
         $source = app(SourceScanner::class)->register($this->connection, $this->client->put('/Disposition/Aufträge KW 38 2026.xlsx', $this->workbook(personal: 'Erika Muster', employee: 'Erika Muster')));
@@ -462,7 +466,7 @@ class DropboxNativeServicesTest extends TestCase
 
     public function test_active_and_inactive_historical_namesakes_are_not_silently_mapped_to_active_person(): void
     {
-        $this->travelTo(\Carbon\CarbonImmutable::parse('2026-10-23T12:00:00+02:00'));
+        $this->travelTo(CarbonImmutable::parse('2026-10-23T12:00:00+02:00'));
         User::factory()->create(['name' => 'Erika Muster', 'role' => 'staff', 'status' => true]);
         User::factory()->create(['name' => 'Erika Muster', 'role' => 'staff', 'status' => false]);
         $this->connection->update(['settings' => [...$this->connection->settings, 'historical_auto_complete' => true, 'retain_unassigned_drafts' => true]]);
@@ -476,7 +480,7 @@ class DropboxNativeServicesTest extends TestCase
 
     public function test_personal_copy_without_optional_status_columns_does_not_create_another_shift(): void
     {
-        $this->travelTo(\Carbon\CarbonImmutable::parse('2026-10-23T12:00:00+02:00'));
+        $this->travelTo(CarbonImmutable::parse('2026-10-23T12:00:00+02:00'));
         User::factory()->create(['name' => 'Erika Muster', 'role' => 'staff', 'status' => true]);
         $this->connection->update(['settings' => [...$this->connection->settings, 'historical_auto_complete' => true]]);
         $source = app(SourceScanner::class)->register($this->connection, $this->client->put('/Disposition/Aufträge KW 38 2026.xlsx', $this->workbook(personal: 'Erika Muster', minimalPersonal: true)));
@@ -488,7 +492,7 @@ class DropboxNativeServicesTest extends TestCase
 
     public function test_missing_train_reference_never_splits_a_blank_master_and_personal_copy(): void
     {
-        $this->travelTo(\Carbon\CarbonImmutable::parse('2026-10-23T12:00:00+02:00'));
+        $this->travelTo(CarbonImmutable::parse('2026-10-23T12:00:00+02:00'));
         User::factory()->create(['name' => 'Erika Muster', 'role' => 'staff', 'status' => true]);
         $this->connection->update(['settings' => [...$this->connection->settings, 'historical_auto_complete' => true]]);
         $source = app(SourceScanner::class)->register($this->connection, $this->client->put('/Disposition/Aufträge KW 38 2026.xlsx', $this->workbook(personal: 'Erika Muster', emptyTrain: true)));
@@ -496,6 +500,30 @@ class DropboxNativeServicesTest extends TestCase
         $this->assertSame(1, Shift::count());
         $this->assertSame(2, DropboxAppearance::count());
         $this->assertSame(0, ShiftAssignment::count());
+    }
+
+    public function test_historical_full_name_contact_is_provisioned_and_bound_in_the_normal_file_sync(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-10-23T12:00:00+02:00'));
+        Notification::fake();
+        Mail::fake();
+        $this->connection->update(['settings' => [...$this->connection->settings, 'historical_auto_complete' => true, 'historical_import_contacts' => true]]);
+        $olderSource = DropboxSource::create(['connection_id' => $this->connection->id, 'file_id' => 'older-week', 'name' => 'Aufträge KW 22.xlsx', 'path' => '/Disposition/Aufträge KW 22.xlsx', 'profile' => 'weekly', 'rev' => 'old-rev', 'first_seen_at' => now()]);
+        $source = app(SourceScanner::class)->register($this->connection, $this->client->put('/Disposition/Aufträge KW 38 2026.xlsx', $this->workbook(employee: 'Erika Muster', contacts: true)));
+        app(FileSynchronizer::class)->sync($this->connection, $source);
+        $person = User::where('name', 'Erika Muster')->firstOrFail();
+        $this->assertFalse($person->status);
+        $this->assertNull($person->email_verified_at);
+        $this->assertSame($person->id, ShiftAssignment::firstOrFail()->user_id);
+        $this->assertSame('reported', ShiftAssignment::first()->status->value);
+        $this->assertSame(ShiftStatus::Completed, Shift::first()->status);
+        $this->assertSame($source->id, OperationAudit::where('action', 'user.import_history_created')->firstOrFail()->data['source_id']);
+        $this->assertTrue(DropboxWorkItem::where('resource', 'file:'.$olderSource->id)->where('kind', 'file')->exists());
+        app(FileSynchronizer::class)->sync($this->connection, $source->fresh());
+        $this->assertSame(1, User::where('name', 'Erika Muster')->count());
+        $this->assertSame(1, ShiftAssignment::count());
+        Notification::assertNothingSent();
+        Mail::assertNothingSent();
     }
 
     private function sourceWithTimeProof(): array
@@ -538,7 +566,7 @@ class DropboxNativeServicesTest extends TestCase
         $this->client->put($source->path, $written);
     }
 
-    private function workbook(int $rows = 1, ?string $personal = null, ?string $employee = null, bool $minimalPersonal = false, bool $emptyTrain = false): string
+    private function workbook(int $rows = 1, ?string $personal = null, ?string $employee = null, bool $minimalPersonal = false, bool $emptyTrain = false, bool $contacts = false): string
     {
         $book = new Spreadsheet;
         $sheet = $book->getActiveSheet()->setTitle('WTU Abrechnung + Übersicht');
@@ -564,6 +592,15 @@ class DropboxNativeServicesTest extends TestCase
                 $copy->setCellValue('K1', '');
             }
             $book->addSheet($copy);
+        }
+        if ($contacts) {
+            $contactSheet = $book->createSheet()->setTitle('Kontaktliste Rail Time');
+            foreach (['B' => 'Name', 'C' => 'Kontakt', 'D' => 'E-Mail', 'E' => 'Position / Qualifikation'] as $column => $label) {
+                $contactSheet->setCellValue($column.'13', $label);
+            }
+            $contactSheet->setCellValue('B39', $employee);
+            $contactSheet->setCellValue('D39', 'erika@example.test');
+            $contactSheet->setCellValue('E39', 'WGM');
         }
         $path = tempnam(sys_get_temp_dir(), 'rt-native-');
         try {
