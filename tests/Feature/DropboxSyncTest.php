@@ -208,7 +208,9 @@ class DropboxSyncTest extends TestCase
         $this->assertSame(ShiftStatus::Completed, Shift::first()->status);
         $this->assertSame(OrderStatus::Completed, Order::first()->status);
         $this->assertSame(0, Shift::first()->published_revision);
-        $this->assertSame(0, ShiftAssignment::count());
+        $this->assertSame(1, ShiftAssignment::count());
+        $this->assertSame('reported', ShiftAssignment::first()->status->value);
+        $this->assertSame(0, ShiftAssignment::blocking()->count());
         $this->assertSame(0, WorkTimeEntry::count());
         $this->assertSame(0, EmployeeQualification::count());
         $this->assertNull(DropboxRecord::where('domain', 'planning')->first()->metadata['assignment_pending']);

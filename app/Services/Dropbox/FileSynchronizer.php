@@ -474,6 +474,9 @@ class FileSynchronizer
         }
         $old = $appearance->last_excel;
         $new = $entry['values'];
+        if (! empty($old['service_reference']) && ! empty($new['service_reference']) && $old['service_reference'] !== $new['service_reference']) {
+            return false;
+        }
         if (empty($old['date']) || ($old['date'] ?? null) !== ($new['date'] ?? null)) {
             return false; // A copied row in another week is a new occurrence, not a moved shift.
         }
@@ -542,7 +545,7 @@ class FileSynchronizer
             $reference = trim((string) ($entry['values']['service_reference'] ?? ''));
             if ($reference !== '') {
                 $record = DropboxRecord::find($a->record_id);
-                $knownReference = $a->last_excel['service_reference'] ?? ($record ? ($this->domain->current($record)['service_reference'] ?? '') : '');
+                $knownReference = ($a->last_excel['service_reference'] ?? '') ?: ($record ? ($this->domain->current($record)['service_reference'] ?? '') : '');
                 if ($knownReference !== '' && $knownReference !== $reference) {
                     return false;
                 }

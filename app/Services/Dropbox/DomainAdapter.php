@@ -218,6 +218,9 @@ class DomainAdapter
         }
         $customer = $customers->first() ?? Customer::create(['company_name' => $values['customer'], 'is_active' => true]);
         $shift = $record->model_id ? Shift::lockForUpdate()->findOrFail($record->model_id) : new Shift;
+        if ($shift->status === ShiftStatus::Cancelled && ! ($values['cancelled'] ?? false)) {
+            throw ValidationException::withMessages(['sync' => 'Eine stornierte Schicht kann durch Entfernen des Excel-Stornos nicht wieder geöffnet werden. Die Stornorücknahme bitte in der App prüfen.']);
+        }
         $historical = $historical || (($record->metadata['imported_order'] ?? false) && $shift->status === ShiftStatus::Completed && $end->isPast());
         if ($shift->exists) {
             $current = $this->current($record);
