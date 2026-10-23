@@ -570,6 +570,7 @@ class DropboxSettings extends Component
             'missing_employee', 'employee_missing' => 'Mitarbeiterangabe fehlt in der Einsatzzeile',
             'employee_unresolved', 'unknown_employee' => 'Mitarbeiter noch keinem Konto zugeordnet',
             'planning_headers_missing', 'unknown_layout', 'unsupported_layout' => 'Blattaufbau nicht erkannt',
+            'service_headers_ambiguous' => 'Leistungsspalten sind mehrfach vorhanden',
             'unsupported_sheet', 'sheet_not_selected' => 'Blatt gehört nicht zu den eingebundenen Datenbereichen',
             'domain_disabled', 'disabled_domain' => 'Datenbereich ist ausgeschaltet',
             'missing_time', 'missing_times', 'invalid_time' => 'Einsatzzeit fehlt oder ist nicht lesbar',

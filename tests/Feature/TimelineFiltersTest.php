@@ -99,7 +99,7 @@ class TimelineFiltersTest extends TestCase
         $this->assertSame([$requested->id, $confirmed->id], $this->row($timeline, $this->alex)['events']->pluck('shift_id')->all());
         $this->assertSame(['Rangierbegleiter', 'Tf'], array_column($timeline->viewData('timelineRoleOptions'), 'value'));
         $this->assertSame(array_values(array_diff(ShiftStatus::values(), ['cancelled'])), array_column($timeline->viewData('timelineShiftStatusOptions'), 'value'));
-        $this->assertSame(['requested', 'confirmed'], array_column($timeline->viewData('timelineAssignmentStatusOptions'), 'value'));
+        $this->assertSame(['requested', 'confirmed', 'reported'], array_column($timeline->viewData('timelineAssignmentStatusOptions'), 'value'));
         Http::assertNothingSent();
     }
 

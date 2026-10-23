@@ -53,7 +53,7 @@ class FileSynchronizer
         app(WeeklyAvailability::class)->ignoreGroups($source, $parsed, $preview);
         $summary = ['rows' => count($parsed['rows']), 'imported' => 0, 'exported' => 0, 'conflicts' => 0, 'new' => 0, 'preview' => $preview];
         $issueKeys = array_map(fn ($i) => ($i['reason'] ?? '').':'.($i['sheet'] ?? '').':'.($i['row'] ?? ''), $parsed['issues']);
-        DropboxConflict::where('source_id', $source->id)->whereIn('reason', ['invalid_date', 'planning_headers_missing', 'planning_date_missing', 'planning_time_missing', 'planning_columns_missing', 'contact_headers_missing', 'contact_headers_ambiguous', 'availability_headers_missing', 'availability_row_invalid', 'availability_week_missing'])->get()
+        DropboxConflict::where('source_id', $source->id)->whereIn('reason', ['invalid_date', 'planning_headers_missing', 'service_headers_ambiguous', 'planning_date_missing', 'planning_time_missing', 'planning_columns_missing', 'contact_headers_missing', 'contact_headers_ambiguous', 'availability_headers_missing', 'availability_row_invalid', 'availability_week_missing'])->get()
             ->filter(fn ($c) => ! in_array($c->reason.':'.($c->snapshot['sheet'] ?? '').':'.($c->snapshot['row'] ?? ''), $issueKeys, true))->each(fn ($c) => $c->update(['state' => 'resolved']));
         foreach ($parsed['issues'] as $issue) {
             $this->conflicts->put($connection, $source, null, $issue['reason'], $issue, ($issue['sheet'] ?? '').':'.($issue['row'] ?? ''));
