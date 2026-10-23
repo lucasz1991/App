@@ -64,6 +64,7 @@ final class OutlookMobileSignature
             || SignatureArtifactVersion::detect('signature', $html) !== 'v27') {
             return [$document, null];
         }
+        $logoTrain = SignatureTableOverlapDelivery::usesLogoTrain($html);
         $dom = new DOMDocument('1.0', 'UTF-8');
         $previous = libxml_use_internal_errors(true);
         try {
@@ -126,7 +127,7 @@ final class OutlookMobileSignature
             // The flow-delivery train has its own row. Reserve overlap space
             // only for an older, already compiled signature, never twice.
             $bottom = str_contains($html, 'rt-delivery-train') ? '10px' : '52px';
-            self::style($cell, 'padding:20px 18px '.$bottom.';vertical-align:top;font-family:Arial,sans-serif;');
+            self::style($cell, 'padding:20px '.($logoTrain ? '0' : '18px').' '.$bottom.';vertical-align:top;font-family:Arial,sans-serif;');
         }
         // Only the explicitly authored outer hotline cell follows the phone
         // gutter. Its compact vertical padding and nested action cells remain.
@@ -136,10 +137,27 @@ final class OutlookMobileSignature
         foreach (['rt-ledger-brand', 'rt-ledger-contacts', 'rt-ledger-direct', 'rt-ledger-company'] as $class) {
             foreach ($xpath->query(self::classQuery($class)) as $cell) {
                 $padding = in_array($class, ['rt-ledger-contacts', 'rt-ledger-company'], true) ? '14px 0 0' : '0';
+                if ($logoTrain && $class === 'rt-ledger-brand') {
+                    $padding = '0 18px 0 0';
+                } elseif ($logoTrain && $class === 'rt-ledger-contacts') {
+                    $padding = '14px 18px 0';
+                }
                 $cell->setAttribute('width', '100%');
                 $cell->setAttribute('align', 'left');
                 self::style($cell, 'display:table-cell;width:100%;max-width:none;padding:'.$padding.';border:0;vertical-align:top;text-align:left;');
             }
+        }
+        if ($logoTrain) {
+            $headings = $xpath->query(self::classQuery('rt-delivery-brand-heading', 'td'));
+            if ($headings->length !== 1) {
+                throw new RuntimeException('Der mobile Logo-Zug besitzt keinen eindeutigen Markenkopf.');
+            }
+            $heading = $headings->item(0);
+            $style = str_replace('padding:0 0 0 40px;', 'padding:0 0 0 18px;', $heading->getAttribute('style'), $count);
+            if ($count !== 1) {
+                throw new RuntimeException('Der mobile Logo-Zug besitzt einen fremden Markenkopfabstand.');
+            }
+            self::style($heading, $style);
         }
         foreach ($xpath->query(self::classQuery('rt-contact', 'table')) as $table) {
             $table->setAttribute('width', '100%');
@@ -897,9 +915,15 @@ final class OutlookMobileSignature
         }
         $prefix = '.'.$scope.' ';
         $logoTrain = SignatureTableOverlapDelivery::usesLogoTrain($original);
-        $rules = [
-            $prefix.'.rt-ledger-brand.rt-delivery-wide-column{width:'.($logoTrain ? '50' : '32').'%!important;padding:0 22px 0 0!important;border-right:1px solid #e60033!important;}',
-            $prefix.'.rt-ledger-contacts.rt-delivery-wide-column{width:'.($logoTrain ? '50' : '68').'%!important;padding:0 0 0 22px!important;border:0!important;}',
+        $rules = $logoTrain ? [
+            $prefix.'.rt-ledger-brand.rt-delivery-wide-column{width:50%!important;padding:0 40px 0 0!important;border-right:1px solid #e60033!important;}',
+            $prefix.'.rt-ledger-contacts.rt-delivery-wide-column{width:50%!important;padding:0 40px 0 22px!important;border:0!important;}',
+            $prefix.'.rt-ledger-brand.rt-delivery-wide-column,'.$prefix.'.rt-ledger-contacts.rt-delivery-wide-column{display:block!important;width:100%!important;border:0!important;box-sizing:border-box!important;}',
+            $prefix.'.rt-ledger-brand.rt-delivery-wide-column{padding:0 22px 0 0!important;}',
+            $prefix.'.rt-ledger-contacts.rt-delivery-wide-column{padding:14px 22px 0!important;}',
+        ] : [
+            $prefix.'.rt-ledger-brand.rt-delivery-wide-column{width:32%!important;padding:0 22px 0 0!important;border-right:1px solid #e60033!important;}',
+            $prefix.'.rt-ledger-contacts.rt-delivery-wide-column{width:68%!important;padding:0 0 0 22px!important;border:0!important;}',
             $prefix.'.rt-ledger-brand.rt-delivery-wide-column,'.$prefix.'.rt-ledger-contacts.rt-delivery-wide-column{display:block!important;width:100%!important;padding:0!important;border:0!important;box-sizing:border-box!important;}',
             $prefix.'.rt-ledger-contacts.rt-delivery-wide-column{padding-top:14px!important;}',
         ];

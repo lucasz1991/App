@@ -54,7 +54,12 @@ final class V27LogoTrainNativeTest extends TestCase
         $xpath = $this->xpath($profile);
         $brand = $xpath->query('//th[contains(@class,"rt-ledger-brand")]')->item(0);
         self::assertSame('50%', $brand->getAttribute('width'));
+        self::assertStringContainsString('padding:0 40px 0 0;', $brand->getAttribute('style'));
+        self::assertStringContainsString('padding:25px 0 15px;', $xpath->query('//td[contains(@class,"rt-sign-ledger-content")]')->item(0)->getAttribute('style'));
+        self::assertStringContainsString('padding:0 40px 0 22px;', $xpath->query('//th[contains(@class,"rt-ledger-contacts")]')->item(0)->getAttribute('style'));
+        self::assertStringContainsString('padding:0 0 0 40px;', $xpath->query('//td[contains(@class,"rt-delivery-brand-heading")]')->item(0)->getAttribute('style'));
         self::assertSame(1, $xpath->query('.//img[contains(@class,"rt-delivery-train")]', $brand)->length);
+        self::assertStringContainsString('width="220" height="28"', $this->wordTrain($profile));
         self::assertStringNotContainsString('data-rt-train-bottom-overlay=', $profile);
         self::assertStringNotContainsString('data-rt-personal-layout=', $profile);
         $default = $this->document(false);
@@ -62,6 +67,7 @@ final class V27LogoTrainNativeTest extends TestCase
         $overlay = OutlookTrainBottomOverlay::project($personal);
         self::assertStringContainsString('data-rt-personal-layout=', $personal);
         self::assertStringContainsString('data-rt-train-bottom-overlay="intrinsic-img-v1"', $overlay);
+        self::assertStringContainsString('width="300" height="38"', $this->wordTrain($default));
         self::assertSame($default, OutlookNativePersonalSignature::restore(OutlookTrainBottomOverlay::restore($overlay)));
         Http::assertNothingSent();
     }
@@ -85,6 +91,12 @@ final class V27LogoTrainNativeTest extends TestCase
             self::assertSame(1, $xpath->query('./td', $cell->parentNode)->length);
         }
         self::assertSame(1, $xpath->query('//td[contains(@class,"rt-ledger-brand")]//img[contains(@class,"rt-delivery-train")]')->length);
+        self::assertStringContainsString('padding:20px 0 10px;', $xpath->query('//td[contains(@class,"rt-sign-ledger-content")]')->item(0)->getAttribute('style'));
+        self::assertStringContainsString('padding:0 18px 0 0;', $xpath->query('//td[contains(@class,"rt-ledger-brand")]')->item(0)->getAttribute('style'));
+        self::assertStringContainsString('padding:14px 18px 0;', $xpath->query('//td[contains(@class,"rt-ledger-contacts")]')->item(0)->getAttribute('style'));
+        self::assertStringContainsString('padding:0 0 0 18px;', $xpath->query('//td[contains(@class,"rt-delivery-brand-heading")]')->item(0)->getAttribute('style'));
+        self::assertStringContainsString('padding:0;', $xpath->query('//td[contains(@class,"rt-ledger-direct")]')->item(0)->getAttribute('style'));
+        self::assertStringContainsString('padding:14px 0 0;', $xpath->query('//td[contains(@class,"rt-ledger-company")]')->item(0)->getAttribute('style'));
         foreach ([$payload, $mobile] as $device) {
             $wire = OutlookClientPresentation::payload($device);
             preg_match_all('~<style\b[^>]*>(.*?)</style>~is', $wire['signature']['html'], $styles);
