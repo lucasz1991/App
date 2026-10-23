@@ -4044,7 +4044,7 @@ export function synchronizeMailContentImage(component) {
     const style = component?.getStyle?.() || {};
     const styleWidth = String(style['max-width'] || '').match(/^(\d{1,4})px$/i)?.[1];
     const requestedWidth = Number.parseInt(String(attributes.width || styleWidth || '600'), 10);
-    const width = Math.min(1200, Math.max(40, Number.isFinite(requestedWidth) ? requestedWidth : 600));
+    const width = Math.min(1200, Math.max(1, Number.isFinite(requestedWidth) ? requestedWidth : 600));
     const alignment = ['left', 'center', 'right'].includes(attributes['data-rt-image-align'])
         ? attributes['data-rt-image-align']
         : (() => {
@@ -4404,7 +4404,7 @@ export function protectMailSystemComponents(editor, { imgOverlapProfile = null }
             setTraits(component, [
                     { type: 'text', name: 'alt', label: 'Alternativtext' },
                     { type: 'text', name: 'title', label: 'Beschreibung' },
-                    { type: 'number', name: 'width', label: 'Breite in px', min: 40, max: 1200, step: 1 },
+                    { type: 'number', name: 'width', label: 'Breite in px', min: 1, max: 1200, step: 1 },
                     {
                         type: 'select',
                         name: 'data-rt-image-align',

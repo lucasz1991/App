@@ -34,6 +34,7 @@ import {
     serializeMailProjectStyles,
     synchronizeMailPresentationAttributes,
     synchronizeMailCtaPadding,
+    synchronizeMailContentImage,
     synchronizeMailSignatureBackground,
     synchronizeMailSignatureFlowGeometry,
     synchronizeMailSignatureFixedGeometry,
@@ -2700,6 +2701,53 @@ test('shipped GrapesJS save and reload preserve an ordinary library logo beside 
             assert.doesNotMatch(saved.html, /data-rt-mail-preview|data:image\/png;base64/);
             canonical = saved.html;
             project = projectForMailDocument({ html: saved.html, builderData: saved.project, css: saved.css }, () => [], { kind: 'template', environment: { DOMParser } });
+        }
+    } finally { runInContext('editor.destroy();', context); }
+});
+
+test('shipped GrapesJS preserves small hotline image widths through protection, traits, save and reload', () => {
+    const source = 'https://railtime.test/mail-assets/hotline.png?v=approved';
+    const hotline = `<table><tbody><tr><td class="design-hotline-row" style="padding:6px 40px;"><a href="mailto:hotline@example.test"><img src="${source}" alt="Hotline" width="26" style="display:block;width:100%;height:auto;max-width:26px;"></a></td></tr></tbody></table>`;
+    let canonical = readFileSync(new URL('../Fixtures/mail/signature-v27-ledger.html', import.meta.url), 'utf8')
+        .replace('<div class="rt-sign-stage"', hotline + '<div class="rt-sign-stage"');
+    let project = projectForMailDocument({ html: canonical, builderData: { pages: [{ component: canonical }] }, css: '' }, () => [], { kind: 'signature', environment: { DOMParser } });
+    const toComponents = (node) => {
+        if (node.nodeType === 3) return { type: 'textnode', content: node.textContent };
+        if (node.nodeType !== 1) return null;
+        return { tagName: node.tagName.toLowerCase(), attributes: Object.fromEntries(Array.from(node.attributes, (attribute) => [attribute.name, attribute.value])),
+            components: Array.from(node.childNodes, toComponents).filter(Boolean) };
+    };
+    const context = createContext({ console, setTimeout: () => 0, clearTimeout: () => {} });
+    runInContext(readFileSync(new URL('../../public/vendor/lmz-builder/2.4.5/lmz-builder-core.js', import.meta.url), 'utf8'), context);
+    runInContext(`var editor = grapesjs.init({ ...${JSON.stringify(MAIL_GJS_OPTIONS)}, headless:true, storageManager:false, styleManager:{sectors:[]} });`, context);
+    try {
+        for (let iteration = 0; iteration < 3; iteration += 1) {
+            const canvas = new DOMParser().parseFromString(`<html><body>${project.pages[0].component}</body></html>`, 'text/html');
+            context.componentsJSON = JSON.stringify(Array.from(canvas.body.childNodes, toComponents).filter(Boolean));
+            runInContext('editor.setComponents(JSON.parse(componentsJSON));', context);
+            protectMailSystemComponents(context.editor);
+            const findHotline = (component) => component.getAttributes?.().alt === 'Hotline'
+                ? component
+                : component.components?.().models.map(findHotline).find(Boolean);
+            const image = findHotline(context.editor.getWrapper());
+            assert.equal(image.getAttributes().width, iteration === 2 ? '17' : '26');
+            assert.equal(image.getTrait('width').get('min'), 1);
+            if (iteration === 1) {
+                image.getTrait('width').setValue('17');
+                synchronizeMailContentImage(image);
+            }
+            const expected = iteration === 0 ? '26' : '17';
+            const saved = serializeMailDocumentForSave({ project: context.editor.getProjectData(), html: context.editor.getHtml(), kind: 'signature', baselineHtml: canonical, environment: { DOMParser } });
+            const result = new DOMParser().parseFromString(`<html><body><table><tbody>${saved.html}</tbody></table></body></html>`, 'text/html');
+            const stored = result.querySelector('img[alt="Hotline"]');
+            assert.equal(stored.getAttribute('width'), expected);
+            assert.equal(stored.style.maxWidth, `${expected}px`);
+            assert.equal(stored.getAttribute('src'), source);
+            assert.equal(stored.parentElement.getAttribute('href'), 'mailto:hotline@example.test');
+            assert.equal(result.querySelector('img.rt-sign-train').getAttribute('width'), '1216');
+            assert.equal(result.querySelector('img.rt-sign-train').getAttribute('src'), '{{TRAIN_SRC}}');
+            canonical = saved.html;
+            project = projectForMailDocument({ html: saved.html, builderData: saved.project, css: saved.css }, () => [], { kind: 'signature', environment: { DOMParser } });
         }
     } finally { runInContext('editor.destroy();', context); }
 });

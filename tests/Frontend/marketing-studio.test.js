@@ -2906,6 +2906,41 @@ test('mail library selections use registered query and origin while website sele
     }
 }));
 
+test('mail image inspector retains small icon widths while website minimum and source bindings stay unchanged', () => coreWithDom(mailImageSourceInspectorMarkup, ({ document, window }) => {
+    const source = 'https://railtime.test/mail-assets/hotline.png?v=approved';
+    for (const mode of ['mail', 'website']) {
+        const bindingSource = mode === 'mail' ? source : '/website/hotline.png?v=approved';
+        document.body.innerHTML = mailImageSourceInspectorMarkup;
+        const root = document.querySelector('#root');
+        const selected = coreFakeComponent(document.createElement('img'), { type: 'image', src: bindingSource, attributes: { src: bindingSource, width: '26' }, style: { 'max-width': '26px' } });
+        const editor = coreFakeEditor(root, selected);
+        const chrome = createLmzEditorChrome({ instance: { editor }, root, mode, media: { assets: [{ src: source, type: 'image' }] } });
+        const inspector = root.querySelector('.rt-lmz-image-properties');
+        const width = inspector.querySelector('[name="width"]');
+        const submit = () => inspector.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+        assert.equal(width.getAttribute('min'), mode === 'mail' ? '1' : '40');
+        assert.equal(width.value, mode === 'mail' ? '26' : '40');
+        submit();
+        assert.equal(selected.state.attributes.width, mode === 'mail' ? '26' : '40', `${mode}: ${inspector.querySelector('[data-rt-lmz-image-message]').textContent}`);
+        for (const requested of ['17', '1', '0', '1300']) {
+            width.value = requested;
+            submit();
+            const expected = Math.min(1200, Math.max(mode === 'mail' ? 1 : 40, Number(requested)));
+            assert.equal(selected.state.attributes.width, String(expected));
+            assert.equal(selected.state.style['max-width'], `${expected}px`);
+            assert.equal(selected.state.attributes.src, bindingSource);
+        }
+        chrome.destroy();
+    }
+    const target = coreFakeComponent(document.createElement('img'), { type: 'image', attributes: { width: '26' } });
+    target.setStyle = (style) => { target.state.style = { ...style }; };
+    const selection = createImageAssetSelection({ editor: coreFakeEditor(document.body, target), target, assets: [{ src: source, type: 'image', width: 26 }], mode: 'mail' });
+    selection.select({ src: source }, false);
+    assert.equal(target.state.attributes.width, '26');
+    assert.equal(target.state.style['max-width'], '26px');
+    assert.equal(target.state.attributes.src, source);
+}));
+
 test('website image source inspector keeps its existing local source editing without a mail library', () => coreWithDom(mailImageSourceInspectorMarkup, ({ document, window }) => {
     const root = document.querySelector('#root');
     const selected = coreFakeComponent(document.createElement('img'), { type: 'image', src: '/website/old.png', attributes: { src: '/website/old.png' } });

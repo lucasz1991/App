@@ -128,6 +128,11 @@ final class OutlookMobileSignature
             $bottom = str_contains($html, 'rt-delivery-train') ? '10px' : '52px';
             self::style($cell, 'padding:20px 18px '.$bottom.';vertical-align:top;font-family:Arial,sans-serif;');
         }
+        // Only the explicitly authored outer hotline cell follows the phone
+        // gutter. Its compact vertical padding and nested action cells remain.
+        foreach ($xpath->query(self::classQuery('rt-sign-cell').'/table/tbody/tr/td[contains(concat(" ",normalize-space(@class)," ")," design-hotline-row ")] | '.self::classQuery('rt-sign-cell').'/table/tr/td[contains(concat(" ",normalize-space(@class)," ")," design-hotline-row ")]') as $cell) {
+            $cell->setAttribute('style', rtrim($cell->getAttribute('style'), ';').';padding-left:18px;padding-right:18px;');
+        }
         foreach (['rt-ledger-brand', 'rt-ledger-contacts', 'rt-ledger-direct', 'rt-ledger-company'] as $class) {
             foreach ($xpath->query(self::classQuery($class)) as $cell) {
                 $padding = in_array($class, ['rt-ledger-contacts', 'rt-ledger-company'], true) ? '14px 0 0' : '0';

@@ -1354,3 +1354,21 @@ tr[data-rt-artifact-version="v25"] img.rt-logo {
   tr[data-rt-artifact-version="v25"] .rt-sign-content { padding: 18px 20px 15px !important; }
   tr[data-rt-artifact-version="v25"] .rt-sign-logo { padding: 0 0 12px !important; }
 }
+
+/* V27 message rows share the bounded signature's horizontal gutter.
+   Only direct shell cells participate; nested cards and signature cells keep
+   their own spacing. Native compose owns its separate 40/22/18 px projection. */
+table.rt-shell.design-v27 > tbody > tr > td.rt-pad:not(.rt-native-template-pad),
+table.rt-shell.design-v27 > tr > td.rt-pad:not(.rt-native-template-pad),
+tr[data-rt-artifact-version="v27"] td.design-hotline-row {
+  padding-left: 40px !important;
+  padding-right: 40px !important;
+}
+@media only screen and (max-width: 860px) {
+  table.rt-shell.design-v27 > tbody > tr > td.rt-pad:not(.rt-native-template-pad),
+  table.rt-shell.design-v27 > tr > td.rt-pad:not(.rt-native-template-pad),
+  tr[data-rt-artifact-version="v27"] td.design-hotline-row {
+    padding-left: 22px !important;
+    padding-right: 22px !important;
+  }
+}

@@ -1358,7 +1358,7 @@ export function createImageAssetSelection({
                 const currentAttributes = image.getAttributes?.() || image.get?.('attributes') || {};
                 const currentStyle = image.getStyle?.() || {};
                 const requestedWidth = Number(normalized.width || currentAttributes.width || 600);
-                const width = Math.min(1200, Math.max(40, Number.isFinite(requestedWidth) ? Math.round(requestedWidth) : 600));
+                const width = Math.min(1200, Math.max(1, Number.isFinite(requestedWidth) ? Math.round(requestedWidth) : 600));
                 image.addAttributes?.({ width: String(width) }, { silent: true });
                 image.removeAttributes?.('height', { silent: true });
                 image.setStyle?.({
@@ -3329,13 +3329,13 @@ function inferredImageAlignment(image, layer = null) {
     return 'left';
 }
 
-function numericImageWidth(image, fallback = 600) {
+function numericImageWidth(image, fallback = 600, minimum = 40) {
     const attributes = componentAttributes(image);
     const style = image?.getStyle?.() || {};
     const candidate = String(attributes.width || style['max-width'] || '').match(/\d{1,4}/)?.[0];
     const width = Number.parseInt(candidate || String(fallback), 10);
 
-    return Math.min(1200, Math.max(40, Number.isFinite(width) ? width : fallback));
+    return Math.min(1200, Math.max(minimum, Number.isFinite(width) ? width : fallback));
 }
 
 function currentMediaItems(value) {
@@ -3589,7 +3589,7 @@ function createImagePropertiesPanel({ root, editor, mode = 'website', capabiliti
             <section class="rt-lmz-image-properties__tabpanel" role="tabpanel" id="${panelPrefix}-panel-display" aria-labelledby="${panelPrefix}-tab-display" data-rt-lmz-image-section="display" hidden>
                 <label class="rt-lmz-image-properties__field" data-rt-lmz-image-width-pixels>
                     <span>Breite (px)</span>
-                    <input type="number" name="width" min="40" max="1200" step="1" inputmode="numeric">
+                    <input type="number" name="width" min="${mode === 'mail' ? 1 : 40}" max="1200" step="1" inputmode="numeric">
                 </label>
                 <label class="rt-lmz-image-properties__field" data-rt-lmz-image-width-preset hidden>
                     <span>Zugbreite</span>
@@ -3849,7 +3849,7 @@ function createImagePropertiesPanel({ root, editor, mode = 'website', capabiliti
             sourceBaseline = source;
             controls.alt.value = String(attributes.alt || '');
             controls.title.value = String(attributes.title || '');
-            controls.width.value = String(numericImageWidth(target));
+            controls.width.value = String(numericImageWidth(target, 600, mode === 'mail' ? 1 : 40));
             setControlValue(controls.trainWidth, ['100', '108.67', '125', '150', '200'].includes(String(layerAttributes['data-rt-layer-size']))
                 ? String(layerAttributes['data-rt-layer-size'])
                 : '125');
@@ -3961,7 +3961,7 @@ function createImagePropertiesPanel({ root, editor, mode = 'website', capabiliti
             editor.trigger?.('component:update', trainLayer);
         } else {
             const requestedWidth = Number.parseInt(String(controls.width.value || ''), 10);
-            const width = Math.min(1200, Math.max(40, Number.isFinite(requestedWidth) ? requestedWidth : 600));
+            const width = Math.min(1200, Math.max(mode === 'mail' ? 1 : 40, Number.isFinite(requestedWidth) ? requestedWidth : 600));
             const margin = { left: '0', center: '0 auto', right: '0 0 0 auto' }[alignment];
             target.addAttributes?.({ width: String(width), 'data-rt-image-align': alignment });
             target.removeAttributes?.('height');
