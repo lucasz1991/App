@@ -1,4 +1,4 @@
-<div class="rt-calendar rt-disposition rt-disposition--calendar" data-operations-calendar data-calendar-view="{{ $viewMode }}" data-calendar-week="{{ $weekStartDate->toDateString() }}"
+<div class="rt-calendar rt-disposition rt-disposition--calendar" @if($viewport) data-disposition-viewport="calendar" @endif data-operations-calendar data-calendar-view="{{ $viewMode }}" data-calendar-week="{{ $weekStartDate->toDateString() }}"
     x-data="rtShiftDetailDrawer" x-on:operations-shift-detail-request.window="openShiftDetail($event.detail.id)">
     <template x-teleport="[data-topbar-page-search]" wire:key="calendar-topbar-search-{{ $this->getId() }}">
         <x-tables.search-field context="page-topbar" wire:model.live.debounce.300ms="search" :results-count="$shifts->count()" placeholder="Schicht, Kunde oder Ort" aria-label="Kalenderschichten suchen" />
@@ -103,9 +103,10 @@
     </template>
     <x-operations.feedback />
 
+    @if($viewport)<div data-disposition-calendar-surface>@endif
     @if($viewMode === 'list')
         <div class="rt-disposition-table">
-            <x-tables.table :columns="[['label'=>'Schicht / Kunde','key'=>'title','width'=>'2fr'],['label'=>'Zeitraum','key'=>'starts_at','width'=>'1.5fr'],['label'=>'Besetzung','key'=>'required_staff'],['label'=>'Status','key'=>'status']]" :items="$shifts" detail-event="operations-shift-detail-request" row-view="components.tables.rows.operations.calendar" empty="Keine Schichten in diesem Zeitraum." />
+            <x-tables.table :columns="[['label'=>'Schicht / Kunde','key'=>'title','width'=>'2fr'],['label'=>'Zeitraum','key'=>'starts_at','width'=>'1.5fr'],['label'=>'Besetzung','key'=>'required_staff'],['label'=>'Status','key'=>'status']]" :items="$shifts" :flush-top="$viewport" :scroll-body="$viewport" label="Kalenderschichten" data-disposition-list-table detail-event="operations-shift-detail-request" row-view="components.tables.rows.operations.calendar" empty="Keine Schichten in diesem Zeitraum." />
         </div>
     @elseif($viewMode === 'month')
         @php
@@ -188,5 +189,6 @@
             @endforeach
         </div>
     @endif
+    @if($viewport)</div>@endif
     @include('livewire.admin.operations.partials.calendar-shift-panel')
 </div>

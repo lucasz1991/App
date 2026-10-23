@@ -50,7 +50,7 @@ body[data-mode='dark'] .rt-ui-date-panel {
 .rt-ui-date-field .rt-ui-date-field__shell:focus-within,
 .rt-ui-date-field .rt-ui-date-field__shell[data-open='true'] {
     border-color: var(--date-accent);
-    box-shadow: 0 0 0 3px var(--date-accent-soft);
+    box-shadow: inset 0 0 0 3px var(--date-accent-soft);
 }
 
 .rt-ui-date-field .rt-ui-date-field__shell[data-disabled='true'] { opacity: .65; }

@@ -5,6 +5,7 @@ namespace App\Services\Dropbox;
 use App\Models\DropboxConflict;
 use App\Models\DropboxConnection;
 use App\Models\DropboxSource;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
@@ -66,11 +67,14 @@ class SourceScanner
                 } app(ConflictStore::class)->put($connection, null, null, 'matrix_missing', ['path' => $configured['path']], $configured['path']);
             }
         }
-        // A parser improvement must also revisit unchanged files retained by
-        // Dropbox's cursor, once per version; users need not upload them again.
+        // Revisit unchanged files for parser upgrades and when their next
+        // import-owned draft becomes historical; no upload event is required.
         if (! $preview) {
             foreach (DropboxSource::where('connection_id', $connection->id)->whereNotIn('state', ['missing', 'excluded'])->get() as $source) {
-                if (($source->last_report['parser_version'] ?? null) !== SourceSyncReport::VERSION) {
+                $dueAt = $source->last_report['next_history_due_at'] ?? null;
+                $historyDue = $connection->option('historical_auto_complete') === true
+                    && is_string($dueAt) && $dueAt !== '' && CarbonImmutable::parse($dueAt)->lte(CarbonImmutable::now());
+                if (($source->last_report['parser_version'] ?? null) !== SourceSyncReport::VERSION || $historyDue) {
                     $this->ledger->enqueue($connection, 'file', 'file:'.$source->id, ['source_id' => $source->id], 0);
                 }
             }

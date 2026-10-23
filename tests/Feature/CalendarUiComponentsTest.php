@@ -12,6 +12,7 @@ use App\Support\Operations\OperationsPages;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\BuildsMinimalRailTimeSchema;
@@ -73,6 +74,33 @@ class CalendarUiComponentsTest extends TestCase
         $this->assertStringContainsString('data-calendar-state="staffed"', $day);
         // Lücken zuerst, auch wenn die besetzte Schicht früher beginnt.
         $this->assertLessThan(strpos($day, 'data-calendar-shift="'.$staffed->id.'"'), strpos($day, 'data-calendar-shift="'.$open->id.'"'));
+    }
+
+    public function test_full_page_calendar_owns_one_surface_through_empty_view_changes_while_embedded_calendar_keeps_document_flow(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $embedded = Livewire::actingAs($admin)->test(Calendar::class)->call('switchView', 'list');
+        $embedded->assertSet('viewport', false)
+            ->assertDontSeeHtml('data-disposition-viewport')
+            ->assertDontSeeHtml('data-disposition-calendar-surface')
+            ->assertDontSeeHtml('data-table-scroll-body');
+
+        $page = Livewire::actingAs($admin)->test(Calendar::class, ['viewport' => true]);
+        foreach (['month', 'week', 'day', 'list', 'month'] as $view) {
+            $page->call('switchView', $view)->assertSet('viewport', true);
+            $this->assertSame(1, substr_count($page->html(), 'data-disposition-viewport="calendar"'));
+            $this->assertSame(1, substr_count($page->html(), 'data-disposition-calendar-surface'));
+        }
+        $page->call('switchView', 'list')->assertSee('Keine Schichten in diesem Zeitraum.')
+            ->assertSeeHtml('data-table-scroll-body tabindex="0" aria-label="Kalenderschichten – scrollbarer Inhalt"');
+    }
+
+    public function test_calendar_viewport_placement_cannot_be_changed_by_client_hydration(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $page = Livewire::actingAs($admin)->test(Calendar::class, ['viewport' => true]);
+        $this->expectException(CannotUpdateLockedPropertyException::class);
+        $page->set('viewport', false);
     }
 
     public function test_calendar_returns_to_shared_planning_with_its_current_order_and_customer(): void

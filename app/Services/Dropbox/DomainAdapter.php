@@ -29,13 +29,13 @@ class DomainAdapter
 {
     public function __construct(private EmployeeIdentityResolver $identityResolver) {}
 
-    public function identity(DropboxConnection $connection, string $name, string $kind = 'unresolved'): DropboxIdentity
+    public function identity(DropboxConnection $connection, string $name, string $kind = 'unresolved', bool $historical = false): DropboxIdentity
     {
         $identity = SyncContext::import(fn () => DropboxIdentity::firstOrCreate([
             'connection_id' => $connection->id, 'alias' => WorkbookReader::normalize($name),
         ], ['kind' => $kind, 'details' => ['display_name' => trim($name)]]));
 
-        return $connection->isLocalImport() ? $identity : $this->identityResolver->resolve($connection, $identity);
+        return $connection->isLocalImport() ? $identity : $this->identityResolver->resolve($connection, $identity, $historical);
     }
 
     public function current(DropboxRecord $record): array
@@ -197,8 +197,7 @@ class DomainAdapter
         // Scheduling services compare SQL timestamps in UTC; workbook values are local civil times.
         $start = $start->utc();
         $end = $end->utc();
-        $identity = ! empty($values['employee']) ? $this->identity($connection, $values['employee']) : null;
-        $historical = ($record->metadata['imported_order'] ?? false) && app(HistoricalImportCompletion::class)->confirmedPast($connection, $end);
+        $identity = ! empty($values['employee']) ? $this->identity($connection, $values['employee'], historical: ($record->metadata['imported_order'] ?? false) && $end->isPast()) : null;
         $retainDraft = (bool) $connection->option('retain_unassigned_drafts') && ($record->metadata['imported_order'] ?? false)
             && (! $record->model_id || (($record->metadata['assignment_pending'] ?? false) && ! Shift::findOrFail($record->model_id)->published_revision));
         $assignmentPending = null;
@@ -221,7 +220,6 @@ class DomainAdapter
         if ($shift->status === ShiftStatus::Cancelled && ! ($values['cancelled'] ?? false)) {
             throw ValidationException::withMessages(['sync' => 'Eine stornierte Schicht kann durch Entfernen des Excel-Stornos nicht wieder geöffnet werden. Die Stornorücknahme bitte in der App prüfen.']);
         }
-        $historical = $historical || (($record->metadata['imported_order'] ?? false) && $shift->status === ShiftStatus::Completed && $end->isPast());
         $serviceOnly = false;
         if ($shift->exists) {
             $current = $this->current($record);
@@ -280,6 +278,9 @@ class DomainAdapter
         if (! $shift->exists || ! $serviceOnly || $candidate->isDirty()) {
             $shift = app(ShiftSchedulingService::class)->save($shift, [...$shiftAttributes, 'expected_revision' => $shift->revision], $actor);
         }
+        $historical = ($record->metadata['imported_order'] ?? false)
+            && (($shift->status === ShiftStatus::Completed && $end->isPast())
+                || app(HistoricalImportCompletion::class)->canComplete($record, $shift, $connection));
         if ($historical || $oldAssignment?->status === ShiftAssignmentStatus::Reported) {
             $record->assignment_id = app(HistoricalEmployeeAssignmentService::class)->sync($connection, $record, $shift, $identity, $actor, $historical, (bool) ($values['cancelled'] ?? false), ! ($values['cancelled'] ?? false))?->id;
             $oldAssignment = $record->assignment_id ? ShiftAssignment::find($record->assignment_id) : null;
@@ -306,25 +307,28 @@ class DomainAdapter
     }
 
     /** Repair native projections even when the Excel values themselves did not change. */
-    public function reconcileNative(DropboxConnection $connection, DropboxRecord $record): void
+    public function reconcileNative(DropboxConnection $connection, DropboxRecord $record, bool $historicalAssignments = true): void
     {
         if ($record->domain !== 'planning' || $record->model_type !== 'Shift' || isset($record->metadata['historical_values'])) {
             return;
         }
-        SyncContext::import(function () use ($connection, $record) {
+        SyncContext::import(function () use ($connection, $record, $historicalAssignments) {
             $shift = Shift::with('order')->findOrFail($record->model_id);
             app(PlanningServiceProjection::class)->backfill($record, $shift->order);
             if (($record->metadata['native_service_projection'] ?? 0) < 1) {
                 $record->metadata = [...($record->metadata ?? []), 'native_service_projection' => 1];
                 $record->save();
             }
+            if (! $historicalAssignments) {
+                return;
+            }
             $historical = ($record->metadata['imported_order'] ?? false)
-                && (app(HistoricalImportCompletion::class)->confirmedPast($connection, CarbonImmutable::instance($shift->ends_at))
+                && (app(HistoricalImportCompletion::class)->canComplete($record, $shift, $connection)
                     || ($shift->status === ShiftStatus::Completed && $shift->ends_at->isPast()));
             if (! $historical || ! in_array('assignments', $connection->option('domains'), true)) {
                 return;
             }
-            $identity = ! empty($record->metadata['employee_label']) ? $this->identity($connection, $record->metadata['employee_label']) : null;
+            $identity = ! empty($record->metadata['employee_label']) ? $this->identity($connection, $record->metadata['employee_label'], historical: true) : null;
             $assignment = app(HistoricalEmployeeAssignmentService::class)->sync($connection, $record, $shift, $identity, User::findOrFail(1), true);
             if ($assignment) {
                 $record->assignment_id = $assignment->id;

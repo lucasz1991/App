@@ -1137,7 +1137,7 @@ body[data-mode='dark'] .rt-viewport-dropdown .rt-ui-dropdown-panel {
     right: auto;
     bottom: auto;
     left: 0;
-    transform: translate(-100%, -50%) rotate(-90deg);
+    transform: translate(calc(-50% - var(--rt-dropdown-connector-size) * .5 + var(--rt-dropdown-panel-border-width, 1px)), -50%) rotate(-90deg);
 }
 
 .rt-viewport-dropdown[data-placement='left'] .rt-ui-dropdown-caret {
@@ -1145,7 +1145,7 @@ body[data-mode='dark'] .rt-viewport-dropdown .rt-ui-dropdown-panel {
     right: 0;
     bottom: auto;
     left: auto;
-    transform: translate(100%, -50%) rotate(90deg);
+    transform: translate(calc(50% + var(--rt-dropdown-connector-size) * .5 - var(--rt-dropdown-panel-border-width, 1px)), -50%) rotate(90deg);
 }
 
 .rt-ui-dropdown-link[data-rt-dropdown-item],

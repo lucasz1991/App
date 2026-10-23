@@ -6,11 +6,12 @@
     @if($embedded) x-bind:inert="mobilePane !== 'list'" @endif
 >
     @if($embedded)
-        <div class="rt-comm-toolbar rt-floating-toolbar" role="search" aria-label="Chats durchsuchen und filtern">
+        <x-ui.floating.toolbar label="Chats durchsuchen und filtern" search>
             <x-ui.forms.search context="floating" id="communication-chat-search" wire:model.live.debounce.300ms="search" placeholder="Gespräche suchen …" />
+            <x-slot:actions>
             <x-ui.dropdown.anchor-dropdown align="right" width="48" :offset="6" dropdown-id="communication-chat-filter" layer-group="communication-controls" content-label="Chats filtern">
                 <x-slot:trigger>
-                    <button type="button" class="rt-comm-icon" aria-haspopup="menu" :aria-label="`Chats filtern: ${chatFilter === 'unread' ? 'Ungelesen' : (chatFilter === 'groups' ? 'Gruppen' : 'Alle')}`" title="Chats filtern">
+                    <button type="button" class="rt-floating-toolbar__button" aria-haspopup="menu" :aria-label="`Chats filtern: ${chatFilter === 'unread' ? 'Ungelesen' : (chatFilter === 'groups' ? 'Gruppen' : 'Alle')}`" title="Chats filtern">
                         <i class="far fa-sliders-h" aria-hidden="true"></i>
                     </button>
                 </x-slot:trigger>
@@ -23,8 +24,9 @@
                     @endforeach
                 </x-slot:content>
             </x-ui.dropdown.anchor-dropdown>
-            <button type="button" wire:click="$set('showNewChat', true)" class="rt-comm-icon" aria-label="{{ __('app.new_chat') }}" title="{{ __('app.new_chat') }}"><i class="far fa-plus" aria-hidden="true"></i></button>
-        </div>
+            <button type="button" wire:click="$set('showNewChat', true)" class="rt-floating-toolbar__button" aria-label="{{ __('app.new_chat') }}" title="{{ __('app.new_chat') }}"><i class="far fa-plus" aria-hidden="true"></i></button>
+            </x-slot:actions>
+        </x-ui.floating.toolbar>
     @else
     <div class="rt-chat-list-header shrink-0 px-4 pb-3 pt-4 sm:px-5 sm:pt-5">
         <div class="flex items-start justify-between gap-3">

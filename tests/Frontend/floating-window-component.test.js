@@ -11,17 +11,19 @@ const launcherGroup = await readFile(new URL('../../resources/views/components/u
 const launcherCode = launcherGroup.match(/<script data-rt-floating-launcher-controller>([\s\S]*?)<\/script>/)[1];
 const assistant = await readFile(new URL('../../resources/views/livewire/operations/ai-assist.blade.php', import.meta.url),'utf8');
 
-function fixture({width=1223, reduced=false, animate=true, storage=null, sessionKey=null, sessionAllowed=true, user='current'}={}) {
+function fixture({width=1223, reduced=false, animate=true, storage=null, sessionKey=null, sessionAllowed=true, user='current', bus=null, panelId='window', coordinated=true}={}) {
     const {document, window:dom} = parseHTML('<html><head><meta name="rt-user-id"></head><body><button id="launcher" data-rt-window-launcher-for="window">Launch</button><section id="window" role="dialog"><header><span id="blank"></span><button>Tab</button><div role="dialog" id="settings"></div></header><div id="session"></div></section></body></html>');
     document.querySelector('meta').content=user;
     const panel=document.querySelector('section'), launcher=document.querySelector('#launcher'), ticks=[], nextTicks=[], watchers=[], animations=[], timers=new Map();
+    panel.id=panelId;launcher.setAttribute('data-rt-window-launcher-for',panelId);
     if (typeof launcher.style.getPropertyPriority !== 'function') launcher.style.getPropertyPriority=()=> '';
     let id=0, disposed=0, captured=null, rendered=null;
     const state={open:false,mode:'mini',corner:'bottom-right'};
-    const listeners=new Map();
+    const listeners=bus || new Map();
     const win={innerWidth:width,innerHeight:1252,sessionStorage:storage,matchMedia:()=>({matches:reduced}),
         addEventListener(name,fn){if(!listeners.has(name))listeners.set(name,new Set());listeners.get(name).add(fn)},
-        removeEventListener(name,fn){listeners.get(name)?.delete(fn)}};
+        removeEventListener(name,fn){listeners.get(name)?.delete(fn)},
+        dispatchEvent(event){listeners.get(event.type)?.forEach(fn=>fn(event));return true;}};
     panel.getBoundingClientRect=()=>{
         if(rendered) return rendered.rect;
         const size=state.mode==='mini'?[442,510]:[width-32,1150];
@@ -37,12 +39,12 @@ function fixture({width=1223, reduced=false, animate=true, storage=null, session
         const result={frames,options,onfinish:null,cancelled:0,cancel(){this.cancelled++;rendered=null;}};
         animations.push(result); return result;
     };
-    const context=vm.createContext({window:win,document,queueMicrotask:fn=>ticks.push(fn),
+    const context=vm.createContext({window:win,document,CustomEvent,queueMicrotask:fn=>ticks.push(fn),
         getComputedStyle:element=>({getPropertyValue:()=>70,display:element.style.display||'block',visibility:'visible',transform:'none',opacity:String(rendered?.opacity??1)}),
         setTimeout:fn=>{timers.set(++id,fn);return id;},clearTimeout:key=>timers.delete(key)});
     vm.runInContext(code,context);
     const data={destroy(){disposed++},$watch(fn,callback){watchers.push({fn,callback,last:fn()})},$nextTick:fn=>nextTicks.push(fn)};
-    const config={opened:()=>state.open,mode:()=>state.mode,corner:()=>state.corner,enabled:()=>true,
+    const config={opened:()=>state.open,mode:()=>state.mode,corner:()=>state.corner,enabled:()=>true,coordinated:()=>coordinated,close:()=>state.open=false,
         setMode:value=>state.mode=value,setCorner:value=>state.corner=value,sessionKey,sessionEnabled:()=>sessionAllowed,
         restore(saved){state.corner=saved.corner;state.mode=width<=760?'fullscreen':saved.mode;state.open=saved.open;}};
     Object.assign(data,context.window.rtFloatingWindow(config,panel,data));
@@ -72,6 +74,34 @@ const sessionStorageFixture=()=>{
     const values=new Map();
     return {values,getItem:key=>values.get(key)||null,setItem:(key,value)=>values.set(key,value)};
 };
+
+test('fullscreen activation excludes the peer in either direction while mini windows can coexist',()=>{
+    const bus=new Map(), chat=fixture({bus,panelId:'chat'}), assist=fixture({bus,panelId:'assist'});
+    assist.state.corner='top-left';
+    for(const [active,peer] of [[chat,assist],[assist,chat]]){
+        active.state.mode='mini';peer.state.mode='mini';
+        active.open(true);peer.open(true);active.flush();
+        assert.equal(active.state.open,true);assert.equal(peer.state.open,true);
+        active.data.resizeWindow();active.flush();peer.flush();
+        assert.equal(active.state.mode,'fullscreen');assert.equal(active.state.open,true);
+        assert.equal(peer.state.open,false);
+        peer.open(true);active.flush();
+        assert.equal(peer.state.open,true,'opening a new mini window makes it the active surface');
+        assert.equal(active.state.open,false,'an existing fullscreen peer closes as well');
+        active.open(false);peer.open(false);
+    }
+    chat.data.destroyWindow();assist.data.destroyWindow();
+    assert.equal(bus.get('rt-floating-window-activated').size,0);
+});
+
+test('custom editor windows do not participate in fullscreen exclusion',()=>{
+    const bus=new Map(), chat=fixture({bus,panelId:'chat'}), editor=fixture({bus,panelId:'editor',coordinated:false});
+    editor.state.mode='fullscreen';editor.open(true);chat.open(true);editor.flush();
+    assert.equal(editor.state.open,true);
+    chat.state.mode='fullscreen';chat.flush();editor.flush();
+    assert.equal(editor.state.open,true);assert.equal(chat.state.open,true);
+    chat.data.destroyWindow();editor.data.destroyWindow();
+});
 
 test('session restores open and closed mode/corner on reload without an opening animation',()=>{
     const storage=sessionStorageFixture(), first=fixture({storage,sessionKey:'communication'});

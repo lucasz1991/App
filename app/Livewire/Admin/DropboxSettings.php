@@ -567,6 +567,7 @@ class DropboxSettings extends Component
     private function reportReason(string $reason): string
     {
         return match ($reason) {
+            'embedded_images_unread' => 'Eingebettete Bilder: enthaltene Tabellen werden nicht als Excel-Zellen gelesen',
             'missing_employee', 'employee_missing' => 'Mitarbeiterangabe fehlt in der Einsatzzeile',
             'employee_unresolved', 'unknown_employee' => 'Mitarbeiter noch keinem Konto zugeordnet',
             'planning_headers_missing', 'unknown_layout', 'unsupported_layout' => 'Blattaufbau nicht erkannt',

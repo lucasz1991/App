@@ -42,6 +42,10 @@ class Calendar extends Component
 
     public bool $onlyOpen = false;
 
+    /** Full Disposition pages opt in; embedded calendars keep document flow. */
+    #[Locked]
+    public bool $viewport = false;
+
     /** Seitenpanel wie im Schichtplan (rtShiftDetailDrawer): Details einer angeklickten Schicht. */
     public bool $detailOpen = false;
 
@@ -51,9 +55,10 @@ class Calendar extends Component
     #[Locked]
     public ?int $selectedShiftId = null;
 
-    public function mount(): void
+    public function mount(bool $viewport = false): void
     {
         $this->ensureAdmin();
+        $this->viewport = $viewport;
         $date = CarbonImmutable::now($this->displayTimezone());
         $this->anchorDate = $date->toDateString();
         $this->weekStart = $date->startOfWeek()->toDateString();

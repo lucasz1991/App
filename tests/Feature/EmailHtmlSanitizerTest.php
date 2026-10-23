@@ -48,6 +48,19 @@ class EmailHtmlSanitizerTest extends TestCase
         return resource_path('mail-templates/'.$file);
     }
 
+    public function test_mail_cta_preserves_the_link_and_outlook_cell_padding_without_notices(): void
+    {
+        $html = '<table class="rt-mail-cta" role="presentation" border="0" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">'
+            .'<tr><td bgcolor="#e4002b" style="background:#e4002b;mso-padding-alt:12px 20px 16px 24px;">'
+            .'<a href="https://www.rail-time.de/" style="display:inline-block;padding:12px 20px 16px 24px;mso-padding-alt:0px;color:#fff;">Ansehen</a>'
+            .'</td></tr></table>';
+
+        $report = $this->sanitizer()->clean($html);
+
+        $this->assertSame([], $report->findings);
+        $this->assertSame($html, $report->html);
+    }
+
     // -----------------------------------------------------------------
     // Der eigentliche Beweis: die echten Vorlagen kommen durch
     // -----------------------------------------------------------------

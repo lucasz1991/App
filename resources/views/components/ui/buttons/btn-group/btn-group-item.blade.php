@@ -14,11 +14,11 @@ $sizeMap = [
 ];
 
 $base = 'inline-flex items-center gap-2 font-medium
-         focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1
+         focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-offset-0
          transition-colors select-none';
 
 $colors = $active
-    ? 'rt-ui-button-group-item-active bg-rt-red text-white hover:bg-rt-red-dark focus-visible:ring-rt-red/40'
+    ? 'rt-ui-button-group-item-active bg-rt-red text-white hover:bg-rt-red-dark focus-visible:ring-white/80'
     : 'bg-rt-surface text-rt-text hover:bg-rt-surface-muted focus-visible:ring-rt-red/40
        dark:bg-rt-dark-surface dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted';
 

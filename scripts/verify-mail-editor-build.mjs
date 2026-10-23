@@ -25,7 +25,8 @@ export function verifyMailEditorBuild(directory) {
     for (const marker of ['v26', 'data-rt-v26-', 'imgOverlapProfile',
         'Die V26-Geometrie', 'rt-sign-train-layer', 'previewResponsiveCssByArtifact',
         '--rt-mail-outlook-', 'Outlook-Stilregel nicht verlustfrei lesen',
-        'reservierten Outlook-Parserwert']) {
+        'reservierten Outlook-Parserwert', 'rt-mail-cta',
+        'Mail-Medienbibliothek verwenden.']) {
         if (!source.includes(marker)) {
             throw new Error(`Stale mail editor build: ${marker} is absent from the manifest-selected entry. Rebuild before deploying.`);
         }

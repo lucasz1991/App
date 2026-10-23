@@ -49,11 +49,14 @@ export function aiAssist({ embedded = false } = {}) {
         prefs: { ...DEFAULT_PREFS },
         mobile: false,
         _resizeHandler: null,
+        _sidebarHandler: null,
         init() {
             root = this.$el;
             this._resizeHandler = () => this.syncLayout();
             window.addEventListener?.('resize', this._resizeHandler, { passive: true });
             window.visualViewport?.addEventListener?.('resize', this._resizeHandler, { passive: true });
+            this._sidebarHandler = () => this.toggle(false, { restoreFocus: false });
+            window.addEventListener?.('railtime-sidebar-opened', this._sidebarHandler);
             this.syncLayout();
             if (root?.dataset.intakeOpen === 'true') {
                 this.open = true;
@@ -71,6 +74,7 @@ export function aiAssist({ embedded = false } = {}) {
             this.callVersion++;
             window.removeEventListener?.('resize', this._resizeHandler);
             window.visualViewport?.removeEventListener?.('resize', this._resizeHandler);
+            window.removeEventListener?.('railtime-sidebar-opened', this._sidebarHandler);
             if (typeof document !== 'undefined') document.body?.classList?.remove('rt-ai-assist-fullscreen');
             root = null;
         },
@@ -89,7 +93,7 @@ export function aiAssist({ embedded = false } = {}) {
         get slashList() {
             return filterAiAssistActions(this.actions, this.text);
         },
-        toggle(open = !this.open, { load = true } = {}) {
+        toggle(open = !this.open, { load = true, restoreFocus = true } = {}) {
             if (this.disposed) return;
             const next = Boolean(open);
             if (next === this.open) return;
@@ -106,7 +110,7 @@ export function aiAssist({ embedded = false } = {}) {
                     this.scrollDown();
                     this.resize();
                     this.$refs.input?.focus({ preventScroll: true });
-                } else {
+                } else if (restoreFocus) {
                     this.$refs.launcher?.focus({ preventScroll: true });
                 }
             });

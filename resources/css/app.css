@@ -346,7 +346,7 @@ body[data-mode="dark"] .rt-ui-surface-muted {
     right: auto;
     bottom: auto;
     left: 0;
-    transform: translate(-100%, -50%) rotate(-90deg);
+    transform: translate(calc(-50% - var(--rt-dropdown-connector-size) * .5 + var(--rt-dropdown-panel-border-width, 1px)), -50%) rotate(-90deg);
 }
 
 .rt-viewport-dropdown[data-placement="left"] .rt-ui-dropdown-caret {
@@ -354,7 +354,7 @@ body[data-mode="dark"] .rt-ui-surface-muted {
     right: 0;
     bottom: auto;
     left: auto;
-    transform: translate(100%, -50%) rotate(90deg);
+    transform: translate(calc(50% + var(--rt-dropdown-connector-size) * .5 - var(--rt-dropdown-panel-border-width, 1px)), -50%) rotate(90deg);
 }
 
 /* ------------------------------------------------------------------
@@ -8377,7 +8377,7 @@ body[data-mode="dark"][data-sidebar-collapsible="true"][data-sidebar-expanded="t
 .rt-ui-checkbox:focus-visible {
     border-color: rgb(228 0 43);
     outline: none;
-    box-shadow: 0 0 0 3px rgba(228, 0, 43, 0.16);
+    box-shadow: inset 0 0 0 3px rgba(228, 0, 43, 0.16);
 }
 
 /* Call stage: remote participants fill a stable stage while the own portrait
@@ -8575,8 +8575,9 @@ textarea.rt-ui-field-control {
     color: #8b96a8;
 }
 
-.rt-ui-field-control:hover:not(:disabled):not(:read-only),
-.rt-ui-field-shell:hover:not(:has(:disabled)) {
+/* Hover must remain below focus, open, validation and autosave feedback. */
+.rt-ui-field-control:where(:hover:not(:disabled):not(:read-only)),
+.rt-ui-field-shell:where(:hover:not(:has(:disabled))) {
     border-color: rgba(228, 0, 43, .48);
     box-shadow:
         inset 0 1px 0 rgba(255, 255, 255, .98),
@@ -8589,20 +8590,20 @@ textarea.rt-ui-field-control {
     border-color: #e4002b;
     outline: none;
     box-shadow:
-        0 0 0 3px rgba(228, 0, 43, .14),
+        inset 0 0 0 3px rgba(228, 0, 43, .14),
         0 .75rem 1.7rem -1rem rgba(159, 18, 57, .42);
 }
 
 .rt-ui-field-control[aria-invalid='true'],
 .rt-ui-field-shell:has([aria-invalid='true']) {
     border-color: #dc2626;
-    box-shadow: 0 0 0 3px rgba(220, 38, 38, .13);
+    box-shadow: inset 0 0 0 3px rgba(220, 38, 38, .13);
 }
 
 .rt-ui-field-control:disabled,
-.rt-ui-field-control:read-only,
-.rt-ui-field-shell:has(:disabled),
-.rt-ui-field-shell:has(:read-only) {
+.rt-ui-field-control:is(input, textarea):read-only,
+.rt-ui-field-shell:has(input:disabled, textarea:disabled, select:disabled),
+.rt-ui-field-shell:has(input:read-only, textarea:read-only) {
     color: #7c8797;
     background: rgba(235, 239, 244, .78);
     box-shadow: inset 0 1px 2px rgba(15, 23, 42, .05);
@@ -8721,7 +8722,7 @@ textarea.rt-ui-field-control {
 }
 
 .rt-ui-input-field .rt-login-field__toggle:focus-visible {
-    box-shadow: 0 0 0 3px rgba(228, 0, 43, .16);
+    box-shadow: inset 0 0 0 3px rgba(228, 0, 43, .16);
 }
 
 html.dark .rt-ui-input-field,
@@ -8808,7 +8809,7 @@ input.rt-ui-field-control[type='file']:hover::file-selector-button {
 
 .rt-ui-checkbox:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 3px rgba(228, 0, 43, .16);
+    box-shadow: inset 0 0 0 3px rgba(228, 0, 43, .16);
 }
 
 .rt-ui-check-field:hover .rt-ui-check-label {
@@ -8912,7 +8913,7 @@ body[data-mode='dark'] .peer:checked + .rt-ui-radio-item {
 [data-autosave-scope] [data-autosave-visual][data-autosave-state="saving"] {
     border-color: rgba(245, 158, 11, 0.96);
     outline: none;
-    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25);
+    box-shadow: inset 0 0 0 3px rgba(245, 158, 11, 0.25);
 }
 
 [data-autosave-scope] [data-autosave-visual][data-autosave-state="saving"] {
@@ -8922,7 +8923,7 @@ body[data-mode='dark'] .peer:checked + .rt-ui-radio-item {
 [data-autosave-scope] [data-autosave-visual][data-autosave-state="saved"] {
     border-color: rgba(16, 185, 129, 0.96);
     outline: none;
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.24);
+    box-shadow: inset 0 0 0 3px rgba(16, 185, 129, 0.24);
 }
 
 html.dark [data-autosave-scope] [data-autosave-visual][data-autosave-state="dirty"],
@@ -8930,13 +8931,13 @@ html.dark [data-autosave-scope] [data-autosave-visual][data-autosave-state="savi
 body[data-mode="dark"] [data-autosave-scope] [data-autosave-visual][data-autosave-state="dirty"],
 body[data-mode="dark"] [data-autosave-scope] [data-autosave-visual][data-autosave-state="saving"] {
     border-color: rgba(251, 191, 36, 0.98);
-    box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.28);
+    box-shadow: inset 0 0 0 3px rgba(251, 191, 36, 0.28);
 }
 
 html.dark [data-autosave-scope] [data-autosave-visual][data-autosave-state="saved"],
 body[data-mode="dark"] [data-autosave-scope] [data-autosave-visual][data-autosave-state="saved"] {
     border-color: rgba(52, 211, 153, 0.98);
-    box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.26);
+    box-shadow: inset 0 0 0 3px rgba(52, 211, 153, 0.26);
 }
 
 /* Validierungsfehler haben Vorrang vor Erfolgs- oder Speicherfeedback. */
@@ -8944,17 +8945,17 @@ body[data-mode="dark"] [data-autosave-scope] [data-autosave-visual][data-autosav
 [data-autosave-scope] [data-autosave-visual].is-invalid {
     border-color: rgb(220 38 38);
     outline: none;
-    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.22);
+    box-shadow: inset 0 0 0 3px rgba(220, 38, 38, 0.22);
     animation: none;
 }
 
 @keyframes rt-autosave-saving-ring {
     from {
-        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.16);
+        box-shadow: inset 0 0 0 3px rgba(245, 158, 11, 0.16);
     }
 
     to {
-        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.34);
+        box-shadow: inset 0 0 0 3px rgba(245, 158, 11, 0.34);
     }
 }
 

@@ -216,6 +216,9 @@
                                 <div class="rt-mail-preview-context">
                                     <strong>Versandvorschau &amp; Bearbeitung</strong>
                                     <small data-mail-preview-status aria-live="polite">Systemmail breit · 1920 px · wird eingepasst</small>
+                                    <small id="mail-responsive-help-{{ $currentDocument->kind->value }}" data-mail-responsive-note>
+                                        Desktop, Tablet und Mobil ändern nur die Vorschau. Formatierungen gelten für alle Breiten; Spalten und Abstände passen sich automatisch an.
+                                    </small>
                                     <small data-mail-compiler-parity-note>
                                         „Bearbeiten“ ist die Autorenansicht mit Platzhaltern. „Versandvorschau“ zeigt den aktuellen Entwurf nach dem echten Systemmail-Compiler und CSS-Inliner (Compiler-Parität). Andere Bausteine stammen aus der Freigabe, bei der Ersteinrichtung gegebenenfalls aus deren Entwurf. Outlook erhält clientspezifische Medien- und Wrapper-Anpassungen. Keine Ansicht emuliert Outlook oder iPhone Mail; die Empfangsprüfung erfolgt per Testmail.
                                     </small>
@@ -264,7 +267,7 @@
                         </button>
                     </div>
 
-                    <div class="rt-mail-preview-toggle" role="group" aria-label="Breite des Mailprogramms">
+                    <div class="rt-mail-preview-toggle" role="group" aria-label="Breite des Mailprogramms" aria-describedby="mail-responsive-help-{{ $currentDocument->kind->value }}">
                         <button type="button" data-mail-preview-device="wide" aria-pressed="true" title="Breite Systemmail-Vorschau mit 1920 Pixeln">
                             <i data-feather="maximize-2" class="h-4 w-4" aria-hidden="true"></i>
                             <span>Breit</span>
@@ -294,6 +297,7 @@
                             value="1920"
                             data-mail-preview-width
                             aria-label="Individuelle Vorschau-Breite in ganzen Pixeln"
+                            aria-describedby="mail-responsive-help-{{ $currentDocument->kind->value }}"
                         >
                         <span aria-hidden="true">px</span>
                     </label>

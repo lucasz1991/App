@@ -406,7 +406,7 @@ final class EmailHtmlSanitizer
         'rt-address-break', 'design-page-pad', 'design-v27', 'design-columns',
         'design-salutation', 'design-spacer', 'design-facts', 'design-fact-row',
         'design-closing-row', 'design-button', 'design-greeting',
-        'design-hotline-row', 'design-hotline-actions',
+        'design-hotline-row', 'design-hotline-actions', 'rt-mail-cta',
     ];
 
     /** @var list<string> Eigene Hosts, deren Bilder und url() durchgehen. */

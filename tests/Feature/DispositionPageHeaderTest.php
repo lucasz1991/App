@@ -74,21 +74,23 @@ class DispositionPageHeaderTest extends TestCase
         $inquiry = $this->inquiry('Header inquiry');
         $component = Livewire::test(UnifiedInbox::class)->assertSee($inquiry->title);
         $xpath = $this->xpath($component->html());
+        $this->assertSame(1, $xpath->query('//section[@data-disposition-viewport="inbox"]//*[@data-disposition-list-table and @data-table-scroll="body"]//*[@data-table-scroll-body and @tabindex="0"]')->length);
         $actionsHost = '//template[@*[name()="x-teleport" and .="[data-page-header-action-list]"]]';
-        $statusHost = $actionsHost;
-        $this->assertSame(0, $xpath->query('//template[@*[name()="x-teleport" and .="[data-page-header-search]"]]')->length);
+        $statusHost = '//template[@*[name()="x-teleport" and .="[data-page-header-search]"]]';
+        $this->assertSame(1, $xpath->query($statusHost)->length);
         $this->assertSame(5, $xpath->query($statusHost.'//button[@data-status-value]')->length);
-        $this->assertSame(1, $xpath->query($actionsHost.'//button[@aria-label="Bearbeitungsstand: Alle (1)"]')->length);
+        $this->assertSame(1, $xpath->query($statusHost.'//button[@aria-label="Bearbeitungsstand: Alle (1)"]')->length);
         $this->assertSame(0, $xpath->query($actionsHost.'//button[contains(@class,"rt-status-menu__trigger") and @disabled]')->length);
-        $this->assertSame(1, $xpath->query($actionsHost.'//*[@data-rt-custom-select and @data-autosave-model="channel"]')->length);
+        $this->assertSame(1, $xpath->query($statusHost.'//*[@data-rt-custom-select and @data-autosave-model="channel"]')->length);
         $this->assertSame(1, $xpath->query($actionsHost.'//button[@aria-label="Eingang erfassen"]')->length);
         $this->assertSame(0, $xpath->query('//section[contains(@class,"rt-disposition-panel")]//nav')->length);
 
         $component->call('setStatus', 'waiting')->assertDontSee($inquiry->title);
         $xpath = $this->xpath($component->html());
+        $this->assertSame(1, $xpath->query('//*[@data-disposition-list-table]//*[@data-table-scroll-body]//*[@class and contains(concat(" ",normalize-space(@class)," ")," rt-table-empty ")]')->length);
         $this->assertSame(1, $xpath->query($statusHost.'//button[@data-status-value="waiting" and @aria-checked="true"]')->length);
         $this->assertSame(0, $xpath->query($statusHost.'//button[@data-status-value="all" and @aria-checked="true"]')->length);
-        $this->assertSame(1, $xpath->query($actionsHost.'//button[@aria-label="Bearbeitungsstand: Rückmeldung offen (0)"]')->length);
+        $this->assertSame(1, $xpath->query($statusHost.'//button[@aria-label="Bearbeitungsstand: Rückmeldung offen (0)"]')->length);
         $component->call('setStatus', 'review')->assertSee($inquiry->title);
         $this->assertSame('new', $inquiry->fresh()->status);
         $this->assertNull($inquiry->fresh()->order_id);
@@ -112,18 +114,22 @@ class DispositionPageHeaderTest extends TestCase
 
         $embedded = Livewire::test(CommercialOfferIndex::class, ['customerId' => $this->customer->id])->assertSet('headerInPage', false);
         $xpath = $this->xpath($embedded->html());
+        $this->assertSame(0, $xpath->query('//*[@data-disposition-viewport or @data-table-scroll-body]')->length);
         $this->assertSame(1, $xpath->query('//*[@data-tables-toolbar]')->length);
         $this->assertSame(0, $xpath->query('//template[@*[name()="x-teleport" and .="[data-topbar-page-search]"]]')->length);
 
         $component = Livewire::test(CommercialOfferIndex::class, ['customerId' => $this->customer->id, 'headerInPage' => true])
             ->assertViewHas('offers', fn ($offers) => $offers->pluck('id')->sort()->values()->all() === collect([$draft->id, $offered->id])->sort()->values()->all());
         $xpath = $this->xpath($component->html());
+        $this->assertSame(1, $xpath->query('//section[@data-disposition-viewport="offers"]//*[@data-disposition-list-table and @data-table-scroll="body"]//*[@data-table-scroll-body]')->length);
         $this->assertSame(0, $xpath->query('//*[@data-tables-toolbar]')->length);
         $this->assertSame(1, $xpath->query('//template[@*[name()="x-teleport" and .="[data-topbar-page-search]"]]//input[@*[name()="wire:model.live.debounce.300ms" and .="search"]]')->length);
         $this->assertSame(1, $xpath->query('//template[@*[name()="x-teleport" and .="[data-page-header-search]"]]//*[@data-rt-custom-select and @data-autosave-model="status"]')->length);
 
         $component->set('status', 'offered')->assertViewHas('offers', fn ($offers) => $offers->pluck('id')->all() === [$offered->id]);
         $component->set('search', 'does not match')->assertViewHas('offers', fn ($offers) => $offers->isEmpty());
+        $xpath = $this->xpath($component->html());
+        $this->assertSame(1, $xpath->query('//*[@data-disposition-list-table]//*[@data-table-scroll-body]//*[@class and contains(concat(" ",normalize-space(@class)," ")," rt-table-empty ")]')->length);
         $component->set('search', 'Header issued')->assertViewHas('offers', fn ($offers) => $offers->pluck('id')->all() === [$offered->id]);
         $this->assertSame('draft', $draft->fresh()->status);
         $this->assertSame('offered', $offered->fresh()->status);

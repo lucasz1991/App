@@ -63,7 +63,7 @@
         <x-ui.floating.window class="rt-ai-assist__panel" id="{{ $panelId }}" x-ref="panel" role="dialog" ::aria-modal="mode === 'fullscreen' ? 'true' : 'false'"
             x-bind:data-window-mode="mode" x-bind:data-corner="corner" aria-label="AI-Assist"
             x-trap.inert.noscroll="open && mode === 'fullscreen'"
-            layout-action="syncLayout();" session-key="assist" session-restore="restoreWindowSession(rtWindowSession)">
+            layout-action="syncLayout();" close-action="toggle(false, { restoreFocus: false })" session-key="assist" session-restore="restoreWindowSession(rtWindowSession)">
             <x-slot:header class="rt-ai-assist__head rt-assistant-header" data-assistant-header>
                 <x-operations.assistant-navigation class="rt-ai-assist__tabs" appearance="window" :tabs="$tabs" :selected="$tab" action="setTab" :id-prefix="$panelId" :controls="$panelId.'-body'" :review-count="$reviewCount" label="AI-Assist" />
             </x-slot:header>
@@ -211,10 +211,11 @@
                             @if(($message['role'] ?? '') === 'user')
                                 <div class="rt-ai-assist__row rt-ai-assist__row--user" wire:key="ai-assist-message-{{ $message['id'] }}">
                                     <div class="rt-ai-assist__msg">
-                                        {{ $message['text'] }}
+                                        <span>{{ $message['text'] }}</span>
                                         @foreach($message['attachments'] ?? [] as $attachment)
                                             <span class="rt-ai-assist__attachment"><i class="far {{ !empty($attachment['audio']) ? 'fa-microphone' : 'fa-paperclip' }}" aria-hidden="true"></i> {{ $attachment['name'] }}</span>
                                         @endforeach
+                                        @if(!empty($message['time']))<span class="rt-ai-assist__message-time">{{ $message['time'] }}</span>@endif
                                     </div>
                                 </div>
                             @else
@@ -222,40 +223,16 @@
                                     $card = $message['card'] ?? null;
                                     $state = $card['state'] ?? null;
                                 @endphp
-                                <div class="rt-ai-assist__row" wire:key="ai-assist-message-{{ $message['id'] }}">
-                                    <span class="rt-ai-assist__orb rt-ai-assist__orb--msg" data-assistant-cloud-slot="message" data-state="idle" aria-hidden="true"><span class="rt-assistant-cloud__fallback"></span></span>
+                                <div class="rt-ai-assist__row rt-ai-assist__row--answer" wire:key="ai-assist-message-{{ $message['id'] }}">
+                                    <div class="rt-ai-assist__sender">
+                                        <span class="rt-ai-assist__orb rt-ai-assist__orb--msg" data-assistant-cloud-slot="message" data-state="idle" aria-hidden="true"><span class="rt-assistant-cloud__fallback"></span></span>
+                                        <strong>AI-Assist</strong><span>{{ $message['time'] }}</span>
+                                    </div>
                                     <div class="rt-ai-assist__stack">
                                         <div class="rt-ai-assist__msg">{!! $format($message['lead'] ?? '') !!}</div>
                                         @if($card)
-                                            <div class="rt-ai-assist__card" data-state="{{ $state ?? 'open' }}">
-                                                <div class="rt-ai-assist__card-head">
-                                                    <i class="far {{ $card['icon'] ?? 'fa-sparkles' }}" aria-hidden="true"></i><strong>{{ $card['title'] }}</strong>
-                                                    @if($state === 'done')<span class="rt-ai-assist__badge" data-tone="ok">Übernommen</span>
-                                                    @elseif($state === 'dismissed')<span class="rt-ai-assist__badge">Verworfen</span>
-                                                    @elseif($state === 'undone')<span class="rt-ai-assist__badge">Zurückgenommen</span>
-                                                    @endif
-                                                </div>
-                                                @if(! empty($card['rows']))
-                                                    <div>
-                                                        @foreach($card['rows'] as $row)
-                                                            <div class="rt-ai-assist__card-row">
-                                                                <span>{{ $row['label'] }}</span><i class="far fa-arrow-right" aria-hidden="true"></i><b>{{ $row['value'] }}</b>
-                                                                @if(($row['small'] ?? '') !== '')<small>{{ $row['small'] }}</small>@endif
-                                                                @if(! empty($row['why']))
-                                                                    <details class="rt-ai-assist__why"><summary>Warum?</summary><ul>
-                                                                        @foreach($row['why'] as $reason)<li><i class="far fa-check" aria-hidden="true"></i>{{ $reason }}</li>@endforeach
-                                                                    </ul></details>
-                                                                @endif
-                                                                @if(!empty($row['href']))<small><a href="{{ $row['href'] }}" wire:navigate>Vorgang prüfen</a></small>@endif
-                                                            </div>
-                                                        @endforeach
-                                                    </div>
-                                                @endif
-                                                @if(($card['note'] ?? '') !== '')<p class="rt-ai-assist__card-note">{!! $format($card['note']) !!}</p>@endif
-                                                @if(!empty($card['body']))<details class="rt-ai-assist__why" open><summary>Konkrete Kundennachricht prüfen</summary><p class="whitespace-pre-line">{{ $card['body'] }}</p></details>@endif
-                                                @foreach(($card['failed'] ?? []) as $failure)
-                                                    <p class="rt-ai-assist__card-failed" role="alert">Nicht übernommen – {{ $failure }}</p>
-                                                @endforeach
+                                            <x-operations.assist-response-card :card="$card" :card-id="$panelId.'-response-'.$message['id']">
+                                                <x-slot:actions>
                                                 @if($state === 'done')
                                                     <div class="rt-ai-assist__card-buttons rt-ai-assist__card-buttons--done">
                                                         <span><i class="far fa-check-circle" aria-hidden="true"></i>Übernommen · {{ $card['done_at'] ?? '' }}</span>
@@ -274,9 +251,9 @@
                                                         @endforeach
                                                     </div>
                                                 @endif
-                                            </div>
+                                                </x-slot:actions>
+                                            </x-operations.assist-response-card>
                                         @endif
-                                        <span class="rt-ai-assist__meta">AI-Assist · {{ $message['time'] }}</span>
                                     </div>
                                 </div>
                             @endif
@@ -304,12 +281,8 @@
                         @endforeach
                     </div>
                 @else
+                    <x-operations.activity-toolbar :value="$activityFilter" model="activityFilter" :dropdown-id="$panelId.'-activity-filter'" />
                     <div class="rt-ai-assist__scroll">
-                        <div class="rt-ai-assist__filter" role="group" aria-label="Aktivitäten filtern">
-                            @foreach(['all' => 'Alle', 'intake' => 'Eingänge', 'communication' => 'Kundennachrichten', 'planning' => 'Planung', 'automation' => 'Personalanfragen'] as $key => $label)
-                                <button type="button" aria-pressed="{{ $activityFilter === $key ? 'true' : 'false' }}" wire:click="$set('activityFilter', '{{ $key }}')">{{ $label }}</button>
-                            @endforeach
-                        </div>
                         @if($activity->isEmpty())
                             <p class="rt-ai-assist__note">Noch keine Aktivitäten. Übernommene Vorschläge und AI-Eingänge erscheinen hier.</p>
                         @else

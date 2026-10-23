@@ -1,5 +1,6 @@
 import {
     MAIL_BLOCK_ATTRIBUTE,
+    MAIL_CTA_CLASS,
     MAIL_DEFAULT_FONT_STACK,
     SIGNATURE_PLACEHOLDER,
     createMailBlocks,
@@ -57,6 +58,7 @@ const MAIL_SIGNATURE_CANVAS_ATTRIBUTE = 'data-rt-mail-signature-canvas';
 const MAIL_PREVIEW_IMAGE_ATTRIBUTE = 'data-rt-mail-preview-token';
 const MAIL_IMPORTED_INLINE_ATTRIBUTE = 'data-rt-mail-inline-source';
 const MAIL_PRESENTATION_SYNC_STATE = new WeakMap();
+const MAIL_TRAIT_SYNC_STATE = new WeakMap();
 const MAIL_TEMPLATE_MARK_START_NAME = 'RT_TEMPLATE_MARK_START';
 const MAIL_TEMPLATE_MARK_END_NAME = 'RT_TEMPLATE_MARK_END';
 const MAIL_TEMPLATE_MARK_START = `<!-- ${MAIL_TEMPLATE_MARK_START_NAME} -->`;
@@ -210,6 +212,44 @@ function mailPreviewAssetSources(previewAssets = {}) {
     ].filter((source, index, sources) => typeof source === 'string'
         && source.length > 0
         && sources.indexOf(source) === index);
+}
+
+function mailTemplateImageTokenCounts(root, { preview = false } = {}) {
+    const counts = new Map(MAIL_PREVIEW_IMAGE_TOKENS.map((token) => [token, 0]));
+    root?.querySelectorAll?.(preview ? `[${MAIL_PREVIEW_IMAGE_ATTRIBUTE}]` : 'img').forEach((image) => {
+        const value = image.getAttribute(preview ? MAIL_PREVIEW_IMAGE_ATTRIBUTE : 'src');
+        const token = preview ? value : MAIL_PREVIEW_IMAGE_TOKENS.find((candidate) => value === `{{${candidate}}}`);
+        if (preview && (image.tagName !== 'IMG' || !counts.has(token))) {
+            throw new Error('Der Mail-Editor enthaelt einen unbekannten Bildplatzhalter.');
+        }
+        if (counts.has(token)) counts.set(token, counts.get(token) + 1);
+    });
+    return counts;
+}
+
+function assertMailTemplateImageTokenCounts(actual, expected) {
+    if ([...expected].some(([token, count]) => actual.get(token) !== count)) {
+        throw new Error('Die Mailvorlage konnte nicht verlustfrei rekonstruiert werden: Eine Systembild-Bindung fehlt oder ist mehrfach vorhanden.');
+    }
+}
+
+/**
+ * A library image may use the same URL as a rendered system token. Once the
+ * canonical token bindings have been checked separately, ordinary IMG src is
+ * document content. Preview sources remain forbidden everywhere else; the
+ * editor's internal transparent pixel is never valid document content.
+ */
+function mailTemplateHasPreviewSourceLeak(root, previewAssets = {}) {
+    const probe = root.cloneNode(true);
+    probe.querySelectorAll('img[src]').forEach((image) => {
+        if (!String(image.getAttribute('src')).includes(MAIL_PREVIEW_TRANSPARENT_PIXEL)) image.removeAttribute('src');
+    });
+    const sources = mailPreviewAssetSources(previewAssets);
+    const containsPreviewSource = (value) => sources.some((source) => String(value || '').includes(source));
+    if (containsPreviewSource(probe.outerHTML) || containsPreviewSource(probe.textContent)) return true;
+    // Attribute values are decoded by the parser (e.g. query-string &amp;).
+    return [probe, ...probe.querySelectorAll('*')].some((element) =>
+        Array.from(element.attributes || []).some((attribute) => containsPreviewSource(attribute.value)));
 }
 
 function markMailPreviewImageTokens(root) {
@@ -2937,6 +2977,7 @@ export function serializeMailDocumentForSave({
 
     if (kind === 'template') {
         const canvasDocument = parseMailFragment(parser, normalizedCanvas.html);
+        canvasDocument.querySelectorAll(`table.${MAIL_CTA_CLASS}`).forEach(synchronizeMailCtaPadding);
         const previewRows = canvasDocument.querySelectorAll('[data-rt-mail-preview-only="signature"]');
         if (previewRows.length !== 1 || !canvasDocument.body) {
             throw new Error('Die sichere Position des Signaturblocks in der Mailvorlage fehlt.');
@@ -2951,7 +2992,14 @@ export function serializeMailDocumentForSave({
             canvasDocument.body,
             baselineHtml,
         );
+        const canonicalDocument = parser.parseFromString(String(baselineHtml || ''), 'text/html');
+        if (!canonicalDocument.documentElement || !canonicalDocument.head || !canonicalDocument.body) {
+            throw new Error('Die kanonische Dokumenthülle der Mailvorlage fehlt.');
+        }
+        const expectedImageTokens = mailTemplateImageTokenCounts(canonicalDocument.body);
+        assertMailTemplateImageTokenCounts(mailTemplateImageTokenCounts(canvasDocument.body, { preview: true }), expectedImageTokens);
         restoreMailPreviewImageTokens(canvasDocument.body);
+        assertMailTemplateImageTokenCounts(mailTemplateImageTokenCounts(canvasDocument.body), expectedImageTokens);
         assertCanonicalTemplateMarkBinding(templateMarkBinding);
 
         // Erst den kompletten unsauberen Canvaszustand pruefen. Ein zweiter
@@ -2971,7 +3019,7 @@ export function serializeMailDocumentForSave({
         const uncheckedPlaceholderCount = uncheckedBody.split(SIGNATURE_PLACEHOLDER).length - 1;
         if (uncheckedPlaceholderCount !== 1
             || /data-rt-mail-(?:preview(?:-[\w-]+)?|signature-preview)/i.test(uncheckedBody)
-            || mailPreviewAssetSources(previewAssets).some((source) => uncheckedBody.includes(source))) {
+            || mailTemplateHasPreviewSourceLeak(parseMailFragment(parser, uncheckedBody).body, previewAssets)) {
             throw new Error('Die Mailvorlage konnte nicht verlustfrei rekonstruiert werden.');
         }
 
@@ -2979,11 +3027,6 @@ export function serializeMailDocumentForSave({
             canvasDocument.body,
             [previewRows[0], templateApplicationBinding?.row].filter(Boolean),
         );
-
-        const canonicalDocument = parser.parseFromString(String(baselineHtml || ''), 'text/html');
-        if (!canonicalDocument.documentElement || !canonicalDocument.head || !canonicalDocument.body) {
-            throw new Error('Die kanonische Dokumenthülle der Mailvorlage fehlt.');
-        }
 
         const canonicalPreviewRowHtml = previewRows[0].outerHTML;
         const canonicalApplicationRowHtml = templateApplicationBinding?.row?.outerHTML || '';
@@ -3004,7 +3047,7 @@ export function serializeMailDocumentForSave({
         const placeholderCount = canonicalHtml.split(SIGNATURE_PLACEHOLDER).length - 1;
         if (placeholderCount !== 1
             || /data-rt-mail-(?:preview(?:-[\w-]+)?|signature-preview)/i.test(canonicalHtml)
-            || mailPreviewAssetSources(previewAssets).some((source) => canonicalHtml.includes(source))) {
+            || mailTemplateHasPreviewSourceLeak(parser.parseFromString(canonicalHtml, 'text/html').documentElement, previewAssets)) {
             throw new Error('Die Mailvorlage konnte nicht verlustfrei rekonstruiert werden.');
         }
 
@@ -3025,6 +3068,7 @@ export function serializeMailDocumentForSave({
     }
 
     const parsed = parseMailFragment(parser, normalizedCanvas.html);
+    parsed.querySelectorAll(`table.${MAIL_CTA_CLASS}`).forEach(synchronizeMailCtaPadding);
     const wrappers = parsed.querySelectorAll(`table[${MAIL_SIGNATURE_CANVAS_ATTRIBUTE}]`);
     const wrapper = wrappers[0];
     const body = wrapper?.tBodies?.[0] || wrapper?.querySelector('tbody');
@@ -3368,6 +3412,113 @@ function mailComponentChildren(component) {
     if (Array.isArray(collection?.models)) return collection.models;
     if (typeof collection?.toArray === 'function') return collection.toArray();
     return [];
+}
+
+function mailCtaNodeTag(node) {
+    return String(node?.get?.('tagName') || node?.tagName || '').toLowerCase();
+}
+
+function mailCtaNodeChildren(node) {
+    return node?.nodeType === 1 ? Array.from(node.children || []) : mailComponentChildren(node);
+}
+
+function isMailCtaTable(node) {
+    const classes = node?.getAttributes?.().class || node?.getAttribute?.('class') || '';
+    return mailCtaNodeTag(node) === 'table' && String(classes).split(/\s+/).includes(MAIL_CTA_CLASS);
+}
+
+function mailCtaNodeStyle(node, editor) {
+    const inline = node?.getStyle?.();
+    if (!inline) return node?.getAttribute?.('style') || '';
+    const imported = (node.getClasses?.() || [])
+        .filter((className) => MAIL_AUTO_STYLE_CLASS.test(className))
+        .map((className) => editor?.Css?.getRule?.(`.${className}`))
+        .filter((rule) => rule && !rule.get?.('atRuleType') && !rule.get?.('state'));
+    return mergeInlineDeclarations(imported.map((rule) => rule.getStyle?.() || {}),
+        Object.entries(inline).map(([property, value]) => `${property}:${value};`).join(''));
+}
+
+/** Effective inline padding, including ordered shorthand/longhand overrides. */
+function mailCtaPadding(style) {
+    const sides = ['top', 'right', 'bottom', 'left'];
+    const values = sides.map(() => '0px');
+    const priorities = sides.map(() => false);
+    const declarations = typeof style === 'string'
+        ? Array.from(style.matchAll(/(?:^|;)\s*(padding(?:-(?:top|right|bottom|left))?)\s*:\s*([^;]*)/gi),
+            (match) => [match[1].toLowerCase(), match[2]])
+        : Object.entries(style || {});
+    declarations.forEach(([property, raw]) => {
+        const important = /\s*!important\s*$/i.test(String(raw));
+        const tokens = String(raw).replace(/\s*!important\s*$/i, '').trim().split(/\s+/);
+        if (!tokens.length || tokens.length > 4 || tokens.some((value) =>
+            !/^(?:0|(?:\d+(?:\.\d+)?|\.\d+)(?:px|pt|em|rem|%|pc|in|cm|mm))$/i.test(value))) return;
+        const expanded = tokens.length === 1 ? Array(4).fill(tokens[0])
+            : tokens.length === 2 ? [tokens[0], tokens[1], tokens[0], tokens[1]]
+                : tokens.length === 3 ? [...tokens, tokens[1]] : tokens;
+        sides.forEach((side, index) => {
+            if (property !== 'padding' && (property !== `padding-${side}` || tokens.length !== 1)) return;
+            if (priorities[index] && !important) return;
+            values[index] = property === 'padding' ? expanded[index] : tokens[0];
+            priorities[index] = important;
+        });
+    });
+    return values.join(' ');
+}
+
+function setMailCtaMsoPadding(node, value) {
+    const style = node?.getStyle?.() || node?.getAttribute?.('style') || '';
+    const previous = typeof style === 'string' ? inlineStyleDeclaration(style, 'mso-padding-alt') : style['mso-padding-alt'];
+    if (previous === value) return false;
+    if (node?.addStyle) node.addStyle({ 'mso-padding-alt': value }, { silent: true, avoidStore: 1, noEvent: true });
+    else node.setAttribute('style', replaceInlineStyleDeclaration(style, 'mso-padding-alt', value));
+    return true;
+}
+
+/**
+ * Only new, explicitly bound CTA tables receive derived Outlook padding.
+ * Regular padding stays on A, preserving its modern layout and click area.
+ * The TD has no second regular padding; MSO gets the A padding exactly once.
+ */
+export function synchronizeMailCtaPadding(component, editor = null) {
+    let table = component;
+    while (table && !isMailCtaTable(table)) table = table.parent?.() || table.parentElement;
+    if (!table) return false;
+    const rows = mailCtaNodeChildren(table).flatMap((child) =>
+        mailCtaNodeTag(child) === 'tbody' ? mailCtaNodeChildren(child) : [child]);
+    const cells = rows.length === 1 && mailCtaNodeTag(rows[0]) === 'tr' ? mailCtaNodeChildren(rows[0]) : [];
+    const links = cells.length === 1 && mailCtaNodeTag(cells[0]) === 'td' ? mailCtaNodeChildren(cells[0]) : [];
+    if (links.length !== 1 || mailCtaNodeTag(links[0]) !== 'a') return false;
+    const link = links[0];
+    const padding = mailCtaPadding(mailCtaNodeStyle(link, editor));
+    const cellChanged = setMailCtaMsoPadding(cells[0], padding);
+    return setMailCtaMsoPadding(link, '0px') || cellChanged;
+}
+
+/** Own and dispose the derived-state listeners without adding undo entries. */
+export function installMailCtaPaddingSync(editor, { isLoading = () => false, readOnly = false } = {}) {
+    if (readOnly) return () => {};
+    let disposed = false;
+    const refreshTree = (node = editor?.getWrapper?.()) => {
+        if (!node || disposed || isLoading()) return;
+        if (isMailCtaTable(node)) synchronizeMailCtaPadding(node, editor);
+        mailComponentChildren(node).forEach(refreshTree);
+    };
+    const refresh = () => refreshTree();
+    const added = (component) => {
+        refreshTree(component);
+        globalThis.queueMicrotask?.(() => refreshTree(component));
+    };
+    const changed = (component) => {
+        if (!disposed && !isLoading()) synchronizeMailCtaPadding(component, editor);
+    };
+    const loaded = () => globalThis.queueMicrotask?.(refresh);
+    const events = { 'component:add': added, 'component:styleUpdate': changed, 'styleable:change': refresh, 'project:load': loaded, undo: refresh, redo: refresh };
+    Object.entries(events).forEach(([event, handler]) => editor?.on?.(event, handler));
+    refresh();
+    return () => {
+        disposed = true;
+        Object.entries(events).forEach(([event, handler]) => editor?.off?.(event, handler));
+    };
 }
 
 function componentClasses(component) {
@@ -3975,13 +4126,18 @@ function mailPresentationColor(value) {
 }
 
 function mailPresentationDimension(value, { percent = true } = {}) {
-    const dimension = String(value || '').trim();
-    const match = dimension.match(percent
-        ? /^(\d{1,4})(px|%)$/i
-        : /^(\d{1,4})px$/i);
-    if (!match || Number(match[1]) < 1) return '';
+    const dimension = String(value ?? '').trim().replace(/\s*!important\s*$/i, '').trim();
+    if (/^0(?:\.0+)?$/.test(dimension)) return '0';
+    const match = dimension.match(/^(\d{1,4}(?:\.\d+)?|\.\d+)(px|%)$/i);
+    if (!match || (!percent && match[2] === '%')) return '';
+    const numeric = Number(match[1]);
+    if (!Number.isFinite(numeric) || numeric < 0 || numeric >= 10000) return '';
+    const [integer, fraction = ''] = match[1].split('.');
+    const normalizedInteger = integer.replace(/^0+(?=\d)/, '') || '0';
+    const normalizedFraction = fraction.replace(/0+$/, '');
+    const normalized = normalizedInteger + (normalizedFraction ? `.${normalizedFraction}` : '');
 
-    return match[2] === '%' ? `${Number(match[1])}%` : String(Number(match[1]));
+    return match[2] === '%' ? `${normalized}%` : normalized;
 }
 
 /**
@@ -4020,10 +4176,21 @@ export function synchronizeMailPresentationAttributes(component, property = '') 
     const state = MAIL_PRESENTATION_SYNC_STATE.get(component) || new Map();
     let changed = false;
 
-    const updateAttribute = (attribute, value, { clear = false } = {}) => {
+    const updateAttribute = (attribute, value, { clear = false, remove = false } = {}) => {
         const normalizedValue = String(value || '');
         const tracked = state.get(attribute);
         if (!normalizedValue) {
+            // An explicit CSS value such as auto/em/calc cannot be represented
+            // by an HTML dimension. Remove its stale fallback while retaining
+            // the original for the existing style-removal/Undo contract.
+            if (remove) {
+                if (!Object.prototype.hasOwnProperty.call(attributes, attribute)) return;
+                if (!tracked) state.set(attribute, { original: attributes[attribute] });
+                component.removeAttributes?.(attribute, { silent: true });
+                if (typeof component.removeAttributes !== 'function') delete attributes[attribute];
+                changed = true;
+                return;
+            }
             if (!tracked) {
                 if (!clear || !Object.prototype.hasOwnProperty.call(attributes, attribute)) return;
                 component.removeAttributes?.(attribute, { silent: true });
@@ -4063,12 +4230,14 @@ export function synchronizeMailPresentationAttributes(component, property = '') 
     }
 
     if (applies('width') && ['table', 'td', 'th'].includes(tagName)) {
-        const width = String(style.width || '').trim();
-        updateAttribute('width', mailPresentationDimension(width), { clear: width === '' });
+        const width = String(style.width ?? '').trim();
+        const fallback = mailPresentationDimension(width);
+        updateAttribute('width', fallback, { clear: width === '', remove: width !== '' && fallback === '' });
     }
     if (applies('height') && ['table', 'td', 'th'].includes(tagName)) {
-        const height = String(style.height || '').trim();
-        updateAttribute('height', mailPresentationDimension(height, { percent: false }), { clear: height === '' });
+        const height = String(style.height ?? '').trim();
+        const fallback = mailPresentationDimension(height, { percent: false });
+        updateAttribute('height', fallback, { clear: height === '', remove: height !== '' && fallback === '' });
     }
 
     if (applies('text-align')) {
@@ -4109,6 +4278,20 @@ export function protectMailSystemComponents(editor, { imgOverlapProfile = null }
     const protectedComponents = new Set();
     const setName = (component, name) => {
         if (component && name) component.set?.({ 'custom-name': name }, { silent: true });
+    };
+    const setTraits = (component, traits) => {
+        const signature = JSON.stringify(traits);
+        const previous = MAIL_TRAIT_SYNC_STATE.get(component);
+        if (previous?.signature === signature && previous.collection === component.get?.('traits')) return;
+        const update = () => {
+            component.set?.({ traits }, { silent: true });
+            // A silent assignment bypasses GrapesJS initTraits. Its public
+            // getter materializes the collection before TraitManager renders.
+            component.getTraits?.();
+        };
+        if (typeof editor?.UndoManager?.skip === 'function') editor.UndoManager.skip(update);
+        else update();
+        MAIL_TRAIT_SYNC_STATE.set(component, { signature, collection: component.get?.('traits') });
     };
     const classNames = (attributes) => String(attributes.class || '').split(/\s+/).filter(Boolean);
     const label = (component, attributes) => {
@@ -4201,13 +4384,24 @@ export function protectMailSystemComponents(editor, { imgOverlapProfile = null }
                 { type: 'number', name: `data-rt-v26-offset-${breakpoint}`, label: `${labels[breakpoint]} · Links angeschnitten (%)`,
                     min: imgOverlapProfile.offsetMin, max: imgOverlapProfile.offsetMax, step: 1 },
             ]);
-            component.set?.({ traits, selectable: true, hoverable: true }, { silent: true });
+            component.set?.({ selectable: true, hoverable: true }, { silent: true });
+            setTraits(component, traits);
         }
-        if (tagName === 'img' && !attributes[MAIL_PREVIEW_IMAGE_ATTRIBUTE]) {
+        if (tagName === 'img' && !attributes[MAIL_PREVIEW_IMAGE_ATTRIBUTE]
+            && attributes['data-rt-train'] === undefined && !classes.includes('rt-sign-train')) {
             synchronizeMailContentImage(component);
             setName(component, String(attributes.alt || '').trim() || 'Inhaltsbild');
+            const currentStylable = component.get?.('stylable');
+            const inspectorGeometry = new Set(['width', 'max-width', 'height', 'max-height', 'margin', 'display']);
+            const imageStyles = MAIL_SAFE_EDITABLE_STYLE_PROPERTIES.filter((property) =>
+                !inspectorGeometry.has(property)
+                && (!Array.isArray(currentStylable) || currentStylable.includes(property)));
             component.set?.({
-                traits: [
+                // Size, alignment and proportional height belong to the image
+                // inspector; duplicate generic fields would revert on update.
+                stylable: currentStylable === false ? false : imageStyles,
+            }, { silent: true });
+            setTraits(component, [
                     { type: 'text', name: 'alt', label: 'Alternativtext' },
                     { type: 'text', name: 'title', label: 'Beschreibung' },
                     { type: 'number', name: 'width', label: 'Breite in px', min: 40, max: 1200, step: 1 },
@@ -4221,8 +4415,7 @@ export function protectMailSystemComponents(editor, { imgOverlapProfile = null }
                             { id: 'right', name: 'Rechts' },
                         ],
                     },
-                ],
-            }, { silent: true });
+            ]);
         }
         if (['application', 'signature'].includes(attributes['data-rt-mail-preview-only'])) {
             protectBranch(component);
@@ -4255,8 +4448,7 @@ export function protectMailSystemComponents(editor, { imgOverlapProfile = null }
         }
         if (attributes['data-rt-layer-train'] !== undefined
             || classes.includes('rt-sign-train-layer')) {
-            component.set?.({
-                traits: componentUsesFlowSafeSignatureTrain(component) || componentUsesImgOverlapSignature(component) ? [] : [
+            setTraits(component, componentUsesFlowSafeSignatureTrain(component) || componentUsesImgOverlapSignature(component) ? [] : [
                     {
                         type: 'select',
                         name: 'data-rt-layer-align',
@@ -4292,8 +4484,7 @@ export function protectMailSystemComponents(editor, { imgOverlapProfile = null }
                             { id: 'right', name: 'Rechts' },
                         ],
                     },
-                ],
-            }, { silent: true });
+            ]);
             synchronizeMailSignatureFlowGeometry(component);
             synchronizeMailTrainLayerAlignment(component);
             component.set?.({ stylable: false, selectable: true, layerable: true }, { silent: true });
@@ -4847,6 +5038,10 @@ export async function createMailBuilder({
 
     const editor = instance.editor;
     const projectLoadGuard = installMailProjectLoadGuard(editor);
+    const detachCtaPaddingSync = installMailCtaPaddingSync(editor, {
+        isLoading: () => projectLoadGuard.isLoading(),
+        readOnly,
+    });
     const refreshResponsiveCanvas = () => {
         canvasCss = mailCanvasStyles(activeTheme, previewAssets,
             responsiveCssForTheme(activeTheme, editor.Canvas?.getDocument?.()), previewThemeValues);
@@ -5194,6 +5389,7 @@ export async function createMailBuilder({
             assistantAdapter?.destroy();
             assistantAdapter = null;
             detachTypographyFocus();
+            detachCtaPaddingSync();
             editorChrome.destroy();
             editor.off?.('component:add', onComponentAdd);
             editor.off?.('component:update', onComponentUpdate);

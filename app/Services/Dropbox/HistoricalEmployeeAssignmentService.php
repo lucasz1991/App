@@ -42,7 +42,7 @@ class HistoricalEmployeeAssignmentService
             }
             $past = CarbonImmutable::instance($shift->ends_at)->lte(CarbonImmutable::now());
             $eligible = ! $cancelled && ($record->metadata['imported_order'] ?? false) && $past
-                && (($historical && app(HistoricalImportCompletion::class)->confirmedPast($connection, CarbonImmutable::instance($shift->ends_at)))
+                && (($historical && app(HistoricalImportCompletion::class)->canComplete($record, $shift, $connection))
                     || $shift->status === ShiftStatus::Completed)
                 && $shift->status !== ShiftStatus::Cancelled && $person?->role === 'staff';
             if ($previous && $previous->status !== ShiftAssignmentStatus::Reported

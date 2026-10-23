@@ -12,13 +12,13 @@
 @php
 
 $modeClasses = match ($mode) {
-    'primary', 'blue' => ' text-white dark:text-white bg-rt-red hover:bg-rt-red-dark focus:ring-rt-red/40 border-rt-red',
+    'primary', 'blue' => ' text-white dark:text-white bg-rt-red hover:bg-rt-red-dark focus:ring-white/80 border-rt-red',
     'basic', 'secondary', 'light', 'white' => ' text-rt-text dark:text-white bg-rt-surface dark:bg-rt-dark-surface hover:bg-rt-surface-muted dark:hover:bg-rt-dark-surface-muted focus:ring-rt-accent/40 border-rt-border dark:border-rt-dark-border',
-    'danger' => ' text-white dark:text-white bg-red-600 hover:bg-red-700 focus:ring-red-300 border-red-600',
-    'success' => ' text-white dark:text-white bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-300 border-emerald-600',
-    'warning' => ' text-slate-950 bg-amber-400 hover:bg-amber-500 focus:ring-amber-300 border-amber-400',
-    'info' => ' text-white dark:text-white bg-sky-600 hover:bg-sky-700 focus:ring-sky-300 border-sky-600',
-    'dark' => ' text-white dark:text-white bg-slate-800 hover:bg-slate-900 focus:ring-slate-700 border-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 dark:border-slate-600',
+    'danger' => ' text-white dark:text-white bg-red-600 hover:bg-red-700 focus:ring-white/80 border-red-600',
+    'success' => ' text-white dark:text-white bg-emerald-600 hover:bg-emerald-700 focus:ring-white/80 border-emerald-600',
+    'warning' => ' text-slate-950 bg-amber-400 hover:bg-amber-500 focus:ring-slate-950/70 border-amber-400',
+    'info' => ' text-white dark:text-white bg-sky-600 hover:bg-sky-700 focus:ring-white/80 border-sky-600',
+    'dark' => ' text-white dark:text-white bg-slate-800 hover:bg-slate-900 focus:ring-white/80 border-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 dark:border-slate-600',
     'link' => ' text-rt-red dark:text-rt-dark-accent bg-transparent hover:bg-rt-red/10 dark:hover:bg-rt-dark-accent-soft focus:ring-rt-red/30 border-transparent',
 };
 
@@ -46,7 +46,7 @@ $isDeniedByCan = ! $isAllowed;
 $isDisabled = isset($attributes['disabled']) || $isDeniedByCan;
 
 $classes = 'rt-ui-button rt-ui-button-' . $themeVariant . ' ' . $modeClasses . ' ' . $sizeClasses;
-$classes .= ' transition-all duration-300 ease-rt-spring inline-flex items-center justify-center gap-2 text-center font-semibold leading-none border rounded-lg shadow-rt-xs active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-slate-900 disabled:opacity-50 [&>i]:shrink-0 [&>i]:leading-none [&>svg]:h-[1em] [&>svg]:w-[1em] [&>svg]:shrink-0';
+$classes .= ' transition-all duration-300 ease-rt-spring inline-flex items-center justify-center gap-2 text-center font-semibold leading-none border rounded-lg shadow-rt-xs active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-offset-0 disabled:opacity-50 [&>i]:shrink-0 [&>i]:leading-none [&>svg]:h-[1em] [&>svg]:w-[1em] [&>svg]:shrink-0';
 
 if ($mode === 'primary' || $mode === 'blue') {
     $classes .= ' hover:shadow-rt-glow hover:-translate-y-px';

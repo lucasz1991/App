@@ -30,6 +30,9 @@ export const MAIL_PERSON_CATEGORY = 'RailTime Personendaten';
 /** Erkennungsmerkmal aller Bloecke dieses Moduls (steuert die Leinwand-Stile). */
 export const MAIL_BLOCK_ATTRIBUTE = 'data-rt-mail-block';
 
+/** Dauerhafte Bindung nur fuer neu eingefuegte CTA-Bloecke. */
+export const MAIL_CTA_CLASS = 'rt-mail-cta';
+
 /**
  * Vorschaupalette der Leinwand.
  *
@@ -324,18 +327,19 @@ export function createMailBlocks({
             definition: {
                 label: 'Schaltfläche',
                 category: MAIL_STRUCTURE_CATEGORY,
-                // Die Flaeche ist eine Tabellenzelle, nicht das a-Element:
-                // Outlook ignoriert padding auf Inline-Elementen, der Knopf
-                // waere dort nur so gross wie sein Text. Die aeussere
+                // Der Link behaelt sein Padding und damit die volle moderne
+                // Klickflaeche. Word erhaelt dasselbe Padding ausschliesslich
+                // als mso-padding-alt auf der Zelle (am Link explizit 0).
+                // Normales Zellpadding wuerde die Abstaende verdoppeln. Die aeussere
                 // Knopftabelle traegt bewusst KEIN align — align="left" auf
                 // einer Tabelle laesst sie floaten (vendor/mail/html/button.blade.php).
                 content: shell(
                     '<td class="rt-pad" align="left" style="padding:8px 46px 26px;text-align:left;">'
-                    + `<table role="presentation" border="0" cellspacing="0" cellpadding="0" ${MAIL_BLOCK_ATTRIBUTE}="button"`
+                    + `<table class="${MAIL_CTA_CLASS}" role="presentation" border="0" cellspacing="0" cellpadding="0" ${MAIL_BLOCK_ATTRIBUTE}="button"`
                     + ' style="border-collapse:collapse;">'
-                    + `<tr><td bgcolor="${ACCENT}" align="center" style="background:${ACCENT};border-radius:4px;text-align:center;">`
+                    + `<tr><td bgcolor="${ACCENT}" align="center" style="background:${ACCENT};border-radius:4px;text-align:center;mso-padding-alt:16px 26px 16px 26px;">`
                     + `<a href="${htmlEscape(ctaUrl)}" target="_blank"`
-                    + ` style="display:inline-block;padding:16px 26px;color:#ffffff;font-family:${FONT_STACK};font-size:13px;line-height:18px;font-weight:bold;letter-spacing:.6px;text-decoration:none;text-transform:uppercase;">`
+                    + ` style="display:inline-block;padding:16px 26px;mso-padding-alt:0px;color:#ffffff;font-family:${FONT_STACK};font-size:13px;line-height:18px;font-weight:bold;letter-spacing:.6px;text-decoration:none;text-transform:uppercase;">`
                     + `${htmlEscape(ctaLabel)} &nbsp;&rarr;</a>`
                     + '</td></tr></table>'
                     + '</td>',

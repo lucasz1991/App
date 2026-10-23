@@ -50,6 +50,7 @@ class FileSynchronizer
         $source->rev = $rev;
         $parsed = $connection->isLocalImport() && $prepared !== null ? $prepared : app(WorkbookReader::class)->read($download['bytes'], $source->profile);
         $parsed = app(WeeklyAvailability::class)->contextualize($parsed, $source);
+        $parsed = app(PlanningEmployeeEvidence::class)->annotate($connection, $parsed);
         app(WeeklyAvailability::class)->ignoreGroups($source, $parsed, $preview);
         $summary = ['rows' => count($parsed['rows']), 'imported' => 0, 'exported' => 0, 'conflicts' => 0, 'new' => 0, 'preview' => $preview];
         $issueKeys = array_map(fn ($i) => ($i['reason'] ?? '').':'.($i['sheet'] ?? '').':'.($i['row'] ?? ''), $parsed['issues']);
@@ -212,7 +213,7 @@ class FileSynchronizer
             $summary['new']++;
             $subject = $entry['locator']['subject'] ?? $entry['values']['employee'] ?? '';
             if ($subject !== '') {
-                $this->domain->identity($connection, $subject, ($entry['locator']['kind'] ?? '') === 'provider' ? 'provider' : 'unresolved');
+                $this->domain->identity($connection, $subject, ($entry['locator']['kind'] ?? '') === 'provider' ? 'provider' : 'unresolved', historical: $entry['domain'] === 'planning');
             }
             if ($preview) {
                 continue;
@@ -224,14 +225,23 @@ class FileSynchronizer
                     if ($occupied) {
                         throw ValidationException::withMessages(['sync' => 'Zeile enthält andere Einsatzdaten als bisher. Vor einer Neuanlage die Zuordnung prüfen.']);
                     }
-                    $related = $this->related($connection, $source, $entry);
+                    $createEntry = $entry;
+                    $evidence = in_array('assignments', $connection->option('domains'), true) ? ($entry['locator']['employee_evidence'] ?? null) : null;
+                    if ($evidence && trim($entry['values']['employee'] ?? '') === '') {
+                        $createEntry['values']['employee'] = $evidence['label'];
+                    }
+                    $related = $this->related($connection, $source, $createEntry);
                     $baseline = $entry['values'];
                     if ($related) {
                         $values = $this->domain->current($related);
                         $baseline = app(InitialCopyBaseline::class)->forCopy($values, $entry['values'], DropboxAppearance::where('record_id', $related->id)->get(), $entry['domain']);
                         $record = $related;
                     } else {
-                        $record = $this->domain->create($connection, $entry);
+                        $record = $this->domain->create($connection, $createEntry);
+                        if ($evidence) {
+                            $record->metadata = [...($record->metadata ?? []), 'employee_evidence' => $evidence];
+                            $record->save();
+                        }
                     }
                     $collision = DropboxAppearance::where('source_id', $source->id)->where('sheet', $entry['sheet'])->where('slot', $entry['slot'])->first();
                     if ($collision) {
@@ -265,8 +275,7 @@ class FileSynchronizer
                         Order::lockForUpdate()->findOrFail($shift->order_id);
                     }
                     if (! $preview) {
-                        app(HistoricalImportCompletion::class)->apply($record, User::findOrFail(1));
-                        $this->domain->reconcileNative($connection, $record);
+                        $this->domain->reconcileNative($connection, $record, false);
                     }
                     $local = $this->domain->current($record);
                     $versions = $rows->map(fn ($b) => ['baseline' => $b['appearance']->baseline, 'excel' => $b['entry']['values'], 'origin' => $b['entry']['sheet'].'!'.$b['entry']['slot']])->all();
@@ -283,8 +292,25 @@ class FileSynchronizer
                         }
                     }
                     $incoming = $merge['values'];
+                    if (! $preview && $record->domain === 'planning' && trim($incoming['employee'] ?? '') === ''
+                        && (trim($local['employee'] ?? '') !== '' || $rows->contains(fn ($b) => trim($b['appearance']->baseline['employee'] ?? '') !== ''))) {
+                        // Preserve an accepted Excel or app removal across later unchanged scans.
+                        $record->metadata = [...($record->metadata ?? []), 'employee_evidence_suppressed' => true];
+                        $record->save();
+                    }
                     if (! in_array('assignments', $connection->option('domains'), true)) {
                         $incoming['employee'] = $local['employee'] ?? '';
+                    } elseif ($record->domain === 'planning' && ! isset($record->metadata['employee_evidence']) && ! ($record->metadata['employee_evidence_suppressed'] ?? false)
+                        && trim($incoming['employee'] ?? '') === '' && trim($local['employee'] ?? '') === ''
+                        && $rows->every(fn ($b) => trim($b['appearance']->baseline['employee'] ?? '') === '')) {
+                        $evidence = $rows->pluck('entry.locator.employee_evidence')->filter()->unique('user_id');
+                        if ($evidence->count() === 1) {
+                            $incoming['employee'] = $evidence->first()['label'];
+                            if (! $preview) {
+                                $record->metadata = [...($record->metadata ?? []), 'employee_evidence' => $evidence->first()];
+                                $record->save();
+                            }
+                        }
                     }
                     // An Excel flag can never publish a schedule.
                     if ($record->domain === 'planning') {
@@ -293,6 +319,12 @@ class FileSynchronizer
                     $changed = $incoming !== $local;
                     if (($changed || ($record->metadata['assignment_pending'] ?? false)) && ! $preview) {
                         $this->domain->apply($connection, $record, $incoming);
+                    }
+                    if (! $preview) {
+                        // Classify the accepted schedule, never the old date before a
+                        // merge that may move this shift into the future or conflict.
+                        app(HistoricalImportCompletion::class)->apply($record, User::findOrFail(1));
+                        $this->domain->reconcileNative($connection, $record);
                     }
                     $target = $preview ? $incoming : $this->domain->current($record);
                     $retired = [];
@@ -533,12 +565,24 @@ class FileSynchronizer
 
             return $fact ? DropboxRecord::where('connection_id', $connection->id)->where('model_type', 'EmployeeCompetencyFact')->where('model_id', $fact->id)->first() : null;
         }
-        $matches = DropboxAppearance::where('identity_hash', WorkbookReader::identityHash($entry['values']))->whereIn('record_id', DropboxRecord::where('connection_id', $connection->id)->where('domain', 'planning')->select('id'))->get()->filter(function ($a) use ($entry, $source) {
+        $matches = DropboxAppearance::where(function ($query) use ($entry, $source) {
+            $query->where('identity_hash', WorkbookReader::identityHash($entry['values']));
+            if (trim($entry['values']['employee'] ?? '') !== '') {
+                $query->orWhere(fn ($q) => $q->where('source_id', $source->id)->where('locator->employee_evidence->label', $entry['values']['employee']));
+            }
+        })->whereIn('record_id', DropboxRecord::where('connection_id', $connection->id)->where('domain', 'planning')->select('id'))->get()->filter(function ($a) use ($entry, $source) {
             if (($entry['locator']['master'] ?? false) && $a->source_id === $source->id && ($a->locator['master'] ?? false)) {
                 return false;
             }
+            $known = $a->last_excel;
+            if (trim($known['employee'] ?? '') === '' && isset($a->locator['employee_evidence'])) {
+                $record = DropboxRecord::find($a->record_id);
+                if ($record && ($record->metadata['employee_evidence']['user_id'] ?? null) === ($a->locator['employee_evidence']['user_id'] ?? null)) {
+                    $known['employee'] = $this->domain->current($record)['employee'] ?? '';
+                }
+            }
             foreach (['date', 'starts', 'ends', 'employee', 'train_reference', 'location', 'customer', 'role'] as $key) {
-                if (($a->last_excel[$key] ?? '') !== ($entry['values'][$key] ?? '')) {
+                if (($known[$key] ?? '') !== ($entry['values'][$key] ?? '')) {
                     return false;
                 }
             }

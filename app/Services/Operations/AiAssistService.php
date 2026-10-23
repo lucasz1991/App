@@ -521,13 +521,21 @@ class AiAssistService
             return ['lead' => $lead, 'card' => ['icon' => 'fa-sparkles', 'title' => 'Besetzungsvorschlag', 'rows' => [], 'note' => 'Partneranfrage oder Planungswerkzeuge unter Ressourcen & Kapazität prüfen.',
                 'buttons' => [['label' => 'Schichtplan öffnen', 'href' => $this->shiftPlanUrl($context), 'primary' => true]]]];
         }
+        $weekStart = CarbonImmutable::now((string) config('operations.display_timezone', 'Europe/Berlin'))->startOfWeek(CarbonImmutable::MONDAY);
+        $isCurrentWeek = $context['from'] === $weekStart->toDateString()
+            && $context['until'] === $weekStart->endOfWeek(CarbonImmutable::SUNDAY)->toDateString();
 
         return ['lead' => $lead, 'card' => [
             'icon' => 'fa-sparkles', 'title' => 'Besetzungsvorschlag',
+            'presentation' => 'staffing',
+            'display_title' => $isCurrentWeek ? 'Diese Woche' : 'Besetzungsvorschläge',
+            'subtitle' => $this->period($context),
             'rows' => $proposals->map(fn (array $proposal) => [
                 'label' => $proposal['shift']->title.' · '.$this->when($proposal['shift']),
+                'heading' => $proposal['shift']->title, 'detail' => $this->when($proposal['shift']),
                 'value' => $proposal['user']->name, 'small' => $proposal['fit_label'], 'why' => array_values($proposal['reasons']),
             ])->values()->all(),
+            'summary_note' => 'Übernahme als „Angefragt“',
             'note' => 'Übernommene Vorschläge werden als **Angefragt** eingeteilt. Jede Einteilung wird vorher erneut gegen Konflikte und Revision geprüft und lässt sich hier zurücknehmen.',
             'buttons' => [
                 ['label' => 'Im Schichtplan prüfen', 'href' => $this->shiftPlanUrl($context)],

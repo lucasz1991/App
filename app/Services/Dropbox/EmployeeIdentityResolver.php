@@ -11,7 +11,7 @@ use Illuminate\Support\Str;
 class EmployeeIdentityResolver
 {
     /** Match existing personal accounts only; never provision or merge people from a free-text label. */
-    public function resolve(DropboxConnection $connection, DropboxIdentity $identity): DropboxIdentity
+    public function resolve(DropboxConnection $connection, DropboxIdentity $identity, bool $historical = false): DropboxIdentity
     {
         if ((int) $identity->connection_id !== (int) $connection->id || $identity->user_id || ! in_array($identity->kind, ['unresolved', 'employee'], true)) {
             return $identity;
@@ -21,7 +21,7 @@ class EmployeeIdentityResolver
         if (! $key) {
             return $identity;
         }
-        $matches = User::where('role', 'staff')->where('status', true)->with('profile')->get()->filter(function (User $user) use ($key) {
+        $matches = User::where('role', 'staff')->when(! $historical, fn ($query) => $query->where('status', true))->with('profile')->get()->filter(function (User $user) use ($key) {
             $names = [$user->name];
             $parts = preg_split('/\s+/u', trim($user->name));
             if (count($parts) === 2) {
@@ -39,10 +39,10 @@ class EmployeeIdentityResolver
         }
         $user = $matches->first();
 
-        return SyncContext::import(fn () => DB::transaction(function () use ($identity, $user) {
+        return SyncContext::import(fn () => DB::transaction(function () use ($identity, $user, $historical) {
             $fresh = DropboxIdentity::lockForUpdate()->findOrFail($identity->id);
             $currentUser = $user->fresh();
-            if (! $fresh->user_id && in_array($fresh->kind, ['unresolved', 'employee'], true) && $currentUser?->status && $currentUser?->role === 'staff') {
+            if (! $fresh->user_id && in_array($fresh->kind, ['unresolved', 'employee'], true) && ($currentUser?->status || $historical) && $currentUser?->role === 'staff') {
                 $fresh->fill(['kind' => 'employee', 'user_id' => $user->id, 'revision' => $fresh->revision + 1])->save();
             }
 

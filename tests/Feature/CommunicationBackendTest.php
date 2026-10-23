@@ -258,6 +258,11 @@ class CommunicationBackendTest extends TestCase
         [$host, $guest] = $this->chat();
         $meeting = $this->plan($host, $guest);
         Livewire::actingAs($guest)->test(Meetings::class, ['embedded' => true])
+            ->assertSeeHtml('rt-floating-toolbar')
+            ->assertSeeHtml('data-floating-search')
+            ->assertSeeHtml('wire:model.live.debounce.300ms="search"')
+            ->assertSeeHtml('role="menuitemradio"')
+            ->assertSeeHtml('wire:click="$set(\'filter\', \'past\')"')
             ->assertSee($meeting->title)->call('openMeeting', $meeting->id)
             ->assertSet('pane', 'details')->call('respond', $meeting->id, 'accepted')
             ->assertNoRedirect()->assertNotDispatched('communication:call');

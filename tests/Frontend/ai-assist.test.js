@@ -15,7 +15,14 @@ afterEach(() => {
 
 function fixture(options = {}) {
     const events = options.events || [];
-    globalThis.window = { dispatchEvent: event => events.push(event), innerWidth: options.width || 1280, localStorage: { getItem: () => null }, sessionStorage: { getItem: () => '1', setItem() {} } };
+    const listeners = new Map();
+    globalThis.window = {
+        dispatchEvent(event) { events.push(event); listeners.get(event.type)?.forEach(handler => handler(event)); },
+        addEventListener(name, handler) { if (!listeners.has(name)) listeners.set(name, new Set()); listeners.get(name).add(handler); },
+        removeEventListener(name, handler) { listeners.get(name)?.delete(handler); },
+        listenerCount: name => listeners.get(name)?.size || 0,
+        innerWidth: options.width || 1280, localStorage: { getItem: () => null }, sessionStorage: { getItem: () => '1', setItem() {} },
+    };
     const component = aiAssist(options);
     Object.assign(component, {
         $wire: { load: async () => {}, ask: async () => {}, run: async () => {} },
@@ -120,6 +127,37 @@ test('opening dispatches the assistant corner and mobile state for surface coord
     const opened = events.find(event => event.type === 'rt-floating-surface-opened');
     assert.deepEqual(opened.detail, { surface: 'assist', corner: 'top-left', mobile: false });
     component.toggle(false);
+});
+
+test('opening the sidebar closes Assist in every display mode without stealing focus or losing its draft', () => {
+    const events = [], component = fixture({ events });
+    let launcherFocus = 0;
+    component.$refs.launcher.focus = () => launcherFocus++;
+    component.text = 'Ungesendeter Entwurf';
+    component.corner = 'top-left';
+    for (const width of [1280, 390]) {
+        globalThis.window.innerWidth = width;
+        for (const mode of ['mini', 'fullscreen']) {
+            component.mode = mode;
+            component.toggle(true, { load: false });
+            component.settingsOpen = true;
+            const activeMode = component.mode;
+            globalThis.window.dispatchEvent(new CustomEvent('railtime-sidebar-opened'));
+            assert.equal(component.open, false);
+            assert.equal(component.settingsOpen, false);
+            assert.equal(component.text, 'Ungesendeter Entwurf');
+            assert.equal(component.mode, activeMode);
+            assert.equal(component.corner, 'top-left');
+            assert.equal(launcherFocus, 0, 'focus stays in the opening sidebar');
+        }
+    }
+    assert.equal(events.filter(event => event.type === 'ai-intake-panel-hidden').length, 4, 'each close releases capture controls');
+    component.toggle(true, { load: false });
+    component.toggle(false);
+    assert.equal(launcherFocus, 1, 'an explicit close still returns focus to the launcher');
+    assert.equal(globalThis.window.listenerCount('railtime-sidebar-opened'), 1);
+    component.destroy();
+    assert.equal(globalThis.window.listenerCount('railtime-sidebar-opened'), 0, 'navigation removes the listener');
 });
 
 test('busy admission prevents duplicate calls and rejected submit restores its exact draft', async () => {

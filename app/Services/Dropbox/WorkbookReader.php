@@ -378,6 +378,7 @@ class WorkbookReader
 
         return [
             'sheets_total' => count($package->sheets()),
+            'embedded_images' => $package->embeddedImageCount(),
             'sheets_recognized' => count($sheets),
             'ignored_sheets' => array_values(array_map(fn ($name) => ['sheet' => $name, 'reason' => 'unsupported_layout'], array_diff(array_keys($package->sheets()), array_keys($sheets)))),
             'by_domain' => $domains,

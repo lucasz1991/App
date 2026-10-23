@@ -35,6 +35,21 @@ class AiAssistTest extends TestCase
 {
     use BuildsMinimalRailTimeSchema;
 
+    public function test_only_existing_tab_toolbars_are_used_and_conversation_reset_stays_in_header(): void
+    {
+        $component = Livewire::actingAs($this->manager)->test(AiAssist::class, ['page' => 'cases', 'view' => 'inbox']);
+        $component->assertDontSeeHtml('role="toolbar" aria-label="Gespräch"')
+            ->assertSeeHtml('wire:click="resetConversation"');
+        $component->assertSeeHtml('class="rt-ai-assist__icon-btn" type="button" aria-label="Neues Gespräch"');
+        $component->call('setTab', 'actions')->assertDontSeeHtml('role="toolbar" aria-label="Aktionen"');
+        $component->call('setTab', 'activity')->set('activityFilter', 'planning')
+            ->assertSeeHtml('role="toolbar" aria-label="Aktivitäten filtern"')
+            ->assertSeeHtml('aria-label="Aktivitäten filtern: Planung"')
+            ->assertSeeHtml('wire:click="$set(\'activityFilter\', \'planning\')"');
+        $component->call('setTab', 'chat')->call('setTab', 'activity')
+            ->assertSet('activityFilter', 'planning')->assertSeeHtml('aria-label="Aktivitäten filtern: Planung"');
+    }
+
     private User $root;
 
     private User $manager;
@@ -189,8 +204,6 @@ class AiAssistTest extends TestCase
         $this->assertStringNotContainsString('!border-0', $html);
         $this->assertStringContainsString('background-color: var(--ai-bg, var(--rt-shell-surface-solid, #fff))', $styles);
         $this->assertStringContainsString('border-radius: 18px;', $styles);
-        $this->assertStringContainsString(".rt-ai-assist__hint-dropdown[data-placement='right'] .rt-ui-dropdown-caret { transform: translate(calc(-100% + 2px), -50%) rotate(-90deg); }", $styles);
-        $this->assertStringContainsString(".rt-ai-assist__hint-dropdown[data-placement='left'] .rt-ui-dropdown-caret { transform: translate(calc(100% - 2px), -50%) rotate(90deg); }", $styles);
         $this->assertStringContainsString('.rt-ai-assist__hint-dropdown.rt-motion-pop-leave { transition: none !important; }', $styles);
         $this->assertStringContainsString("body[data-mode='dark'] .rt-viewport-dropdown .rt-ai-assist__orb-hint", $styles);
     }

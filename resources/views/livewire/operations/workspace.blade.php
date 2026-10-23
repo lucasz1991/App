@@ -9,7 +9,7 @@
     @elseif($module === 'orders')<livewire:admin.operations.orders />
     @elseif($module === 'customers')<livewire:admin.operations.customers />
     @elseif($module === 'customer-portal')<livewire:operations.customer-portal-management :tab="$initialTab ?: 'access'" />
-    @elseif($module === 'calendar')<livewire:admin.operations.calendar />
+    @elseif($module === 'calendar')<livewire:admin.operations.calendar :viewport="true" />
     @elseif($module === 'workforce-accounts')<livewire:operations.workforce-accounts />
     @elseif($module === 'personnel-processes')<livewire:operations.personnel-processes />
     @elseif($module === 'workforce-planning')<livewire:operations.workforce-planning />

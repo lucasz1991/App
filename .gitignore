@@ -28,6 +28,8 @@ Homestead.json
 !/tests/Feature/
 /tests/Feature/*
 !/tests/Feature/OperationsPageNavigationTest.php
+!/tests/Feature/AiAssistResponseDataTest.php
+!/tests/Feature/AiAssistResponseRenderingTest.php
 !/tests/Feature/NavigationHubRecoveryTest.php
 !/tests/Feature/PlanningTopbarNavigationTest.php
 !/tests/Feature/OperationsPageIntegrationTest.php
@@ -143,6 +145,8 @@ Homestead.json
 !/tests/Frontend/welcome-intro.test.js
 !/tests/Frontend/system-health.test.js
 !/tests/Frontend/mail-builder.test.js
+!/tests/Frontend/mail-formatting-contract.test.js
+!/tests/Frontend/mail-editor-build.test.js
 !/tests/Frontend/mail-signature-reply-forward.test.js
 !/tests/Frontend/mail-signature-mirrored-table-overlap.test.js
 !/tests/Fixtures/

@@ -1,8 +1,9 @@
-<div class="ai-intake-panel__filters rt-floating-toolbar" role="search" aria-label="AI-Eingänge filtern">
+<x-ui.floating.toolbar label="AI-Eingänge filtern" search>
     <x-ui.forms.search context="floating" :id="'ai-intake-search-'.$this->getId()" wire:model.live.debounce.300ms="search" maxlength="100" placeholder="Eingänge suchen" :status="$intakes->total()" :status-label="$intakes->total().' '.($intakes->total() === 1 ? 'Eingang' : 'Eingänge')" />
+    <x-slot:actions>
     <x-ui.dropdown.anchor-dropdown align="right" width="64" :offset="6" :dropdown-id="'ai-intake-status-'.$this->getId()" layer-group="ai-intake-controls" content-label="Bearbeitungsstand">
         <x-slot:trigger>
-            <button type="button" class="ai-intake-panel__filter-trigger" aria-haspopup="menu" aria-label="AI-Eingänge filtern: {{ $labels[$statusFilter] ?? 'Alle Zustände' }}" title="AI-Eingänge filtern"><i class="far fa-sliders-h" aria-hidden="true"></i></button>
+            <button type="button" class="rt-floating-toolbar__button" aria-haspopup="menu" aria-label="AI-Eingänge filtern: {{ $labels[$statusFilter] ?? 'Alle Zustände' }}" title="AI-Eingänge filtern"><i class="far fa-sliders-h" aria-hidden="true"></i></button>
         </x-slot:trigger>
         <x-slot:content>
             @foreach(['all' => 'Alle Zustände', ...$labels] as $value => $label)
@@ -13,8 +14,9 @@
             @endforeach
         </x-slot:content>
     </x-ui.dropdown.anchor-dropdown>
-    <button type="button" class="ai-intake-panel__new" wire:click="openCapture" aria-label="Eingang erfassen" title="Eingang erfassen"><i class="far fa-plus" aria-hidden="true"></i></button>
-</div>
+    <button type="button" class="rt-floating-toolbar__button" wire:click="openCapture" aria-label="Eingang erfassen" title="Eingang erfassen"><i class="far fa-plus" aria-hidden="true"></i></button>
+    </x-slot:actions>
+</x-ui.floating.toolbar>
 <div class="ai-intake-panel__list" x-ref="intakeList">
     @if($intakes->isEmpty())
         <p class="ops-muted" role="status">Noch keine AI-Eingänge für diese Auswahl.</p>

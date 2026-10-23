@@ -88,6 +88,29 @@ class WorkbookPackage
         return $sheets;
     }
 
+    /** Count embedded image assets, without treating their pixels as parsed cells. */
+    public function embeddedImageCount(): int
+    {
+        $defaults = [];
+        $overrides = [];
+        foreach ($this->xml('[Content_Types].xml')->documentElement->childNodes as $type) {
+            if (! $type instanceof DOMElement) {
+                continue;
+            }
+            if ($type->localName === 'Default') {
+                $defaults[strtolower($type->getAttribute('Extension'))] = $type->getAttribute('ContentType');
+            } elseif ($type->localName === 'Override') {
+                $overrides[ltrim($type->getAttribute('PartName'), '/')] = $type->getAttribute('ContentType');
+            }
+        }
+
+        return count(array_filter(array_keys($this->parts), function ($part) use ($defaults, $overrides) {
+            $type = $overrides[$part] ?? $defaults[strtolower(pathinfo($part, PATHINFO_EXTENSION))] ?? '';
+
+            return str_starts_with($part, 'xl/media/') && str_starts_with(strtolower($type), 'image/');
+        }));
+    }
+
     public function planningSheets(): array
     {
         $strings = [];

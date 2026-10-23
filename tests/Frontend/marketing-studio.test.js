@@ -2757,6 +2757,7 @@ test('pausing a normal GIF never replaces its persisted source when image proper
     element.setAttribute('src', source);
     const selected = coreFakeComponent(element, {
         type: 'image',
+        src: source,
         attributes: { src: source, alt: 'Animation', 'data-mime-type': 'image/gif' },
     });
     const editor = coreFakeEditor(root, selected);
@@ -2779,6 +2780,146 @@ test('pausing a normal GIF never replaces its persisted source when image proper
     assert.equal(selected.state.attributes.title, 'Animiertes Motiv');
     assert.equal(selected.state.attributes.width, '480');
     assert.equal(selected.state.style.height, 'auto');
+    chrome.destroy();
+}));
+
+const mailImageSourceInspectorMarkup = `
+    <div id="root"><div class="lmz-builder__topbar"><button data-lmz-action="assets">Medien</button></div>
+    <div class="lmz-builder__viewport">
+        <section data-lmz-popover-panel="right:traits"><div><div data-lmz-mount="traits"></div></div></section>
+        <div data-tools><div data-toolbar></div></div></div></div>`;
+
+test('mail image source input immediately rejects unregistered bindings and writes the exact registered source', () => coreWithDom(mailImageSourceInspectorMarkup, ({ document, window }) => {
+    const original = 'https://historical.example/old.png';
+    const registered = { src: 'https://railtime.test/mail-assets/example.png?v=approved', type: 'image', mime_type: 'image/png' };
+    const selected = coreFakeComponent(document.createElement('img'), { type: 'image', src: original, attributes: { src: original } });
+    const root = document.querySelector('#root');
+    const editor = coreFakeEditor(root, selected);
+    const assets = [registered];
+    const chrome = createLmzEditorChrome({ instance: { editor }, root, mode: 'mail', media: { assets: () => assets, baseUrl: 'https://railtime.test/' } });
+    const inspector = root.querySelector('.rt-lmz-image-properties');
+    const source = inspector.querySelector('[name="source"]');
+    const message = inspector.querySelector('[data-rt-lmz-image-message]');
+    const form = inspector.querySelector('form');
+    const input = (value) => {
+        source.value = value;
+        source.dispatchEvent(new window.Event('input', { bubbles: true }));
+    };
+    const submit = () => form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    let focused = false;
+    source.focus = () => { focused = true; };
+    assert.equal(source.readOnly, false);
+    assert.ok(source.getAttribute('aria-describedby').split(' ').includes(message.id));
+    assert.equal(message.getAttribute('aria-live'), 'polite');
+
+    for (const invalid of [
+        '', 'https://evil.example/pixel.png', 'cid:arbitrary', '{{UNKNOWN_IMAGE}}', '{{LOGO_SRC}}',
+        'data:image/png;base64,bm90LWFuLWltYWdl', '/mail-assets/example.png?v=other',
+        '//railtime.test/mail-assets/example.png?v=approved', 'javascript:alert(1)',
+    ]) {
+        input(invalid);
+        assert.equal(source.getAttribute('aria-invalid'), 'true', invalid);
+        assert.match(message.textContent, /freigegebenes Bild/);
+        submit();
+        assert.equal(selected.state.attributes.src, original, invalid);
+        assert.equal(selected.state.src, original, invalid);
+    }
+    assert.equal(focused, true);
+
+    input('/mail-assets/example.png?v=approved');
+    assert.equal(source.hasAttribute('aria-invalid'), false);
+    assert.equal(message.textContent, '');
+    // A library change after input validation must still be respected at apply.
+    assets.splice(0);
+    submit();
+    assert.equal(source.getAttribute('aria-invalid'), 'true');
+    assert.equal(selected.state.attributes.src, original);
+    assets.push(registered);
+    input('/mail-assets/example.png?v=approved');
+    submit();
+    assert.equal(selected.state.src, registered.src);
+    assert.equal(selected.state.attributes.src, registered.src);
+    assert.equal(source.value, registered.src);
+    chrome.destroy();
+}));
+
+test('mail image presentation edits retain historical bindings without a source mutation or replacement capability', () => coreWithDom(mailImageSourceInspectorMarkup, ({ document, window }) => {
+    for (const original of ['https://historical.example/image.png', 'cid:historical-logo', '{{HISTORICAL_IMAGE}}']) {
+        document.body.innerHTML = mailImageSourceInspectorMarkup;
+        const root = document.querySelector('#root');
+        const selected = coreFakeComponent(document.createElement('img'), { type: 'image', src: original, attributes: { src: original, alt: 'Alt' } });
+        const editor = coreFakeEditor(root, selected);
+        let sourceWrites = 0;
+        const set = selected.set;
+        const addAttributes = selected.addAttributes;
+        selected.set = (name, value) => { if (name === 'src') sourceWrites += 1; set(name, value); };
+        selected.addAttributes = (attributes) => { if (Object.hasOwn(attributes, 'src')) sourceWrites += 1; addAttributes(attributes); };
+        const chrome = createLmzEditorChrome({ instance: { editor }, root, mode: 'mail', capabilities: { imageReplace: false }, media: { assets: [{ src: '/mail-assets/approved.png' }] } });
+        const inspector = root.querySelector('.rt-lmz-image-properties');
+        assert.equal(inspector.querySelector('[name="source"]').readOnly, true);
+        assert.equal(inspector.querySelector('[name="source"]').getAttribute('aria-readonly'), 'true');
+        inspector.querySelector('[name="alt"]').value = 'Neuer Alternativtext';
+        inspector.querySelector('[name="width"]').value = '420';
+        inspector.querySelector('[name="alignment"]').querySelectorAll('option').forEach((option) => { option.selected = option.value === 'right'; });
+        inspector.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+        assert.equal(sourceWrites, 0);
+        assert.equal(selected.state.src, original);
+        assert.equal(selected.state.attributes.src, original);
+        assert.equal(selected.state.attributes.alt, 'Neuer Alternativtext');
+        assert.equal(selected.state.attributes.width, '420');
+        assert.equal(selected.state.style.margin, '0 0 0 auto');
+        chrome.destroy();
+    }
+}));
+
+test('mail system preview sources stay readonly and do not block logo presentation edits', () => coreWithDom(mailImageSourceInspectorMarkup, ({ document, window }) => {
+    const root = document.querySelector('#root');
+    const original = 'about:blank';
+    const selected = coreFakeComponent(document.createElement('img'), { type: 'image', src: original, attributes: { src: original, 'data-rt-mail-preview-token': 'LOGO_SRC' } });
+    const editor = coreFakeEditor(root, selected);
+    const chrome = createLmzEditorChrome({ instance: { editor }, root, mode: 'mail', media: { tokenMedia: [{ token: 'LOGO_SRC', src: 'https://preview.example/logo.png' }] } });
+    const inspector = root.querySelector('.rt-lmz-image-properties');
+    const source = inspector.querySelector('[name="source"]');
+    assert.equal(source.readOnly, true);
+    // Even a script changing the readonly field must not rebind a system token.
+    source.value = 'https://evil.example/pixel.png';
+    inspector.querySelector('[name="alt"]').value = 'Firmenlogo';
+    inspector.querySelector('[name="width"]').value = '240';
+    inspector.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    assert.equal(selected.state.src, original);
+    assert.equal(selected.state.attributes.src, original);
+    assert.equal(selected.state.attributes['data-rt-mail-preview-token'], 'LOGO_SRC');
+    assert.equal(selected.state.attributes.alt, 'Firmenlogo');
+    assert.equal(selected.state.attributes.width, '240');
+    assert.equal(source.hasAttribute('aria-invalid'), false);
+    chrome.destroy();
+}));
+
+test('mail library selections use registered query and origin while website selection keeps its original behavior', () => coreWithDom('<img id="mail"><img id="website">', ({ document }) => {
+    const registered = { src: 'https://railtime.test/mail-assets/example.png?v=approved', type: 'image' };
+    for (const mode of ['mail', 'website']) {
+        const target = coreFakeComponent(document.querySelector(`#${mode}`), { type: 'image' });
+        const selection = createImageAssetSelection({ editor: coreFakeEditor(document.body, target), target, assets: [registered], mode, baseUrl: 'https://railtime.test/' });
+        const requested = '/mail-assets/example.png?v=caller';
+        assert.equal(selection.select({ src: requested }, false), mode === 'mail' ? registered.src : requested);
+        assert.equal(target.state.attributes.src, mode === 'mail' ? registered.src : requested);
+    }
+}));
+
+test('website image source inspector keeps its existing local source editing without a mail library', () => coreWithDom(mailImageSourceInspectorMarkup, ({ document, window }) => {
+    const root = document.querySelector('#root');
+    const selected = coreFakeComponent(document.createElement('img'), { type: 'image', src: '/website/old.png', attributes: { src: '/website/old.png' } });
+    const editor = coreFakeEditor(root, selected);
+    const chrome = createLmzEditorChrome({ instance: { editor }, root, mode: 'website' });
+    const inspector = root.querySelector('.rt-lmz-image-properties');
+    const source = inspector.querySelector('[name="source"]');
+    assert.equal(source.readOnly, false);
+    source.value = '/website/new.png?revision=2';
+    source.dispatchEvent(new window.Event('input', { bubbles: true }));
+    inspector.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    assert.equal(selected.state.src, '/website/new.png?revision=2');
+    assert.equal(selected.state.attributes.src, '/website/new.png?revision=2');
+    assert.equal(source.hasAttribute('aria-invalid'), false);
     chrome.destroy();
 }));
 
@@ -3420,6 +3561,49 @@ test('structure actions protect neutral parents around lockup, QR and train desc
     move.dispatchEvent(moveEvent);
     assert.equal(moveEvent.defaultPrevented, true);
 
+    chrome.destroy();
+}));
+
+test('canonical mail application and signature previews protect their row descendants and wrappers from structure actions', () => coreWithDom(`
+    <div id="root"><div class="lmz-builder__topbar"><button data-lmz-action="assets">Medien</button></div>
+    <div class="lmz-builder__viewport"><div data-tools><div data-toolbar>
+        <button data-command="tlb-move">Move</button><button data-command="tlb-clone">Clone</button><button data-command="tlb-delete">Delete</button>
+    </div></div></div></div>
+`, ({ document }) => {
+    const root = document.querySelector('#root');
+    let selected = null;
+    const editor = coreFakeEditor(root, null);
+    editor.getSelected = () => selected;
+    const chrome = createLmzEditorChrome({ instance: { editor }, root, mode: 'mail' });
+    for (const marker of ['application', 'signature']) {
+        const parent = coreFakeComponent(document.createElement('table'));
+        const row = coreFakeComponent(document.createElement('tr'), { parent, attributes: { 'data-rt-mail-preview-only': marker } });
+        const descendant = coreFakeComponent(document.createElement('td'), { parent: row });
+        parent.components([row]);
+        row.components([descendant]);
+        assert.equal(isProtectedEditorStructure(parent), false);
+        assert.equal(isProtectedEditorStructureTree(parent), true);
+        assert.equal(isProtectedEditorStructure(row), true);
+        assert.equal(isProtectedEditorStructure(descendant), true);
+        for (const target of [row, descendant, parent]) {
+            selected = target;
+            editor.emit('component:selected', target);
+            root.querySelector('.rt-lmz-inline-edit-trigger').click();
+            const actions = [...root.querySelectorAll('[data-rt-lmz-inline-action]')].map((action) => action.dataset.rtLmzInlineAction);
+            assert.equal(actions.includes('duplicate'), false, marker);
+            assert.equal(actions.includes('delete'), false, marker);
+            assert.equal(root.querySelector('[data-command="tlb-clone"]').hidden, true);
+            assert.equal(root.querySelector('[data-command="tlb-delete"]').hidden, true);
+        }
+    }
+    selected = coreFakeComponent(document.createElement('p'), { attributes: { 'data-rt-mail-preview-only': 'unrelated' } });
+    selected.set('copyable', false);
+    assert.equal(isProtectedEditorStructureTree(selected), false);
+    editor.emit('component:selected', selected);
+    root.querySelector('.rt-lmz-inline-edit-trigger').click();
+    const normalActions = [...root.querySelectorAll('[data-rt-lmz-inline-action]')].map((action) => action.dataset.rtLmzInlineAction);
+    assert.equal(normalActions.includes('duplicate'), true);
+    assert.equal(normalActions.includes('delete'), true);
     chrome.destroy();
 }));
 

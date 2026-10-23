@@ -3,6 +3,7 @@
     'openState' => 'open', 'modeState' => 'mode', 'cornerState' => 'corner',
     'enabledState' => 'wide', 'layoutAction' => '',
     'sessionKey' => null, 'sessionRestore' => '', 'sessionEnabledState' => 'true',
+    'closeAction' => '', 'coordinationState' => 'true',
     'dragLabel' => 'Fensterposition',
 ])
 
@@ -27,14 +28,6 @@
 .rt-floating-window__header > .rt-floating-window__actions .rt-floating-window__action[aria-expanded='true'],
 .rt-floating-window__header > .rt-floating-window__actions > button[aria-expanded='true'] { background: rgb(255 255 255 / 15%); color: #fff; }
 .rt-floating-window__header .rt-ai-assist__header-dropdown:first-child .rt-floating-window__action { background: transparent; }
-.rt-floating-toolbar { display: flex; flex: none; align-items: center; justify-content: flex-end; gap: 6px; min-width: 0; padding: 6px 12px; border-bottom: 1px solid var(--rt-shell-border, #e1e6ed); background: var(--rt-shell-surface-solid, #fff); }
-.rt-floating-toolbar > [data-floating-search] { flex: none; width: 34px !important; min-width: 34px !important; height: 34px !important; margin-right: auto; border-radius: 9px; }
-.rt-floating-toolbar > [data-floating-search].is-expanded { width: calc(100% - 80px) !important; }
-.rt-floating-toolbar [data-floating-search] .rt-expandable-search__trigger { width: 34px !important; min-width: 34px !important; height: 34px !important; border-radius: 9px !important; box-shadow: none !important; }
-.rt-floating-toolbar [data-floating-search] .rt-expandable-search__input { width: 100%; height: 34px !important; min-height: 34px; padding: 0 34px !important; border: 1px solid var(--rt-shell-border, #e1e6ed); border-radius: 9px !important; background: var(--rt-shell-panel, #f4f7fa); color: var(--rt-shell-text, #182538); font-size: 12px; box-shadow: none !important; }
-.rt-floating-toolbar [data-floating-search] .rt-expandable-search__clear { width: 34px; height: 34px; }
-.rt-floating-toolbar :is(.rt-comm-icon, .ai-intake-panel__filter-trigger, .ai-intake-panel__new) { color: var(--rt-shell-text, #182538); }
-.rt-floating-toolbar button > i { width: 16px; height: 16px; font-size: 14px; line-height: 16px; text-align: center; }
 @media (min-width: 761px) {
     .rt-floating-window:is([data-floating-mode='mini'], [data-floating-mode='fullscreen']) {
         --rt-floating-action-size: 34px; --rt-floating-action-radius: 8px;
@@ -67,6 +60,8 @@ window.rtFloatingWindow = (bindings, panel) => {
         setCorner: value => Alpine.evaluate(panel, bindings.corner+' = rtWindowValue', {scope:{rtWindowValue:value}}),
         sessionEnabled: () => Alpine.evaluate(panel, bindings.sessionEnabled),
         restore: value => Alpine.evaluate(panel, bindings.sessionRestore, {scope:{rtWindowSession:value}}),
+        close: bindings.close ? () => Alpine.evaluate(panel, bindings.close) : null,
+        coordinated: () => Alpine.evaluate(panel, bindings.coordinated),
     } : bindings;
     let animation = null, timer = null, revision = 0, pointer = null, lastLauncherRect = null;
     let settled = null, pending = null, previousLayout = '', previousOpen = false, disposed = false;
@@ -74,6 +69,16 @@ window.rtFloatingWindow = (bindings, panel) => {
     let sessionStore = null, sessionKey = null, sessionMode = 'mini';
     let sessionWide = window.innerWidth > 760;
     const modes = ['mini', 'fullscreen'], corners = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
+    const coordinatesWindows = () => !disposed && panel.id && state.close && state.coordinated?.() !== false;
+    const announceWindow = () => {
+        if (!coordinatesWindows() || !state.opened() || !modes.includes(state.mode())) return;
+        window.dispatchEvent(new CustomEvent('rt-floating-window-activated', {detail:{windowId:panel.id, mode:state.mode()}}));
+    };
+    const receiveWindow = event => {
+        const peer = event.detail;
+        if (!coordinatesWindows() || !state.opened() || !peer?.windowId || peer.windowId === panel.id || !modes.includes(peer.mode)) return;
+        if (peer.mode === 'fullscreen' || state.mode() === 'fullscreen') state.close();
+    };
     const sessionEnabled = () => Boolean(bindings.sessionKey && state.sessionEnabled?.() !== false);
     const readSession = () => {
         if (!sessionEnabled()) return null;
@@ -138,6 +143,7 @@ window.rtFloatingWindow = (bindings, panel) => {
             const saved = readSession();
             if (saved) { sessionMode = saved.mode; state.restore(saved); }
             window.addEventListener('pagehide', saveSession);
+            window.addEventListener('rt-floating-window-activated', receiveWindow);
             media = window.matchMedia('(prefers-reduced-motion: reduce)');
             reduceMotion = () => this.resetWindow();
             media.addEventListener?.('change', reduceMotion);
@@ -155,7 +161,9 @@ window.rtFloatingWindow = (bindings, panel) => {
                 if (visibilityChanged) this.revealWindow(opened);
                 else if (opened && this.windowVisible && layoutChanged) this.layoutWindow();
             });
+            this.$watch(() => [state.opened(), state.mode()].join(':'), announceWindow);
             this.$nextTick(() => {
+                if (state.mode() === 'fullscreen') announceWindow();
                 launcherRect();
                 if (this.windowVisible) settled = sample();
             });
@@ -166,6 +174,7 @@ window.rtFloatingWindow = (bindings, panel) => {
             window.removeEventListener('resize', launcherRect);
             window.removeEventListener('railtime-launcher-side', launcherRect);
             window.removeEventListener('pagehide', saveSession);
+            window.removeEventListener('rt-floating-window-activated', receiveWindow);
         },
         canMoveWindow() { return Boolean(state.opened() && state.enabled() && state.mode() === 'mini' && window.innerWidth > 760); },
         windowDockStyle() {
@@ -341,7 +350,8 @@ else document.addEventListener('alpine:init', registerRailTimeWindow, {once:true
 <section
     x-rt-window="{
         opened: @js($openState), mode: @js($modeState), corner: @js($cornerState), enabled: @js($enabledState), layout: @js($layoutAction),
-        sessionKey: @js($sessionKey), sessionRestore: @js($sessionRestore), sessionEnabled: @js($sessionEnabledState)
+        sessionKey: @js($sessionKey), sessionRestore: @js($sessionRestore), sessionEnabled: @js($sessionEnabledState),
+        close: @js($closeAction), coordinated: @js($coordinationState)
     }"
     :hidden="!windowVisible" x-cloak
     :data-floating-mode="({{ $enabledState }}) ? {{ $modeState }} : 'custom'"

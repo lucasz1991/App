@@ -67,7 +67,7 @@
         @if(isset($context['shift']))<div x-data x-init="$nextTick(() => $dispatch('operations-shift-detail-request', {id: @js($context['shift'])}))"></div>@endif
         <livewire:admin.operations.shift-management :key="'hub-shifts-plan'" />
     @elseif($page === 'shifts')
-        <livewire:admin.operations.calendar :key="'hub-shifts-calendar'" />
+        <livewire:admin.operations.calendar :viewport="true" :key="'hub-shifts-calendar'" />
     @elseif($page === 'planning' && $view === 'staff' || $page === 'duty' && in_array($view,['cases','transfers'],true))
         <livewire:operations.workforce-planning :tab="$section" :embedded="true" :context="$context" :key="'hub-workforce-'.$section" />
     @elseif($page === 'planning' && $view === 'tools' && $section === 'variants')

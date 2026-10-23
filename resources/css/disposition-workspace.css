@@ -478,6 +478,73 @@ body:has(#main-content .rt-shift-plan) { height: 100%; min-height: 0; overflow: 
 .rt-unified-inbox { display: grid; gap: 12px; min-width: 0; }
 .rt-disposition.rt-unified-inbox > * + * { margin-top: 0; }
 .rt-unified-inbox .rt-table-head { border-radius: 11px 11px 0 0 !important; }
+
+/* Full-page list surfaces reuse the bounded Orders/Planner contract. The
+   explicit leaf opt-in excludes customer profiles and assistant tables. */
+html:has(#main-content .rt-disposition-page [data-disposition-viewport]),
+body:has(#main-content .rt-disposition-page [data-disposition-viewport]) { height: 100%; min-height: 0; overflow: hidden !important; }
+#main-content:has(.rt-disposition-page [data-disposition-viewport]) { height: 100dvh; min-height: 0; overflow: hidden; }
+#main-content:has(.rt-disposition-page [data-disposition-viewport]) > .main-content { height: 100%; min-height: 0; overflow: hidden; }
+.main-content:has(.rt-disposition-page [data-disposition-viewport]) > .page-content.rt-app-page-frame,
+.rt-page-content:has(.rt-disposition-page [data-disposition-viewport]) > .flex-1,
+.rt-disposition-page:has([data-disposition-viewport]) {
+    display: flex;
+    height: 100%;
+    min-height: 0 !important;
+    overflow: hidden;
+    flex: 1 1 auto;
+    flex-direction: column;
+}
+.page-content.rt-app-page-frame:has(.rt-disposition-page [data-disposition-viewport]) > .rt-page-content { min-height: 0 !important; overflow: hidden; flex: 1 1 auto; }
+.rt-disposition-page:has([data-disposition-viewport]) { gap: 8px; }
+.rt-disposition-page:has([data-disposition-viewport]) > * + * { margin-block-start: 0 !important; }
+.rt-disposition-page:has([data-disposition-viewport]) > [data-page-header] { flex: none; }
+.rt-disposition-page:has([data-disposition-viewport]) > [data-page-loading-region],
+.rt-disposition-page:has([data-disposition-viewport]) > [data-page-loading-region] > [data-page-live-content],
+.rt-disposition-page [data-page-workspace-content]:has([data-disposition-viewport]),
+.rt-disposition-page [data-case-workspace]:has([data-disposition-viewport]),
+.rt-disposition-page [data-planning-workspace]:has([data-disposition-viewport]),
+.rt-disposition-page [data-disposition-viewport],
+.rt-disposition-page [data-disposition-list],
+.rt-disposition-page [data-disposition-list-content],
+.rt-disposition-page [data-disposition-calendar-surface] > .rt-disposition-table {
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+    flex: 1 1 0;
+    flex-direction: column;
+    overflow: hidden;
+    gap: 0;
+}
+.rt-disposition-page [data-disposition-viewport] > * + * { margin-block-start: 0; }
+.rt-disposition-page [data-disposition-list-pagination],
+.rt-disposition-page [data-disposition-list] > .rt-disposition-pagination { flex: none; }
+.rt-disposition-page [data-disposition-list-table],
+.rt-disposition-page [data-disposition-list-table] > .rt-table-core { background: var(--rt-shell-surface-solid, #fff); }
+.rt-disposition-page [data-disposition-list-table] .rt-table-head { position: static; }
+.rt-disposition-page [data-disposition-list-table] [data-table-scroll-body] { align-content: start; }
+.rt-disposition-page [data-disposition-list-table] [data-table-scroll-body]:has(.rt-table-empty),
+.rt-disposition-page [data-disposition-list-table] [data-list-pagination-content]:has(.rt-table-empty),
+.rt-disposition-page [data-disposition-list-table] [role='row']:has(> .rt-table-empty) { display: flex !important; min-height: 0; flex: 1 1 0; flex-direction: column; }
+.rt-disposition-page [data-disposition-list-table] .rt-table-empty { display: grid; min-height: 96px; flex: 1 1 0; align-content: center; margin: 0; padding: 24px 16px; text-align: center; }
+
+/* Month/week/day keep their natural minimum row heights and one scrollport;
+   an empty list uses the same fixed header and expanding rowgroup as Inbox. */
+.rt-disposition-page [data-disposition-calendar-surface] { min-height: 0; flex: 1 1 0; overflow: auto; overscroll-behavior: contain; border-radius: 14px; }
+.rt-disposition-page [data-calendar-view='list'] > [data-disposition-calendar-surface] { display: flex; flex-direction: column; overflow: hidden; }
+.rt-disposition-page [data-disposition-calendar-surface] > :is(.rt-calendar-month, .rt-calendar-week, .rt-calendar-agenda) { min-height: 100%; margin-top: 0; }
+.rt-disposition-page [data-disposition-calendar-surface] > .rt-calendar-agenda { align-content: start; background: var(--rt-shell-surface-solid, #fff); }
+
+/* Other Disposition lists already own their viewport. Fill an empty native
+   shift table as well without changing the timeline or service scrollports. */
+.rt-disposition-page .rt-shift-plan .rt-shift-plan-split__main > [data-shift-view='table'] { overflow: hidden; }
+.rt-disposition-page .rt-shift-plan [data-shift-view='table'] > .rt-shift-plan-table,
+.rt-disposition-page .rt-shift-plan [data-shift-view='table'] > .rt-shift-plan-table > .rt-table-core { display: flex; min-height: 0; flex: 1 1 0; flex-direction: column; }
+.rt-disposition-page .rt-shift-plan [data-shift-view='table'] .rt-table-body { flex: 1 1 0; max-height: none; }
+@media (max-width: 767.98px) {
+    body:has([data-area-menu]) #main-content:has(.rt-disposition-page [data-disposition-viewport]) { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px)) !important; }
+}
+
 .rt-unified-inbox__toolbar { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 0; }
 .rt-unified-inbox__toolbar > .ops-actions { margin-left: auto; gap: 6px; }
 .rt-unified-inbox__toolbar .rt-ui-button, .rt-unified-inbox__toolbar [role="combobox"] { min-height: 44px; height: 44px; padding-block: 6px; }

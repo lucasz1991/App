@@ -1,27 +1,36 @@
 <div @class(['relative', 'rt-comm-history flex min-h-0 flex-1 flex-col overflow-hidden' => $embedded]) wire:loading.class="cursor-wait">
     @if ($embedded)
-        <div class="rt-comm-toolbar" role="search" aria-label="Anrufe suchen und filtern">
-            <label class="rt-comm-search">
-                <i class="far fa-search" aria-hidden="true"></i>
-                <input type="search" wire:model.live.debounce.250ms="search" placeholder="Anrufe suchen …" aria-label="Anrufe durchsuchen">
-            </label>
-            <select class="rt-comm-filter" wire:model.live="filter" aria-label="Anrufe filtern">
-                @foreach ([
-                    'all' => __('app.calls_filter_all'),
-                    'active' => __('app.calls_filter_active'),
-                    'missed' => __('app.calls_filter_missed'),
-                    'meetings' => __('app.calls_filter_meetings'),
-                    'recordings' => __('app.calls_filter_recordings'),
-                ] as $key => $label)
-                    <option value="{{ $key }}">{{ $label }}</option>
-                @endforeach
-            </select>
-            @if ($canStart)
-                <button type="button" class="rt-comm-icon" x-on:click="$dispatch('communication:open', { tab: 'chats', newChat: true })" aria-label="Kontakt für neuen Anruf wählen" title="Kontakt für neuen Anruf wählen">
-                    <i class="far fa-plus" aria-hidden="true"></i>
-                </button>
-            @endif
-        </div>
+        <x-ui.floating.toolbar label="Anrufe suchen und filtern" search>
+            <x-ui.forms.search context="floating" id="communication-call-search" wire:model.live.debounce.250ms="search" placeholder="Anrufe suchen …" aria-label="Anrufe durchsuchen" />
+            <x-slot:actions>
+                <x-ui.dropdown.anchor-dropdown align="right" width="48" :offset="6" dropdown-id="communication-call-filter" layer-group="communication-controls" content-label="Anrufe filtern">
+                    <x-slot:trigger>
+                        <button type="button" class="rt-floating-toolbar__button" aria-label="Anrufe filtern" title="Anrufe filtern" aria-haspopup="menu">
+                            <i class="far fa-sliders-h" aria-hidden="true"></i>
+                        </button>
+                    </x-slot:trigger>
+                    <x-slot:content>
+                        @foreach ([
+                            'all' => __('app.calls_filter_all'),
+                            'active' => __('app.calls_filter_active'),
+                            'missed' => __('app.calls_filter_missed'),
+                            'meetings' => __('app.calls_filter_meetings'),
+                            'recordings' => __('app.calls_filter_recordings'),
+                        ] as $key => $label)
+                            <x-ui.dropdown.dropdown-link role="menuitemradio" aria-checked="{{ $filter === $key ? 'true' : 'false' }}" wire:click="setFilter('{{ $key }}')" x-on:click="close()">
+                                <i class="far fa-check" style="visibility: {{ $filter === $key ? 'visible' : 'hidden' }}" aria-hidden="true"></i>
+                                {{ $label }}
+                            </x-ui.dropdown.dropdown-link>
+                        @endforeach
+                    </x-slot:content>
+                </x-ui.dropdown.anchor-dropdown>
+                @if ($canStart)
+                    <button type="button" class="rt-floating-toolbar__button" x-on:click="$dispatch('communication:open', { tab: 'chats', newChat: true })" aria-label="Kontakt für neuen Anruf wählen" title="Kontakt für neuen Anruf wählen">
+                        <i class="far fa-plus" aria-hidden="true"></i>
+                    </button>
+                @endif
+            </x-slot:actions>
+        </x-ui.floating.toolbar>
         <div class="rt-comm-list min-h-0 flex-1 overflow-y-auto" data-communication-call-list>
             @forelse ($rooms as $room)
                 @php

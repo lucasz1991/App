@@ -1079,6 +1079,7 @@ function hasProtectedEditorMarker(component) {
     return Boolean(
         attributes['data-rt-mail-preview-token']
         || attributes['data-rt-mail-preview-train']
+        || ['application', 'signature'].includes(attributes['data-rt-mail-preview-only'])
         || attributes['data-rt-qr-binding']
         || attributes['data-rt-brand-lockup']
         || ['logo-light', 'logo-dark', 'qr'].includes(block)
@@ -1338,13 +1339,16 @@ export function createImageAssetSelection({
     return {
         target: image,
         select(asset, complete = true) {
-            const source = assetSource(asset);
-            const key = canonicalMediaSource(source, baseUrl);
-            if (!source || !allowed.has(key)) {
+            const requestedSource = assetSource(asset);
+            const key = canonicalMediaSource(requestedSource, baseUrl);
+            if (!requestedSource || !allowed.has(key)) {
                 throw new Error('Die gewählte Bildquelle liegt nicht in der freigegebenen Dateibibliothek.');
             }
             const selectedAsset = allowed.get(key);
             const normalized = normalizeAsset(selectedAsset, baseUrl);
+            // Mailbilder binden immer die vom Server freigegebene Quelle,
+            // nicht eine vom Aufrufer gelieferte URL- oder Query-Variante.
+            const source = normalizedMode === 'mail' ? normalized.src : requestedSource;
             const attributes = { src: source };
             if (normalized.mime) attributes['data-mime-type'] = normalized.mime.toLowerCase();
             if (isAnimatedImageSource(source, normalized.mime)) attributes['data-rt-animated-media'] = 'gif';
@@ -3545,6 +3549,7 @@ function createImagePropertiesPanel({ root, editor, mode = 'website', capabiliti
     imagePropertiesPanelSequence += 1;
     const panelPrefix = `rt-lmz-image-${imagePropertiesPanelSequence}`;
     const sourceHintId = `${panelPrefix}-source-hint`;
+    const messageId = `${panelPrefix}-message`;
     const traitsPanel = root.querySelector('[data-lmz-popover-panel="right:traits"]');
     const traitsMount = traitsPanel?.querySelector?.('[data-lmz-mount="traits"]');
     const traitsBody = traitsMount?.parentElement || null;
@@ -3577,7 +3582,7 @@ function createImagePropertiesPanel({ root, editor, mode = 'website', capabiliti
             <section class="rt-lmz-image-properties__tabpanel" role="tabpanel" id="${panelPrefix}-panel-content" aria-labelledby="${panelPrefix}-tab-content" data-rt-lmz-image-section="content">
                 <label class="rt-lmz-image-properties__field rt-lmz-image-properties__field--wide">
                     <span data-rt-lmz-image-source-label>Quelle</span>
-                    <input type="text" name="source" inputmode="url" autocomplete="off" spellcheck="false" aria-describedby="${sourceHintId}">
+                    <input type="text" name="source" inputmode="url" autocomplete="off" spellcheck="false" aria-describedby="${sourceHintId} ${messageId}">
                 </label>
                 <p class="rt-lmz-image-properties__hint" id="${sourceHintId}" data-rt-lmz-image-source-hint>HTTPS-, lokale, CID-, Daten- oder Vorlagenquelle.</p>
             </section>
@@ -3642,7 +3647,7 @@ function createImagePropertiesPanel({ root, editor, mode = 'website', capabiliti
                     <p data-rt-lmz-image-gif-message aria-live="polite"></p>
                 </section>
             </section>
-            <p class="rt-lmz-image-properties__message" data-rt-lmz-image-message aria-live="polite"></p>
+            <p class="rt-lmz-image-properties__message" id="${messageId}" data-rt-lmz-image-message aria-live="polite" aria-atomic="true"></p>
             <button type="submit" class="rt-lmz-image-properties__apply">Übernehmen</button>
         </form>`;
     traitsBody.insertBefore(panel, traitsMount);
@@ -3693,6 +3698,50 @@ function createImagePropertiesPanel({ root, editor, mode = 'website', capabiliti
     let editable = false;
     let activeSection = 'content';
     let formDirty = false;
+    let sourceBaseline = '';
+    const mailSourceLibrary = () => currentMediaItems(media.assets)
+        .map((asset) => normalizeAsset(asset, media.baseUrl || document_.baseURI))
+        .filter((asset) => asset.type === 'image' && asset.src
+            && !/^(?:data:|cid:|\{\{|\/\/)/i.test(asset.src));
+    const mailSourceEditable = () => scopedImageReplacementEnabled(capabilities, mode)
+        && mailSourceLibrary().length > 0;
+    const sourceBinding = () => {
+        const source = String(controls.source.value || '').trim();
+        // Existing bindings, including historical sources and system previews,
+        // are not new image sources when only presentation fields are edited.
+        if (targetToken || (mode === 'mail' && source === sourceBaseline)) return { changed: false, source, error: '' };
+        if (mode !== 'mail') return {
+            changed: true,
+            source,
+            error: imageSourceIsSafe(source, document_.baseURI)
+                ? '' : 'Bitte eine sichere HTTPS-, lokale, CID-, Daten- oder Vorlagenquelle verwenden.',
+        };
+        const baseUrl = media.baseUrl || document_.baseURI;
+        const registered = mailSourceEditable()
+            && source && !/[\u0000-\u001f\u007f]/.test(source) && !/^\/\//.test(source)
+            && mailSourceLibrary().find((asset) => canonicalMediaSource(asset.src, baseUrl, false)
+                === canonicalMediaSource(source, baseUrl, false));
+        return {
+            changed: true,
+            source: registered ? registered.src : source,
+            error: registered ? '' : 'Bitte ein freigegebenes Bild aus der Mail-Medienbibliothek verwenden. Freie URLs, CID-, Daten- und Vorlagenquellen werden hier nicht neu gebunden.',
+        };
+    };
+    const validateSource = () => {
+        const binding = sourceBinding();
+        if (binding.error) {
+            controls.source.setAttribute('aria-invalid', 'true');
+            message.dataset.state = 'error';
+            message.textContent = binding.error;
+        } else {
+            controls.source.removeAttribute('aria-invalid');
+            if (message.dataset.state === 'error') {
+                delete message.dataset.state;
+                message.textContent = '';
+            }
+        }
+        return binding;
+    };
     const traitsMountInitialHidden = traitsMount.hidden;
     const traitsMountInitialAriaLabel = traitsMount.getAttribute('aria-label');
     const availableSections = new Set(['content', 'display', 'attributes', 'file']);
@@ -3764,6 +3813,8 @@ function createImagePropertiesPanel({ root, editor, mode = 'website', capabiliti
         setHiddenState(panel, !target);
         if (!target) {
             formDirty = false;
+            sourceBaseline = '';
+            controls.source.removeAttribute('aria-invalid');
             syncNativeTraits();
             return false;
         }
@@ -3795,6 +3846,7 @@ function createImagePropertiesPanel({ root, editor, mode = 'website', capabiliti
         const layerAttributes = componentAttributes(trainLayer);
         if (!formDirty) {
             controls.source.value = source;
+            sourceBaseline = source;
             controls.alt.value = String(attributes.alt || '');
             controls.title.value = String(attributes.title || '');
             controls.width.value = String(numericImageWidth(target));
@@ -3810,11 +3862,16 @@ function createImagePropertiesPanel({ root, editor, mode = 'website', capabiliti
         sourceLabel.textContent = token ? 'Vorschauquelle' : 'Quelle';
         sourceHint.textContent = token
             ? 'Wird aus dem Systemmedium geladen. Diese Adresse wird nicht als neue Dokumentquelle gespeichert.'
-            : 'HTTPS-, lokale, CID-, Daten- oder Vorlagenquelle. Unsichere Protokolle werden abgewiesen.';
-        controls.source.readOnly = Boolean(token);
-        if (token) controls.source.setAttribute('aria-readonly', 'true');
+            : mode === 'mail'
+                ? (mailSourceEditable()
+                    ? 'Neue Quellen sind nur aus der freigegebenen Mail-Medienbibliothek möglich. Bestehende Bildquellen bleiben bei Änderungen an Text, Größe und Ausrichtung erhalten.'
+                    : 'Die Bildquelle bleibt erhalten. Ein Austausch ist nur über freigegebene Mailmedien oder einen geprüften portablen Import möglich; Text, Größe und Ausrichtung bleiben bearbeitbar.')
+                : 'HTTPS-, lokale, CID-, Daten- oder Vorlagenquelle. Unsichere Protokolle werden abgewiesen.';
+        controls.source.readOnly = Boolean(token) || (mode === 'mail' && !mailSourceEditable());
+        if (controls.source.readOnly) controls.source.setAttribute('aria-readonly', 'true');
         else controls.source.removeAttribute('aria-readonly');
-        controls.source.title = token ? 'Schreibgeschützte Vorschauquelle des Systemmediums' : '';
+        controls.source.title = token ? 'Schreibgeschützte Vorschauquelle des Systemmediums'
+            : controls.source.readOnly ? 'Bildquelle nur über freigegebene Mailmedien oder portablen Import austauschen' : '';
         setHiddenState(ratioControl, mode !== 'mail');
         controls.preserveRatio.checked = true;
         metadataFields.format.textContent = metadata.format;
@@ -3832,6 +3889,7 @@ function createImagePropertiesPanel({ root, editor, mode = 'website', capabiliti
         gifMessage.textContent = '';
         message.textContent = '';
         delete message.dataset.state;
+        controls.source.removeAttribute('aria-invalid');
         form.querySelectorAll('input, select, button').forEach((control) => {
             control.disabled = !editable;
         });
@@ -3853,6 +3911,8 @@ function createImagePropertiesPanel({ root, editor, mode = 'website', capabiliti
         if (!editable) {
             message.dataset.state = 'muted';
             message.textContent = 'Dieses Systemmedium ist strukturell gebunden und wird über seinen System-Slot verwaltet.';
+        } else if (formDirty) {
+            validateSource();
         }
         activateSection(activeSection);
         return true;
@@ -3862,10 +3922,8 @@ function createImagePropertiesPanel({ root, editor, mode = 'website', capabiliti
         event.preventDefault();
         if (!target || !editable) return;
 
-        const source = String(controls.source.value || '').trim();
-        if (!imageSourceIsSafe(source, document_.baseURI)) {
-            message.dataset.state = 'error';
-            message.textContent = 'Bitte eine sichere HTTPS-, lokale, CID-, Daten- oder Vorlagenquelle verwenden.';
+        const binding = validateSource();
+        if (binding.error) {
             controls.source.focus();
             return;
         }
@@ -3876,8 +3934,8 @@ function createImagePropertiesPanel({ root, editor, mode = 'website', capabiliti
             ? controls.alignment.value
             : 'left';
         if (!targetToken) {
-            target.set?.('src', source);
-            target.addAttributes?.({ src: source, alt, ...(title ? { title } : {}) });
+            if (binding.changed) target.set?.('src', binding.source);
+            target.addAttributes?.({ ...(binding.changed ? { src: binding.source } : {}), alt, ...(title ? { title } : {}) });
         } else {
             // Systemslots speichern ihr Token serverautoritativ. Der
             // Inspector darf die aktuell gerenderte Vorschau-URL deshalb
@@ -3926,6 +3984,10 @@ function createImagePropertiesPanel({ root, editor, mode = 'website', capabiliti
         }
 
         formDirty = false;
+        if (binding.changed) {
+            sourceBaseline = binding.source;
+            controls.source.value = binding.source;
+        }
         onChanged?.();
         message.dataset.state = 'success';
         message.textContent = 'Bildeigenschaften übernommen.';
@@ -3950,6 +4012,7 @@ function createImagePropertiesPanel({ root, editor, mode = 'website', capabiliti
     };
     const onFormChanged = (event) => {
         if (target && event.target?.matches?.('input, select, textarea')) formDirty = true;
+        if (target && editable && event.target === controls.source) validateSource();
     };
 
     form.addEventListener('submit', onSubmit);

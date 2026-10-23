@@ -1,13 +1,27 @@
 <div class="flex h-full min-h-0 flex-col overflow-hidden text-rt-text dark:text-rt-dark-text" wire:poll.visible.10s>
     @if ($pane === 'list')
-        <div class="rt-comm-toolbar">
-            <label class="rt-comm-search"><i class="far fa-search" aria-hidden="true"></i><span class="sr-only">Meetings suchen</span><input type="search" wire:model.live.debounce.300ms="search" placeholder="Meetings suchen …" autocomplete="off"></label>
-            <select wire:model.live="filter" class="rt-comm-filter" aria-label="Meetingfilter"><option value="upcoming">Anstehend</option><option value="past">Vergangen</option><option value="all">Alle</option></select>
-            @if ($canStart)
-                <button type="button" wire:click="showCreate('instant')" class="rt-comm-icon" aria-label="Meeting jetzt starten" title="Jetzt starten"><i class="far fa-video" aria-hidden="true"></i></button>
-                <button type="button" wire:click="showCreate('plan')" @disabled(! $planningReady) class="rt-comm-icon disabled:opacity-40" aria-label="Meeting planen" title="Termin planen"><i class="far fa-plus" aria-hidden="true"></i></button>
-            @endif
-        </div>
+        <x-ui.floating.toolbar label="Meetings suchen und filtern" search>
+            <x-ui.forms.search context="floating" id="communication-meeting-search" wire:model.live.debounce.300ms="search" placeholder="Meetings suchen …" aria-label="Meetings suchen" autocomplete="off" />
+            <x-slot:actions>
+                <x-ui.dropdown.anchor-dropdown align="right" width="48" :offset="6" dropdown-id="communication-meeting-filter" layer-group="communication-controls" content-label="Meetings filtern">
+                    <x-slot:trigger>
+                        <button type="button" class="rt-floating-toolbar__button" aria-label="Meetings filtern" title="Meetings filtern" aria-haspopup="menu"><i class="far fa-sliders-h" aria-hidden="true"></i></button>
+                    </x-slot:trigger>
+                    <x-slot:content>
+                        @foreach (['upcoming' => 'Anstehend', 'past' => 'Vergangen', 'all' => 'Alle'] as $key => $label)
+                            <x-ui.dropdown.dropdown-link role="menuitemradio" aria-checked="{{ $filter === $key ? 'true' : 'false' }}" wire:click="$set('filter', '{{ $key }}')" x-on:click="close()">
+                                <i class="far fa-check" style="visibility: {{ $filter === $key ? 'visible' : 'hidden' }}" aria-hidden="true"></i>
+                                {{ $label }}
+                            </x-ui.dropdown.dropdown-link>
+                        @endforeach
+                    </x-slot:content>
+                </x-ui.dropdown.anchor-dropdown>
+                @if ($canStart)
+                    <button type="button" wire:click="showCreate('instant')" class="rt-floating-toolbar__button" aria-label="Meeting jetzt starten" title="Jetzt starten"><i class="far fa-video" aria-hidden="true"></i></button>
+                    <button type="button" wire:click="showCreate('plan')" @disabled(! $planningReady) class="rt-floating-toolbar__button" aria-label="Meeting planen" title="Termin planen"><i class="far fa-plus" aria-hidden="true"></i></button>
+                @endif
+            </x-slot:actions>
+        </x-ui.floating.toolbar>
         <div class="scroll-container min-h-0 flex-1 space-y-3 overflow-y-auto bg-[#e4e8ee] p-3 dark:bg-rt-dark-surface-muted">
             @unless ($planningReady)<p role="status" class="rounded-2xl bg-white p-4 text-sm dark:bg-rt-dark-surface">Die Terminplanung ist noch nicht verfügbar. Sofortmeetings bleiben verfügbar.</p>@endunless
             @foreach ($live as $room)

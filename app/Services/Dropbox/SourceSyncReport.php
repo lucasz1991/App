@@ -18,7 +18,7 @@ use App\Models\User;
 /** Counts source evidence and native results independently of chunk operations. */
 class SourceSyncReport
 {
-    public const VERSION = '2026-10-23-native-services-v5';
+    public const VERSION = '2026-10-23-rolling-history-v6';
 
     public function build(DropboxSource $source, array $parsed, array $summary, int $processed, int $total): array
     {
@@ -57,6 +57,9 @@ class SourceSyncReport
             $missing['employee_not_in_source'] = $missingEmployee;
         }
         $coverage = $parsed['coverage'] ?? [];
+        if (($coverage['embedded_images'] ?? 0) > 0) {
+            $missing['embedded_images_unread'] = $coverage['embedded_images'];
+        }
         $subjects = $rows->filter(fn ($r) => in_array($r['locator']['kind'] ?? '', ['availability_note', 'availability_submission'], true))->pluck('locator.subject')->unique()->values();
         $planningSubjects = $planning->pluck('values.employee')->filter(fn ($name) => trim((string) $name) !== '')->unique(fn ($name) => WorkbookReader::normalize($name))->values();
         $identities = DropboxIdentity::where('connection_id', $source->connection_id)->whereIn('alias', $subjects->merge($planningSubjects)->map(fn ($s) => WorkbookReader::normalize($s)))->get()->keyBy('alias');
@@ -84,6 +87,7 @@ class SourceSyncReport
             'schema' => 1, 'parser_version' => self::VERSION, 'generated_at' => now()->toIso8601String(),
             'rev' => $source->rev, 'preview' => (bool) ($summary['preview'] ?? false), 'complete' => $processed >= $total,
             'processed' => $processed, 'total' => $total,
+            'next_history_due_at' => app(HistoricalImportCompletion::class)->nextDueAt($source, $records->modelKeys())?->toIso8601String(),
             'detected' => [
                 ...$rows->countBy('domain')->all(),
                 'competencies' => $rows->where('domain', 'competencies')->reject(fn ($r) => in_array($r['locator']['kind'] ?? '', ['availability_note', 'availability_submission'], true))->count(),

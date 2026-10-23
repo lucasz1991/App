@@ -22,7 +22,7 @@
     <x-ui.floating.window id="railtime-communication" x-ref="panel" class="rt-communication" x-cloak wire:ignore.self
         ::data-mode="mode" ::data-corner="corner"
         ::inert="!open" ::aria-hidden="(!open).toString()" label="Chats, Anrufe und Meetings" role="region"
-        layout-action="syncVisibility(); queueLayout();" session-key="communication" session-restore="restoreWindowSession(rtWindowSession)">
+        layout-action="syncVisibility(); queueLayout();" close-action="close(false)" session-key="communication" session-restore="restoreWindowSession(rtWindowSession)">
         <x-slot:header class="rt-comm-head">
             <x-ui.floating.window-tabs class="rt-comm-tabs" id-prefix="communication" label="Bereiche"
                 client-state="tab" client-action="selectTab" client-keyboard-action="tabKey" tab-data-attribute="data-comm-tab"

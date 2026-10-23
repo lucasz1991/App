@@ -15,6 +15,7 @@ import {
     createMailPreviewController,
     hydrateMailCanvasAssets,
     installMailTypographyFocus,
+    installMailCtaPaddingSync,
     installMailProjectLoadGuard,
     MAIL_EDITOR_MODE,
     MAIL_GJS_OPTIONS,
@@ -32,12 +33,13 @@ import {
     serializeMailDocumentForSave,
     serializeMailProjectStyles,
     synchronizeMailPresentationAttributes,
+    synchronizeMailCtaPadding,
     synchronizeMailSignatureBackground,
     synchronizeMailSignatureFlowGeometry,
     synchronizeMailSignatureFixedGeometry,
     synchronizeMailTrainLayerAlignment,
 } from '../../resources/js/mail-builder.js';
-import { createMailBlocks, mailCanvasStyles, MAIL_DEFAULT_FONT_STACK, MAIL_PERSON_FIELDS } from '../../resources/js/mail-builder-blocks.js';
+import { createMailBlocks, mailCanvasStyles, MAIL_CTA_CLASS, MAIL_DEFAULT_FONT_STACK, MAIL_PERSON_FIELDS } from '../../resources/js/mail-builder-blocks.js';
 
 const canonicalTrain = '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto 0 0;margin-bottom:-200px;overflow:hidden;font-size:0;line-height:0;text-align:left;"><table class="rt-sign-train-frame" role="presentation" width="100%" height="200" border="0" cellspacing="0" cellpadding="0" style="width:100%;height:200px;border-collapse:collapse;"><tbody><tr><td class="rt-sign-train-slot" height="200" valign="bottom" style="height:200px;padding:0;text-align:left;vertical-align:bottom;font-size:0;line-height:0;"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:bottom;mso-hide:all;"></td></tr></tbody></table></div>';
 const canonicalSignatureStage = (content = '') => '<div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;">'
@@ -2271,6 +2273,134 @@ test('mail text selection exposes typography without changing selection or openi
     assert.equal(handlers.size, 0);
 });
 
+test('new CTA keeps its modern clickable padding and supplies a separate Outlook cell fallback', () => {
+    const block = createMailBlocks().find((entry) => entry.id === 'rt-mail-button').definition.content;
+    const document_ = new DOMParser().parseFromString(`<html><body>${block}</body></html>`, 'text/html');
+    const table = document_.querySelector(`table.${MAIL_CTA_CLASS}`);
+    const cell = table.querySelector('td');
+    const link = cell.querySelector('a');
+    assert.equal(link.style.padding, '16px 26px');
+    assert.equal(link.style.display, 'inline-block');
+    assert.equal(link.style.getPropertyValue('mso-padding-alt'), '0px');
+    assert.equal(cell.style.getPropertyValue('mso-padding-alt'), '16px 26px 16px 26px');
+    assert(!cell.style.padding, 'normal TD padding would double modern spacing');
+    assert.equal(synchronizeMailCtaPadding(link), false, 'initial block already has its correct fallback');
+});
+
+test('CTA padding roundtrips all four sides, shorthand precedence and removal without rewriting old buttons', () => {
+    const block = createMailBlocks().find((entry) => entry.id === 'rt-mail-button').definition.content;
+    const baseline = '<!doctype html><html><head><meta charset="utf-8"></head><body><table><tr><td>'
+        + block + '</td></tr>{{SIGNATURE_BLOCK}}</table></body></html>';
+    const cases = [
+        ['padding:10px;', '10px 10px 10px 10px'],
+        ['padding:10px 20px;', '10px 20px 10px 20px'],
+        ['padding:10px 20px 30px;', '10px 20px 30px 20px'],
+        ['padding:10px 20px 30px 40px;', '10px 20px 30px 40px'],
+        ['padding:1px 2px;padding-top:11px;padding-right:22px;padding-bottom:33px;padding-left:44px;', '11px 22px 33px 44px'],
+        ['padding-left:99px;padding:3px 4px;', '3px 4px 3px 4px'],
+        ['padding:5px!important;padding-left:40px;', '5px 5px 5px 5px'],
+        ['padding:0;', '0 0 0 0'],
+        ['padding-left:12px;', '0px 0px 0px 12px'],
+        ['', '0px 0px 0px 0px'],
+    ];
+    for (const [padding, expected] of cases) {
+        const project = projectForMailDocument({ html: baseline, builderData: { pages: [{ component: baseline }] } }, () => [], { kind: 'template', environment: { DOMParser } });
+        const canvas = new DOMParser().parseFromString(`<html><body>${project.pages[0].component}</body></html>`, 'text/html');
+        const cta = canvas.querySelector(`table.${MAIL_CTA_CLASS}`);
+        const link = cta.querySelector('a');
+        link.setAttribute('style', `display:inline-block;color:#ffffff;${padding}mso-padding-alt:99px;`);
+        cta.querySelector('td').style.setProperty('mso-padding-alt', '999px');
+        const saved = serializeMailDocumentForSave({ project, html: canvas.body.innerHTML, kind: 'template', baselineHtml: baseline, environment: { DOMParser } });
+        const result = new DOMParser().parseFromString(saved.html, 'text/html').querySelector(`table.${MAIL_CTA_CLASS}`);
+        assert.equal(result.querySelector('td').style.getPropertyValue('mso-padding-alt'), expected, padding);
+        assert.equal(result.querySelector('a').style.getPropertyValue('mso-padding-alt'), '0px');
+        assert(!result.querySelector('td').style.padding);
+        assert(saved.html.includes(`class="${MAIL_CTA_CLASS}"`), 'binding must survive removal of editor-only attributes');
+        const reopened = projectForMailDocument({ html: saved.html, builderData: saved.project }, () => [], { kind: 'template', environment: { DOMParser } });
+        const again = serializeMailDocumentForSave({ project: reopened, html: reopened.pages[0].component, kind: 'template', baselineHtml: saved.html, environment: { DOMParser } });
+        assert.equal(again.html, saved.html, `stable save/reopen: ${padding}`);
+    }
+    const old = new DOMParser().parseFromString('<html><body><table><tr><td style="mso-padding-alt:99px;"><a style="padding:4px;">Bestand</a></td></tr></table></body></html>', 'text/html');
+    const before = old.body.innerHTML;
+    assert.equal(synchronizeMailCtaPadding(old.querySelector('a')), false);
+    assert.equal(old.body.innerHTML, before, 'unmarked imported tables keep their own padding contract');
+});
+
+test('CTA save derives the fallback after imported inline GrapesJS styles have been restored', () => {
+    const html = '<!doctype html><html><head></head><body><table><tr><td>'
+        + `<table class="${MAIL_CTA_CLASS}" role="presentation"><tr><td style="mso-padding-alt:999px;"><a class="c123" data-rt-mail-inline-source="added" href="https://www.rail-time.de">Weiter</a></td></tr></table>`
+        + '</td></tr>{{SIGNATURE_BLOCK}}</table></body></html>';
+    const project = projectForMailDocument({ html, builderData: { pages: [{ component: html }] } }, () => [], { kind: 'template', environment: { DOMParser } });
+    project.styles = [{ selectors: ['c123'], style: { display: 'inline-block', padding: '2px 4px', 'padding-bottom': '8px' } }];
+    const saved = serializeMailDocumentForSave({ project, html: project.pages[0].component, kind: 'template', baselineHtml: html, environment: { DOMParser } });
+    const cta = new DOMParser().parseFromString(saved.html, 'text/html').querySelector(`table.${MAIL_CTA_CLASS}`);
+    assert.equal(cta.querySelector('td').style.getPropertyValue('mso-padding-alt'), '2px 4px 8px 4px');
+    assert.equal(cta.querySelector('a').style.padding, '2px 4px');
+    assert.doesNotMatch(saved.css, /mso-padding-alt/);
+});
+
+test('CTA synchronization follows the shipped GrapesJS style edits, undo, redo and project reload', async () => {
+    const context = createContext({ console, setTimeout: () => 0, clearTimeout: () => {}, installMailCtaPaddingSync, installMailProjectLoadGuard });
+    runInContext(readFileSync(new URL('../../public/vendor/lmz-builder/2.4.5/lmz-builder-core.js', import.meta.url), 'utf8'), context);
+    runInContext(`
+        var editor = grapesjs.init({ headless:true, storageManager:false, ...${JSON.stringify(MAIL_GJS_OPTIONS)}, styleManager:{sectors:[]} });
+        editor.addComponents({ tagName:'table', attributes:{class:'${MAIL_CTA_CLASS}',role:'presentation'}, components:[{tagName:'tbody',components:[{tagName:'tr',components:[{tagName:'td',style:{'mso-padding-alt':'16px 26px 16px 26px'},components:[{tagName:'a',attributes:{href:'https://www.rail-time.de'},style:{display:'inline-block',padding:'16px 26px','mso-padding-alt':'0px'},content:'Weiter'}]}]}]}] });
+        var table = editor.getWrapper().components().at(0);
+        var cell = table.components().at(0).components().at(0).components().at(0);
+        var link = cell.components().at(0);
+        editor.StyleManager.select(link);
+        var styled = editor.StyleManager.getSelected();
+        var guard = installMailProjectLoadGuard(editor);
+        var detach = installMailCtaPaddingSync(editor,{isLoading:()=>guard.isLoading()});
+        var snapshot = () => ({link:styled.getStyle(),cell:cell.getStyle(),stack:editor.UndoManager.getStack().length});
+        editor.UndoManager.clear();
+        styled.addStyle({padding:'11px 22px 33px 44px'});
+        var changed = snapshot();
+        editor.UndoManager.undo();
+        var undone = snapshot();
+        editor.UndoManager.redo();
+        var redone = snapshot();
+        styled.removeStyle('padding');
+        var removed = snapshot();
+        var project = editor.getProjectData();
+        editor.loadProjectData(project);
+        table = editor.getWrapper().components().at(0);
+        cell = table.components().at(0).components().at(0).components().at(0);
+        link = cell.components().at(0);
+        editor.StyleManager.select(link);
+        styled = editor.StyleManager.getSelected();
+        output = JSON.stringify({changed,undone,redone,removed,reloaded:snapshot()});
+    `, context);
+    await Promise.resolve();
+    runInContext('reloadedOutput = JSON.stringify(snapshot());', context);
+    const { changed, undone, redone, removed } = JSON.parse(context.output);
+    const reloaded = JSON.parse(context.reloadedOutput);
+    assert.equal(changed.cell['mso-padding-alt'], '11px 22px 33px 44px');
+    assert.equal(changed.stack, 1, 'derived MSO fallback must not add a separate undo action');
+    assert.equal(undone.link.padding, '16px 26px', JSON.stringify({ changed, undone, redone }));
+    assert.equal(undone.cell['mso-padding-alt'], '16px 26px 16px 26px');
+    assert.equal(redone.cell['mso-padding-alt'], '11px 22px 33px 44px');
+    assert.equal(removed.cell['mso-padding-alt'], '0px 0px 0px 0px');
+    assert.equal(reloaded.cell['mso-padding-alt'], '0px 0px 0px 0px');
+    runInContext('detach(); guard.dispose(); editor.destroy();', context);
+});
+
+test('CTA listeners skip transient loading, dispose pending work and avoid read-only writes', async () => {
+    const handlers = new Map();
+    const editor = { on: (event, callback) => handlers.set(event, callback), off: (event) => handlers.delete(event), getWrapper: () => null };
+    let loading = true;
+    const detach = installMailCtaPaddingSync(editor, { isLoading: () => loading });
+    const target = { get: () => 'a', parent: () => { throw new Error('loading or disposed callback must not inspect the tree'); } };
+    handlers.get('component:styleUpdate')(target);
+    handlers.get('project:load')();
+    detach();
+    loading = false;
+    await Promise.resolve();
+    assert.equal(handlers.size, 0);
+    installMailCtaPaddingSync(editor, { readOnly: true })();
+    assert.equal(handlers.size, 0);
+});
+
 test('new mail blocks consistently use the V25 house stack but old imported fonts are not rewritten', () => {
     assert.equal(MAIL_DEFAULT_FONT_STACK, "'Trebuchet MS',Arial,sans-serif");
     for (const field of MAIL_PERSON_FIELDS) assert(field.style.includes(`font-family:${MAIL_DEFAULT_FONT_STACK};`));
@@ -2473,6 +2603,105 @@ test('canvas hydrates exactly one regular train image without mutating its token
     assert.equal(document_.querySelectorAll('img[data-rt-train].rt-sign-train').length, 1);
     assert.equal(modelSource.startsWith('data:image/png;base64,'), true);
     assert.equal(project.pages[0].component.includes('https://app.rail-time.test'), false);
+});
+
+test('template library images may share a system preview URL before and after insertion without losing token bindings', () => {
+    const source = 'https://railtime.test/mail-assets/logo.png?v=approved&theme=light';
+    const previewAssets = { light: { logo: source, mark: source } };
+    for (const inBaseline of [false, true]) {
+        const canonical = '<!doctype html><html><head><title>RailTime</title></head><body><table><tbody><tr><td>'
+            + '<img src="{{LOGO_SRC}}" alt="Systemlogo">'
+            + (inBaseline ? `<img src="${source.replaceAll('&', '&amp;')}" alt="Inhaltsbild">` : '')
+            + '</td></tr>{{SIGNATURE_BLOCK}}</tbody></table></body></html>';
+        const project = projectForMailDocument({ html: canonical, builderData: { pages: [{ component: canonical }] }, css: '' }, () => [], { kind: 'template', environment: { DOMParser } });
+        const canvas = new DOMParser().parseFromString(`<html><body>${project.pages[0].component}</body></html>`, 'text/html');
+        hydrateMailCanvasAssets({ Canvas: { getDocument: () => canvas } }, 'light', previewAssets);
+        if (!inBaseline) {
+            const ordinary = canvas.createElement('img');
+            ordinary.setAttribute('src', source);
+            ordinary.setAttribute('alt', 'Inhaltsbild');
+            canvas.querySelector('td').append(ordinary);
+        }
+        const saved = serializeMailDocumentForSave({ project, html: canvas.body.innerHTML, kind: 'template', baselineHtml: canonical, previewAssets, environment: { DOMParser } });
+        const result = new DOMParser().parseFromString(saved.html, 'text/html');
+        assert.equal(result.querySelector('img[alt="Systemlogo"]').getAttribute('src'), '{{LOGO_SRC}}');
+        assert.equal(result.querySelector('img[alt="Inhaltsbild"]').getAttribute('src'), source);
+        const reopened = projectForMailDocument({ html: saved.html, builderData: saved.project, css: saved.css }, () => [], { kind: 'template', environment: { DOMParser } });
+        assert.equal(serializeMailDocumentForSave({ project: reopened, html: reopened.pages[0].component, kind: 'template', baselineHtml: saved.html, previewAssets, environment: { DOMParser } }).html, saved.html);
+    }
+});
+
+test('ordinary library images cannot hide detached, duplicated or forged system preview bindings or other preview leaks', () => {
+    const source = 'https://railtime.test/mail-assets/logo.png?v=approved&theme=light';
+    const previewAssets = { light: { logo: source } };
+    const canonical = '<!doctype html><html><head></head><body><table><tbody><tr><td>'
+        + '<img src="{{LOGO_SRC}}" alt="Systemlogo">'
+        + '</td></tr>{{SIGNATURE_BLOCK}}</tbody></table></body></html>';
+    const project = projectForMailDocument({ html: canonical, builderData: { pages: [{ component: canonical }] }, css: '' }, () => [], { kind: 'template', environment: { DOMParser } });
+    const changes = [
+        (document_) => document_.querySelector('img').removeAttribute('data-rt-mail-preview-token'),
+        (document_) => document_.querySelector('img').remove(),
+        (document_) => document_.querySelector('td').append(document_.querySelector('img').cloneNode(true)),
+        (document_) => document_.querySelector('img').setAttribute('data-rt-mail-preview-token', 'ICON_RT_SRC'),
+        (document_) => document_.querySelector('img').setAttribute('data-rt-mail-preview-token', 'UNBEKANNTES_BILD'),
+        (document_) => { const image = document_.createElement('img'); image.setAttribute('src', '{{LOGO_SRC}}'); document_.querySelector('td').append(image); },
+        (document_, internalPixel) => document_.querySelector('img[alt="Inhaltsbild"]').setAttribute('src', internalPixel),
+        (document_) => document_.querySelector('td').setAttribute('style', `background-image:url('${source}');`),
+        (document_) => document_.querySelector('td').setAttribute('title', source),
+        (document_) => document_.querySelector('td').append(source),
+    ];
+    changes.forEach((change, index) => {
+        const canvas = new DOMParser().parseFromString(`<html><body>${project.pages[0].component}</body></html>`, 'text/html');
+        const internalPixel = canvas.querySelector('img').getAttribute('src');
+        hydrateMailCanvasAssets({ Canvas: { getDocument: () => canvas } }, 'light', previewAssets);
+        const ordinary = canvas.createElement('img');
+        ordinary.setAttribute('src', source);
+        ordinary.setAttribute('alt', 'Inhaltsbild');
+        canvas.querySelector('td').append(ordinary);
+        change(canvas, internalPixel);
+        assert.throws(() => serializeMailDocumentForSave({ project, html: canvas.body.innerHTML, kind: 'template', baselineHtml: canonical, previewAssets, environment: { DOMParser } }),
+            /verlustfrei|unbekannten Bildplatzhalter/, `preview integrity case ${index}`);
+    });
+});
+
+test('shipped GrapesJS save and reload preserve an ordinary library logo beside its canonical preview token', () => {
+    const source = 'https://railtime.test/mail-assets/logo.png?v=approved';
+    const previewAssets = { light: { logo: source } };
+    let canonical = '<!doctype html><html><head><title>RailTime</title></head><body><table><tbody><tr><td>'
+        + '<img src="{{LOGO_SRC}}" alt="Systemlogo" style="width:100px;">'
+        + '</td></tr>{{SIGNATURE_BLOCK}}</tbody></table></body></html>';
+    let project = projectForMailDocument({ html: canonical, builderData: { pages: [{ component: canonical }] }, css: '' }, () => [], { kind: 'template', environment: { DOMParser } });
+    const toComponents = (node) => {
+        if (node.nodeType === 3) return { type: 'textnode', content: node.textContent };
+        if (node.nodeType !== 1) return null;
+        return { tagName: node.tagName.toLowerCase(), attributes: Object.fromEntries(Array.from(node.attributes, (attribute) => [attribute.name, attribute.value])),
+            components: Array.from(node.childNodes, toComponents).filter(Boolean) };
+    };
+    const context = createContext({ console, setTimeout: () => 0, clearTimeout: () => {} });
+    runInContext(readFileSync(new URL('../../public/vendor/lmz-builder/2.4.5/lmz-builder-core.js', import.meta.url), 'utf8'), context);
+    runInContext(`var editor = grapesjs.init({ ...${JSON.stringify(MAIL_GJS_OPTIONS)}, headless:true, storageManager:false, styleManager:{sectors:[]} });`, context);
+    try {
+        for (let iteration = 0; iteration < 2; iteration += 1) {
+            const canvas = new DOMParser().parseFromString(`<html><body>${project.pages[0].component}</body></html>`, 'text/html');
+            if (iteration === 0) {
+                const image = canvas.createElement('img');
+                image.setAttribute('src', source);
+                image.setAttribute('alt', 'Inhaltsbild');
+                canvas.querySelector('td').append(image);
+            }
+            context.componentsJSON = JSON.stringify(Array.from(canvas.body.childNodes, toComponents).filter(Boolean));
+            runInContext('editor.setComponents(JSON.parse(componentsJSON)); output = JSON.stringify({html:editor.getHtml(),project:editor.getProjectData()});', context);
+            const engine = JSON.parse(context.output);
+            const saved = serializeMailDocumentForSave({ project: engine.project, html: engine.html, kind: 'template', baselineHtml: canonical, previewAssets, environment: { DOMParser } });
+            const result = new DOMParser().parseFromString(saved.html, 'text/html');
+            assert.equal(result.querySelector('img[alt="Systemlogo"]').getAttribute('src'), '{{LOGO_SRC}}');
+            assert.equal(result.querySelector('img[alt="Inhaltsbild"]').getAttribute('src'), source);
+            assert.equal(result.querySelectorAll('img').length, 2);
+            assert.doesNotMatch(saved.html, /data-rt-mail-preview|data:image\/png;base64/);
+            canonical = saved.html;
+            project = projectForMailDocument({ html: saved.html, builderData: saved.project, css: saved.css }, () => [], { kind: 'template', environment: { DOMParser } });
+        }
+    } finally { runInContext('editor.destroy();', context); }
 });
 
 test('template save never persists a detached or unknown image preview binding', () => {
