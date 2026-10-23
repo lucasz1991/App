@@ -97,11 +97,14 @@ final class SignatureTableOverlapDelivery
         $frame->setAttribute('style', 'width:100%;table-layout:fixed;border-collapse:collapse;direction:ltr;');
         $content->setAttribute('width', '100%');
         $content->setAttribute('dir', 'ltr');
+        if ($logoTrain) {
+            $content->setAttribute('colspan', '2');
+        }
         $contentStyle = $content->getAttribute('style');
         if ($logoTrain) {
             $contentStyle = preg_replace('/(?:^|;)\s*padding(?:-(?:top|right|bottom|left))?\s*:[^;]*(?=;|$)/i', '', $contentStyle) ?? $contentStyle;
         }
-        $content->setAttribute('style', rtrim($contentStyle, ';').';width:100%;direction:ltr;'.($logoTrain ? 'padding:25px 0 15px;' : 'padding-bottom:15px;'));
+        $content->setAttribute('style', rtrim($contentStyle, ';').';width:100%;direction:ltr;'.($logoTrain ? 'padding:25px 0 0;' : 'padding-bottom:15px;'));
         $image->setAttribute('class', 'rt-delivery-train');
         $image->setAttribute('src', $source);
         $image->removeAttribute('data-rt-train');
@@ -114,10 +117,12 @@ final class SignatureTableOverlapDelivery
         $row->setAttribute('class', 'rt-delivery-train-row');
         $cell = $dom->createElement('td');
         $cell->setAttribute('class', 'rt-delivery-train-cell');
-        $cell->setAttribute('width', '100%');
+        $cell->setAttribute('width', $logoTrain ? '50%' : '100%');
         $cell->setAttribute('align', $mirrored ? 'right' : 'left');
         $cell->setAttribute('valign', 'bottom');
-        $cell->setAttribute('style', 'width:100%;padding:0;font-size:0;line-height:0;vertical-align:bottom;');
+        $cell->setAttribute('style', $logoTrain
+            ? 'width:50%;padding:0 40px 0 0;border-right:1px solid #e60033;box-sizing:border-box;font-size:0;line-height:0;vertical-align:bottom;'
+            : 'width:100%;padding:0;font-size:0;line-height:0;vertical-align:bottom;');
         $cell->appendChild($dom->createComment('[if !mso]><!'));
         $cell->appendChild($image);
         $cell->appendChild($dom->createComment('<![endif]'));
@@ -128,6 +133,13 @@ final class SignatureTableOverlapDelivery
         $still = '<img class="rt-delivery-train-mso" src="'.htmlspecialchars($stillSource, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'" width="'.$stillWidth.'" height="'.$stillHeight.'" alt="" style="'.self::msoImageStyle($mirrored, $logoTrain).'">';
         $cell->appendChild($dom->createComment('[if mso]>'.$still.'<![endif]'));
         $row->appendChild($cell);
+        if ($logoTrain) {
+            $gap = $dom->createElement('td');
+            $gap->setAttribute('class', 'rt-delivery-train-gap');
+            $gap->setAttribute('width', '50%');
+            $gap->setAttribute('style', 'width:50%;padding:0;font-size:0;line-height:0;');
+            $row->appendChild($gap);
+        }
         $imageCell->parentNode->removeChild($imageCell);
         $content->parentNode->parentNode->appendChild($row);
         if (self::usesLedger($html)) {
@@ -139,9 +151,11 @@ final class SignatureTableOverlapDelivery
                 throw new RuntimeException('Die begrenzte Signaturausgabe besitzt keine eindeutigen Kontaktgruppen.');
             }
             $nested->item(0)->setAttribute('class', trim($nested->item(0)->getAttribute('class').' rt-delivery-contacts'));
-            self::stack($dom, $xpath, $nested->item(0), ['rt-ledger-direct', 'rt-ledger-company']);
             if ($logoTrain) {
-                self::placeLogoTrain($dom, $xpath, $row);
+                self::parallelContactColumns($xpath, $nested->item(0));
+                self::prepareLogoTrainHeading($dom, $xpath);
+            } else {
+                self::stack($dom, $xpath, $nested->item(0), ['rt-ledger-direct', 'rt-ledger-company']);
             }
         } else {
             self::stack($dom, $xpath, self::one($xpath, 'rt-sign-heading-table'), ['rt-sign-heading-person', 'rt-sign-heading-logo']);
@@ -248,18 +262,18 @@ final class SignatureTableOverlapDelivery
         $ledger = self::usesLedger($html);
         $logoTrain = self::usesLogoTrain($html);
         $css = $ledger
-            ? $scope.' .rt-sign-ledger-content{padding:'.($logoTrain ? '25px 0 15px' : '25px 40px 15px').'!important;}'
+            ? $scope.' .rt-sign-ledger-content{padding:'.($logoTrain ? '25px 0 0' : '25px 40px 15px').'!important;}'
                 .$scope.' .rt-sign-ledger img.rt-logo{width:100%!important;max-width:180px!important;height:auto!important;margin:0!important;}'
                 .$scope.' .rt-sign-ledger .rt-contact{margin:0!important;text-align:left!important;}'
                 .$scope.' .rt-address-break{display:none;}'
             : '';
 
         $css .= $scope.' .rt-sign-content-frame{width:100%!important;table-layout:fixed!important;height:auto!important;direction:ltr!important;}'
-            .$scope.' .rt-sign-cell .rt-sign-content{width:100%!important;vertical-align:top!important;height:auto!important;padding-bottom:15px!important;direction:ltr!important;}'
-            .$scope.' .rt-delivery-train-cell{width:100%!important;padding:0!important;font-size:0!important;line-height:0!important;}'
+            .$scope.' .rt-sign-cell .rt-sign-content{width:100%!important;vertical-align:top!important;height:auto!important;padding-bottom:'.($logoTrain ? '0' : '15px').'!important;direction:ltr!important;}'
+            .$scope.' .rt-delivery-train-cell{'.($logoTrain ? 'width:50%!important;padding:0 40px 0 0!important;border-right:1px solid #e60033!important;box-sizing:border-box!important;' : 'width:100%!important;padding:0!important;').'font-size:0!important;line-height:0!important;}'
             .$scope.' .rt-delivery-train{'.str_replace(';', '!important;', self::imageStyle(SignatureArtifactVersion::usesMirroredTrain($version))).'}'
             .$scope.' .rt-delivery-train-mso{'.str_replace(';', '!important;', self::msoImageStyle(SignatureArtifactVersion::usesMirroredTrain($version), $logoTrain)).'}';
-        $css .= $scope.' .rt-delivery-group-cell{display:table-cell!important;width:100%!important;border:0!important;vertical-align:top!important;text-align:left!important;}'
+        $css .= $scope.' .rt-delivery-group-cell{display:table-cell!important;width:'.($logoTrain ? '50%' : '100%').'!important;border:0!important;vertical-align:top!important;text-align:left!important;}'
             .$scope.' .rt-contact-text{word-break:break-all!important;overflow-wrap:anywhere!important;}'
             .$scope.' .rt-delivery-contact-value{margin:0!important;word-break:break-all!important;overflow-wrap:anywhere!important;}';
         if (! $ledger) {
@@ -268,18 +282,23 @@ final class SignatureTableOverlapDelivery
 
         return $css
             .$scope.' .rt-ledger-brand,'.$scope.' .rt-ledger-direct{padding:0!important;}'
-            .$scope.' .rt-ledger-company{padding:14px 0 0!important;}'
+            .$scope.' .rt-ledger-company{padding:'.($logoTrain ? '0' : '14px 0 0').'!important;}'
             .$scope.' .rt-delivery-wide-column{display:table-cell!important;vertical-align:top!important;box-sizing:border-box!important;text-align:left!important;font-weight:normal!important;}'
             .$scope.' .rt-ledger-brand.rt-delivery-wide-column{width:'.($logoTrain ? '50' : '32').'%!important;padding:0 '.($logoTrain ? '40' : '22').'px 0 0!important;border-right:1px solid #e60033!important;}'
             .$scope.' .rt-ledger-contacts.rt-delivery-wide-column{width:'.($logoTrain ? '50' : '68').'%!important;padding:0 '.($logoTrain ? '40px' : '0').' 0 22px!important;border:0!important;}'
             .($logoTrain ? $scope.' .rt-delivery-brand-heading{padding-left:40px!important;}' : '')
             .'@media only screen and (max-width:860px){'
-            .$scope.' .rt-sign-ledger-content{padding:'.($logoTrain ? '23px 0 15px' : '23px 22px 15px').'!important;}'
+            .$scope.' .rt-sign-ledger-content{padding:'.($logoTrain ? '23px 0 0' : '23px 22px 15px').'!important;}'
             .$scope.' .rt-sign-ledger img.rt-logo{max-width:175px!important;}'
             .$scope.' .rt-ledger-brand.rt-delivery-wide-column,'.$scope.' .rt-ledger-contacts.rt-delivery-wide-column{display:block!important;width:100%!important;'.($logoTrain ? '' : 'padding:0!important;').'border:0!important;box-sizing:border-box!important;}'
             .($logoTrain ? $scope.' .rt-ledger-brand.rt-delivery-wide-column{padding:0 22px 0 0!important;}' : '')
             .$scope.' .rt-ledger-contacts.rt-delivery-wide-column{'.($logoTrain ? 'padding:14px 22px 0' : 'padding-top:14px').'!important;}'
             .($logoTrain ? $scope.' .rt-delivery-brand-heading{padding-left:22px!important;}' : '')
+            .($logoTrain ? $scope.' .rt-delivery-group-cell{display:block!important;width:100%!important;}'
+                .$scope.' .rt-ledger-company{padding-top:14px!important;}'
+                .$scope.' .rt-sign-content-frame{table-layout:auto!important;}'
+                .$scope.' .rt-delivery-train-cell{width:100%!important;padding:0 22px 0 0!important;border:0!important;}'
+                .$scope.' .rt-delivery-train-gap{display:none!important;}' : '')
             .$scope.' .rt-address-break{display:block!important;}'
             .'}';
     }
@@ -378,8 +397,28 @@ final class SignatureTableOverlapDelivery
         $table->setAttribute('style', 'width:100%;table-layout:fixed;border-collapse:collapse;');
     }
 
-    /** The existing GIF/MSO pair becomes real content below logo and person. */
-    private static function placeLogoTrain(DOMDocument $dom, DOMXPath $xpath, DOMElement $row): void
+    private static function parallelContactColumns(DOMXPath $xpath, DOMElement $table): void
+    {
+        $rows = $xpath->query('./tr|./tbody/tr', $table);
+        if ($rows->length !== 1 || $xpath->query('./td', $rows->item(0))->length !== 2) {
+            throw new RuntimeException('Die Logo-Zug-Kontakte benoetigen zwei eindeutige Tabellenzellen.');
+        }
+        foreach (['rt-ledger-direct', 'rt-ledger-company'] as $index => $class) {
+            $cell = $xpath->query('./td', $rows->item(0))->item($index);
+            if (! $cell->isSameNode(self::one($xpath, $class))) {
+                throw new RuntimeException('Die Logo-Zug-Kontakte muessen Person vor Firma enthalten.');
+            }
+            $cell->setAttribute('class', trim($cell->getAttribute('class').' rt-delivery-group-cell'));
+            $cell->setAttribute('width', '50%');
+            $cell->setAttribute('align', 'left');
+            $cell->setAttribute('style', 'width:50%;padding:0;border:0;vertical-align:top;text-align:left;');
+        }
+        $table->setAttribute('width', '100%');
+        $table->setAttribute('style', 'width:100%;table-layout:fixed;border-collapse:collapse;');
+    }
+
+    /** Heading inset is independent from the final, edge-aligned train row. */
+    private static function prepareLogoTrainHeading(DOMDocument $dom, DOMXPath $xpath): void
     {
         $brand = self::one($xpath, 'rt-ledger-brand');
         $headingTable = $dom->createElement('table');
@@ -398,15 +437,6 @@ final class SignatureTableOverlapDelivery
         $headingBody->appendChild($headingRow);
         $headingTable->appendChild($headingBody);
         $brand->appendChild($headingTable);
-        $table = $dom->createElement('table');
-        foreach (['class' => 'rt-delivery-logo-train', 'role' => 'presentation', 'width' => '100%', 'border' => '0', 'cellspacing' => '0', 'cellpadding' => '0', 'style' => 'width:100%;table-layout:fixed;border-collapse:collapse;'] as $name => $value) {
-            $table->setAttribute($name, $value);
-        }
-        $body = $dom->createElement('tbody');
-        $table->appendChild($body);
-        $body->appendChild($row);
-        $brand->appendChild($table);
-
         // Only the known empty authoring reserve becomes unnecessary here.
         // Other authored spacers, legal content and hotline padding survive.
         foreach (['rt-sign-ledger', 'rt-sign-stage'] as $class) {
@@ -427,29 +457,37 @@ final class SignatureTableOverlapDelivery
         $contacts = self::one($xpath, 'rt-ledger-contacts');
         $heading = self::one($xpath, 'rt-delivery-brand-heading');
         $headingTable = $xpath->query('ancestor::table[1]', $heading)->item(0);
-        $table = self::one($xpath, 'rt-delivery-logo-train');
         $row = self::one($xpath, 'rt-delivery-train-row');
         $frameRows = $xpath->query('./tr|./tbody/tr', $frame);
-        $trainRows = $xpath->query('./tr|./tbody/tr', $table);
         $mobile = $xpath->query('//*[contains(concat(" ",normalize-space(@class)," ")," rt-mobile-ledger ")]')->length === 1
             && $xpath->query('//style[@data-rt-outlook-mobile-css="1"]')->length === 1;
         $ledgerRows = $xpath->query('./tr|./tbody/tr', $ledger);
+        $gap = $xpath->query('//*[contains(concat(" ",normalize-space(@class)," ")," rt-delivery-train-gap ")]');
         if (! $optIn->isSameNode($ledger) || $ledger->tagName !== 'table'
             || ! $ledger->parentNode->isSameNode($content)
-            || $frameRows->length !== 1 || ! $content->parentNode->isSameNode($frameRows->item(0))
+            || $frameRows->length !== 2 || ! $content->parentNode->isSameNode($frameRows->item(0))
+            || ! $frameRows->item(1)->isSameNode($row)
             || $xpath->query('./td|./th', $frameRows->item(0))->length !== 1
-            || $table->tagName !== 'table' || $table->getAttribute('width') !== '100%'
-            || ! $table->parentNode->isSameNode($brand) || ! $brand->lastElementChild?->isSameNode($table)
-            || $brand->childElementCount !== 2 || $heading->tagName !== 'td'
+            || ($mobile ? $content->hasAttribute('colspan') : $content->getAttribute('colspan') !== '2')
+            || $brand->childElementCount !== 1 || $heading->tagName !== 'td'
             || ! $headingTable instanceof DOMElement || ! $headingTable->parentNode->isSameNode($brand)
-            || ! $brand->firstElementChild?->isSameNode($headingTable) || ! $headingTable->nextElementSibling?->isSameNode($table)
+            || ! $brand->firstElementChild?->isSameNode($headingTable)
             || $xpath->query('./tr|./tbody/tr', $headingTable)->length !== 1
             || $xpath->query('./td', $heading->parentNode)->length !== 1
-            || $trainRows->length !== 1 || ! $trainRows->item(0)->isSameNode($row)
-            || ! $cell->parentNode->isSameNode($row) || $xpath->query('./td|./th', $row)->length !== 1
-            || $cell->getAttribute('width') !== '100%'
+            || ! $cell->parentNode->isSameNode($row) || $xpath->query('./td|./th', $row)->length !== ($mobile ? 1 : 2)
+            || ! $row->firstElementChild?->isSameNode($cell)
+            || $cell->getAttribute('width') !== ($mobile ? '100%' : '50%')
+            || $gap->length !== ($mobile ? 0 : 1)
             || $ledgerRows->length !== ($mobile ? 2 : 1)) {
-            throw new RuntimeException('Der Logo-Zug muss als einzelne echte Tabellenzeile unter dem Markenblock stehen.');
+            throw new RuntimeException('Der Logo-Zug muss in der letzten echten Tabellenzeile unter allen Daten stehen.');
+        }
+        if (! $mobile) {
+            $empty = $gap->item(0);
+            if ($empty->tagName !== 'td' || ! $empty->parentNode->isSameNode($row)
+                || ! $cell->nextElementSibling?->isSameNode($empty) || $empty->getAttribute('width') !== '50%'
+                || $empty->childElementCount !== 0 || trim(str_replace("\u{00a0}", '', $empty->textContent)) !== '') {
+                throw new RuntimeException('Die rechte Zugspalte muss als leere halbe Tabellenzelle reserviert bleiben.');
+            }
         }
         foreach ([$brand, $contacts] as $index => $column) {
             $expectedRow = $ledgerRows->item($mobile ? $index : 0);
@@ -459,6 +497,21 @@ final class SignatureTableOverlapDelivery
                 || $xpath->query('./td|./th', $expectedRow)->length !== ($mobile ? 1 : 2)
                 || ! $xpath->query('./td|./th', $expectedRow)->item($mobile ? 0 : $index)?->isSameNode($column)) {
                 throw new RuntimeException('Der Logo-Zug benoetigt eindeutige Marken- und Kontaktspalten.');
+            }
+        }
+        $contactTable = self::one($xpath, 'rt-delivery-contacts');
+        $contactRows = $xpath->query('./tr|./tbody/tr', $contactTable);
+        if (! $contactTable->parentNode->isSameNode($contacts) || $contactRows->length !== ($mobile ? 2 : 1)) {
+            throw new RuntimeException('Die Logo-Zug-Kontakte besitzen keine eindeutige responsive Datenzeile.');
+        }
+        foreach (['rt-ledger-direct', 'rt-ledger-company'] as $index => $class) {
+            $group = self::one($xpath, $class);
+            $expectedRow = $contactRows->item($mobile ? $index : 0);
+            if ($group->tagName !== 'td' || $group->getAttribute('width') !== ($mobile ? '100%' : '50%')
+                || ! $group->parentNode->isSameNode($expectedRow)
+                || $xpath->query('./td', $expectedRow)->length !== ($mobile ? 1 : 2)
+                || ! $xpath->query('./td', $expectedRow)->item($mobile ? 0 : $index)?->isSameNode($group)) {
+                throw new RuntimeException('Die Logo-Zug-Kontakte muessen Person vor Firma behalten.');
             }
         }
     }

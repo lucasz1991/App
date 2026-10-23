@@ -22,7 +22,7 @@ final class SignatureLogoTrainDeliveryTest extends TestCase
         Http::preventStrayRequests();
     }
 
-    public function test_opted_in_train_and_its_word_image_share_one_real_row_below_logo_and_person(): void
+    public function test_opted_in_train_is_the_final_row_and_person_and_company_share_the_desktop_contact_row(): void
     {
         $source = $this->source();
         $before = $source;
@@ -40,24 +40,38 @@ final class SignatureLogoTrainDeliveryTest extends TestCase
         $frame = $this->one($xpath, 'rt-sign-content-frame');
         $brand = $this->one($xpath, 'rt-ledger-brand');
         $contacts = $this->one($xpath, 'rt-ledger-contacts');
-        $trainTable = $this->one($xpath, 'rt-delivery-logo-train');
+        $trainRow = $this->one($xpath, 'rt-delivery-train-row');
+        $trainCell = $this->one($xpath, 'rt-delivery-train-cell');
+        $gap = $this->one($xpath, 'rt-delivery-train-gap');
         $content = $this->one($xpath, 'rt-sign-content');
         $heading = $this->one($xpath, 'rt-delivery-brand-heading');
-        self::assertSame(1, $xpath->query('./tr|./tbody/tr', $frame)->length);
+        self::assertSame(2, $xpath->query('./tr|./tbody/tr', $frame)->length);
+        self::assertSame('2', $content->getAttribute('colspan'));
         self::assertSame('50%', $brand->getAttribute('width'));
         self::assertSame('50%', $contacts->getAttribute('width'));
         self::assertSame('th', $brand->tagName);
-        self::assertStringContainsString('padding:25px 0 15px;', $content->getAttribute('style'));
+        self::assertStringContainsString('padding:25px 0 0;', $content->getAttribute('style'));
         self::assertStringNotContainsString('padding:25px 40px', $content->getAttribute('style'));
         self::assertStringContainsString('padding:0 40px 0 0;', $brand->getAttribute('style'));
         self::assertStringContainsString('padding:0 40px 0 22px;', $contacts->getAttribute('style'));
         self::assertSame('padding:0 0 0 40px;', $heading->getAttribute('style'));
         self::assertSame('table', $brand->firstElementChild->tagName);
         self::assertTrue($xpath->query('ancestor::table[1]', $heading)->item(0)->isSameNode($brand->firstElementChild));
-        self::assertTrue($trainTable->parentNode->isSameNode($brand));
-        self::assertTrue($brand->lastElementChild->isSameNode($trainTable));
-        self::assertSame('100%', $trainTable->getAttribute('width'));
-        self::assertSame(1, $xpath->query('./tbody/tr/td/img[@class="rt-delivery-train"]', $trainTable)->length);
+        self::assertSame(1, $brand->childElementCount);
+        self::assertTrue($trainRow->previousElementSibling->isSameNode($content->parentNode));
+        self::assertTrue($trainRow->parentNode->lastElementChild->isSameNode($trainRow));
+        self::assertSame('50%', $trainCell->getAttribute('width'));
+        self::assertSame('50%', $gap->getAttribute('width'));
+        self::assertSame('', $gap->textContent);
+        self::assertStringContainsString('padding:0 40px 0 0;', $trainCell->getAttribute('style'));
+        self::assertStringContainsString('border-right:1px solid #e60033;', $trainCell->getAttribute('style'));
+        self::assertSame(1, $xpath->query('./img[@class="rt-delivery-train"]', $trainCell)->length);
+        $direct = $this->one($xpath, 'rt-ledger-direct');
+        $company = $this->one($xpath, 'rt-ledger-company');
+        self::assertSame('50%', $direct->getAttribute('width'));
+        self::assertSame('50%', $company->getAttribute('width'));
+        self::assertTrue($direct->nextElementSibling->isSameNode($company));
+        self::assertSame(2, $xpath->query('./td', $direct->parentNode)->length);
         self::assertSame(1, $xpath->query('.//img[contains(concat(" ",@class," ")," rt-logo ")]', $brand)->length);
         self::assertSame(1, $xpath->query('.//*[contains(concat(" ",@class," ")," rt-person-kopf ")]', $brand)->length);
         self::assertSame(1, $xpath->query('.//img[contains(concat(" ",@class," ")," rt-logo ")]', $heading)->length);
@@ -81,16 +95,22 @@ final class SignatureLogoTrainDeliveryTest extends TestCase
         $legacy = SignatureTableOverlapDelivery::css(str_replace(' design-train-logo', '', $source));
         $css = SignatureTableOverlapDelivery::css($source);
         $scope = 'tr[data-rt-artifact-version="v27"]';
-        self::assertStringContainsString('.rt-sign-ledger-content{padding:25px 0 15px!important;}', $css);
+        self::assertStringContainsString('.rt-sign-ledger-content{padding:25px 0 0!important;}', $css);
+        self::assertStringContainsString('.rt-sign-cell .rt-sign-content{width:100%!important;vertical-align:top!important;height:auto!important;padding-bottom:0!important;', $css);
         self::assertStringContainsString('.rt-ledger-brand.rt-delivery-wide-column{width:50%!important;padding:0 40px 0 0!important;', $css);
         self::assertStringContainsString('.rt-ledger-contacts.rt-delivery-wide-column{width:50%!important;padding:0 40px 0 22px!important;', $css);
         self::assertStringContainsString('.rt-delivery-brand-heading{padding-left:40px!important;}', $css);
         self::assertStringContainsString('@media only screen and (max-width:860px)', $css);
         self::assertStringContainsString('display:block!important;width:100%!important;border:0!important;', $css);
-        self::assertStringContainsString('.rt-sign-ledger-content{padding:23px 0 15px!important;}', $css);
+        self::assertStringContainsString('.rt-sign-ledger-content{padding:23px 0 0!important;}', $css);
         self::assertStringContainsString($scope.' .rt-ledger-brand.rt-delivery-wide-column{padding:0 22px 0 0!important;}', $css);
         self::assertStringContainsString($scope.' .rt-ledger-contacts.rt-delivery-wide-column{padding:14px 22px 0!important;}', $css);
         self::assertStringContainsString('.rt-delivery-brand-heading{padding-left:22px!important;}', $css);
+        self::assertStringContainsString('.rt-delivery-group-cell{display:table-cell!important;width:50%!important;', $css);
+        self::assertStringContainsString('.rt-delivery-group-cell{display:block!important;width:100%!important;}', $css);
+        self::assertStringContainsString('.rt-sign-content-frame{table-layout:auto!important;}', $css);
+        self::assertStringContainsString('.rt-delivery-train-cell{width:100%!important;padding:0 22px 0 0!important;border:0!important;}', $css);
+        self::assertStringContainsString('.rt-delivery-train-gap{display:none!important;}', $css);
         self::assertStringContainsString('.rt-sign-ledger-content{padding:25px 40px 15px!important;}', $legacy);
         self::assertStringContainsString('.rt-ledger-brand.rt-delivery-wide-column{width:32%!important;padding:0 22px 0 0!important;', $legacy);
         self::assertStringContainsString('.rt-ledger-contacts.rt-delivery-wide-column{width:68%!important;padding:0 0 0 22px!important;', $legacy);
@@ -133,12 +153,13 @@ final class SignatureLogoTrainDeliveryTest extends TestCase
         $source = str_replace('{{TRAIN_SRC}}', 'cid:train.gif', $this->source());
         $html = SignatureTableOverlapDelivery::project($source, 'cid:train.png');
         $mutations = [
-            static fn (DOMXPath $xpath) => $xpath->query('//*[contains(@class,"rt-ledger-contacts")]')->item(0)->appendChild($xpath->query('//table[@class="rt-delivery-logo-train"]')->item(0)),
+            static fn (DOMXPath $xpath) => $xpath->query('//*[contains(@class,"rt-ledger-contacts")]')->item(0)->appendChild($xpath->query('//tr[@class="rt-delivery-train-row"]')->item(0)),
             static fn (DOMXPath $xpath) => $xpath->query('//*[contains(@class,"rt-ledger-contacts")]')->item(0)->appendChild($xpath->query('//td[@class="rt-delivery-brand-heading"]')->item(0)),
-            static fn (DOMXPath $xpath) => $xpath->query('//table[@class="rt-delivery-logo-train"]')->item(0)->setAttribute('width', '200%'),
+            static fn (DOMXPath $xpath) => $xpath->query('//td[@class="rt-delivery-train-cell"]')->item(0)->setAttribute('width', '200%'),
+            static fn (DOMXPath $xpath) => $xpath->query('//td[@class="rt-delivery-train-gap"]')->item(0)->appendChild($xpath->document->createTextNode('Keep me')),
             static fn (DOMXPath $xpath) => $xpath->query('//*[contains(@class,"rt-ledger-brand")]')->item(0)->setAttribute('width', '32%'),
             static fn (DOMXPath $xpath) => $xpath->query('//tr[@class="rt-delivery-train-row"]')->item(0)->appendChild($xpath->document->createElement('td', 'Unexpected')),
-            static fn (DOMXPath $xpath) => $xpath->query('//table[@class="rt-delivery-logo-train"]')->item(0)->appendChild($xpath->query('//tr[@class="rt-delivery-train-row"]')->item(0)->cloneNode(true)),
+            static fn (DOMXPath $xpath) => $xpath->query('//tr[@class="rt-delivery-train-row"]')->item(0)->parentNode->appendChild($xpath->query('//tr[@class="rt-delivery-train-row"]')->item(0)->cloneNode(true)),
             static function (DOMXPath $xpath): void {
                 $cell = $xpath->query('//td[@class="rt-delivery-train-cell"]')->item(0);
                 foreach (iterator_to_array($cell->childNodes) as $node) {

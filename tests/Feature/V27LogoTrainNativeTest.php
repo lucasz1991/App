@@ -44,7 +44,7 @@ final class V27LogoTrainNativeTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_native_profile_keeps_canonical_brand_train_and_default_personal_overlay_remains_unchanged(): void
+    public function test_native_profile_has_desktop_contact_columns_and_a_final_train_row_while_default_personal_overlay_is_unchanged(): void
     {
         $profile = $this->document();
         self::assertSame($profile, OutlookNativePersonalSignature::project($profile));
@@ -55,10 +55,25 @@ final class V27LogoTrainNativeTest extends TestCase
         $brand = $xpath->query('//th[contains(@class,"rt-ledger-brand")]')->item(0);
         self::assertSame('50%', $brand->getAttribute('width'));
         self::assertStringContainsString('padding:0 40px 0 0;', $brand->getAttribute('style'));
-        self::assertStringContainsString('padding:25px 0 15px;', $xpath->query('//td[contains(@class,"rt-sign-ledger-content")]')->item(0)->getAttribute('style'));
+        $content = $xpath->query('//td[contains(@class,"rt-sign-ledger-content")]')->item(0);
+        self::assertStringContainsString('padding:25px 0 0;', $content->getAttribute('style'));
+        self::assertSame('2', $content->getAttribute('colspan'));
         self::assertStringContainsString('padding:0 40px 0 22px;', $xpath->query('//th[contains(@class,"rt-ledger-contacts")]')->item(0)->getAttribute('style'));
         self::assertStringContainsString('padding:0 0 0 40px;', $xpath->query('//td[contains(@class,"rt-delivery-brand-heading")]')->item(0)->getAttribute('style'));
-        self::assertSame(1, $xpath->query('.//img[contains(@class,"rt-delivery-train")]', $brand)->length);
+        self::assertSame(0, $xpath->query('.//img[contains(@class,"rt-delivery-train")]', $brand)->length);
+        $direct = $xpath->query('//td[contains(@class,"rt-ledger-direct")]')->item(0);
+        $company = $xpath->query('//td[contains(@class,"rt-ledger-company")]')->item(0);
+        self::assertTrue($direct->parentNode->isSameNode($company->parentNode));
+        self::assertSame('50%', $direct->getAttribute('width'));
+        self::assertSame('50%', $company->getAttribute('width'));
+        $train = $xpath->query('//td[contains(@class,"rt-delivery-train-cell")]')->item(0);
+        $gap = $xpath->query('//td[contains(@class,"rt-delivery-train-gap")]')->item(0);
+        self::assertSame('50%', $train->getAttribute('width'));
+        self::assertSame('50%', $gap->getAttribute('width'));
+        self::assertTrue($content->parentNode->nextElementSibling?->isSameNode($train->parentNode));
+        self::assertNull($train->parentNode->nextElementSibling);
+        self::assertSame(2, $xpath->query('./td', $train->parentNode)->length);
+        self::assertStringContainsString('padding:0 40px 0 0;', $train->getAttribute('style'));
         self::assertStringContainsString('width="220" height="28"', $this->wordTrain($profile));
         self::assertStringNotContainsString('data-rt-train-bottom-overlay=', $profile);
         self::assertStringNotContainsString('data-rt-personal-layout=', $profile);
@@ -83,6 +98,7 @@ final class V27LogoTrainNativeTest extends TestCase
         self::assertSame($mobile['signature'], $mobile['templates'][0]['signature']);
         self::assertSame($this->wordTrain($document['html']), $this->wordTrain($mobile['signature']['html']));
         self::assertStringNotContainsString('data-rt-train-bottom-overlay=', $mobile['signature']['html']);
+        self::assertStringNotContainsString('.rts0123456789 .rt-delivery-train-cell{width:100%!important;padding:0 22px 0 0!important;', $mobile['signature']['html']);
         $xpath = $this->xpath($mobile['signature']['html']);
         foreach (['rt-ledger-brand', 'rt-ledger-contacts', 'rt-ledger-direct', 'rt-ledger-company'] as $class) {
             $cell = $xpath->query('//td[contains(concat(" ",normalize-space(@class)," ")," '.$class.' ")]')->item(0);
@@ -90,8 +106,17 @@ final class V27LogoTrainNativeTest extends TestCase
             self::assertSame('100%', $cell->getAttribute('width'));
             self::assertSame(1, $xpath->query('./td', $cell->parentNode)->length);
         }
-        self::assertSame(1, $xpath->query('//td[contains(@class,"rt-ledger-brand")]//img[contains(@class,"rt-delivery-train")]')->length);
-        self::assertStringContainsString('padding:20px 0 10px;', $xpath->query('//td[contains(@class,"rt-sign-ledger-content")]')->item(0)->getAttribute('style'));
+        self::assertSame(0, $xpath->query('//td[contains(@class,"rt-ledger-brand")]//img[contains(@class,"rt-delivery-train")]')->length);
+        $content = $xpath->query('//td[contains(@class,"rt-sign-ledger-content")]')->item(0);
+        self::assertStringContainsString('padding:20px 0 0;', $content->getAttribute('style'));
+        self::assertFalse($content->hasAttribute('colspan'));
+        self::assertSame(0, $xpath->query('//td[contains(@class,"rt-delivery-train-gap")]')->length);
+        $train = $xpath->query('//td[contains(@class,"rt-delivery-train-cell")]')->item(0);
+        self::assertSame('100%', $train->getAttribute('width'));
+        self::assertStringContainsString('padding:0;border:0;font-size:0;line-height:0;', $train->getAttribute('style'));
+        self::assertSame(1, $xpath->query('./td', $train->parentNode)->length);
+        self::assertTrue($content->parentNode->nextElementSibling?->isSameNode($train->parentNode));
+        self::assertNull($train->parentNode->nextElementSibling);
         self::assertStringContainsString('padding:0 18px 0 0;', $xpath->query('//td[contains(@class,"rt-ledger-brand")]')->item(0)->getAttribute('style'));
         self::assertStringContainsString('padding:14px 18px 0;', $xpath->query('//td[contains(@class,"rt-ledger-contacts")]')->item(0)->getAttribute('style'));
         self::assertStringContainsString('padding:0 0 0 18px;', $xpath->query('//td[contains(@class,"rt-delivery-brand-heading")]')->item(0)->getAttribute('style'));
@@ -120,7 +145,7 @@ final class V27LogoTrainNativeTest extends TestCase
         self::assertStringContainsString('data-rt-compose-document="combined-v1"', $output);
         self::assertStringContainsString('design-train-logo', $output);
         self::assertSame($this->wordTrain($signature), $this->wordTrain($output));
-        self::assertSame(1, $this->xpath($output)->query('//th[contains(@class,"rt-ledger-brand")]//img[contains(@class,"rt-delivery-train")]')->length);
+        self::assertSame(1, $this->xpath($output)->query('//tr[contains(@class,"rt-delivery-train-row")]/td[contains(@class,"rt-delivery-train-cell")]/img[contains(@class,"rt-delivery-train")]')->length);
         self::assertStringNotContainsString('data-rt-train-bottom-overlay=', $output);
         Http::assertNothingSent();
     }
@@ -131,6 +156,15 @@ final class V27LogoTrainNativeTest extends TestCase
         self::assertStringContainsString('width="301"', $html);
         $this->expectException(RuntimeException::class);
         OutlookNativePersonalSignature::project($html);
+    }
+
+    public function test_mobile_projection_never_discards_content_from_the_reserved_train_gap(): void
+    {
+        $html = preg_replace('~(<td\b(?=[^>]*\bclass="[^"]*\brt-delivery-train-gap\b)[^>]*>)~', '$1<a href="https://example.test/keep">Keep content</a>', $this->document(), 1, $count);
+        self::assertSame(1, $count);
+        $payload = ['signature' => ['html' => $html, 'media' => []], 'templates' => [], 'version' => ['signature' => '0123456789abcdef']];
+        $this->expectException(RuntimeException::class);
+        OutlookMobileSignature::payload($payload);
     }
 
     private function source(bool $profile = true): string
