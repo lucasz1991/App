@@ -43,7 +43,12 @@ final class OutlookCombinedComposeDocument
             self::fail();
         }
 
-        if (str_contains($signatureHtml, 'data-rt-train-bottom-overlay=')) {
+        if (SignatureTableOverlapDelivery::usesLogoTrain($signatureHtml)) {
+            if (str_contains($signatureHtml, 'data-rt-train-bottom-overlay=')) {
+                self::fail();
+            }
+            SignatureTableOverlapDelivery::assertRuntime($signatureHtml);
+        } elseif (str_contains($signatureHtml, 'data-rt-train-bottom-overlay=')) {
             OutlookTrainBottomOverlay::assertRuntime($signatureHtml);
         } else {
             SignatureTableOverlapDelivery::assertRuntime($signatureHtml);

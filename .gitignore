@@ -76,6 +76,8 @@ Homestead.json
 !/tests/Feature/EmailHtmlSanitizerTest.php
 !/tests/Feature/MailDocumentEditorTest.php
 !/tests/Feature/V27MailGutterRuntimeTest.php
+!/tests/Feature/SignatureLogoTrainDeliveryTest.php
+!/tests/Feature/V27LogoTrainNativeTest.php
 !/tests/Feature/MarketingBuilderVendorIntegrityTest.php
 !/tests/Feature/MarketingMotiveLibraryTest.php
 !/tests/Feature/MarketingStudioBackendTest.php
@@ -346,3 +348,5 @@ auth.json
 !/tests/Frontend/chat-pane-morph-reactivity.test.js
 !/tests/Frontend/floating-window-component.test.js
 !/tests/Feature/FloatingWindowTabsTest.php
+
+!/tests/Feature/DispositionSharedSelectTest.php

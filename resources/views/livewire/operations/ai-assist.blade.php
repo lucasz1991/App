@@ -137,14 +137,14 @@
                             <p class="rt-ai-assist__group">AI-Eingang</p>
                             @if($canConfigure)
                                 <div class="rt-ai-assist__list">
-                                    <label class="rt-ai-assist__setting"><span class="rt-ai-assist__setting-copy"><strong>Automatisierung</strong><small>Assistiert: jede Änderung erst nach Freigabe</small></span>
-                                        <select wire:model="config.automation_mode"><option value="assisted">Assistiert</option><option value="automatic">Automatisch</option></select></label>
-                                    <label class="rt-ai-assist__setting"><span class="rt-ai-assist__setting-copy"><strong>Rückfragen an Kunden</strong><small>Höchstens so viele Runden je Eingang</small></span>
-                                        <select wire:model="config.max_rounds"><option value="1">1 Runde</option><option value="2">2 Runden</option></select></label>
-                                    <label class="rt-ai-assist__setting"><span class="rt-ai-assist__setting-copy"><strong>Antwortfrist</strong><small>Danach als Kundenantwort ausstehend markieren</small></span>
-                                        <select wire:model="config.reply_timeout_hours"><option value="24">24 Stunden</option><option value="48">48 Stunden</option><option value="72">72 Stunden</option></select></label>
-                                    <label class="rt-ai-assist__setting"><span class="rt-ai-assist__setting-copy"><strong>AI-Aufrufe je Stunde</strong><small>Obergrenze für automatische Auswertungen</small></span>
-                                        <select wire:model="config.max_ai_calls_per_hour"><option value="50">50</option><option value="100">100</option><option value="250">250</option></select></label>
+                                    <div class="rt-ai-assist__setting"><label for="{{ $panelId }}-automation-mode" class="rt-ai-assist__setting-copy"><strong>Automatisierung</strong><small>Assistiert: jede Änderung erst nach Freigabe</small></label>
+                                        <x-ui.forms.select id="{{ $panelId }}-automation-mode" wire:model="config.automation_mode" aria-label="Automatisierung"><option value="assisted">Assistiert</option><option value="automatic">Automatisch</option></x-ui.forms.select></div>
+                                    <div class="rt-ai-assist__setting"><label for="{{ $panelId }}-max-rounds" class="rt-ai-assist__setting-copy"><strong>Rückfragen an Kunden</strong><small>Höchstens so viele Runden je Eingang</small></label>
+                                        <x-ui.forms.select id="{{ $panelId }}-max-rounds" wire:model="config.max_rounds" aria-label="Rückfragen an Kunden"><option value="1">1 Runde</option><option value="2">2 Runden</option></x-ui.forms.select></div>
+                                    <div class="rt-ai-assist__setting"><label for="{{ $panelId }}-reply-timeout" class="rt-ai-assist__setting-copy"><strong>Antwortfrist</strong><small>Danach als Kundenantwort ausstehend markieren</small></label>
+                                        <x-ui.forms.select id="{{ $panelId }}-reply-timeout" wire:model="config.reply_timeout_hours" aria-label="Antwortfrist"><option value="24">24 Stunden</option><option value="48">48 Stunden</option><option value="72">72 Stunden</option></x-ui.forms.select></div>
+                                    <div class="rt-ai-assist__setting"><label for="{{ $panelId }}-max-ai-calls" class="rt-ai-assist__setting-copy"><strong>AI-Aufrufe je Stunde</strong><small>Obergrenze für automatische Auswertungen</small></label>
+                                        <x-ui.forms.select id="{{ $panelId }}-max-ai-calls" wire:model="config.max_ai_calls_per_hour" aria-label="AI-Aufrufe je Stunde"><option value="50">50</option><option value="100">100</option><option value="250">250</option></x-ui.forms.select></div>
                                 </div>
                                 @error('config')<p class="rt-ai-assist__error" role="alert">{{ $message }}</p>@enderror
                                 <div class="rt-ai-assist__settings-foot">

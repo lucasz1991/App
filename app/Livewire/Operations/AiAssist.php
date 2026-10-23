@@ -86,7 +86,11 @@ class AiAssist extends Component
 
     public function mount(string $page = '', string $view = '', string $section = ''): void
     {
-        $this->actor();
+        // Shared Selects bind their value during Alpine initialization.
+        // Load authorized settings before rendering their nested models.
+        if ($this->actor()->isSuperAdmin()) {
+            $this->openSettings();
+        }
         $context = app(AiAssistService::class)->context($page, $view, $section);
         [$this->page, $this->pageLabel, $this->from, $this->until] = [$context['page'], $context['label'], $context['from'], $context['until']];
         if ($intakeContext = OperationsPages::intakePanelContext(request())) {

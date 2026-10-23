@@ -896,9 +896,10 @@ final class OutlookMobileSignature
             throw new RuntimeException('Die mobile CSS-Kuerzung besitzt keine eindeutige kanonische Runtime.');
         }
         $prefix = '.'.$scope.' ';
+        $logoTrain = SignatureTableOverlapDelivery::usesLogoTrain($original);
         $rules = [
-            $prefix.'.rt-ledger-brand.rt-delivery-wide-column{width:32%!important;padding:0 22px 0 0!important;border-right:1px solid #e60033!important;}',
-            $prefix.'.rt-ledger-contacts.rt-delivery-wide-column{width:68%!important;padding:0 0 0 22px!important;border:0!important;}',
+            $prefix.'.rt-ledger-brand.rt-delivery-wide-column{width:'.($logoTrain ? '50' : '32').'%!important;padding:0 22px 0 0!important;border-right:1px solid #e60033!important;}',
+            $prefix.'.rt-ledger-contacts.rt-delivery-wide-column{width:'.($logoTrain ? '50' : '68').'%!important;padding:0 0 0 22px!important;border:0!important;}',
             $prefix.'.rt-ledger-brand.rt-delivery-wide-column,'.$prefix.'.rt-ledger-contacts.rt-delivery-wide-column{display:block!important;width:100%!important;padding:0!important;border:0!important;box-sizing:border-box!important;}',
             $prefix.'.rt-ledger-contacts.rt-delivery-wide-column{padding-top:14px!important;}',
         ];

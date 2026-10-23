@@ -8760,6 +8760,31 @@ input.rt-ui-field-control[type='file']:hover::file-selector-button {
     background: rgba(235, 239, 244, .72);
 }
 
+/* All Select presentations keep one focus owner, including teleported lists. */
+[data-rt-custom-select] {
+    --rt-select-focus: #e4002b;
+    --rt-select-focus-ring: rgb(228 0 43 / 16%);
+}
+html.dark [data-rt-custom-select], body[data-mode='dark'] [data-rt-custom-select] {
+    --rt-select-focus: #ff4968;
+    --rt-select-focus-ring: rgb(255 73 104 / 24%);
+}
+[data-rt-custom-select] [data-rt-select-trigger]:is(:focus, [data-select-open='true']):not(:disabled):not([aria-invalid='true']):not(.is-invalid):is([data-autosave-state='idle'], :not([data-autosave-state])) {
+    border-color: var(--rt-select-focus);
+    outline: none;
+    box-shadow: inset 0 0 0 3px var(--rt-select-focus-ring);
+}
+.rt-select--compact { width: max-content; max-width: 100%; }
+.rt-select--compact [data-rt-select-trigger] { min-height: 44px; padding: 6px 12px; gap: 8px; font-size: 12px; }
+.rt-select--icon { --rt-select-control-size: 34px; width: var(--rt-select-control-size); flex: none; }
+.rt-select--icon [data-rt-select-trigger] { width: var(--rt-select-control-size); min-width: var(--rt-select-control-size); min-height: var(--rt-select-control-size); height: var(--rt-select-control-size); padding: 0; gap: 0; justify-content: center; }
+@media (max-width: 760px) { .rt-select--icon { --rt-select-control-size: 44px; } }
+@media (max-width: 767.98px) {
+    .rt-select--compact:has([data-rt-select-trigger] > i) { width: 44px; }
+    .rt-select--compact:has([data-rt-select-trigger] > i) [data-rt-select-trigger] { width: 44px; padding-inline: 0; justify-content: center; gap: 0; }
+    .rt-select--compact:has([data-rt-select-trigger] > i) [data-rt-select-trigger] > span { display: none; }
+}
+
 .rt-ui-field-shell > [role='button'],
 .rt-ui-date-field__shell > button {
     color: #6f7a8c;

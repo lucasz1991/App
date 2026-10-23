@@ -120,6 +120,9 @@
                     </ol>
                 @endif
                 <dl class="ops-meta"><div><dt>Kunde</dt><dd>{{ $selected->customer?->company_name ?? 'Noch nicht zugeordnet' }}</dd></div><div><dt>Kontakt</dt><dd>{{ $selected->contact_name ?: '—' }}</dd></div><div><dt>Beginn</dt><dd>{{ $selected->starts_at?->format('d.m.Y H:i') ?? '—' }}</dd></div><div><dt>Ende · {{ $selected->timezone }}</dt><dd>{{ $selected->ends_at?->format('d.m.Y H:i') ?? '—' }}</dd></div><div><dt>Einsatzort</dt><dd>{{ $selected->location_name ?: '—' }}</dd></div><div><dt>Bedarf</dt><dd>{{ $selected->required_staff ?? '—' }} × {{ $selected->role_name ?: '—' }}</dd></div></dl>
+                @if($aiIntakeId)
+                    <x-ui.buttons.button-basic mode="link" :href="\App\Support\Operations\OperationsPages::intakePanelUrl($aiIntakeId)" data-no-navigate>{{ $selected->order_id ? 'Weiter zur Schichtvorbereitung in der AI-Inbox' : 'Zurück zur AI-Inbox' }} <i class="far fa-arrow-right" aria-hidden="true"></i></x-ui.buttons.button-basic>
+                @endif
                 <details class="rt-disposition-detail-section"><summary>Originaleingang</summary><p class="ops-muted">{{ ['email' => 'E-Mail', 'phone' => 'Telefon', 'portal' => 'Portal', 'manual' => 'Manuell'][$selected->channel] ?? $selected->channel }}@if($selected->source_reference) · {{ $selected->source_reference }}@endif</p><div class="ops-original">{{ $selected->original }}</div></details>
                 @if($selected->customer_id && auth()->user()->can('operations.manage') && \Illuminate\Support\Facades\Route::has('operations.page'))<x-ui.buttons.button-basic mode="link" data-no-navigate :href="route('operations.page',['page'=>'customers','customer'=>$selected->customer_id])">Kundenakte öffnen</x-ui.buttons.button-basic>@endif
                 @if($customerWorkflowReady && !$portalSubmissionId)

@@ -3,6 +3,7 @@
 namespace App\Livewire\Operations;
 
 use App\Models\Customer;
+use App\Models\AiIntakeProposal;
 use App\Models\CustomerPortalSubmissionItem;
 use App\Models\OperationAudit;
 use App\Models\OperationInquiry;
@@ -10,6 +11,7 @@ use App\Services\Operations\CommercialOfferService;
 use App\Services\Operations\CustomerWorkflowService;
 use App\Services\Operations\InquiryWorkflowService;
 use App\Support\Operations\OperationsAccess;
+use App\Support\Operations\AiIntakeSchema;
 use App\Support\Operations\OperationsPages;
 use Illuminate\Support\Facades\Schema;
 use Livewire\Attributes\Locked;
@@ -310,6 +312,7 @@ class InquiryInbox extends Component
                 ->orderBy('starts_at')->oldest('updated_at')->orderBy('id')->limit(3)->get(),
             'inquiries' => $query->paginate(15),
             'selected' => $selected,
+            'aiIntakeId' => $selected && AiIntakeSchema::ready() ? AiIntakeProposal::where('inquiry_id', $selected->id)->where('status', '!=', 'stale')->latest('id')->value('intake_id') : null,
             'portalSubmissionId' => $selected ? $this->portalSubmission($selected) : null,
             'customers' => Customer::where('is_active', true)->when($this->profileEmbedded, fn ($query) => $query->whereKey($this->customerFilterId))->orderBy('company_name')->get(['id', 'company_name']),
             'history' => $this->selectedId ? OperationAudit::where('subject_type', 'OperationInquiry')->where('subject_id', $this->selectedId)->with(['actor.profile', 'actor.currentTeam'])->latest('id')->limit(30)->get() : collect(),
