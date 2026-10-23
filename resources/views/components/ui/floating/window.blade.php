@@ -8,7 +8,7 @@
 
 @once
 <style data-rt-floating-window-geometry>
-:root { --rt-floating-mini-width: 442px; --rt-floating-mini-height: 510px; }
+:root { --rt-floating-mini-width: 442px; --rt-floating-mini-height: 510px; --rt-floating-window-inset: 8px; }
 .rt-floating-window__header:has(> .rt-window-tabs) { flex-wrap: wrap; row-gap: 4px; }
 .rt-floating-window__header:has(> .rt-window-tabs) > .rt-floating-window__header-spacer { flex: 1 1 0; min-width: 0; }
 .rt-floating-window__header:has(> .rt-window-tabs) > .rt-floating-window__actions { margin-left: auto; }
@@ -36,8 +36,13 @@
 .rt-floating-toolbar :is(.rt-comm-icon, .ai-intake-panel__filter-trigger, .ai-intake-panel__new) { color: var(--rt-shell-text, #182538); }
 .rt-floating-toolbar button > i { width: 16px; height: 16px; font-size: 14px; line-height: 16px; text-align: center; }
 @media (min-width: 761px) {
-    .rt-floating-window[data-floating-mode='mini'] {
+    .rt-floating-window:is([data-floating-mode='mini'], [data-floating-mode='fullscreen']) {
         --rt-floating-action-size: 34px; --rt-floating-action-radius: 8px;
+    }
+    .rt-floating-window:is([data-floating-mode='mini'], [data-floating-mode='fullscreen']) > .rt-floating-window__header {
+        min-height: 56px; gap: 8px; padding: 6px 10px;
+    }
+    .rt-floating-window[data-floating-mode='mini'] {
         width: min(var(--rt-floating-mini-width), calc(100vw - 16px));
         height: min(var(--rt-floating-mini-height), calc(100dvh - var(--rt-floating-top, 70px) - 16px - var(--comm-bottom, var(--rt-assistant-bottom, 0px))));
     }

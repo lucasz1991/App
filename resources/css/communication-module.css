@@ -43,8 +43,8 @@ body.rt-communication-fullscreen { overflow: hidden; }
     container: communication / inline-size;
 }
 .rt-communication[data-mode='fullscreen'] {
-    top: calc(var(--comm-top) + 16px); left: calc(var(--comm-left) + 16px); right: 16px;
-    bottom: calc(16px + var(--comm-bottom)); width: auto; height: auto; box-shadow: none;
+    top: calc(var(--comm-top) + var(--rt-floating-window-inset, 8px)); left: calc(var(--comm-left) + var(--rt-floating-window-inset, 8px)); right: var(--rt-floating-window-inset, 8px);
+    bottom: calc(var(--rt-floating-window-inset, 8px) + var(--comm-bottom)); width: auto; height: auto; box-shadow: none;
 }
 .rt-comm-head { display: flex; flex: none; align-items: center; min-height: 66px; gap: 12px; padding: 8px 14px; border-bottom: 1px solid var(--comm-line); background: var(--comm-surface); }
 .rt-comm-drag-handle { min-width: 20px; flex: 1; align-self: stretch; border-radius: 8px; }
