@@ -1,0 +1,1 @@
+<x-ui.navigation.status-menu variant="dropdown" :options="['all' => 'Alle']" value="all" action="invalid.action" />

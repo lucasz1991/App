@@ -285,6 +285,7 @@ auth.json
 !/tests/Feature/AssistantOperationsUiTest.php
 !/tests/Frontend/chatbot-operations-assist.test.js
 !/tests/Feature/AiCustomerCommunicationTest.php
+!/tests/Feature/AiIntakeManualPlanningTest.php
 !/tests/Feature/StaffingAutomationTest.php
 !/tests/Feature/AiAssistTest.php
 !/tests/Feature/AreaMenuUiTest.php

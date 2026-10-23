@@ -123,7 +123,7 @@
 .rt-personal-work .rt-personal-duty-list { gap: 16px; }
 .rt-personal-work .rt-personal-duty-list h3 { font-size: 18px; letter-spacing: -.02em; }
 .rt-personal-duty-list > .ops-toolbar > div { display: grid; gap: 4px; }
-.rt-personal-work .rt-personal-record-list.rt-table-frame { --rt-table-divider: var(--personal-line); --rt-table-row-hover: var(--personal-inset); margin-top: 0; border-radius: 16px !important; box-shadow: 0 0 0 1px var(--personal-line) !important; }
+.rt-personal-work .rt-personal-record-list.rt-table-frame { --rt-table-divider: var(--personal-line); --rt-table-row-hover: var(--personal-inset); margin-top: 0; border-radius: var(--rt-table-top-radius) var(--rt-table-top-radius) var(--rt-table-bottom-radius) var(--rt-table-bottom-radius) !important; box-shadow: 0 0 0 1px var(--personal-line) !important; }
 .rt-personal-work .rt-personal-record-list .rt-table-head { background: var(--personal-inset) !important; color: var(--personal-muted) !important; }
 .rt-personal-work .rt-personal-record-list .rt-table-row { padding: 16px; border-color: var(--personal-line); background: var(--personal-sheet) !important; animation: none; transition: none; }
 .rt-personal-work .rt-personal-record-list .rt-table-row:hover { background: var(--personal-inset) !important; box-shadow: none; transform: none; }

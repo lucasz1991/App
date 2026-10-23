@@ -13,7 +13,7 @@
     </ol>
     @if(!$inquiry->order_id)
         <p class="ops-muted">{{ $inquiry->status === 'accepted' ? 'Kundenzusage dokumentiert. Jetzt den Auftrag anlegen und anschließend hier die Schichten prüfen.' : 'Anfrage bestätigt. Angebot und tatsächliche Kundenzusage in der Anfrage prüfen; anschließend den Auftrag anlegen.' }}</p>
-        <x-ui.buttons.button-basic mode="link" :href="\App\Support\Operations\OperationsPages::url('cases',['view'=>'inbox','inquiry'=>$inquiry->id])" data-no-navigate>{{ $inquiry->status === 'accepted' ? 'Auftrag anlegen' : 'Angebot und Kundenzusage prüfen' }} <i class="far fa-arrow-right" aria-hidden="true"></i></x-ui.buttons.button-basic>
+        <x-ui.buttons.button-basic type="button" wire:click="continueInquiry({{ $proposal->id }},{{ $proposal->revision }})" wire:loading.attr="disabled">{{ $inquiry->status === 'accepted' ? 'Auftrag anlegen' : 'Angebot und Kundenzusage prüfen' }} <i class="far fa-arrow-right" aria-hidden="true"></i></x-ui.buttons.button-basic>
     @elseif($proposal->status !== 'applied')
         <p class="ops-muted">Auftrag bestätigt. Schichtabschnitte und Pausen persönlich prüfen. Daraus werden zunächst unbesetzte Entwürfe erstellt.</p>
         @if($planningProposalId === $proposal->id)
@@ -43,6 +43,7 @@
             <x-ui.buttons.button-basic mode="link" :href="\App\Support\Operations\OperationsPages::url('cases',['view'=>'shifts','section'=>'plan','shift'=>$shift->id,'from'=>$shift->starts_at->setTimezone($shift->timezone)->format('Y-m-d'),'until'=>$shift->starts_at->setTimezone($shift->timezone)->addDays(6)->format('Y-m-d'),'distribution'=>'true'])" data-no-navigate>Schicht {{ $shift->starts_at->setTimezone($shift->timezone)->format('d.m. H:i') }} · {{ $shift->published_revision === $shift->revision ? 'Besetzung öffnen' : 'Einsatzort und Entwurf prüfen' }} <i class="far fa-arrow-right" aria-hidden="true"></i></x-ui.buttons.button-basic>
         @endforeach
         @if(!$allPublished && $canPlan && $shifts->isNotEmpty())
+            <x-ui.buttons.button-basic type="button" wire:click="select({{ $selected->id }})" wire:loading.attr="disabled">Prüfstand aktualisieren</x-ui.buttons.button-basic>
             <x-ui.buttons.button-basic type="button" mode="primary" wire:click="publishPlanning({{ $proposal->id }},{{ $proposal->revision }})" wire:loading.attr="disabled" wire:confirm="Diese Schichten nach Prüfung von Zeiten, Pausen und Einsatzort zur Besetzung freigeben?">Zur Besetzung freigeben</x-ui.buttons.button-basic>
         @endif
     @endif

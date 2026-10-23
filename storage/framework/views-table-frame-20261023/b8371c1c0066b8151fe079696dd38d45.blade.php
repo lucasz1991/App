@@ -1,0 +1,1 @@
+<x-tables.table :columns="['Mitarbeiter', 'Antwort']" />

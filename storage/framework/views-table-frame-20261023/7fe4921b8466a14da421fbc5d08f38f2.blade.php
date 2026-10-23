@@ -1,0 +1,1 @@
+<x-tables.pagination :paginator="$pages" :table-key="$tableKey" :label="$label" /><x-tables.pagination :paginator="$pages" table-key="other-table" />

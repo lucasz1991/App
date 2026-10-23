@@ -15,6 +15,7 @@ use App\Services\Operations\AiIntakeService;
 use App\Support\Operations\AiDispositionSettings;
 use App\Support\Operations\AiIntakeSchema;
 use App\Support\Operations\OperationsAccess;
+use App\Support\Operations\OperationsPages;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
@@ -446,6 +447,15 @@ class AiIntakeInbox extends Component
                     'ends_at' => $inquiry->ends_at->setTimezone($inquiry->timezone)->format('Y-m-d\TH:i'),
                     'timezone' => $inquiry->timezone, 'required_staff' => $inquiry->required_staff, 'planned_break_minutes' => ''];
             }
+        }, false);
+    }
+
+    public function continueInquiry(int $id, int $revision): void
+    {
+        $this->perform(function () use ($id, $revision): void {
+            $proposal = $this->selected()->proposals()->findOrFail($id);
+            $inquiryId = app(AiIntakeService::class)->continueProposalManually($proposal, $this->actor(), $revision);
+            $this->redirect(OperationsPages::url('cases', ['view' => 'inbox', 'inquiry' => $inquiryId]), navigate: true);
         }, false);
     }
 

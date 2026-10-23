@@ -1,0 +1,1 @@
+<x-ui.page-header title="Angebote" :variant="$variant" :show-back="false"><x-slot:controls><button type="button" data-filter>Filtern</button></x-slot:controls><x-slot:actions><button type="button" data-create>Erstellen</button></x-slot:actions></x-ui.page-header>

@@ -1,0 +1,2 @@
+    <x-tables.table :columns="[['label'=>'Vorgang','key'=>'title','sortable'=>true], ['label'=>'Status','key'=>'status']]"
+        sort-action="tableSort" sort-by="title" sort-dir="asc" table-key="inquiries" :items="collect([(object)['id'=>7]])" />

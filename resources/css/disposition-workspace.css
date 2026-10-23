@@ -477,7 +477,6 @@ body:has(#main-content .rt-shift-plan) { height: 100%; min-height: 0; overflow: 
 }
 .rt-unified-inbox { display: grid; gap: 12px; min-width: 0; }
 .rt-disposition.rt-unified-inbox > * + * { margin-top: 0; }
-.rt-unified-inbox .rt-table-head { border-radius: 11px 11px 0 0 !important; }
 
 /* Full-page list surfaces reuse the bounded Orders/Planner contract. The
    explicit leaf opt-in excludes customer profiles and assistant tables. */

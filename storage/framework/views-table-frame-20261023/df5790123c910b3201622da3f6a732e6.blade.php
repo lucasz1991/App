@@ -1,0 +1,1 @@
+    <x-tables.table :columns="[['label'=>'Name','key'=>'name','sortable'=>true]]" sort-by="name" sort-dir="desc" />

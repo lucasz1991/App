@@ -32,8 +32,7 @@ class AiIntakeMailService
     /** A human inbox takeover can explicitly keep this intake entirely internal. */
     private function customerCommunicationSuppressed(AiIntake $intake): bool
     {
-        return $intake->proposals()->get(['payload'])->contains(fn ($proposal) =>
-            ($proposal->payload['review_confirmation']['customer_communication'] ?? null) === 'off');
+        return $intake->proposals()->get(['payload'])->contains(fn ($proposal) => ($proposal->payload['review_confirmation']['customer_communication'] ?? null) === 'off');
     }
 
     /** The global assisted setting always turns automatic communication into a private draft. */

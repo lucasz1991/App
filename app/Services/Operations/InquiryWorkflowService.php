@@ -198,7 +198,7 @@ class InquiryWorkflowService
             $communication = $action === 'convert' && $actor instanceof User && AiCustomerCommunicationSchema::ready() ? AiDispositionSettings::all(true) : null;
             $customerMailSuppressed = $communication && AiIntakeProposal::where('inquiry_id', $record->id)->get(['payload'])
                 ->contains(fn ($proposal) => ($proposal->payload['review_confirmation']['customer_communication'] ?? null) === 'off');
-            if ($communication && !$customerMailSuppressed && $communication['enabled'] && ($communication['customer_confirmation_mode'] ?? 'off') !== 'off' && AiIntakeProposal::where('inquiry_id', $record->id)->exists()) {
+            if ($communication && ! $customerMailSuppressed && $communication['enabled'] && ($communication['customer_confirmation_mode'] ?? 'off') !== 'off' && AiIntakeProposal::where('inquiry_id', $record->id)->exists()) {
                 // Persist the opt-in intent inside the human conversion transaction, before a queue can fail.
                 $auditData['customer_confirmation'] = ['enabled' => true, 'settings_revision' => (int) $communication['revision'], 'supervisor_id' => (int) $communication['supervisor_id'], 'mode' => $communication['customer_confirmation_mode']];
             }

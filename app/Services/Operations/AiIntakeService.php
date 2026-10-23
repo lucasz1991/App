@@ -467,6 +467,7 @@ class AiIntakeService
             abort_if($record->error_code === 'reply_position_review' && ! $record->inquiry_id, 409, 'Bitte zuerst die Leistung ausdrücklich einem bestehenden Anfragevorgang zuordnen.');
             $inquiry = $record->inquiry_id ? OperationInquiry::lockForUpdate()->findOrFail($record->inquiry_id) : null;
             $rawRequirements = $record->payload['raw_requirements'] ?? [];
+            $reviewConfirmation = $record->payload['review_confirmation'] ?? null;
             $oldRequirements = $record->payload['demand']['qualification_ids'] ?? [];
             $needsReview = ! empty($record->payload['unmapped_requirements']) || ($rawRequirements !== [] && (array_diff($oldRequirements, $payload['demand']['qualification_ids']) !== [] || array_diff($payload['demand']['qualification_ids'], $oldRequirements) !== []));
             $requirementsResolved = ! $needsReview || ($payload['requirements_reviewed'] && $payload['demand']['qualification_ids'] !== []);
@@ -484,6 +485,11 @@ class AiIntakeService
                 $payload['missing_fields'][] = 'qualification_ids';
             }
             $payload['mapping'] = $record->payload['mapping'] ?? null;
+            // Preserve an already recorded human confirmation. A later correction must not
+            // silently re-enable customer communication or the legacy automatic planner.
+            if (is_array($reviewConfirmation)) {
+                $payload['review_confirmation'] = $reviewConfirmation;
+            }
             // A personal correction confirms the value; a model must never mint provenance.
             $payload['assumptions'] = [];
             $record->update(['payload' => $payload, 'revision' => $record->revision + 1, 'status' => 'proposed', 'approved_by' => null, 'approved_at' => null, 'error_code' => null, 'inquiry_revision' => $inquiry?->revision, 'inquiry_fingerprint' => $inquiry ? $this->fingerprint($inquiry) : null]);
@@ -511,6 +517,235 @@ class AiIntakeService
             abort_unless(! $inquiry->order_id && ! $inquiry->duplicate_of_id && ! in_array($inquiry->status, ['rejected', 'duplicate'], true) && $inquiry->customer_id === $intake->customer_id && $inquiry->verified_revision === $inquiry->revision && $this->demandMatches($inquiry, $payload['demand']), 409, 'Anfragegrundlage muss zuerst aktuell geprüft werden.');
             $record->update(['status' => 'approved', 'revision' => $record->revision + 1, 'approved_by' => $actor->id, 'approved_at' => now()->utc(), 'inquiry_revision' => $inquiry->revision, 'inquiry_fingerprint' => $this->fingerprint($inquiry)]);
             $intake->update(['revision' => $intake->revision + 1]);
+        });
+    }
+
+    /**
+     * Mark an already linked native inquiry as a manual continuation before the
+     * planner moves on to offer, acceptance, conversion, and shift preparation.
+     */
+    public function continueProposalManually(AiIntakeProposal $proposal, User $actor, int $expectedRevision): int
+    {
+        $this->access($actor);
+
+        return OperationsTransaction::run(function () use ($proposal, $actor, $expectedRevision): int {
+            $this->access($actor);
+            $probe = AiIntakeProposal::findOrFail($proposal->id);
+            $intake = AiIntake::lockForUpdate()->findOrFail($probe->intake_id);
+            $this->actionable($intake);
+            abort_if($intake->paused_at || $intake->status === 'paused', 409, 'Der Eingang ist angehalten. Bitte zuerst wieder zur Prüfung öffnen.');
+            $record = AiIntakeProposal::where('intake_id', $intake->id)->lockForUpdate()->findOrFail($proposal->id);
+            $this->revision($record->revision, $expectedRevision);
+            abort_unless($record->source_revision === $intake->source_revision && $record->status !== 'stale' && $record->inquiry_id, 409, 'Der verknüpfte Anfragevorgang ist nicht mehr aktuell. Bitte neu laden.');
+
+            $payload = $this->validateProposal($record->payload, false);
+            $inquiry = OperationInquiry::lockForUpdate()->findOrFail($record->inquiry_id);
+            abort_unless($inquiry->customer_id === $intake->customer_id && ! $inquiry->duplicate_of_id
+                && ! in_array($inquiry->status, ['rejected', 'duplicate'], true) && $record->inquiry_fingerprint
+                && hash_equals($record->inquiry_fingerprint, $this->fingerprint($inquiry))
+                && $this->demandMatches($inquiry, $payload['demand']), 409, 'Anfragegrundlage wurde geändert. Bitte zuerst die verknüpfte Anfrage prüfen.');
+
+            $storedPayload = is_array($record->payload) ? $record->payload : [];
+            $confirmation = is_array($storedPayload['review_confirmation'] ?? null) ? $storedPayload['review_confirmation'] : [];
+            $updatedConfirmation = array_replace($confirmation, [
+                'customer_communication' => 'off',
+                'planning_mode' => 'manual',
+            ]);
+            if ($updatedConfirmation === $confirmation) {
+                return $inquiry->id;
+            }
+
+            $storedPayload['review_confirmation'] = $updatedConfirmation;
+            $record->update([
+                'payload' => $storedPayload,
+                'inquiry_revision' => $inquiry->revision,
+                'inquiry_fingerprint' => $this->fingerprint($inquiry),
+                'revision' => $record->revision + 1,
+            ]);
+            $intake->update(['revision' => $intake->revision + 1]);
+            $this->refreshReviewState($intake);
+            app(OperationsAuditService::class)->record($record, $actor, 'ai.proposal.manual_continuation_selected', [
+                'intake_id' => $intake->id,
+                'inquiry_id' => $inquiry->id,
+                'source_revision' => $intake->source_revision,
+            ]);
+
+            return $inquiry->id;
+        });
+    }
+
+    /**
+     * Prepare unassigned draft shifts from an already human-converted inquiry.
+     *
+     * This is deliberately a synchronous human action: it neither depends on the
+     * automation setting nor queues mail, publishes a plan, or assigns staff.
+     *
+     * @param  array<int, array<string, mixed>>  $segments
+     * @return array<int, int>
+     */
+    public function prepareProposalShifts(AiIntakeProposal $proposal, User $actor, int $expectedRevision, array $segments): array
+    {
+        $this->access($actor);
+        $this->access($actor, 'operations.manage');
+
+        return OperationsTransaction::run(function () use ($proposal, $actor, $expectedRevision, $segments): array {
+            $this->access($actor);
+            $this->access($actor, 'operations.manage');
+            $probe = AiIntakeProposal::findOrFail($proposal->id);
+            $intake = AiIntake::lockForUpdate()->findOrFail($probe->intake_id);
+            $this->actionable($intake);
+            abort_if($intake->paused_at || $intake->status === 'paused', 409, 'Der Eingang ist angehalten. Bitte zuerst wieder zur Prüfung öffnen.');
+            $record = AiIntakeProposal::where('intake_id', $intake->id)->lockForUpdate()->findOrFail($proposal->id);
+            $this->revision($record->revision, $expectedRevision);
+            abort_unless($record->source_revision === $intake->source_revision, 409, 'Vorschlag ist nicht mehr aktuell. Bitte neu laden.');
+
+            if ($record->status === 'applied') {
+                $this->convertedOrder($intake, $record, true);
+
+                return $this->appliedShiftIds($record);
+            }
+
+            abort_unless(in_array($record->status, ['proposed', 'approved', 'failed'], true), 409, 'Vorschlag kann nicht mehr für die Planung vorbereitet werden.');
+            abort_if($this->hasPlanningEffects($record), 409, 'Der Vorschlag enthält bereits vorbereitete Planungsschritte. Bitte neu laden.');
+            abort_if(! empty($record->payload['unmapped_requirements']), 422, 'Die Qualifikationsanforderungen müssen vor der Schichtvorbereitung ausdrücklich geprüft werden.');
+            if ($segments === []) {
+                throw ValidationException::withMessages(['segments' => 'Bitte geben Sie mindestens einen Schichtabschnitt an.']);
+            }
+
+            $storedPayload = is_array($record->payload) ? $record->payload : [];
+            $payload = array_replace($storedPayload, ['segments' => $segments]);
+            $validated = $this->validateProposal($payload, true);
+            if ($validated['segments'] === []) {
+                throw ValidationException::withMessages(['segments' => 'Bitte geben Sie mindestens einen Schichtabschnitt an.']);
+            }
+            $order = $this->convertedOrder($intake, $record, true, $validated['demand']);
+            $currentInquiry = OperationInquiry::lockForUpdate()->findOrFail($record->inquiry_id);
+            abort_if(OrderDemand::where('order_id', $order->id)->exists() || Shift::where('order_id', $order->id)->exists(), 409, 'Der Auftrag wurde bereits geplant. Bitte die native Auftragsplanung verwenden.');
+
+            $demandIds = [];
+            $shiftIds = [];
+            foreach ($validated['segments'] as $index => $segment) {
+                $window = array_replace($validated['demand'], [
+                    'starts_at' => $segment['starts_at'],
+                    'ends_at' => $segment['ends_at'],
+                    'timezone' => $segment['timezone'],
+                    'required_staff' => $segment['required_staff'],
+                ]);
+                $demand = app(OrderDemandService::class)->save($order->id, null, null, $window, $actor);
+                $demandIds[] = $demand->id;
+                [$start, $end] = OperationsDateTime::interval($segment['starts_at'], $segment['ends_at'], $segment['timezone']);
+                $shift = new Shift;
+                $shift->forceFill(['order_demand_id' => $demand->id]);
+                $shift = app(ShiftSchedulingService::class)->save($shift, [
+                    'order_id' => $order->id,
+                    'title' => $validated['demand']['title'].' · '.($index + 1),
+                    'role_name' => $demand->role_name,
+                    'timezone' => $segment['timezone'],
+                    'starts_at' => $start,
+                    'ends_at' => $end,
+                    'location_name' => $order->location_name,
+                    'required_staff' => $segment['required_staff'],
+                    'planned_break_minutes' => $segment['planned_break_minutes'],
+                    'status' => 'draft',
+                ], $actor);
+                $shift->qualifications()->sync($validated['demand']['qualification_ids']);
+                $shiftIds[] = $shift->id;
+            }
+
+            $reviewConfirmation = is_array($storedPayload['review_confirmation'] ?? null) ? $storedPayload['review_confirmation'] : [];
+            $payload = array_replace($storedPayload, $validated);
+            $payload['review_confirmation'] = array_replace($reviewConfirmation, [
+                'customer_communication' => 'off',
+                'planning_mode' => 'manual',
+                'planning_actor_id' => $actor->id,
+                'planning_at' => now()->utc()->toIso8601String(),
+            ]);
+            $record->update([
+                'status' => 'applied',
+                'payload' => $payload,
+                'demand_id' => $demandIds[0],
+                'demand_ids' => $demandIds,
+                'applied_shift_ids' => $shiftIds,
+                'applied_at' => now()->utc(),
+                'approved_by' => $actor->id,
+                'approved_at' => now()->utc(),
+                'inquiry_revision' => $currentInquiry->revision,
+                'inquiry_fingerprint' => $this->fingerprint($currentInquiry),
+                'error_code' => null,
+                'revision' => $record->revision + 1,
+            ]);
+            $intake->update(['revision' => $intake->revision + 1]);
+            $this->refreshReviewState($intake);
+            app(OperationsAuditService::class)->record($record, $actor, 'ai.proposal.shifts_prepared', [
+                'intake_id' => $intake->id,
+                'source_revision' => $intake->source_revision,
+                'order_id' => $order->id,
+                'demand_ids' => $demandIds,
+                'shift_ids' => $shiftIds,
+            ]);
+
+            return $shiftIds;
+        });
+    }
+
+    /**
+     * Publish exactly the draft shifts prepared by this proposal.
+     *
+     * @param  array<int|string, int|string>  $expectedShiftRevisions
+     */
+    public function publishProposalShifts(AiIntakeProposal $proposal, User $actor, int $expectedRevision, array $expectedShiftRevisions): void
+    {
+        $this->access($actor);
+        $this->access($actor, 'operations.manage');
+
+        OperationsTransaction::run(function () use ($proposal, $actor, $expectedRevision, $expectedShiftRevisions): void {
+            $this->access($actor);
+            $this->access($actor, 'operations.manage');
+            $probe = AiIntakeProposal::findOrFail($proposal->id);
+            $intake = AiIntake::lockForUpdate()->findOrFail($probe->intake_id);
+            $this->actionable($intake);
+            abort_if($intake->paused_at || $intake->status === 'paused', 409, 'Der Eingang ist angehalten. Bitte zuerst wieder zur Prüfung öffnen.');
+            $record = AiIntakeProposal::where('intake_id', $intake->id)->lockForUpdate()->findOrFail($proposal->id);
+            $this->revision($record->revision, $expectedRevision);
+            abort_unless($record->source_revision === $intake->source_revision && $record->status === 'applied', 409, 'Es liegen keine aktuellen vorbereiteten Schichten vor. Bitte neu laden.');
+
+            $payload = $this->validateProposal($record->payload, true);
+            $order = $this->convertedOrder($intake, $record, true, $payload['demand']);
+            $shiftIds = $this->appliedShiftIds($record);
+            $demandIds = $this->appliedDemandIds($record);
+            $revisions = $this->shiftRevisionMap($expectedShiftRevisions);
+            $expectedShiftIds = array_keys($revisions);
+            sort($expectedShiftIds);
+            $ownedShiftIds = $shiftIds;
+            sort($ownedShiftIds);
+            abort_unless($expectedShiftIds === $ownedShiftIds, 409, 'Die aktuellen Revisionen aller vorbereiteten Schichten werden benötigt. Bitte neu laden.');
+
+            $shifts = Shift::whereIn('id', $shiftIds)->lockForUpdate()->get()->keyBy('id');
+            abort_unless($shifts->count() === count($shiftIds), 409, 'Eine vorbereitete Schicht wurde entfernt. Bitte neu laden.');
+            $demands = OrderDemand::where('order_id', $order->id)->whereIn('id', $demandIds)->lockForUpdate()->get()->keyBy('id');
+            abort_unless($demands->count() === count($demandIds), 409, 'Ein vorbereiteter Bedarf wurde verändert. Bitte neu laden.');
+
+            foreach ($shiftIds as $shiftId) {
+                $shift = $shifts->get($shiftId);
+                $demand = $demands->get($shift->order_demand_id);
+                abort_unless($shift && $demand && $shift->order_id === $order->id && $demand->status === 'active'
+                    && $shift->role_name === $demand->role_name && $shift->starts_at->gte($demand->starts_at) && $shift->ends_at->lte($demand->ends_at), 409, 'Eine vorbereitete Schicht wurde verändert. Bitte neu laden.');
+                abort_unless($shift->revision === $revisions[$shiftId], 409, 'Eine vorbereitete Schicht wurde geändert. Bitte neu laden.');
+            }
+
+            foreach ($shiftIds as $shiftId) {
+                app(PlanPublicationService::class)->publish($shifts->get($shiftId), $revisions[$shiftId], $actor);
+            }
+
+            $record->update(['revision' => $record->revision + 1]);
+            $intake->update(['revision' => $intake->revision + 1]);
+            $this->refreshReviewState($intake);
+            app(OperationsAuditService::class)->record($record, $actor, 'ai.proposal.shifts_published', [
+                'intake_id' => $intake->id,
+                'source_revision' => $intake->source_revision,
+                'order_id' => $order->id,
+                'shift_ids' => $shiftIds,
+            ]);
         });
     }
 
@@ -554,7 +789,8 @@ class AiIntakeService
                 $proposal ??= $current->proposals()->make(['source_revision' => $current->source_revision, 'position_index' => $index, 'revision' => 0]);
                 // Keep original AI classification and provenance. Only this click is a human confirmation.
                 $payload['review_confirmation'] = ['actor_id' => $actor->id, 'source_revision' => $current->source_revision,
-                    'intake_revision' => $expectedRevision, 'at' => now()->utc()->toIso8601String()];
+                    'intake_revision' => $expectedRevision, 'at' => now()->utc()->toIso8601String(),
+                    'customer_communication' => 'off', 'planning_mode' => 'manual'];
                 $proposal->fill(['status' => 'proposed', 'error_code' => null, 'payload' => $payload, 'revision' => $proposal->revision + 1])->save();
                 abort_unless($this->createInquiry($current, $proposal, $actor), 409, 'Die bestehende Anfrage muss zuerst persönlich geprüft werden.');
             }
@@ -613,8 +849,9 @@ class AiIntakeService
                     $this->confirmationPayloads($intake);
                     $state['enabled'] = true;
                     $state['reason'] = 'Erkannte Angaben einschließlich Vorschlägen bestätigen und als Anfrage übernehmen.';
-                } catch (ValidationException) {
-                    $state['reason'] = 'Die erkannten Angaben sind noch unvollständig oder ungültig. Bitte korrigieren oder erneut prüfen.';
+                } catch (ValidationException $exception) {
+                    $messages = collect($exception->errors())->flatten()->filter()->unique()->take(3)->implode(' ');
+                    $state['reason'] = $messages !== '' ? $messages : 'Die erkannten Angaben sind noch unvollständig oder ungültig. Bitte korrigieren oder erneut prüfen.';
                 } catch (HttpException $exception) {
                     $state['reason'] = $exception->getMessage();
                 }
@@ -779,6 +1016,9 @@ class AiIntakeService
         foreach ($query->orderBy('id')->limit(50)->get() as $proposal) {
             $run = null;
             try {
+                if ($this->usesManualPlanning($proposal->payload)) {
+                    continue;
+                }
                 $intake = $proposal->intake;
                 $settings = AiDispositionSettings::all();
                 if (($settings['automation_mode'] ?? 'automatic') !== 'automatic' || in_array($intake->status, ['paused', 'not_inquiry'], true)) {
@@ -792,6 +1032,11 @@ class AiIntakeService
                     $record = AiIntakeProposal::where('intake_id', $intake->id)->lockForUpdate()->findOrFail($proposal->id);
                     if ($record->status === 'applied') {
                         $run->update(['status' => 'stale', 'error_code' => 'already_applied', 'finished_at' => now()->utc()]);
+
+                        return false;
+                    }
+                    if ($this->usesManualPlanning($record->payload)) {
+                        $run->update(['status' => 'stale', 'error_code' => 'manual_planning', 'finished_at' => now()->utc()]);
 
                         return false;
                     }
@@ -871,16 +1116,112 @@ class AiIntakeService
         });
     }
 
-    private function convertedOrder(AiIntake $intake, AiIntakeProposal $proposal): Order
+    /**
+     * @param  array<string, mixed>|null  $expectedDemand
+     */
+    private function convertedOrder(AiIntake $intake, AiIntakeProposal $proposal, bool $allowCommercialRevisionChanges = false, ?array $expectedDemand = null): Order
     {
         $inquiry = OperationInquiry::lockForUpdate()->findOrFail($proposal->inquiry_id);
-        abort_unless($inquiry->order_id && $inquiry->status === 'converted' && $inquiry->revision === $proposal->inquiry_revision && $proposal->inquiry_fingerprint && hash_equals($proposal->inquiry_fingerprint, $this->fingerprint($inquiry)), 409, 'Anfragegrundlage wurde geändert.');
+        abort_unless($inquiry->order_id && $inquiry->status === 'converted'
+            && ($allowCommercialRevisionChanges || $inquiry->revision === $proposal->inquiry_revision)
+            && $proposal->inquiry_fingerprint && hash_equals($proposal->inquiry_fingerprint, $this->fingerprint($inquiry))
+            && (! $expectedDemand || $this->demandMatches($inquiry, $expectedDemand)), 409, 'Anfragegrundlage wurde geändert.');
         $conversion = OperationAudit::where('subject_type', 'OperationInquiry')->where('subject_id', $inquiry->id)->where('action', 'inquiry.convert')->latest('id')->first();
         abort_unless($conversion && $conversion->actor_id && ($conversion->actor_kind ?? 'human') === 'human', 409, 'Persönliche Auftragsübernahme fehlt.');
+        if ($allowCommercialRevisionChanges) {
+            abort_unless($inquiry->verified_revision === $inquiry->revision && $inquiry->accepted_revision === $inquiry->revision
+                && is_array($inquiry->offer) && (int) ($inquiry->offer['revision'] ?? 0) === $inquiry->revision
+                && $conversion->revision === $inquiry->revision && (int) ($conversion->data['order_id'] ?? 0) === (int) $inquiry->order_id,
+                409, 'Die aktuelle Angebots- oder Zusagegrundlage wurde geändert. Bitte die native Anfrage erneut prüfen.');
+        }
         $order = Order::lockForUpdate()->findOrFail($inquiry->order_id);
         abort_unless($order->status->value === 'confirmed' && $order->customer_id === $intake->customer_id && $order->starts_at->eq($inquiry->starts_at) && $order->ends_at->eq($inquiry->ends_at) && $order->required_staff === $inquiry->required_staff && $order->service_type === $inquiry->role_name && $order->location_name === $inquiry->location_name && $order->timezone === $inquiry->timezone && $order->title === $inquiry->title, 409, 'Auftrag wurde inzwischen verändert.');
 
         return $order;
+    }
+
+    private function hasPlanningEffects(AiIntakeProposal $proposal): bool
+    {
+        return $proposal->demand_id !== null || $proposal->applied_at !== null
+            || ! empty($proposal->demand_ids) || ! empty($proposal->applied_shift_ids);
+    }
+
+    /** @return array<int, int> */
+    private function appliedShiftIds(AiIntakeProposal $proposal): array
+    {
+        $ids = $proposal->applied_shift_ids;
+        if (! is_array($ids) || $ids === []) {
+            throw ValidationException::withMessages(['workflow' => 'Die vorbereiteten Schichten sind nicht vollständig gespeichert. Bitte die native Auftragsplanung prüfen.']);
+        }
+
+        $normalised = [];
+        foreach ($ids as $id) {
+            if (! is_int($id) && (! is_string($id) || ! ctype_digit($id))) {
+                throw ValidationException::withMessages(['workflow' => 'Die vorbereiteten Schichten enthalten eine ungültige Kennung. Bitte die native Auftragsplanung prüfen.']);
+            }
+            $id = (int) $id;
+            if ($id < 1 || in_array($id, $normalised, true)) {
+                throw ValidationException::withMessages(['workflow' => 'Die vorbereiteten Schichten enthalten unvollständige Kennungen. Bitte die native Auftragsplanung prüfen.']);
+            }
+            $normalised[] = $id;
+        }
+
+        return $normalised;
+    }
+
+    /** @return array<int, int> */
+    private function appliedDemandIds(AiIntakeProposal $proposal): array
+    {
+        $ids = $proposal->demand_ids;
+        if (! is_array($ids) || $ids === []) {
+            throw ValidationException::withMessages(['workflow' => 'Die vorbereiteten Bedarfe sind nicht vollständig gespeichert. Bitte die native Auftragsplanung prüfen.']);
+        }
+
+        $normalised = [];
+        foreach ($ids as $id) {
+            if (! is_int($id) && (! is_string($id) || ! ctype_digit($id))) {
+                throw ValidationException::withMessages(['workflow' => 'Die vorbereiteten Bedarfe enthalten eine ungültige Kennung. Bitte die native Auftragsplanung prüfen.']);
+            }
+            $id = (int) $id;
+            if ($id < 1 || in_array($id, $normalised, true)) {
+                throw ValidationException::withMessages(['workflow' => 'Die vorbereiteten Bedarfe enthalten unvollständige Kennungen. Bitte die native Auftragsplanung prüfen.']);
+            }
+            $normalised[] = $id;
+        }
+        if ((int) $proposal->demand_id !== $normalised[0]) {
+            throw ValidationException::withMessages(['workflow' => 'Die vorbereiteten Bedarfe passen nicht mehr zum Vorschlag. Bitte die native Auftragsplanung prüfen.']);
+        }
+
+        return $normalised;
+    }
+
+    /**
+     * @param  array<int|string, int|string>  $revisions
+     * @return array<int, int>
+     */
+    private function shiftRevisionMap(array $revisions): array
+    {
+        $normalised = [];
+        foreach ($revisions as $id => $revision) {
+            if ((! is_int($id) && (! is_string($id) || ! ctype_digit($id)))
+                || (! is_int($revision) && (! is_string($revision) || ! ctype_digit($revision)))) {
+                throw ValidationException::withMessages(['shift_revisions' => 'Bitte laden Sie die aktuellen Revisionen aller vorbereiteten Schichten neu.']);
+            }
+            $id = (int) $id;
+            $revision = (int) $revision;
+            if ($id < 1 || $revision < 1 || array_key_exists($id, $normalised)) {
+                throw ValidationException::withMessages(['shift_revisions' => 'Bitte laden Sie die aktuellen Revisionen aller vorbereiteten Schichten neu.']);
+            }
+            $normalised[$id] = $revision;
+        }
+
+        return $normalised;
+    }
+
+    private function usesManualPlanning(mixed $payload): bool
+    {
+        return is_array($payload) && is_array($payload['review_confirmation'] ?? null)
+            && ($payload['review_confirmation']['planning_mode'] ?? null) === 'manual';
     }
 
     public function attachmentBytes(AiIntakeAttachment $attachment, User $actor): string
@@ -1060,9 +1401,83 @@ class AiIntakeService
 
     private function validateProposal(array $payload, bool $complete): array
     {
+        // In the review form a proposal may legitimately not have been split into
+        // segments yet. Only that absent optional key is normalised; malformed
+        // lists and incomplete segment objects still fail the strict rules below.
+        if (! $complete && ! array_key_exists('segments', $payload)) {
+            $payload['segments'] = [];
+        }
         $rules = ['demand' => 'required|array', 'demand.title' => 'required|string|max:180', 'demand.timezone' => 'required|timezone', 'demand.starts_at' => ($complete ? 'required' : 'nullable').'|string|max:40', 'demand.ends_at' => ($complete ? 'required' : 'nullable').'|string|max:40', 'demand.location_name' => ($complete ? 'required' : 'nullable').'|string|max:180', 'demand.role_name' => ($complete ? 'required' : 'nullable').'|string|max:160', 'demand.required_staff' => ($complete ? 'required' : 'nullable').'|integer|min:1|max:999', 'demand.qualification_ids' => 'present|array|max:50', 'demand.qualification_ids.*' => ['integer', 'distinct', Rule::exists('qualification_types', 'id')->where('is_active', true)], 'segments' => ($complete ? 'required' : 'present').'|array|max:50', 'segments.*.starts_at' => 'required|string|max:40', 'segments.*.ends_at' => 'required|string|max:40', 'segments.*.timezone' => 'required|timezone', 'segments.*.required_staff' => 'required|integer|min:1|max:999', 'segments.*.planned_break_minutes' => 'required|integer|min:0|max:1440'];
         $rules['requirements_reviewed'] = 'nullable|boolean';
-        Validator::make($payload, $rules)->validate();
+        $messages = [
+            'demand.required' => 'Der Bedarf muss angegeben werden.',
+            'demand.array' => 'Der Bedarf muss als strukturierte Angabe vorliegen.',
+            'demand.title.required' => 'Die Bezeichnung des Bedarfs ist erforderlich.',
+            'demand.title.string' => 'Die Bezeichnung des Bedarfs muss Text sein.',
+            'demand.title.max' => 'Die Bezeichnung des Bedarfs darf höchstens :max Zeichen lang sein.',
+            'demand.timezone.required' => 'Die Zeitzone des Bedarfs ist erforderlich.',
+            'demand.timezone.timezone' => 'Die Zeitzone des Bedarfs ist ungültig.',
+            'demand.starts_at.required' => 'Der Beginn des Bedarfs ist erforderlich.',
+            'demand.starts_at.string' => 'Der Beginn des Bedarfs ist ungültig.',
+            'demand.starts_at.max' => 'Der Beginn des Bedarfs ist ungültig.',
+            'demand.ends_at.required' => 'Das Ende des Bedarfs ist erforderlich.',
+            'demand.ends_at.string' => 'Das Ende des Bedarfs ist ungültig.',
+            'demand.ends_at.max' => 'Das Ende des Bedarfs ist ungültig.',
+            'demand.location_name.required' => 'Der Einsatzort des Bedarfs ist erforderlich.',
+            'demand.location_name.string' => 'Der Einsatzort des Bedarfs muss Text sein.',
+            'demand.location_name.max' => 'Der Einsatzort des Bedarfs darf höchstens :max Zeichen lang sein.',
+            'demand.role_name.required' => 'Die Tätigkeit des Bedarfs ist erforderlich.',
+            'demand.role_name.string' => 'Die Tätigkeit des Bedarfs muss Text sein.',
+            'demand.role_name.max' => 'Die Tätigkeit des Bedarfs darf höchstens :max Zeichen lang sein.',
+            'demand.required_staff.required' => 'Die benötigte Mitarbeiterzahl ist erforderlich.',
+            'demand.required_staff.integer' => 'Die benötigte Mitarbeiterzahl muss eine ganze Zahl sein.',
+            'demand.required_staff.min' => 'Die benötigte Mitarbeiterzahl muss mindestens :min sein.',
+            'demand.required_staff.max' => 'Die benötigte Mitarbeiterzahl darf höchstens :max sein.',
+            'demand.qualification_ids.present' => 'Die Qualifikationen des Bedarfs müssen angegeben werden.',
+            'demand.qualification_ids.array' => 'Die Qualifikationen des Bedarfs müssen als Liste angegeben werden.',
+            'demand.qualification_ids.max' => 'Es sind höchstens :max Qualifikationen zulässig.',
+            'demand.qualification_ids.*.integer' => 'Eine Qualifikation des Bedarfs ist ungültig.',
+            'demand.qualification_ids.*.distinct' => 'Eine Qualifikation des Bedarfs ist mehrfach angegeben.',
+            'demand.qualification_ids.*.exists' => 'Eine Qualifikation des Bedarfs ist nicht aktiv oder nicht vorhanden.',
+            'segments.required' => 'Die Schichtabschnitte müssen angegeben werden.',
+            'segments.array' => 'Die Schichtabschnitte müssen als Liste angegeben werden.',
+            'segments.max' => 'Es sind höchstens :max Schichtabschnitte zulässig.',
+            'segments.*.starts_at.required' => 'Der Beginn des :position. Schichtabschnitts ist erforderlich.',
+            'segments.*.starts_at.string' => 'Der Beginn des :position. Schichtabschnitts ist ungültig.',
+            'segments.*.starts_at.max' => 'Der Beginn des :position. Schichtabschnitts ist ungültig.',
+            'segments.*.ends_at.required' => 'Das Ende des :position. Schichtabschnitts ist erforderlich.',
+            'segments.*.ends_at.string' => 'Das Ende des :position. Schichtabschnitts ist ungültig.',
+            'segments.*.ends_at.max' => 'Das Ende des :position. Schichtabschnitts ist ungültig.',
+            'segments.*.timezone.required' => 'Die Zeitzone des :position. Schichtabschnitts ist erforderlich.',
+            'segments.*.timezone.timezone' => 'Die Zeitzone des :position. Schichtabschnitts ist ungültig.',
+            'segments.*.required_staff.required' => 'Die Mitarbeiterzahl des :position. Schichtabschnitts ist erforderlich.',
+            'segments.*.required_staff.integer' => 'Die Mitarbeiterzahl des :position. Schichtabschnitts muss eine ganze Zahl sein.',
+            'segments.*.required_staff.min' => 'Die Mitarbeiterzahl des :position. Schichtabschnitts muss mindestens :min sein.',
+            'segments.*.required_staff.max' => 'Die Mitarbeiterzahl des :position. Schichtabschnitts darf höchstens :max sein.',
+            'segments.*.planned_break_minutes.required' => 'Die Pausenzeit des :position. Schichtabschnitts ist erforderlich.',
+            'segments.*.planned_break_minutes.integer' => 'Die Pausenzeit des :position. Schichtabschnitts muss eine ganze Zahl in Minuten sein.',
+            'segments.*.planned_break_minutes.min' => 'Die Pausenzeit des :position. Schichtabschnitts darf nicht negativ sein.',
+            'segments.*.planned_break_minutes.max' => 'Die Pausenzeit des :position. Schichtabschnitts darf höchstens :max Minuten betragen.',
+            'requirements_reviewed.boolean' => 'Die Bestätigung der Qualifikationsprüfung ist ungültig.',
+        ];
+        $attributes = [
+            'demand' => 'Bedarf',
+            'demand.title' => 'Bezeichnung des Bedarfs',
+            'demand.timezone' => 'Zeitzone des Bedarfs',
+            'demand.starts_at' => 'Beginn des Bedarfs',
+            'demand.ends_at' => 'Ende des Bedarfs',
+            'demand.location_name' => 'Einsatzort des Bedarfs',
+            'demand.role_name' => 'Tätigkeit des Bedarfs',
+            'demand.required_staff' => 'Mitarbeiterzahl des Bedarfs',
+            'demand.qualification_ids' => 'Qualifikationen des Bedarfs',
+            'segments' => 'Schichtabschnitte',
+            'segments.*.starts_at' => 'Beginn des :position. Schichtabschnitts',
+            'segments.*.ends_at' => 'Ende des :position. Schichtabschnitts',
+            'segments.*.timezone' => 'Zeitzone des :position. Schichtabschnitts',
+            'segments.*.required_staff' => 'Mitarbeiterzahl des :position. Schichtabschnitts',
+            'segments.*.planned_break_minutes' => 'Pausenzeit des :position. Schichtabschnitts',
+        ];
+        Validator::make($payload, $rules, $messages, $attributes)->validate();
         $payload['demand'] = array_intersect_key($payload['demand'], array_flip(['title', 'starts_at', 'ends_at', 'timezone', 'location_name', 'role_name', 'required_staff', 'qualification_ids']));
         if (filled($payload['demand']['required_staff'] ?? null)) {
             $payload['demand']['required_staff'] = (int) $payload['demand']['required_staff'];

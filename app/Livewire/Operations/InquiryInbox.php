@@ -2,16 +2,16 @@
 
 namespace App\Livewire\Operations;
 
-use App\Models\Customer;
 use App\Models\AiIntakeProposal;
+use App\Models\Customer;
 use App\Models\CustomerPortalSubmissionItem;
 use App\Models\OperationAudit;
 use App\Models\OperationInquiry;
 use App\Services\Operations\CommercialOfferService;
 use App\Services\Operations\CustomerWorkflowService;
 use App\Services\Operations\InquiryWorkflowService;
-use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\AiIntakeSchema;
+use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsPages;
 use Illuminate\Support\Facades\Schema;
 use Livewire\Attributes\Locked;
@@ -259,6 +259,15 @@ class InquiryInbox extends Component
         $current = $this->scopedQuery()->findOrFail($this->selectedId);
         abort_if($this->portalSubmission($current), 409, 'Portalentscheidung über den Portaleingang bearbeiten.');
         $record = $service->transition($current, $this->revision, $action, ['amount' => $this->amount, 'terms' => $this->terms, 'note' => $this->acceptance, 'authorized' => $this->authorized, 'original_id' => $this->duplicateId], auth()->user());
+        if ($action === 'convert' && $record->order_id && auth()->user()->can('operations.manage') && AiIntakeSchema::ready()) {
+            $manualProposal = AiIntakeProposal::where('inquiry_id', $record->id)->where('status', '!=', 'stale')->latest('id')->get()
+                ->first(fn ($proposal) => ($proposal->payload['review_confirmation']['planning_mode'] ?? null) === 'manual');
+            if ($manualProposal) {
+                $this->redirect(OperationsPages::intakePanelUrl($manualProposal->intake_id), navigate: true);
+
+                return;
+            }
+        }
         if ($this->consolidated && $action === 'convert' && $record->order_id && auth()->user()->can('operations.manage')) {
             $this->redirectRoute('operations.page', ['page' => 'cases', 'view' => 'orders', 'order' => $record->order_id, 'inquiry' => $record->id], navigate: true);
 

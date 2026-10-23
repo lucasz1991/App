@@ -1,0 +1,1 @@
+<x-ui.page-header title="Eingang" variant="compact" :show-back="false" />

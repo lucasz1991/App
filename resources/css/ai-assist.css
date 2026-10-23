@@ -100,7 +100,7 @@ body[data-mode='dark'] .rt-viewport-dropdown .rt-ai-assist__orb-hint { border-co
     .rt-ai-assist__panel[data-window-mode='mini'] {
         top: auto;
         right: 8px;
-        bottom: calc(8px + var(--rt-assistant-bottom, 0px));
+        bottom: var(--rt-floating-window-bottom, calc(8px + var(--rt-assistant-bottom, 0px)));
         left: auto;
         max-width: none;
         max-height: none;
@@ -109,12 +109,12 @@ body[data-mode='dark'] .rt-viewport-dropdown .rt-ai-assist__orb-hint { border-co
     }
     .rt-ai-assist__panel[data-window-mode='mini'][data-corner='top-left'] { top: calc(var(--rt-assistant-top, 70px) + 8px); right: auto; bottom: auto; left: 8px; }
     .rt-ai-assist__panel[data-window-mode='mini'][data-corner='top-right'] { top: calc(var(--rt-assistant-top, 70px) + 8px); right: 8px; bottom: auto; left: auto; }
-    .rt-ai-assist__panel[data-window-mode='mini'][data-corner='bottom-left'] { top: auto; right: auto; bottom: calc(8px + var(--rt-assistant-bottom, 0px)); left: 8px; }
-    .rt-ai-assist__panel[data-window-mode='mini'][data-corner='bottom-right'] { top: auto; right: 8px; bottom: calc(8px + var(--rt-assistant-bottom, 0px)); left: auto; }
+    .rt-ai-assist__panel[data-window-mode='mini'][data-corner='bottom-left'] { top: auto; right: auto; bottom: var(--rt-floating-window-bottom, calc(8px + var(--rt-assistant-bottom, 0px))); left: 8px; }
+    .rt-ai-assist__panel[data-window-mode='mini'][data-corner='bottom-right'] { top: auto; right: 8px; bottom: var(--rt-floating-window-bottom, calc(8px + var(--rt-assistant-bottom, 0px))); left: auto; }
     .rt-ai-assist__panel[data-window-mode='fullscreen'] {
         top: calc(var(--rt-assistant-top, 70px) + var(--rt-floating-window-inset, 8px));
         right: var(--rt-floating-window-inset, 8px);
-        bottom: calc(var(--rt-floating-window-inset, 8px) + var(--rt-assistant-bottom, 0px));
+        bottom: var(--rt-floating-window-bottom, calc(var(--rt-floating-window-inset, 8px) + var(--rt-assistant-bottom, 0px)));
         left: calc(var(--rt-assistant-left, 0px) + var(--rt-floating-window-inset, 8px));
         width: auto;
         height: auto;
@@ -369,7 +369,7 @@ a.rt-ai-assist__activity-item:hover { background: var(--ai-panel); }
     .rt-ai-assist__panel {
         top: var(--rt-assistant-top, 70px);
         right: 0;
-        bottom: var(--rt-assistant-bottom, 0px);
+        bottom: var(--rt-floating-window-bottom, var(--rt-assistant-bottom, 0px));
         left: 0;
         width: auto;
         height: auto;
