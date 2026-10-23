@@ -20,6 +20,10 @@ final class SignatureTableOverlapDelivery
 
     public const FALLBACK_HEIGHT = 38;
 
+    private const LOGO_TRAIN_FALLBACK_WIDTH = 220;
+
+    private const LOGO_TRAIN_FALLBACK_HEIGHT = 28;
+
     public static function asset(string $theme, bool $animated, string $version): string
     {
         if (! in_array($theme, ['light', 'dark'], true) || ! SignatureArtifactVersion::usesTableOverlapTrain($version)) {
@@ -50,7 +54,7 @@ final class SignatureTableOverlapDelivery
         if (SignatureArtifactVersion::detect('signature', $html) !== 'v27') {
             return false;
         }
-        preg_match_all('~<table\b[^>]*\bclass\s*=\s*(["\'])(.*?)\1[^>]*>~is', $html, $tables, PREG_SET_ORDER);
+        preg_match_all('~<table\b[^>]*\sclass\s*=\s*(["\'])(.*?)\1[^>]*>~is', $html, $tables, PREG_SET_ORDER);
         foreach ($tables as $table) {
             $classes = preg_split('/\s+/', trim(CssSemantic::decodeHtmlEntitiesOnce($table[2])));
             if (in_array('rt-sign-ledger', $classes, true) && in_array('design-train-logo', $classes, true)) {
@@ -115,7 +119,9 @@ final class SignatureTableOverlapDelivery
         $cell->appendChild($dom->createComment('<![endif]'));
         // The original GIF's first frame is transparent. Word versions that
         // cannot animate must receive the populated PNG, independent of CSS.
-        $still = '<img class="rt-delivery-train-mso" src="'.htmlspecialchars($stillSource, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'" width="'.self::FALLBACK_WIDTH.'" height="'.self::FALLBACK_HEIGHT.'" alt="" style="'.self::msoImageStyle($mirrored).'">';
+        $stillWidth = $logoTrain ? self::LOGO_TRAIN_FALLBACK_WIDTH : self::FALLBACK_WIDTH;
+        $stillHeight = $logoTrain ? self::LOGO_TRAIN_FALLBACK_HEIGHT : self::FALLBACK_HEIGHT;
+        $still = '<img class="rt-delivery-train-mso" src="'.htmlspecialchars($stillSource, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'" width="'.$stillWidth.'" height="'.$stillHeight.'" alt="" style="'.self::msoImageStyle($mirrored, $logoTrain).'">';
         $cell->appendChild($dom->createComment('[if mso]>'.$still.'<![endif]'));
         $row->appendChild($cell);
         $imageCell->parentNode->removeChild($imageCell);
@@ -204,8 +210,9 @@ final class SignatureTableOverlapDelivery
             || $xpath->query('./tr|./tbody/tr', $frame)->length !== 2) {
             throw new RuntimeException('Der Signaturzug muss begrenzt nach den Kontakten stehen.');
         }
-        if (preg_match('~<!--\[if !mso\]><!-->\s*<img\b(?=[^>]*\bclass="rt-delivery-train(?:\s[^\"]*)?")[^>]*>\s*<!--<!\[endif\]-->~', $html) !== 1
-            || preg_match('~<!--\[if mso\]>(<img class="rt-delivery-train-mso"[^>]*>)<!\[endif\]-->~', $html, $match) !== 1
+        $cellHtml = $cell->ownerDocument->saveHTML($cell);
+        if (preg_match('~<!--\[if !mso\]><!-->\s*<img\b(?=[^>]*\bclass="rt-delivery-train(?:\s[^\"]*)?")[^>]*>\s*<!--<!\[endif\]-->~', $cellHtml) !== 1
+            || preg_match('~<!--\[if mso\]>(<img class="rt-delivery-train-mso"[^>]*>)<!\[endif\]-->~', $cellHtml, $match) !== 1
             || substr_count($html, 'class="rt-delivery-train-mso"') !== 1
             || ($stillSource !== null && ! str_contains($match[1], 'src="'.htmlspecialchars($stillSource, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'"'))
             || str_contains($html, 'rt-v27-anchor') || str_contains($html, 'rt-v27-image-cell')) {
@@ -214,12 +221,14 @@ final class SignatureTableOverlapDelivery
         [, $stillXpath] = self::document($match[1]);
         $still = self::one($stillXpath, 'rt-delivery-train-mso');
         $style = preg_replace('/\s+|!important/i', '', strtolower($still->getAttribute('style')));
-        if ($still->getAttribute('width') !== (string) self::FALLBACK_WIDTH
-            || $still->getAttribute('height') !== (string) self::FALLBACK_HEIGHT
+        $stillWidth = $logoTrain ? self::LOGO_TRAIN_FALLBACK_WIDTH : self::FALLBACK_WIDTH;
+        $stillHeight = $logoTrain ? self::LOGO_TRAIN_FALLBACK_HEIGHT : self::FALLBACK_HEIGHT;
+        if ($still->getAttribute('width') !== (string) $stillWidth
+            || $still->getAttribute('height') !== (string) $stillHeight
             || ! self::allowedSource($still->getAttribute('src'))
-            || ! str_contains($style, 'max-width:'.self::FALLBACK_WIDTH.'px')
-            || ! str_contains($style, 'width:'.self::FALLBACK_WIDTH.'px')
-            || ! str_contains($style, 'height:'.self::FALLBACK_HEIGHT.'px')
+            || ! str_contains($style, 'max-width:'.$stillWidth.'px')
+            || ! str_contains($style, 'width:'.$stillWidth.'px')
+            || ! str_contains($style, 'height:'.$stillHeight.'px')
             || preg_match('/(?:^|;)(?:position|min-width|white-space|transform):/', $style)) {
             throw new RuntimeException('Der Outlook-Fallback muss ein gueltiges, proportional begrenztes IMG bleiben.');
         }
@@ -245,7 +254,7 @@ final class SignatureTableOverlapDelivery
             .$scope.' .rt-sign-cell .rt-sign-content{width:100%!important;vertical-align:top!important;height:auto!important;padding-bottom:15px!important;direction:ltr!important;}'
             .$scope.' .rt-delivery-train-cell{width:100%!important;padding:0!important;font-size:0!important;line-height:0!important;}'
             .$scope.' .rt-delivery-train{'.str_replace(';', '!important;', self::imageStyle(SignatureArtifactVersion::usesMirroredTrain($version))).'}'
-            .$scope.' .rt-delivery-train-mso{'.str_replace(';', '!important;', self::msoImageStyle(SignatureArtifactVersion::usesMirroredTrain($version))).'}';
+            .$scope.' .rt-delivery-train-mso{'.str_replace(';', '!important;', self::msoImageStyle(SignatureArtifactVersion::usesMirroredTrain($version), $logoTrain)).'}';
         $css .= $scope.' .rt-delivery-group-cell{display:table-cell!important;width:100%!important;border:0!important;vertical-align:top!important;text-align:left!important;}'
             .$scope.' .rt-contact-text{word-break:break-all!important;overflow-wrap:anywhere!important;}'
             .$scope.' .rt-delivery-contact-value{margin:0!important;word-break:break-all!important;overflow-wrap:anywhere!important;}';
@@ -273,12 +282,17 @@ final class SignatureTableOverlapDelivery
         return 'display:block;width:100%;max-width:'.self::IMAGE_WIDTH.'px;height:auto;margin:'.($mirrored ? '0 0 0 auto' : '0').';border:0;vertical-align:bottom;';
     }
 
-    private static function msoImageStyle(bool $mirrored = false): string
+    private static function msoImageStyle(bool $mirrored = false, bool $logoTrain = false): string
     {
-        // Word cannot reliably constrain a fixed 600px image to a narrower
-        // reading pane. This populated fallback fits panes of at least 320px.
+        // Word cannot reliably constrain a fixed 600px image. The default
+        // 300px full-row fallback fits a 320px pane; the opted-in 220px image
+        // fits its half-column at about 570px without responsive head CSS.
+        // Actual Word rendering still requires a received-client check.
         // Modern clients retain the fluid GIF rule up to IMAGE_WIDTH instead.
-        return 'display:block;width:'.self::FALLBACK_WIDTH.'px;max-width:'.self::FALLBACK_WIDTH.'px;height:'.self::FALLBACK_HEIGHT.'px;margin:'.($mirrored ? '0 0 0 auto' : '0').';border:0;vertical-align:bottom;';
+        $width = $logoTrain ? self::LOGO_TRAIN_FALLBACK_WIDTH : self::FALLBACK_WIDTH;
+        $height = $logoTrain ? self::LOGO_TRAIN_FALLBACK_HEIGHT : self::FALLBACK_HEIGHT;
+
+        return 'display:block;width:'.$width.'px;max-width:'.$width.'px;height:'.$height.'px;margin:'.($mirrored ? '0 0 0 auto' : '0').';border:0;vertical-align:bottom;';
     }
 
     private static function allowedSource(string $source): bool
@@ -395,6 +409,7 @@ final class SignatureTableOverlapDelivery
             && $xpath->query('//style[@data-rt-outlook-mobile-css="1"]')->length === 1;
         $ledgerRows = $xpath->query('./tr|./tbody/tr', $ledger);
         if (! $optIn->isSameNode($ledger) || $ledger->tagName !== 'table'
+            || ! $ledger->parentNode->isSameNode($content)
             || $frameRows->length !== 1 || ! $content->parentNode->isSameNode($frameRows->item(0))
             || $xpath->query('./td|./th', $frameRows->item(0))->length !== 1
             || $table->tagName !== 'table' || $table->getAttribute('width') !== '100%'
@@ -410,7 +425,8 @@ final class SignatureTableOverlapDelivery
             if ($column->tagName !== ($mobile ? 'td' : 'th')
                 || $column->getAttribute('width') !== ($mobile ? '100%' : '50%')
                 || ! $column->parentNode->isSameNode($expectedRow)
-                || $xpath->query('./td|./th', $expectedRow)->length !== ($mobile ? 1 : 2)) {
+                || $xpath->query('./td|./th', $expectedRow)->length !== ($mobile ? 1 : 2)
+                || ! $xpath->query('./td|./th', $expectedRow)->item($mobile ? 0 : $index)?->isSameNode($column)) {
                 throw new RuntimeException('Der Logo-Zug benoetigt eindeutige Marken- und Kontaktspalten.');
             }
         }
