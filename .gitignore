@@ -348,3 +348,4 @@ auth.json
 !/tests/Frontend/chat-pane-morph-reactivity.test.js
 !/tests/Frontend/floating-window-component.test.js
 !/tests/Feature/FloatingWindowTabsTest.php
+!/tests/Feature/OutlookDesktopFlowTest.php
