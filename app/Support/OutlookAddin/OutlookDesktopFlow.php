@@ -12,7 +12,7 @@ use RuntimeException;
 /** Final native desktop wire view. Canonical sources and mobile stay untouched. */
 final class OutlookDesktopFlow
 {
-    public const REVISION = 'outlook-desktop-flow-v2';
+    public const REVISION = 'outlook-desktop-flow-v3';
 
     private const MARKER = 'data-rt-desktop-flow';
 
@@ -20,7 +20,7 @@ final class OutlookDesktopFlow
 
     private const MSO_STYLE = 'data-rt-desktop-flow-mso-css';
 
-    private const HOST = 'rt-dflow-host-v2';
+    private const HOST = 'rt-dflow-host-v3';
 
     private const TOKENS = '~<!--.*?-->|<style\b(?:[^"\'<>]|"[^"]*"|\'[^\']*\')*>.*?</style\s*>|</?[a-z][a-z0-9:-]*(?:[^"\'<>]|"[^"]*"|\'[^\']*\')*>~is';
 
@@ -145,7 +145,7 @@ final class OutlookDesktopFlow
             .self::block('contacts', 600, '0', $contacts, '60%', 280)
             .'</div>';
         $trainBody = self::block('train', 280, '0 40px 0 0', self::inner($html, $nodes[$train]));
-        $rootOpen = self::attribute($nodes[$root]['opening'], 'class', trim($nodes[$root]['attrs']['class'].' '.self::HOST));
+        $rootOpen = self::attribute($nodes[$root]['opening'], 'class', trim($nodes[$root]['attrs']['class'].' '.self::HOST.' '.self::host($scope)));
         $html = self::replace($html, [
             [$nodes[$ledger]['start'], $nodes[$ledger]['end'], $flow],
             [$nodes[$train]['openEnd'], $nodes[$train]['close'], $trainBody],
@@ -155,7 +155,9 @@ final class OutlookDesktopFlow
             [$nodes[$root]['start'], $nodes[$root]['openEnd'], $rootOpen],
         ]);
         $html = self::stylesForFlow($html, $scope, $aliasChanges, $originalAliases);
-        $html = '<style '.self::STYLE.'="1">'.self::css($scope).'</style>'.self::msoStyle($scope).$html;
+        $nodes = self::nodes($html);
+        $root = self::one($nodes, 'rt-outlook-signature', 'div');
+        $html = substr_replace($html, '<style '.self::STYLE.'="1">'.self::css($scope).'</style>'.self::msoStyle($scope), $nodes[$root]['openEnd'], 0);
         self::assertProjected($html, self::nodes($html));
         if ($before !== self::inventory($html)) {
             self::fail();
@@ -188,6 +190,11 @@ final class OutlookDesktopFlow
     /** Update only aliases whose complete node family is intentionally changed. */
     private static function inlineChanges(string $html, array $nodes, array $edits, string $scope): array
     {
+        $frame = self::one($nodes, 'rt-sign-content-frame', 'table');
+        $stage = self::one($nodes, 'rt-sign-stage', 'div');
+        if (! self::within($nodes, $frame, $stage)) {
+            self::fail();
+        }
         $families = [];
         foreach ($nodes as $index => $node) {
             foreach (preg_split('/\s+/', trim($node['attrs']['class'] ?? '')) as $class) {
@@ -200,6 +207,9 @@ final class OutlookDesktopFlow
         $ranges = [];
         foreach ($edits as $index => $style) {
             $node = $nodes[$index];
+            if (! self::within($nodes, $index, $frame)) {
+                self::fail();
+            }
             $aliases = array_values(array_filter(preg_split('/\s+/', $node['attrs']['class'] ?? ''), static fn (string $class): bool => preg_match('/\Aoi[0-9a-z]+\z/', $class) === 1));
             if (count($aliases) !== 1) {
                 self::fail();
@@ -212,7 +222,7 @@ final class OutlookDesktopFlow
                 }
             }
             $old = '.'.$scope.'.'.$alias.',.'.$scope.' .'.$alias.'{'.trim($node['attrs']['style'], "; \t\r\n").';}';
-            $new = '.'.$scope.'.'.self::HOST.'.'.self::HOST.' .'.$alias.'{'.self::critical($style).'}';
+            $new = '.'.self::host($scope).' .rt-sign-stage .rt-sign-content-frame '.$node['tag'].'.'.$alias.'{'.self::critical($style).'}';
             $changes[$alias] = [$old, $new];
             $ranges[] = [$node['start'], $node['openEnd'], self::attribute($node['opening'], 'style', $style)];
         }
@@ -359,7 +369,7 @@ final class OutlookDesktopFlow
 
     private static function css(string $scope): string
     {
-        $p = '.'.$scope.'.'.self::HOST.' ';
+        $p = '.'.self::host($scope).' ';
 
         return $p.'.rt-dfb{display:inline-table!important;vertical-align:top!important;width:100%!important;table-layout:fixed!important;border-collapse:collapse!important;}'
             .$p.'.rt-df-brand{width:40%!important;min-width:220px!important;min-width:min(220px,100%)!important;max-width:280px!important;}'
@@ -377,7 +387,13 @@ final class OutlookDesktopFlow
     /** Older MSO receives ordinary full-width tables, without narrow columns. */
     private static function msoStyle(string $scope): string
     {
-        return '<!--[if mso]><style '.self::MSO_STYLE.'="1">.'.$scope.'.'.self::HOST.' .rt-dfb{display:table!important;width:100%!important;min-width:0!important;max-width:none!important;}</style><![endif]-->';
+        return '<!--[if mso]><style '.self::MSO_STYLE.'="1">.'.self::host($scope).' .rt-dfb{display:table!important;width:100%!important;min-width:0!important;max-width:none!important;}</style><![endif]-->';
+    }
+
+    /** A single content-bound class survives Outlook's class-prefix rewriter. */
+    private static function host(string $scope): string
+    {
+        return 'rt-df3'.substr($scope, 3);
     }
 
     private static function critical(string $style): string
@@ -450,7 +466,9 @@ final class OutlookDesktopFlow
         $styles = array_values(array_filter(self::styles($html), static fn (array $style): bool => isset($style['attrs'][self::STYLE])));
         if (count($styles) !== 1 || ($styles[0]['attrs'][self::STYLE] ?? '') !== '1'
             || ! isset($scope[1]) || $styles[0]['css'] !== self::css($scope[1])
-            || substr_count($html, self::msoStyle($scope[1])) !== 1) {
+            || ! self::has($nodes[$root], self::host($scope[1]))
+            || substr_count($html, self::msoStyle($scope[1])) !== 1
+            || substr($html, $nodes[$root]['openEnd'], strlen('<style '.self::STYLE.'="1">'.self::css($scope[1]).'</style>'.self::msoStyle($scope[1]))) !== '<style '.self::STYLE.'="1">'.self::css($scope[1]).'</style>'.self::msoStyle($scope[1])) {
             self::fail();
         }
     }

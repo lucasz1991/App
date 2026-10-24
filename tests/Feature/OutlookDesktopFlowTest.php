@@ -17,6 +17,7 @@ use DOMXPath;
 use Illuminate\Support\Facades\Http;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use Symfony\Component\CssSelector\CssSelectorConverter;
 use Tests\TestCase;
 
 final class OutlookDesktopFlowTest extends TestCase
@@ -92,6 +93,13 @@ final class OutlookDesktopFlowTest extends TestCase
         $this->assertBudget($wire['templates'][0]['combinedComposeHtml'], 24576, 99000);
         $mobile = OutlookClientPresentation::payload(OutlookMobileSignature::payload($payload));
         self::assertStringNotContainsString('data-rt-desktop-flow=', $mobile['templates'][0]['combinedComposeHtml'], 'A mobile request also preserves unused desktop fallback fields.');
+        $this->assertOfficeSelectors($wire['templates'][0]['combinedComposeHtml']);
+    }
+
+    public function test_office_single_class_prefixing_and_inline_removal_keep_root_styles_and_all_critical_aliases_matching(): void
+    {
+        $wire = OutlookClientPresentation::payload($this->payload());
+        $this->assertOfficeSelectors($wire['signature']['html']);
     }
 
     public function test_generated_internal_css_preserves_geometry_density_and_normal_word_wrap_when_inline_styles_are_removed(): void
@@ -107,7 +115,7 @@ final class OutlookDesktopFlowTest extends TestCase
         self::assertStringContainsString('max-width:280px!important;', $noInline);
         self::assertStringContainsString('padding:0 40px 0 0!important;border:0!important;', $noInline);
         self::assertStringContainsString('.rt-dfc-company{padding:0 40px 0 22px!important;}', $noInline);
-        self::assertMatchesRegularExpression('/\.rts0123456789\.rt-dflow-host-v2\.rt-dflow-host-v2 \.oi[0-9a-z]+\{[^{}]*line-height:18px!important;[^{}]*word-break:normal!important;/', $noInline);
+        self::assertMatchesRegularExpression('/\.rt-df30123456789 \.rt-sign-stage \.rt-sign-content-frame td\.oi[0-9a-z]+\{[^{}]*line-height:18px!important;[^{}]*word-break:normal!important;/', $noInline);
         self::assertStringContainsString('data-rt-desktop-flow-mso-css="1"', $noInline);
         self::assertStringContainsString('display:table!important;width:100%!important;min-width:0!important;max-width:none!important;', $noInline);
         self::assertStringContainsString('padding:16px 0 0!important;', $noInline);
@@ -223,5 +231,65 @@ final class OutlookDesktopFlowTest extends TestCase
         preg_match_all('~<style\b[^>]*>(.*?)</style>~s', $html, $css);
         self::assertLessThan($cssLimit, array_sum(array_map('strlen', $css[1])));
         self::assertLessThanOrEqual($characterLimit, intdiv(strlen(mb_convert_encoding($html, 'UTF-16LE', 'UTF-8')), 2));
+    }
+
+    private function assertOfficeSelectors(string $html): void
+    {
+        $xpath = $this->xpath($html);
+        $root = $xpath->query('//div[contains(concat(" ",normalize-space(@class)," ")," rt-outlook-signature ")]')->item(0);
+        self::assertNotNull($root);
+        $main = $xpath->query('./style[@data-rt-desktop-flow-css="1"]', $root);
+        self::assertSame(1, $main->length, 'The new stylesheet must survive removal of every stylesheet outside the native signature root.');
+        $mso = $xpath->query('./comment()[contains(.,"data-rt-desktop-flow-mso-css")]', $root);
+        self::assertSame(1, $mso->length);
+        $styles = $main->item(0)->textContent;
+        foreach ($xpath->query('//style[@data-rt-outlook-signature-inline-css="1"]') as $style) {
+            preg_match_all('~([^{}]+)\{([^{}]*)\}~', $style->textContent, $rules, PREG_SET_ORDER);
+            foreach ($rules as $rule) {
+                if (str_contains($rule[1], ' .rt-sign-stage .rt-sign-content-frame ')) {
+                    $styles .= $rule[0];
+                }
+            }
+        }
+        preg_match_all('~([^{}]+)\{([^{}]*)\}~', $styles, $rules, PREG_SET_ORDER);
+        $converter = new CssSelectorConverter;
+        foreach ($rules as $rule) {
+            self::assertGreaterThan(0, $xpath->query($converter->toXPath($rule[1]))->length, $rule[1].' must match before Office changes classes.');
+        }
+        $train = $xpath->query('//td[contains(concat(" ",normalize-space(@class)," ")," rt-delivery-train-cell ")]')->item(0);
+        self::assertNotNull($train);
+        preg_match('/(?:^|\s)(oi[0-9a-z]+)(?=\s|$)/', $train->getAttribute('class'), $trainAlias);
+        self::assertArrayHasKey(1, $trainAlias);
+        foreach ($xpath->query('//*[@style]') as $element) {
+            $element->removeAttribute('style');
+        }
+        foreach ($xpath->query('//*[@class]') as $element) {
+            $element->setAttribute('class', implode(' ', array_map(static fn (string $class): string => 'x_'.$class, preg_split('/\s+/', trim($element->getAttribute('class'))))));
+        }
+        $critical = 0;
+        $trainBorder = false;
+        foreach ($rules as $rule) {
+            // Emulate the real host: every HTML class changes, but only the
+            // first class reference in each CSS compound gets its prefix.
+            $compounds = preg_split('/([\s>+~,]+)/', $rule[1], -1, PREG_SPLIT_DELIM_CAPTURE);
+            foreach ($compounds as &$compound) {
+                self::assertLessThanOrEqual(1, preg_match_all('/\.[a-z_][a-z0-9_-]*/i', $compound), 'Multiple classes in one compound are not rewritten consistently by Outlook.');
+                $compound = preg_replace('/\.([a-z_][a-z0-9_-]*)/i', '.x_$1', $compound, 1);
+            }
+            unset($compound);
+            $selector = implode('', $compounds);
+            self::assertGreaterThan(0, $xpath->query($converter->toXPath($selector))->length, $selector.' must still match after Office prefixing and inline removal.');
+            if (str_contains($rule[1], ' .rt-sign-stage .rt-sign-content-frame ')) {
+                $critical++;
+                self::assertSame(4, preg_match_all('/\.[a-z_][a-z0-9_-]*/i', $rule[1]), 'Four separate classes outrank the old runtime maximum of three classes plus a type.');
+            }
+            if (str_ends_with($rule[1], 'td.'.$trainAlias[1])) {
+                self::assertStringContainsString('border:0!important;', $rule[2]);
+                self::assertTrue($xpath->query($converter->toXPath($selector))->item(0)->isSameNode($train));
+                $trainBorder = true;
+            }
+        }
+        self::assertGreaterThan(5, $critical);
+        self::assertTrue($trainBorder, 'The old matching border-right:1px runtime must lose to the matching border:0 override.');
     }
 }
