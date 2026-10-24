@@ -99,7 +99,8 @@ final class OutlookDesktopFlowTest extends TestCase
         $wire = OutlookClientPresentation::payload($this->payload())['signature']['html'];
         $noInline = preg_replace_callback('~<!--.*?-->|<[a-z][a-z0-9:-]*(?:[^"\'<>]|"[^"]*"|\'[^\']*\')*>~is', static fn (array $match): string => str_starts_with($match[0], '<!--') ? $match[0] : preg_replace('~\sstyle=(?:"[^"]*"|\'[^\']*\')~i', '', $match[0]), $wire);
         self::assertStringContainsString('display:inline-table!important;', $noInline);
-        self::assertStringContainsString('max-width:400px!important;', $noInline);
+        self::assertStringContainsString('.rt-df-brand,.rts0123456789.rt-dflow-host .rt-df-train{max-width:280px!important;}', $noInline);
+        self::assertStringNotContainsString('max-width:400px', $noInline);
         self::assertStringContainsString('max-width:600px!important;', $noInline);
         self::assertStringContainsString('max-width:280px!important;', $noInline);
         self::assertStringContainsString('padding:0 40px 0 0!important;border-right:1px solid #e60033!important;', $noInline);

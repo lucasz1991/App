@@ -139,10 +139,10 @@ final class OutlookDesktopFlow
             self::block('company', 280, '0 40px 0 11px', self::inner($html, $nodes[$company])),
         );
         $flow = '<div class="rt-dflow rt-sign-ledger design-train-logo" '.self::MARKER.'="'.self::REVISION.'" style="font-size:0;line-height:0;text-align:left;">'
-            .self::block('brand', 400, '0 40px 0 0', self::inner($html, $nodes[$brand]), true)
+            .self::block('brand', 280, '0 40px 0 0', self::inner($html, $nodes[$brand]), true)
             .self::block('contacts', 600, '0', $contacts)
             .'</div>';
-        $trainBody = self::block('train', 400, '0 40px 0 0', self::inner($html, $nodes[$train]), true);
+        $trainBody = self::block('train', 280, '0 40px 0 0', self::inner($html, $nodes[$train]), true);
         $rootOpen = self::attribute($nodes[$root]['opening'], 'class', trim($nodes[$root]['attrs']['class'].' '.self::HOST));
         $html = self::replace($html, [
             [$nodes[$ledger]['start'], $nodes[$ledger]['end'], $flow],
@@ -358,7 +358,7 @@ final class OutlookDesktopFlow
         $p = '.'.$scope.'.'.self::HOST.' ';
 
         return $p.'.rt-dfb{display:inline-table!important;vertical-align:top!important;width:100%!important;table-layout:fixed!important;border-collapse:collapse!important;}'
-            .$p.'.rt-df-brand,'.$p.'.rt-df-train{max-width:400px!important;}'
+            .$p.'.rt-df-brand,'.$p.'.rt-df-train{max-width:280px!important;}'
             .$p.'.rt-df-contacts{max-width:600px!important;}'
             .$p.'.rt-df-direct,'.$p.'.rt-df-company{max-width:280px!important;}'
             .$p.'.rt-dflow{font-size:0!important;line-height:0!important;text-align:left!important;}'
