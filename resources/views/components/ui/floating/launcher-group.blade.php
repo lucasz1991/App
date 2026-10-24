@@ -5,10 +5,10 @@
     --rt-floating-safe-left: env(safe-area-inset-left, 0px);
     --rt-floating-safe-right: env(safe-area-inset-right, 0px);
     --rt-floating-safe-bottom: env(safe-area-inset-bottom, 0px);
-    position: fixed; left: var(--rt-floating-launcher-x, auto); right: 16px;
+    position: fixed; left: var(--rt-floating-launcher-x, auto); right: max(var(--rt-floating-window-inset, 8px), var(--rt-floating-safe-right));
     bottom: var(--rt-floating-launcher-bottom, max(16px, env(safe-area-inset-bottom, 0px)));
     z-index: 26; display: flex; flex-direction: column; align-items: flex-end;
-    gap: 12px; width: max-content; max-width: calc(100vw - 24px); padding: 0;
+    gap: 12px; width: max-content; max-width: calc(100vw - 2 * var(--rt-floating-window-inset, 8px)); padding: 0;
     pointer-events: none; transition: left 220ms cubic-bezier(.22,.8,.25,1);
 }
 [data-rt-floating-launcher-group][data-rt-launcher-positioned] { right: auto; }
@@ -141,8 +141,9 @@ window.rtInitializeFloatingLauncherGroup = function(doc = document, win = window
         for (const element of observed) if (!watched.has(element)) { resizeObserver?.observe(element); watched.add(element); }
         if (![...launchers].some(button => button.isConnected && rail.contains(button) && visibleRect(button))) return;
         const railStyle = win.getComputedStyle(rail);
-        const edgeLeft = Math.max(16, parseFloat(railStyle.getPropertyValue?.('--rt-floating-safe-left')) || 0);
-        const edgeRight = Math.max(16, parseFloat(railStyle.getPropertyValue?.('--rt-floating-safe-right')) || 0);
+        const edgeInset = Math.max(0, parseFloat(railStyle.getPropertyValue?.('--rt-floating-window-inset')) || 8);
+        const edgeLeft = Math.max(edgeInset, parseFloat(railStyle.getPropertyValue?.('--rt-floating-safe-left')) || 0);
+        const edgeRight = Math.max(edgeInset, parseFloat(railStyle.getPropertyValue?.('--rt-floating-safe-right')) || 0);
         const edgeBottom = Math.max(16, parseFloat(railStyle.getPropertyValue?.('--rt-floating-safe-bottom')) || 0);
         const preferredBottom = win.innerHeight - viewportBottom + edgeBottom;
         const choosePosition = (width, height) => {

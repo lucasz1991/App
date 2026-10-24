@@ -554,7 +554,7 @@ test('a short viewport uses one compact launcher row above the footer and dock t
     const chatRect=f.chat.getBoundingClientRect(),assistRect=f.assist.getBoundingClientRect(),railRect=f.group.getBoundingClientRect();
     assert.equal(chatRect.top,assistRect.top);
     assert.equal(chatRect.left-assistRect.right,12,'the compact row preserves the 12px gap between 56px buttons');
-    assert.ok(railRect.left>=12&&railRect.right<=378,'both buttons stay inside the viewport sides');
+    assert.ok(railRect.left>=8&&railRect.right<=382,'both buttons stay inside the viewport sides');
     assert.ok(railRect.top>=82,'the compact row stays below the top bar');
     assert.equal(f.footer.testRect.top-railRect.bottom,12,'the row clears the footer above the bottom dock');
 
@@ -614,7 +614,7 @@ test('the shared rail moves beside an open mini window and returns together when
     assert.equal(f.chat.getBoundingClientRect().top-f.assist.getBoundingClientRect().bottom,12);
     assert.ok(f.resizes[0].observed.has(panel));
     panel.dataset.floatingOpen='false';f.mutate();
-    assert.equal(f.group.getBoundingClientRect().right,984);
+    assert.equal(f.group.getBoundingClientRect().right,992);
     assert.equal(f.resizes[0].observed.has(panel),false);
     releaseChat();releaseAssist();
 });
