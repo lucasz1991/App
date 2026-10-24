@@ -12,13 +12,15 @@ use RuntimeException;
 /** Final native desktop wire view. Canonical sources and mobile stay untouched. */
 final class OutlookDesktopFlow
 {
-    public const REVISION = 'outlook-desktop-flow-v1';
+    public const REVISION = 'outlook-desktop-flow-v2';
 
     private const MARKER = 'data-rt-desktop-flow';
 
     private const STYLE = 'data-rt-desktop-flow-css';
 
-    private const HOST = 'rt-dflow-host';
+    private const MSO_STYLE = 'data-rt-desktop-flow-mso-css';
+
+    private const HOST = 'rt-dflow-host-v2';
 
     private const TOKENS = '~<!--.*?-->|<style\b(?:[^"\'<>]|"[^"]*"|\'[^\']*\')*>.*?</style\s*>|</?[a-z][a-z0-9:-]*(?:[^"\'<>]|"[^"]*"|\'[^\']*\')*>~is';
 
@@ -136,13 +138,13 @@ final class OutlookDesktopFlow
         $root = self::one($nodes, 'rt-outlook-signature', 'div');
         $contacts = self::flow(
             self::block('direct', 280, '0 11px 0 22px', self::inner($html, $nodes[$direct])),
-            self::block('company', 280, '0 40px 0 11px', self::inner($html, $nodes[$company])),
+            self::block('company', 280, '0 40px 0 22px', self::inner($html, $nodes[$company])),
         );
         $flow = '<div class="rt-dflow rt-sign-ledger design-train-logo" '.self::MARKER.'="'.self::REVISION.'" style="font-size:0;line-height:0;text-align:left;">'
-            .self::block('brand', 280, '0 40px 0 0', self::inner($html, $nodes[$brand]), true)
-            .self::block('contacts', 600, '0', $contacts)
+            .self::block('brand', 280, '0 40px 0 0', self::inner($html, $nodes[$brand]), '40%', 220)
+            .self::block('contacts', 600, '0', $contacts, '60%', 280)
             .'</div>';
-        $trainBody = self::block('train', 280, '0 40px 0 0', self::inner($html, $nodes[$train]), true);
+        $trainBody = self::block('train', 280, '0 40px 0 0', self::inner($html, $nodes[$train]));
         $rootOpen = self::attribute($nodes[$root]['opening'], 'class', trim($nodes[$root]['attrs']['class'].' '.self::HOST));
         $html = self::replace($html, [
             [$nodes[$ledger]['start'], $nodes[$ledger]['end'], $flow],
@@ -153,7 +155,7 @@ final class OutlookDesktopFlow
             [$nodes[$root]['start'], $nodes[$root]['openEnd'], $rootOpen],
         ]);
         $html = self::stylesForFlow($html, $scope, $aliasChanges, $originalAliases);
-        $html = '<style '.self::STYLE.'="1">'.self::css($scope).'</style>'.$html;
+        $html = '<style '.self::STYLE.'="1">'.self::css($scope).'</style>'.self::msoStyle($scope).$html;
         self::assertProjected($html, self::nodes($html));
         if ($before !== self::inventory($html)) {
             self::fail();
@@ -348,9 +350,11 @@ final class OutlookDesktopFlow
         return '<div class="rt-dflow" style="font-size:0;line-height:0;text-align:left;">'.$leftContents.$rightContents.'</div>';
     }
 
-    private static function block(string $kind, int $max, string $padding, string $contents, bool $border = false): string
+    private static function block(string $kind, int $max, string $padding, string $contents, string $width = '100%', ?int $minimum = null): string
     {
-        return '<table class="rt-dfb rt-df-'.$kind.'" role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="display:inline-table;vertical-align:top;width:100%;max-width:'.$max.'px;table-layout:fixed;border-collapse:collapse;"><tbody><tr><td class="rt-dfc rt-dfc-'.$kind.'" style="padding:'.$padding.';'.($border ? 'border-right:1px solid #e60033;' : '').'vertical-align:top;font-weight:normal;font-size:13px;line-height:18px;">'.$contents.'</td></tr></tbody></table>';
+        $min = $minimum === null ? '' : 'min-width:'.$minimum.'px;min-width:min('.$minimum.'px,100%);';
+
+        return '<table class="rt-dfb rt-df-'.$kind.'" role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="display:inline-table;vertical-align:top;width:'.$width.';'.$min.'max-width:'.$max.'px;table-layout:fixed;border-collapse:collapse;"><tbody><tr><td class="rt-dfc rt-dfc-'.$kind.'" style="padding:'.$padding.';vertical-align:top;font-weight:normal;font-size:13px;line-height:18px;">'.$contents.'</td></tr></tbody></table>';
     }
 
     private static function css(string $scope): string
@@ -358,15 +362,22 @@ final class OutlookDesktopFlow
         $p = '.'.$scope.'.'.self::HOST.' ';
 
         return $p.'.rt-dfb{display:inline-table!important;vertical-align:top!important;width:100%!important;table-layout:fixed!important;border-collapse:collapse!important;}'
-            .$p.'.rt-df-brand,'.$p.'.rt-df-train{max-width:280px!important;}'
-            .$p.'.rt-df-contacts{max-width:600px!important;}'
+            .$p.'.rt-df-brand{width:40%!important;min-width:220px!important;min-width:min(220px,100%)!important;max-width:280px!important;}'
+            .$p.'.rt-df-train{max-width:280px!important;}'
+            .$p.'.rt-df-contacts{width:60%!important;min-width:280px!important;min-width:min(280px,100%)!important;max-width:600px!important;}'
             .$p.'.rt-df-direct,'.$p.'.rt-df-company{max-width:280px!important;}'
             .$p.'.rt-dflow{font-size:0!important;line-height:0!important;text-align:left!important;}'
             .$p.'.rt-dfc{font-size:13px!important;line-height:18px!important;vertical-align:top!important;font-weight:normal!important;}'
-            .$p.'.rt-dfc-brand,'.$p.'.rt-dfc-train{padding:0 40px 0 0!important;border-right:1px solid #e60033!important;}'
+            .$p.'.rt-dfc-brand,'.$p.'.rt-dfc-train{padding:0 40px 0 0!important;border:0!important;}'
             .$p.'.rt-dfc-contacts{padding:0!important;}'
             .$p.'.rt-dfc-direct{padding:0 11px 0 22px!important;}'
-            .$p.'.rt-dfc-company{padding:0 40px 0 11px!important;}';
+            .$p.'.rt-dfc-company{padding:0 40px 0 22px!important;}';
+    }
+
+    /** Older MSO receives ordinary full-width tables, without narrow columns. */
+    private static function msoStyle(string $scope): string
+    {
+        return '<!--[if mso]><style '.self::MSO_STYLE.'="1">.'.$scope.'.'.self::HOST.' .rt-dfb{display:table!important;width:100%!important;min-width:0!important;max-width:none!important;}</style><![endif]-->';
     }
 
     private static function critical(string $style): string
@@ -438,7 +449,8 @@ final class OutlookDesktopFlow
         preg_match('/(?:^|\s)(rts[0-9a-f]{10})(?=\s|$)/', $nodes[$root]['attrs']['class'] ?? '', $scope);
         $styles = array_values(array_filter(self::styles($html), static fn (array $style): bool => isset($style['attrs'][self::STYLE])));
         if (count($styles) !== 1 || ($styles[0]['attrs'][self::STYLE] ?? '') !== '1'
-            || ! isset($scope[1]) || $styles[0]['css'] !== self::css($scope[1])) {
+            || ! isset($scope[1]) || $styles[0]['css'] !== self::css($scope[1])
+            || substr_count($html, self::msoStyle($scope[1])) !== 1) {
             self::fail();
         }
     }
