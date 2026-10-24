@@ -20,20 +20,21 @@ final class OutlookClientPresentation
 
     public static function payload(array $payload): array
     {
-        $payload['signature']['html'] = self::document($payload['signature']['html'], 30000, 12288);
+        $desktopFlow = ! OutlookDesktopFlow::mobile($payload['signature']['html']);
+        $payload['signature']['html'] = self::document($payload['signature']['html'], 30000, 12288, $desktopFlow);
         $payload['version']['signature'] = self::version('signature', $payload['version']['signature']);
         if (isset($payload['template']['html'])) {
-            $payload['template']['html'] = self::document($payload['template']['html'], 99000, 24576);
+            $payload['template']['html'] = self::document($payload['template']['html'], 99000, 24576, $desktopFlow);
         }
         foreach ($payload['templates'] as &$template) {
             foreach (['html', 'composeHtml', 'combinedComposeHtml', 'mobileComposeHtml'] as $field) {
                 if (isset($template[$field])) {
                     $mobile = $field === 'mobileComposeHtml';
-                    $template[$field] = self::document($template[$field], $mobile ? 30000 : 99000, $mobile ? 12288 : 24576);
+                    $template[$field] = self::document($template[$field], $mobile ? 30000 : 99000, $mobile ? 12288 : 24576, $desktopFlow);
                 }
             }
             if (isset($template['signature'])) {
-                $template['signature']['html'] = self::document($template['signature']['html'], 30000, 12288);
+                $template['signature']['html'] = self::document($template['signature']['html'], 30000, 12288, $desktopFlow);
                 $template['signatureVersion'] = self::version('signature', $template['signatureVersion']);
             }
             if (isset($template['mobileComposeVersion'])) {
@@ -56,7 +57,7 @@ final class OutlookClientPresentation
         return substr(hash('sha256', self::REVISION."\0".$kind."\0".$version), 0, 16);
     }
 
-    private static function document(string $html, int $maxCharacters, int $maxCss): string
+    private static function document(string $html, int $maxCharacters, int $maxCss, bool $desktopFlow = true): string
     {
         $bounded = str_contains($html, 'data-rt-train-delivery="'.SignatureTableOverlapDelivery::MARKER.'"');
         // Advanced authored selectors can observe the old class negatively or
@@ -88,6 +89,9 @@ final class OutlookClientPresentation
 
                 return $tag;
             }, $html) ?? $html;
+        }
+        if ($desktopFlow) {
+            $html = OutlookDesktopFlow::project($html);
         }
         $html = self::wrapUrls($html);
         $html = EmailClientStyleBlocks::project($html, static fn (string $opening, string $css): bool => preg_match('~\bdata-rt-outlook-(?:signature|template)-css=["\']1["\']~', $opening) === 1);

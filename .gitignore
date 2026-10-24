@@ -351,3 +351,4 @@ auth.json
 !/tests/Feature/FloatingWindowTabsTest.php
 
 !/tests/Feature/DispositionSharedSelectTest.php
+!/tests/Feature/OutlookDesktopFlowTest.php
