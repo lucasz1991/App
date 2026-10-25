@@ -109,13 +109,12 @@ final class OutlookDesktopFlowTest extends TestCase
         self::assertStringContainsString('display:inline-table!important;', $noInline);
         self::assertStringContainsString('.rt-df-brand{width:40%!important;min-width:220px!important;min-width:min(220px,100%)!important;max-width:280px!important;}', $noInline);
         self::assertStringContainsString('.rt-df-contacts{width:60%!important;min-width:280px!important;min-width:min(280px,100%)!important;max-width:600px!important;}', $noInline);
-        self::assertStringContainsString('.rt-df-train{max-width:280px!important;}', $noInline);
-        self::assertStringNotContainsString('max-width:400px', $noInline);
+        self::assertStringContainsString('.rt-df-train{max-width:400px!important;}', $noInline);
         self::assertStringContainsString('max-width:600px!important;', $noInline);
         self::assertStringContainsString('max-width:280px!important;', $noInline);
         self::assertStringContainsString('padding:0 40px 0 0!important;border:0!important;', $noInline);
         self::assertStringContainsString('.rt-dfc-company{padding:0 40px 0 22px!important;}', $noInline);
-        self::assertMatchesRegularExpression('/\.rt-df30123456789 \.rt-sign-stage \.rt-sign-content-frame td\.oi[0-9a-z]+\{[^{}]*line-height:18px!important;[^{}]*word-break:normal!important;/', $noInline);
+        self::assertMatchesRegularExpression('/\.rt-df40123456789 \.rt-sign-stage \.rt-sign-content-frame td\.oi[0-9a-z]+\{[^{}]*line-height:18px!important;[^{}]*word-break:normal!important;/', $noInline);
         self::assertStringContainsString('data-rt-desktop-flow-mso-css="1"', $noInline);
         self::assertStringContainsString('display:table!important;width:100%!important;min-width:0!important;max-width:none!important;', $noInline);
         self::assertStringContainsString('padding:16px 0 0!important;', $noInline);

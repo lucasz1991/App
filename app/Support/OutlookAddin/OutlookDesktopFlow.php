@@ -12,7 +12,7 @@ use RuntimeException;
 /** Final native desktop wire view. Canonical sources and mobile stay untouched. */
 final class OutlookDesktopFlow
 {
-    public const REVISION = 'outlook-desktop-flow-v3';
+    public const REVISION = 'outlook-desktop-flow-v4';
 
     private const MARKER = 'data-rt-desktop-flow';
 
@@ -20,7 +20,7 @@ final class OutlookDesktopFlow
 
     private const MSO_STYLE = 'data-rt-desktop-flow-mso-css';
 
-    private const HOST = 'rt-dflow-host-v3';
+    private const HOST = 'rt-dflow-host-v4';
 
     private const TOKENS = '~<!--.*?-->|<style\b(?:[^"\'<>]|"[^"]*"|\'[^\']*\')*>.*?</style\s*>|</?[a-z][a-z0-9:-]*(?:[^"\'<>]|"[^"]*"|\'[^\']*\')*>~is';
 
@@ -144,7 +144,7 @@ final class OutlookDesktopFlow
             .self::block('brand', 280, '0 40px 0 0', self::inner($html, $nodes[$brand]), '40%', 220)
             .self::block('contacts', 600, '0', $contacts, '60%', 280)
             .'</div>';
-        $trainBody = self::block('train', 280, '0 40px 0 0', self::inner($html, $nodes[$train]));
+        $trainBody = self::block('train', 400, '0 40px 0 0', self::inner($html, $nodes[$train]));
         $rootOpen = self::attribute($nodes[$root]['opening'], 'class', trim($nodes[$root]['attrs']['class'].' '.self::HOST.' '.self::host($scope)));
         $html = self::replace($html, [
             [$nodes[$ledger]['start'], $nodes[$ledger]['end'], $flow],
@@ -373,7 +373,7 @@ final class OutlookDesktopFlow
 
         return $p.'.rt-dfb{display:inline-table!important;vertical-align:top!important;width:100%!important;table-layout:fixed!important;border-collapse:collapse!important;}'
             .$p.'.rt-df-brand{width:40%!important;min-width:220px!important;min-width:min(220px,100%)!important;max-width:280px!important;}'
-            .$p.'.rt-df-train{max-width:280px!important;}'
+            .$p.'.rt-df-train{max-width:400px!important;}'
             .$p.'.rt-df-contacts{width:60%!important;min-width:280px!important;min-width:min(280px,100%)!important;max-width:600px!important;}'
             .$p.'.rt-df-direct,'.$p.'.rt-df-company{max-width:280px!important;}'
             .$p.'.rt-dflow{font-size:0!important;line-height:0!important;text-align:left!important;}'
@@ -393,7 +393,7 @@ final class OutlookDesktopFlow
     /** A single content-bound class survives Outlook's class-prefix rewriter. */
     private static function host(string $scope): string
     {
-        return 'rt-df3'.substr($scope, 3);
+        return 'rt-df4'.substr($scope, 3);
     }
 
     private static function critical(string $style): string
