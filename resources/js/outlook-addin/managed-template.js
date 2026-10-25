@@ -187,6 +187,21 @@ function metadataHidden(node, elements) {
     return ['font-size', 'line-height'].every(name => /^0(?:px|pt)?$/.test(values[name] || ''));
 }
 
+function boundaryCarrier(html, tree, span) {
+    const { elements, comments } = tree;
+    const parent = elements[span.node.parent];
+    if (parent?.tag === 'td') return { ...span, cellIndex: span.node.parent };
+    // setAsync adds one separate metadata-only DIV around each boundary.
+    // Promote the complete DIV so the transplanted region stays balanced.
+    if (parent?.tag !== 'div' || elements[parent.parent]?.tag !== 'td'
+        || Object.keys(parent.attrs).some(name => !['style', 'class'].includes(name))
+        || comments.some(comment => comment.start >= parent.openEnd && comment.end <= parent.close)
+        || elements.some((node, index) => index !== span.node.parent && within(elements, index, span.node.parent) && !['span', 'br'].includes(node.tag))) unavailable();
+    const remainder = html.slice(parent.openEnd, span.node.start) + html.slice(span.node.end, parent.close);
+    if (decoded(remainder.replace(/<[^>]*>/g, '')).trim() !== '') unavailable();
+    return { node: parent, index: span.node.parent, cellIndex: parent.parent };
+}
+
 function sentinelContract(html, currentLength, tree, spans) {
     const { elements } = tree;
     const boundaries = spans.filter(value => value.value.startsWith('RT-COMPOSE-EDITABLE-'));
@@ -196,13 +211,15 @@ function sentinelContract(html, currentLength, tree, spans) {
     if (!mergedEmpty && boundaries.length !== 2) unavailable();
     const start = mergedEmpty ? boundaries[0] : exactlyOne(boundaries.filter(value => value.value === EDITABLE_START));
     const end = mergedEmpty ? boundaries[0] : exactlyOne(boundaries.filter(value => value.value === EDITABLE_END));
-    if (start.node.parent !== end.node.parent || elements[start.node.parent]?.tag !== 'td' || (!mergedEmpty && start.node.end > end.node.start)) unavailable();
     if (!metadataHidden(start.node, elements) || !metadataHidden(end.node, elements)) unavailable();
-    const cellIndex = start.node.parent;
+    const startBoundary = boundaryCarrier(html, tree, start);
+    const endBoundary = boundaryCarrier(html, tree, end);
+    if (startBoundary.cellIndex !== endBoundary.cellIndex || (!mergedEmpty && startBoundary.node.end > endBoundary.node.start)) unavailable();
+    const cellIndex = startBoundary.cellIndex;
     const editableIndex = tableAncestor(elements, cellIndex);
     if (singleTableCell(elements, editableIndex).index !== cellIndex) unavailable();
     const cell = elements[cellIndex];
-    const outer = html.slice(cell.openEnd, start.node.start) + html.slice(end.node.end, cell.close);
+    const outer = html.slice(cell.openEnd, startBoundary.node.start) + html.slice(endBoundary.node.end, cell.close);
     if (decoded(outer).trim() !== '') unavailable();
     const templateMarker = exactlyOne(spans.filter(value => value.value.startsWith('RT-TEMPLATE-MANAGED-V1')));
     const signatureMarker = exactlyOne(spans.filter(value => value.value.startsWith('RT-SIGNATURE-MANAGED-')));
@@ -248,7 +265,7 @@ function sentinelContract(html, currentLength, tree, spans) {
     }
     return { ...tree, root, rootIndex, template: { node: elements[templateIndex], index: templateIndex },
         signature: { node: elements[signatureIndex], index: signatureIndex }, kind: 'text-v1',
-        region: { start: start.node.end, end: mergedEmpty ? start.node.end : end.node.start, legacy: false } };
+        region: { start: startBoundary.node.end, end: mergedEmpty ? startBoundary.node.end : endBoundary.node.start, legacy: false } };
 }
 
 function stableTableContract(html, currentLength, tree, candidates) {

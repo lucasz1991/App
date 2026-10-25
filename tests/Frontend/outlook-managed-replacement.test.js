@@ -56,6 +56,12 @@ function afterOfficeSet(html) {
         .replace(/\bid="(rt-native-layout-[^"]*)"/g, 'id="x_$1"');
 }
 
+function officeBoundaryDivs(html) {
+    return html.replace(/<span\b[^>]*>RT-COMPOSE-EDITABLE-(START|END)-V1<\/span>/g, (_whole, side) => side === 'START'
+        ? `<div style="line-height:26px;font-size:11pt;"><span style="font-size:0px;line-height:0;">${START}</span><span style="font-size:16px;">\n</span></div>`
+        : `<div style="line-height:26px;font-size:0px;"><span style="line-height:0;">${END}</span></div>`);
+}
+
 function afterOfficeTyping(html) {
     return html.replace(/<!--[\s\S]*?-->/g, '').replace(/\sdata-rt-[a-z-]+="[^"]*"/gi, '')
         .replace(/<[a-z][a-z0-9:-]*(?:[^"'<>]|"[^"]*"|'[^']*')*>/gi, tag => /^<table\b/i.test(tag) ? tag : tag.replace(/\sclass="[^"]*"/i, ' class="elementToProof"'))
@@ -393,6 +399,34 @@ test('observed Office hidden metadata profiles survive initial rendering and set
     }
 });
 
+test('separate observed metadata-only Office DIVs become balanced boundaries without accumulating empty shells', () => {
+    for (const content of ['', '<p><br></p>', TYPED + '<blockquote><p>My quoted text</p></blockquote>']) {
+        let body = officeBoundaryDivs(afterOfficeSet(stableArtifact({ sentinels: true, content })));
+        for (let attempt = 0; attempt < 3; attempt++) {
+            const old = managedTemplateContract(body);
+            assert.equal(body.slice(old.region.start, old.region.end), afterOfficeSet(content));
+            const plan = replace(body, stableArtifact({ sentinels: true, greeting: true }));
+            const next = managedTemplateContract(plan.html);
+            assert.equal(plan.html.slice(next.region.start, next.region.end), afterOfficeSet(content));
+            body = officeBoundaryDivs(afterOfficeSet(plan.html));
+        }
+        assert.equal((body.match(/font-size:16px/g) || []).length, 1, 'Office-only empty formatting does not accumulate in user content');
+    }
+});
+
+test('nonempty, malformed, cross-cell or unknown Office metadata wrappers fail without dropping any content', () => {
+    const body = officeBoundaryDivs(afterOfficeSet(stableArtifact({ sentinels: true, content: TYPED })));
+    const invalid = [
+        body.replace('font-size:16px;">\n</span>', 'font-size:16px;">User text</span>'),
+        body.replace('font-size:16px;">\n</span>', 'font-size:16px;"><img src="cid:own-photo"></span>'),
+        body.replace('font-size:16px;">\n</span>', 'font-size:16px;"><!--own note--></span>'),
+        body.replace(`>${START}</span>`, `>${START}</span><div></div>`),
+        body.replace('line-height:26px;font-size:11pt;">', 'line-height:26px;font-size:11pt;" id="own-wrapper">'),
+        body.replace(`<div style="line-height:26px;font-size:0px;">`, '</td><td><div style="line-height:26px;font-size:0px;">'),
+    ];
+    for (const value of invalid) assert.throws(() => replace(value, stableArtifact({ sentinels: true })), { code: 'TEMPLATE_REPLACEMENT_UNAVAILABLE' });
+});
+
 test('text ownership rejects damaged, visible, contradictory or ambiguous boundaries and metadata', () => {
     const source = stableArtifact({ sentinels: true, content: TYPED });
     const body = afterOfficeSet(source);
@@ -471,6 +505,21 @@ test('native repeated exchanges preserve content and remove only the exact prece
         assert.equal((h.state.body.match(/data-rt-native-layout-restore=/g) || []).length, 1);
         assert.equal((h.state.body.match(/My &amp;/g) || []).length, 1);
         assert.ok(h.state.body.endsWith('<p>Outside after</p><style>.unrelated{color:blue}</style>'));
+        assert.equal(isTemplateInsertionBlocked(h.item), false);
+    }
+});
+
+test('the native post-set readback accepts only balanced observed boundary DIVs before restoring layout', async () => {
+    const h = nativeHost();
+    h.item.body.setAsync = (html, _options, callback) => {
+        h.state.writes.push(html); h.state.body = officeBoundaryDivs(afterOfficeSet(html)); callback(succeeded());
+    };
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        await h.run();
+        assert.equal(h.state.writes.length, attempt);
+        assert.equal(h.state.prepends.length, attempt);
+        assert.equal((h.state.body.match(/My &amp;/g) || []).length, 1);
+        assert.equal(h.state.session, '1');
         assert.equal(isTemplateInsertionBlocked(h.item), false);
     }
 });
