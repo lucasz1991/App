@@ -182,6 +182,9 @@ final class OutlookDesktopFlow
     private static function projectPersonalDesktop(string $html, array $nodes): string
     {
         SignatureTableOverlapDelivery::assertRuntime($html);
+        if (array_filter($nodes, static fn (array $node): bool => self::has($node, 'rt-train-window')) !== []) {
+            self::fail();
+        }
         foreach (self::styles($html) as $style) {
             if (isset($style['attrs']['data-rt-mail-document-css']) && trim($style['css']) !== '') {
                 return $html;
@@ -195,9 +198,11 @@ final class OutlookDesktopFlow
         $before = self::inventory($html);
         $content = self::one($nodes, 'rt-sign-content', 'td');
         $train = self::one($nodes, 'rt-delivery-train-cell', 'td');
+        $image = self::one($nodes, 'rt-delivery-train', 'img');
         [$html, $changes, $aliases] = self::inlineChanges($html, $nodes, [
             $content => 'width:100%;direction:ltr;padding:16px 0 0;',
             $train => 'width:100%;padding:0;border:0;font-size:0;line-height:0;vertical-align:bottom;',
+            $image => 'display:block;width:520px;max-width:none!important;height:auto;margin:0;border:0;vertical-align:bottom;',
         ], $scope);
         $nodes = self::nodes($html);
         $content = self::one($nodes, 'rt-sign-content', 'td');
@@ -205,8 +210,14 @@ final class OutlookDesktopFlow
         $gap = self::one($nodes, 'rt-delivery-train-gap', 'td');
         $flow = self::one($nodes, 'rt-personal-columns', 'div');
         $root = self::one($nodes, 'rt-outlook-signature', 'div');
+        $image = self::one($nodes, 'rt-delivery-train', 'img');
+        $moving = self::inner($html, $nodes[$train]);
+        $moving = str_replace($nodes[$image]['opening'], '<div class="rt-train-window" dir="rtl" style="overflow:hidden;direction:rtl;">'.$nodes[$image]['opening'].'</div>', $moving, $wrapped);
+        if ($wrapped !== 1) {
+            self::fail();
+        }
         $html = self::replace($html, [
-            [$nodes[$train]['openEnd'], $nodes[$train]['close'], self::block('train', 400, '0 40px 0 0', self::inner($html, $nodes[$train]))],
+            [$nodes[$train]['openEnd'], $nodes[$train]['close'], self::block('train', 560, '0 40px 0 0', $moving)],
             [$nodes[$train]['start'], $nodes[$train]['openEnd'], self::attribute($nodes[$train]['opening'], 'width', '100%')],
             [$nodes[$gap]['start'], $nodes[$gap]['end'], ''],
             [$nodes[$content]['start'], $nodes[$content]['openEnd'], self::removeAttribute($nodes[$content]['opening'], 'colspan')],
@@ -229,8 +240,9 @@ final class OutlookDesktopFlow
     {
         $p = '.'.self::host($scope).' ';
 
-        return $p.'.rt-df-train{display:table!important;width:100%!important;max-width:400px!important;table-layout:fixed!important;border-collapse:collapse!important;}'
-            .$p.'.rt-dfc-train{padding:0 40px 0 0!important;border:0!important;}';
+        return $p.'.rt-df-train{display:table!important;width:100%!important;max-width:560px!important;table-layout:fixed!important;border-collapse:collapse!important;border-spacing:0!important;}'
+            .$p.'.rt-dfc-train{padding:0 40px 0 0!important;border:0!important;}'
+            .$p.'.rt-train-window{overflow:hidden!important;direction:rtl!important;}';
     }
 
     private static function assertPersonalProjected(string $html, array $nodes): void
@@ -238,7 +250,16 @@ final class OutlookDesktopFlow
         SignaturePersonalColumns::assertRuntime($html);
         $root = self::one($nodes, 'rt-outlook-signature', 'div');
         $flow = self::one($nodes, 'rt-personal-columns', 'div');
-        self::one($nodes, 'rt-df-train', 'table');
+        $trainBlock = self::one($nodes, 'rt-df-train', 'table');
+        $window = self::one($nodes, 'rt-train-window', 'div');
+        $image = self::one($nodes, 'rt-delivery-train', 'img');
+        $trainCell = self::one($nodes, 'rt-dfc-train', 'td');
+        if ($nodes[$image]['parent'] !== $window || $nodes[$window]['parent'] !== $trainCell || ! self::within($nodes, $trainCell, $trainBlock)
+            || trim(self::inner($html, $nodes[$window])) !== $nodes[$image]['opening'] || ($nodes[$window]['attrs']['dir'] ?? '') !== 'rtl'
+            || ($nodes[$window]['attrs']['style'] ?? '') !== 'overflow:hidden;direction:rtl;'
+            || ($nodes[$image]['attrs']['style'] ?? '') !== 'display:block;width:520px;max-width:none!important;height:auto;margin:0;border:0;vertical-align:bottom;') {
+            self::fail();
+        }
         if (($nodes[$flow]['attrs'][self::MARKER] ?? '') !== self::REVISION
             || ! preg_match('/(?:^|\s)(rts[0-9a-f]{10})(?=\s|$)/', $nodes[$root]['attrs']['class'] ?? '', $scope)) {
             self::fail();
