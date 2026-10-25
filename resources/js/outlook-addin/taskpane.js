@@ -1114,7 +1114,7 @@ function authenticationWasLost(error) {
 function userMessage(error) {
     const code = safeErrorCode(error);
     if (code === 'TEMPLATE_REPLACEMENT_UNAVAILABLE') {
-        return 'Die vorhandene Vorlage kann nicht eindeutig abgegrenzt werden. Der Vorlagenwechsel wurde gestoppt; Ihr Nachrichtentext bleibt erhalten.';
+        return 'Diese ältere oder bearbeitete Vorlage lässt sich nicht sicher ersetzen. Ihr Entwurf bleibt erhalten. Bitte verwenden Sie für den Vorlagenwechsel einen neuen Entwurf.';
     }
     if (code === 'COMPOSE_BODY_CHANGED') {
         return 'Die Nachricht wurde während der Vorbereitung geändert. Bitte den Vorlagenwechsel nach Ihrer Bearbeitung erneut starten.';
@@ -1224,7 +1224,7 @@ function readyStatusDetail() {
         : 'Signatur prüfen';
 
     const templateSupport = supportsTemplatePrepend(Office, Office.context.mailbox?.item)
-        ? 'Vorlagen werden oberhalb eingefügt; Outlook kann CSS anpassen.'
+        ? 'Vorlagen und Signaturen werden gemeinsam verwaltet; Outlook kann CSS anpassen.'
         : 'Mobile/eingeschränkte Ansicht: automatische Signatur, vollständige Vorlagen nur im Browser/Desktop.';
     const automatic = automaticTemplate(currentBootstrap)
         ? 'Eine veröffentlichte Outlook-Standardvorlage ist konfiguriert; der automatische Start hängt vom Outlook-Client und der Add-in-Zuweisung ab.'

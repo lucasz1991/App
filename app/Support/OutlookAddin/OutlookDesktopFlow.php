@@ -109,7 +109,15 @@ final class OutlookDesktopFlow
             self::fail();
         }
         $scope = $scopes[1][0];
-        if (self::one($nodes, $scope, 'div') !== $root || ! self::within($nodes, $ledgers[0], $root)) {
+        $scopeNodes = array_keys(array_filter($nodes, static fn (array $node): bool => self::has($node, $scope)));
+        $allowedScopes = [$root];
+        $signatureFrames = array_keys(array_filter($nodes, static fn (array $node): bool => self::has($node, OutlookCombinedComposeDocument::SIGNATURE_TABLE_CLASS)));
+        if (count($signatureFrames) === 1 && $nodes[$signatureFrames[0]]['tag'] === 'table'
+            && self::within($nodes, $signatureFrames[0], $root) && self::has($nodes[$signatureFrames[0]], $scope)) {
+            $allowedScopes[] = $signatureFrames[0];
+        }
+        sort($allowedScopes);
+        if ($scopeNodes !== $allowedScopes || ! self::within($nodes, $ledgers[0], $root)) {
             self::fail();
         }
         if (! self::knownContent($html, $nodes, $ledgers[0])) {
@@ -231,12 +239,13 @@ final class OutlookDesktopFlow
         $trainBlock = self::block('train', 460, '0 40px 0 0', $moving);
         $trainBlock = preg_replace('~style="[^"]*"~', 'style="'.self::personalTrainStyle().'"', $trainBlock, 1);
         $flowOpening = self::attribute($nodes[$flow]['opening'], 'style', self::personalFlowStyle());
+        $flowOpening = preg_replace('~\A<div\b~', '<table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0"', $flowOpening, 1);
         $flowOpening = substr($flowOpening, 0, -1).' '.self::MARKER.'="'.self::REVISION.'" '.SignaturePersonalColumns::NATIVE_FLOW_ATTRIBUTE.'="v1">';
         $html = self::replace($html, [
             [$nodes[$trainRow]['start'], $nodes[$trainRow]['end'], ''],
-            [$nodes[$flow]['close'], $nodes[$flow]['close'], $trainBlock],
+            [$nodes[$flow]['close'], $nodes[$flow]['end'], $trainBlock.'</td></tr></tbody></table>'],
             [$nodes[$content]['start'], $nodes[$content]['openEnd'], self::removeAttribute($nodes[$content]['opening'], 'colspan')],
-            [$nodes[$flow]['start'], $nodes[$flow]['openEnd'], $flowOpening],
+            [$nodes[$flow]['start'], $nodes[$flow]['openEnd'], $flowOpening.'<tbody><tr><td width="100%" valign="top" style="padding:0;width:100%;vertical-align:top;">'],
             [$nodes[$left]['start'], $nodes[$left]['openEnd'], self::attribute($nodes[$left]['opening'], 'style', self::personalColumnStyle('left'))],
             [$nodes[$right]['start'], $nodes[$right]['openEnd'], self::attribute($nodes[$right]['opening'], 'style', self::personalColumnStyle('right'))],
             [$nodes[$leftCell]['start'], $nodes[$leftCell]['openEnd'], self::attribute($nodes[$leftCell]['opening'], 'style', self::personalCellStyle())],
@@ -279,7 +288,7 @@ final class OutlookDesktopFlow
 
     private static function personalFlowStyle(): string
     {
-        return 'font-size:0;line-height:0;text-align:left;width:100%;max-width:920px;display:block;overflow:hidden;';
+        return 'font-size:0;line-height:0;text-align:left;width:100%;max-width:920px;display:table;table-layout:fixed;border-collapse:collapse;overflow:hidden;';
     }
 
     private static function personalTableStyle(): string
@@ -319,7 +328,7 @@ final class OutlookDesktopFlow
     {
         SignaturePersonalColumns::assertRuntime($html);
         $root = self::one($nodes, 'rt-outlook-signature', 'div');
-        $flow = self::one($nodes, 'rt-personal-columns', 'div');
+        $flow = self::one($nodes, 'rt-personal-columns', 'table');
         $trainBlock = self::one($nodes, 'rt-df-train', 'table');
         $window = self::one($nodes, 'rt-train-window', 'div');
         $image = self::one($nodes, 'rt-delivery-train', 'img');
@@ -334,12 +343,21 @@ final class OutlookDesktopFlow
         $logo = self::one($nodes, 'rt-logo', 'img');
         $content = self::one($nodes, 'rt-sign-content', 'td');
         $frame = self::one($nodes, 'rt-sign-content-frame', 'table');
-        $children = array_keys(array_filter($nodes, static fn (array $node): bool => $node['parent'] === $flow));
+        $flowCell = $nodes[$left]['parent'];
+        $children = array_keys(array_filter($nodes, static fn (array $node): bool => $node['parent'] === $flowCell));
+        $flowRow = $nodes[$flowCell]['parent'];
+        $flowBody = $nodes[$flowRow]['parent'];
         $rows = array_keys(array_filter($nodes, static fn (array $node, int $index): bool => $node['tag'] === 'tr' && self::within($nodes, $index, $frame)
             && ($node['parent'] === $frame || ($nodes[$node['parent']]['tag'] === 'tbody' && $nodes[$node['parent']]['parent'] === $frame)), ARRAY_FILTER_USE_BOTH));
         $personalMarkers = array_keys(array_filter($nodes, static fn (array $node): bool => isset($node['attrs'][SignaturePersonalColumns::NATIVE_FLOW_ATTRIBUTE])));
         $flowMarkers = array_keys(array_filter($nodes, static fn (array $node): bool => isset($node['attrs'][self::MARKER])));
         if ($children !== [$left, $right, $trainBlock] || $nodes[$flow]['parent'] !== $content || count($rows) !== 1
+            || $nodes[$flowCell]['tag'] !== 'td' || $nodes[$flowRow]['tag'] !== 'tr' || $nodes[$flowBody]['tag'] !== 'tbody'
+            || $nodes[$flowBody]['parent'] !== $flow
+            || ! self::onlyChildren($html, $nodes, $flow, [$flowBody]) || ! self::onlyChildren($html, $nodes, $flowBody, [$flowRow])
+            || ! self::onlyChildren($html, $nodes, $flowRow, [$flowCell]) || ! self::onlyChildren($html, $nodes, $flowCell, $children)
+            || ($nodes[$flowCell]['attrs']['style'] ?? '') !== 'padding:0;width:100%;vertical-align:top;'
+            || ($nodes[$flow]['attrs']['cellpadding'] ?? '') !== '0' || ($nodes[$flow]['attrs']['cellspacing'] ?? '') !== '0'
             || $personalMarkers !== [$flow] || $flowMarkers !== [$flow]
             || ! self::onlyChildren($html, $nodes, $rows[0], [$content])
             || ! self::onlyChildren($html, $nodes, $content, [$flow])

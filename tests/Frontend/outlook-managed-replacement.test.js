@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { managedTemplateReplacement, inspectManagedTemplateContract } from '../../resources/js/outlook-addin/managed-template.js';
+import { managedTemplateReplacement } from '../../resources/js/outlook-addin/managed-template.js';
 import { currentComposeBodyHtml, replaceManagedTemplate, isTemplateInsertionBlocked, TEMPLATE_INSERT_LIMITS } from '../../resources/js/outlook-addin/compose-template.js';
 
 const MARKER = 'RT-TEMPLATE-MANAGED-V1:COMBINED-DOCUMENT';
@@ -22,6 +22,26 @@ function artifact({ content = '<p class="design-spacer"><br></p>', greeting = fa
 
 function replace(body, next = artifact({ greeting: true }), composeType = 'newMail') {
     return managedTemplateReplacement(body, currentComposeBodyHtml(body, composeType), next);
+}
+
+function stableArtifact({ content = '<p class="design-spacer"><br></p>', greeting = false } = {}) {
+    return '<div class="rt-combined-compose-document rtc0123456789ab" data-rt-compose-document="combined-v1" style="display:block;width:100%;">'
+        + '<table class="rt-combined-compose-frame rt-managed-combined-v1 rtc0123456789ab"><tbody><tr><td>'
+        + '<style data-rt-combined-compose-css="1">table.rtc0123456789ab{width:100%}</style>'
+        + '<div class="rt-outlook-template rtt0123456789ab"><table class="rt-native-compose-frame rt-managed-template-v1 rtt0123456789ab"><tbody><tr><td>'
+        + `<span class="rt-office-metadata">${MARKER}</span>` + (greeting ? '<p>Guten Tag,</p>' : '')
+        + '<table class="rt-compose-editable rt-compose-editable-v1" data-rt-compose-editable="v1"><tbody><tr><td style="padding:0;">' + content + '</td></tr></tbody></table>'
+        + (greeting ? '<p>Mit freundlichen Grüßen,</p>' : '') + '</td></tr></tbody></table></div>'
+        + '<div class="rt-outlook-signature rts0123456789"><table class="rt-combined-signature-frame rt-managed-signature-v1 rts0123456789"><tbody><tr><td>'
+        + '<span class="rt-office-metadata">RT-SIGNATURE-MANAGED-V1</span><span class="rt-office-metadata">RT-SIGNATURE-VERSION:0123456789abcdef</span>'
+        + '<p>Personal signature</p><img class="rt-delivery-train" src="cid:train" width="520" height="65"></td></tr></tbody></table></div>'
+        + '</td></tr></tbody></table></div>';
+}
+
+function afterOfficeTyping(html) {
+    return html.replace(/<!--[\s\S]*?-->/g, '').replace(/\sdata-rt-[a-z-]+="[^"]*"/gi, '')
+        .replace(/<[a-z][a-z0-9:-]*(?:[^"'<>]|"[^"]*"|'[^']*')*>/gi, tag => /^<table\b/i.test(tag) ? tag : tag.replace(/\sclass="[^"]*"/i, ' class="elementToProof"'))
+        .replace(/(<table\b[^>]*\bclass=")([^"]*)"/gi, (_all, prefix, classes) => prefix + classes.split(/\s+/).map(name => `x_${name}`).join(' ') + '"');
 }
 
 test('replacement preserves typed inner HTML, every outside byte and quoted managed documents', () => {
@@ -217,32 +237,83 @@ test('a synchronous SDK exception keeps replacement uncertain with no duplicate 
     assert.equal(isTemplateInsertionBlocked(h.item), true);
 });
 
-test('contract diagnostics return bounded known structure without HTML, text, URLs or arbitrary attribute values', () => {
-    const html = artifact({ content: '<p class="design-spacer secret-class-person">Private message secret@example.test <img src="https://private.example/token-secret"></p>' })
-        .replace('data-rt-compose-document="combined-v1"', 'data-rt-compose-document="private-credential"');
-    const report = inspectManagedTemplateContract(html, html);
-    assert.equal(report.counts['rt-combined-compose-document'], 1);
-    assert.equal(report.counts['rt-compose-editable'], 1);
-    assert.equal(report.editableV1, 1);
-    assert.equal(report.roots[0].mode, 'other');
-    assert.equal(report.appStart, 1);
-    assert.equal(report.markers.signature, true);
-    assert.ok(JSON.stringify(report).length < 2000);
-    assert.doesNotMatch(JSON.stringify(report), /Private message|secret@example|private-credential|secret-class|private\.example|token-secret|<p|<img/);
+test('versioned TABLE ownership preserves typed content after Office removes every DIV/P/SPAN/data marker', () => {
+    const body = afterOfficeTyping(stableArtifact({ content: TYPED }));
+    const typed = afterOfficeTyping(TYPED);
+    const plan = replace(OUTSIDE + body + '<p>Outside after</p>', stableArtifact({ greeting: true }));
+    assert.ok(plan.html.includes('<td style="padding:0;">' + typed + '</td>'));
+    assert.ok(plan.html.startsWith(OUTSIDE + '<div class="elementToProof" style="display:block;width:100%;">'));
+    assert.ok(plan.html.endsWith('</div><p>Outside after</p>'));
+    assert.equal((plan.html.match(/rt-managed-combined-v1/g) || []).length, 1);
+    assert.ok(plan.html.includes('Guten Tag,'));
+    assert.equal(replace(plan.html, stableArtifact({ greeting: true })).html, plan.html, 'repeated refresh does not add generic DIVs or carrier sheets');
 });
 
-test('a blocked replacement logs only safe SDK structure and preserves its original failure', async t => {
-    const diagnosticModule = await import('../../resources/js/outlook-addin/managed-template.js?diagnostic-proof');
+test('versioned TABLE replacement keeps outside and quoted edits byte-exact in replies and forwards', () => {
+    const quote = '<div id="divRplyFwdMsg"><blockquote>' + afterOfficeTyping(stableArtifact({ greeting: true })) + '<p>Quoted custom text</p></blockquote></div>';
+    const content = TYPED;
+    const old = afterOfficeTyping(stableArtifact({ content }));
+    for (const type of ['reply', 'forward']) {
+        const plan = replace(OUTSIDE + old + '<p>Outside after</p>' + quote, stableArtifact({ greeting: true }), type);
+        assert.ok(plan.html.startsWith(OUTSIDE));
+        assert.ok(plan.html.endsWith('<p>Outside after</p>' + quote));
+        assert.ok(plan.html.includes(afterOfficeTyping(content)));
+    }
+});
+
+test('the real coordinator replaces a typed table-owned SDK body once and keeps outside/quoted bytes', async () => {
+    const quote = '<div id="divRplyFwdMsg"><blockquote>' + afterOfficeTyping(stableArtifact()) + '</blockquote></div>';
+    const h = host({ composeType: 'reply', body: OUTSIDE + afterOfficeTyping(stableArtifact({ content: TYPED })) + quote });
+    const next = stableArtifact({ greeting: true });
+    const expected = replace(h.state.body, next, 'reply').html;
+    await replaceManagedTemplate(h.office, h.item, next);
+    assert.deepEqual(h.state.writes, [expected]);
+    assert.ok(h.state.body.startsWith(OUTSIDE));
+    assert.ok(h.state.body.endsWith(quote));
+    assert.ok(h.state.body.includes(afterOfficeTyping(TYPED)));
+    assert.equal(h.state.session, '1');
+    assert.equal(isTemplateInsertionBlocked(h.item), false);
+});
+
+test('table-owned inline quotes survive in new messages while an ambiguous reply boundary stays fail-closed', () => {
+    const content = TYPED + '<blockquote type="cite">' + afterOfficeTyping(stableArtifact()) + '</blockquote>';
+    const body = afterOfficeTyping(stableArtifact({ content }));
+    assert.ok(replace(body, stableArtifact()).html.includes(afterOfficeTyping(content)));
+    assert.throws(() => replace(body, stableArtifact(), 'reply'), { code: 'TEMPLATE_REPLACEMENT_UNAVAILABLE' });
+});
+
+test('table guards reject missing scopes, unknown versions, contradictory attributes and broken ownership', () => {
+    const body = afterOfficeTyping(stableArtifact({ content: TYPED }));
+    const invalid = [
+        body.replace('x_rt-managed-combined-v1', 'x_rt-managed-combined-v2'),
+        body.replace('x_rtc0123456789ab', 'x_unknownscope'),
+        body.replace('x_rtt0123456789ab', 'x_unknownscope'),
+        body.replace('x_rt-managed-signature-v1', 'x_unknown-owner'),
+        body.replace('x_rt-compose-editable-v1', 'x_rt-compose-editable-v2'),
+        body.replace('class="elementToProof" style=', 'class="elementToProof" data-rt-compose-document="other" style='),
+        body.replace('class="x_rt-native-compose-frame ', 'data-rt-compose-document="other" class="x_rt-native-compose-frame '),
+        body.replace('class="x_rt-compose-editable ', 'data-rt-compose-editable="v2" class="x_rt-compose-editable '),
+        body.replace('RT-SIGNATURE-MANAGED-V1', 'UNKNOWN-SIGNATURE'),
+        body.replace('RT-SIGNATURE-VERSION:0123456789abcdef', 'RT-SIGNATURE-VERSION:unknown'),
+        body.replace('<td style="padding:0;">', '<td style="padding:0;"><table class="x_rt-compose-editable x_rt-compose-editable-v1"><tbody><tr><td>Foreign owner</td></tr></tbody></table>'),
+        body.replace('<td style="padding:0;">', '<td>Extra cell</td><td style="padding:0;">'),
+    ];
+    for (const value of invalid) assert.throws(() => replace(value, stableArtifact()), { code: 'TEMPLATE_REPLACEMENT_UNAVAILABLE' });
+    assert.throws(() => replace(body, artifact()), { code: 'TEMPLATE_REPLACEMENT_UNAVAILABLE' }, 'a stable table cannot be downgraded to a disappearing DIV contract');
+});
+
+test('stripped older drafts without deliberate versioned table ownership stay unchanged and produce no debug text', t => {
     const logs = [];
     t.mock.method(console, 'warn', (...args) => { logs.push(args); });
-    const body = artifact({ content: TYPED }).replace('data-rt-compose-document="combined-v1"', '');
-    for (let attempt = 0; attempt < 5; attempt++) {
-        assert.throws(() => diagnosticModule.managedTemplateReplacement(body, body, artifact()), { code: 'TEMPLATE_REPLACEMENT_UNAVAILABLE' });
-    }
-    assert.equal(logs.length, 3, 'at most three structural reports per pane runtime');
-    assert.equal(logs[0][0], '[RailTime] template-replace-contract');
-    const report = JSON.parse(logs[0][1]);
-    assert.equal(report.sdkBody.roots[0].mode, 'missing');
-    assert.equal(report.incoming.roots[0].mode, 'combined-v1');
-    assert.doesNotMatch(logs[0][1], /My &amp;|formatted|user-image|A > B|<div|<p/);
+    const old = afterOfficeTyping(artifact({ content: TYPED }));
+    assert.throws(() => replace(old, stableArtifact()), { code: 'TEMPLATE_REPLACEMENT_UNAVAILABLE' });
+    assert.deepEqual(logs, [], 'temporary structural warning has been removed');
+});
+
+test('an untouched, positively bounded R46 legacy default can migrate its paragraph into the stable editable TD', () => {
+    const old = artifact({ legacy: true, content: TYPED });
+    const plan = replace(old, stableArtifact());
+    assert.equal(plan.legacy, true);
+    assert.ok(plan.html.includes('<td style="padding:0;">' + TYPED + '</td>'));
+    assert.ok(plan.html.includes('rt-managed-combined-v1'));
 });
