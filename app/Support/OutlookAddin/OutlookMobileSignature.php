@@ -935,8 +935,8 @@ final class OutlookMobileSignature
         $prefix = '.'.$scope.' ';
         $logoTrain = SignatureTableOverlapDelivery::usesLogoTrain($original);
         $rules = $logoTrain ? [
-            $prefix.'.rt-ledger-brand.rt-delivery-wide-column{width:50%!important;padding:0 40px 0 0!important;border-right:1px solid #e60033!important;}',
-            $prefix.'.rt-ledger-contacts.rt-delivery-wide-column{width:50%!important;padding:0 40px 0 22px!important;border:0!important;}',
+            $prefix.'.rt-ledger-brand.rt-delivery-wide-column{width:50%!important;padding:0 40px 0 0!important;border-right:1px solid transparent!important;}',
+            $prefix.'.rt-ledger-contacts.rt-delivery-wide-column{width:50%!important;padding:0 62px 0 0!important;border:0!important;}',
             $prefix.'.rt-ledger-brand.rt-delivery-wide-column,'.$prefix.'.rt-ledger-contacts.rt-delivery-wide-column{display:block!important;width:100%!important;border:0!important;box-sizing:border-box!important;}',
             $prefix.'.rt-ledger-brand.rt-delivery-wide-column{padding:0 22px 0 0!important;}',
             $prefix.'.rt-ledger-contacts.rt-delivery-wide-column{padding:14px 22px 0!important;}',

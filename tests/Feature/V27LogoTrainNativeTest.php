@@ -58,7 +58,7 @@ final class V27LogoTrainNativeTest extends TestCase
         $content = $xpath->query('//td[contains(@class,"rt-sign-ledger-content")]')->item(0);
         self::assertStringContainsString('padding:25px 0 0;', $content->getAttribute('style'));
         self::assertSame('2', $content->getAttribute('colspan'));
-        self::assertStringContainsString('padding:0 40px 0 22px;', $xpath->query('//th[contains(@class,"rt-ledger-contacts")]')->item(0)->getAttribute('style'));
+        self::assertStringContainsString('padding:0 62px 0 0;', $xpath->query('//th[contains(@class,"rt-ledger-contacts")]')->item(0)->getAttribute('style'));
         self::assertStringContainsString('padding:0 0 0 40px;', $xpath->query('//td[contains(@class,"rt-delivery-brand-heading")]')->item(0)->getAttribute('style'));
         self::assertSame(0, $xpath->query('.//img[contains(@class,"rt-delivery-train")]', $brand)->length);
         $direct = $xpath->query('//td[contains(@class,"rt-ledger-direct")]')->item(0);

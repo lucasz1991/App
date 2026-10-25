@@ -121,7 +121,7 @@ final class SignatureTableOverlapDelivery
         $cell->setAttribute('align', $mirrored ? 'right' : 'left');
         $cell->setAttribute('valign', 'bottom');
         $cell->setAttribute('style', $logoTrain
-            ? 'width:50%;padding:0 40px 0 0;border-right:1px solid #e60033;box-sizing:border-box;font-size:0;line-height:0;vertical-align:bottom;'
+            ? 'width:50%;padding:0 40px 0 0;border-right:1px solid transparent;box-sizing:border-box;font-size:0;line-height:0;vertical-align:bottom;'
             : 'width:100%;padding:0;font-size:0;line-height:0;vertical-align:bottom;');
         $cell->appendChild($dom->createComment('[if !mso]><!'));
         $cell->appendChild($image);
@@ -270,7 +270,7 @@ final class SignatureTableOverlapDelivery
 
         $css .= $scope.' .rt-sign-content-frame{width:100%!important;table-layout:fixed!important;height:auto!important;direction:ltr!important;}'
             .$scope.' .rt-sign-cell .rt-sign-content{width:100%!important;vertical-align:top!important;height:auto!important;padding-bottom:'.($logoTrain ? '0' : '15px').'!important;direction:ltr!important;}'
-            .$scope.' .rt-delivery-train-cell{'.($logoTrain ? 'width:50%!important;padding:0 40px 0 0!important;border-right:1px solid #e60033!important;box-sizing:border-box!important;' : 'width:100%!important;padding:0!important;').'font-size:0!important;line-height:0!important;}'
+            .$scope.' .rt-delivery-train-cell{'.($logoTrain ? 'width:50%!important;padding:0 40px 0 0!important;border-right:1px solid transparent!important;box-sizing:border-box!important;' : 'width:100%!important;padding:0!important;').'font-size:0!important;line-height:0!important;}'
             .$scope.' .rt-delivery-train{'.str_replace(';', '!important;', self::imageStyle(SignatureArtifactVersion::usesMirroredTrain($version), $logoTrain)).'}'
             .$scope.' .rt-delivery-train-mso{'.str_replace(';', '!important;', self::msoImageStyle(SignatureArtifactVersion::usesMirroredTrain($version), $logoTrain)).'}';
         $css .= $scope.' .rt-delivery-group-cell{display:table-cell!important;width:'.($logoTrain ? '50%' : '100%').'!important;border:0!important;vertical-align:top!important;text-align:left!important;}'
@@ -284,8 +284,8 @@ final class SignatureTableOverlapDelivery
             .$scope.' .rt-ledger-brand,'.$scope.' .rt-ledger-direct{padding:0!important;}'
             .$scope.' .rt-ledger-company{padding:'.($logoTrain ? '0' : '14px 0 0').'!important;}'
             .$scope.' .rt-delivery-wide-column{display:table-cell!important;vertical-align:top!important;box-sizing:border-box!important;text-align:left!important;font-weight:normal!important;}'
-            .$scope.' .rt-ledger-brand.rt-delivery-wide-column{width:'.($logoTrain ? '50' : '32').'%!important;padding:0 '.($logoTrain ? '40' : '22').'px 0 0!important;border-right:1px solid #e60033!important;}'
-            .$scope.' .rt-ledger-contacts.rt-delivery-wide-column{width:'.($logoTrain ? '50' : '68').'%!important;padding:0 '.($logoTrain ? '40px' : '0').' 0 22px!important;border:0!important;}'
+            .$scope.' .rt-ledger-brand.rt-delivery-wide-column{width:'.($logoTrain ? '50' : '32').'%!important;padding:0 '.($logoTrain ? '40' : '22').'px 0 0!important;border-right:1px solid '.($logoTrain ? 'transparent' : '#e60033').'!important;}'
+            .$scope.' .rt-ledger-contacts.rt-delivery-wide-column{width:'.($logoTrain ? '50' : '68').'%!important;padding:'.($logoTrain ? '0 62px 0 0' : '0 0 0 22px').'!important;border:0!important;}'
             .($logoTrain ? $scope.' .rt-delivery-brand-heading{padding-left:40px!important;}' : '')
             .'@media only screen and (max-width:860px){'
             .$scope.' .rt-sign-ledger-content{padding:'.($logoTrain ? '23px 0 0' : '23px 22px 15px').'!important;}'
@@ -390,8 +390,8 @@ final class SignatureTableOverlapDelivery
             $cell->setAttribute('width', $width);
             $cell->setAttribute('align', 'left');
             $cell->setAttribute('valign', 'top');
-            $padding = $index === 0 ? ($logoTrain ? '0 40px 0 0' : '0 22px 0 0') : ($logoTrain ? '0 40px 0 22px' : '0 0 0 22px');
-            $cell->setAttribute('style', 'width:'.$width.';padding:'.$padding.';border:0;'.($index === 0 ? 'border-right:1px solid #e60033;' : '').'vertical-align:top;text-align:left;font-weight:normal;');
+            $padding = $index === 0 ? ($logoTrain ? '0 40px 0 0' : '0 22px 0 0') : ($logoTrain ? '0 62px 0 0' : '0 0 0 22px');
+            $cell->setAttribute('style', 'width:'.$width.';padding:'.$padding.';border:0;'.($index === 0 ? 'border-right:1px solid '.($logoTrain ? 'transparent' : '#e60033').';' : '').'vertical-align:top;text-align:left;font-weight:normal;');
         }
         $table->setAttribute('width', '100%');
         $table->setAttribute('style', 'width:100%;table-layout:fixed;border-collapse:collapse;');
