@@ -263,7 +263,7 @@ class InquiryInbox extends Component
             $manualProposal = AiIntakeProposal::where('inquiry_id', $record->id)->where('status', '!=', 'stale')->latest('id')->get()
                 ->first(fn ($proposal) => ($proposal->payload['review_confirmation']['planning_mode'] ?? null) === 'manual');
             if ($manualProposal) {
-                $this->redirect(OperationsPages::intakePanelUrl($manualProposal->intake_id), navigate: true);
+                $this->redirect(OperationsPages::intakeFormUrl($manualProposal->intake_id), navigate: true);
 
                 return;
             }
@@ -274,6 +274,36 @@ class InquiryInbox extends Component
             return;
         }
         $this->select($record->id);
+    }
+
+    public function saveAndTakeDirectOrder(InquiryWorkflowService $service): void
+    {
+        $this->access();
+        OperationsAccess::authorize(auth()->user(), 'operations.manage');
+        $this->save($service);
+        $this->takeDirectOrder($service);
+    }
+
+    public function takeDirectOrder(InquiryWorkflowService $service): void
+    {
+        $this->access();
+        abort_unless($this->selectedId, 404);
+        $current = $this->scopedQuery()->findOrFail($this->selectedId);
+        abort_if($this->portalSubmission($current), 409, 'Portalentscheidung über den Portaleingang bearbeiten.');
+        $record = $service->takeDirectOrder($current, $this->revision, auth()->user());
+        $sourceId = AiIntakeSchema::ready() ? AiIntakeProposal::where('inquiry_id', $record->id)->where('status', '!=', 'stale')->latest('id')->value('intake_id') : null;
+        $this->redirect($sourceId ? OperationsPages::intakeFormUrl($sourceId) : OperationsPages::url('cases', ['view' => 'orders', 'order' => $record->order_id, 'inquiry' => $record->id]), navigate: true);
+    }
+
+    public function openAssist(): void
+    {
+        $this->access();
+        abort_if($this->editing, 409, 'Die offenen Angaben zuerst speichern.');
+        $record = $this->scopedQuery()->findOrFail($this->selectedId);
+        abort_unless($record->revision === $this->revision, 409, 'Die Anfrage wurde inzwischen geändert. Bitte den aktuellen Stand laden.');
+        abort_if($this->portalSubmission($record), 409, 'Portalvorgang über den Portaleingang bearbeiten.');
+        $this->detailOpen = false;
+        $this->dispatch('open-inquiry-assist', inquiryId: $record->id, revision: $record->revision, customerId: $record->customer_id);
     }
 
     #[On('commercial-offer-updated')]
@@ -327,6 +357,7 @@ class InquiryInbox extends Component
             'history' => $this->selectedId ? OperationAudit::where('subject_type', 'OperationInquiry')->where('subject_id', $this->selectedId)->with(['actor.profile', 'actor.currentTeam'])->latest('id')->limit(30)->get() : collect(),
             'customerWorkflowReady' => CustomerWorkflowService::ready(),
             'commercialReady' => CommercialOfferService::ready(),
+            'directOrder' => $selected && OperationAudit::where('subject_type', 'OperationInquiry')->where('subject_id', $selected->id)->where('action', 'inquiry.direct_order')->exists(),
         ]);
     }
 }

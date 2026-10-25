@@ -245,9 +245,17 @@ final class V27PersonalLayoutTest extends TestCase
             $item = $this->one($nativeXpath, $class);
             self::assertTrue($item->parentNode->isSameNode($nativeContainer));
             self::assertSame('100%', $item->getAttribute('width'));
-            self::assertStringContainsString('display:table;', $item->getAttribute('style'), 'Unsupported math keeps ordinary full-width table siblings.');
-            self::assertStringContainsString('width:100%;width:calc(5600280px - 1000000%);min-width:50%;max-width:100%;', $item->getAttribute('style'));
+            self::assertStringContainsString('display:table;', $item->getAttribute('style'), 'Without presentation CSS, ordinary full-width table attributes remain.');
+            self::assertStringContainsString('width:50%;min-width:0;max-width:100%;', $item->getAttribute('style'));
         }
+        foreach (['rt-personal-company-block' => '220', 'rt-personal-logo-frame' => '200'] as $class => $maximum) {
+            $table = $this->one($nativeXpath, $class);
+            self::assertSame($maximum, $table->getAttribute('width'));
+            self::assertStringContainsString('width:100%;max-width:'.$maximum.'px;table-layout:fixed;', $table->getAttribute('style'));
+        }
+        preg_match_all('~<!--\[if mso\]>(.*?)<!\[endif\]-->~s', $canonical['signature']['html'], $canonicalMso);
+        preg_match_all('~<!--\[if mso\]>(.*?)<!\[endif\]-->~s', $desktop['signature']['html'], $desktopMso);
+        self::assertSame($canonicalMso[1], $desktopMso[1], 'Both the logo and train MSO fallbacks remain byte-identical.');
         foreach ($desktop['templates'] as $index => $item) {
             $html = $item['combinedComposeHtml'];
             $this->assertPersonalGroups($html);
@@ -378,8 +386,8 @@ final class V27PersonalLayoutTest extends TestCase
                 self::assertSame('hidden', $this->winningExplicitRule($xpath, $container, 'overflow'));
                 foreach (['rt-personal-left' => 'left', 'rt-personal-right' => 'right', 'rt-df-train' => 'left'] as $class => $float) {
                     $item = $this->one($xpath, $class);
-                    self::assertSame('calc(5600280px - 1000000%)', $this->winningExplicitRule($xpath, $item, 'width'));
-                    self::assertSame('50%', $this->winningExplicitRule($xpath, $item, 'min-width'));
+                    self::assertSame('50%', $this->winningExplicitRule($xpath, $item, 'width'));
+                    self::assertSame('0', $this->winningExplicitRule($xpath, $item, 'min-width'));
                     self::assertSame('100%', $this->winningExplicitRule($xpath, $item, 'max-width'));
                     self::assertSame($float, $this->winningExplicitRule($xpath, $item, 'float'));
                 }
@@ -389,9 +397,15 @@ final class V27PersonalLayoutTest extends TestCase
                 self::assertSame('100%', $this->winningExplicitRule($xpath, $train, 'top'));
                 self::assertStringNotContainsString('display:grid', $html);
                 self::assertStringNotContainsString('grid-column:', $html);
-                $noMath = $this->xpath(str_replace('width:calc(5600280px - 1000000%)!important;', '', $noInline));
-                foreach (['rt-personal-left', 'rt-personal-right', 'rt-df-train'] as $class) {
-                    self::assertSame('100%', $this->winningExplicitRule($noMath, $this->one($noMath, $class), 'width'), 'Removing unsupported math retains full-width readable stacking.');
+                self::assertStringNotContainsString('width:calc(', $html);
+                foreach (['rt-personal-cell-left', 'rt-personal-cell-right'] as $class) {
+                    self::assertSame('0 8.695652%', $this->winningExplicitRule($xpath, $this->one($xpath, $class), 'padding'), 'Native proportional gutters win over canonical40px and viewport rules.');
+                }
+                foreach (['rt-personal-company-block' => '220px', 'rt-personal-logo-frame' => '200px', 'rt-logo' => '200px'] as $class => $maximum) {
+                    $node = $this->one($xpath, $class);
+                    self::assertSame('100%', $this->winningExplicitRule($xpath, $node, 'width'), 'Nested native logo geometry must shrink inside its fluid column.');
+                    self::assertSame($maximum, $this->winningExplicitRule($xpath, $node, 'max-width'));
+                    self::assertSame($class === 'rt-logo' ? 'auto' : 'fixed', $this->winningExplicitRule($xpath, $node, $class === 'rt-logo' ? 'height' : 'table-layout'));
                 }
                 $noSticky = $this->xpath(str_replace('position:sticky!important;', '', $noInline));
                 self::assertNull($this->winningExplicitRule($noSticky, $this->one($noSticky, 'rt-df-train'), 'position'));

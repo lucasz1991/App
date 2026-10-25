@@ -7,13 +7,16 @@
 @endphp
 <section class="mt-3 space-y-3" aria-label="Weiter zur Schichtbesetzung" data-ai-intake-planning>
     <ol class="rt-disposition-workflow-steps" aria-label="Bearbeitungsstand">
-        @foreach(['Anfrage', 'Auftrag', 'Schichten', 'Besetzung'] as $label)
+        @foreach([($proposal->payload['business_path'] ?? 'inquiry') === 'direct_order' ? 'Eingang' : 'Anfrage', 'Auftrag', 'Schichten', 'Besetzung'] as $label)
             <li class="rt-disposition-workflow-step" data-state="{{ $loop->index < $step ? 'done' : ($loop->index === $step ? 'current' : 'upcoming') }}" @if($loop->index === $step) aria-current="step" @endif>{{ $label }}</li>
         @endforeach
     </ol>
     @if(!$inquiry->order_id)
-        <p class="ops-muted">{{ $inquiry->status === 'accepted' ? 'Kundenzusage dokumentiert. Jetzt den Auftrag anlegen und anschließend hier die Schichten prüfen.' : 'Anfrage bestätigt. Angebot und tatsächliche Kundenzusage in der Anfrage prüfen; anschließend den Auftrag anlegen.' }}</p>
-        <x-ui.buttons.button-basic type="button" wire:click="continueInquiry({{ $proposal->id }},{{ $proposal->revision }})" wire:loading.attr="disabled">{{ $inquiry->status === 'accepted' ? 'Auftrag anlegen' : 'Angebot und Kundenzusage prüfen' }} <i class="far fa-arrow-right" aria-hidden="true"></i></x-ui.buttons.button-basic>
+        <p class="ops-muted">Die Position ist mit Anfrage {{ $inquiry->number }} verknüpft. Wahlweise direkt als Auftrag annehmen oder im Anfrage- und Angebotsweg fortführen.</p>
+        <div class="ops-actions">
+            @if($canPlan)<x-ui.buttons.button-basic type="button" mode="primary" wire:click="takeDirectOrder({{ $proposal->id }},{{ $proposal->revision }},{{ $inquiry->revision }})" wire:loading.attr="disabled">Auftrag direkt annehmen</x-ui.buttons.button-basic>@endif
+            <x-ui.buttons.button-basic type="button" wire:click="continueInquiry({{ $proposal->id }},{{ $proposal->revision }})" wire:loading.attr="disabled">{{ $inquiry->status === 'accepted' ? 'Auftrag anlegen' : 'Anfrage / Angebot öffnen' }} <i class="far fa-arrow-right" aria-hidden="true"></i></x-ui.buttons.button-basic>
+        </div>
     @elseif($proposal->status !== 'applied')
         <p class="ops-muted">Auftrag bestätigt. Schichtabschnitte und Pausen persönlich prüfen. Daraus werden zunächst unbesetzte Entwürfe erstellt.</p>
         @if($planningProposalId === $proposal->id)
@@ -29,7 +32,7 @@
                     </fieldset>
                 @endforeach
                 <div class="ops-actions">
-                    <x-ui.buttons.button-basic type="button" wire:click="addPlanningSegment" wire:loading.attr="disabled" :disabled="count($planningSegments) >= 50">Schicht hinzufügen</x-ui.buttons.button-basic>
+                    <x-ui.buttons.button-basic type="button" wire:click="addPlanningSegment" wire:loading.attr="disabled" :disabled="count($planningSegments) >= 50 ? true : null">Schicht hinzufügen</x-ui.buttons.button-basic>
                     <x-ui.buttons.button-basic type="button" wire:click="closePlanning" wire:loading.attr="disabled">Abbrechen</x-ui.buttons.button-basic>
                     <x-ui.buttons.button-basic type="submit" mode="primary" wire:loading.attr="disabled">Schichtentwürfe erstellen</x-ui.buttons.button-basic>
                 </div>

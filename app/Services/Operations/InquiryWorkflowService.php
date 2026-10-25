@@ -4,10 +4,12 @@ namespace App\Services\Operations;
 
 use App\Enums\OrderStatus;
 use App\Jobs\QueueAiIntakeOrderConfirmation;
+use App\Models\AiIntake;
 use App\Models\AiIntakeProposal;
 use App\Models\CommercialOfferRevision;
 use App\Models\Customer;
 use App\Models\CustomerPortalIdentity;
+use App\Models\OperationAudit;
 use App\Models\OperationInquiry;
 use App\Models\Order;
 use App\Models\User;
@@ -16,11 +18,14 @@ use App\Support\CustomerPortal\CustomerPortalDateTime;
 use App\Support\CustomerPortal\PortalActor;
 use App\Support\Operations\AiCustomerCommunicationSchema;
 use App\Support\Operations\AiDispositionSettings;
+use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsAutomationActor;
 use App\Support\Operations\OperationsDateTime;
 use App\Support\Operations\OperationsTransaction;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -216,6 +221,148 @@ class InquiryWorkflowService
 
             return $record;
         }, 3);
+    }
+
+    /** Accept a personally checked order without inventing an offer or customer acceptance. */
+    public function takeDirectOrder(OperationInquiry $inquiry, int $revision, User $actor): OperationInquiry
+    {
+        OperationsAccess::authorize($actor, 'operations.manage');
+        PortalActor::authorizeInquiry($actor, $inquiry, [], 'direct_order');
+
+        return OperationsTransaction::run(function () use ($inquiry, $revision, $actor): OperationInquiry {
+            $currentActor = $actor->fresh();
+            abort_unless($currentActor, 403);
+            OperationsAccess::authorize($currentActor, 'operations.manage');
+            PortalActor::authorizeInquiry($currentActor, $inquiry, [], 'direct_order');
+
+            // Follow the same source -> position -> inquiry lock order as intake review.
+            $sources = $this->lockDirectOrderSources($inquiry->id);
+            $record = OperationInquiry::lockForUpdate()->findOrFail($inquiry->id);
+            $this->require($record->revision === $revision, 'Der Vorgang wurde geändert. Bitte neu laden.');
+            $proof = $record->order_id ? OperationAudit::where('subject_type', 'OperationInquiry')->where('subject_id', $record->id)
+                ->whereIn('action', ['inquiry.convert', 'inquiry.direct_order'])->latest('id')->first() : null;
+            $sourceContext = $this->directOrderSourceContext($record, $sources, $proof);
+            $fingerprint = $this->directOrderFingerprint($record);
+
+            if ($record->order_id) {
+                $order = Order::lockForUpdate()->findOrFail($record->order_id);
+                $this->require($record->status === 'converted' && $proof && $proof->actor_id
+                    && ($proof->actor_kind ?? 'human') === 'human' && $proof->revision === $revision
+                    && (int) ($proof->data['order_id'] ?? 0) === (int) $order->id,
+                    'Die bestehende Auftragsübernahme muss zuerst geprüft werden.');
+                if ($proof->action === 'inquiry.direct_order') {
+                    $sameSource = (int) ($proof->data['source_context']['intake_id'] ?? 0) === (int) ($sourceContext['intake_id'] ?? 0)
+                        && (int) ($proof->data['source_context']['source_revision'] ?? 0) === (int) ($sourceContext['source_revision'] ?? 0)
+                        && (int) ($proof->data['source_context']['proposal_id'] ?? 0) === (int) ($sourceContext['proposal_id'] ?? 0);
+                    $nativeBridge = $sourceContext !== [] && $this->directOrderBridgeMatches($record,
+                        $sources['intakes']->get($sourceContext['intake_id']), $sources['proposals']->firstWhere('id', $sourceContext['proposal_id']), $proof);
+                    $this->require(hash_equals((string) ($proof->data['inquiry_fingerprint'] ?? ''), $fingerprint)
+                        && ($sameSource || $nativeBridge),
+                        'Die Grundlage der direkten Auftragsannahme wurde geändert. Bitte neu prüfen.');
+                }
+
+                return $record;
+            }
+
+            $this->editable($record, $revision);
+            Validator::make($record->getAttributes(), [
+                'title' => ['required', 'string', 'max:180'],
+                'timezone' => ['required', 'timezone'],
+                'role_name' => ['required', 'string', 'max:160'],
+                'location_name' => ['required', 'string', 'max:180'],
+                'required_staff' => ['required', 'integer', 'min:1', 'max:999'],
+            ])->validate();
+            $this->complete($record);
+
+            $order = app(OrderSchedulingService::class)->save(new Order, [
+                'customer_id' => $record->customer_id, 'title' => $record->title,
+                'service_type' => $record->role_name, 'status' => OrderStatus::Confirmed,
+                'starts_at' => $record->starts_at, 'ends_at' => $record->ends_at,
+                'timezone' => $record->timezone, 'location_name' => $record->location_name,
+                'required_staff' => $record->required_staff, 'priority' => 'normal',
+                'notes' => $record->number,
+            ], $currentActor);
+            if ($record->customer_portal_identity_id) {
+                $order->forceFill($record->only(['customer_portal_location_id', 'customer_portal_identity_id', 'customer_portal_membership_id']))->save();
+            }
+            $record->forceFill(['order_id' => $order->id, 'status' => 'converted', 'updated_by' => $currentActor->id])->save();
+            $this->audit->record($record, $currentActor, 'inquiry.direct_order', [
+                'status' => $record->status, 'order_id' => $order->id,
+                'source_reference' => $record->source_reference, 'source_context' => $sourceContext,
+                'inquiry_fingerprint' => $fingerprint,
+                'demand' => $record->only(['customer_id', 'title', 'starts_at', 'ends_at', 'timezone', 'role_name', 'location_name', 'required_staff']),
+            ]);
+
+            return $record;
+        }, 3);
+    }
+
+    /** @return array{intakes: Collection, proposals: Collection} */
+    private function lockDirectOrderSources(int $inquiryId): array
+    {
+        if (! Schema::hasTable('ai_intake_proposals')) {
+            return ['intakes' => collect(), 'proposals' => collect()];
+        }
+        $intakeIds = AiIntakeProposal::where('inquiry_id', $inquiryId)->distinct()->orderBy('intake_id')->pluck('intake_id');
+        $intakes = AiIntake::whereIn('id', $intakeIds)->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+        $proposals = AiIntakeProposal::where('inquiry_id', $inquiryId)->orderBy('id')->lockForUpdate()->get();
+
+        return compact('intakes', 'proposals');
+    }
+
+    /** @return array<string, int> */
+    private function directOrderSourceContext(OperationInquiry $record, array $sources, ?OperationAudit $proof = null): array
+    {
+        $proposals = $sources['proposals'];
+        $this->require(! Schema::hasTable('ai_intake_proposals')
+            || AiIntakeProposal::where('inquiry_id', $record->id)->orderBy('id')->pluck('id')->all() === $proposals->pluck('id')->all(),
+            'Die Quellenzuordnung wurde geändert. Bitte neu laden.');
+        if ($proposals->isEmpty()) {
+            $this->require(! str_starts_with((string) $record->source_reference, 'ai-intake:'), 'Die aktuelle Leistungszuordnung fehlt. Bitte den Eingang erneut prüfen.');
+
+            return [];
+        }
+        $this->require($sources['intakes']->count() === 1 && $proposals->pluck('intake_id')->unique()->count() === 1,
+            'Die Quellenzuordnung ist nicht eindeutig. Bitte den Eingang erneut prüfen.');
+        $intake = $sources['intakes']->first();
+        $current = $proposals->where('source_revision', $intake->source_revision);
+        $this->require($current->count() === 1 && ! $intake->paused_at && ! in_array($intake->status, ['paused', 'not_inquiry'], true),
+            'Die Mailquelle wurde geändert. Bitte den aktuellen Eingang prüfen.');
+        $proposal = $current->first();
+        $confirmation = $proposal->payload['review_confirmation'] ?? [];
+        $this->require($proposal->status !== 'stale' && $proposal->inquiry_revision === $record->revision
+            && $proposal->inquiry_fingerprint && hash_equals($proposal->inquiry_fingerprint, $this->directOrderFingerprint($record))
+            && (int) $intake->customer_id === (int) $record->customer_id
+            && ((! empty($confirmation['actor_id']) && (int) ($confirmation['source_revision'] ?? 0) === $intake->source_revision)
+                || $this->directOrderBridgeMatches($record, $intake, $proposal, $proof)),
+            'Quelle und Leistungsangaben müssen vor der direkten Auftragsannahme persönlich im aktuellen Stand geprüft werden.');
+
+        return ['intake_id' => (int) $intake->id, 'source_revision' => $intake->source_revision,
+            'proposal_id' => (int) $proposal->id, 'proposal_revision' => $proposal->revision, 'position_index' => $proposal->position_index];
+    }
+
+    private function directOrderFingerprint(OperationInquiry $inquiry): string
+    {
+        return hash('sha256', json_encode([$inquiry->customer_id, $inquiry->title, $inquiry->starts_at?->toIso8601String(), $inquiry->ends_at?->toIso8601String(), $inquiry->timezone, $inquiry->role_name, $inquiry->location_name, $inquiry->required_staff], JSON_THROW_ON_ERROR));
+    }
+
+    private function directOrderBridgeMatches(OperationInquiry $record, AiIntake $intake, AiIntakeProposal $proposal, ?OperationAudit $proof): bool
+    {
+        if (! $record->order_id || $proof?->action !== 'inquiry.direct_order' || ($proof->data['source_context'] ?? null) !== []
+            || ($proposal->payload['provenance']['kind'] ?? null) !== 'native_inquiry') {
+            return false;
+        }
+        $bridge = OperationAudit::where('subject_type', 'AiIntake')->where('subject_id', $intake->id)
+            ->where('action', 'intake.native_assist_opened')->latest('id')->first();
+        $data = $bridge?->data ?? [];
+
+        return $bridge && $bridge->actor_id && ($bridge->actor_kind ?? 'human') === 'human'
+            && (int) ($data['conversion_audit_id'] ?? 0) === (int) $proof->id
+            && (int) ($data['inquiry_id'] ?? 0) === (int) $record->id && (int) ($data['inquiry_revision'] ?? 0) === $record->revision
+            && ($data['inquiry_fingerprint'] ?? null) === $this->directOrderFingerprint($record)
+            && (int) ($data['source_revision'] ?? 0) === $intake->source_revision
+            && (int) ($data['proposal_id'] ?? 0) === (int) $proposal->id
+            && (int) ($data['order_id'] ?? 0) === (int) $record->order_id;
     }
 
     private function editable(OperationInquiry $record, ?int $revision): void

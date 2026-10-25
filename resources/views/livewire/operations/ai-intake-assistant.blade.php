@@ -14,7 +14,7 @@
             <p class="rt-ai-assist__card-note" role="status">Der Eingang oder die Einstellungen wurden geändert. Den aktuellen Stand laden und die Frage neu formulieren.</p>
             <div class="rt-ai-assist__card-buttons"><button type="button" class="rt-ai-assist__btn" wire:click="reloadContext">Aktuellen Stand laden</button></div>
         @elseif($intake || $overview)
-            @if(!$overview)<p class="rt-ai-assist__card-note">Fragen zum Original stellen oder die Erkennung mit einem konkreten Hinweis korrigieren. Antworten beziehen sich nur auf diesen Eingang.</p>@endif
+            @if(!$overview)<p class="rt-ai-assist__card-note">{{ $intake?->processing_mode === 'manual' ? 'Fragen zu Original und Formularstand stellen. AI-Vorschläge kannst du anschließend persönlich im Formular übernehmen.' : 'Fragen zum Original stellen oder die Erkennung mit einem konkreten Hinweis korrigieren. Antworten beziehen sich nur auf diesen Eingang.' }}</p>@endif
             @if($history->isNotEmpty())
                 <ol class="rt-ai-intake-assistant__history grid gap-3 p-3" aria-label="Fragen zu diesem Eingang">
                     @foreach($history as $run)

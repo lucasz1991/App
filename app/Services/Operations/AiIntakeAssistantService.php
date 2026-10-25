@@ -209,6 +209,8 @@ class AiIntakeAssistantService
                 ->map(fn ($previous) => ['question' => $previous->configuration['prompt'] ?? '', 'answer' => $previous->result['answer'] ?? ''])->values()->all();
             $payload = json_encode(['received_messages' => $sources, 'attachments' => $attachments,
                 'current_analysis' => $current->analysis, 'missing_fields' => $current->missing_fields,
+                'processing_mode' => $current->processing_mode ?? 'assisted', 'current_form_positions' => $this->formPositions($current),
+                'form_context_note' => 'Formularangaben sind der aktuelle menschliche Bearbeitungsstand, kein Originalbeleg. Vergleiche sie mit der Quelle; nenne konkrete Vorschläge zur persönlichen Übernahme. Bei processing_mode manual bleiben auch Korrekturwünsche ausschließlich Beratung.',
                 'conversation' => $history, 'question' => $prompt ?: 'Bitte den zusätzlichen Datei- oder Sprachhinweis mit diesem Eingang vergleichen.',
                 'supplemental_files' => $supplement->batch->metadata()], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
             abort_if(mb_strlen($payload) > 100000, 422, 'Der vollständige Eingang und bisherige Prüfverlauf sind für diese Frage zu umfangreich.');
@@ -247,7 +249,7 @@ class AiIntakeAssistantService
     private function requestIntent(AiIntakeRun $run, AiIntake $intake, string $typed, string $voice): array
     {
         $this->assertCurrent($run);
-        $canReview = $intake->source_type === 'email' && ! $intake->paused_at
+        $canReview = $intake->processing_mode !== 'manual' && $intake->source_type === 'email' && ! $intake->paused_at
             && ! in_array($intake->status, ['paused', 'completed', 'not_inquiry', 'analyzing'], true);
         // execute() rejects an already-analyzing intake; question runs do not change its status.
         if (trim($typed.$voice) === '' || ! $canReview) {
@@ -353,6 +355,7 @@ class AiIntakeAssistantService
     private function snapshot(AiIntake $intake): array
     {
         return ['revision' => $intake->revision, 'source_revision' => $intake->source_revision, 'status' => $intake->status,
+            'processing_mode' => $intake->processing_mode ?? 'assisted', 'form_positions' => $this->formPositions($intake),
             'customer_id' => $intake->customer_id, 'customer_contact_id' => $intake->customer_contact_id,
             'match_method' => $intake->match_method, 'latest_inbound_message_id' => $intake->latest_inbound_message_id,
             'analysis_hash' => $this->hash([$intake->analysis, $intake->missing_fields]),
@@ -362,6 +365,16 @@ class AiIntakeAssistantService
             'attachments' => $intake->attachments()->get()->mapWithKeys(fn ($file) => [$file->id => [
                 'hash' => $file->file_hash, 'text_hash' => hash('sha256', (string) $file->extracted_text),
             ]])->all()];
+    }
+
+    private function formPositions(AiIntake $intake): array
+    {
+        return $intake->proposals()->where('source_revision', $intake->source_revision)->with('inquiry')->get()
+            ->map(fn ($proposal) => ['proposal_id' => $proposal->id, 'revision' => $proposal->revision,
+                'status' => $proposal->status, 'demand' => $proposal->payload['demand'] ?? [],
+                'segments' => $proposal->payload['segments'] ?? [], 'business_path' => $proposal->payload['business_path'] ?? 'inquiry',
+                'inquiry' => $proposal->inquiry?->only(['id', 'revision', 'status', 'customer_id', 'title', 'role_name', 'location_name', 'timezone', 'starts_at', 'ends_at', 'required_staff', 'order_id'])])
+            ->all();
     }
 
     private function hash(array $value): string

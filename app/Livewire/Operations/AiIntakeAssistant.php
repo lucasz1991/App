@@ -266,6 +266,11 @@ class AiIntakeAssistant extends Component
 
     public function review(): void
     {
+        if ($this->current()?->processing_mode === 'manual') {
+            $this->ask();
+
+            return;
+        }
         $this->perform(function (User $actor, ?AiIntake $intake): void {
             $this->prompt = trim($this->prompt);
             $this->validatePrompt();
@@ -455,7 +460,7 @@ class AiIntakeAssistant extends Component
             ? app(AiIntakeAssistantService::class)->overviewHistory($actor, $this->customerId, $this->settingsRevision, $this->overviewFingerprint) : [];
 
         return view('livewire.operations.ai-intake-assistant', ['intake' => $intake, 'history' => $history, 'overviewHistory' => $overviewHistory,
-            'canReview' => $intake?->source_type === 'email' && ! $intake->paused_at && ! in_array($intake->status, ['paused', 'completed', 'not_inquiry', 'analyzing'], true),
-            'intakeUrl' => $intake ? OperationsPages::intakePanelUrl($intake->id, $this->customerId) : null]);
+            'canReview' => $intake?->processing_mode !== 'manual' && $intake?->source_type === 'email' && ! $intake->paused_at && ! in_array($intake->status, ['paused', 'completed', 'not_inquiry', 'analyzing'], true),
+            'intakeUrl' => $intake ? OperationsPages::intakeFormUrl($intake->id, $this->customerId) : null]);
     }
 }

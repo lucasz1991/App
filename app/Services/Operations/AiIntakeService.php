@@ -146,7 +146,7 @@ class AiIntakeService
                 if ($intake) {
                     $intake->source_revision++;
                     $intake->revision++;
-                    $intake->status = $intake->status === 'paused' ? 'paused' : 'received';
+                    $intake->status = $intake->status === 'paused' ? 'paused' : ($intake->processing_mode === 'manual' ? 'review' : 'received');
                     $intake->processed_source_revision = null;
                     $intake->error_code = null;
                     $intake->proposals()->whereNotIn('status', ['applied', 'stale'])->update(['status' => 'stale', 'error_code' => 'source_changed']);
@@ -184,7 +184,9 @@ class AiIntakeService
                     }
                 }
                 $intake->latest_inbound_message_id = $stored->id;
-                $this->matchCustomer($intake, $sender);
+                if ($intake->processing_mode !== 'manual') {
+                    $this->matchCustomer($intake, $sender);
+                }
                 if ($sender === '' || ($replyTo !== '' && $replyTo !== $sender)) {
                     $intake->status = 'review';
                     $intake->error_code = 'sender_unverified';
@@ -206,7 +208,7 @@ class AiIntakeService
                     $intake->deliveries()->whereIn('status', ['draft', 'pending'])->update(['status' => 'canceled', 'failure_code' => 'source_changed']);
                 }
                 $intake->save();
-                if (! $manualActor && ! $error && $intake->status !== 'paused') {
+                if (! $manualActor && ! $error && $intake->status !== 'paused' && $intake->processing_mode !== 'manual') {
                     app(AiIntakeMailService::class)->enqueueReceipt($intake);
                     ProcessAiIntake::dispatch($intake->id)->afterCommit();
                 }
@@ -241,7 +243,7 @@ class AiIntakeService
             }
             $intake = OperationsTransaction::run(function () use ($intakeId, $settings, &$run) {
                 $intake = AiIntake::lockForUpdate()->findOrFail($intakeId);
-                if (in_array($intake->status, ['paused', 'completed', 'not_inquiry'], true) || $intake->processed_source_revision === $intake->source_revision || str_starts_with((string) $intake->error_code, 'mailbox_') || in_array($intake->error_code, ['attachments_review', 'automatic_message_review'], true)) {
+                if ($intake->processing_mode === 'manual' || in_array($intake->status, ['paused', 'completed', 'not_inquiry'], true) || $intake->processed_source_revision === $intake->source_revision || str_starts_with((string) $intake->error_code, 'mailbox_') || in_array($intake->error_code, ['attachments_review', 'automatic_message_review'], true)) {
                     return null;
                 }
                 $supervisor = User::findOrFail($settings['supervisor_id'] ?? 0);
@@ -262,7 +264,7 @@ class AiIntakeService
             OperationsTransaction::run(function () use ($intake, $run, $settings, $result, $extracted, $recognitionSnapshot): void {
                 $current = AiIntake::lockForUpdate()->findOrFail($intake->id);
                 $activeRun = $run->fresh();
-                if ($current->source_revision !== $run->source_revision || in_array($current->status, ['paused', 'completed', 'not_inquiry'], true) || $activeRun?->status !== 'running' || (int) AiDispositionSettings::all()['revision'] !== $run->settings_revision
+                if ($current->processing_mode === 'manual' || $current->source_revision !== $run->source_revision || in_array($current->status, ['paused', 'completed', 'not_inquiry'], true) || $activeRun?->status !== 'running' || (int) AiDispositionSettings::all()['revision'] !== $run->settings_revision
                     || $recognitionSnapshot !== $this->recognitionSnapshot($current)) {
                     if ($activeRun?->status === 'running') {
                         $activeRun->update(['status' => 'stale', 'result' => $result, 'error_code' => 'source_changed', 'finished_at' => now()->utc()]);
@@ -322,7 +324,11 @@ class AiIntakeService
         } catch (Throwable $e) {
             $code = $e instanceof ValidationException ? 'validation_review' : 'processing_failed';
             if ($run && AiIntakeRun::whereKey($run->id)->where('status', 'running')->update(['status' => 'failed', 'error_code' => $code, 'finished_at' => now()->utc()])) {
-                AiIntake::whereKey($intakeId)->where('source_revision', $run->source_revision)->where('status', 'analyzing')->update(['status' => 'review', 'error_code' => $code]);
+                $query = AiIntake::whereKey($intakeId)->where('source_revision', $run->source_revision)->where('status', 'analyzing');
+                if (Schema::hasColumn('ai_intakes', 'processing_mode')) {
+                    $query->where('processing_mode', '!=', 'manual');
+                }
+                $query->update(['status' => 'review', 'error_code' => $code]);
             } elseif (! $run) {
                 AiIntake::whereKey($intakeId)->whereIn('status', ['received', 'analyzing'])->update(['status' => 'review', 'error_code' => 'automation_unavailable']);
             }
@@ -346,6 +352,7 @@ class AiIntakeService
                 $settings = AiDispositionSettings::all(true);
                 abort_unless((int) $settings['revision'] === $expectedSettingsRevision, 409, 'Postfacheinstellungen wurden geändert. Bitte neu öffnen.');
                 $current = $this->current($intake, $expectedRevision);
+                abort_if($current->processing_mode === 'manual', 409, 'Der Eingang wird per Formular bearbeitet. Für unverbindliche Vorschläge bitte den AI-Assist verwenden.');
                 $reviewContext?->assertFor($current, $actor->id, $expectedRevision, $expectedSettingsRevision);
                 abort_unless($current->source_type === 'email' && ! $current->paused_at && ! in_array($current->status, ['paused', 'completed', 'analyzing'], true), 409, 'Diesen Eingang bitte im bestehenden Vorgang prüfen.');
                 $message = $current->messages()->whereKey($current->latest_inbound_message_id)->where('direction', 'inbound')->first();
@@ -544,6 +551,11 @@ class AiIntakeService
                 && ! in_array($inquiry->status, ['rejected', 'duplicate'], true) && $record->inquiry_fingerprint
                 && hash_equals($record->inquiry_fingerprint, $this->fingerprint($inquiry))
                 && $this->demandMatches($inquiry, $payload['demand']), 409, 'Anfragegrundlage wurde geändert. Bitte zuerst die verknüpfte Anfrage prüfen.');
+
+            if (AiIntakeSchema::manualReady() && $intake->processing_mode !== 'manual') {
+                $intake = app(AiIntakeManualService::class)->claimManual($intake, $actor, $intake->revision);
+                $record->refresh();
+            }
 
             $storedPayload = is_array($record->payload) ? $record->payload : [];
             $confirmation = is_array($storedPayload['review_confirmation'] ?? null) ? $storedPayload['review_confirmation'] : [];
@@ -755,6 +767,7 @@ class AiIntakeService
         OperationsTransaction::run(function () use ($intake, $actor, $expectedRevision): void {
             $this->access($actor);
             $current = $this->current($intake, $expectedRevision);
+            abort_if($current->processing_mode === 'manual', 409, 'Die Formularangaben über die manuelle Eingangsprüfung bestätigen.');
             abort_unless(($current->analysis['intent'] ?? '') === 'inquiry', 422);
             foreach ($current->proposals()->where('source_revision', $current->source_revision)->get() as $proposal) {
                 if ($proposal->status === 'stale' && $proposal->error_code === 'manual_recognition_requested') {
@@ -774,6 +787,7 @@ class AiIntakeService
         OperationsTransaction::run(function () use ($intake, $actor, $expectedRevision, $expectedSourceRevision, $expectedSettingsRevision, $expectedProposalRevisions): void {
             $this->access($actor);
             $current = $this->current($intake, $expectedRevision);
+            abort_if($current->processing_mode === 'manual', 409, 'Die Formularangaben über die manuelle Eingangsprüfung bestätigen.');
             abort_unless($current->source_revision === $expectedSourceRevision, 409, 'Die Mailquelle wurde geändert. Bitte neu laden.');
             abort_unless((int) AiDispositionSettings::all(true)['revision'] === $expectedSettingsRevision, 409, 'Die AI-Einstellungen wurden geändert. Bitte neu öffnen.');
             $proposals = $current->proposals()->lockForUpdate()->get();
@@ -998,6 +1012,7 @@ class AiIntakeService
         OperationsTransaction::run(function () use ($intake, $actor, $expectedRevision): void {
             $this->access($actor);
             $record = $this->current($intake, $expectedRevision);
+            abort_if($record->processing_mode === 'manual', 409, 'Der Eingang wird per Formular bearbeitet. Für unverbindliche Vorschläge bitte den AI-Assist verwenden.');
             $record->proposals()->whereNotIn('status', ['applied', 'stale'])->update(['status' => 'stale', 'error_code' => 'reanalysis_requested']);
             $record->update(['status' => 'received', 'paused_at' => null, 'processed_source_revision' => null, 'source_revision' => $record->source_revision + 1, 'revision' => $record->revision + 1, 'error_code' => null]);
             if (AiDispositionSettings::enabled()) {
@@ -1021,7 +1036,7 @@ class AiIntakeService
                 }
                 $intake = $proposal->intake;
                 $settings = AiDispositionSettings::all();
-                if (($settings['automation_mode'] ?? 'automatic') !== 'automatic' || in_array($intake->status, ['paused', 'not_inquiry'], true)) {
+                if ($intake->processing_mode === 'manual' || ($settings['automation_mode'] ?? 'automatic') !== 'automatic' || in_array($intake->status, ['paused', 'not_inquiry'], true)) {
                     continue;
                 }
                 $run = $this->run($intake, 'apply', $settings, $proposal->id);
@@ -1035,7 +1050,7 @@ class AiIntakeService
 
                         return false;
                     }
-                    if ($this->usesManualPlanning($record->payload)) {
+                    if ($intake->processing_mode === 'manual' || $this->usesManualPlanning($record->payload)) {
                         $run->update(['status' => 'stale', 'error_code' => 'manual_planning', 'finished_at' => now()->utc()]);
 
                         return false;
@@ -1073,7 +1088,7 @@ class AiIntakeService
                         $intake = AiIntake::lockForUpdate()->findOrFail($run->intake_id);
                         $record = AiIntakeProposal::where('intake_id', $intake->id)->lockForUpdate()->findOrFail($proposal->id);
                         AiIntakeRun::whereKey($run->id)->where('status', 'running')->update(['status' => 'failed', 'error_code' => 'proposal_application_review', 'finished_at' => now()->utc()]);
-                        if (in_array($intake->status, ['paused', 'not_inquiry'], true) || $intake->source_revision !== $run->source_revision || $record->source_revision !== $run->source_revision || $record->revision !== $proposal->revision || $record->status !== 'approved') {
+                        if ($intake->processing_mode === 'manual' || in_array($intake->status, ['paused', 'not_inquiry'], true) || $intake->source_revision !== $run->source_revision || $record->source_revision !== $run->source_revision || $record->revision !== $proposal->revision || $record->status !== 'approved') {
                             return;
                         }
                         $record->update(['status' => 'failed', 'error_code' => 'proposal_application_review', 'revision' => $record->revision + 1]);
@@ -1119,6 +1134,21 @@ class AiIntakeService
     /**
      * @param  array<string, mixed>|null  $expectedDemand
      */
+    /** Read-only proof check when a mixed intake keeps already prepared positions. */
+    public function assertManualOrderCurrent(AiIntakeProposal $proposal, User $actor, int $expectedRevision): void
+    {
+        $this->access($actor);
+        OperationsTransaction::run(function () use ($proposal, $actor, $expectedRevision): void {
+            $this->access($actor);
+            $probe = AiIntakeProposal::findOrFail($proposal->id);
+            $intake = AiIntake::lockForUpdate()->findOrFail($probe->intake_id);
+            $record = $intake->proposals()->lockForUpdate()->findOrFail($proposal->id);
+            $this->revision($record->revision, $expectedRevision);
+            abort_unless($record->source_revision === $intake->source_revision && $record->status === 'applied', 409, 'Die vorbereitete Leistung wurde geändert. Bitte neu laden.');
+            $this->convertedOrder($intake, $record, true, $record->payload['demand'] ?? null);
+        });
+    }
+
     private function convertedOrder(AiIntake $intake, AiIntakeProposal $proposal, bool $allowCommercialRevisionChanges = false, ?array $expectedDemand = null): Order
     {
         $inquiry = OperationInquiry::lockForUpdate()->findOrFail($proposal->inquiry_id);
@@ -1126,9 +1156,32 @@ class AiIntakeService
             && ($allowCommercialRevisionChanges || $inquiry->revision === $proposal->inquiry_revision)
             && $proposal->inquiry_fingerprint && hash_equals($proposal->inquiry_fingerprint, $this->fingerprint($inquiry))
             && (! $expectedDemand || $this->demandMatches($inquiry, $expectedDemand)), 409, 'Anfragegrundlage wurde geändert.');
-        $conversion = OperationAudit::where('subject_type', 'OperationInquiry')->where('subject_id', $inquiry->id)->where('action', 'inquiry.convert')->latest('id')->first();
+        $conversion = OperationAudit::where('subject_type', 'OperationInquiry')->where('subject_id', $inquiry->id)->whereIn('action', ['inquiry.convert', 'inquiry.direct_order'])->latest('id')->first();
         abort_unless($conversion && $conversion->actor_id && ($conversion->actor_kind ?? 'human') === 'human', 409, 'Persönliche Auftragsübernahme fehlt.');
-        if ($allowCommercialRevisionChanges) {
+        if ($conversion->action === 'inquiry.direct_order') {
+            $source = $conversion->data['source_context'] ?? [];
+            $sourceBound = (int) ($source['intake_id'] ?? 0) === (int) $intake->id
+                && (int) ($source['source_revision'] ?? 0) === $intake->source_revision
+                && (int) ($source['proposal_id'] ?? 0) === (int) $proposal->id;
+            // Native orders can acquire optional advice afterwards. The separate human
+            // bridge binds that existing conversion to its new source without rewriting it.
+            if ($source === [] && ($proposal->payload['provenance']['kind'] ?? null) === 'native_inquiry') {
+                $bridge = OperationAudit::where('subject_type', 'AiIntake')->where('subject_id', $intake->id)
+                    ->where('action', 'intake.native_assist_opened')->latest('id')->first();
+                $data = $bridge?->data ?? [];
+                $sourceBound = $bridge && $bridge->actor_id && ($bridge->actor_kind ?? 'human') === 'human'
+                    && (int) ($data['conversion_audit_id'] ?? 0) === (int) $conversion->id
+                    && (int) ($data['inquiry_id'] ?? 0) === (int) $inquiry->id && (int) ($data['inquiry_revision'] ?? 0) === $inquiry->revision
+                    && ($data['inquiry_fingerprint'] ?? null) === $this->fingerprint($inquiry)
+                    && (int) ($data['source_revision'] ?? 0) === $intake->source_revision
+                    && (int) ($data['proposal_id'] ?? 0) === (int) $proposal->id
+                    && (int) ($data['order_id'] ?? 0) === (int) $inquiry->order_id;
+            }
+            abort_unless($conversion->revision === $inquiry->revision && (int) ($conversion->data['order_id'] ?? 0) === (int) $inquiry->order_id
+                && ($conversion->data['inquiry_fingerprint'] ?? null) === $this->fingerprint($inquiry)
+                && $sourceBound,
+                409, 'Die Grundlage des Direktauftrags wurde geändert. Bitte den Eingang erneut prüfen.');
+        } elseif ($allowCommercialRevisionChanges) {
             abort_unless($inquiry->verified_revision === $inquiry->revision && $inquiry->accepted_revision === $inquiry->revision
                 && is_array($inquiry->offer) && (int) ($inquiry->offer['revision'] ?? 0) === $inquiry->revision
                 && $conversion->revision === $inquiry->revision && (int) ($conversion->data['order_id'] ?? 0) === (int) $inquiry->order_id,
@@ -1399,6 +1452,12 @@ class AiIntakeService
         return $result;
     }
 
+    /** Shared native field validation for provider-free form drafts. */
+    public function validateManualPosition(array $payload): array
+    {
+        return $this->validateProposal($payload, false);
+    }
+
     private function validateProposal(array $payload, bool $complete): array
     {
         // In the review form a proposal may legitimately not have been split into
@@ -1662,7 +1721,7 @@ class AiIntakeService
 
     private function recognitionSnapshot(AiIntake $intake): array
     {
-        return ['revision' => $intake->revision, 'source_revision' => $intake->source_revision,
+        return ['revision' => $intake->revision, 'source_revision' => $intake->source_revision, 'processing_mode' => $intake->processing_mode,
             'customer_id' => $intake->customer_id, 'customer_contact_id' => $intake->customer_contact_id,
             'match_method' => $intake->match_method, 'message_id' => $intake->latest_inbound_message_id,
             'message_hashes' => $intake->messages()->where('direction', 'inbound')->get()->mapWithKeys(fn ($message) => [$message->id => [

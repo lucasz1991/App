@@ -47,7 +47,7 @@
             <x-operations.feedback :show-offline="false" />
             @include('livewire.operations.partials.ai-intake-composer', ['composerMode' => 'capture', 'maxCharacters' => 20000, 'maxAttachmentCount' => $limits['max_attachment_count'], 'maxAudioKilobytes' => $limits['max_audio_kilobytes']])
         </x-operations.modal>
-        <x-operations.modal wire:model.live="detailOpen" title="AI-Eingang prüfen" max-width="4xl" variant="drawer">
+        <x-operations.modal wire:model.live="detailOpen" title="Eingang bearbeiten" max-width="4xl" variant="drawer">
             @include('livewire.operations.partials.ai-intake-detail')
         </x-operations.modal>
     @endif

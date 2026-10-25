@@ -85,14 +85,6 @@ class UnifiedInbox extends Component
     {
         $row = $this->query()->where('inbox.kind', $kind)->where('inbox.id', $id)->first();
         abort_unless($row, 404);
-        if ($kind === 'ai') {
-            $this->detail = null;
-            $this->detailRevision++;
-            $this->dispatch('open-ai-intake-panel', intakeId: $id, create: false,
-                customerId: $this->customerId ?? ($row->customer_id ? (int) $row->customer_id : null));
-
-            return;
-        }
         $this->detail = ['kind' => $kind, 'id' => $id, 'customer' => $row->customer_id ? (int) $row->customer_id : null];
         $this->detailRevision++;
     }

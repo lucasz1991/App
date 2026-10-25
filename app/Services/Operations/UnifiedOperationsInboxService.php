@@ -193,7 +193,7 @@ class UnifiedOperationsInboxService
             return route('operations.mine', array_filter(['area' => $area === 'work' ? null : $area, 'tab' => $tab ?: null]));
         }
         if ($item->module === 'ai-intake') {
-            return OperationsPages::intakePanelUrl($item->record_id, $item->customer_id);
+            return OperationsPages::intakeFormUrl($item->record_id, $item->customer_id);
         }
 
         $type = $item->record_type ?? match (true) {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { managedTemplateReplacement } from '../../resources/js/outlook-addin/managed-template.js';
+import { managedTemplateReplacement, inspectManagedTemplateContract } from '../../resources/js/outlook-addin/managed-template.js';
 import { currentComposeBodyHtml, replaceManagedTemplate, isTemplateInsertionBlocked, TEMPLATE_INSERT_LIMITS } from '../../resources/js/outlook-addin/compose-template.js';
 
 const MARKER = 'RT-TEMPLATE-MANAGED-V1:COMBINED-DOCUMENT';
@@ -215,4 +215,34 @@ test('a synchronous SDK exception keeps replacement uncertain with no duplicate 
     await assert.rejects(h.run(), { code: 'TEMPLATE_INSERT_UNCERTAIN' });
     await assert.rejects(h.run(), { code: 'TEMPLATE_INSERT_UNCERTAIN' });
     assert.equal(isTemplateInsertionBlocked(h.item), true);
+});
+
+test('contract diagnostics return bounded known structure without HTML, text, URLs or arbitrary attribute values', () => {
+    const html = artifact({ content: '<p class="design-spacer secret-class-person">Private message secret@example.test <img src="https://private.example/token-secret"></p>' })
+        .replace('data-rt-compose-document="combined-v1"', 'data-rt-compose-document="private-credential"');
+    const report = inspectManagedTemplateContract(html, html);
+    assert.equal(report.counts['rt-combined-compose-document'], 1);
+    assert.equal(report.counts['rt-compose-editable'], 1);
+    assert.equal(report.editableV1, 1);
+    assert.equal(report.roots[0].mode, 'other');
+    assert.equal(report.appStart, 1);
+    assert.equal(report.markers.signature, true);
+    assert.ok(JSON.stringify(report).length < 2000);
+    assert.doesNotMatch(JSON.stringify(report), /Private message|secret@example|private-credential|secret-class|private\.example|token-secret|<p|<img/);
+});
+
+test('a blocked replacement logs only safe SDK structure and preserves its original failure', async t => {
+    const diagnosticModule = await import('../../resources/js/outlook-addin/managed-template.js?diagnostic-proof');
+    const logs = [];
+    t.mock.method(console, 'warn', (...args) => { logs.push(args); });
+    const body = artifact({ content: TYPED }).replace('data-rt-compose-document="combined-v1"', '');
+    for (let attempt = 0; attempt < 5; attempt++) {
+        assert.throws(() => diagnosticModule.managedTemplateReplacement(body, body, artifact()), { code: 'TEMPLATE_REPLACEMENT_UNAVAILABLE' });
+    }
+    assert.equal(logs.length, 3, 'at most three structural reports per pane runtime');
+    assert.equal(logs[0][0], '[RailTime] template-replace-contract');
+    const report = JSON.parse(logs[0][1]);
+    assert.equal(report.sdkBody.roots[0].mode, 'missing');
+    assert.equal(report.incoming.roots[0].mode, 'combined-v1');
+    assert.doesNotMatch(logs[0][1], /My &amp;|formatted|user-image|A > B|<div|<p/);
 });

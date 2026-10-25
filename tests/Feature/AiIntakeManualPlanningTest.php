@@ -500,7 +500,7 @@ class AiIntakeManualPlanningTest extends TestCase
         Livewire::actingAs($this->actor)
             ->test(InquiryInbox::class, ['initialInquiryId' => $accepted->id, 'consolidated' => true])
             ->call('transition', 'convert')
-            ->assertRedirect(OperationsPages::intakePanelUrl($intake->id));
+            ->assertRedirect(OperationsPages::intakeFormUrl($intake->id));
 
         $this->assertSame('converted', $accepted->fresh()->status);
         $this->assertNotNull($accepted->fresh()->order_id);

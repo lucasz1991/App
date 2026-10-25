@@ -31,6 +31,7 @@
             @endif
         @else
             <livewire:operations.unified-inbox :customer-id="$context['customer'] ?? null" :key="'case-unified-inbox-'.($context['customer'] ?? 'all')" />
+            @if(($context['source'] ?? '') === 'ai-intake' && ($context['record'] ?? null) && !request()->has('assistant'))<livewire:operations.ai-intake-inbox :initial-intake-id="$context['record']" :customer-id="$context['customer'] ?? null" :modal-only="true" :key="'case-intake-form-'.$context['record']" />@endif
             @if($context['inquiry'] ?? null)<livewire:operations.inquiry-inbox :initial-inquiry-id="$context['inquiry']" :customer-id="$context['customer'] ?? null" :modal-only="true" :key="'case-inquiry-detail-'.$context['inquiry']" />@endif
         @endif
     @elseif($view === 'shifts')

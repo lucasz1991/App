@@ -133,6 +133,13 @@ final class OperationsPages
         return route('operations.page', ['page' => $page] + array_filter($parameters, fn ($value) => $value !== null && $value !== ''));
     }
 
+    public static function intakeFormUrl(int $intakeId, ?int $customerId = null): string
+    {
+        abort_unless($intakeId > 0 && ($customerId === null || $customerId > 0), 422);
+
+        return self::url('cases', ['view' => 'inbox', 'source' => 'ai-intake', 'record' => $intakeId, 'customer' => $customerId]);
+    }
+
     public static function intakePanelUrl(?int $intakeId = null, ?int $customerId = null, bool $create = false): string
     {
         abort_unless(($intakeId === null || $intakeId > 0) && ($customerId === null || $customerId > 0)
