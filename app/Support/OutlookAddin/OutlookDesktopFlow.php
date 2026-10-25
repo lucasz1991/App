@@ -209,6 +209,7 @@ final class OutlookDesktopFlow
         $train = self::one($nodes, 'rt-delivery-train-cell', 'td');
         $gap = self::one($nodes, 'rt-delivery-train-gap', 'td');
         $flow = self::one($nodes, 'rt-personal-columns', 'div');
+        $company = self::one($nodes, 'rt-personal-company-contacts', 'div');
         $root = self::one($nodes, 'rt-outlook-signature', 'div');
         $image = self::one($nodes, 'rt-delivery-train', 'img');
         $moving = self::inner($html, $nodes[$train]);
@@ -217,11 +218,12 @@ final class OutlookDesktopFlow
             self::fail();
         }
         $html = self::replace($html, [
-            [$nodes[$train]['openEnd'], $nodes[$train]['close'], self::block('train', 560, '0 40px 0 0', $moving)],
+            [$nodes[$train]['openEnd'], $nodes[$train]['close'], self::block('train', 460, '0 40px 0 0', $moving)],
             [$nodes[$train]['start'], $nodes[$train]['openEnd'], self::attribute($nodes[$train]['opening'], 'width', '100%')],
             [$nodes[$gap]['start'], $nodes[$gap]['end'], ''],
             [$nodes[$content]['start'], $nodes[$content]['openEnd'], self::removeAttribute($nodes[$content]['opening'], 'colspan')],
             [$nodes[$flow]['start'], $nodes[$flow]['openEnd'], substr($nodes[$flow]['opening'], 0, -1).' '.self::MARKER.'="'.self::REVISION.'">'],
+            [$nodes[$company]['start'], $nodes[$company]['openEnd'], self::attribute($nodes[$company]['opening'], 'style', 'padding-top:4px;')],
             [$nodes[$root]['start'], $nodes[$root]['openEnd'], self::attribute($nodes[$root]['opening'], 'class', trim($nodes[$root]['attrs']['class'].' '.self::HOST.' '.self::host($scope)))],
         ]);
         $html = self::stylesForFlow($html, $scope, $changes, $aliases);
@@ -240,8 +242,9 @@ final class OutlookDesktopFlow
     {
         $p = '.'.self::host($scope).' ';
 
-        return $p.'.rt-df-train{display:table!important;width:100%!important;max-width:560px!important;table-layout:fixed!important;border-collapse:collapse!important;border-spacing:0!important;}'
+        return $p.'.rt-df-train{display:table!important;width:100%!important;max-width:460px!important;table-layout:fixed!important;border-collapse:collapse!important;border-spacing:0!important;}'
             .$p.'.rt-dfc-train{padding:0 40px 0 0!important;border:0!important;}'
+            .$p.'.rt-personal-right .rt-personal-company-contacts{padding-top:4px!important;}'
             .$p.'.rt-train-window{overflow:hidden!important;direction:rtl!important;}';
     }
 
@@ -254,10 +257,12 @@ final class OutlookDesktopFlow
         $window = self::one($nodes, 'rt-train-window', 'div');
         $image = self::one($nodes, 'rt-delivery-train', 'img');
         $trainCell = self::one($nodes, 'rt-dfc-train', 'td');
+        $company = self::one($nodes, 'rt-personal-company-contacts', 'div');
         if ($nodes[$image]['parent'] !== $window || $nodes[$window]['parent'] !== $trainCell || ! self::within($nodes, $trainCell, $trainBlock)
             || trim(self::inner($html, $nodes[$window])) !== $nodes[$image]['opening'] || ($nodes[$window]['attrs']['dir'] ?? '') !== 'rtl'
             || ($nodes[$window]['attrs']['style'] ?? '') !== 'overflow:hidden;direction:rtl;'
-            || ($nodes[$image]['attrs']['style'] ?? '') !== 'display:block;width:520px;max-width:none!important;height:auto;margin:0;border:0;vertical-align:bottom;') {
+            || ($nodes[$image]['attrs']['style'] ?? '') !== 'display:block;width:520px;max-width:none!important;height:auto;margin:0;border:0;vertical-align:bottom;'
+            || ($nodes[$company]['attrs']['style'] ?? '') !== 'padding-top:4px;') {
             self::fail();
         }
         if (($nodes[$flow]['attrs'][self::MARKER] ?? '') !== self::REVISION
