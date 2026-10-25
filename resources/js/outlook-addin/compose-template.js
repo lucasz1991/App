@@ -595,6 +595,13 @@ export async function replaceManagedTemplate(office, item, html, beforeWrite = (
         operation.phase = 'preparing';
         await options.beforeReplace?.();
         await beforeWrite();
+        if (operation.sessionClaimed) {
+            const ownership = await readSession(office, item);
+            if (!ownership.succeeded || ownership.value !== operation.sessionToken) {
+                operation.phase = 'uncertain';
+                throw failure('TEMPLATE_INSERT_UNCERTAIN', { ...ownership, phase: 'session-readback', reason: ownership.succeeded ? 'mismatch' : ownership.reason });
+            }
+        }
         const latest = await replacementSnapshot(office, item);
         if (latest.html !== original.html || latest.composeType !== original.composeType) throw failure('COMPOSE_BODY_CHANGED');
         options.beforeCommit?.();

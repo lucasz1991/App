@@ -3,6 +3,18 @@ const TOKEN = /<!--[\s\S]*?-->|<(?:style|script|textarea|title)\b(?:[^"'<>]|"[^"
 const VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
 const MODE = 'combined-v1';
 const MARKER = 'RT-TEMPLATE-MANAGED-V1:COMBINED-DOCUMENT';
+const MARKER_END = '(?=-->|[\\s"\'<>]|$)';
+const combinedMarker = new RegExp(MARKER + MARKER_END);
+const otherTemplateMarker = new RegExp(`RT-TEMPLATE-MANAGED-V1(?!:COMBINED-DOCUMENT${MARKER_END})`);
+const owns = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
+
+function matches(value, pattern) {
+    const expression = new RegExp(pattern.source, pattern.flags);
+    const result = [];
+    let match;
+    while ((match = expression.exec(value)) !== null) result.push(match);
+    return result;
+}
 
 function unavailable() {
     throw Object.assign(new Error('TEMPLATE_REPLACEMENT_UNAVAILABLE'), { code: 'TEMPLATE_REPLACEMENT_UNAVAILABLE', phase: 'template-replace-preflight' });
@@ -21,7 +33,7 @@ function nodes(html) {
     const comments = [];
     const stack = [];
     let cursor = 0;
-    for (const match of html.matchAll(TOKEN)) {
+    for (const match of matches(html, TOKEN)) {
         const token = match[0];
         if (html.slice(cursor, match.index).includes('<')) unavailable();
         cursor = match.index + token.length;
@@ -44,10 +56,10 @@ function nodes(html) {
         const attributes = opening.slice(name[0].length, -1).replace(/\/\s*$/, '');
         let end = 0;
         const attributePattern = /\s+([a-z_:][a-z0-9_:.-]*)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/gi;
-        for (const attribute of attributes.matchAll(attributePattern)) {
+        for (const attribute of matches(attributes, attributePattern)) {
             if (attributes.slice(end, attribute.index).trim() !== '') unavailable();
             const key = attribute[1].toLowerCase();
-            if (Object.hasOwn(attrs, key)) unavailable();
+            if (owns(attrs, key)) unavailable();
             attrs[key] = decoded(attribute[2] ?? attribute[3] ?? attribute[4] ?? '');
             end = attribute.index + attribute[0].length;
         }
@@ -56,7 +68,7 @@ function nodes(html) {
         const leaf = raw || VOID.has(tag) || /\/\s*>$/.test(opening);
         const closing = raw ? new RegExp(`<\\/${tag}\\s*>$`, 'i').exec(token) : null;
         if (raw && closing === null) unavailable();
-        const node = { tag, attrs, parent: stack.at(-1), start: match.index, openEnd: match.index + opening.length,
+        const node = { tag, attrs, parent: stack[stack.length - 1], start: match.index, openEnd: match.index + opening.length,
             close: raw ? cursor - closing[0].length : leaf ? cursor : null,
             end: leaf ? cursor : null };
         elements.push(node);
@@ -95,10 +107,11 @@ function rootContract(html, currentLength) {
     const tree = nodes(html);
     const { elements } = tree;
     const candidates = elements.map((node, index) => ({ node, index })).filter(({ node, index }) => node.start < currentLength
-        && !quoted(elements, index) && (has(node, 'rt-combined-compose-document') || Object.hasOwn(node.attrs, 'data-rt-compose-document')));
+        && !quoted(elements, index) && (has(node, 'rt-combined-compose-document') || owns(node.attrs, 'data-rt-compose-document')));
     const { node: root, index: rootIndex } = exactlyOne(candidates);
     if (root.tag !== 'div' || !has(root, 'rt-combined-compose-document') || root.attrs['data-rt-compose-document'] !== MODE
-        || root.end > currentLength || !html.slice(root.start, root.end).includes(MARKER)) unavailable();
+        || root.end > currentLength || !combinedMarker.test(html.slice(root.start, root.end))
+        || otherTemplateMarker.test(html.slice(root.start, root.end))) unavailable();
     const oneClass = (name, tag) => exactlyOne(elements.map((node, index) => ({ node, index }))
         .filter(value => within(elements, value.index, rootIndex) && has(value.node, name) && value.node.tag === tag));
     const template = oneClass('rt-outlook-template', 'div');
@@ -106,10 +119,10 @@ function rootContract(html, currentLength) {
     const frame = oneClass('rt-combined-compose-frame', 'table');
     if (template.node.end > signature.node.start || !within(elements, template.index, frame.index)
         || !within(elements, signature.index, frame.index)
-        || !html.slice(signature.node.start, signature.node.end).includes('RT-SIGNATURE-MANAGED-V1')) unavailable();
+        || !new RegExp('RT-SIGNATURE-MANAGED-V1' + MARKER_END).test(html.slice(signature.node.start, signature.node.end))) unavailable();
     // An unowned marker outside this root is not permission to pick one of two
     // documents. Quoted history is ignored only through a recognized boundary.
-    for (const match of html.slice(0, currentLength).matchAll(/RT-TEMPLATE-MANAGED-V1/g)) {
+    for (const match of matches(html.slice(0, currentLength), /RT-TEMPLATE-MANAGED-V1/g)) {
         if (match.index >= root.start && match.index < root.end) continue;
         if (!elements.some((node, index) => node.start <= match.index && node.end > match.index && quoted(elements, index))) unavailable();
     }
@@ -119,7 +132,7 @@ function rootContract(html, currentLength) {
 function editableRegion(html, contract, allowLegacy) {
     const { elements, template, comments } = contract;
     const candidates = elements.map((node, index) => ({ node, index })).filter(({ node, index }) => within(elements, index, contract.rootIndex)
-        && (has(node, 'rt-compose-editable') || Object.hasOwn(node.attrs, 'data-rt-compose-editable')));
+        && (has(node, 'rt-compose-editable') || owns(node.attrs, 'data-rt-compose-editable')));
     if (candidates.length) {
         const { node, index } = exactlyOne(candidates);
         if (node.tag !== 'div' || !has(node, 'rt-compose-editable') || node.attrs['data-rt-compose-editable'] !== 'v1'
@@ -133,6 +146,7 @@ function editableRegion(html, contract, allowLegacy) {
         && node.start > start.end && node.end < template.node.close));
     const paragraphs = elements.filter(node => node.tag === 'p' && has(node, 'design-spacer') && node.start >= start.end && node.end <= end.start);
     const paragraph = exactlyOne(paragraphs);
+    if (elements.filter((node, index) => node.tag === 'p' && has(node, 'design-spacer') && within(elements, index, template.index)).length !== 1) unavailable();
     const parent = elements[paragraph.parent];
     if (!parent || parent.tag !== 'td' || !has(parent, 'rt-native-template-pad')) unavailable();
     // Compatibility is deliberately limited to the old default. Old edited
@@ -153,9 +167,19 @@ export function managedTemplateReplacement(bodyHtml, currentHtml, nextHtml) {
     const nextContract = rootContract(nextHtml, nextHtml.length);
     const oldRegion = editableRegion(bodyHtml, oldContract, true);
     const nextRegion = editableRegion(nextHtml, nextContract, false);
+    // The combined compiler emits one optional carrier sheet before its root.
+    // Put that exact owned sheet inside the new root so repeated replacements
+    // remove it with their shell. Unrelated old outside styles stay byte-exact.
+    const outside = nextContract.elements.filter(node => node.start < nextContract.root.start || node.start >= nextContract.root.end);
+    if (outside.some(node => node.tag !== 'style' || node.attrs['data-rt-combined-compose-css'] !== '1'
+        || Object.keys(node.attrs).length !== 1)) unavailable();
+    const prefix = nextHtml.slice(0, nextContract.root.start);
+    const suffix = nextHtml.slice(nextContract.root.end);
+    if ((prefix + suffix).replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, '').trim() !== '') unavailable();
     const content = bodyHtml.slice(oldRegion.start, oldRegion.end);
     if (/RT-(?:TEMPLATE|SIGNATURE)-MANAGED|data-rt-compose-document\s*=/i.test(content)) unavailable();
-    const replacement = nextHtml.slice(0, nextRegion.start) + content + nextHtml.slice(nextRegion.end);
+    const replacement = nextHtml.slice(nextContract.root.start, nextContract.root.openEnd) + prefix + suffix
+        + nextHtml.slice(nextContract.root.openEnd, nextRegion.start) + content + nextHtml.slice(nextRegion.end, nextContract.root.end);
     const html = bodyHtml.slice(0, oldContract.root.start) + replacement + bodyHtml.slice(oldContract.root.end);
     return Object.freeze({ html, legacy: oldRegion.legacy });
 }
