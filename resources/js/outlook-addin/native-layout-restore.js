@@ -58,8 +58,7 @@ export function createNativeLayoutNonce(provider = globalThis.crypto) {
 }
 
 function restoreCss(ids) {
-    // Outlook can prefix an ID with x_; the coordinator verifies unique suffix ownership first.
-    const selector = key => `[id$="${ids[key]}"]`;
+    const selector = key => '#' + ids[key];
     const train = selector('train');
     let css = `${selector('root')}{overflow:hidden!important;}`
         + `${selector('person')}{float:left!important;}`
@@ -115,6 +114,13 @@ function isQuoted(nodes, index) {
     return false;
 }
 
+function normalizedRestoreCss(css, ids) {
+    let normalized = css;
+    // Accept only the observed Office x_ rewrite of our exact generated ID selectors.
+    for (const id of Object.values(ids)) normalized = normalized.replace(new RegExp('#x_' + id + '(?![\\w-])', 'g'), '#' + id);
+    return normalized.replace(/\s+/g, '');
+}
+
 function retainedCarrier(html, contract, ids) {
     const scope = idsScope(ids);
     const nodes = contract?.elements;
@@ -140,9 +146,9 @@ function retainedCarrier(html, contract, ids) {
     const token = 'RT-NATIVE-LAYOUT-RESTORE-V1:' + scope;
     const spans = descendants.filter(value => value.node.tag === 'span' && html.slice(value.node.openEnd, value.node.close).replace(/\s+/g, '') === token);
     if (styles.length !== 1 || spans.length !== 1) invalid();
-    const css = nativeLayoutRestoreCss(ids).replace(/\s+/g, '');
-    const exactSheets = nodes.filter(node => node.tag === 'style' && html.slice(node.openEnd, node.close).replace(/\s+/g, '') === css);
-    if (exactSheets.length !== 1 || html.slice(styles[0].node.openEnd, styles[0].node.close).replace(/\s+/g, '') !== css) invalid();
+    const css = normalizedRestoreCss(nativeLayoutRestoreCss(ids), ids);
+    const exactSheets = nodes.filter(node => node.tag === 'style' && normalizedRestoreCss(html.slice(node.openEnd, node.close), ids) === css);
+    if (exactSheets.length !== 1 || normalizedRestoreCss(html.slice(styles[0].node.openEnd, styles[0].node.close), ids) !== css) invalid();
     const metadata = spans[0].node;
     const hidden = owns(metadata.attrs, 'hidden') || metadata.attrs['aria-hidden'] === 'true'
         || /(?:^|;)\s*display\s*:\s*none(?:\s*!important)?\s*(?:;|$)/i.test(metadata.attrs.style || '')

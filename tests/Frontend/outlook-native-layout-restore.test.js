@@ -82,11 +82,12 @@ test('only five trusted TABLE openings change; user/quote/footer/MSO/image bytes
 test('restore CSS is static, operation scoped and only targets the moving IMG inside its window', () => {
     const source = fixture();
     const plan = prepareNativeLayoutRestore(source.html, source.contract, nonce);
-    assert.match(plan.stylePayload, /\[id\$="rt-native-layout-[0-9a-f]{32}-t"\]>tbody>tr>td>div>img\{width:520px!important;max-width:none!important;height:auto!important;\}/);
+    assert.match(plan.stylePayload, /#rt-native-layout-[0-9a-f]{32}-t>tbody>tr>td>div>img\{width:520px!important;max-width:none!important;height:auto!important;\}/);
     assert.match(plan.stylePayload, /position:sticky!important;top:100%!important/);
-    assert.match(plan.stylePayload, /-h"\]>tbody>tr:first-child td/);
+    assert.match(plan.stylePayload, /-h>tbody>tr:first-child td/);
     assert.doesNotMatch(plan.stylePayload, /cid:|url\(|title=|rt-delivery-train-mso|:last-child|calc\(/);
-    assert.equal((plan.stylePayload.match(/-h"\]>tbody>tr:first-child /g) || []).length, 6);
+    assert.equal((plan.stylePayload.match(/-h>tbody>tr:first-child /g) || []).length, 6);
+    assert.doesNotMatch(plan.stylePayload, /\[id/);
 });
 
 test('without a known hotline table the helper emits four IDs and no color override', () => {
@@ -131,10 +132,10 @@ test('known two-row legal footer adds only the sixth TABLE ID and last-row gray 
     assert.equal(Object.keys(plan.ids).length, 6);
     assert.equal(plan.ids.signature, `rt-native-layout-${nonce}-s`);
     assert.equal(plan.html.replace(/ id="rt-native-layout-[0-9a-f]{32}-[rpcths]"/g, ''), source.html);
-    assert.match(plan.stylePayload, /-s"\]>tbody>tr:last-child font/);
+    assert.match(plan.stylePayload, /-s>tbody>tr:last-child font/);
     assert.match(plan.stylePayload, /color:#718096!important;-webkit-text-fill-color:#718096!important/);
     assert.equal(plan.stylePayload, nativeLayoutRestoreStylePayload(plan.ids));
-    assert.doesNotMatch(plan.stylePayload, /-s"\]>tbody>tr:first-child/);
+    assert.doesNotMatch(plan.stylePayload, /-s>tbody>tr:first-child/);
 });
 
 test('unknown footer color or missing legal metadata never receives a gray override', () => {
@@ -171,5 +172,16 @@ test('successful API without retained exact CSS, unknown sheets and quoted carri
         const contract = managedTemplateContract(body);
         assert.throws(() => nativeLayoutRestoreRetained(body, contract, plan.ids), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
         assert.equal(removeNativeLayoutRestoreCarrier(body, contract, plan.ids), body);
+    }
+});
+
+test('retention accepts only the exact Office x_ selector prefix rewrite', () => {
+    const source = fixture({ wire: true, legal: true });
+    const plan = prepareNativeLayoutRestore(source.html, managedTemplateContract(source.html), nonce);
+    const body = (plan.stylePayload + plan.html).replace(/id="rt-native-layout-/g, 'id="x_rt-native-layout-')
+        .replace(/#rt-native-layout-/g, '#x_rt-native-layout-');
+    assert.equal(nativeLayoutRestoreRetained(body, managedTemplateContract(body), plan.ids), true);
+    for (const bad of [body.replace(/#x_rt-native-layout-/g, '#x_x_rt-native-layout-'), body.replace(/#x_rt-native-layout-/g, '#foreign_rt-native-layout-')]) {
+        assert.throws(() => nativeLayoutRestoreRetained(bad, managedTemplateContract(bad), plan.ids), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
     }
 });

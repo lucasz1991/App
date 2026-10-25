@@ -525,6 +525,39 @@ test('a confirmed prepend callback without retained trusted CSS never completes 
     await assert.rejects(h.run(), { code: 'TEMPLATE_INSERT_UNCERTAIN' });
 });
 
+test('a retained carrier with an emptied STYLE remains layout-unconfirmed after the successful callback', async () => {
+    const h = nativeHost({ footer: true });
+    h.item.body.prependAsync = (html, _options, callback) => {
+        h.state.prepends.push(html);
+        h.state.body = html.replace(/(<style\b[^>]*>)[\s\S]*?(<\/style>)/, '$1\n $2') + h.state.body;
+        callback(succeeded());
+    };
+    await assert.rejects(h.run(), { code: 'TEMPLATE_LAYOUT_UNCONFIRMED' });
+    assert.equal(h.state.writes.length, 1);
+    assert.equal(h.state.prepends.length, 1);
+    assert.match(h.state.body, /<style\b[^>]*>\s*<\/style>/);
+    assert.match(h.state.session, /^pending:/);
+    assert.equal(isTemplateInsertionBlocked(h.item), true);
+});
+
+test('the exact Office ID-selector prefix rewrite remains scoped and permits three confirmed exchanges', async () => {
+    const h = nativeHost({ footer: true });
+    h.item.body.prependAsync = (html, _options, callback) => {
+        h.state.prepends.push(html);
+        const retained = html.replace(/\bid="(rt-native-layout-[^"]*)"/g, 'id="x_$1"').replace(/#rt-native-layout-/g, '#x_rt-native-layout-');
+        h.state.body = retained + h.state.body;
+        callback(succeeded());
+    };
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        await h.run();
+        assert.equal(h.state.writes.length, attempt);
+        assert.equal(h.state.prepends.length, attempt);
+        assert.equal((h.state.body.match(/RT-NATIVE-LAYOUT-RESTORE-V1:/g) || []).length, 1);
+        assert.equal((h.state.body.match(/My &amp;/g) || []).length, 1);
+        assert.equal(h.state.session, '1');
+    }
+});
+
 test('a foreign session after the confirmed style write prevents the final applied marker', async () => {
     const h = nativeHost();
     h.item.body.prependAsync = (html, _options, callback) => {
@@ -541,8 +574,8 @@ test('the optional signature TABLE ID scopes gray recovery to exactly the second
     const h = nativeHost({ footer: true });
     await h.run();
     assert.equal((h.state.writes[0].match(/id="rt-native-layout-[0-9a-f]{32}-s"/g) || []).length, 1);
-    assert.match(h.state.prepends[0], /-s"\]>tbody>tr:last-child font/);
-    assert.doesNotMatch(h.state.prepends[0], /-s"\]>tbody>tr:first-child[^{}]*\{color:#718096/);
+    assert.match(h.state.prepends[0], /#rt-native-layout-[0-9a-f]{32}-s>tbody>tr:last-child font/);
+    assert.doesNotMatch(h.state.prepends[0], /-s>tbody>tr:first-child[^{}]*\{color:#718096/);
     assert.equal(h.state.session, '1');
 });
 
