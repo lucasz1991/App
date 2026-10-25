@@ -261,6 +261,7 @@ final class SignatureTableOverlapDelivery
         $scope = 'tr[data-rt-artifact-version="'.$version.'"]';
         $ledger = self::usesLedger($html);
         $logoTrain = self::usesLogoTrain($html);
+        $spacedHotline = $logoTrain && self::hasSpacedHotline($html);
         $css = $ledger
             ? $scope.' .rt-sign-ledger-content{padding:'.($logoTrain ? '25px 0 0' : '25px 40px 15px').'!important;}'
                 .$scope.' .rt-sign-ledger img.rt-logo{width:100%!important;max-width:180px!important;height:auto!important;margin:0!important;}'
@@ -305,7 +306,16 @@ final class SignatureTableOverlapDelivery
                 .$scope.' .rt-delivery-train-cell{width:100%!important;padding:0 22px 0 0!important;border:0!important;}'
                 .$scope.' .rt-delivery-train-gap{display:none!important;}' : '')
             .$scope.' .rt-address-break{display:block!important;}'
-            .'}';
+            .'}'
+            .($spacedHotline ? $scope.' td.design-hotline-row{padding-right:24px!important;}'
+                .'@media only screen and (max-width:860px){'.$scope.' td.design-hotline-row{padding-right:22px!important;}}' : '');
+    }
+
+    private static function hasSpacedHotline(string $html): bool
+    {
+        [, $xpath] = self::document($html);
+
+        return $xpath->query('//td[contains(concat(" ",normalize-space(@class)," ")," design-hotline-row ") and contains(concat(" ",normalize-space(@class)," ")," design-hotline-spaced ")]')->length === 1;
     }
 
     private static function imageStyle(bool $mirrored = false, bool $logoTrain = false): string
