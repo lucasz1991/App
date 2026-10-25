@@ -505,6 +505,15 @@ async function applyPublishedContent(item, isActive = () => true) {
     });
     binding = bootstrap.binding;
     await assertTarget();
+
+    // This fresh, authenticated account policy applies only to event-based
+    // insertion. Keep the taskpane's explicit manual actions available and
+    // stop before reading the body, attaching media or changing any content.
+    if (bootstrap.automaticInsertionEnabled === false) {
+        pendingNativeSignatures.delete(item);
+        recordDiagnostic('automatic-insertion', 'skipped', { code: 'AUTOMATIC_INSERTION_DISABLED' });
+        return 'disabled';
+    }
     reportRuntimePhase('compose-started');
 
     if (isTemplateInsertionBlocked(item) || hasUncertainWrite(item)) return 'uncertain';
