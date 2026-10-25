@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Services\DeviceManagement\MicrosoftDeviceSyncScheduler;
 use App\Support\OutlookAddin\EntraAccessTokenValidator;
+use App\Support\OutlookAddin\OutlookAddinAutomaticInsertionPolicy;
 use App\Support\OutlookAddin\OutlookAddinException;
 use App\Support\OutlookAddin\OutlookAddinIdentityResolver;
 use App\Support\OutlookAddin\OutlookAddinUserSnapshotStore;
@@ -56,6 +57,9 @@ final class OutlookAddinBootstrapController extends Controller
                 $payload = OutlookMobileSignature::payload($payload);
             }
             $payload = OutlookClientPresentation::payload($payload);
+            // Request-fresh preference, outside reusable canonical snapshots.
+            // Manual signature/template data remains available in this response.
+            $payload['automaticInsertionEnabled'] = app(OutlookAddinAutomaticInsertionPolicy::class)->enabledForUser($resolved['user']);
             // Der persoenliche Snapshot ist wiederverwendbar, die Freigabe
             // fuer den aktuellen Absender dagegen strikt requestgebunden.
             $payload['binding'] = $resolved['binding'];
