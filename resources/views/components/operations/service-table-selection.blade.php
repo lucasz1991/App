@@ -1,6 +1,6 @@
 @props(['count' => 0])
 <div class="rt-service-selection-controls" data-service-selection-controls>
-    <x-tables.bulk-actions :count="$count" select-all="toggleSelectAllServices" select-all-title="Leistungen dieser Seite auswählen oder Auswahl aufheben">
+    <x-tables.bulk-actions :count="$count" :show-select-all="false">
         <button type="button" role="menuitem" wire:click="toggleSelectAllServices" x-on:click="close(true)" class="rt-table-mobile-sort__option" data-service-selection-page>
             <i class="far fa-check-square" aria-hidden="true"></i>
             <span>Seite auswählen / abwählen</span>
