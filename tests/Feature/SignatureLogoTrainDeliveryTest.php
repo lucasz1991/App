@@ -132,6 +132,32 @@ final class SignatureLogoTrainDeliveryTest extends TestCase
         self::assertStringContainsString('width:50%!important', TrustedEmailCss::forDocument($rendered));
     }
 
+    public function test_only_one_exact_marked_hotline_td_adds_the_final_desktop_and_mobile_right_gutters(): void
+    {
+        $source = $this->source();
+        $attach = static fn (string $banner): string => str_replace('<div class="rt-sign-stage"', $banner.'<div class="rt-sign-stage"', $source);
+        $banner = '<table role="presentation"><tr><td class="design-hotline-row design-hotline-spaced">Fixture hotline</td></tr></table>';
+        $base = SignatureTableOverlapDelivery::css($source);
+        $scope = 'tr[data-rt-artifact-version="v27"]';
+        $override = $scope.' td.design-hotline-row{padding-right:24px!important;}'
+            .'@media only screen and (max-width:860px){'.$scope.' td.design-hotline-row{padding-right:22px!important;}}';
+        self::assertSame($base.$override, SignatureTableOverlapDelivery::css($attach($banner)));
+        self::assertSame($base.$override, SignatureTableOverlapDelivery::css($attach(str_replace('design-hotline-row design-hotline-spaced', 'design-hotline-spaced design-hotline-row', $banner))));
+        foreach ([
+            '<p class="design-hotline-row design-hotline-spaced">Fixture hotline</p>',
+            str_replace('design-hotline-spaced', 'design-hotline-spaced-other', $banner),
+            str_replace('design-hotline-row', 'design-hotline-row-other', $banner),
+            str_replace('design-hotline-row ', '', $banner),
+            $banner.$banner,
+        ] as $unmarked) {
+            self::assertSame($base, SignatureTableOverlapDelivery::css($attach($unmarked)));
+        }
+        foreach (['v27', 'v28', 'v29'] as $version) {
+            $legacy = str_replace([' design-train-logo', 'v27'], ['', $version], $attach($banner));
+            self::assertStringNotContainsString('td.design-hotline-row{padding-right:24px!important;}', SignatureTableOverlapDelivery::css($legacy));
+        }
+    }
+
     public function test_only_the_known_empty_25px_authoring_reserves_are_removed_for_this_profile(): void
     {
         $xpath = $this->xpath($this->source());

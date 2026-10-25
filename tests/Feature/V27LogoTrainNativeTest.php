@@ -11,6 +11,7 @@ use App\Support\Mail\SignatureTableOverlapDelivery;
 use App\Support\Mail\TrustedOutlookSignatureCss;
 use App\Support\OutlookAddin\OutlookClientPresentation;
 use App\Support\OutlookAddin\OutlookCombinedComposeDocument;
+use App\Support\OutlookAddin\OutlookDesktopFlow;
 use App\Support\OutlookAddin\OutlookMobileSignature;
 use App\Support\OutlookAddin\OutlookNativeMetadataPlacement;
 use App\Support\OutlookAddin\OutlookNativePersonalSignature;
@@ -142,6 +143,33 @@ final class V27LogoTrainNativeTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_marked_hotline_right_gutter_is_native_runtime_css_while_mobile_keeps_its_physical_gutter(): void
+    {
+        $source = $this->source(true, true);
+        SignatureDocumentContract::assertValid($source);
+        $report = (new EmailHtmlSanitizer)->sanitize($source);
+        self::assertFalse($report->hasViolations());
+        self::assertStringContainsString('design-hotline-spaced', $report->html);
+        $payload = ['signature' => ['html' => $this->document(true, true), 'media' => []], 'templates' => [], 'version' => ['signature' => '0123456789abcdef']];
+        $wire = OutlookClientPresentation::payload($payload);
+        self::assertTrue(OutlookDesktopFlow::projected($wire['signature']['html']));
+        $noInline = preg_replace('~\sstyle="[^"]*"~', '', $wire['signature']['html']);
+        $rule = '.rts0123456789 td.design-hotline-row{padding-right:24px!important;}';
+        self::assertStringContainsString($rule, $noInline);
+        self::assertStringContainsString('@media only screen and (max-width:860px){.rts0123456789 td.design-hotline-row{padding-right:22px!important;}}', $noInline);
+        self::assertStringNotContainsString('data-rt-mail-document-css=', $noInline);
+        $mobile = OutlookMobileSignature::payload($payload);
+        $hotline = $this->xpath($mobile['signature']['html'])->query('//td[contains(concat(" ",normalize-space(@class)," ")," design-hotline-spaced ")]')->item(0);
+        self::assertStringContainsString('padding-left:18px;padding-right:18px;', $hotline->getAttribute('style'));
+        self::assertStringNotContainsString($rule, $mobile['signature']['html']);
+        foreach ([$wire, OutlookClientPresentation::payload($mobile)] as $device) {
+            preg_match_all('~<style\b[^>]*>(.*?)</style>~is', $device['signature']['html'], $styles);
+            self::assertLessThan(12288, array_sum(array_map('strlen', $styles[1])));
+            self::assertLessThanOrEqual(30000, intdiv(strlen(mb_convert_encoding($device['signature']['html'], 'UTF-16LE', 'UTF-8')), 2));
+        }
+        Http::assertNothingSent();
+    }
+
     public function test_profile_is_accepted_by_combined_compose_without_reintroducing_an_overlay(): void
     {
         $scope = 'rtt012345abcdef';
@@ -177,14 +205,18 @@ final class V27LogoTrainNativeTest extends TestCase
         OutlookMobileSignature::payload($payload);
     }
 
-    private function source(bool $profile = true): string
+    private function source(bool $profile = true, bool $spacedHotline = false): string
     {
         $html = trim(file_get_contents(base_path('tests/Fixtures/mail/signature-v27-ledger.html')));
+        if ($spacedHotline) {
+            $banner = '<table role="presentation"><tr><td class="design-hotline-row design-hotline-spaced" style="padding:3px 40px;padding-right:24px;">Fixture hotline</td></tr></table>';
+            $html = str_replace('<div class="rt-sign-stage"', $banner.'<div class="rt-sign-stage"', $html);
+        }
 
         return $profile ? str_replace('rt-sign-layout rt-sign-ledger', 'rt-sign-layout rt-sign-ledger design-train-logo', $html) : $html;
     }
 
-    private function document(bool $profile = true): string
+    private function document(bool $profile = true, bool $spacedHotline = false): string
     {
         $rows = preg_replace_callback('/\{\{([A-Z0-9_]+)\}\}/', static fn ($match) => match ($match[1]) {
             'TRAIN_SRC' => 'cid:train.gif',
@@ -193,7 +225,7 @@ final class V27LogoTrainNativeTest extends TestCase
             'E_MAIL', 'FIRMEN_EMAIL' => 'fixture@example.test',
             'FIRMEN_WEBSITE_HREF' => 'https://example.test',
             default => str_ends_with($match[1], '_SRC') ? 'cid:icon.png' : 'Fixture',
-        }, $this->source($profile));
+        }, $this->source($profile, $spacedHotline));
         $rows = SignatureTableOverlapDelivery::project($rows, 'cid:train-still.png');
         $html = TrustedOutlookSignatureCss::style($rows, scopeClass: 'rts0123456789')
             .'<div class="rt-outlook-signature rts0123456789"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;border-left:6px solid #e90032;"><tbody>'.$rows.'</tbody></table></div>';
