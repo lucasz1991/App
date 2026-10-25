@@ -335,7 +335,8 @@ test('outlook taskpane keeps templates visible and hides resolved maintenance ac
     assert.match(taskpane, /validatedDocument\(nativeDocument, 'template'/);
     assert.doesNotMatch(taskpane, /body\.setAsync|removeStaleManagedInlineMedia|removeAttachmentAsync|displayNewMessageForm/);
     assert.doesNotMatch(taskpane, /allowAdditional: true/);
-    assert.match(taskpane, /confirmAdditional: confirmAdditionalTemplate/);
+    assert.match(taskpane, /replaceManagedTemplate\(Office, item, template\.html/);
+    assert.doesNotMatch(taskpane, /confirmAdditional|Zusätzlich oberhalb einfügen/);
     assert.doesNotMatch(taskpane, /window\.confirm/);
     assert.match(taskpane, /async function withAuthenticatedBootstrap\(button, callback\) \{\s*if \(taskpaneState\.busy\) return;/);
     assert.match(taskpane, /acceptBootstrap\(bootstrap, \{ inspectBody: false \}\)/);
@@ -1461,20 +1462,16 @@ test('taskpane manual native template sets its native signature after prepending
     assert.ok(fixture.state.html.endsWith('<p>Existing user text</p>'));
 });
 
-test('cancelling an additional native template makes no signature, media or body write', async () => {
+test('an existing separate native template cannot become an additional manual insertion', async () => {
     const html = `<!--${composeLibrary.NATIVE_TEMPLATE_MARKER}--><p>Current native template</p>`;
     const { fixture, client, document, bootstrap } = await taskpaneFixture({ html });
     bootstrap.signature.media = [{ name: 'test.png', contentId: 'test', base64: 'aW1hZ2U=' }];
     client.bindActions();
-    const pending = client.insertTemplate(document.querySelector('[data-outlook-action="template"]'));
-    const confirmation = document.querySelector('[data-outlook-template-confirmation]');
-    for (let i = 0; i < 150 && confirmation.hidden; i++) await Promise.resolve();
-    assert.equal(confirmation.hidden, false);
-    assert.deepEqual(fixture.state.mutations, [], 'confirmation must precede every mutation');
-    document.querySelector('[data-outlook-template-cancel]').click();
-    await pending;
+    await client.insertTemplate(document.querySelector('[data-outlook-action="template"]'));
     assert.deepEqual(fixture.state.mutations, []);
     assert.equal(fixture.state.html, html);
+    assert.match(document.querySelector('[data-outlook-pane-feedback]').textContent, /nicht eindeutig abgegrenzt/);
+    assert.equal(document.querySelector('[data-outlook-template-confirmation]'), null);
 });
 
 test('read-only bootstrap refresh and diagnostics retain confirmed native signature and template evidence', async () => {
@@ -1580,7 +1577,7 @@ test('authenticated taskpane inserts once on double click with native preflights
     assert.equal(fixture.state.bodyReads, 2);
     assert.equal(client.taskpaneState.templatePresent, true);
     assert.equal(client.taskpaneState.busy, false);
-    assert.equal(button.disabled, false, 'explicit additional template selection remains available after an automatic or manual insertion');
+    assert.equal(button.disabled, false, 'explicit managed replacement remains available after an automatic or manual insertion');
     assert.equal(document.querySelector('[data-outlook-status-title]').textContent, 'Vorlage wurde oberhalb eingefügt');
 
     for (const failure of ['unreadable', 'oversized']) {
@@ -1617,7 +1614,7 @@ test('authenticated taskpane inserts once on double click with native preflights
     client.requestSilentBootstrapRefresh();
     await client.refreshPending();
     assert.equal(document.querySelector('[data-outlook-status-detail]').textContent, errorText, 'silent successful refresh never overwrites an insertion error');
-    assert.equal(document.querySelector('[data-outlook-connection-chip]').textContent, 'Prüfen');
+    assert.equal(document.querySelector('[data-outlook-pane-feedback]').dataset.tone, 'error');
 
     fresh.item.sessionData = undefined;
     await client.runDiagnostics(document.querySelector('[data-outlook-diagnostics-run]'));
@@ -1632,19 +1629,10 @@ test('authenticated taskpane inserts once on double click with native preflights
     client.bindActions();
     await client.insertTemplate(button);
     assert.equal(fresh.state.prepends.length, 1);
-    const confirmation = document.querySelector('[data-outlook-template-confirmation]');
-    const cancel = client.insertTemplate(button);
-    for (let i = 0; i < 120 && confirmation.hidden; i++) await Promise.resolve();
-    assert.equal(confirmation.hidden, false, 'additional insertion is a visible in-pane choice');
-    document.querySelector('[data-outlook-template-cancel]').click();
-    await cancel;
-    assert.equal(fresh.state.prepends.length, 1);
-    const extra = client.insertTemplate(button);
-    for (let i = 0; i < 120 && confirmation.hidden; i++) await Promise.resolve();
-    document.querySelector('[data-outlook-template-confirm]').click();
-    await extra;
-    assert.equal(fresh.state.prepends.length, 2);
-    assert.equal(confirmation.hidden, true);
+    await client.insertTemplate(button);
+    assert.equal(fresh.state.prepends.length, 1, 'unknown old native templates never trigger another prepend');
+    assert.match(document.querySelector('[data-outlook-pane-feedback]').textContent, /nicht eindeutig abgegrenzt/);
+    assert.equal(document.querySelector('[data-outlook-template-confirmation]'), null);
 });
 
 test('Outlook dialogs open only on explicit clicks and restore opener focus after closing', async () => {
@@ -1714,7 +1702,8 @@ test('hosted taskpane help and install dialogs work without Office, outside Outl
             if (scenario.unavailable) {
                 assert.equal(document.querySelector('[data-outlook-addin-taskpane]').getAttribute('aria-busy'), 'false');
                 assert.equal(document.querySelector('[data-outlook-status-title]').textContent, 'In Outlook öffnen');
-                assert.equal(document.querySelector('[data-outlook-connection-chip]').textContent, 'Browser');
+                assert.equal(document.querySelector('[data-outlook-connection-chip]'), null);
+                assert.match(document.querySelector('[data-outlook-pane-feedback]').textContent, /In Outlook öffnen/);
                 assert.match(document.querySelector('[data-outlook-template-error]').textContent, /unter „Apps“ öffnen/);
                 assert.equal(document.querySelector('[data-outlook-action="template"]').disabled, true);
                 assert.equal(document.querySelector('[data-outlook-action="login"]').disabled, true);
@@ -1742,6 +1731,8 @@ test('Outlook connection feedback mirrors errors as text and retains focus withi
         const statusDialog = document.querySelector('[data-outlook-dialog="status"]');
         let feedbackFocus = 0;
         let buttonFocus = 0;
+        let paneFocus = 0;
+        document.querySelector('[data-outlook-pane-feedback]').focus = () => { paneFocus += 1; };
         feedback.focus = () => { feedbackFocus += 1; };
         statusButton.focus = () => { buttonFocus += 1; };
 
@@ -1766,7 +1757,8 @@ test('Outlook connection feedback mirrors errors as text and retains focus withi
 
         connection.open = false;
         setStatus('error', 'Abruf fehlgeschlagen', '', true);
-        assert.equal(buttonFocus, 1, 'a closed dialog sends requested error focus to the visible status control');
+        assert.equal(buttonFocus, 0, 'the removed header is not a focus target');
+        assert.equal(paneFocus, 1, 'a closed dialog sends requested error focus to visible content feedback');
         feedback.remove();
         assert.doesNotThrow(() => setStatus('neutral', 'Status ohne Zusatzfeld'), 'feedback remains optional');
     } finally {

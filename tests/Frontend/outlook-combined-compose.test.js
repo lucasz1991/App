@@ -10,7 +10,7 @@ import * as diagnostics from '../../resources/js/outlook-addin/diagnostics.js';
 const ADDRESS = 'employee@company.example';
 const MARKER = 'RT-SIGNATURE-MANAGED-V1';
 const VERSION = '0123456789abcdef';
-const COMBINED_HTML = `<!--${compose.COMBINED_TEMPLATE_MARKER}--><table data-rt-compose-document="combined-v1"><tbody><tr><td><p>Guten Tag,</p><p><br></p><p>Mit freundlichen Grüßen,</p></td></tr><tr><td><!--${MARKER}--><!--RT-SIGNATURE-VERSION:${VERSION}--><p>Personal signature</p><img src="cid:train-content" width="600" height="75"></td></tr></tbody></table>`;
+const COMBINED_HTML = `<div class="rt-combined-compose-document" data-rt-compose-document="combined-v1"><table class="rt-combined-compose-frame"><tbody><tr><td><div class="rt-outlook-template"><!--${compose.COMBINED_TEMPLATE_MARKER}--><p>Guten Tag,</p><div class="rt-compose-editable" data-rt-compose-editable="v1"><p><br></p></div><p>Mit freundlichen Grüßen,</p></div></td></tr><tr><td><div class="rt-outlook-signature"><!--${MARKER}--><!--RT-SIGNATURE-VERSION:${VERSION}--><p>Personal signature</p><img src="cid:train-content" width="600" height="75"></div></td></tr></tbody></table></div>`;
 const NATIVE_HTML = `<!--${compose.NATIVE_TEMPLATE_MARKER}--><p>Separate template</p>`;
 const OLD_SIGNATURE = `<!--${MARKER}--><table data-host-signature="1"><tbody><tr><td>Old native signature</td></tr></tbody></table>`;
 const PAIRED_SIGNATURE = `<!--${MARKER}--><!--RT-SIGNATURE-VERSION:${VERSION}--><p>Paired mobile signature</p>`;
@@ -39,7 +39,7 @@ function documentContract(changes = {}) {
 function hostFixture({ mobile = false, composeType = 'newMail', body = TYPED + OLD_SIGNATURE, session = '' } = {}) {
     const state = {
         body, nativeSignature: body.includes(OLD_SIGNATURE) ? OLD_SIGNATURE : '', session,
-        sender: ADDRESS, log: [], prepends: [], signatures: [], attachments: [],
+        sender: ADDRESS, log: [], prepends: [], replacements: [], signatures: [], attachments: [],
         sessionWrites: [], callbacks: {}, notifications: [],
     };
     const item = {
@@ -68,7 +68,10 @@ function hostFixture({ mobile = false, composeType = 'newMail', body = TYPED + O
                 if (html) state.body = html + state.body;
                 cb(success());
             },
-            setAsync() { throw new Error('Full body replacement is forbidden'); },
+            setAsync(html, _options, cb) {
+                state.log.push('replace'); state.replacements.push(html);
+                state.body = html; cb(success());
+            },
         },
         getAttachmentsAsync(cb) { cb(success(state.attachments.map((name) => ({ name, isInline: true })))); },
         addFileAttachmentFromBase64Async(_base64, name, options, cb) {
@@ -199,6 +202,7 @@ test('desktop automatic compose attaches media, clears native ownership, then wr
     assert.match(h.state.prepends[0], /cid:train\.gif/);
     assert.equal(h.state.body, h.state.prepends[0] + TYPED);
     assert.deepEqual(h.state.log.filter(value => /^(media:|native-|prepend)/.test(value)), ['media:train.gif', 'native-clear', 'prepend']);
+    assert.deepEqual(h.state.replacements, [], 'automatic insertion never enters explicit replacement');
     assert.equal(h.state.session, '1');
     await flush();
     assert.deepEqual(h.state.signatures, ['']);
@@ -620,16 +624,21 @@ test('manual selected template uses the common block with no native signature wr
     assert.equal(h.manual.statuses.at(-1)[1], 'Vorlage und Signatur gemeinsam eingefügt');
 });
 
-test('manual repeat cancellation leaves the edited document and quotes unchanged and writes no cleanup', async () => {
-    const h = await manualHarness();
+test('manual template change replaces one shell and preserves edited inner content, outside text and quotes', async () => {
+    const h = await manualHarness({ composeType: 'reply', body: TYPED + OLD_SIGNATURE + QUOTE });
     await h.run();
     h.state.body = h.state.body.replace('<p><br></p>', '<p>Manual edits</p>');
-    const edited = h.state.body;
-    await assert.rejects(h.run(), { code: 'TEMPLATE_INSERT_CANCELLED' });
-    assert.equal(h.manual.confirms, 1);
-    assert.equal(h.state.body, edited);
+    h.document.combinedComposeHtml = h.document.combinedComposeHtml.replace('<p>Guten Tag,</p>', '').replace('<p>Mit freundlichen Grüßen,</p>', '');
+    await h.run();
+    assert.equal(h.state.replacements.length, 1);
+    assert.ok(h.state.body.includes('<p>Manual edits</p>'));
+    assert.ok(h.state.body.endsWith(TYPED + QUOTE));
+    const active = compose.currentComposeBodyHtml(h.state.body, 'reply');
+    assert.equal((active.match(/data-rt-compose-document="combined-v1"/g) || []).length, 1);
+    assert.equal(active.includes('Guten Tag,'), false);
     assert.deepEqual(h.state.signatures, ['']);
     assert.equal(h.state.prepends.length, 1);
+    assert.equal(h.manual.statuses.at(-1)[1], 'Vorlage und Signatur ersetzt');
 });
 
 test('manual malformed combined fields fail closed despite valid separate native fields', async () => {
@@ -703,22 +712,22 @@ test('manual common prepend uncertainty cannot cause any late native signature r
     h.state.body = h.state.prepends[0] + h.state.body;
     h.state.callbacks.prepend(success());
     await flush();
-    await assert.rejects(h.run(), { code: 'TEMPLATE_INSERT_CANCELLED' });
+    await h.run();
     assert.equal(h.state.prepends.length, 1);
+    assert.equal(h.state.replacements.length, 1);
     assert.deepEqual(h.state.signatures, ['']);
     assert.equal(h.state.body, h.state.prepends[0] + TYPED + QUOTE);
 });
 
-test('explicit additional manual insertion runs cleanup only after approval and preserves the existing complete block', async () => {
+test('explicit manual refresh never prepends or clears the native slot again', async () => {
     const h = await manualHarness({ composeType: 'reply', body: TYPED + OLD_SIGNATURE + QUOTE });
     await h.run();
     const firstBody = h.state.body;
-    h.manual.confirmed = true;
     await h.run();
-    assert.equal(h.manual.confirms, 1);
-    assert.equal(h.state.prepends.length, 2);
-    assert.deepEqual(h.state.signatures, ['', '']);
-    assert.equal(h.state.body, h.state.prepends[1] + firstBody);
+    assert.equal(h.state.prepends.length, 1);
+    assert.equal(h.state.replacements.length, 1);
+    assert.deepEqual(h.state.signatures, ['']);
+    assert.equal(h.state.body, firstBody);
     assert.deepEqual(h.state.attachments, ['train.gif']);
 });
 

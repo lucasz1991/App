@@ -1,5 +1,7 @@
-// Shared by the event runtime and taskpane. Never replace a compose body:
-// Outlook may include the complete quoted conversation in body.getAsync().
+import { managedTemplateReplacement } from './managed-template.js';
+
+// Automatic insertion only prepends. Explicit taskpane replacement below owns
+// one verified current-message shell and preserves every outside/quoted byte.
 export const TEMPLATE_MARKER = 'RT-TEMPLATE-MANAGED-V1';
 export const NATIVE_TEMPLATE_MARKER = `${TEMPLATE_MARKER}:NATIVE-SIGNATURE`;
 export const COMBINED_TEMPLATE_MARKER = `${TEMPLATE_MARKER}:COMBINED-DOCUMENT`;
@@ -476,12 +478,13 @@ async function markTemplateApplied(item, operation) {
     }
 }
 
-function nativePrepend(office, item, html, operation) {
+function nativeTemplateWrite(office, item, html, operation, replace = false) {
     return new Promise((resolve, reject) => {
         let completed = false;
+        const phase = replace ? 'body-replace' : 'body-prepend';
         const uncertain = (details = {}) => {
             operation.phase = 'uncertain';
-            reject(failure('TEMPLATE_INSERT_UNCERTAIN', { phase: 'body-prepend', reason: 'timeout', ...details }));
+            reject(failure('TEMPLATE_INSERT_UNCERTAIN', { phase, reason: 'timeout', ...details }));
         };
         const timeout = setTimeout(uncertain, TEMPLATE_INSERT_LIMITS.writeTimeoutMs);
         const callback = async (result) => {
@@ -495,14 +498,15 @@ function nativePrepend(office, item, html, operation) {
                     resolve();
                 } else if (operation.phase !== 'uncertain') {
                     const officeCode = safeOfficeCode(result?.error);
-                    reject(failure(officeCode || 'SET_TEMPLATE_FAILED', { phase: 'body-prepend', reason: 'failed', officeCode }));
+                    reject(failure(officeCode || 'SET_TEMPLATE_FAILED', { phase, reason: 'failed', officeCode }));
                 }
             } catch (error) {
                 uncertain({ reason: 'exception', officeCode: safeOfficeCode(error) });
             }
         };
         try {
-            item.body.prependAsync(html, { coercionType: office.CoercionType.Html }, callback);
+            if (replace) item.body.setAsync(html, { coercionType: office.CoercionType.Html }, callback);
+            else item.body.prependAsync(html, { coercionType: office.CoercionType.Html }, callback);
         } catch (error) {
             clearTimeout(timeout);
             // Once invoked, a thrown host error cannot prove that no write ran.
@@ -543,7 +547,7 @@ export async function prependTemplate(office, item, html, beforeWrite = () => {}
         await options.beforeInsert?.();
         await beforeWrite();
         operation.phase = 'writing';
-        await nativePrepend(office, item, markedHtml, operation);
+        await nativeTemplateWrite(office, item, markedHtml, operation);
     } catch (error) {
         if (['INLINE_ATTACHMENT_UNCERTAIN', 'SIGNATURE_INSERT_UNCERTAIN'].includes(error?.code)) operation.phase = 'uncertain';
         await releaseDefiniteSessionFailure(office, item, operation);
@@ -552,6 +556,56 @@ export async function prependTemplate(office, item, html, beforeWrite = () => {}
         if (operation.phase !== 'uncertain' && insertionOperations.get(item) === operation) {
             insertionOperations.delete(item);
         }
+    }
+}
+
+async function replacementSnapshot(office, item) {
+    const format = await officeResult(office, callback => item.body.getTypeAsync(callback));
+    if (!format.succeeded) throw failure('COMPOSE_BODY_UNREADABLE', { ...format, phase: 'body-type-read' });
+    if (format.value !== office.CoercionType.Html) throw failure('TEMPLATE_REQUIRES_HTML');
+    const compose = await officeResult(office, callback => item.getComposeTypeAsync(callback));
+    if (!compose.succeeded) throw failure('COMPOSE_BODY_UNREADABLE', { ...compose, phase: 'compose-type-read' });
+    // Read HTML last. No asynchronous preparation follows the final snapshot;
+    // its equality check and the single SDK write run in the same continuation.
+    const body = await officeResult(office, callback => item.body.getAsync(office.CoercionType.Html, callback));
+    if (!body.succeeded || typeof body.value !== 'string') throw failure('COMPOSE_BODY_UNREADABLE', { ...body, phase: 'body-read' });
+    if (body.value.length > TEMPLATE_INSERT_LIMITS.bodyLength) throw failure('COMPOSE_BODY_TOO_LARGE');
+    return { html: body.value, composeType: compose.value?.composeType };
+}
+
+/** Explicit user replacement only; automatic/event insertion never calls this. */
+export async function replaceManagedTemplate(office, item, html, beforeWrite = () => {}, options = {}) {
+    const pending = insertionOperations.get(item);
+    if (pending) throw failure(pending.phase === 'uncertain' ? 'TEMPLATE_INSERT_UNCERTAIN' : 'TEMPLATE_INSERT_IN_PROGRESS');
+    const markedHtml = validatedInsertionHtml(html, options.media ?? []);
+    if (!supportsTemplatePrepend(office, item) || typeof item.body?.setAsync !== 'function') throw failure('TEMPLATE_REPLACEMENT_UNAVAILABLE');
+    // Reuse the established session claim and rollback. Permission here comes
+    // from the explicit replacement button, never an automatic repeat/fallback.
+    const operation = { phase: 'preflight', beforeWrite, additionalConfirmed: true };
+    insertionOperations.set(item, operation);
+    try {
+        const state = await assertTemplateInsertable(office, item, { allowAdditional: true });
+        if (!state.present) throw failure('TEMPLATE_REPLACEMENT_UNAVAILABLE');
+        const original = await replacementSnapshot(office, item);
+        const plan = managedTemplateReplacement(original.html, currentComposeBodyHtml(original.html, original.composeType), markedHtml);
+        if (plan.html.length > TEMPLATE_INSERT_LIMITS.bodyLength) throw failure('COMPOSE_BODY_TOO_LARGE');
+        await beforeWrite();
+        await claimSession(office, item, operation);
+        await beforeWrite();
+        operation.phase = 'preparing';
+        await options.beforeReplace?.();
+        await beforeWrite();
+        const latest = await replacementSnapshot(office, item);
+        if (latest.html !== original.html || latest.composeType !== original.composeType) throw failure('COMPOSE_BODY_CHANGED');
+        options.beforeCommit?.();
+        operation.phase = 'writing';
+        await nativeTemplateWrite(office, item, plan.html, operation, true);
+    } catch (error) {
+        if (['INLINE_ATTACHMENT_UNCERTAIN', 'SIGNATURE_INSERT_UNCERTAIN'].includes(error?.code)) operation.phase = 'uncertain';
+        await releaseDefiniteSessionFailure(office, item, operation);
+        throw error;
+    } finally {
+        if (operation.phase !== 'uncertain' && insertionOperations.get(item) === operation) insertionOperations.delete(item);
     }
 }
 
