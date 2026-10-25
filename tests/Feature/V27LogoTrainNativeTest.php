@@ -47,6 +47,7 @@ final class V27LogoTrainNativeTest extends TestCase
     public function test_native_profile_has_desktop_contact_columns_and_a_final_train_row_while_default_personal_overlay_is_unchanged(): void
     {
         $profile = $this->document();
+        self::assertStringNotContainsString('min-width:1360px', $profile);
         self::assertSame($profile, OutlookNativePersonalSignature::project($profile));
         self::assertSame($profile, OutlookTrainBottomOverlay::project($profile));
         self::assertSame($profile, OutlookNativePersonalSignature::restore(OutlookTrainBottomOverlay::restore($profile)));
@@ -99,7 +100,13 @@ final class V27LogoTrainNativeTest extends TestCase
         self::assertSame($this->wordTrain($document['html']), $this->wordTrain($mobile['signature']['html']));
         self::assertStringNotContainsString('data-rt-train-bottom-overlay=', $mobile['signature']['html']);
         self::assertStringNotContainsString('.rts0123456789 .rt-delivery-train-cell{width:100%!important;padding:0 22px 0 0!important;', $mobile['signature']['html']);
+        self::assertStringNotContainsString('min-width:1360px', $mobile['signature']['html']);
+        self::assertStringNotContainsString('width:28.571429%', $mobile['signature']['html']);
+        self::assertStringNotContainsString('width:71.428571%', $mobile['signature']['html']);
         $xpath = $this->xpath($mobile['signature']['html']);
+        $ledger = $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-sign-ledger ")]')->item(0);
+        self::assertSame('100%', $ledger->getAttribute('width'));
+        self::assertStringContainsString('width:100%;', $ledger->getAttribute('style'));
         $moving = $xpath->query('//img[contains(concat(" ",normalize-space(@class)," ")," rt-delivery-train ")]')->item(0);
         self::assertStringContainsString('width:100%;max-width:100%;height:auto;', $moving->getAttribute('style'));
         self::assertMatchesRegularExpression('/\\{[^{}]*width:100%!important;max-width:100%!important;height:auto!important;[^{}]*\\}/', $mobile['signature']['html']);
