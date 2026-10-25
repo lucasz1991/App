@@ -148,8 +148,8 @@ final class OutlookCombinedComposeDocumentTest extends TestCase
         $before = '<p class="design-salutation">Guten Tag,</p>';
         $after = '<p class="design-greeting">Mit freundlichen Grüßen,</p>';
         $template = $this->editableTemplate($before.$paragraph.$after);
-        $opening = $this->editableOpening().'<tbody><tr><td style="padding:0;">';
-        $closing = '</td></tr></tbody></table>';
+        $opening = $this->editableOpening().'<tbody><tr><td style="padding:0;">'.$this->editableBoundary(OutlookCombinedComposeDocument::EDITABLE_START);
+        $closing = $this->editableBoundary(OutlookCombinedComposeDocument::EDITABLE_END).'</td></tr></tbody></table>';
         $marked = OutlookCombinedComposeDocument::markEditableRegion($template);
         self::assertSame(str_replace($paragraph, $opening.$paragraph.$closing, $template), $marked);
         self::assertSame($marked, OutlookCombinedComposeDocument::markEditableRegion($marked));
@@ -177,7 +177,7 @@ final class OutlookCombinedComposeDocumentTest extends TestCase
 
     public static function malformedEditableRegions(): array
     {
-        return array_map(static fn (string $case): array => [$case], ['duplicate-start', 'missing-end', 'duplicate-marker', 'wrong-version', 'class-only', 'attribute-only', 'outside-region', 'quoted-marker', 'hidden-marker', 'extra-owned-text']);
+        return array_map(static fn (string $case): array => [$case], ['duplicate-start', 'missing-end', 'duplicate-marker', 'wrong-version', 'class-only', 'attribute-only', 'outside-region', 'quoted-marker', 'hidden-marker', 'extra-owned-text', 'missing-text-start', 'duplicate-text-end', 'reversed-text-bounds', 'text-boundary-outside-cell', 'unowned-text-boundary']);
     }
 
     #[DataProvider('malformedEditableRegions')]
@@ -197,6 +197,11 @@ final class OutlookCombinedComposeDocumentTest extends TestCase
             'quoted-marker' => str_replace($opening, '<blockquote>'.$opening, str_replace('</td>', '</blockquote></td>', $template)),
             'hidden-marker' => str_replace($opening, substr($opening, 0, -1).' hidden>', $template),
             'extra-owned-text' => str_replace($opening, $opening.'Authored static text', $template),
+            'missing-text-start' => str_replace($this->editableBoundary(OutlookCombinedComposeDocument::EDITABLE_START), '', $template),
+            'duplicate-text-end' => str_replace($paragraph, $paragraph.$this->editableBoundary(OutlookCombinedComposeDocument::EDITABLE_END), $template),
+            'reversed-text-bounds' => strtr($template, [OutlookCombinedComposeDocument::EDITABLE_START => OutlookCombinedComposeDocument::EDITABLE_END, OutlookCombinedComposeDocument::EDITABLE_END => OutlookCombinedComposeDocument::EDITABLE_START]),
+            'text-boundary-outside-cell' => str_replace('<tbody><tr><td style="padding:0;">'.$this->editableBoundary(OutlookCombinedComposeDocument::EDITABLE_START), $this->editableBoundary(OutlookCombinedComposeDocument::EDITABLE_START).'<tbody><tr><td style="padding:0;">', $template),
+            'unowned-text-boundary' => $this->editableTemplate($paragraph.$this->editableBoundary(OutlookCombinedComposeDocument::EDITABLE_START)),
         };
         $this->expectException(RuntimeException::class);
         OutlookCombinedComposeDocument::markEditableRegion($template);
@@ -213,6 +218,45 @@ final class OutlookCombinedComposeDocumentTest extends TestCase
     private function editableOpening(): string
     {
         return '<table class="rt-compose-editable rt-compose-editable-v1" data-rt-compose-editable="v1" role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">';
+    }
+
+    private function editableBoundary(string $marker): string
+    {
+        return '<span hidden aria-hidden="true" class="rt-office-metadata" style="display:none!important;mso-hide:all;font-size:0;line-height:0;max-height:0;overflow:hidden;">'.$marker.'</span>';
+    }
+
+    public function test_owned_text_boundaries_survive_the_sdk_losing_every_class_data_attribute_and_comment(): void
+    {
+        [$template, $signature] = $this->fragments();
+        $output = OutlookCombinedComposeDocument::build($template, $signature);
+        $typed = '<p>Own &amp; <strong>formatted</strong> message</p>';
+        $output = preg_replace('~<p\b[^>]*class="[^"]*design-spacer[^"]*"[^>]*>.*?</p>~s', $typed, $output, 1, $count);
+        self::assertSame(1, $count);
+        $sanitized = preg_replace_callback('~<!--.*?-->|<style\b[^>]*>.*?</style\s*>|<[a-z][a-z0-9:-]*\b(?:[^"\'<>]|"[^"]*"|\'[^\']*\')*>~is', static function (array $match): string {
+            if (str_starts_with($match[0], '<!--')) {
+                return '';
+            }
+
+            return preg_match('~\A<style\b~i', $match[0]) ? $match[0]
+                : preg_replace('~\s(?:class|data-[a-z0-9_-]+)\s*=\s*(?:"[^"]*"|\'[^\']*\')~i', '', $match[0]);
+        }, $output);
+        $xpath = $this->xpath($sanitized);
+        $start = $xpath->query('//span[text()="'.OutlookCombinedComposeDocument::EDITABLE_START.'"]');
+        $end = $xpath->query('//span[text()="'.OutlookCombinedComposeDocument::EDITABLE_END.'"]');
+        self::assertSame(1, $start->length);
+        self::assertSame(1, $end->length);
+        self::assertTrue($start->item(0)->parentNode->isSameNode($end->item(0)->parentNode));
+        self::assertSame('td', $start->item(0)->parentNode->nodeName);
+        foreach ([$start->item(0), $end->item(0)] as $marker) {
+            self::assertTrue($marker->hasAttribute('hidden'));
+            self::assertSame('true', $marker->getAttribute('aria-hidden'));
+            self::assertStringContainsString('font-size:0;line-height:0;', $marker->getAttribute('style'));
+        }
+        self::assertSame(1, preg_match('~<span\b[^>]*>'.OutlookCombinedComposeDocument::EDITABLE_START.'</span>(.*?)<span\b[^>]*>'.OutlookCombinedComposeDocument::EDITABLE_END.'</span>~s', $sanitized, $content));
+        self::assertSame($typed, $content[1]);
+        self::assertSame($this->cssBytes($output), $this->cssBytes($sanitized));
+        self::assertStringContainsString(OutlookCombinedComposeDocument::MARKER, $sanitized);
+        self::assertStringContainsString('RT-SIGNATURE-MANAGED-V1', $sanitized);
     }
 
     public function test_versioned_table_boundaries_survive_office_removing_all_other_classes_data_and_comments(): void

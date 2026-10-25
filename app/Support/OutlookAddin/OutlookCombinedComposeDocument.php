@@ -26,6 +26,10 @@ final class OutlookCombinedComposeDocument
 
     public const EDITABLE_VERSION = 'v1';
 
+    public const EDITABLE_START = 'RT-COMPOSE-EDITABLE-START-V1';
+
+    public const EDITABLE_END = 'RT-COMPOSE-EDITABLE-END-V1';
+
     public const EDITABLE_TABLE_CLASS = 'rt-compose-editable-v1';
 
     public const DOCUMENT_TABLE_CLASS = 'rt-managed-combined-v1';
@@ -53,7 +57,8 @@ final class OutlookCombinedComposeDocument
             || substr_count($templateHtml, 'data-rt-template-signature-mode="native"') !== 1
             || str_contains($templateHtml, 'RT-SIGNATURE-MANAGED-V1')
             || ! str_contains($signatureHtml, 'RT-SIGNATURE-MANAGED-V1')
-            || str_contains($signatureHtml, 'RT-TEMPLATE-MANAGED-V1')) {
+            || str_contains($signatureHtml, 'RT-TEMPLATE-MANAGED-V1')
+            || str_contains($signatureHtml, self::EDITABLE_START) || str_contains($signatureHtml, self::EDITABLE_END)) {
             self::fail();
         }
 
@@ -165,6 +170,10 @@ final class OutlookCombinedComposeDocument
     {
         [$nodes, $frame] = self::fragment($html, 'rt-outlook-template', 'rtt', 12);
         $marked = array_keys(array_filter($nodes, self::editableMarker(...)));
+        if (($marked === [] && (str_contains($html, self::EDITABLE_START) || str_contains($html, self::EDITABLE_END)))
+            || ($marked !== [] && (substr_count($html, self::EDITABLE_START) !== 1 || substr_count($html, self::EDITABLE_END) !== 1))) {
+            self::fail();
+        }
         preg_match_all('~<!--.*?-->|<style\b(?:[^"\'<>]|"[^"]*"|\'[^\']*\')*>.*?</style\s*>~is', $html, $opaque, PREG_OFFSET_CAPTURE);
         $bounds = [];
         foreach ($opaque[0] as [$token, $offset]) {
@@ -203,13 +212,14 @@ final class OutlookCombinedComposeDocument
             if ($wrapper['tag'] !== 'table' || ($wrapper['attrs']['class'] ?? '') !== self::EDITABLE_CLASS.' '.self::EDITABLE_TABLE_CLASS
                 || ($wrapper['attrs'][self::EDITABLE_ATTRIBUTE] ?? '') !== self::EDITABLE_VERSION
                 || $cell === null || $row === null || $body === null || $nodes[$body]['tag'] !== 'tbody' || $nodes[$row]['tag'] !== 'tr' || $nodes[$cell]['tag'] !== 'td'
-                || $wrapper['children'] !== [$body] || $nodes[$body]['children'] !== [$row] || $nodes[$row]['children'] !== [$cell] || $nodes[$cell]['children'] !== $paragraphs
+                || $wrapper['children'] !== [$body] || $nodes[$body]['children'] !== [$row] || $nodes[$row]['children'] !== [$cell]
+                || count($nodes[$cell]['children']) !== 3 || $nodes[$cell]['children'][1] !== $paragraphs[0]
                 || $nodes[$body]['parent'] !== $marked[0] || $wrapper['opening'] !== self::editableOpening()
                 || $wrapper['start'] < $start || $wrapper['end'] > $end
                 || substr($html, $wrapper['start'], $wrapper['end'] - $wrapper['start']) !== self::editableOpening().'<tbody><tr><td style="padding:0;">'
-                    .substr($html, $paragraph['start'], $paragraph['end'] - $paragraph['start']).'</td></tr></tbody></table>'
+                    .self::editableBoundary(self::EDITABLE_START).substr($html, $paragraph['start'], $paragraph['end'] - $paragraph['start']).self::editableBoundary(self::EDITABLE_END).'</td></tr></tbody></table>'
                 || trim(substr($html, $nodes[$cell]['start'] + strlen($nodes[$cell]['opening']), $nodes[$cell]['close'] - $nodes[$cell]['start'] - strlen($nodes[$cell]['opening'])))
-                    !== substr($html, $paragraph['start'], $paragraph['end'] - $paragraph['start'])) {
+                    !== self::editableBoundary(self::EDITABLE_START).substr($html, $paragraph['start'], $paragraph['end'] - $paragraph['start']).self::editableBoundary(self::EDITABLE_END)) {
                 self::fail();
             }
             $parent = $wrapper['parent'];
@@ -234,15 +244,20 @@ final class OutlookCombinedComposeDocument
         if ($wrapper !== null) {
             return $html;
         }
-        $opening = self::editableOpening().'<tbody><tr><td style="padding:0;">';
+        $opening = self::editableOpening().'<tbody><tr><td style="padding:0;">'.self::editableBoundary(self::EDITABLE_START);
 
         return substr($html, 0, $paragraph['start']).$opening
-            .substr($html, $paragraph['start'], $paragraph['end'] - $paragraph['start']).'</td></tr></tbody></table>'.substr($html, $paragraph['end']);
+            .substr($html, $paragraph['start'], $paragraph['end'] - $paragraph['start']).self::editableBoundary(self::EDITABLE_END).'</td></tr></tbody></table>'.substr($html, $paragraph['end']);
     }
 
     private static function editableOpening(): string
     {
         return '<table class="'.self::EDITABLE_CLASS.' '.self::EDITABLE_TABLE_CLASS.'" '.self::EDITABLE_ATTRIBUTE.'="'.self::EDITABLE_VERSION.'" role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">';
+    }
+
+    private static function editableBoundary(string $marker): string
+    {
+        return '<span hidden aria-hidden="true" class="rt-office-metadata" style="display:none!important;mso-hide:all;font-size:0;line-height:0;max-height:0;overflow:hidden;">'.$marker.'</span>';
     }
 
     private static function editableMarker(array $node): bool

@@ -19,7 +19,7 @@ use Throwable;
 final class OutlookAddinPayloadService
 {
     /** Bei jeder Aenderung der Compilersemantik bewusst anheben. */
-    private const RENDERER_REVISION = 51;
+    private const RENDERER_REVISION = 52;
 
     private const MAX_SIGNATURE_CHARACTERS = 30000;
 
