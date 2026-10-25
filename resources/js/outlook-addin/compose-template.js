@@ -1,4 +1,5 @@
-import { managedTemplateReplacement } from './managed-template.js';
+import { managedTemplateContract, managedTemplateReplacement } from './managed-template.js';
+import { nativeLayoutRestoreCss, nativeLayoutRestoreRetained, prepareNativeLayoutRestore, removeNativeLayoutRestoreCarrier } from './native-layout-restore.js';
 
 // Automatic insertion only prepends. Explicit taskpane replacement below owns
 // one verified current-message shell and preserves every outside/quoted byte.
@@ -493,6 +494,15 @@ function nativeTemplateWrite(office, item, html, operation, replace = false) {
             clearTimeout(timeout);
             try {
                 if (result?.status === office?.AsyncResultStatus?.Succeeded) {
+                    if (operation.deferCompletion) {
+                        // A late body confirmation cannot authorize an unrelated
+                        // second SDK write after the operation became uncertain.
+                        if (operation.phase === 'uncertain') return;
+                        operation.bodyApplied = true;
+                        operation.phase = 'restoring-layout';
+                        resolve();
+                        return;
+                    }
                     // A late success after timeout still establishes idempotency.
                     await markTemplateApplied(item, operation);
                     resolve();
@@ -573,6 +583,142 @@ async function replacementSnapshot(office, item) {
     return { html: body.value, composeType: compose.value?.composeType };
 }
 
+function withinContract(contract, index, parent) {
+    for (let current = index; current !== undefined; current = contract.elements[current].parent) {
+        if (current === parent) return true;
+    }
+    return false;
+}
+
+function layoutIdsContract(html, currentHtml, ids) {
+    const contract = managedTemplateContract(html, currentHtml);
+    if (contract.kind !== 'text-v1') throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
+    const targets = {};
+    for (const key of Object.keys(ids)) {
+        // Count every matching ID in the whole body, including quoted history.
+        // A prefix is accepted only after its exact Office form is established.
+        const matches = contract.elements.map((node, index) => ({ node, index })).filter(value => typeof value.node.attrs.id === 'string'
+            && value.node.attrs.id.endsWith(ids[key]));
+        if (matches.length !== 1 || matches[0].node.tag !== 'table'
+            || ![ids[key], `x_${ids[key]}`].includes(matches[0].node.attrs.id)
+            || !withinContract(contract, matches[0].index, contract.signature.index)) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
+        targets[key] = matches[0];
+    }
+    const children = parent => contract.elements.map((node, index) => ({ node, index })).filter(value => value.node.parent === parent);
+    const only = (parent, tag) => {
+        const values = children(parent);
+        if (values.length !== 1 || values[0].node.tag !== tag) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
+        return values[0].index;
+    };
+    const cell = only(only(only(targets.root.index, 'tbody'), 'tr'), 'td');
+    const groups = children(cell);
+    if (groups.length !== 3 || groups.some((value, index) => value.index !== [targets.person.index, targets.company.index, targets.train.index][index])
+        || (targets.header && withinContract(contract, targets.header.index, targets.root.index))) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
+    if (targets.header) {
+        const rows = children(only(targets.header.index, 'tbody'));
+        if (!rows.length || rows.some(value => value.node.tag !== 'tr')
+            || withinContract(contract, targets.root.index, rows[0].index)) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
+    }
+    if (targets.signature) {
+        const rows = children(only(targets.signature.index, 'tbody'));
+        if (targets.signature.index !== contract.signature.index || rows.length !== 2 || rows.some(value => value.node.tag !== 'tr')) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
+        const firstCell = only(rows[0].index, 'td');
+        const lastCell = only(rows[1].index, 'td');
+        if (!withinContract(contract, targets.root.index, firstCell)
+            || !Number.isInteger(contract.signatureMetadata?.managed) || !Number.isInteger(contract.signatureMetadata?.version)
+            || !withinContract(contract, contract.signatureMetadata.managed, lastCell)
+            || !withinContract(contract, contract.signatureMetadata.version, lastCell)
+            || (targets.header && !withinContract(contract, targets.header.index, firstCell))) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
+    }
+    return contract;
+}
+
+function removePreviousLayoutSheet(html, contract) {
+    // Delete only an exact sheet from our own fixed factory whose operation IDs
+    // still belong to this signature. Unknown and quoted styles remain opaque.
+    const roots = contract.elements.filter((node, index) => withinContract(contract, index, contract.signature.index)
+        && /^(?:x_)?rt-native-layout-[0-9a-f]{32}-r$/.test(node.attrs.id || ''));
+    if (roots.length !== 1) return html;
+    const base = roots[0].attrs.id.replace(/^x_/, '').slice(0, -1);
+    const ids = { root: base + 'r', person: base + 'p', company: base + 'c', train: base + 't' };
+    if (contract.elements.some((node, index) => withinContract(contract, index, contract.signature.index)
+        && [base + 'h', 'x_' + base + 'h'].includes(node.attrs.id))) ids.header = base + 'h';
+    if (contract.elements.some((node, index) => withinContract(contract, index, contract.signature.index)
+        && [base + 's', 'x_' + base + 's'].includes(node.attrs.id))) ids.signature = base + 's';
+    try { layoutIdsContract(html, html.slice(0, contract.root.end), ids); } catch { return html; }
+    const withoutCarrier = removeNativeLayoutRestoreCarrier(html, contract, ids);
+    if (withoutCarrier !== html) return withoutCarrier;
+    const expected = nativeLayoutRestoreCss(ids).replace(/\s+/g, '');
+    const edits = contract.elements.filter(node => node.tag === 'style' && (node.end <= contract.root.start || node.start >= contract.root.end)
+        && html.slice(node.openEnd, node.close).replace(/\s+/g, '') === expected);
+    // An exact sheet in a quote must not be removed. The verified global ID
+    // uniqueness above also prevents choosing a signature copied into a quote.
+    const quoted = index => {
+        for (let current = index; current !== undefined; current = contract.elements[current].parent) {
+            const node = contract.elements[current];
+            if (node.tag === 'blockquote' || /^(?:x_)?(?:divrplyfwdmsg|mail-editor-reference-message-container|stopspelling)$/i.test(node.attrs.id || '')
+                || /(?:^|\s)(?:x_)?(?:gmail_quote|yahoo_quoted|moz-cite-prefix)(?:\s|$)/.test(node.attrs.class || '')) return true;
+        }
+        return false;
+    };
+    let clean = html;
+    for (const node of edits.sort((left, right) => right.start - left.start)) {
+        if (!quoted(contract.elements.indexOf(node))) clean = clean.slice(0, node.start) + clean.slice(node.end);
+    }
+    return clean;
+}
+
+function nativeLayoutStyleWrite(office, item, payload, operation) {
+    return new Promise((resolve, reject) => {
+        let finished = false;
+        const uncertain = (reason, error) => {
+            if (finished) return;
+            finished = true;
+            operation.phase = 'uncertain';
+            reject(failure('TEMPLATE_LAYOUT_UNCONFIRMED', { phase: 'layout-style-prepend', reason, officeCode: safeOfficeCode(error) }));
+        };
+        const timer = setTimeout(() => uncertain('timeout'), TEMPLATE_INSERT_LIMITS.writeTimeoutMs);
+        try {
+            item.body.prependAsync(payload, { coercionType: office.CoercionType.Html }, async result => {
+                if (finished) return;
+                clearTimeout(timer);
+                if (result?.status !== office?.AsyncResultStatus?.Succeeded) { uncertain('failed', result?.error); return; }
+                finished = true;
+                resolve();
+            });
+        } catch (error) { clearTimeout(timer); uncertain('exception', error); }
+    });
+}
+
+async function restoreNativeLayout(office, item, layout, operation, original, options) {
+    await operation.beforeWrite();
+    if (operation.sessionClaimed) {
+        const ownership = await readSession(office, item);
+        if (!ownership.succeeded || ownership.value !== operation.sessionToken) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED', { phase: 'layout-session-readback' });
+    }
+    await operation.beforeWrite();
+    const written = await replacementSnapshot(office, item);
+    if (written.composeType !== original.composeType) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
+    layoutIdsContract(written.html, currentComposeBodyHtml(written.html, written.composeType), layout.ids);
+    options.beforeCommit?.();
+    operation.phase = 'restoring-layout';
+    await nativeLayoutStyleWrite(office, item, layout.stylePayload, operation);
+    // A successful prepend callback is not proof that Outlook kept its STYLE.
+    // Re-read the actual SDK body before completing the shared operation.
+    await operation.beforeWrite();
+    if (operation.sessionClaimed) {
+        const ownership = await readSession(office, item);
+        if (!ownership.succeeded || ownership.value !== operation.sessionToken) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED', { phase: 'layout-final-session-readback' });
+    }
+    await operation.beforeWrite();
+    const restored = await replacementSnapshot(office, item);
+    if (restored.composeType !== original.composeType) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
+    const retained = layoutIdsContract(restored.html, currentComposeBodyHtml(restored.html, restored.composeType), layout.ids);
+    if (nativeLayoutRestoreRetained(restored.html, retained, layout.ids) !== true) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED', { phase: 'layout-retention-readback' });
+    options.beforeCommit?.();
+    await markTemplateApplied(item, operation);
+}
+
 /** Explicit user replacement only; automatic/event insertion never calls this. */
 export async function replaceManagedTemplate(office, item, html, beforeWrite = () => {}, options = {}) {
     const pending = insertionOperations.get(item);
@@ -587,8 +733,16 @@ export async function replaceManagedTemplate(office, item, html, beforeWrite = (
         const state = await assertTemplateInsertable(office, item, { allowAdditional: true });
         if (!state.present) throw failure('TEMPLATE_REPLACEMENT_UNAVAILABLE');
         const original = await replacementSnapshot(office, item);
-        const plan = managedTemplateReplacement(original.html, currentComposeBodyHtml(original.html, original.composeType), markedHtml);
-        if (plan.html.length > TEMPLATE_INSERT_LIMITS.bodyLength) throw failure('COMPOSE_BODY_TOO_LARGE');
+        const incoming = managedTemplateContract(markedHtml);
+        const nativePersonal = incoming.elements.some((node, index) => withinContract(incoming, index, incoming.signature.index)
+            && (Object.prototype.hasOwnProperty.call(node.attrs, 'data-rt-personal-flow') || (node.attrs.class || '').split(/\s+/).includes('rt-personal-columns')));
+        if (nativePersonal && incoming.kind !== 'text-v1') throw failure('TEMPLATE_REPLACEMENT_UNAVAILABLE');
+        const layout = nativePersonal ? prepareNativeLayoutRestore(markedHtml, incoming) : null;
+        const oldContract = managedTemplateContract(original.html, currentComposeBodyHtml(original.html, original.composeType));
+        const cleaned = removePreviousLayoutSheet(original.html, oldContract);
+        const plan = managedTemplateReplacement(cleaned, currentComposeBodyHtml(cleaned, original.composeType), layout?.html ?? markedHtml);
+        if (plan.html.length + (layout?.stylePayload.length ?? 0) > TEMPLATE_INSERT_LIMITS.bodyLength) throw failure('COMPOSE_BODY_TOO_LARGE');
+        operation.deferCompletion = Boolean(layout);
         await beforeWrite();
         await claimSession(office, item, operation);
         await beforeWrite();
@@ -607,7 +761,12 @@ export async function replaceManagedTemplate(office, item, html, beforeWrite = (
         options.beforeCommit?.();
         operation.phase = 'writing';
         await nativeTemplateWrite(office, item, plan.html, operation, true);
+        if (layout) await restoreNativeLayout(office, item, layout, operation, original, options);
     } catch (error) {
+        if (operation.bodyApplied && operation.phase !== 'applied') {
+            operation.phase = 'uncertain';
+            throw failure('TEMPLATE_LAYOUT_UNCONFIRMED', { phase: error?.phase || 'layout-verify', reason: error?.reason || 'unconfirmed' });
+        }
         if (['INLINE_ATTACHMENT_UNCERTAIN', 'SIGNATURE_INSERT_UNCERTAIN'].includes(error?.code)) operation.phase = 'uncertain';
         await releaseDefiniteSessionFailure(office, item, operation);
         throw error;

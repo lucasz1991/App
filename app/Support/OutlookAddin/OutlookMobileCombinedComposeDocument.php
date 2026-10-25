@@ -73,6 +73,7 @@ final class OutlookMobileCombinedComposeDocument
             || str_contains($joined, self::VERSION_MARKER)) {
             self::fail();
         }
+        $joined = OutlookCombinedComposeDocument::compactMobileEditableBounds($joined);
         $placeholder = self::VERSION_MARKER.str_repeat('0', 16);
         $metadata = '<!-- '.$placeholder.' --><span hidden aria-hidden="true" class="rt-office-metadata" '
             .'data-rt-mobile-compose-version="1" style="display:none!important;mso-hide:all;font-size:0;line-height:0;max-height:0;overflow:hidden;">'.$placeholder.'</span>';

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { managedTemplateReplacement } from '../../resources/js/outlook-addin/managed-template.js';
+import { managedTemplateContract, managedTemplateReplacement } from '../../resources/js/outlook-addin/managed-template.js';
 import { currentComposeBodyHtml, replaceManagedTemplate, isTemplateInsertionBlocked, TEMPLATE_INSERT_LIMITS } from '../../resources/js/outlook-addin/compose-template.js';
 
 const MARKER = 'RT-TEMPLATE-MANAGED-V1:COMBINED-DOCUMENT';
@@ -24,18 +24,48 @@ function replace(body, next = artifact({ greeting: true }), composeType = 'newMa
     return managedTemplateReplacement(body, currentComposeBodyHtml(body, composeType), next);
 }
 
-function stableArtifact({ content = '<p class="design-spacer"><br></p>', greeting = false } = {}) {
+const metadata = value => `<span class="rt-office-metadata" aria-hidden="true" style="display:none!important;mso-hide:all;font-size:0;line-height:0;">${value}</span>`;
+const START = 'RT-COMPOSE-EDITABLE-START-V1';
+const END = 'RT-COMPOSE-EDITABLE-END-V1';
+const nativeGroups = '<table class="rt-personal-columns" data-rt-personal-flow="v1" data-rt-personal-columns="v1" data-rt-desktop-flow="outlook-desktop-flow-v4"><tbody><tr><td>'
+    + '<table class="rt-personal-left"><tbody><tr><td><p>Personal name</p></td></tr></tbody></table>'
+    + '<table class="rt-personal-right"><tbody><tr><td><img src="cid:logo" width="180" height="31"></td></tr></tbody></table>'
+    + '<table class="rt-df-train"><tbody><tr><td><div class="rt-train-window"><img class="rt-delivery-train" src="cid:train" width="300" height="38"></div><!--[if mso]><img src="cid:still" width="220" height="28"><![endif]--></td></tr></tbody></table>'
+    + '</td></tr></tbody></table>';
+
+function stableArtifact({ content = '<p class="design-spacer"><br></p>', greeting = false, sentinels = false, native = false, footer = false } = {}) {
     return '<div class="rt-combined-compose-document rtc0123456789ab" data-rt-compose-document="combined-v1" style="display:block;width:100%;">'
         + '<table class="rt-combined-compose-frame rt-managed-combined-v1 rtc0123456789ab"><tbody><tr><td>'
         + '<style data-rt-combined-compose-css="1">table.rtc0123456789ab{width:100%}</style>'
         + '<div class="rt-outlook-template rtt0123456789ab"><table class="rt-native-compose-frame rt-managed-template-v1 rtt0123456789ab"><tbody><tr><td>'
-        + `<span class="rt-office-metadata">${MARKER}</span>` + (greeting ? '<p>Guten Tag,</p>' : '')
-        + '<table class="rt-compose-editable rt-compose-editable-v1" data-rt-compose-editable="v1"><tbody><tr><td style="padding:0;">' + content + '</td></tr></tbody></table>'
+        + metadata(MARKER) + (greeting ? '<p>Guten Tag,</p>' : '')
+        + '<table class="rt-compose-editable rt-compose-editable-v1" data-rt-compose-editable="v1"><tbody><tr><td style="padding:0;">' + (sentinels ? metadata(START) : '') + content + (sentinels ? metadata(END) : '') + '</td></tr></tbody></table>'
         + (greeting ? '<p>Mit freundlichen Grüßen,</p>' : '') + '</td></tr></tbody></table></div>'
         + '<div class="rt-outlook-signature rts0123456789"><table class="rt-combined-signature-frame rt-managed-signature-v1 rts0123456789"><tbody><tr><td>'
-        + '<span class="rt-office-metadata">RT-SIGNATURE-MANAGED-V1</span><span class="rt-office-metadata">RT-SIGNATURE-VERSION:0123456789abcdef</span>'
-        + '<p>Personal signature</p><img class="rt-delivery-train" src="cid:train" width="520" height="65"></td></tr></tbody></table></div>'
+        + (footer ? '' : metadata('RT-SIGNATURE-MANAGED-V1') + metadata('RT-SIGNATURE-VERSION:0123456789abcdef'))
+        + (native ? '<table><tbody><tr><td class="design-hotline-row"><strong>24/7</strong> erreichbar</td></tr></tbody></table>' + nativeGroups
+            : '<p>Personal signature</p><img class="rt-delivery-train" src="cid:train" width="520" height="65">')
+        + (footer ? '</td></tr><tr><td style="color:#718096;"><p><font color="#718096">Legal footer</font></p>' + metadata('RT-SIGNATURE-MANAGED-V1') + metadata('RT-SIGNATURE-VERSION:0123456789abcdef') : '')
+        + '</td></tr></tbody></table></div>'
         + '</td></tr></tbody></table></div>';
+}
+
+function afterOfficeSet(html) {
+    return html.replace(/<!--[\s\S]*?-->/g, '').replace(/\sdata-rt-[a-z-]+="[^"]*"/gi, '')
+        .replace(/\sclass="[^"]*"/gi, '')
+        .replace(/(<span\b[^>]*>)RT-SIGNATURE-MANAGED-V1<\/span><span\b[^>]*>RT-SIGNATURE-VERSION:([0-9a-f]{16})<\/span>/g,
+            '$1RT-SIGNATURE-MANAGED-V1RT-SIGNATURE-VERSION:$2</span>')
+        .replace(/\bid="(rt-native-layout-[^"]*)"/g, 'id="x_$1"');
+}
+
+function officeBoundaryDivs(html) {
+    return html.replace(/<span\b[^>]*>RT-COMPOSE-EDITABLE-(START|END)-V1<\/span>/g, (_whole, side) => side === 'START'
+        ? `<div style="line-height:26px;font-size:11pt;"><span style="font-size:0px;line-height:0;">${START}</span><span style="font-size:16px;">\n</span></div>`
+        : `<div style="line-height:26px;font-size:0px;"><span style="line-height:0;">${END}</span></div>`);
+}
+
+function officeRetainedCarrier(html) {
+    return html.replace(/\bid="(rt-native-layout-[^"]*)"/g, 'id="x_$1"').replace(/#rt-native-layout-/g, '#x_rt-native-layout-');
 }
 
 function afterOfficeTyping(html) {
@@ -316,4 +346,418 @@ test('an untouched, positively bounded R46 legacy default can migrate its paragr
     assert.equal(plan.legacy, true);
     assert.ok(plan.html.includes('<td style="padding:0;">' + TYPED + '</td>'));
     assert.ok(plan.html.includes('rt-managed-combined-v1'));
+});
+
+test('text ownership survives three classless exchanges, merged signature metadata and inline quotes', () => {
+    const content = TYPED + '<blockquote><p>My own quoted text</p></blockquote>';
+    const quote = '<blockquote>' + afterOfficeSet(stableArtifact({ sentinels: true })) + '</blockquote>';
+    let body = OUTSIDE + afterOfficeSet(stableArtifact({ content, sentinels: true })) + '<p>Outside after</p>' + quote;
+    for (const greeting of [true, false, true]) {
+        const result = replace(body, stableArtifact({ sentinels: true, greeting }));
+        body = afterOfficeSet(result.html);
+        const contract = managedTemplateContract(body);
+        assert.equal(contract.kind, 'text-v1');
+        assert.equal(body.slice(contract.region.start, contract.region.end), afterOfficeSet(content));
+        assert.ok(body.startsWith(OUTSIDE));
+        assert.ok(body.endsWith('<p>Outside after</p>' + quote));
+        assert.equal((body.slice(contract.root.start, contract.root.end).match(new RegExp(START, 'g')) || []).length, 1);
+        assert.equal((body.slice(contract.root.start, contract.root.end).match(new RegExp(END, 'g')) || []).length, 1);
+        assert.equal(body.includes('Guten Tag,'), greeting);
+    }
+});
+
+test('R51 table and proven R46 default migrate once while fresh sentinel boundaries remain intact', () => {
+    for (const old of [afterOfficeTyping(stableArtifact({ content: TYPED })), artifact({ legacy: true, content: TYPED })]) {
+        const result = replace(old, stableArtifact({ sentinels: true }));
+        const contract = managedTemplateContract(result.html);
+        assert.equal(result.html.slice(contract.region.start, contract.region.end), old.startsWith('<div') ? afterOfficeTyping(TYPED) : TYPED);
+        assert.equal((result.html.match(new RegExp(START, 'g')) || []).length, 1);
+        assert.equal((result.html.match(new RegExp(END, 'g')) || []).length, 1);
+    }
+});
+
+test('an exactly coalesced empty hidden boundary span migrates while text or other content makes it ambiguous', () => {
+    const blank = afterOfficeSet(stableArtifact({ sentinels: true, content: '' }));
+    const coalesced = blank.replace(`>${START}</span><span aria-hidden="true" style="display:none!important;mso-hide:all;font-size:0;line-height:0;">${END}`, `>${START}${END}`);
+    const result = replace(coalesced, stableArtifact({ sentinels: true, greeting: true }));
+    const contract = managedTemplateContract(result.html);
+    assert.equal(result.html.slice(contract.region.start, contract.region.end), '');
+    assert.throws(() => replace(coalesced.replace(START + END, START + 'own text' + END), stableArtifact({ sentinels: true })), { code: 'TEMPLATE_REPLACEMENT_UNAVAILABLE' });
+    assert.throws(() => replace(coalesced.replace(START + END, START + END + '</span><p>Foreign note</p><span>'), stableArtifact({ sentinels: true })), { code: 'TEMPLATE_REPLACEMENT_UNAVAILABLE' });
+});
+
+test('observed Office hidden metadata profiles survive initial rendering and setAsync font inheritance', () => {
+    const source = stableArtifact({ sentinels: true, content: TYPED });
+    for (const style of ['font-size:0; line-height:0; max-height:0; overflow:hidden', 'font-size: 0px; line-height: 0;']) {
+        const body = afterOfficeSet(source).replace(/ aria-hidden="true"/g, '').replace(/style="display:none!important;mso-hide:all;font-size:0;line-height:0;"/g, `style="${style}"`);
+        assert.equal(managedTemplateContract(body).kind, 'text-v1');
+        assert.ok(replace(body, source).html.includes(afterOfficeSet(TYPED)));
+        for (const visible of ['font-size:1px;line-height:0;', 'font-size:0;line-height:normal;', 'font-size:0;', 'line-height:0;']) {
+            assert.throws(() => managedTemplateContract(body.replace(`style="${style}">${START}`, `style="${visible}">${START}`)), { code: 'TEMPLATE_REPLACEMENT_UNAVAILABLE' });
+        }
+        const inherited = body.replace(`<span style="${style}">${MARKER}</span>`, `<div style="font-size:0px;"><span style="line-height:0;">${MARKER}</span></div>`);
+        assert.equal(managedTemplateContract(inherited).kind, 'text-v1');
+        assert.throws(() => managedTemplateContract(inherited.replace('style="font-size:0px;"', 'style="font-size:12px;"')), { code: 'TEMPLATE_REPLACEMENT_UNAVAILABLE' });
+        assert.throws(() => managedTemplateContract(inherited.replace('style="font-size:0px;"', 'style="font-size:0px;font-size:12px;"')), { code: 'TEMPLATE_REPLACEMENT_UNAVAILABLE' });
+        assert.throws(() => managedTemplateContract(inherited.replace('style="font-size:0px;"', 'style="font-size:12px!important;font-size:0px;"')), { code: 'TEMPLATE_REPLACEMENT_UNAVAILABLE' });
+        assert.throws(() => managedTemplateContract(inherited.replace(`style="line-height:0;">${MARKER}`, `style="font:12px Arial;line-height:0;">${MARKER}`)), { code: 'TEMPLATE_REPLACEMENT_UNAVAILABLE' });
+        assert.throws(() => managedTemplateContract(inherited.replace(`<span style="line-height:0;">${MARKER}</span>`, `<div style="font:12px Arial;"><span style="line-height:0;">${MARKER}</span></div>`)), { code: 'TEMPLATE_REPLACEMENT_UNAVAILABLE' });
+    }
+});
+
+test('separate observed metadata-only Office DIVs become balanced boundaries without accumulating empty shells', () => {
+    for (const content of ['', '<p><br></p>', TYPED + '<blockquote><p>My quoted text</p></blockquote>']) {
+        let body = officeBoundaryDivs(afterOfficeSet(stableArtifact({ sentinels: true, content })));
+        for (let attempt = 0; attempt < 3; attempt++) {
+            const old = managedTemplateContract(body);
+            assert.equal(body.slice(old.region.start, old.region.end), afterOfficeSet(content));
+            const plan = replace(body, stableArtifact({ sentinels: true, greeting: true }));
+            const next = managedTemplateContract(plan.html);
+            assert.equal(plan.html.slice(next.region.start, next.region.end), afterOfficeSet(content));
+            body = officeBoundaryDivs(afterOfficeSet(plan.html));
+        }
+        assert.equal((body.match(/font-size:16px/g) || []).length, 1, 'Office-only empty formatting does not accumulate in user content');
+    }
+});
+
+test('nonempty, malformed, cross-cell or unknown Office metadata wrappers fail without dropping any content', () => {
+    const body = officeBoundaryDivs(afterOfficeSet(stableArtifact({ sentinels: true, content: TYPED })));
+    const invalid = [
+        body.replace('font-size:16px;">\n</span>', 'font-size:16px;">User text</span>'),
+        body.replace('font-size:16px;">\n</span>', 'font-size:16px;"><img src="cid:own-photo"></span>'),
+        body.replace('font-size:16px;">\n</span>', 'font-size:16px;"><!--own note--></span>'),
+        body.replace(`>${START}</span>`, `>${START}</span><div></div>`),
+        body.replace('line-height:26px;font-size:11pt;">', 'line-height:26px;font-size:11pt;" id="own-wrapper">'),
+        body.replace(`<div style="line-height:26px;font-size:0px;">`, '</td><td><div style="line-height:26px;font-size:0px;">'),
+    ];
+    for (const value of invalid) assert.throws(() => replace(value, stableArtifact({ sentinels: true })), { code: 'TEMPLATE_REPLACEMENT_UNAVAILABLE' });
+});
+
+test('text ownership rejects damaged, visible, contradictory or ambiguous boundaries and metadata', () => {
+    const source = stableArtifact({ sentinels: true, content: TYPED });
+    const body = afterOfficeSet(source);
+    const invalid = [
+        body + body,
+        body.replace(START, 'RT-COMPOSE-EDITABLE-START-V2'),
+        body.replace(START, END),
+        body.replace(metadata(START).replace(/ class="[^"]*"/, ''), ''),
+        body.replace(END, START + END),
+        body.replace('RT-SIGNATURE-MANAGED-V1RT-SIGNATURE-VERSION', 'RT-SIGNATURE-MANAGED-V1foreignRT-SIGNATURE-VERSION'),
+        body.replace('0123456789abcdef', 'unknown'),
+        body.replace(MARKER, MARKER + '-FOREIGN'),
+        body.replace(`>${START}</span>`, `>${START}</span>${metadata(START)}`),
+        body.replace(`>${END}</span>`, `>${END}</span><p>Foreign note outside region</p>`),
+        body.replace(`style="display:none!important;mso-hide:all;font-size:0;line-height:0;">${START}`, `style="display:block;">${START}`).replace(`aria-hidden="true" style="display:block;">${START}`, `style="display:block;">${START}`),
+        source.replace('rt-managed-template-v1', 'rt-managed-template-v2'),
+        source.replace('rt-managed-template-v1', 'rt-managed-template-vUnknown'),
+        source.replace('data-rt-compose-document="combined-v1"', 'data-rt-compose-document="other"'),
+        source.replace('data-rt-compose-editable="v1"', 'data-rt-compose-editable="v2"'),
+        '<blockquote>' + body + '</blockquote>',
+        afterOfficeSet(stableArtifact({ content: TYPED })),
+    ];
+    invalid.forEach((value, index) => assert.throws(() => replace(value, stableArtifact({ sentinels: true })), { code: 'TEMPLATE_REPLACEMENT_UNAVAILABLE' }, 'invalid ' + index));
+    assert.throws(() => replace(body, stableArtifact()), { code: 'TEMPLATE_REPLACEMENT_UNAVAILABLE' }, 'cannot discard durable boundaries');
+});
+
+function nativeHost({ footer = false } = {}) {
+    const h = host({ body: OUTSIDE + afterOfficeTyping(stableArtifact({ sentinels: true, content: TYPED, native: true, footer })) + '<p>Outside after</p>' });
+    h.item.body.setAsync = (html, _options, callback) => {
+        h.state.writes.push(html);
+        h.state.body = afterOfficeSet(html);
+        callback(succeeded());
+    };
+    h.item.body.prependAsync = (html, _options, callback) => {
+        h.state.prepends.push(html);
+        h.state.body = officeRetainedCarrier(html) + h.state.body;
+        callback(succeeded());
+    };
+    h.run = (options = {}, check = () => {}) => replaceManagedTemplate(h.office, h.item, stableArtifact({ sentinels: true, native: true, greeting: true, footer }), check, options);
+    return h;
+}
+
+test('native replacement confirms unique retained IDs before STYLE-only restore and completes only afterward', async () => {
+    const h = nativeHost();
+    let styleCallback;
+    h.item.body.prependAsync = (html, _options, callback) => { h.state.prepends.push(html); styleCallback = callback; };
+    const result = h.run();
+    await flush(() => styleCallback);
+    assert.equal(h.state.writes.length, 1);
+    assert.equal(h.state.prepends.length, 1);
+    assert.match(h.state.prepends[0], /^<table\b/);
+    assert.match(h.state.prepends[0], /<style data-rt-native-layout-restore="v1">/);
+    assert.match(h.state.session, /^pending:/);
+    assert.equal(isTemplateInsertionBlocked(h.item), true);
+    h.state.body = officeRetainedCarrier(h.state.prepends[0]) + h.state.body;
+    styleCallback(succeeded());
+    await result;
+    assert.equal(h.state.session, '1');
+    assert.equal(isTemplateInsertionBlocked(h.item), false);
+    assert.ok(h.state.body.includes(afterOfficeSet(TYPED)));
+});
+
+test('incoming native shells without repeatable text boundaries fail before any body or session mutation', async () => {
+    const h = nativeHost();
+    await assert.rejects(replaceManagedTemplate(h.office, h.item, stableArtifact({ native: true })), { code: 'TEMPLATE_REPLACEMENT_UNAVAILABLE' });
+    assert.deepEqual(h.state.writes, []);
+    assert.deepEqual(h.state.prepends, []);
+    assert.deepEqual(h.state.claims, []);
+});
+
+test('native repeated exchanges preserve content and remove only the exact preceding owned layout sheet', async () => {
+    const h = nativeHost();
+    h.state.body += '<style>.unrelated{color:blue}</style>';
+    for (let count = 1; count <= 3; count++) {
+        await h.run();
+        assert.equal(h.state.writes.length, count);
+        assert.equal(h.state.prepends.length, count);
+        assert.equal((h.state.body.match(/data-rt-native-layout-restore=/g) || []).length, 1);
+        assert.equal((h.state.body.match(/My &amp;/g) || []).length, 1);
+        assert.ok(h.state.body.endsWith('<p>Outside after</p><style>.unrelated{color:blue}</style>'));
+        assert.equal(isTemplateInsertionBlocked(h.item), false);
+    }
+});
+
+test('a confirmed prepend callback without retained trusted CSS never completes the layout operation', async () => {
+    const h = nativeHost();
+    h.item.body.prependAsync = (html, _options, callback) => { h.state.prepends.push(html); callback(succeeded()); };
+    await assert.rejects(h.run(), { code: 'TEMPLATE_LAYOUT_UNCONFIRMED' });
+    assert.equal(h.state.writes.length, 1);
+    assert.equal(h.state.prepends.length, 1);
+    assert.match(h.state.session, /^pending:/);
+    assert.equal(isTemplateInsertionBlocked(h.item), true);
+    assert.ok(h.state.body.includes(afterOfficeSet(TYPED)));
+    await assert.rejects(h.run(), { code: 'TEMPLATE_INSERT_UNCERTAIN' });
+});
+
+test('a retained carrier with an emptied STYLE remains layout-unconfirmed after the successful callback', async () => {
+    const h = nativeHost({ footer: true });
+    h.item.body.prependAsync = (html, _options, callback) => {
+        h.state.prepends.push(html);
+        h.state.body = html.replace(/(<style\b[^>]*>)[\s\S]*?(<\/style>)/, '$1\n $2') + h.state.body;
+        callback(succeeded());
+    };
+    await assert.rejects(h.run(), { code: 'TEMPLATE_LAYOUT_UNCONFIRMED' });
+    assert.equal(h.state.writes.length, 1);
+    assert.equal(h.state.prepends.length, 1);
+    assert.match(h.state.body, /<style\b[^>]*>\s*<\/style>/);
+    assert.match(h.state.session, /^pending:/);
+    assert.equal(isTemplateInsertionBlocked(h.item), true);
+});
+
+test('unprefixed CSS cannot confirm a layout whose actual target IDs have the Office prefix', async () => {
+    const h = nativeHost({ footer: true });
+    h.item.body.prependAsync = (html, _options, callback) => {
+        h.state.prepends.push(html); h.state.body = html + h.state.body; callback(succeeded());
+    };
+    await assert.rejects(h.run(), { code: 'TEMPLATE_LAYOUT_UNCONFIRMED' });
+    assert.match(h.state.session, /^pending:/);
+    assert.equal(h.state.writes.length, 1);
+    assert.equal(h.state.prepends.length, 1);
+});
+
+test('exact Office ID-prefix and final-semicolon serialization permit three confirmed exchanges', async () => {
+    const h = nativeHost({ footer: true });
+    h.item.body.prependAsync = (html, _options, callback) => {
+        h.state.prepends.push(html);
+        const retained = officeRetainedCarrier(html).replace(/;}/g, '}');
+        h.state.body = retained + h.state.body;
+        callback(succeeded());
+    };
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        await h.run();
+        assert.equal(h.state.writes.length, attempt);
+        assert.equal(h.state.prepends.length, attempt);
+        assert.equal((h.state.body.match(/RT-NATIVE-LAYOUT-RESTORE-V1:/g) || []).length, 1);
+        assert.equal((h.state.body.match(/My &amp;/g) || []).length, 1);
+        assert.equal(h.state.session, '1');
+    }
+});
+
+test('the observed Office prepend position in the unique Combined TD before Template preserves three exchanges', async () => {
+    const h = nativeHost({ footer: true });
+    h.item.body.prependAsync = (html, _options, callback) => {
+        h.state.prepends.push(html);
+        const retained = officeRetainedCarrier(html).replace(/;}/g, '}');
+        const contract = managedTemplateContract(h.state.body);
+        const tbody = contract.elements.findIndex(node => node.parent === contract.rootIndex && node.tag === 'tbody');
+        const row = contract.elements.findIndex(node => node.parent === tbody && node.tag === 'tr');
+        const cell = contract.elements.find(node => node.parent === row && node.tag === 'td');
+        h.state.body = h.state.body.slice(0, cell.openEnd) + retained + h.state.body.slice(cell.openEnd);
+        callback(succeeded());
+    };
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        await h.run();
+        assert.equal(h.state.writes.length, attempt);
+        assert.equal(h.state.prepends.length, attempt);
+        assert.equal((h.state.body.match(/RT-NATIVE-LAYOUT-RESTORE-V1:/g) || []).length, 1);
+        assert.equal((h.state.body.match(/My &amp;/g) || []).length, 1);
+        assert.equal(h.state.session, '1');
+    }
+});
+
+test('a carrier moved into the editable user region is never accepted as a trusted layout write', async () => {
+    const h = nativeHost({ footer: true });
+    h.item.body.prependAsync = (html, _options, callback) => {
+        h.state.prepends.push(html);
+        const contract = managedTemplateContract(h.state.body);
+        h.state.body = h.state.body.slice(0, contract.region.start) + officeRetainedCarrier(html) + h.state.body.slice(contract.region.start);
+        callback(succeeded());
+    };
+    await assert.rejects(h.run(), { code: 'TEMPLATE_LAYOUT_UNCONFIRMED' });
+    assert.match(h.state.session, /^pending:/);
+    assert.equal(h.state.writes.length, 1);
+    assert.equal(h.state.prepends.length, 1);
+});
+
+test('a changed layout rule remains unconfirmed even when the carrier and all IDs survive', async () => {
+    const h = nativeHost({ footer: true });
+    h.item.body.prependAsync = (html, _options, callback) => {
+        h.state.prepends.push(html);
+        const changed = html.replace(/(<style\b[^>]*>)([\s\S]*?)(<\/style>)/, (_all, open, css, close) => open + css.replace('{overflow:hidden!important;}', '{overflow:visible!important;}') + close);
+        h.state.body = officeRetainedCarrier(changed) + h.state.body; callback(succeeded());
+    };
+    await assert.rejects(h.run(), { code: 'TEMPLATE_LAYOUT_UNCONFIRMED' });
+    assert.match(h.state.session, /^pending:/);
+    assert.equal(h.state.writes.length, 1);
+    assert.equal(h.state.prepends.length, 1);
+});
+
+test('a foreign session after the confirmed style write prevents the final applied marker', async () => {
+    const h = nativeHost();
+    h.item.body.prependAsync = (html, _options, callback) => {
+        h.state.prepends.push(html); h.state.body = html + h.state.body; h.state.session = 'pending:foreign-after-style'; callback(succeeded());
+    };
+    await assert.rejects(h.run(), { code: 'TEMPLATE_LAYOUT_UNCONFIRMED' });
+    assert.equal(h.state.session, 'pending:foreign-after-style');
+    assert.equal(h.state.writes.length, 1);
+    assert.equal(h.state.prepends.length, 1);
+    assert.equal(isTemplateInsertionBlocked(h.item), true);
+});
+
+test('the optional signature TABLE ID scopes gray recovery to exactly the second legal row', async () => {
+    const h = nativeHost({ footer: true });
+    await h.run();
+    assert.equal((h.state.writes[0].match(/id="rt-native-layout-[0-9a-f]{32}-s"/g) || []).length, 1);
+    assert.match(h.state.prepends[0], /#rt-native-layout-[0-9a-f]{32}-s>tbody>tr:last-child font/);
+    assert.doesNotMatch(h.state.prepends[0], /-s>tbody>tr:first-child[^{}]*\{color:#718096/);
+    assert.equal(h.state.session, '1');
+});
+
+test('moved legal metadata, additional rows or a footer HEADER ID block any gray recovery before prepend', async () => {
+    for (const corrupt of [
+        value => {
+            const c = managedTemplateContract(value);
+            const body = c.elements.find(n => n.parent === c.signature.index && n.tag === 'tbody');
+            return value.slice(0, body.close) + '<tr><td></td></tr>' + value.slice(body.close);
+        },
+        value => {
+            const c = managedTemplateContract(value);
+            const span = c.elements[c.signatureMetadata.managed];
+            const bodyIndex = c.elements.findIndex(n => n.parent === c.signature.index && n.tag === 'tbody');
+            const rowIndex = c.elements.findIndex(n => n.parent === bodyIndex && n.tag === 'tr');
+            const cell = c.elements.find(n => n.parent === rowIndex && n.tag === 'td');
+            return value.slice(0, cell.close) + value.slice(span.start, span.end) + value.slice(cell.close, span.start) + value.slice(span.end);
+        },
+        value => {
+            const header = / id="(x_rt-native-layout-[^"]*-h)"/.exec(value);
+            const without = value.replace(header[0], '');
+            const c = managedTemplateContract(without);
+            const metadata = c.elements[c.signatureMetadata.managed];
+            return without.slice(0, metadata.start) + `<table id="${header[1]}"><tbody><tr><td></td></tr></tbody></table>` + without.slice(metadata.start);
+        },
+    ]) {
+        const h = nativeHost({ footer: true });
+        h.item.body.setAsync = (html, _options, callback) => { h.state.writes.push(html); h.state.body = corrupt(afterOfficeSet(html)); callback(succeeded()); };
+        await assert.rejects(h.run(), { code: 'TEMPLATE_LAYOUT_UNCONFIRMED' });
+        assert.equal(h.state.prepends.length, 0);
+        assert.match(h.state.session, /^pending:/);
+    }
+});
+
+test('the native post-set readback accepts only balanced observed boundary DIVs before restoring layout', async () => {
+    const h = nativeHost();
+    h.item.body.setAsync = (html, _options, callback) => {
+        h.state.writes.push(html); h.state.body = officeBoundaryDivs(afterOfficeSet(html)); callback(succeeded());
+    };
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        await h.run();
+        assert.equal(h.state.writes.length, attempt);
+        assert.equal(h.state.prepends.length, attempt);
+        assert.equal((h.state.body.match(/My &amp;/g) || []).length, 1);
+        assert.equal(h.state.session, '1');
+        assert.equal(isTemplateInsertionBlocked(h.item), false);
+    }
+});
+
+test('missing, duplicate, foreign-prefixed or quoted native IDs prevent the layout write without repeating the body', async () => {
+    for (const corrupt of [
+        value => value.replace(/ id="x_rt-native-layout-[^"]*-p"/, ''),
+        value => value.replace(/(<table\b[^>]*id="(x_rt-native-layout-[^"]*-p)"[^>]*>)/, '$1<table id="$2"><tbody><tr><td></td></tr></tbody></table>'),
+        value => value.replace(/id="x_rt-native-layout-/, 'id="foreign_rt-native-layout-'),
+        value => {
+            const header = / id="(x_rt-native-layout-[^"]*-h)"/.exec(value);
+            const without = value.replace(header[0], '');
+            const signature = managedTemplateContract(without).signature.node;
+            return without.slice(0, signature.openEnd - 1) + ` id="${header[1]}">` + without.slice(signature.openEnd);
+        },
+        value => value + '<blockquote><table id="' + /id="(x_rt-native-layout-[^"]*-p)"/.exec(value)[1] + '"><tbody><tr><td></td></tr></tbody></table></blockquote>',
+    ]) {
+        const h = nativeHost();
+        h.item.body.setAsync = (html, _options, callback) => { h.state.writes.push(html); h.state.body = corrupt(afterOfficeSet(html)); callback(succeeded()); };
+        await assert.rejects(h.run(), { code: 'TEMPLATE_LAYOUT_UNCONFIRMED' });
+        assert.equal(h.state.writes.length, 1);
+        assert.equal(h.state.prepends.length, 0);
+        assert.match(h.state.session, /^pending:/);
+        await assert.rejects(h.run(), { code: 'TEMPLATE_INSERT_UNCERTAIN' });
+    }
+});
+
+test('foreign session or item change after body success prevents STYLE and keeps the preserved body quarantined', async () => {
+    for (const itemChange of [false, true]) {
+        const h = nativeHost();
+        let guard = false;
+        h.item.body.setAsync = (html, _options, callback) => {
+            h.state.writes.push(html); h.state.body = afterOfficeSet(html);
+            if (itemChange) guard = true; else h.state.session = 'pending:foreign';
+            callback(succeeded());
+        };
+        await assert.rejects(h.run({}, () => { if (guard) throw new Error('item changed'); }), { code: 'TEMPLATE_LAYOUT_UNCONFIRMED' });
+        assert.equal(h.state.prepends.length, 0);
+        assert.ok(h.state.body.includes(afterOfficeSet(TYPED)));
+        assert.equal(isTemplateInsertionBlocked(h.item), true);
+    }
+});
+
+test('uncertain first native body write never authorizes a late layout write or automatic retry', async t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const h = nativeHost();
+    let callback;
+    h.item.body.setAsync = (html, _options, complete) => { h.state.writes.push(html); callback = complete; };
+    const pending = h.run().then(() => null, error => error);
+    await flush(() => callback);
+    t.mock.timers.tick(TEMPLATE_INSERT_LIMITS.writeTimeoutMs);
+    assert.equal((await pending).code, 'TEMPLATE_INSERT_UNCERTAIN');
+    callback(succeeded()); await flush();
+    assert.equal(h.state.prepends.length, 0);
+    assert.match(h.state.session, /^pending:/);
+    assert.equal(isTemplateInsertionBlocked(h.item), true);
+});
+
+test('uncertain or failed STYLE confirmation never rewrites the body, retries STYLE or completes the session', async t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    for (const definite of [false, true]) {
+        const h = nativeHost();
+        let callback;
+        h.item.body.prependAsync = (html, _options, complete) => { h.state.prepends.push(html); callback = complete; };
+        const pending = h.run().then(() => null, error => error);
+        await flush(() => callback);
+        if (definite) callback({ status: 'failed', error: { code: 'WRITE_FAILED' } });
+        else t.mock.timers.tick(TEMPLATE_INSERT_LIMITS.writeTimeoutMs);
+        assert.equal((await pending).code, 'TEMPLATE_LAYOUT_UNCONFIRMED');
+        callback(succeeded()); await flush();
+        assert.equal(h.state.writes.length, 1);
+        assert.equal(h.state.prepends.length, 1);
+        assert.match(h.state.session, /^pending:/);
+        await assert.rejects(h.run(), { code: 'TEMPLATE_INSERT_UNCERTAIN' });
+    }
 });

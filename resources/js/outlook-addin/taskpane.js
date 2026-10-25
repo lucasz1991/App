@@ -1119,6 +1119,9 @@ function userMessage(error) {
     if (code === 'COMPOSE_BODY_CHANGED') {
         return 'Die Nachricht wurde während der Vorbereitung geändert. Bitte den Vorlagenwechsel nach Ihrer Bearbeitung erneut starten.';
     }
+    if (code === 'TEMPLATE_LAYOUT_UNCONFIRMED') {
+        return 'Die Vorlage wurde mit Ihrem Nachrichtentext ersetzt. Outlook konnte die Darstellung jedoch nicht sicher bestätigen. Bitte den Entwurf prüfen; der Austausch wird nicht automatisch wiederholt.';
+    }
 
     if (/MAILBOX|SENDER/.test(code) || code === 'HTTP_403') {
         return 'Der aktuelle Absender ist nicht als Ihr RailTime-Microsoft-Postfach bestätigt. In private oder andere Postfächer wird nichts eingefügt. Bitte das verknüpfte Firmenpostfach wählen und die Verbindung erneut prüfen.';

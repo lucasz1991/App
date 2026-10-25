@@ -53,6 +53,13 @@ final class OutlookMobileCombinedComposeDocumentTest extends TestCase
         preg_match_all('~<style\b[^>]*>(.*?)</style>~s', $html, $styles);
         $this->assertLessThan(12288, array_sum(array_map('strlen', $styles[1])));
         $xpath = $this->xpath($html);
+        foreach ([OutlookCombinedComposeDocument::EDITABLE_START, OutlookCombinedComposeDocument::EDITABLE_END] as $token) {
+            $boundary = $xpath->query('//span[text()="'.$token.'"]');
+            self::assertSame(1, $boundary->length);
+            self::assertTrue($boundary->item(0)->hasAttribute('hidden'));
+            self::assertSame('display:none;mso-hide:all;font-size:0;line-height:0', $boundary->item(0)->getAttribute('style'));
+            self::assertStringContainsString('class="rt-office-metadata" style="display:none!important;mso-hide:all;font-size:0;line-height:0;max-height:0;overflow:hidden;">'.$token, $before['templates'][0]['combinedComposeHtml']);
+        }
         $metadata = $xpath->query('//span[@data-rt-mobile-compose-version="1"]');
         $this->assertSame(1, $metadata->length);
         $this->assertTrue($metadata->item(0)->hasAttribute('hidden'));
