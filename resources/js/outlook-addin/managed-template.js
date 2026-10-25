@@ -151,6 +151,42 @@ function commonTable(elements, left, right) {
     unavailable();
 }
 
+function metadataHidden(node, elements) {
+    // Observed Office profiles retain font-size:0 and line-height:0, while
+    // setAsync also removes max-height/overflow from the hidden metadata spans.
+    const values = Object.create(null);
+    for (const declaration of (node.attrs.style || '').split(';')) {
+        const colon = declaration.indexOf(':');
+        if (colon <= 0) continue;
+        const name = declaration.slice(0, colon).trim().toLowerCase();
+        const value = declaration.slice(colon + 1).trim().replace(/\s*!important\s*$/i, '').toLowerCase();
+        if (name === 'font' || name === 'all') return false;
+        if (['font-size', 'line-height'].includes(name) && !/^0(?:px|pt)?$/.test(value)) return false;
+        values[name] = value;
+    }
+    if (owns(node.attrs, 'hidden') || node.attrs['aria-hidden'] === 'true'
+        || /(?:^|;)\s*display\s*:\s*none(?:\s*!important)?\s*(?:;|$)/i.test(node.attrs.style || '')) return true;
+    // Office moved the template marker's zero font onto its immediate DIV.
+    // Resolve only the nearest explicit inherited value, bounded by this TD.
+    for (let current = node.parent; current !== undefined; current = elements[current].parent) {
+        const parent = elements[current];
+        const inherited = Object.create(null);
+        for (const declaration of (parent.attrs.style || '').split(';')) {
+            const colon = declaration.indexOf(':');
+            if (colon <= 0) continue;
+            const name = declaration.slice(0, colon).trim().toLowerCase();
+            if ((name === 'font' || name === 'all') && (!owns(values, 'font-size') || !owns(values, 'line-height'))) return false;
+            if (!['font-size', 'line-height'].includes(name)) continue;
+            const value = declaration.slice(colon + 1).trim().replace(/\s*!important\s*$/i, '').toLowerCase();
+            if (!owns(values, name) && !/^0(?:px|pt)?$/.test(value)) return false;
+            inherited[name] = value;
+        }
+        for (const name of Object.keys(inherited)) if (!owns(values, name)) values[name] = inherited[name];
+        if (parent.tag === 'td' || ['font-size', 'line-height'].every(name => owns(values, name))) break;
+    }
+    return ['font-size', 'line-height'].every(name => /^0(?:px|pt)?$/.test(values[name] || ''));
+}
+
 function sentinelContract(html, currentLength, tree, spans) {
     const { elements } = tree;
     const boundaries = spans.filter(value => value.value.startsWith('RT-COMPOSE-EDITABLE-'));
@@ -161,9 +197,7 @@ function sentinelContract(html, currentLength, tree, spans) {
     const start = mergedEmpty ? boundaries[0] : exactlyOne(boundaries.filter(value => value.value === EDITABLE_START));
     const end = mergedEmpty ? boundaries[0] : exactlyOne(boundaries.filter(value => value.value === EDITABLE_END));
     if (start.node.parent !== end.node.parent || elements[start.node.parent]?.tag !== 'td' || (!mergedEmpty && start.node.end > end.node.start)) unavailable();
-    const hidden = node => owns(node.attrs, 'hidden') || node.attrs['aria-hidden'] === 'true'
-        || /(?:^|;)\s*display\s*:\s*none(?:\s*!important)?\s*(?:;|$)/i.test(node.attrs.style || '');
-    if (!hidden(start.node) || !hidden(end.node)) unavailable();
+    if (!metadataHidden(start.node, elements) || !metadataHidden(end.node, elements)) unavailable();
     const cellIndex = start.node.parent;
     const editableIndex = tableAncestor(elements, cellIndex);
     if (singleTableCell(elements, editableIndex).index !== cellIndex) unavailable();
@@ -179,7 +213,7 @@ function sentinelContract(html, currentLength, tree, spans) {
     const version = merged ? signatureMarker : exactlyOne(separateVersions);
     if (templateMarker.value !== MARKER || (merged ? separateVersions.length !== 0 : signatureMarker.value !== 'RT-SIGNATURE-MANAGED-V1')
         || (!merged && !/^RT-SIGNATURE-VERSION:[0-9a-f]{16}$/i.test(version.value))
-        || !hidden(templateMarker.node) || !hidden(signatureMarker.node) || !hidden(version.node)
+        || !metadataHidden(templateMarker.node, elements) || !metadataHidden(signatureMarker.node, elements) || !metadataHidden(version.node, elements)
         || templateMarker.node.end > elements[editableIndex].start
         || within(elements, templateMarker.index, editableIndex)) unavailable();
     const templateIndex = commonTable(elements, templateMarker.index, editableIndex);

@@ -374,6 +374,25 @@ test('an exactly coalesced empty hidden boundary span migrates while text or oth
     assert.throws(() => replace(coalesced.replace(START + END, START + END + '</span><p>Foreign note</p><span>'), stableArtifact({ sentinels: true })), { code: 'TEMPLATE_REPLACEMENT_UNAVAILABLE' });
 });
 
+test('observed Office hidden metadata profiles survive initial rendering and setAsync font inheritance', () => {
+    const source = stableArtifact({ sentinels: true, content: TYPED });
+    for (const style of ['font-size:0; line-height:0; max-height:0; overflow:hidden', 'font-size: 0px; line-height: 0;']) {
+        const body = afterOfficeSet(source).replace(/ aria-hidden="true"/g, '').replace(/style="display:none!important;mso-hide:all;font-size:0;line-height:0;"/g, `style="${style}"`);
+        assert.equal(managedTemplateContract(body).kind, 'text-v1');
+        assert.ok(replace(body, source).html.includes(afterOfficeSet(TYPED)));
+        for (const visible of ['font-size:1px;line-height:0;', 'font-size:0;line-height:normal;', 'font-size:0;', 'line-height:0;']) {
+            assert.throws(() => managedTemplateContract(body.replace(`style="${style}">${START}`, `style="${visible}">${START}`)), { code: 'TEMPLATE_REPLACEMENT_UNAVAILABLE' });
+        }
+        const inherited = body.replace(`<span style="${style}">${MARKER}</span>`, `<div style="font-size:0px;"><span style="line-height:0;">${MARKER}</span></div>`);
+        assert.equal(managedTemplateContract(inherited).kind, 'text-v1');
+        assert.throws(() => managedTemplateContract(inherited.replace('style="font-size:0px;"', 'style="font-size:12px;"')), { code: 'TEMPLATE_REPLACEMENT_UNAVAILABLE' });
+        assert.throws(() => managedTemplateContract(inherited.replace('style="font-size:0px;"', 'style="font-size:0px;font-size:12px;"')), { code: 'TEMPLATE_REPLACEMENT_UNAVAILABLE' });
+        assert.throws(() => managedTemplateContract(inherited.replace('style="font-size:0px;"', 'style="font-size:12px!important;font-size:0px;"')), { code: 'TEMPLATE_REPLACEMENT_UNAVAILABLE' });
+        assert.throws(() => managedTemplateContract(inherited.replace(`style="line-height:0;">${MARKER}`, `style="font:12px Arial;line-height:0;">${MARKER}`)), { code: 'TEMPLATE_REPLACEMENT_UNAVAILABLE' });
+        assert.throws(() => managedTemplateContract(inherited.replace(`<span style="line-height:0;">${MARKER}</span>`, `<div style="font:12px Arial;"><span style="line-height:0;">${MARKER}</span></div>`)), { code: 'TEMPLATE_REPLACEMENT_UNAVAILABLE' });
+    }
+});
+
 test('text ownership rejects damaged, visible, contradictory or ambiguous boundaries and metadata', () => {
     const source = stableArtifact({ sentinels: true, content: TYPED });
     const body = afterOfficeSet(source);
