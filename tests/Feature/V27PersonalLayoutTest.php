@@ -274,6 +274,9 @@ final class V27PersonalLayoutTest extends TestCase
         self::assertSame($html, SignaturePersonalColumns::project($html));
         $css = SignaturePersonalColumns::css($html);
         $xpath = $this->xpath($html);
+        self::assertStringContainsString('width:100%;max-width:720px;', $this->one($xpath, 'rt-personal-columns')->getAttribute('style'));
+        self::assertMatchesRegularExpression('~\.rt-personal-columns\{(?=[^}]*width:100%!important;)(?=[^}]*max-width:720px!important;)(?=[^}]*text-align:left!important;)[^}]*\}~', $css);
+        self::assertMatchesRegularExpression('~\.rt-personal-company-block\{float:none!important;margin:0!important;\}~', $css);
         foreach (['left', 'right'] as $side) {
             self::assertStringContainsString('padding:0 40px;', $this->one($xpath, 'rt-personal-cell-'.$side)->getAttribute('style'));
             self::assertMatchesRegularExpression('~\.rt-personal-cell-'.$side.'\{padding:0 40px!important;[^}]*\}~', $css);
@@ -327,8 +330,14 @@ final class V27PersonalLayoutTest extends TestCase
             $this->assertPersonalGroups($noInline);
             $this->assertBudget($noInline, 30000, 12288);
             self::assertStringContainsString(OutlookDesktopFlow::projected($html) ? 'padding-right:24px!important' : 'padding-right:18px!important', $html);
+            $xpath = $this->xpath($noInline);
+            $company = $this->one($xpath, 'rt-personal-company-block');
+            $container = $this->one($xpath, 'rt-personal-columns');
+            self::assertSame('0', $this->winningExplicitRule($xpath, $company, 'margin'));
+            self::assertSame('none', $this->winningExplicitRule($xpath, $company, 'float'));
+            self::assertSame('100%', $this->winningExplicitRule($xpath, $container, 'width'));
+            self::assertSame('720px', $this->winningExplicitRule($xpath, $container, 'max-width'));
             if (! OutlookDesktopFlow::projected($html)) {
-                $xpath = $this->xpath($noInline);
                 $name = $xpath->query('//*[contains(concat(" ",normalize-space(@class)," ")," rt-sign-name ") or contains(concat(" ",normalize-space(@class)," ")," xf ")]')->item(0);
                 $role = $xpath->query('//*[contains(concat(" ",normalize-space(@class)," ")," rt-person-kopf ") or contains(concat(" ",normalize-space(@class)," ")," xi ")]/p[2]')->item(0);
                 self::assertInstanceOf(DOMElement::class, $name);
@@ -400,6 +409,7 @@ final class V27PersonalLayoutTest extends TestCase
         self::assertSame('200', $logoFrame->getAttribute('width'));
         self::assertSame('presentation', $logoFrame->getAttribute('role'));
         self::assertSame(1, $xpath->query('.//*[contains(concat(" ",normalize-space(@class)," ")," rt-personal-logo-frame ")]', $right)->length);
+        self::assertSame('left', $this->one($xpath, 'rt-personal-company-block')->getAttribute('align'));
         self::assertSame(1, $xpath->query('//td[contains(concat(" ",normalize-space(@class)," ")," design-hotline-row ") and contains(concat(" ",normalize-space(@class)," ")," design-hotline-spaced ")]')->length);
         self::assertStringNotContainsString('data-rt-train-bottom-overlay=', $html);
     }
