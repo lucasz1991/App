@@ -8,7 +8,7 @@ import vm from 'node:vm';
 const source = (await readFile(new URL('../../resources/js/outlook-addin/runtime.js', import.meta.url), 'utf8'))
     .replace(/^import\s+[\s\S]*?\s+from\s+['"][^'"]+['"];\s*$/gm, '');
 
-function runtime({ enabled = false, composeType = 'newMail', mobile = false, bindingError = false } = {}) {
+function runtime({ enabled = false, composeType = 'newMail', mobile = false, bindingError = false, legacy = false } = {}) {
     const calls = { binding: 0, preflight: 0, notifications: 0, completed: 0, bootstrap: 0 };
     const events = [];
     const item = {
@@ -23,7 +23,10 @@ function runtime({ enabled = false, composeType = 'newMail', mobile = false, bin
             onReady() {}, actions: { associate() {} },
         },
         console, setTimeout, clearTimeout,
-        __payload: { automaticInsertionEnabled: enabled, binding: { schema: 1 } },
+        __payload: { automaticInsertionEnabled: enabled, binding: {
+            schema: 1, mailboxAddress: 'sender@company.test', senderAddress: 'sender@company.test',
+            allowedSenderAddresses: ['sender@company.test'],
+        } },
         __calls: calls,
         isMobileComposeHost: () => mobile,
         diagnoseStep: (_phase, operation) => operation(),
@@ -32,10 +35,18 @@ function runtime({ enabled = false, composeType = 'newMail', mobile = false, bin
             calls.binding += 1;
             if (bindingError) throw Object.assign(new Error('Synthetic mismatch'), { code: 'SENDER_MISMATCH' });
         },
-        isTemplateInsertionBlocked: () => { calls.preflight += 1; return true; },
+        isTemplateInsertionBlocked: () => { calls.preflight += 1; return !legacy; },
+        hasUncertainWrite: () => false,
+        readTemplateState: async () => ({ readable: true, present: false }),
+        hasMobileTemplateOwnership: async () => false,
+        supportsTemplatePrepend: () => true,
+        automaticTemplate: () => null,
+        wasSignatureWriteConfirmed: () => false,
     });
-    vm.runInContext(`${source}
-        loadConfig = async () => ({});
+    const runtimeSource = legacy ? source.replace(/    \/\/ This fresh,[\s\S]*?return 'disabled';\r?\n    }\r?\n/, '') : source;
+    if (legacy) assert.notEqual(runtimeSource, source, 'simulate the previous cached runtime without the new policy gate');
+    vm.runInContext(`${runtimeSource}
+        loadConfig = async () => ({ marker: 'RT-SIGNATURE-MANAGED-V1' });
         acquireTokenSilently = async () => 'synthetic-not-a-token';
         loadBootstrap = async () => { __calls.bootstrap += 1; return __payload; };
         globalThis.applyForTest = applyPublishedContent;
@@ -89,3 +100,13 @@ test('a disabled event does not freeze the account decision in the item cache', 
     assert.equal(calls.bootstrap, 2, 'each activation checks the current authenticated account policy');
     assert.equal(calls.preflight, 0);
 });
+
+for (const mobile of [false, true]) {
+    test(`a previous cached ${mobile ? 'mobile' : 'desktop'} runtime cannot insert from the minimal disabled event response`, async () => {
+        const { context, item, calls } = runtime({ mobile, legacy: true });
+        await assert.rejects(context.applyForTest(item), { code: 'SIGNATURE_MISSING' });
+        assert.equal(calls.binding, 2);
+        assert.equal(calls.preflight, 1);
+        assert.equal(calls.notifications, 0);
+    });
+}

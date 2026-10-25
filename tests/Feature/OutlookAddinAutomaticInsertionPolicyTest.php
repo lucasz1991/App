@@ -204,6 +204,8 @@ final class OutlookAddinAutomaticInsertionPolicyTest extends TestCase
         $expected = $old;
         $expected['automaticInsertionEnabled'] = false;
         self::assertSame($expected, $second->json(), 'Manual signature/template contents and binding remain available unchanged.');
+        $this->getJson('/api/outlook-addin/bootstrap', $headers + ['X-RailTime-Outlook-Context' => 'taskpane'])
+            ->assertOk()->assertExactJson($expected);
         self::assertNotSame($etag, $second->headers->get('ETag'));
         self::assertSame($snapshotBytes, Storage::disk('private')->get($snapshotPath));
         self::assertArrayNotHasKey('automaticInsertionEnabled', app(OutlookAddinUserSnapshotStore::class)->currentForUser(User::findOrFail(5)));
@@ -211,6 +213,36 @@ final class OutlookAddinAutomaticInsertionPolicyTest extends TestCase
         $this->getJson('/api/outlook-addin/bootstrap', $this->headers(EmployeeIdentityAccount::findOrFail(2)))->assertOk()->assertJsonPath('automaticInsertionEnabled', true);
         $this->getJson('/api/outlook-addin/bootstrap', array_replace($headers, ['X-RailTime-Outlook-Mailbox' => 'other@company.test']))
             ->assertForbidden()->assertJsonMissingPath('automaticInsertionEnabled');
+    }
+
+    public function test_disabled_automatic_event_returns_no_insertable_artifacts_and_never_reads_a_snapshot(): void
+    {
+        $this->withoutMiddleware();
+        $this->change(false);
+        $headers = $this->headers(EmployeeIdentityAccount::findOrFail(1)) + ['X-RailTime-Outlook-Context' => 'event'];
+        $before = $this->employeeRows();
+        $storage = Storage::getFacadeRoot();
+        Storage::shouldReceive('disk')->never();
+        try {
+            $response = $this->getJson('/api/outlook-addin/bootstrap', $headers)->assertOk()->assertExactJson([
+                'schema' => 1,
+                'marker' => 'RT-SIGNATURE-MANAGED-V1',
+                'automaticInsertionEnabled' => false,
+                'binding' => ['schema' => 1, 'mailboxAddress' => self::MAILBOX, 'senderAddress' => self::MAILBOX, 'allowedSenderAddresses' => [self::MAILBOX]],
+            ])->assertHeader('Cache-Control', 'max-age=0, no-store, private');
+            self::assertStringContainsString('X-RailTime-Outlook-Context', $response->headers->get('Vary'));
+            $etag = $response->headers->get('ETag');
+            self::assertNotEmpty($etag);
+            $this->getJson('/api/outlook-addin/bootstrap', $headers + ['If-None-Match' => $etag])->assertNoContent(304);
+            $this->getJson('/api/outlook-addin/bootstrap', array_replace($headers, ['X-RailTime-Outlook-Mailbox' => 'other@company.test']))
+                ->assertForbidden()->assertJsonMissingPath('automaticInsertionEnabled');
+            $this->getJson('/api/outlook-addin/bootstrap', array_replace($headers, ['X-RailTime-Compose-Contract' => 'invalid']))
+                ->assertStatus(409)->assertJsonMissingPath('automaticInsertionEnabled');
+            self::assertSame($before, $this->employeeRows());
+            self::assertFalse(Schema::hasTable('mail_documents'), 'The disabled event needs neither published source tables nor a snapshot.');
+        } finally {
+            Storage::swap($storage);
+        }
     }
 
     public function test_malformed_preference_is_not_silently_treated_as_permission_to_insert(): void
