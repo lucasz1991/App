@@ -232,7 +232,7 @@ final class V27PersonalLayoutTest extends TestCase
         SignaturePersonalColumns::assertRuntime($desktop['signature']['html']);
         $nativeXpath = $this->xpath($desktop['signature']['html']);
         $nativeContainer = $this->one($nativeXpath, 'rt-personal-columns');
-        foreach ([SignaturePersonalColumns::NATIVE_GRID_ATTRIBUTE, 'data-rt-desktop-flow'] as $attribute) {
+        foreach ([SignaturePersonalColumns::NATIVE_FLOW_ATTRIBUTE, 'data-rt-desktop-flow'] as $attribute) {
             $invalid = $this->xpath($desktop['signature']['html']);
             $this->one($invalid, 'rt-personal-columns')->removeAttribute($attribute);
             $this->assertNativeRuntimeRejected($invalid->document->saveHTML());
@@ -245,8 +245,8 @@ final class V27PersonalLayoutTest extends TestCase
             $item = $this->one($nativeXpath, $class);
             self::assertTrue($item->parentNode->isSameNode($nativeContainer));
             self::assertSame('100%', $item->getAttribute('width'));
-            self::assertStringContainsString('display:table;', $item->getAttribute('style'), 'Unsupported grid keeps ordinary full-width table siblings.');
-            self::assertStringContainsString('width:100%;min-width:0;', $item->getAttribute('style'));
+            self::assertStringContainsString('display:table;', $item->getAttribute('style'), 'Unsupported math keeps ordinary full-width table siblings.');
+            self::assertStringContainsString('width:100%;width:calc(5600280px - 1000000%);min-width:50%;max-width:100%;', $item->getAttribute('style'));
         }
         foreach ($desktop['templates'] as $index => $item) {
             $html = $item['combinedComposeHtml'];
@@ -373,19 +373,29 @@ final class V27PersonalLayoutTest extends TestCase
                 self::assertSame('520px', $this->winningExplicitRule($xpath, $image, 'width'));
                 self::assertSame('none', $this->winningExplicitRule($xpath, $image, 'max-width'));
                 self::assertSame('auto', $this->winningExplicitRule($xpath, $image, 'height'));
-                self::assertSame('460px', $this->winningExplicitRule($xpath, $this->one($xpath, 'rt-df-train'), 'max-width'));
-                self::assertSame('grid', $this->winningExplicitRule($xpath, $container, 'display'));
-                self::assertSame('repeat(auto-fit,minmax(min(280px,100%),1fr))', $this->winningExplicitRule($xpath, $container, 'grid-template-columns'));
-                foreach (['rt-personal-left' => 'start', 'rt-personal-right' => 'start', 'rt-df-train' => 'end'] as $class => $alignment) {
+                self::assertSame('420px', $this->winningExplicitRule($xpath, $window, 'max-width'));
+                self::assertSame('block', $this->winningExplicitRule($xpath, $container, 'display'));
+                self::assertSame('hidden', $this->winningExplicitRule($xpath, $container, 'overflow'));
+                foreach (['rt-personal-left' => 'left', 'rt-personal-right' => 'right', 'rt-df-train' => 'left'] as $class => $float) {
                     $item = $this->one($xpath, $class);
-                    self::assertSame('100%', $this->winningExplicitRule($xpath, $item, 'width'));
-                    self::assertSame('0', $this->winningExplicitRule($xpath, $item, 'min-width'));
-                    self::assertSame($alignment, $this->winningExplicitRule($xpath, $item, 'align-self'));
+                    self::assertSame('calc(5600280px - 1000000%)', $this->winningExplicitRule($xpath, $item, 'width'));
+                    self::assertSame('50%', $this->winningExplicitRule($xpath, $item, 'min-width'));
+                    self::assertSame('100%', $this->winningExplicitRule($xpath, $item, 'max-width'));
+                    self::assertSame($float, $this->winningExplicitRule($xpath, $item, 'float'));
                 }
-                self::assertSame('1', $this->winningExplicitRule($xpath, $this->one($xpath, 'rt-personal-left'), 'grid-column'));
-                self::assertSame('1', $this->winningExplicitRule($xpath, $this->one($xpath, 'rt-df-train'), 'grid-column'));
-                self::assertSame('-2/-1', $this->winningExplicitRule($xpath, $this->one($xpath, 'rt-personal-right'), 'grid-column'));
-                self::assertSame('span 2', $this->winningExplicitRule($xpath, $this->one($xpath, 'rt-personal-right'), 'grid-row'));
+                $train = $this->one($xpath, 'rt-df-train');
+                self::assertSame('left', $this->winningExplicitRule($xpath, $train, 'clear'));
+                self::assertSame('sticky', $this->winningExplicitRule($xpath, $train, 'position'));
+                self::assertSame('100%', $this->winningExplicitRule($xpath, $train, 'top'));
+                self::assertStringNotContainsString('display:grid', $html);
+                self::assertStringNotContainsString('grid-column:', $html);
+                $noMath = $this->xpath(str_replace('width:calc(5600280px - 1000000%)!important;', '', $noInline));
+                foreach (['rt-personal-left', 'rt-personal-right', 'rt-df-train'] as $class) {
+                    self::assertSame('100%', $this->winningExplicitRule($noMath, $this->one($noMath, $class), 'width'), 'Removing unsupported math retains full-width readable stacking.');
+                }
+                $noSticky = $this->xpath(str_replace('position:sticky!important;', '', $noInline));
+                self::assertNull($this->winningExplicitRule($noSticky, $this->one($noSticky, 'rt-df-train'), 'position'));
+                self::assertSame('left', $this->winningExplicitRule($noSticky, $this->one($noSticky, 'rt-df-train'), 'clear'));
             } else {
                 self::assertSame(0, $xpath->query('//*[contains(concat(" ",normalize-space(@class)," ")," rt-train-window ")]')->length);
             }
@@ -482,7 +492,7 @@ final class V27PersonalLayoutTest extends TestCase
         self::assertMatchesRegularExpression('~<!--\[if mso\]><img\b[^>]*rt-delivery-train-mso[^>]*width="220" height="28"~', $html);
         if (OutlookDesktopFlow::projected($html)) {
             $container = $this->one($xpath, 'rt-personal-columns');
-            self::assertSame('v1', $container->getAttribute(SignaturePersonalColumns::NATIVE_GRID_ATTRIBUTE));
+            self::assertSame('v1', $container->getAttribute(SignaturePersonalColumns::NATIVE_FLOW_ATTRIBUTE));
             $children = $xpath->query('./*', $container);
             self::assertCount(3, $children);
             foreach (['rt-personal-left', 'rt-personal-right', 'rt-df-train'] as $index => $class) {
@@ -494,13 +504,13 @@ final class V27PersonalLayoutTest extends TestCase
             $window = $this->one($xpath, 'rt-train-window');
             self::assertTrue($images->item(0)->parentNode->isSameNode($window));
             self::assertSame('rtl', $window->getAttribute('dir'));
-            self::assertSame('overflow:hidden;direction:rtl;', $window->getAttribute('style'));
+            self::assertSame('overflow:hidden;direction:rtl;max-width:420px;', $window->getAttribute('style'));
             self::assertStringContainsString('width:520px;max-width:none!important;height:auto;', $images->item(0)->getAttribute('style'));
-            self::assertStringContainsString('max-width:460px;', $this->one($xpath, 'rt-df-train')->getAttribute('style'));
+            self::assertStringContainsString('float:left;clear:left;position:sticky;top:100%;', $this->one($xpath, 'rt-df-train')->getAttribute('style'));
             self::assertStringContainsString('padding:0 40px 0 0;', $this->one($xpath, 'rt-dfc-train')->getAttribute('style'));
         } else {
             self::assertStringNotContainsString('rt-train-window', $html);
-            self::assertStringNotContainsString(SignaturePersonalColumns::NATIVE_GRID_ATTRIBUTE, $html);
+            self::assertStringNotContainsString(SignaturePersonalColumns::NATIVE_FLOW_ATTRIBUTE, $html);
             self::assertStringContainsString('width:100%;max-width:100%;height:auto;', $images->item(0)->getAttribute('style'));
         }
     }
@@ -509,7 +519,7 @@ final class V27PersonalLayoutTest extends TestCase
     {
         try {
             OutlookDesktopFlow::project($html);
-            self::fail('A malformed native grid must not be treated as a trusted runtime projection.');
+            self::fail('A malformed native flow must not be treated as a trusted runtime projection.');
         } catch (RuntimeException $exception) {
             self::assertNotSame('', $exception->getMessage());
         }

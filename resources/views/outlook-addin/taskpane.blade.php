@@ -44,7 +44,6 @@
         .diagnostics summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
         .diagnostics-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
         .diagnostics textarea { width: 100%; height: 180px; resize: vertical; font: 11px/1.5 Consolas, monospace; color: var(--rt-ink); background: var(--rt-subtle); border: 1px solid var(--rt-line); border-radius: 10px; padding: 10px; }
-        .template-confirmation { margin-top: 12px; padding: 14px; background: var(--rt-warning-soft); border: 1px solid var(--rt-line); border-radius: 12px; }
 
         html,
         body { min-height: 100%; }
@@ -80,102 +79,20 @@
             box-shadow: 0 16px 42px rgba(21, 38, 60, .1);
         }
 
-        .brand {
-            position: relative;
-            display: flex;
-            min-height: 82px;
-            padding: 17px 18px 16px;
-            align-items: center;
-            gap: 12px;
-            border-top: 4px solid var(--rt-red);
-            border-bottom: 1px solid var(--rt-line);
-            background:
-                linear-gradient(112deg, rgba(228, 0, 43, .055), transparent 42%),
-                var(--rt-surface);
-        }
 
-        .brand-mark {
-            display: grid;
-            width: 42px;
-            height: 42px;
-            flex: 0 0 42px;
-            place-items: center;
-            border: 1px solid rgba(228, 0, 43, .2);
-            border-radius: 12px;
-            background: var(--rt-red);
-            box-shadow: inset 0 -4px 0 rgba(21, 38, 60, .16);
-            color: #fff;
-            font-size: 15px;
-            font-weight: 800;
-            letter-spacing: -.05em;
-        }
 
-        .brand-copy { min-width: 0; }
 
-        .brand-kicker,
-        .brand h1 { margin: 0; }
 
-        .brand-kicker {
-            color: var(--rt-red);
-            font-size: 9px;
-            font-weight: 800;
-            letter-spacing: .16em;
-            text-transform: uppercase;
-        }
 
-        .brand h1 {
-            margin-top: 2px;
-            overflow: hidden;
-            font-size: 17px;
-            line-height: 1.2;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
 
-        .connection-chip {
-            display: inline-flex;
-            min-height: 26px;
-            margin-left: auto;
-            padding: 5px 8px;
-            align-items: center;
-            gap: 6px;
-            border: 1px solid var(--rt-line);
-            border-radius: 999px;
-            background: var(--rt-subtle);
-            color: var(--rt-muted);
-            font-size: 10px;
-            font-weight: 700;
-            line-height: 1;
-            white-space: nowrap;
-        }
 
-        .connection-chip::before {
-            width: 6px;
-            height: 6px;
-            border-radius: 999px;
-            background: currentColor;
-            content: "";
-        }
 
-        .connection-chip[data-tone="success"] {
-            border-color: rgba(8, 119, 92, .24);
-            background: var(--rt-success-soft);
-            color: var(--rt-success);
-        }
 
-        .connection-chip[data-tone="working"] {
-            border-color: rgba(161, 92, 0, .22);
-            background: var(--rt-warning-soft);
-            color: var(--rt-warning);
-        }
 
-        .connection-chip[data-tone="error"] {
-            border-color: rgba(180, 35, 24, .22);
-            background: var(--rt-error-soft);
-            color: var(--rt-error);
-        }
 
         .content { padding: 16px; }
+        .pane-feedback { margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--rt-line); border-radius: 10px; background: var(--rt-subtle); font-size: 12px; overflow-wrap: anywhere; }
+        .pane-feedback[data-tone="error"] { border-color: var(--rt-error); background: var(--rt-error-soft); color: var(--rt-error); }
 
         .status {
             display: grid;
@@ -592,11 +509,6 @@
 
             .panel { box-shadow: none; }
 
-            .brand {
-                background:
-                    linear-gradient(112deg, rgba(228, 0, 43, .1), transparent 45%),
-                    var(--rt-surface);
-            }
 
             .status-symbol,
             .action-icon { background: rgba(255, 255, 255, .08); }
@@ -619,21 +531,14 @@
                 box-shadow: none;
             }
 
-            .brand { padding-right: 14px; padding-left: 14px; }
             .content { padding: 14px; }
         }
 
         @media (max-width: 340px) {
-            .brand { gap: 9px; }
-            .brand-mark { width: 38px; height: 38px; flex-basis: 38px; }
-            .connection-chip { padding-right: 6px; padding-left: 6px; font-size: 9px; }
             .content { padding: 12px; }
             .template-card { padding: 12px; }
         }
 
-        .brand { gap: 9px; flex-wrap: wrap; }
-        .brand h1 { font-size: 16px; }
-        .brand-tools { display: flex; gap: 6px; margin-left: auto; }
         .glass-button {
             display: inline-flex; align-items: center; justify-content: center; gap: 6px;
             min-height: 44px; padding: 8px 10px; border: 1px solid var(--rt-line);
@@ -648,8 +553,6 @@
         .glass-button[data-tone="working"] { border-color: var(--rt-warning); background: var(--rt-warning-soft); }
         .glass-button:focus-visible, .app-link:focus-visible { outline: 3px solid var(--rt-focus); outline-offset: 3px; }
         .glass-button svg { width: 16px; height: 16px; flex: 0 0 16px; }
-        .glass-button .connection-chip { min-height: 0; padding: 0; margin: 0; border: 0; background: transparent; }
-        .glass-button .connection-chip::before { display: none; }
         .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
         .app-links { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--rt-line); }
         .app-link { display: inline-flex; align-items: center; min-height: 44px; padding: 8px; color: var(--rt-muted); font-size: 12px; font-weight: 600; text-decoration: none; }
@@ -668,37 +571,16 @@
         .dialog-feedback[data-tone="error"] { border-color: var(--rt-error); background: var(--rt-error-soft); }
         .content .template-card { margin-top: 0; }
         @media (max-width: 360px) {
-            .brand-mark { width: 32px; height: 32px; flex-basis: 32px; }
-            .brand-copy { flex: 1; }
-            .brand h1 { font-size: 14px; }
-            .brand-kicker { letter-spacing: .06em; font-size: 8px; }
             .glass-button { padding-inline: 8px; }
-            .brand-tools { gap: 4px; }
         }
     </style>
 </head>
 <body data-outlook-config-url="{{ $resolvedConfigUrl }}">
     <main class="shell" data-outlook-addin-taskpane aria-busy="true">
         <section class="panel" aria-labelledby="outlook-addin-heading">
-            <header class="brand">
-                <span class="brand-mark" aria-hidden="true">RT</span>
-                <div class="brand-copy">
-                    <p class="brand-kicker">RailTime / Outlook</p>
-                    <h1 id="outlook-addin-heading">Mail-Assistent</h1>
-                </div>
-                <div class="brand-tools" aria-label="Verbindung und Status">
-                    <button class="glass-button" type="button" data-outlook-dialog-open="connection" aria-haspopup="dialog" aria-controls="outlook-connection-dialog" aria-label="Microsoft-Verbindung öffnen">
-                        <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M1 1h8v8H1zm10 0h8v8h-8zM1 11h8v8H1zm10 0h8v8h-8z"/></svg>
-                        <span class="connection-chip" data-outlook-connection-chip data-tone="working">Prüfung</span>
-                    </button>
-                    <button class="glass-button" type="button" data-outlook-dialog-open="status" aria-haspopup="dialog" aria-controls="outlook-status-dialog" aria-label="Outlook-Status anzeigen">
-                        Status
-                        <span class="visually-hidden" data-outlook-status-summary role="status" aria-live="polite">Outlook wird vorbereitet</span>
-                    </button>
-                </div>
-            </header>
-
             <div class="content">
+                <h1 id="outlook-addin-heading" class="visually-hidden">Nachrichtenvorlagen</h1>
+                <p class="pane-feedback" data-outlook-pane-feedback role="status" aria-live="polite" tabindex="-1" hidden></p>
                 <section
                     class="template-card"
                     data-outlook-template-region
@@ -757,14 +639,6 @@
                         </div>
                     </div>
 
-                    <div class="template-confirmation" data-outlook-template-confirmation role="region" aria-label="Zusätzliche Vorlage bestätigen" hidden>
-                        <p>Diese Nachricht enthält bereits eine RailTime-Vorlage. Die gewählte Vorlage zusätzlich oberhalb einfügen? Vorhandener Text und Zitate bleiben erhalten.</p>
-                        <div class="diagnostics-actions">
-                            <button class="glass-button" type="button" data-outlook-template-cancel>Abbrechen</button>
-                            <button class="glass-button" type="button" data-outlook-template-confirm>Zusätzlich einfügen</button>
-                        </div>
-                    </div>
-
                     <p class="template-message template-empty" data-outlook-template-empty>
                         Momentan ist keine veröffentlichte Nachrichtenvorlage verfügbar.
                     </p>
@@ -776,7 +650,9 @@
                     </p>
                 </section>
 
-                <footer class="app-links" aria-label="RailTime-App">
+                <footer class="app-links" aria-label="Verbindung, Hilfe und RailTime-App">
+                    <button class="glass-button" type="button" data-outlook-dialog-open="connection" aria-haspopup="dialog" aria-controls="outlook-connection-dialog">Verbindung</button>
+                    <button class="glass-button" type="button" data-outlook-dialog-open="status" aria-haspopup="dialog" aria-controls="outlook-status-dialog" aria-label="Hilfe und Diagnose öffnen">Hilfe<span class="visually-hidden" data-outlook-status-summary role="status" aria-live="polite">Outlook wird vorbereitet</span></button>
                     <a class="app-link" href="{{ route('home') }}" target="_blank" rel="noopener noreferrer">RailTime öffnen ↗</a>
                     <button class="glass-button" type="button" data-outlook-dialog-open="install" aria-haspopup="dialog" aria-controls="outlook-install-dialog">RailTime installieren</button>
                 </footer>
