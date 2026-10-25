@@ -26,6 +26,14 @@ final class OutlookCombinedComposeDocument
 
     public const EDITABLE_VERSION = 'v1';
 
+    public const EDITABLE_TABLE_CLASS = 'rt-compose-editable-v1';
+
+    public const DOCUMENT_TABLE_CLASS = 'rt-managed-combined-v1';
+
+    public const TEMPLATE_TABLE_CLASS = 'rt-managed-template-v1';
+
+    public const SIGNATURE_TABLE_CLASS = 'rt-managed-signature-v1';
+
     private const NATIVE_MARKER = 'RT-TEMPLATE-MANAGED-V1:NATIVE-SIGNATURE';
 
     private const BORDER = 'border-left:6px solid #e90032;';
@@ -73,8 +81,8 @@ final class OutlookCombinedComposeDocument
         // CSS mirrors. Outlook may remove a new override STYLE while retaining
         // these older compiler-owned blocks; neither must restore an inner red
         // border. Authored rules, cells, media and comments stay opaque.
-        $template = self::withoutBorder($templateHtml, $templateNodes[$templateFrame]);
-        $signature = self::withoutBorder($signatureHtml, $signatureNodes[$signatureFrame], 'rt-combined-signature-frame');
+        $template = self::withoutBorder($templateHtml, $templateNodes[$templateFrame], self::TEMPLATE_TABLE_CLASS);
+        $signature = self::withoutBorder($signatureHtml, $signatureNodes[$signatureFrame], 'rt-combined-signature-frame '.self::SIGNATURE_TABLE_CLASS);
         $template = self::projectFrameMirror($template, $templateNodes, $templateFrame, template: true);
         $signature = self::projectFrameMirror($signature, $signatureNodes, $signatureFrame, template: false);
         $template = str_replace(self::NATIVE_MARKER, self::MARKER, $template);
@@ -84,14 +92,14 @@ final class OutlookCombinedComposeDocument
             .self::BORDER.'mso-table-lspace:0pt;mso-table-rspace:0pt;';
         // This optional new block mirrors only the common carrier. Inner-border
         // correctness no longer depends on Outlook retaining this STYLE.
-        $css = '.'.$scope.' .rt-combined-compose-frame{width:100%!important;border-collapse:separate!important;border-spacing:0!important;'
+        $css = 'table.'.$scope.'{width:100%!important;border-collapse:separate!important;border-spacing:0!important;'
             .'table-layout:fixed!important;box-sizing:border-box!important;background-color:#ffffff!important;border-left:6px solid #e90032!important;}'
-            .'.'.$scope.' .rt-combined-compose-cell{padding:0!important;}';
-        $output = '<style data-rt-combined-compose-css="1">'.$css.'</style>'
-            .'<div class="rt-combined-compose-document '.$scope.'" data-rt-compose-document="'.self::MODE.'" style="display:block;width:100%;">'
-            .'<table class="rt-combined-compose-frame" role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="'.$frameStyle.'">'
+            .'table.'.$scope.'>tbody>tr>td{padding:0!important;}';
+        $output = '<div class="rt-combined-compose-document '.$scope.'" data-rt-compose-document="'.self::MODE.'" style="display:block;width:100%;">'
+            .'<table class="rt-combined-compose-frame '.self::DOCUMENT_TABLE_CLASS.' '.$scope.'" role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="'.$frameStyle.'">'
             .'<tbody><tr><td class="rt-combined-compose-cell" width="100%" valign="top" style="width:100%;padding:0;vertical-align:top;">'
-            .$template.$signature.'</td></tr></tbody></table></div>';
+            .'<style data-rt-combined-compose-css="1">'.$css.'</style>'.$template.$signature.'</td></tr></tbody></table></div>';
+        $output = self::stabilizeTableScopes($output);
         preg_match_all('~<style\b[^>]*>(.*?)</style\s*>~is', $output, $styles);
         if (array_sum(array_map('strlen', $styles[1])) >= self::MAX_CSS_BYTES
             || intdiv(strlen(mb_convert_encoding($output, 'UTF-16LE', 'UTF-8')), 2) > self::MAX_CHARACTERS) {
@@ -99,6 +107,57 @@ final class OutlookCombinedComposeDocument
         }
 
         return $output;
+    }
+
+    /** Office typing retains TABLE classes while discarding DIV/P/SPAN ownership. */
+    public static function stabilizeTableScopes(string $html): string
+    {
+        if (! str_contains($html, self::DOCUMENT_TABLE_CLASS)) {
+            return $html;
+        }
+        $nodes = self::nodes($html);
+        $edits = [];
+        $frames = [];
+        foreach ([self::DOCUMENT_TABLE_CLASS => ['rt-combined-compose-document', 'rtc', 12],
+            self::TEMPLATE_TABLE_CLASS => ['rt-outlook-template', 'rtt', 12],
+            self::SIGNATURE_TABLE_CLASS => ['rt-outlook-signature', 'rts', 10]] as $marker => [$rootClass, $prefix, $length]) {
+            $tables = array_keys(array_filter($nodes, static fn (array $node): bool => self::hasClass($node, $marker)));
+            $roots = array_keys(array_filter($nodes, static fn (array $node): bool => self::hasClass($node, $rootClass)));
+            if (count($tables) !== 1 || count($roots) !== 1 || $nodes[$tables[0]]['tag'] !== 'table' || $nodes[$roots[0]]['tag'] !== 'div'
+                || $nodes[$tables[0]]['start'] <= $nodes[$roots[0]]['start'] || $nodes[$tables[0]]['end'] >= $nodes[$roots[0]]['end']) {
+                self::fail();
+            }
+            $frame = $nodes[$tables[0]];
+            $classes = preg_split('/\s+/', trim($nodes[$roots[0]]['attrs']['class'] ?? ''));
+            $scopes = array_values(array_filter($classes, static fn (string $class): bool => preg_match('/\A'.$prefix.'[0-9a-f]{'.$length.'}\z/', $class) === 1));
+            if (count($scopes) !== 1) {
+                self::fail();
+            }
+            if ($marker === self::SIGNATURE_TABLE_CLASS) {
+                $scopes = array_merge($scopes, array_values(array_filter($classes, static fn (string $class): bool => preg_match('/\Art-(?:df[0-9]+[0-9a-f]{10}|dflow-host-v[0-9]+)\z/', $class) === 1)));
+            }
+            $frameClasses = preg_split('/\s+/', trim($frame['attrs']['class'] ?? ''));
+            foreach ($scopes as $class) {
+                if (! in_array($class, $frameClasses, true)) {
+                    $frameClasses[] = $class;
+                }
+            }
+            $opening = preg_replace_callback('~\sclass\s*=\s*(["\'])(.*?)\1~is', static fn (array $match): string => ' class='.$match[1].implode(' ', $frameClasses).$match[1], $frame['opening'], -1, $count);
+            if ($count !== 1) {
+                self::fail();
+            }
+            $edits[] = [$frame['start'], strlen($frame['opening']), $opening];
+            $frames[] = $frame;
+        }
+        if ($frames[1]['start'] <= $frames[0]['start'] || $frames[2]['end'] >= $frames[0]['end'] || $frames[1]['end'] >= $frames[2]['start']) {
+            self::fail();
+        }
+        usort($edits, static fn (array $left, array $right): int => $right[0] <=> $left[0]);
+        foreach ($edits as [$start, $length, $opening]) {
+            $html = substr_replace($html, $opening, $start, $length);
+        }
+
+        return $html;
     }
 
     /** Own only the known empty writing paragraph, never authored greetings or quoted content. */
@@ -138,11 +197,18 @@ final class OutlookCombinedComposeDocument
         $parent = $paragraph['parent'];
         $wrapper = $marked === [] ? null : $nodes[$marked[0]];
         if ($wrapper !== null) {
-            if ($wrapper['tag'] !== 'div' || ($wrapper['attrs']['class'] ?? '') !== self::EDITABLE_CLASS || count($wrapper['attrs']) !== 2
+            $cell = $paragraph['parent'];
+            $row = $cell === null ? null : $nodes[$cell]['parent'];
+            $body = $row === null ? null : $nodes[$row]['parent'];
+            if ($wrapper['tag'] !== 'table' || ($wrapper['attrs']['class'] ?? '') !== self::EDITABLE_CLASS.' '.self::EDITABLE_TABLE_CLASS
                 || ($wrapper['attrs'][self::EDITABLE_ATTRIBUTE] ?? '') !== self::EDITABLE_VERSION
-                || $parent !== $marked[0] || $wrapper['children'] !== $paragraphs
+                || $cell === null || $row === null || $body === null || $nodes[$body]['tag'] !== 'tbody' || $nodes[$row]['tag'] !== 'tr' || $nodes[$cell]['tag'] !== 'td'
+                || $wrapper['children'] !== [$body] || $nodes[$body]['children'] !== [$row] || $nodes[$row]['children'] !== [$cell] || $nodes[$cell]['children'] !== $paragraphs
+                || $nodes[$body]['parent'] !== $marked[0] || $wrapper['opening'] !== self::editableOpening()
                 || $wrapper['start'] < $start || $wrapper['end'] > $end
-                || trim(substr($html, $wrapper['start'] + strlen($wrapper['opening']), $wrapper['close'] - $wrapper['start'] - strlen($wrapper['opening'])))
+                || substr($html, $wrapper['start'], $wrapper['end'] - $wrapper['start']) !== self::editableOpening().'<tbody><tr><td style="padding:0;">'
+                    .substr($html, $paragraph['start'], $paragraph['end'] - $paragraph['start']).'</td></tr></tbody></table>'
+                || trim(substr($html, $nodes[$cell]['start'] + strlen($nodes[$cell]['opening']), $nodes[$cell]['close'] - $nodes[$cell]['start'] - strlen($nodes[$cell]['opening'])))
                     !== substr($html, $paragraph['start'], $paragraph['end'] - $paragraph['start'])) {
                 self::fail();
             }
@@ -168,15 +234,20 @@ final class OutlookCombinedComposeDocument
         if ($wrapper !== null) {
             return $html;
         }
-        $opening = '<div class="'.self::EDITABLE_CLASS.'" '.self::EDITABLE_ATTRIBUTE.'="'.self::EDITABLE_VERSION.'">';
+        $opening = self::editableOpening().'<tbody><tr><td style="padding:0;">';
 
         return substr($html, 0, $paragraph['start']).$opening
-            .substr($html, $paragraph['start'], $paragraph['end'] - $paragraph['start']).'</div>'.substr($html, $paragraph['end']);
+            .substr($html, $paragraph['start'], $paragraph['end'] - $paragraph['start']).'</td></tr></tbody></table>'.substr($html, $paragraph['end']);
+    }
+
+    private static function editableOpening(): string
+    {
+        return '<table class="'.self::EDITABLE_CLASS.' '.self::EDITABLE_TABLE_CLASS.'" '.self::EDITABLE_ATTRIBUTE.'="'.self::EDITABLE_VERSION.'" role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">';
     }
 
     private static function editableMarker(array $node): bool
     {
-        return self::hasClass($node, self::EDITABLE_CLASS) || array_key_exists(self::EDITABLE_ATTRIBUTE, $node['attrs']);
+        return self::hasClass($node, self::EDITABLE_CLASS) || self::hasClass($node, self::EDITABLE_TABLE_CLASS) || array_key_exists(self::EDITABLE_ATTRIBUTE, $node['attrs']);
     }
 
     /** @return array{array,int} */

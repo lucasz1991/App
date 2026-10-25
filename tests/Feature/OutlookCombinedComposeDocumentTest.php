@@ -68,11 +68,11 @@ final class OutlookCombinedComposeDocumentTest extends TestCase
         $fingerprint = app(OutlookAddinPayloadService::class)->sourceFingerprint($user);
         $output = OutlookCombinedComposeDocument::build($template, $signature);
         $xpath = $this->xpath($output);
-        self::assertSame(1, $xpath->query('//div[@data-rt-compose-editable="v1" and @class="rt-compose-editable"]/p[contains(concat(" ",normalize-space(@class)," ")," design-spacer ")]')->length);
-        self::assertSame(0, $xpath->query('//div[@data-rt-compose-editable="v1"]//*[contains(@class,"design-salutation") or contains(@class,"design-greeting")]')->length);
+        self::assertSame(1, $xpath->query('//table[@data-rt-compose-editable="v1" and @class="rt-compose-editable rt-compose-editable-v1"]/tbody/tr/td/p[contains(concat(" ",normalize-space(@class)," ")," design-spacer ")]')->length);
+        self::assertSame(0, $xpath->query('//table[@data-rt-compose-editable="v1"]//*[contains(@class,"design-salutation") or contains(@class,"design-greeting")]')->length);
         $root = $xpath->query('//div[@data-rt-compose-document="combined-v1"]');
         self::assertSame(1, $root->length);
-        $carrier = $xpath->query('./table[@class="rt-combined-compose-frame"]', $root->item(0));
+        $carrier = $xpath->query('./table[contains(concat(" ",normalize-space(@class)," ")," rt-combined-compose-frame ")]', $root->item(0));
         self::assertSame(1, $carrier->length);
         $cell = $xpath->query('./tbody/tr/td[@class="rt-combined-compose-cell"]', $carrier->item(0));
         self::assertSame(1, $cell->length);
@@ -148,14 +148,15 @@ final class OutlookCombinedComposeDocumentTest extends TestCase
         $before = '<p class="design-salutation">Guten Tag,</p>';
         $after = '<p class="design-greeting">Mit freundlichen Grüßen,</p>';
         $template = $this->editableTemplate($before.$paragraph.$after);
-        $opening = '<div class="rt-compose-editable" data-rt-compose-editable="v1">';
+        $opening = $this->editableOpening().'<tbody><tr><td style="padding:0;">';
+        $closing = '</td></tr></tbody></table>';
         $marked = OutlookCombinedComposeDocument::markEditableRegion($template);
-        self::assertSame(str_replace($paragraph, $opening.$paragraph.'</div>', $template), $marked);
+        self::assertSame(str_replace($paragraph, $opening.$paragraph.$closing, $template), $marked);
         self::assertSame($marked, OutlookCombinedComposeDocument::markEditableRegion($marked));
         self::assertSame($this->comments($template), $this->comments($marked));
         self::assertSame($this->styleTags($template), $this->styleTags($marked));
         self::assertSame($this->cssBytes($template), $this->cssBytes($marked));
-        self::assertSame(strlen($opening.'</div>'), strlen($marked) - strlen($template));
+        self::assertSame(strlen($opening.$closing), strlen($marked) - strlen($template));
     }
 
     public function test_unknown_or_quoted_legacy_writing_areas_remain_unowned(): void
@@ -184,14 +185,14 @@ final class OutlookCombinedComposeDocumentTest extends TestCase
     {
         $paragraph = '<p class="design-spacer"><br><br></p>';
         $template = OutlookCombinedComposeDocument::markEditableRegion($this->editableTemplate($paragraph));
-        $opening = '<div class="rt-compose-editable" data-rt-compose-editable="v1">';
+        $opening = $this->editableOpening();
         $template = match ($case) {
             'duplicate-start' => str_replace('<!-- RT_APPLICATION_CONTENT_START -->', '<!-- RT_APPLICATION_CONTENT_START --><!-- RT_APPLICATION_CONTENT_START -->', $template),
             'missing-end' => str_replace('<!-- RT_APPLICATION_CONTENT_END -->', '', $template),
-            'duplicate-marker' => str_replace($paragraph, $opening.$paragraph.'</div>', $template),
+            'duplicate-marker' => str_replace($paragraph, $opening.'<tbody><tr><td>'.$paragraph.'</td></tr></tbody></table>', $template),
             'wrong-version' => str_replace('data-rt-compose-editable="v1"', 'data-rt-compose-editable="v2"', $template),
             'class-only' => str_replace(' data-rt-compose-editable="v1"', '', $template),
-            'attribute-only' => str_replace('class="rt-compose-editable" ', '', $template),
+            'attribute-only' => str_replace('class="rt-compose-editable rt-compose-editable-v1" ', '', $template),
             'outside-region' => str_replace('<!-- RT_APPLICATION_CONTENT_START -->'.$opening, $opening.'<!-- RT_APPLICATION_CONTENT_START -->', $template),
             'quoted-marker' => str_replace($opening, '<blockquote>'.$opening, str_replace('</td>', '</blockquote></td>', $template)),
             'hidden-marker' => str_replace($opening, substr($opening, 0, -1).' hidden>', $template),
@@ -207,6 +208,73 @@ final class OutlookCombinedComposeDocumentTest extends TestCase
             .'<div class="rt-outlook-template rtt0123456789ab"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td>'
             .'<!-- RT_APPLICATION_CONTENT_START -->'.$content.'<!-- RT_APPLICATION_CONTENT_END -->'
             .'</td></tr></table></div>';
+    }
+
+    private function editableOpening(): string
+    {
+        return '<table class="rt-compose-editable rt-compose-editable-v1" data-rt-compose-editable="v1" role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">';
+    }
+
+    public function test_versioned_table_boundaries_survive_office_removing_all_other_classes_data_and_comments(): void
+    {
+        [$template, $signature] = $this->fragments();
+        $output = OutlookCombinedComposeDocument::build($template, $signature);
+        $typed = '<p>Own &amp; <strong>formatted</strong> message</p>';
+        $output = preg_replace_callback('~(<table class="rt-compose-editable rt-compose-editable-v1"[^>]*><tbody><tr><td[^>]*>).*?(</td></tr></tbody></table>)~s', static fn (array $match): string => $match[1].$typed.$match[2], $output, 1, $count);
+        self::assertSame(1, $count);
+        $sanitized = preg_replace_callback('~<!--.*?-->|<style\b[^>]*>.*?</style\s*>|<[a-z][a-z0-9:-]*\b(?:[^"\'<>]|"[^"]*"|\'[^\']*\')*>~is', static function (array $match): string {
+            $token = $match[0];
+            if (str_starts_with($token, '<!--')) {
+                return '';
+            }
+            if (preg_match('~\A<style\b~i', $token)) {
+                return $token;
+            }
+            $token = preg_replace('~\sdata-[a-z0-9_-]+\s*=\s*(?:"[^"]*"|\'[^\']*\')~i', '', $token);
+            if (! preg_match('~\A<table\b~i', $token)) {
+                return preg_replace('~\sclass\s*=\s*(?:"[^"]*"|\'[^\']*\')~i', '', $token);
+            }
+
+            return preg_replace_callback('~\sclass="([^"]*)"~', static fn (array $attribute): string => ' class="'.implode(' ', array_map(static fn (string $class): string => 'x_'.$class, preg_split('/\s+/', $attribute[1]))).'"', $token);
+        }, $output);
+        $xpath = $this->xpath($sanitized);
+        $frame = $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," x_rt-managed-combined-v1 ")]');
+        self::assertSame(1, $frame->length);
+        foreach (['rt-managed-template-v1', 'rt-managed-signature-v1', 'rt-compose-editable-v1'] as $class) {
+            self::assertSame(1, $xpath->query('.//table[contains(concat(" ",normalize-space(@class)," ")," x_'.$class.' ")]', $frame->item(0))->length);
+        }
+        $editable = $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," x_rt-compose-editable-v1 ")]/tbody/tr/td');
+        self::assertSame(1, $editable->length);
+        self::assertSame('Own & formatted message', $editable->item(0)->textContent);
+        self::assertStringContainsString($typed, $sanitized);
+        self::assertStringContainsString(OutlookCombinedComposeDocument::MARKER, $sanitized);
+        self::assertStringContainsString('RT-SIGNATURE-MANAGED-V1', $sanitized);
+        self::assertSame($this->cssBytes($output), $this->cssBytes($sanitized));
+    }
+
+    public function test_table_scope_projection_is_idempotent_and_copies_only_scope_and_native_host_tokens(): void
+    {
+        [$template, $signature] = $this->fragments();
+        $output = OutlookCombinedComposeDocument::build($template, $signature);
+        $xpath = $this->xpath($output);
+        $root = $xpath->query('//div[contains(concat(" ",normalize-space(@class)," ")," rt-outlook-signature ")]')->item(0);
+        self::assertSame(1, preg_match('/\brts([0-9a-f]{10})\b/', $root->getAttribute('class'), $scope));
+        $output = str_replace('class="'.$root->getAttribute('class').'"', 'class="'.$root->getAttribute('class').' rt-dflow-host-v4 rt-df4'.$scope[1].'"', $output, $count);
+        self::assertSame(1, $count);
+        $projected = OutlookCombinedComposeDocument::stabilizeTableScopes($output);
+        self::assertSame($projected, OutlookCombinedComposeDocument::stabilizeTableScopes($projected));
+        $frame = $this->xpath($projected)->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-managed-signature-v1 ")]')->item(0);
+        $classes = explode(' ', $frame->getAttribute('class'));
+        foreach ([$scope[0], 'rt-dflow-host-v4', 'rt-df4'.$scope[1]] as $class) {
+            self::assertContains($class, $classes);
+        }
+        self::assertNotContains('rt-outlook-signature', $classes);
+        self::assertSame(1, count(array_filter($classes, static fn (string $class): bool => preg_match('/\Aoi[0-9a-z]+\z/', $class) === 1)), 'Only the original frame alias remains; the root alias must not be copied.');
+        self::assertSame($this->imagesAndLinks($output), $this->imagesAndLinks($projected));
+        self::assertSame($this->styleTags($output), $this->styleTags($projected));
+        self::assertSame('<table><tr><td>Unmanaged default</td></tr></table>', OutlookCombinedComposeDocument::stabilizeTableScopes('<table><tr><td>Unmanaged default</td></tr></table>'));
+        $this->expectException(RuntimeException::class);
+        OutlookCombinedComposeDocument::stabilizeTableScopes(str_replace('class="rt-compose-editable ', 'class="rt-managed-signature-v1 rt-compose-editable ', $projected));
     }
 
     public function test_removed_combined_override_style_cannot_restore_inner_border_mirrors(): void

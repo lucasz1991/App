@@ -92,6 +92,7 @@ final class OutlookClientPresentation
         }
         if ($desktopFlow) {
             $html = OutlookDesktopFlow::project($html);
+            $html = OutlookCombinedComposeDocument::stabilizeTableScopes($html);
         }
         $html = self::wrapUrls($html);
         $html = EmailClientStyleBlocks::project($html, static fn (string $opening, string $css): bool => preg_match('~\bdata-rt-outlook-(?:signature|template)-css=["\']1["\']~', $opening) === 1);

@@ -107,7 +107,8 @@ final class SignaturePersonalColumns
             self::fail();
         }
         $nodes = self::nodes($html);
-        $flow = self::one($nodes, 'rt-personal-columns', 'div');
+        $native = str_contains($html, self::NATIVE_FLOW_ATTRIBUTE.'="v1"');
+        $flow = self::one($nodes, 'rt-personal-columns', $native ? 'table' : 'div');
         $left = self::one($nodes, 'rt-personal-left', 'table');
         $right = self::one($nodes, 'rt-personal-right', 'table');
         $person = self::one($nodes, 'rt-person-kopf', 'div');
@@ -115,11 +116,11 @@ final class SignaturePersonalColumns
         $logo = count($logos) === 1 ? $logos[0] : self::fail();
         $content = self::one($nodes, 'rt-sign-content', 'td');
         if (($nodes[$flow]['attrs'][self::ATTRIBUTE] ?? '') !== self::MARKER
-            || $nodes[$flow]['parent'] !== $content || $nodes[$left]['parent'] !== $flow || $nodes[$right]['parent'] !== $flow
+            || $nodes[$flow]['parent'] !== $content
             || ! self::within($nodes, $person, $left) || ! self::within($nodes, $logo, $right)) {
             self::fail();
         }
-        $groups = array_keys(array_filter($nodes, static fn (array $node): bool => $node['parent'] === $flow));
+        $groupParent = $flow;
         $expected = [$left, $right];
         if (isset($nodes[$flow]['attrs'][self::NATIVE_FLOW_ATTRIBUTE])) {
             $train = self::one($nodes, 'rt-df-train', 'table');
@@ -127,11 +128,19 @@ final class SignaturePersonalColumns
             if (($nodes[$flow]['attrs'][self::NATIVE_FLOW_ATTRIBUTE] ?? '') !== 'v1'
                 || ($nodes[$flow]['attrs']['data-rt-desktop-flow'] ?? '') !== OutlookDesktopFlow::REVISION
                 || count($roots) !== 1 || ! self::within($nodes, $flow, $roots[0])
-                || $nodes[$train]['parent'] !== $flow) {
+                || ! $native) {
                 self::fail();
+            }
+            foreach (['tbody', 'tr', 'td'] as $tag) {
+                $children = array_keys(array_filter($nodes, static fn (array $node): bool => $node['parent'] === $groupParent));
+                if (count($children) !== 1 || $nodes[$children[0]]['tag'] !== $tag) {
+                    self::fail();
+                }
+                $groupParent = $children[0];
             }
             $expected[] = $train;
         }
+        $groups = array_keys(array_filter($nodes, static fn (array $node): bool => $node['parent'] === $groupParent));
         if ($groups !== $expected) {
             self::fail();
         }
