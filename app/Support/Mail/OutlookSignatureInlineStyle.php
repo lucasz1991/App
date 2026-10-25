@@ -38,8 +38,9 @@ final class OutlookSignatureInlineStyle
         $classes = [];
         $index = 0;
         $roots = 0;
+        $personal = SignaturePersonalColumns::applies($html);
         $output = preg_replace_callback($tokens, static function (array $match) use (
-            $scopeClass, &$usedClasses, &$rules, &$classes, &$index, &$roots,
+            $scopeClass, $personal, &$usedClasses, &$rules, &$classes, &$index, &$roots,
         ): string {
             $tag = $match[0];
             if (str_starts_with($tag, '<!--') || preg_match('~\A<style\b~i', $tag)) {
@@ -58,6 +59,9 @@ final class OutlookSignatureInlineStyle
             if (preg_match('/[<>\x00-\x08\x0B\x0C\x0E-\x1F{}]/', $declarations)
                 || preg_match('/@(?:import|media|supports|font-face|keyframes)\b|(?:expression|javascript)\s*[:(]/i', $declarations)) {
                 throw new RuntimeException('Die Outlook-Inline-Stile koennen nicht sicher intern gespiegelt werden.');
+            }
+            if ($personal && SignaturePersonalColumns::ownsInlineStyle($tokens, $declarations)) {
+                return $tag;
             }
             if (! isset($classes[$declarations])) {
                 do {

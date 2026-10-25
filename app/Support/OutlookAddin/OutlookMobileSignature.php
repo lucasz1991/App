@@ -6,6 +6,7 @@ namespace App\Support\OutlookAddin;
 
 use App\Support\Mail\OutlookSignatureInlineStyle;
 use App\Support\Mail\SignatureArtifactVersion;
+use App\Support\Mail\SignaturePersonalColumns;
 use App\Support\Mail\SignatureTableOverlapDelivery;
 use App\Support\Mail\TrustedOutlookSignatureCss;
 use DOMDocument;
@@ -58,13 +59,17 @@ final class OutlookMobileSignature
         $html = OutlookNativePersonalSignature::restore(
             OutlookTrainBottomOverlay::restore($document['html']),
         );
+        $personal = SignaturePersonalColumns::applies($html);
+        if ($personal) {
+            SignaturePersonalColumns::assertRuntime($html);
+        }
         // This opt-in adapter only targets the published V27 ledger geometry.
         // Other designs retain their existing delivery path, not a generic rewrite.
         if (! str_contains($html, 'rt-sign-ledger')
             || SignatureArtifactVersion::detect('signature', $html) !== 'v27') {
             return [$document, null];
         }
-        $logoTrain = SignatureTableOverlapDelivery::usesLogoTrain($html);
+        $logoTrain = $personal || SignatureTableOverlapDelivery::usesLogoTrain($html);
         if ($logoTrain) {
             SignatureTableOverlapDelivery::assertRuntime($html);
         }
@@ -94,7 +99,7 @@ final class OutlookMobileSignature
         $scopes = $xpath->query(self::classQuery('rt-outlook-signature'));
         $ledgers = $xpath->query(self::classQuery('rt-sign-ledger', 'table'));
         $versions = $xpath->query('//tr[@data-rt-artifact-version="v27"]');
-        if ($roots->length !== 1 || $scopes->length !== 1 || $ledgers->length !== 1 || $versions->length !== 1) {
+        if ($roots->length !== 1 || $scopes->length !== 1 || (! $personal && $ledgers->length !== 1) || $versions->length !== 1) {
             throw new RuntimeException('Die mobile Signatur besitzt keinen eindeutigen V27-Vertrag.');
         }
         $root = $roots->item(0);
@@ -117,14 +122,18 @@ final class OutlookMobileSignature
                 $span->setAttribute('class', trim($span->getAttribute('class').' '.$markerClass));
             }
         }
-        $ledger = $ledgers->item(0);
-        self::stack($dom, $xpath, $ledger, ['rt-ledger-brand', 'rt-ledger-contacts']);
-        $contactCells = $xpath->query(self::classQuery('rt-ledger-contacts'));
-        $nested = $xpath->query('./table', $contactCells->item(0));
-        if ($contactCells->length !== 1 || $nested->length !== 1) {
-            throw new RuntimeException('Die mobilen Kontaktgruppen sind nicht eindeutig.');
+        $ledger = $personal ? null : $ledgers->item(0);
+        if ($personal) {
+            self::personalColumns($xpath);
+        } else {
+            self::stack($dom, $xpath, $ledger, ['rt-ledger-brand', 'rt-ledger-contacts']);
+            $contactCells = $xpath->query(self::classQuery('rt-ledger-contacts'));
+            $nested = $xpath->query('./table', $contactCells->item(0));
+            if ($contactCells->length !== 1 || $nested->length !== 1) {
+                throw new RuntimeException('Die mobilen Kontaktgruppen sind nicht eindeutig.');
+            }
+            self::stack($dom, $xpath, $nested->item(0), ['rt-ledger-direct', 'rt-ledger-company']);
         }
-        self::stack($dom, $xpath, $nested->item(0), ['rt-ledger-direct', 'rt-ledger-company']);
 
         foreach ($xpath->query(self::classQuery('rt-sign-ledger-content')) as $cell) {
             // The flow-delivery train has its own row. Reserve overlap space
@@ -151,16 +160,18 @@ final class OutlookMobileSignature
             }
         }
         if ($logoTrain) {
-            $headings = $xpath->query(self::classQuery('rt-delivery-brand-heading', 'td'));
-            if ($headings->length !== 1) {
-                throw new RuntimeException('Der mobile Logo-Zug besitzt keinen eindeutigen Markenkopf.');
+            if (! $personal) {
+                $headings = $xpath->query(self::classQuery('rt-delivery-brand-heading', 'td'));
+                if ($headings->length !== 1) {
+                    throw new RuntimeException('Der mobile Logo-Zug besitzt keinen eindeutigen Markenkopf.');
+                }
+                $heading = $headings->item(0);
+                $style = str_replace('padding:0 0 0 40px;', 'padding:0 0 0 18px;', $heading->getAttribute('style'), $count);
+                if ($count !== 1) {
+                    throw new RuntimeException('Der mobile Logo-Zug besitzt einen fremden Markenkopfabstand.');
+                }
+                self::style($heading, $style);
             }
-            $heading = $headings->item(0);
-            $style = str_replace('padding:0 0 0 40px;', 'padding:0 0 0 18px;', $heading->getAttribute('style'), $count);
-            if ($count !== 1) {
-                throw new RuntimeException('Der mobile Logo-Zug besitzt einen fremden Markenkopfabstand.');
-            }
-            self::style($heading, $style);
             $gaps = $xpath->query(self::classQuery('rt-delivery-train-gap', 'td'));
             $trains = $xpath->query(self::classQuery('rt-delivery-train-cell', 'td'));
             $contents = $xpath->query(self::classQuery('rt-sign-ledger-content', 'td'));
@@ -210,7 +221,9 @@ final class OutlookMobileSignature
             self::style($lineBreak, 'display:block;');
         }
 
-        self::compactPhysicalLedgerCss($xpath, $root, $ledger, $match[1], $html);
+        if ($ledger !== null) {
+            self::compactPhysicalLedgerCss($xpath, $root, $ledger, $match[1], $html);
+        }
 
         // Office.js documents inline CSS as unsupported. Mirror the actual
         // trusted inline values into internal, uniquely scoped rules. Geometry
@@ -293,6 +306,37 @@ final class OutlookMobileSignature
         $document['html'] = $output;
 
         return [$document, $version];
+    }
+
+    /** Stack each complete personal group without moving or copying its content. */
+    private static function personalColumns(DOMXPath $xpath): void
+    {
+        $flows = $xpath->query(self::classQuery('rt-personal-columns', 'div'));
+        $columns = $xpath->query(self::classQuery('rt-personal-column', 'table'));
+        if ($flows->length !== 1 || $columns->length !== 2) {
+            throw new RuntimeException('Die mobilen persoenlichen Signaturgruppen sind nicht eindeutig.');
+        }
+        foreach (['left', 'right'] as $index => $side) {
+            $column = $columns->item($index);
+            $cells = $xpath->query('./tbody/tr/td|./tr/td', $column);
+            if (! $column->parentNode->isSameNode($flows->item(0))
+                || ! in_array('rt-personal-'.$side, preg_split('/\s+/', trim($column->getAttribute('class'))), true)
+                || $cells->length !== 1
+                || ! in_array('rt-personal-cell-'.$side, preg_split('/\s+/', trim($cells->item(0)->getAttribute('class'))), true)) {
+                throw new RuntimeException('Die mobilen persoenlichen Signaturgruppen besitzen fremde Spalten.');
+            }
+            $column->setAttribute('width', '100%');
+            $column->setAttribute('align', 'left');
+            self::style($column, 'display:table;vertical-align:top;width:100%;min-width:0;max-width:none;table-layout:fixed;border-collapse:collapse;margin:0;');
+            self::style($cells->item(0), 'padding:'.($side === 'left' ? '0 18px' : '24px 18px 0').';font-size:13px;line-height:18px;vertical-align:top;text-align:left;');
+        }
+        $companies = $xpath->query(self::classQuery('rt-personal-company-block', 'table'));
+        if ($companies->length !== 1) {
+            throw new RuntimeException('Der mobile persoenliche Firmenblock ist nicht eindeutig.');
+        }
+        $company = $companies->item(0);
+        $company->setAttribute('align', 'left');
+        self::style($company, 'width:220px;max-width:100%;margin:0;border-collapse:collapse;');
     }
 
     /** Keep the last exact owned metadata rule; arbitrary styles stay untouched. */

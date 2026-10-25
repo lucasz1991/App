@@ -5,11 +5,13 @@ namespace App\Support;
 use App\Enums\MailDocumentKind;
 use App\Models\User;
 use App\Support\Mail\CssSemantic;
+use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\Mail\SignatureArtifactVersion;
 use App\Support\Mail\SignatureBackgroundContract;
 use App\Support\Mail\SignatureDocumentContract;
 use App\Support\Mail\SignatureHotline;
 use App\Support\Mail\SignatureImgOverlap;
+use App\Support\Mail\SignaturePersonalColumns;
 use App\Support\Mail\SignatureTableOverlap;
 use App\Support\Mail\SignatureTableOverlapDelivery;
 use App\Support\Mail\SignatureTrainCarrier;
@@ -284,7 +286,8 @@ class MailSignature
         // Vor der MailDocument-Migration bleibt der bestehende Bootstrapweg
         // verwendbar. In einer migrierten Installation erzwingt
         // runtimeDocument dagegen eine echte Veröffentlichung.
-        $published = EmailTemplateBuilder::runtimeDocument(
+        $personalSnapshot = $this->user === null ? null : app(PublishedMailDocumentSnapshotStore::class)->personalSignatureSnapshot();
+        $published = $personalSnapshot['html'] ?? EmailTemplateBuilder::runtimeDocument(
             MailDocumentKind::Signature,
             requirePublished: $this->remoteAssets,
         );
@@ -655,7 +658,7 @@ class MailSignature
         string $idleSource,
     ): string {
         if (SignatureTableOverlap::applies($html)) {
-            return SignatureTableOverlapDelivery::project($html, $outlookFallbackSource);
+            return SignaturePersonalColumns::project(SignatureTableOverlapDelivery::project($html, $outlookFallbackSource));
         }
         if (SignatureHotline::applies($html)) {
             return $html;
@@ -742,7 +745,9 @@ class MailSignature
      */
     public function publishedCss(array $overrides = []): string
     {
-        $css = EmailTemplateBuilder::publishedDocumentCss(MailDocumentKind::Signature);
+        $css = $this->user === null
+            ? EmailTemplateBuilder::publishedDocumentCss(MailDocumentKind::Signature)
+            : (app(PublishedMailDocumentSnapshotStore::class)->personalSignatureSnapshot()['css'] ?? EmailTemplateBuilder::publishedDocumentCss(MailDocumentKind::Signature));
         if ($css === '') {
             return '';
         }

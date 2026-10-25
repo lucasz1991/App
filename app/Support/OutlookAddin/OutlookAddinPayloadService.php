@@ -19,7 +19,7 @@ use Throwable;
 final class OutlookAddinPayloadService
 {
     /** Bei jeder Aenderung der Compilersemantik bewusst anheben. */
-    private const RENDERER_REVISION = 42;
+    private const RENDERER_REVISION = 43;
 
     private const MAX_SIGNATURE_CHARACTERS = 30000;
 
@@ -127,6 +127,7 @@ final class OutlookAddinPayloadService
     /** @return array<string, mixed> */
     public function forUser(User $user): array
     {
+        $signatureOverride = $this->publishedDocuments->hasExplicitSnapshot(MailDocumentKind::Signature);
         $systemSignature = $this->publishedDocuments->snapshot(MailDocumentKind::Signature);
         try {
             $templateSnapshots = $this->publishedDocuments->templateSnapshots();
@@ -207,7 +208,7 @@ final class OutlookAddinPayloadService
             if ($systemSignature === null) {
                 $this->publishedDocuments->forget(MailDocumentKind::Signature);
             } else {
-                $this->publishedDocuments->useSnapshot(MailDocumentKind::Signature, $systemSignature['html'], $systemSignature['css']);
+                $this->publishedDocuments->useSnapshot(MailDocumentKind::Signature, $systemSignature['html'], $systemSignature['css'], explicit: $signatureOverride);
             }
         }
     }

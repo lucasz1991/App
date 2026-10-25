@@ -51,6 +51,9 @@ final class SignatureTableOverlapDelivery
 
     public static function usesLogoTrain(string $html): bool
     {
+        if (SignaturePersonalColumns::applies($html)) {
+            return true;
+        }
         if (SignatureArtifactVersion::detect('signature', $html) !== 'v27') {
             return false;
         }
@@ -213,6 +216,10 @@ final class SignatureTableOverlapDelivery
         $image = self::one($xpath, 'rt-delivery-train');
         $cell = self::one($xpath, 'rt-delivery-train-cell');
         $logoTrain = self::usesLogoTrain($html);
+        $personal = SignaturePersonalColumns::applies($html);
+        if ($personal) {
+            SignaturePersonalColumns::assertRuntime($html);
+        }
         if ($xpath->query('//table[@data-rt-train-delivery="'.self::MARKER.'"]')->length !== 1
             || ! $image->parentNode->isSameNode($cell)
             || $image->getAttribute('width') !== (string) self::FALLBACK_WIDTH
@@ -221,7 +228,7 @@ final class SignatureTableOverlapDelivery
             || ($source !== null && ! hash_equals($source, $image->getAttribute('src')))) {
             throw new RuntimeException('Der Signaturzug muss begrenzt nach den Kontakten stehen.');
         }
-        if ($logoTrain) {
+        if ($logoTrain && ! $personal) {
             self::assertLogoTrainShape($xpath, $frame, $content, $cell);
         } elseif (! $cell->parentNode->previousElementSibling?->isSameNode($content->parentNode)
             || ! $content->parentNode->parentNode->isSameNode($cell->parentNode->parentNode)
@@ -261,6 +268,7 @@ final class SignatureTableOverlapDelivery
         $scope = 'tr[data-rt-artifact-version="'.$version.'"]';
         $ledger = self::usesLedger($html);
         $logoTrain = self::usesLogoTrain($html);
+        $personal = SignaturePersonalColumns::applies($html) || SignaturePersonalColumns::requested($html);
         $spacedHotline = $logoTrain && self::hasSpacedHotline($html);
         $css = $ledger
             ? $scope.' .rt-sign-ledger-content{padding:'.($logoTrain ? '25px 0 0' : '25px 40px 15px').'!important;}'
@@ -277,6 +285,10 @@ final class SignatureTableOverlapDelivery
         $css .= $scope.' .rt-delivery-group-cell{display:table-cell!important;width:'.($logoTrain ? '50%' : '100%').'!important;border:0!important;vertical-align:top!important;text-align:left!important;}'
             .$scope.' .rt-contact-text{word-break:break-all!important;overflow-wrap:anywhere!important;}'
             .$scope.' .rt-delivery-contact-value{margin:0!important;word-break:break-all!important;overflow-wrap:anywhere!important;}';
+        if ($personal) {
+            return $css.SignaturePersonalColumns::css($html)
+                .($spacedHotline ? $scope.' td.design-hotline-row{padding-right:24px!important;}@media only screen and (max-width:860px){'.$scope.' td.design-hotline-row{padding-right:22px!important;}}' : '');
+        }
         if (! $ledger) {
             return $css;
         }

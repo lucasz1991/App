@@ -7,6 +7,7 @@ namespace App\Support\OutlookAddin;
 use App\Support\Mail\CssSemantic;
 use App\Support\Mail\OutlookSignatureInlineStyle;
 use App\Support\Mail\SignatureArtifactVersion;
+use App\Support\Mail\SignaturePersonalColumns;
 use App\Support\Mail\SignatureTableOverlapDelivery;
 use RuntimeException;
 
@@ -29,6 +30,11 @@ final class OutlookNativePersonalSignature
 
     public static function project(string $html): string
     {
+        if (SignaturePersonalColumns::applies($html)) {
+            SignaturePersonalColumns::assertRuntime($html);
+
+            return $html;
+        }
         if (SignatureTableOverlapDelivery::usesLogoTrain($html)) {
             if (str_contains($html, self::ATTRIBUTE)) {
                 self::fail();

@@ -840,7 +840,8 @@ class EmailTemplateBuilder
      */
     protected function substitute(string $template, array $values): string
     {
-        $values['RESPONSIVE_CSS'] ??= static::responsiveCss($values['SIGNATURE_BORDER'] ?? null);
+        $personalSource = app(PublishedMailDocumentSnapshotStore::class)->personalSignatureSnapshot();
+        $values['RESPONSIVE_CSS'] ??= static::responsiveCss($values['SIGNATURE_BORDER'] ?? null, signatureHtml: $personalSource['html'] ?? null);
 
         foreach ($values as $key => $value) {
             $template = str_replace('{{'.$key.'}}', $value, $template);

@@ -26,6 +26,13 @@ final class PublishedMailDocumentSnapshotStore
     /** @var array<string, array{html: string, css: string}|null> */
     private array $snapshots = [];
 
+    /** Explicit paired/preview overrides must outrank the personal default. */
+    private array $explicitSnapshots = [];
+
+    private bool $personalSnapshotLoaded = false;
+
+    private ?array $personalSnapshot = null;
+
     /**
      * @var list<array{
      *     id: string,
@@ -122,6 +129,11 @@ final class PublishedMailDocumentSnapshotStore
     public function forget(MailDocumentKind $kind): void
     {
         unset($this->snapshots[$kind->value]);
+        unset($this->explicitSnapshots[$kind->value]);
+        if ($kind === MailDocumentKind::Signature) {
+            $this->personalSnapshotLoaded = false;
+            $this->personalSnapshot = null;
+        }
 
         if ($kind === MailDocumentKind::Template) {
             $this->templateSnapshots = null;
@@ -129,9 +141,34 @@ final class PublishedMailDocumentSnapshotStore
     }
 
     /** Setzt fuer genau diesen synchronen Request einen geprueften Entwurf ein. */
-    public function useSnapshot(MailDocumentKind $kind, string $html, string $css): void
+    public function useSnapshot(MailDocumentKind $kind, string $html, string $css, bool $explicit = true): void
     {
         $this->snapshots[$kind->value] = ['html' => $html, 'css' => $css];
+        if ($explicit) {
+            $this->explicitSnapshots[$kind->value] = true;
+        } else {
+            unset($this->explicitSnapshots[$kind->value]);
+        }
+    }
+
+    public function hasExplicitSnapshot(MailDocumentKind $kind): bool
+    {
+        return isset($this->explicitSnapshots[$kind->value]);
+    }
+
+    /** @return array{html: string, css: string}|null */
+    public function personalSignatureSnapshot(): ?array
+    {
+        if (isset($this->explicitSnapshots[MailDocumentKind::Signature->value])) {
+            return $this->snapshots[MailDocumentKind::Signature->value];
+        }
+
+        if (! $this->personalSnapshotLoaded) {
+            $this->personalSnapshot = $this->outlookSignatureSnapshot();
+            $this->personalSnapshotLoaded = true;
+        }
+
+        return $this->personalSnapshot;
     }
 
     /** Outlook owns its signature default independently of system mail. */
@@ -182,10 +219,11 @@ final class PublishedMailDocumentSnapshotStore
             && $activeSystemTemplate->published_signature_document_id !== null) {
             $paired = $this->signatureResolver->publishedSnapshot($activeSystemTemplate, 'system');
 
-            return $paired === null ? null : [
-                'html' => $paired['html'],
-                'css' => $paired['css'],
-            ];
+            if ($paired !== null && ! SignaturePersonalColumns::requested($paired['html'])) {
+                return ['html' => $paired['html'], 'css' => $paired['css']];
+            }
+            // A deliberately personal source belongs to Outlook/personal
+            // exports; system messages retain the active company signature.
         }
 
         if (! $document instanceof MailDocument) {

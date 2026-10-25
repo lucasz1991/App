@@ -6,6 +6,7 @@ namespace App\Support\OutlookAddin;
 
 use App\Support\Mail\CssSemantic;
 use App\Support\Mail\OutlookSignatureInlineStyle;
+use App\Support\Mail\SignaturePersonalColumns;
 use App\Support\Mail\SignatureTableOverlapDelivery;
 use RuntimeException;
 
@@ -46,6 +47,18 @@ final class OutlookDesktopFlow
         $nodes = self::nodes($html);
         if (self::mobileNodes($nodes)) {
             return $html;
+        }
+        if (SignaturePersonalColumns::applies($html)) {
+            if (array_filter($nodes, static fn (array $node): bool => self::has($node, 'rt-outlook-signature')) === []) {
+                return $html;
+            }
+            if (self::projected($html)) {
+                self::assertPersonalProjected($html, $nodes);
+
+                return $html;
+            }
+
+            return self::projectPersonalDesktop($html, $nodes);
         }
         if (str_contains($html, self::MARKER) || str_contains($html, self::STYLE)) {
             self::assertProjected($html, $nodes);
@@ -164,6 +177,77 @@ final class OutlookDesktopFlow
         }
 
         return $html;
+    }
+
+    private static function projectPersonalDesktop(string $html, array $nodes): string
+    {
+        SignatureTableOverlapDelivery::assertRuntime($html);
+        foreach (self::styles($html) as $style) {
+            if (isset($style['attrs']['data-rt-mail-document-css']) && trim($style['css']) !== '') {
+                return $html;
+            }
+        }
+        $root = self::one($nodes, 'rt-outlook-signature', 'div');
+        if (preg_match('/(?:^|\s)(rts[0-9a-f]{10})(?=\s|$)/', $nodes[$root]['attrs']['class'] ?? '', $scopeMatch) !== 1) {
+            self::fail();
+        }
+        $scope = $scopeMatch[1];
+        $before = self::inventory($html);
+        $content = self::one($nodes, 'rt-sign-content', 'td');
+        $train = self::one($nodes, 'rt-delivery-train-cell', 'td');
+        [$html, $changes, $aliases] = self::inlineChanges($html, $nodes, [
+            $content => 'width:100%;direction:ltr;padding:16px 0 0;',
+            $train => 'width:100%;padding:0;border:0;font-size:0;line-height:0;vertical-align:bottom;',
+        ], $scope);
+        $nodes = self::nodes($html);
+        $content = self::one($nodes, 'rt-sign-content', 'td');
+        $train = self::one($nodes, 'rt-delivery-train-cell', 'td');
+        $gap = self::one($nodes, 'rt-delivery-train-gap', 'td');
+        $flow = self::one($nodes, 'rt-personal-columns', 'div');
+        $root = self::one($nodes, 'rt-outlook-signature', 'div');
+        $html = self::replace($html, [
+            [$nodes[$train]['openEnd'], $nodes[$train]['close'], self::block('train', 400, '0 40px 0 0', self::inner($html, $nodes[$train]))],
+            [$nodes[$train]['start'], $nodes[$train]['openEnd'], self::attribute($nodes[$train]['opening'], 'width', '100%')],
+            [$nodes[$gap]['start'], $nodes[$gap]['end'], ''],
+            [$nodes[$content]['start'], $nodes[$content]['openEnd'], self::removeAttribute($nodes[$content]['opening'], 'colspan')],
+            [$nodes[$flow]['start'], $nodes[$flow]['openEnd'], substr($nodes[$flow]['opening'], 0, -1).' '.self::MARKER.'="'.self::REVISION.'">'],
+            [$nodes[$root]['start'], $nodes[$root]['openEnd'], self::attribute($nodes[$root]['opening'], 'class', trim($nodes[$root]['attrs']['class'].' '.self::HOST.' '.self::host($scope)))],
+        ]);
+        $html = self::stylesForFlow($html, $scope, $changes, $aliases);
+        $nodes = self::nodes($html);
+        $root = self::one($nodes, 'rt-outlook-signature', 'div');
+        $html = substr_replace($html, '<style '.self::STYLE.'="1">'.self::personalCss($scope).'</style>', $nodes[$root]['openEnd'], 0);
+        self::assertPersonalProjected($html, self::nodes($html));
+        if ($before !== self::inventory($html)) {
+            self::fail();
+        }
+
+        return $html;
+    }
+
+    private static function personalCss(string $scope): string
+    {
+        $p = '.'.self::host($scope).' ';
+
+        return $p.'.rt-df-train{display:table!important;width:100%!important;max-width:400px!important;table-layout:fixed!important;border-collapse:collapse!important;}'
+            .$p.'.rt-dfc-train{padding:0 40px 0 0!important;border:0!important;}';
+    }
+
+    private static function assertPersonalProjected(string $html, array $nodes): void
+    {
+        SignaturePersonalColumns::assertRuntime($html);
+        $root = self::one($nodes, 'rt-outlook-signature', 'div');
+        $flow = self::one($nodes, 'rt-personal-columns', 'div');
+        self::one($nodes, 'rt-df-train', 'table');
+        if (($nodes[$flow]['attrs'][self::MARKER] ?? '') !== self::REVISION
+            || ! preg_match('/(?:^|\s)(rts[0-9a-f]{10})(?=\s|$)/', $nodes[$root]['attrs']['class'] ?? '', $scope)) {
+            self::fail();
+        }
+        $style = '<style '.self::STYLE.'="1">'.self::personalCss($scope[1]).'</style>';
+        if (! self::has($nodes[$root], self::host($scope[1])) || substr_count($html, $style) !== 1
+            || substr($html, $nodes[$root]['openEnd'], strlen($style)) !== $style) {
+            self::fail();
+        }
     }
 
     private static function compact(string $style, bool $text): string
