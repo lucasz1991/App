@@ -68,6 +68,8 @@ final class OutlookCombinedComposeDocumentTest extends TestCase
         $fingerprint = app(OutlookAddinPayloadService::class)->sourceFingerprint($user);
         $output = OutlookCombinedComposeDocument::build($template, $signature);
         $xpath = $this->xpath($output);
+        self::assertSame(1, $xpath->query('//div[@data-rt-compose-editable="v1" and @class="rt-compose-editable"]/p[contains(concat(" ",normalize-space(@class)," ")," design-spacer ")]')->length);
+        self::assertSame(0, $xpath->query('//div[@data-rt-compose-editable="v1"]//*[contains(@class,"design-salutation") or contains(@class,"design-greeting")]')->length);
         $root = $xpath->query('//div[@data-rt-compose-document="combined-v1"]');
         self::assertSame(1, $root->length);
         $carrier = $xpath->query('./table[@class="rt-combined-compose-frame"]', $root->item(0));
@@ -138,6 +140,73 @@ final class OutlookCombinedComposeDocumentTest extends TestCase
         self::assertStringNotContainsString('margin-bottom:-', $output);
         self::assertStringNotContainsString('#Signature', $output);
         self::assertStringNotContainsString('+div', $output);
+    }
+
+    public function test_editable_region_owns_only_the_blank_paragraph_without_reserializing_its_neighbours(): void
+    {
+        $paragraph = '<p class="design-spacer" style="margin:0 0 20px;"><br><br>&nbsp;</p>';
+        $before = '<p class="design-salutation">Guten Tag,</p>';
+        $after = '<p class="design-greeting">Mit freundlichen Grüßen,</p>';
+        $template = $this->editableTemplate($before.$paragraph.$after);
+        $opening = '<div class="rt-compose-editable" data-rt-compose-editable="v1">';
+        $marked = OutlookCombinedComposeDocument::markEditableRegion($template);
+        self::assertSame(str_replace($paragraph, $opening.$paragraph.'</div>', $template), $marked);
+        self::assertSame($marked, OutlookCombinedComposeDocument::markEditableRegion($marked));
+        self::assertSame($this->comments($template), $this->comments($marked));
+        self::assertSame($this->styleTags($template), $this->styleTags($marked));
+        self::assertSame($this->cssBytes($template), $this->cssBytes($marked));
+        self::assertSame(strlen($opening.'</div>'), strlen($marked) - strlen($template));
+    }
+
+    public function test_unknown_or_quoted_legacy_writing_areas_remain_unowned(): void
+    {
+        $paragraph = '<p class="design-spacer"><br><br></p>';
+        foreach (['<p>Unknown legacy area</p>', '<p class="design-spacer">Existing user text &amp; punctuation.</p>',
+            $paragraph.$paragraph, '<blockquote><table><tr><td>'.$paragraph.'</td></tr></table></blockquote>',
+            '<p class="design-spacer-suffix"><br></p>'] as $content) {
+            $template = $this->editableTemplate($content);
+            self::assertSame($template, OutlookCombinedComposeDocument::markEditableRegion($template));
+        }
+        $withoutComments = str_replace(['<!-- RT_APPLICATION_CONTENT_START -->', '<!-- RT_APPLICATION_CONTENT_END -->'], '', $this->editableTemplate($paragraph));
+        self::assertSame($withoutComments, OutlookCombinedComposeDocument::markEditableRegion($withoutComments));
+        $quoted = '<blockquote><p class="design-spacer">Quoted text</p></blockquote>';
+        $template = str_replace('</div>', $quoted.'</div>', $this->editableTemplate($paragraph));
+        self::assertStringContainsString($quoted, OutlookCombinedComposeDocument::markEditableRegion($template));
+    }
+
+    public static function malformedEditableRegions(): array
+    {
+        return array_map(static fn (string $case): array => [$case], ['duplicate-start', 'missing-end', 'duplicate-marker', 'wrong-version', 'class-only', 'attribute-only', 'outside-region', 'quoted-marker', 'hidden-marker', 'extra-owned-text']);
+    }
+
+    #[DataProvider('malformedEditableRegions')]
+    public function test_ambiguous_or_foreign_editable_markers_fail_closed(string $case): void
+    {
+        $paragraph = '<p class="design-spacer"><br><br></p>';
+        $template = OutlookCombinedComposeDocument::markEditableRegion($this->editableTemplate($paragraph));
+        $opening = '<div class="rt-compose-editable" data-rt-compose-editable="v1">';
+        $template = match ($case) {
+            'duplicate-start' => str_replace('<!-- RT_APPLICATION_CONTENT_START -->', '<!-- RT_APPLICATION_CONTENT_START --><!-- RT_APPLICATION_CONTENT_START -->', $template),
+            'missing-end' => str_replace('<!-- RT_APPLICATION_CONTENT_END -->', '', $template),
+            'duplicate-marker' => str_replace($paragraph, $opening.$paragraph.'</div>', $template),
+            'wrong-version' => str_replace('data-rt-compose-editable="v1"', 'data-rt-compose-editable="v2"', $template),
+            'class-only' => str_replace(' data-rt-compose-editable="v1"', '', $template),
+            'attribute-only' => str_replace('class="rt-compose-editable" ', '', $template),
+            'outside-region' => str_replace('<!-- RT_APPLICATION_CONTENT_START -->'.$opening, $opening.'<!-- RT_APPLICATION_CONTENT_START -->', $template),
+            'quoted-marker' => str_replace($opening, '<blockquote>'.$opening, str_replace('</td>', '</blockquote></td>', $template)),
+            'hidden-marker' => str_replace($opening, substr($opening, 0, -1).' hidden>', $template),
+            'extra-owned-text' => str_replace($opening, $opening.'Authored static text', $template),
+        };
+        $this->expectException(RuntimeException::class);
+        OutlookCombinedComposeDocument::markEditableRegion($template);
+    }
+
+    private function editableTemplate(string $content): string
+    {
+        return '<style>.opaque{content:"<!-- RT_APPLICATION_CONTENT_START -->";}</style>'
+            .'<div class="rt-outlook-template rtt0123456789ab"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td>'
+            .'<!-- RT_APPLICATION_CONTENT_START -->'.$content.'<!-- RT_APPLICATION_CONTENT_END -->'
+            .'</td></tr></table></div>';
     }
 
     public function test_removed_combined_override_style_cannot_restore_inner_border_mirrors(): void

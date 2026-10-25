@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Support\Mail;
 
+use App\Support\OutlookAddin\OutlookDesktopFlow;
 use RuntimeException;
 
 /** A source-selected personal view; the saved company ledger stays canonical. */
@@ -14,6 +15,8 @@ final class SignaturePersonalColumns
     public const ATTRIBUTE = 'data-rt-personal-columns';
 
     public const MARKER = 'v1';
+
+    public const NATIVE_GRID_ATTRIBUTE = 'data-rt-personal-grid';
 
     private const TOKENS = '~<!--.*?-->|<style\b(?:[^"\'<>]|"[^"]*"|\'[^\']*\')*>.*?</style\s*>|</?[a-z][a-z0-9:-]*(?:[^"\'<>]|"[^"]*"|\'[^\']*\')*>~is';
 
@@ -117,7 +120,19 @@ final class SignaturePersonalColumns
             self::fail();
         }
         $groups = array_keys(array_filter($nodes, static fn (array $node): bool => $node['parent'] === $flow));
-        if ($groups !== [$left, $right]) {
+        $expected = [$left, $right];
+        if (isset($nodes[$flow]['attrs'][self::NATIVE_GRID_ATTRIBUTE])) {
+            $train = self::one($nodes, 'rt-df-train', 'table');
+            $roots = array_keys(array_filter($nodes, static fn (array $node): bool => $node['tag'] === 'div' && self::has($node, 'rt-outlook-signature')));
+            if (($nodes[$flow]['attrs'][self::NATIVE_GRID_ATTRIBUTE] ?? '') !== 'v1'
+                || ($nodes[$flow]['attrs']['data-rt-desktop-flow'] ?? '') !== OutlookDesktopFlow::REVISION
+                || count($roots) !== 1 || ! self::within($nodes, $flow, $roots[0])
+                || $nodes[$train]['parent'] !== $flow) {
+                self::fail();
+            }
+            $expected[] = $train;
+        }
+        if ($groups !== $expected) {
             self::fail();
         }
         foreach (['rt-personal-direct' => $left, 'rt-personal-company-contacts' => $right] as $class => $parent) {

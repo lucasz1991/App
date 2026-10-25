@@ -20,6 +20,12 @@ final class OutlookCombinedComposeDocument
 
     public const MAX_CSS_BYTES = 24576;
 
+    public const EDITABLE_CLASS = 'rt-compose-editable';
+
+    public const EDITABLE_ATTRIBUTE = 'data-rt-compose-editable';
+
+    public const EDITABLE_VERSION = 'v1';
+
     private const NATIVE_MARKER = 'RT-TEMPLATE-MANAGED-V1:NATIVE-SIGNATURE';
 
     private const BORDER = 'border-left:6px solid #e90032;';
@@ -53,12 +59,13 @@ final class OutlookCombinedComposeDocument
         } else {
             SignatureTableOverlapDelivery::assertRuntime($signatureHtml);
         }
+        $templateHtml = self::markEditableRegion($templateHtml);
         [$templateNodes, $templateFrame] = self::fragment($templateHtml, 'rt-outlook-template', 'rtt', 12);
         [$signatureNodes, $signatureFrame] = self::fragment($signatureHtml, 'rt-outlook-signature', 'rts', 10);
         if (! self::hasClass($templateNodes[$templateFrame], 'rt-native-compose-frame')
             || count(array_filter($templateNodes, static fn (array $node): bool => self::hasClass($node, 'rt-native-compose-frame'))) !== 1
             || array_filter($templateNodes, static fn (array $node): bool => self::hasClass($node, 'rt-outlook-signature')) !== []
-            || array_filter($signatureNodes, static fn (array $node): bool => self::hasClass($node, 'rt-native-compose-frame') || self::hasClass($node, 'rt-outlook-template')) !== []) {
+            || array_filter($signatureNodes, static fn (array $node): bool => self::hasClass($node, 'rt-native-compose-frame') || self::hasClass($node, 'rt-outlook-template') || self::editableMarker($node)) !== []) {
             self::fail();
         }
         self::assertTemplateMetadata($templateHtml, $templateNodes);
@@ -92,6 +99,84 @@ final class OutlookCombinedComposeDocument
         }
 
         return $output;
+    }
+
+    /** Own only the known empty writing paragraph, never authored greetings or quoted content. */
+    public static function markEditableRegion(string $html): string
+    {
+        [$nodes, $frame] = self::fragment($html, 'rt-outlook-template', 'rtt', 12);
+        $marked = array_keys(array_filter($nodes, self::editableMarker(...)));
+        preg_match_all('~<!--.*?-->|<style\b(?:[^"\'<>]|"[^"]*"|\'[^\']*\')*>.*?</style\s*>~is', $html, $opaque, PREG_OFFSET_CAPTURE);
+        $bounds = [];
+        foreach ($opaque[0] as [$token, $offset]) {
+            foreach (['START', 'END'] as $edge) {
+                if (preg_match('~\A<!--\s*RT_APPLICATION_CONTENT_'.$edge.'\s*-->\z~', $token)) {
+                    $bounds[$edge][] = [$offset, $offset + strlen($token)];
+                }
+            }
+        }
+        if ($bounds === [] && $marked === []) {
+            return $html;
+        }
+        if (count($bounds['START'] ?? []) !== 1 || count($bounds['END'] ?? []) !== 1) {
+            self::fail();
+        }
+        $start = $bounds['START'][0][1];
+        $end = $bounds['END'][0][0];
+        if ($start >= $end || $start <= $nodes[$frame]['start'] || $end >= $nodes[$frame]['close']) {
+            self::fail();
+        }
+        $paragraphs = array_keys(array_filter($nodes, static fn (array $node): bool => self::hasClass($node, 'design-spacer')
+            && $node['start'] >= $start && $node['end'] <= $end));
+        if (count($marked) > 1 || ($marked !== [] && count($paragraphs) !== 1)) {
+            self::fail();
+        }
+        if (count($paragraphs) !== 1) {
+            return $html;
+        }
+        $paragraph = $nodes[$paragraphs[0]];
+        $parent = $paragraph['parent'];
+        $wrapper = $marked === [] ? null : $nodes[$marked[0]];
+        if ($wrapper !== null) {
+            if ($wrapper['tag'] !== 'div' || ($wrapper['attrs']['class'] ?? '') !== self::EDITABLE_CLASS || count($wrapper['attrs']) !== 2
+                || ($wrapper['attrs'][self::EDITABLE_ATTRIBUTE] ?? '') !== self::EDITABLE_VERSION
+                || $parent !== $marked[0] || $wrapper['children'] !== $paragraphs
+                || $wrapper['start'] < $start || $wrapper['end'] > $end
+                || trim(substr($html, $wrapper['start'] + strlen($wrapper['opening']), $wrapper['close'] - $wrapper['start'] - strlen($wrapper['opening'])))
+                    !== substr($html, $paragraph['start'], $paragraph['end'] - $paragraph['start'])) {
+                self::fail();
+            }
+            $parent = $wrapper['parent'];
+        }
+        $eligible = $paragraph['tag'] === 'p' && $parent !== null && $nodes[$parent]['tag'] === 'td';
+        for ($ancestor = $paragraphs[0]; $ancestor !== null; $ancestor = $nodes[$ancestor]['parent']) {
+            $node = $nodes[$ancestor];
+            if (in_array($node['tag'], ['blockquote', 'q'], true) || array_key_exists('hidden', $node['attrs'])
+                || ($node['attrs']['aria-hidden'] ?? '') === 'true' || self::hasClass($node, 'rt-outlook-signature')) {
+                $eligible = false;
+            }
+        }
+        $inner = substr($html, $paragraph['start'] + strlen($paragraph['opening']), $paragraph['close'] - $paragraph['start'] - strlen($paragraph['opening']));
+        $blank = trim(str_replace("\u{00a0}", '', CssSemantic::decodeHtmlEntitiesOnce(preg_replace('~<br\s*/?>~i', '', $inner)))) === '';
+        if (! $eligible || ! $blank) {
+            if ($wrapper !== null) {
+                self::fail();
+            }
+
+            return $html;
+        }
+        if ($wrapper !== null) {
+            return $html;
+        }
+        $opening = '<div class="'.self::EDITABLE_CLASS.'" '.self::EDITABLE_ATTRIBUTE.'="'.self::EDITABLE_VERSION.'">';
+
+        return substr($html, 0, $paragraph['start']).$opening
+            .substr($html, $paragraph['start'], $paragraph['end'] - $paragraph['start']).'</div>'.substr($html, $paragraph['end']);
+    }
+
+    private static function editableMarker(array $node): bool
+    {
+        return self::hasClass($node, self::EDITABLE_CLASS) || array_key_exists(self::EDITABLE_ATTRIBUTE, $node['attrs']);
     }
 
     /** @return array{array,int} */

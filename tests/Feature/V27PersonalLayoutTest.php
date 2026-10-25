@@ -228,6 +228,26 @@ final class V27PersonalLayoutTest extends TestCase
         self::assertSame($canonical['signature']['media'], $mobile['signature']['media']);
         self::assertTrue(OutlookDesktopFlow::projected($desktop['signature']['html']));
         self::assertFalse(OutlookDesktopFlow::projected($mobile['signature']['html']));
+        self::assertSame($desktop['signature']['html'], OutlookDesktopFlow::project($desktop['signature']['html']));
+        SignaturePersonalColumns::assertRuntime($desktop['signature']['html']);
+        $nativeXpath = $this->xpath($desktop['signature']['html']);
+        $nativeContainer = $this->one($nativeXpath, 'rt-personal-columns');
+        foreach ([SignaturePersonalColumns::NATIVE_GRID_ATTRIBUTE, 'data-rt-desktop-flow'] as $attribute) {
+            $invalid = $this->xpath($desktop['signature']['html']);
+            $this->one($invalid, 'rt-personal-columns')->removeAttribute($attribute);
+            $this->assertNativeRuntimeRejected($invalid->document->saveHTML());
+        }
+        $invalid = $this->xpath($desktop['signature']['html']);
+        $invalidContainer = $this->one($invalid, 'rt-personal-columns');
+        $invalidContainer->insertBefore($this->one($invalid, 'rt-df-train'), $this->one($invalid, 'rt-personal-right'));
+        $this->assertNativeRuntimeRejected($invalid->document->saveHTML());
+        foreach (['rt-personal-left', 'rt-personal-right', 'rt-df-train'] as $class) {
+            $item = $this->one($nativeXpath, $class);
+            self::assertTrue($item->parentNode->isSameNode($nativeContainer));
+            self::assertSame('100%', $item->getAttribute('width'));
+            self::assertStringContainsString('display:table;', $item->getAttribute('style'), 'Unsupported grid keeps ordinary full-width table siblings.');
+            self::assertStringContainsString('width:100%;min-width:0;', $item->getAttribute('style'));
+        }
         foreach ($desktop['templates'] as $index => $item) {
             $html = $item['combinedComposeHtml'];
             $this->assertPersonalGroups($html);
@@ -354,6 +374,18 @@ final class V27PersonalLayoutTest extends TestCase
                 self::assertSame('none', $this->winningExplicitRule($xpath, $image, 'max-width'));
                 self::assertSame('auto', $this->winningExplicitRule($xpath, $image, 'height'));
                 self::assertSame('460px', $this->winningExplicitRule($xpath, $this->one($xpath, 'rt-df-train'), 'max-width'));
+                self::assertSame('grid', $this->winningExplicitRule($xpath, $container, 'display'));
+                self::assertSame('repeat(auto-fit,minmax(min(280px,100%),1fr))', $this->winningExplicitRule($xpath, $container, 'grid-template-columns'));
+                foreach (['rt-personal-left' => 'start', 'rt-personal-right' => 'start', 'rt-df-train' => 'end'] as $class => $alignment) {
+                    $item = $this->one($xpath, $class);
+                    self::assertSame('100%', $this->winningExplicitRule($xpath, $item, 'width'));
+                    self::assertSame('0', $this->winningExplicitRule($xpath, $item, 'min-width'));
+                    self::assertSame($alignment, $this->winningExplicitRule($xpath, $item, 'align-self'));
+                }
+                self::assertSame('1', $this->winningExplicitRule($xpath, $this->one($xpath, 'rt-personal-left'), 'grid-column'));
+                self::assertSame('1', $this->winningExplicitRule($xpath, $this->one($xpath, 'rt-df-train'), 'grid-column'));
+                self::assertSame('-2/-1', $this->winningExplicitRule($xpath, $this->one($xpath, 'rt-personal-right'), 'grid-column'));
+                self::assertSame('span 2', $this->winningExplicitRule($xpath, $this->one($xpath, 'rt-personal-right'), 'grid-row'));
             } else {
                 self::assertSame(0, $xpath->query('//*[contains(concat(" ",normalize-space(@class)," ")," rt-train-window ")]')->length);
             }
@@ -449,6 +481,16 @@ final class V27PersonalLayoutTest extends TestCase
         self::assertStringNotContainsString('-4.647303%', $html);
         self::assertMatchesRegularExpression('~<!--\[if mso\]><img\b[^>]*rt-delivery-train-mso[^>]*width="220" height="28"~', $html);
         if (OutlookDesktopFlow::projected($html)) {
+            $container = $this->one($xpath, 'rt-personal-columns');
+            self::assertSame('v1', $container->getAttribute(SignaturePersonalColumns::NATIVE_GRID_ATTRIBUTE));
+            $children = $xpath->query('./*', $container);
+            self::assertCount(3, $children);
+            foreach (['rt-personal-left', 'rt-personal-right', 'rt-df-train'] as $index => $class) {
+                self::assertTrue($children->item($index)->isSameNode($this->one($xpath, $class)), 'DOM reading order stays Person, Company, Train.');
+                self::assertSame('table', $children->item($index)->tagName);
+            }
+            self::assertSame(1, $xpath->query('./tr|./tbody/tr', $this->one($xpath, 'rt-sign-content-frame'))->length);
+            self::assertSame(0, $xpath->query('//*[contains(concat(" ",normalize-space(@class)," ")," rt-delivery-train-cell ") or contains(concat(" ",normalize-space(@class)," ")," rt-delivery-train-gap ")]')->length);
             $window = $this->one($xpath, 'rt-train-window');
             self::assertTrue($images->item(0)->parentNode->isSameNode($window));
             self::assertSame('rtl', $window->getAttribute('dir'));
@@ -458,7 +500,18 @@ final class V27PersonalLayoutTest extends TestCase
             self::assertStringContainsString('padding:0 40px 0 0;', $this->one($xpath, 'rt-dfc-train')->getAttribute('style'));
         } else {
             self::assertStringNotContainsString('rt-train-window', $html);
+            self::assertStringNotContainsString(SignaturePersonalColumns::NATIVE_GRID_ATTRIBUTE, $html);
             self::assertStringContainsString('width:100%;max-width:100%;height:auto;', $images->item(0)->getAttribute('style'));
+        }
+    }
+
+    private function assertNativeRuntimeRejected(string $html): void
+    {
+        try {
+            OutlookDesktopFlow::project($html);
+            self::fail('A malformed native grid must not be treated as a trusted runtime projection.');
+        } catch (RuntimeException $exception) {
+            self::assertNotSame('', $exception->getMessage());
         }
     }
 
