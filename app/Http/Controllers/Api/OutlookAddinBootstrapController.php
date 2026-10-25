@@ -49,6 +49,17 @@ final class OutlookAddinBootstrapController extends Controller
                     'outlook_addin_client_outdated',
                 );
             }
+            $automaticInsertionEnabled = app(OutlookAddinAutomaticInsertionPolicy::class)->enabledForUser($resolved['user']);
+            if (! $automaticInsertionEnabled && $request->header('X-RailTime-Outlook-Context') === 'event') {
+                // Cached runtimes may not understand the preference flag. Do
+                // not give an automatic event any insertable artifacts then.
+                return $this->payloadResponse($request, [
+                    'schema' => 1,
+                    'marker' => (string) config('outlook_addin.marker', 'RT-SIGNATURE-MANAGED-V1'),
+                    'automaticInsertionEnabled' => false,
+                    'binding' => $resolved['binding'],
+                ]);
+            }
             app(MicrosoftDeviceSyncScheduler::class)->afterMicrosoftSignIn($identity, $resolved['user']);
             $payload = $snapshots->currentForUser($resolved['user']);
             // Presentation hint only, after all identity checks and after the
@@ -59,18 +70,12 @@ final class OutlookAddinBootstrapController extends Controller
             $payload = OutlookClientPresentation::payload($payload);
             // Request-fresh preference, outside reusable canonical snapshots.
             // Manual signature/template data remains available in this response.
-            $payload['automaticInsertionEnabled'] = app(OutlookAddinAutomaticInsertionPolicy::class)->enabledForUser($resolved['user']);
+            $payload['automaticInsertionEnabled'] = $automaticInsertionEnabled;
             // Der persoenliche Snapshot ist wiederverwendbar, die Freigabe
             // fuer den aktuellen Absender dagegen strikt requestgebunden.
             $payload['binding'] = $resolved['binding'];
-            $encoded = json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-            $etag = '"'.hash('sha256', $encoded).'"';
 
-            if (trim((string) $request->header('If-None-Match')) === $etag) {
-                return response('', 304, $this->headers($etag));
-            }
-
-            return response()->json($payload, 200, $this->headers($etag));
+            return $this->payloadResponse($request, $payload);
         } catch (OutlookAddinException $exception) {
             $this->recordDeniedBootstrap($exception);
 
@@ -84,6 +89,17 @@ final class OutlookAddinBootstrapController extends Controller
                 'message' => 'Die Outlook-Daten konnten vorübergehend nicht geladen werden.',
             ], 500, $this->headers());
         }
+    }
+
+    private function payloadResponse(Request $request, array $payload): JsonResponse|Response
+    {
+        $encoded = json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $etag = '"'.hash('sha256', $encoded).'"';
+        if (trim((string) $request->header('If-None-Match')) === $etag) {
+            return response('', 304, $this->headers($etag));
+        }
+
+        return response()->json($payload, 200, $this->headers($etag));
     }
 
     private function recordDeniedBootstrap(OutlookAddinException $exception): void
@@ -119,7 +135,7 @@ final class OutlookAddinBootstrapController extends Controller
             'Cache-Control' => 'private, no-store, max-age=0',
             'ETag' => $etag,
             'Referrer-Policy' => 'no-referrer',
-            'Vary' => 'Authorization, X-RailTime-Outlook-Mailbox, X-RailTime-Outlook-Sender, X-RailTime-Compose-Contract, X-RailTime-Outlook-Profile',
+            'Vary' => 'Authorization, X-RailTime-Outlook-Mailbox, X-RailTime-Outlook-Sender, X-RailTime-Compose-Contract, X-RailTime-Outlook-Profile, X-RailTime-Outlook-Context',
             'X-Content-Type-Options' => 'nosniff',
         ], static fn (?string $value): bool => $value !== null);
     }
