@@ -85,7 +85,7 @@ final class SignaturePersonalColumns
             .'<div class="rt-personal-direct" style="padding-top:14px;">'.self::presentation(self::inner($html, $nodes[$direct])).'</div>';
         $right = '<table class="rt-personal-company-block" role="presentation" width="220" align="left" border="0" cellspacing="0" cellpadding="0" style="width:220px;max-width:100%;margin:0;float:none;border-collapse:collapse;"><tbody><tr><td style="padding:0;font-size:13px;line-height:18px;text-align:left;">'
             .$logo.'<div class="rt-personal-company-contacts" style="padding-top:14px;">'.self::presentation(self::inner($html, $nodes[$company])).'</div></td></tr></tbody></table>';
-        $flow = '<div class="rt-sign-ledger design-train-logo '.self::SOURCE_CLASS.' rt-personal-columns" '.self::ATTRIBUTE.'="'.self::MARKER.'" style="font-size:0;line-height:0;text-align:left;width:100%;max-width:800px;">'
+        $flow = '<div class="rt-sign-ledger design-train-logo '.self::SOURCE_CLASS.' rt-personal-columns" '.self::ATTRIBUTE.'="'.self::MARKER.'" style="font-size:0;line-height:0;text-align:left;width:100%;max-width:920px;">'
             .self::column('left', '0 40px', $left)
             .self::column('right', '0 40px', $right).'</div>';
         $before = self::inventory($html);
@@ -141,7 +141,7 @@ final class SignaturePersonalColumns
         }
         $p = 'tr[data-rt-artifact-version="v27"] ';
 
-        return $p.'.rt-personal-columns{font-size:0!important;line-height:0!important;text-align:left!important;width:100%!important;max-width:800px!important;}'
+        return $p.'.rt-personal-columns{font-size:0!important;line-height:0!important;text-align:left!important;width:100%!important;max-width:920px!important;}'
             .$p.'.rt-personal-column{display:inline-table!important;vertical-align:top!important;width:50%!important;min-width:280px!important;min-width:min(280px,100%)!important;table-layout:fixed!important;border-collapse:collapse!important;}'
             .$p.'.rt-personal-cell-left{padding:0 40px!important;font-size:13px!important;line-height:18px!important;vertical-align:top!important;}'
             .$p.'.rt-personal-cell-right{padding:0 40px!important;font-size:13px!important;line-height:18px!important;vertical-align:top!important;}'
@@ -161,7 +161,7 @@ final class SignaturePersonalColumns
     public static function ownsInlineStyle(array $classes, string $style): bool
     {
         $known = [
-            'rt-personal-columns' => 'font-size:0;line-height:0;text-align:left;width:100%;max-width:800px',
+            'rt-personal-columns' => 'font-size:0;line-height:0;text-align:left;width:100%;max-width:920px',
             'rt-personal-column' => 'display:inline-table;vertical-align:top;width:50%;min-width:280px;min-width:min(280px,100%);table-layout:fixed;border-collapse:collapse',
             'rt-personal-cell-left' => 'padding:0 40px;font-size:13px;line-height:18px;vertical-align:top',
             'rt-personal-cell-right' => 'padding:0 40px;font-size:13px;line-height:18px;vertical-align:top',
