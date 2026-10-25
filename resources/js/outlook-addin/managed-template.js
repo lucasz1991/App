@@ -3,6 +3,8 @@ const TOKEN = /<!--[\s\S]*?-->|<(?:style|script|textarea|title)\b(?:[^"'<>]|"[^"
 const VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
 const MODE = 'combined-v1';
 const MARKER = 'RT-TEMPLATE-MANAGED-V1:COMBINED-DOCUMENT';
+const EDITABLE_START = 'RT-COMPOSE-EDITABLE-START-V1';
+const EDITABLE_END = 'RT-COMPOSE-EDITABLE-END-V1';
 const MARKER_END = '(?=-->|[\\s"\'<>]|$)';
 const combinedMarker = new RegExp(MARKER + MARKER_END);
 const otherTemplateMarker = new RegExp(`RT-TEMPLATE-MANAGED-V1(?!:COMBINED-DOCUMENT${MARKER_END})`);
@@ -117,6 +119,104 @@ function activeMarker(html, elements, node, pattern) {
         .filter(match => !quotedOffset(elements, node.openEnd + match.index));
 }
 
+function singleTableCell(elements, table) {
+    const child = (parent, tag) => {
+        const result = exactlyOne(elements.map((node, index) => ({ node, index })).filter(value => value.node.parent === parent));
+        if (result.node.tag !== tag) unavailable();
+        return result;
+    };
+    return child(child(child(table, 'tbody').index, 'tr').index, 'td');
+}
+
+function markerSpans(html, tree, currentLength) {
+    const candidates = tree.elements.map((node, index) => ({ node, index })).filter(({ node, index }) => node.tag === 'span'
+        && node.end <= currentLength && !quoted(tree.elements, index)).map(value => ({ ...value,
+        value: decoded(html.slice(value.node.openEnd, value.node.close).replace(/<!--[\s\S]*?-->|<[^>]*>/g, '')).trim() }))
+        .filter(value => /^RT-(?:COMPOSE-EDITABLE-|TEMPLATE-MANAGED-|SIGNATURE-MANAGED-|SIGNATURE-VERSION:)/.test(value.value));
+    return candidates.filter(value => !candidates.some(outer => outer.index !== value.index && outer.value === value.value
+        && within(tree.elements, value.index, outer.index)));
+}
+
+function tableAncestor(elements, index) {
+    for (let current = index; current !== undefined; current = elements[current].parent) {
+        if (elements[current].tag === 'table') return current;
+    }
+    unavailable();
+}
+
+function commonTable(elements, left, right) {
+    for (let current = left; current !== undefined; current = elements[current].parent) {
+        if (elements[current].tag === 'table' && within(elements, right, current)) return current;
+    }
+    unavailable();
+}
+
+function sentinelContract(html, currentLength, tree, spans) {
+    const { elements } = tree;
+    const boundaries = spans.filter(value => value.value.startsWith('RT-COMPOSE-EDITABLE-'));
+    // A completely empty region can be coalesced into one hidden span. There
+    // must then be no other TD content; text between the tokens is not editable.
+    const mergedEmpty = boundaries.length === 1 && /^RT-COMPOSE-EDITABLE-START-V1\s*RT-COMPOSE-EDITABLE-END-V1$/.test(boundaries[0].value);
+    if (!mergedEmpty && boundaries.length !== 2) unavailable();
+    const start = mergedEmpty ? boundaries[0] : exactlyOne(boundaries.filter(value => value.value === EDITABLE_START));
+    const end = mergedEmpty ? boundaries[0] : exactlyOne(boundaries.filter(value => value.value === EDITABLE_END));
+    if (start.node.parent !== end.node.parent || elements[start.node.parent]?.tag !== 'td' || (!mergedEmpty && start.node.end > end.node.start)) unavailable();
+    const hidden = node => owns(node.attrs, 'hidden') || node.attrs['aria-hidden'] === 'true'
+        || /(?:^|;)\s*display\s*:\s*none(?:\s*!important)?\s*(?:;|$)/i.test(node.attrs.style || '');
+    if (!hidden(start.node) || !hidden(end.node)) unavailable();
+    const cellIndex = start.node.parent;
+    const editableIndex = tableAncestor(elements, cellIndex);
+    if (singleTableCell(elements, editableIndex).index !== cellIndex) unavailable();
+    const cell = elements[cellIndex];
+    const outer = html.slice(cell.openEnd, start.node.start) + html.slice(end.node.end, cell.close);
+    if (decoded(outer).trim() !== '') unavailable();
+    const templateMarker = exactlyOne(spans.filter(value => value.value.startsWith('RT-TEMPLATE-MANAGED-V1')));
+    const signatureMarker = exactlyOne(spans.filter(value => value.value.startsWith('RT-SIGNATURE-MANAGED-')));
+    const separateVersions = spans.filter(value => value.value.startsWith('RT-SIGNATURE-VERSION:'));
+    // setAsync may coalesce the two adjacent hidden signature spans. Only the
+    // exact two compiler tokens may share that span; arbitrary text may not.
+    const merged = /^RT-SIGNATURE-MANAGED-V1\s*RT-SIGNATURE-VERSION:([0-9a-f]{16})$/i.exec(signatureMarker.value);
+    const version = merged ? signatureMarker : exactlyOne(separateVersions);
+    if (templateMarker.value !== MARKER || (merged ? separateVersions.length !== 0 : signatureMarker.value !== 'RT-SIGNATURE-MANAGED-V1')
+        || (!merged && !/^RT-SIGNATURE-VERSION:[0-9a-f]{16}$/i.test(version.value))
+        || !hidden(templateMarker.node) || !hidden(signatureMarker.node) || !hidden(version.node)
+        || templateMarker.node.end > elements[editableIndex].start
+        || within(elements, templateMarker.index, editableIndex)) unavailable();
+    const templateIndex = commonTable(elements, templateMarker.index, editableIndex);
+    const signatureIndex = tableAncestor(elements, signatureMarker.index);
+    if (signatureIndex !== tableAncestor(elements, version.index) || elements[templateIndex].end > elements[signatureIndex].start
+        || within(elements, signatureIndex, templateIndex) || within(elements, templateIndex, signatureIndex)) unavailable();
+    const rootIndex = commonTable(elements, templateIndex, signatureIndex);
+    const root = elements[rootIndex];
+    const carrier = singleTableCell(elements, rootIndex);
+    if (root.end > currentLength || !within(elements, templateIndex, carrier.index) || !within(elements, signatureIndex, carrier.index)) unavailable();
+    const roleCounts = {};
+    for (let index = 0; index < elements.length; index++) {
+        const node = elements[index];
+        if (node.start >= currentLength || quoted(elements, index)) continue;
+        for (const original of (node.attrs.class || '').split(/\s+/)) {
+            const name = original.replace(/^x_/, '');
+            if (!/^rt-(?:managed-(?:combined|template|signature)|compose-editable)-v/.test(name)) continue;
+            roleCounts[name] = (roleCounts[name] || 0) + 1;
+            if (roleCounts[name] > 1 || node.tag !== 'table') unavailable();
+            const correct = name === 'rt-managed-combined-v1' ? index === rootIndex
+                : name === 'rt-managed-template-v1' ? within(elements, templateIndex, index) && within(elements, index, rootIndex) && !within(elements, signatureIndex, index)
+                    : name === 'rt-managed-signature-v1' ? within(elements, signatureIndex, index) && within(elements, index, rootIndex) && !within(elements, templateIndex, index)
+                        : name === 'rt-compose-editable-v1' ? index === editableIndex : false;
+            if (!correct) unavailable();
+        }
+        if ((within(elements, index, rootIndex) || within(elements, rootIndex, index))
+            && owns(node.attrs, 'data-rt-compose-document') && node.attrs['data-rt-compose-document'] !== MODE) unavailable();
+        if (owns(node.attrs, 'data-rt-compose-editable') && (index !== editableIndex || node.attrs['data-rt-compose-editable'] !== 'v1')) unavailable();
+    }
+    for (const match of matches(html.slice(0, currentLength), /RT-TEMPLATE-MANAGED-V1/g)) {
+        if ((match.index < root.start || match.index >= root.end) && !quotedOffset(elements, match.index)) unavailable();
+    }
+    return { ...tree, root, rootIndex, template: { node: elements[templateIndex], index: templateIndex },
+        signature: { node: elements[signatureIndex], index: signatureIndex }, kind: 'text-v1',
+        region: { start: start.node.end, end: mergedEmpty ? start.node.end : end.node.start, legacy: false } };
+}
+
 function stableTableContract(html, currentLength, tree, candidates) {
     const { elements } = tree;
     const { node: root, index: rootIndex } = exactlyOne(candidates);
@@ -150,6 +250,8 @@ function stableTableContract(html, currentLength, tree, candidates) {
 function rootContract(html, currentLength) {
     const tree = nodes(html);
     const { elements } = tree;
+    const spans = markerSpans(html, tree, currentLength);
+    if (spans.some(value => value.value.startsWith('RT-COMPOSE-EDITABLE-'))) return sentinelContract(html, currentLength, tree, spans);
     const stable = elements.map((node, index) => ({ node, index })).filter(({ node, index }) => node.start < currentLength
         && !quoted(elements, index) && has(node, 'rt-managed-combined-v1'));
     if (stable.length) return stableTableContract(html, currentLength, tree, stable);
@@ -178,8 +280,15 @@ function rootContract(html, currentLength) {
     return { ...tree, root, rootIndex, template, signature, kind: 'div-v1' };
 }
 
+/** Positive ownership contract for this exact byte string, without DOM rewriting. */
+export function managedTemplateContract(html, currentHtml = html) {
+    if (typeof html !== 'string' || typeof currentHtml !== 'string' || !html.startsWith(currentHtml)) unavailable();
+    return rootContract(html, currentHtml.length);
+}
+
 function editableRegion(html, contract, allowLegacy) {
     const { elements, template, comments } = contract;
+    if (contract.kind === 'text-v1') return contract.region;
     if (contract.kind === 'table-v1') {
         const { node, index } = exactlyOne(elements.map((element, position) => ({ node: element, index: position }))
             .filter(value => within(elements, value.index, contract.rootIndex) && !quoted(elements, value.index)
@@ -233,12 +342,13 @@ export function managedTemplateReplacement(bodyHtml, currentHtml, nextHtml) {
     const nextContract = rootContract(nextHtml, nextHtml.length);
     const oldRegion = editableRegion(bodyHtml, oldContract, true);
     const nextRegion = editableRegion(nextHtml, nextContract, false);
-    if (oldContract.kind === 'table-v1' && nextContract.kind !== 'table-v1') unavailable();
+    if (oldContract.kind === 'text-v1' && nextContract.kind !== 'text-v1') unavailable();
+    if (oldContract.kind === 'table-v1' && nextContract.kind === 'div-v1') unavailable();
     // The combined compiler emits one optional carrier sheet before its root.
     // Put that exact owned sheet inside the new root so repeated replacements
     // remove it with their shell. Unrelated old outside styles stay byte-exact.
     const outside = nextContract.elements.map((node, index) => ({ node, index })).filter(value => !within(nextContract.elements, value.index, nextContract.rootIndex));
-    if (nextContract.kind === 'table-v1') {
+    if (nextContract.kind !== 'div-v1') {
         if (outside.length > 1 || outside.some(({ node, index }) => node.tag !== 'div' || !within(nextContract.elements, nextContract.rootIndex, index)
             || !has(node, 'rt-combined-compose-document') || node.attrs['data-rt-compose-document'] !== MODE)) unavailable();
     } else if (outside.some(({ node }) => node.tag !== 'style' || node.attrs['data-rt-combined-compose-css'] !== '1'
@@ -247,10 +357,10 @@ export function managedTemplateReplacement(bodyHtml, currentHtml, nextHtml) {
     const suffix = nextHtml.slice(nextContract.root.end);
     if ((prefix + suffix).replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>|<\/?div\b(?:[^"'<>]|"[^"]*"|'[^']*')*>/gi, '').trim() !== '') unavailable();
     const content = bodyHtml.slice(oldRegion.start, oldRegion.end);
-    for (const match of matches(content, /RT-(?:TEMPLATE|SIGNATURE)-MANAGED|data-rt-compose-document\s*=/gi)) {
+    for (const match of matches(content, /RT-(?:TEMPLATE|SIGNATURE)-MANAGED|RT-COMPOSE-EDITABLE-(?:START|END)-V\d+|data-rt-compose-document\s*=/gi)) {
         if (!quotedOffset(oldContract.elements, oldRegion.start + match.index)) unavailable();
     }
-    const replacement = nextContract.kind === 'table-v1'
+    const replacement = nextContract.kind !== 'div-v1'
         ? nextHtml.slice(nextContract.root.start, nextRegion.start) + content + nextHtml.slice(nextRegion.end, nextContract.root.end)
         : nextHtml.slice(nextContract.root.start, nextContract.root.openEnd) + prefix + suffix
             + nextHtml.slice(nextContract.root.openEnd, nextRegion.start) + content + nextHtml.slice(nextRegion.end, nextContract.root.end);
