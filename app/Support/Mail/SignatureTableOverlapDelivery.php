@@ -287,6 +287,11 @@ final class SignatureTableOverlapDelivery
             .$scope.' .rt-ledger-brand.rt-delivery-wide-column{width:'.($logoTrain ? '50' : '32').'%!important;padding:0 '.($logoTrain ? '40' : '22').'px 0 0!important;border-right:1px solid '.($logoTrain ? 'transparent' : '#e60033').'!important;}'
             .$scope.' .rt-ledger-contacts.rt-delivery-wide-column{width:'.($logoTrain ? '50' : '68').'%!important;padding:'.($logoTrain ? '0 62px 0 0' : '0 0 0 22px').'!important;border:0!important;}'
             .($logoTrain ? $scope.' .rt-delivery-brand-heading{padding-left:40px!important;}' : '')
+            .($logoTrain ? '@media only screen and (min-width:1360px){'
+                .$scope.' table.rt-sign-ledger{width:70%!important;}'
+                .$scope.' .rt-ledger-brand.rt-delivery-wide-column{width:28.571429%!important;}'
+                .$scope.' .rt-ledger-contacts.rt-delivery-wide-column{width:71.428571%!important;}'
+                .'}' : '')
             .'@media only screen and (max-width:860px){'
             .$scope.' .rt-sign-ledger-content{padding:'.($logoTrain ? '23px 0 0' : '23px 22px 15px').'!important;}'
             .$scope.' .rt-sign-ledger img.rt-logo{max-width:175px!important;}'

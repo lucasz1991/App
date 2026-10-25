@@ -105,6 +105,11 @@ final class SignatureLogoTrainDeliveryTest extends TestCase
         self::assertStringContainsString('.rt-ledger-contacts.rt-delivery-wide-column{width:50%!important;padding:0 62px 0 0!important;', $css);
         self::assertStringContainsString('.rt-delivery-train-cell{width:50%!important;padding:0 40px 0 0!important;border-right:1px solid transparent!important;', $css);
         self::assertStringContainsString('.rt-delivery-brand-heading{padding-left:40px!important;}', $css);
+        self::assertStringContainsString('@media only screen and (min-width:1360px){'
+            .$scope.' table.rt-sign-ledger{width:70%!important;}'
+            .$scope.' .rt-ledger-brand.rt-delivery-wide-column{width:28.571429%!important;}'
+            .$scope.' .rt-ledger-contacts.rt-delivery-wide-column{width:71.428571%!important;}}', $css);
+        self::assertStringNotContainsString('min-width:1360px', $legacy);
         self::assertStringContainsString('@media only screen and (max-width:860px)', $css);
         self::assertStringContainsString('display:block!important;width:100%!important;border:0!important;', $css);
         self::assertStringContainsString('.rt-sign-ledger-content{padding:23px 0 0!important;}', $css);
