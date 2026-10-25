@@ -133,7 +133,8 @@ test('known two-row legal footer adds only the sixth TABLE ID and last-row gray 
     assert.equal(plan.ids.signature, `rt-native-layout-${nonce}-s`);
     assert.equal(plan.html.replace(/ id="rt-native-layout-[0-9a-f]{32}-[rpcths]"/g, ''), source.html);
     assert.match(plan.stylePayload, /-s>tbody>tr:last-child font/);
-    assert.match(plan.stylePayload, /color:#718096!important;-webkit-text-fill-color:#718096!important/);
+    assert.match(plan.stylePayload, /color:#718096!important;/);
+    assert.doesNotMatch(plan.stylePayload, /-webkit-text-fill-color/);
     assert.equal(plan.stylePayload, nativeLayoutRestoreStylePayload(plan.ids));
     assert.doesNotMatch(plan.stylePayload, /-s>tbody>tr:first-child/);
 });
@@ -181,7 +182,25 @@ test('retention accepts only the exact Office x_ selector prefix rewrite', () =>
     const body = (plan.stylePayload + plan.html).replace(/id="rt-native-layout-/g, 'id="x_rt-native-layout-')
         .replace(/#rt-native-layout-/g, '#x_rt-native-layout-');
     assert.equal(nativeLayoutRestoreRetained(body, managedTemplateContract(body), plan.ids), true);
-    for (const bad of [body.replace(/#x_rt-native-layout-/g, '#x_x_rt-native-layout-'), body.replace(/#x_rt-native-layout-/g, '#foreign_rt-native-layout-')]) {
+    const noTrailingSemicolon = body.replace(/;}/g, '}');
+    assert.equal(nativeLayoutRestoreRetained(noTrailingSemicolon, managedTemplateContract(noTrailingSemicolon), plan.ids), true);
+    for (const bad of [body.replace(/#x_rt-native-layout-/g, '#x_x_rt-native-layout-'), body.replace(/#x_rt-native-layout-/g, '#foreign_rt-native-layout-'), body.replace(/#x_rt-native-layout-/g, '#rt-native-layout-')]) {
         assert.throws(() => nativeLayoutRestoreRetained(bad, managedTemplateContract(bad), plan.ids), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
     }
+});
+
+test('observed inner carrier before template permits at most two DIV ancestors and preserves preheader bytes', () => {
+    const source = fixture({ wire: true, legal: true });
+    const plan = prepareNativeLayoutRestore(source.html, managedTemplateContract(source.html), nonce);
+    const prepared = managedTemplateContract(plan.html);
+    const template = prepared.template.node;
+    const inner = plan.html.slice(0, template.start) + '<div><div>' + plan.stylePayload + 'Preserved preheader text</div>'
+        + plan.html.slice(template.start, template.end) + '</div>' + plan.html.slice(template.end);
+    assert.equal(nativeLayoutRestoreRetained(inner, managedTemplateContract(inner), plan.ids), true);
+    assert.equal(removeNativeLayoutRestoreCarrier(inner, managedTemplateContract(inner), plan.ids), inner.replace(plan.stylePayload, ''));
+    const tooDeep = inner.replace(plan.stylePayload, '<div>' + plan.stylePayload + '</div>');
+    assert.throws(() => nativeLayoutRestoreRetained(tooDeep, managedTemplateContract(tooDeep), plan.ids), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
+    const editable = prepared.region;
+    const insideUserRegion = plan.html.slice(0, editable.start) + plan.stylePayload + plan.html.slice(editable.start);
+    assert.throws(() => nativeLayoutRestoreRetained(insideUserRegion, managedTemplateContract(insideUserRegion), plan.ids), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
 });

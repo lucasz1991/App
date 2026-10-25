@@ -64,6 +64,10 @@ function officeBoundaryDivs(html) {
         : `<div style="line-height:26px;font-size:0px;"><span style="line-height:0;">${END}</span></div>`);
 }
 
+function officeRetainedCarrier(html) {
+    return html.replace(/\bid="(rt-native-layout-[^"]*)"/g, 'id="x_$1"').replace(/#rt-native-layout-/g, '#x_rt-native-layout-');
+}
+
 function afterOfficeTyping(html) {
     return html.replace(/<!--[\s\S]*?-->/g, '').replace(/\sdata-rt-[a-z-]+="[^"]*"/gi, '')
         .replace(/<[a-z][a-z0-9:-]*(?:[^"'<>]|"[^"]*"|'[^']*')*>/gi, tag => /^<table\b/i.test(tag) ? tag : tag.replace(/\sclass="[^"]*"/i, ' class="elementToProof"'))
@@ -464,7 +468,7 @@ function nativeHost({ footer = false } = {}) {
     };
     h.item.body.prependAsync = (html, _options, callback) => {
         h.state.prepends.push(html);
-        h.state.body = html + h.state.body;
+        h.state.body = officeRetainedCarrier(html) + h.state.body;
         callback(succeeded());
     };
     h.run = (options = {}, check = () => {}) => replaceManagedTemplate(h.office, h.item, stableArtifact({ sentinels: true, native: true, greeting: true, footer }), check, options);
@@ -483,7 +487,7 @@ test('native replacement confirms unique retained IDs before STYLE-only restore 
     assert.match(h.state.prepends[0], /<style data-rt-native-layout-restore="v1">/);
     assert.match(h.state.session, /^pending:/);
     assert.equal(isTemplateInsertionBlocked(h.item), true);
-    h.state.body = h.state.prepends[0] + h.state.body;
+    h.state.body = officeRetainedCarrier(h.state.prepends[0]) + h.state.body;
     styleCallback(succeeded());
     await result;
     assert.equal(h.state.session, '1');
@@ -540,11 +544,22 @@ test('a retained carrier with an emptied STYLE remains layout-unconfirmed after 
     assert.equal(isTemplateInsertionBlocked(h.item), true);
 });
 
-test('the exact Office ID-selector prefix rewrite remains scoped and permits three confirmed exchanges', async () => {
+test('unprefixed CSS cannot confirm a layout whose actual target IDs have the Office prefix', async () => {
+    const h = nativeHost({ footer: true });
+    h.item.body.prependAsync = (html, _options, callback) => {
+        h.state.prepends.push(html); h.state.body = html + h.state.body; callback(succeeded());
+    };
+    await assert.rejects(h.run(), { code: 'TEMPLATE_LAYOUT_UNCONFIRMED' });
+    assert.match(h.state.session, /^pending:/);
+    assert.equal(h.state.writes.length, 1);
+    assert.equal(h.state.prepends.length, 1);
+});
+
+test('exact Office ID-prefix and final-semicolon serialization permit three confirmed exchanges', async () => {
     const h = nativeHost({ footer: true });
     h.item.body.prependAsync = (html, _options, callback) => {
         h.state.prepends.push(html);
-        const retained = html.replace(/\bid="(rt-native-layout-[^"]*)"/g, 'id="x_$1"').replace(/#rt-native-layout-/g, '#x_rt-native-layout-');
+        const retained = officeRetainedCarrier(html).replace(/;}/g, '}');
         h.state.body = retained + h.state.body;
         callback(succeeded());
     };
@@ -556,6 +571,55 @@ test('the exact Office ID-selector prefix rewrite remains scoped and permits thr
         assert.equal((h.state.body.match(/My &amp;/g) || []).length, 1);
         assert.equal(h.state.session, '1');
     }
+});
+
+test('the observed Office prepend position in the unique Combined TD before Template preserves three exchanges', async () => {
+    const h = nativeHost({ footer: true });
+    h.item.body.prependAsync = (html, _options, callback) => {
+        h.state.prepends.push(html);
+        const retained = officeRetainedCarrier(html).replace(/;}/g, '}');
+        const contract = managedTemplateContract(h.state.body);
+        const tbody = contract.elements.findIndex(node => node.parent === contract.rootIndex && node.tag === 'tbody');
+        const row = contract.elements.findIndex(node => node.parent === tbody && node.tag === 'tr');
+        const cell = contract.elements.find(node => node.parent === row && node.tag === 'td');
+        h.state.body = h.state.body.slice(0, cell.openEnd) + retained + h.state.body.slice(cell.openEnd);
+        callback(succeeded());
+    };
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        await h.run();
+        assert.equal(h.state.writes.length, attempt);
+        assert.equal(h.state.prepends.length, attempt);
+        assert.equal((h.state.body.match(/RT-NATIVE-LAYOUT-RESTORE-V1:/g) || []).length, 1);
+        assert.equal((h.state.body.match(/My &amp;/g) || []).length, 1);
+        assert.equal(h.state.session, '1');
+    }
+});
+
+test('a carrier moved into the editable user region is never accepted as a trusted layout write', async () => {
+    const h = nativeHost({ footer: true });
+    h.item.body.prependAsync = (html, _options, callback) => {
+        h.state.prepends.push(html);
+        const contract = managedTemplateContract(h.state.body);
+        h.state.body = h.state.body.slice(0, contract.region.start) + officeRetainedCarrier(html) + h.state.body.slice(contract.region.start);
+        callback(succeeded());
+    };
+    await assert.rejects(h.run(), { code: 'TEMPLATE_LAYOUT_UNCONFIRMED' });
+    assert.match(h.state.session, /^pending:/);
+    assert.equal(h.state.writes.length, 1);
+    assert.equal(h.state.prepends.length, 1);
+});
+
+test('a changed layout rule remains unconfirmed even when the carrier and all IDs survive', async () => {
+    const h = nativeHost({ footer: true });
+    h.item.body.prependAsync = (html, _options, callback) => {
+        h.state.prepends.push(html);
+        const changed = html.replace(/(<style\b[^>]*>)([\s\S]*?)(<\/style>)/, (_all, open, css, close) => open + css.replace('{overflow:hidden!important;}', '{overflow:visible!important;}') + close);
+        h.state.body = officeRetainedCarrier(changed) + h.state.body; callback(succeeded());
+    };
+    await assert.rejects(h.run(), { code: 'TEMPLATE_LAYOUT_UNCONFIRMED' });
+    assert.match(h.state.session, /^pending:/);
+    assert.equal(h.state.writes.length, 1);
+    assert.equal(h.state.prepends.length, 1);
 });
 
 test('a foreign session after the confirmed style write prevents the final applied marker', async () => {

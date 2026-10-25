@@ -69,12 +69,12 @@ function restoreCss(ids) {
     if (ids.header) {
         const firstRow = `${selector('header')}>tbody>tr:first-child`;
         css += ['td', 'div', 'p', 'span', 'strong', 'a'].map(tag => `${firstRow} ${tag}`).join(',')
-            + '{color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;}';
+            + '{color:#ffffff!important;}';
     }
     if (ids.signature) {
         const legalRow = `${selector('signature')}>tbody>tr:last-child`;
         css += ['td', 'div', 'p', 'span', 'strong', 'b', 'font', 'a'].map(tag => `${legalRow} ${tag}`).join(',')
-            + '{color:#718096!important;-webkit-text-fill-color:#718096!important;}';
+            + '{color:#718096!important;}';
     }
     return css;
 }
@@ -118,25 +118,42 @@ function normalizedRestoreCss(css, ids) {
     let normalized = css;
     // Accept only the observed Office x_ rewrite of our exact generated ID selectors.
     for (const id of Object.values(ids)) normalized = normalized.replace(new RegExp('#x_' + id + '(?![\\w-])', 'g'), '#' + id);
-    return normalized.replace(/\s+/g, '');
+    return normalized.replace(/\s+/g, '').replace(/;}/g, '}');
 }
 
 function retainedCarrier(html, contract, ids) {
     const scope = idsScope(ids);
     const nodes = contract?.elements;
     if (typeof html !== 'string' || !Array.isArray(nodes) || !contract.root || !contract.signature) invalid();
+    const actualIds = {};
     for (const key of Object.keys(ids)) {
         const matches = nodes.map((node, index) => ({ node, index })).filter(value => typeof value.node.attrs.id === 'string' && value.node.attrs.id.endsWith(ids[key]));
         if (matches.length !== 1 || matches[0].node.tag !== 'table'
             || ![ids[key], 'x_' + ids[key]].includes(matches[0].node.attrs.id)
             || !within(nodes, matches[0].index, contract.signature.index) || isQuoted(nodes, matches[0].index)) invalid();
+        actualIds[key] = matches[0].node.attrs.id;
     }
     const carrierId = PREFIX + scope + '-carrier';
     const carriers = nodes.map((node, index) => ({ node, index })).filter(value => typeof value.node.attrs.id === 'string' && value.node.attrs.id.endsWith(carrierId));
     if (carriers.length !== 1 || carriers[0].node.tag !== 'table'
         || ![carrierId, 'x_' + carrierId].includes(carriers[0].node.attrs.id) || isQuoted(nodes, carriers[0].index)) invalid();
     const carrier = carriers[0];
-    if (!(carrier.node.end <= contract.root.start || carrier.node.start >= contract.root.end)) invalid();
+    const outsideRoot = carrier.node.end <= contract.root.start || carrier.node.start >= contract.root.end;
+    if (!outsideRoot) {
+        const rootBody = onlyChild(nodes, contract.rootIndex, 'tbody');
+        const rootRow = onlyChild(nodes, rootBody.index, 'tr');
+        const rootCell = onlyChild(nodes, rootRow.index, 'td');
+        let parent = carrier.node.parent;
+        let wrappers = 0;
+        while (parent !== rootCell.index) {
+            if (!Number.isInteger(parent) || nodes[parent].tag !== 'div' || wrappers >= 2) invalid();
+            parent = nodes[parent].parent;
+            wrappers += 1;
+        }
+        if (!contract.template || carrier.node.end > contract.template.node.start
+            || carrier.node.end > contract.signature.node.start
+            || within(nodes, carrier.index, contract.template.index) || within(nodes, carrier.index, contract.signature.index)) invalid();
+    }
     const body = onlyChild(nodes, carrier.index, 'tbody');
     const row = onlyChild(nodes, body.index, 'tr');
     const cell = onlyChild(nodes, row.index, 'td');
@@ -147,8 +164,13 @@ function retainedCarrier(html, contract, ids) {
     const spans = descendants.filter(value => value.node.tag === 'span' && html.slice(value.node.openEnd, value.node.close).replace(/\s+/g, '') === token);
     if (styles.length !== 1 || spans.length !== 1) invalid();
     const css = normalizedRestoreCss(nativeLayoutRestoreCss(ids), ids);
+    const retainedCss = html.slice(styles[0].node.openEnd, styles[0].node.close);
+    for (const key of Object.keys(ids)) {
+        const selectors = retainedCss.match(new RegExp('#(?:x_)?' + ids[key] + '(?![\\w-])', 'g')) || [];
+        if (!selectors.length || selectors.some(selector => selector !== '#' + actualIds[key])) invalid();
+    }
     const exactSheets = nodes.filter(node => node.tag === 'style' && normalizedRestoreCss(html.slice(node.openEnd, node.close), ids) === css);
-    if (exactSheets.length !== 1 || normalizedRestoreCss(html.slice(styles[0].node.openEnd, styles[0].node.close), ids) !== css) invalid();
+    if (exactSheets.length !== 1 || normalizedRestoreCss(retainedCss, ids) !== css) invalid();
     const metadata = spans[0].node;
     const hidden = owns(metadata.attrs, 'hidden') || metadata.attrs['aria-hidden'] === 'true'
         || /(?:^|;)\s*display\s*:\s*none(?:\s*!important)?\s*(?:;|$)/i.test(metadata.attrs.style || '')
