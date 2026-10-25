@@ -201,7 +201,6 @@ final class OutlookDesktopFlow
         $image = self::one($nodes, 'rt-delivery-train', 'img');
         [$html, $changes, $aliases] = self::inlineChanges($html, $nodes, [
             $content => 'width:100%;direction:ltr;padding:16px 0 0;',
-            $train => 'width:100%;padding:0;border:0;font-size:0;line-height:0;vertical-align:bottom;',
             $image => 'display:block;width:520px;max-width:none!important;height:auto;margin:0;border:0;vertical-align:bottom;',
         ], $scope);
         $nodes = self::nodes($html);
@@ -209,6 +208,8 @@ final class OutlookDesktopFlow
         $train = self::one($nodes, 'rt-delivery-train-cell', 'td');
         $gap = self::one($nodes, 'rt-delivery-train-gap', 'td');
         $flow = self::one($nodes, 'rt-personal-columns', 'div');
+        $left = self::one($nodes, 'rt-personal-left', 'table');
+        $right = self::one($nodes, 'rt-personal-right', 'table');
         $company = self::one($nodes, 'rt-personal-company-contacts', 'div');
         $root = self::one($nodes, 'rt-outlook-signature', 'div');
         $image = self::one($nodes, 'rt-delivery-train', 'img');
@@ -217,16 +218,26 @@ final class OutlookDesktopFlow
         if ($wrapped !== 1) {
             self::fail();
         }
+        $trainRow = $nodes[$train]['parent'];
+        if ($trainRow === null || ! self::onlyChildren($html, $nodes, $trainRow, [$train, $gap])
+            || ! self::onlyChildren($html, $nodes, $content, [$flow])) {
+            self::fail();
+        }
+        $trainBlock = self::block('train', 460, '0 40px 0 0', $moving);
+        $trainBlock = preg_replace('~style="[^"]*"~', 'style="'.self::personalTrainStyle().'"', $trainBlock, 1);
+        $flowOpening = self::attribute($nodes[$flow]['opening'], 'style', self::personalGridStyle());
+        $flowOpening = substr($flowOpening, 0, -1).' '.self::MARKER.'="'.self::REVISION.'" '.SignaturePersonalColumns::NATIVE_GRID_ATTRIBUTE.'="v1">';
         $html = self::replace($html, [
-            [$nodes[$train]['openEnd'], $nodes[$train]['close'], self::block('train', 460, '0 40px 0 0', $moving)],
-            [$nodes[$train]['start'], $nodes[$train]['openEnd'], self::attribute($nodes[$train]['opening'], 'width', '100%')],
-            [$nodes[$gap]['start'], $nodes[$gap]['end'], ''],
+            [$nodes[$trainRow]['start'], $nodes[$trainRow]['end'], ''],
+            [$nodes[$flow]['close'], $nodes[$flow]['close'], $trainBlock],
             [$nodes[$content]['start'], $nodes[$content]['openEnd'], self::removeAttribute($nodes[$content]['opening'], 'colspan')],
-            [$nodes[$flow]['start'], $nodes[$flow]['openEnd'], substr($nodes[$flow]['opening'], 0, -1).' '.self::MARKER.'="'.self::REVISION.'">'],
+            [$nodes[$flow]['start'], $nodes[$flow]['openEnd'], $flowOpening],
+            [$nodes[$left]['start'], $nodes[$left]['openEnd'], self::attribute($nodes[$left]['opening'], 'style', self::personalColumnStyle('left'))],
+            [$nodes[$right]['start'], $nodes[$right]['openEnd'], self::attribute($nodes[$right]['opening'], 'style', self::personalColumnStyle('right'))],
             [$nodes[$company]['start'], $nodes[$company]['openEnd'], self::attribute($nodes[$company]['opening'], 'style', 'padding-top:4px;')],
             [$nodes[$root]['start'], $nodes[$root]['openEnd'], self::attribute($nodes[$root]['opening'], 'class', trim($nodes[$root]['attrs']['class'].' '.self::HOST.' '.self::host($scope)))],
         ]);
-        $html = self::stylesForFlow($html, $scope, $changes, $aliases);
+        $html = self::stylesForFlow($html, $scope, $changes, $aliases, personalGrid: true);
         $nodes = self::nodes($html);
         $root = self::one($nodes, 'rt-outlook-signature', 'div');
         $html = substr_replace($html, '<style '.self::STYLE.'="1">'.self::personalCss($scope).'</style>', $nodes[$root]['openEnd'], 0);
@@ -242,10 +253,35 @@ final class OutlookDesktopFlow
     {
         $p = '.'.self::host($scope).' ';
 
-        return $p.'.rt-df-train{display:table!important;width:100%!important;max-width:460px!important;table-layout:fixed!important;border-collapse:collapse!important;border-spacing:0!important;}'
+        return $p.'.rt-personal-columns{'.self::criticalGrid(self::personalGridStyle()).'}'
+            .$p.'.rt-personal-column{display:table!important;vertical-align:top!important;width:100%!important;min-width:0!important;table-layout:fixed!important;border-collapse:collapse!important;align-self:start!important;}'
+            .$p.'.rt-personal-left{grid-column:1!important;}'
+            .$p.'.rt-personal-right{grid-column:-2/-1!important;grid-row:span 2!important;}'
+            .$p.'.rt-df-train{display:table!important;width:100%!important;min-width:0!important;max-width:460px!important;table-layout:fixed!important;border-collapse:collapse!important;border-spacing:0!important;grid-column:1!important;align-self:end!important;}'
             .$p.'.rt-dfc-train{padding:0 40px 0 0!important;border:0!important;}'
             .$p.'.rt-personal-right .rt-personal-company-contacts{padding-top:4px!important;}'
             .$p.'.rt-train-window{overflow:hidden!important;direction:rtl!important;}';
+    }
+
+    private static function personalGridStyle(): string
+    {
+        return 'font-size:0;line-height:0;text-align:left;width:100%;max-width:920px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));';
+    }
+
+    private static function personalColumnStyle(string $side): string
+    {
+        return 'display:table;vertical-align:top;width:100%;min-width:0;table-layout:fixed;border-collapse:collapse;align-self:start;'
+            .($side === 'left' ? 'grid-column:1;' : 'grid-column:-2/-1;grid-row:span 2;');
+    }
+
+    private static function personalTrainStyle(): string
+    {
+        return 'display:table;vertical-align:bottom;width:100%;min-width:0;max-width:460px;table-layout:fixed;border-collapse:collapse;grid-column:1;align-self:end;';
+    }
+
+    private static function criticalGrid(string $style): string
+    {
+        return implode(';', array_map(static fn (string $part): string => $part.'!important', self::declarations($style))).';';
     }
 
     private static function assertPersonalProjected(string $html, array $nodes): void
@@ -258,6 +294,27 @@ final class OutlookDesktopFlow
         $image = self::one($nodes, 'rt-delivery-train', 'img');
         $trainCell = self::one($nodes, 'rt-dfc-train', 'td');
         $company = self::one($nodes, 'rt-personal-company-contacts', 'div');
+        $left = self::one($nodes, 'rt-personal-left', 'table');
+        $right = self::one($nodes, 'rt-personal-right', 'table');
+        $content = self::one($nodes, 'rt-sign-content', 'td');
+        $frame = self::one($nodes, 'rt-sign-content-frame', 'table');
+        $children = array_keys(array_filter($nodes, static fn (array $node): bool => $node['parent'] === $flow));
+        $rows = array_keys(array_filter($nodes, static fn (array $node, int $index): bool => $node['tag'] === 'tr' && self::within($nodes, $index, $frame)
+            && ($node['parent'] === $frame || ($nodes[$node['parent']]['tag'] === 'tbody' && $nodes[$node['parent']]['parent'] === $frame)), ARRAY_FILTER_USE_BOTH));
+        $gridMarkers = array_keys(array_filter($nodes, static fn (array $node): bool => isset($node['attrs'][SignaturePersonalColumns::NATIVE_GRID_ATTRIBUTE])));
+        $flowMarkers = array_keys(array_filter($nodes, static fn (array $node): bool => isset($node['attrs'][self::MARKER])));
+        if ($children !== [$left, $right, $trainBlock] || $nodes[$flow]['parent'] !== $content || count($rows) !== 1
+            || $gridMarkers !== [$flow] || $flowMarkers !== [$flow]
+            || ! self::onlyChildren($html, $nodes, $rows[0], [$content])
+            || ! self::onlyChildren($html, $nodes, $content, [$flow])
+            || ($nodes[$flow]['attrs'][SignaturePersonalColumns::NATIVE_GRID_ATTRIBUTE] ?? '') !== 'v1'
+            || ($nodes[$flow]['attrs']['style'] ?? '') !== self::personalGridStyle()
+            || ($nodes[$left]['attrs']['style'] ?? '') !== self::personalColumnStyle('left')
+            || ($nodes[$right]['attrs']['style'] ?? '') !== self::personalColumnStyle('right')
+            || ($nodes[$trainBlock]['attrs']['style'] ?? '') !== self::personalTrainStyle()
+            || array_filter($nodes, static fn (array $node): bool => self::has($node, 'rt-delivery-train-cell') || self::has($node, 'rt-delivery-train-gap')) !== []) {
+            self::fail();
+        }
         if ($nodes[$image]['parent'] !== $window || $nodes[$window]['parent'] !== $trainCell || ! self::within($nodes, $trainCell, $trainBlock)
             || trim(self::inner($html, $nodes[$window])) !== $nodes[$image]['opening'] || ($nodes[$window]['attrs']['dir'] ?? '') !== 'rtl'
             || ($nodes[$window]['attrs']['style'] ?? '') !== 'overflow:hidden;direction:rtl;'
@@ -340,7 +397,7 @@ final class OutlookDesktopFlow
         return [self::replace($html, $ranges), $changes, array_fill_keys(array_keys($families), true)];
     }
 
-    private static function stylesForFlow(string $html, string $scope, array $changes, array $originalAliases): string
+    private static function stylesForFlow(string $html, string $scope, array $changes, array $originalAliases, bool $personalGrid = false): string
     {
         $used = [];
         foreach (self::nodes($html) as $node) {
@@ -367,6 +424,9 @@ final class OutlookDesktopFlow
             } elseif (($style['attrs']['data-rt-outlook-signature-css'] ?? null) === '1') {
                 $runtime++;
                 $css = self::pruneRuntime($css);
+                if ($personalGrid) {
+                    $css = self::prunePersonalGridRuntime($css, $scope);
+                }
             } else {
                 continue;
             }
@@ -377,6 +437,32 @@ final class OutlookDesktopFlow
         }
 
         return self::replace($html, $ranges);
+    }
+
+    /** Replace only complete compiler-owned identities covered by the grid. */
+    private static function prunePersonalGridRuntime(string $css, string $scope): string
+    {
+        $p = '.'.$scope.' ';
+        $known = [
+            '.rt-personal-columns{font-size:0!important;line-height:0!important;text-align:left!important;width:100%!important;max-width:920px!important;}',
+            '.rt-personal-column{display:inline-table!important;vertical-align:top!important;width:50%!important;min-width:280px!important;min-width:min(280px,100%)!important;table-layout:fixed!important;border-collapse:collapse!important;}',
+            '.rt-personal-column{width:100%!important;min-width:0!important;}',
+            '.rt-delivery-train-cell{width:50%!important;padding:0 40px 0 0!important;border-right:1px solid transparent!important;box-sizing:border-box!important;font-size:0!important;line-height:0!important;}',
+        ];
+        foreach ($known as $rule) {
+            if (substr_count($css, $p.$rule) !== 1) {
+                self::fail();
+            }
+            $css = str_replace($p.$rule, '', $css);
+        }
+        // This exact narrow rule duplicates the retained global identity.
+        $duplicate = $p.'.rt-personal-company-block{float:none!important;margin:0!important;}';
+        if (substr_count($css, $duplicate) !== 2) {
+            self::fail();
+        }
+        $offset = strrpos($css, $duplicate);
+
+        return substr_replace($css, '', $offset, strlen($duplicate));
     }
 
     /** Only known compiler-owned layout identities removed by this projection. */
