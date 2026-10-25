@@ -111,7 +111,7 @@ final class SignatureTableOverlapDelivery
         $image->setAttribute('width', (string) self::FALLBACK_WIDTH);
         $image->setAttribute('height', (string) self::FALLBACK_HEIGHT);
         $mirrored = SignatureArtifactVersion::usesMirroredTrain(SignatureArtifactVersion::detect('signature', $html));
-        $image->setAttribute('style', self::imageStyle($mirrored));
+        $image->setAttribute('style', self::imageStyle($mirrored, $logoTrain));
         $image->setAttribute('alt', '');
         $row = $dom->createElement('tr');
         $row->setAttribute('class', 'rt-delivery-train-row');
@@ -271,7 +271,7 @@ final class SignatureTableOverlapDelivery
         $css .= $scope.' .rt-sign-content-frame{width:100%!important;table-layout:fixed!important;height:auto!important;direction:ltr!important;}'
             .$scope.' .rt-sign-cell .rt-sign-content{width:100%!important;vertical-align:top!important;height:auto!important;padding-bottom:'.($logoTrain ? '0' : '15px').'!important;direction:ltr!important;}'
             .$scope.' .rt-delivery-train-cell{'.($logoTrain ? 'width:50%!important;padding:0 40px 0 0!important;border-right:1px solid #e60033!important;box-sizing:border-box!important;' : 'width:100%!important;padding:0!important;').'font-size:0!important;line-height:0!important;}'
-            .$scope.' .rt-delivery-train{'.str_replace(';', '!important;', self::imageStyle(SignatureArtifactVersion::usesMirroredTrain($version))).'}'
+            .$scope.' .rt-delivery-train{'.str_replace(';', '!important;', self::imageStyle(SignatureArtifactVersion::usesMirroredTrain($version), $logoTrain)).'}'
             .$scope.' .rt-delivery-train-mso{'.str_replace(';', '!important;', self::msoImageStyle(SignatureArtifactVersion::usesMirroredTrain($version), $logoTrain)).'}';
         $css .= $scope.' .rt-delivery-group-cell{display:table-cell!important;width:'.($logoTrain ? '50%' : '100%').'!important;border:0!important;vertical-align:top!important;text-align:left!important;}'
             .$scope.' .rt-contact-text{word-break:break-all!important;overflow-wrap:anywhere!important;}'
@@ -303,9 +303,9 @@ final class SignatureTableOverlapDelivery
             .'}';
     }
 
-    private static function imageStyle(bool $mirrored = false): string
+    private static function imageStyle(bool $mirrored = false, bool $logoTrain = false): string
     {
-        return 'display:block;width:100%;max-width:'.self::IMAGE_WIDTH.'px;height:auto;margin:'.($mirrored ? '0 0 0 auto' : '0').';border:0;vertical-align:bottom;';
+        return 'display:block;width:100%;max-width:'.($logoTrain ? '100%' : self::IMAGE_WIDTH.'px').';height:auto;margin:'.($mirrored ? '0 0 0 auto' : '0').';border:0;vertical-align:bottom;';
     }
 
     private static function msoImageStyle(bool $mirrored = false, bool $logoTrain = false): string
@@ -314,7 +314,7 @@ final class SignatureTableOverlapDelivery
         // 300px full-row fallback fits a 320px pane; the opted-in 220px image
         // fits its half-column at about 570px without responsive head CSS.
         // Actual Word rendering still requires a received-client check.
-        // Modern clients retain the fluid GIF rule up to IMAGE_WIDTH instead.
+        // Modern clients retain the fluid GIF rule within their content cell.
         $width = $logoTrain ? self::LOGO_TRAIN_FALLBACK_WIDTH : self::FALLBACK_WIDTH;
         $height = $logoTrain ? self::LOGO_TRAIN_FALLBACK_HEIGHT : self::FALLBACK_HEIGHT;
 

@@ -41,6 +41,10 @@ final class OutlookDesktopFlowTest extends TestCase
         foreach (['brand', 'contacts', 'direct', 'company', 'train'] as $kind) {
             self::assertSame(1, $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-df-'.$kind.' ")]')->length);
         }
+        $train = $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-df-train ")]')->item(0);
+        self::assertStringContainsString('max-width:400px;', $train->getAttribute('style'));
+        self::assertStringContainsString('padding:0 40px 0 0;', $xpath->query('./tbody/tr/td|./tr/td', $train)->item(0)->getAttribute('style'));
+        self::assertStringContainsString('width:100%;max-width:100%;height:auto;', $xpath->query('.//img[contains(concat(" ",normalize-space(@class)," ")," rt-delivery-train ")]', $train)->item(0)->getAttribute('style'));
         self::assertSame(2, $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-contact ")]')->length);
         self::assertSame(0, $xpath->query('//td[contains(@class,"rt-delivery-train-gap")]')->length);
         self::assertSame($this->inventory($before['signature']['html']), $this->inventory($wire['signature']['html']));
