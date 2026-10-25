@@ -130,7 +130,7 @@ async function manualHarness(options = {}) {
     const source = await readFile(new URL('../../resources/js/outlook-addin/taskpane.js', import.meta.url), 'utf8');
     const target = { item: fixture.item };
     const document = documentContract();
-    const state = { statuses: [], confirms: 0, confirmed: false };
+    const state = { statuses: [] };
     const context = vm.createContext({
         ...compose, ...guard, ...writes, ...diagnostics, Office: fixture.office,
         scopedComposeBodyHtml: compose.currentComposeBodyHtml, setTimeout, clearTimeout,
@@ -150,7 +150,6 @@ async function manualHarness(options = {}) {
             return target.item;
         };
         assertWriteTarget = (target, binding) => assertMailboxBinding(Office, target.item, binding);
-        confirmAdditionalTemplate = () => { __manualState.confirms += 1; return __manualState.confirmed; };
         rememberConfirmedInsertion = () => {};
         renderSelectedTemplate = () => {};
         globalThis.__runManual = () => insertTemplate({});
@@ -678,7 +677,7 @@ test('definite common prepend failure does not fall back to native signature and
     assert.equal(h.state.session, '1');
 });
 
-test('manual native cleanup uncertainty prevents prepend and cannot be overridden by repeat confirmation', async (t) => {
+test('manual native cleanup uncertainty prevents prepend and remains blocked after a late cleanup callback', async (t) => {
     t.mock.timers.enable({ apis: ['setTimeout'] });
     const h = await manualHarness();
     h.item.body.setSignatureAsync = (html, _options, cb) => { h.state.signatures.push(html); h.state.callbacks.clear = cb; };
@@ -687,14 +686,13 @@ test('manual native cleanup uncertainty prevents prepend and cannot be overridde
     assert.ok(h.state.callbacks.clear);
     t.mock.timers.tick(30000);
     assert.equal((await outcome).code, 'SIGNATURE_INSERT_UNCERTAIN');
-    h.manual.confirmed = true;
     await assert.rejects(h.run(), { code: 'TEMPLATE_INSERT_UNCERTAIN' });
     h.state.callbacks.clear(success());
     await flush();
     await assert.rejects(h.run(), { code: 'TEMPLATE_INSERT_UNCERTAIN' });
     assert.deepEqual(h.state.signatures, ['']);
     assert.deepEqual(h.state.prepends, []);
-    assert.equal(h.manual.confirms, 0);
+    assert.deepEqual(h.state.replacements, []);
     assert.equal(h.state.body, TYPED + OLD_SIGNATURE);
 });
 

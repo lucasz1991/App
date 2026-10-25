@@ -650,7 +650,7 @@
                     </p>
                 </section>
 
-                <footer class="app-links" aria-label="RailTime-App">
+                <footer class="app-links" aria-label="Verbindung, Hilfe und RailTime-App">
                     <button class="glass-button" type="button" data-outlook-dialog-open="connection" aria-haspopup="dialog" aria-controls="outlook-connection-dialog">Verbindung</button>
                     <button class="glass-button" type="button" data-outlook-dialog-open="status" aria-haspopup="dialog" aria-controls="outlook-status-dialog" aria-label="Hilfe und Diagnose öffnen">Hilfe<span class="visually-hidden" data-outlook-status-summary role="status" aria-live="polite">Outlook wird vorbereitet</span></button>
                     <a class="app-link" href="{{ route('home') }}" target="_blank" rel="noopener noreferrer">RailTime öffnen ↗</a>

@@ -302,6 +302,10 @@ test('outlook taskpane keeps templates visible and hides resolved maintenance ac
     assert.match(view, /aria-live="polite"/);
     assert.match(view, /:focus-visible/);
     assert.match(view, /@media \(max-width: 340px\)/);
+    assert.doesNotMatch(view, /<header class="brand"|brand-mark|data-outlook-connection-chip|Mail-Assistent/);
+    assert.match(view, /data-outlook-pane-feedback/);
+    assert.match(view, /data-outlook-dialog-open="connection"/);
+    assert.match(view, /data-outlook-dialog-open="status"[^>]*>Hilfe/);
 
     assert.match(taskpane, /view\.login\.hidden = authenticatedBootstrap;/);
     assert.match(taskpane, /view\.signature\.hidden = authenticatedBootstrap\s*&& taskpaneState\.itemChangedMonitoringReady\s*&& taskpaneState\.signatureCurrent;/);
@@ -1576,6 +1580,8 @@ test('authenticated taskpane inserts once on double click with native preflights
     assert.equal(fixture.state.prepends.length, 1);
     assert.equal(fixture.state.bodyReads, 2);
     assert.equal(client.taskpaneState.templatePresent, true);
+    assert.equal(button.querySelector('strong').textContent, 'Vorlage und Signatur ersetzen');
+    assert.equal(button.querySelector('.action-icon').textContent, '↻');
     assert.equal(client.taskpaneState.busy, false);
     assert.equal(button.disabled, false, 'explicit managed replacement remains available after an automatic or manual insertion');
     assert.equal(document.querySelector('[data-outlook-status-title]').textContent, 'Vorlage wurde oberhalb eingefügt');

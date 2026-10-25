@@ -753,6 +753,8 @@ function renderSelectedTemplate() {
     const actionLabel = replacing ? 'Vorlage und Signatur ersetzen' : 'Vorlage einfügen';
     const actionTitle = view.template.querySelector('strong');
     if (actionTitle) actionTitle.textContent = actionLabel;
+    const actionIcon = view.template.querySelector('.action-icon');
+    if (actionIcon) actionIcon.textContent = replacing ? '↻' : '＋';
     view.templateActionDetail.textContent = replacing
         ? 'Verwaltete Vorlage aktualisieren. Ihr Nachrichtentext und Zitate bleiben erhalten.'
         : 'Wird oberhalb Ihres Textes eingefügt. Vorhandener Inhalt bleibt erhalten.';

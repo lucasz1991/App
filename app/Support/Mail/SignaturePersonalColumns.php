@@ -16,7 +16,7 @@ final class SignaturePersonalColumns
 
     public const MARKER = 'v1';
 
-    public const NATIVE_GRID_ATTRIBUTE = 'data-rt-personal-grid';
+    public const NATIVE_FLOW_ATTRIBUTE = 'data-rt-personal-flow';
 
     private const TOKENS = '~<!--.*?-->|<style\b(?:[^"\'<>]|"[^"]*"|\'[^\']*\')*>.*?</style\s*>|</?[a-z][a-z0-9:-]*(?:[^"\'<>]|"[^"]*"|\'[^\']*\')*>~is';
 
@@ -121,10 +121,10 @@ final class SignaturePersonalColumns
         }
         $groups = array_keys(array_filter($nodes, static fn (array $node): bool => $node['parent'] === $flow));
         $expected = [$left, $right];
-        if (isset($nodes[$flow]['attrs'][self::NATIVE_GRID_ATTRIBUTE])) {
+        if (isset($nodes[$flow]['attrs'][self::NATIVE_FLOW_ATTRIBUTE])) {
             $train = self::one($nodes, 'rt-df-train', 'table');
             $roots = array_keys(array_filter($nodes, static fn (array $node): bool => $node['tag'] === 'div' && self::has($node, 'rt-outlook-signature')));
-            if (($nodes[$flow]['attrs'][self::NATIVE_GRID_ATTRIBUTE] ?? '') !== 'v1'
+            if (($nodes[$flow]['attrs'][self::NATIVE_FLOW_ATTRIBUTE] ?? '') !== 'v1'
                 || ($nodes[$flow]['attrs']['data-rt-desktop-flow'] ?? '') !== OutlookDesktopFlow::REVISION
                 || count($roots) !== 1 || ! self::within($nodes, $flow, $roots[0])
                 || $nodes[$train]['parent'] !== $flow) {

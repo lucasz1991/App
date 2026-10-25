@@ -214,7 +214,7 @@ final class OutlookDesktopFlow
         $root = self::one($nodes, 'rt-outlook-signature', 'div');
         $image = self::one($nodes, 'rt-delivery-train', 'img');
         $moving = self::inner($html, $nodes[$train]);
-        $moving = str_replace($nodes[$image]['opening'], '<div class="rt-train-window" dir="rtl" style="overflow:hidden;direction:rtl;">'.$nodes[$image]['opening'].'</div>', $moving, $wrapped);
+        $moving = str_replace($nodes[$image]['opening'], '<div class="rt-train-window" dir="rtl" style="overflow:hidden;direction:rtl;max-width:420px;">'.$nodes[$image]['opening'].'</div>', $moving, $wrapped);
         if ($wrapped !== 1) {
             self::fail();
         }
@@ -225,8 +225,8 @@ final class OutlookDesktopFlow
         }
         $trainBlock = self::block('train', 460, '0 40px 0 0', $moving);
         $trainBlock = preg_replace('~style="[^"]*"~', 'style="'.self::personalTrainStyle().'"', $trainBlock, 1);
-        $flowOpening = self::attribute($nodes[$flow]['opening'], 'style', self::personalGridStyle());
-        $flowOpening = substr($flowOpening, 0, -1).' '.self::MARKER.'="'.self::REVISION.'" '.SignaturePersonalColumns::NATIVE_GRID_ATTRIBUTE.'="v1">';
+        $flowOpening = self::attribute($nodes[$flow]['opening'], 'style', self::personalFlowStyle());
+        $flowOpening = substr($flowOpening, 0, -1).' '.self::MARKER.'="'.self::REVISION.'" '.SignaturePersonalColumns::NATIVE_FLOW_ATTRIBUTE.'="v1">';
         $html = self::replace($html, [
             [$nodes[$trainRow]['start'], $nodes[$trainRow]['end'], ''],
             [$nodes[$flow]['close'], $nodes[$flow]['close'], $trainBlock],
@@ -237,7 +237,7 @@ final class OutlookDesktopFlow
             [$nodes[$company]['start'], $nodes[$company]['openEnd'], self::attribute($nodes[$company]['opening'], 'style', 'padding-top:4px;')],
             [$nodes[$root]['start'], $nodes[$root]['openEnd'], self::attribute($nodes[$root]['opening'], 'class', trim($nodes[$root]['attrs']['class'].' '.self::HOST.' '.self::host($scope)))],
         ]);
-        $html = self::stylesForFlow($html, $scope, $changes, $aliases, personalGrid: true);
+        $html = self::stylesForFlow($html, $scope, $changes, $aliases, personalFlow: true);
         $nodes = self::nodes($html);
         $root = self::one($nodes, 'rt-outlook-signature', 'div');
         $html = substr_replace($html, '<style '.self::STYLE.'="1">'.self::personalCss($scope).'</style>', $nodes[$root]['openEnd'], 0);
@@ -253,33 +253,37 @@ final class OutlookDesktopFlow
     {
         $p = '.'.self::host($scope).' ';
 
-        return $p.'.rt-personal-columns{'.self::criticalGrid(self::personalGridStyle()).'}'
-            .$p.'.rt-personal-column{display:table!important;vertical-align:top!important;width:100%!important;min-width:0!important;table-layout:fixed!important;border-collapse:collapse!important;align-self:start!important;}'
-            .$p.'.rt-personal-left{grid-column:1!important;}'
-            .$p.'.rt-personal-right{grid-column:-2/-1!important;grid-row:span 2!important;}'
-            .$p.'.rt-df-train{display:table!important;width:100%!important;min-width:0!important;max-width:460px!important;table-layout:fixed!important;border-collapse:collapse!important;border-spacing:0!important;grid-column:1!important;align-self:end!important;}'
+        return $p.'.rt-personal-columns{'.self::importantDeclarations(self::personalFlowStyle()).'}'
+            .$p.'.rt-personal-column,'.$p.'.rt-df-train{'.self::importantDeclarations(self::personalTableStyle()).'}'
+            .$p.'.rt-personal-left{float:left!important;}'
+            .$p.'.rt-personal-right{float:right!important;}'
+            .$p.'.rt-df-train{float:left!important;clear:left!important;position:sticky!important;top:100%!important;}'
             .$p.'.rt-dfc-train{padding:0 40px 0 0!important;border:0!important;}'
             .$p.'.rt-personal-right .rt-personal-company-contacts{padding-top:4px!important;}'
-            .$p.'.rt-train-window{overflow:hidden!important;direction:rtl!important;}';
+            .$p.'.rt-train-window{overflow:hidden!important;direction:rtl!important;max-width:420px!important;}';
     }
 
-    private static function personalGridStyle(): string
+    private static function personalFlowStyle(): string
     {
-        return 'font-size:0;line-height:0;text-align:left;width:100%;max-width:920px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));';
+        return 'font-size:0;line-height:0;text-align:left;width:100%;max-width:920px;display:block;overflow:hidden;';
+    }
+
+    private static function personalTableStyle(): string
+    {
+        return 'display:table;vertical-align:top;width:100%;width:calc(5600280px - 1000000%);min-width:50%;max-width:100%;table-layout:fixed;border-collapse:collapse;';
     }
 
     private static function personalColumnStyle(string $side): string
     {
-        return 'display:table;vertical-align:top;width:100%;min-width:0;table-layout:fixed;border-collapse:collapse;align-self:start;'
-            .($side === 'left' ? 'grid-column:1;' : 'grid-column:-2/-1;grid-row:span 2;');
+        return self::personalTableStyle().'float:'.$side.';';
     }
 
     private static function personalTrainStyle(): string
     {
-        return 'display:table;vertical-align:bottom;width:100%;min-width:0;max-width:460px;table-layout:fixed;border-collapse:collapse;grid-column:1;align-self:end;';
+        return self::personalTableStyle().'float:left;clear:left;position:sticky;top:100%;';
     }
 
-    private static function criticalGrid(string $style): string
+    private static function importantDeclarations(string $style): string
     {
         return implode(';', array_map(static fn (string $part): string => $part.'!important', self::declarations($style))).';';
     }
@@ -301,14 +305,14 @@ final class OutlookDesktopFlow
         $children = array_keys(array_filter($nodes, static fn (array $node): bool => $node['parent'] === $flow));
         $rows = array_keys(array_filter($nodes, static fn (array $node, int $index): bool => $node['tag'] === 'tr' && self::within($nodes, $index, $frame)
             && ($node['parent'] === $frame || ($nodes[$node['parent']]['tag'] === 'tbody' && $nodes[$node['parent']]['parent'] === $frame)), ARRAY_FILTER_USE_BOTH));
-        $gridMarkers = array_keys(array_filter($nodes, static fn (array $node): bool => isset($node['attrs'][SignaturePersonalColumns::NATIVE_GRID_ATTRIBUTE])));
+        $personalMarkers = array_keys(array_filter($nodes, static fn (array $node): bool => isset($node['attrs'][SignaturePersonalColumns::NATIVE_FLOW_ATTRIBUTE])));
         $flowMarkers = array_keys(array_filter($nodes, static fn (array $node): bool => isset($node['attrs'][self::MARKER])));
         if ($children !== [$left, $right, $trainBlock] || $nodes[$flow]['parent'] !== $content || count($rows) !== 1
-            || $gridMarkers !== [$flow] || $flowMarkers !== [$flow]
+            || $personalMarkers !== [$flow] || $flowMarkers !== [$flow]
             || ! self::onlyChildren($html, $nodes, $rows[0], [$content])
             || ! self::onlyChildren($html, $nodes, $content, [$flow])
-            || ($nodes[$flow]['attrs'][SignaturePersonalColumns::NATIVE_GRID_ATTRIBUTE] ?? '') !== 'v1'
-            || ($nodes[$flow]['attrs']['style'] ?? '') !== self::personalGridStyle()
+            || ($nodes[$flow]['attrs'][SignaturePersonalColumns::NATIVE_FLOW_ATTRIBUTE] ?? '') !== 'v1'
+            || ($nodes[$flow]['attrs']['style'] ?? '') !== self::personalFlowStyle()
             || ($nodes[$left]['attrs']['style'] ?? '') !== self::personalColumnStyle('left')
             || ($nodes[$right]['attrs']['style'] ?? '') !== self::personalColumnStyle('right')
             || ($nodes[$trainBlock]['attrs']['style'] ?? '') !== self::personalTrainStyle()
@@ -317,7 +321,7 @@ final class OutlookDesktopFlow
         }
         if ($nodes[$image]['parent'] !== $window || $nodes[$window]['parent'] !== $trainCell || ! self::within($nodes, $trainCell, $trainBlock)
             || trim(self::inner($html, $nodes[$window])) !== $nodes[$image]['opening'] || ($nodes[$window]['attrs']['dir'] ?? '') !== 'rtl'
-            || ($nodes[$window]['attrs']['style'] ?? '') !== 'overflow:hidden;direction:rtl;'
+            || ($nodes[$window]['attrs']['style'] ?? '') !== 'overflow:hidden;direction:rtl;max-width:420px;'
             || ($nodes[$image]['attrs']['style'] ?? '') !== 'display:block;width:520px;max-width:none!important;height:auto;margin:0;border:0;vertical-align:bottom;'
             || ($nodes[$company]['attrs']['style'] ?? '') !== 'padding-top:4px;') {
             self::fail();
@@ -397,7 +401,7 @@ final class OutlookDesktopFlow
         return [self::replace($html, $ranges), $changes, array_fill_keys(array_keys($families), true)];
     }
 
-    private static function stylesForFlow(string $html, string $scope, array $changes, array $originalAliases, bool $personalGrid = false): string
+    private static function stylesForFlow(string $html, string $scope, array $changes, array $originalAliases, bool $personalFlow = false): string
     {
         $used = [];
         foreach (self::nodes($html) as $node) {
@@ -424,8 +428,8 @@ final class OutlookDesktopFlow
             } elseif (($style['attrs']['data-rt-outlook-signature-css'] ?? null) === '1') {
                 $runtime++;
                 $css = self::pruneRuntime($css);
-                if ($personalGrid) {
-                    $css = self::prunePersonalGridRuntime($css, $scope);
+                if ($personalFlow) {
+                    $css = self::prunePersonalRuntime($css, $scope);
                 }
             } else {
                 continue;
@@ -439,8 +443,8 @@ final class OutlookDesktopFlow
         return self::replace($html, $ranges);
     }
 
-    /** Replace only complete compiler-owned identities covered by the grid. */
-    private static function prunePersonalGridRuntime(string $css, string $scope): string
+    /** Replace only complete compiler-owned identities covered by the native flow. */
+    private static function prunePersonalRuntime(string $css, string $scope): string
     {
         $p = '.'.$scope.' ';
         $known = [

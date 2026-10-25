@@ -98,6 +98,10 @@ function quoted(elements, index) {
     return false;
 }
 
+function quotedOffset(elements, offset) {
+    return elements.some((node, index) => node.start <= offset && node.end > offset && quoted(elements, index));
+}
+
 function exactlyOne(values) {
     if (values.length !== 1) unavailable();
     return values[0];
@@ -109,11 +113,13 @@ function rootContract(html, currentLength) {
     const candidates = elements.map((node, index) => ({ node, index })).filter(({ node, index }) => node.start < currentLength
         && !quoted(elements, index) && (has(node, 'rt-combined-compose-document') || owns(node.attrs, 'data-rt-compose-document')));
     const { node: root, index: rootIndex } = exactlyOne(candidates);
+    const rootHtml = html.slice(root.start, root.end);
     if (root.tag !== 'div' || !has(root, 'rt-combined-compose-document') || root.attrs['data-rt-compose-document'] !== MODE
-        || root.end > currentLength || !combinedMarker.test(html.slice(root.start, root.end))
-        || otherTemplateMarker.test(html.slice(root.start, root.end))) unavailable();
+        || root.end > currentLength
+        || !matches(rootHtml, new RegExp(combinedMarker.source, 'g')).some(match => !quotedOffset(elements, root.start + match.index))
+        || matches(rootHtml, new RegExp(otherTemplateMarker.source, 'g')).some(match => !quotedOffset(elements, root.start + match.index))) unavailable();
     const oneClass = (name, tag) => exactlyOne(elements.map((node, index) => ({ node, index }))
-        .filter(value => within(elements, value.index, rootIndex) && has(value.node, name) && value.node.tag === tag));
+        .filter(value => within(elements, value.index, rootIndex) && !quoted(elements, value.index) && has(value.node, name) && value.node.tag === tag));
     const template = oneClass('rt-outlook-template', 'div');
     const signature = oneClass('rt-outlook-signature', 'div');
     const frame = oneClass('rt-combined-compose-frame', 'table');
@@ -124,14 +130,14 @@ function rootContract(html, currentLength) {
     // documents. Quoted history is ignored only through a recognized boundary.
     for (const match of matches(html.slice(0, currentLength), /RT-TEMPLATE-MANAGED-V1/g)) {
         if (match.index >= root.start && match.index < root.end) continue;
-        if (!elements.some((node, index) => node.start <= match.index && node.end > match.index && quoted(elements, index))) unavailable();
+        if (!quotedOffset(elements, match.index)) unavailable();
     }
     return { ...tree, root, rootIndex, template, signature };
 }
 
 function editableRegion(html, contract, allowLegacy) {
     const { elements, template, comments } = contract;
-    const candidates = elements.map((node, index) => ({ node, index })).filter(({ node, index }) => within(elements, index, contract.rootIndex)
+    const candidates = elements.map((node, index) => ({ node, index })).filter(({ node, index }) => within(elements, index, contract.rootIndex) && !quoted(elements, index)
         && (has(node, 'rt-compose-editable') || owns(node.attrs, 'data-rt-compose-editable')));
     if (candidates.length) {
         const { node, index } = exactlyOne(candidates);
@@ -141,17 +147,17 @@ function editableRegion(html, contract, allowLegacy) {
     }
     if (!allowLegacy) unavailable();
     const start = exactlyOne(comments.filter(node => node.value === 'RT_APPLICATION_CONTENT_START'
-        && node.start > template.node.openEnd && node.end < template.node.close));
+        && node.start > template.node.openEnd && node.end < template.node.close && !quotedOffset(elements, node.start)));
     const end = exactlyOne(comments.filter(node => node.value === 'RT_APPLICATION_CONTENT_END'
-        && node.start > start.end && node.end < template.node.close));
-    const paragraphs = elements.filter(node => node.tag === 'p' && has(node, 'design-spacer') && node.start >= start.end && node.end <= end.start);
+        && node.start > start.end && node.end < template.node.close && !quotedOffset(elements, node.start)));
+    const paragraphs = elements.filter((node, index) => node.tag === 'p' && has(node, 'design-spacer') && !quoted(elements, index) && node.start >= start.end && node.end <= end.start);
     const paragraph = exactlyOne(paragraphs);
-    if (elements.filter((node, index) => node.tag === 'p' && has(node, 'design-spacer') && within(elements, index, template.index)).length !== 1) unavailable();
+    if (elements.filter((node, index) => node.tag === 'p' && has(node, 'design-spacer') && !quoted(elements, index) && within(elements, index, template.index)).length !== 1) unavailable();
     const parent = elements[paragraph.parent];
     if (!parent || parent.tag !== 'td' || !has(parent, 'rt-native-template-pad')) unavailable();
     // Compatibility is deliberately limited to the old default. Old edited
     // greetings or other application content cannot be silently discarded.
-    if (elements.some((node, index) => within(elements, index, template.index)
+    if (elements.some((node, index) => within(elements, index, template.index) && !quoted(elements, index)
         && (has(node, 'design-salutation') || has(node, 'design-greeting')))) unavailable();
     const surrounding = html.slice(start.end, paragraph.start) + html.slice(paragraph.end, end.start);
     if (decoded(surrounding.replace(/<!--[^]*?-->|<[^>]*>/g, '')).trim() !== ''
@@ -177,7 +183,9 @@ export function managedTemplateReplacement(bodyHtml, currentHtml, nextHtml) {
     const suffix = nextHtml.slice(nextContract.root.end);
     if ((prefix + suffix).replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, '').trim() !== '') unavailable();
     const content = bodyHtml.slice(oldRegion.start, oldRegion.end);
-    if (/RT-(?:TEMPLATE|SIGNATURE)-MANAGED|data-rt-compose-document\s*=/i.test(content)) unavailable();
+    for (const match of matches(content, /RT-(?:TEMPLATE|SIGNATURE)-MANAGED|data-rt-compose-document\s*=/gi)) {
+        if (!quotedOffset(oldContract.elements, oldRegion.start + match.index)) unavailable();
+    }
     const replacement = nextHtml.slice(nextContract.root.start, nextContract.root.openEnd) + prefix + suffix
         + nextHtml.slice(nextContract.root.openEnd, nextRegion.start) + content + nextHtml.slice(nextRegion.end, nextContract.root.end);
     const html = bodyHtml.slice(0, oldContract.root.start) + replacement + bodyHtml.slice(oldContract.root.end);
