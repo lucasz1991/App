@@ -6,6 +6,7 @@ import * as compose from '../../resources/js/outlook-addin/compose-template.js';
 import * as guard from '../../resources/js/outlook-addin/mailbox-guard.js';
 import * as writes from '../../resources/js/outlook-addin/office-write.js';
 import * as diagnostics from '../../resources/js/outlook-addin/diagnostics.js';
+import * as automaticPolicy from '../../resources/js/outlook-addin/automatic-compose-policy.js';
 
 const ADDRESS = 'employee@company.example';
 const MARKER = 'RT-SIGNATURE-MANAGED-V1';
@@ -92,6 +93,8 @@ function hostFixture({ mobile = false, composeType = 'newMail', body = TYPED + O
     };
     const binding = { schema: 1, mailboxAddress: ADDRESS, senderAddress: ADDRESS, allowedSenderAddresses: [ADDRESS] };
     const bootstrap = {
+        automaticInsertionEnabled: true,
+        automaticInsertion: { schema: 2, composeType, signature: true, template: true },
         marker: MARKER, binding, automaticTemplateId: 'template-a', templates: [documentContract()],
         signature: { html: `<!--${MARKER}--><p>Global signature; not the paired selection</p>`, media: [] },
     };
@@ -106,7 +109,7 @@ async function runtimeHarness(options = {}, mutate = () => {}) {
         endpoints: { bootstrap: 'https://company.example/outlook-addin/bootstrap' } };
     mutate(fixture);
     const context = vm.createContext({
-        ...compose, ...guard, ...writes, ...diagnostics, Office: fixture.office,
+        ...compose, ...guard, ...writes, ...diagnostics, ...automaticPolicy, Office: fixture.office,
         URL, AbortController, setTimeout, clearTimeout,
         console: { info(value) { logs.push(value); } },
         RAILTIME_OUTLOOK_CONFIG_URL: 'https://company.example/outlook-addin/config.json',

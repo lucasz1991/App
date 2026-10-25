@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
+import * as automaticPolicy from '../../resources/js/outlook-addin/automatic-compose-policy.js';
 
 // Exercise the real event coordinator with synthetic auth/Office boundaries.
 // No real account, message body, token, API or network access is used.
@@ -19,11 +20,15 @@ function runtime({ enabled = false, composeType = 'newMail', mobile = false, bin
     };
     const context = vm.createContext({
         Office: {
-            context: { mailbox: { item }, diagnostics: { platform: mobile ? 'iOS' : 'OfficeOnline' } },
+            AsyncResultStatus: { Succeeded: 'succeeded' },
+            context: { platform: mobile ? 'iOS' : 'PC', requirements: { isSetSupported: () => true },
+                mailbox: { item, diagnostics: { hostName: mobile ? 'OutlookIOS' : 'OutlookWebApp', hostVersion: '5.2635.0' } } },
             onReady() {}, actions: { associate() {} },
         },
+        ...automaticPolicy,
         console, setTimeout, clearTimeout,
-        __payload: { automaticInsertionEnabled: enabled, binding: {
+        __payload: { automaticInsertionEnabled: enabled,
+            automaticInsertion: { schema: 2, composeType, signature: enabled, template: enabled }, binding: {
             schema: 1, mailboxAddress: 'sender@company.test', senderAddress: 'sender@company.test',
             allowedSenderAddresses: ['sender@company.test'],
         } },
@@ -43,7 +48,8 @@ function runtime({ enabled = false, composeType = 'newMail', mobile = false, bin
         automaticTemplate: () => null,
         wasSignatureWriteConfirmed: () => false,
     });
-    const runtimeSource = legacy ? source.replace(/    \/\/ This fresh,[\s\S]*?return 'disabled';\r?\n    }\r?\n/, '') : source;
+    const runtimeSource = legacy ? source.replace(/    \/\/ This fresh,[\s\S]*?return 'disabled';\r?\n    }\r?\n/, '')
+        .replace(/    const policy = automaticComposeDecision[\s\S]*?reportRuntimePhase\('compose-started'\);/, '    const policy = { mode: "both", signature: true, template: true };\n    reportRuntimePhase("compose-started");') : source;
     if (legacy) assert.notEqual(runtimeSource, source, 'simulate the previous cached runtime without the new policy gate');
     vm.runInContext(`${runtimeSource}
         loadConfig = async () => ({ marker: 'RT-SIGNATURE-MANAGED-V1' });
@@ -76,12 +82,12 @@ test('disabled automatic event completes once without reporting a mobile inserti
     assert.equal(calls.notifications, 0);
 });
 
-test('enabled and legacy accounts retain their existing automatic path', async () => {
+test('a confirmed enabled account retains its path while incomplete coarse flags fail closed', async () => {
     for (const enabled of [true, undefined, null, 'false', 0]) {
         const { context, item, calls } = runtime({ enabled: true });
         context.__payload.automaticInsertionEnabled = enabled;
-        assert.equal(await context.applyForTest(item), 'uncertain');
-        assert.equal(calls.preflight, 1);
+        assert.equal(await context.applyForTest(item), enabled === true ? 'uncertain' : 'skipped');
+        assert.equal(calls.preflight, enabled === true ? 1 : 0);
     }
 });
 

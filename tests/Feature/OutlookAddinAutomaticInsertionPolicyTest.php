@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Enums\AccountProvider;
+use App\Http\Controllers\Api\OutlookAddinBootstrapController;
 use App\Models\EmployeeIdentityAccount;
 use App\Models\Setting;
 use App\Models\User;
 use App\Support\OutlookAddin\OutlookAddinAutomaticInsertionPolicy;
+use App\Support\OutlookAddin\OutlookAddinException;
 use App\Support\OutlookAddin\OutlookAddinUserSnapshotStore;
 use Firebase\JWT\JWT;
 use Illuminate\Database\Events\TransactionBeginning;
@@ -109,7 +111,10 @@ final class OutlookAddinAutomaticInsertionPolicyTest extends TestCase
         self::assertTrue($policy->enabledForUser(User::findOrFail(6)));
         self::assertSame($before, $this->employeeRows());
         self::assertSame($other, Setting::query()->where('key', '!=', 'automatic_insertion_user_5')->orderBy('id')->get()->toArray());
-        self::assertSame(['enabled' => false], Setting::getValueUncached('outlook_addin', 'automatic_insertion_user_5'));
+        $stored = Setting::getValueUncached('outlook_addin', 'automatic_insertion_user_5');
+        self::assertFalse($stored['enabled']);
+        self::assertSame(['signature' => false, 'template' => false], $stored['newMessages']);
+        self::assertSame($stored['newMessages'], $stored['replies']);
         $audit = DB::table('activity_log')->sole();
         self::assertSame(1, $audit->causer_id);
         self::assertSame(5, $audit->subject_id);
@@ -203,6 +208,7 @@ final class OutlookAddinAutomaticInsertionPolicyTest extends TestCase
         $second = $this->getJson('/api/outlook-addin/bootstrap', $headers + ['If-None-Match' => $etag])->assertOk()->assertJsonPath('automaticInsertionEnabled', false);
         $expected = $old;
         $expected['automaticInsertionEnabled'] = false;
+        $expected['automaticInsertionPreferences'] = app(OutlookAddinAutomaticInsertionPolicy::class)->preferencesForUser(User::findOrFail(5));
         self::assertSame($expected, $second->json(), 'Manual signature/template contents and binding remain available unchanged.');
         $this->getJson('/api/outlook-addin/bootstrap', $headers + ['X-RailTime-Outlook-Context' => 'taskpane'])
             ->assertOk()->assertExactJson($expected);
@@ -228,6 +234,7 @@ final class OutlookAddinAutomaticInsertionPolicyTest extends TestCase
                 'schema' => 1,
                 'marker' => 'RT-SIGNATURE-MANAGED-V1',
                 'automaticInsertionEnabled' => false,
+                'automaticInsertionPreferences' => app(OutlookAddinAutomaticInsertionPolicy::class)->preferencesForUser(User::findOrFail(5)),
                 'binding' => ['schema' => 1, 'mailboxAddress' => self::MAILBOX, 'senderAddress' => self::MAILBOX, 'allowedSenderAddresses' => [self::MAILBOX]],
             ])->assertHeader('Cache-Control', 'max-age=0, no-store, private');
             self::assertStringContainsString('X-RailTime-Outlook-Context', $response->headers->get('Vary'));
@@ -250,6 +257,250 @@ final class OutlookAddinAutomaticInsertionPolicyTest extends TestCase
         Setting::setValue('outlook_addin', 'automatic_insertion_user_5', ['enabled' => 'false']);
         $this->expectException(RuntimeException::class);
         app(OutlookAddinAutomaticInsertionPolicy::class)->enabledForUser(User::findOrFail(5));
+    }
+
+    public function test_legacy_opt_out_is_four_false_without_a_read_migration_and_defaults_are_four_true(): void
+    {
+        $policy = app(OutlookAddinAutomaticInsertionPolicy::class);
+        Setting::setValue('outlook_addin', 'automatic_insertion_user_5', ['enabled' => false]);
+        $before = Setting::query()->get()->toArray();
+        $disabled = $policy->preferencesForUser(User::findOrFail(5));
+        $enabled = $policy->preferencesForUser(User::findOrFail(6));
+        self::assertSame(2, $disabled['schema']);
+        self::assertSame(['signature' => false, 'template' => false], $disabled['newMessages']);
+        self::assertSame($disabled['newMessages'], $disabled['replies']);
+        self::assertSame(['signature' => true, 'template' => true], $enabled['newMessages']);
+        self::assertSame($enabled['newMessages'], $enabled['replies']);
+        self::assertMatchesRegularExpression('/\A[0-9a-f]{64}\z/', $disabled['revision']);
+        self::assertNotSame($disabled['revision'], $enabled['revision']);
+        self::assertSame($before, Setting::query()->get()->toArray());
+    }
+
+    public function test_verified_self_can_change_exactly_one_toggle_and_stale_cas_keeps_the_current_other_fields(): void
+    {
+        $this->withoutMiddleware();
+        $policy = app(OutlookAddinAutomaticInsertionPolicy::class);
+        Setting::setValue('unrelated', 'keep', ['value' => 'untouched']);
+        Setting::setValue('outlook_addin', 'automatic_insertion_user_5', ['enabled' => false, 'keep' => 'own metadata']);
+        $users = $this->employeeRows();
+        $other = Setting::query()->where('key', '!=', 'automatic_insertion_user_5')->get()->toArray();
+        $current = $policy->preferencesForUser(User::findOrFail(5));
+        $headers = $this->headers(EmployeeIdentityAccount::findOrFail(1)) + ['X-RailTime-Outlook-Context' => 'taskpane'];
+        $data = ['group' => 'newMessages', 'field' => 'signature', 'enabled' => true, 'revision' => $current['revision']];
+        $first = $this->patchJson('/api/outlook-addin/preferences', $data, $headers)->assertOk();
+        $next = $first->json('automaticInsertionPreferences');
+        self::assertTrue($next['newMessages']['signature']);
+        self::assertFalse($next['newMessages']['template']);
+        self::assertSame(['signature' => false, 'template' => false], $next['replies']);
+        self::assertNotSame($current['revision'], $next['revision']);
+        self::assertSame($users, $this->employeeRows());
+        self::assertSame($other, Setting::query()->where('key', '!=', 'automatic_insertion_user_5')->get()->toArray());
+        self::assertSame('own metadata', Setting::getValueUncached('outlook_addin', 'automatic_insertion_user_5')['keep']);
+        $this->patchJson('/api/outlook-addin/preferences', array_replace($data, ['field' => 'template']), $headers)
+            ->assertStatus(409)->assertJsonPath('error', 'outlook_addin_preferences_conflict')->assertJsonPath('automaticInsertionPreferences', $next);
+        self::assertSame($next, $policy->preferencesForUser(User::findOrFail(5)));
+        $this->patchJson('/api/outlook-addin/preferences', array_replace($data, ['enabled' => false, 'revision' => $next['revision']]), $headers)->assertOk();
+        $again = $policy->preferencesForUser(User::findOrFail(5));
+        self::assertSame($current['newMessages'], $again['newMessages']);
+        self::assertNotSame($current['revision'], $again['revision'], 'Returning to an old value must not restore an old CAS token.');
+        $audits = DB::table('activity_log')->where('description', 'outlook_addin_automatic_preference_changed')->get();
+        self::assertCount(2, $audits);
+        foreach ($audits as $audit) {
+            self::assertSame(5, $audit->causer_id);
+            self::assertSame(5, $audit->subject_id);
+            self::assertStringNotContainsString(self::MAILBOX, $audit->properties);
+        }
+        self::assertTrue($policy->enabledForUser(User::findOrFail(6)));
+    }
+
+    public function test_self_patch_rejects_unknown_fields_weak_booleans_foreign_binding_and_wrong_context_without_writes(): void
+    {
+        $this->withoutMiddleware();
+        $headers = $this->headers(EmployeeIdentityAccount::findOrFail(1)) + ['X-RailTime-Outlook-Context' => 'taskpane'];
+        $revision = app(OutlookAddinAutomaticInsertionPolicy::class)->preferencesForUser(User::findOrFail(5))['revision'];
+        $data = ['group' => 'replies', 'field' => 'template', 'enabled' => false, 'revision' => $revision];
+        foreach ([['userId' => 6], ['enabled' => 'false'], ['enabled' => 0], ['group' => 'all'], ['field' => 'role'], ['revision' => 'invalid']] as $change) {
+            $this->patchJson('/api/outlook-addin/preferences', array_replace($data, $change), $headers)->assertStatus(422);
+        }
+        $this->patchJson('/api/outlook-addin/preferences', $data, array_replace($headers, ['X-RailTime-Outlook-Context' => 'event']))->assertForbidden();
+        $this->patchJson('/api/outlook-addin/preferences', $data, array_replace($headers, ['X-RailTime-Outlook-Sender' => 'other@company.test']))->assertForbidden();
+        $this->patchJson('/api/outlook-addin/preferences', $data, array_replace($headers, ['X-RailTime-Compose-Contract' => 'invalid']))->assertStatus(409);
+        $this->patchJson('/api/outlook-addin/preferences', $data)->assertUnauthorized();
+        self::assertSame(0, Setting::query()->count());
+        self::assertSame(0, DB::table('activity_log')->count());
+    }
+
+    public static function selfBindingRaces(): array
+    {
+        return [
+            'identity ownership' => ['identity', ['user_id' => 6]],
+            'identity tenant' => ['identity', ['tenant_id' => '55555555-5555-4555-8555-555555555555']],
+            'identity alias' => ['identity', ['email' => 'new-alias@company.test']],
+            'inactive employee' => ['user', ['status' => false]],
+            'unverified employee' => ['user', ['email_verified_at' => null]],
+        ];
+    }
+
+    #[DataProvider('selfBindingRaces')]
+    public function test_self_patch_rechecks_identity_and_employee_inside_the_locked_transaction(string $target, array $changes): void
+    {
+        $this->withoutMiddleware();
+        $headers = $this->headers(EmployeeIdentityAccount::findOrFail(1)) + ['X-RailTime-Outlook-Context' => 'taskpane'];
+        $revision = app(OutlookAddinAutomaticInsertionPolicy::class)->preferencesForUser(User::findOrFail(5))['revision'];
+        $pending = true;
+        Event::listen(TransactionBeginning::class, static function () use (&$pending, $target, $changes): void {
+            if ($pending) {
+                $pending = false;
+                if ($target === 'identity') {
+                    EmployeeIdentityAccount::findOrFail(1)->update($changes);
+                } else {
+                    User::findOrFail(5)->forceFill($changes)->save();
+                }
+            }
+        });
+        $this->patchJson('/api/outlook-addin/preferences', ['group' => 'replies', 'field' => 'signature', 'enabled' => false, 'revision' => $revision], $headers)->assertForbidden();
+        self::assertSame(0, Setting::query()->count());
+        self::assertSame(0, DB::table('activity_log')->count());
+    }
+
+    public function test_v2_event_matrix_returns_only_selected_artifacts_and_legacy_clients_fail_closed_on_every_partial_state(): void
+    {
+        $this->withoutMiddleware();
+        $this->publishedLibrary();
+        $headers = $this->headers(EmployeeIdentityAccount::findOrFail(1)) + ['X-RailTime-Outlook-Context' => 'event'];
+        $snapshots = app(OutlookAddinUserSnapshotStore::class);
+        $snapshots->currentForUser(User::findOrFail(5));
+        $path = $snapshots->pathForUser(5);
+        $cached = Storage::disk('private')->get($path);
+        foreach (range(0, 15) as $mask) {
+            $new = ['signature' => (bool) ($mask & 1), 'template' => (bool) ($mask & 2)];
+            $replies = ['signature' => (bool) ($mask & 4), 'template' => (bool) ($mask & 8)];
+            Setting::setValue('outlook_addin', 'automatic_insertion_user_5', ['schema' => 2, 'newMessages' => $new, 'replies' => $replies]);
+            foreach (['newMail', 'reply', 'forward'] as $composeType) {
+                $selected = $composeType === 'reply' ? $replies : $new;
+                $response = $this->getJson('/api/outlook-addin/bootstrap', $headers + ['X-RailTime-Automatic-Policy' => '2', 'X-RailTime-Compose-Type' => $composeType])->assertOk();
+                $body = $response->json();
+                self::assertSame(['schema' => 2, 'composeType' => $composeType] + $selected, $body['automaticInsertion']);
+                self::assertSame($selected['signature'] || $selected['template'], $body['automaticInsertionEnabled']);
+                if (! $selected['signature'] && ! $selected['template']) {
+                    foreach (['signature', 'templates', 'template', 'version'] as $field) {
+                        self::assertArrayNotHasKey($field, $body);
+                    }
+                } elseif ($selected['signature'] && ! $selected['template']) {
+                    self::assertArrayHasKey('signature', $body);
+                    self::assertSame([], $body['templates']);
+                    self::assertNull($body['automaticTemplateId']);
+                    self::assertArrayNotHasKey('template', $body);
+                } elseif (! $selected['signature'] && $selected['template']) {
+                    self::assertArrayNotHasKey('signature', $body);
+                    self::assertArrayNotHasKey('template', $body);
+                    self::assertArrayNotHasKey('version', $body);
+                    self::assertCount(1, $body['templates']);
+                    foreach (['signature', 'html', 'media', 'combinedComposeHtml', 'combinedComposeMedia', 'mobileComposeHtml', 'mobileComposeMedia', 'signatureVersion'] as $field) {
+                        self::assertArrayNotHasKey($field, $body['templates'][0]);
+                    }
+                    self::assertStringContainsString('RT-TEMPLATE-MANAGED-V1:NATIVE-SIGNATURE', $body['templates'][0]['composeHtml']);
+                    self::assertStringNotContainsString('RT-SIGNATURE-', $body['templates'][0]['composeHtml']);
+                } else {
+                    self::assertArrayHasKey('signature', $body);
+                    self::assertArrayHasKey('template', $body);
+                    self::assertArrayHasKey('html', $body['templates'][0]);
+                }
+            }
+            $legacy = $this->getJson('/api/outlook-addin/bootstrap', $headers)->assertOk()->json();
+            self::assertSame($mask === 15, $legacy['automaticInsertionEnabled']);
+            self::assertSame($mask === 15, array_key_exists('signature', $legacy));
+            $unknown = $this->getJson('/api/outlook-addin/bootstrap', $headers + ['X-RailTime-Automatic-Policy' => '2', 'X-RailTime-Compose-Type' => 'unknown'])->assertOk()->json();
+            self::assertFalse($unknown['automaticInsertionEnabled']);
+            self::assertArrayNotHasKey('signature', $unknown);
+            self::assertArrayNotHasKey('templates', $unknown);
+        }
+        self::assertSame($cached, Storage::disk('private')->get($path));
+    }
+
+    public function test_mobile_v2_partial_artifacts_respect_context_etag_and_keep_cached_and_published_bytes(): void
+    {
+        $this->withoutMiddleware();
+        $this->publishedLibrary();
+        $headers = $this->headers(EmployeeIdentityAccount::findOrFail(1)) + [
+            'X-RailTime-Outlook-Context' => 'event', 'X-RailTime-Automatic-Policy' => '2',
+            'X-RailTime-Outlook-Profile' => 'mobile-ledger-v1',
+        ];
+        $snapshots = app(OutlookAddinUserSnapshotStore::class);
+        $snapshots->currentForUser(User::findOrFail(5));
+        $cached = Storage::disk('private')->get($snapshots->pathForUser(5));
+        $published = DB::table('mail_documents')->orderBy('id')->get()->map(static fn (object $row): array => (array) $row)->all();
+        foreach ([[true, false], [false, true]] as [$signature, $template]) {
+            Setting::setValue('outlook_addin', 'automatic_insertion_user_5', [
+                'schema' => 2, 'newMessages' => ['signature' => $signature, 'template' => $template],
+                'replies' => ['signature' => false, 'template' => false],
+            ]);
+            $newHeaders = $headers + ['X-RailTime-Compose-Type' => 'newMail'];
+            $response = $this->getJson('/api/outlook-addin/bootstrap', $newHeaders)->assertOk();
+            $body = $response->json();
+            self::assertSame($signature, array_key_exists('signature', $body));
+            if ($template) {
+                self::assertArrayHasKey('composeHtml', $body['templates'][0]);
+                self::assertArrayNotHasKey('combinedComposeHtml', $body['templates'][0]);
+                self::assertArrayNotHasKey('mobileComposeHtml', $body['templates'][0]);
+                self::assertLessThanOrEqual(30000, intdiv(strlen(mb_convert_encoding($body['templates'][0]['composeHtml'], 'UTF-16LE', 'UTF-8')), 2) + 57);
+            }
+            $etag = $response->headers->get('ETag');
+            $this->getJson('/api/outlook-addin/bootstrap', $newHeaders + ['If-None-Match' => $etag])->assertNoContent(304);
+            $reply = $this->getJson('/api/outlook-addin/bootstrap', $headers + ['X-RailTime-Compose-Type' => 'reply', 'If-None-Match' => $etag])->assertOk()->assertJsonPath('automaticInsertionEnabled', false);
+            self::assertNotSame($etag, $reply->headers->get('ETag'));
+            $this->getJson('/api/outlook-addin/bootstrap', $headers + ['X-RailTime-Compose-Type' => 'forward'])->assertOk()
+                ->assertJsonPath('automaticInsertion.signature', $signature)->assertJsonPath('automaticInsertion.template', $template);
+        }
+        self::assertSame($cached, Storage::disk('private')->get($snapshots->pathForUser(5)));
+        self::assertSame($published, DB::table('mail_documents')->orderBy('id')->get()->map(static fn (object $row): array => (array) $row)->all());
+    }
+
+    public function test_mobile_template_only_guard_reserves_the_exact_native_wrapper_budget(): void
+    {
+        $prefix = '<!-- RT-TEMPLATE-MANAGED-V1:NATIVE-SIGNATURE -->';
+        $html = $prefix.str_repeat('x', 29944 - strlen($prefix));
+        $payload = ['automaticTemplateId' => 't', 'templates' => [[
+            'id' => 't', 'key' => 't', 'isDefault' => true, 'signatureMode' => 'native', 'composeHtml' => $html, 'composeMedia' => [],
+        ]]];
+        try {
+            (new ReflectionMethod(OutlookAddinBootstrapController::class, 'templateOnlyPayload'))
+                ->invoke(new OutlookAddinBootstrapController, $payload, true);
+            self::fail('A 29,944-unit template cannot fit the additional 57-unit native wrapper.');
+        } catch (OutlookAddinException $error) {
+            self::assertSame(409, $error->httpStatus);
+        }
+    }
+
+    public function test_cli_disable_and_enable_override_every_selective_field_without_losing_other_metadata(): void
+    {
+        Setting::setValue('outlook_addin', 'automatic_insertion_user_5', [
+            'schema' => 2, 'newMessages' => ['signature' => false, 'template' => true],
+            'replies' => ['signature' => false, 'template' => false], 'keep' => 'metadata',
+        ]);
+        $this->change(false);
+        $policy = app(OutlookAddinAutomaticInsertionPolicy::class);
+        self::assertSame(['signature' => false, 'template' => false], $policy->preferencesForUser(User::findOrFail(5))['newMessages']);
+        $this->change(true);
+        $preferences = $policy->preferencesForUser(User::findOrFail(5));
+        self::assertSame(['signature' => true, 'template' => true], $preferences['newMessages']);
+        self::assertSame($preferences['newMessages'], $preferences['replies']);
+        self::assertSame('metadata', Setting::getValueUncached('outlook_addin', 'automatic_insertion_user_5')['keep']);
+    }
+
+    private function publishedLibrary(): void
+    {
+        foreach ([
+            '2026_08_09_000100_create_mail_documents_table.php', '2026_08_22_000200_create_mail_document_versions_table.php',
+            '2026_08_27_000100_add_design_slots_to_mail_documents.php', '2026_09_06_010000_add_outlook_library_to_mail_documents.php',
+            '2026_09_07_190000_separate_mail_document_delivery_channels.php', '2026_09_08_120000_add_mail_document_signature_pairing.php',
+        ] as $migration) {
+            (include database_path('migrations/'.$migration))->up();
+        }
+        $case = new EmailTemplatesPageTest('test_outlook_addin_validates_a_real_entra_rs256_access_token');
+        (new ReflectionMethod($case, 'createCanonicalMailDocuments'))->invoke($case);
+        DB::table('mail_documents')->update(['outlook_default' => true]);
+        DB::table('mail_documents')->where('kind', 'template')->update(['outlook_released' => true]);
     }
 
     private function change(bool $enabled): void

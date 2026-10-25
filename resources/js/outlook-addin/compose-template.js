@@ -353,6 +353,24 @@ export function nativeComposeTemplate(document) {
     return Object.freeze({ ...document, html: document.composeHtml, media: document.composeMedia });
 }
 
+/** Select no signature, including when a malformed event payload mixes modes. */
+export function signatureFreeComposeTemplate(document) {
+    const selected = nativeComposeTemplate(document);
+    if (!selected || /RT-SIGNATURE-(?:MANAGED|VERSION)|RT-MOBILE-COMPOSE-VERSION|\bdata-rt-compose-document\s*=/i.test(selected.html)) {
+        throw failure('NATIVE_TEMPLATE_INVALID');
+    }
+    return selected;
+}
+
+/** Explicit signature-free mobile slot contract, not a combined-document fallback. */
+export function mobileTemplateOnlyComposeDocument(document) {
+    const selected = signatureFreeComposeTemplate(document);
+    const html = `<div data-rt-compose-document="template-native-v1">${selected.html}</div>`;
+    if (html.length > 30000) throw failure('SIGNATURE_TOO_LARGE');
+    validatedInsertionHtml(html, selected.media);
+    return Object.freeze({ ...selected, html });
+}
+
 /**
  * Additive contract: cached clients retain native composeHtml, while updated
  * clients insert the complete ordinary-body document exactly once. The separate
@@ -866,7 +884,14 @@ export async function insertMobileCombinedTemplate(office, item, html, beforeWri
         || typeof item?.body?.getAsync !== 'function'
         || typeof item?.getComposeTypeAsync !== 'function') throw failure('COMPOSE_API_UNAVAILABLE');
     const markedHtml = validatedInsertionHtml(html, options.media ?? []);
-    if (!combinedTemplateMarker.test(markedHtml)
+    if (options.documentMode === 'template-native-v1') {
+        const opening = '<div data-rt-compose-document="template-native-v1">';
+        if (!markedHtml.startsWith(opening) || !markedHtml.endsWith('</div>')) throw failure('MOBILE_TEMPLATE_ONLY_INVALID');
+        const inner = markedHtml.slice(opening.length, -6);
+        try {
+            signatureFreeComposeTemplate({ signatureMode: 'native', composeHtml: inner, composeMedia: options.media ?? [] });
+        } catch { throw failure('MOBILE_TEMPLATE_ONLY_INVALID'); }
+    } else if (options.documentMode !== undefined || !combinedTemplateMarker.test(markedHtml)
         || !/\bdata-rt-compose-document\s*=\s*["']combined-native-v1["']/i.test(markedHtml)) throw failure('MOBILE_COMBINED_TEMPLATE_INVALID');
     if (markedHtml.length > 30000) throw failure('SIGNATURE_TOO_LARGE');
     const operation = { phase: 'preflight', beforeWrite, mobileNative: true };

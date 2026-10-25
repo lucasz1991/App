@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { confirmedOfficeWrite, hasUncertainWrite, wasSignatureWriteConfirmed } from '../../resources/js/outlook-addin/office-write.js';
 import { hasMobileTemplateOwnership } from '../../resources/js/outlook-addin/compose-template.js';
+import * as automaticPolicy from '../../resources/js/outlook-addin/automatic-compose-policy.js';
 
 const source = await readFile(new URL('../../resources/js/outlook-addin/runtime.js', import.meta.url), 'utf8');
 
@@ -28,10 +29,12 @@ function harness(options = {}) {
     const template = { html: '<p>Guten Tag,</p>', media: [media('template-mark.gif'), media('template-mark.png')] };
     const selected = options.noDefault ? null : { signature, compose: template };
     const binding = { mailboxAddress: 'pilot@example.test', senderAddress: 'pilot@example.test' };
-    const bootstrap = { binding, signature: globalSignature };
+    const bootstrap = { binding, signature: globalSignature, automaticInsertionEnabled: true,
+        automaticInsertion: { schema: 2, composeType: 'newMail', signature: true, template: true } };
     let present = false;
     let signatureCalls = 0;
     const item = {
+        getComposeTypeAsync(callback) { callback({ status: 'succeeded', value: { composeType: 'newMail' } }); },
         sessionData: { getAsync(_key, cb) { cb({ status: 'failed', error: { code: '9050' } }); } },
         getAttachmentsAsync(callback) {
             log.push('attachment-enumeration');
@@ -55,7 +58,8 @@ function harness(options = {}) {
         },
     };
     const office = {
-        context: { platform: options.mobile ? 'iOS' : 'PC', mailbox: { item } },
+        context: { platform: options.mobile ? 'iOS' : 'PC', requirements: { isSetSupported: () => true },
+            mailbox: { item, diagnostics: { hostName: options.mobile ? 'OutlookIOS' : 'OutlookWebApp', hostVersion: '5.2635.0' } } },
         AsyncResultStatus: { Succeeded: 'succeeded' },
         CoercionType: { Html: 'html' },
     };
@@ -64,6 +68,7 @@ function harness(options = {}) {
         console: { info() {} }, LOG_PREFIX: '[fixture]', AUTH_TIMEOUT_MS: 15000,
         confirmedInlineMedia: new WeakMap(), pendingNativeSignatures: new WeakMap(),
         confirmedOfficeWrite, hasUncertainWrite, wasSignatureWriteConfirmed, hasMobileTemplateOwnership,
+        ...automaticPolicy,
         isMobileComposeHost: () => options.mobile === true,
         codedError: (code) => Object.assign(new Error(code), { code }),
         safeErrorCode: (error) => error?.code || 'UNAVAILABLE',

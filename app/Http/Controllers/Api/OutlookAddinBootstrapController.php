@@ -49,33 +49,53 @@ final class OutlookAddinBootstrapController extends Controller
                     'outlook_addin_client_outdated',
                 );
             }
-            $automaticInsertionEnabled = app(OutlookAddinAutomaticInsertionPolicy::class)->enabledForUser($resolved['user']);
-            if (! $automaticInsertionEnabled && $request->header('X-RailTime-Outlook-Context') === 'event') {
+            $policy = app(OutlookAddinAutomaticInsertionPolicy::class);
+            $preferences = $policy->preferencesForUser($resolved['user']);
+            $event = $request->header('X-RailTime-Outlook-Context') === 'event';
+            $v2 = $event && $request->header('X-RailTime-Automatic-Policy') === '2';
+            $selection = $v2 ? $policy->automaticSelection($preferences, (string) $request->header('X-RailTime-Compose-Type')) : null;
+            $automaticInsertionEnabled = $v2 ? ($selection['signature'] || $selection['template']) : $policy->allEnabled($preferences);
+            $metadata = [
+                'schema' => 1,
+                'marker' => (string) config('outlook_addin.marker', 'RT-SIGNATURE-MANAGED-V1'),
+                'automaticInsertionEnabled' => $automaticInsertionEnabled,
+                'automaticInsertionPreferences' => $preferences,
+                'binding' => $resolved['binding'],
+            ];
+            if ($v2) {
+                $metadata['automaticInsertion'] = $selection;
+            }
+            if (! $automaticInsertionEnabled && $event) {
                 // Cached runtimes may not understand the preference flag. Do
                 // not give an automatic event any insertable artifacts then.
-                return $this->payloadResponse($request, [
-                    'schema' => 1,
-                    'marker' => (string) config('outlook_addin.marker', 'RT-SIGNATURE-MANAGED-V1'),
-                    'automaticInsertionEnabled' => false,
-                    'binding' => $resolved['binding'],
-                ]);
+                return $this->payloadResponse($request, $metadata);
             }
             app(MicrosoftDeviceSyncScheduler::class)->afterMicrosoftSignIn($identity, $resolved['user']);
             $payload = $snapshots->currentForUser($resolved['user']);
+            $signatureOnly = $v2 && $selection['signature'] && ! $selection['template'];
+            $templateOnly = $v2 && ! $selection['signature'] && $selection['template'];
+            if ($signatureOnly) {
+                $payload = [
+                    'schema' => $payload['schema'], 'marker' => $payload['marker'],
+                    'signature' => $payload['signature'], 'templates' => [], 'automaticTemplateId' => null,
+                    'version' => array_intersect_key($payload['version'], ['signature' => true, 'personal' => true]),
+                ];
+            }
             // Presentation hint only, after all identity checks and after the
             // desktop snapshot cache. Never changes publication or eligibility.
-            if ($request->header('X-RailTime-Outlook-Profile') === OutlookMobileSignature::PROFILE) {
+            if (! $templateOnly && $request->header('X-RailTime-Outlook-Profile') === OutlookMobileSignature::PROFILE) {
                 $payload = OutlookMobileSignature::payload($payload);
             }
             $payload = OutlookClientPresentation::payload($payload);
+            if ($templateOnly) {
+                $payload = $this->templateOnlyPayload($payload, $request->header('X-RailTime-Outlook-Profile') === OutlookMobileSignature::PROFILE);
+            }
+
             // Request-fresh preference, outside reusable canonical snapshots.
             // Manual signature/template data remains available in this response.
-            $payload['automaticInsertionEnabled'] = $automaticInsertionEnabled;
             // Der persoenliche Snapshot ist wiederverwendbar, die Freigabe
             // fuer den aktuellen Absender dagegen strikt requestgebunden.
-            $payload['binding'] = $resolved['binding'];
-
-            return $this->payloadResponse($request, $payload);
+            return $this->payloadResponse($request, array_replace($payload, $metadata));
         } catch (OutlookAddinException $exception) {
             $this->recordDeniedBootstrap($exception);
 
@@ -89,6 +109,29 @@ final class OutlookAddinBootstrapController extends Controller
                 'message' => 'Die Outlook-Daten konnten vorübergehend nicht geladen werden.',
             ], 500, $this->headers());
         }
+    }
+
+    /** Emit no signature-bearing legacy or combined fallback for template-only events. */
+    private function templateOnlyPayload(array $payload, bool $mobile): array
+    {
+        $templates = [];
+        foreach ($payload['templates'] as $template) {
+            if (($template['id'] ?? null) !== ($payload['automaticTemplateId'] ?? null) || ($template['isDefault'] ?? false) !== true) {
+                continue;
+            }
+            $html = $template['composeHtml'];
+            preg_match_all('~<style\b[^>]*>(.*?)</style\s*>~is', $html, $styles);
+            if (($template['signatureMode'] ?? null) !== 'native' || ! str_contains($html, 'RT-TEMPLATE-MANAGED-V1:NATIVE-SIGNATURE')
+                || str_contains($html, 'RT-SIGNATURE-') || str_contains($html, 'RT-TEMPLATE-MANAGED-V1:COMBINED-DOCUMENT')
+                || ($mobile && (intdiv(strlen(mb_convert_encoding($html, 'UTF-16LE', 'UTF-8')), 2) + strlen('<div data-rt-compose-document="template-native-v1"></div>') > 30000 || array_sum(array_map('strlen', $styles[1])) >= 12288))) {
+                throw new OutlookAddinException('Die signaturfreie Outlook-Vorlage ist nicht einsatzbereit.', 409, 'outlook_addin_publication_invalid');
+            }
+            $templates[] = array_intersect_key($template, array_fill_keys([
+                'id', 'key', 'name', 'label', 'active', 'isDefault', 'version', 'hash', 'signatureMode', 'composeHtml', 'composeMedia',
+            ], true));
+        }
+
+        return ['automaticTemplateId' => $payload['automaticTemplateId'], 'templates' => $templates];
     }
 
     private function payloadResponse(Request $request, array $payload): JsonResponse|Response
@@ -135,7 +178,7 @@ final class OutlookAddinBootstrapController extends Controller
             'Cache-Control' => 'private, no-store, max-age=0',
             'ETag' => $etag,
             'Referrer-Policy' => 'no-referrer',
-            'Vary' => 'Authorization, X-RailTime-Outlook-Mailbox, X-RailTime-Outlook-Sender, X-RailTime-Compose-Contract, X-RailTime-Outlook-Profile, X-RailTime-Outlook-Context',
+            'Vary' => 'Authorization, X-RailTime-Outlook-Mailbox, X-RailTime-Outlook-Sender, X-RailTime-Compose-Contract, X-RailTime-Outlook-Profile, X-RailTime-Outlook-Context, X-RailTime-Automatic-Policy, X-RailTime-Compose-Type',
             'X-Content-Type-Options' => 'nosniff',
         ], static fn (?string $value): bool => $value !== null);
     }

@@ -19,6 +19,7 @@ import { automaticTemplate } from './compose-template.js';
 import { readComposeSender, assertMailboxBinding } from './mailbox-guard.js';
 import { diagnoseStep, recordDiagnostic, diagnosticReport } from './diagnostics.js';
 import { confirmedOfficeWrite, hasUncertainWrite } from './office-write.js';
+import { bindAutomaticPreferencesView, normalizeAutomaticPreferences } from './automatic-preferences-view.js';
 
 const CONFIG_META_NAME = 'railtime-outlook-config-url';
 const CONFIG_TIMEOUT_MS = 8000;
@@ -40,6 +41,7 @@ let silentBootstrapRefreshPromise;
 let signatureStateRefreshPromise;
 let lastActionError = null;
 let observedComposeItem = null;
+let automaticPreferencesView;
 // Display evidence only, never cached authorization for another Office write.
 const confirmedInsertions = new WeakMap();
 const boundDialogRoots = new WeakSet();
@@ -278,6 +280,8 @@ function validateConfig(payload) {
         }),
         endpoints: Object.freeze({
             bootstrap: requiredHttpsUrl(payload.endpoints?.bootstrap, 'CONFIG_BOOTSTRAP_URL_INVALID'),
+            preferences: payload.endpoints?.preferences
+                ? requiredHttpsUrl(payload.endpoints.preferences, 'CONFIG_PREFERENCES_URL_INVALID') : null,
         }),
         marker: requiredString(payload.marker, 'CONFIG_MARKER_MISSING'),
     });
@@ -296,7 +300,14 @@ async function fetchJson(url, options, timeoutMs) {
         });
 
         if (!response.ok) {
-            throw codedError(`HTTP_${response.status}`);
+            const error = codedError(`HTTP_${response.status}`);
+            if (response.status === 409) {
+                try {
+                    const current = normalizeAutomaticPreferences((await response.json())?.automaticInsertionPreferences);
+                    if (current) error.currentPreferences = current;
+                } catch { /* Only the bounded preferences contract is retained. */ }
+            }
+            throw error;
         }
 
         return await response.json();
@@ -1034,6 +1045,7 @@ function syncActionState() {
     if (insertionBlocked()) view.signatureDetail.textContent = 'Einfügung nicht eindeutig bestätigt. Unter Status die Diagnose öffnen; nicht erneut einfügen.';
 
     updateDisabledStates();
+    syncAutomaticPreferences();
 }
 
 function setBusy(busy, activeButton = null) {
@@ -1046,6 +1058,66 @@ function setBusy(busy, activeButton = null) {
         button.setAttribute('aria-busy', busy && button === activeButton ? 'true' : 'false');
     });
     updateDisabledStates();
+    syncAutomaticPreferences();
+}
+
+function syncAutomaticPreferences() {
+    automaticPreferencesView?.update({
+        preferences: currentBootstrap?.automaticInsertionPreferences,
+        available: taskpaneState.authenticated && taskpaneState.bootstrapReady && Boolean(currentConfig?.endpoints?.preferences),
+        busy: taskpaneState.busy,
+        account: currentBootstrap?.binding?.mailboxAddress || '',
+    });
+}
+
+async function saveAutomaticPreference(change) {
+    if (taskpaneState.busy || !taskpaneState.authenticated || !taskpaneState.bootstrapReady
+        || !currentConfig?.endpoints?.preferences || !currentBootstrap?.binding) {
+        throw codedError('PREFERENCES_UNAVAILABLE');
+    }
+    const target = captureComposeTarget();
+    const binding = currentBootstrap.binding;
+    setBusy(true);
+    try {
+        const accessToken = await acquireAccessToken(currentConfig, false);
+        await assertWriteTarget(target, binding);
+        const sender = await readComposeSender(Office, target.item);
+        const response = await fetchJson(currentConfig.endpoints.preferences, {
+            method: 'PATCH', cache: 'no-store', credentials: 'omit',
+            headers: {
+                Accept: 'application/json', 'Content-Type': 'application/json',
+                Authorization: `Bearer ${accessToken}`,
+                'X-RailTime-Outlook-Context': 'taskpane',
+                'X-RailTime-Compose-Contract': 'native-signature-v1',
+                'X-RailTime-Outlook-Mailbox': mailboxAddress(),
+                'X-RailTime-Outlook-Sender': sender,
+            },
+            body: JSON.stringify(change),
+        }, API_TIMEOUT_MS);
+        await assertWriteTarget(target, response?.binding);
+        const preferences = normalizeAutomaticPreferences(response?.automaticInsertionPreferences);
+        if (!preferences) throw codedError('PREFERENCES_RESPONSE_INVALID');
+        currentBootstrap = { ...currentBootstrap, automaticInsertionPreferences: preferences };
+        return response;
+    } catch (error) {
+        const current = normalizeAutomaticPreferences(error?.currentPreferences);
+        if (current && currentBootstrap?.binding?.mailboxAddress === binding.mailboxAddress
+            && currentBootstrap?.binding?.senderAddress === binding.senderAddress) {
+            try {
+                await assertWriteTarget(target, binding);
+                currentBootstrap = { ...currentBootstrap, automaticInsertionPreferences: current };
+            } catch (targetError) {
+                error = targetError;
+            }
+        }
+        if (authenticationWasLost(error) || safeErrorCode(error) === 'HTTP_403' || /MAILBOX|SENDER|ITEM_CHANGED/.test(safeErrorCode(error))) {
+            invalidateBootstrap('error', authenticationWasLost(error));
+        }
+        throw error;
+    } finally {
+        setBusy(false);
+        syncActionState();
+    }
 }
 
 function displayAccount() {
@@ -1229,7 +1301,9 @@ function readyStatusDetail() {
     const templateSupport = supportsTemplatePrepend(Office, Office.context.mailbox?.item)
         ? 'Vorlagen und Signaturen werden gemeinsam verwaltet; Outlook kann CSS anpassen.'
         : 'Mobile/eingeschränkte Ansicht: automatische Signatur, vollständige Vorlagen nur im Browser/Desktop.';
-    const automatic = automaticTemplate(currentBootstrap)
+    const automatic = normalizeAutomaticPreferences(currentBootstrap?.automaticInsertionPreferences)
+        ? 'Die automatische Einfügung folgt Ihrer Auswahl unter „Automatik“.'
+        : automaticTemplate(currentBootstrap)
         ? 'Eine veröffentlichte Outlook-Standardvorlage ist konfiguriert; der automatische Start hängt vom Outlook-Client und der Add-in-Zuweisung ab.'
         : 'Keine veröffentlichte Outlook-Standardvorlage festgelegt; automatisch ist nur die Signatur vorgesehen.';
     const confirmedParts = [evidence.signatureWriteConfirmed ? 'Signatur' : '', evidence.templateWriteConfirmed ? 'Vorlage' : ''].filter(Boolean);
@@ -1606,6 +1680,7 @@ export function bindOutlookDialogs(root = document) {
 
 function bindActions() {
     const view = elements();
+    automaticPreferencesView = bindAutomaticPreferencesView(document, { save: saveAutomaticPreference });
 
     view.login.addEventListener('click', () => authenticateInteractively(view.login));
     view.signature.addEventListener('click', () => updateSignature(view.signature));

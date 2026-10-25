@@ -22,7 +22,28 @@ final class OutlookAddinAutomaticInsertionPolicy
 
     public function enabledForUser(User $user): bool
     {
-        return $this->enabledValue(Setting::getValueUncached(self::GROUP, $this->key($user)));
+        return $this->allEnabled($this->preferencesForUser($user));
+    }
+
+    /** @return array{schema:int,newMessages:array{signature:bool,template:bool},replies:array{signature:bool,template:bool},revision:string} */
+    public function preferencesForUser(User $user): array
+    {
+        return $this->preferencesValue($user, Setting::getValueUncached(self::GROUP, $this->key($user)));
+    }
+
+    public function allEnabled(array $preferences): bool
+    {
+        return $preferences['newMessages']['signature'] && $preferences['newMessages']['template']
+            && $preferences['replies']['signature'] && $preferences['replies']['template'];
+    }
+
+    public function automaticSelection(array $preferences, string $composeType): array
+    {
+        $composeType = in_array($composeType, ['newMail', 'reply', 'forward'], true) ? $composeType : 'unknown';
+        $selected = $composeType === 'unknown' ? ['signature' => false, 'template' => false]
+            : $preferences[$composeType === 'reply' ? 'replies' : 'newMessages'];
+
+        return ['schema' => 2, 'composeType' => $composeType, 'signature' => $selected['signature'], 'template' => $selected['template']];
     }
 
     /** @return array{userId:int,identityId:int,enabled:bool} */
@@ -62,10 +83,13 @@ final class OutlookAddinAutomaticInsertionPolicy
                 throw ValidationException::withMessages(['mailbox' => 'Das verknüpfte Mitarbeiterkonto ist nicht aktiv.']);
             }
             $setting = Setting::query()->where('type', self::GROUP)->where('key', $this->key($employee))->lockForUpdate()->first();
-            $previous = $this->enabledValue($setting?->value);
-            $changed = $previous !== $enabled;
+            $preferences = $this->preferencesValue($employee, $setting?->value);
+            $previous = $this->allEnabled($preferences);
+            $changed = $preferences['newMessages'] !== ['signature' => $enabled, 'template' => $enabled]
+                || $preferences['replies'] !== ['signature' => $enabled, 'template' => $enabled];
             if ($changed) {
-                Setting::setValue(self::GROUP, $this->key($employee), array_replace((array) $setting?->value, ['enabled' => $enabled]));
+                $preferences['newMessages'] = $preferences['replies'] = ['signature' => $enabled, 'template' => $enabled];
+                Setting::setValue(self::GROUP, $this->key($employee), $this->storedValue($preferences, (array) $setting?->value));
                 activity('outlook-addin')
                     ->causedBy($currentActor)
                     ->performedOn($employee)
@@ -85,6 +109,61 @@ final class OutlookAddinAutomaticInsertionPolicy
                 'previousEnabled' => $previous,
                 'changed' => $changed,
             ];
+        }, 3);
+    }
+
+    /** Only the fresh, verified Microsoft self can update these four preferences. */
+    public function updateForIdentity(User $user, VerifiedEntraIdentity $verified, array $binding, string $group, string $field, bool $enabled, string $revision): array
+    {
+        if (! in_array($group, ['newMessages', 'replies'], true) || ! in_array($field, ['signature', 'template'], true)
+            || preg_match('/\A[0-9a-f]{64}\z/', $revision) !== 1) {
+            throw ValidationException::withMessages(['preferences' => 'Die Outlook-Einstellung ist ungültig.']);
+        }
+
+        return DB::transaction(function () use ($user, $verified, $binding, $group, $field, $enabled, $revision): array {
+            $employee = User::query()->whereKey($user->getKey())->lockForUpdate()->first();
+            if (! $employee instanceof User || ! $employee->isActive() || $employee->email_verified_at === null
+                || ! in_array($employee->role, ['admin', 'staff'], true)) {
+                throw new OutlookAddinException('Die Mitarbeiterfreigabe ist nicht mehr gültig.', 403, 'outlook_addin_identity_not_linked');
+            }
+            $accounts = EmployeeIdentityAccount::query()->forProvider(AccountProvider::Microsoft365)->active()
+                ->whereRaw('LOWER(external_id) = ?', [strtolower($verified->objectId)])->lockForUpdate()->get();
+            $account = $accounts->count() === 1 ? $accounts->first() : null;
+            $tenant = strtolower(trim((string) config('outlook_addin.entra.tenant_id')));
+            $trusted = $account ? array_values(array_unique(array_filter(array_map(
+                static fn (mixed $value): string => strtolower(trim((string) $value)), [$account->principal, $account->email],
+            ), static fn (string $value): bool => filter_var($value, FILTER_VALIDATE_EMAIL) !== false))) : [];
+            $previousTrusted = $binding['allowedSenderAddresses'] ?? [];
+            sort($trusted);
+            sort($previousTrusted);
+            if (! $account instanceof EmployeeIdentityAccount || (int) $account->user_id !== (int) $employee->getKey()
+                || ! Str::isUuid($tenant) || ! Str::isUuid($verified->objectId)
+                || ! hash_equals($tenant, strtolower($verified->tenantId))
+                || ! hash_equals($tenant, strtolower((string) $account->tenant_id))
+                || $previousTrusted !== $trusted
+                || ! in_array(strtolower($verified->principal), $trusted, true)
+                || ! in_array(strtolower((string) ($binding['mailboxAddress'] ?? '')), $trusted, true)
+                || ! in_array(strtolower((string) ($binding['senderAddress'] ?? '')), $trusted, true)) {
+                throw new OutlookAddinException('Die Microsoft-Zuordnung ist nicht mehr gültig.', 403, 'outlook_addin_identity_not_linked');
+            }
+            $setting = Setting::query()->where('type', self::GROUP)->where('key', $this->key($employee))->lockForUpdate()->first();
+            $preferences = $this->preferencesValue($employee, $setting?->value);
+            if (! hash_equals($preferences['revision'], $revision)) {
+                throw new OutlookAddinException('Die Einstellung wurde inzwischen geändert. Bitte den aktuellen Stand verwenden.', 409, 'outlook_addin_preferences_conflict');
+            }
+            if ($preferences[$group][$field] === $enabled) {
+                return $preferences;
+            }
+            $previous = $preferences[$group][$field];
+            $preferences[$group][$field] = $enabled;
+            $stored = $this->storedValue($preferences, (array) $setting?->value);
+            Setting::setValue(self::GROUP, $this->key($employee), $stored);
+            activity('outlook-addin')->causedBy($employee)->performedOn($employee)->withProperties([
+                'employee_id' => (int) $employee->getKey(), 'identity_id' => (int) $account->getKey(),
+                'group' => $group, 'field' => $field, 'enabled_before' => $previous, 'enabled_after' => $enabled,
+            ])->log('outlook_addin_automatic_preference_changed');
+
+            return $this->preferencesValue($employee, $stored);
         }, 3);
     }
 
@@ -125,15 +204,35 @@ final class OutlookAddinAutomaticInsertionPolicy
         return 'automatic_insertion_user_'.(int) $user->getKey();
     }
 
-    private function enabledValue(mixed $value): bool
+    private function preferencesValue(User $user, mixed $value): array
     {
-        if ($value === null) {
-            return true;
+        if (is_array($value) && array_key_exists('schema', $value) && $value['schema'] !== 2) {
+            throw new RuntimeException('Die persönliche Outlook-Einstellung ist ungültig.');
         }
-        if (! is_array($value) || ! is_bool($value['enabled'] ?? null)) {
+        if (is_array($value) && ($value['schema'] ?? null) === 2) {
+            foreach (['newMessages', 'replies'] as $group) {
+                if (! is_array($value[$group] ?? null) || ! is_bool($value[$group]['signature'] ?? null) || ! is_bool($value[$group]['template'] ?? null)) {
+                    throw new RuntimeException('Die persönliche Outlook-Einstellung ist ungültig.');
+                }
+            }
+            $groups = [
+                'newMessages' => array_intersect_key($value['newMessages'], ['signature' => true, 'template' => true]),
+                'replies' => array_intersect_key($value['replies'], ['signature' => true, 'template' => true]),
+            ];
+        } elseif ($value === null || (is_array($value) && is_bool($value['enabled'] ?? null))) {
+            $enabled = $value === null ? true : $value['enabled'];
+            $groups = ['newMessages' => ['signature' => $enabled, 'template' => $enabled], 'replies' => ['signature' => $enabled, 'template' => $enabled]];
+        } else {
             throw new RuntimeException('Die persönliche Outlook-Einstellung ist ungültig.');
         }
 
-        return $value['enabled'];
+        return ['schema' => 2] + $groups + ['revision' => hash('sha256', json_encode([(int) $user->getKey(), $value], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES))];
+    }
+
+    private function storedValue(array $preferences, array $previous): array
+    {
+        unset($preferences['revision']);
+
+        return array_replace($previous, $preferences, ['enabled' => $this->allEnabled($preferences), 'nonce' => Str::random(32)]);
     }
 }

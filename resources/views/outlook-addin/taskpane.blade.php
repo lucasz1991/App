@@ -554,6 +554,29 @@
         .glass-button:focus-visible, .app-link:focus-visible { outline: 3px solid var(--rt-focus); outline-offset: 3px; }
         .glass-button svg { width: 16px; height: 16px; flex: 0 0 16px; }
         .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+        .automatic-region { font-size: 13px; }
+        .automatic-account { margin: 0 0 12px; color: var(--rt-muted); font-size: 12px; overflow-wrap: anywhere; }
+        .automatic-matrix { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        .automatic-matrix th { padding: 4px 0; text-align: left; font-weight: 600; }
+        .automatic-matrix thead th { color: var(--rt-muted); font-size: 11px; font-weight: 500; text-align: center; }
+        .automatic-matrix thead th:first-child { width: 32%; }
+        .automatic-matrix td { padding: 0; text-align: center; }
+        .automatic-region .rt-ui-toggle { position: relative; display: inline-flex; width: 48px; min-height: 44px; align-items: center; justify-content: center; cursor: pointer; }
+        .automatic-region .rt-ui-toggle__input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: inherit; }
+        .automatic-region .rt-ui-toggle-control { position: relative; display: block; width: 36px; height: 20px; flex: 0 0 auto; border: 0; border-radius: 999px; background: var(--rt-line); box-shadow: none; pointer-events: none; transition: background-color 160ms ease-out; }
+        .automatic-region .rt-ui-toggle-control::before { position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border: 0; border-radius: 50%; background: var(--rt-surface); box-shadow: none; content: ''; transform: none; transition: transform 160ms ease-out; }
+        .automatic-region .rt-ui-toggle-control::after { content: none; }
+        .automatic-region input:checked + .rt-ui-toggle-control { background: var(--rt-red); }
+        .automatic-region input:checked + .rt-ui-toggle-control::before { background: var(--rt-surface); transform: translateX(16px); }
+        .automatic-region input:focus-visible + .rt-ui-toggle-control { outline: 3px solid var(--rt-focus); outline-offset: 3px; }
+        .automatic-region input:disabled { cursor: not-allowed; }
+        .automatic-region input:disabled + .rt-ui-toggle-control { opacity: .5; }
+        .automatic-feedback { min-height: 32px; margin: 12px 0 0; color: var(--rt-muted); font-size: 12px; }
+        .automatic-feedback[data-tone="error"] { color: var(--rt-error); }
+        .automatic-feedback[data-tone="success"] { color: var(--rt-success); }
+        @media (prefers-reduced-motion: reduce) {
+            .automatic-region .rt-ui-toggle-control, .automatic-region .rt-ui-toggle-control::before { transition: none; }
+        }
         .app-links { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--rt-line); }
         .app-link { display: inline-flex; align-items: center; min-height: 44px; padding: 8px; color: var(--rt-muted); font-size: 12px; font-weight: 600; text-decoration: none; }
         .app-link:hover { color: var(--rt-red); }
@@ -652,6 +675,7 @@
 
                 <footer class="app-links" aria-label="Verbindung, Hilfe und RailTime-App">
                     <button class="glass-button" type="button" data-outlook-dialog-open="connection" aria-haspopup="dialog" aria-controls="outlook-connection-dialog">Verbindung</button>
+                    <button class="glass-button" type="button" data-outlook-dialog-open="automatic" aria-haspopup="dialog" aria-controls="outlook-automatic-dialog">Automatik</button>
                     <button class="glass-button" type="button" data-outlook-dialog-open="status" aria-haspopup="dialog" aria-controls="outlook-status-dialog" aria-label="Hilfe und Diagnose öffnen">Hilfe<span class="visually-hidden" data-outlook-status-summary role="status" aria-live="polite">Outlook wird vorbereitet</span></button>
                     <a class="app-link" href="{{ route('home') }}" target="_blank" rel="noopener noreferrer">RailTime öffnen ↗</a>
                     <button class="glass-button" type="button" data-outlook-dialog-open="install" aria-haspopup="dialog" aria-controls="outlook-install-dialog">RailTime installieren</button>
@@ -660,6 +684,29 @@
         </section>
     </main>
 
+    <dialog class="taskpane-dialog" id="outlook-automatic-dialog" data-outlook-dialog="automatic" aria-labelledby="outlook-automatic-title">
+        <div class="dialog-heading"><h2 id="outlook-automatic-title">Automatische Einfügung</h2><button type="button" class="glass-button" data-outlook-dialog-close aria-label="Dialog schließen">✕</button></div>
+        <div class="dialog-body automatic-region" data-outlook-automatic-region aria-busy="false">
+            <p class="automatic-account" data-automatic-account hidden></p>
+            <table class="automatic-matrix" aria-label="Automatische Einfügung für Ihr Postfach">
+                <thead><tr><th scope="col"><span class="visually-hidden">Inhalt</span></th><th scope="col">Neue Mails</th><th scope="col">Antworten</th></tr></thead>
+                <tbody>
+                    <tr><th scope="row">Signatur</th><td>
+                        <x-ui.forms.toggle-button id="outlook-auto-new-signature" size="sm" :disabled="true" data-automatic-setting data-automatic-group="newMessages" data-automatic-field="signature" aria-label="Signatur bei neuen Mails und Weiterleitungen automatisch einfügen" />
+                    </td><td>
+                        <x-ui.forms.toggle-button id="outlook-auto-reply-signature" size="sm" :disabled="true" data-automatic-setting data-automatic-group="replies" data-automatic-field="signature" aria-label="Signatur bei Antworten automatisch einfügen" />
+                    </td></tr>
+                    <tr><th scope="row">Vorlage</th><td>
+                        <x-ui.forms.toggle-button id="outlook-auto-new-template" size="sm" :disabled="true" data-automatic-setting data-automatic-group="newMessages" data-automatic-field="template" aria-label="Vorlage bei neuen Mails und Weiterleitungen automatisch einfügen" />
+                    </td><td>
+                        <x-ui.forms.toggle-button id="outlook-auto-reply-template" size="sm" :disabled="true" data-automatic-setting data-automatic-group="replies" data-automatic-field="template" aria-label="Vorlage bei Antworten automatisch einfügen" />
+                    </td></tr>
+                </tbody>
+            </table>
+            <p class="automatic-feedback" data-automatic-feedback role="status" aria-live="polite">Mit Microsoft verbinden, um Ihre Auswahl zu laden.</p>
+            <p class="footnote">„Neue Mails“ gilt auch für Weiterleitungen. Ihre Auswahl gilt für künftige Einfügungen. Offene Entwürfe und manuelles Einfügen bleiben unverändert.</p>
+        </div>
+    </dialog>
     <dialog class="taskpane-dialog" id="outlook-connection-dialog" data-outlook-dialog="connection" aria-labelledby="outlook-connection-title">
         <div class="dialog-heading"><h2 id="outlook-connection-title">Microsoft-Verbindung</h2><button type="button" class="glass-button" data-outlook-dialog-close aria-label="Dialog schließen">✕</button></div>
         <div class="dialog-body">
