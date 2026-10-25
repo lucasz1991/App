@@ -14,6 +14,7 @@ use App\Support\Mail\EmailHtmlSanitizer;
 use App\Support\Mail\MailDocumentSignatureResolver;
 use App\Support\Mail\MailPreviewImages;
 use App\Support\Mail\SignatureHotline;
+use App\Support\Mail\SignaturePersonalColumns;
 use App\Support\Mail\TrustedEmailCss;
 use App\Support\MailSignature;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -109,18 +110,24 @@ final class PageBuilderPreviewService
             }
         }
 
-        // Vorschau und Editor zeigen den tatsaechlichen Absenderkontext der
-        // Systemnachrichten. Zuvor wurde hier das Profil des angemeldeten
-        // Administrators eingesetzt, waehrend der Versand forCompany()
-        // verwendet. Dadurch sah derselbe veroeffentlichte Signaturblock
-        // in der Vorschau personengebunden und in der Mail automatisiert aus.
-        $signatureRenderer = MailSignature::forCompany(
-            $theme,
-            animated: $animated,
-            playbackNonce: $playbackNonce,
-            remoteAssets: false,
-            staticAssets: ! $animated,
-        );
+        // Only an explicitly personal signature previews the authenticated
+        // employee. The system document keeps its real company sender.
+        $signatureRenderer = SignaturePersonalColumns::requested($signatureHtml)
+            ? MailSignature::forUser(
+                $user,
+                $theme,
+                animated: $animated,
+                playbackNonce: $playbackNonce,
+                remoteAssets: false,
+                staticAssets: ! $animated,
+            )
+            : MailSignature::forCompany(
+                $theme,
+                animated: $animated,
+                playbackNonce: $playbackNonce,
+                remoteAssets: false,
+                staticAssets: ! $animated,
+            );
         $sampleValues = $this->sampleMailValues($user);
         $values = $signatureDocument === null
             ? array_merge($signatureRenderer->values(), $sampleValues)
@@ -151,7 +158,7 @@ final class PageBuilderPreviewService
                 'SIGNATURE_BLOCK' => $signature,
                 'RESPONSIVE_CSS' => SignatureHotline::applies($signatureHtml)
                     ? TrustedEmailCss::forDocument($signatureHtml, $values['SIGNATURE_BORDER'] ?? null)
-                    : EmailTemplateBuilder::responsiveCss($values['SIGNATURE_BORDER'] ?? null, true),
+                    : EmailTemplateBuilder::responsiveCss($values['SIGNATURE_BORDER'] ?? null, true, $signatureHtml),
                 // Die Adminvorschau zeigt das im Entwurf vorhandene Muster. Der
                 // Slot selbst wird erst beim produktiven Versand durch echten
                 // Anwendungsinhalt ersetzt und darf hier nicht doppelt erscheinen.
@@ -164,7 +171,7 @@ final class PageBuilderPreviewService
         } elseif ($document->kind === MailDocumentKind::Signature) {
             $css = (SignatureHotline::applies($signatureHtml)
                 ? TrustedEmailCss::forDocument($signatureHtml, $values['SIGNATURE_BORDER'] ?? null)
-                : EmailTemplateBuilder::responsiveCss($values['SIGNATURE_BORDER'] ?? null, true))
+                : EmailTemplateBuilder::responsiveCss($values['SIGNATURE_BORDER'] ?? null, true, $signatureHtml))
                 ."\n".$css;
         }
 
