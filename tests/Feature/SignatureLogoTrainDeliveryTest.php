@@ -53,7 +53,8 @@ final class SignatureLogoTrainDeliveryTest extends TestCase
         self::assertStringContainsString('padding:25px 0 0;', $content->getAttribute('style'));
         self::assertStringNotContainsString('padding:25px 40px', $content->getAttribute('style'));
         self::assertStringContainsString('padding:0 40px 0 0;', $brand->getAttribute('style'));
-        self::assertStringContainsString('padding:0 40px 0 22px;', $contacts->getAttribute('style'));
+        self::assertStringContainsString('border-right:1px solid transparent;', $brand->getAttribute('style'));
+        self::assertStringContainsString('padding:0 62px 0 0;', $contacts->getAttribute('style'));
         self::assertSame('padding:0 0 0 40px;', $heading->getAttribute('style'));
         self::assertSame('table', $brand->firstElementChild->tagName);
         self::assertTrue($xpath->query('ancestor::table[1]', $heading)->item(0)->isSameNode($brand->firstElementChild));
@@ -64,7 +65,7 @@ final class SignatureLogoTrainDeliveryTest extends TestCase
         self::assertSame('50%', $gap->getAttribute('width'));
         self::assertSame('', $gap->textContent);
         self::assertStringContainsString('padding:0 40px 0 0;', $trainCell->getAttribute('style'));
-        self::assertStringContainsString('border-right:1px solid #e60033;', $trainCell->getAttribute('style'));
+        self::assertStringContainsString('border-right:1px solid transparent;', $trainCell->getAttribute('style'));
         self::assertSame(1, $xpath->query('./img[@class="rt-delivery-train"]', $trainCell)->length);
         $direct = $this->one($xpath, 'rt-ledger-direct');
         $company = $this->one($xpath, 'rt-ledger-company');
@@ -100,8 +101,9 @@ final class SignatureLogoTrainDeliveryTest extends TestCase
         self::assertStringContainsString($scope.' .rt-delivery-train{display:block!important;width:100%!important;max-width:600px!important;', $legacy);
         self::assertStringContainsString('.rt-sign-ledger-content{padding:25px 0 0!important;}', $css);
         self::assertStringContainsString('.rt-sign-cell .rt-sign-content{width:100%!important;vertical-align:top!important;height:auto!important;padding-bottom:0!important;', $css);
-        self::assertStringContainsString('.rt-ledger-brand.rt-delivery-wide-column{width:50%!important;padding:0 40px 0 0!important;', $css);
-        self::assertStringContainsString('.rt-ledger-contacts.rt-delivery-wide-column{width:50%!important;padding:0 40px 0 22px!important;', $css);
+        self::assertStringContainsString('.rt-ledger-brand.rt-delivery-wide-column{width:50%!important;padding:0 40px 0 0!important;border-right:1px solid transparent!important;', $css);
+        self::assertStringContainsString('.rt-ledger-contacts.rt-delivery-wide-column{width:50%!important;padding:0 62px 0 0!important;', $css);
+        self::assertStringContainsString('.rt-delivery-train-cell{width:50%!important;padding:0 40px 0 0!important;border-right:1px solid transparent!important;', $css);
         self::assertStringContainsString('.rt-delivery-brand-heading{padding-left:40px!important;}', $css);
         self::assertStringContainsString('@media only screen and (max-width:860px)', $css);
         self::assertStringContainsString('display:block!important;width:100%!important;border:0!important;', $css);
