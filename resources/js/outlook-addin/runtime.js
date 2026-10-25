@@ -11,14 +11,17 @@ import {
     isTemplateInsertionBlocked,
     nativeComposeTemplate,
     mobileCombinedComposeDocument,
+    mobileTemplateOnlyComposeDocument,
     prependTemplate,
     readTemplateState,
     supportsTemplatePrepend,
+    signatureFreeComposeTemplate,
     validateTemplateInsertionPayload,
 } from './compose-template.js';
 import { readComposeSender, assertMailboxBinding } from './mailbox-guard.js';
 import { diagnoseStep, recordDiagnostic } from './diagnostics.js';
 import { confirmedOfficeWrite, hasUncertainWrite, wasSignatureWriteConfirmed } from './office-write.js';
+import { automaticComposeDecision, automaticTemplateOnly, readAutomaticComposeType } from './automatic-compose-policy.js';
 
 const CONFIG_META_NAME = 'railtime-outlook-config-url';
 const CONFIG_TIMEOUT_MS = 8000;
@@ -308,7 +311,7 @@ async function acquireTokenSilently(config) {
     }
 }
 
-async function loadBootstrap(config, accessToken, item) {
+async function loadBootstrap(config, accessToken, item, composeType = 'unknown') {
     const sender = await readComposeSender(Office, item);
     const mobile = isMobileComposeHost(Office);
     const payload = await fetchJson(config.endpoints.bootstrap, {
@@ -320,6 +323,8 @@ async function loadBootstrap(config, accessToken, item) {
             Authorization: `Bearer ${accessToken}`,
             'X-RailTime-Outlook-Context': 'event',
             'X-RailTime-Compose-Contract': 'native-signature-v1',
+            'X-RailTime-Automatic-Policy': '2',
+            'X-RailTime-Compose-Type': composeType,
             ...(mobile ? { 'X-RailTime-Outlook-Profile': 'mobile-ledger-v1' } : {}),
             'X-RailTime-Outlook-Mailbox': mailboxAddress(),
             'X-RailTime-Outlook-Sender': sender,
@@ -500,7 +505,8 @@ async function applyPublishedContent(item, isActive = () => true) {
         reportRuntimePhase('authentication-failed'); throw error;
     });
     reportRuntimePhase('bootstrap-started');
-    const bootstrap = await diagnoseStep('bootstrap-binding', () => loadBootstrap(config, accessToken, item)).catch((error) => {
+    const composeType = await readAutomaticComposeType(Office, item);
+    const bootstrap = await diagnoseStep('bootstrap-binding', () => loadBootstrap(config, accessToken, item, composeType)).catch((error) => {
         reportRuntimePhase('bootstrap-failed'); throw error;
     });
     binding = bootstrap.binding;
@@ -514,6 +520,13 @@ async function applyPublishedContent(item, isActive = () => true) {
         recordDiagnostic('automatic-insertion', 'skipped', { code: 'AUTOMATIC_INSERTION_DISABLED' });
         return 'disabled';
     }
+    const policy = automaticComposeDecision(bootstrap, composeType);
+    if (policy.mode === 'none') {
+        pendingNativeSignatures.delete(item);
+        recordDiagnostic('automatic-insertion', 'skipped', { code: policy.reason });
+        return 'skipped';
+    }
+    if (policy.mode !== 'both') pendingNativeSignatures.delete(item);
     reportRuntimePhase('compose-started');
 
     if (isTemplateInsertionBlocked(item) || hasUncertainWrite(item)) return 'uncertain';
@@ -535,11 +548,48 @@ async function applyPublishedContent(item, isActive = () => true) {
         // message text, even if its original default was later withdrawn.
         return 'already-present';
     }
+    // One fresh read after preflight catches a changed/ambiguous compose mode
+    // before the first attachment or content mutation, without any heuristic.
+    if (await readAutomaticComposeType(Office, item) !== composeType) {
+        recordDiagnostic('automatic-insertion', 'skipped', { code: 'AUTOMATIC_POLICY_UNCONFIRMED' });
+        return 'skipped';
+    }
 
     const canInsertTemplate = supportsTemplatePrepend(Office, item);
     let template = null;
-    const selected = templateState.present ? null : automaticTemplate(bootstrap);
-    const mobileSelected = isMobileComposeHost(Office) ? automaticTemplate(bootstrap) : null;
+    const selected = templateState.present || !policy.template ? null
+        : policy.signature ? automaticTemplate(bootstrap) : automaticTemplateOnly(bootstrap);
+    if (policy.mode === 'template') {
+        if (templateState.present) return 'already-present';
+        if (!selected) return 'skipped';
+        const mobile = isMobileComposeHost(Office);
+        if (!mobile && !canInsertTemplate) return 'skipped';
+        // Template-only never clears, replaces or refreshes a separate desktop
+        // signature. Mobile owns exactly one signature-free editable slot.
+        const document = validatedDocument(mobile ? mobileTemplateOnlyComposeDocument(selected)
+            : signatureFreeComposeTemplate(selected), 'template', config.marker);
+        if (typeof item?.addFileAttachmentFromBase64Async !== 'function') throw codedError('COMPOSE_API_UNAVAILABLE');
+        validateTemplateInsertionPayload(document.html, document.media);
+        try {
+            await diagnoseStep('template-write', () => mobile
+                ? insertMobileCombinedTemplate(Office, item, document.html, assertTarget, {
+                    media: document.media, documentMode: 'template-native-v1',
+                    beforeInsert: () => attachInlineMedia(item, document.media, assertTarget),
+                })
+                : prependTemplate(Office, item, document.html, assertTarget, {
+                    media: document.media,
+                    beforeInsert: () => attachInlineMedia(item, document.media, assertTarget),
+                }));
+            return 'applied';
+        } catch (error) {
+            const code = safeErrorCode(error);
+            if (code === 'TEMPLATE_ALREADY_INSERTED') return 'already-present';
+            if (['TEMPLATE_INSERT_IN_PROGRESS', 'TEMPLATE_INSERT_UNCERTAIN',
+                'INLINE_ATTACHMENT_UNCERTAIN', 'SIGNATURE_INSERT_UNCERTAIN'].includes(code)) return 'uncertain';
+            throw error;
+        }
+    }
+    const mobileSelected = isMobileComposeHost(Office) && policy.template ? automaticTemplate(bootstrap) : null;
     if (mobileSelected && mobileSelected.mobileComposeDocumentMode !== undefined) {
         // The approved mobile profile is already one complete, budgeted native
         // document. No template/body-selection write or later partial signature

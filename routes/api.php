@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\DeviceDesktopClientController;
 use App\Http\Controllers\Api\DeviceProviderWebhookController;
 use App\Http\Controllers\Api\OperationsController;
 use App\Http\Controllers\Api\OutlookAddinBootstrapController;
+use App\Http\Controllers\Api\OutlookAddinPreferencesController;
 use App\Http\Controllers\Api\WorkTimeV2Controller;
 use App\Http\Controllers\WorkTimeTerminalController;
 use App\Http\Middleware\OperationsApi;
@@ -65,6 +66,10 @@ Route::prefix('v2/operations')->name('api.operations.v2.')->middleware([Operatio
 Route::get('/outlook-addin/bootstrap', OutlookAddinBootstrapController::class)
     ->middleware('throttle:outlook-addin')
     ->name('api.outlook-addin.bootstrap');
+
+Route::patch('/outlook-addin/preferences', OutlookAddinPreferencesController::class)
+    ->middleware('throttle:outlook-addin')
+    ->name('api.outlook-addin.preferences');
 
 // Connector-Rueckmeldungen sind HMAC-signiert (Zeitstempel + Rohbody),
 // groessenbegrenzt und zusaetzlich durch den allgemeinen API-Limiter geschuetzt.
