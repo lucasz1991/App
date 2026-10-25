@@ -1474,7 +1474,7 @@ test('an existing separate native template cannot become an additional manual in
     await client.insertTemplate(document.querySelector('[data-outlook-action="template"]'));
     assert.deepEqual(fixture.state.mutations, []);
     assert.equal(fixture.state.html, html);
-    assert.match(document.querySelector('[data-outlook-pane-feedback]').textContent, /nicht eindeutig abgegrenzt/);
+    assert.match(document.querySelector('[data-outlook-pane-feedback]').textContent, /nicht sicher ersetzen/);
     assert.equal(document.querySelector('[data-outlook-template-confirmation]'), null);
 });
 
@@ -1637,7 +1637,7 @@ test('authenticated taskpane inserts once on double click with native preflights
     assert.equal(fresh.state.prepends.length, 1);
     await client.insertTemplate(button);
     assert.equal(fresh.state.prepends.length, 1, 'unknown old native templates never trigger another prepend');
-    assert.match(document.querySelector('[data-outlook-pane-feedback]').textContent, /nicht eindeutig abgegrenzt/);
+    assert.match(document.querySelector('[data-outlook-pane-feedback]').textContent, /nicht sicher ersetzen/);
     assert.equal(document.querySelector('[data-outlook-template-confirmation]'), null);
 });
 
