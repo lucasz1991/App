@@ -210,6 +210,8 @@ final class OutlookDesktopFlow
         $flow = self::one($nodes, 'rt-personal-columns', 'div');
         $left = self::one($nodes, 'rt-personal-left', 'table');
         $right = self::one($nodes, 'rt-personal-right', 'table');
+        $leftCell = self::one($nodes, 'rt-personal-cell-left', 'td');
+        $rightCell = self::one($nodes, 'rt-personal-cell-right', 'td');
         $company = self::one($nodes, 'rt-personal-company-contacts', 'div');
         $root = self::one($nodes, 'rt-outlook-signature', 'div');
         $image = self::one($nodes, 'rt-delivery-train', 'img');
@@ -234,6 +236,8 @@ final class OutlookDesktopFlow
             [$nodes[$flow]['start'], $nodes[$flow]['openEnd'], $flowOpening],
             [$nodes[$left]['start'], $nodes[$left]['openEnd'], self::attribute($nodes[$left]['opening'], 'style', self::personalColumnStyle('left'))],
             [$nodes[$right]['start'], $nodes[$right]['openEnd'], self::attribute($nodes[$right]['opening'], 'style', self::personalColumnStyle('right'))],
+            [$nodes[$leftCell]['start'], $nodes[$leftCell]['openEnd'], self::attribute($nodes[$leftCell]['opening'], 'style', self::personalCellStyle())],
+            [$nodes[$rightCell]['start'], $nodes[$rightCell]['openEnd'], self::attribute($nodes[$rightCell]['opening'], 'style', self::personalCellStyle())],
             [$nodes[$company]['start'], $nodes[$company]['openEnd'], self::attribute($nodes[$company]['opening'], 'style', 'padding-top:4px;')],
             [$nodes[$root]['start'], $nodes[$root]['openEnd'], self::attribute($nodes[$root]['opening'], 'class', trim($nodes[$root]['attrs']['class'].' '.self::HOST.' '.self::host($scope)))],
         ]);
@@ -257,6 +261,7 @@ final class OutlookDesktopFlow
             .$p.'.rt-personal-column,'.$p.'.rt-df-train{'.self::importantDeclarations(self::personalTableStyle()).'}'
             .$p.'.rt-personal-left{float:left!important;}'
             .$p.'.rt-personal-right{float:right!important;}'
+            .$p.'.rt-personal-column .rt-personal-cell-left,'.$p.'.rt-personal-column .rt-personal-cell-right{padding:0 8.695652%!important;}'
             .$p.'.rt-df-train{float:left!important;clear:left!important;position:sticky!important;top:100%!important;}'
             .$p.'.rt-dfc-train{padding:0 40px 0 0!important;border:0!important;}'
             .$p.'.rt-personal-right .rt-personal-company-contacts{padding-top:4px!important;}'
@@ -270,7 +275,12 @@ final class OutlookDesktopFlow
 
     private static function personalTableStyle(): string
     {
-        return 'display:table;vertical-align:top;width:100%;width:calc(5600280px - 1000000%);min-width:50%;max-width:100%;table-layout:fixed;border-collapse:collapse;';
+        return 'display:table;vertical-align:top;width:50%;min-width:0;max-width:100%;table-layout:fixed;border-collapse:collapse;';
+    }
+
+    private static function personalCellStyle(): string
+    {
+        return 'padding:0 8.695652%;font-size:13px;line-height:18px;vertical-align:top;';
     }
 
     private static function personalColumnStyle(string $side): string
@@ -300,6 +310,8 @@ final class OutlookDesktopFlow
         $company = self::one($nodes, 'rt-personal-company-contacts', 'div');
         $left = self::one($nodes, 'rt-personal-left', 'table');
         $right = self::one($nodes, 'rt-personal-right', 'table');
+        $leftCell = self::one($nodes, 'rt-personal-cell-left', 'td');
+        $rightCell = self::one($nodes, 'rt-personal-cell-right', 'td');
         $content = self::one($nodes, 'rt-sign-content', 'td');
         $frame = self::one($nodes, 'rt-sign-content-frame', 'table');
         $children = array_keys(array_filter($nodes, static fn (array $node): bool => $node['parent'] === $flow));
@@ -315,6 +327,8 @@ final class OutlookDesktopFlow
             || ($nodes[$flow]['attrs']['style'] ?? '') !== self::personalFlowStyle()
             || ($nodes[$left]['attrs']['style'] ?? '') !== self::personalColumnStyle('left')
             || ($nodes[$right]['attrs']['style'] ?? '') !== self::personalColumnStyle('right')
+            || ($nodes[$leftCell]['attrs']['style'] ?? '') !== self::personalCellStyle()
+            || ($nodes[$rightCell]['attrs']['style'] ?? '') !== self::personalCellStyle()
             || ($nodes[$trainBlock]['attrs']['style'] ?? '') !== self::personalTrainStyle()
             || array_filter($nodes, static fn (array $node): bool => self::has($node, 'rt-delivery-train-cell') || self::has($node, 'rt-delivery-train-gap')) !== []) {
             self::fail();

@@ -7,6 +7,7 @@ const MARKER_END = '(?=-->|[\\s"\'<>]|$)';
 const combinedMarker = new RegExp(MARKER + MARKER_END);
 const otherTemplateMarker = new RegExp(`RT-TEMPLATE-MANAGED-V1(?!:COMBINED-DOCUMENT${MARKER_END})`);
 const owns = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
+let contractWarnings = 0;
 
 function matches(value, pattern) {
     const expression = new RegExp(pattern.source, pattern.flags);
@@ -165,8 +166,67 @@ function editableRegion(html, contract, allowLegacy) {
     return { start: paragraph.start, end: paragraph.end, legacy: true };
 }
 
+/** Counts and fixed ownership labels only; never return user HTML/text/URLs. */
+export function inspectManagedTemplateContract(html, currentHtml = null) {
+    const source = typeof html === 'string' ? html.slice(0, 500000) : '';
+    const known = ['rt-combined-compose-document', 'rt-combined-compose-frame', 'rt-outlook-template', 'rt-outlook-signature',
+        'rt-compose-editable', 'rt-native-template-pad', 'rt-office-metadata', 'design-spacer', 'design-salutation', 'design-greeting'];
+    const counts = {};
+    known.forEach(name => { counts[name] = 0; });
+    const roots = [];
+    const scopes = [];
+    let editableV1 = 0;
+    let editableOther = 0;
+    const attribute = (tag, name) => {
+        const match = new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, 'i').exec(tag);
+        return match ? decoded(match[1] ?? match[2]) : null;
+    };
+    for (const match of matches(source, /<[a-z][a-z0-9:-]*(?:[^"'<>]|"[^"]*"|'[^']*')*>/gi)) {
+        const tag = match[0];
+        const classes = (attribute(tag, 'class') || '').split(/\s+/);
+        const hasClass = name => classes.includes(name) || classes.includes(`x_${name}`);
+        known.forEach(name => { if (hasClass(name)) counts[name] = Math.min(999, counts[name] + 1); });
+        classes.filter(name => /^(?:x_)?(?:rtc[0-9a-f]{12}|rtt[0-9a-f]{12}|rts[0-9a-f]{10})$/.test(name)).forEach(name => {
+            if (scopes.length < 8 && !scopes.includes(name)) scopes.push(name);
+        });
+        if (hasClass('rt-combined-compose-document') && roots.length < 3) {
+            const mode = attribute(tag, 'data-rt-compose-document');
+            roots.push({ tag: /^<div\b/i.test(tag) ? 'div' : 'other', officePrefixed: classes.includes('x_rt-combined-compose-document'),
+                mode: mode === null ? 'missing' : ['combined-v1', 'combined-native-v1'].includes(mode) ? mode : 'other',
+                withinCurrent: typeof currentHtml === 'string' ? match.index < currentHtml.length : null });
+        }
+        if (hasClass('rt-compose-editable')) {
+            const value = attribute(tag, 'data-rt-compose-editable');
+            if (value === 'v1') editableV1 = Math.min(999, editableV1 + 1);
+            else if (value !== null) editableOther = Math.min(999, editableOther + 1);
+        }
+    }
+    let parseable = false;
+    try { nodes(source); parseable = true; } catch { /* Diagnostic only. */ }
+    return { schema: 1, length: typeof html === 'string' ? html.length : null, truncated: typeof html === 'string' && html.length > source.length,
+        currentLength: typeof currentHtml === 'string' ? currentHtml.length : null, parseable, counts, roots, scopes, editableV1, editableOther,
+        appStart: Math.min(999, matches(source, /<!--\s*RT_APPLICATION_CONTENT_START\s*-->/g).length),
+        appEnd: Math.min(999, matches(source, /<!--\s*RT_APPLICATION_CONTENT_END\s*-->/g).length),
+        markers: { combined: combinedMarker.test(source), signature: /RT-SIGNATURE-MANAGED-V1(?=-->|[\s"'<>]|$)/.test(source),
+            version: /RT-SIGNATURE-VERSION:[0-9a-f]{16}(?=-->|[\s"'<>]|$)/i.test(source) } };
+}
+
 /** Replace one known current-message shell while preserving all other bytes. */
 export function managedTemplateReplacement(bodyHtml, currentHtml, nextHtml) {
+    try {
+        return replacementPlan(bodyHtml, currentHtml, nextHtml);
+    } catch (error) {
+        if (error?.code === 'TEMPLATE_REPLACEMENT_UNAVAILABLE' && contractWarnings < 3) {
+            contractWarnings++;
+            try {
+                console.warn('[RailTime] template-replace-contract', JSON.stringify({ sdkBody: inspectManagedTemplateContract(bodyHtml, currentHtml), incoming: inspectManagedTemplateContract(nextHtml, nextHtml) }));
+            } catch { /* Diagnostics never change the fail-closed result. */ }
+        }
+        throw error;
+    }
+}
+
+function replacementPlan(bodyHtml, currentHtml, nextHtml) {
     if (typeof bodyHtml !== 'string' || typeof currentHtml !== 'string' || !bodyHtml.startsWith(currentHtml)
         || typeof nextHtml !== 'string') unavailable();
     const oldContract = rootContract(bodyHtml, currentHtml.length);
