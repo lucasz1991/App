@@ -4,12 +4,14 @@ namespace App\Livewire\Operations;
 
 use App\Models\AiIntake;
 use App\Models\Customer;
+use App\Models\OperationInquiry;
 use App\Models\User;
 use App\Services\Ai\AssistantSpeechException;
 use App\Services\Ai\AssistantSpeechRouter;
 use App\Services\Ai\Attachments\AssistantAttachmentException;
 use App\Services\Ai\Attachments\AssistantAttachmentProcessor;
 use App\Services\Operations\AiAssistService;
+use App\Services\Operations\AiIntakeManualService;
 use App\Support\Operations\AiDispositionSettings;
 use App\Support\Operations\AiIntakeSchema;
 use App\Support\Operations\OperationsAccess;
@@ -86,7 +88,11 @@ class AiAssist extends Component
 
     public function mount(string $page = '', string $view = '', string $section = ''): void
     {
-        $this->actor();
+        // Shared Selects bind their value during Alpine initialization.
+        // Load authorized settings before rendering their nested models.
+        if ($this->actor()->isSuperAdmin()) {
+            $this->openSettings();
+        }
         $context = app(AiAssistService::class)->context($page, $view, $section);
         [$this->page, $this->pageLabel, $this->from, $this->until] = [$context['page'], $context['label'], $context['from'], $context['until']];
         if ($intakeContext = OperationsPages::intakePanelContext(request())) {
@@ -118,6 +124,17 @@ class AiAssist extends Component
             $this->dispatch('open-ai-intake', intakeId: $intakeId, create: $this->intakeCapture, parentComponentId: $this->getId());
         }
         $this->dispatch('ai-assist-intake-opened', componentId: $this->getId());
+    }
+
+    #[On('open-inquiry-assist')]
+    public function openInquiryAssist(int $inquiryId, int $revision, ?int $customerId = null): void
+    {
+        $actor = $this->actor();
+        OperationsAccess::authorize($actor, 'operations.inquiries.manage');
+        $inquiry = OperationInquiry::findOrFail($inquiryId);
+        abort_if($customerId !== null && $inquiry->customer_id !== $customerId, 404);
+        $intake = app(AiIntakeManualService::class)->forInquiryAssist($inquiry, $actor, $revision);
+        $this->openIntake($intake->id, customerId: $intake->customer_id);
     }
 
     #[On('operations-period-changed')]

@@ -349,3 +349,7 @@ auth.json
 !/tests/Frontend/floating-window-component.test.js
 !/tests/Feature/FloatingWindowTabsTest.php
 !/tests/Feature/OutlookDesktopFlowTest.php
+!/tests/Feature/AiIntakeFormProcessingTest.php
+!/tests/Feature/DirectIntakeOrderTest.php
+!/tests/Feature/IndependentIntakeFormUiTest.php
+!/tests/Feature/InquiryAssistBridgeTest.php

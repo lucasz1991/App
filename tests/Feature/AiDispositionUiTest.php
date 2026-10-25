@@ -51,7 +51,7 @@ class AiDispositionUiTest extends TestCase
         Storage::fake('local');
     }
 
-    public function test_unified_inbox_represents_current_ai_source_once_and_opens_the_complete_assistant_panel(): void
+    public function test_unified_inbox_represents_current_ai_source_once_and_opens_the_native_form(): void
     {
         $intake = AiIntake::create(['source_type' => 'manual', 'title' => 'Unified AI source', 'status' => 'review', 'source_revision' => 1, 'revision' => 1, 'supervising_user_id' => $this->admin->id]);
         $inquiry = OperationInquiry::create(['channel' => 'manual', 'title' => 'Linked native position', 'original' => 'Synthetic original', 'status' => 'new', 'timezone' => 'Europe/Berlin', 'revision' => 1, 'created_by' => $this->admin->id]);
@@ -59,8 +59,9 @@ class AiDispositionUiTest extends TestCase
         $component = Livewire::test(UnifiedInbox::class)
             ->assertSee('Unified AI source')->assertDontSee('Linked native position')
             ->call('openRow', $intake->id * 8 + 1)
-            ->assertDispatched('open-ai-intake-panel', intakeId: $intake->id, create: false, customerId: null)
-            ->assertSet('detail', null);
+            ->assertNotDispatched('open-ai-intake-panel')
+            ->assertSet('detail.id', $intake->id)
+            ->assertSeeLivewire(AiIntakeInbox::class);
         $this->assertSame('review', $intake->fresh()->status);
         $this->assertSame('proposed', $intake->proposals()->first()->status);
         Livewire::test(AiIntakeInbox::class, ['initialIntakeId' => $intake->id, 'modalOnly' => true])
@@ -175,7 +176,7 @@ class AiDispositionUiTest extends TestCase
         $service = app(UnifiedOperationsInboxService::class);
         $items = $service->items($this->admin);
         $this->assertEqualsCanonicalizing(['ai-intake-'.$own->id, 'ai-intake-'.$late->id], $items->pluck('id')->all());
-        $this->assertSame(OperationsPages::url('cases', ['view' => 'inbox', 'section' => 'ai-intake', 'source' => 'ai-intake', 'record' => $own->id]), $service->destination('ai-intake-'.$own->id, $this->admin));
+        $this->assertSame(OperationsPages::intakeFormUrl($own->id), $service->destination('ai-intake-'.$own->id, $this->admin));
     }
 
     public function test_superseded_proposals_show_review_reason_instead_of_applicable_actions(): void

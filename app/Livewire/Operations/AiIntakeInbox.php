@@ -6,14 +6,18 @@ use App\Models\AiIntake;
 use App\Models\Customer;
 use App\Models\CustomerContact;
 use App\Models\QualificationType;
+use App\Models\Shift;
 use App\Models\User;
 use App\Services\Ai\OpenRouterChatException;
 use App\Services\Operations\AiIntakeContextHints;
 use App\Services\Operations\AiIntakeCustomerSuggestions;
+use App\Services\Operations\AiIntakeManualService;
 use App\Services\Operations\AiIntakeService;
+use App\Services\Operations\InquiryWorkflowService;
 use App\Support\Operations\AiDispositionSettings;
 use App\Support\Operations\AiIntakeSchema;
 use App\Support\Operations\OperationsAccess;
+use App\Support\Operations\OperationsPages;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
@@ -30,7 +34,7 @@ class AiIntakeInbox extends Component
 
     public const LABELS = ['received' => 'Erfasst', 'analyzing' => 'Wird analysiert', 'review' => 'Prüfung nötig', 'waiting_customer' => 'Antwort ausstehend', 'ready' => 'Vorbereitet', 'paused' => 'Pausiert', 'not_inquiry' => 'Keine Anfrage', 'failed' => 'Verarbeitung prüfen', 'completed' => 'Übernommen'];
 
-    public const FIELD_LABELS = ['customer_id' => 'Kundenzuordnung', 'contact_email' => 'Kontakt-E-Mail', 'title' => 'Bezeichnung', 'starts_at' => 'Beginn', 'ends_at' => 'Ende', 'timezone' => 'Zeitzone', 'location_name' => 'Einsatzort', 'role_name' => 'Tätigkeit', 'required_staff' => 'Personalbedarf', 'segments' => 'Schichtabschnitte', 'qualification_ids' => 'Qualifikationen', 'native_review' => 'Bestehende Anfrage prüfen'];
+    public const FIELD_LABELS = ['customer_id' => 'Kundenzuordnung', 'contact_email' => 'Kontakt-E-Mail', 'title' => 'Bezeichnung', 'starts_at' => 'Beginn', 'ends_at' => 'Ende', 'timezone' => 'Zeitzone', 'location_name' => 'Einsatzort', 'role_name' => 'Tätigkeit', 'required_staff' => 'Personalbedarf', 'segments' => 'Schichtabschnitte', 'qualification_ids' => 'Qualifikationen', 'native_review' => 'Angaben persönlich prüfen'];
 
     #[Locked]
     public ?int $customerId = null;
@@ -78,7 +82,21 @@ class AiIntakeInbox extends Component
 
     public array $proposalForm = [];
 
+    #[Locked]
+    public bool $manualEditorOpen = false;
+
     public array $mappingInquiryIds = [];
+
+    #[Locked]
+    public ?int $planningProposalId = null;
+
+    #[Locked]
+    public int $planningProposalRevision = 0;
+
+    #[Locked]
+    public array $planningShiftRevisions = [];
+
+    public array $planningSegments = [];
 
     #[Locked]
     public bool $customerDraftOpen = false;
@@ -148,7 +166,12 @@ class AiIntakeInbox extends Component
         $this->assignContactId = (string) ($record->customer_contact_id ?? '');
         $this->editingProposalId = null;
         $this->proposalForm = [];
+        $this->manualEditorOpen = false;
         $this->mappingInquiryIds = [];
+        $this->reset('planningProposalId', 'planningProposalRevision', 'planningSegments', 'planningShiftRevisions');
+        foreach ($record->proposals as $proposal) {
+            $this->planningShiftRevisions[$proposal->id] = Shift::whereIn('id', $proposal->applied_shift_ids ?? [])->pluck('revision', 'id')->all();
+        }
         $this->detailOpen = true;
         $this->detailTab = 'review';
         if ($this->embedded) {
@@ -326,7 +349,13 @@ class AiIntakeInbox extends Component
         $this->actor();
         $this->validate(['assignCustomerId' => ['required', 'integer', 'min:1'], 'assignContactId' => ['nullable', 'integer', 'min:1']]);
         abort_if($this->customerId && (int) $this->assignCustomerId !== $this->customerId, 403);
-        $this->perform(fn () => app(AiIntakeService::class)->assignCustomer($this->selected(), $this->actor(), (int) $this->assignCustomerId, $this->assignContactId === '' ? null : (int) $this->assignContactId, $this->selectedRevision));
+        $this->perform(function (): void {
+            abort_if($this->editingProposalId || $this->manualEditorOpen, 409, 'Die offene Position zuerst speichern oder verwerfen.');
+            if (! $this->embedded) {
+                $this->claimManual();
+            }
+            app(AiIntakeService::class)->assignCustomer($this->selected(), $this->actor(), (int) $this->assignCustomerId, $this->assignContactId === '' ? null : (int) $this->assignContactId, $this->selectedRevision);
+        });
     }
 
     public function reanalyze(): void
@@ -372,17 +401,114 @@ class AiIntakeInbox extends Component
     {
         $proposal = $this->selected()->proposals()->findOrFail($id);
         abort_unless($proposal->source_revision === $this->selected()->source_revision && ! in_array($proposal->status, ['applied', 'stale'], true), 409, 'Die Zuordnung und den aktuellen Stand zuerst prüfen.');
+        if (! $this->embedded) {
+            $this->perform(function () use ($id): void {
+                $this->claimManual();
+                $this->select($this->selectedId);
+                $this->fillProposalForm($id);
+            }, false);
+
+            return;
+        }
+        $this->fillProposalForm($id);
+    }
+
+    private function fillProposalForm(int $id): void
+    {
+        $proposal = $this->selected()->proposals()->findOrFail($id);
         $this->editingProposalId = $proposal->id;
         $this->proposalRevision = $proposal->revision;
-        $this->proposalForm = array_intersect_key($proposal->payload ?? [], array_flip(['demand', 'segments']));
+        $this->proposalForm = array_intersect_key($proposal->payload ?? [], array_flip(['demand', 'segments', 'business_path']));
+        $this->proposalForm['business_path'] ??= 'inquiry';
         $this->proposalForm['requirements_reviewed'] = false;
         $this->resetValidation();
+    }
+
+    private function claimManual(): void
+    {
+        $current = $this->selected();
+        abort_unless($current->source_revision === $this->selectedSourceRevision, 409, 'Die Quelle wurde inzwischen geändert. Bitte neu laden.');
+        $record = app(AiIntakeManualService::class)->claimManual($current, $this->actor(), $this->selectedRevision);
+        if ($record->revision !== $this->selectedRevision) {
+            $this->confirmationProposalRevisions = $record->proposals()->where('source_revision', $record->source_revision)->pluck('revision', 'id')->all();
+        }
+        $this->selectedRevision = $record->revision;
+    }
+
+    public function addManualPosition(): void
+    {
+        $this->perform(function (): void {
+            abort_if($this->editingProposalId || $this->manualEditorOpen || $this->hasUnsavedAssignment($this->selected()), 409, 'Die offenen Angaben zuerst speichern.');
+            $this->claimManual();
+            $this->select($this->selectedId);
+            $this->manualEditorOpen = true;
+            $this->proposalForm = ['demand' => ['title' => '', 'starts_at' => '', 'ends_at' => '', 'timezone' => config('operations.display_timezone', 'Europe/Berlin'), 'location_name' => '', 'role_name' => '', 'required_staff' => '', 'qualification_ids' => []], 'segments' => [], 'business_path' => 'inquiry', 'requirements_reviewed' => false];
+        }, false);
+    }
+
+    public function cancelPositionEdit(): void
+    {
+        $this->selected();
+        $this->editingProposalId = null;
+        $this->manualEditorOpen = false;
+        $this->proposalForm = [];
+        $this->resetValidation();
+    }
+
+    public function saveManualPosition(): void
+    {
+        $this->perform(function (): void {
+            abort_unless($this->manualEditorOpen || $this->editingProposalId, 409);
+            $this->claimManual();
+            app(AiIntakeManualService::class)->savePosition($this->selected(), $this->actor(), $this->selectedRevision, $this->selectedSourceRevision,
+                $this->proposalForm, $this->editingProposalId, $this->editingProposalId ? $this->proposalRevision : null);
+        });
+    }
+
+    public function confirmManual(): void
+    {
+        $this->perform(function (): void {
+            $intake = $this->selected();
+            abort_if($this->editingProposalId || $this->manualEditorOpen || $this->hasUnsavedAssignment($intake), 409, 'Die offenen Angaben zuerst speichern.');
+            $this->claimManual();
+            $record = app(AiIntakeManualService::class)->confirm($this->selected(), $this->actor(), $this->selectedRevision, $this->selectedSourceRevision, $this->confirmationProposalRevisions);
+            // Confirmation is durable even if a later direct acceptance needs a correction.
+            $this->select($record->id);
+            foreach ($record->proposals()->where('source_revision', $record->source_revision)->where('status', '!=', 'stale')->with('inquiry')->get() as $proposal) {
+                if (($proposal->payload['business_path'] ?? 'inquiry') === 'direct_order' && $proposal->inquiry) {
+                    app(InquiryWorkflowService::class)->takeDirectOrder($proposal->inquiry, $proposal->inquiry->revision, $this->actor());
+                    $this->select($record->id);
+                }
+            }
+        });
+    }
+
+    public function takeDirectOrder(int $id, int $revision, int $inquiryRevision): void
+    {
+        $this->perform(function () use ($id, $revision, $inquiryRevision): void {
+            $intake = $this->selected();
+            abort_unless($intake->revision === $this->selectedRevision && $intake->source_revision === $this->selectedSourceRevision, 409, 'Der Eingang wurde inzwischen geändert.');
+            $proposal = $intake->proposals()->with('inquiry')->findOrFail($id);
+            abort_unless($proposal->revision === $revision && $proposal->source_revision === $intake->source_revision && $proposal->inquiry, 409, 'Die Position wurde inzwischen geändert.');
+            app(InquiryWorkflowService::class)->takeDirectOrder($proposal->inquiry, $inquiryRevision, $this->actor());
+        });
+    }
+
+    public function openAssist(): void
+    {
+        $this->perform(function (): void {
+            $intake = $this->selected();
+            abort_if($this->manualEditorOpen || $this->editingProposalId || $this->hasUnsavedAssignment($intake), 409, 'Die offenen Angaben zuerst speichern oder verwerfen.');
+            abort_unless($intake->revision === $this->selectedRevision && $intake->source_revision === $this->selectedSourceRevision, 409, 'Der Eingang wurde inzwischen geändert.');
+            $this->detailOpen = false;
+            $this->dispatch('open-ai-intake-panel', intakeId: $intake->id, create: false, customerId: $this->customerId ?? $intake->customer_id);
+        }, false);
     }
 
     public function addSegment(): void
     {
         $this->selected();
-        abort_unless($this->editingProposalId && count($this->proposalForm['segments'] ?? []) < 50, 422);
+        abort_unless(($this->editingProposalId || $this->manualEditorOpen) && count($this->proposalForm['segments'] ?? []) < 50, 422);
         $this->proposalForm['segments'][] = ['starts_at' => '', 'ends_at' => '', 'timezone' => $this->proposalForm['demand']['timezone'] ?? 'Europe/Berlin', 'planned_break_minutes' => 0, 'required_staff' => 1];
     }
 
@@ -395,6 +521,11 @@ class AiIntakeInbox extends Component
 
     public function saveProposal(): void
     {
+        if (! $this->embedded) {
+            $this->saveManualPosition();
+
+            return;
+        }
         $this->perform(function (): void {
             $proposal = $this->selected()->proposals()->findOrFail($this->editingProposalId);
             $payload = $proposal->payload;
@@ -410,6 +541,80 @@ class AiIntakeInbox extends Component
     {
         OperationsAccess::authorize($this->actor(), 'operations.manage');
         $this->perform(fn () => app(AiIntakeService::class)->approveProposal($this->selected()->proposals()->findOrFail($id), $this->actor(), $revision));
+    }
+
+    public function openPlanning(int $id, int $revision): void
+    {
+        $this->perform(function () use ($id, $revision): void {
+            OperationsAccess::authorize($this->actor(), 'operations.manage');
+            $proposal = $this->selected()->proposals()->with('inquiry')->findOrFail($id);
+            abort_unless($proposal->revision === $revision && $proposal->source_revision === $this->selectedSourceRevision
+                && ! in_array($proposal->status, ['applied', 'stale'], true)
+                && $proposal->inquiry?->status === 'converted' && $proposal->inquiry->order_id, 409, 'Zuerst den aktuellen Auftrag in der Anfrage bestätigen.');
+            abort_if($this->editingProposalId !== null, 409, 'Die offene Korrektur zuerst speichern.');
+            $this->planningProposalId = $id;
+            $this->planningProposalRevision = $revision;
+            $inquiry = $proposal->inquiry;
+            $this->planningSegments = $proposal->payload['segments'] ?? [];
+            if ($this->planningSegments === []) {
+                $this->planningSegments[] = ['starts_at' => $inquiry->starts_at->setTimezone($inquiry->timezone)->format('Y-m-d\TH:i'),
+                    'ends_at' => $inquiry->ends_at->setTimezone($inquiry->timezone)->format('Y-m-d\TH:i'),
+                    'timezone' => $inquiry->timezone, 'required_staff' => $inquiry->required_staff, 'planned_break_minutes' => ''];
+            }
+        }, false);
+    }
+
+    public function continueInquiry(int $id, int $revision): void
+    {
+        $this->perform(function () use ($id, $revision): void {
+            $proposal = $this->selected()->proposals()->findOrFail($id);
+            $inquiryId = app(AiIntakeService::class)->continueProposalManually($proposal, $this->actor(), $revision);
+            $this->redirect(OperationsPages::url('cases', ['view' => 'inbox', 'inquiry' => $inquiryId]), navigate: true);
+        }, false);
+    }
+
+    public function closePlanning(): void
+    {
+        $this->actor();
+        $this->reset('planningProposalId', 'planningProposalRevision', 'planningSegments');
+        $this->resetValidation();
+    }
+
+    public function addPlanningSegment(): void
+    {
+        OperationsAccess::authorize($this->actor(), 'operations.manage');
+        $proposal = $this->selected()->proposals()->with('inquiry')->findOrFail($this->planningProposalId);
+        abort_unless($proposal->inquiry && count($this->planningSegments) < 50, 422);
+        $this->planningSegments[] = ['starts_at' => '', 'ends_at' => '', 'timezone' => $proposal->inquiry->timezone,
+            'required_staff' => $proposal->inquiry->required_staff, 'planned_break_minutes' => ''];
+    }
+
+    public function removePlanningSegment(int $index): void
+    {
+        OperationsAccess::authorize($this->actor(), 'operations.manage');
+        $this->selected()->proposals()->findOrFail($this->planningProposalId);
+        unset($this->planningSegments[$index]);
+        $this->planningSegments = array_values($this->planningSegments);
+    }
+
+    public function preparePlanning(): void
+    {
+        $this->perform(function (): void {
+            $proposal = $this->selected()->proposals()->findOrFail($this->planningProposalId);
+            $ids = app(AiIntakeService::class)->prepareProposalShifts($proposal, $this->actor(), $this->planningProposalRevision, $this->planningSegments);
+            $this->dispatch('operations-plan-changed');
+            $this->dispatch('swal:toast', type: 'success', text: count($ids).' Schichtentwürfe vorbereitet. Einsatzort prüfen und zur Besetzung freigeben.');
+        });
+    }
+
+    public function publishPlanning(int $id, int $revision): void
+    {
+        $this->perform(function () use ($id, $revision): void {
+            $proposal = $this->selected()->proposals()->findOrFail($id);
+            app(AiIntakeService::class)->publishProposalShifts($proposal, $this->actor(), $revision, $this->planningShiftRevisions[$id] ?? []);
+            $this->dispatch('operations-plan-changed');
+            $this->dispatch('swal:toast', type: 'success', text: 'Schichten sind zur Besetzung freigegeben. Mitarbeiter im Schichtplan zuordnen.');
+        });
     }
 
     public function retryPreparation(int $id, int $revision): void
@@ -454,19 +659,26 @@ class AiIntakeInbox extends Component
         $this->select($this->selected()->id);
     }
 
-    private function perform(callable $action): void
+    private function perform(callable $action, bool $reload = true): void
     {
         $this->actor();
         $this->resetValidation();
         try {
             $action();
-            if ($this->selectedId) {
+            if ($reload && $this->selectedId) {
                 $this->select($this->selectedId);
             }
         } catch (ValidationException $exception) {
             foreach ($exception->errors() as $field => $messages) {
                 $this->addError($field, implode(' ', $messages));
+                if (str_starts_with($field, 'segments.')) {
+                    $this->addError('planningSegments.'.substr($field, strlen('segments.')), implode(' ', $messages));
+                    $this->addError('proposalForm.'.$field, implode(' ', $messages));
+                } elseif (str_starts_with($field, 'demand.')) {
+                    $this->addError('proposalForm.'.$field, implode(' ', $messages));
+                }
             }
+            $this->addError('intake', implode(' ', array_unique($exception->validator->errors()->all())));
         } catch (HttpException $exception) {
             if (in_array($exception->getStatusCode(), [403, 404], true)) {
                 throw $exception;
@@ -491,9 +703,9 @@ class AiIntakeInbox extends Component
         abort_unless(in_array($this->statusFilter, ['all', ...AiIntake::STATUSES], true), 422);
         abort_unless(in_array($this->detailTab, ['review', 'sources', 'communication', 'assistant'], true), 422);
         $query = $ready ? $this->scope()->with('customer')->when($this->statusFilter !== 'all', fn ($query) => $query->where('status', $this->statusFilter))->when(trim($this->search) !== '', fn ($query) => $query->where('title', 'like', '%'.mb_substr(trim($this->search), 0, 100).'%')) : null;
-        $selected = $ready && $this->selectedId ? $this->selected()->load(['customer', 'contact', 'messages', 'attachments', 'runs', 'deliveries', 'proposals.inquiry']) : null;
+        $selected = $ready && $this->selectedId ? $this->selected()->load(['customer', 'contact', 'messages', 'attachments', 'runs', 'deliveries', 'proposals.inquiry.order']) : null;
         $confirmation = $selected ? app(AiIntakeService::class)->confirmationState($selected) : ['enabled' => false, 'completed' => false, 'reason' => ''];
-        if ($this->editingProposalId !== null) {
+        if ($this->editingProposalId !== null || $this->manualEditorOpen) {
             $confirmation = ['enabled' => false, 'completed' => false, 'reason' => 'Die offene Korrektur zuerst speichern.'];
         } elseif ($selected && $this->hasUnsavedAssignment($selected)) {
             $confirmation = ['enabled' => false, 'completed' => false, 'reason' => 'Die geänderte Kunden- oder Kontaktzuordnung zuerst speichern.'];
@@ -505,7 +717,9 @@ class AiIntakeInbox extends Component
             'customers' => Customer::active()->when($this->customerId, fn ($query) => $query->whereKey($this->customerId))->orderBy('company_name')->get(),
             'contacts' => $this->assignCustomerId !== '' ? CustomerContact::where('customer_id', (int) $this->assignCustomerId)->where('is_active', true)->orderBy('name')->get() : collect(),
             'canApprove' => $actor->can('operations.manage'),
+            'planningShifts' => $selected ? Shift::whereIn('id', $selected->proposals->pluck('applied_shift_ids')->flatten()->filter()->all())->get()->keyBy('id') : collect(),
             'confirmation' => $confirmation,
+            'manualReady' => AiIntakeSchema::manualReady(),
             'qualifications' => QualificationType::where('is_active', true)->orderBy('name')->get(),
             'mappingInquiries' => $selected?->proposals->pluck('inquiry')->filter()->unique('id')->keyBy('id') ?? collect(),
             'customerSuggestions' => $selected ? app(AiIntakeCustomerSuggestions::class)->suggest($selected, $actor) : [],

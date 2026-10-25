@@ -13,6 +13,8 @@ class AiIntake extends Model
 
     public const STATUSES = ['received', 'analyzing', 'review', 'waiting_customer', 'ready', 'paused', 'failed', 'completed', 'not_inquiry'];
 
+    public const PROCESSING_MODES = ['assisted', 'manual'];
+
     protected $guarded = ['id'];
 
     protected $hidden = ['analysis'];

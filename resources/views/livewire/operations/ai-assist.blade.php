@@ -1,5 +1,6 @@
 @php
     $panelId = 'rt-ai-assist-'.$this->getId();
+    $nativeIntakeRequested = ! $intakeRequested && request()->query('source') === 'ai-intake';
     $allActions = collect($actions['page'])->concat($actions['global'])->values();
     // Antworttexte: erst escapen, dann **Hervorhebung** und Zeilenumbrüche erlauben.
     $format = fn (?string $text) => preg_replace('/\*\*(.+?)\*\*/u', '<strong>$1</strong>', e((string) $text));
@@ -63,7 +64,7 @@
         <x-ui.floating.window class="rt-ai-assist__panel" id="{{ $panelId }}" x-ref="panel" role="dialog" ::aria-modal="mode === 'fullscreen' ? 'true' : 'false'"
             x-bind:data-window-mode="mode" x-bind:data-corner="corner" aria-label="AI-Assist"
             x-trap.inert.noscroll="open && mode === 'fullscreen'"
-            layout-action="syncLayout();" close-action="toggle(false, { restoreFocus: false })" session-key="assist" session-restore="restoreWindowSession(rtWindowSession)">
+            layout-action="syncLayout();" close-action="toggle(false, { restoreFocus: false })" session-key="assist" :session-restore="$nativeIntakeRequested ? 'restoreWindowSession({...rtWindowSession, open: false})' : 'restoreWindowSession(rtWindowSession)'">
             <x-slot:header class="rt-ai-assist__head rt-assistant-header" data-assistant-header>
                 <x-operations.assistant-navigation class="rt-ai-assist__tabs" appearance="window" :tabs="$tabs" :selected="$tab" action="setTab" :id-prefix="$panelId" :controls="$panelId.'-body'" :review-count="$reviewCount" label="AI-Assist" />
             </x-slot:header>

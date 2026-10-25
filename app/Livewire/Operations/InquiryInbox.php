@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Operations;
 
+use App\Models\AiIntakeProposal;
 use App\Models\Customer;
 use App\Models\CustomerPortalSubmissionItem;
 use App\Models\OperationAudit;
@@ -9,6 +10,7 @@ use App\Models\OperationInquiry;
 use App\Services\Operations\CommercialOfferService;
 use App\Services\Operations\CustomerWorkflowService;
 use App\Services\Operations\InquiryWorkflowService;
+use App\Support\Operations\AiIntakeSchema;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsPages;
 use Illuminate\Support\Facades\Schema;
@@ -257,12 +259,51 @@ class InquiryInbox extends Component
         $current = $this->scopedQuery()->findOrFail($this->selectedId);
         abort_if($this->portalSubmission($current), 409, 'Portalentscheidung über den Portaleingang bearbeiten.');
         $record = $service->transition($current, $this->revision, $action, ['amount' => $this->amount, 'terms' => $this->terms, 'note' => $this->acceptance, 'authorized' => $this->authorized, 'original_id' => $this->duplicateId], auth()->user());
+        if ($action === 'convert' && $record->order_id && auth()->user()->can('operations.manage') && AiIntakeSchema::ready()) {
+            $manualProposal = AiIntakeProposal::where('inquiry_id', $record->id)->where('status', '!=', 'stale')->latest('id')->get()
+                ->first(fn ($proposal) => ($proposal->payload['review_confirmation']['planning_mode'] ?? null) === 'manual');
+            if ($manualProposal) {
+                $this->redirect(OperationsPages::intakeFormUrl($manualProposal->intake_id), navigate: true);
+
+                return;
+            }
+        }
         if ($this->consolidated && $action === 'convert' && $record->order_id && auth()->user()->can('operations.manage')) {
             $this->redirectRoute('operations.page', ['page' => 'cases', 'view' => 'orders', 'order' => $record->order_id, 'inquiry' => $record->id], navigate: true);
 
             return;
         }
         $this->select($record->id);
+    }
+
+    public function saveAndTakeDirectOrder(InquiryWorkflowService $service): void
+    {
+        $this->access();
+        OperationsAccess::authorize(auth()->user(), 'operations.manage');
+        $this->save($service);
+        $this->takeDirectOrder($service);
+    }
+
+    public function takeDirectOrder(InquiryWorkflowService $service): void
+    {
+        $this->access();
+        abort_unless($this->selectedId, 404);
+        $current = $this->scopedQuery()->findOrFail($this->selectedId);
+        abort_if($this->portalSubmission($current), 409, 'Portalentscheidung über den Portaleingang bearbeiten.');
+        $record = $service->takeDirectOrder($current, $this->revision, auth()->user());
+        $sourceId = AiIntakeSchema::ready() ? AiIntakeProposal::where('inquiry_id', $record->id)->where('status', '!=', 'stale')->latest('id')->value('intake_id') : null;
+        $this->redirect($sourceId ? OperationsPages::intakeFormUrl($sourceId) : OperationsPages::url('cases', ['view' => 'orders', 'order' => $record->order_id, 'inquiry' => $record->id]), navigate: true);
+    }
+
+    public function openAssist(): void
+    {
+        $this->access();
+        abort_if($this->editing, 409, 'Die offenen Angaben zuerst speichern.');
+        $record = $this->scopedQuery()->findOrFail($this->selectedId);
+        abort_unless($record->revision === $this->revision, 409, 'Die Anfrage wurde inzwischen geändert. Bitte den aktuellen Stand laden.');
+        abort_if($this->portalSubmission($record), 409, 'Portalvorgang über den Portaleingang bearbeiten.');
+        $this->detailOpen = false;
+        $this->dispatch('open-inquiry-assist', inquiryId: $record->id, revision: $record->revision, customerId: $record->customer_id);
     }
 
     #[On('commercial-offer-updated')]
@@ -310,11 +351,13 @@ class InquiryInbox extends Component
                 ->orderBy('starts_at')->oldest('updated_at')->orderBy('id')->limit(3)->get(),
             'inquiries' => $query->paginate(15),
             'selected' => $selected,
+            'aiIntakeId' => $selected && AiIntakeSchema::ready() ? AiIntakeProposal::where('inquiry_id', $selected->id)->where('status', '!=', 'stale')->latest('id')->value('intake_id') : null,
             'portalSubmissionId' => $selected ? $this->portalSubmission($selected) : null,
             'customers' => Customer::where('is_active', true)->when($this->profileEmbedded, fn ($query) => $query->whereKey($this->customerFilterId))->orderBy('company_name')->get(['id', 'company_name']),
             'history' => $this->selectedId ? OperationAudit::where('subject_type', 'OperationInquiry')->where('subject_id', $this->selectedId)->with(['actor.profile', 'actor.currentTeam'])->latest('id')->limit(30)->get() : collect(),
             'customerWorkflowReady' => CustomerWorkflowService::ready(),
             'commercialReady' => CommercialOfferService::ready(),
+            'directOrder' => $selected && OperationAudit::where('subject_type', 'OperationInquiry')->where('subject_id', $selected->id)->where('action', 'inquiry.direct_order')->exists(),
         ]);
     }
 }

@@ -2,7 +2,7 @@
     x-data="{ panelMode: null }" @if($embedded) x-effect="const next = $wire.captureOpen ? 'capture' : ($wire.detailOpen && $wire.selectedId ? 'detail-' + $wire.selectedId : 'list'); if (next !== panelMode) { const previous = panelMode; panelMode = next; $nextTick(() => { if (next !== 'list') $refs.intakePanelHeading?.focus(); else if (previous?.startsWith('detail-')) $refs.intakeList?.querySelector('[data-intake-id=&quot;' + previous.slice(7) + '&quot;]')?.focus(); }); }" @endif>
     @if($embedded)
         <x-operations.feedback :show-offline="false" />
-        <div class="ai-intake-panel__content" wire:loading.attr="inert" wire:target="submit,assignCustomer,reanalyze,pause,createInquiries,confirmReview,saveProposal,approveProposal,retryPreparation,mapProposal,prepareCustomer">
+        <div class="ai-intake-panel__content" wire:loading.attr="inert" wire:target="submit,assignCustomer,reanalyze,pause,createInquiries,confirmReview,saveProposal,approveProposal,retryPreparation,mapProposal,prepareCustomer,continueInquiry,openPlanning,preparePlanning,publishPlanning">
             @if(!$ready)
                 <p class="ops-muted" role="status">Die AI-Annahme ist noch nicht eingerichtet.</p>
             @elseif($captureOpen)
@@ -47,7 +47,7 @@
             <x-operations.feedback :show-offline="false" />
             @include('livewire.operations.partials.ai-intake-composer', ['composerMode' => 'capture', 'maxCharacters' => 20000, 'maxAttachmentCount' => $limits['max_attachment_count'], 'maxAudioKilobytes' => $limits['max_audio_kilobytes']])
         </x-operations.modal>
-        <x-operations.modal wire:model.live="detailOpen" title="AI-Eingang prüfen" max-width="4xl" variant="drawer">
+        <x-operations.modal wire:model.live="detailOpen" title="Eingang bearbeiten" max-width="4xl" variant="drawer">
             @include('livewire.operations.partials.ai-intake-detail')
         </x-operations.modal>
     @endif

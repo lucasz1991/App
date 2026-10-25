@@ -30,4 +30,14 @@ final class AiIntakeSchema
     {
         abort_unless(self::ready(), 503, 'AI-Eingang ist noch nicht eingerichtet.');
     }
+
+    public static function manualReady(): bool
+    {
+        return self::ready() && Schema::hasColumn('ai_intakes', 'processing_mode');
+    }
+
+    public static function requireManualReady(): void
+    {
+        abort_unless(self::manualReady(), 503, 'Die Formularbearbeitung ist noch nicht eingerichtet.');
+    }
 }

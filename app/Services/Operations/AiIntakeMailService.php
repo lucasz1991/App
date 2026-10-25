@@ -29,6 +29,13 @@ class AiIntakeMailService
 {
     public function __construct(private readonly AiDispositionSmtpTransport $transport) {}
 
+    /** A human inbox takeover can explicitly keep this intake entirely internal. */
+    private function customerCommunicationSuppressed(AiIntake $intake): bool
+    {
+        return $intake->processing_mode === 'manual'
+            || $intake->proposals()->get(['payload'])->contains(fn ($proposal) => ($proposal->payload['review_confirmation']['customer_communication'] ?? null) === 'off');
+    }
+
     /** The global assisted setting always turns automatic communication into a private draft. */
     public function mode(array $settings, string $type): string
     {
@@ -55,7 +62,7 @@ class AiIntakeMailService
             $settings = AiDispositionSettings::all(true);
             $fresh = AiIntake::lockForUpdate()->findOrFail($intake->id);
             $contact = $this->verifiedContact($fresh, $settings);
-            if (! $settings['enabled'] || $this->mode($settings, 'receipt') === 'off' || ! $contact || $fresh->paused_at || $fresh->source_revision !== 1 || in_array($fresh->status, ['paused', 'failed'], true)) {
+            if ($this->customerCommunicationSuppressed($fresh) || ! $settings['enabled'] || $this->mode($settings, 'receipt') === 'off' || ! $contact || $fresh->paused_at || $fresh->source_revision !== 1 || in_array($fresh->status, ['paused', 'failed'], true)) {
                 return null;
             }
 
@@ -126,7 +133,7 @@ class AiIntakeMailService
             $fresh = AiIntake::lockForUpdate()->findOrFail($intake->id);
             $contact = $this->verifiedContact($fresh, $settings);
             $native = $this->approvedOrder($fresh, (int) $order->id, (int) $approver->id, $settings);
-            if (! $settings['enabled'] || $this->mode($settings, 'order_confirmation') === 'off' || ! $contact || ! $native || $fresh->paused_at || in_array($fresh->status, ['paused', 'failed'], true)) {
+            if ($this->customerCommunicationSuppressed($fresh) || ! $settings['enabled'] || $this->mode($settings, 'order_confirmation') === 'off' || ! $contact || ! $native || $fresh->paused_at || in_array($fresh->status, ['paused', 'failed'], true)) {
                 return null;
             }
             $facts = $native['facts'];
@@ -152,7 +159,7 @@ class AiIntakeMailService
             $settings = AiDispositionSettings::all(true);
             $fresh = AiIntake::lockForUpdate()->findOrFail($intake->id);
             $mode = $this->mode($settings, 'clarification');
-            if (isset($fresh->analysis['intent']) && $fresh->analysis['intent'] !== 'inquiry') {
+            if ($this->customerCommunicationSuppressed($fresh) || isset($fresh->analysis['intent']) && $fresh->analysis['intent'] !== 'inquiry') {
                 return null;
             }
             $contact = $this->verifiedContact($fresh, $settings);
@@ -408,7 +415,7 @@ class AiIntakeMailService
 
     private function contextValid(AiIntakeDelivery $delivery, AiIntake $intake, array $settings, ?CustomerContact $contact, bool $forApproval = false): bool
     {
-        if ($delivery->metadata['manual_mailbox_test'] ?? false) {
+        if (($delivery->metadata['manual_mailbox_test'] ?? false) || $this->customerCommunicationSuppressed($intake)) {
             return false;
         }
         $type = $this->type($delivery);
