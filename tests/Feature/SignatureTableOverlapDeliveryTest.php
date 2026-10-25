@@ -53,6 +53,8 @@ final class SignatureTableOverlapDeliveryTest extends TestCase
         $dom = new DOMDocument;
         @$dom->loadHTML('<?xml encoding="UTF-8"><table>'.$projected.'</table>');
         $xpath = new DOMXPath($dom);
+        $image = $xpath->query('//img[@class="rt-delivery-train"]')->item(0);
+        $this->assertSame('display:block;width:100%;max-width:600px;height:auto;margin:'.($version === 'v27' ? '0' : '0 0 0 auto').';border:0;vertical-align:bottom;', $image->getAttribute('style'));
         foreach (['rt-sign-heading-person', 'rt-sign-heading-logo', 'rt-sign-identity', 'rt-sign-company'] as $class) {
             $cell = $xpath->query('//td[contains(concat(" ",normalize-space(@class)," ")," '.$class.' ")]')->item(0);
             $this->assertSame('100%', $cell->getAttribute('width'));

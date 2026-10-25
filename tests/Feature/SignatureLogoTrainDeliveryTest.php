@@ -79,6 +79,7 @@ final class SignatureLogoTrainDeliveryTest extends TestCase
         $image = $this->one($xpath, 'rt-delivery-train');
         self::assertSame('300', $image->getAttribute('width'));
         self::assertSame('38', $image->getAttribute('height'));
+        self::assertSame('display:block;width:100%;max-width:100%;height:auto;margin:0;border:0;vertical-align:bottom;', $image->getAttribute('style'));
         self::assertStringContainsString('<!--[if !mso]><!-->', $output);
         self::assertStringContainsString('<!--[if mso]><img class="rt-delivery-train-mso" src="cid:train.png" width="220" height="28"', $output);
         self::assertSame($this->links($legacy), $this->links($output));
@@ -95,6 +96,8 @@ final class SignatureLogoTrainDeliveryTest extends TestCase
         $legacy = SignatureTableOverlapDelivery::css(str_replace(' design-train-logo', '', $source));
         $css = SignatureTableOverlapDelivery::css($source);
         $scope = 'tr[data-rt-artifact-version="v27"]';
+        self::assertStringContainsString($scope.' .rt-delivery-train{display:block!important;width:100%!important;max-width:100%!important;height:auto!important;margin:0!important;border:0!important;vertical-align:bottom!important;}', $css);
+        self::assertStringContainsString($scope.' .rt-delivery-train{display:block!important;width:100%!important;max-width:600px!important;', $legacy);
         self::assertStringContainsString('.rt-sign-ledger-content{padding:25px 0 0!important;}', $css);
         self::assertStringContainsString('.rt-sign-cell .rt-sign-content{width:100%!important;vertical-align:top!important;height:auto!important;padding-bottom:0!important;', $css);
         self::assertStringContainsString('.rt-ledger-brand.rt-delivery-wide-column{width:50%!important;padding:0 40px 0 0!important;', $css);

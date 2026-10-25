@@ -100,6 +100,9 @@ final class V27LogoTrainNativeTest extends TestCase
         self::assertStringNotContainsString('data-rt-train-bottom-overlay=', $mobile['signature']['html']);
         self::assertStringNotContainsString('.rts0123456789 .rt-delivery-train-cell{width:100%!important;padding:0 22px 0 0!important;', $mobile['signature']['html']);
         $xpath = $this->xpath($mobile['signature']['html']);
+        $moving = $xpath->query('//img[contains(concat(" ",normalize-space(@class)," ")," rt-delivery-train ")]')->item(0);
+        self::assertStringContainsString('width:100%;max-width:100%;height:auto;', $moving->getAttribute('style'));
+        self::assertMatchesRegularExpression('/\\{[^{}]*width:100%!important;max-width:100%!important;height:auto!important;[^{}]*\\}/', $mobile['signature']['html']);
         foreach (['rt-ledger-brand', 'rt-ledger-contacts', 'rt-ledger-direct', 'rt-ledger-company'] as $class) {
             $cell = $xpath->query('//td[contains(concat(" ",normalize-space(@class)," ")," '.$class.' ")]')->item(0);
             self::assertNotNull($cell);
