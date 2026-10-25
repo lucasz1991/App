@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createNativeLayoutNonce, nativeLayoutRestoreStylePayload, prepareNativeLayoutRestore } from '../../resources/js/outlook-addin/native-layout-restore.js';
+import { createNativeLayoutNonce, nativeLayoutRestoreCss, nativeLayoutRestoreRetained, nativeLayoutRestoreStylePayload, prepareNativeLayoutRestore, removeNativeLayoutRestoreCarrier } from '../../resources/js/outlook-addin/native-layout-restore.js';
+import { managedTemplateContract } from '../../resources/js/outlook-addin/managed-template.js';
 
 const nonce = '1234567890abcdef1234567890abcdef';
 const element = (tag, attrs = {}, children = []) => ({ tag, attrs, children });
 const table = (className, children = [], attrs = {}) => element('table', { class: className, ...attrs }, [element('tbody', {}, [element('tr', {}, [element('td', {}, children)])])]);
 
 // This source builder records offsets as it emits bytes; no DOM serialization is used.
-function fixture({ header = true, legacy = false, quotedCopy = false } = {}) {
+function fixture({ header = true, legacy = false, quotedCopy = false, legal = false, legalColor = '#718096', wire = false } = {}) {
+    const metadata = value => element('span', { hidden: '', style: 'font-size:0;line-height:0;' }, [value]);
     const person = table('rt-personal-left', [element('p', {}, ['Synthetic personal text'])]);
     const company = table('rt-personal-right', [element('img', { src: 'cid:logo.png', width: '180', height: '31' })]);
     const train = table('rt-df-train', [element('div', { class: 'rt-train-window' }, [element('img', {
@@ -23,9 +25,17 @@ function fixture({ header = true, legacy = false, quotedCopy = false } = {}) {
     const signature = table('rt-managed-signature-v1 rt-combined-signature-frame', [
         ...(header ? [banner] : []), ...(legacy ? [element('p', {}, ['Legacy source'])] : [flow]),
     ]);
+    if (legal) signature.children[0].children.push(element('tr', {}, [element('td', { style: `color:${legalColor};font-size:9px;line-height:14px;` }, [
+        element('font', { color: '#000000' }, ['Synthetic legal information']),
+        element('span', { hidden: '', style: 'font-size:0;line-height:0;' }, ['RT-SIGNATURE-MANAGED-V1']),
+        element('span', { hidden: '', style: 'font-size:0;line-height:0;' }, ['RT-SIGNATURE-VERSION:1234567890abcdef']),
+    ])]));
+    const template = wire ? [metadata('RT-TEMPLATE-MANAGED-V1:COMBINED-DOCUMENT'),
+        table('rt-compose-editable rt-compose-editable-v1', [metadata('RT-COMPOSE-EDITABLE-START-V1'), element('p', {}, ['Editable content']), metadata('RT-COMPOSE-EDITABLE-END-V1')])]
+        : [element('p', { class: 'design-spacer' }, ['Editable content'])];
     const tree = element('div', {}, [
         '<!-- prefix with unicode 🚆 and arbitrary bytes -->',
-        table('rt-managed-combined-v1', [table('rt-managed-template-v1', [element('p', { class: 'design-spacer' }, ['Editable content'])]), signature]),
+        table('rt-managed-combined-v1', [table('rt-managed-template-v1', template), signature]),
         ...(quotedCopy ? [element('blockquote', {}, [flow])] : []),
         '<!-- arbitrary suffix -->',
     ]);
@@ -112,5 +122,54 @@ test('stylesheet factory accepts only one known hexadecimal scope and its exact 
     ]) assert.throws(() => nativeLayoutRestoreStylePayload(bad), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
     for (const bad of ['', 'x'.repeat(32), nonce + '"><style>bad</style>']) {
         assert.throws(() => prepareNativeLayoutRestore(source.html, source.contract, bad), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
+    }
+});
+
+test('known two-row legal footer adds only the sixth TABLE ID and last-row gray leaf rules', () => {
+    const source = fixture({ legal: true });
+    const plan = prepareNativeLayoutRestore(source.html, source.contract, nonce);
+    assert.equal(Object.keys(plan.ids).length, 6);
+    assert.equal(plan.ids.signature, `rt-native-layout-${nonce}-s`);
+    assert.equal(plan.html.replace(/ id="rt-native-layout-[0-9a-f]{32}-[rpcths]"/g, ''), source.html);
+    assert.match(plan.stylePayload, /-s"\]>tbody>tr:last-child font/);
+    assert.match(plan.stylePayload, /color:#718096!important;-webkit-text-fill-color:#718096!important/);
+    assert.equal(plan.stylePayload, nativeLayoutRestoreStylePayload(plan.ids));
+    assert.doesNotMatch(plan.stylePayload, /-s"\]>tbody>tr:first-child/);
+});
+
+test('unknown footer color or missing legal metadata never receives a gray override', () => {
+    const unknown = fixture({ legal: true, legalColor: '#123456' });
+    const unknownPlan = prepareNativeLayoutRestore(unknown.html, unknown.contract, nonce);
+    assert.equal(unknownPlan.ids.signature, undefined);
+    const missing = fixture({ legal: true });
+    missing.html = missing.html.replace('RT-SIGNATURE-MANAGED-V1', 'NO-SIGNATURE-METADATA-V1');
+    const missingPlan = prepareNativeLayoutRestore(missing.html, missing.contract, nonce);
+    assert.equal(missingPlan.ids.signature, undefined);
+});
+
+test('a retained empty carrier is positively verified and cleanup removes only its complete owned range', () => {
+    const source = fixture({ wire: true, legal: true });
+    const contract = managedTemplateContract(source.html);
+    const plan = prepareNativeLayoutRestore(source.html, contract, nonce);
+    const written = plan.stylePayload + plan.html;
+    const parsed = managedTemplateContract(written);
+    assert.equal(nativeLayoutRestoreRetained(written, parsed, plan.ids), true);
+    assert.equal(removeNativeLayoutRestoreCarrier(written, parsed, plan.ids), plan.html);
+    assert.ok(plan.stylePayload.includes(nativeLayoutRestoreCss(plan.ids)));
+    assert.equal(plan.stylePayload.replace(/<style\b[^>]*>[\s\S]*?<\/style>/, '').replace(/<[^>]*>/g, ''), `RT-NATIVE-LAYOUT-RESTORE-V1:${nonce}`);
+});
+
+test('successful API without retained exact CSS, unknown sheets and quoted carriers never count as restored', () => {
+    const source = fixture({ wire: true, legal: true });
+    const plan = prepareNativeLayoutRestore(source.html, managedTemplateContract(source.html), nonce);
+    for (const body of [
+        plan.html,
+        plan.stylePayload.replace(/<style\b[^>]*>[\s\S]*?<\/style>/, '') + plan.html,
+        plan.stylePayload.replace('float:left!important;', 'float:none!important;') + plan.html,
+        '<blockquote>' + plan.stylePayload + '</blockquote>' + plan.html,
+    ]) {
+        const contract = managedTemplateContract(body);
+        assert.throws(() => nativeLayoutRestoreRetained(body, contract, plan.ids), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
+        assert.equal(removeNativeLayoutRestoreCarrier(body, contract, plan.ids), body);
     }
 });

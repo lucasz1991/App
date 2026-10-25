@@ -33,7 +33,7 @@ const nativeGroups = '<table class="rt-personal-columns" data-rt-personal-flow="
     + '<table class="rt-df-train"><tbody><tr><td><div class="rt-train-window"><img class="rt-delivery-train" src="cid:train" width="300" height="38"></div><!--[if mso]><img src="cid:still" width="220" height="28"><![endif]--></td></tr></tbody></table>'
     + '</td></tr></tbody></table>';
 
-function stableArtifact({ content = '<p class="design-spacer"><br></p>', greeting = false, sentinels = false, native = false } = {}) {
+function stableArtifact({ content = '<p class="design-spacer"><br></p>', greeting = false, sentinels = false, native = false, footer = false } = {}) {
     return '<div class="rt-combined-compose-document rtc0123456789ab" data-rt-compose-document="combined-v1" style="display:block;width:100%;">'
         + '<table class="rt-combined-compose-frame rt-managed-combined-v1 rtc0123456789ab"><tbody><tr><td>'
         + '<style data-rt-combined-compose-css="1">table.rtc0123456789ab{width:100%}</style>'
@@ -42,9 +42,11 @@ function stableArtifact({ content = '<p class="design-spacer"><br></p>', greetin
         + '<table class="rt-compose-editable rt-compose-editable-v1" data-rt-compose-editable="v1"><tbody><tr><td style="padding:0;">' + (sentinels ? metadata(START) : '') + content + (sentinels ? metadata(END) : '') + '</td></tr></tbody></table>'
         + (greeting ? '<p>Mit freundlichen Grüßen,</p>' : '') + '</td></tr></tbody></table></div>'
         + '<div class="rt-outlook-signature rts0123456789"><table class="rt-combined-signature-frame rt-managed-signature-v1 rts0123456789"><tbody><tr><td>'
-        + metadata('RT-SIGNATURE-MANAGED-V1') + metadata('RT-SIGNATURE-VERSION:0123456789abcdef')
+        + (footer ? '' : metadata('RT-SIGNATURE-MANAGED-V1') + metadata('RT-SIGNATURE-VERSION:0123456789abcdef'))
         + (native ? '<table><tbody><tr><td class="design-hotline-row"><strong>24/7</strong> erreichbar</td></tr></tbody></table>' + nativeGroups
-            : '<p>Personal signature</p><img class="rt-delivery-train" src="cid:train" width="520" height="65">') + '</td></tr></tbody></table></div>'
+            : '<p>Personal signature</p><img class="rt-delivery-train" src="cid:train" width="520" height="65">')
+        + (footer ? '</td></tr><tr><td style="color:#718096;"><p><font color="#718096">Legal footer</font></p>' + metadata('RT-SIGNATURE-MANAGED-V1') + metadata('RT-SIGNATURE-VERSION:0123456789abcdef') : '')
+        + '</td></tr></tbody></table></div>'
         + '</td></tr></tbody></table></div>';
 }
 
@@ -453,8 +455,8 @@ test('text ownership rejects damaged, visible, contradictory or ambiguous bounda
     assert.throws(() => replace(body, stableArtifact()), { code: 'TEMPLATE_REPLACEMENT_UNAVAILABLE' }, 'cannot discard durable boundaries');
 });
 
-function nativeHost() {
-    const h = host({ body: OUTSIDE + afterOfficeTyping(stableArtifact({ sentinels: true, content: TYPED, native: true })) + '<p>Outside after</p>' });
+function nativeHost({ footer = false } = {}) {
+    const h = host({ body: OUTSIDE + afterOfficeTyping(stableArtifact({ sentinels: true, content: TYPED, native: true, footer })) + '<p>Outside after</p>' });
     h.item.body.setAsync = (html, _options, callback) => {
         h.state.writes.push(html);
         h.state.body = afterOfficeSet(html);
@@ -465,7 +467,7 @@ function nativeHost() {
         h.state.body = html + h.state.body;
         callback(succeeded());
     };
-    h.run = (options = {}, check = () => {}) => replaceManagedTemplate(h.office, h.item, stableArtifact({ sentinels: true, native: true, greeting: true }), check, options);
+    h.run = (options = {}, check = () => {}) => replaceManagedTemplate(h.office, h.item, stableArtifact({ sentinels: true, native: true, greeting: true, footer }), check, options);
     return h;
 }
 
@@ -477,9 +479,11 @@ test('native replacement confirms unique retained IDs before STYLE-only restore 
     await flush(() => styleCallback);
     assert.equal(h.state.writes.length, 1);
     assert.equal(h.state.prepends.length, 1);
-    assert.match(h.state.prepends[0], /^<style data-rt-native-layout-restore="v1">[^<]+<\/style>$/);
+    assert.match(h.state.prepends[0], /^<table\b/);
+    assert.match(h.state.prepends[0], /<style data-rt-native-layout-restore="v1">/);
     assert.match(h.state.session, /^pending:/);
     assert.equal(isTemplateInsertionBlocked(h.item), true);
+    h.state.body = h.state.prepends[0] + h.state.body;
     styleCallback(succeeded());
     await result;
     assert.equal(h.state.session, '1');
@@ -506,6 +510,70 @@ test('native repeated exchanges preserve content and remove only the exact prece
         assert.equal((h.state.body.match(/My &amp;/g) || []).length, 1);
         assert.ok(h.state.body.endsWith('<p>Outside after</p><style>.unrelated{color:blue}</style>'));
         assert.equal(isTemplateInsertionBlocked(h.item), false);
+    }
+});
+
+test('a confirmed prepend callback without retained trusted CSS never completes the layout operation', async () => {
+    const h = nativeHost();
+    h.item.body.prependAsync = (html, _options, callback) => { h.state.prepends.push(html); callback(succeeded()); };
+    await assert.rejects(h.run(), { code: 'TEMPLATE_LAYOUT_UNCONFIRMED' });
+    assert.equal(h.state.writes.length, 1);
+    assert.equal(h.state.prepends.length, 1);
+    assert.match(h.state.session, /^pending:/);
+    assert.equal(isTemplateInsertionBlocked(h.item), true);
+    assert.ok(h.state.body.includes(afterOfficeSet(TYPED)));
+    await assert.rejects(h.run(), { code: 'TEMPLATE_INSERT_UNCERTAIN' });
+});
+
+test('a foreign session after the confirmed style write prevents the final applied marker', async () => {
+    const h = nativeHost();
+    h.item.body.prependAsync = (html, _options, callback) => {
+        h.state.prepends.push(html); h.state.body = html + h.state.body; h.state.session = 'pending:foreign-after-style'; callback(succeeded());
+    };
+    await assert.rejects(h.run(), { code: 'TEMPLATE_LAYOUT_UNCONFIRMED' });
+    assert.equal(h.state.session, 'pending:foreign-after-style');
+    assert.equal(h.state.writes.length, 1);
+    assert.equal(h.state.prepends.length, 1);
+    assert.equal(isTemplateInsertionBlocked(h.item), true);
+});
+
+test('the optional signature TABLE ID scopes gray recovery to exactly the second legal row', async () => {
+    const h = nativeHost({ footer: true });
+    await h.run();
+    assert.equal((h.state.writes[0].match(/id="rt-native-layout-[0-9a-f]{32}-s"/g) || []).length, 1);
+    assert.match(h.state.prepends[0], /-s"\]>tbody>tr:last-child font/);
+    assert.doesNotMatch(h.state.prepends[0], /-s"\]>tbody>tr:first-child[^{}]*\{color:#718096/);
+    assert.equal(h.state.session, '1');
+});
+
+test('moved legal metadata, additional rows or a footer HEADER ID block any gray recovery before prepend', async () => {
+    for (const corrupt of [
+        value => {
+            const c = managedTemplateContract(value);
+            const body = c.elements.find(n => n.parent === c.signature.index && n.tag === 'tbody');
+            return value.slice(0, body.close) + '<tr><td></td></tr>' + value.slice(body.close);
+        },
+        value => {
+            const c = managedTemplateContract(value);
+            const span = c.elements[c.signatureMetadata.managed];
+            const bodyIndex = c.elements.findIndex(n => n.parent === c.signature.index && n.tag === 'tbody');
+            const rowIndex = c.elements.findIndex(n => n.parent === bodyIndex && n.tag === 'tr');
+            const cell = c.elements.find(n => n.parent === rowIndex && n.tag === 'td');
+            return value.slice(0, cell.close) + value.slice(span.start, span.end) + value.slice(cell.close, span.start) + value.slice(span.end);
+        },
+        value => {
+            const header = / id="(x_rt-native-layout-[^"]*-h)"/.exec(value);
+            const without = value.replace(header[0], '');
+            const c = managedTemplateContract(without);
+            const metadata = c.elements[c.signatureMetadata.managed];
+            return without.slice(0, metadata.start) + `<table id="${header[1]}"><tbody><tr><td></td></tr></tbody></table>` + without.slice(metadata.start);
+        },
+    ]) {
+        const h = nativeHost({ footer: true });
+        h.item.body.setAsync = (html, _options, callback) => { h.state.writes.push(html); h.state.body = corrupt(afterOfficeSet(html)); callback(succeeded()); };
+        await assert.rejects(h.run(), { code: 'TEMPLATE_LAYOUT_UNCONFIRMED' });
+        assert.equal(h.state.prepends.length, 0);
+        assert.match(h.state.session, /^pending:/);
     }
 });
 

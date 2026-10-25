@@ -72,19 +72,103 @@ function restoreCss(ids) {
         css += ['td', 'div', 'p', 'span', 'strong', 'a'].map(tag => `${firstRow} ${tag}`).join(',')
             + '{color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;}';
     }
+    if (ids.signature) {
+        const legalRow = `${selector('signature')}>tbody>tr:last-child`;
+        css += ['td', 'div', 'p', 'span', 'strong', 'b', 'font', 'a'].map(tag => `${legalRow} ${tag}`).join(',')
+            + '{color:#718096!important;-webkit-text-fill-color:#718096!important;}';
+    }
     return css;
 }
 
-/** Exact trusted factory also lets the coordinator remove its previous owned sheet. */
-export function nativeLayoutRestoreStylePayload(ids) {
+function idsScope(ids) {
     if (!ids || typeof ids !== 'object') invalid();
     const root = /^rt-native-layout-([0-9a-f]{32})-r$/.exec(ids.root || '');
-    const suffixes = { root: 'r', person: 'p', company: 'c', train: 't', header: 'h' };
+    const suffixes = { root: 'r', person: 'p', company: 'c', train: 't', header: 'h', signature: 's' };
     const keys = Object.keys(ids);
-    if (!root || keys.length !== (owns(ids, 'header') ? 5 : 4)
+    if (!root || keys.length !== 4 + Number(owns(ids, 'header')) + Number(owns(ids, 'signature'))
         || ['root', 'person', 'company', 'train'].some(key => !owns(ids, key))
         || keys.some(key => !owns(suffixes, key) || ids[key] !== PREFIX + root[1] + '-' + suffixes[key])) invalid();
-    return `<style data-rt-native-layout-restore="v1">${restoreCss(ids)}</style>`;
+    return root[1];
+}
+
+export function nativeLayoutRestoreCss(ids) {
+    idsScope(ids);
+    return restoreCss(ids);
+}
+
+/** An empty presentation carrier gives Office a real HTML insertion, not a discarded bare STYLE. */
+export function nativeLayoutRestoreStylePayload(ids) {
+    const scope = idsScope(ids);
+    return `<table id="${PREFIX + scope}-carrier" role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;border-spacing:0;margin:0;font-size:0;line-height:0;"><tbody><tr><td style="padding:0;height:0;font-size:0;line-height:0;">`
+        + `<style data-rt-native-layout-restore="v1">${restoreCss(ids)}</style>`
+        + `<span hidden aria-hidden="true" style="display:none!important;mso-hide:all;font-size:0;line-height:0;max-height:0;overflow:hidden;">RT-NATIVE-LAYOUT-RESTORE-V1:${scope}</span>`
+        + '</td></tr></tbody></table>';
+}
+
+function isQuoted(nodes, index) {
+    for (let current = index, depth = 0; Number.isInteger(current) && depth <= nodes.length; depth += 1) {
+        const node = nodes[current];
+        if (node.tag === 'blockquote' || /^(?:x_)?(?:divrplyfwdmsg|mail-editor-reference-message-container|stopspelling)$/i.test(node.attrs.id || '')
+            || /(?:^|\s)(?:x_)?(?:gmail_quote|yahoo_quoted|moz-cite-prefix)(?:\s|$)/.test(node.attrs.class || '')) return true;
+        current = node.parent;
+    }
+    return false;
+}
+
+function retainedCarrier(html, contract, ids) {
+    const scope = idsScope(ids);
+    const nodes = contract?.elements;
+    if (typeof html !== 'string' || !Array.isArray(nodes) || !contract.root || !contract.signature) invalid();
+    for (const key of Object.keys(ids)) {
+        const matches = nodes.map((node, index) => ({ node, index })).filter(value => typeof value.node.attrs.id === 'string' && value.node.attrs.id.endsWith(ids[key]));
+        if (matches.length !== 1 || matches[0].node.tag !== 'table'
+            || ![ids[key], 'x_' + ids[key]].includes(matches[0].node.attrs.id)
+            || !within(nodes, matches[0].index, contract.signature.index) || isQuoted(nodes, matches[0].index)) invalid();
+    }
+    const carrierId = PREFIX + scope + '-carrier';
+    const carriers = nodes.map((node, index) => ({ node, index })).filter(value => typeof value.node.attrs.id === 'string' && value.node.attrs.id.endsWith(carrierId));
+    if (carriers.length !== 1 || carriers[0].node.tag !== 'table'
+        || ![carrierId, 'x_' + carrierId].includes(carriers[0].node.attrs.id) || isQuoted(nodes, carriers[0].index)) invalid();
+    const carrier = carriers[0];
+    if (!(carrier.node.end <= contract.root.start || carrier.node.start >= contract.root.end)) invalid();
+    const body = onlyChild(nodes, carrier.index, 'tbody');
+    const row = onlyChild(nodes, body.index, 'tr');
+    const cell = onlyChild(nodes, row.index, 'td');
+    const descendants = nodes.map((node, index) => ({ node, index })).filter(value => value.index !== cell.index && within(nodes, value.index, cell.index));
+    if (descendants.some(value => !['style', 'span', 'div', 'br'].includes(value.node.tag))) invalid();
+    const styles = descendants.filter(value => value.node.tag === 'style');
+    const token = 'RT-NATIVE-LAYOUT-RESTORE-V1:' + scope;
+    const spans = descendants.filter(value => value.node.tag === 'span' && html.slice(value.node.openEnd, value.node.close).replace(/\s+/g, '') === token);
+    if (styles.length !== 1 || spans.length !== 1) invalid();
+    const css = nativeLayoutRestoreCss(ids).replace(/\s+/g, '');
+    const exactSheets = nodes.filter(node => node.tag === 'style' && html.slice(node.openEnd, node.close).replace(/\s+/g, '') === css);
+    if (exactSheets.length !== 1 || html.slice(styles[0].node.openEnd, styles[0].node.close).replace(/\s+/g, '') !== css) invalid();
+    const metadata = spans[0].node;
+    const hidden = owns(metadata.attrs, 'hidden') || metadata.attrs['aria-hidden'] === 'true'
+        || /(?:^|;)\s*display\s*:\s*none(?:\s*!important)?\s*(?:;|$)/i.test(metadata.attrs.style || '')
+        || (/(?:^|;)\s*font-size\s*:\s*0(?:px|pt)?(?:\s*!important)?\s*(?:;|$)/i.test(metadata.attrs.style || '')
+            && /(?:^|;)\s*line-height\s*:\s*0(?:px|pt)?(?:\s*!important)?\s*(?:;|$)/i.test(metadata.attrs.style || ''));
+    if (!hidden) invalid();
+    const ranges = [styles[0].node, metadata].sort((left, right) => right.start - left.start);
+    let remaining = html.slice(cell.node.openEnd, cell.node.close);
+    for (const node of ranges) remaining = remaining.slice(0, node.start - cell.node.openEnd) + remaining.slice(node.end - cell.node.openEnd);
+    if (remaining.includes('<!--') || remaining.replace(/<[^>]*>/g, '').replace(/&nbsp;|&#160;|&#xa0;/gi, ' ').trim() !== '') invalid();
+    return carrier.node;
+}
+
+/** A success callback is insufficient: a fresh SDK read must retain this exact owned CSS carrier. */
+export function nativeLayoutRestoreRetained(html, contract, ids) {
+    retainedCarrier(html, contract, ids);
+    return true;
+}
+
+export function removeNativeLayoutRestoreCarrier(html, contract, ids) {
+    try {
+        const carrier = retainedCarrier(html, contract, ids);
+        return html.slice(0, carrier.start) + html.slice(carrier.end);
+    } catch {
+        return html;
+    }
 }
 
 /**
@@ -142,14 +226,35 @@ export function prepareNativeLayoutRestore(html, contract, nonce) {
         targets.header = header;
     }
 
+    // Only the existing two-row signature's known gray legal row opts in.
+    const signatureBodies = children(nodes, signature.index);
+    const signatureRows = signatureBodies.length === 1 && signatureBodies[0].node.tag === 'tbody'
+        ? children(nodes, signatureBodies[0].index) : [];
+    if (signatureRows.length === 2 && signatureRows.every(value => value.node.tag === 'tr')
+        && within(nodes, root.index, signatureRows[0].index) && !within(nodes, root.index, signatureRows[1].index)) {
+        const footer = signatureRows[1];
+        const footerCells = children(nodes, footer.index);
+        const footerHtml = html.slice(footer.node.openEnd, footer.node.close);
+        const forbidden = nodes.some((node, index) => within(nodes, index, footer.index)
+            && (has(node, 'rt-managed-template-v1') || has(node, 'rt-compose-editable')
+                || has(node, 'rt-compose-editable-v1') || owns(node.attrs, 'data-rt-compose-document') || owns(node.attrs, 'data-rt-compose-editable')));
+        if (footerCells.length === 1 && footerCells[0].node.tag === 'td' && !forbidden
+            && /(?:^|;)\s*color\s*:\s*(?:#718096|rgb\(\s*113\s*,\s*128\s*,\s*150\s*\))\s*(?:!important\s*)?(?:;|$)/i.test(footerCells[0].node.attrs.style || '')
+            && /RT-SIGNATURE-MANAGED-V1(?=-->|[\s"'<>]|$)/.test(footerHtml)
+            && /RT-SIGNATURE-VERSION:[0-9a-f]{16}(?=-->|[\s"'<>]|$)/i.test(footerHtml)) {
+            if (targets.header && within(nodes, targets.header.index, footer.index)) invalid();
+            targets.signature = signature;
+        }
+    }
+
     const scope = nonce === undefined ? createNativeLayoutNonce() : nonce;
     if (typeof scope !== 'string' || !/^[0-9a-f]{32}$/.test(scope) || html.includes(PREFIX + scope)) invalid();
     const ids = {};
     const edits = [];
-    const suffixes = { root: 'r', person: 'p', company: 'c', train: 't', header: 'h' };
+    const suffixes = { root: 'r', person: 'p', company: 'c', train: 't', header: 'h', signature: 's' };
     for (const key of Object.keys(targets)) {
         const { node } = targets[key];
-        if (node.start < signature.node.openEnd || node.end > signature.node.close) invalid();
+        if (key !== 'signature' && (node.start < signature.node.openEnd || node.end > signature.node.close)) invalid();
         const opening = tableOpening(html, node);
         ids[key] = PREFIX + scope + '-' + suffixes[key];
         edits.push({ start: node.start, end: node.openEnd, value: opening.slice(0, -1) + ` id="${ids[key]}">` });

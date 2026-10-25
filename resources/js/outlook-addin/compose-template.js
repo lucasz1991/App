@@ -1,5 +1,5 @@
 import { managedTemplateContract, managedTemplateReplacement } from './managed-template.js';
-import { nativeLayoutRestoreStylePayload, prepareNativeLayoutRestore } from './native-layout-restore.js';
+import { nativeLayoutRestoreCss, nativeLayoutRestoreRetained, prepareNativeLayoutRestore, removeNativeLayoutRestoreCarrier } from './native-layout-restore.js';
 
 // Automatic insertion only prepends. Explicit taskpane replacement below owns
 // one verified current-message shell and preserves every outside/quoted byte.
@@ -619,6 +619,17 @@ function layoutIdsContract(html, currentHtml, ids) {
         if (!rows.length || rows.some(value => value.node.tag !== 'tr')
             || withinContract(contract, targets.root.index, rows[0].index)) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
     }
+    if (targets.signature) {
+        const rows = children(only(targets.signature.index, 'tbody'));
+        if (targets.signature.index !== contract.signature.index || rows.length !== 2 || rows.some(value => value.node.tag !== 'tr')) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
+        const firstCell = only(rows[0].index, 'td');
+        const lastCell = only(rows[1].index, 'td');
+        if (!withinContract(contract, targets.root.index, firstCell)
+            || !Number.isInteger(contract.signatureMetadata?.managed) || !Number.isInteger(contract.signatureMetadata?.version)
+            || !withinContract(contract, contract.signatureMetadata.managed, lastCell)
+            || !withinContract(contract, contract.signatureMetadata.version, lastCell)
+            || (targets.header && !withinContract(contract, targets.header.index, firstCell))) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
+    }
     return contract;
 }
 
@@ -632,8 +643,12 @@ function removePreviousLayoutSheet(html, contract) {
     const ids = { root: base + 'r', person: base + 'p', company: base + 'c', train: base + 't' };
     if (contract.elements.some((node, index) => withinContract(contract, index, contract.signature.index)
         && [base + 'h', 'x_' + base + 'h'].includes(node.attrs.id))) ids.header = base + 'h';
+    if (contract.elements.some((node, index) => withinContract(contract, index, contract.signature.index)
+        && [base + 's', 'x_' + base + 's'].includes(node.attrs.id))) ids.signature = base + 's';
     try { layoutIdsContract(html, html.slice(0, contract.root.end), ids); } catch { return html; }
-    const expected = nativeLayoutRestoreStylePayload(ids).replace(/^<style[^>]*>|<\/style>$/g, '').replace(/\s+/g, '');
+    const withoutCarrier = removeNativeLayoutRestoreCarrier(html, contract, ids);
+    if (withoutCarrier !== html) return withoutCarrier;
+    const expected = nativeLayoutRestoreCss(ids).replace(/\s+/g, '');
     const edits = contract.elements.filter(node => node.tag === 'style' && (node.end <= contract.root.start || node.start >= contract.root.end)
         && html.slice(node.openEnd, node.close).replace(/\s+/g, '') === expected);
     // An exact sheet in a quote must not be removed. The verified global ID
@@ -669,7 +684,6 @@ function nativeLayoutStyleWrite(office, item, payload, operation) {
                 clearTimeout(timer);
                 if (result?.status !== office?.AsyncResultStatus?.Succeeded) { uncertain('failed', result?.error); return; }
                 finished = true;
-                await markTemplateApplied(item, operation);
                 resolve();
             });
         } catch (error) { clearTimeout(timer); uncertain('exception', error); }
@@ -689,6 +703,20 @@ async function restoreNativeLayout(office, item, layout, operation, original, op
     options.beforeCommit?.();
     operation.phase = 'restoring-layout';
     await nativeLayoutStyleWrite(office, item, layout.stylePayload, operation);
+    // A successful prepend callback is not proof that Outlook kept its STYLE.
+    // Re-read the actual SDK body before completing the shared operation.
+    await operation.beforeWrite();
+    if (operation.sessionClaimed) {
+        const ownership = await readSession(office, item);
+        if (!ownership.succeeded || ownership.value !== operation.sessionToken) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED', { phase: 'layout-final-session-readback' });
+    }
+    await operation.beforeWrite();
+    const restored = await replacementSnapshot(office, item);
+    if (restored.composeType !== original.composeType) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
+    const retained = layoutIdsContract(restored.html, currentComposeBodyHtml(restored.html, restored.composeType), layout.ids);
+    if (nativeLayoutRestoreRetained(restored.html, retained, layout.ids) !== true) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED', { phase: 'layout-retention-readback' });
+    options.beforeCommit?.();
+    await markTemplateApplied(item, operation);
 }
 
 /** Explicit user replacement only; automatic/event insertion never calls this. */

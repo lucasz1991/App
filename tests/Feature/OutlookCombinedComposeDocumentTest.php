@@ -225,6 +225,36 @@ final class OutlookCombinedComposeDocumentTest extends TestCase
         return '<span hidden aria-hidden="true" class="rt-office-metadata" style="display:none!important;mso-hide:all;font-size:0;line-height:0;max-height:0;overflow:hidden;">'.$marker.'</span>';
     }
 
+    public function test_only_the_two_known_mobile_boundaries_are_compacted_with_hidden_zero_styles_and_budget_preserved(): void
+    {
+        $marked = OutlookCombinedComposeDocument::markEditableRegion($this->editableTemplate('<p class="design-spacer"><br><br></p>'));
+        $desktop = '<div data-rt-compose-document="combined-v1">'.$marked.'</div>';
+        $mobile = str_replace('data-rt-compose-document="combined-v1"', 'data-rt-compose-document="combined-native-v1"', $desktop);
+        $replacements = [];
+        foreach ([OutlookCombinedComposeDocument::EDITABLE_START, OutlookCombinedComposeDocument::EDITABLE_END] as $token) {
+            $replacements[$this->editableBoundary($token)] = '<span hidden style="display:none;mso-hide:all;font-size:0;line-height:0">'.$token.'</span>';
+        }
+        $compact = OutlookCombinedComposeDocument::compactMobileEditableBounds($mobile);
+        self::assertSame(strtr($mobile, $replacements), $compact);
+        self::assertSame($compact, OutlookCombinedComposeDocument::compactMobileEditableBounds($compact));
+        self::assertSame($desktop, OutlookCombinedComposeDocument::compactMobileEditableBounds($desktop));
+        $authored = '<style data-rt-mail-document-css="signature">span{display:block!important;}</style>'.$mobile;
+        self::assertSame($authored, OutlookCombinedComposeDocument::compactMobileEditableBounds($authored));
+        self::assertSame(172, strlen($mobile) - strlen($compact));
+        self::assertSame($this->styleTags($mobile), $this->styleTags($compact));
+        foreach ([OutlookCombinedComposeDocument::EDITABLE_START, OutlookCombinedComposeDocument::EDITABLE_END] as $token) {
+            $span = $this->xpath($compact)->query('//span[text()="'.$token.'"]');
+            self::assertSame(1, $span->length);
+            self::assertTrue($span->item(0)->hasAttribute('hidden'));
+            self::assertSame('display:none;mso-hide:all;font-size:0;line-height:0', $span->item(0)->getAttribute('style'));
+        }
+        $nearBudget = str_replace('<br><br>', '<br><br>'.str_repeat('x', 30060 - strlen($mobile)), $mobile);
+        self::assertSame(30060, intdiv(strlen(mb_convert_encoding($nearBudget, 'UTF-16LE', 'UTF-8')), 2));
+        self::assertLessThanOrEqual(30000, intdiv(strlen(mb_convert_encoding(OutlookCombinedComposeDocument::compactMobileEditableBounds($nearBudget), 'UTF-16LE', 'UTF-8')), 2));
+        $this->expectException(RuntimeException::class);
+        OutlookCombinedComposeDocument::compactMobileEditableBounds(str_replace('display:none!important;mso-hide:all;font-size:0;', 'display:none!important;mso-hide:all;font-size:1px;', $mobile));
+    }
+
     public function test_owned_text_boundaries_survive_the_sdk_losing_every_class_data_attribute_and_comment(): void
     {
         [$template, $signature] = $this->fragments();

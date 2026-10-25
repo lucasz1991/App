@@ -265,6 +265,7 @@ function sentinelContract(html, currentLength, tree, spans) {
     }
     return { ...tree, root, rootIndex, template: { node: elements[templateIndex], index: templateIndex },
         signature: { node: elements[signatureIndex], index: signatureIndex }, kind: 'text-v1',
+        signatureMetadata: { managed: signatureMarker.index, version: version.index },
         region: { start: startBoundary.node.end, end: mergedEmpty ? startBoundary.node.end : endBoundary.node.start, legacy: false } };
 }
 

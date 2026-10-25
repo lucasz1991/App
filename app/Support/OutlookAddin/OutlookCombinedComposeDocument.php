@@ -260,6 +260,58 @@ final class OutlookCombinedComposeDocument
         return '<span hidden aria-hidden="true" class="rt-office-metadata" style="display:none!important;mso-hide:all;font-size:0;line-height:0;max-height:0;overflow:hidden;">'.$marker.'</span>';
     }
 
+    /** Only the two exact owned boundaries in the derived mobile document. */
+    public static function compactMobileEditableBounds(string $html): string
+    {
+        if (! str_contains($html, 'data-rt-compose-document="'.OutlookMobileCombinedComposeDocument::MODE.'"')) {
+            return $html;
+        }
+        preg_match_all('~<style\b[^>]*data-rt-mail-document-css\b[^>]*>(.*?)</style\s*>~is', $html, $authored);
+        if (array_filter($authored[1], static fn (string $css): bool => trim($css) !== '') !== []) {
+            // Authored span selectors can observe the removed metadata class.
+            return $html;
+        }
+        $nodes = self::nodes($html);
+        $roots = array_keys(array_filter($nodes, static fn (array $node): bool => ($node['attrs']['data-rt-compose-document'] ?? '') === OutlookMobileCombinedComposeDocument::MODE));
+        if (count($roots) !== 1) {
+            self::fail();
+        }
+        $tokens = [self::EDITABLE_START, self::EDITABLE_END];
+        if (! str_contains($html, $tokens[0]) && ! str_contains($html, $tokens[1])) {
+            return $html;
+        }
+        $parent = null;
+        $replacements = [];
+        foreach ($tokens as $position => $token) {
+            $boundaries = array_keys(array_filter($nodes, static fn (array $node): bool => $node['tag'] === 'span' && substr($html, $node['start'], $node['end'] - $node['start']) === self::editableBoundary($token)));
+            $compact = '<span hidden style="display:none;mso-hide:all;font-size:0;line-height:0">'.$token.'</span>';
+            $compacted = array_keys(array_filter($nodes, static fn (array $node): bool => $node['tag'] === 'span' && substr($html, $node['start'], $node['end'] - $node['start']) === $compact));
+            $matches = array_merge($boundaries, $compacted);
+            if (count($matches) !== 1 || substr_count($html, $token) !== 1) {
+                self::fail();
+            }
+            $index = $matches[0];
+            $cell = $nodes[$index]['parent'];
+            if ($cell === null || $nodes[$cell]['tag'] !== 'td' || ($parent !== null && $parent !== $cell)
+                || $nodes[$index]['start'] <= $nodes[$roots[0]]['start'] || $nodes[$index]['end'] >= $nodes[$roots[0]]['end']
+                || ($position === 0 ? $nodes[$cell]['children'][0] : $nodes[$cell]['children'][array_key_last($nodes[$cell]['children'])]) !== $index) {
+                self::fail();
+            }
+            $parent = $cell;
+            $replacements[self::editableBoundary($token)] = $compact;
+        }
+        $row = $nodes[$parent]['parent'];
+        $body = $row === null ? null : $nodes[$row]['parent'];
+        $table = $body === null ? null : $nodes[$body]['parent'];
+        if ($row === null || $body === null || $table === null || $nodes[$row]['tag'] !== 'tr' || $nodes[$body]['tag'] !== 'tbody'
+            || $nodes[$table]['tag'] !== 'table' || ! self::hasClass($nodes[$table], self::EDITABLE_TABLE_CLASS)
+            || $nodes[$table]['children'] !== [$body] || $nodes[$body]['children'] !== [$row] || $nodes[$row]['children'] !== [$parent]) {
+            self::fail();
+        }
+
+        return strtr($html, $replacements);
+    }
+
     private static function editableMarker(array $node): bool
     {
         return self::hasClass($node, self::EDITABLE_CLASS) || self::hasClass($node, self::EDITABLE_TABLE_CLASS) || array_key_exists(self::EDITABLE_ATTRIBUTE, $node['attrs']);
