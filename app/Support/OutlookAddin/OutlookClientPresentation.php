@@ -12,7 +12,7 @@ use RuntimeException;
 /** Final wire presentation, after every canonical inverse/mobile/combined check. */
 final class OutlookClientPresentation
 {
-    public const REVISION = 'outlook-client-presentation-v1';
+    public const REVISION = 'outlook-client-presentation-v2';
 
     private const SIGNATURE_VERSION = 'RT-SIGNATURE-VERSION:';
 
@@ -93,6 +93,9 @@ final class OutlookClientPresentation
         if ($desktopFlow) {
             $html = OutlookDesktopFlow::project($html);
             $html = OutlookCombinedComposeDocument::stabilizeTableScopes($html);
+            if (! OutlookDesktopFlow::mobile($html)) {
+                $html = OutlookStaticBrandImages::project($html);
+            }
         }
         $html = self::wrapUrls($html);
         $html = EmailClientStyleBlocks::project($html, static fn (string $opening, string $css): bool => preg_match('~\bdata-rt-outlook-(?:signature|template)-css=["\']1["\']~', $opening) === 1);
