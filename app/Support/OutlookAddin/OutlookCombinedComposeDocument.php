@@ -6,6 +6,7 @@ namespace App\Support\OutlookAddin;
 
 use App\Support\Mail\CssSemantic;
 use App\Support\Mail\OutlookSignatureInlineStyle;
+use App\Support\Mail\SignaturePersonalColumns;
 use App\Support\Mail\SignatureTableOverlapDelivery;
 use RuntimeException;
 
@@ -163,6 +164,127 @@ final class OutlookCombinedComposeDocument
         }
 
         return $html;
+    }
+
+    /** Give only a canonical standalone desktop signature the same incoming TABLE owner. */
+    public static function stabilizeStandaloneSignature(string $html): string
+    {
+        if (! str_contains($html, 'rt-outlook-signature') || ! str_contains($html, 'RT-SIGNATURE-MANAGED-V1')
+            || ! str_contains($html, 'data-rt-train-delivery="'.SignatureTableOverlapDelivery::MARKER.'"')
+            || str_contains($html, self::DOCUMENT_TABLE_CLASS) || str_contains($html, 'RT-TEMPLATE-MANAGED-V1')
+            || OutlookDesktopFlow::mobile($html)) {
+            return $html;
+        }
+        // A legacy fragment can legitimately carry ordinary content outside its
+        // signature. Do not claim ownership of that wider document.
+        $candidates = self::nodes($html);
+        if (count(array_filter($candidates, static fn (array $node): bool => $node['parent'] === null)) !== 1) {
+            return $html;
+        }
+        [$nodes, $frameIndex] = self::fragment($html, 'rt-outlook-signature', 'rts', 10);
+        $frame = $nodes[$frameIndex];
+        $root = $nodes[$frame['parent']];
+        $body = $frame['children'];
+        if (count($body) !== 1 || $nodes[$body[0]]['tag'] !== 'tbody') {
+            self::fail();
+        }
+        $rows = $nodes[$body[0]]['children'];
+        if (count($rows) !== 2 || $nodes[$rows[0]]['tag'] !== 'tr' || $nodes[$rows[1]]['tag'] !== 'tr') {
+            self::fail();
+        }
+        foreach ($rows as $row) {
+            if (count($nodes[$row]['children']) !== 1 || $nodes[$nodes[$row]['children'][0]]['tag'] !== 'td') {
+                self::fail();
+            }
+        }
+        $main = $nodes[$nodes[$rows[0]]['children'][0]];
+        $legal = $nodes[$nodes[$rows[1]]['children'][0]];
+        if (! self::hasClass($main, 'rt-sign-cell') || ! self::hasClass($legal, 'rt-pad')
+            || ($main['attrs']['width'] ?? '') !== '100%' || ($legal['attrs']['width'] ?? '') !== '100%') {
+            self::fail();
+        }
+        $metadata = [];
+        foreach ($nodes as $index => $node) {
+            if (self::hasClass($node, self::SIGNATURE_TABLE_CLASS) && $index !== $frameIndex) {
+                self::fail();
+            }
+            if (self::hasClass($node, self::TEMPLATE_TABLE_CLASS) || self::editableMarker($node)) {
+                self::fail();
+            }
+            if (! self::hasClass($node, 'rt-office-metadata')) {
+                continue;
+            }
+            if ($node['tag'] !== 'span' || $node['parent'] !== $nodes[$rows[1]]['children'][0] || $node['children'] !== []
+                || ! array_key_exists('hidden', $node['attrs']) || ($node['attrs']['aria-hidden'] ?? '') !== 'true') {
+                self::fail();
+            }
+            $metadata[] = substr($html, $node['start'] + strlen($node['opening']), $node['close'] - $node['start'] - strlen($node['opening']));
+        }
+        if (count($metadata) !== 2 || count(array_filter($metadata, static fn (string $value): bool => $value === 'RT-SIGNATURE-MANAGED-V1')) !== 1
+            || count(array_filter($metadata, static fn (string $value): bool => preg_match('/\ART-SIGNATURE-VERSION:[0-9a-f]{16}\z/', $value) === 1)) !== 1) {
+            self::fail();
+        }
+        foreach ($metadata as $value) {
+            if (substr_count($html, $value) !== 2 || substr_count($html, '<!-- '.$value.' -->') !== 1) {
+                self::fail();
+            }
+        }
+        $scopes = array_values(array_filter(preg_split('/\s+/', trim($root['attrs']['class'] ?? '')), static fn (string $class): bool => preg_match('/\A(?:rts[0-9a-f]{10}|rt-df[0-9]+[0-9a-f]{10}|rt-dflow-host-v[0-9]+)\z/', $class) === 1));
+        $classes = preg_split('/\s+/', trim($frame['attrs']['class'] ?? ''), -1, PREG_SPLIT_NO_EMPTY);
+        foreach ($classes as $class) {
+            if (preg_match('/\A(?:rts|rt-df|rt-dflow-host)/', $class) === 1 && ! in_array($class, $scopes, true)) {
+                self::fail();
+            }
+        }
+        $classes = array_values(array_unique(array_merge($classes, [self::SIGNATURE_TABLE_CLASS], $scopes)));
+        $opening = preg_replace_callback('~\sclass\s*=\s*(["\'])(.*?)\1~is', static fn (array $match): string => ' class='.$match[1].implode(' ', $classes).$match[1], $frame['opening'], -1, $count);
+        if ($count === 0 && ! array_key_exists('class', $frame['attrs'])) {
+            $opening = substr($opening, 0, -1).' class="'.implode(' ', $classes).'">';
+        } elseif ($count !== 1) {
+            self::fail();
+        }
+
+        $padding = self::standalonePersonalPadding($nodes, $main);
+        if ($padding !== null) {
+            [$cell, $cellOpening] = $padding;
+            $html = substr_replace($html, $cellOpening, $cell['start'], strlen($cell['opening']));
+        }
+
+        return substr_replace($html, $opening, $frame['start'], strlen($frame['opening']));
+    }
+
+    /** Preserve the verified 16px native inset against the older 25px runtime rule. */
+    private static function standalonePersonalPadding(array $nodes, array $main): ?array
+    {
+        $flows = array_keys(array_filter($nodes, static fn (array $node): bool => $node['tag'] === 'table'
+            && self::hasClass($node, 'rt-personal-columns')
+            && ($node['attrs'][SignaturePersonalColumns::NATIVE_FLOW_ATTRIBUTE] ?? '') === SignaturePersonalColumns::MARKER
+            && ($node['attrs']['data-rt-desktop-flow'] ?? '') === OutlookDesktopFlow::REVISION));
+        if (count($flows) !== 1) {
+            return null;
+        }
+        $content = $nodes[$flows[0]]['parent'];
+        $row = $content === null ? null : $nodes[$content]['parent'];
+        $body = $row === null ? null : $nodes[$row]['parent'];
+        $frame = $body === null ? null : $nodes[$body]['parent'];
+        if ($content === null || $row === null || $body === null || $frame === null
+            || $nodes[$content]['tag'] !== 'td' || ! self::hasClass($nodes[$content], 'rt-sign-content')
+            || $nodes[$row]['tag'] !== 'tr' || $nodes[$body]['tag'] !== 'tbody'
+            || $nodes[$frame]['tag'] !== 'table' || ! self::hasClass($nodes[$frame], 'rt-sign-content-frame')
+            || $nodes[$frame]['start'] <= $main['start'] || $nodes[$frame]['end'] >= $main['end']
+            || $nodes[$frame]['children'] !== [$body] || $nodes[$body]['children'] !== [$row]
+            || $nodes[$row]['children'] !== [$content] || $nodes[$content]['children'] !== $flows) {
+            return null;
+        }
+        $style = $nodes[$content]['attrs']['style'] ?? '';
+        if (preg_match_all('/(?:\A|;)\s*padding(?:-[a-z]+)?\s*:/i', $style) !== 1
+            || preg_match('/(?:\A|;)padding:16px 0 0(?=;|\z)/', $style) !== 1) {
+            return null;
+        }
+        $opening = preg_replace_callback('~(\sstyle\s*=\s*)(["\'])(.*?)\2~is', static fn (array $match): string => $match[1].$match[2]
+            .preg_replace('/(^|;)padding:16px 0 0(?=;|\z)/', '$1padding:16px 0 0!important', $match[3]).$match[2], $nodes[$content]['opening'], -1, $count);
+
+        return $count === 1 ? [$nodes[$content], $opening] : null;
     }
 
     /** Own only the known empty writing paragraph, never authored greetings or quoted content. */

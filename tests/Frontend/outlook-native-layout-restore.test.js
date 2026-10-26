@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createNativeLayoutNonce, nativeLayoutRestoreCss, nativeLayoutRestoreRetained, nativeLayoutRestoreStylePayload, prepareNativeLayoutRestore, removeNativeLayoutRestoreCarrier } from '../../resources/js/outlook-addin/native-layout-restore.js';
-import { managedTemplateContract } from '../../resources/js/outlook-addin/managed-template.js';
+import { createNativeLayoutNonce, nativeLayoutRestoreCarrierPresent, nativeLayoutRestoreCss, nativeLayoutRestoreRetained, nativeLayoutRestoreStylePayload, prepareNativeLayoutRestore, removeNativeLayoutRestoreCarrier } from '../../resources/js/outlook-addin/native-layout-restore.js';
+import { managedTemplateContract, standaloneSignatureContract } from '../../resources/js/outlook-addin/managed-template.js';
 
 const nonce = '1234567890abcdef1234567890abcdef';
 const element = (tag, attrs = {}, children = []) => ({ tag, attrs, children });
 const table = (className, children = [], attrs = {}) => element('table', { class: className, ...attrs }, [element('tbody', {}, [element('tr', {}, [element('td', {}, children)])])]);
 
 // This source builder records offsets as it emits bytes; no DOM serialization is used.
-function fixture({ header = true, legacy = false, quotedCopy = false, legal = false, legalColor = '#718096', wire = false } = {}) {
+function fixture({ header = true, legacy = false, quotedCopy = false, legal = false, legalColor = '#718096', wire = false, standalone = false } = {}) {
     const metadata = value => element('span', { hidden: '', style: 'font-size:0;line-height:0;' }, [value]);
     const person = table('rt-personal-left', [element('p', {}, ['Synthetic personal text'])]);
     const company = table('rt-personal-right', [element('img', { src: 'cid:logo.png', width: '180', height: '31' })]);
@@ -22,7 +22,7 @@ function fixture({ header = true, legacy = false, quotedCopy = false, legal = fa
         element('tr', {}, [element('td', { class: 'design-hotline-row' }, [element('strong', {}, ['24/7']), ' reachable'])]),
         element('tr', {}, [element('td', { style: 'color:#718096' }, ['Footer must keep its color'])]),
     ])]);
-    const signature = table('rt-managed-signature-v1 rt-combined-signature-frame', [
+    const signature = table(standalone ? 'rt-managed-signature-v1 rts1234567890' : 'rt-managed-signature-v1 rt-combined-signature-frame', [
         ...(header ? [banner] : []), ...(legacy ? [element('p', {}, ['Legacy source'])] : [flow]),
     ]);
     if (legal) signature.children[0].children.push(element('tr', {}, [element('td', { style: `color:${legalColor};font-size:9px;line-height:14px;` }, [
@@ -35,7 +35,7 @@ function fixture({ header = true, legacy = false, quotedCopy = false, legal = fa
         : [element('p', { class: 'design-spacer' }, ['Editable content'])];
     const tree = element('div', {}, [
         '<!-- prefix with unicode 🚆 and arbitrary bytes -->',
-        table('rt-managed-combined-v1', [table('rt-managed-template-v1', template), signature]),
+        standalone ? signature : table('rt-managed-combined-v1', [table('rt-managed-template-v1', template), signature]),
         ...(quotedCopy ? [element('blockquote', {}, [flow])] : []),
         '<!-- arbitrary suffix -->',
     ]);
@@ -203,4 +203,77 @@ test('observed inner carrier before template permits at most two DIV ancestors a
     const editable = prepared.region;
     const insideUserRegion = plan.html.slice(0, editable.start) + plan.stylePayload + plan.html.slice(editable.start);
     assert.throws(() => nativeLayoutRestoreRetained(insideUserRegion, managedTemplateContract(insideUserRegion), plan.ids), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
+});
+
+test('standalone annotates only six TABLE openings and retains the same exact outside carrier', () => {
+    const source = fixture({ standalone: true, legal: true });
+    const plan = prepareNativeLayoutRestore(source.html, standaloneSignatureContract(source.html), nonce);
+    assert.equal(Object.keys(plan.ids).length, 6);
+    assert.equal(plan.html.replace(/ id="rt-native-layout-[0-9a-f]{32}-[rpcths]"/g, ''), source.html);
+    const body = plan.stylePayload + plan.html;
+    const contract = standaloneSignatureContract(body, body, plan.ids, '1234567890abcdef');
+    assert.equal(nativeLayoutRestoreCarrierPresent(body, contract, plan.ids), true);
+    assert.equal(nativeLayoutRestoreRetained(body, contract, plan.ids), true);
+    assert.equal(removeNativeLayoutRestoreCarrier(body, contract, plan.ids), plan.html);
+    assert.equal((body.match(/<img\b[^>]*>/g) || []).join(''), (source.html.match(/<img\b[^>]*>/g) || []).join(''));
+    const office = body.replace(/id="rt-native-layout-/g, 'id="x_rt-native-layout-').replace(/#rt-native-layout-/g, '#x_rt-native-layout-').replace(/;}/g, '}');
+    assert.equal(nativeLayoutRestoreRetained(office, standaloneSignatureContract(office, office, plan.ids), plan.ids), true);
+});
+
+test('standalone first-row carrier permits only zero to two DIV ancestors before header and native root', () => {
+    const source = fixture({ standalone: true, legal: true });
+    const plan = prepareNativeLayoutRestore(source.html, standaloneSignatureContract(source.html), nonce);
+    const parsed = standaloneSignatureContract(plan.html, plan.html, plan.ids);
+    const header = parsed.elements.find(node => (node.attrs.class || '').split(/\s+/).includes('banner'));
+    for (const depth of [0, 1, 2]) {
+        const carrier = '<div>'.repeat(depth) + plan.stylePayload + 'Preserved preheader bytes' + '</div>'.repeat(depth);
+        const body = plan.html.slice(0, header.start) + carrier + plan.html.slice(header.start);
+        const contract = standaloneSignatureContract(body, body, plan.ids);
+        assert.equal(nativeLayoutRestoreRetained(body, contract, plan.ids), true);
+        assert.equal(removeNativeLayoutRestoreCarrier(body, contract, plan.ids), body.replace(plan.stylePayload, ''));
+    }
+    const tooDeep = plan.html.slice(0, header.start) + '<div><div><div>' + plan.stylePayload + '</div></div></div>' + plan.html.slice(header.start);
+    assert.throws(() => nativeLayoutRestoreRetained(tooDeep, standaloneSignatureContract(tooDeep, tooDeep, plan.ids), plan.ids), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
+});
+
+test('standalone rejects carriers in personal/company/train/header/footer/quote or after the header', () => {
+    const source = fixture({ standalone: true, legal: true });
+    const plan = prepareNativeLayoutRestore(source.html, standaloneSignatureContract(source.html), nonce);
+    const parsed = standaloneSignatureContract(plan.html, plan.html, plan.ids);
+    const targets = ['rt-personal-left', 'rt-personal-right', 'rt-df-train', 'design-hotline-row'];
+    const positions = targets.map(name => {
+        const index = parsed.elements.findIndex(node => (node.attrs.class || '').split(/\s+/).includes(name));
+        if (name === 'design-hotline-row') return parsed.elements[index].openEnd;
+        return parsed.elements.find(node => node.tag === 'td' && node.start > parsed.elements[index].start && node.end < parsed.elements[index].end).openEnd;
+    });
+    const footer = parsed.elements[parsed.signatureMetadata.managed].parent;
+    positions.push(parsed.elements[footer].openEnd);
+    const header = parsed.elements.find(node => (node.attrs.class || '').split(/\s+/).includes('banner'));
+    positions.push(header.end);
+    const bodies = positions.map(position => plan.html.slice(0, position) + plan.stylePayload + plan.html.slice(position));
+    bodies.push('<blockquote>' + plan.stylePayload + '</blockquote>' + plan.html);
+    for (const body of bodies) {
+        const contract = standaloneSignatureContract(body, body, plan.ids);
+        assert.equal(nativeLayoutRestoreCarrierPresent(body, contract, plan.ids), true);
+        assert.throws(() => nativeLayoutRestoreRetained(body, contract, plan.ids), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
+        assert.equal(removeNativeLayoutRestoreCarrier(body, contract, plan.ids), body);
+    }
+});
+
+test('carrier presence is conservative for malformed/quoted/stripped-ID copies and does not count target IDs alone', () => {
+    const source = fixture({ standalone: true, legal: true });
+    const plan = prepareNativeLayoutRestore(source.html, standaloneSignatureContract(source.html), nonce);
+    const contract = standaloneSignatureContract(plan.html, plan.html, plan.ids);
+    assert.equal(nativeLayoutRestoreCarrierPresent(plan.html, contract, plan.ids), false);
+    for (const payload of [plan.stylePayload, '<blockquote>' + plan.stylePayload + '</blockquote>',
+        plan.stylePayload.replace(`id="rt-native-layout-${nonce}-carrier"`, ''),
+        plan.stylePayload.replace(`id="rt-native-layout-${nonce}-carrier"`, '').replace(`RT-NATIVE-LAYOUT-RESTORE-V1:${nonce}`, ''),
+        plan.stylePayload.replace(`id="rt-native-layout-${nonce}-carrier"`, `id="foreign_rt-native-layout-${nonce}-carrier"`)]) {
+        const body = payload + plan.html;
+        assert.equal(nativeLayoutRestoreCarrierPresent(body, standaloneSignatureContract(body, body, plan.ids), plan.ids), true);
+    }
+    const invalidSheet = plan.stylePayload.replace('float:left!important;', 'float:none!important;') + plan.html;
+    const invalidContract = standaloneSignatureContract(invalidSheet, invalidSheet, plan.ids);
+    assert.equal(nativeLayoutRestoreCarrierPresent(invalidSheet, invalidContract, plan.ids), true);
+    assert.throws(() => nativeLayoutRestoreRetained(invalidSheet, invalidContract, plan.ids), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
 });

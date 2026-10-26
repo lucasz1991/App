@@ -338,6 +338,58 @@ export function managedTemplateContract(html, currentHtml = html) {
     return rootContract(html, currentHtml.length);
 }
 
+/** Separate native-signature ownership: never infer a combined/editable document. */
+export function standaloneSignatureContract(html, currentHtml = html, ids = null, expectedVersion = null) {
+    if (typeof html !== 'string' || typeof currentHtml !== 'string' || !html.startsWith(currentHtml)) unavailable();
+    const tree = nodes(html);
+    const { elements } = tree;
+    if (matches(currentHtml, /RT-TEMPLATE-MANAGED-V1|RT-COMPOSE-EDITABLE-(?:START|END)-V\d+/g).some(match => !quotedOffset(elements, match.index))) unavailable();
+    const spans = markerSpans(html, tree, currentHtml.length);
+    const managed = exactlyOne(spans.filter(value => value.value.startsWith('RT-SIGNATURE-MANAGED-')));
+    const merged = /^RT-SIGNATURE-MANAGED-V1\s*RT-SIGNATURE-VERSION:([0-9a-f]{16})$/i.exec(managed.value);
+    const versions = spans.filter(value => value.value.startsWith('RT-SIGNATURE-VERSION:'));
+    const version = merged ? managed : exactlyOne(versions);
+    const token = merged ? merged[1] : /^RT-SIGNATURE-VERSION:([0-9a-f]{16})$/i.exec(version.value)?.[1];
+    if ((!merged && managed.value !== 'RT-SIGNATURE-MANAGED-V1') || (merged && versions.length)
+        || !token || (expectedVersion !== null && token.toLowerCase() !== expectedVersion.toLowerCase())
+        || !metadataHidden(managed.node, elements) || !metadataHidden(version.node, elements)) unavailable();
+    const signatureIndex = tableAncestor(elements, managed.index);
+    const signature = elements[signatureIndex];
+    if (signatureIndex !== tableAncestor(elements, version.index) || signature.end > currentHtml.length || quoted(elements, signatureIndex)) unavailable();
+    const owners = elements.map((node, index) => ({ node, index })).filter(value => value.node.start < currentHtml.length && !quoted(elements, value.index)
+        && has(value.node, 'rt-managed-signature-v1'));
+    let inferred = null;
+    if (!ids) {
+        const retained = /^(?:x_)?(rt-native-layout-[0-9a-f]{32}-)s$/.exec(signature.attrs.id || '');
+        if (retained) {
+            inferred = { root: retained[1] + 'r', person: retained[1] + 'p', company: retained[1] + 'c', train: retained[1] + 't', signature: retained[1] + 's' };
+            if (elements.some(node => (node.attrs.id || '').endsWith(retained[1] + 'h'))) inferred.header = retained[1] + 'h';
+        }
+    }
+    const boundIds = ids || inferred;
+    if (boundIds) {
+        const found = elements.map((node, index) => ({ node, index })).filter(value => typeof value.node.attrs.id === 'string' && value.node.attrs.id.endsWith(boundIds.signature || '\u0000'));
+        if (!boundIds.signature || found.length !== 1 || found[0].index !== signatureIndex
+            || ![boundIds.signature, `x_${boundIds.signature}`].includes(signature.attrs.id)
+            || owners.some(value => value.index !== signatureIndex)) unavailable();
+    } else if (owners.length !== 1 || owners[0].index !== signatureIndex || signature.tag !== 'table' || !scopedTable(signature, 'rts', 10)) unavailable();
+    if (elements.some((node, index) => node.start < currentHtml.length && !quoted(elements, index)
+        && ((node.attrs.class || '').split(/\s+/).some(name => /^(?:x_)?rt-managed-(?:combined|template)-v/.test(name)
+            || (/^(?:x_)?rt-managed-signature-v/.test(name) && !/^(?:x_)?rt-managed-signature-v1$/.test(name)))
+            || owns(node.attrs, 'data-rt-compose-document') || owns(node.attrs, 'data-rt-compose-editable')))) unavailable();
+    return { ...tree, kind: 'standalone-signature-v1', root: signature, rootIndex: signatureIndex,
+        signature: { node: signature, index: signatureIndex }, signatureMetadata: { managed: managed.index, version: version.index },
+        version: token.toLowerCase(), layoutIds: boundIds };
+}
+
+export function hasUnquotedSignatureLayoutCarrier(html, currentHtml = html) {
+    if (typeof currentHtml !== 'string' || !html.startsWith(currentHtml)) unavailable();
+    const tree = nodes(html);
+    return tree.elements.some((node, index) => node.start < currentHtml.length && !quoted(tree.elements, index)
+        && /rt-native-layout-[0-9a-f]{32}-carrier$/.test(node.attrs.id || ''))
+        || matches(currentHtml, /RT-NATIVE-LAYOUT-RESTORE-V1:[0-9a-f]{32}/g).some(match => !quotedOffset(tree.elements, match.index));
+}
+
 function editableRegion(html, contract, allowLegacy) {
     const { elements, template, comments } = contract;
     if (contract.kind === 'text-v1') return contract.region;

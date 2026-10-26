@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import * as automaticPolicy from '../../resources/js/outlook-addin/automatic-compose-policy.js';
+import { isStandaloneSignatureInsertionBlocked } from '../../resources/js/outlook-addin/compose-template.js';
 
 // Exercise the real event coordinator with synthetic auth/Office boundaries.
 // No real account, message body, token, API or network access is used.
@@ -26,6 +27,7 @@ function runtime({ enabled = false, composeType = 'newMail', mobile = false, bin
             onReady() {}, actions: { associate() {} },
         },
         ...automaticPolicy,
+        isStandaloneSignatureInsertionBlocked,
         console, setTimeout, clearTimeout,
         __payload: { automaticInsertionEnabled: enabled,
             automaticInsertion: { schema: 2, composeType, signature: enabled, template: enabled }, binding: {

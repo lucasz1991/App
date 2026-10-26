@@ -353,6 +353,8 @@ const composeLibrary = {
     ...await import('../../resources/js/outlook-addin/mailbox-guard.js'),
     ...await import('../../resources/js/outlook-addin/diagnostics.js'),
     ...await import('../../resources/js/outlook-addin/office-write.js'),
+    ...await import('../../resources/js/outlook-addin/automatic-compose-policy.js'),
+    ...await import('../../resources/js/outlook-addin/automatic-preferences-view.js'),
 };
 const testMailboxBinding = {
     schema: 1, mailboxAddress: 'employee@example.test', senderAddress: 'employee@example.test',
@@ -700,6 +702,8 @@ async function runtimeFixture(options = {}) {
     const media = [{ name: 'railtime-test.png', contentId: 'logo', base64: 'aW1hZ2U=' }];
     const bootstrap = {
         marker,
+        automaticInsertionEnabled: true,
+        automaticInsertion: { schema: 2, composeType: options.composeType || 'newMail', signature: true, template: true },
         binding: testMailboxBinding,
         automaticTemplateId: options.withoutDefault ? null : 'default',
         templates: [{
@@ -711,6 +715,9 @@ async function runtimeFixture(options = {}) {
         signature: { html: '<p>Signature</p><img src="cid:logo">', media },
     };
     fixture.bootstrap = bootstrap;
+    if (['iOS', 'Android'].includes(fixture.office.context.platform)) {
+        fixture.office.context.mailbox.diagnostics = { hostName: `Outlook${fixture.office.context.platform}`, hostVersion: '5.2635.0' };
+    }
     const configuration = {
         ready: true,
         marker,

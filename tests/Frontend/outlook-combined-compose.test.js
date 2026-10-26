@@ -7,6 +7,7 @@ import * as guard from '../../resources/js/outlook-addin/mailbox-guard.js';
 import * as writes from '../../resources/js/outlook-addin/office-write.js';
 import * as diagnostics from '../../resources/js/outlook-addin/diagnostics.js';
 import * as automaticPolicy from '../../resources/js/outlook-addin/automatic-compose-policy.js';
+import { nativeOfficeHtml, officeCarrier, standaloneHtml } from './outlook-standalone-fixture.js';
 
 const ADDRESS = 'employee@company.example';
 const MARKER = 'RT-SIGNATURE-MANAGED-V1';
@@ -156,9 +157,36 @@ async function manualHarness(options = {}) {
         rememberConfirmedInsertion = () => {};
         renderSelectedTemplate = () => {};
         globalThis.__runManual = () => insertTemplate({});
+        globalThis.__runSignature = () => { refreshSignatureCurrentState = async () => {}; return updateSignature({}); };
     `, context);
-    return { ...fixture, manual: state, document, run: () => context.__runManual() };
+    return { ...fixture, manual: state, document, run: () => context.__runManual(), runSignature: () => context.__runSignature() };
 }
+
+test('production manual signature button executes the personal native coordinator and confirms only retained CSS', async () => {
+    const h = await manualHarness({ body: TYPED });
+    h.bootstrap.signature = { html: standaloneHtml(), media: [] };
+    h.item.body.setSignatureAsync = (html, _options, callback) => { h.state.signatures.push(html); h.state.body = nativeOfficeHtml(html) + TYPED; callback(success()); };
+    h.item.body.prependAsync = (html, _options, callback) => { h.state.prepends.push(html); h.state.body = officeCarrier(html) + h.state.body; callback(success()); };
+    await h.runSignature();
+    assert.equal(h.state.signatures.length, 1); assert.equal(h.state.prepends.length, 1);
+    assert.deepEqual(h.state.replacements, []); assert.ok(h.state.body.endsWith(TYPED));
+    assert.ok(h.manual.statuses.some(value => value[0] === 'success'));
+});
+
+test('production manual personal caller never reports success after native IDs disappear', async () => {
+    const h = await manualHarness({ body: TYPED }); h.bootstrap.signature = { html: standaloneHtml(), media: [] };
+    h.item.body.setSignatureAsync = (html, _options, callback) => { h.state.signatures.push(html); h.state.body = nativeOfficeHtml(html).replace(/ id="[^"]*"/g, '') + TYPED; callback(success()); };
+    await assert.rejects(h.runSignature(), { code: 'SIGNATURE_LAYOUT_UNCONFIRMED' });
+    assert.equal(h.state.prepends.length, 0); assert.ok(!h.manual.statuses.some(value => value[0] === 'success'));
+});
+
+test('manual signature refresh alongside a legacy native-only template retains its original native-slot route', async () => {
+    const h = await manualHarness({ body: TYPED + NATIVE_HTML }); h.bootstrap.signature = { html: standaloneHtml(), media: [] };
+    await h.runSignature();
+    assert.equal(h.state.signatures.length, 1); assert.equal(h.state.prepends.length, 0);
+    assert.doesNotMatch(h.state.signatures[0], /id="rt-native-layout-/);
+    assert.ok(h.state.body.includes(NATIVE_HTML));
+});
 
 test('combined selector selects the complete explicit document without changing legacy fields or media', () => {
     const original = Object.freeze(documentContract());

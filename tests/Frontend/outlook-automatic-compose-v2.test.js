@@ -7,6 +7,7 @@ import * as guard from '../../resources/js/outlook-addin/mailbox-guard.js';
 import * as writes from '../../resources/js/outlook-addin/office-write.js';
 import * as diagnostics from '../../resources/js/outlook-addin/diagnostics.js';
 import * as policy from '../../resources/js/outlook-addin/automatic-compose-policy.js';
+import { nativeOfficeHtml, officeCarrier, standaloneHtml } from './outlook-standalone-fixture.js';
 
 const source = (await readFile(new URL('../../resources/js/outlook-addin/runtime.js', import.meta.url), 'utf8'))
     .replace(/^import\s[\s\S]*?\sfrom\s['"][^'"]+['"];\r?$/gm, '');
@@ -108,6 +109,34 @@ function harness({ mode = 'both', composeType = 'newMail', mobile = false, holdN
     vm.runInContext(source + '\nglobalThis.apply = applyPublishedContent;', context);
     return { state, item, office, payload, apply: () => context.apply(item) };
 }
+
+test('production automatic signature-only caller uses the restored personal native path without a template/body rewrite', async () => {
+    const h = harness({ mode: 'signature' }, ({ payload, item, state }) => {
+        payload.signature = { html: standaloneHtml(), media: [] };
+        item.body.setSignatureAsync = (html, _options, callback) => {
+            state.signatures.push(html); if (state.native) state.body = state.body.replace(state.native, '');
+            state.native = nativeOfficeHtml(html); state.body = state.native + state.body; callback(succeeded());
+        };
+        item.body.prependAsync = (html, _options, callback) => { state.prepends.push(html); state.body = officeCarrier(html) + state.body; callback(succeeded()); };
+    });
+    assert.equal(await h.apply(), 'applied');
+    assert.equal(h.state.signatures.length, 1); assert.equal(h.state.prepends.length, 1);
+    assert.match(h.state.prepends[0], /RT-NATIVE-LAYOUT-RESTORE-V1/);
+    assert.deepEqual(h.state.replacements, []); assert.ok(h.state.body.includes(TYPED));
+    assert.equal(compose.standaloneSignatureLayoutIsCurrent(h.state.body, h.state.body, VERSION), true);
+});
+
+test('legacy separate native template plus personal signature retains its established two-part route', async () => {
+    const h = harness({ mode: 'both' }, ({ payload }) => {
+        delete payload.templates[0].composeDocumentMode;
+        payload.templates[0].signature = { html: standaloneHtml(), media: [] };
+    });
+    assert.equal(await h.apply(), 'applied');
+    assert.equal(h.state.prepends.length, 1); assert.match(h.state.prepends[0], /NATIVE-SIGNATURE/);
+    assert.equal(h.state.signatures.length, 1); assert.match(h.state.signatures[0], /data-rt-personal-flow/);
+    assert.doesNotMatch(h.state.signatures[0], /id="rt-native-layout-/);
+    assert.ok(h.state.body.includes(TYPED));
+});
 
 for (const mobile of [false, true]) for (const composeType of ['newMail', 'reply', 'forward']) for (const mode of Object.keys(MODES)) {
     test(`v2 ${mobile ? 'mobile' : 'desktop'} ${composeType} ${mode} routes only authorized artifacts`, async () => {
