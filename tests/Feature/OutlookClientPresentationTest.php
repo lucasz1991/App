@@ -7,6 +7,7 @@ namespace Tests\Feature;
 use App\Models\MailDocument;
 use App\Support\OutlookAddin\OutlookClientPresentation;
 use App\Support\OutlookAddin\OutlookMobileSignature;
+use App\Support\OutlookAddin\OutlookStaticBrandImages;
 use DOMDocument;
 use DOMXPath;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -16,6 +17,64 @@ use Tests\TestCase;
 /** Exercise the final projection after every strict canonical compiler. */
 final class OutlookClientPresentationTest extends TestCase
 {
+    public function test_equal_static_brand_pairs_have_one_image_for_modern_word_and_comment_stripping_clients(): void
+    {
+        $mark = '<img class="rt-mark" src="cid:railtime-mark.png" width="44" height="44" alt="" style="display:block;width:44px;height:44px;mso-hide: all;">';
+        $markFallback = '<!--[if mso]><img class="rt-mark" src="cid:railtime-mark.png" width="44" height="44" alt="" style="display:block;width:44px;height:44px;"><![endif]-->';
+        $logo = '<img class="rt-client-logo oix" src="cid:railtime-logo.png" width="180" height="31" alt="Brand &amp; Rail" style="display:block;width:100%;max-width:200px;height:auto;mso-hide:all;">';
+        $logoFallback = '<!--[if mso]><img class="rt-logo" src="cid:railtime-logo.png" width="180" height="31" alt="Brand &amp; Rail" style="display:block;width:180px;height:auto;"><![endif]-->';
+        $train = '<!--[if !mso]><!--><img class="rt-delivery-train" src="cid:train.gif" width="300" height="38"><!--<![endif]--><!--[if mso]><img class="rt-delivery-train-mso" src="cid:train.png" width="220" height="28"><![endif]-->';
+        $css = '<style data-rt-outlook-signature-inline-css="1">.rts0123456789.oix,.rts0123456789 .oix{display:block;width:100%;max-width:180px;height:auto;mso-hide:all;}</style>';
+        $html = $css.'<div class="rt-outlook-signature rts0123456789">'.$mark."\n".$markFallback.$logo.$logoFallback.$train.'</div>';
+        $output = OutlookStaticBrandImages::project($html);
+        self::assertSame($output, OutlookStaticBrandImages::project($output));
+        self::assertStringContainsString(str_replace('mso-hide: all;', '', $mark), $output);
+        self::assertStringContainsString(str_replace('mso-hide:all;', '', $logo), $output);
+        self::assertStringNotContainsString($markFallback, $output);
+        self::assertStringNotContainsString($logoFallback, $output);
+        self::assertStringContainsString($train, $output);
+        self::assertStringContainsString('max-width:200px;', $output);
+        self::assertStringContainsString('max-width:180px;', $output);
+        self::assertStringNotContainsString('mso-hide', $output, 'Neither the inline IMG nor its generated class can still hide the sole PNG in Word.');
+        $word = preg_replace('~<!--\[if !mso\]><!-->.*?<!--<!\[endif\]-->~s', '', $output);
+        $word = preg_replace('~<!--\[if mso\]>(.*?)<!\[endif\]-->~s', '$1', $word);
+        foreach ([$output, $word, preg_replace('~<!--.*?-->~s', '', $output)] as $view) {
+            foreach (['rt-mark', 'rt-client-logo'] as $class) {
+                self::assertSame(1, $this->xpath($view)->query('//img[contains(concat(" ",normalize-space(@class)," ")," '.$class.' ")]')->length);
+            }
+        }
+    }
+
+    public function test_brand_pair_normalization_preserves_unknown_animated_authored_or_ambiguous_documents(): void
+    {
+        $modern = '<img class="rt-mark" src="cid:railtime-mark.png" width="44" height="44" alt="" style="display:block;mso-hide:all;">';
+        $fallback = '<!--[if mso]><img class="rt-mark" src="cid:railtime-mark.png" width="44" height="44" alt=""><![endif]-->';
+        $pair = $modern.$fallback;
+        foreach ([$modern, $pair.$pair, '<blockquote>'.$pair.'</blockquote>',
+            str_replace('src="cid:railtime-mark.png"', 'src="cid:railtime-mark.gif"', $pair),
+            $modern.str_replace('railtime-mark.png', 'different.png', $fallback),
+            $modern.str_replace('width="44"', 'width="45"', $fallback),
+            $modern.str_replace('alt=""', 'alt="Other"', $fallback),
+            str_replace('class="rt-mark"', 'class="rt-mark rt-logo"', $pair),
+            str_replace('style="display:block;mso-hide:all;"', 'style=display:block;mso-hide:all;', $pair),
+            str_replace('<img class="rt-mark"', '<img srcset="other.png 2x" class="rt-mark"', $modern).$fallback,
+            str_replace('class="rt-mark"', 'class="rt-mark oi9"', $modern).$fallback,
+            '<style data-rt-mail-document-css="template">img{display:none!important;}</style>'.$pair] as $html) {
+            self::assertSame($html, OutlookStaticBrandImages::project($html));
+        }
+    }
+
+    public function test_mobile_documents_bypass_brand_deduplication_even_in_a_desktop_payload_field(): void
+    {
+        $pair = '<img class="rt-mark" src="cid:railtime-mark.png" width="44" height="44" alt="" style="mso-hide:all;">'
+            .'<!--[if mso]><img class="rt-mark" src="cid:railtime-mark.png" width="44" height="44" alt=""><![endif]-->';
+        $mobile = '<div data-rt-compose-document="combined-native-v1">'.$pair.'</div>';
+        $method = new ReflectionMethod(OutlookClientPresentation::class, 'document');
+        self::assertSame($mobile, $method->invoke(null, $mobile, 30000, 12288, true));
+        self::assertSame($pair, $method->invoke(null, $pair, 30000, 12288, false));
+        self::assertSame('outlook-client-presentation-v2', OutlookClientPresentation::REVISION);
+    }
+
     public function test_advanced_authored_logo_class_observers_keep_their_original_contract(): void
     {
         $payload = $this->fixture(false);
@@ -84,13 +143,13 @@ final class OutlookClientPresentationTest extends TestCase
         self::assertSame($result, OutlookClientPresentation::payload($canonical));
         $this->assertMetadataPreserved($canonical, $result);
         $this->assertSignatureVersion($result['signature']['html'], $result['version']['signature']);
-        $this->assertProjection($canonical['signature']['html'], $result['signature']['html'], 30000, 12288);
+        $this->assertProjection($canonical['signature']['html'], $result['signature']['html'], 30000, 12288, normalizeBrands: false);
         self::assertSame($canonical['signature']['media'], $result['signature']['media']);
 
         foreach ($canonical['templates'] as $index => $old) {
             $new = $result['templates'][$index];
-            $this->assertProjection($old['signature']['html'], $new['signature']['html'], 30000, 12288);
-            $this->assertProjection($old['mobileComposeHtml'], $new['mobileComposeHtml'], 30000, 12288);
+            $this->assertProjection($old['signature']['html'], $new['signature']['html'], 30000, 12288, normalizeBrands: false);
+            $this->assertProjection($old['mobileComposeHtml'], $new['mobileComposeHtml'], 30000, 12288, normalizeBrands: false);
             self::assertSame($old['mobileComposeMedia'], $new['mobileComposeMedia']);
             self::assertSame($old['mobileComposeDocumentMode'], $new['mobileComposeDocumentMode']);
             self::assertNotSame($old['mobileComposeVersion'], $new['mobileComposeVersion']);
@@ -100,7 +159,7 @@ final class OutlookClientPresentationTest extends TestCase
             $this->assertSignatureVersion($new['signature']['html'], $new['signatureVersion']);
             $this->assertSignatureVersion($new['mobileComposeHtml'], $new['signatureVersion']);
             foreach (['html', 'composeHtml', 'combinedComposeHtml'] as $field) {
-                $this->assertProjection($old[$field], $new[$field], 99000, 24576, logo: $field !== 'composeHtml');
+                $this->assertProjection($old[$field], $new[$field], 99000, 24576, logo: $field !== 'composeHtml', normalizeBrands: false);
             }
         }
         self::assertSame($result['templates'][0]['html'], $result['template']['html']);
@@ -153,7 +212,7 @@ final class OutlookClientPresentationTest extends TestCase
             self::assertTrue($covered, $id.' remains protected when Office drops all inline styles.');
         }
         self::assertStringNotContainsString('word-break', $xpath->query('//*[@id="named-action"]')->item(0)->getAttribute('style'));
-        self::assertSame($this->comments($before['templates'][0]['composeHtml']), $this->comments($html));
+        self::assertSame($this->comments(OutlookStaticBrandImages::project($before['templates'][0]['composeHtml'])), $this->comments($html));
     }
 
     public function test_logo_isolation_preserves_generic_legacy_rules_and_non_ledger_images(): void
@@ -230,10 +289,11 @@ final class OutlookClientPresentationTest extends TestCase
         self::assertSame(2, substr_count($html, 'RT-SIGNATURE-VERSION:'.$version));
     }
 
-    private function assertProjection(string $old, string $new, int $htmlLimit, int $cssLimit, bool $logo = true): void
+    private function assertProjection(string $old, string $new, int $htmlLimit, int $cssLimit, bool $logo = true, bool $normalizeBrands = true): void
     {
-        self::assertSame($this->images($old), $this->images($new), 'Image sources/dimensions/conditional branches remain intact.');
-        self::assertSame($this->comments($old), $this->comments($new), 'Conditional Word branches stay byte-identical.');
+        $old = $normalizeBrands ? OutlookStaticBrandImages::project($old) : $old;
+        self::assertSame($this->images($old), $this->images($new), 'Only proven duplicate static brand images may be removed; the remaining media/dimensions stay intact.');
+        self::assertSame($this->comments($old), $this->comments($new), 'Unrelated and train conditional Word branches stay byte-identical.');
         self::assertLessThanOrEqual($htmlLimit, intdiv(strlen(mb_convert_encoding($new, 'UTF-16LE', 'UTF-8')), 2));
         $styles = $this->styles($new);
         self::assertLessThan($cssLimit, array_sum(array_map('strlen', $styles)));

@@ -265,7 +265,9 @@ final class V27PersonalLayoutTest extends TestCase
         }
         preg_match_all('~<!--\[if mso\]>(.*?)<!\[endif\]-->~s', $canonical['signature']['html'], $canonicalMso);
         preg_match_all('~<!--\[if mso\]>(.*?)<!\[endif\]-->~s', $desktop['signature']['html'], $desktopMso);
-        self::assertSame($canonicalMso[1], $desktopMso[1], 'Both the logo and train MSO fallbacks remain byte-identical.');
+        $logoFallbacks = array_values(array_filter($canonicalMso[1], static fn (string $branch): bool => preg_match('~\A\s*<img\b[^>]*\bclass="rt-logo"[^>]*>\s*\z~', $branch) === 1));
+        self::assertCount(1, $logoFallbacks);
+        self::assertSame(array_values(array_diff($canonicalMso[1], $logoFallbacks)), $desktopMso[1], 'Only the proven equal PNG logo fallback is removed; the complete train and other MSO branches stay byte-identical.');
         foreach ($desktop['templates'] as $index => $item) {
             $html = $item['combinedComposeHtml'];
             $this->assertPersonalGroups($html);
