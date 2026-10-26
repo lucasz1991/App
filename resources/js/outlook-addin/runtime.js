@@ -9,6 +9,9 @@ import {
     insertMobileCombinedTemplate,
     isMobileComposeHost,
     isTemplateInsertionBlocked,
+    isStandaloneSignatureInsertionBlocked,
+    insertStandaloneSignature,
+    requiresStandaloneSignatureLayout,
     nativeComposeTemplate,
     mobileCombinedComposeDocument,
     mobileTemplateOnlyComposeDocument,
@@ -529,7 +532,7 @@ async function applyPublishedContent(item, isActive = () => true) {
     if (policy.mode !== 'both') pendingNativeSignatures.delete(item);
     reportRuntimePhase('compose-started');
 
-    if (isTemplateInsertionBlocked(item) || hasUncertainWrite(item)) return 'uncertain';
+    if (isTemplateInsertionBlocked(item) || isStandaloneSignatureInsertionBlocked(item) || hasUncertainWrite(item)) return 'uncertain';
 
     // Older templates contain an ordinary HTML signature. Never append a
     // second native signature or rewrite those drafts to convert them. Read
@@ -726,9 +729,17 @@ async function applyPublishedContent(item, isActive = () => true) {
     }
 
     if (signature) {
-        await attachInlineMedia(item, signature.media, assertTarget);
-        await assertTarget();
-        await setSignature(item, signature.html);
+        if (!template && !isMobileComposeHost(Office) && requiresStandaloneSignatureLayout(signature.html)) {
+            await insertStandaloneSignature(Office, item, signature.html, assertTarget, {
+                media: signature.media,
+                beforeInsert: () => attachInlineMedia(item, signature.media, assertTarget),
+                beforeCommit: () => { if (Office.context.mailbox.item !== item) throw codedError('ITEM_CHANGED'); },
+            });
+        } else {
+            await attachInlineMedia(item, signature.media, assertTarget);
+            await assertTarget();
+            await setSignature(item, signature.html);
+        }
     }
     pendingNativeSignatures.delete(item);
     return 'applied';

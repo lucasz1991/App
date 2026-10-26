@@ -1,5 +1,6 @@
-import { managedTemplateContract, managedTemplateReplacement } from './managed-template.js';
-import { nativeLayoutRestoreCss, nativeLayoutRestoreRetained, prepareNativeLayoutRestore, removeNativeLayoutRestoreCarrier } from './native-layout-restore.js';
+import { hasUnquotedSignatureLayoutCarrier, managedTemplateContract, managedTemplateReplacement, standaloneSignatureContract } from './managed-template.js';
+import { createNativeLayoutNonce, nativeLayoutRestoreCarrierPresent, nativeLayoutRestoreCss, nativeLayoutRestoreRetained, prepareNativeLayoutRestore, removeNativeLayoutRestoreCarrier } from './native-layout-restore.js';
+import { confirmedOfficeWrite, markSignatureWriteConfirmed } from './office-write.js';
 
 // Automatic insertion only prepends. Explicit taskpane replacement below owns
 // one verified current-message shell and preserves every outside/quoted byte.
@@ -14,6 +15,8 @@ const TEMPLATE_SESSION_KEY = 'railtime.template.inserted.v1';
 const appliedItems = new WeakSet();
 const observedTemplateRemovals = new WeakSet();
 const insertionOperations = new WeakMap();
+const signatureOperations = new WeakMap();
+const SIGNATURE_SESSION_KEY = 'railtime.signature.layout.v1';
 export const TEMPLATE_INSERT_LIMITS = Object.freeze({
     htmlLength: 100000,
     bodyLength: 500000,
@@ -550,6 +553,7 @@ function nativeTemplateWrite(office, item, html, operation, replace = false) {
  * a boolean allowAdditional option never authorizes another native write.
  */
 export async function prependTemplate(office, item, html, beforeWrite = () => {}, options = {}) {
+    if (signatureOperations.has(item)) throw failure('SIGNATURE_INSERT_UNCERTAIN');
     const pending = insertionOperations.get(item);
     if (pending) throw failure(pending.phase === 'uncertain' ? 'TEMPLATE_INSERT_UNCERTAIN' : 'TEMPLATE_INSERT_IN_PROGRESS');
     const canConfirmAdditional = typeof options.confirmAdditional === 'function';
@@ -601,6 +605,135 @@ async function replacementSnapshot(office, item) {
     return { html: body.value, composeType: compose.value?.composeType };
 }
 
+export function requiresStandaloneSignatureLayout(html) {
+    return typeof html === 'string' && /\bdata-rt-personal-flow\s*=/.test(html);
+}
+
+export function isStandaloneSignatureInsertionBlocked(item) {
+    return signatureOperations.has(item);
+}
+
+function standaloneReadback(snapshot, ids, version) {
+    const current = currentComposeBodyHtml(snapshot.html, snapshot.composeType);
+    const contract = standaloneSignatureContract(snapshot.html, current, ids, version);
+    return layoutIdsContract(snapshot.html, current, ids, contract);
+}
+
+function existingStandalone(snapshot) {
+    const current = currentComposeBodyHtml(snapshot.html, snapshot.composeType);
+    let contract;
+    try { contract = standaloneSignatureContract(snapshot.html, current); } catch { return null; }
+    if (!contract.layoutIds) return null;
+    return { contract: standaloneReadback(snapshot, contract.layoutIds, contract.version), ids: contract.layoutIds };
+}
+
+export function standaloneSignatureLayoutIsCurrent(html, currentHtml, version) {
+    try {
+        const contract = standaloneSignatureContract(html, currentHtml, null, version);
+        if (!contract.layoutIds) return false;
+        const scoped = layoutIdsContract(html, currentHtml, contract.layoutIds, contract);
+        return nativeLayoutRestoreRetained(html, scoped, contract.layoutIds) === true;
+    } catch { return false; }
+}
+
+async function signatureSession(office, item, operation, mode) {
+    const access = sessionAccess(office, item);
+    if (access.succeeded === false) throw failure('SIGNATURE_INSERT_UNCERTAIN', { phase: 'signature-session-capability' });
+    if (!access.supported || typeof item.sessionData?.setAsync !== 'function') return;
+    const read = await officeResult(office, callback => item.sessionData.getAsync(SIGNATURE_SESSION_KEY, callback));
+    const missing = !read.succeeded && read.reason === 'failed' && read.officeCode === '9050';
+    if (mode === 'claim') {
+        if ((!read.succeeded && !missing) || (!missing && ![null, undefined, '', '1'].includes(read.value))) throw failure('SIGNATURE_INSERT_UNCERTAIN', { phase: 'signature-session-claim' });
+        operation.previousSession = read.value === '1' ? '1' : '';
+        await operation.beforeWrite();
+        const stored = await officeResult(office, callback => item.sessionData.setAsync(SIGNATURE_SESSION_KEY, operation.token, callback));
+        if (!stored.succeeded) { operation.phase = 'uncertain'; throw failure('SIGNATURE_INSERT_UNCERTAIN', { phase: 'signature-session-write' }); }
+        operation.sessionClaimed = true;
+        return signatureSession(office, item, operation, 'verify');
+    }
+    if (!operation.sessionClaimed) return;
+    if (!read.succeeded || read.value !== operation.token) { operation.phase = 'uncertain'; throw failure('SIGNATURE_INSERT_UNCERTAIN', { phase: 'signature-session-readback' }); }
+    if (mode === 'complete' || mode === 'release') {
+        await operation.beforeWrite();
+        const value = mode === 'complete' ? '1' : operation.previousSession;
+        const written = await officeResult(office, callback => item.sessionData.setAsync(SIGNATURE_SESSION_KEY, value, callback));
+        if (!written.succeeded) { operation.phase = 'uncertain'; throw failure('SIGNATURE_INSERT_UNCERTAIN', { phase: 'signature-session-finish' }); }
+    }
+}
+
+/** Native slot only; no full-body rewrite and no Template/session ownership. */
+export async function insertStandaloneSignature(office, item, html, beforeWrite = () => {}, options = {}) {
+    if (insertionOperations.has(item)) throw failure('TEMPLATE_INSERT_UNCERTAIN');
+    const pending = signatureOperations.get(item);
+    if (pending) throw failure(pending.phase === 'uncertain' ? 'SIGNATURE_INSERT_UNCERTAIN' : 'SIGNATURE_INSERT_IN_PROGRESS');
+    if (isMobileComposeHost(office) || typeof item?.body?.setSignatureAsync !== 'function') throw failure('SIGNATURE_LAYOUT_UNAVAILABLE');
+    validatedInsertionHtml(html, options.media ?? []);
+    const incoming = standaloneSignatureContract(html);
+    const operation = { phase: 'preflight', beforeWrite, token: `pending:signature:${createNativeLayoutNonce()}` };
+    signatureOperations.set(item, operation);
+    try {
+        const original = await replacementSnapshot(office, item);
+        const current = currentComposeBodyHtml(original.html, original.composeType);
+        if (current === null || templateStateFromBody(original.html, original.composeType).present) throw failure('SIGNATURE_LAYOUT_UNAVAILABLE');
+        const previous = existingStandalone(original);
+        let reuse = null;
+        if (previous) {
+            let valid = false;
+            try { valid = nativeLayoutRestoreRetained(original.html, previous.contract, previous.ids) === true; } catch { /* No retry against a stale carrier. */ }
+            if (!valid) { operation.phase = 'uncertain'; throw failure('SIGNATURE_LAYOUT_UNCONFIRMED'); }
+            if (previous.contract.version === incoming.version) {
+                await beforeWrite(); await signatureSession(office, item, operation, 'claim'); await beforeWrite();
+                const latest = await replacementSnapshot(office, item);
+                if (latest.html !== original.html || latest.composeType !== original.composeType) throw failure('COMPOSE_BODY_CHANGED');
+                options.beforeCommit?.(); await signatureSession(office, item, operation, 'complete'); markSignatureWriteConfirmed(item); return 'current';
+            }
+            reuse = /^rt-native-layout-([0-9a-f]{32})-r$/.exec(previous.ids.root)?.[1];
+            if (!reuse) throw failure('SIGNATURE_LAYOUT_UNAVAILABLE');
+        } else if (hasUnquotedSignatureLayoutCarrier(original.html, current)) { operation.phase = 'uncertain'; throw failure('SIGNATURE_LAYOUT_UNCONFIRMED'); }
+        const layout = prepareNativeLayoutRestore(html, incoming, reuse || undefined);
+        if (layout?.html.length > 30000) throw failure('SIGNATURE_TOO_LARGE');
+        if (!layout?.ids.signature || original.html.length + layout.html.length + layout.stylePayload.length > TEMPLATE_INSERT_LIMITS.bodyLength) throw failure('SIGNATURE_LAYOUT_UNAVAILABLE');
+        await beforeWrite();
+        await signatureSession(office, item, operation, 'claim');
+        await beforeWrite(); await options.beforeInsert?.(); await beforeWrite();
+        await signatureSession(office, item, operation, 'verify');
+        const latest = await replacementSnapshot(office, item);
+        if (latest.html !== original.html || latest.composeType !== original.composeType) throw failure('COMPOSE_BODY_CHANGED');
+        options.beforeCommit?.(); operation.phase = 'writing';
+        await confirmedOfficeWrite(office, item, 'signature-write', 'SIGNATURE_INSERT_UNCERTAIN',
+            callback => item.body.setSignatureAsync(layout.html, { coercionType: office.CoercionType.Html }, callback),
+            { deferSignatureConfirmation: true });
+        operation.bodyApplied = true; operation.phase = 'restoring-layout';
+        await beforeWrite(); await signatureSession(office, item, operation, 'verify'); await beforeWrite();
+        let written = await replacementSnapshot(office, item);
+        if (written.composeType !== original.composeType) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
+        let owned = standaloneReadback(written, layout.ids, incoming.version);
+        let retained = false;
+        try { retained = nativeLayoutRestoreRetained(written.html, owned, layout.ids) === true; } catch { /* Positive proof only. */ }
+        if (!retained) {
+            if (nativeLayoutRestoreCarrierPresent(written.html, owned, layout.ids)) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
+            options.beforeCommit?.();
+            await nativeLayoutStyleWrite(office, item, layout.stylePayload, operation);
+            await beforeWrite(); await signatureSession(office, item, operation, 'verify'); await beforeWrite();
+            written = await replacementSnapshot(office, item);
+            if (written.composeType !== original.composeType) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
+            owned = standaloneReadback(written, layout.ids, incoming.version);
+            if (nativeLayoutRestoreRetained(written.html, owned, layout.ids) !== true) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
+        }
+        options.beforeCommit?.(); await signatureSession(office, item, operation, 'complete');
+        markSignatureWriteConfirmed(item); operation.phase = 'applied'; return 'applied';
+    } catch (error) {
+        if (operation.bodyApplied || ['SIGNATURE_INSERT_UNCERTAIN', 'INLINE_ATTACHMENT_UNCERTAIN'].includes(error?.code) || operation.phase === 'uncertain') {
+            operation.phase = 'uncertain';
+            throw failure(operation.bodyApplied || error?.code === 'SIGNATURE_LAYOUT_UNCONFIRMED' ? 'SIGNATURE_LAYOUT_UNCONFIRMED' : 'SIGNATURE_INSERT_UNCERTAIN', { phase: error?.phase || 'signature-layout-verify' });
+        }
+        try { await signatureSession(office, item, operation, 'release'); } catch { operation.phase = 'uncertain'; }
+        throw error;
+    } finally {
+        if (operation.phase !== 'uncertain' && signatureOperations.get(item) === operation) signatureOperations.delete(item);
+    }
+}
+
 function withinContract(contract, index, parent) {
     for (let current = index; current !== undefined; current = contract.elements[current].parent) {
         if (current === parent) return true;
@@ -608,9 +741,9 @@ function withinContract(contract, index, parent) {
     return false;
 }
 
-function layoutIdsContract(html, currentHtml, ids) {
-    const contract = managedTemplateContract(html, currentHtml);
-    if (contract.kind !== 'text-v1') throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
+function layoutIdsContract(html, currentHtml, ids, standalone = null) {
+    const contract = standalone || managedTemplateContract(html, currentHtml);
+    if (!['text-v1', 'standalone-signature-v1'].includes(contract.kind)) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
     const targets = {};
     for (const key of Object.keys(ids)) {
         // Count every matching ID in the whole body, including quoted history.
@@ -739,6 +872,7 @@ async function restoreNativeLayout(office, item, layout, operation, original, op
 
 /** Explicit user replacement only; automatic/event insertion never calls this. */
 export async function replaceManagedTemplate(office, item, html, beforeWrite = () => {}, options = {}) {
+    if (signatureOperations.has(item)) throw failure('SIGNATURE_INSERT_UNCERTAIN');
     const pending = insertionOperations.get(item);
     if (pending) throw failure(pending.phase === 'uncertain' ? 'TEMPLATE_INSERT_UNCERTAIN' : 'TEMPLATE_INSERT_IN_PROGRESS');
     const markedHtml = validatedInsertionHtml(html, options.media ?? []);

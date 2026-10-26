@@ -7,6 +7,10 @@ export function wasSignatureWriteConfirmed(item) {
     return Boolean(item && confirmedSignatures.has(item));
 }
 
+export function markSignatureWriteConfirmed(item) {
+    confirmedSignatures.add(item);
+}
+
 export function hasUncertainWrite(item) {
     return Boolean(item && uncertainWrites.get(item)?.size);
 }
@@ -49,7 +53,7 @@ export function confirmedOfficeWrite(office, item, phase, uncertainCode, invoke,
                 clearTimeout(timeout);
                 clear();
                 if (result?.status === office.AsyncResultStatus.Succeeded) {
-                    if (phase === 'signature-write') confirmedSignatures.add(item);
+                    if (phase === 'signature-write' && options.deferSignatureConfirmation !== true) confirmedSignatures.add(item);
                     recordDiagnostic(phase, timedOut ? 'late-success' : 'succeeded', null, Date.now() - start);
                     resolve(result.value);
                 } else {

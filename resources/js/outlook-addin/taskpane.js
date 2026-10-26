@@ -4,6 +4,11 @@ import {
 } from '@azure/msal-browser';
 import {
     isTemplateInsertionBlocked,
+    isMobileComposeHost,
+    isStandaloneSignatureInsertionBlocked,
+    insertStandaloneSignature,
+    requiresStandaloneSignatureLayout,
+    standaloneSignatureLayoutIsCurrent,
     combinedComposeDocument,
     currentComposeBodyHtml as scopedComposeBodyHtml,
     prependTemplate,
@@ -627,7 +632,7 @@ async function assertWriteTarget(target, binding) {
 
 function insertionBlocked() {
     const item = globalThis.Office?.context?.mailbox?.item;
-    return Boolean(item && (isTemplateInsertionBlocked(item) || hasUncertainWrite(item)));
+    return Boolean(item && (isTemplateInsertionBlocked(item) || isStandaloneSignatureInsertionBlocked(item) || hasUncertainWrite(item)));
 }
 
 function elements() {
@@ -920,6 +925,10 @@ function signatureIsCurrent(payload, bodyHtml, composeType) {
         return false;
     }
 
+    if (!isMobileComposeHost(Office) && requiresStandaloneSignatureLayout(payload.signature?.html)
+        && !templateStateFromBody(bodyHtml, composeType).present) {
+        return standaloneSignatureLayoutIsCurrent(bodyHtml, currentBodyHtml, expectedVersion);
+    }
     return signatureVersionsFromBody(currentBodyHtml).includes(expectedVersion);
 }
 
@@ -1017,7 +1026,7 @@ function syncActionState() {
     view.signature.dataset.available = authenticatedBootstrap ? 'true' : 'false';
     view.template.dataset.available = authenticatedBootstrap && currentTemplate ? 'true' : 'false';
     const item = globalThis.Office?.context?.mailbox?.item;
-    if (item && (isTemplateInsertionBlocked(item) || hasUncertainWrite(item))) {
+    if (item && (isTemplateInsertionBlocked(item) || isStandaloneSignatureInsertionBlocked(item) || hasUncertainWrite(item))) {
         view.template.dataset.available = 'false';
         view.signature.dataset.available = 'false';
         view.templateActionDetail.textContent = 'Outlook hat die letzte Einfügung noch nicht eindeutig bestätigt. Nachricht prüfen; nicht erneut einfügen.';
@@ -1193,6 +1202,12 @@ function userMessage(error) {
     }
     if (code === 'TEMPLATE_LAYOUT_UNCONFIRMED') {
         return 'Die Vorlage wurde mit Ihrem Nachrichtentext ersetzt. Outlook konnte die Darstellung jedoch nicht sicher bestätigen. Bitte den Entwurf prüfen; der Austausch wird nicht automatisch wiederholt.';
+    }
+    if (code === 'SIGNATURE_LAYOUT_UNCONFIRMED') {
+        return 'Die Darstellung der Signatur ist nicht sicher bestätigt. Nachrichtentext und Zitate wurden nicht neu geschrieben. Bitte den Entwurf prüfen; die Aktualisierung wird nicht automatisch wiederholt.';
+    }
+    if (code === 'SIGNATURE_LAYOUT_UNAVAILABLE') {
+        return 'Die Signatur lässt sich in diesem Entwurf nicht sicher aktualisieren. Ihr Nachrichtentext bleibt erhalten. Bitte einen neuen Entwurf verwenden.';
     }
 
     if (/MAILBOX|SENDER/.test(code) || code === 'HTTP_403') {
@@ -1434,7 +1449,7 @@ async function withAuthenticatedBootstrap(button, callback) {
 
     try {
         const target = captureComposeTarget();
-        if (isTemplateInsertionBlocked(target.item) || hasUncertainWrite(target.item)) {
+        if (isTemplateInsertionBlocked(target.item) || isStandaloneSignatureInsertionBlocked(target.item) || hasUncertainWrite(target.item)) {
             throw codedError('TEMPLATE_INSERT_UNCERTAIN');
         }
         const accessToken = await diagnoseStep('authentication', () => acquireAccessToken(currentConfig, true));
@@ -1479,9 +1494,19 @@ async function updateSignature(button) {
             throw codedError('SET_SIGNATURE_UNAVAILABLE');
         }
 
-        await attachInlineMedia(target, signature.media, bootstrap.binding);
-        await assertWriteTarget(target, bootstrap.binding);
-        await setSignature(item, signature.html);
+        if (!state.present && !isMobileComposeHost(Office) && requiresStandaloneSignatureLayout(signature.html)) {
+            taskpaneState.signatureCurrent = false;
+            await insertStandaloneSignature(Office, item, signature.html, () => assertWriteTarget(target, bootstrap.binding), {
+                media: signature.media,
+                beforeInsert: () => attachInlineMedia(target, signature.media, bootstrap.binding),
+                beforeCommit: () => assertComposeTarget(target),
+            });
+            rememberConfirmedInsertion(item, 'signature', bootstrap.binding);
+        } else {
+            await attachInlineMedia(target, signature.media, bootstrap.binding);
+            await assertWriteTarget(target, bootstrap.binding);
+            await setSignature(item, signature.html);
+        }
         assertComposeTarget(target);
         await refreshSignatureCurrentState();
         assertComposeTarget(target);

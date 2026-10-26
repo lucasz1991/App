@@ -121,27 +121,53 @@ function normalizedRestoreCss(css, ids) {
     return normalized.replace(/\s+/g, '').replace(/;}/g, '}');
 }
 
+function standaloneSignatureFrame(contract, nodes) {
+    const frame = contract.signature;
+    const root = contract.root?.node || contract.root;
+    const rootIndex = contract.root?.node ? contract.root.index : contract.rootIndex;
+    if (!Number.isInteger(frame?.index) || nodes[frame.index] !== frame.node
+        || frame.node.tag !== 'table' || root !== frame.node || rootIndex !== frame.index) invalid();
+    return frame;
+}
+
+/** Any same-operation carrier, even invalid/quoted, prevents another prepend. */
+export function nativeLayoutRestoreCarrierPresent(html, contract, ids) {
+    const scope = idsScope(ids);
+    if (typeof html !== 'string' || !Array.isArray(contract?.elements)) invalid();
+    const carrierId = PREFIX + scope + '-carrier';
+    return contract.elements.some(node => (typeof node?.attrs?.id === 'string' && node.attrs.id.endsWith(carrierId))
+        || (node?.tag === 'style' && html.slice(node.openEnd, node.close).includes(PREFIX + scope)))
+        || html.includes('RT-NATIVE-LAYOUT-RESTORE-V1:' + scope);
+}
+
 function retainedCarrier(html, contract, ids) {
     const scope = idsScope(ids);
     const nodes = contract?.elements;
     if (typeof html !== 'string' || !Array.isArray(nodes) || !contract.root || !contract.signature) invalid();
+    const standalone = contract.kind === 'standalone-signature-v1';
+    const frame = standalone ? standaloneSignatureFrame(contract, nodes) : null;
     const actualIds = {};
+    const targets = {};
     for (const key of Object.keys(ids)) {
         const matches = nodes.map((node, index) => ({ node, index })).filter(value => typeof value.node.attrs.id === 'string' && value.node.attrs.id.endsWith(ids[key]));
         if (matches.length !== 1 || matches[0].node.tag !== 'table'
             || ![ids[key], 'x_' + ids[key]].includes(matches[0].node.attrs.id)
             || !within(nodes, matches[0].index, contract.signature.index) || isQuoted(nodes, matches[0].index)) invalid();
         actualIds[key] = matches[0].node.attrs.id;
+        targets[key] = matches[0];
     }
     const carrierId = PREFIX + scope + '-carrier';
     const carriers = nodes.map((node, index) => ({ node, index })).filter(value => typeof value.node.attrs.id === 'string' && value.node.attrs.id.endsWith(carrierId));
     if (carriers.length !== 1 || carriers[0].node.tag !== 'table'
         || ![carrierId, 'x_' + carrierId].includes(carriers[0].node.attrs.id) || isQuoted(nodes, carriers[0].index)) invalid();
     const carrier = carriers[0];
-    const outsideRoot = carrier.node.end <= contract.root.start || carrier.node.start >= contract.root.end;
+    const root = frame?.node || contract.root;
+    const outsideRoot = carrier.node.end <= root.start || carrier.node.start >= root.end;
     if (!outsideRoot) {
-        const rootBody = onlyChild(nodes, contract.rootIndex, 'tbody');
-        const rootRow = onlyChild(nodes, rootBody.index, 'tr');
+        const rootBody = onlyChild(nodes, standalone ? frame.index : contract.rootIndex, 'tbody');
+        const rows = standalone ? children(nodes, rootBody.index) : null;
+        if (standalone && (rows.length !== 2 || rows.some(value => value.node.tag !== 'tr'))) invalid();
+        const rootRow = standalone ? rows[0] : onlyChild(nodes, rootBody.index, 'tr');
         const rootCell = onlyChild(nodes, rootRow.index, 'td');
         let parent = carrier.node.parent;
         let wrappers = 0;
@@ -150,7 +176,12 @@ function retainedCarrier(html, contract, ids) {
             parent = nodes[parent].parent;
             wrappers += 1;
         }
-        if (!contract.template || carrier.node.end > contract.template.node.start
+        if (standalone) {
+            if (!within(nodes, targets.root.index, rootCell.index)
+                || carrier.node.end > targets.root.node.start
+                || (targets.header && (!within(nodes, targets.header.index, rootCell.index)
+                    || carrier.node.end > targets.header.node.start))) invalid();
+        } else if (!contract.template || carrier.node.end > contract.template.node.start
             || carrier.node.end > contract.signature.node.start
             || within(nodes, carrier.index, contract.template.index) || within(nodes, carrier.index, contract.signature.index)) invalid();
     }
@@ -202,7 +233,7 @@ export function removeNativeLayoutRestoreCarrier(html, contract, ids) {
 /**
  * The contract must come from the managed-template parser for this exact trusted
  * incoming document, before editable content is spliced into its new shell.
- * The coordinator must verify every ID after setAsync before prepending stylePayload.
+ * The coordinator must verify every ID after the SDK write before prepending stylePayload.
  */
 export function prepareNativeLayoutRestore(html, contract, nonce) {
     if (typeof html !== 'string' || !Array.isArray(contract?.elements)
@@ -211,6 +242,7 @@ export function prepareNativeLayoutRestore(html, contract, nonce) {
     if (nodes.some(node => !node || !node.attrs || typeof node.attrs !== 'object')) invalid();
     const owner = contract.signature.index;
     if (!nodes[owner] || nodes[owner] !== contract.signature.node) invalid();
+    if (contract.kind === 'standalone-signature-v1') standaloneSignatureFrame(contract, nodes);
     const signature = one(nodes, owner, 'rt-managed-signature-v1', 'table');
     const candidates = nodes.map((node, index) => ({ node, index })).filter(value => within(nodes, value.index, signature.index)
         && (has(value.node, 'rt-personal-columns') || owns(value.node.attrs, FLOW)));

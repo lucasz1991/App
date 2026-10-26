@@ -72,7 +72,7 @@ final class OutlookClientPresentationTest extends TestCase
         $method = new ReflectionMethod(OutlookClientPresentation::class, 'document');
         self::assertSame($mobile, $method->invoke(null, $mobile, 30000, 12288, true));
         self::assertSame($pair, $method->invoke(null, $pair, 30000, 12288, false));
-        self::assertSame('outlook-client-presentation-v2', OutlookClientPresentation::REVISION);
+        self::assertSame('outlook-client-presentation-v3', OutlookClientPresentation::REVISION);
     }
 
     public function test_advanced_authored_logo_class_observers_keep_their_original_contract(): void
@@ -109,6 +109,9 @@ final class OutlookClientPresentationTest extends TestCase
         self::assertNotSame($canonical['version']['signature'], $result['version']['signature']);
         $this->assertProjection($canonical['signature']['html'], $result['signature']['html'], 30000, 12288);
         self::assertSame($canonical['signature']['media'], $result['signature']['media']);
+        $owner = $this->xpath($result['signature']['html'])->query('//div[contains(concat(" ",normalize-space(@class)," ")," rt-outlook-signature ")]/table[contains(concat(" ",normalize-space(@class)," ")," rt-managed-signature-v1 ")]');
+        self::assertSame(1, $owner->length, 'Standalone exposes the same trusted incoming frame owner without a combined document.');
+        self::assertMatchesRegularExpression('/\brts[0-9a-f]{10}\b/', $owner->item(0)->getAttribute('class'));
 
         foreach ($canonical['templates'] as $index => $old) {
             $new = $result['templates'][$index];
@@ -118,6 +121,7 @@ final class OutlookClientPresentationTest extends TestCase
             self::assertSame($old['signatureDocumentId'], $new['signatureDocumentId']);
             self::assertSame($old['signature']['media'], $new['signature']['media']);
             self::assertSame($result['version']['signature'], $new['signatureVersion']);
+            self::assertSame(1, $this->xpath($new['signature']['html'])->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-managed-signature-v1 ")]')->length);
             $this->assertSignatureVersion($new['signature']['html'], $new['signatureVersion']);
             $this->assertSignatureVersion($new['html'], $new['signatureVersion']);
             $this->assertSignatureVersion($new['combinedComposeHtml'], $new['signatureVersion']);
