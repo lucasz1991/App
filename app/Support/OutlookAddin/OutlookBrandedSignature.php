@@ -119,6 +119,185 @@ final class OutlookBrandedSignature
         return self::replace($rows, $edits);
     }
 
+    /** Compact only proven personal contact leaves after the canonical geometry gates. */
+    public static function compactRecipientContactSpacing(string $html): string
+    {
+        if (! str_contains($html, 'outlook-desktop-flow-v7') && ! str_contains($html, 'rt-mobile-hybrid-v2')) {
+            return $html;
+        }
+        preg_match_all('~<style\b[^>]*\bdata-rt-mail-document-css\s*=\s*(["\'])[^"\']+\1[^>]*>(.*?)</style\s*>~is', $html, $authored, PREG_SET_ORDER);
+        if (array_filter($authored, static fn (array $sheet): bool => trim($sheet[2]) !== '') !== []) {
+            return $html;
+        }
+        preg_match_all('~<style\b([^>]*)>(.*?)</style\s*>~is', $html, $sheets, PREG_SET_ORDER);
+        foreach ($sheets as $sheet) {
+            if (trim($sheet[2]) !== '' && preg_match('~\bdata-rt-(?:outlook-(?:signature(?:-inline)?|mobile|marker|template)-css|combined-compose-css|desktop-flow-css)\s*=\s*(["\'])1\1~i', $sheet[1]) !== 1) {
+                return $html;
+            }
+        }
+        $nodes = self::nodes($html);
+        $quoteBoundary = strlen($html);
+        foreach ($nodes as $node) {
+            if (($node['attrs']['name'] ?? '') === '_MailOriginal' || ($node['attrs']['id'] ?? '') === 'divRplyFwdMsg') {
+                $quoteBoundary = min($quoteBoundary, $node['start']);
+            }
+        }
+        $quoted = static function (int $index) use ($nodes, $quoteBoundary): bool {
+            if ($nodes[$index]['start'] >= $quoteBoundary) {
+                return true;
+            }
+            for ($parent = $index; $parent !== null; $parent = $nodes[$parent]['parent']) {
+                if ($nodes[$parent]['tag'] === 'blockquote') {
+                    return true;
+                }
+            }
+
+            return false;
+        };
+        $flows = array_keys(array_filter($nodes, static fn (array $node, int $index): bool => ! $quoted($index) && $node['tag'] === 'table'
+            && (($node['attrs']['data-rt-desktop-flow'] ?? '') === 'outlook-desktop-flow-v7' && ($node['attrs']['data-rt-personal-flow'] ?? '') === 'v1'
+                || ($node['attrs']['data-rt-mobile-hybrid'] ?? '') === 'v2' && self::has($node, 'rt-mobile-hybrid-v2')), ARRAY_FILTER_USE_BOTH));
+        if ($flows === []) {
+            return $html;
+        }
+        if (count($flows) !== 1) {
+            self::fail();
+        }
+        $flow = $flows[0];
+        $artifact = $root = null;
+        for ($parent = $nodes[$flow]['parent']; $parent !== null; $parent = $nodes[$parent]['parent']) {
+            if ($nodes[$parent]['tag'] === 'tr' && ($nodes[$parent]['attrs']['data-rt-artifact-version'] ?? '') === 'v27') {
+                $artifact = $parent;
+            }
+            if ($nodes[$parent]['tag'] === 'div' && (self::has($nodes[$parent], 'rt-outlook-signature') || self::has($nodes[$parent], 'xz'))) {
+                $root = $parent;
+                break;
+            }
+        }
+        if ($artifact === null || $root === null) {
+            self::fail();
+        }
+        $values = static function (string $style, string $property): array {
+            $values = [];
+            foreach (self::styleParts($style) as $part) {
+                if (preg_match('/\A\s*'.preg_quote($property, '/').'\s*:\s*(.*?)\s*;?\z/is', $part, $value)) {
+                    $values[] = strtolower(trim(preg_replace('/\s*!important\s*\z/i', '', $value[1])));
+                }
+            }
+
+            return $values;
+        };
+        $bottom = static function (string $style): ?array {
+            $sides = array_fill_keys(['top', 'right', 'bottom', 'left'], null);
+            $priority = array_fill_keys(array_keys($sides), [-1, -1]);
+            foreach (self::styleParts($style) as $order => $part) {
+                if (! preg_match('/\A\s*(padding(?:-(?:top|right|bottom|left))?)\s*:\s*(.*?)\s*;?\z/is', $part, $declaration)) {
+                    continue;
+                }
+                $important = preg_match('/\s*!important\s*\z/i', $declaration[2]) === 1;
+                $value = trim(preg_replace('/\s*!important\s*\z/i', '', $declaration[2]));
+                if (strtolower($declaration[1]) === 'padding') {
+                    $parts = preg_split('/\s+/', $value);
+                    if (count($parts) < 1 || count($parts) > 4) {
+                        return null;
+                    }
+                    $expanded = ['top' => $parts[0], 'right' => $parts[1] ?? $parts[0], 'bottom' => $parts[2] ?? $parts[0], 'left' => $parts[3] ?? $parts[1] ?? $parts[0]];
+                } else {
+                    $expanded = [substr(strtolower($declaration[1]), 8) => $value];
+                }
+                foreach ($expanded as $side => $value) {
+                    if (! preg_match('/\A(?:0(?:px)?|[149]px)\z/', $value)) {
+                        return null;
+                    }
+                    if ([(int) $important, $order] >= $priority[$side]) {
+                        $priority[$side] = [(int) $important, $order];
+                        $sides[$side] = $value === '0px' ? '0' : $value;
+                    }
+                }
+            }
+
+            return $sides['top'] === '0' && $sides['right'] === '0' && in_array($sides['bottom'], ['0', '1px', '4px'], true) && in_array($sides['left'], ['0', '9px'], true) ? $sides : null;
+        };
+        $deduplicate = static function (string $style): string {
+            $seen = [];
+            $parts = self::styleParts($style);
+            foreach (array_reverse(array_keys($parts)) as $key) {
+                if (preg_match('/\A\s*(font-size\s*:\s*13px|word-break\s*:\s*normal|overflow-wrap\s*:\s*anywhere)\s*(!important)?\s*;?\z/i', $parts[$key], $known)) {
+                    $identity = preg_replace('/\s+/', '', strtolower($known[1].($known[2] ?? '')));
+                    if (isset($seen[$identity])) {
+                        unset($parts[$key]);
+                    }
+                    $seen[$identity] = true;
+                }
+            }
+
+            return implode('', $parts);
+        };
+        $edits = [];
+        foreach (['rt-personal-direct', 'rt-personal-company-contacts'] as $groupClass) {
+            $groups = array_keys(array_filter($nodes, static fn (array $node, int $index): bool => $node['tag'] === 'div' && self::has($node, $groupClass) && self::within($nodes, $index, $flow), ARRAY_FILTER_USE_BOTH));
+            if (count($groups) !== 1) {
+                self::fail();
+            }
+            $tables = array_keys(array_filter($nodes, static fn (array $node, int $index): bool => $node['tag'] === 'table' && (self::has($node, 'rt-contact') || self::has($node, 'xe')) && self::within($nodes, $index, $groups[0]), ARRAY_FILTER_USE_BOTH));
+            if (count($tables) !== 1) {
+                self::fail();
+            }
+            $rows = self::direct($nodes, $tables[0]);
+            if (count($rows) === 1 && $nodes[$rows[0]]['tag'] === 'tbody') {
+                $rows = self::direct($nodes, $rows[0]);
+            }
+            if ($rows === [] || count($rows) > 6) {
+                self::fail();
+            }
+            foreach ($rows as $row) {
+                $cells = self::rowCells($html, $nodes, $row, 2);
+                [$icon, $text] = $cells;
+                if ((! self::has($nodes[$icon], 'rt-contact-icon') && ! self::has($nodes[$icon], 'xh'))
+                    || (! self::has($nodes[$text], 'rt-contact-text') && ! self::has($nodes[$text], 'xg'))) {
+                    self::fail();
+                }
+                $paragraph = self::singleChild($html, $nodes, $text, 'p');
+                if (! self::has($nodes[$paragraph], 'rt-delivery-contact-value') && ! self::has($nodes[$paragraph], 'xt')) {
+                    self::fail();
+                }
+                $textStyle = $nodes[$text]['attrs']['style'] ?? '';
+                $paragraphStyle = $nodes[$paragraph]['attrs']['style'] ?? '';
+                foreach ([$textStyle, $paragraphStyle] as $style) {
+                    if (array_diff($values($style, 'font-size'), ['13px']) !== [] || array_diff($values($style, 'line-height'), ['16px', '18px', '20px']) !== []) {
+                        return $html;
+                    }
+                }
+                $wrapInherited = $values($textStyle, 'overflow-wrap') !== [] && array_diff($values($textStyle, 'overflow-wrap'), ['anywhere']) === [];
+                $paragraphStyle = self::property(self::property($paragraphStyle, 'font-size', '13px'), 'line-height', '16px');
+                if ($wrapInherited && array_diff($values($paragraphStyle, 'overflow-wrap'), ['anywhere']) === []) {
+                    $paragraphStyle = implode('', array_filter(self::styleParts($paragraphStyle), static fn (string $part): bool => preg_match('/\A\s*overflow-wrap\s*:/i', $part) !== 1));
+                }
+                $edits[] = [$nodes[$paragraph]['start'], $nodes[$paragraph]['openEnd'] - $nodes[$paragraph]['start'], self::opening($nodes[$paragraph], ['style' => $paragraphStyle])];
+                foreach ([$icon, $text] as $cell) {
+                    $style = $nodes[$cell]['attrs']['style'] ?? '';
+                    $padding = $bottom($style);
+                    if ($padding === null) {
+                        return $html;
+                    }
+                    if ($cell === $text) {
+                        $style = implode('', array_filter(self::styleParts($style), static fn (string $part): bool => preg_match('/\A\s*font-size\s*:\s*13px\s*(?:!important\s*)?;?\z/i', $part) !== 1));
+                        $style = $deduplicate($style);
+                    }
+                    if ($padding['bottom'] === '4px') {
+                        $style = self::property($style, 'padding', '0 0 1px'.($padding['left'] === '9px' ? ' 9px' : ''));
+                    }
+                    if ($cell === $text) {
+                        $style = self::property($style, 'line-height', '16px');
+                    }
+                    $edits[] = [$nodes[$cell]['start'], $nodes[$cell]['openEnd'] - $nodes[$cell]['start'], self::opening($nodes[$cell], ['style' => $style])];
+                }
+            }
+        }
+
+        return self::replace($html, $edits);
+    }
+
     /** Final wire geometry, after reversible compilers and their CSS mirrors. */
     public static function recipientTables(string $html): string
     {

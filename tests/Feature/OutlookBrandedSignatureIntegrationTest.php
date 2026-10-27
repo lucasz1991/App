@@ -411,6 +411,9 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
             $this->assertHorizontalGutter($templatePad, ! $mobile && str_contains($html, 'data-rt-recipient-gutters="v1"') ? 0 : ($mobile ? 18 : 40));
         }
         if ($personal) {
+            if ($responsive || $mobileHybrid) {
+                $this->assertCompactContacts($xpath);
+            }
             $companyContacts = $xpath->query('//div[contains(concat(" ",normalize-space(@class)," ")," rt-personal-company-contacts ")]');
             self::assertSame(1, $companyContacts->length);
             self::assertMatchesRegularExpression($responsive ? '/padding-top\s*:\s*0(?:px)?\s*;/i' : ($mobileHybrid ? '/padding-top\s*:\s*4px!important/i' : '/padding-top\s*:\s*14px/i'), $companyContacts->item(0)->getAttribute('style'));
@@ -452,6 +455,33 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
         } else {
             self::assertSame(0, $xpath->query('//div[contains(concat(" ",normalize-space(@class)," ")," rt-personal-name ")]')->length, 'The company-shaped provider actually uses the separate system signature source.');
             self::assertSame(0, $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-personal-logo-frame ")]')->length);
+        }
+    }
+
+    /** The final recipient hook must reach both semantic and compact mobile contacts. */
+    private function assertCompactContacts(DOMXPath $xpath): void
+    {
+        foreach (['rt-personal-direct', 'rt-personal-company-contacts'] as $groupClass) {
+            $groups = $xpath->query('//div[contains(concat(" ",normalize-space(@class)," ")," '.$groupClass.' ")]');
+            self::assertSame(1, $groups->length);
+            $rows = $xpath->query('.//table[contains(concat(" ",normalize-space(@class)," ")," rt-contact ") or contains(concat(" ",normalize-space(@class)," ")," xe ")]/tbody/tr | .//table[contains(concat(" ",normalize-space(@class)," ")," rt-contact ") or contains(concat(" ",normalize-space(@class)," ")," xe ")]/tr', $groups->item(0));
+            self::assertGreaterThan(0, $rows->length);
+            foreach ($rows as $index => $row) {
+                $cells = $xpath->query('./td', $row);
+                self::assertSame(2, $cells->length);
+                [$icon, $text] = [$cells->item(0), $cells->item(1)];
+                self::assertMatchesRegularExpression('/(?:^|;)\s*font-size\s*:\s*0(?:px)?\s*(?:!important\s*)?(?:;|$)/i', $icon->getAttribute('style'));
+                self::assertMatchesRegularExpression('/(?:^|;)\s*line-height\s*:\s*0(?:px)?\s*(?:!important\s*)?(?:;|$)/i', $icon->getAttribute('style'));
+                self::assertStringContainsString('line-height:16px!important;', $text->getAttribute('style'));
+                $paragraphs = $xpath->query('./p[contains(concat(" ",normalize-space(@class)," ")," rt-delivery-contact-value ") or contains(concat(" ",normalize-space(@class)," ")," xt ")]', $text);
+                self::assertSame(1, $paragraphs->length);
+                self::assertStringContainsString('font-size:13px!important;line-height:16px!important;', $paragraphs->item(0)->getAttribute('style'), 'A zero-font hybrid ancestor must not introduce a larger paragraph strut.');
+                self::assertStringContainsString('word-break:break-all', $paragraphs->item(0)->getAttribute('style'));
+                if ($index < $rows->length - 1) {
+                    self::assertStringContainsString('padding:0 0 1px!important;', $icon->getAttribute('style'));
+                    self::assertStringContainsString('padding:0 0 1px 9px!important;', $text->getAttribute('style'));
+                }
+            }
         }
     }
 
