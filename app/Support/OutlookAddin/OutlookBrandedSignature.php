@@ -122,6 +122,7 @@ final class OutlookBrandedSignature
     /** Final wire geometry, after reversible compilers and their CSS mirrors. */
     public static function recipientTables(string $html): string
     {
+        $html = self::transparentLogoSurface($html);
         if (OutlookDesktopFlow::mobile($html)) {
             return $html;
         }
@@ -187,6 +188,90 @@ final class OutlookBrandedSignature
             $edits[] = [$cell['start'], $cell['openEnd'] - $cell['start'], self::opening($cell, ['style' => $style])];
             $edits[] = [$cell['openEnd'], $cell['close'] - $cell['openEnd'], $wrapped];
         }
+
+        return self::replace($html, $edits);
+    }
+
+    /** Release only the managed logo's white carrier, after all CSS mirrors. */
+    public static function transparentLogoSurface(string $html): string
+    {
+        if (! str_contains($html, 'rt-personal-logo-frame') || ! str_contains($html, 'data-rt-artifact-version')) {
+            return $html;
+        }
+        $nodes = self::nodes($html);
+        $frames = array_keys(array_filter($nodes, static fn (array $node): bool => $node['tag'] === 'table' && self::has($node, 'rt-personal-logo-frame')));
+        if (count($frames) !== 1) {
+            return $html;
+        }
+        $frame = $frames[0];
+        $artifacts = array_keys(array_filter($nodes, static fn (array $node, int $index): bool => ($node['attrs']['data-rt-artifact-version'] ?? '') === 'v27' && self::within($nodes, $frame, $index), ARRAY_FILTER_USE_BOTH));
+        $roots = array_keys(array_filter($nodes, static fn (array $node, int $index): bool => (self::has($node, 'rt-outlook-signature') || self::has($node, 'rt-outlook-template')
+            || (self::has($node, 'xz') && self::has($node, 'xy') && self::has($node, 'x10'))) && self::within($nodes, $frame, $index), ARRAY_FILTER_USE_BOTH));
+        $images = array_keys(array_filter($nodes, static fn (array $node, int $index): bool => $node['tag'] === 'img' && self::within($nodes, $index, $frame), ARRAY_FILTER_USE_BOTH));
+        $node = $nodes[$frame];
+        if (count($artifacts) !== 1 || count($roots) !== 1 || count($images) !== 1
+            || (! self::has($nodes[$images[0]], 'rt-logo') && ! self::has($nodes[$images[0]], 'rt-client-logo'))
+            || (isset($node['attrs']['bgcolor']) && ! self::white($node['attrs']['bgcolor']))
+            || self::ambiguousBackground($node['attrs']['style'] ?? '')) {
+            return $html;
+        }
+        $style = self::withoutWhiteBackground($node['attrs']['style'] ?? '');
+        if ($style === ($node['attrs']['style'] ?? '') && ! isset($node['attrs']['bgcolor'])) {
+            return $html;
+        }
+        $classes = self::classes($node);
+        $remove = [];
+        $blocked = false;
+        $edits = [];
+        preg_match_all('~(<style\b[^>]*>)(.*?)(</style\s*>)~is', $html, $styles, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
+        foreach ($styles as $sheet) {
+            if (! preg_match('~\bdata-rt-outlook-(?:signature-inline|mobile)-css\s*=\s*(?:"1"|\'1\'|1(?=[\s>]))~i', $sheet[1][0])) {
+                continue;
+            }
+            $css = preg_replace_callback('~([^{}]+)\{([^{}]*)\}~', static function (array $rule) use ($nodes, $frame, $classes, &$remove, &$blocked): string {
+                if (! preg_match('/\A\s*[.a-z0-9_,\s-]+\s*\z/i', $rule[1])) {
+                    return $rule[0];
+                }
+                $aliases = [];
+                foreach (explode(',', trim($rule[1])) as $selector) {
+                    if (! preg_match('/\.([a-z][a-z0-9_-]*)\s*\z/i', $selector, $match)) {
+                        return $rule[0];
+                    }
+                    $aliases[] = $match[1];
+                }
+                $alias = $aliases[0];
+                if (count(array_unique($aliases)) !== 1 || ! in_array($alias, $classes, true)
+                    || ! preg_match('/\A(?:oi[0-9a-z]+|[a-z]{1,3})\z/', $alias)
+                    || self::ambiguousBackground($rule[2]) || ($pruned = self::withoutWhiteBackground($rule[2])) === $rule[2]) {
+                    return $rule[0];
+                }
+                if (trim($pruned, "; \t\r\n") === '') {
+                    // Mobile compaction shares paint-only aliases. Detach the
+                    // one logo carrier, retaining its independent size rules.
+                    $remove[] = $alias;
+
+                    return $rule[0];
+                }
+                if (array_filter($nodes, static fn (array $candidate, int $index): bool => $index !== $frame && self::has($candidate, $alias), ARRAY_FILTER_USE_BOTH) !== []) {
+                    $blocked = true;
+
+                    return $rule[0];
+                }
+
+                return $rule[1].'{'.$pruned.'}';
+            }, $sheet[2][0]);
+            if ($css !== $sheet[2][0]) {
+                $edits[] = [$sheet[2][1], strlen($sheet[2][0]), $css];
+            }
+        }
+        if ($blocked) {
+            return $html;
+        }
+        $changes = ['bgcolor' => null, 'style' => 'background-color:transparent!important;'.ltrim($style, "; \t\r\n")];
+        if ($remove !== []) {
+            $changes['class'] = implode(' ', array_diff($classes, $remove));
+        }
+        $edits[] = [$node['start'], $node['openEnd'] - $node['start'], self::opening($node, $changes)];
 
         return self::replace($html, $edits);
     }

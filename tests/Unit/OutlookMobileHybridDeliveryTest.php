@@ -30,7 +30,8 @@ final class OutlookMobileHybridDeliveryTest extends TestCase
         self::assertStringContainsString('max-width:420px;', $output);
         self::assertSame(1, substr_count($output, $format($this->logo())));
         self::assertSame(1, substr_count($output, $format($this->person())));
-        self::assertSame(1, substr_count($output, $format($this->company())));
+        $expectedCompany = preg_replace('/class="rt-personal-company-contacts mh" style="padding-top:14px;?"/', 'class="rt-personal-company-contacts" style="padding-top:4px!important;"', $format($this->company()));
+        self::assertSame(1, substr_count($output, $expectedCompany));
         self::assertStringContainsString($format($this->mso()), $output);
         self::assertSame(1, substr_count($output, 'src="cid:train.gif"'));
         self::assertSame(1, preg_match_all('/height=(?:"38"|38)(?=\s|>)/', $output));
@@ -43,6 +44,11 @@ final class OutlookMobileHybridDeliveryTest extends TestCase
         self::assertStringNotContainsString(' .m14{', $output);
         self::assertStringNotContainsString(' .mb{', $output);
         self::assertStringContainsString(' .mh{padding-top:14px!important}', $output);
+        self::assertStringContainsString('overflow:hidden;direction:ltr;margin:0 auto 0 0;', $output);
+        self::assertSame(2, substr_count($output, 'float:left;'));
+        self::assertSame(1, substr_count($output, 'clear:left;'));
+        self::assertSame(1, substr_count($output, 'direction:rtl;'));
+        self::assertStringNotContainsString('position:sticky', $output);
         self::assertStringContainsString($this->canonicalStyle(), $output);
         $dom = new DOMDocument;
         $previous = libxml_use_internal_errors(true);
@@ -54,6 +60,12 @@ final class OutlookMobileHybridDeliveryTest extends TestCase
         foreach (['logo', 'person', 'company', 'train'] as $index => $kind) {
             self::assertSame('rt-mhy-'.$kind, $groups->item($index)->getAttribute('class'));
             self::assertSame('ltr', $groups->item($index)->getAttribute('dir'));
+            $cell = (new DOMXPath($dom))->query('./tbody/tr/td', $groups->item($index))->item(0);
+            self::assertSame('ltr', $cell->getAttribute('dir'));
+            self::assertSame('left', $cell->getAttribute('align'));
+            if ($kind !== 'train') {
+                self::assertStringNotContainsString('table-layout:fixed;', $groups->item($index)->getAttribute('style'));
+            }
         }
     }
 
@@ -119,6 +131,8 @@ final class OutlookMobileHybridDeliveryTest extends TestCase
         yield 'foreign personal sibling' => ['<div class="rt-personal-direct mh"', '<p>Foreign note</p><div class="rt-personal-direct mh"'];
         yield 'foreign personal text' => ['<div class="rt-personal-direct mh"', 'Foreign note<div class="rt-personal-direct mh"'];
         yield 'foreign company sibling' => ['<div class="rt-personal-company-contacts mh"', '<p>Foreign</p><div class="rt-personal-company-contacts mh"'];
+        yield 'foreign company spacing' => ['class="rt-personal-company-contacts mh" style="padding-top:14px;"', 'class="rt-personal-company-contacts mh" style="padding-top:20px;"'];
+        yield 'foreign company class' => ['class="rt-personal-company-contacts mh"', 'class="rt-personal-company-contacts mh custom"'];
         yield 'duplicate logo' => ['<div class="rt-personal-name">', '<table class="rt-personal-logo-frame"><tr><td>Other</td></tr></table><div class="rt-personal-name">'];
         yield 'not a real logo' => ['class="rt-logo"', 'class="foreign-logo"'];
         yield 'foreign train width' => ['width="300"', 'width="500"'];

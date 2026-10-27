@@ -14,7 +14,7 @@ final class OutlookMobileHybridDelivery
 
     private const TOKENS = '~<!--.*?-->|<style\b(?:[^"\'<>]|"[^"]*"|\'[^\']*\')*>.*?</style\s*>|</?[a-z][a-z0-9:-]*(?:[^"\'<>]|"[^"]*"|\'[^\']*\')*>~is';
 
-    private const FLOW = 'font-size:0;line-height:0;text-align:left;width:100%;max-width:680px;table-layout:fixed;border-collapse:collapse;direction:rtl;';
+    private const FLOW = 'font-size:0;line-height:0;text-align:left;width:100%;max-width:680px;table-layout:fixed;overflow:hidden;direction:ltr;margin:0 auto 0 0;';
 
     private const CELL = 'padding:0;';
 
@@ -90,6 +90,13 @@ final class OutlookMobileHybridDelivery
         self::children($html, $nodes, $leftCell, [$logo, $name, $direct]);
         self::children($html, $nodes, $rightCell, [$company]);
         self::children($html, $nodes, self::tableCell($html, $nodes, $company), [$contacts]);
+        self::styleIs($nodes[$contacts], 'padding-top:14px;');
+        self::attributesOnly($nodes[$contacts], ['class', 'style']);
+        $contactClasses = array_values(array_filter(preg_split('/\s+/', trim($nodes[$contacts]['attrs']['class'] ?? '')), static fn (string $class): bool => preg_match('/\A(?:oi|m|g)[0-9a-z]+\z/', $class) !== 1));
+        if ($contactClasses !== ['rt-personal-company-contacts']) {
+            self::fail();
+        }
+        $contactsOpening = self::attribute(self::attribute($nodes[$contacts]['opening'], 'class', 'rt-personal-company-contacts'), 'style', 'padding-top:4px!important;');
         $logoCell = self::tableCell($html, $nodes, $logo);
         $logoImages = self::direct($nodes, $logoCell);
         if (count($logoImages) !== 1 || $nodes[$logoImages[0]]['tag'] !== 'img' || ! self::has($nodes[$logoImages[0]], 'rt-logo')) {
@@ -122,12 +129,13 @@ final class OutlookMobileHybridDelivery
         $trainBlock = self::block('train', $moving);
         $before = self::inventory($html);
         $edits = [
-            [$nodes[$flow]['start'], $nodes[$flow]['openEnd'], '<table class="rt-mobile-hybrid-v1" '.self::MARKER.'="v1" data-rt-personal-columns="v1" role=presentation dir=rtl width=100% cellpadding=0 cellspacing=0 style="'.self::FLOW.'"><tbody><tr><td dir=rtl align=left style="padding:0;">'.$logoBlock],
+            [$nodes[$flow]['start'], $nodes[$flow]['openEnd'], '<table class="rt-mobile-hybrid-v1" '.self::MARKER.'="v1" data-rt-personal-columns="v1" role=presentation dir=ltr width=100% cellpadding=0 cellspacing=0 style="'.self::FLOW.'"><tbody><tr><td dir=ltr align=left style="padding:0;">'.$logoBlock],
             [$nodes[$flow]['close'], $nodes[$flow]['end'], $trainBlock.'</td></tr></tbody></table>'],
             [$nodes[$left]['start'], $nodes[$left]['openEnd'], self::tableOpening('person')],
             [$nodes[$right]['start'], $nodes[$right]['openEnd'], self::tableOpening('company')],
-            [$nodes[$leftCell]['start'], $nodes[$leftCell]['openEnd'], '<td style="'.self::cellStyle('person').'">'],
-            [$nodes[$rightCell]['start'], $nodes[$rightCell]['openEnd'], '<td style="'.self::cellStyle('company').'">'],
+            [$nodes[$leftCell]['start'], $nodes[$leftCell]['openEnd'], '<td dir=ltr align=left style="'.self::cellStyle('person').'">'],
+            [$nodes[$rightCell]['start'], $nodes[$rightCell]['openEnd'], '<td dir=ltr align=left style="'.self::cellStyle('company').'">'],
+            [$nodes[$contacts]['start'], $nodes[$contacts]['openEnd'], $contactsOpening],
             [$nodes[$logo]['start'], $nodes[$logo]['end'], ''],
             [$nodes[$trainRow]['start'], $nodes[$trainRow]['end'], ''],
         ];
@@ -154,7 +162,7 @@ final class OutlookMobileHybridDelivery
 
     private static function tableStyle(string $kind): string
     {
-        return 'display:'.($kind === 'train' ? 'inline-table' : 'inline-block').';vertical-align:'.($kind === 'train' ? 'bottom' : 'top').';width:100%;max-width:340px;table-layout:fixed;border-collapse:separate;box-sizing:border-box;border:0 solid transparent;border-width:0 18px;direction:ltr;'.($kind === 'train' ? 'border-left:0;' : '');
+        return 'display:'.($kind === 'train' ? 'inline-table' : 'inline-block').';vertical-align:'.($kind === 'train' ? 'bottom' : 'top').';width:100%;max-width:340px;'.($kind === 'train' ? 'table-layout:fixed;' : '').'border-collapse:separate;box-sizing:border-box;border:0 solid transparent;border-width:0 18px;'.($kind === 'train' ? 'border-left:0;float:left;clear:left;' : ($kind === 'person' ? 'float:left;' : ''));
     }
 
     private static function tableOpening(string $kind): string
@@ -164,22 +172,25 @@ final class OutlookMobileHybridDelivery
 
     private static function block(string $kind, string $content): string
     {
-        return self::tableOpening($kind).'<tbody><tr><td style="'.self::cellStyle($kind).'">'.$content.'</td></tr></tbody></table>';
+        return self::tableOpening($kind).'<tbody><tr><td dir=ltr align=left style="'.self::cellStyle($kind).'">'.$content.'</td></tr></tbody></table>';
     }
 
     private static function cellStyle(string $kind): string
     {
-        return self::CELL.(in_array($kind, ['person', 'company'], true) ? 'font-size:13px;line-height:18px;' : '');
+        return self::CELL.(in_array($kind, ['person', 'company'], true) ? 'font-size:13px;line-height:18px;text-align:left;' : '');
     }
 
     private static function assertProjected(string $html, array $nodes, int $flow): void
     {
         if (($nodes[$flow]['attrs'][self::MARKER] ?? '') !== 'v1' || $nodes[$flow]['tag'] !== 'table'
-            || ! self::has($nodes[$flow], 'rt-mobile-hybrid-v1') || ($nodes[$flow]['attrs']['dir'] ?? '') !== 'rtl'
+            || ! self::has($nodes[$flow], 'rt-mobile-hybrid-v1') || ($nodes[$flow]['attrs']['dir'] ?? '') !== 'ltr'
             || ($nodes[$flow]['attrs']['style'] ?? '') !== self::FLOW) {
             self::fail();
         }
         $cell = self::tableCell($html, $nodes, $flow);
+        if (($nodes[$cell]['attrs']['dir'] ?? '') !== 'ltr' || ($nodes[$cell]['attrs']['align'] ?? '') !== 'left') {
+            self::fail();
+        }
         $groups = [];
         foreach (['logo', 'person', 'company', 'train'] as $kind) {
             $group = self::one($nodes, 'rt-mhy-'.$kind, 'table');
@@ -188,7 +199,8 @@ final class OutlookMobileHybridDelivery
             }
             $groups[] = $group;
             $groupCell = self::tableCell($html, $nodes, $group);
-            if (($nodes[$groupCell]['attrs']['style'] ?? '') !== self::cellStyle($kind)) {
+            if (($nodes[$groupCell]['attrs']['style'] ?? '') !== self::cellStyle($kind)
+                || ($nodes[$groupCell]['attrs']['dir'] ?? '') !== 'ltr' || ($nodes[$groupCell]['attrs']['align'] ?? '') !== 'left') {
                 self::fail();
             }
         }
@@ -196,6 +208,11 @@ final class OutlookMobileHybridDelivery
         self::children($html, $nodes, self::tableCell($html, $nodes, $groups[0]), [self::one($nodes, 'rt-personal-logo-frame', 'table')]);
         self::children($html, $nodes, self::tableCell($html, $nodes, $groups[1]), [self::one($nodes, 'rt-personal-name', 'div'), self::one($nodes, 'rt-personal-direct', 'div')]);
         self::children($html, $nodes, self::tableCell($html, $nodes, $groups[2]), [self::one($nodes, 'rt-personal-company-block', 'table')]);
+        $contacts = self::one($nodes, 'rt-personal-company-contacts', 'div');
+        if (($nodes[$contacts]['attrs']['class'] ?? '') !== 'rt-personal-company-contacts'
+            || ($nodes[$contacts]['attrs']['style'] ?? '') !== 'padding-top:4px!important;') {
+            self::fail();
+        }
         $image = self::one($nodes, 'rt-mhy-image', 'img');
         $window = self::one($nodes, 'rt-mhy-window', 'div');
         if (($nodes[$image]['attrs']['style'] ?? '') !== self::IMAGE

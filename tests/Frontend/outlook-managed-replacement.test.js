@@ -567,8 +567,8 @@ test('actual PHP initial combined wire blocks an external old v4 carrier before 
     assert.equal(h.state.body, snapshot); assert.equal(h.state.session, ''); assert.equal(isTemplateInsertionBlocked(h.item), false);
 });
 
-test('old carrier inside quoted history stays opaque while real PHP first insertion confirms its own current core', async () => {
-    const incoming = readFileSync(new URL('../Fixtures/outlook/r61-combined-initial-wire.html', import.meta.url), 'utf8');
+test('old carrier inside quoted history stays opaque while current first insertion confirms its own core', async () => {
+    const incoming = stableArtifact({ sentinels: true, native: true, footer: true, responsive: true, wrappers: true, templateGutter: true });
     const oldSource = standaloneHtml('0123456789abcdef', false);
     const old = prepareNativeLayoutRestore(oldSource, standaloneSignatureContract(oldSource), 'a'.repeat(32));
     const quote = '<blockquote>' + officeCarrier(old.stylePayload) + nativeOfficeHtml(old.html) + '</blockquote>';
@@ -591,7 +591,7 @@ test('an unbound or damaged current external carrier blocks initial combined ins
 });
 
 test('verified current external carriers and verified legacy carriers inside the replaced native slot keep their safe transition', async () => {
-    const incoming = readFileSync(new URL('../Fixtures/outlook/r61-combined-initial-wire.html', import.meta.url), 'utf8');
+    const incoming = stableArtifact({ sentinels: true, native: true, footer: true, responsive: true, wrappers: true, templateGutter: true });
     for (const responsive of [false, true]) {
         const source = standaloneHtml('0123456789abcdef', responsive);
         const old = prepareNativeLayoutRestore(source, standaloneSignatureContract(source), 'a'.repeat(32));
@@ -702,6 +702,26 @@ test('observed inset image typography DIVs/SPANs and removed percent-width attri
         await h.run();
         assert.equal(h.state.writes.length, 1); assert.equal(h.state.prepends.length, 1);
         assert.equal(isTemplateInsertionBlocked(h.item), false);
+    }
+});
+
+test('an explicit opposite direct TD alignment stops current layout recovery before its carrier prepend', async () => {
+    for (const suffix of ['l', 'p', 'c', 't']) {
+        const h = nativeHost({ footer: true, responsive: true, wrappers: true, templateGutter: true });
+        h.item.body.setAsync = (html, _options, callback) => {
+            h.state.writes.push(html);
+            let output = afterOfficeSet(html);
+            const contract = managedTemplateContract(output);
+            const table = contract.elements.findIndex(node => (node.attrs.id || '').endsWith('-' + suffix));
+            const body = contract.elements.findIndex(node => node.parent === table && node.tag === 'tbody');
+            const row = contract.elements.findIndex(node => node.parent === body && node.tag === 'tr');
+            const cell = contract.elements.find(node => node.parent === row && node.tag === 'td');
+            output = output.slice(0, cell.openEnd - 1) + ' style="direction:ltr;text-align:right"' + output.slice(cell.openEnd - 1);
+            h.state.body = output; callback(succeeded());
+        };
+        await assert.rejects(h.run(), { code: 'TEMPLATE_LAYOUT_UNCONFIRMED' });
+        assert.equal(h.state.writes.length, 1); assert.equal(h.state.prepends.length, 0);
+        assert.match(h.state.session, /^pending:/); assert.equal(isTemplateInsertionBlocked(h.item), true);
     }
 });
 

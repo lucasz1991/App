@@ -185,7 +185,7 @@ final class OutlookMobileCombinedComposeDocument
             $changed++;
             $tag = str_replace('padding-left:40px;padding-right:40px;', 'padding-left:18px;padding-right:18px;', $tag);
             if ($changed === 1) {
-                $tag = preg_replace('~(\sstyle=")([^"]*)(")~', '$1$2padding-top:0!important;$3', $tag, 1);
+                $tag = preg_replace('~(\sstyle=")([^"]*)(")~', '$1$2padding-top:8px!important;$3', $tag, 1);
             }
 
             return $tag;

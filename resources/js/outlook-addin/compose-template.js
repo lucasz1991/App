@@ -1,5 +1,5 @@
 import { hasUnquotedSignatureLayoutCarrier, managedTemplateContract, managedTemplateReplacement, standaloneSignatureContract } from './managed-template.js';
-import { createNativeLayoutNonce, nativeLayoutRestoreCarrierIsExternal, nativeLayoutRestoreCarrierPresent, nativeLayoutRestoreCss, nativeLayoutRestoreRetained, prepareNativeLayoutRestore, removeNativeLayoutRestoreCarrier } from './native-layout-restore.js';
+import { createNativeLayoutNonce, nativeLayoutRestoreCarrierIsExternal, nativeLayoutRestoreCarrierPresent, nativeLayoutRestoreCellsAligned, nativeLayoutRestoreCss, nativeLayoutRestoreRetained, prepareNativeLayoutRestore, removeNativeLayoutRestoreCarrier } from './native-layout-restore.js';
 import { confirmedOfficeWrite, markSignatureWriteConfirmed } from './office-write.js';
 
 // Automatic insertion only prepends. Explicit taskpane replacement below owns
@@ -851,6 +851,7 @@ function layoutIdsContract(html, currentHtml, ids, standalone = null) {
     const order = [...(targets.logo ? [targets.logo.index] : []), targets.person.index, targets.company.index, targets.train.index];
     if (groups.length !== order.length || groups.some((value, index) => value.index !== order[index])
         || (targets.header && withinContract(contract, targets.header.index, targets.root.index))) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
+    try { nativeLayoutRestoreCellsAligned(contract, ids); } catch { throw failure('TEMPLATE_LAYOUT_UNCONFIRMED'); }
     if (targets.header) {
         const rows = children(only(targets.header.index, 'tbody'));
         if (!rows.length || rows.some(value => value.node.tag !== 'tr')
