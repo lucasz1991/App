@@ -116,7 +116,8 @@ final class SignaturePersonalColumns
         $logo = count($logos) === 1 ? $logos[0] : self::fail();
         $content = self::one($nodes, 'rt-sign-content', 'td');
         $nativeRevision = $nodes[$flow]['attrs']['data-rt-desktop-flow'] ?? '';
-        $responsive = $native && $nativeRevision === OutlookDesktopFlow::REVISION;
+        $responsive = $native && in_array($nativeRevision, [OutlookDesktopFlow::REVISION, 'outlook-desktop-flow-v5'], true);
+        $rowTrain = $native && $nativeRevision === 'outlook-desktop-flow-v6';
         $logoColumn = $responsive ? self::one($nodes, 'rt-personal-logo-column', 'table') : $right;
         if (($nodes[$flow]['attrs'][self::ATTRIBUTE] ?? '') !== self::MARKER
             || $nodes[$flow]['parent'] !== $content
@@ -129,19 +130,34 @@ final class SignaturePersonalColumns
             $train = self::one($nodes, 'rt-df-train', 'table');
             $roots = array_keys(array_filter($nodes, static fn (array $node): bool => $node['tag'] === 'div' && self::has($node, 'rt-outlook-signature')));
             if (($nodes[$flow]['attrs'][self::NATIVE_FLOW_ATTRIBUTE] ?? '') !== 'v1'
-                || ! in_array($nativeRevision, [OutlookDesktopFlow::REVISION, 'outlook-desktop-flow-v4'], true)
+                || ! in_array($nativeRevision, [OutlookDesktopFlow::REVISION, 'outlook-desktop-flow-v5', 'outlook-desktop-flow-v4'], true)
                 || count($roots) !== 1 || ! self::within($nodes, $flow, $roots[0])
                 || ! $native) {
                 self::fail();
             }
             foreach (['tbody', 'tr', 'td'] as $tag) {
                 $children = array_keys(array_filter($nodes, static fn (array $node): bool => $node['parent'] === $groupParent));
+                if ($rowTrain && $tag === 'tr') {
+                    if (count($children) !== 2 || $nodes[$children[0]]['tag'] !== 'tr' || $nodes[$children[1]]['tag'] !== 'tr') {
+                        self::fail();
+                    }
+                    $trainCells = array_keys(array_filter($nodes, static fn (array $node): bool => $node['parent'] === $children[1]));
+                    if (count($trainCells) !== 1 || $nodes[$trainCells[0]]['tag'] !== 'td'
+                        || array_keys(array_filter($nodes, static fn (array $node): bool => $node['parent'] === $trainCells[0])) !== [$train]) {
+                        self::fail();
+                    }
+                    $groupParent = $children[0];
+
+                    continue;
+                }
                 if (count($children) !== 1 || $nodes[$children[0]]['tag'] !== $tag) {
                     self::fail();
                 }
                 $groupParent = $children[0];
             }
-            $expected[] = $train;
+            if (! $rowTrain) {
+                $expected[] = $train;
+            }
             if ($responsive) {
                 array_unshift($expected, $logoColumn);
             }

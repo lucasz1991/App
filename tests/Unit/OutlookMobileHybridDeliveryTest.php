@@ -25,9 +25,11 @@ final class OutlookMobileHybridDeliveryTest extends TestCase
         self::assertSame(4, substr_count($output, 'max-width:340px;'));
         self::assertSame(4, substr_count($output, 'border-width:0 18px;'));
         self::assertStringContainsString('display:inline-table;vertical-align:bottom;', $output);
-        self::assertStringContainsString('width:520px!important;max-width:none!important;height:auto!important;', $output);
-        self::assertStringContainsString('class="rt-mhy-window" dir="rtl"', $output);
-        self::assertStringContainsString('max-width:420px;', $output);
+        self::assertStringContainsString('width:100%;max-width:100%;height:auto;', $output);
+        preg_match('/class="rt-mhy-image rt-i([0-9a-f]{6})"/', $output, $scope);
+        self::assertNotEmpty($scope);
+        self::assertStringContainsString('<div class=rt-w'.$scope[1].'>', $output);
+        self::assertStringContainsString('.rt-w'.$scope[1].'{overflow:hidden;padding-top:9.2%}.rt-i'.$scope[1].'{transform:scale(1.733333);transform-origin:100% 100%}', $output);
         self::assertSame(1, substr_count($output, $format($this->logo())));
         self::assertSame(1, substr_count($output, $format($this->person())));
         $expectedCompany = preg_replace('/class="rt-personal-company-contacts mh" style="padding-top:14px;?"/', 'class="rt-personal-company-contacts" style="padding-top:4px!important;"', $format($this->company()));
@@ -45,9 +47,9 @@ final class OutlookMobileHybridDeliveryTest extends TestCase
         self::assertStringNotContainsString(' .mb{', $output);
         self::assertStringContainsString(' .mh{padding-top:14px!important}', $output);
         self::assertStringContainsString('overflow:hidden;direction:ltr;margin:0 auto 0 0;', $output);
-        self::assertSame(2, substr_count($output, 'float:left;'));
-        self::assertSame(1, substr_count($output, 'clear:left;'));
-        self::assertSame(1, substr_count($output, 'direction:rtl;'));
+        self::assertSame(1, substr_count($output, 'float:left;'));
+        self::assertStringNotContainsString('clear:left;', $output);
+        self::assertStringNotContainsString('direction:rtl;', $output);
         self::assertStringNotContainsString('position:sticky', $output);
         self::assertStringContainsString($this->canonicalStyle(), $output);
         $dom = new DOMDocument;
@@ -57,12 +59,20 @@ final class OutlookMobileHybridDeliveryTest extends TestCase
         libxml_use_internal_errors($previous);
         $groups = (new DOMXPath($dom))->query('//table[@data-rt-mobile-hybrid="v1"]/tbody/tr/td/table');
         self::assertCount(4, $groups);
+        self::assertCount(2, (new DOMXPath($dom))->query('//table[@data-rt-mobile-hybrid="v1"]/tbody/tr'));
+        self::assertCount(3, (new DOMXPath($dom))->query('//table[@data-rt-mobile-hybrid="v1"]/tbody/tr[1]/td/table'));
+        self::assertSame('rt-mhy-train', (new DOMXPath($dom))->query('//table[@data-rt-mobile-hybrid="v1"]/tbody/tr[2]/td/table')->item(0)->getAttribute('class'));
         foreach (['logo', 'person', 'company', 'train'] as $index => $kind) {
             self::assertSame('rt-mhy-'.$kind, $groups->item($index)->getAttribute('class'));
             self::assertSame('ltr', $groups->item($index)->getAttribute('dir'));
             $cell = (new DOMXPath($dom))->query('./tbody/tr/td', $groups->item($index))->item(0);
             self::assertSame('ltr', $cell->getAttribute('dir'));
             self::assertSame('left', $cell->getAttribute('align'));
+            if ($kind === 'person') {
+                self::assertSame('left', $groups->item($index)->getAttribute('align'));
+                self::assertSame('50', $groups->item($index)->getAttribute('height'));
+                self::assertStringStartsWith('display:inline-table;', $groups->item($index)->getAttribute('style'));
+            }
             if ($kind !== 'train') {
                 self::assertStringNotContainsString('table-layout:fixed;', $groups->item($index)->getAttribute('style'));
             }
@@ -148,9 +158,14 @@ final class OutlookMobileHybridDeliveryTest extends TestCase
     public function test_projected_geometry_or_extra_siblings_are_rejected_on_replay(): void
     {
         $output = OutlookMobileHybridDelivery::project($this->document());
+        preg_match('/<div class=(rt-w[0-9a-f]{6})>/', $output, $window);
         foreach ([['max-width:680px;', 'max-width:681px;'], ['data-rt-mobile-hybrid="v1"', 'data-rt-mobile-hybrid="v2"'],
             ['<div class="rt-personal-name">', '<p>Foreign replay</p><div class="rt-personal-name">'],
-            ['width="300"', 'width="520"'], ['height="38"', 'height="66"']] as [$before, $after]) {
+            ['width="300"', 'width="520"'], ['height="38"', 'height="66"'], ['height=50', 'height=49'],
+            ['transform:scale(1.733333)', 'transform:scale(5)'], ['padding-top:9.2%', 'padding-top:20%'],
+            ['<div class='.$window[1].'>', '<div class='.$window[1].' style="overflow:visible">'],
+            ['Name &amp; role', 'Changed replay name'], [$window[1], 'rt-wabcdef'],
+            ['</td></tr><tr><td dir=ltr align=left style="padding:0;">', '']] as [$before, $after]) {
             try {
                 OutlookMobileHybridDelivery::project(str_replace($before, $after, $output));
                 self::fail('A modified projected structure must not count as current.');
@@ -158,6 +173,82 @@ final class OutlookMobileHybridDeliveryTest extends TestCase
                 self::assertTrue(true);
             }
         }
+    }
+
+    public function test_lost_stylesheets_leave_a_complete_proportional_train_in_an_independent_table_row(): void
+    {
+        $output = OutlookMobileHybridDelivery::project($this->document());
+        $fallback = preg_replace('~<style\b[^>]*>.*?</style>~is', '', $output);
+        $fallback = str_replace('float:left;', '', $fallback);
+        $dom = new DOMDocument;
+        $previous = libxml_use_internal_errors(true);
+        $dom->loadHTML($fallback, LIBXML_NONET);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        $xpath = new DOMXPath($dom);
+        $train = $xpath->query('//table[@class="rt-mhy-train"]')->item(0);
+        $image = $xpath->query('.//img[contains(concat(" ",normalize-space(@class)," ")," rt-mhy-image ")]', $train)->item(0);
+        self::assertSame('cid:train.gif', $image->getAttribute('src'));
+        self::assertSame('300', $image->getAttribute('width'));
+        self::assertSame('38', $image->getAttribute('height'));
+        self::assertStringContainsString('width:100%;max-width:100%;height:auto;', $image->getAttribute('style'));
+        self::assertStringNotContainsString('transform', $fallback);
+        self::assertStringNotContainsString('padding-top:9.2%', $fallback);
+        self::assertStringNotContainsString('520px', $fallback);
+        self::assertFalse($image->parentNode->hasAttribute('style'));
+        self::assertMatchesRegularExpression('/\Art-w[0-9a-f]{6}\z/', $image->parentNode->getAttribute('class'));
+        self::assertSame('rt-mhy-train', $xpath->query('//table[@data-rt-mobile-hybrid="v1"]/tbody/tr[2]/td/table')->item(0)->getAttribute('class'));
+        self::assertCount(3, $xpath->query('//table[@data-rt-mobile-hybrid="v1"]/tbody/tr[1]/td/table'));
+        self::assertStringContainsString('border-left:0;', $train->getAttribute('style'));
+        self::assertStringContainsString($this->mso(), $fallback);
+    }
+
+    public function test_enhancement_requires_one_existing_owned_mobile_stylesheet_and_rejects_foreign_rules(): void
+    {
+        $source = $this->document();
+        foreach ([
+            preg_replace('~<style data-rt-outlook-mobile-css="1">.*?</style>~s', '', $source),
+            str_replace('<!-- Outside unchanged -->', '<style data-rt-outlook-mobile-css="1">.m123.rtm .m1{width:2px}</style><!-- Outside unchanged -->', $source),
+            str_replace('.m123.rtm .m14{', '.rt-mhy-image{transform:scale(9)}.m123.rtm .m14{', $source),
+            str_replace('.m123.rtm .m14{', '.rt-w{overflow:visible}.m123.rtm .m14{', $source),
+        ] as $invalid) {
+            try {
+                OutlookMobileHybridDelivery::project($invalid);
+                self::fail('Enhancement must not claim an absent, duplicate or foreign stylesheet.');
+            } catch (RuntimeException) {
+                self::assertTrue(true);
+            }
+        }
+    }
+
+    public function test_owned_wording_selectors_do_not_collide_with_the_exact_window_class(): void
+    {
+        $source = str_replace('.m123.rtm .m14{', '.rt-wording-greeting{margin:0}.m123.rtm .m14{', $this->document());
+        $output = OutlookMobileHybridDelivery::project($source);
+        self::assertStringContainsString('.rt-wording-greeting{margin:0}', $output);
+        self::assertSame($output, OutlookMobileHybridDelivery::project($output));
+    }
+
+    public function test_enhancement_cannot_target_an_older_quoted_mobile_image_or_a_generic_window(): void
+    {
+        $output = OutlookMobileHybridDelivery::project($this->document());
+        preg_match('/class="rt-mhy-image rt-i([0-9a-f]{6})"/', $output, $scope);
+        $quoted = '<div class="rt-w"><img class="rt-mhy-image" src="cid:older.gif" width="520" style="width:520px;"></div>';
+        $dom = new DOMDocument;
+        $previous = libxml_use_internal_errors(true);
+        $dom->loadHTML($output.$quoted, LIBXML_NONET);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        $xpath = new DOMXPath($dom);
+        self::assertCount(2, $xpath->query('//img[contains(concat(" ",normalize-space(@class)," ")," rt-mhy-image ")]'));
+        self::assertCount(1, $xpath->query('//img[contains(concat(" ",normalize-space(@class)," ")," rt-i'.$scope[1].' ")]'));
+        self::assertCount(1, $xpath->query('//div[@class="rt-w'.$scope[1].'"]'));
+        self::assertStringNotContainsString('.rt-mhy-image{', $output);
+        self::assertStringNotContainsString('.rt-w{', $output);
+        $changed = OutlookMobileHybridDelivery::project(str_replace('person@example.test', 'other@example.test', $this->document()));
+        self::assertStringNotContainsString('rt-i'.$scope[1], $changed);
+        self::assertStringNotContainsString('rt-w'.$scope[1], $changed);
+        self::assertSame($changed, OutlookMobileHybridDelivery::project($changed));
     }
 
     public function test_unformatted_personal_and_company_text_inherits_a_visible_baseline_instead_of_zero(): void

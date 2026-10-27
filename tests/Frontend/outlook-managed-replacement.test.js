@@ -37,8 +37,9 @@ const nativeGroups = '<table class="rt-personal-columns" data-rt-personal-flow="
     + '</td></tr></tbody></table>';
 
 function stableArtifact({ content = '<p class="design-spacer"><br></p>', greeting = false, sentinels = false, native = false, footer = false, responsive = false, wrappers = false, templateGutter = false } = {}) {
-    const groups = responsive ? nativeGroups.replace('outlook-desktop-flow-v4', 'outlook-desktop-flow-v5')
-        .replace('<table class="rt-personal-left">', '<table class="rt-personal-logo-column"><tbody><tr><td><table class="rt-personal-logo-frame"><tbody><tr><td><img src="cid:separate-logo" width="200" height="34"></td></tr></tbody></table></td></tr></tbody></table><table class="rt-personal-left">') : nativeGroups;
+    const groups = responsive ? nativeGroups.replace('outlook-desktop-flow-v4', 'outlook-desktop-flow-v6')
+        .replace('<table class="rt-personal-left">', '<table class="rt-personal-logo-column"><tbody><tr><td><table class="rt-personal-logo-frame"><tbody><tr><td><img src="cid:separate-logo" width="200" height="34"></td></tr></tbody></table></td></tr></tbody></table><table class="rt-personal-left" align="left" height="50">')
+        .replace('<table class="rt-df-train">', '</td></tr><tr><td><table class="rt-df-train">') : nativeGroups;
     return '<div class="rt-combined-compose-document rtc0123456789ab" data-rt-compose-document="combined-v1" style="display:block;width:100%;">'
         + '<table class="rt-combined-compose-frame rt-managed-combined-v1 rtc0123456789ab"><tbody><tr><td>'
         + '<style data-rt-combined-compose-css="1">table.rtc0123456789ab{width:100%}</style>'
@@ -47,7 +48,7 @@ function stableArtifact({ content = '<p class="design-spacer"><br></p>', greetin
         + metadata(MARKER) + (greeting ? '<p>Guten Tag,</p>' : '')
         + '<table class="rt-compose-editable rt-compose-editable-v1" data-rt-compose-editable="v1"><tbody><tr><td style="padding:0;">' + (sentinels ? metadata(START) : '') + content + (sentinels ? metadata(END) : '') + '</td></tr></tbody></table>'
         + (greeting ? '<p>Mit freundlichen Grüßen,</p>' : '') + (templateGutter ? '</td></tr></tbody></table>' : '') + '</td></tr></tbody></table></div>'
-        + '<div class="rt-outlook-signature rts0123456789"><table class="rt-combined-signature-frame rt-managed-signature-v1 rts0123456789"><tbody><tr><td>'
+        + '<div class="rt-outlook-signature rts0123456789' + (responsive ? ' rt-dflow-host-v4 rt-df60123456789' : '') + '"><table class="rt-combined-signature-frame rt-managed-signature-v1 rts0123456789"><tbody><tr><td>'
         + (footer ? '' : metadata('RT-SIGNATURE-MANAGED-V1') + metadata('RT-SIGNATURE-VERSION:0123456789abcdef'))
         + (native ? '<table><tbody><tr><td class="design-hotline-row">' + (wrappers ? '<table class="rt-brand-hotline-gutter"><tbody><tr><td><img src="cid:fill" width="100%" height="34"></td></tr></tbody></table>' : '') + '<strong>24/7</strong> erreichbar</td></tr></tbody></table>' + groups
             : '<p>Personal signature</p><img class="rt-delivery-train" src="cid:train" width="520" height="65">')
@@ -552,7 +553,7 @@ test('definite failure of the initial combined body prepend releases its own cla
     assert.equal(h.state.prepends.length, 2); assert.equal(h.state.session, '1');
 });
 
-test('actual PHP initial combined wire blocks an external old v4 carrier before native cleanup or any session/body write', async () => {
+test('obsolete actual one-row PHP wire is rejected before native cleanup or any session/body write', async () => {
     const incoming = readFileSync(new URL('../Fixtures/outlook/r61-combined-initial-wire.html', import.meta.url), 'utf8');
     const oldSource = standaloneHtml('0123456789abcdef', false);
     const old = prepareNativeLayoutRestore(oldSource, standaloneSignatureContract(oldSource), 'a'.repeat(32));
@@ -562,7 +563,7 @@ test('actual PHP initial combined wire blocks an external old v4 carrier before 
     const snapshot = h.state.body; let cleanup = 0;
     await assert.rejects(prependTemplate(h.office, h.item, incoming, () => {}, {
         beforeInsert() { cleanup += 1; h.state.body = h.state.body.replace(oldSlot, ''); },
-    }), { code: 'SIGNATURE_LAYOUT_LEGACY_CARRIER' });
+    }), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
     assert.equal(cleanup, 0); assert.deepEqual(h.state.claims, []); assert.deepEqual(h.state.prepends, []);
     assert.equal(h.state.body, snapshot); assert.equal(h.state.session, ''); assert.equal(isTemplateInsertionBlocked(h.item), false);
 });
@@ -579,7 +580,7 @@ test('old carrier inside quoted history stays opaque while current first inserti
 });
 
 test('an unbound or damaged current external carrier blocks initial combined insertion without touching unknown markup', async () => {
-    const incoming = readFileSync(new URL('../Fixtures/outlook/r61-combined-initial-wire.html', import.meta.url), 'utf8');
+    const incoming = stableArtifact({ sentinels: true, native: true, footer: true, responsive: true, wrappers: true, templateGutter: true });
     const source = standaloneHtml();
     const old = prepareNativeLayoutRestore(source, standaloneSignatureContract(source), 'a'.repeat(32));
     for (const body of [OUTSIDE + officeCarrier(old.stylePayload),
@@ -662,6 +663,29 @@ test('v5 seven-ID combined exchanges remove only the verified preceding carrier 
     }
 });
 
+test('R63 one-row mixed carrier migrates only through exact owned cleanup while quote and editable bytes survive', async () => {
+    const frozen = readFileSync(new URL('../Fixtures/outlook/r63-native-mixed-carrier.html', import.meta.url), 'utf8').trimEnd();
+    const historical = standaloneSignatureContract(frozen);
+    const carrier = historical.elements.find(node => (node.attrs.id || '').endsWith('-carrier'));
+    const signature = frozen.slice(historical.signature.node.start, historical.signature.node.end);
+    let old = stableArtifact({ sentinels: true, content: TYPED, native: true, footer: true, responsive: true, wrappers: true });
+    const contract = managedTemplateContract(old);
+    old = frozen.slice(carrier.start, carrier.end) + old.slice(0, contract.signature.node.start) + signature + old.slice(contract.signature.node.end);
+    const quote = '<blockquote>' + old.replaceAll('63'.repeat(16), '64'.repeat(16)) + '</blockquote>';
+    const h = host({ body: OUTSIDE + old + quote });
+    h.item.body.prependAsync = (html, _options, callback) => {
+        h.state.prepends.push(html); h.state.body = html + h.state.body; callback(succeeded());
+    };
+    await replaceManagedTemplate(h.office, h.item, stableArtifact({ sentinels: true, native: true, greeting: true, footer: true, responsive: true, wrappers: true }));
+    assert.equal(h.state.writes.length, 1);
+    assert.equal(h.state.prepends.length, 1);
+    assert.ok(h.state.body.endsWith(quote));
+    const current = h.state.body.slice(0, -quote.length);
+    assert.ok(current.includes(TYPED));
+    assert.equal(current.includes('rt-native-layout-' + '63'.repeat(16)), false);
+    assert.equal(h.state.session, '1');
+});
+
 test('v5 nine-ID combined refresh preserves outer legal metadata and removes the exact old carrier', async () => {
     const h = nativeHost({ footer: true, responsive: true, wrappers: true });
     for (let count = 1; count <= 3; count++) {
@@ -725,7 +749,7 @@ test('an explicit opposite direct TD alignment stops current layout recovery bef
     }
 });
 
-test('sanitized actual R59 and R59b Office ten-ID DOMs complete restore through the real coordinator', async () => {
+test('sanitized actual one-row R59 and R59b Office DOMs cannot acknowledge a new two-row operation', async () => {
     for (const file of ['r59-office-inset-wrapper.html', 'r59b-office-inset-wrapper.html']) {
     const captured = readFileSync(new URL('../Fixtures/outlook/' + file, import.meta.url), 'utf8');
     const observed = managedTemplateContract(captured);
@@ -738,9 +762,9 @@ test('sanitized actual R59 and R59b Office ten-ID DOMs complete restore through 
         h.state.body = captured.replaceAll('rt-native-layout-11223344556677889900aabbccddeeff-', 'rt-native-layout-' + nonce + '-');
         callback(succeeded());
     };
-    await h.run();
-    assert.equal(h.state.writes.length, 1); assert.equal(h.state.prepends.length, 1);
-    assert.equal(h.state.session, '1'); assert.equal(isTemplateInsertionBlocked(h.item), false);
+    await assert.rejects(h.run(), { code: 'TEMPLATE_LAYOUT_UNCONFIRMED' });
+    assert.equal(h.state.writes.length, 1); assert.equal(h.state.prepends.length, 0);
+    assert.match(h.state.session, /^pending:/); assert.equal(isTemplateInsertionBlocked(h.item), true);
     }
 });
 

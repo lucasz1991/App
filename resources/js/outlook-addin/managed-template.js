@@ -367,6 +367,8 @@ export function standaloneSignatureContract(html, currentHtml = html, ids = null
             if (elements.some(node => (node.attrs.id || '').endsWith(retained[1] + 'l'))) inferred.logo = retained[1] + 'l';
             if (elements.some(node => (node.attrs.id || '').endsWith(retained[1] + 'i'))) inferred.inset = retained[1] + 'i';
             if (elements.some(node => (node.attrs.id || '').endsWith(retained[1] + 'f'))) inferred.footer = retained[1] + 'f';
+            if (elements.some(node => (node.attrs.id || '').endsWith(retained[1] + 'w'))) inferred.window = retained[1] + 'w';
+            if (elements.some(node => (node.attrs.id || '').endsWith(retained[1] + 'j'))) inferred.trainImage = retained[1] + 'j';
         }
     }
     const boundIds = ids || inferred;

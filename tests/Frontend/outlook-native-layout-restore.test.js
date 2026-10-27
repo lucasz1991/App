@@ -11,15 +11,16 @@ const table = (className, children = [], attrs = {}) => element('table', { class
 // This source builder records offsets as it emits bytes; no DOM serialization is used.
 function fixture({ header = true, legacy = false, quotedCopy = false, legal = false, legalColor = '#718096', wire = false, standalone = false, responsive = false, wrappers = false, templateGutter = false, ownedRaster = false } = {}) {
     const metadata = value => element('span', { hidden: '', style: 'font-size:0;line-height:0;' }, [value]);
-    const person = table('rt-personal-left', [element('p', {}, ['Synthetic personal text'])]);
+    const person = table('rt-personal-left', [element('p', {}, ['Synthetic personal text'])], responsive ? { align: 'left', height: '50' } : {});
     const company = table('rt-personal-right', [element('img', { src: 'cid:logo.png', width: '180', height: '31' })]);
     const logo = table('rt-personal-logo-column', [table('rt-personal-logo-frame', [element('img', { src: 'cid:separate-logo.png', width: '200', height: '34' })])]);
     const train = table('rt-df-train', [element('div', { class: 'rt-train-window' }, [element('img', {
         class: 'rt-delivery-train', src: 'cid:train.gif', width: '300', height: '38',
     })]), '<!--[if mso]><img class="rt-delivery-train-mso" src="cid:still.png" width="220" height="28"><![endif]-->']);
-    const flow = table('rt-personal-columns', [...(responsive ? [logo] : []), person, company, train], {
-        'data-rt-personal-flow': 'v1', 'data-rt-personal-columns': 'v1', 'data-rt-desktop-flow': 'outlook-desktop-flow-v' + (responsive ? '5' : '4'),
+    const flow = table('rt-personal-columns', [...(responsive ? [logo] : []), person, company, ...(responsive ? [] : [train])], {
+        'data-rt-personal-flow': 'v1', 'data-rt-personal-columns': 'v1', 'data-rt-desktop-flow': 'outlook-desktop-flow-v' + (responsive ? '6' : '4'),
     });
+    if (responsive) flow.children[0].children.push(element('tr', {}, [element('td', {}, [train])]));
     const gutter = table('rt-brand-hotline-gutter', [element('img', { src: 'cid:fill.png', width: '100%', height: '34' })]);
     const raster = element('table', { class: 'owned-raster', style: 'table-layout:auto;' }, [element('tbody', {}, [element('tr', {}, [
         element('td', { width: '1' }, [gutter]), ...['137', '42', '42', '100%'].map(width => element('td', {}, [element('img', { src: 'cid:raster.png', width, height: '34' })])),
@@ -72,12 +73,12 @@ test('cryptographic nonce generation requests exactly128bits and never falls bac
     assert.throws(() => createNativeLayoutNonce(null), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
 });
 
-test('v5 adds only the seventh logo TABLE ID and retains exact responsive CSS after Office rewrites', () => {
+test('v6 binds nine owned targets across two root rows and retains exact responsive CSS after Office rewrites', () => {
     const source = fixture({ responsive: true, standalone: true, legal: true });
     const plan = prepareNativeLayoutRestore(source.html, standaloneSignatureContract(source.html), nonce);
-    assert.equal(Object.keys(plan.ids).length, 7);
+    assert.equal(Object.keys(plan.ids).length, 9);
     assert.equal(plan.ids.logo, `rt-native-layout-${nonce}-l`);
-    assert.equal(plan.html.replace(/ id="rt-native-layout-[0-9a-f]{32}-[rpcthsl]"/g, ''), source.html);
+    assert.equal(plan.html.replace(/ id="rt-native-layout-[0-9a-f]{32}-[rpcthslwj]"/g, ''), source.html);
     const body = (plan.stylePayload + plan.html).replace(/id="rt-native-layout-/g, 'id="x_rt-native-layout-')
         .replace(/#rt-native-layout-/g, '#x_rt-native-layout-').replace(/;}/g, '}');
     const inferred = standaloneSignatureContract(body);
@@ -86,17 +87,18 @@ test('v5 adds only the seventh logo TABLE ID and retains exact responsive CSS af
     assert.equal(removeNativeLayoutRestoreCarrier(body, inferred, plan.ids), body.slice(body.indexOf('</table>') + 8));
     const css = nativeLayoutRestoreCss(plan.ids);
     const responsive = nativeLayoutRestoreResponsiveCss(plan.ids);
-    assert.equal(css.split('display:inline-block!important;').length - 1, 3);
+    assert.equal(css.split('display:inline-block!important;').length - 1, 2);
     assert.ok(css.includes('#' + plan.ids.train + '{display:inline-table!important;vertical-align:bottom!important;'));
     assert.equal(css.split('width:100%!important;min-width:0!important;max-width:340px!important;direction:ltr!important;').length - 1, 4);
     assert.match(css, /max-width:680px!important;/);
-    assert.equal(css.split('direction:ltr!important;').length - 1, 5);
+    assert.equal(css.split('direction:ltr!important;').length - 1, 6);
     assert.match(css, /margin:0 auto 0 0!important;/);
-    assert.match(css, /-p\{float:left!important;\}/);
-    assert.match(css, /-t\{float:left!important;clear:left!important;\}/);
+    assert.match(css, /-p\{height:50px!important;min-height:50px!important;\}/);
+    assert.match(css, /-w\{overflow:hidden!important;padding-top:9.2%!important;/);
+    assert.match(responsive, /-j\{transform:scale\(1.733333\)!important;transform-origin:100% 100%!important;\}/);
     assert.match(css, /-l\{margin-bottom:10px!important;\}/);
     assert.match(css, /border-top:4px solid transparent!important;/);
-    assert.doesNotMatch(css, /min\(|max\(|calc\(|@media|direction:rtl|float:right|[;{](?:position|top):/);
+    assert.doesNotMatch(css, /min\(|max\(|calc\(|@media|direction:rtl|[;{](?:float|clear|position|top):/);
     assert.doesNotMatch(responsive, /min\(|max\(|calc\(/);
     assert.match(responsive, /@media\(max-width:680px\)\{/);
     assert.match(responsive, /width:100%!important;min-width:0!important;max-width:100%!important;/);
@@ -104,7 +106,7 @@ test('v5 adds only the seventh logo TABLE ID and retains exact responsive CSS af
     assert.match(responsive, /border-right-width:18px!important/);
     const rules = [...(css + responsive).replace('@media(max-width:680px){', '').matchAll(/([^{}]+)\{([^{}]*)\}/g)];
     assert.ok(rules.length > 10);
-    for (const [, selector] of rules) assert.match(selector, /^#rt-native-layout-[0-9a-f]{32}-[rpcthslif]$/);
+    for (const [, selector] of rules) assert.match(selector, /^#rt-native-layout-[0-9a-f]{32}-[rpcthslifwj]$/);
     assert.doesNotMatch(css, /(?:^|[},])\s*(?:img|div|font|span|td|table)\b|[>+~]|width:520px|first-child|last-child/);
     assert.throws(() => nativeLayoutRestoreRetained(body.replace('max-width:680px', 'max-width:681px'), inferred, plan.ids), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
 });
@@ -112,10 +114,10 @@ test('v5 adds only the seventh logo TABLE ID and retains exact responsive CSS af
 test('v5 binds optional inset/legal TABLE wrappers with pure ID responsive rules and exact retained ownership', () => {
     const source = fixture({ responsive: true, standalone: true, legal: true, wrappers: true });
     const plan = prepareNativeLayoutRestore(source.html, standaloneSignatureContract(source.html), nonce);
-    assert.equal(Object.keys(plan.ids).length, 9);
+    assert.equal(Object.keys(plan.ids).length, 11);
     assert.equal(plan.ids.inset, `rt-native-layout-${nonce}-i`);
     assert.equal(plan.ids.footer, `rt-native-layout-${nonce}-f`);
-    assert.equal(plan.html.replace(/ id="rt-native-layout-[0-9a-f]{32}-[rpcthslif]"/g, ''), source.html);
+    assert.equal(plan.html.replace(/ id="rt-native-layout-[0-9a-f]{32}-[rpcthslifwj]"/g, ''), source.html);
     const body = plan.stylePayload + plan.html;
     const parsed = standaloneSignatureContract(body);
     assert.deepEqual(parsed.layoutIds, plan.ids);
@@ -180,7 +182,7 @@ test('actual sanitized R61 swap TD overrides fail alignment even with the exact 
         edits.push({ start: cell.start, end: cell.openEnd, opening });
     }
     for (const edit of edits.sort((a, b) => b.start - a.start)) html = html.slice(0, edit.start) + edit.opening + html.slice(edit.end);
-    assert.equal(nativeLayoutRestoreRetained(html, managedTemplateContract(html), ids), true);
+    assert.throws(() => nativeLayoutRestoreRetained(html, managedTemplateContract(html), ids), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' }, 'Correcting old cell alignment cannot convert a historical one-row layout into current delivery.');
 });
 
 test('an opposite root flow TD cannot acknowledge success even when all four child cells explicitly align left', () => {
@@ -224,7 +226,7 @@ test('only the owned v5 raster places h on its inner five-cell TABLE and overrid
 test('v5 template gutter ID belongs only to the combined template and retains pure ID responsive borders', () => {
     const source = fixture({ responsive: true, wire: true, legal: true, wrappers: true, templateGutter: true });
     const plan = prepareNativeLayoutRestore(source.html, managedTemplateContract(source.html), nonce);
-    assert.equal(Object.keys(plan.ids).length, 10);
+    assert.equal(Object.keys(plan.ids).length, 12);
     assert.equal(plan.ids.templateGutter, `rt-native-layout-${nonce}-q`);
     const body = plan.stylePayload + plan.html;
     const parsed = managedTemplateContract(body);
@@ -234,10 +236,115 @@ test('v5 template gutter ID belongs only to the combined template and retains pu
     const responsive = nativeLayoutRestoreResponsiveCss(plan.ids);
     assert.match(responsive, /-q\{border-left-width:18px!important;border-right-width:18px!important;\}/);
     for (const [, selector] of (css + responsive).replace('@media(max-width:680px){', '').matchAll(/([^{}]+)\{[^{}]*\}/g)) {
-        assert.match(selector, /^#rt-native-layout-[0-9a-f]{32}-[rpcthslifq]$/);
+        assert.match(selector, /^#rt-native-layout-[0-9a-f]{32}-[rpcthslifqwj]$/);
     }
     const foreign = { ...parsed, template: parsed.signature };
     assert.throws(() => nativeLayoutRestoreRetained(body, foreign, plan.ids), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
+});
+
+test('published R62/R63 exact mixed core is owned cleanup evidence and cannot acknowledge current delivery', () => {
+    const html = readFileSync(new URL('../Fixtures/outlook/r63-native-mixed-carrier.html', import.meta.url), 'utf8').trimEnd();
+    const contract = standaloneSignatureContract(html);
+    const ids = contract.layoutIds;
+    assert.equal(Object.keys(ids).length, 9);
+    assert.throws(() => nativeLayoutRestoreRetained(html, contract, ids), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
+    const carrier = contract.elements.find(node => (node.attrs.id || '').endsWith('-carrier'));
+    assert.equal(removeNativeLayoutRestoreCarrier(html, contract, ids), html.slice(0, carrier.start) + html.slice(carrier.end));
+    const changed = html.replace('margin:0 auto 0 0!important;', 'margin:0 auto 0 1px!important;');
+    assert.equal(removeNativeLayoutRestoreCarrier(changed, standaloneSignatureContract(changed), ids), changed);
+});
+
+test('current second root TD and required person alignment are checked before acknowledgement', () => {
+    const source = fixture({ responsive: true, standalone: true, legal: true });
+    const plan = prepareNativeLayoutRestore(source.html, standaloneSignatureContract(source.html), nonce);
+    const html = plan.stylePayload + plan.html;
+    const contract = standaloneSignatureContract(html);
+    const root = contract.elements.findIndex(node => node.attrs.id === plan.ids.root);
+    const body = contract.elements.findIndex(node => node.parent === root && node.tag === 'tbody');
+    const rows = contract.elements.map((node, index) => ({ node, index })).filter(value => value.node.parent === body);
+    assert.equal(rows.length, 2);
+    const secondCell = contract.elements.find(node => node.parent === rows[1].index && node.tag === 'td');
+    for (const attr of ['align="right"', 'dir="rtl"', 'style="text-align:center"', 'style="direction:rtl"']) {
+        const changed = html.slice(0, secondCell.openEnd - 1) + ' ' + attr + html.slice(secondCell.openEnd - 1);
+        assert.throws(() => nativeLayoutRestoreRetained(changed, standaloneSignatureContract(changed), plan.ids), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
+    }
+    const missingAlign = html.replace('class="rt-personal-left" align="left"', 'class="rt-personal-left"');
+    assert.notEqual(missingAlign, html);
+    assert.throws(() => nativeLayoutRestoreRetained(missingAlign, standaloneSignatureContract(missingAlign), plan.ids), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
+});
+
+test('v6 rejects incorrect row ownership or a missing minimum-height fallback before annotation', () => {
+    for (const mutate of [
+        source => { source.elements[source.byClass('rt-df-train')].parent = source.elements[source.byClass('rt-personal-left')].parent; },
+        source => { source.elements[source.byClass('rt-personal-left')].attrs.height = '49'; },
+        source => { delete source.elements[source.byClass('rt-personal-left')].attrs.align; },
+        source => { source.elements[source.byClass('rt-train-window')].attrs.id = 'author-window'; },
+        source => { source.elements[source.byClass('rt-delivery-train')].attrs.id = 'author-image'; },
+    ]) {
+        const source = fixture({ responsive: true }); mutate(source);
+        assert.throws(() => prepareNativeLayoutRestore(source.html, source.contract, nonce), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
+    }
+});
+
+test('a current source host cannot reuse the frozen v4/v5 CSS namespace or a foreign signature scope', () => {
+    for (const names of ['rt-df41234567890', 'rt-df60000000000', 'rt-df61234567890 rt-df41234567890', '']) {
+        const source = fixture({ responsive: true });
+        source.elements[0].attrs.class = 'rts1234567890 rt-dflow-host-v4 ' + names;
+        assert.throws(() => prepareNativeLayoutRestore(source.html, source.contract, nonce), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
+    }
+    const source = fixture({ responsive: true });
+    source.elements[0].attrs.class = 'rts1234567890 rt-dflow-host-v4 rt-df61234567890';
+    assert.ok(prepareNativeLayoutRestore(source.html, source.contract, nonce));
+});
+
+test('actual sanitized PHP wire accepts only the shared DIV and direct owned TABLE host alias pair', () => {
+    const html = readFileSync(new URL('../Fixtures/outlook/r64-php-two-host-aliases.html', import.meta.url), 'utf8').trimEnd();
+    const contract = standaloneSignatureContract(html);
+    const hosts = contract.elements.filter(node => (node.attrs.class || '').split(/\s+/).includes('rt-dflow-host-v4'));
+    assert.equal(hosts.length, 2);
+    assert.equal(hosts[1], contract.signature.node);
+    assert.equal(contract.elements[hosts[1].parent], hosts[0]);
+    const plan = prepareNativeLayoutRestore(html, contract, nonce);
+    assert.equal(Object.keys(plan.ids).length, 11);
+    assert.equal(nativeLayoutRestoreRetained(plan.stylePayload + plan.html, standaloneSignatureContract(plan.stylePayload + plan.html), plan.ids), true);
+    const hostName = /\brt-df6[0-9a-f]{10}\b/.exec(hosts[0].attrs.class)[0];
+    const withHost = value => html.slice(0, hosts[0].start) + html.slice(hosts[0].start, hosts[0].openEnd).replace(hostName, value) + html.slice(hosts[0].openEnd);
+    const signature = contract.signature.node;
+    const wrapped = html.slice(0, signature.start) + '<div>' + html.slice(signature.start, signature.end) + '</div>' + html.slice(signature.end);
+    for (const changed of [
+        withHost(hostName.replace('rt-df6', 'rt-df4')),
+        withHost('rt-df60000000000'),
+        withHost(hostName + ' ' + hostName),
+        wrapped,
+        '<div class="' + hosts[0].attrs.class + '">' + html + '</div>',
+    ]) {
+        assert.throws(() => prepareNativeLayoutRestore(changed, standaloneSignatureContract(changed), nonce), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
+    }
+});
+
+test('optional exact zoom may disappear safely while required owned window clipping cannot', () => {
+    const source = fixture({ responsive: true, standalone: true, legal: true });
+    const plan = prepareNativeLayoutRestore(source.html, standaloneSignatureContract(source.html), nonce);
+    const rule = '#' + plan.ids.trainImage + '{transform:scale(1.733333)!important;transform-origin:100% 100%!important;}';
+    assert.ok(plan.stylePayload.includes(rule));
+    for (const replacement of [rule, '#' + plan.ids.trainImage + '{transform-origin:100% 100%!important;}', '#' + plan.ids.trainImage + '{}', '']) {
+        const html = plan.stylePayload.replace(rule, replacement) + plan.html;
+        assert.equal(nativeLayoutRestoreRetained(html, standaloneSignatureContract(html), plan.ids), true);
+    }
+    for (const changed of [
+        plan.stylePayload.replace(rule, '#' + plan.ids.trainImage + '{transform:scale(1.733333)!important;}'),
+        plan.stylePayload.replace(rule, rule.replace('1.733333', '2')),
+        plan.stylePayload.replace('overflow:hidden!important;padding-top:9.2%', 'overflow:visible!important;padding-top:9.2%'),
+        plan.stylePayload.replace(rule, rule + rule),
+        plan.stylePayload.replace(rule, 'img{transform:scale(1.733333)!important;}'),
+    ]) {
+        const html = changed + plan.html;
+        assert.throws(() => nativeLayoutRestoreRetained(html, standaloneSignatureContract(html), plan.ids), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
+    }
+    for (const key of ['window', 'trainImage']) {
+        const html = plan.stylePayload + plan.html + '<blockquote><span id="' + plan.ids[key] + '">Quoted collision</span></blockquote>';
+        assert.throws(() => nativeLayoutRestoreRetained(html, standaloneSignatureContract(html), plan.ids), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
+    }
 });
 
 test('v5 exact function-free core is required while the separate responsive sheet may be stripped or retain approved rule subsets', () => {
@@ -245,7 +352,7 @@ test('v5 exact function-free core is required while the separate responsive shee
     const plan = prepareNativeLayoutRestore(source.html, standaloneSignatureContract(source.html), nonce);
     const optional = nativeLayoutRestoreResponsiveCss(plan.ids);
     const media = optional;
-    const firstRule = optional.slice('@media(max-width:680px){'.length, -1).match(/^#[^{}]+\{[^{}]+\}/)[0];
+    const firstRule = optional.slice(optional.indexOf('@media(max-width:680px){') + '@media(max-width:680px){'.length, -1).match(/^#[^{}]+\{[^{}]+\}/)[0];
     const optionalNode = /<style data-rt-native-layout-responsive="v1">[\s\S]*?<\/style>/;
     for (const value of [null, '', media, '@media(max-width:680px){' + firstRule + '}', '@media(max-width:680px){}']) {
         const payload = plan.stylePayload.replace(optionalNode, value === null ? '' : '<style>' + value + '</style>');
@@ -293,7 +400,7 @@ test('v5 requires the exact logo/person/company/train sibling order and one boun
     for (const corrupt of [
         source => { source.elements[source.byClass('rt-personal-logo-column')].parent = source.byClass('rt-personal-right'); },
         source => { source.elements[source.byClass('rt-personal-logo-frame')].attrs.class = 'foreign-logo-frame'; },
-        source => { source.elements[source.byClass('rt-personal-columns')].attrs['data-rt-desktop-flow'] = 'outlook-desktop-flow-v6'; },
+        source => { source.elements[source.byClass('rt-personal-columns')].attrs['data-rt-desktop-flow'] = 'outlook-desktop-flow-v5'; },
     ]) {
         const source = fixture({ responsive: true }); corrupt(source);
         assert.throws(() => prepareNativeLayoutRestore(source.html, source.contract, nonce), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });

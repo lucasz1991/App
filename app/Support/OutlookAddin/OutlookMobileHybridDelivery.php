@@ -18,9 +18,7 @@ final class OutlookMobileHybridDelivery
 
     private const CELL = 'padding:0;';
 
-    private const IMAGE = 'display:block;width:520px!important;max-width:none!important;height:auto!important;margin:0;border:0;vertical-align:bottom;';
-
-    private const WINDOW = 'overflow:hidden;direction:rtl;max-width:420px;';
+    private const IMAGE = 'display:block;width:100%;max-width:100%;height:auto;margin:0;border:0;';
 
     public static function project(string $html): string
     {
@@ -44,7 +42,8 @@ final class OutlookMobileHybridDelivery
             || ($nodes[$flow]['attrs']['data-rt-personal-columns'] ?? '') !== 'v1') {
             self::fail();
         }
-        self::styles($html);
+        $scope = self::scope($html);
+        self::styles($html, $scope);
         $artifacts = array_keys(array_filter($nodes, static fn (array $node): bool => isset($node['attrs']['data-rt-artifact-version'])));
         if (count($artifacts) !== 1 || $nodes[$artifacts[0]]['tag'] !== 'tr'
             || $nodes[$artifacts[0]]['attrs']['data-rt-artifact-version'] !== 'v27'
@@ -122,15 +121,15 @@ final class OutlookMobileHybridDelivery
         self::children($html, $nodes, $trainRow, [$train]);
         self::children($html, $nodes, $nodes[$contentRow]['parent'], [$contentRow, $trainRow]);
         $moving = self::inner($html, $nodes[$train]);
-        $imageOpening = self::attribute(self::attribute($nodes[$image]['opening'], 'class', 'rt-mhy-image'), 'style', self::IMAGE);
-        $moving = substr_replace($moving, '<div class="rt-mhy-window" dir="rtl" style="'.self::WINDOW.'">'.$imageOpening.'</div>',
+        $imageOpening = self::attribute(self::attribute($nodes[$image]['opening'], 'class', 'rt-mhy-image rt-i'.$scope), 'style', self::IMAGE);
+        $moving = substr_replace($moving, '<div class=rt-w'.$scope.'>'.$imageOpening.'</div>',
             $nodes[$image]['start'] - $nodes[$train]['openEnd'], $nodes[$image]['openEnd'] - $nodes[$image]['start']);
         $logoBlock = self::block('logo', self::whole($html, $nodes[$logo]));
         $trainBlock = self::block('train', $moving);
         $before = self::inventory($html);
         $edits = [
             [$nodes[$flow]['start'], $nodes[$flow]['openEnd'], '<table class="rt-mobile-hybrid-v1" '.self::MARKER.'="v1" data-rt-personal-columns="v1" role=presentation dir=ltr width=100% cellpadding=0 cellspacing=0 style="'.self::FLOW.'"><tbody><tr><td dir=ltr align=left style="padding:0;">'.$logoBlock],
-            [$nodes[$flow]['close'], $nodes[$flow]['end'], $trainBlock.'</td></tr></tbody></table>'],
+            [$nodes[$flow]['close'], $nodes[$flow]['end'], '</td></tr><tr><td dir=ltr align=left style="padding:0;">'.$trainBlock.'</td></tr></tbody></table>'],
             [$nodes[$left]['start'], $nodes[$left]['openEnd'], self::tableOpening('person')],
             [$nodes[$right]['start'], $nodes[$right]['openEnd'], self::tableOpening('company')],
             [$nodes[$leftCell]['start'], $nodes[$leftCell]['openEnd'], '<td dir=ltr align=left style="'.self::cellStyle('person').'">'],
@@ -150,6 +149,11 @@ final class OutlookMobileHybridDelivery
             $edge = $start;
         }
         $output = self::pruneUnusedMobileMirrors($output, $nodes[$root]);
+        $count = 0;
+        $output = preg_replace_callback('~(<style\s+data-rt-outlook-mobile-css=(["\'])1\2\s*>)(.*?)(</style\s*>)~is', static fn (array $style): string => $style[1].$style[3].self::enhancement($scope).$style[4], $output, -1, $count);
+        if ($count !== 1) {
+            self::fail();
+        }
         if ($before !== self::inventory($output)) {
             self::fail();
         }
@@ -162,12 +166,12 @@ final class OutlookMobileHybridDelivery
 
     private static function tableStyle(string $kind): string
     {
-        return 'display:'.($kind === 'train' ? 'inline-table' : 'inline-block').';vertical-align:'.($kind === 'train' ? 'bottom' : 'top').';width:100%;max-width:340px;'.($kind === 'train' ? 'table-layout:fixed;' : '').'border-collapse:separate;box-sizing:border-box;border:0 solid transparent;border-width:0 18px;'.($kind === 'train' ? 'border-left:0;float:left;clear:left;' : ($kind === 'person' ? 'float:left;' : ''));
+        return 'display:'.(in_array($kind, ['person', 'train'], true) ? 'inline-table' : 'inline-block').';vertical-align:'.($kind === 'train' ? 'bottom' : 'top').';width:100%;max-width:340px;'.($kind === 'train' ? 'table-layout:fixed;' : '').'border-collapse:separate;box-sizing:border-box;border:0 solid transparent;border-width:0 18px;'.($kind === 'train' ? 'border-left:0;' : ($kind === 'person' ? 'float:left;' : ''));
     }
 
     private static function tableOpening(string $kind): string
     {
-        return '<table class="rt-mhy-'.$kind.'" role=presentation dir=ltr width=100% cellpadding=0 cellspacing=0 style="'.self::tableStyle($kind).'">';
+        return '<table class="rt-mhy-'.$kind.'" role=presentation dir=ltr'.($kind === 'person' ? ' align=left height=50' : '').' width=100% cellpadding=0 cellspacing=0 style="'.self::tableStyle($kind).'">';
     }
 
     private static function block(string $kind, string $content): string
@@ -187,14 +191,37 @@ final class OutlookMobileHybridDelivery
             || ($nodes[$flow]['attrs']['style'] ?? '') !== self::FLOW) {
             self::fail();
         }
-        $cell = self::tableCell($html, $nodes, $flow);
-        if (($nodes[$cell]['attrs']['dir'] ?? '') !== 'ltr' || ($nodes[$cell]['attrs']['align'] ?? '') !== 'left') {
+        $bodies = self::direct($nodes, $flow);
+        if (count($bodies) !== 1 || $nodes[$bodies[0]]['tag'] !== 'tbody') {
             self::fail();
+        }
+        self::children($html, $nodes, $flow, $bodies);
+        $rows = self::direct($nodes, $bodies[0]);
+        if (count($rows) !== 2 || $nodes[$rows[0]]['tag'] !== 'tr' || $nodes[$rows[1]]['tag'] !== 'tr') {
+            self::fail();
+        }
+        self::children($html, $nodes, $bodies[0], $rows);
+        $cells = [];
+        foreach ($rows as $row) {
+            $children = self::direct($nodes, $row);
+            if (count($children) !== 1 || $nodes[$children[0]]['tag'] !== 'td') {
+                self::fail();
+            }
+            self::children($html, $nodes, $row, $children);
+            $cell = $children[0];
+            if (($nodes[$cell]['attrs']['dir'] ?? '') !== 'ltr' || ($nodes[$cell]['attrs']['align'] ?? '') !== 'left'
+                || ($nodes[$cell]['attrs']['style'] ?? '') !== 'padding:0;') {
+                self::fail();
+            }
+            $cells[] = $cell;
         }
         $groups = [];
         foreach (['logo', 'person', 'company', 'train'] as $kind) {
             $group = self::one($nodes, 'rt-mhy-'.$kind, 'table');
             if (($nodes[$group]['attrs']['dir'] ?? '') !== 'ltr' || ($nodes[$group]['attrs']['style'] ?? '') !== self::tableStyle($kind)) {
+                self::fail();
+            }
+            if ($kind === 'person' && (($nodes[$group]['attrs']['align'] ?? '') !== 'left' || ($nodes[$group]['attrs']['height'] ?? '') !== '50')) {
                 self::fail();
             }
             $groups[] = $group;
@@ -204,7 +231,8 @@ final class OutlookMobileHybridDelivery
                 self::fail();
             }
         }
-        self::children($html, $nodes, $cell, $groups);
+        self::children($html, $nodes, $cells[0], array_slice($groups, 0, 3));
+        self::children($html, $nodes, $cells[1], [$groups[3]]);
         self::children($html, $nodes, self::tableCell($html, $nodes, $groups[0]), [self::one($nodes, 'rt-personal-logo-frame', 'table')]);
         self::children($html, $nodes, self::tableCell($html, $nodes, $groups[1]), [self::one($nodes, 'rt-personal-name', 'div'), self::one($nodes, 'rt-personal-direct', 'div')]);
         self::children($html, $nodes, self::tableCell($html, $nodes, $groups[2]), [self::one($nodes, 'rt-personal-company-block', 'table')]);
@@ -213,29 +241,52 @@ final class OutlookMobileHybridDelivery
             || ($nodes[$contacts]['attrs']['style'] ?? '') !== 'padding-top:4px!important;') {
             self::fail();
         }
-        $image = self::one($nodes, 'rt-mhy-image', 'img');
-        $window = self::one($nodes, 'rt-mhy-window', 'div');
+        $scope = self::scope($html);
+        $image = self::one($nodes, 'rt-i'.$scope, 'img');
+        $window = self::one($nodes, 'rt-w'.$scope, 'div');
         if (($nodes[$image]['attrs']['style'] ?? '') !== self::IMAGE
             || ($nodes[$image]['attrs']['width'] ?? '') !== '300' || ($nodes[$image]['attrs']['height'] ?? '') !== '38'
-            || ($nodes[$window]['attrs']['style'] ?? '') !== self::WINDOW
-            || ($nodes[$window]['attrs']['dir'] ?? '') !== 'rtl' || ! self::within($nodes, $window, $groups[3])) {
+            || ($nodes[$image]['attrs']['class'] ?? '') !== 'rt-mhy-image rt-i'.$scope
+            || ($nodes[$window]['attrs']['class'] ?? '') !== 'rt-w'.$scope || ! self::within($nodes, $window, $groups[3])) {
             self::fail();
         }
+        self::attributesOnly($nodes[$window], ['class']);
         self::children($html, $nodes, $window, [$image]);
         self::children($html, $nodes, self::tableCell($html, $nodes, $groups[3]), [$window]);
     }
 
-    private static function styles(string $html): void
+    private static function scope(string $html): string
+    {
+        return substr(hash('sha256', "outlook-mobile-hybrid-v64\0".serialize(self::inventory($html))), 0, 6);
+    }
+
+    private static function enhancement(string $scope): string
+    {
+        return '.rt-w'.$scope.'{overflow:hidden;padding-top:9.2%}.rt-i'.$scope.'{transform:scale(1.733333);transform-origin:100% 100%}';
+    }
+
+    private static function styles(string $html, string $scope): void
     {
         preg_match_all('~<style\b([^>]*)>(.*?)</style\s*>~is', $html, $styles, PREG_SET_ORDER);
+        $enhancements = 0;
+        $enhancement = self::enhancement($scope);
         foreach ($styles as $style) {
             if (trim($style[2]) === '') {
                 continue;
             }
+            $css = $style[2];
+            if (preg_match('/\A\s+data-rt-outlook-mobile-css\s*=\s*(["\'])1\1\s*\z/i', $style[1]) === 1
+                && str_ends_with($css, $enhancement)) {
+                $enhancements++;
+                $css = substr($css, 0, -strlen($enhancement));
+            }
             if (preg_match('/\A\s+data-rt-(?:outlook-(?:signature|mobile|marker|template)-css|combined-compose-css)\s*=\s*(["\'])1\1\s*\z/i', $style[1]) !== 1
-                || str_contains($style[2], 'rt-mhy-') || str_contains($style[2], 'rt-mobile-hybrid-v1')) {
+                || str_contains($css, 'rt-mhy-') || str_contains($css, 'rt-mobile-hybrid-v1') || preg_match('/\.rt-(?:w|[wi][0-9a-f]{6})(?![-_a-z0-9])/i', $css) === 1) {
                 self::fail();
             }
+        }
+        if ($enhancements !== (str_contains($html, self::MARKER.'="v1"') ? 1 : 0)) {
+            self::fail();
         }
     }
 
