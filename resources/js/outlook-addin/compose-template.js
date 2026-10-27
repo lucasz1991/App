@@ -814,7 +814,7 @@ function layoutIdsContract(html, currentHtml, ids, standalone = null) {
         if (!targets.logo || !targets.header || !withinContract(contract, targets.inset.index, targets.header.index)) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
         let container = only(only(only(targets.inset.index, 'tbody'), 'tr'), 'td');
         let wrappers = 0;
-        while (children(container).length === 1 && children(container)[0].node.tag === 'div') {
+        while (children(container).length === 1 && ['div', 'span'].includes(children(container)[0].node.tag)) {
             const child = children(container)[0];
             const parent = contract.elements[container];
             const outside = html.slice(parent.openEnd, child.node.start) + html.slice(child.node.end, parent.close);

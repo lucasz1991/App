@@ -559,27 +559,28 @@ test('v5 ten-ID combined refresh scopes template q outside signature and removes
     }
 });
 
-function officeInsetImage(html, { depth = 1, style = 'width:100%;height:34px;max-height:34px;display:block;', text = '', duplicate = false } = {}) {
+function officeInsetImage(html, { depth = 1, tag = 'div', style = 'width:100%;height:34px;max-height:34px;display:block;', text = '', duplicate = false } = {}) {
     const contract = managedTemplateContract(html);
     const inset = contract.elements.find(node => (node.attrs.id || '').endsWith('-i'));
     const image = contract.elements.find(node => node.tag === 'img' && node.start > inset.start && node.end < inset.end);
     const opening = html.slice(image.start, image.openEnd).replace(/\swidth="100%"/, '').replace(/>$/, ' style="' + style + '">');
-    const content = '<div style="font-family:Aptos;font-size:13px;">'.repeat(depth) + text + opening + (duplicate ? opening : '') + '</div>'.repeat(depth);
+    const content = ('<' + tag + ' style="font-family:Aptos;font-size:13px;">').repeat(depth) + text + opening + (duplicate ? opening : '') + ('</' + tag + '>').repeat(depth);
     return html.slice(0, image.start) + content + html.slice(image.end);
 }
 
-test('observed inset image typography DIVs and removed percent-width attribute retain exact ten-ID ownership', async () => {
-    for (const depth of [0, 1, 2]) {
+test('observed inset image typography DIVs/SPANs and removed percent-width attribute retain exact ten-ID ownership', async () => {
+    for (const [depth, tag] of [[0, 'div'], [1, 'div'], [2, 'div'], [1, 'span'], [2, 'span']]) {
         const h = nativeHost({ footer: true, responsive: true, wrappers: true, templateGutter: true });
-        h.item.body.setAsync = (html, _options, callback) => { h.state.writes.push(html); h.state.body = officeInsetImage(afterOfficeSet(html), { depth }); callback(succeeded()); };
+        h.item.body.setAsync = (html, _options, callback) => { h.state.writes.push(html); h.state.body = officeInsetImage(afterOfficeSet(html), { depth, tag }); callback(succeeded()); };
         await h.run();
         assert.equal(h.state.writes.length, 1); assert.equal(h.state.prepends.length, 1);
         assert.equal(isTemplateInsertionBlocked(h.item), false);
     }
 });
 
-test('sanitized actual R59 Office ten-ID DOM completes restore through the real coordinator', async () => {
-    const captured = readFileSync(new URL('../Fixtures/outlook/r59-office-inset-wrapper.html', import.meta.url), 'utf8');
+test('sanitized actual R59 and R59b Office ten-ID DOMs complete restore through the real coordinator', async () => {
+    for (const file of ['r59-office-inset-wrapper.html', 'r59b-office-inset-wrapper.html']) {
+    const captured = readFileSync(new URL('../Fixtures/outlook/' + file, import.meta.url), 'utf8');
     const observed = managedTemplateContract(captured);
     assert.equal(observed.kind, 'text-v1');
     assert.equal(observed.signatureMetadata.managed, observed.signatureMetadata.version, 'The real Office body coalesced hidden signature metadata.');
@@ -593,10 +594,11 @@ test('sanitized actual R59 Office ten-ID DOM completes restore through the real 
     await h.run();
     assert.equal(h.state.writes.length, 1); assert.equal(h.state.prepends.length, 1);
     assert.equal(h.state.session, '1'); assert.equal(isTemplateInsertionBlocked(h.item), false);
+    }
 });
 
 test('inset readback still rejects extra content/images, excessive wrappers and ambiguous CSS width before prepend', async () => {
-    for (const changes of [{ depth: 3 }, { text: 'User text' }, { duplicate: true },
+    for (const changes of [{ depth: 3 }, { depth: 3, tag: 'span' }, { tag: 'section' }, { text: 'User text' }, { duplicate: true },
         { style: '' }, { style: 'width:50%;' }, { style: 'width:100%!important;' },
         { style: 'width:100%;width:100%;' }, { style: 'width:100%;max-width:40px;' },
         { style: 'font-family:&quot;name;width:100%;&quot;;' }]) {
