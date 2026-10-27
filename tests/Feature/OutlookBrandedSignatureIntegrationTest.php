@@ -19,6 +19,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 use ReflectionProperty;
 use Tests\TestCase;
+use TijsVerkoyen\CssToInlineStyles\CssToInlineStyles;
 
 /** Real authored V27 fixtures through canonical, mobile and final CID delivery. */
 final class OutlookBrandedSignatureIntegrationTest extends TestCase
@@ -77,7 +78,7 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
             self::assertSame($payload['templates'][$index]['composeHtml'], $mobileCanonical['templates'][$index]['composeHtml']);
             self::assertSame($payload['templates'][$index]['combinedComposeHtml'], $mobileCanonical['templates'][$index]['combinedComposeHtml']);
             $this->assertDocument($template['signature']['html'], $template['signature']['media'], false, 30000, 12288, $personal);
-            $this->assertDocument($template['html'], $template['media'], false, 99000, 24576, $personal);
+            $this->assertDocument($template['html'], $template['media'], false, 99000, 24576, $personal, false);
             $this->assertDocument($template['combinedComposeHtml'], $template['combinedComposeMedia'], false, 99000, 24576, $personal);
             $this->assertDocument($paired['signature']['html'], $paired['signature']['media'], true, 30000, 12288, $personal);
             $this->assertDocument($paired['mobileComposeHtml'], $paired['mobileComposeMedia'], true, 30000, 12288, $personal);
@@ -139,6 +140,7 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
     {
         [$before, $user, $case] = $this->fixture(true);
         (new ReflectionMethod($case, 'wordingVariant'))->invoke($case);
+        $this->matchCanonicalTemplateFixtureFragments();
         (new ReflectionMethod($case, 'wording'))->invoke($case, str_repeat('&', 120), str_repeat('&a', 60));
         $payload = app(OutlookAddinPayloadService::class)->forUser($user->fresh());
         self::assertSame($before['signature'], $payload['signature'], 'Personal wording does not rewrite the signature or its fixed images.');
@@ -187,14 +189,15 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
         ];
         foreach ($desktop['templates'] as $index => $template) {
             $paired = $mobile['templates'][$index];
-            $documents[] = [$template['html'], $template['media'], false, 99000, 24576];
+            $documents[] = [$template['html'], $template['media'], false, 99000, 24576, false];
             $documents[] = [$template['signature']['html'], $template['signature']['media'], false, 30000, 12288];
             $documents[] = [$template['combinedComposeHtml'], $template['combinedComposeMedia'], false, 99000, 24576];
             $documents[] = [$paired['signature']['html'], $paired['signature']['media'], true, 30000, 12288];
             $documents[] = [$paired['mobileComposeHtml'], $paired['mobileComposeMedia'], true, 30000, 12288];
         }
-        foreach ($documents as [$html, $media, $physicalMobile, $characters, $cssBytes]) {
-            $this->assertDocument($html, $media, $physicalMobile, $characters, $cssBytes, true);
+        foreach ($documents as $document) {
+            [$html, $media, $physicalMobile, $characters, $cssBytes] = $document;
+            $this->assertDocument($html, $media, $physicalMobile, $characters, $cssBytes, true, $document[5] ?? true);
         }
         $this->exportPreview('desktop-published-padding', $desktop['signature']);
         $this->exportPreview('desktop-published-padding-noinline', $desktop['signature'], true);
@@ -209,6 +212,7 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
         self::assertSame(':memory:', config('database.connections.sqlite.database'));
         $case = new V27PersonalLayoutTest('test_separate_sources_are_valid_and_company_render_remains_exactly_the_unmodified_delivery_path');
         (new ReflectionMethod($case, 'setUp'))->invoke($case);
+        $this->matchCanonicalTemplateFixtureFragments();
         $user = (new ReflectionProperty($case, 'person'))->getValue($case);
         self::assertInstanceOf(User::class, $user);
         $system = (new ReflectionProperty($case, 'system'))->getValue($case);
@@ -226,7 +230,43 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
         return [app(OutlookAddinPayloadService::class)->forUser($user), $user, $case];
     }
 
-    private function assertDocument(string $html, array $media, bool $mobile, int $characters, int $cssBytes, bool $personal): void
+    /** PHP nowdocs use LF even when the checked-out canonical resource uses CRLF. */
+    private function matchCanonicalTemplateFixtureFragments(): void
+    {
+        $master = file_get_contents(resource_path('mail-templates/email-master.html'));
+        self::assertIsString($master);
+        $patterns = ['~<style\b[^>]*>.*?</style\s*>~is', '~<!-- RT_TEMPLATE_MARK_START -->.*?<!-- RT_TEMPLATE_MARK_END -->~s'];
+        $canonical = [];
+        foreach ($patterns as $pattern) {
+            self::assertSame(1, preg_match_all($pattern, $master, $matches));
+            $canonical[] = $matches[0][0];
+        }
+        $documents = MailDocument::query()->where('kind', 'template')->orderBy('id')->get();
+        self::assertCount(2, $documents);
+        foreach ($documents as $document) {
+            self::assertSame($document->html, $document->published_html);
+            $source = $document->html;
+            foreach ($patterns as $index => $pattern) {
+                $source = preg_replace_callback($pattern, static fn (): string => $canonical[$index], $source, -1, $count);
+                self::assertSame(1, $count, 'Only the exact canonical head/mark fixture fragments are copied.');
+            }
+            if ($source === $document->html) {
+                continue;
+            }
+            $builder = $document->builder_data;
+            self::assertIsString($builder['pages'][0]['component']);
+            foreach ($patterns as $index => $pattern) {
+                $builder['pages'][0]['component'] = preg_replace_callback($pattern, static fn (): string => $canonical[$index], $builder['pages'][0]['component'], -1, $count);
+                self::assertSame(1, $count);
+            }
+            $document->forceFill([
+                'html' => $source, 'published_html' => $source, 'builder_data' => $builder,
+                'content_hash' => MailDocument::contentHashFor($builder, $source, $document->css),
+            ])->saveQuietly();
+        }
+    }
+
+    private function assertDocument(string $html, array $media, bool $mobile, int $characters, int $cssBytes, bool $personal, bool $mirrored = true): void
     {
         self::assertLessThanOrEqual($characters, intdiv(strlen(mb_convert_encoding($html, 'UTF-16LE', 'UTF-8')), 2));
         preg_match_all('~<style\b[^>]*>(.*?)</style\s*>~is', $html, $styles);
@@ -320,6 +360,7 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
             self::assertMatchesRegularExpression('/(?:^|;)\s*color\s*:\s*#142231\s*;/i', $addressCells->item(1)->getAttribute('style'));
             self::assertDoesNotMatchRegularExpression('/(?:^|;)\s*color\s*:[^;]*!important/i', $addressCells->item(1)->getAttribute('style'), 'Outlook dark-mode inline colors must outrank the fallback color mirror.');
             self::assertSame(0, $xpath->query('.//a', $addressCells->item(1))->length, 'Address formatting does not invent a link.');
+            $this->assertPersonalPostalForeground($html, $mirrored);
             self::assertSame(1, $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-personal-logo-frame ")]')->length);
             self::assertSame(1, $xpath->query('//div[contains(concat(" ",normalize-space(@class)," ")," rt-personal-name ")]')->length);
             self::assertSame(1, $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-personal-logo-frame ")]//img')->length, 'MSO fallback comments do not become a second visible logo.');
@@ -341,6 +382,88 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
             self::assertSame(0, $xpath->query('//div[contains(concat(" ",normalize-space(@class)," ")," rt-personal-name ")]')->length, 'The company-shaped provider actually uses the separate system signature source.');
             self::assertSame(0, $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-personal-logo-frame ")]')->length);
         }
+    }
+
+    /** Inspect actual personal text paint after the real cascade, not only a raw TD fallback. */
+    private function assertPersonalPostalForeground(string $html, bool $mirrored): void
+    {
+        self::assertSame($mirrored, preg_match('~data-rt-outlook-(?:signature-inline|mobile)-css~', $html) === 1, 'Every native signature/combined document must retain a desktop or mobile style mirror; only the explicitly identified legacy full template lacks one.');
+        $variants = ['inline and styles' => $html];
+        if ($mirrored) {
+            $variants['retained style mirrors'] = preg_replace('~\sstyle="[^"]*"~', '', $html);
+        }
+        foreach ($variants as $mode => $source) {
+            $computed = (new CssToInlineStyles)->convert($source);
+            $xpath = $this->xpath($computed);
+            $tables = $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-company-contact ") or contains(concat(" ",normalize-space(@class)," ")," xj ")]');
+            self::assertCount(1, $tables, $mode.': the personal company table must be present, including compact mobile aliases.');
+            $table = $tables->item(0);
+            $postal = $xpath->query('./tbody/tr[1]/td[2]|./tr[1]/td[2]', $table);
+            self::assertCount(1, $postal, $mode.': a missing postal cell cannot skip the color check.');
+            self::assertStringContainsString('Musterweg 12', $postal->item(0)->textContent);
+            self::assertStringContainsString('10115 Berlin', $postal->item(0)->textContent);
+            $links = $xpath->query('.//a', $table);
+            self::assertCount(3, $links, $mode.': inspect the own company telephone, email and website references.');
+            $reference = null;
+            foreach ($links as $link) {
+                $text = $xpath->query('.//text()[normalize-space(.)!=""]', $link);
+                self::assertGreaterThan(0, $text->length);
+                foreach ($text as $leaf) {
+                    $color = $this->paintedForeground($leaf->parentNode);
+                    self::assertSame('#142231', $color, $mode.': the authored contact foreground must stay unchanged.');
+                    $reference ??= $color;
+                    self::assertSame($reference, $color);
+                }
+            }
+            self::assertNotNull($reference);
+            $postalText = $xpath->query('.//text()[normalize-space(.)!=""]', $postal->item(0));
+            self::assertCount(2, $postalText, $mode.': both street and postal-city text leaves are checked.');
+            foreach ($postalText as $leaf) {
+                self::assertSame($reference, $this->paintedForeground($leaf->parentNode), $mode.': each personal postal leaf must paint in its own contact foreground.');
+            }
+        }
+    }
+
+    private function paintedForeground(DOMElement $element): string
+    {
+        $color = $this->inheritedStyleValue($element, 'color');
+        self::assertNotNull($color, 'An actual inherited foreground declaration must be present.');
+        $fill = $this->inheritedStyleValue($element, '-webkit-text-fill-color');
+
+        return $this->normalizedColor($fill === null || strtolower($fill) === 'currentcolor' ? $color : $fill);
+    }
+
+    private function inheritedStyleValue(DOMElement $element, string $property): ?string
+    {
+        for ($node = $element; $node instanceof DOMElement; $node = $node->parentNode) {
+            preg_match_all('~(?:^|;)\s*'.preg_quote($property, '~').'\s*:\s*([^;]+)~i', $node->getAttribute('style'), $matches);
+            $values = $matches[1];
+            if ($values === []) {
+                continue;
+            }
+            $important = array_values(array_filter($values, static fn (string $value): bool => preg_match('~!important\s*\z~i', $value) === 1));
+            $value = trim(preg_replace('~\s*!important\s*\z~i', '', $important !== [] ? end($important) : end($values)));
+            if (in_array(strtolower($value), ['inherit', 'unset'], true)) {
+                continue;
+            }
+
+            return $value;
+        }
+
+        return null;
+    }
+
+    private function normalizedColor(string $value): string
+    {
+        $value = strtolower(trim($value));
+        if (preg_match('/\A#([0-9a-f])([0-9a-f])([0-9a-f])\z/', $value, $short)) {
+            return '#'.$short[1].$short[1].$short[2].$short[2].$short[3].$short[3];
+        }
+        if (preg_match('/\Argb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)\z/', $value, $rgb)) {
+            return sprintf('#%02x%02x%02x', $rgb[1], $rgb[2], $rgb[3]);
+        }
+
+        return $value;
     }
 
     private function assertZeroOuterPadding(DOMElement $row): void
