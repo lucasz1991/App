@@ -87,8 +87,8 @@ final class OutlookMobileWordingTest extends TestCase
                     }
                     self::assertSame($expected, array_map(fn ($value) => $value === '0px' ? '0' : $value, $actual));
                     if ($role !== 'design-spacer') {
-                        self::assertSame('anywhere', $own['overflow-wrap']);
-                        self::assertSame('break-word', $own['word-break']);
+                        self::assertSame('anywhere', $font['overflow-wrap']);
+                        self::assertSame('break-word', $font['word-break']);
                     }
                 }
             }
@@ -98,11 +98,31 @@ final class OutlookMobileWordingTest extends TestCase
     public function test_unknown_styles_priority_or_scope_never_get_compacted(): void
     {
         foreach ([str_replace('font-size:16px;line-height:26px;color:#142231;padding', 'font-size:16px!important;line-height:26px;color:#142231;padding', $this->fixture()),
+            str_replace('color:#142231;padding', 'color:#142231;word-break:normal!important;padding', $this->fixture()),
+            str_replace('color:#142231;padding', 'color:#142231;overflow-wrap:normal;padding', $this->fixture()),
             str_replace('</style>', '.'.self::SCOPE.' td{font-family:Other;}</style>', $this->fixture()),
+            str_replace('</style>', '.'.self::SCOPE.' table{word-break:normal;}</style>', $this->fixture()),
             str_replace('rt-outlook-template '.self::SCOPE, 'rt-outlook-template foreign', $this->fixture()),
-            str_replace('class="design-greeting"', 'class="design-greeting other"', $this->fixture())] as $html) {
+            str_replace('class="design-greeting"', 'class="design-greeting other"', $this->fixture()),
+            str_replace('<br><br>', 'Authored spacer text', $this->fixture()),
+            str_replace('</td></tr></table></div>', '<span>Other visible content</span></td></tr></table></div>', $this->fixture())] as $html) {
             self::assertSame($html, OutlookMobileWording::project($html));
         }
+    }
+
+    public function test_exact_physical_mobile_padding_overrides_fold_to_the_same_four_sides(): void
+    {
+        $before = str_replace('padding:0 40px;', 'padding:0 40px 26px;padding-left:18px;padding-right:18px;', $this->fixture());
+        $after = OutlookMobileWording::project($before);
+        $dom = new DOMDocument;
+        @$dom->loadHTML('<?xml encoding="UTF-8">'.$after);
+        $cell = (new DOMXPath($dom))->query('//td[contains(@class,"rt-wc")]')->item(0);
+        self::assertInstanceOf(DOMElement::class, $cell);
+        $style = $cell->getAttribute('style');
+        self::assertStringContainsString('padding:0 18px 26px;', $style);
+        self::assertStringNotContainsString('padding-left:', $style);
+        self::assertStringNotContainsString('padding-right:', $style);
+        self::assertStringContainsString(OutlookTemplateWording::WRAP_DECLARATIONS, $style);
     }
 
     private function declarations(string $style): array
