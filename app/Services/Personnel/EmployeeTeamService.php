@@ -73,6 +73,145 @@ final class EmployeeTeamService
         return compact('employee', 'teams', 'fixedTeams', 'primaryTeams');
     }
 
+    /** @return array{employees: Collection, teams: Collection, replacementTeams: Collection, replacementRequired: int} */
+    public function bulkEditorState(array $ids, string $operation, array $teamIds): array
+    {
+        $prepared = $this->prepare($ids);
+        $actor = $this->authorizeActor();
+        $this->validateMembershipOperation($operation);
+        $teamIds = $this->normalizeMembershipIds($teamIds);
+        $selected = Team::whereIn('id', $teamIds)->get()->keyBy('id');
+        $this->validateBulkTeams($selected, $teamIds);
+        $employees = $prepared['employees'];
+        $teams = $operation === 'add'
+            ? $this->availableTeams()
+            : $employees->flatMap(fn (User $employee) => $employee->teams->reject(fn (Team $team) => $team->personal_team))
+                ->unique('id')->sortBy('name')->values();
+        $teams = new Collection($teams->all());
+        $replacementTeams = null;
+        $replacementRequired = 0;
+        foreach ($employees as $employee) {
+            $plan = $this->bulkMembershipPlan($employee, $operation, $selected);
+            if (! $plan['affected']) {
+                continue;
+            }
+            $replacementRequired++;
+            $candidates = $plan['allTeams']->filter(fn (Team $team) => $this->canAssignTeam($actor, $team))->keyBy('id');
+            $replacementTeams = $replacementTeams === null ? $candidates : $replacementTeams->intersectByKeys($candidates);
+        }
+        $replacementTeams = ($replacementTeams ?? new Collection)->sortBy('name')->values();
+
+        return compact('employees', 'teams', 'replacementTeams', 'replacementRequired');
+    }
+
+    /** Add/remove a delta for all selected employees, or commit no changes. */
+    public function changeMembershipsForSelection(array $ids, string $operation, array $teamIds, array $snapshots, ?int $replacementTeamId = null): int
+    {
+        $ids = $this->normalizeIds($ids);
+        $this->validateMembershipOperation($operation);
+        $teamIds = $this->normalizeMembershipIds($teamIds);
+        if ($teamIds === []) {
+            throw ValidationException::withMessages(['teamIds' => 'Bitte wählen Sie mindestens ein Team für die Sammeländerung.']);
+        }
+
+        return DB::transaction(function () use ($ids, $operation, $teamIds, $snapshots, $replacementTeamId): int {
+            $actor = $this->authorizeActor(lock: true);
+            $employees = User::whereIn('id', $ids)->orderBy('id')->lockForUpdate()->get();
+            $this->authorizeTargets($actor, $employees, $ids);
+            $memberships = DB::table('team_user')->whereIn('user_id', $ids)->orderBy('user_id')->orderBy('team_id')->lockForUpdate()->get();
+            $ownedTeams = Team::whereIn('user_id', $ids)->orderBy('id')->lockForUpdate()->get();
+            $allIds = $memberships->pluck('team_id')->merge($ownedTeams->pluck('id'))->merge($teamIds)
+                ->merge($employees->pluck('current_team_id'))->push($replacementTeamId)->filter()->unique()->sort()->values();
+            $teams = Team::whereIn('id', $allIds)->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+            $selected = $teams->only($teamIds);
+            $this->validateBulkTeams($selected, $teamIds);
+
+            $plans = [];
+            foreach ($employees as $employee) {
+                $this->hydrateLockedTeams($employee, $memberships->where('user_id', $employee->id), $teams);
+                if (! isset($snapshots[$employee->id]) || ! is_string($snapshots[$employee->id])
+                    || ! hash_equals($this->fingerprint($employee), $snapshots[$employee->id])) {
+                    throw ValidationException::withMessages(['snapshots' => 'Mindestens eine Teamzuordnung wurde zwischenzeitlich geändert. Bitte öffnen Sie die Sammelbearbeitung erneut.']);
+                }
+                $plan = $this->bulkMembershipPlan($employee, $operation, $selected);
+                $primaryId = $plan['affected'] ? $replacementTeamId : $employee->current_team_id;
+                $primary = $primaryId ? $plan['allTeams']->firstWhere('id', $primaryId) : null;
+                if (! $primary) {
+                    throw ValidationException::withMessages(['replacementTeamId' => 'Bitte wählen Sie ein gemeinsames verbleibendes primäres Team für die betroffenen Mitarbeiter.']);
+                }
+                foreach ($plan['added'] as $team) {
+                    abort_unless($this->canAssignTeam($actor, $team), 403);
+                }
+                if ($plan['affected']) {
+                    abort_unless($this->canAssignTeam($actor, $primary), 403);
+                }
+                if ((int) $employee->id === (int) $actor->id && ! $actor->isAdmin()) {
+                    try {
+                        $this->ensureSelfAccess($actor, $primary, $plan['finalPivots']);
+                    } catch (ValidationException $exception) {
+                        throw ValidationException::withMessages(['replacementTeamId' => $exception->errors()['primaryTeamId']]);
+                    }
+                }
+                if (count($plan['editableIds']) > 100) {
+                    throw ValidationException::withMessages(['teamIds' => 'Ein Mitarbeiter hätte mehr als 100 bearbeitbare Teammitgliedschaften. Bitte verkleinern Sie die Änderung.']);
+                }
+                $plans[$employee->id] = ['ids' => $plan['editableIds'], 'primary' => (int) $primary->id];
+            }
+
+            $changed = 0;
+            // Keep the original actor context for every other target. The
+            // independently prevalidated self-change is deliberately last.
+            $ordered = $employees->sortBy(fn (User $employee) => (int) $employee->id === (int) $actor->id ? 1 : 0);
+            foreach ($ordered as $employee) {
+                $plan = $plans[$employee->id];
+                try {
+                    $changed += (int) $this->updateMemberships($employee->id, $plan['ids'], $plan['primary'], $snapshots[$employee->id]);
+                } catch (ValidationException $exception) {
+                    $keys = ['snapshot' => 'snapshots', 'primaryTeamId' => 'replacementTeamId'];
+                    $errors = [];
+                    foreach ($exception->errors() as $key => $messages) {
+                        $errors[$keys[$key] ?? $key] = $messages;
+                    }
+                    throw ValidationException::withMessages($errors);
+                }
+            }
+
+            return $changed;
+        }, 3);
+    }
+
+    private function validateMembershipOperation(string $operation): void
+    {
+        if (! in_array($operation, ['add', 'remove'], true)) {
+            throw ValidationException::withMessages(['operation' => 'Bitte wählen Sie Teams hinzufügen oder Teams entfernen.']);
+        }
+    }
+
+    private function validateBulkTeams(Collection $teams, array $ids): void
+    {
+        if ($teams->count() !== count($ids) || $teams->contains(fn (Team $team) => $team->personal_team)) {
+            throw ValidationException::withMessages(['teamIds' => 'Bitte wählen Sie ausschließlich vorhandene organisatorische Teams. Persönliche Teams bleiben unverändert.']);
+        }
+    }
+
+    /** @return array{editableIds: array<int,int>, finalPivots: Collection, allTeams: Collection, added: Collection, affected: bool} */
+    private function bulkMembershipPlan(User $employee, string $operation, Collection $selected): array
+    {
+        $editable = $employee->teams->filter(fn (Team $team) => ! $team->personal_team && ! $employee->ownsTeam($team));
+        $chosen = $selected->reject(fn (Team $team) => $employee->ownsTeam($team));
+        $finalEditable = $operation === 'add'
+            ? $editable->merge($chosen)->unique('id')
+            : $editable->reject(fn (Team $team) => $selected->contains('id', $team->id));
+        $fixedPivots = $employee->teams->filter(fn (Team $team) => $team->personal_team || $employee->ownsTeam($team));
+        $finalPivots = $fixedPivots->merge($finalEditable)->unique('id')->values();
+        $allTeams = $finalPivots->merge($employee->ownedTeams)->unique('id')->values();
+        $added = $finalEditable->reject(fn (Team $team) => $employee->teams->contains('id', $team->id))->values();
+        $editableIds = $finalEditable->pluck('id')->map(fn ($id) => (int) $id)->sort()->values()->all();
+        $affected = ! $employee->current_team_id || ! $allTeams->contains('id', $employee->current_team_id);
+
+        return compact('editableIds', 'finalPivots', 'allTeams', 'added', 'affected');
+    }
+
     public function updateMemberships(int $userId, array $teamIds, int $primaryTeamId, string $snapshot): bool
     {
         $teamIds = $this->normalizeMembershipIds($teamIds);

@@ -31,13 +31,13 @@
                         <i class="far fa-paper-plane mr-2"></i>{{ __('app.compose_message') }}
                     </x-dropdown-link>
                     @if($canManageEmployeeTeams)
+                        <x-dropdown-link href="#" wire:click.prevent="openTeamEditSelected">
+                            <i class="far fa-pen-to-square mr-2" aria-hidden="true"></i>Teams bearbeiten
+                        </x-dropdown-link>
                         <x-dropdown-link href="#" wire:click.prevent="openTeamChangeSelected">
                             <i class="far fa-users mr-2" aria-hidden="true"></i>Team wechseln
                         </x-dropdown-link>
                     @endif
-                    <x-dropdown-link href="#" wire:click.prevent="exportSelected" tone="success">
-                        <i class="far fa-download mr-2"></i>{{ __('app.export') }}
-                    </x-dropdown-link>
                 </x-tables.bulk-actions>
                 <x-input-error for="employeeIds" class="mt-1" />
                 <x-tables.search-field context="page-topbar" id="employee-list-search"
@@ -83,6 +83,7 @@
     <livewire:admin.employees.employee-form-modal :key="'employee-form-modal'" />
     <livewire:admin.employees.team-rbac-modal :key="'employee-team-rbac-modal'" />
     <livewire:admin.employees.employee-team-modal :key="'employee-team-change-modal'" />
+    <livewire:admin.employees.employee-team-bulk-modal :key="'employee-team-bulk-modal'" />
     <livewire:admin.employees.invite-employee-modal :key="'employee-invite-modal'" />
     <livewire:admin.users.messages.message-form :key="'employee-message-form'" />
 </div>

@@ -4,6 +4,7 @@ namespace App\Livewire\Admin;
 
 use App\Actions\Jetstream\DeleteUser;
 use App\Livewire\Admin\Employees\EmployeeFormModal;
+use App\Livewire\Admin\Employees\EmployeeTeamBulkModal;
 use App\Livewire\Admin\Employees\EmployeeTeamModal;
 use App\Livewire\Admin\Employees\InviteEmployeeModal;
 use App\Livewire\Admin\Employees\TeamRbacModal;
@@ -185,6 +186,12 @@ class Employees extends Component
         $this->dispatch('open-employee-team-modal', ids: $selection['ids'])->to(EmployeeTeamModal::class);
     }
 
+    public function openTeamEditSelected(): void
+    {
+        $selection = app(EmployeeTeamService::class)->prepare($this->selectedEmployees);
+        $this->dispatch('open-employee-team-bulk-modal', ids: $selection['ids'])->to(EmployeeTeamBulkModal::class);
+    }
+
     public function teamsUpdated(array $ids = []): void
     {
         $this->selectedEmployees = array_values(array_diff(array_map('intval', $this->selectedEmployees), $ids));
@@ -215,13 +222,6 @@ class Employees extends Component
 
         $this->dispatch('openMailModal', payload: $ids)
             ->to(MessageForm::class);
-    }
-
-    // Beispiel-Bulk-Aktionen (Platzhalter)
-    public function exportSelected(): void
-    {
-        // TODO: Export-Logik
-        $this->dispatch('swal:toast', type: 'info', title: 'Export', text: 'Export vorbereitet.');
     }
 
     public function clearSelection(): void
