@@ -5,12 +5,16 @@ namespace App\Livewire\Admin\Employees;
 use App\Models\Team;
 use App\Models\User;
 use App\Models\UserProfile;
+use App\Services\Personnel\EmployeeTeamService;
 use App\Support\EmployeeWelcomeService;
 use App\Support\OutlookAddin\OutlookAddinSnapshotRefreshScheduler;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
@@ -20,7 +24,16 @@ class EmployeeFormModal extends Component
 
     public bool $prepareMicrosoft = true;
 
+    #[Locked]
     public ?int $userId = null;
+
+    public array $selected_team_ids = [];
+
+    #[Locked]
+    public ?string $teamSnapshot = null;
+
+    #[Locked]
+    public array $originalTeamState = [];
 
     public string $name = '';
 
@@ -98,7 +111,7 @@ class EmployeeFormModal extends Component
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($this->userId ?? 0)],
             'password' => [$this->userId || $this->prepareMicrosoft ? 'nullable' : 'required', 'min:8', 'confirmed'],
-            'primary_team_id' => ['required', 'integer', 'exists:teams,id'],
+            'primary_team_id' => [$this->userId && ! app(EmployeeTeamService::class)->canManage() ? 'nullable' : 'required', 'integer', 'exists:teams,id'],
             'first_name' => ['nullable', 'string', 'max:120'],
             'last_name' => ['nullable', 'string', 'max:120'],
             'phone' => ['nullable', 'string', 'max:50'],
@@ -151,7 +164,7 @@ class EmployeeFormModal extends Component
         $this->resetForm();
 
         if ($id) {
-            $user = User::with(['currentTeam', 'profile'])->findOrFail($id);
+            $user = User::with(['currentTeam', 'profile', 'teams', 'ownedTeams'])->findOrFail($id);
             if ($user->isAdmin() && ! auth()->user()->isAdmin()) {
                 abort(403);
             }
@@ -160,6 +173,12 @@ class EmployeeFormModal extends Component
             $this->name = (string) $user->name;
             $this->email = (string) $user->email;
             $this->primary_team_id = $user->currentTeam?->id;
+            $this->selected_team_ids = $user->teams->filter(fn (Team $team) => ! $team->personal_team && ! $user->ownsTeam($team))
+                ->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
+            $this->originalTeamState = ['teamIds' => $this->selected_team_ids, 'primaryTeamId' => $this->primary_team_id];
+            if (app(EmployeeTeamService::class)->canManage()) {
+                $this->teamSnapshot = app(EmployeeTeamService::class)->prepare([$user->id])['snapshots'][$user->id];
+            }
             $profile = $user->profile;
 
             foreach (['first_name', 'last_name', 'phone', 'mobile', 'street', 'postal_code', 'city', 'country', 'birth_place', 'birth_name', 'nationality', 'education'] as $field) {
@@ -190,17 +209,36 @@ class EmployeeFormModal extends Component
         Gate::authorize('employees.create');
         $this->validate();
 
+        if ($this->userId) {
+            DB::transaction(fn () => $this->persistEmployee(), 3);
+            $this->dispatch('employee-teams-updated', ids: [$this->userId]);
+        } else {
+            // New employees retain the established single-team onboarding path.
+            $this->persistEmployee();
+        }
+
+        $this->dispatch('employeeSaved');
+        $this->showModal = false;
+        $this->dispatch('swal:toast', type: 'success', title: __('app.saved'), text: __('app.employee_saved'));
+    }
+
+    private function persistEmployee(): void
+    {
         $isNewEmployee = ! $this->userId;
-        $user = $this->userId ? User::findOrFail($this->userId) : new User;
+        $user = $this->userId ? User::whereKey($this->userId)->lockForUpdate()->firstOrFail() : new User;
         if ($this->userId && $user->isAdmin() && ! auth()->user()->isAdmin()) {
             abort(403);
+        }
+        if ($this->userId) {
+            $this->saveTeamMemberships();
+            $user->refresh();
         }
 
         $structuredName = trim(implode(' ', array_filter([$this->first_name, $this->last_name])));
         $user->name = $structuredName !== '' ? $structuredName : $this->name;
         $user->email = $this->email;
-        $user->current_team_id = $this->primary_team_id;
         if (! $this->userId) {
+            $user->current_team_id = $this->primary_team_id;
             $user->role = 'staff';
             $user->locale = app()->getLocale();
             if ($this->prepareMicrosoft) {
@@ -234,7 +272,7 @@ class EmployeeFormModal extends Component
 
         UserProfile::updateOrCreate(['user_id' => $user->id], $profileValues);
 
-        if ($this->primary_team_id && ($team = Team::find($this->primary_team_id))) {
+        if ($isNewEmployee && $this->primary_team_id && ($team = Team::find($this->primary_team_id))) {
             $user->teams()->sync([$team->id]);
             $user->switchTeam($team);
         }
@@ -256,9 +294,43 @@ class EmployeeFormModal extends Component
             app(EmployeeWelcomeService::class)->send($user->fresh('currentTeam'));
         }
 
-        $this->dispatch('employeeSaved');
-        $this->showModal = false;
-        $this->dispatch('swal:toast', type: 'success', title: __('app.saved'), text: __('app.employee_saved'));
+    }
+
+    private function saveTeamMemberships(): void
+    {
+        $service = app(EmployeeTeamService::class);
+        if ($service->canManage()) {
+            if ($this->teamSnapshot === null) {
+                throw ValidationException::withMessages(['selected_team_ids' => 'Bitte öffnen Sie das Mitarbeiterformular erneut, bevor Sie Teams ändern.']);
+            }
+            try {
+                $service->updateMemberships($this->userId, $this->selected_team_ids, (int) $this->primary_team_id, $this->teamSnapshot);
+            } catch (ValidationException $exception) {
+                $keys = ['teamIds' => 'selected_team_ids', 'primaryTeamId' => 'primary_team_id', 'snapshot' => 'teamSnapshot'];
+                $errors = [];
+                foreach ($exception->errors() as $field => $messages) {
+                    $errors[$keys[$field] ?? $field] = $messages;
+                }
+                throw ValidationException::withMessages($errors);
+            }
+
+            return;
+        }
+
+        // Ordinary employee editors retain their existing non-team editing
+        // rights, but a hidden field cannot be used to bypass team authority.
+        $expected = $this->originalTeamState;
+        $selected = array_filter($this->selected_team_ids, fn ($id) => is_int($id) || (is_string($id) && ctype_digit($id)));
+        $actualIds = array_map('intval', $selected);
+        $expectedIds = $expected['teamIds'] ?? [];
+        sort($actualIds);
+        sort($expectedIds);
+        if (count($selected) !== count($this->selected_team_ids) || $actualIds !== $expectedIds) {
+            throw ValidationException::withMessages(['selected_team_ids' => 'Sie besitzen keine Berechtigung zum Ändern der Teammitgliedschaften.']);
+        }
+        if (! array_key_exists('primaryTeamId', $expected) || $this->primary_team_id !== $expected['primaryTeamId']) {
+            throw ValidationException::withMessages(['primary_team_id' => 'Sie besitzen keine Berechtigung zum Ändern des primären Teams.']);
+        }
     }
 
     public function close(): void
@@ -268,8 +340,15 @@ class EmployeeFormModal extends Component
 
     public function render()
     {
+        $canManageTeams = app(EmployeeTeamService::class)->canManage();
+        $state = ['teams' => Team::where('personal_team', false)->orderBy('name')->get(['id', 'name']), 'fixedTeams' => collect(), 'primaryTeams' => collect()];
+        if ($this->showModal && $this->userId && $canManageTeams) {
+            $state = app(EmployeeTeamService::class)->editorState($this->userId, $this->selected_team_ids);
+        }
+
         return view('livewire.admin.employees.employee-form-modal', [
-            'teams' => Team::where('personal_team', false)->orderBy('name')->get(['id', 'name']),
+            ...$state,
+            'canManageTeams' => $canManageTeams,
             'canViewMasterData' => Gate::allows('employees.master-data.view'),
             'canEditMasterData' => $this->canEditMasterData(),
             'canViewCompensation' => Gate::allows('employees.compensation.view'),

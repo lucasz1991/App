@@ -37,9 +37,20 @@
         });
         $items = (clone $items)->setCollection($selectionRows);
         $selectedItems = array_values(array_unique([...$selectedItems, ...$bulkSelectedItems]));
+        $pageSelectionIds = $selectionRows->pluck('id')->map(fn ($id) => (int) $id)->filter(fn ($id) => $id > 0)->unique()->all();
+        $pageSelectedCount = count(array_intersect($pageSelectionIds, $bulkSelectedItems));
+        $pageSelectionState = $pageSelectedCount === 0 ? 'false' : ($pageSelectedCount === count($pageSelectionIds) ? 'true' : 'mixed');
     }
 @endphp
 <x-tables.table :columns="$columns" :items="$items" :sort-action="$sortAction" :sort-by="$sortBy" :sort-dir="$sortDir"
     :selected-items="$selectedItems" :selection-action="$selectionAction" :detail-action="$detailAction" :table-key="$tableKey"
     :label="$label" :scroll-body="$scrollBody" :flush-top="true" :empty="$empty" :detail-on-click="true"
-    row-view="components.tables.rows.operations.service-overview" class="rt-service-table {{ $hasSelection ? 'rt-service-table--selectable' : '' }}" {{ $attributes }} />
+    row-view="components.tables.rows.operations.service-overview" class="rt-service-table {{ $hasSelection ? 'rt-service-table--selectable' : '' }}" {{ $attributes }}>
+    @if($hasSelection)
+        <x-slot:selectionHeader>
+            <x-tables.selection-toggle action="toggleSelectAllServices"
+                label="Leistungen dieser Seite auswählen oder Auswahl aufheben"
+                :state="$pageSelectionState" :disabled="$pageSelectionIds === []" />
+        </x-slot:selectionHeader>
+    @endif
+</x-tables.table>

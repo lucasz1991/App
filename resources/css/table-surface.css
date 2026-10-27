@@ -1,0 +1,98 @@
+/* One geometry contract for shared tables, with or without a rendered pager.
+   Keep the frame overflow visible: row menus may extend beyond its edges. */
+.rt-table-frame,
+[data-table-html-frame] {
+    --rt-table-radius: 12px;
+    --rt-table-top-radius: var(--rt-table-radius);
+    --rt-table-bottom-radius: var(--rt-table-radius);
+}
+
+/* Native HTML tables retain their collapsed grid; their own wrapper clips
+   header backgrounds. Unlike shared row tables, these contain no menus. */
+div[data-table-html-frame] {
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-radius: var(--rt-table-top-radius) var(--rt-table-top-radius) var(--rt-table-bottom-radius) var(--rt-table-bottom-radius);
+}
+
+[data-table-html-frame]:has(+ div > .rt-pagination) {
+    margin-bottom: 0;
+}
+
+.rt-table-frame > .rt-table-core {
+    border-radius: inherit;
+}
+
+.rt-table-frame > .rt-table-mobile-sort {
+    border-radius: var(--rt-table-top-radius) var(--rt-table-top-radius) 0 0;
+}
+
+.rt-table-frame > .rt-table-core > .rt-table-body {
+    border-radius: 0 0 var(--rt-table-bottom-radius) var(--rt-table-bottom-radius);
+}
+
+/* Only an actual nav joins the footer. Legacy links() emits an empty wrapper
+   for a single page, which must leave the table's bottom corners intact. */
+:is(.rt-table-frame, [data-table-html-frame]):has(+ :is(.rt-pagination, .rt-table-pagination)),
+:is(.rt-table-frame, [data-table-html-frame]):has(+ * > :is(.rt-pagination, .rt-table-pagination)),
+:is(.rt-table-frame, [data-table-html-frame]):has(+ * > div > :is(.rt-pagination, .rt-table-pagination)),
+[data-disposition-list-content]:has(+ .rt-disposition-pagination :is(.rt-pagination, .rt-table-pagination)) > .rt-table-frame,
+[data-shift-view='orders']:has(+ [data-service-pagination] > .rt-table-pagination) > [data-service-overview] > .rt-table-frame {
+    --rt-table-bottom-radius: 0px;
+}
+
+/* The existing footer wrappers retain their native Livewire page owners.
+   Specificity also replaces legacy card margins/backgrounds in app.css. */
+:is(.rt-table-frame, [data-table-html-frame]) + :is(.rt-pagination, .rt-table-pagination),
+:is(.rt-table-frame, [data-table-html-frame]) + :is(div, section):has(> :is(.rt-pagination, .rt-table-pagination)),
+:is(.rt-table-frame, [data-table-html-frame]) + :is(div, section):has(> div > .rt-pagination),
+.rt-disposition-pagination:has(.rt-pagination),
+[data-disposition-list-pagination]:has(.rt-pagination),
+.rt-service-pagination:has(> .rt-table-pagination) {
+    flex: none;
+    min-width: 0;
+    margin-block-start: 0 !important;
+    padding: 0 12px !important;
+    border-radius: 0 0 12px 12px;
+    box-shadow: none;
+}
+
+/* Low-specificity defaults let directory, profile and message surfaces retain
+   their own theme tokens and border ownership. */
+:where(
+    :is(.rt-table-frame, [data-table-html-frame]) + :is(.rt-pagination, .rt-table-pagination),
+    :is(.rt-table-frame, [data-table-html-frame]) + :is(div, section):has(> :is(.rt-pagination, .rt-table-pagination)),
+    :is(.rt-table-frame, [data-table-html-frame]) + :is(div, section):has(> div > .rt-pagination),
+    .rt-disposition-pagination:has(.rt-pagination),
+    [data-disposition-list-pagination]:has(.rt-pagination),
+    .rt-service-pagination:has(> .rt-table-pagination)
+):is(div, nav, section) {
+    border: 0;
+    border-top: 1px solid var(--rt-shell-line, #dce1e6);
+    background: var(--rt-shell-surface-solid, #fff);
+}
+
+:is(:is(.rt-table-frame, [data-table-html-frame]) + div, :is(.rt-table-frame, [data-table-html-frame]) + section, .rt-disposition-pagination, [data-disposition-list-pagination]) nav.rt-pagination {
+    min-height: 44px;
+    margin: 0;
+    padding: 4px 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+/* Directory/profile/message owners already supply their own surface colors;
+   this shared rule changes geometry only. The external mobile device header
+   is the sole header outside the table and therefore owns those top corners. */
+@media (max-width: 767px) {
+    .rt-device-mobile-header + .rt-device-table.rt-table-frame {
+        --rt-table-top-radius: 0px;
+    }
+
+    .rt-table-frame:not([data-table-mobile-header]):not(:has(> .rt-table-mobile-sort)) > .rt-table-core > .rt-table-body,
+    .rt-table-frame:not([data-table-mobile-header]):not(:has(> .rt-table-mobile-sort)) .rt-table-empty {
+        border-top-left-radius: var(--rt-table-top-radius);
+        border-top-right-radius: var(--rt-table-top-radius);
+    }
+}

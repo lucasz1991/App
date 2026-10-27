@@ -5,10 +5,10 @@
     --rt-floating-safe-left: env(safe-area-inset-left, 0px);
     --rt-floating-safe-right: env(safe-area-inset-right, 0px);
     --rt-floating-safe-bottom: env(safe-area-inset-bottom, 0px);
-    position: fixed; left: var(--rt-floating-launcher-x, auto); right: 16px;
+    position: fixed; left: var(--rt-floating-launcher-x, auto); right: max(var(--rt-floating-window-inset, 8px), var(--rt-floating-safe-right));
     bottom: var(--rt-floating-launcher-bottom, max(16px, env(safe-area-inset-bottom, 0px)));
     z-index: 26; display: flex; flex-direction: column; align-items: flex-end;
-    gap: 12px; width: max-content; max-width: calc(100vw - 24px); padding: 0;
+    gap: 12px; width: max-content; max-width: calc(100vw - 2 * var(--rt-floating-window-inset, 8px)); padding: 0;
     pointer-events: none; transition: left 220ms cubic-bezier(.22,.8,.25,1);
 }
 [data-rt-floating-launcher-group][data-rt-launcher-positioned] { right: auto; }
@@ -40,13 +40,29 @@ window.rtResolveFloatingLauncherBottom = function({height, viewportBottom, prefe
     }
     return Math.max(height - viewportBottom + gap, Math.min(bottom, height - minTop - stackHeight));
 };
+// Resolve against the native box, never against a previous avoidance offset.
+window.rtResolveFloatingWindowBottom = function({height, viewportBottom, left, right, top, bottom, obstacles, gap = 12}) {
+    let lift = 0, reserve = 0;
+    for (let pass = 0; pass <= obstacles.length; pass++) {
+        let next = lift;
+        for (const rect of obstacles) {
+            if (rect.top >= viewportBottom || rect.bottom <= 0 || rect.right <= left - gap || rect.left >= right + gap
+                || rect.bottom <= top - lift - gap || rect.top >= bottom - lift + gap) continue;
+            next = Math.max(next, bottom - rect.top + gap);
+        }
+        if (next === lift) break;
+        lift = next;
+        reserve = height - bottom + lift;
+    }
+    return Math.max(0, reserve);
+};
 window.rtInitializeFloatingLauncherGroup = function(doc = document, win = window) {
     const html = doc?.documentElement;
     if (!html) return null;
     if (html._rtLauncherGroup) return html._rtLauncherGroup;
     html.dataset.rtLauncherGroupReady = 'true';
     let drag = null, suppressClickUntil = 0, frame = null, destroyed = false;
-    const launchers = new Set(), cleanups = [], watched = new Set(), ownStyles = new WeakMap();
+    const launchers = new Set(), cleanups = [], watched = new Set(), windows = new Set(), ownStyles = new WeakMap();
     const obstacleSelector = '[data-table-pagination], [data-orders-pagination], [data-service-pagination], .rt-service-pagination, .rt-pagination, [data-area-menu], [data-floating-launcher-obstacle]';
     const group = () => doc.querySelector('[data-rt-floating-launcher-group]');
     const listen = (target, name, listener, options) => {
@@ -77,6 +93,7 @@ window.rtInitializeFloatingLauncherGroup = function(doc = document, win = window
     };
     const resizeObserver = win.ResizeObserver ? new win.ResizeObserver(queueLayout) : null;
     const measureLayout = () => {
+        if (destroyed) return;
         // Navigation replaces the layout target while Communication persists.
         // Always resolve the current rail, never keep the detached old one.
         const rail = group();
@@ -94,16 +111,39 @@ window.rtInitializeFloatingLauncherGroup = function(doc = document, win = window
             const rect = visibleRect(element);
             if (rect && rect.bottom > top && rect.top < viewportBottom) obstacles.push(rect);
         }
-        for (const panel of doc.querySelectorAll('.rt-floating-window[data-floating-mode="mini"][data-floating-open="true"]')) {
+        const currentWindows = new Set(doc.querySelectorAll('.rt-floating-window'));
+        const clearWindow = panel => {
+            if (panel.style.getPropertyValue('--rt-floating-window-obstacle-bottom')) panel.style.removeProperty('--rt-floating-window-obstacle-bottom');
+            ownStyles.set(panel, panel.getAttribute('style'));
+        };
+        for (const panel of windows) if (!currentWindows.has(panel)) { clearWindow(panel); windows.delete(panel); }
+        for (const panel of currentWindows) {
+            windows.add(panel);
+            const mode = panel.getAttribute('data-floating-mode');
+            if (panel.getAttribute('data-floating-open') !== 'true' || !['mini', 'fullscreen'].includes(mode)) { clearWindow(panel); continue; }
+            observed.add(panel);
+            if (['opening', 'closing', 'resizing'].includes(panel.getAttribute('data-motion'))) continue;
+            const previous = panel.style.getPropertyValue('--rt-floating-window-obstacle-bottom');
+            // Read the native viewport/keyboard box before applying our own reserve.
+            if (previous) panel.style.removeProperty('--rt-floating-window-obstacle-bottom');
+            const rect = panel.getBoundingClientRect();
+            const reserve = rect.width && rect.height ? window.rtResolveFloatingWindowBottom({height: win.innerHeight, viewportBottom,
+                left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, obstacles}) : 0;
+            panel.style.setProperty('--rt-floating-window-obstacle-bottom', `${Math.round(reserve * 100) / 100}px`);
+            ownStyles.set(panel, panel.getAttribute('style'));
+        }
+        for (const panel of currentWindows) {
+            if (panel.getAttribute('data-floating-mode') !== 'mini' || panel.getAttribute('data-floating-open') !== 'true') continue;
             const rect = visibleRect(panel);
-            if (rect) { panels.push(rect); observed.add(panel); }
+            if (rect) panels.push(rect);
         }
         for (const element of watched) if (!observed.has(element)) { resizeObserver?.unobserve(element); watched.delete(element); }
         for (const element of observed) if (!watched.has(element)) { resizeObserver?.observe(element); watched.add(element); }
         if (![...launchers].some(button => button.isConnected && rail.contains(button) && visibleRect(button))) return;
         const railStyle = win.getComputedStyle(rail);
-        const edgeLeft = Math.max(16, parseFloat(railStyle.getPropertyValue?.('--rt-floating-safe-left')) || 0);
-        const edgeRight = Math.max(16, parseFloat(railStyle.getPropertyValue?.('--rt-floating-safe-right')) || 0);
+        const edgeInset = Math.max(0, parseFloat(railStyle.getPropertyValue?.('--rt-floating-window-inset')) || 8);
+        const edgeLeft = Math.max(edgeInset, parseFloat(railStyle.getPropertyValue?.('--rt-floating-safe-left')) || 0);
+        const edgeRight = Math.max(edgeInset, parseFloat(railStyle.getPropertyValue?.('--rt-floating-safe-right')) || 0);
         const edgeBottom = Math.max(16, parseFloat(railStyle.getPropertyValue?.('--rt-floating-safe-bottom')) || 0);
         const preferredBottom = win.innerHeight - viewportBottom + edgeBottom;
         const choosePosition = (width, height) => {
@@ -136,7 +176,7 @@ window.rtInitializeFloatingLauncherGroup = function(doc = document, win = window
             || (record.target !== html && ownStyles.get(record.target) !== record.target.getAttribute('style')))) queueLayout();
     }) : null;
     observer?.observe(doc.body, {subtree: true, childList: true, attributes: true,
-        attributeFilter: ['class', 'style', 'hidden', 'data-open', 'data-communication-open', 'data-window-mode', 'data-mode', 'data-corner', 'data-floating-mode', 'data-floating-open']});
+        attributeFilter: ['class', 'style', 'hidden', 'data-open', 'data-communication-open', 'data-window-mode', 'data-mode', 'data-corner', 'data-floating-mode', 'data-floating-open', 'data-motion']});
     listen(win, 'resize', queueLayout);
     listen(win.visualViewport, 'resize', queueLayout);
     listen(win.visualViewport, 'scroll', queueLayout);
@@ -190,6 +230,7 @@ window.rtInitializeFloatingLauncherGroup = function(doc = document, win = window
         event.preventDefault(); apply(event.key === 'ArrowLeft' ? 'left' : 'right', true);
     });
     const api = {
+        layout: measureLayout,
         register(button) {
             launchers.add(button); measureLayout(); queueLayout();
             return () => { launchers.delete(button); if (launchers.size) queueLayout(); else api.destroy(); };
@@ -199,6 +240,8 @@ window.rtInitializeFloatingLauncherGroup = function(doc = document, win = window
             destroyed = true; observer?.disconnect(); resizeObserver?.disconnect();
             if (frame !== null) win.cancelAnimationFrame?.(frame);
             cleanups.splice(0).forEach(cleanup => cleanup());
+            for (const panel of windows) panel.style.removeProperty('--rt-floating-window-obstacle-bottom');
+            windows.clear();
             const rail = group();
             rail?.style.removeProperty('--rt-floating-launcher-bottom'); rail?.style.removeProperty('--rt-floating-launcher-x');
             rail?.removeAttribute('data-rt-launcher-positioned');

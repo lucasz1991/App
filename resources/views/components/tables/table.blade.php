@@ -102,8 +102,12 @@
     @if($mobileHeader) data-table-mobile-header @endif
     data-table-sortable="{{ $sortableColumns->isNotEmpty() ? 'true' : 'false' }}"
 >
-    @if($sortableColumns->isNotEmpty() && ! $mobileHeader)
-        <div class="rt-table-mobile-sort md:hidden">
+    @if(($sortableColumns->isNotEmpty() || isset($selectionHeader)) && ! $mobileHeader)
+        <div @class(['rt-table-mobile-sort md:hidden', 'rt-table-mobile-sort--selection' => isset($selectionHeader)])>
+            @isset($selectionHeader)
+                <div class="rt-table-mobile-selection">{{ $selectionHeader }}</div>
+            @endisset
+            @if($sortableColumns->isNotEmpty())
             <x-ui.dropdown.anchor-dropdown align="right" width="64">
                 <x-slot:trigger>
                     <button type="button" class="rt-table-mobile-sort__trigger" aria-label="Sortierung: {{ $activeSortLabel }}, {{ $sortDir === 'desc' ? 'absteigend' : 'aufsteigend' }}. Sortierung ändern">
@@ -124,6 +128,7 @@
                     @endforeach
                 </x-slot:content>
             </x-ui.dropdown.anchor-dropdown>
+            @endif
         </div>
     @endif
     <div class="rt-table-core" role="table" aria-label="{{ $label }}">
@@ -133,7 +138,9 @@
         @foreach($columns as $col)
             @php $hidden = $hideClass($col['hideOn']); @endphp
 
-            @if($col['sortable'])
+            @if($col['key'] === 'selection' && isset($selectionHeader))
+                <div role="columnheader" aria-label="{{ $col['label'] }}" class="rt-table-head-cell rt-table-head-selection {{ $hidden }}">{{ $selectionHeader }}</div>
+            @elseif($col['sortable'])
                 <div role="columnheader" class="min-w-0 {{ $hidden }}" aria-sort="{{ $sortBy === $col['key'] ? ($sortDir === 'asc' ? 'ascending' : 'descending') : 'none' }}">
                 <button
                     type="button"

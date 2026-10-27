@@ -110,8 +110,12 @@ class AiIntakeInboxEmbeddedTest extends TestCase
         $filter = $dom->query('//*[@role="search" and @aria-label="AI-Eingänge filtern"]');
         $this->assertSame(1, $filter->length);
         $this->assertSame(1, $dom->query('//*[@role="search"]//button[@aria-label="Eingang erfassen"]')->length);
-        foreach ($dom->query('//*[@role="menuitemradio"]') as $option) {
-            $this->assertStringStartsWith('far fa-', $dom->query('.//i', $option)->item(0)->getAttribute('class'));
+        $statusSelect = $dom->query('//*[@data-rt-custom-select and @data-autosave-model="statusFilter"]');
+        $this->assertSame(1, $statusSelect->length);
+        $options = json_decode($statusSelect->item(0)->getAttribute('data-rt-select-options'), true);
+        $this->assertNotEmpty($options);
+        foreach ($options as $option) {
+            $this->assertStringStartsWith('far fa-', $option['iconClass']);
         }
         $this->assertSame(0, $dom->query('//*[@role="dialog"]')->length);
         $this->assertSame(1, $dom->query('//*[contains(@class,"ai-intake-panel__composer")]')->length);

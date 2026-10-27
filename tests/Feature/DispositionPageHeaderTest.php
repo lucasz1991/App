@@ -78,9 +78,13 @@ class DispositionPageHeaderTest extends TestCase
         $actionsHost = '//template[@*[name()="x-teleport" and .="[data-page-header-action-list]"]]';
         $statusHost = '//template[@*[name()="x-teleport" and .="[data-page-header-search]"]]';
         $this->assertSame(1, $xpath->query($statusHost)->length);
-        $this->assertSame(5, $xpath->query($statusHost.'//button[@data-status-value]')->length);
+        $statusSelect = $xpath->query($statusHost.'//nav//*[@data-rt-custom-select]')->item(0);
+        $this->assertInstanceOf(DOMElement::class, $statusSelect);
+        $this->assertCount(5, json_decode($statusSelect->getAttribute('data-rt-select-options'), true));
+        $this->assertSame('all', $statusSelect->getAttribute('data-rt-select-value'));
+        $this->assertSame(1, json_decode($statusSelect->getAttribute('data-rt-select-counts'), true)['all']);
         $this->assertSame(1, $xpath->query($statusHost.'//button[@aria-label="Bearbeitungsstand: Alle (1)"]')->length);
-        $this->assertSame(0, $xpath->query($actionsHost.'//button[contains(@class,"rt-status-menu__trigger") and @disabled]')->length);
+        $this->assertSame(0, $xpath->query($statusHost.'//nav//button[@role="combobox" and @disabled]')->length);
         $this->assertSame(1, $xpath->query($statusHost.'//*[@data-rt-custom-select and @data-autosave-model="channel"]')->length);
         $this->assertSame(1, $xpath->query($actionsHost.'//button[@aria-label="Eingang erfassen"]')->length);
         $this->assertSame(0, $xpath->query('//section[contains(@class,"rt-disposition-panel")]//nav')->length);
@@ -88,8 +92,8 @@ class DispositionPageHeaderTest extends TestCase
         $component->call('setStatus', 'waiting')->assertDontSee($inquiry->title);
         $xpath = $this->xpath($component->html());
         $this->assertSame(1, $xpath->query('//*[@data-disposition-list-table]//*[@data-table-scroll-body]//*[@class and contains(concat(" ",normalize-space(@class)," ")," rt-table-empty ")]')->length);
-        $this->assertSame(1, $xpath->query($statusHost.'//button[@data-status-value="waiting" and @aria-checked="true"]')->length);
-        $this->assertSame(0, $xpath->query($statusHost.'//button[@data-status-value="all" and @aria-checked="true"]')->length);
+        $this->assertSame(1, $xpath->query($statusHost.'//nav//*[@data-rt-custom-select and @data-rt-select-value="waiting"]')->length);
+        $this->assertSame(0, $xpath->query($statusHost.'//nav//*[@data-rt-custom-select and @data-rt-select-value="all"]')->length);
         $this->assertSame(1, $xpath->query($statusHost.'//button[@aria-label="Bearbeitungsstand: Rückmeldung offen (0)"]')->length);
         $component->call('setStatus', 'review')->assertSee($inquiry->title);
         $this->assertSame('new', $inquiry->fresh()->status);
@@ -100,8 +104,8 @@ class DispositionPageHeaderTest extends TestCase
     {
         $xpath = $this->xpath(Blade::render('<x-ui.navigation.status-menu variant="dropdown" :options="[\'all\' => \'Alle\']" value="all" action="invalid.action" />'));
 
-        $this->assertSame(1, $xpath->query('//button[contains(@class,"rt-status-menu__trigger") and @disabled]')->length);
-        $this->assertSame(1, $xpath->query('//button[@role="menuitemradio" and @aria-checked="true" and @disabled]')->length);
+        $this->assertSame(1, $xpath->query('//*[@data-rt-custom-select and @data-rt-select-value="all"]//button[@role="combobox" and @disabled]')->length);
+        $this->assertSame(0, $xpath->query('//button[@role="menuitemradio"]')->length);
         $this->assertSame(0, $xpath->query('//*[@*[name()="wire:click"]]')->length);
     }
 

@@ -3,12 +3,15 @@
 namespace App\Livewire\Admin;
 
 use App\Actions\Jetstream\DeleteUser;
+use App\Livewire\Admin\Employees\EmployeeTeamModal;
+use App\Livewire\Concerns\InteractsWithPersonQuickActions;
 use App\Models\DeviceAssignment;
 use App\Models\User;
 use App\Models\UserProfile as ProfileModel;
 use App\Notifications\EmployeeAccountInvitation;
 use App\Services\Operations\PersonnelScopeService;
 use App\Services\Personnel\EmployeePhoneStatusService;
+use App\Services\Personnel\EmployeeTeamService;
 use App\Support\Operations\EmployeeProfileSections;
 use App\Support\OutlookAddin\OutlookEmployeePreferencesAccess;
 use Illuminate\Support\Facades\DB;
@@ -19,10 +22,14 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 class UserProfile extends Component
 {
+    // Chat, Anruf und Nachricht wie in der Personen-Schnellansicht.
+    use InteractsWithPersonQuickActions;
+
     #[Locked]
     public bool $embedded = false;
 
@@ -166,6 +173,9 @@ class UserProfile extends Component
         if (Gate::allows('devices.view')) {
             $tabs['devices'] = ['label' => 'Geräte', 'icon' => 'fad fa-laptop'];
         }
+        if ($this->canManageTeams()) {
+            $tabs['teams'] = ['label' => 'Teams', 'icon' => 'far fa-users'];
+        }
         if (app(OutlookEmployeePreferencesAccess::class)->canManage(auth()->user(), $this->user)) {
             $tabs['outlook'] = ['label' => 'Outlook', 'icon' => 'far fa-envelope'];
         }
@@ -199,6 +209,35 @@ class UserProfile extends Component
         return $actor?->isActive() && $actor->canViewManagementDashboard()
             && Gate::forUser($actor)->allows('employees.view')
             && Gate::forUser($actor)->allows('operations.manage');
+    }
+
+    private function canManageTeams(): bool
+    {
+        return app(EmployeeTeamService::class)->canManage(auth()->user())
+            && in_array($this->user->role, ['staff', 'admin', 'superadmin'], true)
+            && ((! $this->user->isAdmin() && ! $this->user->isSuperAdmin()) || auth()->user()->isAdmin());
+    }
+
+    public function openTeamChange(): void
+    {
+        $selection = app(EmployeeTeamService::class)->prepare([(int) $this->userId]);
+        if ($this->dirtyInlineFields !== []) {
+            $this->savePendingInlineChanges();
+        }
+        $this->dispatch('open-employee-team-modal', ids: $selection['ids'])->to(EmployeeTeamModal::class);
+    }
+
+    #[On('employee-teams-updated')]
+    public function teamsUpdated(array $ids = []): void
+    {
+        if (! in_array((int) $this->userId, array_map('intval', $ids), true)) {
+            return;
+        }
+        $this->user = User::findOrFail($this->userId);
+        $this->personnelPermissions = [];
+        if ($this->dirtyInlineFields === []) {
+            $this->syncInlineValues();
+        }
     }
 
     public function updatedInlineValues(mixed $value, string $field): void
@@ -556,6 +595,7 @@ class UserProfile extends Component
             'phoneStatus' => app(EmployeePhoneStatusService::class)->read((int) $this->userId),
             'employeeProfileTabs' => $employeeProfileTabs,
             'canEditEmployee' => Gate::allows('employees.create'),
+            'canManageEmployeeTeams' => $this->canManageTeams(),
             'canInviteEmployee' => auth()->user()->isActive()
                 && auth()->user()->canViewManagementDashboard() && Gate::allows('employees.view'),
             'canViewMasterData' => $this->personnelAllowed('employees.master-data.view'),

@@ -10,8 +10,8 @@
         dirty-target="name,email"
     />
 
-    <div class="flex min-w-0 items-center gap-4 bg-rt-surface px-5 py-5 dark:bg-rt-dark-surface sm:px-6 sm:py-6">
-        <div class="shrink-0">
+    <div class="profile-identity__layout bg-rt-surface dark:bg-rt-dark-surface">
+        <div class="profile-identity__photo">
             <div
                 x-data="{ preview: null }"
                 class="relative shrink-0"
@@ -59,25 +59,10 @@
                         x-bind:style="`background-image: url('${preview}')`"
                         aria-hidden="true"
                     ></span>
-                    <span class="absolute inset-0 flex items-center justify-center rounded-2xl bg-slate-950/0 text-white opacity-0 transition group-hover/photo:bg-slate-950/45 group-hover/photo:opacity-100 group-focus-visible/photo:bg-slate-950/45 group-focus-visible/photo:opacity-100">
-                        <i class="far fa-camera" aria-hidden="true"></i>
+                    <span class="profile-identity__camera" aria-hidden="true">
+                        <i class="far fa-camera"></i>
                     </span>
                 </button>
-
-                @if($this->user->profile_photo_path)
-                    <button
-                        type="button"
-                        wire:click="deleteProfilePhoto"
-                        data-autosave-action-model="photo"
-                        data-autosave-model="photo"
-                        data-autosave-field-id="profile-identity-photo"
-                        data-autosave-instant="true"
-                        class="absolute -bottom-2 -right-2 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-rt-surface text-rt-muted shadow-rt-sm ring-1 ring-rt-border transition hover:text-rt-red focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/15 dark:bg-rt-dark-surface dark:text-rt-dark-muted dark:ring-rt-dark-border"
-                        aria-label="{{ __('app.remove_profile_photo') }}"
-                    >
-                        <i class="far fa-trash-alt text-[11px]" aria-hidden="true"></i>
-                    </button>
-                @endif
             </div>
         </div>
 
@@ -158,7 +143,7 @@
             "
             x-on:click.outside="closeEditor()"
             x-on:focusin.window="if (! $el.contains($event.target)) closeEditor()"
-            class="min-w-0 flex-1"
+            class="profile-identity__content min-w-0"
             data-profile-inline-identity
         >
             <div
@@ -176,13 +161,13 @@
                     x-on:click="prepareEditor('name')"
                     x-on:keydown.enter.prevent="openEditorFromKeyboard('name')"
                     x-on:keydown.space.prevent="openEditorFromKeyboard('name')"
-                    class="rt-inline-edit-visual group/edit flex max-w-full items-center gap-2 rounded-lg text-left outline-none"
+                    class="profile-identity__name-trigger rt-inline-edit-visual group/edit flex max-w-full items-center gap-2 rounded-lg text-left outline-none"
                     aria-label="{{ __('app.username') }} {{ __('app.edit') }}"
                     data-native-inline-edit-trigger
                     data-autosave-visual
                 >
                     <span
-                        class="truncate text-lg font-semibold tracking-tight text-rt-text dark:text-rt-dark-text"
+                        class="profile-identity__name min-w-0 font-semibold tracking-tight text-rt-text dark:text-rt-dark-text"
                         x-text="nameDisplay"
                     >{{ $name }}</span>
                     <i class="far fa-pen text-[10px] text-rt-soft opacity-0 transition group-hover/edit:opacity-100 group-focus-visible/edit:opacity-100 dark:text-rt-dark-soft" aria-hidden="true"></i>
@@ -194,6 +179,7 @@
                     x-ref="nameInput"
                     id="profile-identity-name"
                     type="text"
+                    :aria-label="__('app.username')"
                     wire:model="name"
                     x-on:blur="closeEditor('name')"
                     x-on:keydown.enter.prevent="$el.blur()"
@@ -206,7 +192,7 @@
 
             <div
                 x-ref="emailField"
-                class="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5"
+                class="profile-identity__email-row flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5"
                 data-autosave-field
                 data-autosave-model="email"
                 data-autosave-field-id="profile-identity-email"
@@ -220,7 +206,7 @@
                     x-on:click="prepareEditor('email')"
                     x-on:keydown.enter.prevent="openEditorFromKeyboard('email')"
                     x-on:keydown.space.prevent="openEditorFromKeyboard('email')"
-                    class="rt-inline-edit-visual group/edit flex min-w-0 max-w-full items-center gap-2 rounded-md text-left text-sm text-rt-muted outline-none dark:text-rt-dark-muted"
+                    class="profile-identity__email-trigger rt-inline-edit-visual group/edit flex min-w-0 items-center gap-2 rounded-md text-left text-sm text-rt-muted outline-none dark:text-rt-dark-muted"
                     aria-label="{{ __('app.email') }} {{ __('app.edit') }}"
                     data-native-inline-edit-trigger
                     data-autosave-visual
@@ -235,6 +221,7 @@
                     x-ref="emailInput"
                     id="profile-identity-email"
                     type="email"
+                    :aria-label="__('app.email')"
                     wire:model="email"
                     x-on:blur="closeEditor('email')"
                     x-on:keydown.enter.prevent="$el.blur()"
@@ -246,10 +233,13 @@
                 <div class="flex shrink-0 items-center gap-2">
                     <span
                         x-show.important="emailVerified"
-                        class="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-300"
+                        class="profile-identity__verified inline-flex items-center justify-center text-emerald-600 dark:text-emerald-300"
+                        role="img"
+                        aria-label="{{ __('app.email_verified') }}"
+                        title="{{ __('app.email_verified') }}"
+                        data-profile-email-verified
                     >
-                        <i class="far fa-check-circle" aria-hidden="true"></i>
-                        {{ __('app.email_verified') }}
+                        <i class="fas fa-check-circle" aria-hidden="true"></i>
                     </span>
 
                     <button
@@ -270,6 +260,22 @@
                 </div>
             </div>
         </div>
+
+        @if($this->user->profile_photo_path)
+            <button
+                type="button"
+                wire:click="deleteProfilePhoto"
+                data-autosave-action-model="photo"
+                data-autosave-model="photo"
+                data-autosave-field-id="profile-identity-photo"
+                data-autosave-instant="true"
+                class="profile-identity__remove inline-flex items-center justify-center rounded-xl border border-rt-border bg-rt-surface text-rt-muted transition hover:text-rt-red dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-muted"
+                aria-label="{{ __('app.remove_profile_photo') }}"
+                title="{{ __('app.remove_profile_photo') }}"
+            >
+                <i class="far fa-trash-alt text-sm" aria-hidden="true"></i>
+            </button>
+        @endif
     </div>
 
     @if($verificationLinkSent)

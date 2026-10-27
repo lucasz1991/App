@@ -30,6 +30,7 @@
 .rt-floating-window__header .rt-ai-assist__header-dropdown:first-child .rt-floating-window__action { background: transparent; }
 @media (min-width: 761px) {
     .rt-floating-window:is([data-floating-mode='mini'], [data-floating-mode='fullscreen']) {
+        --rt-floating-window-bottom: max(calc(var(--rt-floating-window-inset, 8px) + var(--comm-bottom, var(--rt-assistant-bottom, 0px))), var(--rt-floating-window-obstacle-bottom, 0px));
         --rt-floating-action-size: 34px; --rt-floating-action-radius: 8px;
     }
     .rt-floating-window:is([data-floating-mode='mini'], [data-floating-mode='fullscreen']) > .rt-floating-window__header {
@@ -37,11 +38,12 @@
     }
     .rt-floating-window[data-floating-mode='mini'] {
         width: min(var(--rt-floating-mini-width), calc(100vw - 16px));
-        height: min(var(--rt-floating-mini-height), calc(100dvh - var(--rt-floating-top, 70px) - 16px - var(--comm-bottom, var(--rt-assistant-bottom, 0px))));
+        height: min(var(--rt-floating-mini-height), calc(100dvh - var(--rt-floating-top, 70px) - 8px - var(--rt-floating-window-bottom)));
     }
 }
 @media (max-width: 760px) {
     .rt-floating-window[data-floating-mode] {
+        --rt-floating-window-bottom: max(var(--comm-bottom, var(--rt-assistant-bottom, 0px)), var(--rt-floating-window-obstacle-bottom, 0px));
         border: 0; border-radius: 0; box-shadow: none;
     }
 }
@@ -98,6 +100,7 @@ window.rtFloatingWindow = (bindings, panel) => {
         if (window.innerWidth > 760 && sessionWide) sessionMode = mode;
         try { sessionStore.setItem(sessionKey, JSON.stringify({version:1, open:Boolean(state.opened()), mode:sessionMode, corner})); } catch {}
     };
+    const measureObstacles = () => window.rtInitializeFloatingLauncherGroup?.()?.layout?.();
     const easing = 'cubic-bezier(.22,.8,.25,1)';
     const rectFrame = r => ({left: r.left+'px', top: r.top+'px', width: r.width+'px', height: r.height+'px'});
     const sample = () => ({rect: panel.getBoundingClientRect(), opacity: Number(getComputedStyle(panel).opacity)});
@@ -164,7 +167,7 @@ window.rtFloatingWindow = (bindings, panel) => {
             this.$watch(() => [state.opened(), state.mode()].join(':'), announceWindow);
             this.$nextTick(() => {
                 if (state.mode() === 'fullscreen') announceWindow();
-                launcherRect();
+                launcherRect(); measureObstacles();
                 if (this.windowVisible) settled = sample();
             });
         },
@@ -180,8 +183,9 @@ window.rtFloatingWindow = (bindings, panel) => {
         windowDockStyle() {
             const c = this.windowDockTarget || state.corner();
             const top = parseFloat(getComputedStyle(panel).getPropertyValue('--rt-floating-top')) || 70;
+            const bottom = getComputedStyle(panel).getPropertyValue('--rt-floating-window-bottom') || '8px';
             return 'width:'+panel.offsetWidth+'px;height:'+panel.offsetHeight+'px;'
-                +(c.startsWith('top') ? 'top:'+(top+8)+'px' : 'bottom:8px')+';'
+                +(c.startsWith('top') ? 'top:'+(top+8)+'px' : 'bottom:'+bottom)+';'
                 +(c.endsWith('left') ? 'left:8px' : 'right:8px');
         },
         setWindowMotion(value) { this.windowMotion = value; panel.setAttribute('data-motion', value); },
@@ -228,6 +232,7 @@ window.rtFloatingWindow = (bindings, panel) => {
                 panel.style.setProperty('--rt-floating-reveal-y', upper ? '-8px' : '8px');
                 const collapsed = {transform:'translateY('+(upper ? -8 : 8)+'px)', opacity:0};
                 const expanded = {transform:'none', opacity:1};
+                measureObstacles();
                 const target = panel.getBoundingClientRect();
                 const start = from || (opening && launcher ? {rect:launcher, opacity:1} : null);
                 const end = !opening && launcher ? launcher : (opening ? target : from?.rect);
@@ -263,6 +268,7 @@ window.rtFloatingWindow = (bindings, panel) => {
             // watcher; finish setup in this microtask, before the next paint.
             queueMicrotask(() => {
                 if (disposed || version !== revision || !state.opened()) return;
+                measureObstacles();
                 const to = panel.getBoundingClientRect();
                 if (!from?.rect.width || !to.width) { settled = {rect:to, opacity:1}; return; }
                 this.setWindowMotion('resizing');
@@ -354,7 +360,7 @@ else document.addEventListener('alpine:init', registerRailTimeWindow, {once:true
         close: @js($closeAction), coordinated: @js($coordinationState)
     }"
     :hidden="!windowVisible" x-cloak
-    :data-floating-mode="({{ $enabledState }}) ? {{ $modeState }} : 'custom'"
+    :data-floating-mode="({{ $enabledState }}) || (window.innerWidth <= 760 && ({{ $coordinationState }})) ? {{ $modeState }} : 'custom'"
     :data-motion="windowMotion" :data-dragging="windowDragging.toString()" :data-floating-open="({{ $openState }}).toString()"
     x-on:pointermove.window="windowDragMove($event)" x-on:pointerup.window="windowDragEnd($event)"
     x-on:keydown.escape="if (windowDragging) { windowCancelDrag(); $event.preventDefault(); $event.stopPropagation(); }"

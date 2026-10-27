@@ -478,8 +478,8 @@ function launcherGroupFixture() {
     const win={...target(),innerWidth:1000,innerHeight:1000,
         visualViewport:{...target(),height:1000,offsetTop:0},MutationObserver,ResizeObserver,
         localStorage:{getItem:key=>storage.get(key),setItem:(key,value)=>storage.set(key,value)},
-        getComputedStyle:node=>({display:node.testDisplay||'block',visibility:'visible',opacity:'1',
-            overflowX:'visible',overflowY:'visible',position:node.testPosition||'static',
+        getComputedStyle:node=>({display:node.testDisplay||'block',visibility:node.testVisibility||'visible',opacity:String(node.testOpacity??1),
+            overflowX:node.testOverflowX||'visible',overflowY:node.testOverflowY||'visible',position:node.testPosition||'static',
             getPropertyValue:key=>key==='--rt-floating-safe-bottom'?String(win.safeBottom||0):'0'}),
         requestAnimationFrame:callback=>{const id=++frameId;rafs.set(id,callback);return id;},
         cancelAnimationFrame:id=>rafs.delete(id),
@@ -494,6 +494,11 @@ function launcherGroupFixture() {
         }
     };
     return {document,win,api,group,chat,assist,stage,chatItem,assistItem,footer,dock,rafs,mutations,resizes,storage,shape,flush,
+        panel({id='panel',corner='bottom-right',mode='mini',open=true,rect=shape(550,482,442,510)}={}){
+            const panel=document.createElement('section');panel.id=id;panel.className='rt-floating-window';
+            panel.dataset.floatingMode=mode;panel.dataset.floatingOpen=String(open);panel.dataset.corner=corner;
+            panel.testRect=rect;document.body.append(panel);return panel;
+        },
         mutate(){mutations.at(-1).callback([{type:'childList',target:document.body}]);flush();},
         scroll(){document.dispatchEvent(new dom.Event('scroll'));flush();},
         event(node,type,data={}){const event=new dom.Event(type,{bubbles:true,cancelable:true});Object.assign(event,data);node.dispatchEvent(event);return event;},
@@ -549,7 +554,7 @@ test('a short viewport uses one compact launcher row above the footer and dock t
     const chatRect=f.chat.getBoundingClientRect(),assistRect=f.assist.getBoundingClientRect(),railRect=f.group.getBoundingClientRect();
     assert.equal(chatRect.top,assistRect.top);
     assert.equal(chatRect.left-assistRect.right,12,'the compact row preserves the 12px gap between 56px buttons');
-    assert.ok(railRect.left>=12&&railRect.right<=378,'both buttons stay inside the viewport sides');
+    assert.ok(railRect.left>=8&&railRect.right<=382,'both buttons stay inside the viewport sides');
     assert.ok(railRect.top>=82,'the compact row stays below the top bar');
     assert.equal(f.footer.testRect.top-railRect.bottom,12,'the row clears the footer above the bottom dock');
 
@@ -609,7 +614,162 @@ test('the shared rail moves beside an open mini window and returns together when
     assert.equal(f.chat.getBoundingClientRect().top-f.assist.getBoundingClientRect().bottom,12);
     assert.ok(f.resizes[0].observed.has(panel));
     panel.dataset.floatingOpen='false';f.mutate();
-    assert.equal(f.group.getBoundingClientRect().right,984);
+    assert.equal(f.group.getBoundingClientRect().right,992);
     assert.equal(f.resizes[0].observed.has(panel),false);
     releaseChat();releaseAssist();
+});
+
+const windowBottom=panel=>Number.parseFloat(panel.style.getPropertyValue('--rt-floating-window-obstacle-bottom'))||0;
+
+function resolveWindowBottom(overrides={}) {
+    const context=vm.createContext({window:{},document:{addEventListener(){}}});
+    vm.runInContext(launcherCode,context);
+    return context.window.rtResolveFloatingWindowBottom({
+        height:1000,viewportBottom:1000,left:550,right:992,top:482,bottom:992,obstacles:[],...overrides,
+    });
+}
+
+function renderedFloatingMode({enabled=false,coordinated=true,width=390,mode='fullscreen'}={}) {
+    const expression=blade.match(/:data-floating-mode="([^"]+)"/)[1]
+        .replace(/{{\s*\$enabledState\s*}}/g,'enabled')
+        .replace(/{{\s*\$coordinationState\s*}}/g,'coordinated')
+        .replace(/{{\s*\$modeState\s*}}/g,'mode');
+    return vm.runInNewContext(expression,{enabled,coordinated,mode,window:{innerWidth:width}});
+}
+
+test('responsive native windows keep their actual mode and avoid mobile pagination while custom editors remain excluded',()=>{
+    const f=launcherGroupFixture();const release=f.api.register(f.chat);f.chat.testDisplay='none';
+    f.win.innerWidth=390;f.win.innerHeight=844;f.win.visualViewport.height=844;
+    const mode=renderedFloatingMode({width:390});
+    assert.equal(mode,'fullscreen','a native mobile fullscreen must not be classified as a custom PageBuilder surface');
+    const panel=f.panel({mode,rect:f.shape(0,70,390,774)});
+    const custom=f.panel({id:'custom',mode:renderedFloatingMode({width:390,coordinated:false}),rect:f.shape(0,70,390,774)});
+    assert.equal(custom.dataset.floatingMode,'custom');
+    f.footer.testRect=f.shape(0,780,390,64);f.api.layout();
+    assert.equal(windowBottom(panel),76,'the real mobile mode reaches the same native obstacle coordinator');
+    assert.equal(custom.style.getPropertyValue('--rt-floating-window-obstacle-bottom'),undefined);
+    assert.equal(renderedFloatingMode({width:1223,enabled:true,mode:'mini'}),'mini');
+    assert.equal(renderedFloatingMode({width:1223,enabled:false,coordinated:false}),'custom');
+    release();
+});
+
+test('window footer resolver uses actual baseline overlap and leaves unrelated columns and rows unchanged',()=>{
+    assert.equal(resolveWindowBottom(),0);
+    assert.equal(resolveWindowBottom({obstacles:[{left:0,right:1000,top:930,bottom:980}]}),82);
+    assert.equal(resolveWindowBottom({obstacles:[{left:0,right:500,top:930,bottom:980}]}),0);
+    assert.equal(resolveWindowBottom({obstacles:[{left:0,right:1000,top:230,bottom:280}]}),0,
+        'pagination above an already clear window does not reserve the whole lower viewport');
+    assert.equal(resolveWindowBottom({obstacles:[{left:0,right:1000,top:994,bottom:1000}]}),18,
+        'the shared clearance gap is respected before the footer touches the window');
+    assert.equal(resolveWindowBottom({viewportBottom:700,obstacles:[{left:0,right:1000,top:930,bottom:980}]}),0,
+        'keyboard covered pagination is outside the visible viewport');
+    assert.equal(resolveWindowBottom({viewportBottom:700,obstacles:[{left:0,right:1000,top:620,bottom:700}]}),392);
+});
+
+test('window footer resolver rechecks newly encountered obstacles without depending on enumeration order',()=>{
+    const lower={left:0,right:1000,top:930,bottom:980},upper={left:0,right:1000,top:450,bottom:470};
+    assert.equal(resolveWindowBottom({obstacles:[lower,upper]}),562);
+    assert.equal(resolveWindowBottom({obstacles:[upper,lower]}),562);
+});
+
+test('both open windows clear pagination even when their launcher buttons are hidden',()=>{
+    const f=launcherGroupFixture();const releaseChat=f.api.register(f.chat),releaseAssist=f.api.register(f.assist);
+    f.chat.testDisplay='none';f.assist.testDisplay='none';
+    const chat=f.panel({id:'communication',rect:f.shape(550,482,442,510)});
+    const assist=f.panel({id:'ai-assist',corner:'bottom-left',rect:f.shape(8,482,442,510)});
+    f.footer.testRect=f.shape(0,930,1000,50);f.mutate();
+    for(const panel of [chat,assist]){
+        assert.equal(windowBottom(panel),82,'each panel reserves the same 12px clearance above the visible footer');
+        assert.ok(f.resizes[0].observed.has(panel),'open panels remain observed without a visible launcher');
+    }
+    f.scroll();assert.equal(windowBottom(chat),82,'remeasurement does not add a second pagination reserve');
+    f.footer.testRect=f.shape(0,1050,1000,50);f.scroll();
+    assert.equal(windowBottom(chat),0);assert.equal(windowBottom(assist),0);
+    releaseChat();releaseAssist();
+});
+
+test('window pagination reserve only applies in its own horizontal column and follows docking changes',()=>{
+    const f=launcherGroupFixture();const release=f.api.register(f.chat);
+    f.chat.testDisplay='none';
+    const chat=f.panel({id:'communication',rect:f.shape(550,482,442,510)});
+    const assist=f.panel({id:'ai-assist',corner:'bottom-left',rect:f.shape(8,482,442,510)});
+    f.footer.testRect=f.shape(530,930,470,50);f.mutate();
+    assert.equal(windowBottom(chat),82);assert.equal(windowBottom(assist),0,'an unrelated list column stays clear');
+    chat.dataset.corner='bottom-left';chat.testRect=f.shape(8,482,442,510);
+    f.mutate();assert.equal(windowBottom(chat),0,'moving the panel away from the footer removes its old reserve');
+    release();
+});
+
+test('window reserve follows fixed bottom navigation and keyboard viewport in absolute layout coordinates',()=>{
+    const f=launcherGroupFixture();const release=f.api.register(f.chat);
+    const panel=f.panel();f.dock.testRect=f.shape(0,920,1000,80);f.mutate();
+    assert.equal(windowBottom(panel),0,'ordinary document navigation is not a fixed bottom dock');
+    f.dock.testPosition='fixed';f.mutate();assert.equal(windowBottom(panel),92);
+    f.win.visualViewport.height=700;f.dock.testRect=f.shape(0,620,1000,80);
+    f.win.visualViewport.dispatchEvent({type:'resize'});f.flush();
+    assert.equal(windowBottom(panel),392,'the reserve includes the obscured layout viewport exactly once');
+    f.dock.testDisplay='none';f.win.visualViewport.height=1000;
+    f.win.visualViewport.dispatchEvent({type:'resize'});f.flush();assert.equal(windowBottom(panel),0);
+    release();
+});
+
+test('window reserve ignores hidden clipped and offscreen pagination',()=>{
+    const f=launcherGroupFixture();const release=f.api.register(f.chat);const panel=f.panel();
+    f.footer.testRect=f.shape(0,930,1000,50);f.footer.testDisplay='none';f.mutate();assert.equal(windowBottom(panel),0);
+    f.footer.testDisplay='block';f.footer.testVisibility='hidden';f.mutate();assert.equal(windowBottom(panel),0);
+    f.footer.testVisibility='visible';f.footer.testOpacity=0;f.mutate();assert.equal(windowBottom(panel),0);
+    f.footer.testOpacity=1;
+    const list=f.footer.parentElement;list.testOverflowY='hidden';list.testRect=f.shape(0,0,1000,900);
+    f.mutate();assert.equal(windowBottom(panel),0,'a footer beyond its clipping ancestor is not visible');
+    list.testOverflowY='visible';f.footer.testRect=f.shape(0,1050,1000,50);
+    f.scroll();assert.equal(windowBottom(panel),0,'pagination below the viewport is not an obstacle');
+    f.footer.testRect=f.shape(0,930,1000,50);f.mutate();assert.equal(windowBottom(panel),82);
+    release();
+});
+
+test('top docked mini and fullscreen windows receive the footer boundary while custom windows opt out',()=>{
+    const f=launcherGroupFixture();const release=f.api.register(f.chat);
+    f.footer.testRect=f.shape(0,550,1000,50);
+    const top=f.panel({corner:'top-left',rect:f.shape(8,78,442,510)});
+    const full=f.panel({id:'full',mode:'fullscreen',rect:f.shape(8,78,984,914)});
+    const custom=f.panel({id:'editor',mode:'custom'});f.mutate();
+    assert.equal(windowBottom(top),462,'top docking keeps its anchor and shares the lower height boundary');
+    assert.equal(windowBottom(full),462,'fullscreen does not cover the pagination controls');
+    assert.equal(custom.style.getPropertyValue('--rt-floating-window-obstacle-bottom'),undefined);
+    release();
+});
+
+test('Livewire replacement and teardown release old panel offsets and continue observing new pagination',()=>{
+    const f=launcherGroupFixture();const release=f.api.register(f.chat);f.chat.testDisplay='none';
+    const panel=f.panel();f.footer.testRect=f.shape(0,930,1000,50);f.mutate();assert.equal(windowBottom(panel),82);
+    const replacement=f.document.createElement('div');replacement.setAttribute('data-table-pagination','');
+    replacement.testRect=f.shape(0,880,1000,50);f.footer.replaceWith(replacement);
+    f.event(f.document,'livewire:navigated');f.flush();assert.equal(windowBottom(panel),132);
+    assert.equal(f.resizes[0].observed.has(f.footer),false);assert.ok(f.resizes[0].observed.has(replacement));
+    panel.dataset.floatingOpen='false';f.mutate();
+    assert.equal(panel.style.getPropertyValue('--rt-floating-window-obstacle-bottom'),undefined,'closing restores the native panel baseline');
+    panel.dataset.floatingOpen='true';f.mutate();assert.equal(windowBottom(panel),132);
+    panel.remove();f.mutate();
+    assert.equal(panel.style.getPropertyValue('--rt-floating-window-obstacle-bottom'),undefined,'detached panels retain no owned offset');
+    assert.equal(f.resizes[0].observed.has(panel),false);
+    const next=f.panel({id:'next'});f.mutate();assert.equal(windowBottom(next),132);
+    release();assert.equal(next.style.getPropertyValue('--rt-floating-window-obstacle-bottom'),undefined);
+    assert.equal(f.mutations[0].disconnected,true);assert.equal(f.resizes[0].disconnected,true);
+    f.win.dispatchEvent({type:'resize'});f.event(f.document,'livewire:navigated');f.flush();f.api.layout();
+    assert.equal(next.style.getPropertyValue('--rt-floating-window-obstacle-bottom'),undefined,'destroyed layout work cannot reapply an offset');
+});
+
+test('window layout can settle before geometry sampling and defers animated boxes until their idle state',()=>{
+    const f=launcherGroupFixture();const release=f.api.register(f.chat);const panel=f.panel();
+    f.footer.testRect=f.shape(0,930,1000,50);f.api.layout();
+    assert.equal(windowBottom(panel),82,'opening can request the target geometry synchronously before the next frame');
+    for(const phase of ['opening','resizing','closing']){
+        panel.dataset.motion=phase;f.footer.testRect=f.shape(0,880,1000,50);f.mutate();
+        assert.equal(windowBottom(panel),82,'an animated intermediate rectangle must not become the new docking baseline');
+        panel.dataset.motion='idle';f.mutate();assert.equal(windowBottom(panel),132);
+        f.footer.testRect=f.shape(0,930,1000,50);f.api.layout();assert.equal(windowBottom(panel),82);
+    }
+    f.mutations[0].callback([{type:'attributes',attributeName:'style',target:panel}]);
+    assert.equal(f.rafs.size,0,'the owned final style never restarts a MutationObserver feedback loop');
+    release();
 });

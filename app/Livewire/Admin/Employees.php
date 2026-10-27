@@ -4,6 +4,8 @@ namespace App\Livewire\Admin;
 
 use App\Actions\Jetstream\DeleteUser;
 use App\Livewire\Admin\Employees\EmployeeFormModal;
+use App\Livewire\Admin\Employees\EmployeeTeamBulkModal;
+use App\Livewire\Admin\Employees\EmployeeTeamModal;
 use App\Livewire\Admin\Employees\InviteEmployeeModal;
 use App\Livewire\Admin\Employees\TeamRbacModal;
 use App\Livewire\Admin\Users\Messages\MessageForm;
@@ -11,6 +13,7 @@ use App\Livewire\Concerns\InteractsWithPersonQuickActions;
 use App\Models\Team;
 use App\Models\User;
 use App\Models\UserProfile;
+use App\Services\Personnel\EmployeeTeamService;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
@@ -58,6 +61,7 @@ class Employees extends Component
         'employeeSaved' => '$refresh',
         'table-sort' => 'tableSort',
         'toggleEmployeeSelection' => 'toggleEmployeeSelection',
+        'employee-teams-updated' => 'teamsUpdated',
     ];
 
     public function mount(bool $embedded = false): void
@@ -172,7 +176,27 @@ class Employees extends Component
 
     public function openTeamRbacModal(): void
     {
+        Gate::authorize('roles.manage');
         $this->dispatch('open-team-rbac-modal')->to(TeamRbacModal::class);
+    }
+
+    public function openTeamChangeSelected(): void
+    {
+        $selection = app(EmployeeTeamService::class)->prepare($this->selectedEmployees);
+        $this->dispatch('open-employee-team-modal', ids: $selection['ids'])->to(EmployeeTeamModal::class);
+    }
+
+    public function openTeamEditSelected(): void
+    {
+        $selection = app(EmployeeTeamService::class)->prepare($this->selectedEmployees);
+        $this->dispatch('open-employee-team-bulk-modal', ids: $selection['ids'])->to(EmployeeTeamBulkModal::class);
+    }
+
+    public function teamsUpdated(array $ids = []): void
+    {
+        $this->selectedEmployees = array_values(array_diff(array_map('intval', $this->selectedEmployees), $ids));
+        $this->selectAll = false;
+        $this->resetPage();
     }
 
     public function openInvite(): void
@@ -198,13 +222,6 @@ class Employees extends Component
 
         $this->dispatch('openMailModal', payload: $ids)
             ->to(MessageForm::class);
-    }
-
-    // Beispiel-Bulk-Aktionen (Platzhalter)
-    public function exportSelected(): void
-    {
-        // TODO: Export-Logik
-        $this->dispatch('swal:toast', type: 'info', title: 'Export', text: 'Export vorbereitet.');
     }
 
     public function clearSelection(): void
@@ -389,7 +406,11 @@ class Employees extends Component
             ->get(['id', 'name']);
         $employees = $this->employees;
 
-        return view('livewire.admin.employees', compact('employees', 'teams'))
+        return view('livewire.admin.employees', [
+            'employees' => $employees,
+            'teams' => $teams,
+            'canManageEmployeeTeams' => app(EmployeeTeamService::class)->canManage(auth()->user()),
+        ])
             ->layout('layouts.master', ['area' => auth()->user()->usesAdminLayout() ? 'admin' : 'user']);
     }
 }

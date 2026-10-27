@@ -285,6 +285,7 @@ auth.json
 !/tests/Feature/AssistantOperationsUiTest.php
 !/tests/Frontend/chatbot-operations-assist.test.js
 !/tests/Feature/AiCustomerCommunicationTest.php
+!/tests/Feature/AiIntakeManualPlanningTest.php
 !/tests/Feature/StaffingAutomationTest.php
 !/tests/Feature/AiAssistTest.php
 !/tests/Feature/AreaMenuUiTest.php
@@ -348,8 +349,25 @@ auth.json
 !/tests/Frontend/chat-pane-morph-reactivity.test.js
 !/tests/Frontend/floating-window-component.test.js
 !/tests/Feature/FloatingWindowTabsTest.php
+
+!/tests/Feature/DispositionSharedSelectTest.php
 !/tests/Feature/OutlookDesktopFlowTest.php
 !/tests/Feature/AiIntakeFormProcessingTest.php
 !/tests/Feature/DirectIntakeOrderTest.php
 !/tests/Feature/IndependentIntakeFormUiTest.php
 !/tests/Feature/InquiryAssistBridgeTest.php
+
+# Verified personnel/team release regressions; include only these exact files.
+!/tests/Feature/EmployeeTeamManagementTest.php
+!/tests/Feature/EmployeeTeamMembershipTest.php
+!/tests/Feature/EmployeeTeamUiTest.php
+!/tests/Feature/EmployeeBulkTeamMembershipTest.php
+!/tests/Feature/TeamCreationModalTest.php
+!/tests/Feature/OwnProfileIdentityHeaderTest.php
+!/tests/Feature/AutosaveFieldStatusTest.php
+!/tests/Feature/EmployeeProfileAccessAlertTest.php
+!/tests/Feature/GlobalTablePaginationUiTest.php
+
+# Disposable shared-component QA views must never enter a release.
+/storage/framework/views-shared-select-final-20261023/
+/storage/framework/views-table-frame-20261023/

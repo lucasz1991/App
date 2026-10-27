@@ -29,7 +29,7 @@
     min-height: 0;
     overflow: auto;
     overscroll-behavior: contain;
-    border-radius: 0 0 12px 12px;
+    border-radius: 0 0 var(--rt-table-bottom-radius, 12px) var(--rt-table-bottom-radius, 12px);
 }
 
 .rt-table-frame[data-table-scroll='body'] [data-table-scroll-body]:focus-visible {

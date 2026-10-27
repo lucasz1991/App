@@ -1,19 +1,13 @@
 <x-ui.floating.toolbar label="AI-Eingänge filtern" search>
     <x-ui.forms.search context="floating" :id="'ai-intake-search-'.$this->getId()" wire:model.live.debounce.300ms="search" maxlength="100" placeholder="Eingänge suchen" :status="$intakes->total()" :status-label="$intakes->total().' '.($intakes->total() === 1 ? 'Eingang' : 'Eingänge')" />
     <x-slot:actions>
-    <x-ui.dropdown.anchor-dropdown align="right" width="64" :offset="6" :dropdown-id="'ai-intake-status-'.$this->getId()" layer-group="ai-intake-controls" content-label="Bearbeitungsstand">
-        <x-slot:trigger>
-            <button type="button" class="rt-floating-toolbar__button" aria-haspopup="menu" aria-label="AI-Eingänge filtern: {{ $labels[$statusFilter] ?? 'Alle Zustände' }}" title="AI-Eingänge filtern"><i class="far fa-sliders-h" aria-hidden="true"></i></button>
-        </x-slot:trigger>
-        <x-slot:content>
-            @foreach(['all' => 'Alle Zustände', ...$labels] as $value => $label)
-                <x-ui.dropdown.dropdown-link role="menuitemradio" aria-checked="{{ $statusFilter === $value ? 'true' : 'false' }}" wire:click="$set('statusFilter', '{{ $value }}')" x-on:click="close()">
-                    <i class="{{ ['all'=>'far fa-layer-group','received'=>'far fa-inbox','analyzing'=>'far fa-cog','review'=>'far fa-search','waiting_customer'=>'far fa-reply','ready'=>'far fa-check-circle','paused'=>'far fa-pause','not_inquiry'=>'far fa-ban','failed'=>'far fa-exclamation-circle','completed'=>'far fa-check'][$value] ?? 'far fa-inbox' }}" aria-hidden="true"></i><span>{{ $label }}</span>
-                    @if($statusFilter === $value)<i class="far fa-check ml-auto" aria-hidden="true"></i>@endif
-                </x-ui.dropdown.dropdown-link>
-            @endforeach
-        </x-slot:content>
-    </x-ui.dropdown.anchor-dropdown>
+    <x-ui.forms.select :id="'ai-intake-status-'.$this->getId()" wire:model.live="statusFilter" variant="icon" icon="far fa-sliders-h"
+        aria-label="AI-Eingänge filtern: {{ $labels[$statusFilter] ?? 'Alle Zustände' }}" title="AI-Eingänge filtern">
+        @foreach(['all' => 'Alle Zustände', ...$labels] as $value => $label)
+            <option value="{{ $value }}" @selected($statusFilter === $value)
+                data-icon-class="{{ ['all'=>'far fa-layer-group','received'=>'far fa-inbox','analyzing'=>'far fa-cog','review'=>'far fa-search','waiting_customer'=>'far fa-reply','ready'=>'far fa-check-circle','paused'=>'far fa-pause','not_inquiry'=>'far fa-ban','failed'=>'far fa-exclamation-circle','completed'=>'far fa-check'][$value] ?? 'far fa-inbox' }}">{{ $label }}</option>
+        @endforeach
+    </x-ui.forms.select>
     <button type="button" class="rt-floating-toolbar__button" wire:click="openCapture" aria-label="Eingang erfassen" title="Eingang erfassen"><i class="far fa-plus" aria-hidden="true"></i></button>
     </x-slot:actions>
 </x-ui.floating.toolbar>

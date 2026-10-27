@@ -539,6 +539,59 @@ body:has([data-employee-directory-scroll]) {
     border-color: var(--employee-line);
     box-shadow: none;
 }
+.employee-own-profile .profile-identity__layout {
+    position: relative;
+    display: grid;
+    grid-template-columns: 80px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 24px;
+    min-width: 0;
+    padding: 20px 24px;
+}
+.employee-own-profile .profile-identity__photo { min-width: 0; }
+.employee-own-profile .profile-identity__photo img,
+.employee-own-profile .profile-identity__photo .bg-cover {
+    width: 80px;
+    height: 80px;
+    border-radius: 18px !important;
+}
+.employee-own-profile .profile-identity__camera {
+    position: absolute;
+    right: -4px;
+    bottom: -4px;
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border: 1px solid var(--employee-line);
+    border-radius: 50%;
+    background: var(--employee-paper);
+    color: var(--employee-muted);
+    font-size: 13px;
+    box-shadow: 0 2px 6px rgb(15 23 42 / 8%);
+}
+.employee-own-profile .profile-identity__photo button:hover .profile-identity__camera {
+    color: var(--employee-signal);
+}
+.employee-own-profile .profile-identity__name {
+    font-size: 24px;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+.employee-own-profile .profile-identity__email-row { margin-top: 2px; }
+.employee-own-profile .profile-identity__email-trigger {
+    flex: 0 1 auto;
+    max-width: calc(100% - 28px);
+}
+.employee-own-profile .profile-identity__verified {
+    width: 18px;
+    height: 18px;
+    font-size: 16px;
+}
+.employee-own-profile .profile-identity__remove {
+    width: 44px;
+    height: 44px;
+}
 .employee-own-profile [data-native-inline-edit-trigger] > i { opacity: .7 !important; }
 .employee-own-profile [data-rt-accordion-section] {
     border: 1px solid var(--employee-line);
@@ -665,9 +718,22 @@ body:has([data-employee-directory-scroll]) {
     .employee-compensation__fields { grid-template-columns: 1fr; gap: 0; }
     .employee-directory .rt-employee-table .rt-table-row { min-height: 76px; }
     .employee-directory .employee-directory__create { padding-inline: 12px !important; font-size: 12px; }
-    .employee-own-profile [data-profile-identity] > div { gap: 12px !important; padding: 16px !important; }
-    .employee-own-profile [data-profile-identity] img,
-    .employee-own-profile [data-profile-identity] .bg-cover { width: 64px !important; height: 64px !important; }
+    .employee-own-profile .profile-identity__layout {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 8px;
+        padding: 16px;
+        text-align: center;
+    }
+    .employee-own-profile .profile-identity__photo { justify-self: center; }
+    .employee-own-profile .profile-identity__photo img,
+    .employee-own-profile .profile-identity__photo .bg-cover { width: 72px !important; height: 72px !important; }
+    .employee-own-profile .profile-identity__content { width: 100%; }
+    .employee-own-profile .profile-identity__name-trigger,
+    .employee-own-profile .profile-identity__email-row { justify-content: center; }
+    .employee-own-profile .profile-identity__name { font-size: 20px; }
+    .employee-own-profile .profile-identity__email-row { margin-top: 0; }
+    .employee-own-profile .profile-identity__email-trigger { font-size: 13px; }
+    .employee-own-profile .profile-identity__remove { position: absolute; top: 12px; right: 12px; }
 }
 @media (max-width: 479px) {
     .employee-detail-list .employee-detail-row { grid-template-columns: 1fr; gap: 4px !important; padding-block: 12px !important; }

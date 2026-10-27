@@ -2,6 +2,7 @@
     'count' => 0,
     'selectAll' => null,        // Name der wire:click-Methode fuer "alle markieren/entfernen"
     'selectAllTitle' => null,
+    'showSelectAll' => true,
     'align' => 'left',
     'width' => '56',
     'actionsAvailable' => true,
@@ -14,24 +15,13 @@
     $hasActions = $actionsAvailable && trim((string) $slot) !== '';
     $showActions = ! $isEmpty && $hasActions;
     $selectAllTitle = $selectAllTitle ?? __('app.select_all');
+    $showSelectAll = filter_var($showSelectAll, FILTER_VALIDATE_BOOL);
 @endphp
 
 <div class="rt-table-bulk flex items-center gap-2" data-tables-bulk>
-    {{-- Alle markieren / nicht markieren --}}
-    <button
-        type="button"
-        @if($selectAll) wire:click="{{ $selectAll }}" @endif
-        title="{{ $selectAllTitle }}"
-        aria-label="{{ $selectAllTitle }}"
-        class="rt-table-select-trigger flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-rt-border bg-rt-control text-rt-muted shadow-rt-xs outline-none transition-all duration-200 ease-rt-spring hover:border-rt-accent/50 hover:text-rt-accent focus-visible:border-rt-accent focus-visible:ring-4 focus-visible:ring-rt-accent/15 active:scale-[0.98] dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-muted dark:hover:text-rt-dark-accent dark:focus-visible:ring-rt-dark-accent/20"
-    >
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
-            <rect x="4" y="4" width="16" height="16" rx="4" />
-            @if ($count > 0)
-                <path stroke-linecap="round" d="M8 12h8" />
-            @endif
-        </svg>
-    </button>
+    @if($showSelectAll)
+        <x-tables.selection-toggle :action="$selectAll" :label="$selectAllTitle" :state="$count > 0 ? 'mixed' : 'false'" :checkbox-role="false" />
+    @endif
 
     {{-- Erst bei einer Auswahl und mindestens einer verfügbaren Aktion
          anzeigen. Es gibt bewusst keinen ausgegrauten Leerzustand. --}}

@@ -26,6 +26,11 @@
   <x-dynamic-component :component="$embedded ? 'operations.surface' : 'ui.page'" :title="$embedded ? null : 'Mitarbeiterprofil'" :eyebrow="__('app.employees')" :description="$user->email" :auto-intro="!$embedded">
     <x-slot:actions>
         <x-ui.dropdown.page-actions width="48">
+            @if($canManageEmployeeTeams)
+                <x-dropdown-link wire:click.prevent="openTeamChange">
+                    <i class="far fa-users mr-2" aria-hidden="true"></i>Team wechseln
+                </x-dropdown-link>
+            @endif
             @if ($user->status)
                 <x-dropdown-link wire:click.prevent="deactivateUser()" :can="'users.edit'" tone="warning">
                     <i class="far fa-times-circle mr-2"></i>
@@ -86,10 +91,11 @@
           dirty-target="inlineValues"
       />
 
-      @include('livewire.admin.user-profile.partials.identity-card')
+      <aside class="employee-profile__sidebar" aria-label="Personenübersicht">
+          @include('livewire.admin.user-profile.partials.identity-card')
+      </aside>
 
-
-
+      <div class="employee-profile__main">
       <div class="employee-profile__navigation" data-profile-navigation x-data="{}">
         <nav class="employee-profile__groups" aria-label="Bereiche der Mitarbeiterakte">
             @foreach($profileGroups as $group => $groupTabs)
@@ -126,6 +132,11 @@
       </div>
 
     <div class="employee-profile__content" x-data="{}" wire:loading.class="employee-profile__content--loading" wire:target="setProfileTab">
+        @if($profileTab === 'teams' && $canManageEmployeeTeams)
+            <x-operations.panel.tab name="teams" :id-prefix="$profilePrefix" model="$wire.profileTab" class="employee-profile__panel">
+                @include('livewire.admin.user-profile.partials.teams')
+            </x-operations.panel.tab>
+        @endif
         @foreach($profileGroups[$profileGroup] as $tabId => $definition)
             @if($tabId !== $profileTab)
                 <section hidden role="tabpanel" id="{{ $profilePrefix }}-panel-{{ $tabId }}" aria-labelledby="{{ $profilePrefix }}-tab-{{ $tabId }}"></section>
@@ -274,10 +285,15 @@
         @endif
     </div>
     </div>
+    </div>
   </x-dynamic-component>
 
-    {{-- Compose-Modal fuer den Nachrichten-Tab --}}
-    @if(Gate::allows('users.messages.create') && $profileTab === 'userMessages')
+    @if($canManageEmployeeTeams)
+        <livewire:admin.employees.employee-team-modal :key="'profile-team-change-'.$user->id" />
+    @endif
+
+    {{-- Compose-Modal fuer den Nachrichten-Tab und die Schnellaktion "Nachricht" --}}
+    @if(Gate::allows('users.messages.create'))
         <livewire:admin.users.messages.message-form :key="'profile-message-form'" />
     @endif
 </div>

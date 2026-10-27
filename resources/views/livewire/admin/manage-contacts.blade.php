@@ -27,7 +27,7 @@
         </div>
     @endif
 
-    <div class="rt-ui-surface mb-3 mt-4 min-w-0 rounded-xl border border-rt-border bg-rt-surface dark:border-rt-dark-border dark:bg-rt-dark-surface">
+    <div data-table-html-frame class="rt-ui-surface mb-3 mt-4 min-w-0 rounded-xl border border-rt-border bg-rt-surface dark:border-rt-dark-border dark:bg-rt-dark-surface">
     <table class="rt-responsive-data-table w-full text-left text-rt-text dark:text-rt-dark-text">
         <thead>
             <tr class="rt-ui-surface-muted bg-rt-surface-muted dark:bg-rt-dark-surface-muted">

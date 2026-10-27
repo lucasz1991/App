@@ -470,6 +470,11 @@ class EmployeeLocationTest extends TestCase
         config(['app.url' => 'https://railtime.example']);
         [$installation] = $this->ready();
         $component = Livewire::actingAs($this->employee)->test(EmployeeLocationStatus::class)
+            ->assertSeeHtml('id="employee-location-device"')
+            ->assertSeeHtml('aria-label="Zugeordnetes Geschäftshandy"')
+            ->assertSeeHtml('data-autosave-model="assignmentId"')
+            ->assertSeeHtml('role="combobox"')
+            ->assertDontSeeHtml('<select ')
             ->assertSet('handoffCode', '')->assertDontSee('Einmaliger Startcode')->call('prepareHandoff')->assertHasNoErrors()
             ->assertSee('Einmaliger Startcode')->assertSee('60 Sekunden')->assertSee('Startcode');
         $code = $component->get('handoffCode');

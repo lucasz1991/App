@@ -45,7 +45,8 @@ class AiAssistTest extends TestCase
         $component->call('setTab', 'activity')->set('activityFilter', 'planning')
             ->assertSeeHtml('role="toolbar" aria-label="Aktivitäten filtern"')
             ->assertSeeHtml('aria-label="Aktivitäten filtern: Planung"')
-            ->assertSeeHtml('wire:click="$set(\'activityFilter\', \'planning\')"');
+            ->assertSeeHtml('data-autosave-model="activityFilter"')
+            ->assertSeeHtml('data-rt-select-value="planning"');
         $component->call('setTab', 'chat')->call('setTab', 'activity')
             ->assertSet('activityFilter', 'planning')->assertSeeHtml('aria-label="Aktivitäten filtern: Planung"');
     }
@@ -339,6 +340,26 @@ class AiAssistTest extends TestCase
         Livewire::actingAs($staff)->test(AiAssist::class, ['page' => 'cases'])->assertForbidden();
         $this->assist()->call('openSettings')->assertForbidden();
         $this->assist()->call('saveSettings')->assertForbidden();
+    }
+
+    public function test_assistant_settings_use_named_shared_selects_with_existing_models(): void
+    {
+        Livewire::actingAs($this->root)->test(AiAssist::class, ['page' => 'cases'])
+            ->assertSet('config.automation_mode', 'automatic')
+            ->assertSeeHtml('data-autosave-model="config.automation_mode"')
+            ->assertSeeHtml('data-autosave-model="config.max_rounds"')
+            ->assertSeeHtml('data-autosave-model="config.reply_timeout_hours"')
+            ->assertSeeHtml('data-autosave-model="config.max_ai_calls_per_hour"')
+            ->assertSeeHtml('aria-label="Automatisierung"')
+            ->assertSeeHtml('aria-label="Rückfragen an Kunden"')
+            ->assertSeeHtml('aria-label="Antwortfrist"')
+            ->assertSeeHtml('aria-label="AI-Aufrufe je Stunde"')
+            ->assertSeeHtml('role="combobox"')
+            ->assertDontSeeHtml('<select ')
+            ->call('openSettings')->assertSet('config.automation_mode', 'automatic');
+        Livewire::actingAs($this->manager)->test(AiAssist::class, ['page' => 'cases'])
+            ->assertSet('config', [])
+            ->assertDontSeeHtml('data-autosave-model="config.automation_mode"');
     }
 
     public function test_system_administration_changes_ai_intake_settings_with_revision_guard(): void
