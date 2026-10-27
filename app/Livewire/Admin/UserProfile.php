@@ -170,7 +170,7 @@ class UserProfile extends Component
             $tabs['devices'] = ['label' => 'Geräte', 'icon' => 'fad fa-laptop'];
         }
         if ($this->canManageTeams()) {
-            $tabs['teams'] = ['label' => 'Team', 'icon' => 'far fa-users'];
+            $tabs['teams'] = ['label' => 'Teams', 'icon' => 'far fa-users'];
         }
         if (app(OutlookEmployeePreferencesAccess::class)->canManage(auth()->user(), $this->user)) {
             $tabs['outlook'] = ['label' => 'Outlook', 'icon' => 'far fa-envelope'];

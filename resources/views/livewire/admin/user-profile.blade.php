@@ -91,10 +91,11 @@
           dirty-target="inlineValues"
       />
 
-      @include('livewire.admin.user-profile.partials.identity-card')
+      <aside class="employee-profile__sidebar" aria-label="Personenübersicht">
+          @include('livewire.admin.user-profile.partials.identity-card')
+      </aside>
 
-
-
+      <div class="employee-profile__main">
       <div class="employee-profile__navigation" data-profile-navigation x-data="{}">
         <nav class="employee-profile__groups" aria-label="Bereiche der Mitarbeiterakte">
             @foreach($profileGroups as $group => $groupTabs)
@@ -282,6 +283,7 @@
                 @endif
             </x-operations.panel.tab>
         @endif
+    </div>
     </div>
     </div>
   </x-dynamic-component>

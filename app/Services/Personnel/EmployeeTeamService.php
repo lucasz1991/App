@@ -55,6 +55,110 @@ final class EmployeeTeamService
     }
 
     /**
+     * Ordinary, non-owned teams are editable. Personal memberships and team
+     * ownership are fixed; the primary context is always selected explicitly.
+     *
+     * @return array{employee: User, teams: Collection, fixedTeams: Collection, primaryTeams: Collection}
+     */
+    public function editorState(int $userId, array $selectedIds): array
+    {
+        $employee = $this->prepare([$userId])['employees']->first();
+        $fixedTeams = $employee->teams->filter(fn (Team $team) => $team->personal_team || $employee->ownsTeam($team))
+            ->merge($employee->ownedTeams)->unique('id')->sortBy('name')->values();
+        $teams = $this->availableTeams()->merge($employee->teams->filter(fn (Team $team) => ! $team->personal_team && ! $employee->ownsTeam($team)))
+            ->reject(fn (Team $team) => $employee->ownsTeam($team))->unique('id')->sortBy('name')->values();
+        $selected = array_filter($selectedIds, fn ($id) => is_int($id) || (is_string($id) && ctype_digit($id)));
+        $primaryTeams = $teams->whereIn('id', array_map('intval', $selected))->merge($fixedTeams)->unique('id')->sortBy('name')->values();
+
+        return compact('employee', 'teams', 'fixedTeams', 'primaryTeams');
+    }
+
+    public function updateMemberships(int $userId, array $teamIds, int $primaryTeamId, string $snapshot): bool
+    {
+        $teamIds = $this->normalizeMembershipIds($teamIds);
+
+        return DB::transaction(function () use ($userId, $teamIds, $primaryTeamId, $snapshot): bool {
+            $actor = $this->authorizeActor(lock: true);
+            $employee = User::whereKey($userId)->lockForUpdate()->first();
+            $employees = new Collection($employee ? [$employee] : []);
+            $this->authorizeTargets($actor, $employees, [$userId]);
+
+            $memberships = DB::table('team_user')->where('user_id', $userId)->orderBy('team_id')->lockForUpdate()->get();
+            $ownedTeams = Team::where('user_id', $userId)->orderBy('id')->lockForUpdate()->get();
+            $lockedIds = $memberships->pluck('team_id')->merge($ownedTeams->pluck('id'))->merge($teamIds)
+                ->push($employee->current_team_id)->push($primaryTeamId)->filter()->unique()->sort()->values();
+            $teams = Team::whereIn('id', $lockedIds)->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+            $this->hydrateLockedTeams($employee, $memberships, $teams);
+            if (! hash_equals($this->fingerprint($employee), $snapshot)) {
+                throw ValidationException::withMessages(['snapshot' => 'Die Teamzuordnung wurde zwischenzeitlich geändert. Bitte laden Sie die Teamansicht neu.']);
+            }
+
+            $selected = new Collection;
+            foreach ($teamIds as $id) {
+                $team = $teams->get($id);
+                if (! $team || $team->personal_team || $employee->ownsTeam($team)) {
+                    throw ValidationException::withMessages(['teamIds' => 'Die Auswahl enthält ein nicht bearbeitbares Team. Persönliche und eigene Teams bleiben unverändert.']);
+                }
+                $selected->push($team);
+            }
+            $retained = $employee->teams->filter(fn (Team $team) => $team->personal_team || $employee->ownsTeam($team) || in_array((int) $team->id, $teamIds, true));
+            $added = $selected->reject(fn (Team $team) => $employee->teams->contains('id', $team->id))->values();
+            $removed = $employee->teams->reject(fn (Team $team) => $retained->contains('id', $team->id))->values();
+            $finalPivots = $retained->merge($added)->unique('id')->values();
+            $primary = $teams->get($primaryTeamId);
+            if (! $primary || (! $employee->ownsTeam($primary) && ! $finalPivots->contains('id', $primaryTeamId))) {
+                throw ValidationException::withMessages(['primaryTeamId' => 'Bitte wählen Sie ein primäres Team aus den verbleibenden Mitgliedschaften.']);
+            }
+            foreach ($added as $team) {
+                abort_unless($this->canAssignTeam($actor, $team), 403);
+            }
+            $primaryChanged = (int) $employee->current_team_id !== $primaryTeamId;
+            if ($primaryChanged) {
+                abort_unless($this->canAssignTeam($actor, $primary), 403);
+            }
+            if ((int) $employee->id === (int) $actor->id && ! $actor->isAdmin()) {
+                $this->ensureSelfAccess($actor, $primary, $finalPivots);
+            }
+            if ($added->isEmpty() && $removed->isEmpty() && ! $primaryChanged) {
+                return false;
+            }
+
+            foreach ($added as $team) {
+                AddingTeamMember::dispatch($team, $employee);
+                $employee->teams()->attach($team->id, ['role' => 'team_access']);
+            }
+            foreach ($removed as $team) {
+                $employee->teams()->detach($team->id);
+            }
+            $previousTeamId = $employee->current_team_id;
+            if ($primaryChanged) {
+                // Never store null or ask Jetstream to choose a personal team.
+                $employee->forceFill(['current_team_id' => $primaryTeamId])->save();
+            }
+            activity('employee-team')->causedBy($actor)->performedOn($employee)
+                ->withProperties([
+                    'added_team_ids' => $added->pluck('id')->all(),
+                    'removed_team_ids' => $removed->pluck('id')->all(),
+                    'previous_team_id' => $previousTeamId,
+                    'primary_team_id' => $primaryTeamId,
+                ])->log('employee_team_memberships_updated');
+            DB::afterCommit(function () use ($employee, $added, $removed, $primaryChanged): void {
+                foreach ($added as $team) {
+                    TeamMemberAdded::dispatch($team, $employee);
+                }
+                foreach ($removed as $team) {
+                    TeamMemberRemoved::dispatch($team, $employee);
+                }
+                if ($added->isEmpty() && $removed->isEmpty() && $primaryChanged) {
+                    app(OutlookAddinSnapshotRefreshScheduler::class)->scheduleForUser($employee);
+                }
+            });
+
+            return true;
+        }, 3);
+    }
+
+    /**
      * Replace only the prior primary organizational membership. Additional and
      * personal memberships stay intact; team ownership is never transferred.
      *
@@ -72,7 +176,8 @@ final class EmployeeTeamService
             // Lock the membership rows as well as their teams before taking the
             // fresh fingerprint or changing any employee in the batch.
             $memberships = DB::table('team_user')->whereIn('user_id', $ids)->orderBy('user_id')->orderBy('team_id')->lockForUpdate()->get();
-            $teamIds = $memberships->pluck('team_id')->merge($employees->pluck('current_team_id'))->push($teamId)->filter()->unique()->sort()->values();
+            $ownedTeams = Team::whereIn('user_id', $ids)->orderBy('id')->lockForUpdate()->get();
+            $teamIds = $memberships->pluck('team_id')->merge($ownedTeams->pluck('id'))->merge($employees->pluck('current_team_id'))->push($teamId)->filter()->unique()->sort()->values();
             $teams = Team::whereIn('id', $teamIds)->orderBy('id')->lockForUpdate()->get()->keyBy('id');
             $destination = $teams->get($teamId);
             if (! $destination || $destination->personal_team) {
@@ -80,8 +185,8 @@ final class EmployeeTeamService
             }
             abort_unless($this->canAssignTeam($actor, $destination), 403);
 
-            $employees->load(['teams', 'ownedTeams', 'currentTeam']);
             foreach ($employees as $employee) {
+                $this->hydrateLockedTeams($employee, $memberships->where('user_id', $employee->id), $teams);
                 if (! isset($snapshots[$employee->id]) || ! is_string($snapshots[$employee->id])
                     || ! hash_equals($this->fingerprint($employee), $snapshots[$employee->id])) {
                     throw ValidationException::withMessages(['teamId' => 'Die Teamzuordnung wurde zwischenzeitlich geändert. Bitte öffnen Sie den Teamwechsel erneut.']);
@@ -173,12 +278,23 @@ final class EmployeeTeamService
         abort_unless(auth()->user() instanceof User, 403);
         $query = User::with('currentTeam')->whereKey(auth()->id());
         $actor = ($lock ? $query->lockForUpdate() : $query)->first();
+        $managementAccess = false;
         if ($actor && $lock) {
-            $actor->setRelation('currentTeam', $actor->current_team_id
-                ? Team::whereKey($actor->current_team_id)->lockForUpdate()->first()
-                : null);
+            // Dashboard access can fall back to one recognized non-primary
+            // membership. Older native Jetstream removals only lock/detach the
+            // pivot, so hold those exact rows and names during authorization.
+            $actorMemberships = DB::table('team_user')->where('user_id', $actor->id)
+                ->orderBy('team_id')->lockForUpdate()->get();
+            $actorTeamIds = $actorMemberships->pluck('team_id')->push($actor->current_team_id)->filter()->unique()->sort()->values();
+            $actorTeams = Team::whereIn('id', $actorTeamIds)->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+            $current = $actorTeams->get($actor->current_team_id);
+            $actor->setRelation('currentTeam', $current);
+            $memberTeams = new Collection($actorMemberships->map(fn ($membership) => $actorTeams->get($membership->team_id))->filter()->all());
+            $managementAccess = $actor->isAdmin() || in_array($this->managementTeamName($current, $memberTeams), ['Administratoren', 'Administrator', 'Administration', 'Verwaltung'], true);
+        } elseif ($actor) {
+            $managementAccess = $actor->canViewManagementDashboard();
         }
-        abort_unless($actor?->isActive() && $actor->canViewManagementDashboard(), 403);
+        abort_unless($actor?->isActive() && $managementAccess, 403);
         Gate::forUser($actor)->authorize('roles.manage');
         if ($membership) {
             Gate::forUser($actor)->authorize('employees.view');
@@ -238,6 +354,59 @@ final class EmployeeTeamService
         return true;
     }
 
+    private function ensureSelfAccess(User $actor, Team $primary, Collection $memberships): void
+    {
+        $name = $this->managementTeamName($primary, $memberships);
+        $projected = clone $actor;
+        $projected->setRelation('currentTeam', $primary);
+        $keepsRights = collect(['employees.view', 'employees.create', 'roles.manage'])
+            ->every(fn (string $permission) => Gate::forUser($projected)->allows($permission));
+        if (! in_array($name, ['Administratoren', 'Administrator', 'Administration', 'Verwaltung'], true) || ! $keepsRights) {
+            throw ValidationException::withMessages(['primaryTeamId' => 'Sie können sich nicht den eigenen Verwaltungszugang entziehen. Bitte lassen Sie Ihre Zuordnung durch einen Administrator ändern.']);
+        }
+    }
+
+    private function managementTeamName(?Team $primary, Collection $memberships): ?string
+    {
+        $recognized = ['Administratoren', 'Administrator', 'Administration', 'Verwaltung', 'Mitarbeiter', 'Gäste', 'Gaeste', 'Gast'];
+        if ($primary && ! $primary->personal_team && in_array($primary->name, $recognized, true)) {
+            return $primary->name;
+        }
+        $recognizedMemberships = $memberships->filter(fn (Team $team) => ! $team->personal_team && in_array($team->name, $recognized, true));
+
+        return $recognizedMemberships->count() === 1 ? $recognizedMemberships->first()->name : null;
+    }
+
+    /** Use current locked reads, not a possibly older REPEATABLE READ snapshot. */
+    private function hydrateLockedTeams(User $user, \Illuminate\Support\Collection $memberships, Collection $teams): void
+    {
+        $memberTeams = new Collection;
+        foreach ($memberships as $membership) {
+            if (! ($stored = $teams->get($membership->team_id))) {
+                continue;
+            }
+            $team = clone $stored;
+            $team->setRelation('membership', $team->newPivot($user, (array) $membership, 'team_user', true));
+            $memberTeams->push($team);
+        }
+        $user->setRelation('teams', $memberTeams);
+        $user->setRelation('ownedTeams', $teams->filter(fn (Team $team) => (int) $team->user_id === (int) $user->id)->values());
+        $user->setRelation('currentTeam', $teams->get($user->current_team_id));
+    }
+
+    /** @return array<int, int> */
+    private function normalizeMembershipIds(array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+        try {
+            return $this->normalizeIds($ids);
+        } catch (ValidationException $exception) {
+            throw ValidationException::withMessages(['teamIds' => 'Bitte wählen Sie höchstens 100 unterschiedliche, gültige Teams.']);
+        }
+    }
+
     private function fingerprint(User $user): string
     {
         return hash('sha256', json_encode([
@@ -245,7 +414,7 @@ final class EmployeeTeamService
             'role' => $user->role,
             'memberships' => $user->teams->sortBy('id')->map(fn (Team $team) => [$team->id, $team->name, $team->membership?->role, $team->user_id, $team->personal_team, $team->rbac_permissions])->values()->all(),
             'primary_team' => $user->currentTeam ? [$user->currentTeam->id, $user->currentTeam->name, $user->currentTeam->user_id, $user->currentTeam->personal_team, $user->currentTeam->rbac_permissions] : null,
-            'owned' => $user->ownedTeams->pluck('id')->sort()->values()->all(),
+            'owned' => $user->ownedTeams->sortBy('id')->map(fn (Team $team) => [$team->id, $team->name, $team->user_id, $team->personal_team, $team->rbac_permissions])->values()->all(),
         ], JSON_THROW_ON_ERROR));
     }
 }

@@ -279,6 +279,26 @@
 @media (max-width: 379.98px) {
     .employee-profile[data-profile-shell] .employee-profile__meta-line { column-gap: 8px; }
 }
+/* Seitenleiste: Identitaet und Einrichtungsstatus links, Reiter und Inhalt rechts.
+   Container- statt Media-Abfrage, damit die eingebettete Personalseite in schmalen
+   Flaechen einspaltig bleibt. Darunter bleiben Identitaet und Reiter getrennte Karten. */
+.employee-profile[data-profile-shell] { container: employee-profile / inline-size; }
+.employee-profile[data-profile-shell] .employee-profile__sidebar,
+.employee-profile[data-profile-shell] .employee-profile__main { min-width: 0; }
+.employee-profile[data-profile-shell] .employee-profile__identity { border-radius: 16px; box-shadow: 0 0 0 1px var(--profile-rail-line), 0 6px 16px -14px rgb(16 24 40 / .35) !important; }
+.employee-profile[data-profile-shell] .employee-profile__navigation { margin-top: 12px; padding: 4px 8px 0; border-top: 0; border-radius: 16px; box-shadow: 0 0 0 1px var(--profile-rail-line), 0 8px 20px -16px rgb(16 24 40 / .4); }
+.employee-profile[data-profile-shell] .employee-profile__tab-row { margin-block: 4px 8px; }
+@container employee-profile (min-width: 1000px) {
+    .employee-profile[data-profile-shell] .employee-profile__workspace { display: grid; grid-template-columns: minmax(280px, 320px) minmax(0, 1fr); align-items: start; gap: 24px; }
+    .employee-profile[data-profile-shell] .employee-profile__sidebar { position: sticky; top: 70px; }
+    .employee-profile[data-profile-shell] .employee-profile__identity { padding: 20px !important; }
+    .employee-profile[data-profile-shell] .employee-profile__identity-layout { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+    .employee-profile[data-profile-shell] .employee-profile__status { justify-self: stretch; }
+    .employee-profile[data-profile-shell] .employee-profile__status-rail { row-gap: 4px; }
+    .employee-profile[data-profile-shell] .employee-profile__status-group + .employee-profile__status-group { padding-left: 0; border-left: 0; }
+    .employee-profile[data-profile-shell] .employee-profile__name-text { font-size: 20px; white-space: normal; overflow-wrap: anywhere; }
+    .employee-profile[data-profile-shell] .employee-profile__navigation { margin-top: 0; }
+}
 @media (prefers-reduced-motion: reduce) {
     .employee-profile[data-profile-shell] .employee-profile__panel { animation: none; }
     .employee-profile[data-profile-shell] .employee-profile__group,
