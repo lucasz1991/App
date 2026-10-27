@@ -12,7 +12,7 @@ use DOMDocument;
  */
 final class OutlookAddinManifest
 {
-    public const ADDIN_VERSION = '1.0.2.0';
+    public const ADDIN_VERSION = '1.0.3.0';
 
     public const MANIFEST_SCHEMA = '1.1';
 
@@ -142,10 +142,13 @@ final class OutlookAddinManifest
 
         return [
             'taskpane' => $baseUrl.'/outlook-addin/taskpane',
+            'settings' => $baseUrl.'/outlook-addin/taskpane?context=settings',
             'runtime' => $baseUrl.'/outlook-addin/runtime?revision='.self::ADDIN_VERSION,
             'runtime_js' => $baseUrl.'/outlook-addin/runtime.js',
             'icon_16' => $baseUrl.'/outlook-addin/assets/icon-16.png',
+            'icon_25' => $baseUrl.'/outlook-addin/assets/icon-25.png',
             'icon_32' => $baseUrl.'/outlook-addin/assets/icon-32.png',
+            'icon_48' => $baseUrl.'/outlook-addin/assets/icon-48.png',
             'icon_80' => $baseUrl.'/outlook-addin/assets/icon-80.png',
             'support' => $baseUrl.'/email-templates',
         ];
@@ -176,6 +179,8 @@ final class OutlookAddinManifest
         $urls = array_map($this->xml(...), $this->urls());
         $appDomain = $this->xml($this->appDomain());
         $version = self::ADDIN_VERSION;
+        $desktopSettings = $this->desktopSettingsCommand();
+        $mobileSettings = $this->mobileSettingsCommand();
 
         $xml = <<<XML
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -249,6 +254,7 @@ final class OutlookAddinManifest
               </Group>
             </OfficeTab>
           </ExtensionPoint>
+{$desktopSettings}
         </DesktopFormFactor>
       </Host>
     </Hosts>
@@ -261,13 +267,16 @@ final class OutlookAddinManifest
       <bt:Urls>
         <bt:Url id="Commands.Url" DefaultValue="{$urls['runtime']}"/>
         <bt:Url id="Taskpane.Url" DefaultValue="{$urls['taskpane']}"/>
+        <bt:Url id="Settings.Url" DefaultValue="{$urls['settings']}"/>
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="Group.Label" DefaultValue="RailTime"/>
         <bt:String id="Taskpane.Label" DefaultValue="RailTime oeffnen"/>
+        <bt:String id="Settings.Label" DefaultValue="Einstellungen"/>
       </bt:ShortStrings>
       <bt:LongStrings>
         <bt:String id="Taskpane.Tooltip" DefaultValue="Signaturen und Vorlagen von RailTime verwenden."/>
+        <bt:String id="Settings.Tooltip" DefaultValue="Eigene Outlook-Automatik von RailTime einstellen."/>
       </bt:LongStrings>
     </Resources>
     <VersionOverrides xmlns="http://schemas.microsoft.com/office/mailappversionoverrides/1.1"
@@ -308,6 +317,7 @@ final class OutlookAddinManifest
                 </Group>
               </OfficeTab>
             </ExtensionPoint>
+{$desktopSettings}
             <ExtensionPoint xsi:type="LaunchEvent">
               <LaunchEvents>
                 <LaunchEvent Type="OnNewMessageCompose" FunctionName="onNewMessageComposeHandler"/>
@@ -316,6 +326,8 @@ final class OutlookAddinManifest
             </ExtensionPoint>
           </DesktopFormFactor>
           <MobileFormFactor>
+            <FunctionFile resid="Commands.Url"/>
+{$mobileSettings}
             <ExtensionPoint xsi:type="LaunchEvent">
               <LaunchEvents>
                 <LaunchEvent Type="OnNewMessageCompose" FunctionName="onNewMessageComposeHandler"/>
@@ -328,21 +340,26 @@ final class OutlookAddinManifest
       <Resources>
         <bt:Images>
           <bt:Image id="Icon.16" DefaultValue="{$urls['icon_16']}"/>
+          <bt:Image id="Icon.25" DefaultValue="{$urls['icon_25']}"/>
           <bt:Image id="Icon.32" DefaultValue="{$urls['icon_32']}"/>
+          <bt:Image id="Icon.48" DefaultValue="{$urls['icon_48']}"/>
           <bt:Image id="Icon.80" DefaultValue="{$urls['icon_80']}"/>
         </bt:Images>
         <bt:Urls>
           <bt:Url id="Commands.Url" DefaultValue="{$urls['runtime']}"/>
           <bt:Url id="Taskpane.Url" DefaultValue="{$urls['taskpane']}"/>
+          <bt:Url id="Settings.Url" DefaultValue="{$urls['settings']}"/>
           <bt:Url id="WebViewRuntime.Url" DefaultValue="{$urls['runtime']}"/>
           <bt:Url id="JSRuntime.Url" DefaultValue="{$urls['runtime_js']}"/>
         </bt:Urls>
         <bt:ShortStrings>
           <bt:String id="Group.Label" DefaultValue="RailTime"/>
           <bt:String id="Taskpane.Label" DefaultValue="RailTime oeffnen"/>
+          <bt:String id="Settings.Label" DefaultValue="Einstellungen"/>
         </bt:ShortStrings>
         <bt:LongStrings>
           <bt:String id="Taskpane.Tooltip" DefaultValue="Signaturen und Vorlagen von RailTime verwenden."/>
+          <bt:String id="Settings.Tooltip" DefaultValue="Eigene Outlook-Automatik von RailTime einstellen."/>
         </bt:LongStrings>
       </Resources>
     </VersionOverrides>
@@ -353,6 +370,40 @@ XML;
         $this->assertWellFormed($xml);
 
         return $xml."\n";
+    }
+
+    private function desktopSettingsCommand(): string
+    {
+        return <<<'XML'
+          <ExtensionPoint xsi:type="MessageReadCommandSurface">
+            <OfficeTab id="TabDefault">
+              <Group id="RailTime.Settings.Group">
+                <Label resid="Group.Label"/>
+                <Control xsi:type="Button" id="RailTime.Settings.Open">
+                  <Label resid="Settings.Label"/>
+                  <Supertip><Title resid="Settings.Label"/><Description resid="Settings.Tooltip"/></Supertip>
+                  <Icon><bt:Image size="16" resid="Icon.16"/><bt:Image size="32" resid="Icon.32"/><bt:Image size="80" resid="Icon.80"/></Icon>
+                  <Action xsi:type="ShowTaskpane"><SourceLocation resid="Settings.Url"/></Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+XML;
+    }
+
+    private function mobileSettingsCommand(): string
+    {
+        $icons = '';
+        foreach ([25, 32, 48] as $size) {
+            foreach ([1, 2, 3] as $scale) {
+                $icons .= '<bt:Image size="'.$size.'" scale="'.$scale.'" resid="Icon.'.$size.'"/>';
+            }
+        }
+
+        return '<ExtensionPoint xsi:type="MobileMessageReadCommandSurface"><Group id="RailTime.Mobile.Settings">'
+            .'<Label resid="Group.Label"/><Control xsi:type="MobileButton" id="RailTime.Mobile.Settings.Open"><Label resid="Settings.Label"/>'
+            .'<Icon xsi:type="bt:MobileIconList">'.$icons.'</Icon><Action xsi:type="ShowTaskpane"><SourceLocation resid="Settings.Url"/></Action>'
+            .'</Control></Group></ExtensionPoint>';
     }
 
     private function appDomain(): string

@@ -2,6 +2,7 @@
     $resolvedConfigUrl = (string) ($configUrl ?? $outlookAddinConfigUrl ?? '');
     $resolvedScriptUrl = (string) ($scriptUrl ?? asset('outlook-addin/taskpane.js'));
     $resolvedNonce = (string) ($cspNonce ?? '');
+    $accountSettingsMode = request()->query('context') === 'settings';
 @endphp
 <!doctype html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-outlook-config-url="{{ $resolvedConfigUrl }}">
@@ -554,7 +555,12 @@
         .glass-button:focus-visible, .app-link:focus-visible { outline: 3px solid var(--rt-focus); outline-offset: 3px; }
         .glass-button svg { width: 16px; height: 16px; flex: 0 0 16px; }
         .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-        .automatic-region { font-size: 13px; }
+        .automatic-region { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--rt-line); font-size: 13px; }
+        .automatic-region h2 { margin: 0 0 8px; font-size: 16px; }
+        .settings-intro h1 { margin: 0 0 8px; font-size: 20px; }
+        .settings-intro p { font-size: 13px; line-height: 1.6; color: var(--rt-muted); }
+        .settings-feedback { margin: 16px 0; font-size: 13px; line-height: 1.6; }
+        .settings-feedback[data-tone="error"] { color: var(--rt-error); }
         .automatic-account { margin: 0 0 12px; color: var(--rt-muted); font-size: 12px; overflow-wrap: anywhere; }
         .automatic-matrix { width: 100%; border-collapse: collapse; table-layout: fixed; }
         .automatic-matrix th { padding: 4px 0; text-align: left; font-weight: 600; }
@@ -599,9 +605,17 @@
     </style>
 </head>
 <body data-outlook-config-url="{{ $resolvedConfigUrl }}">
-    <main class="shell" data-outlook-addin-taskpane aria-busy="true">
+    <main class="shell" data-outlook-addin-taskpane data-outlook-context="{{ $accountSettingsMode ? 'settings' : 'compose' }}" aria-busy="true">
         <section class="panel" aria-labelledby="outlook-addin-heading">
             <div class="content">
+                @if ($accountSettingsMode)
+                <section class="settings-intro" aria-labelledby="outlook-addin-heading">
+                    <h1 id="outlook-addin-heading">Outlook-Einstellungen</h1>
+                    <p>Steuern Sie die automatische Einfügung für Ihr eigenes Firmenkonto. Die geöffnete Nachricht wird dabei nicht gelesen oder verändert.</p>
+                    <p class="settings-feedback" data-outlook-settings-status role="status" aria-live="polite" tabindex="-1">Die sichere Verbindung wird geprüft.</p>
+                    <button type="button" class="glass-button" data-outlook-settings-connect disabled>Mit Microsoft verbinden</button>
+                </section>
+                @else
                 <h1 id="outlook-addin-heading" class="visually-hidden">Nachrichtenvorlagen</h1>
                 <p class="pane-feedback" data-outlook-pane-feedback role="status" aria-live="polite" tabindex="-1" hidden></p>
                 <section
@@ -673,40 +687,45 @@
                     </p>
                 </section>
 
+                @endif
+
+                <section class="automatic-region" data-outlook-automatic-region aria-busy="false" aria-labelledby="outlook-automatic-title">
+                    <h2 id="outlook-automatic-title">Automatik</h2>
+                    <p class="automatic-account" data-automatic-account hidden></p>
+                    <table class="automatic-matrix" aria-label="Automatische Einfügung für Ihr Firmenkonto">
+                        <thead><tr><th scope="col"><span class="visually-hidden">Inhalt</span></th><th scope="col">Neue Mails</th><th scope="col">Antworten</th></tr></thead>
+                        <tbody>
+                            <tr><th scope="row">Signatur</th><td>
+                                <x-ui.forms.toggle-button id="outlook-auto-new-signature" size="sm" :disabled="true" data-automatic-setting data-automatic-group="newMessages" data-automatic-field="signature" aria-label="Signatur bei neuen Mails und Weiterleitungen automatisch einfügen" />
+                            </td><td>
+                                <x-ui.forms.toggle-button id="outlook-auto-reply-signature" size="sm" :disabled="true" data-automatic-setting data-automatic-group="replies" data-automatic-field="signature" aria-label="Signatur bei Antworten automatisch einfügen" />
+                            </td></tr>
+                            <tr><th scope="row">Vorlage</th><td>
+                                <x-ui.forms.toggle-button id="outlook-auto-new-template" size="sm" :disabled="true" data-automatic-setting data-automatic-group="newMessages" data-automatic-field="template" aria-label="Vorlage bei neuen Mails und Weiterleitungen automatisch einfügen" />
+                            </td><td>
+                                <x-ui.forms.toggle-button id="outlook-auto-reply-template" size="sm" :disabled="true" data-automatic-setting data-automatic-group="replies" data-automatic-field="template" aria-label="Vorlage bei Antworten automatisch einfügen" />
+                            </td></tr>
+                        </tbody>
+                    </table>
+                    <p class="automatic-feedback" data-automatic-feedback role="status" aria-live="polite">Mit Microsoft verbinden, um Ihre Auswahl zu laden.</p>
+                    <p class="footnote">Gilt für Ihr Firmenkonto auf allen Geräten und für künftige Einfügungen. „Neue Mails“ schließt Weiterleitungen ein. Offene Entwürfe und manuelles Einfügen bleiben unverändert.</p>
+                </section>
+
                 <footer class="app-links" aria-label="Verbindung, Hilfe und RailTime-App">
+                    @if ($accountSettingsMode)
+                    <a class="app-link" data-outlook-profile-settings href="{{ route('profile.show', ['tab' => 'outlook']) }}" target="_blank" rel="noopener noreferrer">Outlook-Einstellungen in RailTime ↗</a>
+                    @else
                     <button class="glass-button" type="button" data-outlook-dialog-open="connection" aria-haspopup="dialog" aria-controls="outlook-connection-dialog">Verbindung</button>
-                    <button class="glass-button" type="button" data-outlook-dialog-open="automatic" aria-haspopup="dialog" aria-controls="outlook-automatic-dialog">Automatik</button>
                     <button class="glass-button" type="button" data-outlook-dialog-open="status" aria-haspopup="dialog" aria-controls="outlook-status-dialog" aria-label="Hilfe und Diagnose öffnen">Hilfe<span class="visually-hidden" data-outlook-status-summary role="status" aria-live="polite">Outlook wird vorbereitet</span></button>
                     <a class="app-link" href="{{ route('home') }}" target="_blank" rel="noopener noreferrer">RailTime öffnen ↗</a>
                     <button class="glass-button" type="button" data-outlook-dialog-open="install" aria-haspopup="dialog" aria-controls="outlook-install-dialog">RailTime installieren</button>
+                    @endif
                 </footer>
             </div>
         </section>
     </main>
 
-    <dialog class="taskpane-dialog" id="outlook-automatic-dialog" data-outlook-dialog="automatic" aria-labelledby="outlook-automatic-title">
-        <div class="dialog-heading"><h2 id="outlook-automatic-title">Automatische Einfügung</h2><button type="button" class="glass-button" data-outlook-dialog-close aria-label="Dialog schließen">✕</button></div>
-        <div class="dialog-body automatic-region" data-outlook-automatic-region aria-busy="false">
-            <p class="automatic-account" data-automatic-account hidden></p>
-            <table class="automatic-matrix" aria-label="Automatische Einfügung für Ihr Postfach">
-                <thead><tr><th scope="col"><span class="visually-hidden">Inhalt</span></th><th scope="col">Neue Mails</th><th scope="col">Antworten</th></tr></thead>
-                <tbody>
-                    <tr><th scope="row">Signatur</th><td>
-                        <x-ui.forms.toggle-button id="outlook-auto-new-signature" size="sm" :disabled="true" data-automatic-setting data-automatic-group="newMessages" data-automatic-field="signature" aria-label="Signatur bei neuen Mails und Weiterleitungen automatisch einfügen" />
-                    </td><td>
-                        <x-ui.forms.toggle-button id="outlook-auto-reply-signature" size="sm" :disabled="true" data-automatic-setting data-automatic-group="replies" data-automatic-field="signature" aria-label="Signatur bei Antworten automatisch einfügen" />
-                    </td></tr>
-                    <tr><th scope="row">Vorlage</th><td>
-                        <x-ui.forms.toggle-button id="outlook-auto-new-template" size="sm" :disabled="true" data-automatic-setting data-automatic-group="newMessages" data-automatic-field="template" aria-label="Vorlage bei neuen Mails und Weiterleitungen automatisch einfügen" />
-                    </td><td>
-                        <x-ui.forms.toggle-button id="outlook-auto-reply-template" size="sm" :disabled="true" data-automatic-setting data-automatic-group="replies" data-automatic-field="template" aria-label="Vorlage bei Antworten automatisch einfügen" />
-                    </td></tr>
-                </tbody>
-            </table>
-            <p class="automatic-feedback" data-automatic-feedback role="status" aria-live="polite">Mit Microsoft verbinden, um Ihre Auswahl zu laden.</p>
-            <p class="footnote">„Neue Mails“ gilt auch für Weiterleitungen. Ihre Auswahl gilt für künftige Einfügungen. Offene Entwürfe und manuelles Einfügen bleiben unverändert.</p>
-        </div>
-    </dialog>
+    @unless ($accountSettingsMode)
     <dialog class="taskpane-dialog" id="outlook-connection-dialog" data-outlook-dialog="connection" aria-labelledby="outlook-connection-title">
         <div class="dialog-heading"><h2 id="outlook-connection-title">Microsoft-Verbindung</h2><button type="button" class="glass-button" data-outlook-dialog-close aria-label="Dialog schließen">✕</button></div>
         <div class="dialog-body">
@@ -782,5 +801,6 @@
             <p class="footnote">Die RailTime-App und das Outlook-Add-in bleiben getrennt. Diese Installation ändert weder Ihre Postfächer noch die Outlook-Einstellungen.</p>
         </div>
     </dialog>
+    @endunless
 </body>
 </html>

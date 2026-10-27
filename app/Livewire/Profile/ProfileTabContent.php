@@ -15,7 +15,7 @@ class ProfileTabContent extends Component
     {
         validator(
             ['tab' => $tab],
-            ['tab' => ['required', Rule::in(['personal', 'security', 'app'])]],
+            ['tab' => ['required', Rule::in(['personal', 'security', 'app', 'outlook'])]],
         )->validate();
 
         $this->tab = $tab;
@@ -34,7 +34,7 @@ class ProfileTabContent extends Component
         $requested = (string) request()->query('tab', 'personal');
         $requested = $requested === 'sessions' ? 'security' : $requested;
 
-        return in_array($requested, ['personal', 'security', 'app'], true)
+        return in_array($requested, ['personal', 'security', 'app', 'outlook'], true)
             ? $requested
             : 'personal';
     }

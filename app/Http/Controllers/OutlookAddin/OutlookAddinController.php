@@ -63,7 +63,7 @@ final class OutlookAddinController extends Controller
 
     public function icon(int $size): Response
     {
-        abort_unless(in_array($size, [16, 32, 64, 80, 128], true), 404);
+        abort_unless(in_array($size, [16, 25, 32, 48, 64, 80, 128], true), 404);
 
         $source = public_path('icons/app-icon-1024.png');
         abort_unless(is_file($source) && is_readable($source), 404);

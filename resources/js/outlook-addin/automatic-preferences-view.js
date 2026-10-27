@@ -9,6 +9,78 @@ export function normalizeAutomaticPreferences(value) {
     return Object.freeze(normalized);
 }
 
+/** Account settings never inspect a selected message or use an Office body API. */
+export function createAccountPreferencesSession({ readMailbox, authenticate, request }) {
+    let snapshot = null;
+    let busy = false;
+    let generation = 0;
+    const fail = code => Object.assign(new Error(code), { code });
+    const mailbox = () => {
+        const raw = readMailbox();
+        if (typeof raw !== 'string' || /[\u0000-\u001f\u007f]/.test(raw)) throw fail('MAILBOX_ADDRESS_INVALID');
+        const value = raw.trim().toLowerCase();
+        if (value.length > 254 || !/^[^\s@<>,;:"\\()[\]*]+@[^\s@<>,;:"\\()[\]*]+$/u.test(value)) throw fail('MAILBOX_ADDRESS_INVALID');
+        return value;
+    };
+    const receipt = (payload, account) => {
+        const preferences = normalizeAutomaticPreferences(payload?.automaticInsertionPreferences);
+        const binding = payload?.binding;
+        if (!preferences || binding?.schema !== 1 || binding.mailboxAddress !== account || binding.senderAddress !== account
+            || !Array.isArray(binding.allowedSenderAddresses) || !binding.allowedSenderAddresses.includes(account)) {
+            throw fail('ACCOUNT_PREFERENCES_BINDING_INVALID');
+        }
+        return Object.freeze({ account, preferences });
+    };
+    const run = async (method, change, allowPopup) => {
+        if (busy) throw fail('PREFERENCES_BUSY');
+        let account;
+        try { account = mailbox(); } catch (error) { snapshot = null; throw error; }
+        if (snapshot && snapshot.account !== account) {
+            snapshot = null;
+            if (method === 'PATCH') throw fail('MAILBOX_MISMATCH');
+        }
+        const revision = generation;
+        const assertCurrent = () => {
+            if (generation !== revision || mailbox() !== account) throw fail('MAILBOX_MISMATCH');
+        };
+        if (method === 'PATCH' && (!snapshot || snapshot.account !== account
+            || !['newMessages', 'replies'].includes(change?.group) || !['signature', 'template'].includes(change?.field)
+            || typeof change.enabled !== 'boolean' || change.revision !== snapshot.preferences.revision)) throw fail('PREFERENCES_UNAVAILABLE');
+        busy = true;
+        try {
+            const token = await authenticate(allowPopup);
+            assertCurrent();
+            if (typeof token !== 'string' || !token.trim()) throw fail('ACCESS_TOKEN_MISSING');
+            const options = {
+                method, cache: 'no-store', credentials: 'omit',
+                headers: { Accept: 'application/json', Authorization: `Bearer ${token}`,
+                    'X-RailTime-Outlook-Context': 'account-settings',
+                    'X-RailTime-Compose-Contract': 'native-signature-v1', 'X-RailTime-Outlook-Mailbox': account },
+            };
+            if (method === 'PATCH') {
+                options.headers['Content-Type'] = 'application/json';
+                options.body = JSON.stringify({ group: change.group, field: change.field, enabled: change.enabled, revision: change.revision });
+            }
+            const payload = await request(options);
+            assertCurrent();
+            snapshot = receipt(payload, account);
+            return payload;
+        } catch (error) {
+            try { assertCurrent(); } catch (changed) { snapshot = null; throw changed; }
+            const current = normalizeAutomaticPreferences(error?.currentPreferences);
+            if (current && snapshot?.account === account) snapshot = Object.freeze({ account, preferences: current });
+            if (['HTTP_401', 'HTTP_403', 'ACCOUNT_PREFERENCES_BINDING_INVALID'].includes(error?.code)) snapshot = null;
+            throw error;
+        } finally { busy = false; }
+    };
+    return Object.freeze({
+        load: (allowPopup = false) => run('GET', null, allowPopup),
+        save: change => run('PATCH', change, false),
+        current: () => snapshot,
+        reset() { generation += 1; snapshot = null; },
+    });
+}
+
 export function bindAutomaticPreferencesView(root, { save }) {
     const region = root.querySelector('[data-outlook-automatic-region]');
     if (!region) return { update() {} };
