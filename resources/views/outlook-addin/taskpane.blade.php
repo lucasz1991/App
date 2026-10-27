@@ -623,19 +623,85 @@
         .connection-state .status { min-height: 0; padding: 10px; }
         .connection-state .account { display: none; }
         .settings-feedback { margin: 10px 0; }
+        /* Outlook workbench: one surface, a clear compose action, paired account controls. */
+        body { background: var(--rt-surface); }
+        .shell { padding: 0; }
+        .panel { max-width: 560px; min-height: 100vh; border: 0; border-radius: 0; box-shadow: none; }
+        .content { padding: 20px 16px; }
+        .pane-heading { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; }
+        .pane-brand { width: 4px; height: 32px; border-radius: 2px; background: var(--rt-red); flex: 0 0 auto; }
+        .pane-heading h1 { margin: 0; font-size: 18px; font-weight: 650; letter-spacing: -.02em; line-height: 1.3; }
+        .pane-heading p { margin: 2px 0 0; font-size: 12px; color: var(--rt-muted); }
+        .content .template-card { padding: 0; border: 0; border-radius: 0; background: none; }
+        .section-heading { gap: 12px; align-items: center; }
+        .section-heading h2 { font-size: 16px; letter-spacing: -.015em; }
+        .template-count { padding: 2px 0; background: none; color: var(--rt-muted); font-size: 11px; font-weight: 500; }
+        .field-label { font-size: 12px; font-weight: 500; color: var(--rt-ink); }
+        .template-select, .settings-fields input, .settings-fields select { min-height: 44px; border-color: var(--rt-line); border-radius: 8px; background: var(--rt-subtle); font-size: 16px; }
+        .settings-fields select:focus-visible { outline: 3px solid var(--rt-focus); outline-offset: 2px; }
+        .actions { margin-top: 12px; }
+        .action { min-height: 48px; border-radius: 8px; box-shadow: none; }
+        .action-primary, .save-button { background: var(--rt-red); color: #fff; border-color: transparent; box-shadow: none; }
+        .action-primary:hover:not(:disabled), .save-button:hover:not(:disabled) { background: var(--rt-red-strong); box-shadow: none; }
+        .action-copy strong { font-size: 13px; font-weight: 600; }
+        .action-copy > span { font-size: 11px; line-height: 1.45; }
+        .action-icon { width: 28px; height: 28px; border-radius: 6px; font-size: 18px; }
+        .settings-card { margin-top: 24px; padding-top: 20px; }
+        .settings-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+        .settings-section-heading h2 { margin: 0; font-size: 16px; letter-spacing: -.015em; }
+        .save-hint { color: var(--rt-muted); font-size: 11px; white-space: nowrap; }
+        .automatic-account { margin-bottom: 12px; font-size: 12px; }
+        .compose-options { min-width: 0; border-radius: 12px; background: var(--rt-subtle); }
+        .compose-option { margin: 0; padding: 16px; border: 0; min-width: 0; }
+        .compose-option + .compose-option { border-top: 1px solid var(--rt-line); }
+        .compose-option legend { float: left; width: 100%; padding: 0; margin-bottom: 8px; font-size: 13px; font-weight: 650; }
+        .compose-option legend small { display: block; margin-top: 2px; color: var(--rt-muted); font-size: 11px; font-weight: 400; }
+        .signature-option { display: flex; clear: both; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; font-size: 13px; }
+        .compose-option .settings-fields { margin-top: 8px; gap: 6px; }
+        .compose-option select { background: var(--rt-surface); }
+        .compose-option label { font-size: 12px; font-weight: 500; }
+        .compose-options > .automatic-feedback:not(:empty) { margin: 0; padding: 0 16px 12px; }
+        .automatic-feedback { min-height: 0; margin: 8px 0 0; font-size: 12px; line-height: 1.55; }
+        .settings-note { font-size: 12px; line-height: 1.55; }
+        .settings-help { margin-top: 12px; }
+        .wording-region { margin-top: 20px; padding-top: 0; }
+        .wording-region > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; cursor: pointer; font-size: 14px; font-weight: 600; list-style: none; }
+        .wording-region > summary::-webkit-details-marker { display: none; }
+        .wording-region > summary::after { content: ''; width: 7px; height: 7px; flex: 0 0 auto; margin-right: 3px; border-right: 1.5px solid var(--rt-muted); border-bottom: 1.5px solid var(--rt-muted); transform: rotate(45deg); }
+        .wording-region[open] > summary::after { transform: rotate(225deg); }
+        .wording-region > summary:focus-visible { outline: 3px solid var(--rt-focus); outline-offset: 2px; border-radius: 4px; }
+        .wording-region .settings-fields { margin-top: 12px; }
+        .settings-buttons .glass-button { min-height: 44px; border-radius: 8px; padding-inline: 14px; }
+        .connection-state { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--rt-line); }
+        .connection-state .status { border: 0; padding: 0; background: none; grid-template-columns: 20px minmax(0,1fr); gap: 8px; }
+        .connection-state .status-symbol { width: 20px; height: 20px; border-radius: 50%; }
+        .connection-state .status strong { font-size: 12px; }
+        .connection-state .status p { font-size: 11px; line-height: 1.55; }
+        .content:has(.pane-feedback:not([hidden])) .connection-state [data-outlook-status-detail] { display: none; }
+        .connection-state .maintenance-actions { margin-top: 12px; }
+        .connection-state .action { min-height: 44px; padding: 10px 12px; background: var(--rt-subtle); border-color: var(--rt-line); color: var(--rt-ink); }
+        .connection-state .action-copy > span { color: var(--rt-muted); }
+        .connection-state .action-icon { color: var(--rt-ink); background: none; }
+        [data-outlook-context="settings"] .settings-card { margin-top: 20px; }
+        @media (max-width: 340px) { .content { padding: 16px 12px; } .compose-option { padding: 12px; } }
     </style>
 </head>
 <body data-outlook-config-url="{{ $resolvedConfigUrl }}">
     <main class="shell" data-outlook-addin-taskpane data-outlook-context="{{ $accountSettingsMode ? 'settings' : 'compose' }}" aria-busy="true">
         <section class="panel" aria-labelledby="outlook-addin-heading">
             <div class="content">
+                <header class="pane-heading">
+                    <span class="pane-brand" aria-hidden="true"></span>
+                    <div>
+                        <h1 id="outlook-addin-heading" class="settings-title">{{ $accountSettingsMode ? 'Outlook-Einstellungen' : 'RailTime für Outlook' }}</h1>
+                        <p>{{ $accountSettingsMode ? 'Dein RailTime-Konto in Outlook' : 'Vorlagen, Signatur und persönliche Texte' }}</p>
+                    </div>
+                </header>
                 @if ($accountSettingsMode)
-                <h1 id="outlook-addin-heading" class="settings-title">Outlook-Einstellungen</h1>
                 <p class="settings-feedback" data-outlook-settings-status role="status" aria-live="polite">Die sichere Verbindung wird geprüft.</p>
                 <button type="button" class="glass-button" data-outlook-settings-connect disabled>Mit Microsoft verbinden</button>
                 <a class="app-link" data-outlook-profile-settings href="{{ route('profile.show', ['tab' => 'outlook']) }}" target="_blank" rel="noopener noreferrer" hidden>Im RailTime-Profil öffnen ↗</a>
                 @else
-                <h1 id="outlook-addin-heading" class="visually-hidden">RailTime für Outlook</h1>
                 <p class="pane-feedback" data-outlook-pane-feedback role="status" aria-live="polite" tabindex="-1" hidden></p>
                 <section
                     class="template-card"
@@ -646,7 +712,7 @@
                     <div class="section-heading">
                         <div>
 
-                            <h2 id="outlook-template-heading">Vorlage</h2>
+                            <h2 id="outlook-template-heading">Nachricht einfügen</h2>
 
                         </div>
                         <span class="template-count" data-outlook-template-count aria-live="polite">Laden …</span>
@@ -708,31 +774,35 @@
                 @endif
 
                 <section class="settings-card" aria-labelledby="outlook-settings-heading">
-                    <h2 id="outlook-settings-heading">Einstellungen</h2>
+                    <div class="settings-section-heading"><h2 id="outlook-settings-heading">Automatik</h2><span class="save-hint">Pro Konto gespeichert</span></div>
                     <div data-outlook-automatic-region class="automatic-region" aria-busy="false">
-                        <h3>Automatisch einfügen</h3>
                         <p class="automatic-account" data-automatic-account hidden></p>
-                        <table class="automatic-matrix" aria-label="Automatische Signatur">
-                            <thead><tr><th scope="col"><span class="visually-hidden">Inhalt</span></th><th scope="col">Neue Mails</th><th scope="col">Antworten</th></tr></thead>
-                            <tbody><tr><th scope="row">Signatur</th><td>
+                        <div class="compose-options" data-outlook-choices-region>
+                            <fieldset class="compose-option">
+                                <legend>Neue Nachrichten <small>Auch für Weiterleitungen</small></legend>
+                                <div class="signature-option"><label for="outlook-auto-new-signature">Signatur einfügen</label>
                                 <x-ui.forms.toggle-button id="outlook-auto-new-signature" size="sm" :disabled="true" data-automatic-setting data-automatic-group="newMessages" data-automatic-field="signature" aria-label="Signatur bei neuen Mails und Weiterleitungen automatisch einfügen" />
-                            </td><td>
+                                </div>
+                                <div class="settings-fields"><label for="outlook-auto-new-template">Vorlage
+                                    <select id="outlook-auto-new-template" class="template-select" data-template-choice-group="newMessages" disabled aria-label="Vorlage für neue Nachrichten und Weiterleitungen" aria-describedby="outlook-choice-feedback"><option value="">Wird geladen …</option></select>
+                                </label></div>
+                            </fieldset>
+                            <fieldset class="compose-option">
+                                <legend>Antworten</legend>
+                                <div class="signature-option"><label for="outlook-auto-reply-signature">Signatur einfügen</label>
                                 <x-ui.forms.toggle-button id="outlook-auto-reply-signature" size="sm" :disabled="true" data-automatic-setting data-automatic-group="replies" data-automatic-field="signature" aria-label="Signatur bei Antworten automatisch einfügen" />
-                            </td></tr></tbody>
-                        </table>
+                                </div>
+                                <div class="settings-fields"><label for="outlook-auto-reply-template">Vorlage
+                                    <select id="outlook-auto-reply-template" class="template-select" data-template-choice-group="replies" disabled aria-label="Vorlage für Antworten" aria-describedby="outlook-choice-feedback"><option value="">Wird geladen …</option></select>
+                                </label></div>
+                            </fieldset>
+                            <p id="outlook-choice-feedback" class="automatic-feedback" data-template-choice-feedback role="status" aria-live="polite"></p>
+                        </div>
                         <p class="automatic-feedback" data-automatic-feedback role="status" aria-live="polite"></p>
                     </div>
-                    <div class="settings-fields" data-outlook-choices-region>
-                        <label for="outlook-auto-new-template">Vorlage für neue Mails
-                            <select id="outlook-auto-new-template" class="template-select" data-template-choice-group="newMessages" disabled aria-describedby="outlook-choice-feedback"><option value="">Wird geladen …</option></select>
-                        </label>
-                        <label for="outlook-auto-reply-template">Vorlage für Antworten
-                            <select id="outlook-auto-reply-template" class="template-select" data-template-choice-group="replies" disabled aria-describedby="outlook-choice-feedback"><option value="">Wird geladen …</option></select>
-                        </label>
-                        <p id="outlook-choice-feedback" class="automatic-feedback" data-template-choice-feedback role="status" aria-live="polite"></p>
-                    </div>
-                    <div class="wording-region" data-outlook-wording-region aria-busy="false" aria-labelledby="outlook-wording-heading">
-                        <h3 id="outlook-wording-heading">Anrede und Gruß</h3>
+                    <p class="settings-note settings-help">Gilt beim nächsten Verfassen. Bereits geöffnete Nachrichten bleiben unverändert.</p>
+                    <details class="wording-region" data-outlook-wording-region aria-busy="false" aria-labelledby="outlook-wording-heading" @if ($accountSettingsMode) open @endif>
+                        <summary id="outlook-wording-heading">Anrede &amp; Gruß</summary>
                         <p class="settings-note" id="outlook-wording-note">Für Vorlagen mit Anrede und Gruß. Ihr Name folgt automatisch.</p>
                         <div class="settings-fields">
                             <label for="outlook-wording-greeting">Anrede
@@ -747,7 +817,7 @@
                             <button type="button" class="glass-button" data-wording-reload hidden>Gespeicherten Stand laden</button>
                         </div>
                         <p id="outlook-wording-feedback" class="automatic-feedback" data-wording-feedback role="status" aria-live="polite"></p>
-                    </div>
+                    </details>
                     @unless ($accountSettingsMode)
                     <div class="connection-state">
                         <div class="status" data-outlook-status data-tone="working" role="status" aria-live="polite" aria-atomic="true" tabindex="-1">
