@@ -47,6 +47,8 @@
                 </span>
             </div>
 
+            <x-admin.team-create-form />
+
             <div
                 class="scroll-container grid max-h-60 grid-cols-1 gap-1.5 overflow-y-auto p-2 sm:p-3 lg:max-h-[36rem]"
                 role="group"

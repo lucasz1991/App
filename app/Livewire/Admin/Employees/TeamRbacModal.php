@@ -2,17 +2,27 @@
 
 namespace App\Livewire\Admin\Employees;
 
+use App\Models\Setting;
 use App\Models\Team;
+use App\Models\User;
+use App\Services\Personnel\EmployeeTeamService;
 use App\Support\Rbac\RbacCatalog;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
 class TeamRbacModal extends Component
 {
     public bool $showModal = false;
+
+    #[Locked]
     public bool $embedded = false;
+
     public ?int $selectedTeamId = null;
+
+    public string $newTeamName = '';
 
     /**
      * Matrix: team_id => permission_key => bool
@@ -26,15 +36,19 @@ class TeamRbacModal extends Component
         $this->embedded = $embedded;
 
         if ($embedded) {
-            Gate::authorize('roles.manage');
+            $this->authorizeManager();
             $this->prepareManager();
         }
     }
 
     #[On('open-team-rbac-modal')]
-    public function open(): void
+    public function open(?int $teamId = null): void
     {
-        Gate::authorize('roles.manage');
+        $this->authorizeManager();
+        if ($teamId !== null) {
+            abort_unless(Team::where('personal_team', false)->whereKey($teamId)->exists(), 404);
+            $this->selectedTeamId = $teamId;
+        }
 
         $this->showModal = true;
         $this->prepareManager();
@@ -43,16 +57,21 @@ class TeamRbacModal extends Component
     public function close(): void
     {
         $this->showModal = false;
+        $this->newTeamName = '';
+        $this->resetValidation();
     }
 
     public function setTeam(int $teamId): void
     {
+        $this->authorizeManager();
+        abort_unless(Team::where('personal_team', false)->whereKey($teamId)->exists(), 404);
         $this->selectedTeamId = $teamId;
         $this->initializeTeam($teamId);
     }
 
     public function setSelectedTeamToFalse(): void
     {
+        $this->authorizeManager();
         if ($this->selectedTeamId === null) {
             return;
         }
@@ -63,6 +82,7 @@ class TeamRbacModal extends Component
 
     public function setSelectedTeamToTrue(): void
     {
+        $this->authorizeManager();
         if ($this->selectedTeamId === null) {
             return;
         }
@@ -80,7 +100,7 @@ class TeamRbacModal extends Component
 
     public function save(): void
     {
-        Gate::authorize('roles.manage');
+        $this->authorizeManager();
 
         $teams = $this->teams();
         $teamIds = $teams->pluck('id')->map(fn ($id) => (int) $id)->all();
@@ -91,6 +111,7 @@ class TeamRbacModal extends Component
             $permissionMap[$this->permissionKey($permission)] = $permission;
         }
 
+        $updatedTeamIds = [];
         foreach ($this->matrix as $teamId => $permissionMatrix) {
             $teamId = (int) $teamId;
             if (! isset($teamSet[$teamId])) {
@@ -109,27 +130,52 @@ class TeamRbacModal extends Component
             Team::query()->where('id', $teamId)->update([
                 'rbac_permissions' => $payload,
             ]);
+            $updatedTeamIds[] = $teamId;
         }
 
+        $this->dispatch('team-rights-updated', teamIds: $updatedTeamIds);
+        $this->dispatch('refresh-navigation-menu');
         $this->dispatch('swal:toast', type: 'success', title: 'Gespeichert', text: 'Team-Rechte wurden gespeichert.');
     }
 
     /**
-     * @return \Illuminate\Support\Collection<int, \App\Models\Team>
+     * @return Collection<int, Team>
      */
     public function teams()
     {
+        $this->authorizeManager();
+
         return Team::query()
             ->where('personal_team', false)
             ->orderBy('name')
             ->get(['id', 'name', 'rbac_permissions']);
     }
 
+    public function createTeam(): void
+    {
+        $this->authorizeManager();
+        $team = app(EmployeeTeamService::class)->create($this->newTeamName);
+        $this->newTeamName = '';
+        $this->resetValidation('newTeamName');
+        $this->selectedTeamId = (int) $team->id;
+        $this->matrix[(string) $team->id] = $this->defaultMatrixForTeam();
+        $this->dispatch('employeeSaved');
+        $this->dispatch('swal:toast', type: 'success', text: 'Team erstellt. Berechtigungen sind zunächst ausgeschaltet.');
+    }
+
+    private function authorizeManager(): void
+    {
+        abort_unless(auth()->user() instanceof User, 403);
+        $actor = User::with('currentTeam')->find(auth()->id());
+        abort_unless($actor?->isActive() && $actor->canViewManagementDashboard(), 403);
+        Gate::forUser($actor)->authorize('roles.manage');
+    }
+
     protected function loadMatrix(): void
     {
         $this->matrix = [];
         $permissions = RbacCatalog::allPermissions();
-        $legacy = \App\Models\Setting::getValue('rbac', 'team_permissions');
+        $legacy = Setting::getValue('rbac', 'team_permissions');
         $legacy = is_array($legacy) ? $legacy : [];
 
         foreach ($this->teams() as $team) {
@@ -143,6 +189,7 @@ class TeamRbacModal extends Component
 
             if (! empty($stored)) {
                 $this->matrix[(string) $team->id] = $teamPermissions;
+
                 continue;
             }
 
@@ -177,6 +224,7 @@ class TeamRbacModal extends Component
         $key = (string) $teamId;
         if (! isset($this->matrix[$key]) || ! is_array($this->matrix[$key])) {
             $this->matrix[$key] = $this->defaultMatrixForTeam();
+
             return;
         }
 
@@ -208,9 +256,16 @@ class TeamRbacModal extends Component
 
     public function render()
     {
+        $teams = collect();
+        $permissionGroups = [];
+        if ($this->embedded || $this->showModal) {
+            $teams = $this->teams();
+            $permissionGroups = RbacCatalog::permissionGroups();
+        }
+
         return view('livewire.admin.employees.team-rbac-modal', [
-            'teams' => $this->teams(),
-            'permissionGroups' => RbacCatalog::permissionGroups(),
+            'teams' => $teams,
+            'permissionGroups' => $permissionGroups,
         ]);
     }
 }

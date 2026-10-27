@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\MailDocumentDelivery;
 use App\Support\Mail\OutlookSignatureInlineStyle;
+use App\Support\Mail\OutlookTemplateWording;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\Mail\SignatureArtifactVersion;
 use App\Support\Mail\SignatureTableOverlapDelivery;
@@ -20,6 +21,8 @@ final class OutlookAddinPayloadService
 {
     /** Bei jeder Aenderung der Compilersemantik bewusst anheben. */
     private const RENDERER_REVISION = 55;
+
+    private const WORDING_REVISION = 'personal-template-wording-v1';
 
     private const MAX_SIGNATURE_CHARACTERS = 30000;
 
@@ -107,6 +110,10 @@ final class OutlookAddinPayloadService
                 ],
                 'assets' => $this->sourceAssetHashes($templateSnapshots, $signatureSnapshot),
             ];
+            $wording = $this->templateWordingPreferences($user, $templateSnapshots);
+            if ($wording !== null) {
+                $input['personal_template_wording'] = ['renderer' => self::WORDING_REVISION, 'preferences' => $wording];
+            }
 
             return hash('sha256', json_encode(
                 $input,
@@ -139,6 +146,7 @@ final class OutlookAddinPayloadService
 
             $builder = new EmailTemplateBuilder($user);
             $signature = $this->renderSignature($builder, $signatureSnapshot);
+            $wordingPreferences = $this->templateWordingPreferences($user, $templateSnapshots);
 
             $templates = $this->renderTemplates(
                 $builder,
@@ -172,6 +180,7 @@ final class OutlookAddinPayloadService
                 $templateSnapshots,
                 $signatureSnapshot,
                 $signature,
+                $wordingPreferences,
             );
             $activeTemplate = $this->activeTemplatePayload($templates);
 
@@ -288,6 +297,7 @@ final class OutlookAddinPayloadService
         array $snapshots,
         array $globalSignatureSnapshot,
         array $globalSignature,
+        ?array $wordingPreferences = null,
     ): array {
         $systemTemplate = $this->publishedDocuments->snapshot(MailDocumentKind::Template);
         $templates = [];
@@ -320,7 +330,7 @@ final class OutlookAddinPayloadService
                     $snapshot['css'],
                 );
                 [$html, $media] = $this->materializeTemplateCids(
-                    $this->withMarker($builder->buildOutlookAddinTemplateHtml('light')),
+                    $this->withMarker($builder->buildOutlookAddinTemplateHtml('light', $wordingPreferences)),
                     $signatureDocument,
                 );
                 $html = $this->withSignatureVersionMarker($html, $signature['version']);
@@ -329,13 +339,15 @@ final class OutlookAddinPayloadService
                 }
 
                 [$composeHtml, $composeMedia] = $this->materializeTemplateCids(
-                    $this->withNativeTemplateMarker($composeBuilder->buildOutlookAddinTemplateHtml('light')),
+                    $this->withNativeTemplateMarker($composeBuilder->buildOutlookAddinTemplateHtml('light', $wordingPreferences)),
                     $signatureDocument,
                 );
                 if ($this->outlookStringLength($composeHtml) > self::MAX_TEMPLATE_CHARACTERS) {
                     throw new RuntimeException('Die Outlook-Vorlage ueberschreitet das sichere Transportbudget von 99.000 Zeichen.');
                 }
 
+                $templateHash = $this->personalTemplateHash($snapshot, $wordingPreferences,
+                    OutlookTemplateWording::requested($snapshot['html']) ? $builder->profileValues()['VORNAME_NACHNAME'] : '');
                 $template = [
                     'id' => $snapshot['id'],
                     'key' => $snapshot['key'],
@@ -351,9 +363,12 @@ final class OutlookAddinPayloadService
                     'signatureMode' => 'native',
                     'composeHtml' => $composeHtml,
                     'composeMedia' => $composeMedia,
-                    'version' => $this->snapshotHash($snapshot),
-                    'hash' => $this->fullSnapshotHash($snapshot),
+                    'version' => substr($templateHash, 0, 16),
+                    'hash' => $templateHash,
                 ];
+                if (OutlookTemplateWording::requested($snapshot['html'])) {
+                    $template['wordingMode'] = self::WORDING_REVISION;
+                }
 
                 // Das optionale Feld ist bewusst nur bei einer expliziten
                 // Paarung vorhanden. Alte/unzugeordnete Vorlagen und der
@@ -1393,6 +1408,32 @@ final class OutlookAddinPayloadService
     private function snapshotHash(array $snapshot): string
     {
         return substr($this->fullSnapshotHash($snapshot), 0, 16);
+    }
+
+    private function templateWordingPreferences(User $user, array $snapshots): ?array
+    {
+        foreach ($snapshots as $snapshot) {
+            if (OutlookTemplateWording::requested($snapshot['html'])) {
+                return app(OutlookAddinWordingPolicy::class)->preferencesForUser($user);
+            }
+        }
+
+        return null;
+    }
+
+    private function personalTemplateHash(array $snapshot, ?array $wording, string $employeeName): string
+    {
+        $source = $this->fullSnapshotHash($snapshot);
+        if (! OutlookTemplateWording::requested($snapshot['html'])) {
+            return $source;
+        }
+        if ($wording === null) {
+            throw new RuntimeException('Die persönliche Vorlage besitzt keinen konsistenten Anrede-/Grußstand.');
+        }
+
+        return hash('sha256', $source."\0".self::WORDING_REVISION."\0".json_encode([
+            'greeting' => $wording['greeting'], 'farewell' => $wording['farewell'], 'employeeName' => $employeeName,
+        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
 
     /** @param array{html: string, css: string, publishedSignature?: array{id?:string,hash?:string}|null} $snapshot */

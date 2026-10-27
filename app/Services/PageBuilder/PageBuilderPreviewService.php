@@ -13,6 +13,7 @@ use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\EmailHtmlSanitizer;
 use App\Support\Mail\MailDocumentSignatureResolver;
 use App\Support\Mail\MailPreviewImages;
+use App\Support\Mail\OutlookTemplateWording;
 use App\Support\Mail\SignatureHotline;
 use App\Support\Mail\SignaturePersonalColumns;
 use App\Support\Mail\TrustedEmailCss;
@@ -152,9 +153,15 @@ final class PageBuilderPreviewService
         // Systemmail verwenden. Zuvor wurde `$signature` zwar berechnet, hier
         // aber wieder durch das rohe Dokument ersetzt. Dadurch blieben leere
         // Kontaktzeilen und Runtime-Zugschichten allein in der Mail sichtbar.
+        $templateHtml = (string) $document->html;
+        if ($document->kind === MailDocumentKind::Template && OutlookTemplateWording::requested($templateHtml)) {
+            // Authoring retains its explicit tokens; the read-only generic
+            // preview shows their defaults without reading anyone's preferences.
+            $templateHtml = OutlookTemplateWording::render($templateHtml);
+        }
         $html = $document->kind === MailDocumentKind::Signature
             ? $signature
-            : $this->renderTokenHtml((string) $document->html, $values, [
+            : $this->renderTokenHtml($templateHtml, $values, [
                 'SIGNATURE_BLOCK' => $signature,
                 'RESPONSIVE_CSS' => SignatureHotline::applies($signatureHtml)
                     ? TrustedEmailCss::forDocument($signatureHtml, $values['SIGNATURE_BORDER'] ?? null)

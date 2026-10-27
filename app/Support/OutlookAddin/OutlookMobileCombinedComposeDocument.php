@@ -82,6 +82,9 @@ final class OutlookMobileCombinedComposeDocument
             self::fail();
         }
         $joined = self::compactOwnedStyles($joined);
+        if (($template['wordingMode'] ?? null) === 'personal-template-wording-v1' && self::canRemoveStyleNodes($joined)) {
+            $joined = OutlookMobileWording::project($joined);
+        }
         $media = self::media($template['composeMedia'], $mobileSignature['media'], $joined);
         [$output, $map] = self::compactIdentifiers($joined);
         if (self::rewrite($output, array_flip($map)) !== $joined) {

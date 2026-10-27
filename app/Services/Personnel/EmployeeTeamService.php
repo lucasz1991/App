@@ -1,0 +1,251 @@
+<?php
+
+namespace App\Services\Personnel;
+
+use App\Models\Team;
+use App\Models\User;
+use App\Support\OutlookAddin\OutlookAddinSnapshotRefreshScheduler;
+use App\Support\Rbac\RbacCatalog;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
+use Laravel\Jetstream\Events\AddingTeam;
+use Laravel\Jetstream\Events\AddingTeamMember;
+use Laravel\Jetstream\Events\TeamMemberAdded;
+use Laravel\Jetstream\Events\TeamMemberRemoved;
+
+/** The same guarded primary-team change for the profile and employee selection. */
+final class EmployeeTeamService
+{
+    public function canManage(?User $actor = null): bool
+    {
+        $actor ??= auth()->user() instanceof User ? auth()->user() : null;
+        $fresh = $actor ? User::with('currentTeam')->find($actor->id) : null;
+
+        return $fresh?->isActive() && $fresh->canViewManagementDashboard()
+            && Gate::forUser($fresh)->allows('employees.view')
+            && Gate::forUser($fresh)->allows('employees.create')
+            && Gate::forUser($fresh)->allows('roles.manage');
+    }
+
+    /** @return array{ids: array<int, int>, snapshots: array<int, string>, employees: Collection<int, User>} */
+    public function prepare(array $ids): array
+    {
+        $actor = $this->authorizeActor();
+        $ids = $this->normalizeIds($ids);
+        $employees = User::with(['currentTeam', 'teams', 'ownedTeams'])->whereIn('id', $ids)->orderBy('id')->get();
+        $this->authorizeTargets($actor, $employees, $ids);
+
+        return [
+            'ids' => $ids,
+            'snapshots' => $employees->mapWithKeys(fn (User $user) => [$user->id => $this->fingerprint($user)])->all(),
+            'employees' => $employees,
+        ];
+    }
+
+    /** @return Collection<int, Team> */
+    public function availableTeams(): Collection
+    {
+        $actor = $this->authorizeActor();
+
+        return Team::where('personal_team', false)->orderBy('name')->get()
+            ->filter(fn (Team $team) => $this->canAssignTeam($actor, $team))->values();
+    }
+
+    /**
+     * Replace only the prior primary organizational membership. Additional and
+     * personal memberships stay intact; team ownership is never transferred.
+     *
+     * @param  array<int, string>  $snapshots
+     */
+    public function change(array $ids, int $teamId, array $snapshots): int
+    {
+        $ids = $this->normalizeIds($ids);
+
+        return DB::transaction(function () use ($ids, $teamId, $snapshots): int {
+            $actor = $this->authorizeActor(lock: true);
+            $employees = User::whereIn('id', $ids)->orderBy('id')->lockForUpdate()->get();
+            $this->authorizeTargets($actor, $employees, $ids);
+
+            // Lock the membership rows as well as their teams before taking the
+            // fresh fingerprint or changing any employee in the batch.
+            $memberships = DB::table('team_user')->whereIn('user_id', $ids)->orderBy('user_id')->orderBy('team_id')->lockForUpdate()->get();
+            $teamIds = $memberships->pluck('team_id')->merge($employees->pluck('current_team_id'))->push($teamId)->filter()->unique()->sort()->values();
+            $teams = Team::whereIn('id', $teamIds)->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+            $destination = $teams->get($teamId);
+            if (! $destination || $destination->personal_team) {
+                throw ValidationException::withMessages(['teamId' => 'Bitte wählen Sie ein vorhandenes organisatorisches Team.']);
+            }
+            abort_unless($this->canAssignTeam($actor, $destination), 403);
+
+            $employees->load(['teams', 'ownedTeams', 'currentTeam']);
+            foreach ($employees as $employee) {
+                if (! isset($snapshots[$employee->id]) || ! is_string($snapshots[$employee->id])
+                    || ! hash_equals($this->fingerprint($employee), $snapshots[$employee->id])) {
+                    throw ValidationException::withMessages(['teamId' => 'Die Teamzuordnung wurde zwischenzeitlich geändert. Bitte öffnen Sie den Teamwechsel erneut.']);
+                }
+                $previous = $teams->get($employee->current_team_id);
+                if ($previous && ! $previous->personal_team && $previous->id !== $destination->id && $employee->ownsTeam($previous)) {
+                    throw ValidationException::withMessages(['teamId' => 'Ein Mitarbeiter besitzt sein bisheriges Team. Die Eigentümerschaft muss zuerst separat geklärt werden.']);
+                }
+                if ((int) $employee->id === (int) $actor->id && ! $actor->isAdmin()
+                    && ($destination->name !== 'Verwaltung'
+                        || ! ($destination->rbac_permissions['employees.view'] ?? false)
+                        || ! ($destination->rbac_permissions['employees.create'] ?? false)
+                        || ! ($destination->rbac_permissions['roles.manage'] ?? false))) {
+                    throw ValidationException::withMessages(['teamId' => 'Sie können sich mit dieser Sammeländerung nicht den Verwaltungszugang entziehen. Bitte lassen Sie Ihr Team durch einen Administrator ändern.']);
+                }
+            }
+
+            $changed = 0;
+            foreach ($employees as $employee) {
+                $previous = $teams->get($employee->current_team_id);
+                $alreadyMember = $employee->ownsTeam($destination) || $employee->teams->contains('id', $destination->id);
+                if ((int) $employee->current_team_id === (int) $destination->id && $alreadyMember) {
+                    continue;
+                }
+
+                $added = false;
+                $removed = false;
+                if (! $alreadyMember) {
+                    AddingTeamMember::dispatch($destination, $employee);
+                    $employee->teams()->attach($destination->id, ['role' => 'team_access']);
+                    $added = true;
+                }
+                if ($previous && ! $previous->personal_team && $previous->id !== $destination->id) {
+                    $removed = (bool) $employee->teams()->detach($previous->id);
+                }
+                $employee->forceFill(['current_team_id' => $destination->id])->save();
+                activity('employee-team')->causedBy($actor)->performedOn($employee)
+                    ->withProperties(['previous_team_id' => $previous?->id, 'team_id' => $destination->id])
+                    ->log('employee_team_changed');
+                $changed++;
+
+                DB::afterCommit(function () use ($employee, $destination, $previous, $added, $removed): void {
+                    if ($added) {
+                        TeamMemberAdded::dispatch($destination, $employee);
+                    }
+                    if ($removed) {
+                        TeamMemberRemoved::dispatch($previous, $employee);
+                    }
+                    // A change between existing memberships has no Jetstream
+                    // membership event, but still changes the active context.
+                    if (! $added && ! $removed) {
+                        app(OutlookAddinSnapshotRefreshScheduler::class)->scheduleForUser($employee);
+                    }
+                });
+            }
+
+            return $changed;
+        }, 3);
+    }
+
+    public function create(string $name): Team
+    {
+        return DB::transaction(function () use ($name): Team {
+            $actor = $this->authorizeActor(lock: true, membership: false);
+            $name = trim($name);
+            Validator::make(['newTeamName' => $name], ['newTeamName' => ['required', 'string', 'max:255']])->validate();
+            if (! $actor->isAdmin() && in_array(mb_strtolower($name), ['administratoren', 'administrator', 'administration'], true)) {
+                throw ValidationException::withMessages(['newTeamName' => 'Dieses Verwaltungsteam kann nur von einem Administrator erstellt werden.']);
+            }
+            // PHP case folding also covers German names on SQLite, whose
+            // built-in LOWER otherwise only folds ASCII characters.
+            if (Team::orderBy('id')->lockForUpdate()->get(['name'])->contains(fn (Team $team) => mb_strtolower(trim($team->name)) === mb_strtolower($name))) {
+                throw ValidationException::withMessages(['newTeamName' => 'Ein Team mit diesem Namen ist bereits vorhanden.']);
+            }
+            $team = new Team(['name' => $name, 'personal_team' => false, 'rbac_permissions' => RbacCatalog::defaultTeamPermissions()]);
+            $team->user_id = $actor->id;
+            // Unlike the general Jetstream CreateTeam action, administrative
+            // creation must not silently switch the administrator's context.
+            AddingTeam::dispatch($actor);
+            $team->save();
+            activity('employee-team')->causedBy($actor)->performedOn($team)->log('employee_team_created');
+
+            return $team;
+        }, 3);
+    }
+
+    private function authorizeActor(bool $lock = false, bool $membership = true): User
+    {
+        abort_unless(auth()->user() instanceof User, 403);
+        $query = User::with('currentTeam')->whereKey(auth()->id());
+        $actor = ($lock ? $query->lockForUpdate() : $query)->first();
+        if ($actor && $lock) {
+            $actor->setRelation('currentTeam', $actor->current_team_id
+                ? Team::whereKey($actor->current_team_id)->lockForUpdate()->first()
+                : null);
+        }
+        abort_unless($actor?->isActive() && $actor->canViewManagementDashboard(), 403);
+        Gate::forUser($actor)->authorize('roles.manage');
+        if ($membership) {
+            Gate::forUser($actor)->authorize('employees.view');
+            Gate::forUser($actor)->authorize('employees.create');
+        }
+
+        return $actor;
+    }
+
+    /** @return array<int, int> */
+    private function normalizeIds(array $ids): array
+    {
+        if (count($ids) < 1 || count($ids) > 100 || ! array_is_list($ids)) {
+            throw ValidationException::withMessages(['employeeIds' => 'Bitte wählen Sie zwischen einem und 100 Mitarbeitern.']);
+        }
+        $normalized = [];
+        foreach ($ids as $id) {
+            if ((! is_int($id) && (! is_string($id) || ! preg_match('/^[1-9][0-9]*$/D', $id)))
+                || filter_var($id, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) === false) {
+                throw ValidationException::withMessages(['employeeIds' => 'Die Mitarbeiterauswahl ist ungültig.']);
+            }
+            $normalized[] = (int) $id;
+        }
+        if (count($normalized) !== count(array_unique($normalized))) {
+            throw ValidationException::withMessages(['employeeIds' => 'Die Mitarbeiterauswahl enthält doppelte Einträge.']);
+        }
+        sort($normalized);
+
+        return $normalized;
+    }
+
+    private function authorizeTargets(User $actor, Collection $employees, array $ids): void
+    {
+        if ($employees->count() !== count($ids)) {
+            throw ValidationException::withMessages(['employeeIds' => 'Mindestens ein Mitarbeiter ist nicht mehr verfügbar.']);
+        }
+        foreach ($employees as $employee) {
+            abort_unless(in_array($employee->role, ['staff', 'admin', 'superadmin'], true), 403);
+            abort_if(($employee->isAdmin() || $employee->isSuperAdmin()) && ! $actor->isAdmin(), 403);
+        }
+    }
+
+    private function canAssignTeam(User $actor, Team $team): bool
+    {
+        if ($actor->isAdmin()) {
+            return true;
+        }
+        if (in_array($team->name, ['Administratoren', 'Administrator', 'Administration'], true)) {
+            return false;
+        }
+        foreach ((array) $team->rbac_permissions as $permission => $enabled) {
+            if ($enabled && ! Gate::forUser($actor)->allows($permission)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function fingerprint(User $user): string
+    {
+        return hash('sha256', json_encode([
+            'primary' => $user->current_team_id,
+            'role' => $user->role,
+            'memberships' => $user->teams->sortBy('id')->map(fn (Team $team) => [$team->id, $team->name, $team->membership?->role, $team->user_id, $team->personal_team, $team->rbac_permissions])->values()->all(),
+            'primary_team' => $user->currentTeam ? [$user->currentTeam->id, $user->currentTeam->name, $user->currentTeam->user_id, $user->currentTeam->personal_team, $user->currentTeam->rbac_permissions] : null,
+            'owned' => $user->ownedTeams->pluck('id')->sort()->values()->all(),
+        ], JSON_THROW_ON_ERROR));
+    }
+}

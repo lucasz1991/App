@@ -13,14 +13,17 @@ use App\Models\UserProfile;
 use App\Support\CompanyData;
 use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\EmailHtmlSanitizer;
+use App\Support\Mail\OutlookTemplateWording;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\Mail\SignatureDocumentContract;
 use App\Support\Mail\SignaturePersonalColumns;
 use App\Support\Mail\SignatureTableOverlapDelivery;
 use App\Support\Mail\SignatureTrainCarrier;
 use App\Support\Mail\SystemMailInlineImageEmbedder;
+use App\Support\Mail\TemplateDocumentContract;
 use App\Support\MailSignature;
 use App\Support\OutlookAddin\OutlookAddinPayloadService;
+use App\Support\OutlookAddin\OutlookAddinUserSnapshotStore;
 use App\Support\OutlookAddin\OutlookClientPresentation;
 use App\Support\OutlookAddin\OutlookDesktopFlow;
 use App\Support\OutlookAddin\OutlookMobileSignature;
@@ -30,6 +33,8 @@ use DOMXPath;
 use Illuminate\Mail\Markdown;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use RuntimeException;
 use Symfony\Component\CssSelector\CssSelectorConverter;
@@ -130,6 +135,136 @@ final class V27PersonalLayoutTest extends TestCase
         }
         self::assertSame($before, $this->storedSources());
         Http::assertNothingSent();
+    }
+
+    public function test_personal_wording_is_explicit_and_changes_all_variant_fields_but_no_signature_or_default_bytes(): void
+    {
+        $this->wordingVariant();
+        $this->person->forceFill(['name' => 'Login Alias'])->saveQuietly();
+        $service = app(OutlookAddinPayloadService::class);
+        $beforeFingerprint = $service->sourceFingerprint($this->person->fresh());
+        $before = $service->forUser($this->person->fresh());
+        $rows = $this->storedSources();
+        $this->wording('Hallo & willkommen,', 'Viele Grüße,');
+        self::assertNotSame($beforeFingerprint, $service->sourceFingerprint($this->person->fresh()));
+        $after = $service->forUser($this->person->fresh());
+        self::assertSame($before['signature'], $after['signature']);
+        self::assertSame($before['version']['signature'], $after['version']['signature']);
+        self::assertSame($before['version']['template'], $after['version']['template']);
+        $oldDefault = collect($before['templates'])->firstWhere('isDefault', true);
+        self::assertSame($oldDefault, collect($after['templates'])->firstWhere('isDefault', true));
+        $old = collect($before['templates'])->firstWhere('isDefault', false);
+        $new = collect($after['templates'])->firstWhere('isDefault', false);
+        self::assertNotSame($old['version'], $new['version']);
+        self::assertNotSame($old['hash'], $new['hash']);
+        self::assertSame($old['signature'], $new['signature']);
+        foreach (['html', 'composeHtml', 'combinedComposeHtml'] as $field) {
+            self::assertStringContainsString('Hallo &amp; willkommen,', $new[$field]);
+            self::assertMatchesRegularExpression('~Viele Grüße,<br\s*/?>Mara Muster~u', $new[$field]);
+            self::assertStringNotContainsString('Login Alias', $new[$field]);
+            self::assertStringNotContainsString('OUTLOOK_ANREDE', $new[$field]);
+            self::assertStringNotContainsString('OUTLOOK_GRUSS', $new[$field]);
+        }
+        $mobile = OutlookMobileSignature::payload($after);
+        $mobileVariant = collect($mobile['templates'])->firstWhere('isDefault', false);
+        self::assertStringContainsString('Hallo &amp; willkommen,', $mobileVariant['mobileComposeHtml']);
+        self::assertMatchesRegularExpression('~Viele Grüße,<br\s*/?>Mara Muster~u', $mobileVariant['mobileComposeHtml']);
+        self::assertSame($rows, $this->storedSources());
+        Http::assertNothingSent();
+    }
+
+    public function test_generic_template_defaults_and_system_mails_do_not_consume_personal_wording(): void
+    {
+        $source = $this->wordingVariant();
+        $system = EmailTemplateBuilder::buildSystemMailHtml(new HtmlString('<p>System application</p>'));
+        $this->wording('Individuelle Anrede,', 'Individueller Gruß,');
+        self::assertSame($system, EmailTemplateBuilder::buildSystemMailHtml(new HtmlString('<p>System application</p>')));
+        $store = app(PublishedMailDocumentSnapshotStore::class);
+        $store->useSnapshot(MailDocumentKind::Template, $source, self::TEMPLATE_CSS);
+        $builder = new class($this->person->fresh()) extends EmailTemplateBuilder
+        {
+            public function generic(): string
+            {
+                return $this->buildEmailHtml(inlineImages: false, cidOutlookImages: true);
+            }
+        };
+        $generic = $builder->generic();
+        self::assertStringContainsString('Guten Tag,', $generic);
+        self::assertStringContainsString('Mit freundlichen Grüßen,<br>Mara Muster', $generic);
+        self::assertStringNotContainsString('Individuelle Anrede,', $generic);
+        self::assertStringNotContainsString('OUTLOOK_ANREDE', $generic);
+        self::assertStringNotContainsString('OUTLOOK_GRUSS', $generic);
+        $personal = $builder->buildOutlookAddinTemplateHtml();
+        self::assertStringContainsString('Individuelle Anrede,', $personal);
+        self::assertStringContainsString('Individueller Gruß,<br>Mara Muster', $personal);
+    }
+
+    public function test_new_wording_invalidates_the_encrypted_user_snapshot_without_changing_signature_version(): void
+    {
+        Storage::fake('private');
+        config(['outlook_addin.snapshots.disk' => 'private']);
+        $this->wordingVariant();
+        $store = app(OutlookAddinUserSnapshotStore::class);
+        $before = $store->currentForUser($this->person->fresh());
+        self::assertTrue($store->isCurrentForUser($this->person->fresh()));
+        $this->wording('Persönlich willkommen,', 'Beste Grüße,');
+        self::assertFalse($store->isCurrentForUser($this->person->fresh()));
+        $after = $store->currentForUser($this->person->fresh());
+        self::assertNotSame($before['version']['personal'], $after['version']['personal']);
+        self::assertSame($before['version']['signature'], $after['version']['signature']);
+        self::assertSame($before['signature'], $after['signature']);
+        self::assertTrue($store->isCurrentForUser($this->person->fresh()));
+    }
+
+    public function test_optin_is_sanitizer_preserved_and_half_pairs_are_rejected_before_publication(): void
+    {
+        $source = $this->wordingVariant();
+        $clean = (new EmailHtmlSanitizer)->sanitize($source);
+        self::assertFalse($clean->hasViolations());
+        self::assertSame($source, $clean->html);
+        TemplateDocumentContract::assertValid($source);
+        $this->expectException(RuntimeException::class);
+        TemplateDocumentContract::assertValid(str_replace(OutlookTemplateWording::FAREWELL_TOKEN, 'Literal closing', $source));
+    }
+
+    public function test_maximum_plain_wording_preserves_every_character_within_unchanged_native_and_mobile_budgets(): void
+    {
+        $this->wordingVariant();
+        foreach ([str_repeat('A', 120), str_repeat('&', 120), str_repeat('"', 120), str_repeat("'", 120),
+            str_repeat('😀', 120), str_repeat('&a', 60), str_repeat('&copy;', 20), str_repeat('&notit;', 17)] as $wording) {
+            $this->wording($wording, $wording);
+            $canonical = app(OutlookAddinPayloadService::class)->forUser($this->person->fresh());
+            $desktop = OutlookClientPresentation::payload($canonical);
+            $mobile = OutlookClientPresentation::payload(OutlookMobileSignature::payload($canonical));
+            foreach ([$desktop, $mobile] as $payload) {
+                $variant = collect($payload['templates'])->firstWhere('isDefault', false);
+                $field = isset($variant['mobileComposeHtml']) ? 'mobileComposeHtml' : 'combinedComposeHtml';
+                $text = html_entity_decode(strip_tags($variant[$field]), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                self::assertSame(2, substr_count($text, $wording));
+                if ($field === 'mobileComposeHtml') {
+                    self::assertLessThanOrEqual(30000, intdiv(strlen(mb_convert_encoding($variant[$field], 'UTF-16LE', 'UTF-8')), 2));
+                }
+                self::assertStringContainsString('overflow-wrap:anywhere', $variant[$field]);
+                self::assertStringContainsString('word-break:break-word', $variant[$field]);
+            }
+        }
+    }
+
+    private function wordingVariant(): string
+    {
+        $source = preg_replace('~(<p class="design-spacer"[^>]*>.*?</p>)~s',
+            '<p class="design-salutation">{{OUTLOOK_ANREDE}}</p>$1<p class="design-greeting">{{OUTLOOK_GRUSS}}</p>', self::TEMPLATE, 1, $count);
+        self::assertSame(1, $count);
+        $this->variant->forceFill(['html' => $source, 'published_html' => $source])->saveQuietly();
+        app(PublishedMailDocumentSnapshotStore::class)->forget(MailDocumentKind::Template);
+
+        return $source;
+    }
+
+    private function wording(string $greeting, string $farewell): void
+    {
+        Setting::setValue('outlook_addin', 'template_wording_user_'.$this->person->id,
+            ['schema' => 1, 'greeting' => $greeting, 'farewell' => $farewell, 'nonce' => (string) Str::uuid()]);
     }
 
     public function test_personal_default_serves_both_html_download_themes_and_copy_while_source_rows_stay_immutable(): void
