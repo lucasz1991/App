@@ -115,9 +115,12 @@ final class SignaturePersonalColumns
         $logos = array_keys(array_filter($nodes, static fn (array $node): bool => $node['tag'] === 'img' && (self::has($node, 'rt-logo') || self::has($node, 'rt-client-logo'))));
         $logo = count($logos) === 1 ? $logos[0] : self::fail();
         $content = self::one($nodes, 'rt-sign-content', 'td');
+        $nativeRevision = $nodes[$flow]['attrs']['data-rt-desktop-flow'] ?? '';
+        $responsive = $native && $nativeRevision === OutlookDesktopFlow::REVISION;
+        $logoColumn = $responsive ? self::one($nodes, 'rt-personal-logo-column', 'table') : $right;
         if (($nodes[$flow]['attrs'][self::ATTRIBUTE] ?? '') !== self::MARKER
             || $nodes[$flow]['parent'] !== $content
-            || ! self::within($nodes, $person, $left) || ! self::within($nodes, $logo, $right)) {
+            || ! self::within($nodes, $person, $left) || ! self::within($nodes, $logo, $logoColumn)) {
             self::fail();
         }
         $groupParent = $flow;
@@ -126,7 +129,7 @@ final class SignaturePersonalColumns
             $train = self::one($nodes, 'rt-df-train', 'table');
             $roots = array_keys(array_filter($nodes, static fn (array $node): bool => $node['tag'] === 'div' && self::has($node, 'rt-outlook-signature')));
             if (($nodes[$flow]['attrs'][self::NATIVE_FLOW_ATTRIBUTE] ?? '') !== 'v1'
-                || ($nodes[$flow]['attrs']['data-rt-desktop-flow'] ?? '') !== OutlookDesktopFlow::REVISION
+                || ! in_array($nativeRevision, [OutlookDesktopFlow::REVISION, 'outlook-desktop-flow-v4'], true)
                 || count($roots) !== 1 || ! self::within($nodes, $flow, $roots[0])
                 || ! $native) {
                 self::fail();
@@ -139,6 +142,9 @@ final class SignaturePersonalColumns
                 $groupParent = $children[0];
             }
             $expected[] = $train;
+            if ($responsive) {
+                array_unshift($expected, $logoColumn);
+            }
         }
         $groups = array_keys(array_filter($nodes, static fn (array $node): bool => $node['parent'] === $groupParent));
         if ($groups !== $expected) {

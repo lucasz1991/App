@@ -58,6 +58,7 @@ export function createNativeLayoutNonce(provider = globalThis.crypto) {
 }
 
 function restoreCss(ids) {
+    if (ids.logo) return responsiveRestoreCss(ids);
     const selector = key => '#' + ids[key];
     const train = selector('train');
     let css = `${selector('root')}{overflow:hidden!important;}`
@@ -79,13 +80,91 @@ function restoreCss(ids) {
     return css;
 }
 
+// The optional logo ID binds the four-column v5 wire shape. Keep the legacy
+// factory above byte-identical so previously saved carriers remain verifiable.
+function responsiveRestoreCss(ids) {
+    // Received Outlook mail can discard an ID ancestor yet keep its final tag
+    // selector. A train descendant IMG/DIV rule then damages the whole message.
+    // Every new rule therefore contains one owned ID and no combinator or tag.
+    const rule = (key, declarations) => responsiveRestoreRule(ids, key, declarations);
+    const columns = ['logo', 'person', 'company', 'train'];
+    let css = rule('root', 'font-size:0!important;line-height:0!important;text-align:left!important;width:100%!important;max-width:680px!important;display:table!important;table-layout:fixed!important;border-collapse:collapse!important;overflow:hidden!important;direction:rtl!important;');
+    for (const key of columns) {
+        css += rule(key, 'display:' + (key === 'train' ? 'inline-table' : 'inline-block') + '!important;vertical-align:' + (key === 'train' ? 'bottom' : 'top') + '!important;width:100%!important;min-width:0!important;max-width:340px!important;direction:ltr!important;table-layout:fixed!important;border-collapse:separate!important;border-spacing:0!important;box-sizing:border-box!important;'
+            + (key === 'train' ? 'border-left:0!important;' : 'border-left:40px solid transparent!important;')
+            + 'border-right:40px solid transparent!important;');
+    }
+    css += rule('logo', 'margin-bottom:10px!important;')
+        + rule('company', 'border-top:4px solid transparent!important;');
+    if (ids.header) css += rule('header', 'color:#ffffff!important;table-layout:auto!important;width:100%!important;');
+    // The two-row signature ID owns both its main content and legal row; a
+    // color override here would also recolor personal/company text. Legal
+    // paint stays in its already compiled inline declarations.
+    if (ids.signature) css += rule('signature', 'border-collapse:separate!important;border-spacing:0!important;');
+    if (ids.inset) css += rule('inset', 'width:40px!important;min-width:40px!important;max-width:40px!important;');
+    if (ids.footer) css += rule('footer', 'border-left:40px solid transparent!important;border-right:40px solid transparent!important;box-sizing:border-box!important;border-collapse:separate!important;border-spacing:0!important;');
+    if (ids.templateGutter) css += rule('templateGutter', 'border-left:40px solid transparent!important;border-right:40px solid transparent!important;box-sizing:border-box!important;border-collapse:separate!important;border-spacing:0!important;');
+    return css;
+}
+
+// Exact R60 core is recognized only for complete owned-carrier cleanup.
+// It can never satisfy current-layout readback or acknowledge a new write.
+function legacyColumnCoreCss(ids) {
+    const rule = (key, declarations) => responsiveRestoreRule(ids, key, declarations);
+    let css = rule('root', 'font-size:0!important;line-height:0!important;text-align:left!important;width:100%!important;max-width:920px!important;display:table!important;table-layout:fixed!important;border-collapse:collapse!important;overflow:hidden!important;');
+    for (const key of ['logo', 'person', 'company', 'train']) {
+        css += rule(key, 'display:table!important;vertical-align:top!important;width:460px!important;min-width:0!important;max-width:100%!important;table-layout:fixed!important;border-collapse:separate!important;border-spacing:0!important;box-sizing:border-box!important;'
+            + (key === 'train' ? 'border-left:0!important;' : 'border-left:40px solid transparent!important;') + 'border-right:40px solid transparent!important;');
+    }
+    css += rule('logo', 'float:right!important;margin-bottom:10px!important;')
+        + rule('person', 'float:left!important;')
+        + rule('company', 'float:right!important;clear:right!important;border-top:4px solid transparent!important;')
+        + rule('train', 'float:left!important;clear:left!important;position:sticky!important;top:100%!important;');
+    if (ids.header) css += rule('header', 'color:#ffffff!important;table-layout:auto!important;width:100%!important;');
+    if (ids.signature) css += rule('signature', 'border-collapse:separate!important;border-spacing:0!important;');
+    if (ids.inset) css += rule('inset', 'width:40px!important;min-width:40px!important;max-width:40px!important;');
+    if (ids.footer) css += rule('footer', 'border-left:40px solid transparent!important;border-right:40px solid transparent!important;box-sizing:border-box!important;border-collapse:separate!important;border-spacing:0!important;');
+    if (ids.templateGutter) css += rule('templateGutter', 'border-left:40px solid transparent!important;border-right:40px solid transparent!important;box-sizing:border-box!important;border-collapse:separate!important;border-spacing:0!important;');
+    return css;
+}
+
+function responsiveRestoreRule(ids, key, declarations) {
+    const id = ids[key];
+    if (!/^rt-native-layout-[0-9a-f]{32}-[rpcthslifq]$/.test(id || '') || /[{}]/.test(declarations)) invalid();
+    return '#' + id + '{' + declarations + '}';
+}
+
+function responsiveRestoreRules(ids, legacyCalc = false) {
+    const rule = (key, declarations) => responsiveRestoreRule(ids, key, declarations);
+    const columns = ['logo', 'person', 'company', 'train'];
+    const base = legacyCalc ? columns.map(key => rule(key, 'width:calc(680000px - 100000%)!important;min-width:50%!important;max-width:100%!important;')) : [];
+    const media = [];
+    for (const key of columns) {
+        media.push(rule(key, 'width:100%!important;min-width:0!important;max-width:100%!important;' + (legacyCalc ? 'float:none!important;clear:both!important;position:static!important;top:auto!important;' : '')
+            + (key === 'train' ? '' : 'border-left-width:18px!important;') + 'border-right-width:18px!important;'));
+    }
+    media.push(rule('logo', 'margin-bottom:10px!important;'));
+    if (ids.inset) media.push(rule('inset', 'width:18px!important;min-width:18px!important;max-width:18px!important;'));
+    if (ids.footer) media.push(rule('footer', 'border-left-width:18px!important;border-right-width:18px!important;'));
+    if (ids.templateGutter) media.push(rule('templateGutter', 'border-left-width:18px!important;border-right-width:18px!important;'));
+    return { base, media };
+}
+
+function responsiveRestoreOptionalCss(ids) {
+    const { base, media } = responsiveRestoreRules(ids);
+    return base.join('') + '@media(max-width:680px){' + media.join('') + '}';
+}
+
 function idsScope(ids) {
     if (!ids || typeof ids !== 'object') invalid();
     const root = /^rt-native-layout-([0-9a-f]{32})-r$/.exec(ids.root || '');
-    const suffixes = { root: 'r', person: 'p', company: 'c', train: 't', header: 'h', signature: 's' };
+    const suffixes = { root: 'r', person: 'p', company: 'c', train: 't', header: 'h', signature: 's', logo: 'l', inset: 'i', footer: 'f', templateGutter: 'q' };
     const keys = Object.keys(ids);
-    if (!root || keys.length !== 4 + Number(owns(ids, 'header')) + Number(owns(ids, 'signature'))
+    if (!root || keys.length !== 4 + ['header', 'signature', 'logo', 'inset', 'footer', 'templateGutter'].filter(key => owns(ids, key)).length
         || ['root', 'person', 'company', 'train'].some(key => !owns(ids, key))
+        || (owns(ids, 'inset') && (!owns(ids, 'logo') || !owns(ids, 'header')))
+        || (owns(ids, 'footer') && (!owns(ids, 'logo') || !owns(ids, 'signature')))
+        || (owns(ids, 'templateGutter') && !owns(ids, 'logo'))
         || keys.some(key => !owns(suffixes, key) || ids[key] !== PREFIX + root[1] + '-' + suffixes[key])) invalid();
     return root[1];
 }
@@ -95,11 +174,17 @@ export function nativeLayoutRestoreCss(ids) {
     return restoreCss(ids);
 }
 
+export function nativeLayoutRestoreResponsiveCss(ids) {
+    idsScope(ids);
+    return ids.logo ? responsiveRestoreOptionalCss(ids) : '';
+}
+
 /** An empty presentation carrier gives Office a real HTML insertion, not a discarded bare STYLE. */
 export function nativeLayoutRestoreStylePayload(ids) {
     const scope = idsScope(ids);
     return `<table id="${PREFIX + scope}-carrier" role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;border-spacing:0;margin:0;font-size:0;line-height:0;"><tbody><tr><td style="padding:0;height:0;font-size:0;line-height:0;">`
         + `<style data-rt-native-layout-restore="v1">${restoreCss(ids)}</style>`
+        + (ids.logo ? `<style data-rt-native-layout-responsive="v1">${responsiveRestoreOptionalCss(ids)}</style>` : '')
         + `<span hidden aria-hidden="true" style="display:none!important;mso-hide:all;font-size:0;line-height:0;max-height:0;overflow:hidden;">RT-NATIVE-LAYOUT-RESTORE-V1:${scope}</span>`
         + '</td></tr></tbody></table>';
 }
@@ -121,6 +206,43 @@ function normalizedRestoreCss(css, ids) {
     return normalized.replace(/\s+/g, '').replace(/;}/g, '}');
 }
 
+function approvedResponsiveSubset(css, ids, legacyCalc = false) {
+    const text = normalizedRestoreCss(css, ids);
+    const expected = responsiveRestoreRules(ids, legacyCalc);
+    const rules = value => {
+        const result = [];
+        let remainder = value;
+        while (remainder) {
+            const match = /^#[a-z0-9-]+\{[^{}]*\}/i.exec(remainder);
+            if (!match) return null;
+            result.push(match[0]);
+            remainder = remainder.slice(match[0].length);
+        }
+        return result;
+    };
+    const subsequence = (actual, approved, allowFilteredCalc = false) => {
+        if (!actual) return false;
+        let next = 0;
+        for (const rule of actual) {
+            const index = approved.findIndex((value, index) => index >= next && (value === rule || (allowFilteredCalc
+                && value.replace('width:calc(680000px-100000%)!important;', '') === rule)));
+            if (index === -1) return false;
+            next = index + 1;
+        }
+        return true;
+    };
+    const mediaStart = text.indexOf('@');
+    let base = text, media = '';
+    if (mediaStart !== -1) {
+        const prefix = '@media(max-width:680px){';
+        if (!text.startsWith(prefix, mediaStart) || !text.endsWith('}')) return false;
+        base = text.slice(0, mediaStart);
+        media = text.slice(mediaStart + prefix.length, -1);
+    }
+    return subsequence(rules(base), expected.base.map(rule => normalizedRestoreCss(rule, ids)), true)
+        && subsequence(rules(media), expected.media.map(rule => normalizedRestoreCss(rule, ids)));
+}
+
 function standaloneSignatureFrame(contract, nodes) {
     const frame = contract.signature;
     const root = contract.root?.node || contract.root;
@@ -140,7 +262,7 @@ export function nativeLayoutRestoreCarrierPresent(html, contract, ids) {
         || html.includes('RT-NATIVE-LAYOUT-RESTORE-V1:' + scope);
 }
 
-function retainedCarrier(html, contract, ids) {
+function retainedCarrier(html, contract, ids, legacyColumns = false) {
     const scope = idsScope(ids);
     const nodes = contract?.elements;
     if (typeof html !== 'string' || !Array.isArray(nodes) || !contract.root || !contract.signature) invalid();
@@ -149,10 +271,11 @@ function retainedCarrier(html, contract, ids) {
     const actualIds = {};
     const targets = {};
     for (const key of Object.keys(ids)) {
+        const owner = key === 'templateGutter' ? (standalone ? null : contract.template?.index) : contract.signature.index;
         const matches = nodes.map((node, index) => ({ node, index })).filter(value => typeof value.node.attrs.id === 'string' && value.node.attrs.id.endsWith(ids[key]));
         if (matches.length !== 1 || matches[0].node.tag !== 'table'
             || ![ids[key], 'x_' + ids[key]].includes(matches[0].node.attrs.id)
-            || !within(nodes, matches[0].index, contract.signature.index) || isQuoted(nodes, matches[0].index)) invalid();
+            || !Number.isInteger(owner) || !within(nodes, matches[0].index, owner) || isQuoted(nodes, matches[0].index)) invalid();
         actualIds[key] = matches[0].node.attrs.id;
         targets[key] = matches[0];
     }
@@ -193,22 +316,33 @@ function retainedCarrier(html, contract, ids) {
     const styles = descendants.filter(value => value.node.tag === 'style');
     const token = 'RT-NATIVE-LAYOUT-RESTORE-V1:' + scope;
     const spans = descendants.filter(value => value.node.tag === 'span' && html.slice(value.node.openEnd, value.node.close).replace(/\s+/g, '') === token);
-    if (styles.length !== 1 || spans.length !== 1) invalid();
-    const css = normalizedRestoreCss(nativeLayoutRestoreCss(ids), ids);
-    const retainedCss = html.slice(styles[0].node.openEnd, styles[0].node.close);
+    if (styles.length < 1 || styles.length > (ids.logo ? 2 : 1) || spans.length !== 1) invalid();
+    if (legacyColumns && !ids.logo) invalid();
+    const css = normalizedRestoreCss(legacyColumns ? legacyColumnCoreCss(ids) : nativeLayoutRestoreCss(ids), ids);
+    const core = styles.filter(value => normalizedRestoreCss(html.slice(value.node.openEnd, value.node.close), ids) === css);
+    if (core.length !== 1) invalid();
+    const retainedCss = html.slice(core[0].node.openEnd, core[0].node.close);
     for (const key of Object.keys(ids)) {
         const selectors = retainedCss.match(new RegExp('#(?:x_)?' + ids[key] + '(?![\\w-])', 'g')) || [];
         if (!selectors.length || selectors.some(selector => selector !== '#' + actualIds[key])) invalid();
     }
     const exactSheets = nodes.filter(node => node.tag === 'style' && normalizedRestoreCss(html.slice(node.openEnd, node.close), ids) === css);
     if (exactSheets.length !== 1 || normalizedRestoreCss(retainedCss, ids) !== css) invalid();
+    for (const optional of styles.filter(value => value !== core[0])) {
+        const optionalCss = html.slice(optional.node.openEnd, optional.node.close);
+        if (!ids.logo || !approvedResponsiveSubset(optionalCss, ids, legacyColumns)) invalid();
+        for (const key of Object.keys(ids)) {
+            const selectors = optionalCss.match(new RegExp('#(?:x_)?' + ids[key] + '(?![\\w-])', 'g')) || [];
+            if (selectors.some(selector => selector !== '#' + actualIds[key])) invalid();
+        }
+    }
     const metadata = spans[0].node;
     const hidden = owns(metadata.attrs, 'hidden') || metadata.attrs['aria-hidden'] === 'true'
         || /(?:^|;)\s*display\s*:\s*none(?:\s*!important)?\s*(?:;|$)/i.test(metadata.attrs.style || '')
         || (/(?:^|;)\s*font-size\s*:\s*0(?:px|pt)?(?:\s*!important)?\s*(?:;|$)/i.test(metadata.attrs.style || '')
             && /(?:^|;)\s*line-height\s*:\s*0(?:px|pt)?(?:\s*!important)?\s*(?:;|$)/i.test(metadata.attrs.style || ''));
     if (!hidden) invalid();
-    const ranges = [styles[0].node, metadata].sort((left, right) => right.start - left.start);
+    const ranges = [...styles.map(value => value.node), metadata].sort((left, right) => right.start - left.start);
     let remaining = html.slice(cell.node.openEnd, cell.node.close);
     for (const node of ranges) remaining = remaining.slice(0, node.start - cell.node.openEnd) + remaining.slice(node.end - cell.node.openEnd);
     if (remaining.includes('<!--') || remaining.replace(/<[^>]*>/g, '').replace(/&nbsp;|&#160;|&#xa0;/gi, ' ').trim() !== '') invalid();
@@ -221,11 +355,24 @@ export function nativeLayoutRestoreRetained(html, contract, ids) {
     return true;
 }
 
+/** Legacy descendant CSS must not survive outside a native-slot replacement. */
+export function nativeLayoutRestoreCarrierIsExternal(html, contract, ids) {
+    const carrier = retainedCarrier(html, contract, ids);
+    const signature = contract.signature.node;
+    return carrier.end <= signature.start || carrier.start >= signature.end;
+}
+
 export function removeNativeLayoutRestoreCarrier(html, contract, ids) {
     try {
         const carrier = retainedCarrier(html, contract, ids);
         return html.slice(0, carrier.start) + html.slice(carrier.end);
     } catch {
+        if (ids?.logo) {
+            try {
+                const carrier = retainedCarrier(html, contract, ids, true);
+                return html.slice(0, carrier.start) + html.slice(carrier.end);
+            } catch { /* Unknown/incomplete historical content stays opaque. */ }
+        }
         return html;
     }
 }
@@ -250,16 +397,24 @@ export function prepareNativeLayoutRestore(html, contract, nonce) {
     if (candidates.length !== 1 || candidates[0].node.tag !== 'table'
         || !has(candidates[0].node, 'rt-personal-columns') || candidates[0].node.attrs[FLOW] !== 'v1'
         || candidates[0].node.attrs['data-rt-personal-columns'] !== 'v1'
-        || candidates[0].node.attrs['data-rt-desktop-flow'] !== 'outlook-desktop-flow-v4') invalid();
+        || !['outlook-desktop-flow-v4', 'outlook-desktop-flow-v5'].includes(candidates[0].node.attrs['data-rt-desktop-flow'])) invalid();
     const root = candidates[0];
+    const responsive = root.node.attrs['data-rt-desktop-flow'] === 'outlook-desktop-flow-v5';
     const body = onlyChild(nodes, root.index, 'tbody');
     const row = onlyChild(nodes, body.index, 'tr');
     const cell = onlyChild(nodes, row.index, 'td');
     const person = one(nodes, root.index, 'rt-personal-left', 'table');
     const company = one(nodes, root.index, 'rt-personal-right', 'table');
     const train = one(nodes, root.index, 'rt-df-train', 'table');
+    const logo = responsive ? one(nodes, root.index, 'rt-personal-logo-column', 'table') : null;
     const groups = children(nodes, cell.index);
-    if (groups.length !== 3 || groups.some((value, index) => value.index !== [person.index, company.index, train.index][index])) invalid();
+    const order = [...(logo ? [logo.index] : []), person.index, company.index, train.index];
+    if (groups.length !== order.length || groups.some((value, index) => value.index !== order[index])) invalid();
+    if (logo) {
+        const logoCell = onlyChild(nodes, onlyChild(nodes, onlyChild(nodes, logo.index, 'tbody').index, 'tr').index, 'td');
+        const frame = onlyChild(nodes, logoCell.index, 'table');
+        if (!has(frame.node, 'rt-personal-logo-frame')) invalid();
+    }
     const trainBody = onlyChild(nodes, train.index, 'tbody');
     const trainRow = onlyChild(nodes, trainBody.index, 'tr');
     const trainCell = onlyChild(nodes, trainRow.index, 'td');
@@ -269,6 +424,13 @@ export function prepareNativeLayoutRestore(html, contract, nonce) {
     if (!has(image.node, 'rt-delivery-train') || image.node.attrs.width !== '300' || image.node.attrs.height !== '38') invalid();
 
     const targets = { root, person, company, train };
+    if (logo) targets.logo = logo;
+    if (responsive && contract.kind !== 'standalone-signature-v1' && Number.isInteger(contract.template?.index)) {
+        const shells = nodes.map((node, index) => ({ node, index })).filter(value => within(nodes, value.index, contract.template.index)
+            && has(value.node, 'rt-shell') && has(value.node, 'design-v27'));
+        if (shells.length > 1 || (shells.length && shells[0].node.tag !== 'table')) invalid();
+        if (shells.length) targets.templateGutter = shells[0];
+    }
     const hotline = nodes.map((node, index) => ({ node, index })).filter(value => within(nodes, value.index, signature.index)
         && has(value.node, 'design-hotline-row'));
     if (hotline.length > 1) invalid();
@@ -278,12 +440,37 @@ export function prepareNativeLayoutRestore(html, contract, nonce) {
         for (let depth = 0; Number.isInteger(index) && nodes[index].tag !== 'table' && depth <= nodes.length; depth += 1) index = nodes[index].parent;
         if (!Number.isInteger(index) || nodes[index].tag !== 'table'
             || !within(nodes, index, signature.index) || within(nodes, index, root.index)) invalid();
-        const header = { node: nodes[index], index };
+        let header = { node: nodes[index], index };
         const headerBody = onlyChild(nodes, index, 'tbody');
         const headerRows = children(nodes, headerBody.index);
         if (!headerRows.length || headerRows.some(value => value.node.tag !== 'tr')
             || !within(nodes, hotline[0].index, headerRows[0].index)) invalid();
+        if (responsive && hotline[0].node.attrs['data-rt-brand-hotline'] === 'v1'
+            && has(hotline[0].node, 'rt-brand-hotline-cell')) {
+            // The owned five-cell raster must stay automatic after Office
+            // removes TABLE inline styles and its old fixed mirror survives.
+            const raster = onlyChild(nodes, hotline[0].index, 'table');
+            const rasterRow = onlyChild(nodes, onlyChild(nodes, raster.index, 'tbody').index, 'tr');
+            const rasterCells = children(nodes, rasterRow.index);
+            if (rasterCells.length !== 5 || rasterCells.some(value => value.node.tag !== 'td')) invalid();
+            const gutter = onlyChild(nodes, rasterCells[0].index, 'table');
+            if (!has(gutter.node, 'rt-brand-hotline-gutter')) invalid();
+            header = raster;
+        }
         targets.header = header;
+        if (responsive) {
+            const insets = nodes.map((node, index) => ({ node, index })).filter(value => within(nodes, value.index, header.index)
+                && has(value.node, 'rt-brand-hotline-gutter'));
+            if (insets.length > 1) invalid();
+            if (insets.length) {
+                const inset = insets[0];
+                if (inset.node.tag !== 'table' || !within(nodes, inset.index, hotline[0].index)) invalid();
+                const insetCell = onlyChild(nodes, onlyChild(nodes, onlyChild(nodes, inset.index, 'tbody').index, 'tr').index, 'td');
+                const image = onlyChild(nodes, insetCell.index, 'img');
+                if (image.node.attrs.width !== '100%' || image.node.attrs.height !== '34') invalid();
+                targets.inset = inset;
+            }
+        }
     }
 
     // Only the existing two-row signature's known gray legal row opts in.
@@ -304,6 +491,17 @@ export function prepareNativeLayoutRestore(html, contract, nonce) {
             && /RT-SIGNATURE-VERSION:[0-9a-f]{16}(?=-->|[\s"'<>]|$)/i.test(footerHtml)) {
             if (targets.header && within(nodes, targets.header.index, footer.index)) invalid();
             targets.signature = signature;
+            if (responsive) {
+                const footers = nodes.map((node, index) => ({ node, index })).filter(value => within(nodes, value.index, footer.index)
+                    && has(value.node, 'rt-brand-legal-table'));
+                if (footers.length > 1 || (footers.length && footers[0].node.tag !== 'table')) invalid();
+                if (footers.length) {
+                    const legal = footers[0];
+                    onlyChild(nodes, onlyChild(nodes, onlyChild(nodes, legal.index, 'tbody').index, 'tr').index, 'td');
+                    if (/RT-SIGNATURE-MANAGED-V1|RT-SIGNATURE-VERSION:/.test(html.slice(legal.node.openEnd, legal.node.close))) invalid();
+                    targets.footer = legal;
+                }
+            }
         }
     }
 
@@ -311,10 +509,13 @@ export function prepareNativeLayoutRestore(html, contract, nonce) {
     if (typeof scope !== 'string' || !/^[0-9a-f]{32}$/.test(scope) || html.includes(PREFIX + scope)) invalid();
     const ids = {};
     const edits = [];
-    const suffixes = { root: 'r', person: 'p', company: 'c', train: 't', header: 'h', signature: 's' };
+    const suffixes = { root: 'r', person: 'p', company: 'c', train: 't', header: 'h', signature: 's', logo: 'l', inset: 'i', footer: 'f', templateGutter: 'q' };
     for (const key of Object.keys(targets)) {
         const { node } = targets[key];
-        if (key !== 'signature' && (node.start < signature.node.openEnd || node.end > signature.node.close)) invalid();
+        if (key === 'templateGutter') {
+            const owner = contract.template.node;
+            if (node.start < owner.start || node.end > owner.end) invalid();
+        } else if (key !== 'signature' && (node.start < signature.node.openEnd || node.end > signature.node.close)) invalid();
         const opening = tableOpening(html, node);
         ids[key] = PREFIX + scope + '-' + suffixes[key];
         edits.push({ start: node.start, end: node.openEnd, value: opening.slice(0, -1) + ` id="${ids[key]}">` });

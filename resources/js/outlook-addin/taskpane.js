@@ -1246,6 +1246,9 @@ function userMessage(error) {
     if (code === 'SIGNATURE_LAYOUT_UNAVAILABLE') {
         return 'Die Signatur lässt sich in diesem Entwurf nicht sicher aktualisieren. Ihr Nachrichtentext bleibt erhalten. Bitte einen neuen Entwurf verwenden.';
     }
+    if (code === 'SIGNATURE_LAYOUT_LEGACY_CARRIER') {
+        return 'Dieser Entwurf enthält ältere Formatierungsregeln. Bitte „Vorlage und Signatur ersetzen“ wählen oder einen neuen Entwurf öffnen, damit die Darstellung auch beim Empfänger korrekt bleibt. Ihr Nachrichtentext bleibt erhalten.';
+    }
 
     if (/MAILBOX|SENDER/.test(code) || code === 'HTTP_403') {
         return 'Der aktuelle Absender ist nicht als Ihr RailTime-Microsoft-Postfach bestätigt. In private oder andere Postfächer wird nichts eingefügt. Bitte das verknüpfte Firmenpostfach wählen und die Verbindung erneut prüfen.';

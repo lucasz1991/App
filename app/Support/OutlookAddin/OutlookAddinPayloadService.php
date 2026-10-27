@@ -20,7 +20,7 @@ use Throwable;
 final class OutlookAddinPayloadService
 {
     /** Bei jeder Aenderung der Compilersemantik bewusst anheben. */
-    private const RENDERER_REVISION = 55;
+    private const RENDERER_REVISION = 61;
 
     private const WORDING_REVISION = 'personal-template-wording-v1';
 
@@ -109,6 +109,7 @@ final class OutlookAddinPayloadService
                     ], $templateSnapshots),
                 ],
                 'assets' => $this->sourceAssetHashes($templateSnapshots, $signatureSnapshot),
+                'outlook_brand_assets' => OutlookBrandedSignature::assetHashes(),
             ];
             $wording = $this->templateWordingPreferences($user, $templateSnapshots);
             if ($wording !== null) {

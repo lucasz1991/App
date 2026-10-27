@@ -10,6 +10,39 @@ use RuntimeException;
 /** Native-compose projection only; never persisted into the authoring document. */
 final class OutlookComposeFrame
 {
+    /** Recipient gutters use one TABLE ID; no selector may degrade to a global TD. */
+    public static function recipientTables(string $html): string
+    {
+        if (! str_contains($html, 'rt-native-template-pad') || OutlookDesktopFlow::mobile($html)) {
+            return $html;
+        }
+        $nodes = self::nodes($html);
+        $shell = self::one($nodes, 'design-v27', 'table');
+        if (($nodes[$shell]['attrs']['data-rt-recipient-gutters'] ?? '') === 'v1') {
+            return $html;
+        }
+        $pads = array_keys(array_filter($nodes, static fn (array $node): bool => $node['tag'] === 'td' && self::hasClass($node, 'rt-native-template-pad')));
+        $edits = [];
+        foreach ($pads as $order => $index) {
+            if (! self::within($nodes, $index, $shell)) {
+                self::fail();
+            }
+            $style = rtrim($nodes[$index]['attrs']['style'] ?? '', ';').';padding-left:0!important;padding-right:0!important;direction:ltr;text-align:left;';
+            if ($order === 0) {
+                $style .= 'padding-top:0!important;';
+            }
+            $edits[$index] = self::style($nodes[$index]['opening'], $style);
+        }
+        $opening = substr($nodes[$shell]['opening'], 0, -1).' data-rt-recipient-gutters="v1">';
+        $edits[$shell] = self::style($opening, rtrim($nodes[$shell]['attrs']['style'] ?? '', ';').';box-sizing:border-box;border-collapse:separate;border-spacing:0;border-left:40px solid transparent;border-right:40px solid transparent;direction:ltr;text-align:left;');
+        krsort($edits);
+        foreach ($edits as $index => $opening) {
+            $html = substr_replace($html, $opening, $nodes[$index]['start'], strlen($nodes[$index]['opening']));
+        }
+
+        return $html;
+    }
+
     /** @return array{html: string, css: string} */
     public static function apply(string $html, string $scope): array
     {
@@ -44,7 +77,7 @@ final class OutlookComposeFrame
             .'.'.$scope.' .rt-native-compose-inner{display:block!important;width:auto!important;border:0!important;background-color:#ffffff!important;}'
             .'.'.$scope.' .rt-native-template-pad{padding-left:40px!important;padding-right:40px!important;}'
             .'.'.$scope.' .rt-native-template-mark{padding-left:0!important;}'
-            .'@media(max-width:860px){.'.$scope.' .rt-native-template-pad{padding-left:22px!important;padding-right:22px!important;}}'];
+            .'@media(max-width:860px){.'.$scope.' .rt-native-template-pad{padding-left:40px!important;padding-right:40px!important;}}'];
     }
 
     private static function targets(string $html, string $scope): array
