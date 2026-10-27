@@ -304,8 +304,8 @@ test('outlook taskpane keeps templates visible and hides resolved maintenance ac
     assert.match(view, /@media \(max-width: 340px\)/);
     assert.doesNotMatch(view, /<header class="brand"|brand-mark|data-outlook-connection-chip|Mail-Assistent/);
     assert.match(view, /data-outlook-pane-feedback/);
-    assert.match(view, /data-outlook-dialog-open="connection"/);
-    assert.match(view, /data-outlook-dialog-open="status"[^>]*>Hilfe/);
+    assert.doesNotMatch(view, /data-outlook-dialog-open="connection"/);
+    assert.doesNotMatch(view, /data-outlook-dialog-open="status"/);
 
     assert.match(taskpane, /view\.login\.hidden = authenticatedBootstrap;/);
     assert.match(taskpane, /view\.signature\.hidden = authenticatedBootstrap\s*&& taskpaneState\.itemChangedMonitoringReady\s*&& taskpaneState\.signatureCurrent;/);
@@ -355,6 +355,7 @@ const composeLibrary = {
     ...await import('../../resources/js/outlook-addin/office-write.js'),
     ...await import('../../resources/js/outlook-addin/automatic-compose-policy.js'),
     ...await import('../../resources/js/outlook-addin/automatic-preferences-view.js'),
+    ...await import('../../resources/js/outlook-addin/account-options-view.js'),
 };
 const testMailboxBinding = {
     schema: 1, mailboxAddress: 'employee@example.test', senderAddress: 'employee@example.test',
@@ -703,11 +704,12 @@ async function runtimeFixture(options = {}) {
     const bootstrap = {
         marker,
         automaticInsertionEnabled: true,
-        automaticInsertion: { schema: 2, composeType: options.composeType || 'newMail', signature: true, template: true },
+        automaticInsertion: { schema: 2, composeType: options.composeType || 'newMail', signature: true, template: !options.withoutDefault },
+        automaticTemplateChoice: { schema: 1, composeType: options.composeType || 'newMail', selection: options.withoutDefault ? 'none' : 'default', templateId: options.withoutDefault ? null : 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
         binding: testMailboxBinding,
-        automaticTemplateId: options.withoutDefault ? null : 'default',
+        automaticTemplateId: options.withoutDefault ? null : 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         templates: [{
-            id: 'default', isDefault: true, html: '<p>Legacy full template includes Signature</p>', media,
+            id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', isDefault: true, html: '<p>Legacy full template includes Signature</p>', media,
             signatureMode: 'native',
             composeHtml: `<!--${composeLibrary.NATIVE_TEMPLATE_MARKER}--><p>Default</p><img src="cid:logo">`,
             composeMedia: media,
@@ -918,17 +920,16 @@ test('compose event inserts explicit default once for new, reply and forward, an
     }
 });
 
-test('RailTime app links never install or open Outlook as the app target', async () => {
+test('taskpane removes footer navigation and install actions while existing RailTime app links stay separate', async () => {
     const view = await source('../../resources/views/outlook-addin/taskpane.blade.php');
     const links = await source('../../resources/views/components/email-templates/outlook-app-links.blade.php');
-    for (const markup of [view, links]) {
-        assert.match(markup, /route\('home'\)/);
-        assert.match(markup, /route\('help'\)/);
-        assert.doesNotMatch(markup, /https:\/\/outlook\.office\.com|Outlook als Browser-App/);
-        assert.match(markup, /RailTime öffnen/);
-    }
-    assert.match(view, /RailTime als App installieren/);
+    assert.doesNotMatch(view, /RailTime öffnen|RailTime installieren|data-outlook-dialog-open/);
+    assert.match(view, /data-outlook-action="login"/);
+    assert.match(view, /data-outlook-action="signature"/);
+    assert.match(links, /route\('home'\)/);
+    assert.match(links, /route\('help'\)/);
     assert.match(links, /installApp\(\)/);
+    assert.doesNotMatch(links, /https:\/\/outlook\.office\.com|Outlook als Browser-App/);
 });
 
 test('compose event falls back to signature on mobile or without explicit default and never overwrites body', async () => {
@@ -1674,107 +1675,68 @@ test('Outlook dialogs open only on explicit clicks and restore opener focus afte
     }
 });
 
-test('hosted taskpane help and install dialogs work without Office, outside Outlook and during a delayed handshake', async () => {
+test('hosted taskpane stays usable without modal footer actions outside Outlook or during a delayed handshake', async () => {
     const { parseHTML } = await import('linkedom');
     const { startOutlookTaskpane } = await import('../../resources/js/outlook-addin/taskpane.js');
     const markup = await source('../../resources/views/outlook-addin/taskpane.blade.php');
     const previous = { Office: globalThis.Office, document: globalThis.document, window: globalThis.window };
     const cases = [
-        { name: 'Office.js unavailable', office: undefined, unavailable: true },
-        { name: 'ordinary browser', office: { HostType: { Outlook: 'Outlook' }, onReady(callback) { callback({ host: null }); } }, unavailable: true },
-        { name: 'another Office host', office: { HostType: { Outlook: 'Outlook' }, onReady(callback) { callback({ host: 'Word' }); } }, unavailable: true },
-        { name: 'failed handshake', office: { onReady() { return Promise.reject(new Error('Synthetic Office.js failure')); } }, unavailable: true },
-        { name: 'handshake pending', office: { onReady() {} }, unavailable: false },
+        { office: undefined, unavailable: true },
+        { office: { HostType: { Outlook: 'Outlook' }, onReady(callback) { callback({ host: null }); } }, unavailable: true },
+        { office: { onReady() { return Promise.reject(new Error('Synthetic failure')); } }, unavailable: true },
+        { office: { onReady() {} }, unavailable: false },
     ];
-
     try {
         for (const scenario of cases) {
             const { document, window } = parseHTML(markup);
-            globalThis.document = document;
-            globalThis.window = window;
-            globalThis.Office = scenario.office;
-            const dialogs = Array.from(document.querySelectorAll('[data-outlook-dialog]'));
-            let opened = 0;
-            dialogs.forEach((dialog) => {
-                dialog.showModal = () => { dialog.open = true; opened += 1; };
-                dialog.close = () => { dialog.open = false; dialog.dispatchEvent(new window.Event('close')); };
-            });
-
-            assert.doesNotThrow(() => startOutlookTaskpane(scenario.office), scenario.name);
+            globalThis.document = document; globalThis.window = window; globalThis.Office = scenario.office;
+            assert.doesNotThrow(() => startOutlookTaskpane(scenario.office));
             startOutlookTaskpane(scenario.office);
             await Promise.resolve();
-            assert.equal(opened, 0, 'no automatic help or login popup');
-            for (const name of ['install', 'status', 'connection']) {
-                const dialog = document.querySelector(`[data-outlook-dialog="${name}"]`);
-                document.querySelector(`[data-outlook-dialog-open="${name}"]`).click();
-                assert.equal(dialog.open, true, `${scenario.name}: ${name} dialog opens`);
-                dialog.querySelector('[data-outlook-dialog-close]').click();
-                assert.equal(dialog.open, false);
-            }
-            assert.equal(opened, 3, 'repeat startup does not register duplicate handlers');
+            assert.equal(document.querySelector('[data-outlook-dialog-open]'), null);
+            assert.equal(document.querySelector('dialog'), null);
             if (scenario.unavailable) {
-                assert.equal(document.querySelector('[data-outlook-addin-taskpane]').getAttribute('aria-busy'), 'false');
                 assert.equal(document.querySelector('[data-outlook-status-title]').textContent, 'In Outlook öffnen');
-                assert.equal(document.querySelector('[data-outlook-connection-chip]'), null);
-                assert.match(document.querySelector('[data-outlook-pane-feedback]').textContent, /In Outlook öffnen/);
-                assert.match(document.querySelector('[data-outlook-template-error]').textContent, /unter „Apps“ öffnen/);
                 assert.equal(document.querySelector('[data-outlook-action="template"]').disabled, true);
                 assert.equal(document.querySelector('[data-outlook-action="login"]').disabled, true);
-                assert.match(document.querySelector('[data-outlook-dialog-open="status"]').getAttribute('aria-label'), /In Outlook öffnen/);
+                assert.match(document.querySelector('[data-outlook-pane-feedback]').textContent, /In Outlook öffnen/);
             }
         }
-    } finally {
-        globalThis.Office = previous.Office;
-        globalThis.document = previous.document;
-        globalThis.window = previous.window;
-    }
+    } finally { Object.assign(globalThis, previous); }
 });
 
-test('Outlook connection feedback mirrors errors as text and retains focus within the open dialog', async () => {
+test('inline connection errors stay escaped and requested focus goes to visible feedback without opening a dialog', async () => {
     const { parseHTML } = await import('linkedom');
     const { setStatus } = await import('../../resources/js/outlook-addin/taskpane.js');
     const { document } = parseHTML(await source('../../resources/views/outlook-addin/taskpane.blade.php'));
-    const previousDocument = globalThis.document;
-    globalThis.document = document;
-
+    const previous = globalThis.document; globalThis.document = document;
     try {
-        const connection = document.querySelector('[data-outlook-dialog="connection"]');
-        const feedback = connection.querySelector('[data-outlook-dialog-feedback]');
-        const statusButton = document.querySelector('[data-outlook-dialog-open="status"]');
-        const statusDialog = document.querySelector('[data-outlook-dialog="status"]');
-        let feedbackFocus = 0;
-        let buttonFocus = 0;
-        let paneFocus = 0;
-        document.querySelector('[data-outlook-pane-feedback]').focus = () => { paneFocus += 1; };
-        feedback.focus = () => { feedbackFocus += 1; };
-        statusButton.focus = () => { buttonFocus += 1; };
-
-        connection.open = true;
+        const feedback = document.querySelector('[data-outlook-pane-feedback]');
+        let focused = 0; feedback.focus = () => { focused++; };
         setStatus('error', 'Verbindung fehlgeschlagen', 'Bitte erneut versuchen. <img src="test">', true);
         assert.equal(feedback.hidden, false);
-        assert.equal(feedback.dataset.tone, 'error');
         assert.equal(feedback.getAttribute('role'), 'alert');
         assert.equal(feedback.getAttribute('aria-live'), 'assertive');
-        assert.match(feedback.textContent, /Bitte erneut versuchen\. <img src="test">/);
-        assert.equal(feedback.querySelector('img'), null, 'status data is never interpreted as HTML');
-        assert.equal(feedbackFocus, 1);
-        assert.equal(buttonFocus, 0, 'do not focus an inert button behind the connection dialog');
-        assert.equal(Boolean(statusDialog.open), false, 'errors never automatically open another modal');
-        assert.equal(statusButton.dataset.tone, 'error');
-
-        setStatus('success', 'RailTime ist bereit', 'Verbindung erfolgreich.');
-        assert.equal(feedback.dataset.tone, 'success');
-        assert.equal(feedback.getAttribute('role'), 'status');
-        assert.equal(feedback.getAttribute('aria-live'), 'polite');
-        assert.match(feedback.textContent, /Verbindung erfolgreich/);
-
-        connection.open = false;
-        setStatus('error', 'Abruf fehlgeschlagen', '', true);
-        assert.equal(buttonFocus, 0, 'the removed header is not a focus target');
-        assert.equal(paneFocus, 1, 'a closed dialog sends requested error focus to visible content feedback');
-        feedback.remove();
-        assert.doesNotThrow(() => setStatus('neutral', 'Status ohne Zusatzfeld'), 'feedback remains optional');
-    } finally {
-        globalThis.document = previousDocument;
-    }
+        assert.match(feedback.textContent, /<img src="test">/);
+        assert.equal(feedback.querySelector('img'), null);
+        assert.equal(focused, 1);
+        assert.equal(document.querySelector('[data-outlook-diagnostics]').hidden, false);
+        setStatus('success', 'RailTime ist bereit');
+        assert.equal(feedback.hidden, true);
+        assert.equal(document.querySelector('[data-outlook-diagnostics]').hidden, true);
+        const detail = document.querySelector('[data-outlook-status-detail]');
+        setStatus('success', 'Mit RailTime verbunden', 'Technischer Hintergrundstatus bleibt intern verfügbar.');
+        assert.equal(detail.hidden, true);
+        assert.match(detail.textContent, /Hintergrundstatus/);
+        for (const tone of ['working', 'error', 'neutral']) {
+            setStatus(tone, 'Verbindung prüfen', 'Nötige Rückmeldung bleibt sichtbar.');
+            assert.equal(detail.hidden, false);
+            assert.match(detail.textContent, /sichtbar/);
+        }
+        const metadata = document.querySelector('[data-outlook-template-meta]');
+        assert.equal(metadata.hidden, true);
+        assert.equal(metadata.getAttribute('aria-hidden'), 'true');
+        assert.ok(metadata.querySelector('[data-outlook-template-version]'), 'version data remains available to existing selection logic');
+        assert.equal(document.querySelector('[data-outlook-template-select]').hasAttribute('aria-describedby'), false);
+    } finally { globalThis.document = previous; }
 });

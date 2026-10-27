@@ -8,6 +8,7 @@ use App\Support\OutlookAddin\EntraAccessTokenValidator;
 use App\Support\OutlookAddin\OutlookAddinAutomaticInsertionPolicy;
 use App\Support\OutlookAddin\OutlookAddinException;
 use App\Support\OutlookAddin\OutlookAddinIdentityResolver;
+use App\Support\OutlookAddin\OutlookAddinTemplateChoicesPolicy;
 use App\Support\OutlookAddin\OutlookAddinUserSnapshotStore;
 use App\Support\OutlookAddin\OutlookClientPresentation;
 use App\Support\OutlookAddin\OutlookMobileSignature;
@@ -52,9 +53,23 @@ final class OutlookAddinBootstrapController extends Controller
             $policy = app(OutlookAddinAutomaticInsertionPolicy::class);
             $preferences = $policy->preferencesForUser($resolved['user']);
             $event = $request->header('X-RailTime-Outlook-Context') === 'event';
-            $v2 = $event && $request->header('X-RailTime-Automatic-Policy') === '2';
+            $v3 = $event && $request->header('X-RailTime-Automatic-Policy') === '3';
+            $v2 = $event && in_array($request->header('X-RailTime-Automatic-Policy'), ['2', '3'], true);
             $selection = $v2 ? $policy->automaticSelection($preferences, (string) $request->header('X-RailTime-Compose-Type')) : null;
+            $choices = app(OutlookAddinTemplateChoicesPolicy::class);
+            $choice = $event ? $choices->eventChoice($resolved['user'], $preferences, (string) $request->header('X-RailTime-Compose-Type')) : null;
+            if ($v3) {
+                $selection['template'] = $selection['template'] && $choice['enabled'];
+            } elseif ($choice !== null && $choice['customized']) {
+                // Old event clients cannot represent a context-specific choice safely.
+                if ($v2) {
+                    $selection['signature'] = $selection['template'] = false;
+                }
+            }
             $automaticInsertionEnabled = $v2 ? ($selection['signature'] || $selection['template']) : $policy->allEnabled($preferences);
+            if ($event && ! $v2 && $choice['customized']) {
+                $automaticInsertionEnabled = false;
+            }
             $metadata = [
                 'schema' => 1,
                 'marker' => (string) config('outlook_addin.marker', 'RT-SIGNATURE-MANAGED-V1'),
@@ -65,6 +80,10 @@ final class OutlookAddinBootstrapController extends Controller
             if ($v2) {
                 $metadata['automaticInsertion'] = $selection;
             }
+            if ($v3) {
+                $metadata['automaticTemplateChoice'] = ['schema' => 1, 'composeType' => $selection['composeType'],
+                    'selection' => $choice['selection'], 'templateId' => null];
+            }
             if (! $automaticInsertionEnabled && $event) {
                 // Cached runtimes may not understand the preference flag. Do
                 // not give an automatic event any insertable artifacts then.
@@ -72,6 +91,23 @@ final class OutlookAddinBootstrapController extends Controller
             }
             app(MicrosoftDeviceSyncScheduler::class)->afterMicrosoftSignIn($identity, $resolved['user']);
             $payload = $snapshots->currentForUser($resolved['user']);
+            if ($v3 && $selection['template']) {
+                try {
+                    $payload = $choices->selectPayload($payload, $choice['selection']);
+                    $metadata['automaticTemplateChoice']['templateId'] = $payload['automaticTemplateId'];
+                } catch (OutlookAddinException $error) {
+                    if ($error->errorCode !== 'outlook_addin_template_choice_unavailable') {
+                        throw $error;
+                    }
+                    $selection['template'] = false;
+                    $metadata['automaticInsertion'] = $selection;
+                    $metadata['automaticTemplateChoice']['selection'] = 'none';
+                    $metadata['automaticInsertionEnabled'] = $selection['signature'];
+                    if (! $selection['signature']) {
+                        return $this->payloadResponse($request, $metadata);
+                    }
+                }
+            }
             $signatureOnly = $v2 && $selection['signature'] && ! $selection['template'];
             $templateOnly = $v2 && ! $selection['signature'] && $selection['template'];
             if ($signatureOnly) {

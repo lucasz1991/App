@@ -29,7 +29,7 @@ const flush = async (until = () => false) => {
 
 function documentContract(changes = {}) {
     return {
-        id: 'template-a', key: 'template-a', isDefault: true,
+        id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', key: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', isDefault: true,
         signatureMode: 'native', html: '<p>Legacy complete document; never use as fallback</p>', media: [],
         composeHtml: NATIVE_HTML, composeMedia: [],
         composeDocumentMode: 'combined-v1', combinedComposeHtml: COMBINED_HTML, combinedComposeMedia: [MEDIA],
@@ -96,7 +96,7 @@ function hostFixture({ mobile = false, composeType = 'newMail', body = TYPED + O
     const bootstrap = {
         automaticInsertionEnabled: true,
         automaticInsertion: { schema: 2, composeType, signature: true, template: true },
-        marker: MARKER, binding, automaticTemplateId: 'template-a', templates: [documentContract()],
+        marker: MARKER, binding, automaticTemplateId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', templates: [documentContract()],
         signature: { html: `<!--${MARKER}--><p>Global signature; not the paired selection</p>`, media: [] },
     };
     return { state, item, office, bootstrap, binding };
@@ -109,6 +109,11 @@ async function runtimeHarness(options = {}, mutate = () => {}) {
     const config = { ready: true, marker: MARKER, auth: { clientId: 'test-client', authority: 'https://login.example.test/tenant', scopes: ['api://test/read'] },
         endpoints: { bootstrap: 'https://company.example/outlook-addin/bootstrap' } };
     mutate(fixture);
+    if (fixture.bootstrap.automaticTemplateChoice === undefined) {
+        const enabled = fixture.bootstrap.automaticInsertion.template;
+        fixture.bootstrap.automaticTemplateChoice = { schema: 1, composeType: fixture.bootstrap.automaticInsertion.composeType,
+            selection: enabled ? 'default' : 'none', templateId: enabled ? fixture.bootstrap.automaticTemplateId : null };
+    }
     const context = vm.createContext({
         ...compose, ...guard, ...writes, ...diagnostics, ...automaticPolicy, Office: fixture.office,
         URL, AbortController, setTimeout, clearTimeout,

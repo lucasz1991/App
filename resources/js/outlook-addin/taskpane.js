@@ -25,6 +25,8 @@ import { readComposeSender, assertMailboxBinding } from './mailbox-guard.js';
 import { diagnoseStep, recordDiagnostic, diagnosticReport } from './diagnostics.js';
 import { confirmedOfficeWrite, hasUncertainWrite } from './office-write.js';
 import { bindAutomaticPreferencesView, createAccountPreferencesSession, normalizeAutomaticPreferences } from './automatic-preferences-view.js';
+import { bindWordingPreferencesView, bindTemplateChoiceView, createAccountOptionsSession,
+    normalizeWordingPreferences, normalizeTemplateChoicePreferences } from './account-options-view.js';
 
 const CONFIG_META_NAME = 'railtime-outlook-config-url';
 const CONFIG_TIMEOUT_MS = 8000;
@@ -51,6 +53,13 @@ let accountPreferencesSession;
 let accountSettingsBusy = false;
 let accountSettingsReady = false;
 let lastAccountSettingsRefreshAt = 0;
+let wordingSession;
+let templateChoicesSession;
+let wordingView;
+let templateChoicesView;
+let accountOptionsBusy = false;
+let wordingReady = false;
+let templateChoicesReady = false;
 // Display evidence only, never cached authorization for another Office write.
 const confirmedInsertions = new WeakMap();
 const boundDialogRoots = new WeakSet();
@@ -294,6 +303,10 @@ function validateConfig(payload) {
                 ? requiredHttpsUrl(payload.endpoints.preferences, 'CONFIG_PREFERENCES_URL_INVALID') : null,
             accountPreferences: payload.endpoints?.accountPreferences
                 ? requiredHttpsUrl(payload.endpoints.accountPreferences, 'CONFIG_ACCOUNT_PREFERENCES_URL_INVALID') : null,
+            accountWording: payload.endpoints?.accountWording
+                ? requiredHttpsUrl(payload.endpoints.accountWording, 'CONFIG_ACCOUNT_WORDING_URL_INVALID') : null,
+            accountTemplateChoices: payload.endpoints?.accountTemplateChoices
+                ? requiredHttpsUrl(payload.endpoints.accountTemplateChoices, 'CONFIG_ACCOUNT_CHOICES_URL_INVALID') : null,
         }),
         urls: Object.freeze({ profileSettings: payload.urls?.profileSettings
             ? requiredHttpsUrl(payload.urls.profileSettings, 'CONFIG_PROFILE_SETTINGS_URL_INVALID') : null }),
@@ -317,8 +330,15 @@ async function fetchJson(url, options, timeoutMs) {
             const error = codedError(`HTTP_${response.status}`);
             if (response.status === 409) {
                 try {
-                    const current = normalizeAutomaticPreferences((await response.json())?.automaticInsertionPreferences);
+                    const payload = await response.json();
+                    const current = normalizeAutomaticPreferences(payload?.automaticInsertionPreferences);
                     if (current) error.currentPreferences = current;
+                    const wording = normalizeWordingPreferences(payload?.wordingPreferences);
+                    const choices = normalizeTemplateChoicePreferences(payload?.templateChoicesPreferences);
+                    if (wording || choices) error.currentAccountOptions = {
+                        ...(wording ? { wordingPreferences: wording } : {}),
+                        ...(choices ? { templateChoicesPreferences: choices } : {}), binding: payload?.binding,
+                    };
                 } catch { /* Only the bounded preferences contract is retained. */ }
             }
             throw error;
@@ -690,6 +710,9 @@ export function setStatus(tone, title, detail = '', focus = false) {
     view.statusSymbol.textContent = symbolByTone[tone] || 'i';
     view.statusTitle.textContent = title;
     view.statusDetail.textContent = detail;
+    view.statusDetail.hidden = tone === 'success';
+    const diagnostics = document.querySelector('[data-outlook-diagnostics]');
+    if (diagnostics) diagnostics.hidden = tone !== 'error';
     if (view.feedback) {
         view.feedback.textContent = [title, detail].filter(Boolean).join('. ');
         view.feedback.dataset.tone = tone;
@@ -1063,7 +1086,7 @@ function syncActionState() {
     view.signatureDetail.textContent = taskpaneState.signatureVersion !== ''
         ? `Veröffentlichte Version ${taskpaneState.signatureVersion} einsetzen`
         : 'Veröffentlichte Signatur laden und einsetzen';
-    if (insertionBlocked()) view.signatureDetail.textContent = 'Einfügung nicht eindeutig bestätigt. Unter Status die Diagnose öffnen; nicht erneut einfügen.';
+    if (insertionBlocked()) view.signatureDetail.textContent = 'Einfügung nicht eindeutig bestätigt. Nachricht prüfen; nicht erneut einfügen.';
 
     updateDisabledStates();
     syncAutomaticPreferences();
@@ -1080,6 +1103,7 @@ function setBusy(busy, activeButton = null) {
     });
     updateDisabledStates();
     syncAutomaticPreferences();
+    syncAccountOptions();
 }
 
 function syncAutomaticPreferences() {
@@ -1167,6 +1191,7 @@ async function acceptBootstrap(payload, { inspectBody = true } = {}) {
     renderTemplateChoices(payload);
     if (inspectBody) await refreshSignatureCurrentState();
     syncActionState();
+    await refreshAccountOptions();
 }
 
 function invalidateBootstrap(templateState, authenticationLost = false) {
@@ -1719,7 +1744,12 @@ export function bindOutlookDialogs(root = document) {
 function bindActions() {
     if (taskpaneState.settingsMode) throw codedError('ACCOUNT_SETTINGS_READ_ONLY');
     const view = elements();
-    automaticPreferencesView = bindAutomaticPreferencesView(document, { save: saveAutomaticPreference });
+    automaticPreferencesView = bindAutomaticPreferencesView(document, { save: async change => {
+        const response = await saveAutomaticPreference(change);
+        await refreshAccountOptions();
+        return response;
+    } });
+    bindAccountOptionViews();
 
     view.login.addEventListener('click', () => authenticateInteractively(view.login));
     view.signature.addEventListener('click', () => updateSignature(view.signature));
@@ -1778,6 +1808,65 @@ function bindActions() {
     }
 }
 
+function bindAccountOptionViews() {
+    wordingView = bindWordingPreferencesView(document, {
+        save: change => changeAccountOption(wordingSession, change),
+        reload: () => changeAccountOption(wordingSession, null),
+    });
+    templateChoicesView = bindTemplateChoiceView(document, { save: change => changeAccountOption(templateChoicesSession, change) });
+}
+
+function configureAccountOptions() {
+    const create = (kind, endpoint) => endpoint ? createAccountOptionsSession({ kind, readMailbox: mailboxAddress,
+        authenticate: allowPopup => acquireAccessToken(currentConfig, allowPopup),
+        request: options => fetchJson(endpoint, options, API_TIMEOUT_MS) }) : null;
+    wordingSession = create('wording', currentConfig?.endpoints.accountWording);
+    templateChoicesSession = create('choices', currentConfig?.endpoints.accountTemplateChoices);
+    wordingReady = templateChoicesReady = false;
+}
+
+function syncAccountOptions() {
+    for (const [session, view, ready] of [[wordingSession, wordingView, wordingReady], [templateChoicesSession, templateChoicesView, templateChoicesReady]]) {
+        const snapshot = session?.current();
+        view?.update({ preferences: snapshot?.preferences, account: snapshot?.account || '',
+            available: ready && Boolean(snapshot), busy: accountOptionsBusy || taskpaneState.busy || accountSettingsBusy });
+    }
+}
+
+async function refreshAccountOptions() {
+    const sessions = [wordingSession, templateChoicesSession];
+    const results = await Promise.allSettled(sessions.map(session => session ? session.load(false) : Promise.resolve(null)));
+    wordingReady = Boolean(wordingSession) && results[0].status === 'fulfilled';
+    templateChoicesReady = Boolean(templateChoicesSession) && results[1].status === 'fulfilled';
+    syncAccountOptions();
+    if (results[0]?.status === 'rejected' && wordingSession) wordingView?.unavailable();
+}
+
+async function changeAccountOption(session, change) {
+    if (!session || accountOptionsBusy || taskpaneState.busy || accountSettingsBusy) throw codedError('PREFERENCES_UNAVAILABLE');
+    accountOptionsBusy = true;
+    if (taskpaneState.settingsMode) { accountSettingsBusy = true; renderAccountSettings(); }
+    else setBusy(true);
+    syncAccountOptions();
+    try {
+        const response = change === null ? await session.load(false) : await session.save(change);
+        if (session === wordingSession) wordingReady = true;
+        if (session === templateChoicesSession) templateChoicesReady = true;
+        if (response?.automaticInsertionPreferences) {
+            const preferences = normalizeAutomaticPreferences(response.automaticInsertionPreferences);
+            if (!preferences) throw codedError('PREFERENCES_RESPONSE_INVALID');
+            if (taskpaneState.settingsMode) await accountPreferencesSession.load(false);
+            else if (currentBootstrap) currentBootstrap = { ...currentBootstrap, automaticInsertionPreferences: preferences };
+        }
+        return response;
+    } finally {
+        accountOptionsBusy = false;
+        if (taskpaneState.settingsMode) { accountSettingsBusy = false; renderAccountSettings(); }
+        else setBusy(false);
+        syncAccountOptions();
+    }
+}
+
 function renderAccountSettings(tone, message) {
     const root = document.querySelector('[data-outlook-addin-taskpane]');
     const status = document.querySelector('[data-outlook-settings-status]');
@@ -1795,11 +1884,14 @@ function renderAccountSettings(tone, message) {
     }
     automaticPreferencesView?.update({ preferences: snapshot?.preferences,
         available: accountSettingsReady && Boolean(snapshot), busy: accountSettingsBusy, account: snapshot?.account || '' });
+    syncAccountOptions();
 }
 
 function accountSettingsFailure(error) {
     accountSettingsReady = false;
     const code = safeErrorCode(error);
+    const profileLink = document.querySelector('[data-outlook-profile-settings]');
+    if (profileLink) profileLink.hidden = false;
     const message = code === 'NAA_NOT_SUPPORTED'
         ? 'Diese Outlook-Version unterstützt die sichere Anmeldung hier nicht. Öffnen Sie Ihre Outlook-Einstellungen in RailTime.'
         : code === 'MAILBOX_MISMATCH' || code === 'ACCOUNT_PREFERENCES_BINDING_INVALID'
@@ -1816,6 +1908,7 @@ async function refreshAccountSettings(allowPopup = false) {
     renderAccountSettings('working', 'Ihr eigenes Firmenkonto wird geprüft …');
     try {
         await accountPreferencesSession.load(allowPopup);
+        await refreshAccountOptions();
         accountSettingsReady = true;
         lastAccountSettingsRefreshAt = Date.now();
         renderAccountSettings('success', 'Verbunden. Ihre Auswahl gilt für Ihr Firmenkonto auf allen Geräten.');
@@ -1829,6 +1922,7 @@ async function saveAccountPreference(change) {
     renderAccountSettings('working', 'Ihre Auswahl wird gespeichert …');
     try {
         const response = await accountPreferencesSession.save(change);
+        await refreshAccountOptions();
         renderAccountSettings('success', 'Gespeichert. Gilt für künftige Einfügungen auf allen Geräten.');
         return response;
     } catch (error) {
@@ -1840,6 +1934,7 @@ async function saveAccountPreference(change) {
 
 async function initializeAccountSettings() {
     automaticPreferencesView = bindAutomaticPreferencesView(document, { save: saveAccountPreference });
+    bindAccountOptionViews();
     const connect = document.querySelector('[data-outlook-settings-connect]');
     connect?.addEventListener('click', () => refreshAccountSettings(true));
     accountSettingsBusy = true;
@@ -1854,6 +1949,7 @@ async function initializeAccountSettings() {
             authenticate: allowPopup => acquireAccessToken(currentConfig, allowPopup),
             request: options => fetchJson(currentConfig.endpoints.accountPreferences, options, API_TIMEOUT_MS),
         });
+        configureAccountOptions();
     } catch (error) { accountSettingsFailure(error); }
     finally { accountSettingsBusy = false; renderAccountSettings(); }
     if (!accountPreferencesSession) return;
@@ -1875,6 +1971,7 @@ async function initialize() {
 
     try {
         currentConfig = await loadConfig();
+        configureAccountOptions();
         taskpaneState.configReady = true;
         syncActionState();
 

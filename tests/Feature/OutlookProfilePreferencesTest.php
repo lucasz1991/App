@@ -110,11 +110,15 @@ final class OutlookProfilePreferencesTest extends TestCase
             libxml_use_internal_errors($previous);
         }
         $inputs = (new DOMXPath($dom))->query('//input[@type="checkbox" and @role="switch"]');
-        self::assertSame(4, $inputs->length);
+        self::assertSame(2, $inputs->length, 'Only signature booleans remain switches; templates use the shared context selectors.');
         foreach ($inputs as $input) {
             self::assertTrue($input->hasAttribute('checked'));
             self::assertSame('profile-outlook-shared-hint', $input->getAttribute('aria-describedby'));
         }
+        self::assertTrue($component->get('choicesAvailable'));
+        self::assertSame(['newMessages' => 'default', 'replies' => 'default'], $component->get('choiceSelections'));
+        $selectors = (new DOMXPath($dom))->query('//*[@data-rt-select-options]');
+        self::assertSame(2, $selectors->length);
         self::assertSame(0, Setting::query()->count());
         self::assertSame(0, DB::table('activity_log')->count());
     }

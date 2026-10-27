@@ -602,21 +602,106 @@
         @media (max-width: 360px) {
             .glass-button { padding-inline: 8px; }
         }
+        .settings-card { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--rt-line); min-width: 0; }
+        .settings-card h2 { margin: 0 0 16px; font-size: 16px; }
+        .settings-card h3 { margin: 0 0 10px; font-size: 13px; font-weight: 600; }
+        .settings-title { margin: 0; font-size: 20px; }
+        .settings-card .automatic-region { margin: 0; padding: 0; border: 0; }
+        .settings-fields { display: grid; gap: 12px; margin-top: 14px; min-width: 0; }
+        .settings-fields label { display: grid; gap: 6px; min-width: 0; font-size: 12px; font-weight: 600; }
+        .settings-fields input, .settings-fields select { display: block; width: 100%; min-width: 0; min-height: 44px; padding: 10px; border: 1px solid var(--rt-line); border-radius: 9px; background: var(--rt-surface); color: var(--rt-ink); font: 400 16px/1.4 "Segoe UI", Arial, sans-serif; }
+        .settings-fields input:focus-visible { outline: 3px solid var(--rt-focus); outline-offset: 2px; }
+        .settings-fields input:disabled { opacity: .6; }
+        .wording-region { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--rt-line); }
+        .settings-note { margin: 0; color: var(--rt-muted); font-size: 12px; overflow-wrap: anywhere; }
+        .settings-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+        .save-button { background: var(--rt-navy); color: var(--rt-surface); }
+        .glass-button:disabled { cursor: not-allowed; opacity: .55; }
+        .automatic-feedback:empty { margin: 0; }
+        [data-wording-feedback][data-tone="error"], [data-template-choice-feedback][data-tone="error"] { color: var(--rt-error); }
+        .connection-state { margin-top: 16px; }
+        .connection-state .status { min-height: 0; padding: 10px; }
+        .connection-state .account { display: none; }
+        .settings-feedback { margin: 10px 0; }
+        /* Outlook workbench: one surface, a clear compose action, paired account controls. */
+        body { background: var(--rt-surface); }
+        .shell { padding: 0; }
+        .panel { max-width: 560px; min-height: 100vh; border: 0; border-radius: 0; box-shadow: none; }
+        .content { padding: 20px 16px; }
+        .pane-heading { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; }
+        .pane-brand { width: 4px; height: 32px; border-radius: 2px; background: var(--rt-red); flex: 0 0 auto; }
+        .pane-heading h1 { margin: 0; font-size: 18px; font-weight: 650; letter-spacing: -.02em; line-height: 1.3; }
+        .pane-heading p { margin: 2px 0 0; font-size: 12px; color: var(--rt-muted); }
+        .content .template-card { padding: 0; border: 0; border-radius: 0; background: none; }
+        .section-heading { gap: 12px; align-items: center; }
+        .section-heading h2 { font-size: 16px; letter-spacing: -.015em; }
+        .template-count { padding: 2px 0; background: none; color: var(--rt-muted); font-size: 11px; font-weight: 500; }
+        .field-label { font-size: 12px; font-weight: 500; color: var(--rt-ink); }
+        .template-select, .settings-fields input, .settings-fields select { min-height: 44px; border-color: var(--rt-line); border-radius: 8px; background: var(--rt-subtle); font-size: 16px; }
+        .settings-fields select:focus-visible { outline: 3px solid var(--rt-focus); outline-offset: 2px; }
+        .actions { margin-top: 12px; }
+        .action { min-height: 48px; border-radius: 8px; box-shadow: none; }
+        .action-primary, .save-button { background: var(--rt-red); color: #fff; border-color: transparent; box-shadow: none; }
+        .action-primary:hover:not(:disabled), .save-button:hover:not(:disabled) { background: var(--rt-red-strong); box-shadow: none; }
+        .action-copy strong { font-size: 13px; font-weight: 600; }
+        .action-copy > span { font-size: 11px; line-height: 1.45; }
+        .action-icon { width: 28px; height: 28px; border-radius: 6px; font-size: 18px; }
+        .settings-card { margin-top: 24px; padding-top: 20px; }
+        .settings-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+        .settings-section-heading h2 { margin: 0; font-size: 16px; letter-spacing: -.015em; }
+        .save-hint { color: var(--rt-muted); font-size: 11px; white-space: nowrap; }
+        .automatic-account { margin-bottom: 12px; font-size: 12px; }
+        .compose-options { min-width: 0; border-radius: 12px; background: var(--rt-subtle); }
+        .compose-option { margin: 0; padding: 16px; border: 0; min-width: 0; }
+        .compose-option + .compose-option { border-top: 1px solid var(--rt-line); }
+        .compose-option legend { float: left; width: 100%; padding: 0; margin-bottom: 8px; font-size: 13px; font-weight: 650; }
+        .compose-option legend small { display: block; margin-top: 2px; color: var(--rt-muted); font-size: 11px; font-weight: 400; }
+        .signature-option { display: flex; clear: both; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; font-size: 13px; }
+        .compose-option .settings-fields { margin-top: 8px; gap: 6px; }
+        .compose-option select { background: var(--rt-surface); }
+        .compose-option label { font-size: 12px; font-weight: 500; }
+        .compose-options > .automatic-feedback:not(:empty) { margin: 0; padding: 0 16px 12px; }
+        .automatic-feedback { min-height: 0; margin: 8px 0 0; font-size: 12px; line-height: 1.55; }
+        .settings-note { font-size: 12px; line-height: 1.55; }
+        .settings-help { margin-top: 12px; }
+        .wording-region { margin-top: 20px; padding-top: 0; }
+        .wording-region > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; cursor: pointer; font-size: 14px; font-weight: 600; list-style: none; }
+        .wording-region > summary::-webkit-details-marker { display: none; }
+        .wording-region > summary::after { content: ''; width: 7px; height: 7px; flex: 0 0 auto; margin-right: 3px; border-right: 1.5px solid var(--rt-muted); border-bottom: 1.5px solid var(--rt-muted); transform: rotate(45deg); }
+        .wording-region[open] > summary::after { transform: rotate(225deg); }
+        .wording-region > summary:focus-visible { outline: 3px solid var(--rt-focus); outline-offset: 2px; border-radius: 4px; }
+        .wording-region .settings-fields { margin-top: 12px; }
+        .settings-buttons .glass-button { min-height: 44px; border-radius: 8px; padding-inline: 14px; }
+        .connection-state { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--rt-line); }
+        .connection-state .status { border: 0; padding: 0; background: none; grid-template-columns: 20px minmax(0,1fr); gap: 8px; }
+        .connection-state .status-symbol { width: 20px; height: 20px; border-radius: 50%; }
+        .connection-state .status strong { font-size: 12px; }
+        .connection-state .status p { font-size: 11px; line-height: 1.55; }
+        .content:has(.pane-feedback:not([hidden])) .connection-state [data-outlook-status-detail] { display: none; }
+        .connection-state .maintenance-actions { margin-top: 12px; }
+        .connection-state .action { min-height: 44px; padding: 10px 12px; background: var(--rt-subtle); border-color: var(--rt-line); color: var(--rt-ink); }
+        .connection-state .action-copy > span { color: var(--rt-muted); }
+        .connection-state .action-icon { color: var(--rt-ink); background: none; }
+        [data-outlook-context="settings"] .settings-card { margin-top: 20px; }
+        @media (max-width: 340px) { .content { padding: 16px 12px; } .compose-option { padding: 12px; } }
     </style>
 </head>
 <body data-outlook-config-url="{{ $resolvedConfigUrl }}">
     <main class="shell" data-outlook-addin-taskpane data-outlook-context="{{ $accountSettingsMode ? 'settings' : 'compose' }}" aria-busy="true">
         <section class="panel" aria-labelledby="outlook-addin-heading">
             <div class="content">
+                <header class="pane-heading">
+                    <span class="pane-brand" aria-hidden="true"></span>
+                    <div>
+                        <h1 id="outlook-addin-heading" class="settings-title">{{ $accountSettingsMode ? 'Outlook-Einstellungen' : 'RailTime für Outlook' }}</h1>
+                        <p>{{ $accountSettingsMode ? 'Dein RailTime-Konto in Outlook' : 'Vorlagen, Signatur und persönliche Texte' }}</p>
+                    </div>
+                </header>
                 @if ($accountSettingsMode)
-                <section class="settings-intro" aria-labelledby="outlook-addin-heading">
-                    <h1 id="outlook-addin-heading">Outlook-Einstellungen</h1>
-                    <p>Steuern Sie die automatische Einfügung für Ihr eigenes Firmenkonto. Die geöffnete Nachricht wird dabei nicht gelesen oder verändert.</p>
-                    <p class="settings-feedback" data-outlook-settings-status role="status" aria-live="polite" tabindex="-1">Die sichere Verbindung wird geprüft.</p>
-                    <button type="button" class="glass-button" data-outlook-settings-connect disabled>Mit Microsoft verbinden</button>
-                </section>
+                <p class="settings-feedback" data-outlook-settings-status role="status" aria-live="polite">Die sichere Verbindung wird geprüft.</p>
+                <button type="button" class="glass-button" data-outlook-settings-connect disabled>Mit Microsoft verbinden</button>
+                <a class="app-link" data-outlook-profile-settings href="{{ route('profile.show', ['tab' => 'outlook']) }}" target="_blank" rel="noopener noreferrer" hidden>Im RailTime-Profil öffnen ↗</a>
                 @else
-                <h1 id="outlook-addin-heading" class="visually-hidden">Nachrichtenvorlagen</h1>
                 <p class="pane-feedback" data-outlook-pane-feedback role="status" aria-live="polite" tabindex="-1" hidden></p>
                 <section
                     class="template-card"
@@ -626,9 +711,9 @@
                 >
                     <div class="section-heading">
                         <div>
-                            <p class="section-kicker">Vorlagen</p>
+
                             <h2 id="outlook-template-heading">Nachricht einfügen</h2>
-                            <p>Veröffentlichte RailTime-Inhalte</p>
+
                         </div>
                         <span class="template-count" data-outlook-template-count aria-live="polite">Laden …</span>
                     </div>
@@ -644,13 +729,12 @@
                             class="template-select"
                             id="outlook-template-select"
                             data-outlook-template-select
-                            aria-describedby="outlook-template-meta"
                             disabled
                         >
                             <option value="">Vorlagen werden geladen …</option>
                         </select>
 
-                        <div class="template-meta" id="outlook-template-meta" data-outlook-template-meta>
+                        <div class="template-meta" id="outlook-template-meta" data-outlook-template-meta hidden aria-hidden="true">
                             <div class="template-meta-copy">
                                 <strong data-outlook-template-name>Keine Vorlage ausgewählt</strong>
                                 <span class="template-version" data-outlook-template-version>Version nicht verfügbar</span>
@@ -689,118 +773,80 @@
 
                 @endif
 
-                <section class="automatic-region" data-outlook-automatic-region aria-busy="false" aria-labelledby="outlook-automatic-title">
-                    <h2 id="outlook-automatic-title">Automatik</h2>
-                    <p class="automatic-account" data-automatic-account hidden></p>
-                    <table class="automatic-matrix" aria-label="Automatische Einfügung für Ihr Firmenkonto">
-                        <thead><tr><th scope="col"><span class="visually-hidden">Inhalt</span></th><th scope="col">Neue Mails</th><th scope="col">Antworten</th></tr></thead>
-                        <tbody>
-                            <tr><th scope="row">Signatur</th><td>
+                <section class="settings-card" aria-labelledby="outlook-settings-heading">
+                    <div class="settings-section-heading"><h2 id="outlook-settings-heading">Automatik</h2><span class="save-hint">Pro Konto gespeichert</span></div>
+                    <div data-outlook-automatic-region class="automatic-region" aria-busy="false">
+                        <p class="automatic-account" data-automatic-account hidden></p>
+                        <div class="compose-options" data-outlook-choices-region>
+                            <fieldset class="compose-option">
+                                <legend>Neue Nachrichten <small>Auch für Weiterleitungen</small></legend>
+                                <div class="signature-option"><label for="outlook-auto-new-signature">Signatur einfügen</label>
                                 <x-ui.forms.toggle-button id="outlook-auto-new-signature" size="sm" :disabled="true" data-automatic-setting data-automatic-group="newMessages" data-automatic-field="signature" aria-label="Signatur bei neuen Mails und Weiterleitungen automatisch einfügen" />
-                            </td><td>
+                                </div>
+                                <div class="settings-fields"><label for="outlook-auto-new-template">Vorlage
+                                    <select id="outlook-auto-new-template" class="template-select" data-template-choice-group="newMessages" disabled aria-label="Vorlage für neue Nachrichten und Weiterleitungen" aria-describedby="outlook-choice-feedback"><option value="">Wird geladen …</option></select>
+                                </label></div>
+                            </fieldset>
+                            <fieldset class="compose-option">
+                                <legend>Antworten</legend>
+                                <div class="signature-option"><label for="outlook-auto-reply-signature">Signatur einfügen</label>
                                 <x-ui.forms.toggle-button id="outlook-auto-reply-signature" size="sm" :disabled="true" data-automatic-setting data-automatic-group="replies" data-automatic-field="signature" aria-label="Signatur bei Antworten automatisch einfügen" />
-                            </td></tr>
-                            <tr><th scope="row">Vorlage</th><td>
-                                <x-ui.forms.toggle-button id="outlook-auto-new-template" size="sm" :disabled="true" data-automatic-setting data-automatic-group="newMessages" data-automatic-field="template" aria-label="Vorlage bei neuen Mails und Weiterleitungen automatisch einfügen" />
-                            </td><td>
-                                <x-ui.forms.toggle-button id="outlook-auto-reply-template" size="sm" :disabled="true" data-automatic-setting data-automatic-group="replies" data-automatic-field="template" aria-label="Vorlage bei Antworten automatisch einfügen" />
-                            </td></tr>
-                        </tbody>
-                    </table>
-                    <p class="automatic-feedback" data-automatic-feedback role="status" aria-live="polite">Mit Microsoft verbinden, um Ihre Auswahl zu laden.</p>
-                    <p class="footnote">Gilt für Ihr Firmenkonto auf allen Geräten und für künftige Einfügungen. „Neue Mails“ schließt Weiterleitungen ein. Offene Entwürfe und manuelles Einfügen bleiben unverändert.</p>
+                                </div>
+                                <div class="settings-fields"><label for="outlook-auto-reply-template">Vorlage
+                                    <select id="outlook-auto-reply-template" class="template-select" data-template-choice-group="replies" disabled aria-label="Vorlage für Antworten" aria-describedby="outlook-choice-feedback"><option value="">Wird geladen …</option></select>
+                                </label></div>
+                            </fieldset>
+                            <p id="outlook-choice-feedback" class="automatic-feedback" data-template-choice-feedback role="status" aria-live="polite"></p>
+                        </div>
+                        <p class="automatic-feedback" data-automatic-feedback role="status" aria-live="polite"></p>
+                    </div>
+                    <p class="settings-note settings-help">Gilt beim nächsten Verfassen. Bereits geöffnete Nachrichten bleiben unverändert.</p>
+                    <details class="wording-region" data-outlook-wording-region aria-busy="false" aria-labelledby="outlook-wording-heading" @if ($accountSettingsMode) open @endif>
+                        <summary id="outlook-wording-heading">Anrede &amp; Gruß</summary>
+                        <p class="settings-note" id="outlook-wording-note">Für Vorlagen mit Anrede und Gruß. Ihr Name folgt automatisch.</p>
+                        <div class="settings-fields">
+                            <label for="outlook-wording-greeting">Anrede
+                                <input id="outlook-wording-greeting" data-wording-field="greeting" type="text" maxlength="120" autocomplete="off" disabled aria-describedby="outlook-wording-note outlook-wording-feedback">
+                            </label>
+                            <label for="outlook-wording-farewell">Gruß
+                                <input id="outlook-wording-farewell" data-wording-field="farewell" type="text" maxlength="120" autocomplete="off" disabled aria-describedby="outlook-wording-note outlook-wording-feedback">
+                            </label>
+                        </div>
+                        <div class="settings-buttons">
+                            <button type="button" class="glass-button save-button" data-wording-save disabled>Texte speichern</button>
+                            <button type="button" class="glass-button" data-wording-reload hidden>Gespeicherten Stand laden</button>
+                        </div>
+                        <p id="outlook-wording-feedback" class="automatic-feedback" data-wording-feedback role="status" aria-live="polite"></p>
+                    </details>
+                    @unless ($accountSettingsMode)
+                    <div class="connection-state">
+                        <div class="status" data-outlook-status data-tone="working" role="status" aria-live="polite" aria-atomic="true" tabindex="-1">
+                            <span class="status-symbol" data-outlook-status-symbol aria-hidden="true">…</span>
+                            <div><strong data-outlook-status-title>Outlook wird vorbereitet …</strong><p data-outlook-status-detail>Die sichere Verbindung wird geprüft.</p></div>
+                        </div>
+                        <p class="account" data-outlook-account hidden><span data-outlook-account-label></span></p>
+                        <div class="maintenance-actions" data-outlook-maintenance-actions>
+                            <button type="button" class="action action-primary" data-outlook-action="login" data-available="false" data-busy="false" disabled>
+                                <span class="action-copy"><strong data-outlook-login-title>Mit Microsoft verbinden</strong><span data-outlook-login-detail>Mit dem Firmenkonto anmelden</span></span><span class="action-icon" aria-hidden="true">→</span>
+                            </button>
+                            <button type="button" class="action" data-outlook-action="signature" data-available="false" data-busy="false" disabled>
+                                <span class="action-copy"><strong>Signatur aktualisieren</strong><span data-outlook-signature-detail>Veröffentlichte Version einsetzen</span></span><span class="action-icon" aria-hidden="true">↻</span>
+                            </button>
+                        </div>
+                        <details class="diagnostics" data-outlook-diagnostics hidden>
+                            <summary>Verbindung prüfen</summary>
+                            <div class="diagnostics-actions">
+                                <button type="button" class="glass-button" data-outlook-diagnostics-run>Erneut prüfen</button>
+                                <button type="button" class="glass-button" data-outlook-diagnostics-copy>Diagnose kopieren</button>
+                            </div>
+                            <textarea data-outlook-diagnostics-output readonly aria-label="Datensparsamer Diagnosebericht" hidden></textarea>
+                            <p class="automatic-feedback" data-outlook-diagnostics-feedback role="status"></p>
+                        </details>
+                    </div>
+                    @endunless
                 </section>
-
-                <footer class="app-links" aria-label="Verbindung, Hilfe und RailTime-App">
-                    @if ($accountSettingsMode)
-                    <a class="app-link" data-outlook-profile-settings href="{{ route('profile.show', ['tab' => 'outlook']) }}" target="_blank" rel="noopener noreferrer">Outlook-Einstellungen in RailTime ↗</a>
-                    @else
-                    <button class="glass-button" type="button" data-outlook-dialog-open="connection" aria-haspopup="dialog" aria-controls="outlook-connection-dialog">Verbindung</button>
-                    <button class="glass-button" type="button" data-outlook-dialog-open="status" aria-haspopup="dialog" aria-controls="outlook-status-dialog" aria-label="Hilfe und Diagnose öffnen">Hilfe<span class="visually-hidden" data-outlook-status-summary role="status" aria-live="polite">Outlook wird vorbereitet</span></button>
-                    <a class="app-link" href="{{ route('home') }}" target="_blank" rel="noopener noreferrer">RailTime öffnen ↗</a>
-                    <button class="glass-button" type="button" data-outlook-dialog-open="install" aria-haspopup="dialog" aria-controls="outlook-install-dialog">RailTime installieren</button>
-                    @endif
-                </footer>
             </div>
         </section>
     </main>
-
-    @unless ($accountSettingsMode)
-    <dialog class="taskpane-dialog" id="outlook-connection-dialog" data-outlook-dialog="connection" aria-labelledby="outlook-connection-title">
-        <div class="dialog-heading"><h2 id="outlook-connection-title">Microsoft-Verbindung</h2><button type="button" class="glass-button" data-outlook-dialog-close aria-label="Dialog schließen">✕</button></div>
-        <div class="dialog-body">
-                <p data-outlook-dialog-feedback role="status" class="dialog-feedback" hidden></p>
-                <div class="maintenance-actions" data-outlook-maintenance-actions aria-label="Verbindung und Signatur">
-                    <button
-                        class="action action-primary"
-                        type="button"
-                        data-outlook-action="login"
-                        data-available="false"
-                        data-busy="false"
-                        disabled
-                    >
-                        <span class="action-copy">
-                            <strong data-outlook-login-title>Mit Microsoft verbinden</strong>
-                            <span data-outlook-login-detail>Einmalig mit dem Firmenkonto anmelden</span>
-                        </span>
-                        <span class="action-icon" aria-hidden="true">→</span>
-                    </button>
-
-                    <button
-                        class="action"
-                        type="button"
-                        data-outlook-action="signature"
-                        data-available="false"
-                        data-busy="false"
-                        disabled
-                    >
-                        <span class="action-copy">
-                            <strong>Signatur aktualisieren</strong>
-                            <span data-outlook-signature-detail>Aktuell veröffentlichte Version einsetzen</span>
-                        </span>
-                        <span class="action-icon" aria-hidden="true">↻</span>
-                    </button>
-                </div>
-
-                <p class="footnote">
-                    Sichere Microsoft-Anmeldung · keine Kennwortspeicherung · Inhalte aus Ihrer veröffentlichten RailTime-Version
-                </p>
-        </div>
-    </dialog>
-    <dialog class="taskpane-dialog" id="outlook-status-dialog" data-outlook-dialog="status" aria-labelledby="outlook-status-title">
-        <div class="dialog-heading"><h2 id="outlook-status-title">Outlook-Status</h2><button type="button" class="glass-button" data-outlook-dialog-close aria-label="Dialog schließen">✕</button></div>
-        <div class="dialog-body">
-            <div class="status" data-outlook-status data-tone="working" role="status" aria-live="polite" aria-atomic="true" tabindex="-1">
-                <span class="status-symbol" data-outlook-status-symbol aria-hidden="true">…</span>
-                <div><strong data-outlook-status-title>Outlook wird vorbereitet …</strong><p data-outlook-status-detail>Die sichere Verbindung wird geprüft.</p></div>
-            </div>
-            <p class="account" data-outlook-account hidden><span data-outlook-account-label></span></p>
-            <p class="footnote">Vorlagen werden nur in unterstützten Outlook-Clients automatisch eingefügt. Vorhandene Nachrichtentexte und zitierte Antworten bleiben erhalten.</p>
-            <details class="diagnostics" data-outlook-diagnostics>
-                <summary>Diagnose &amp; Hilfe</summary>
-                <p>Prüft Anmeldung, Postfachbindung und Outlook-Vorprüfung erneut. Fügt nichts ein und wiederholt keine unbestätigten Schreibaufrufe.</p>
-                <div class="diagnostics-actions">
-                    <button class="glass-button" type="button" data-outlook-diagnostics-run>Verbindung neu prüfen</button>
-                    <button class="glass-button" type="button" data-outlook-diagnostics-copy>Diagnose kopieren</button>
-                </div>
-                <textarea data-outlook-diagnostics-output readonly aria-label="Datensparsamer Diagnosebericht" hidden></textarea>
-                <p class="footnote" data-outlook-diagnostics-feedback role="status"></p>
-                <p class="footnote">Outlook kann aus dem Add-in nicht sicher automatisch neu gestartet werden. Falls nötig: Entwurf speichern, Outlook selbst schließen und neu öffnen. Vor erneutem Einfügen kontrollieren, ob die Signatur bereits vorhanden ist.</p>
-            </details>
-        </div>
-    </dialog>
-    <dialog class="taskpane-dialog" id="outlook-install-dialog" data-outlook-dialog="install" aria-labelledby="outlook-install-title">
-        <div class="dialog-heading"><h2 id="outlook-install-title">RailTime als App installieren</h2><button type="button" class="glass-button" data-outlook-dialog-close aria-label="Dialog schließen">✕</button></div>
-        <div class="dialog-body">
-            <p>Installiert wird die RailTime-App von app.rail-time.de, nicht Outlook. Die Bestätigung erfolgt in Ihrem Browser außerhalb dieses Add-ins.</p>
-            <ol>
-                <li><a href="{{ route('help') }}" target="_blank" rel="noopener noreferrer">RailTime-Installationsseite öffnen</a> und bei Bedarf bei RailTime anmelden.</li>
-                <li>Dort „App installieren“ auswählen und den Browserdialog bestätigen.</li>
-                <li>Wird kein Installationsdialog angeboten, der Anleitung für Ihr Gerät auf dieser Seite folgen.</li>
-            </ol>
-            <p class="footnote">Die RailTime-App und das Outlook-Add-in bleiben getrennt. Diese Installation ändert weder Ihre Postfächer noch die Outlook-Einstellungen.</p>
-        </div>
-    </dialog>
-    @endunless
 </body>
 </html>

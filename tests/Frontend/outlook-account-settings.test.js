@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { parseHTML } from 'linkedom';
 import * as preferencesView from '../../resources/js/outlook-addin/automatic-preferences-view.js';
+import * as optionsView from '../../resources/js/outlook-addin/account-options-view.js';
 
 const own = 'employee@company.test';
 const preferences = (digit = '1', values = {}) => ({ schema: 2, revision: digit.repeat(64),
@@ -104,14 +105,15 @@ test('one request owns the settings session and a reset quarantines its late rec
 });
 
 const source = await readFile(new URL('../../resources/js/outlook-addin/taskpane.js', import.meta.url), 'utf8');
-async function settingsHarness({ outside = false, interaction = false, queryMode = false } = {}) {
+async function settingsHarness({ outside = false, interaction = false, queryMode = false, additional = false, resourceFailure = false } = {}) {
     const { document, window } = parseHTML(`<html><head><meta name="railtime-outlook-config-url" content="https://app.company.test/outlook-addin/config.json"></head><body>
         <main data-outlook-addin-taskpane data-outlook-context="${queryMode ? 'compose' : 'settings'}" aria-busy="true">
         <p data-outlook-settings-status></p><button data-outlook-settings-connect disabled>Connect</button>
         <a data-outlook-profile-settings href="https://app.company.test/user/profile?tab=outlook">Profile</a>
         <section data-outlook-automatic-region><p data-automatic-account></p><p data-automatic-feedback></p>
         ${['newMessages', 'replies'].flatMap(group => ['signature', 'template'].map(field => `<input disabled type="checkbox" data-automatic-setting data-automatic-group="${group}" data-automatic-field="${field}">`)).join('')}
-        </section></main></body></html>`);
+        </section>${additional ? `<section data-outlook-wording-region><input data-wording-field="greeting"><input data-wording-field="farewell"><button data-wording-save>Save</button><button data-wording-reload hidden>Reload</button><p data-wording-feedback></p></section>
+        <section data-outlook-choices-region><select data-template-choice-group="newMessages"></select><select data-template-choice-group="replies"></select><p data-template-choice-feedback></p></section>` : ''}</main></body></html>`);
     const state = { requests: [], silent: 0, popup: 0, messageTouches: 0 };
     const received = new Proxy({}, { get() { state.messageTouches++; throw Error('Selected message must stay opaque'); } });
     const mailbox = { userProfile: { emailAddress: own }, get item() { state.messageTouches++; return received; } };
@@ -121,9 +123,11 @@ async function settingsHarness({ outside = false, interaction = false, queryMode
     const config = { ready: true, marker: 'RT-SIGNATURE-MANAGED-V1', auth: { clientId: 'synthetic-client',
         authority: 'https://login.microsoftonline.com/synthetic-tenant', scopes: ['api://test/identity'] },
         endpoints: { bootstrap: 'https://app.company.test/api/outlook-addin/bootstrap',
-            accountPreferences: 'https://app.company.test/api/outlook-addin/account-preferences' },
+            accountPreferences: 'https://app.company.test/api/outlook-addin/account-preferences',
+            ...(additional ? { accountWording: 'https://app.company.test/api/outlook-addin/account-wording',
+                accountTemplateChoices: 'https://app.company.test/api/outlook-addin/account-template-choices' } : {}) },
         urls: { profileSettings: 'https://app.company.test/user/profile?tab=outlook' } };
-    const context = vm.createContext({ ...preferencesView, document, window, Office: outside ? undefined : office,
+    const context = vm.createContext({ ...preferencesView, ...optionsView, document, window, Office: outside ? undefined : office,
         URL, URLSearchParams, AbortController, setTimeout, clearTimeout, console,
         location: { search: queryMode ? '?context=settings' : '' }, InteractionRequiredAuthError,
         createNestablePublicClientApplication: async () => ({ getAllAccounts: () => [],
@@ -132,6 +136,14 @@ async function settingsHarness({ outside = false, interaction = false, queryMode
         fetch: async (url, options) => {
             state.requests.push({ url, options });
             if (String(url).includes('/bootstrap')) throw Error('No compose bootstrap in account settings');
+            if (String(url).includes('account-wording')) {
+                if (resourceFailure) return { ok: false, status: 503 };
+                const texts = options.method === 'PATCH' ? JSON.parse(options.body) : { greeting: 'Guten Tag,', farewell: 'Mit freundlichen Grüßen,' };
+                return { ok: true, json: async () => ({ wordingPreferences: { schema: 1, ...texts, revision: '2'.repeat(64) }, binding: payload().binding }) };
+            }
+            if (String(url).includes('account-template-choices')) return { ok: true, json: async () => ({
+                templateChoicesPreferences: { schema: 1, revision: '2'.repeat(64), newMessages: { selection: 'default', available: true },
+                    replies: { selection: 'none', available: true }, templates: [] }, automaticInsertionPreferences: preferences(), binding: payload().binding }) };
             return { ok: true, json: async () => String(url).includes('config.json') ? config : payload(options?.method === 'PATCH' ? '2' : '1') };
         },
     });
@@ -176,13 +188,44 @@ test('read-settings explicit login recovers silent-auth interaction without ever
     assert.equal(h.state.messageTouches, 0);
 });
 
-test('Blade has one inline four-switch region and settings-only markup excludes message actions', async () => {
+test('actual taskpane loads wording and context choices using own account; saving never touches selected message or compose APIs', async () => {
+    const h = await settingsHarness({ additional: true });
+    const greeting = h.document.querySelector('[data-wording-field="greeting"]');
+    assert.equal(greeting.value, 'Guten Tag,'); assert.equal(greeting.disabled, false);
+    greeting.value = 'Hallo zusammen,'; greeting.dispatchEvent(new h.window.Event('input'));
+    assert.equal(h.state.requests.filter(request => request.options?.method === 'PATCH').length, 0);
+    h.document.querySelector('[data-wording-save]').click(); await tick();
+    const patch = h.state.requests.find(request => request.url.endsWith('account-wording') && request.options.method === 'PATCH');
+    assert.equal(JSON.parse(patch.options.body).greeting, 'Hallo zusammen,');
+    const reply = h.document.querySelector('[data-template-choice-group="replies"]');
+    for (const option of reply.options) option.selected = false;
+    reply.querySelector('[value="default"]').selected = true;
+    reply.dispatchEvent(new h.window.Event('change')); await tick();
+    const choice = h.state.requests.find(request => request.url.endsWith('account-template-choices') && request.options.method === 'PATCH');
+    assert.deepEqual(JSON.parse(choice.options.body), { group: 'replies', selection: 'default', revision: '2'.repeat(64) });
+    assert.ok(h.state.requests.filter(request => request.options?.method === 'PATCH').every(request => request.options.headers['X-RailTime-Outlook-Sender'] === undefined));
+    assert.equal(h.state.messageTouches, 0);
+});
+
+test('wording load failure leaves independent signature settings available and no body access starts', async () => {
+    const h = await settingsHarness({ additional: true, resourceFailure: true });
+    assert.equal(h.document.querySelector('[data-wording-field="greeting"]').disabled, true);
+    assert.equal(h.document.querySelector('[data-automatic-setting]').disabled, false);
+    assert.equal(h.document.querySelector('[data-template-choice-group]').disabled, false);
+    assert.equal(h.state.messageTouches, 0);
+});
+
+test('Blade has signature switches, context template selectors and wording fields without footer actions', async () => {
     const blade = await readFile(new URL('../../resources/views/outlook-addin/taskpane.blade.php', import.meta.url), 'utf8');
     assert.equal((blade.match(/data-outlook-automatic-region/g) || []).length, 1);
-    assert.equal((blade.match(/data-automatic-setting/g) || []).length, 4);
+    assert.equal((blade.match(/data-automatic-setting/g) || []).length, 2);
+    assert.equal((blade.match(/data-template-choice-group=/g) || []).length, 2);
+    assert.equal((blade.match(/data-wording-field=/g) || []).length, 2);
+    assert.doesNotMatch(blade, /data-outlook-dialog-open|RailTime installieren|RailTime öffnen/);
+    assert.match(blade, /data-wording-save/);
     assert.doesNotMatch(blade, /data-outlook-dialog(?:-open)?="automatic"/);
     const settings = blade.slice(blade.indexOf('@if ($accountSettingsMode)', blade.indexOf('<main')), blade.indexOf('@else', blade.indexOf('<main')));
     assert.match(settings, /data-outlook-settings-connect/);
     assert.doesNotMatch(settings, /data-outlook-action|data-outlook-template-region|data-outlook-diagnostics/);
-    assert.match(blade, /Firmenkonto auf allen Geräten/);
+    assert.match(blade, /16px\/1.4/);
 });

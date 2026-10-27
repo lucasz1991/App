@@ -22,36 +22,35 @@
     $maxLength = \App\Support\OutlookAddin\OutlookAddinWordingPolicy::MAX_LENGTH;
 @endphp
 
-<section class="min-w-0 overflow-hidden rounded-2xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60" aria-labelledby="{{ $prefix }}-heading" data-testid="profile-outlook-preferences" data-outlook-preferences-context="{{ $employeeContext ? 'employee' : 'self' }}">
-    <header class="space-y-2 border-b border-rt-border/60 p-4 dark:border-rt-dark-border/60 sm:px-6 sm:py-5">
-        <h2 id="{{ $prefix }}-heading" class="text-base font-semibold text-rt-text dark:text-rt-dark-text">Outlook-Einstellungen</h2>
-        @if ($employeeContext)
-            <p class="text-sm font-medium text-rt-text dark:text-rt-dark-text">Konto von {{ $targetName }}</p>
-        @endif
-        <p id="{{ $prefix }}-shared-hint" class="text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">
-            {{ $employeeContext ? 'Diese Einstellungen gelten für dieses Mitarbeiterkonto' : 'Deine Einstellungen gelten' }} auf allen Geräten, auch auf dem iPhone. Änderungen greifen beim nächsten Verfassen; bereits geöffnete Nachrichten bleiben erhalten.
+<section class="min-w-0 overflow-hidden rounded-xl bg-rt-surface ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60" aria-labelledby="{{ $prefix }}-heading" data-testid="profile-outlook-preferences" data-outlook-preferences-context="{{ $employeeContext ? 'employee' : 'self' }}">
+    <header class="space-y-2 border-b border-rt-border/60 p-4 dark:border-rt-dark-border/60 sm:p-6">
+        <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <h2 id="{{ $prefix }}-heading" class="text-base font-semibold text-rt-text dark:text-rt-dark-text">Outlook-Einstellungen</h2>
+            @if ($employeeContext)
+                <p class="text-sm text-rt-muted dark:text-rt-dark-muted">Konto von {{ $targetName }}</p>
+            @endif
+        </div>
+        <p id="{{ $prefix }}-shared-hint" class="max-w-3xl text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">
+            {{ $employeeContext ? 'Gilt für dieses Mitarbeiterkonto' : 'Gilt für dein Konto' }} auf allen Geräten, auch auf dem iPhone. Änderungen greifen beim nächsten Verfassen. Geöffnete Nachrichten bleiben erhalten.
         </p>
     </header>
 
     <div class="divide-y divide-rt-border/60 dark:divide-rt-dark-border/60">
-        <section class="space-y-3 p-4 sm:p-6" aria-labelledby="{{ $prefix }}-automatic-heading">
-            <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <section class="space-y-4 p-4 sm:p-6" aria-labelledby="{{ $prefix }}-automatic-heading">
+            <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
                 <h3 id="{{ $prefix }}-automatic-heading" class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">Automatische Einfügung</h3>
                 @if ($available || $choicesAvailable)
-                    <p class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Wird sofort gespeichert</p>
+                    <p class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Änderungen werden sofort gespeichert</p>
                 @endif
             </div>
             @if ($available || $choicesAvailable)
-                <div class="grid gap-4 sm:grid-cols-2">
+                <div class="grid gap-6 sm:grid-cols-2">
                     @foreach (['newMessages' => 'Neue Nachrichten', 'replies' => 'Antworten'] as $group => $title)
-                        <fieldset class="min-w-0 space-y-3 rounded-xl border border-rt-border/60 p-3 dark:border-rt-dark-border/60" wire:key="{{ $prefix }}-{{ $group }}" wire:loading.attr="disabled" wire:target="updatePreference,updateTemplateChoice,reloadPreferences">
-                            <legend class="px-1 text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ $title }}</legend>
-                            @if ($group === 'newMessages')
-                                <p class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Einschließlich Weiterleitungen</p>
-                            @endif
+                        <fieldset class="min-w-0 space-y-3" wire:key="{{ $prefix }}-{{ $group }}" wire:loading.attr="disabled" wire:target="updatePreference,updateTemplateChoice,reloadPreferences">
+                            <legend class="mb-2 text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ $title }}</legend>
                             @if ($available)
                                 <div class="flex min-h-11 items-center justify-between gap-3">
-                                    <span class="text-sm text-rt-text dark:text-rt-dark-text">Signatur einfügen</span>
+                                    <label for="{{ $prefix }}-{{ $group }}-signature" class="text-sm text-rt-text dark:text-rt-dark-text">Signatur einfügen</label>
                                     <x-ui.forms.checkbox
                                         :id="$prefix.'-'.$group.'-signature'"
                                         :toggle="true"
@@ -68,20 +67,21 @@
                             @if ($choicesAvailable)
                                 @php
                                     $selection = (string) ($choiceSelections[$group] ?? '');
-                                    $missingChoice = ! in_array($selection, ['default', 'none'], true) && ! in_array($selection, array_column($templateOptions, 'id'), true);
+                                    $hasDefault = count(array_filter($templateOptions, static fn (array $option): bool => ($option['isDefault'] ?? false) === true)) === 1;
+                                    $missingChoice = $selection === 'default' ? ! $hasDefault : (! in_array($selection, ['none'], true) && ! in_array($selection, array_column($templateOptions, 'id'), true));
                                     $changeAction = '$wire.updateTemplateChoice(\''.$group.'\', selected)';
-                                    $choiceKey = substr(hash('sha256', $choicesRevision.'|'.$selection.'|'.$choicesNotice), 0, 16);
+                                    $choiceKey = substr(hash('sha256', $choicesRevision.'|'.$selection.'|'.$choicesNotice.'|'.$errors->first('templateChoices')), 0, 16);
                                 @endphp
                                 <div wire:key="{{ $prefix }}-choice-{{ $group }}-{{ $choiceKey }}" class="min-w-0">
                                     <x-ui.forms.label :for="$prefix.'-'.$group.'-template'">Vorlage</x-ui.forms.label>
-                                    <x-ui.forms.select :id="$prefix.'-'.$group.'-template'" :value="$selection" :change="$changeAction" :aria-label="'Vorlage für '.$title" aria-describedby="{{ $prefix }}-shared-hint{{ $missingChoice ? ' '.$prefix.'-'.$group.'-unavailable' : '' }}">
-                                        <option value="none">Keine Vorlage</option>
-                                        <option value="default">Standardvorlage verwenden</option>
+                                    <x-ui.forms.select :id="$prefix.'-'.$group.'-template'" :change="$changeAction" :aria-label="'Vorlage für '.$title" aria-describedby="{{ $prefix }}-shared-hint{{ $missingChoice ? ' '.$prefix.'-'.$group.'-unavailable' : '' }}">
+                                        <option value="none" @selected($selection === 'none')>Keine Vorlage</option>
+                                        <option value="default" @selected($selection === 'default') @disabled(! $hasDefault)>{{ $hasDefault ? 'Standardvorlage verwenden' : 'Standardvorlage nicht verfügbar' }}</option>
                                         @foreach ($templateOptions as $template)
-                                            <option value="{{ $template['id'] }}">{{ $template['name'] }}</option>
+                                            <option value="{{ $template['id'] }}" @selected($selection === $template['id'])>{{ $template['name'] }}</option>
                                         @endforeach
-                                        @if ($missingChoice)
-                                            <option value="{{ $selection }}" disabled>Nicht mehr verfügbar · {{ $selection }}</option>
+                                        @if ($missingChoice && ! in_array($selection, ['default', 'none'], true))
+                                            <option value="{{ $selection }}" selected disabled>Gespeicherte Vorlage nicht mehr verfügbar</option>
                                         @endif
                                     </x-ui.forms.select>
                                     @if ($missingChoice)
@@ -92,8 +92,9 @@
                         </fieldset>
                     @endforeach
                 </div>
+                <p class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Weiterleitungen verwenden die Einstellungen für neue Nachrichten.</p>
             @endif
-            <div role="status" aria-live="polite" class="space-y-1 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">
+            <div role="status" aria-live="polite" class="space-y-1 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
                 @if ($notice !== '')
                     <p>{{ $notice }}</p>
                 @endif
@@ -108,16 +109,16 @@
             @error('preferences')
                 <p role="alert" class="text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
             @enderror
-            @error('templateChoice')
+            @error('templateChoices')
                 <p role="alert" class="text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
             @enderror
-            <x-ui.buttons.button-basic type="button" size="sm" wire:click="reloadPreferences" wire:loading.attr="disabled" wire:target="updatePreference,updateTemplateChoice,reloadPreferences">Aktuellen Stand laden</x-ui.buttons.button-basic>
+            <x-ui.buttons.button-basic type="button" mode="link" size="sm" class="min-h-11" wire:click="reloadPreferences" wire:loading.attr="disabled" wire:target="updatePreference,updateTemplateChoice,reloadPreferences">Aktuellen Stand laden</x-ui.buttons.button-basic>
         </section>
 
         <section class="space-y-4 p-4 sm:p-6" aria-labelledby="{{ $prefix }}-wording-heading">
             <div>
                 <h3 id="{{ $prefix }}-wording-heading" class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">Anrede und Grußformel</h3>
-                <p id="{{ $prefix }}-wording-hint" class="mt-1 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">Für „Standard – mit Anrede und Gruß“. {{ $employeeContext ? 'Der Name des Mitarbeiters' : 'Dein Name' }} wird automatisch unter der Grußformel ergänzt.</p>
+                <p id="{{ $prefix }}-wording-hint" class="mt-1 max-w-3xl text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">Für „Standard – mit Anrede und Gruß“. {{ $employeeContext ? 'Der Name des Mitarbeiters' : 'Dein Name' }} wird automatisch unter der Grußformel ergänzt.</p>
             </div>
             @if ($wordingAvailable)
                 <form wire:submit="saveWording" data-profile-outlook-wording data-outlook-wording-save="manual">
@@ -134,16 +135,17 @@
                                 </div>
                             @endforeach
                         </div>
-                        <p id="{{ $prefix }}-wording-help" class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Einzeiliger Text, höchstens {{ $maxLength }} Zeichen je Feld. Gilt für diese Vorlage; die leere Standardvorlage, Signatur und Systemmails bleiben unverändert.</p>
+                        <p id="{{ $prefix }}-wording-help" class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Einzeiliger Text, höchstens {{ $maxLength }} Zeichen je Feld. Die leere Standardvorlage, Signatur und Systemmails bleiben unverändert.</p>
                         <div class="flex flex-wrap items-center gap-2">
-                            <x-ui.buttons.button-basic type="submit" mode="primary">Texte speichern</x-ui.buttons.button-basic>
-                            <x-ui.buttons.button-basic type="button" wire:click="reloadWording">Gespeicherte Texte laden</x-ui.buttons.button-basic>
+                            <x-ui.buttons.button-basic type="submit" mode="primary" class="min-h-11">Texte speichern</x-ui.buttons.button-basic>
+                            <x-ui.buttons.button-basic type="button" mode="link" class="min-h-11" wire:click="reloadWording">Gespeicherte Texte laden</x-ui.buttons.button-basic>
                             <span wire:dirty wire:target="greeting,farewell" class="text-xs text-rt-muted dark:text-rt-dark-muted">Ungespeicherte Änderungen</span>
                         </div>
+                        <p class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Diese Texte werden erst mit „Texte speichern“ übernommen.</p>
                     </fieldset>
                 </form>
             @endif
-            <div role="status" aria-live="polite" class="space-y-1 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">
+            <div role="status" aria-live="polite" class="space-y-1 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
                 @if ($wordingNotice !== '' && $wordingNotice !== $notice)
                     <p>{{ $wordingNotice }}</p>
                 @endif

@@ -326,7 +326,7 @@ async function loadBootstrap(config, accessToken, item, composeType = 'unknown')
             Authorization: `Bearer ${accessToken}`,
             'X-RailTime-Outlook-Context': 'event',
             'X-RailTime-Compose-Contract': 'native-signature-v1',
-            'X-RailTime-Automatic-Policy': '2',
+            'X-RailTime-Automatic-Policy': '3',
             'X-RailTime-Compose-Type': composeType,
             ...(mobile ? { 'X-RailTime-Outlook-Profile': 'mobile-ledger-v1' } : {}),
             'X-RailTime-Outlook-Mailbox': mailboxAddress(),
@@ -523,7 +523,7 @@ async function applyPublishedContent(item, isActive = () => true) {
         recordDiagnostic('automatic-insertion', 'skipped', { code: 'AUTOMATIC_INSERTION_DISABLED' });
         return 'disabled';
     }
-    const policy = automaticComposeDecision(bootstrap, composeType);
+    const policy = automaticComposeDecision(bootstrap, composeType, { requireTemplateChoice: true });
     if (policy.mode === 'none') {
         pendingNativeSignatures.delete(item);
         recordDiagnostic('automatic-insertion', 'skipped', { code: policy.reason });

@@ -30,7 +30,11 @@ function harness(options = {}) {
     const selected = options.noDefault ? null : { signature, compose: template };
     const binding = { mailboxAddress: 'pilot@example.test', senderAddress: 'pilot@example.test' };
     const bootstrap = { binding, signature: globalSignature, automaticInsertionEnabled: true,
-        automaticInsertion: { schema: 2, composeType: 'newMail', signature: true, template: true } };
+        automaticInsertion: { schema: 2, composeType: 'newMail', signature: true, template: !options.noDefault },
+        automaticTemplateChoice: { schema: 1, composeType: 'newMail', selection: options.noDefault ? 'none' : 'default',
+            templateId: options.noDefault ? null : 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
+        automaticTemplateId: options.noDefault ? null : 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        templates: options.noDefault ? [] : [{ id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', isDefault: true }] };
     let present = false;
     let signatureCalls = 0;
     const item = {

@@ -38,6 +38,7 @@ final class OutlookAddinTemplateChoicesPolicy
     {
         return DB::transaction(function () use ($user, $identity, $binding): array {
             [$employee] = app(OutlookAddinOwnAccountAccess::class)->employee($user, $identity, $binding);
+
             return $this->preferencesForUser($employee);
         }, 3);
     }
@@ -45,6 +46,7 @@ final class OutlookAddinTemplateChoicesPolicy
     public function updateForSession(User $user, string $group, string $selection, string $revision): array
     {
         $automatic = app(OutlookAddinAutomaticInsertionPolicy::class);
+
         return $this->write($user, $user, $group, $selection, $revision,
             fn (): array => $automatic->preferencesForSession($user),
             fn (bool $enabled, string $current): array => $automatic->updateForSession($user, $group, 'template', $enabled, $current));
@@ -53,6 +55,7 @@ final class OutlookAddinTemplateChoicesPolicy
     public function updateForManagedUser(User $actor, User $target, string $group, string $selection, string $revision): array
     {
         $automatic = app(OutlookAddinAutomaticInsertionPolicy::class);
+
         return $this->write($actor, $target, $group, $selection, $revision,
             fn (): array => $automatic->preferencesForManagedUser($actor, $target),
             fn (bool $enabled, string $current): array => $automatic->updateForManagedUser($actor, $target, $group, 'template', $enabled, $current));
@@ -61,9 +64,11 @@ final class OutlookAddinTemplateChoicesPolicy
     public function updateForIdentity(User $user, VerifiedEntraIdentity $identity, array $binding, string $group, string $selection, string $revision): array
     {
         $automatic = app(OutlookAddinAutomaticInsertionPolicy::class);
+
         return $this->write($user, $user, $group, $selection, $revision,
             function () use ($user, $identity, $binding, $automatic): array {
                 [$employee] = app(OutlookAddinOwnAccountAccess::class)->employee($user, $identity, $binding);
+
                 return $automatic->preferencesForUser($employee);
             },
             fn (bool $enabled, string $current): array => $automatic->updateForIdentity($user, $identity, $binding, $group, 'template', $enabled, $current));
@@ -72,21 +77,31 @@ final class OutlookAddinTemplateChoicesPolicy
     /** Request-fresh event choice; never changes reusable artifacts or a manual selection. */
     public function eventChoice(User $user, array $automatic, string $composeType): array
     {
-        $choices = $this->preferencesForUser($user, $automatic);
+        $stored = Setting::getValueUncached('outlook_addin', $this->key($user));
+        $choices = $this->value($user, $stored, $automatic);
         $group = $composeType === 'reply' ? 'replies' : 'newMessages';
         $selected = $choices[$group];
-        return ['selection' => $selected['selection'],
+
+        return ['selection' => $selected['available'] ? $selected['selection'] : 'none',
             'enabled' => in_array($composeType, ['newMail', 'forward', 'reply'], true) && $selected['available'] && $selected['selection'] !== 'none',
-            'customized' => $choices['newMessages']['selection'] !== 'default' || $choices['replies']['selection'] !== 'default'];
+            'customized' => is_array($stored) && (($stored['newMessages']['mode'] ?? 'default') !== 'default' || ($stored['replies']['mode'] ?? 'default') !== 'default')];
     }
 
     public function selectPayload(array $payload, string $selection): array
     {
+        $snapshots = app(PublishedMailDocumentSnapshotStore::class)->freshTemplateSnapshots();
         if ($selection === 'default') {
+            $defaults = array_values(array_filter($snapshots, static fn (array $template): bool => ($template['isDefault'] ?? false) === true));
+            if (count($defaults) !== 1 || ($payload['automaticTemplateId'] ?? null) !== $defaults[0]['id']
+                || count(array_filter($payload['templates'] ?? [], static fn (array $template): bool => ($template['id'] ?? null) === $defaults[0]['id'])) !== 1) {
+                throw new OutlookAddinException('Die Standardvorlage ist nicht mehr freigegeben.', 409, 'outlook_addin_template_choice_unavailable');
+            }
+
             return $payload;
         }
+        $published = array_column($snapshots, 'id');
         $matches = array_filter($payload['templates'] ?? [], static fn (array $template): bool => ($template['id'] ?? null) === $selection);
-        if (count($matches) !== 1) {
+        if (count($matches) !== 1 || ! in_array($selection, $published, true)) {
             throw new OutlookAddinException('Die ausgewählte Outlook-Vorlage ist nicht mehr freigegeben.', 409, 'outlook_addin_template_choice_unavailable');
         }
         $payload['automaticTemplateId'] = $selection;
@@ -94,6 +109,7 @@ final class OutlookAddinTemplateChoicesPolicy
             $template['isDefault'] = ($template['id'] ?? null) === $selection;
         }
         unset($template);
+
         return $payload;
     }
 
@@ -104,6 +120,7 @@ final class OutlookAddinTemplateChoicesPolicy
             || preg_match('/\A[0-9a-f]{64}\z/', $revision) !== 1) {
             throw ValidationException::withMessages(['templateChoices' => 'Bitte eine gültige Outlook-Vorlage auswählen.']);
         }
+
         return DB::transaction(function () use ($actor, $target, $group, $selection, $revision, $reader, $writer): array {
             $automatic = $reader();
             $setting = Setting::query()->where('type', 'outlook_addin')->where('key', $this->key($target))->lockForUpdate()->first();
@@ -113,6 +130,9 @@ final class OutlookAddinTemplateChoicesPolicy
             }
             if (! in_array($selection, ['default', 'none'], true) && ! in_array($selection, array_column($current['templates'], 'id'), true)) {
                 throw ValidationException::withMessages(['templateChoices' => 'Diese Outlook-Vorlage ist nicht mehr freigegeben.']);
+            }
+            if ($selection === 'default' && count(array_filter($current['templates'], static fn (array $template): bool => $template['isDefault'])) !== 1) {
+                throw ValidationException::withMessages(['templateChoices' => 'Eine eindeutige Standardvorlage ist derzeit nicht freigegeben.']);
             }
             if ($current[$group]['selection'] === $selection && $current[$group]['available']) {
                 return $current;
@@ -124,12 +144,15 @@ final class OutlookAddinTemplateChoicesPolicy
                 'documentId' => in_array($selection, ['default', 'none'], true) ? null : $selection,
             ]);
             Setting::setValue('outlook_addin', $this->key($target), $stored);
+            $next = $this->value($target, $stored, $nextAutomatic);
             activity('outlook-addin')->causedBy($actor)->performedOn($target)->withProperties([
                 'employee_id' => (int) $target->getKey(), 'group' => $group,
                 'selection_before' => $current[$group]['selection'], 'selection_after' => $selection,
                 'revision_before' => $current['revision'],
+                'revision_after' => $next['revision'],
             ])->log('outlook_addin_template_choice_changed');
-            return $this->value($target, $stored, $nextAutomatic);
+
+            return $next;
         }, 3);
     }
 
@@ -138,20 +161,22 @@ final class OutlookAddinTemplateChoicesPolicy
         if ($stored !== null && (! is_array($stored) || ($stored['schema'] ?? null) !== 1)) {
             throw new RuntimeException('Die Outlook-Vorlagenauswahl ist ungültig.');
         }
-        $templates = array_map(static fn (array $snapshot): array => ['id' => $snapshot['id'], 'name' => $snapshot['name']],
+        $templates = array_map(static fn (array $snapshot): array => ['id' => $snapshot['id'], 'name' => $snapshot['name'], 'isDefault' => ($snapshot['isDefault'] ?? false) === true],
             app(PublishedMailDocumentSnapshotStore::class)->freshTemplateSnapshots());
         $ids = array_column($templates, 'id');
+        $defaultAvailable = count(array_filter($templates, static fn (array $template): bool => $template['isDefault'])) === 1;
         $result = ['schema' => 1];
         foreach (['newMessages', 'replies'] as $group) {
-            $choice = $stored[$group] ?? ['mode' => 'default', 'documentId' => null];
+            $choice = is_array($stored) && array_key_exists($group, $stored) ? $stored[$group] : ['mode' => 'default', 'documentId' => null];
             if (! is_array($choice) || ! in_array($choice['mode'] ?? null, ['default', 'document', 'none'], true)
                 || (($choice['mode'] === 'document') ? ! is_string($choice['documentId'] ?? null) || ! Str::isUuid($choice['documentId']) : ($choice['documentId'] ?? null) !== null)) {
                 throw new RuntimeException('Die Outlook-Vorlagenauswahl ist ungültig.');
             }
             $selection = ! $automatic[$group]['template'] ? 'none'
                 : ($choice['mode'] === 'document' ? $choice['documentId'] : 'default');
-            $result[$group] = ['selection' => $selection, 'available' => in_array($selection, ['none', 'default'], true) || in_array($selection, $ids, true)];
+            $result[$group] = ['selection' => $selection, 'available' => $selection === 'none' || ($selection === 'default' ? $defaultAvailable : in_array($selection, $ids, true))];
         }
+
         return $result + ['templates' => $templates,
             'revision' => hash('sha256', json_encode([(int) $user->getKey(), $stored, $automatic['revision']], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES))];
     }
@@ -161,6 +186,7 @@ final class OutlookAddinTemplateChoicesPolicy
         if ((int) $user->getKey() < 1) {
             throw new RuntimeException('Die Outlook-Auswahl benötigt ein bestehendes Mitarbeiterkonto.');
         }
+
         return 'template_choices_user_'.(int) $user->getKey();
     }
 }

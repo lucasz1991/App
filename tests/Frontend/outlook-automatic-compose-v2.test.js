@@ -35,8 +35,8 @@ function payloadFor(mode, composeType) {
     };
     if (signature) payload.signature = { html: SIGNATURE, media: [media('signature')] };
     if (template) {
-        payload.automaticTemplateId = 'template-a';
-        payload.templates = [{ id: 'template-a', key: 'template-a', isDefault: true, signatureMode: 'native',
+        payload.automaticTemplateId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+        payload.templates = [{ id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', key: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', isDefault: true, signatureMode: 'native',
             composeHtml: NATIVE, composeMedia: [media('template')],
             ...(signature ? { html: '<p>Legacy full document; forbidden as template-only fallback.</p>', media: [],
                 composeDocumentMode: 'combined-v1', combinedComposeHtml: COMBINED, combinedComposeMedia: [media('signature')],
@@ -47,6 +47,7 @@ function payloadFor(mode, composeType) {
         payload.automaticTemplateId = null;
         payload.templates = [];
     }
+    payload.automaticTemplateChoice = { schema: 1, composeType, selection: template ? 'default' : 'none', templateId: template ? payload.automaticTemplateId : null };
     return payload;
 }
 
@@ -144,7 +145,7 @@ for (const mobile of [false, true]) for (const composeType of ['newMail', 'reply
         const result = await h.apply();
         assert.equal(result, mode === 'neither' ? 'disabled' : 'applied');
         const request = h.state.requests.find(entry => entry.url.includes('/bootstrap'));
-        assert.equal(request.options.headers['X-RailTime-Automatic-Policy'], '2');
+        assert.equal(request.options.headers['X-RailTime-Automatic-Policy'], '3');
         assert.equal(request.options.headers['X-RailTime-Compose-Type'], composeType);
         assert.equal(request.options.headers['X-RailTime-Outlook-Context'], 'event');
         assert.deepEqual(h.state.replacements, [], 'automatic insertion never replaces the entire body');
@@ -252,6 +253,45 @@ test('signature-free contracts reject embedded signatures, combined fallback and
         assert.deepEqual(h.state.signatures, []);
     }
     assert.throws(() => compose.mobileTemplateOnlyComposeDocument({ signatureMode: 'native', composeHtml: NATIVE + 'x'.repeat(30000), composeMedia: [] }), { code: 'SIGNATURE_TOO_LARGE' });
+});
+
+test('Policy3 actual runtime inserts independent published templates for new mail and reply, while manual payload is not mutated', async () => {
+    const ids = { newMail: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', reply: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' };
+    for (const composeType of ['newMail', 'reply']) {
+        const id = ids[composeType];
+        const h = harness({ mode: 'template', composeType }, ({ payload }) => {
+            const selected = { ...payload.templates[0], id, key: id,
+                composeHtml: `${NATIVE}<p>Chosen-${composeType}</p>` };
+            payload.templates = [{ ...selected, id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', key: 'other', isDefault: false }, selected];
+            payload.automaticTemplateId = id;
+            payload.automaticTemplateChoice = { schema: 1, composeType, selection: id, templateId: id };
+        });
+        const before = JSON.stringify(h.payload);
+        assert.equal(await h.apply(), 'applied');
+        assert.equal(h.state.prepends.length, 1);
+        assert.ok(h.state.prepends[0].includes(`Chosen-${composeType}`));
+        assert.ok(h.state.body.includes(TYPED));
+        assert.equal(JSON.stringify(h.payload), before);
+        assert.deepEqual(h.state.signatures, []);
+    }
+});
+
+test('Policy3 none keeps automatic signature independent and absent or contradictory choice never starts body writes', async () => {
+    const none = harness({ mode: 'signature', composeType: 'reply' });
+    assert.equal(await none.apply(), 'applied');
+    assert.equal(none.state.signatures.length, 1);
+    assert.deepEqual(none.state.prepends, []);
+    for (const mutate of [payload => { delete payload.automaticTemplateChoice; },
+        payload => { payload.automaticTemplateChoice.composeType = 'reply'; },
+        payload => { payload.automaticTemplateChoice.selection = 'none'; },
+        payload => { payload.automaticTemplateChoice.templateId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'; }]) {
+        const h = harness({ mode: 'both' }, ({ payload }) => mutate(payload));
+        assert.equal(await h.apply(), 'skipped');
+        assert.equal(h.state.bodyReads, 0);
+        assert.deepEqual(h.state.media, []);
+        assert.deepEqual(h.state.prepends, []);
+        assert.deepEqual(h.state.signatures, []);
+    }
 });
 
 test('a compose-type change after authenticated policy selection stops before the first mutation', async () => {
