@@ -28,6 +28,8 @@ final class TemplateDocumentContract
         self::assertCanonicalMarkFragment($html);
         self::assertApplicationSlot($html);
         self::assertSignatureSlot($html);
+        // Validate explicit wording before the system compiler masks the slot.
+        OutlookTemplateWording::render($html);
     }
 
     /**

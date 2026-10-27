@@ -6,6 +6,7 @@ use App\Enums\MailDocumentKind;
 use App\Models\User;
 use App\Support\Mail\CssSemantic;
 use App\Support\Mail\OutlookSignatureInlineStyle;
+use App\Support\Mail\OutlookTemplateWording;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\Mail\SignatureArtifactVersion;
 use App\Support\Mail\SignatureBackgroundContract;
@@ -17,6 +18,7 @@ use App\Support\Mail\SystemMailInlineImageEmbedder;
 use App\Support\Mail\TemplateDocumentContract;
 use App\Support\Mail\TrustedEmailCss;
 use App\Support\Mail\TrustedOutlookSignatureCss;
+use App\Support\OutlookAddin\OutlookAddinWordingPolicy;
 use App\Support\OutlookAddin\OutlookComposeFrame;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\Schema;
@@ -349,10 +351,15 @@ class EmailTemplateBuilder
      * Die cid:-Referenzen werden vom Add-in als Inline-Anhaenge eingesetzt;
      * die Sichtbarkeit des Inhalts haengt nicht von einer Animation ab.
      */
-    public function buildOutlookAddinTemplateHtml(string $theme = 'light'): string
+    public function buildOutlookAddinTemplateHtml(string $theme = 'light', ?array $wordingPreferences = null): string
     {
         if (! in_array($theme, ['light', 'dark'], true)) {
             throw new RuntimeException('Unbekannte Vorlagenvariante.');
+        }
+        $source = self::runtimeDocument(MailDocumentKind::Template)
+            ?? (string) file_get_contents(self::masterPath('email-master.html'));
+        if (OutlookTemplateWording::requested($source)) {
+            $wordingPreferences ??= app(OutlookAddinWordingPolicy::class)->preferencesForUser($this->user);
         }
 
         $document = $this->buildEmailHtml(
@@ -363,6 +370,7 @@ class EmailTemplateBuilder
             animatedSignature: false,
             staticAnimations: false,
             cidOutlookImages: true,
+            outlookWording: $wordingPreferences,
         );
         $body = self::outlookAddinFragment($document, includeStyles: false);
         // Der Scope ist inhaltsgebunden: andere Vorlagen und zitierte alte
@@ -405,6 +413,10 @@ class EmailTemplateBuilder
         // gescopten Regeln bleiben parallel erhalten, weil prependAsync die
         // Uebernahme von Inline-CSS nicht fuer jeden Client garantiert.
         $fragment = self::outlookAddinFragment($inlined, includeStyles: false);
+        if (OutlookTemplateWording::requested($source)) {
+            $fragment = OutlookTemplateWording::wrapOutlookParagraphs($fragment);
+            $css .= OutlookTemplateWording::wrappingCss($scope);
+        }
         if ($this->usesNativeOutlookSignature()) {
             $frame = OutlookComposeFrame::apply($fragment, $scope);
             $fragment = $frame['html'];
@@ -658,6 +670,7 @@ class EmailTemplateBuilder
     {
         $html = self::runtimeDocument(MailDocumentKind::Template, requirePublished: true)
             ?? (string) file_get_contents(self::masterPath('email-master.html'));
+        $wordingRequested = OutlookTemplateWording::requested($html);
         $fontFamily = self::systemMailFontFamily($html);
         $slot = '__RT_APPLICATION_CONTENT_'.Str::random(32).'__';
         $count = 0;
@@ -698,6 +711,11 @@ class EmailTemplateBuilder
 
         foreach ($values as $key => $value) {
             $html = str_replace('{{'.$key.'}}', $value, $html);
+        }
+        // Only safe defaults belong to the generic system compiler, never an
+        // employee's Outlook preferences. The application slot is still opaque.
+        if ($wordingRequested) {
+            $html = OutlookTemplateWording::render($html);
         }
 
         $trusted = $applicationContent->toHtml();
@@ -1145,6 +1163,7 @@ class EmailTemplateBuilder
         ?string $playbackNonce = null,
         bool $staticAnimations = false,
         bool $cidOutlookImages = false,
+        ?array $outlookWording = null,
     ): string {
         $values = $this->profileValues();
         // In einer migrierten Installation ist ausschließlich die
@@ -1152,6 +1171,7 @@ class EmailTemplateBuilder
         // Tabelle greift der Bootstrap-Fallback auf die Masterdatei.
         $html = self::runtimeDocument(MailDocumentKind::Template)
             ?? (string) file_get_contents(self::masterPath('email-master.html'));
+        $wordingRequested = OutlookTemplateWording::requested($html);
         // Motivfarben ZUERST: der erste Durchgang loest {{RESPONSIVE_CSS}}
         // auf und braucht dafuer SIGNATURE_BORDER (siehe substitute()).
         $html = $this->substitute($html, self::emailThemeValues($theme));
@@ -1226,11 +1246,13 @@ class EmailTemplateBuilder
             ),
         ]);
 
-        return self::embedPublishedCss(
+        $html = self::embedPublishedCss(
             $html,
             $signature->publishedCss($signatureOverrides),
             MailDocumentKind::Signature,
         );
+
+        return $wordingRequested ? OutlookTemplateWording::render($html, $outlookWording, $values['VORNAME_NACHNAME']) : $html;
     }
 
     /**
