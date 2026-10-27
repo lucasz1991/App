@@ -268,7 +268,7 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
 
     private function assertDocument(string $html, array $media, bool $mobile, int $characters, int $cssBytes, bool $personal, bool $mirrored = true): void
     {
-        $responsive = str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v5"') && str_contains($html, 'data-rt-personal-flow="v1"');
+        $responsive = preg_match('/data-rt-desktop-flow="outlook-desktop-flow-v[56]"/', $html) === 1 && str_contains($html, 'data-rt-personal-flow="v1"');
         $mobileHybrid = str_contains($html, 'data-rt-mobile-hybrid="v1"');
         self::assertLessThanOrEqual($characters, intdiv(strlen(mb_convert_encoding($html, 'UTF-16LE', 'UTF-8')), 2));
         preg_match_all('~<style\b[^>]*>(.*?)</style\s*>~is', $html, $styles);
@@ -357,9 +357,16 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
             self::assertSame(1, $trainImages->length);
             self::assertMatchesRegularExpression('/(?:^|;)\s*height\s*:\s*auto\s*(?:!important\s*)?(?:;|$)/i', $trainImages->item(0)->getAttribute('style'), 'The full train and smoke keep their natural aspect ratio.');
             if ($mobileHybrid) {
-                self::assertSame('rtl', $trainImages->item(0)->parentNode->getAttribute('dir'));
-                self::assertStringContainsString('overflow:hidden;', $trainImages->item(0)->parentNode->getAttribute('style'));
-                self::assertStringContainsString('width:520px!important;', $trainImages->item(0)->getAttribute('style'));
+                preg_match('/\Art-mhy-image rt-i([0-9a-f]{6})\z/', $trainImages->item(0)->getAttribute('class'), $scope);
+                self::assertNotEmpty($scope);
+                self::assertSame('rt-w'.$scope[1], $trainImages->item(0)->parentNode->getAttribute('class'));
+                self::assertFalse($trainImages->item(0)->parentNode->hasAttribute('style'));
+                self::assertFalse($trainImages->item(0)->parentNode->hasAttribute('dir'));
+                self::assertStringContainsString('width:100%;max-width:100%;', $trainImages->item(0)->getAttribute('style'));
+                self::assertStringContainsString('.rt-w'.$scope[1].'{overflow:hidden;padding-top:9.2%}.rt-i'.$scope[1].'{transform:scale(1.733333);transform-origin:100% 100%}', $html);
+                self::assertStringNotContainsString('.rt-mhy-image{', $html);
+                self::assertSame(3, $xpath->query('//table[@data-rt-mobile-hybrid="v1"]/tbody/tr[1]/td/table')->length);
+                self::assertSame('rt-mhy-train', $xpath->query('//table[@data-rt-mobile-hybrid="v1"]/tbody/tr[2]/td/table')->item(0)->getAttribute('class'));
             }
         }
         $footerCells = $xpath->query('//td[not(.//td) and contains(.,"Diese E-Mail kann vertrauliche Informationen enthalten.")]');

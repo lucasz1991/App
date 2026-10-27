@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import { insertStandaloneSignature, isStandaloneSignatureInsertionBlocked, prependTemplate, replaceManagedTemplate, standaloneSignatureLayoutIsCurrent, TEMPLATE_INSERT_LIMITS } from '../../resources/js/outlook-addin/compose-template.js';
 import { standaloneSignatureContract } from '../../resources/js/outlook-addin/managed-template.js';
 import { wasSignatureWriteConfirmed } from '../../resources/js/outlook-addin/office-write.js';
@@ -65,17 +66,32 @@ test('same-version layout migration cannot return current using a different safe
     assert.equal(standaloneSignatureContract(h.body()).layoutIds.logo.endsWith('-l'), true);
 });
 
+test('R63 owned native-only drafts migrate with fresh IDs without acknowledging their historical mixed core', async () => {
+    const h = fixture();
+    const frozen = readFileSync(new URL('../Fixtures/outlook/r63-native-mixed-carrier.html', import.meta.url), 'utf8').trimEnd();
+    const contract = standaloneSignatureContract(frozen);
+    const carrier = contract.elements.find(node => (node.attrs.id || '').endsWith('-carrier'));
+    h.state.carrier = officeCarrier(frozen.slice(carrier.start, carrier.end));
+    h.state.signature = nativeOfficeHtml(frozen.slice(carrier.end));
+    assert.equal(standaloneSignatureLayoutIsCurrent(h.body(), h.body(), STANDALONE_VERSION), false);
+    await h.run();
+    assert.equal(h.state.writes.length, 1); assert.equal(h.state.prepends.length, 1); assert.equal(h.state.fullWrites, 0);
+    assert.equal(h.state.writes[0].includes('rt-native-layout-' + '63'.repeat(16)), false);
+    assert.equal(standaloneSignatureLayoutIsCurrent(h.body(), h.body(), STANDALONE_VERSION), true);
+    assert.equal(isStandaloneSignatureInsertionBlocked(h.item), false);
+});
+
 test('v5 nine-ID native insertion proves inset/footer retention and never emits a descendant selector', async () => {
     const h = fixture(); await h.run();
     const version = '5123456789abcdef';
     await h.run(standaloneHtml(version, true, true));
     const contract = standaloneSignatureContract(h.body());
-    assert.equal(Object.keys(contract.layoutIds).length, 9);
+    assert.equal(Object.keys(contract.layoutIds).length, 11);
     assert.equal(standaloneSignatureLayoutIsCurrent(h.body(), h.body(), version), true);
     const payload = h.state.prepends.at(-1);
     const css = /<style\b[^>]*>([^]*?)<\/style>/.exec(payload)[1];
     for (const [, selector] of css.replace('@media(max-width:680px){', '').matchAll(/([^{}]+)\{[^{}]*\}/g)) {
-        assert.match(selector, /^#rt-native-layout-[0-9a-f]{32}-[rpcthslif]$/);
+        assert.match(selector, /^#rt-native-layout-[0-9a-f]{32}-[rpcthslifwj]$/);
     }
     assert.equal(h.state.fullWrites, 0);
     const snapshot = h.body(); await h.run(standaloneHtml(version, true, true));

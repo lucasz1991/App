@@ -665,12 +665,17 @@ function standaloneReadback(snapshot, ids, version) {
     return layoutIdsContract(snapshot.html, current, ids, contract);
 }
 
-function existingStandalone(snapshot) {
+function existingStandalone(snapshot, cleanup = false) {
     const current = currentComposeBodyHtml(snapshot.html, snapshot.composeType);
     let contract;
     try { contract = standaloneSignatureContract(snapshot.html, current); } catch { return null; }
     if (!contract.layoutIds) return null;
-    return { contract: standaloneReadback(snapshot, contract.layoutIds, contract.version), ids: contract.layoutIds };
+    try {
+        return { contract: standaloneReadback(snapshot, contract.layoutIds, contract.version), ids: contract.layoutIds, historical: false };
+    } catch (error) {
+        if (!cleanup) throw error;
+        return { contract: layoutIdsContract(snapshot.html, current, contract.layoutIds, contract, true), ids: contract.layoutIds, historical: true };
+    }
 }
 
 export function standaloneSignatureLayoutIsCurrent(html, currentHtml, version) {
@@ -722,11 +727,14 @@ export async function insertStandaloneSignature(office, item, html, beforeWrite 
         const original = await replacementSnapshot(office, item);
         const current = currentComposeBodyHtml(original.html, original.composeType);
         if (current === null || templateStateFromBody(original.html, original.composeType).present) throw failure('SIGNATURE_LAYOUT_UNAVAILABLE');
-        const previous = existingStandalone(original);
+        const previous = existingStandalone(original, true);
         let layout = null;
         if (previous) {
             let valid = false;
-            try { valid = nativeLayoutRestoreRetained(original.html, previous.contract, previous.ids) === true; } catch { /* No retry against a stale carrier. */ }
+            try {
+                valid = previous.historical ? removeNativeLayoutRestoreCarrier(original.html, previous.contract, previous.ids) !== original.html
+                    : nativeLayoutRestoreRetained(original.html, previous.contract, previous.ids) === true;
+            } catch { /* No retry against an unknown carrier. */ }
             if (!valid) { operation.phase = 'uncertain'; throw failure('SIGNATURE_LAYOUT_UNCONFIRMED'); }
             if (!previous.ids.logo && nativeLayoutRestoreCarrierIsExternal(original.html, previous.contract, previous.ids)) {
                 throw failure('SIGNATURE_LAYOUT_LEGACY_CARRIER', { phase: 'signature-legacy-carrier-preflight' });
@@ -734,7 +742,7 @@ export async function insertStandaloneSignature(office, item, html, beforeWrite 
             const reuse = /^rt-native-layout-([0-9a-f]{32})-r$/.exec(previous.ids.root)?.[1];
             if (!reuse) throw failure('SIGNATURE_LAYOUT_UNAVAILABLE');
             const candidate = prepareNativeLayoutRestore(html, incoming, reuse);
-            const compatible = candidate && Object.keys(candidate.ids).length === Object.keys(previous.ids).length
+            const compatible = !previous.historical && candidate && Object.keys(candidate.ids).length === Object.keys(previous.ids).length
                 && Object.keys(previous.ids).every(key => candidate.ids[key] === previous.ids[key])
                 && nativeLayoutRestoreCss(candidate.ids) === nativeLayoutRestoreCss(previous.ids);
             if (compatible && previous.contract.version === incoming.version) {
@@ -825,7 +833,7 @@ function insetImageWidth(node) {
         : declarations.length === 1 && declarations[0][1].toLowerCase() === 'width' && declarations[0][2] === '100%';
 }
 
-function layoutIdsContract(html, currentHtml, ids, standalone = null) {
+function layoutIdsContract(html, currentHtml, ids, standalone = null, cleanup = false) {
     const contract = standalone || managedTemplateContract(html, currentHtml);
     if (!['text-v1', 'standalone-signature-v1'].includes(contract.kind)) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
     const targets = {};
@@ -835,7 +843,8 @@ function layoutIdsContract(html, currentHtml, ids, standalone = null) {
         const matches = contract.elements.map((node, index) => ({ node, index })).filter(value => typeof value.node.attrs.id === 'string'
             && value.node.attrs.id.endsWith(ids[key]));
         const owner = key === 'templateGutter' ? (contract.kind === 'standalone-signature-v1' ? null : contract.template?.index) : contract.signature.index;
-        if (matches.length !== 1 || matches[0].node.tag !== 'table'
+        const tag = key === 'window' ? 'div' : key === 'trainImage' ? 'img' : 'table';
+        if (matches.length !== 1 || matches[0].node.tag !== tag
             || ![ids[key], `x_${ids[key]}`].includes(matches[0].node.attrs.id)
             || !Number.isInteger(owner) || !withinContract(contract, matches[0].index, owner)) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
         targets[key] = matches[0];
@@ -846,12 +855,23 @@ function layoutIdsContract(html, currentHtml, ids, standalone = null) {
         if (values.length !== 1 || values[0].node.tag !== tag) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
         return values[0].index;
     };
-    const cell = only(only(only(targets.root.index, 'tbody'), 'tr'), 'td');
-    const groups = children(cell);
-    const order = [...(targets.logo ? [targets.logo.index] : []), targets.person.index, targets.company.index, targets.train.index];
+    const rootRows = children(only(targets.root.index, 'tbody'));
+    const legacy = !targets.logo || (cleanup && rootRows.length === 1);
+    if (rootRows.length !== (legacy ? 1 : 2) || rootRows.some(row => row.node.tag !== 'tr')) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
+    const cells = rootRows.map(row => only(row.index, 'td'));
+    const groups = children(cells[0]);
+    const order = [...(targets.logo ? [targets.logo.index] : []), targets.person.index, targets.company.index, ...(legacy ? [targets.train.index] : [])];
     if (groups.length !== order.length || groups.some((value, index) => value.index !== order[index])
+        || (!legacy && only(cells[1], 'table') !== targets.train.index)
         || (targets.header && withinContract(contract, targets.header.index, targets.root.index))) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
-    try { nativeLayoutRestoreCellsAligned(contract, ids); } catch { throw failure('TEMPLATE_LAYOUT_UNCONFIRMED'); }
+    if (!legacy) {
+        if (!targets.window || !targets.trainImage) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
+        const trainCell = only(only(only(targets.train.index, 'tbody'), 'tr'), 'td');
+        if (only(trainCell, 'div') !== targets.window.index || only(targets.window.index, 'img') !== targets.trainImage.index) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
+    }
+    if (!cleanup) {
+        try { nativeLayoutRestoreCellsAligned(contract, ids); } catch { throw failure('TEMPLATE_LAYOUT_UNCONFIRMED'); }
+    }
     if (targets.header) {
         const rows = children(only(targets.header.index, 'tbody'));
         if (!rows.length || rows.some(value => value.node.tag !== 'tr')
@@ -908,7 +928,7 @@ function removePreviousLayoutSheet(html, contract) {
     const ids = { root: base + 'r', person: base + 'p', company: base + 'c', train: base + 't' };
     if (contract.elements.some((node, index) => withinContract(contract, index, contract.signature.index)
         && [base + 'l', 'x_' + base + 'l'].includes(node.attrs.id))) ids.logo = base + 'l';
-    for (const [key, suffix] of [['inset', 'i'], ['footer', 'f']]) {
+    for (const [key, suffix] of [['inset', 'i'], ['footer', 'f'], ['window', 'w'], ['trainImage', 'j']]) {
         if (contract.elements.some((node, index) => withinContract(contract, index, contract.signature.index)
             && [base + suffix, 'x_' + base + suffix].includes(node.attrs.id))) ids[key] = base + suffix;
     }
@@ -918,7 +938,7 @@ function removePreviousLayoutSheet(html, contract) {
         && [base + 'h', 'x_' + base + 'h'].includes(node.attrs.id))) ids.header = base + 'h';
     if (contract.elements.some((node, index) => withinContract(contract, index, contract.signature.index)
         && [base + 's', 'x_' + base + 's'].includes(node.attrs.id))) ids.signature = base + 's';
-    try { layoutIdsContract(html, html.slice(0, contract.root.end), ids); } catch { return html; }
+    try { layoutIdsContract(html, html.slice(0, contract.root.end), ids, null, true); } catch { return html; }
     const withoutCarrier = removeNativeLayoutRestoreCarrier(html, contract, ids);
     if (withoutCarrier !== html) return withoutCarrier;
     const expected = nativeLayoutRestoreCss(ids).replace(/\s+/g, '');

@@ -17,6 +17,7 @@ use DOMDocument;
 use DOMXPath;
 use Illuminate\Support\Facades\Http;
 use PHPUnit\Framework\Attributes\DataProvider;
+use ReflectionMethod;
 use RuntimeException;
 use Symfony\Component\CssSelector\CssSelectorConverter;
 use Tests\TestCase;
@@ -78,7 +79,7 @@ final class OutlookDesktopFlowTest extends TestCase
         self::assertStringNotContainsString('data-rt-desktop-flow=', OutlookClientPresentation::payload($mobile)['signature']['html']);
     }
 
-    public function test_personal_v5_has_one_logo_and_natural_narrow_reading_order_without_a_layout_copy(): void
+    public function test_personal_v6_has_one_logo_and_a_separate_train_row_with_a_fluid_styleless_fallback(): void
     {
         $canonical = $this->document(personal: true);
         $html = OutlookDesktopFlow::project($canonical);
@@ -86,24 +87,14 @@ final class OutlookDesktopFlowTest extends TestCase
         SignaturePersonalColumns::assertRuntime($html);
         self::assertSame($this->inventory($canonical), $this->inventory($html));
         $xpath = $this->xpath($html);
-        $groups = $xpath->query('//table[@data-rt-desktop-flow="outlook-desktop-flow-v5"]/tbody/tr/td/table');
+        $groups = $xpath->query('//table[@data-rt-desktop-flow="outlook-desktop-flow-v6"]/tbody/tr/td/table');
         self::assertCount(4, $groups);
         foreach (['rt-personal-logo-column', 'rt-personal-left', 'rt-personal-right', 'rt-df-train'] as $index => $class) {
             self::assertStringContainsString($class, $groups->item($index)->getAttribute('class'));
-            self::assertStringContainsString('display:'.($index === 3 ? 'inline-table' : 'inline-block').';', $groups->item($index)->getAttribute('style'));
+            self::assertStringContainsString('display:'.(in_array($index, [1, 3], true) ? 'inline-table' : 'inline-block').';', $groups->item($index)->getAttribute('style'));
             self::assertStringContainsString('width:100%;min-width:0;max-width:340px;', $groups->item($index)->getAttribute('style'));
             self::assertDoesNotMatchRegularExpression('/\b(?:min|max|calc)\s*\(/i', $groups->item($index)->getAttribute('style'));
-            self::assertDoesNotMatchRegularExpression('/(?:^|;)\s*(?:position|top)\s*:|float\s*:\s*right/i', $groups->item($index)->getAttribute('style'));
-            if (in_array($index, [1, 3], true)) {
-                self::assertStringContainsString('float:left;', $groups->item($index)->getAttribute('style'));
-            } else {
-                self::assertDoesNotMatchRegularExpression('/(?:^|;)\s*float\s*:/i', $groups->item($index)->getAttribute('style'));
-            }
-            if ($index === 3) {
-                self::assertStringContainsString('clear:left;', $groups->item($index)->getAttribute('style'));
-            } else {
-                self::assertDoesNotMatchRegularExpression('/(?:^|;)\s*clear\s*:/i', $groups->item($index)->getAttribute('style'));
-            }
+            self::assertDoesNotMatchRegularExpression('/(?:^|;)\s*(?:float|clear|position|top)\s*:/i', $groups->item($index)->getAttribute('style'));
             self::assertSame('ltr', $groups->item($index)->getAttribute('dir'));
             self::assertStringContainsString('direction:ltr;text-align:left;', $groups->item($index)->getAttribute('style'));
             self::assertStringContainsString('border-right:40px solid transparent;', $groups->item($index)->getAttribute('style'));
@@ -111,12 +102,16 @@ final class OutlookDesktopFlowTest extends TestCase
             self::assertSame('ltr', $cell->getAttribute('dir'));
             self::assertSame('left', $cell->getAttribute('align'));
             self::assertStringContainsString('direction:ltr;text-align:left;', $cell->getAttribute('style'));
-            self::assertStringContainsString($index === 3 ? 'font-size:0;line-height:0;' : 'font-size:13px;line-height:18px;', $cell->getAttribute('style'));
+            self::assertStringContainsString(in_array($index, [0, 3], true) ? 'font-size:0;line-height:0;' : 'font-size:13px;line-height:18px;', $cell->getAttribute('style'));
         }
+        self::assertSame('left', $groups->item(1)->getAttribute('align'));
+        self::assertSame('50', $groups->item(1)->getAttribute('height'));
+        self::assertStringContainsString('min-height:50px;height:50px;', $groups->item(1)->getAttribute('style'));
         self::assertSame(1, $xpath->query('//img[contains(concat(" ",normalize-space(@class)," ")," rt-logo ")]')->length);
         self::assertSame(1, $xpath->query('.//img[contains(concat(" ",normalize-space(@class)," ")," rt-logo ")]', $groups->item(0))->length);
         self::assertStringContainsString('@media(max-width:680px){', $html);
-        self::assertMatchesRegularExpression('/\.(rt-df[0-9]+[0-9a-f]{10}) \.rt-personal-cell-logo,\.\1 \.rt-personal-cell-left,\.\1 \.rt-personal-cell-right\{padding:0!important;/', $html);
+        self::assertStringContainsString('.rt-personal-cell-logo{padding:0!important;font-size:0!important;line-height:0!important;', $html);
+        self::assertMatchesRegularExpression('/\.(rt-df[0-9]+[0-9a-f]{10}) \.rt-personal-cell-left,\.\1 \.rt-personal-cell-right\{padding:0!important;/', $html);
         preg_match_all('~<style\b[^>]*>(.*?)</style\s*>~is', $html, $styles);
         self::assertDoesNotMatchRegularExpression('/>\s*(?:tbody|tr|td)\b/', implode('', $styles[1]), 'Outlook send/receive rewriting must not broaden child-selector rules into global element styles.');
         self::assertStringContainsString('border-left-width:18px!important;border-right-width:18px!important;', $html);
@@ -126,12 +121,13 @@ final class OutlookDesktopFlowTest extends TestCase
         self::assertStringContainsString('rt-personal-company-contacts" style="padding-top:0;"', $html);
         self::assertStringNotContainsString('.rt-personal-company-contacts{padding-top:14px!important;}', $html);
         self::assertStringContainsString('.rt-personal-direct{padding-top:14px!important;}', $html);
-        self::assertStringContainsString('.rt-personal-left{float:left!important;}', $html);
-        self::assertStringContainsString('.rt-df-train{display:inline-table!important;vertical-align:bottom!important;border-left:0!important;float:left!important;clear:left!important;}', $html);
-        self::assertStringContainsString('width:520px;max-width:none!important;height:auto;', $html);
+        self::assertStringContainsString('.rt-personal-left{display:inline-table!important;min-height:50px!important;height:50px!important;}', $html);
+        self::assertStringContainsString('.rt-df-train{display:inline-table!important;vertical-align:bottom!important;border-left:0!important;}', $html);
+        self::assertStringContainsString('.rt-delivery-train{transform:scale(1.733333);transform-origin:100% 100%;}', $html);
+        self::assertStringContainsString('width:100%;max-width:100%;height:auto;', $html);
         $this->assertBudget($html, 12288, 30000);
         $styleless = $this->xpath(preg_replace('~<style\b[^>]*>.*?</style\s*>~is', '', $html));
-        $stylelessFlow = $styleless->query('//table[@data-rt-desktop-flow="outlook-desktop-flow-v5"]')->item(0);
+        $stylelessFlow = $styleless->query('//table[@data-rt-desktop-flow="outlook-desktop-flow-v6"]')->item(0);
         self::assertSame('ltr', $stylelessFlow->getAttribute('dir'));
         $stylelessCell = $styleless->query('./tbody/tr/td', $stylelessFlow)->item(0);
         self::assertSame('ltr', $stylelessCell->getAttribute('dir'));
@@ -140,14 +136,77 @@ final class OutlookDesktopFlowTest extends TestCase
         self::assertStringContainsString('max-width:680px;', $stylelessFlow->getAttribute('style'));
         self::assertStringContainsString('text-align:left;', $stylelessFlow->getAttribute('style'));
         self::assertStringContainsString('direction:ltr;margin:0 auto 0 0;', $stylelessFlow->getAttribute('style'));
-        self::assertSame(1, $styleless->query('//*[@dir="rtl"]')->length, 'Only the bounded train clipping window needs RTL.');
+        self::assertSame(0, $styleless->query('//*[@dir="rtl"]')->length);
+        self::assertSame(2, $styleless->query('./tbody/tr', $stylelessFlow)->length);
+        self::assertSame(3, $styleless->query('./tbody/tr[1]/td/table', $stylelessFlow)->length);
+        self::assertSame(1, $styleless->query('./tbody/tr[2]/td/table', $stylelessFlow)->length);
         self::assertSame(4, $styleless->query('./tbody/tr/td/table', $stylelessFlow)->length);
+        self::assertSame(6, $styleless->query('./tbody/tr/td|./tbody/tr/td/table/tbody/tr/td', $stylelessFlow)->length);
+        $window = $styleless->query('//*[@class="rt-train-window"]')->item(0);
+        self::assertFalse($window->hasAttribute('style'), 'Clip and enlargement disappear together with optional styles.');
+        self::assertStringContainsString('width:100%;max-width:100%;height:auto;', $styleless->query('./img', $window)->item(0)->getAttribute('style'));
+        self::assertStringNotContainsString('transform:', $styleless->query('./img', $window)->item(0)->getAttribute('style'), 'Removing optional styles leaves a complete proportional GIF.');
         self::assertSame($this->inventory($html), $this->inventory($styleless->document->saveHTML()));
 
         $malformed = str_replace('class="rt-personal-cell-logo"', 'class="rt-personal-cell-logo" data-fixture="1"', $html);
         $malformed = preg_replace('~(<td class="rt-personal-cell-logo"[^>]*>)~', '$1<p>Unexpected text</p>', $malformed, 1);
         $this->expectException(RuntimeException::class);
         OutlookDesktopFlow::project($malformed);
+    }
+
+    public function test_published_v4_and_v5_css_contracts_remain_byte_exact(): void
+    {
+        $factory = new ReflectionMethod(OutlookDesktopFlow::class, 'personalCss');
+        self::assertSame('7fd517bfdd46565b7449fb85d1cecb914be89696035bb5188dbfa7f31696e216', hash('sha256', $factory->invoke(null, 'rts0123456789', false, true)));
+        self::assertSame('edc2e120e25d2c3cbd10609a1f99b6022a6f1f530c7cecd302b07de707756e9d', hash('sha256', $factory->invoke(null, 'rts0123456789', true)));
+    }
+
+    public function test_v6_rejects_lost_person_alignment_height_and_train_row_ownership(): void
+    {
+        $html = OutlookDesktopFlow::project($this->document(personal: true));
+        $merged = preg_replace('~</td></tr><tr><td dir="ltr" align="left" width="100%" valign="bottom" style="[^"]*">(?=<table dir="ltr" class="rt-dfb rt-df-train")~', '', $html, 1, $count);
+        self::assertSame(1, $count);
+        foreach ([
+            str_replace(' align="left" height="50">', ' height="50">', $html),
+            str_replace('min-height:50px;height:50px;', 'min-height:50px;height:auto;', $html),
+            $merged,
+        ] as $invalid) {
+            self::assertNotSame($html, $invalid);
+            try {
+                OutlookDesktopFlow::project($invalid);
+                self::fail('The v6 native geometry must retain its exact owned structure.');
+            } catch (RuntimeException) {
+                self::addToAssertionCount(1);
+            }
+        }
+    }
+
+    public function test_v6_enhancement_scope_does_not_match_a_quoted_v5_signature_with_the_same_content_scope(): void
+    {
+        $fresh = OutlookDesktopFlow::project($this->document(personal: true));
+        $quote = '<blockquote><div class="rt-outlook-signature rts0123456789 rt-df40123456789"><table><tr><td><div class="rt-train-window" style="overflow:hidden;direction:rtl;max-width:420px;"><img class="rt-delivery-train" src="cid:old.gif" width="300" height="38" style="width:520px;"></div></td></tr></table></div></blockquote>';
+        $combined = $fresh.$quote;
+        $xpath = $this->xpath($combined);
+        self::assertSame(1, $xpath->query('//*[contains(concat(" ",normalize-space(@class)," ")," rt-df60123456789 ")]')->length);
+        $old = $xpath->query('//blockquote//img')->item(0);
+        $oldWindow = $old->parentNode;
+        $converter = new CssSelectorConverter;
+        preg_match_all('~([^{}]+)\{([^{}]*)\}~', $xpath->query('//style[@data-rt-desktop-flow-css="1"]')->item(0)->textContent, $rules, PREG_SET_ORDER);
+        $enhancements = 0;
+        foreach ($rules as $rule) {
+            if (! str_contains($rule[2], 'transform:') && ! str_contains($rule[2], 'padding-top:9.2%')) {
+                continue;
+            }
+            foreach (explode(',', trim($rule[1])) as $selector) {
+                $matches = $xpath->query($converter->toXPath($selector));
+                foreach ($matches as $match) {
+                    self::assertFalse($match->isSameNode($old) || $match->isSameNode($oldWindow));
+                }
+            }
+            $enhancements++;
+        }
+        self::assertSame(2, $enhancements);
+        self::assertStringContainsString($quote, $combined, 'The quoted older signature stays byte-identical.');
     }
 
     public function test_combined_template_and_signature_roots_keep_their_distinct_scopes_and_shared_version_markers(): void
