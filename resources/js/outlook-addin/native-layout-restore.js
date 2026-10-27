@@ -139,9 +139,8 @@ function legacyRowsCoreCss(ids) {
     return css;
 }
 
-// Own TABLE text-align consumes the PERSON align attribute in Outlook's paste
-// normalizer. Its direct TD still owns the protected LTR/LEFT text contract.
-function responsiveRestoreCss(ids) {
+// Published R65/R66 intrinsic two-row core is immutable owned-cleanup evidence.
+function legacyIntrinsicRowsCoreCss(ids) {
     const rule = (key, declarations) => responsiveRestoreRule(ids, key, declarations);
     let css = rule('root', 'font-size:0!important;line-height:0!important;text-align:left!important;width:100%!important;max-width:680px!important;display:table!important;table-layout:fixed!important;border-collapse:collapse!important;overflow:hidden!important;direction:ltr!important;margin:0 auto 0 0!important;');
     for (const key of ['logo', 'person', 'company', 'train']) {
@@ -152,6 +151,29 @@ function responsiveRestoreCss(ids) {
     }
     css += rule('logo', 'margin-bottom:10px!important;')
         + rule('company', 'border-top:4px solid transparent!important;')
+        + rule('person', 'height:50px!important;min-height:50px!important;');
+    if (ids.window) css += rule('window', 'padding-top:0!important;');
+    if (ids.trainImage) css += rule('trainImage', 'display:block!important;width:100%!important;max-width:100%!important;height:auto!important;margin:0!important;border:0!important;vertical-align:bottom!important;');
+    if (ids.header) css += rule('header', 'color:#ffffff!important;table-layout:auto!important;width:100%!important;');
+    if (ids.signature) css += rule('signature', 'border-collapse:separate!important;border-spacing:0!important;');
+    if (ids.inset) css += rule('inset', 'width:40px!important;min-width:40px!important;max-width:40px!important;');
+    if (ids.footer) css += rule('footer', 'border-left:40px solid transparent!important;border-right:40px solid transparent!important;box-sizing:border-box!important;border-collapse:separate!important;border-spacing:0!important;');
+    if (ids.templateGutter) css += rule('templateGutter', 'border-left:40px solid transparent!important;border-right:40px solid transparent!important;box-sizing:border-box!important;border-collapse:separate!important;border-spacing:0!important;');
+    return css;
+}
+
+// Current v8 keeps the established two-row, function-free transport fallback.
+function responsiveRestoreCss(ids) {
+    const rule = (key, declarations) => responsiveRestoreRule(ids, key, declarations);
+    let css = rule('root', 'font-size:0!important;line-height:0!important;text-align:left!important;width:100%!important;max-width:680px!important;display:table!important;table-layout:fixed!important;border-collapse:collapse!important;overflow:hidden!important;direction:ltr!important;margin:0 auto 0 0!important;');
+    for (const key of ['logo', 'person', 'company', 'train']) {
+        css += rule(key, 'display:' + (['person', 'train'].includes(key) ? 'inline-table' : 'inline-block') + '!important;vertical-align:' + (key === 'train' ? 'bottom' : 'top') + '!important;width:100%!important;min-width:0!important;max-width:340px!important;direction:ltr!important;'
+            + (key === 'person' ? '' : 'text-align:left!important;') + 'table-layout:fixed!important;border-collapse:separate!important;border-spacing:0!important;box-sizing:border-box!important;'
+            + (key === 'train' ? 'border-left:0!important;' : 'border-left:40px solid transparent!important;')
+            + 'border-right:40px solid transparent!important;');
+    }
+    css += rule('logo', 'margin-bottom:10px!important;')
+        + rule('company', 'border-top:0!important;')
         + rule('person', 'height:50px!important;min-height:50px!important;');
     if (ids.window) css += rule('window', 'padding-top:0!important;');
     if (ids.trainImage) css += rule('trainImage', 'display:block!important;width:100%!important;max-width:100%!important;height:auto!important;margin:0!important;border:0!important;vertical-align:bottom!important;');
@@ -465,7 +487,7 @@ function retainedCarrier(html, contract, ids, legacyColumns = false) {
     const spans = descendants.filter(value => value.node.tag === 'span' && html.slice(value.node.openEnd, value.node.close).replace(/\s+/g, '') === token);
     if (styles.length < 1 || styles.length > (ids.logo ? 2 : 1) || spans.length !== 1) invalid();
     if (legacyColumns && !ids.logo) invalid();
-    const css = normalizedRestoreCss(legacyColumns === 'rows-r64' ? legacyRowsCoreCss(ids) : legacyColumns === 'mixed-r63' ? legacyMixedCoreCss(ids) : legacyColumns === 'hybrid-r61' ? legacyHybridCoreCss(ids) : legacyColumns ? legacyColumnCoreCss(ids) : nativeLayoutRestoreCss(ids), ids);
+    const css = normalizedRestoreCss(legacyColumns === 'rows-r65' ? legacyIntrinsicRowsCoreCss(ids) : legacyColumns === 'rows-r64' ? legacyRowsCoreCss(ids) : legacyColumns === 'mixed-r63' ? legacyMixedCoreCss(ids) : legacyColumns === 'hybrid-r61' ? legacyHybridCoreCss(ids) : legacyColumns ? legacyColumnCoreCss(ids) : nativeLayoutRestoreCss(ids), ids);
     const core = styles.filter(value => normalizedRestoreCss(html.slice(value.node.openEnd, value.node.close), ids) === css);
     if (core.length !== 1) invalid();
     const retainedCss = html.slice(core[0].node.openEnd, core[0].node.close);
@@ -517,7 +539,7 @@ export function removeNativeLayoutRestoreCarrier(html, contract, ids) {
         return html.slice(0, carrier.start) + html.slice(carrier.end);
     } catch {
         if (ids?.logo) {
-            for (const historical of [true, 'hybrid-r61', 'mixed-r63', 'rows-r64']) {
+            for (const historical of [true, 'hybrid-r61', 'mixed-r63', 'rows-r64', 'rows-r65']) {
                 try {
                     const carrier = retainedCarrier(html, contract, ids, historical);
                     return html.slice(0, carrier.start) + html.slice(carrier.end);
@@ -548,9 +570,9 @@ export function prepareNativeLayoutRestore(html, contract, nonce) {
     if (candidates.length !== 1 || candidates[0].node.tag !== 'table'
         || !has(candidates[0].node, 'rt-personal-columns') || candidates[0].node.attrs[FLOW] !== 'v1'
         || candidates[0].node.attrs['data-rt-personal-columns'] !== 'v1'
-        || !['outlook-desktop-flow-v4', 'outlook-desktop-flow-v7'].includes(candidates[0].node.attrs['data-rt-desktop-flow'])) invalid();
+        || !['outlook-desktop-flow-v4', 'outlook-desktop-flow-v8'].includes(candidates[0].node.attrs['data-rt-desktop-flow'])) invalid();
     const root = candidates[0];
-    const responsive = root.node.attrs['data-rt-desktop-flow'] === 'outlook-desktop-flow-v7';
+    const responsive = root.node.attrs['data-rt-desktop-flow'] === 'outlook-desktop-flow-v8';
     if (responsive) {
         const ancestors = [];
         for (let index = root.index, depth = 0; Number.isInteger(index); index = nodes[index].parent, depth += 1) {
@@ -566,11 +588,11 @@ export function prepareNativeLayoutRestore(html, contract, nonce) {
             const classes = host.attrs.class.split(/\s+/);
             const scopes = classes.filter(name => /^rts[0-9a-f]{10}$/.test(name));
             const names = classes.filter(name => /^rt-df[0-9][0-9a-f]{10}$/.test(name));
-            if (scopes.length !== 1 || names.length !== 1 || names[0] !== 'rt-df7' + scopes[0].slice(3)) invalid();
+            if (scopes.length !== 1 || names.length !== 1 || names[0] !== 'rt-df8' + scopes[0].slice(3)) invalid();
             if (expectedHost !== null && names[0] !== expectedHost) invalid();
             expectedHost = names[0];
         }
-        if (ancestors.some(node => (node.attrs.class || '').split(/\s+/).some(name => /^rt-df[46][0-9a-f]{10}$/.test(name)))) invalid();
+        if (ancestors.some(node => (node.attrs.class || '').split(/\s+/).some(name => /^rt-df[467][0-9a-f]{10}$/.test(name)))) invalid();
     }
     const body = onlyChild(nodes, root.index, 'tbody');
     const rows = children(nodes, body.index);

@@ -2,3 +2,5 @@
 # deterministisch. Der Loader akzeptiert zusaetzlich konsistentes CRLF fuer
 # bestehende Windows-Checkouts, aber keine gemischten Zeilenenden.
 resources/data/email-html-compatibility-rules.csv text eol=lf
+# Preserve the captured historical mail bytes for the frozen v7 hash test.
+tests/Fixtures/outlook/desktop-flow-v7-owned.html -text whitespace=cr-at-eol

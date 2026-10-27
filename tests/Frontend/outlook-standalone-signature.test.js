@@ -202,3 +202,17 @@ test('standalone parser rejects combined ownership, quoted owner, wrong version 
         assert.throws(() => standaloneSignatureContract(value));
     }
 });
+
+test('frozen v7 intrinsic two-row drafts migrate with fresh IDs and keep the old carrier cleanup bounded', async () => {
+    const h = fixture();
+    const frozen = readFileSync(new URL('../Fixtures/outlook/r66-native-v7-two-row-carrier.html', import.meta.url), 'utf8').trimEnd();
+    const contract = standaloneSignatureContract(frozen);
+    const carrier = contract.elements.find(node => (node.attrs.id || '').endsWith('-carrier'));
+    h.state.carrier = officeCarrier(frozen.slice(carrier.start, carrier.end));
+    h.state.signature = nativeOfficeHtml(frozen.slice(carrier.end));
+    assert.equal(standaloneSignatureLayoutIsCurrent(h.body(), h.body(), contract.version), false);
+    await h.run(standaloneHtml(contract.version, true, true));
+    assert.equal(h.state.writes.length, 1); assert.equal(h.state.prepends.length, 1); assert.equal(h.state.fullWrites, 0);
+    assert.equal(h.state.writes[0].includes('rt-native-layout-' + '67'.repeat(16)), false);
+    assert.equal(standaloneSignatureLayoutIsCurrent(h.body(), h.body(), contract.version), true);
+});

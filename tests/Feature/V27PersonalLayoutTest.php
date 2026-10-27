@@ -756,7 +756,7 @@ final class V27PersonalLayoutTest extends TestCase
         $images = $xpath->query('//img[contains(concat(" ",normalize-space(@class)," ")," rt-delivery-train ") or contains(concat(" ",normalize-space(@class)," ")," xr ") or contains(concat(" ",normalize-space(@class)," ")," rt-mhy-image ")]');
         self::assertCount(1, $images);
         self::assertSame('300', $images->item(0)->getAttribute('width'));
-        self::assertSame(str_contains($html, 'data-rt-mobile-hybrid="v2"') || str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v7"') ? '65' : '38', $images->item(0)->getAttribute('height'));
+        self::assertSame(str_contains($html, 'data-rt-mobile-hybrid="v2"') || preg_match('/data-rt-desktop-flow="outlook-desktop-flow-v[78]"/', $html) === 1 ? '65' : '38', $images->item(0)->getAttribute('height'));
         self::assertStringContainsString('height:auto', $images->item(0)->getAttribute('style'));
         self::assertStringNotContainsString('-4.647303%', $html);
         self::assertMatchesRegularExpression('~<!--\[if mso\]><img\b[^>]*rt-delivery-train-mso[^>]*width="220" height="28"~', $html);
@@ -774,7 +774,7 @@ final class V27PersonalLayoutTest extends TestCase
         } elseif (OutlookDesktopFlow::projected($html)) {
             $container = $this->one($xpath, 'rt-personal-columns');
             self::assertSame('v1', $container->getAttribute(SignaturePersonalColumns::NATIVE_FLOW_ATTRIBUTE));
-            self::assertSame('outlook-desktop-flow-v7', $container->getAttribute('data-rt-desktop-flow'));
+            self::assertSame('outlook-desktop-flow-v8', $container->getAttribute('data-rt-desktop-flow'));
             self::assertSame('table', $container->tagName);
             self::assertCount(2, $xpath->query('./tbody/tr', $container));
             self::assertCount(2, $xpath->query('./tbody/tr/td', $container));

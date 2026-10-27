@@ -278,7 +278,7 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
 
     private function assertDocument(string $html, array $media, bool $mobile, int $characters, int $cssBytes, bool $personal, bool $mirrored = true): void
     {
-        $responsive = preg_match('/data-rt-desktop-flow="outlook-desktop-flow-v[567]"/', $html) === 1 && str_contains($html, 'data-rt-personal-flow="v1"');
+        $responsive = preg_match('/data-rt-desktop-flow="outlook-desktop-flow-v[5678]"/', $html) === 1 && str_contains($html, 'data-rt-personal-flow="v1"');
         $mobileHybrid = str_contains($html, 'data-rt-mobile-hybrid="v2"');
         self::assertLessThanOrEqual($characters, intdiv(strlen(mb_convert_encoding($html, 'UTF-16LE', 'UTF-8')), 2));
         preg_match_all('~<style\b[^>]*>(.*?)</style\s*>~is', $html, $styles);
@@ -412,7 +412,7 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
         }
         if ($personal) {
             if ($responsive || $mobileHybrid) {
-                $this->assertCompactContacts($xpath);
+                $this->assertCompactContacts($xpath, str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v8"'));
             }
             $companyContacts = $xpath->query('//div[contains(concat(" ",normalize-space(@class)," ")," rt-personal-company-contacts ")]');
             self::assertSame(1, $companyContacts->length);
@@ -459,7 +459,7 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
     }
 
     /** The final recipient hook must reach both semantic and compact mobile contacts. */
-    private function assertCompactContacts(DOMXPath $xpath): void
+    private function assertCompactContacts(DOMXPath $xpath, bool $v8): void
     {
         foreach (['rt-personal-direct', 'rt-personal-company-contacts'] as $groupClass) {
             $groups = $xpath->query('//div[contains(concat(" ",normalize-space(@class)," ")," '.$groupClass.' ")]');
@@ -472,14 +472,19 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
                 [$icon, $text] = [$cells->item(0), $cells->item(1)];
                 self::assertMatchesRegularExpression('/(?:^|;)\s*font-size\s*:\s*0(?:px)?\s*(?:!important\s*)?(?:;|$)/i', $icon->getAttribute('style'));
                 self::assertMatchesRegularExpression('/(?:^|;)\s*line-height\s*:\s*0(?:px)?\s*(?:!important\s*)?(?:;|$)/i', $icon->getAttribute('style'));
-                self::assertStringContainsString('line-height:16px!important;', $text->getAttribute('style'));
+                if ($v8) {
+                    self::assertStringNotContainsString('line-height:', $text->getAttribute('style'));
+                    self::assertStringNotContainsString('word-break:', $text->getAttribute('style'));
+                } else {
+                    self::assertStringContainsString('line-height:16px!important;', $text->getAttribute('style'));
+                }
                 $paragraphs = $xpath->query('./p[contains(concat(" ",normalize-space(@class)," ")," rt-delivery-contact-value ") or contains(concat(" ",normalize-space(@class)," ")," xt ")]', $text);
                 self::assertSame(1, $paragraphs->length);
                 self::assertStringContainsString('font-size:13px!important;line-height:16px!important;', $paragraphs->item(0)->getAttribute('style'), 'A zero-font hybrid ancestor must not introduce a larger paragraph strut.');
                 self::assertStringContainsString('word-break:break-all', $paragraphs->item(0)->getAttribute('style'));
                 if ($index < $rows->length - 1) {
-                    self::assertStringContainsString('padding:0 0 1px!important;', $icon->getAttribute('style'));
-                    self::assertStringContainsString('padding:0 0 1px 9px!important;', $text->getAttribute('style'));
+                    self::assertStringContainsString($v8 ? 'padding:0!important;' : 'padding:0 0 1px!important;', $icon->getAttribute('style'));
+                    self::assertStringContainsString($v8 ? 'padding:0 0 0 9px!important;' : 'padding:0 0 1px 9px!important;', $text->getAttribute('style'));
                 }
             }
         }

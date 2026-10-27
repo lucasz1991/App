@@ -173,10 +173,10 @@ final class OutlookIntrinsicTrainDelivery
         return $pair;
     }
 
-    /** Resolve only one current, unquoted personal train, with its compiler-owned two-row structure. */
+    /** Resolve one unquoted personal train through its versioned owned structure. */
     private static function target(string $html): ?array
     {
-        if (! str_contains($html, 'outlook-desktop-flow-v7') && ! str_contains($html, 'rt-mobile-hybrid-v2')) {
+        if (! str_contains($html, 'outlook-desktop-flow-v8') && ! str_contains($html, 'outlook-desktop-flow-v7') && ! str_contains($html, 'rt-mobile-hybrid-v2')) {
             return null;
         }
         preg_match_all('~<style\b[^>]*data-rt-mail-document-css=(["\'])signature\1[^>]*>(.*?)</style\s*>~is', $html, $authored, PREG_SET_ORDER);
@@ -193,7 +193,8 @@ final class OutlookIntrinsicTrainDelivery
             }
             // Generic company signatures share the flow revision but do not
             // own the personal TABLE protocol or its intrinsic train viewport.
-            $native = ($node['attrs']['data-rt-desktop-flow'] ?? '') === 'outlook-desktop-flow-v7'
+            $nativeVersion = $node['attrs']['data-rt-desktop-flow'] ?? '';
+            $native = in_array($nativeVersion, ['outlook-desktop-flow-v7', 'outlook-desktop-flow-v8'], true)
                 && (array_key_exists('data-rt-personal-flow', $node['attrs'])
                     || array_key_exists('data-rt-personal-columns', $node['attrs']) || self::has($node, 'rt-personal-columns'));
             $mobile = ($node['attrs']['data-rt-mobile-hybrid'] ?? '') === 'v2' && self::has($node, 'rt-mobile-hybrid-v2');
@@ -214,7 +215,8 @@ final class OutlookIntrinsicTrainDelivery
                     break;
                 }
             }
-            if (! $artifact || $owner === null || ($native && preg_match('/(?:^|\s)rt-df7[0-9a-f]{10}(?=\s|$)/', $owner['attrs']['class'] ?? '') !== 1)
+            $host = $nativeVersion === 'outlook-desktop-flow-v8' ? 'rt-df8' : 'rt-df7';
+            if (! $artifact || $owner === null || ($native && preg_match('/(?:^|\s)'.$host.'[0-9a-f]{10}(?=\s|$)/', $owner['attrs']['class'] ?? '') !== 1)
                 || ($mobile && ! self::has($owner, 'rt-mobile-ledger') && ! self::has($owner, 'x10'))) {
                 self::fail();
             }
@@ -233,7 +235,6 @@ final class OutlookIntrinsicTrainDelivery
             self::fail();
         }
         $firstCell = self::child($nodes, $rows[0], 'td');
-        $lastCell = self::child($nodes, $rows[1], 'td');
         $groups = self::children($nodes, $firstCell);
         $expected = $mobile ? ['rt-mhy-logo', 'rt-mhy-person', 'rt-mhy-company'] : ['rt-personal-logo-column', 'rt-personal-left', 'rt-personal-right'];
         if (count($groups) !== 3) {
@@ -244,7 +245,7 @@ final class OutlookIntrinsicTrainDelivery
                 self::fail();
             }
         }
-        $train = self::child($nodes, $lastCell, 'table');
+        $train = self::child($nodes, self::child($nodes, $rows[1], 'td'), 'table');
         if (! self::has($nodes[$train], $mobile ? 'rt-mhy-train' : 'rt-df-train')) {
             self::fail();
         }

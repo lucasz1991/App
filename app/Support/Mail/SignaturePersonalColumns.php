@@ -116,8 +116,8 @@ final class SignaturePersonalColumns
         $logo = count($logos) === 1 ? $logos[0] : self::fail();
         $content = self::one($nodes, 'rt-sign-content', 'td');
         $nativeRevision = $nodes[$flow]['attrs']['data-rt-desktop-flow'] ?? '';
-        $responsive = $native && in_array($nativeRevision, [OutlookDesktopFlow::REVISION, 'outlook-desktop-flow-v6', 'outlook-desktop-flow-v5'], true);
-        $rowTrain = $native && in_array($nativeRevision, ['outlook-desktop-flow-v6', 'outlook-desktop-flow-v7'], true);
+        $responsive = $native && in_array($nativeRevision, [OutlookDesktopFlow::REVISION, 'outlook-desktop-flow-v7', 'outlook-desktop-flow-v6', 'outlook-desktop-flow-v5'], true);
+        $rowTrain = $native && in_array($nativeRevision, [OutlookDesktopFlow::REVISION, 'outlook-desktop-flow-v6', 'outlook-desktop-flow-v7'], true);
         $logoColumn = $responsive ? self::one($nodes, 'rt-personal-logo-column', 'table') : $right;
         if (($nodes[$flow]['attrs'][self::ATTRIBUTE] ?? '') !== self::MARKER
             || $nodes[$flow]['parent'] !== $content
@@ -130,7 +130,7 @@ final class SignaturePersonalColumns
             $train = self::one($nodes, 'rt-df-train', 'table');
             $roots = array_keys(array_filter($nodes, static fn (array $node): bool => $node['tag'] === 'div' && self::has($node, 'rt-outlook-signature')));
             if (($nodes[$flow]['attrs'][self::NATIVE_FLOW_ATTRIBUTE] ?? '') !== 'v1'
-                || ! in_array($nativeRevision, [OutlookDesktopFlow::REVISION, 'outlook-desktop-flow-v6', 'outlook-desktop-flow-v5', 'outlook-desktop-flow-v4'], true)
+                || ! in_array($nativeRevision, [OutlookDesktopFlow::REVISION, 'outlook-desktop-flow-v7', 'outlook-desktop-flow-v6', 'outlook-desktop-flow-v5', 'outlook-desktop-flow-v4'], true)
                 || count($roots) !== 1 || ! self::within($nodes, $flow, $roots[0])
                 || ! $native) {
                 self::fail();

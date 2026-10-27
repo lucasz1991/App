@@ -43,6 +43,27 @@ final class OutlookIntrinsicTrainDeliveryTest extends TestCase
         }
     }
 
+    public function test_two_row_v8_projects_the_same_intrinsic_train_without_changing_history_or_mobile(): void
+    {
+        $pair = $this->pair();
+        $pair['html'] = str_replace(['outlook-desktop-flow-v7', 'rt-df70123456789'], ['outlook-desktop-flow-v8', 'rt-df80123456789'], $pair['html']);
+        $result = OutlookIntrinsicTrainDelivery::payload(['signature' => $pair]);
+        self::assertStringContainsString('height="65"', $result['signature']['html']);
+        self::assertStringContainsString($this->fallback($pair['media'][1]['contentId']), $result['signature']['html']);
+        self::assertSame($result, OutlookIntrinsicTrainDelivery::payload($result));
+        foreach ([
+            str_replace('rt-df80123456789', 'rt-df70123456789', $pair['html']),
+            str_replace('</td></tr><tr><td><table class="rt-df-train">', '<table class="rt-df-train">', $pair['html']),
+        ] as $invalid) {
+            try {
+                OutlookIntrinsicTrainDelivery::payload(['signature' => ['html' => $invalid, 'media' => $pair['media']]]);
+                self::fail('An inconsistent v8 host or an unsupported one-row structure was accepted.');
+            } catch (RuntimeException) {
+                self::assertTrue(true);
+            }
+        }
+    }
+
     public function test_payload_covers_global_active_all_template_views_and_paired_signature_without_changing_versions_or_compose(): void
     {
         $signature = $this->pair();

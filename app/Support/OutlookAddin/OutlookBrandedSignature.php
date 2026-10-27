@@ -122,7 +122,7 @@ final class OutlookBrandedSignature
     /** Compact only proven personal contact leaves after the canonical geometry gates. */
     public static function compactRecipientContactSpacing(string $html): string
     {
-        if (! str_contains($html, 'outlook-desktop-flow-v7') && ! str_contains($html, 'rt-mobile-hybrid-v2')) {
+        if (! str_contains($html, 'outlook-desktop-flow-v8') && ! str_contains($html, 'outlook-desktop-flow-v7') && ! str_contains($html, 'rt-mobile-hybrid-v2')) {
             return $html;
         }
         preg_match_all('~<style\b[^>]*\bdata-rt-mail-document-css\s*=\s*(["\'])[^"\']+\1[^>]*>(.*?)</style\s*>~is', $html, $authored, PREG_SET_ORDER);
@@ -155,7 +155,7 @@ final class OutlookBrandedSignature
             return false;
         };
         $flows = array_keys(array_filter($nodes, static fn (array $node, int $index): bool => ! $quoted($index) && $node['tag'] === 'table'
-            && (($node['attrs']['data-rt-desktop-flow'] ?? '') === 'outlook-desktop-flow-v7' && ($node['attrs']['data-rt-personal-flow'] ?? '') === 'v1'
+            && (in_array($node['attrs']['data-rt-desktop-flow'] ?? '', ['outlook-desktop-flow-v7', 'outlook-desktop-flow-v8'], true) && ($node['attrs']['data-rt-personal-flow'] ?? '') === 'v1'
                 || ($node['attrs']['data-rt-mobile-hybrid'] ?? '') === 'v2' && self::has($node, 'rt-mobile-hybrid-v2')), ARRAY_FILTER_USE_BOTH));
         if ($flows === []) {
             return $html;
@@ -164,6 +164,7 @@ final class OutlookBrandedSignature
             self::fail();
         }
         $flow = $flows[0];
+        $compact = ($nodes[$flow]['attrs']['data-rt-desktop-flow'] ?? '') === 'outlook-desktop-flow-v8';
         $artifact = $root = null;
         for ($parent = $nodes[$flow]['parent']; $parent !== null; $parent = $nodes[$parent]['parent']) {
             if ($nodes[$parent]['tag'] === 'tr' && ($nodes[$parent]['attrs']['data-rt-artifact-version'] ?? '') === 'v27') {
@@ -239,6 +240,13 @@ final class OutlookBrandedSignature
             if (count($groups) !== 1) {
                 self::fail();
             }
+            if ($compact && $groupClass === 'rt-personal-direct') {
+                $groupStyle = $nodes[$groups[0]]['attrs']['style'] ?? '';
+                if (array_diff($values($groupStyle, 'padding-top'), ['14px', '10px']) !== []) {
+                    return $html;
+                }
+                $edits[] = [$nodes[$groups[0]]['start'], $nodes[$groups[0]]['openEnd'] - $nodes[$groups[0]]['start'], self::opening($nodes[$groups[0]], ['style' => ltrim(self::property($groupStyle, 'padding-top', '10px'), ';')])];
+            }
             $tables = array_keys(array_filter($nodes, static fn (array $node, int $index): bool => $node['tag'] === 'table' && (self::has($node, 'rt-contact') || self::has($node, 'xe')) && self::within($nodes, $index, $groups[0]), ARRAY_FILTER_USE_BOTH));
             if (count($tables) !== 1) {
                 self::fail();
@@ -263,6 +271,9 @@ final class OutlookBrandedSignature
                 }
                 $textStyle = $nodes[$text]['attrs']['style'] ?? '';
                 $paragraphStyle = $nodes[$paragraph]['attrs']['style'] ?? '';
+                if ($compact && ($values($paragraphStyle, 'word-break') === [] || array_diff($values($paragraphStyle, 'word-break'), ['break-all']) !== [])) {
+                    return $html;
+                }
                 foreach ([$textStyle, $paragraphStyle] as $style) {
                     if (array_diff($values($style, 'font-size'), ['13px']) !== [] || array_diff($values($style, 'line-height'), ['16px', '18px', '20px']) !== []) {
                         return $html;
@@ -283,16 +294,32 @@ final class OutlookBrandedSignature
                     if ($cell === $text) {
                         $style = implode('', array_filter(self::styleParts($style), static fn (string $part): bool => preg_match('/\A\s*font-size\s*:\s*13px\s*(?:!important\s*)?;?\z/i', $part) !== 1));
                         $style = $deduplicate($style);
+                        if ($compact) {
+                            // This cell contains only the explicitly styled P.
+                            // Its own line-height/word-break cannot alter that block.
+                            $style = implode('', array_filter(self::styleParts($style), static fn (string $part): bool => preg_match('/\A\s*(?:line-height\s*:\s*(?:16|18|20)px|word-break\s*:\s*normal)\s*(?:!important\s*)?;?\z/i', $part) !== 1));
+                        }
                     }
-                    if ($padding['bottom'] === '4px') {
-                        $style = self::property($style, 'padding', '0 0 1px'.($padding['left'] === '9px' ? ' 9px' : ''));
+                    if ($padding['bottom'] === '4px' || ($compact && $padding['bottom'] === '1px')) {
+                        $style = self::property($style, 'padding', $compact ? ($padding['left'] === '9px' ? '0 0 0 9px' : '0') : '0 0 1px'.($padding['left'] === '9px' ? ' 9px' : ''));
                     }
-                    if ($cell === $text) {
+                    if ($cell === $text && ! $compact) {
                         $style = self::property($style, 'line-height', '16px');
                     }
                     $edits[] = [$nodes[$cell]['start'], $nodes[$cell]['openEnd'] - $nodes[$cell]['start'], self::opening($nodes[$cell], ['style' => $style])];
                 }
             }
+        }
+        if ($compact) {
+            $legalTables = array_keys(array_filter($nodes, static fn (array $node, int $index): bool => $node['tag'] === 'table' && self::has($node, 'rt-brand-legal-table') && self::within($nodes, $index, $root), ARRAY_FILTER_USE_BOTH));
+            if (count($legalTables) !== 1 || ($legal = $nodes[$legalTables[0]]['parent']) === null || $nodes[$legal]['tag'] !== 'td') {
+                self::fail();
+            }
+            $legalStyle = $nodes[$legal]['attrs']['style'] ?? '';
+            if (array_diff($values($legalStyle, 'padding'), ['12px 40px', '8px 0']) !== []) {
+                return $html;
+            }
+            $edits[] = [$nodes[$legal]['start'], $nodes[$legal]['openEnd'] - $nodes[$legal]['start'], self::opening($nodes[$legal], ['style' => ltrim(self::property($legalStyle, 'padding', '8px 0'), ';')])];
         }
 
         return self::replace($html, $edits);
@@ -307,7 +334,7 @@ final class OutlookBrandedSignature
         }
         $nodes = self::nodes($html);
         $edits = [];
-        $responsive = (str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v5"') || str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v6"') || str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v7"')) && str_contains($html, 'data-rt-personal-flow="v1"');
+        $responsive = (str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v5"') || str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v6"') || str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v7"') || str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v8"')) && str_contains($html, 'data-rt-personal-flow="v1"');
         foreach ($nodes as $index => $node) {
             if ($node['tag'] !== 'td' || ($node['attrs']['data-rt-brand-hotline'] ?? '') !== self::MARKER) {
                 continue;

@@ -52,6 +52,34 @@ final class OutlookCompactRecipientContactSpacingTest extends TestCase
         yield 'compact mobile aliases' => [true];
     }
 
+    public function test_v8_reduces_only_real_spacing_and_redundant_cell_styles(): void
+    {
+        $source = str_replace('outlook-desktop-flow-v7', 'outlook-desktop-flow-v8', $this->document(false));
+        $source = str_replace('<td style="padding:12px 40px;">Legal</td>', '<td style="padding:12px 40px;"><table class="rt-brand-legal-table"><tbody><tr><td>Legal</td></tr></tbody></table></td>', $source);
+        $output = OutlookBrandedSignature::compactRecipientContactSpacing($source);
+        self::assertSame($output, OutlookBrandedSignature::compactRecipientContactSpacing($output));
+        self::assertSame($this->content($source), $this->content($output));
+        self::assertStringContainsString('class="rt-personal-direct" style="padding-top:10px!important;"', $output);
+        self::assertStringContainsString('style="padding:8px 0!important;"', $output);
+        $xpath = $this->xpath($output);
+        foreach ($xpath->query('//td[contains(concat(" ",normalize-space(@class)," ")," rt-contact-text ")]') as $cell) {
+            $style = $cell->getAttribute('style');
+            self::assertStringNotContainsString('font-size:', $style);
+            self::assertStringNotContainsString('line-height:', $style);
+            self::assertStringNotContainsString('word-break:', $style);
+            self::assertStringContainsString('overflow-wrap:anywhere;', $style);
+            self::assertStringContainsString($cell->getAttribute('data-last') === '1' ? 'padding:0 0 0 9px;' : 'padding:0 0 0 9px!important;', $style);
+            $paragraph = $xpath->query('./p', $cell)->item(0);
+            self::assertStringContainsString('word-break:break-all;', $paragraph->getAttribute('style'));
+            self::assertStringContainsString('font-size:13px!important;line-height:16px!important;', $paragraph->getAttribute('style'));
+        }
+        foreach ($xpath->query('//td[contains(concat(" ",normalize-space(@class)," ")," rt-contact-icon ")]') as $cell) {
+            self::assertStringContainsString('font-size:0;line-height:0;', $cell->getAttribute('style'));
+            self::assertStringContainsString($cell->getAttribute('data-last') === '1' ? 'padding:0;' : 'padding:0!important;', $cell->getAttribute('style'));
+        }
+        self::assertStringContainsString('<td style="padding:16px 0 0;">', $output, 'The spacing projection cannot replace its already validated flow carrier.');
+    }
+
     public function test_quoted_contacts_are_byte_exact_and_quote_only_input_is_a_noop(): void
     {
         $quote = '<blockquote>'.$this->document(false).'</blockquote>';
