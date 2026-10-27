@@ -228,6 +228,7 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
 
     private function assertDocument(string $html, array $media, bool $mobile, int $characters, int $cssBytes, bool $personal): void
     {
+        $responsive = str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v5"') && str_contains($html, 'data-rt-personal-flow="v1"');
         self::assertLessThanOrEqual($characters, intdiv(strlen(mb_convert_encoding($html, 'UTF-16LE', 'UTF-8')), 2));
         preg_match_all('~<style\b[^>]*>(.*?)</style\s*>~is', $html, $styles);
         self::assertLessThan($cssBytes, array_sum(array_map('strlen', $styles[1])));
@@ -243,13 +244,18 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
         self::assertSame('', trim($row->textContent), 'Hotline lettering is rasterized with accessible ALT text, not left as dark-mode-sensitive HTML text.');
         $frame = $xpath->query('./table', $row);
         self::assertSame(1, $frame->length);
-        self::assertMatchesRegularExpression('/(?:^|;)\s*table-layout\s*:\s*fixed\s*(?:;|$)/i', $frame->item(0)->getAttribute('style'));
+        self::assertMatchesRegularExpression('/(?:^|;)\s*table-layout\s*:\s*'.($responsive ? 'auto' : 'fixed').'\s*(?:;|$)/i', $frame->item(0)->getAttribute('style'));
         $cells = $xpath->query('./table/tbody/tr/td|./table/tr/td', $row);
         self::assertSame(5, $cells->length);
         $images = $xpath->query('.//img', $row);
         self::assertSame(5, $images->length);
-        self::assertSame($mobile ? '18' : '40', $cells->item(0)->getAttribute('width'));
-        self::assertSame($mobile ? '18' : '40', $images->item(0)->getAttribute('width'));
+        self::assertSame($responsive ? '1' : ($mobile ? '18' : '40'), $cells->item(0)->getAttribute('width'));
+        self::assertSame($responsive ? '100%' : ($mobile ? '18' : '40'), $images->item(0)->getAttribute('width'));
+        if ($responsive) {
+            $gutter = $xpath->query('.//table[contains(concat(" ",normalize-space(@class)," ")," rt-brand-hotline-gutter ")]', $cells->item(0));
+            self::assertSame(1, $gutter->length);
+            self::assertSame('40', $gutter->item(0)->getAttribute('width'));
+        }
         self::assertSame('137', $images->item(1)->getAttribute('width'));
         self::assertSame('24/7 erreichbar', $images->item(1)->getAttribute('alt'));
         self::assertSame('42', $images->item(2)->getAttribute('width'));
@@ -258,6 +264,9 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
         foreach ($images as $image) {
             self::assertSame('34', $image->getAttribute('height'));
             self::assertStringStartsWith('cid:', $image->getAttribute('src'));
+            if (! $mobile) {
+                self::assertStringContainsString('height:34px!important;', $image->getAttribute('style'));
+            }
         }
         $links = $xpath->query('.//a', $row);
         self::assertSame(2, $links->length);
@@ -285,7 +294,12 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
         }
         self::assertSame(1, $trainCells->length);
         $trainStyle = $trainCells->item(0)->getAttribute('style');
-        self::assertMatchesRegularExpression('/(?:^|;)\s*padding\s*:\s*0\s+'.($mobile ? '18' : '40').'px\s+0\s+0\s*(?:!important\s*)?(?:;|$)/i', $trainStyle, 'Only mobile changes the train right gutter to 18px; the desktop projection retains 40px.');
+        if ($responsive) {
+            self::assertStringContainsString('padding:0;', $trainStyle);
+            self::assertStringContainsString('border-right:40px solid transparent;', $trainCells->item(0)->parentNode->parentNode->parentNode->getAttribute('style'));
+        } else {
+            self::assertMatchesRegularExpression('/(?:^|;)\s*padding\s*:\s*0\s+'.($mobile ? '18' : '40').'px\s+0\s+0\s*(?:!important\s*)?(?:;|$)/i', $trainStyle);
+        }
         if ($mobile) {
             self::assertMatchesRegularExpression('/(?:^|;)\s*box-sizing\s*:\s*border-box\s*(?:;|$)/i', $trainStyle);
             self::assertSame(0, $xpath->query('//*[contains(concat(" ",normalize-space(@class)," ")," rt-train-window ")]')->length);
@@ -295,7 +309,11 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
         }
         $footerCells = $xpath->query('//td[not(.//td) and contains(.,"Diese E-Mail kann vertrauliche Informationen enthalten.")]');
         self::assertSame(1, $footerCells->length);
-        $this->assertHorizontalGutter($footerCells->item(0), $mobile ? 18 : 40);
+        if ($responsive) {
+            $this->assertTableGutter($footerCells->item(0)->parentNode->parentNode->parentNode, 40);
+        } else {
+            $this->assertHorizontalGutter($footerCells->item(0), $mobile ? 18 : 40);
+        }
         $templatePads = $xpath->query('//td[contains(concat(" ",normalize-space(@class)," ")," rt-native-template-pad ") or contains(concat(" ",normalize-space(@class)," ")," x6 ")]');
         if ($templatePads->length === 0) {
             $templatePads = $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-shell ")]/tbody/tr/td[contains(concat(" ",normalize-space(@class)," ")," rt-pad ")] | //table[contains(concat(" ",normalize-space(@class)," ")," rt-shell ")]/tr/td[contains(concat(" ",normalize-space(@class)," ")," rt-pad ")]');
@@ -305,7 +323,7 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
             self::assertGreaterThan(0, $templatePads->length, 'A real template must expose at least one inspected content gutter.');
         }
         foreach ($templatePads as $templatePad) {
-            $this->assertHorizontalGutter($templatePad, $mobile ? 18 : 40);
+            $this->assertHorizontalGutter($templatePad, ! $mobile && str_contains($html, 'data-rt-recipient-gutters="v1"') ? 0 : ($mobile ? 18 : 40));
         }
         if ($personal) {
             $companyContacts = $xpath->query('//div[contains(concat(" ",normalize-space(@class)," ")," rt-personal-company-contacts ")]');
@@ -328,10 +346,15 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
             $nameAt = strpos($modern, 'class="rt-personal-name');
             self::assertNotFalse($logoAt);
             self::assertNotFalse($nameAt);
-            self::assertSame($mobile, $logoAt < $nameAt, 'Mobile places the same logo above the name; desktop keeps it in the right column.');
+            self::assertSame($mobile || $responsive, $logoAt < $nameAt, 'Recipient-responsive source order places one logo first; desktop floats it right.');
             $personalCells = $xpath->query('//td[contains(concat(" ",normalize-space(@class)," ")," rt-personal-cell-left ")]');
             self::assertSame(1, $personalCells->length);
-            $this->assertHorizontalGutter($personalCells->item(0), $mobile ? 18 : 40);
+            if ($responsive) {
+                $this->assertHorizontalGutter($personalCells->item(0), 0);
+                $this->assertTableGutter($personalCells->item(0)->parentNode->parentNode->parentNode, 40);
+            } else {
+                $this->assertHorizontalGutter($personalCells->item(0), $mobile ? 18 : 40);
+            }
             if ($mobile) {
                 $logoCell = $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-personal-logo-frame ")]//td')->item(0);
                 self::assertInstanceOf(DOMElement::class, $logoCell);
@@ -352,11 +375,19 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
         }
     }
 
+    private function assertTableGutter(DOMElement $table, int $pixels): void
+    {
+        self::assertSame('table', strtolower($table->tagName));
+        foreach (['left', 'right'] as $side) {
+            self::assertStringContainsString('border-'.$side.':'.$pixels.'px solid transparent;', $table->getAttribute('style'));
+        }
+    }
+
     private function assertHorizontalGutter(DOMElement $element, int $pixels): void
     {
         ['sides' => $sides] = $this->inlinePadding($element);
         foreach (['left', 'right'] as $side) {
-            self::assertSame($pixels.'px', $sides[$side], 'The '.trim($element->getAttribute('class')).' '.$side.' gutter aligns with the header and personal name.');
+            self::assertSame($pixels, (int) $sides[$side], 'The '.trim($element->getAttribute('class')).' '.$side.' gutter aligns with the header and personal name.');
         }
     }
 
@@ -418,6 +449,7 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
         if (! is_dir($output)) {
             mkdir($output, 0777, true);
         }
+        file_put_contents($output.'/'.$name.'.wire.json', json_encode($document, JSON_THROW_ON_ERROR));
         preg_match_all('~<style\b[^>]*>(.*?)</style\s*>~is', $document['html'], $styles);
         file_put_contents($output.'/'.$name.'.metrics.json', json_encode([
             'synthetic' => true,

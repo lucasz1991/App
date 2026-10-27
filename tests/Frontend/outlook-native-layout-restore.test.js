@@ -8,25 +8,30 @@ const element = (tag, attrs = {}, children = []) => ({ tag, attrs, children });
 const table = (className, children = [], attrs = {}) => element('table', { class: className, ...attrs }, [element('tbody', {}, [element('tr', {}, [element('td', {}, children)])])]);
 
 // This source builder records offsets as it emits bytes; no DOM serialization is used.
-function fixture({ header = true, legacy = false, quotedCopy = false, legal = false, legalColor = '#718096', wire = false, standalone = false } = {}) {
+function fixture({ header = true, legacy = false, quotedCopy = false, legal = false, legalColor = '#718096', wire = false, standalone = false, responsive = false, wrappers = false, templateGutter = false, ownedRaster = false } = {}) {
     const metadata = value => element('span', { hidden: '', style: 'font-size:0;line-height:0;' }, [value]);
     const person = table('rt-personal-left', [element('p', {}, ['Synthetic personal text'])]);
     const company = table('rt-personal-right', [element('img', { src: 'cid:logo.png', width: '180', height: '31' })]);
+    const logo = table('rt-personal-logo-column', [table('rt-personal-logo-frame', [element('img', { src: 'cid:separate-logo.png', width: '200', height: '34' })])]);
     const train = table('rt-df-train', [element('div', { class: 'rt-train-window' }, [element('img', {
         class: 'rt-delivery-train', src: 'cid:train.gif', width: '300', height: '38',
     })]), '<!--[if mso]><img class="rt-delivery-train-mso" src="cid:still.png" width="220" height="28"><![endif]-->']);
-    const flow = table('rt-personal-columns', [person, company, train], {
-        'data-rt-personal-flow': 'v1', 'data-rt-personal-columns': 'v1', 'data-rt-desktop-flow': 'outlook-desktop-flow-v4',
+    const flow = table('rt-personal-columns', [...(responsive ? [logo] : []), person, company, train], {
+        'data-rt-personal-flow': 'v1', 'data-rt-personal-columns': 'v1', 'data-rt-desktop-flow': 'outlook-desktop-flow-v' + (responsive ? '5' : '4'),
     });
+    const gutter = table('rt-brand-hotline-gutter', [element('img', { src: 'cid:fill.png', width: '100%', height: '34' })]);
+    const raster = element('table', { class: 'owned-raster', style: 'table-layout:auto;' }, [element('tbody', {}, [element('tr', {}, [
+        element('td', { width: '1' }, [gutter]), ...['137', '42', '42', '100%'].map(width => element('td', {}, [element('img', { src: 'cid:raster.png', width, height: '34' })])),
+    ])])]);
     const banner = element('table', { class: 'banner' }, [element('tbody', {}, [
-        element('tr', {}, [element('td', { class: 'design-hotline-row' }, [element('strong', {}, ['24/7']), ' reachable'])]),
+        element('tr', {}, [element('td', { class: 'design-hotline-row' + (ownedRaster ? ' rt-brand-hotline-cell' : ''), ...(ownedRaster ? { 'data-rt-brand-hotline': 'v1' } : {}) }, ownedRaster ? [raster] : [...(wrappers ? [gutter] : []), element('strong', {}, ['24/7']), ' reachable'])]),
         element('tr', {}, [element('td', { style: 'color:#718096' }, ['Footer must keep its color'])]),
     ])]);
     const signature = table(standalone ? 'rt-managed-signature-v1 rts1234567890' : 'rt-managed-signature-v1 rt-combined-signature-frame', [
         ...(header ? [banner] : []), ...(legacy ? [element('p', {}, ['Legacy source'])] : [flow]),
     ]);
     if (legal) signature.children[0].children.push(element('tr', {}, [element('td', { style: `color:${legalColor};font-size:9px;line-height:14px;` }, [
-        element('font', { color: '#000000' }, ['Synthetic legal information']),
+        ...(wrappers ? [table('rt-brand-legal-table', [element('font', { color: '#000000' }, ['Synthetic legal information'])])] : [element('font', { color: '#000000' }, ['Synthetic legal information'])]),
         element('span', { hidden: '', style: 'font-size:0;line-height:0;' }, ['RT-SIGNATURE-MANAGED-V1']),
         element('span', { hidden: '', style: 'font-size:0;line-height:0;' }, ['RT-SIGNATURE-VERSION:1234567890abcdef']),
     ])]));
@@ -35,7 +40,7 @@ function fixture({ header = true, legacy = false, quotedCopy = false, legal = fa
         : [element('p', { class: 'design-spacer' }, ['Editable content'])];
     const tree = element('div', {}, [
         '<!-- prefix with unicode 🚆 and arbitrary bytes -->',
-        standalone ? signature : table('rt-managed-combined-v1', [table('rt-managed-template-v1', template), signature]),
+        standalone ? signature : table('rt-managed-combined-v1', [table('rt-managed-template-v1', templateGutter ? [table('rt-shell design-v27', template)] : template), signature]),
         ...(quotedCopy ? [element('blockquote', {}, [flow])] : []),
         '<!-- arbitrary suffix -->',
     ]);
@@ -64,6 +69,107 @@ test('cryptographic nonce generation requests exactly128bits and never falls bac
     assert.equal(createNativeLayoutNonce({ getRandomValues(bytes) { length = bytes.length; bytes.fill(171); return bytes; } }), 'ab'.repeat(16));
     assert.equal(length, 16);
     assert.throws(() => createNativeLayoutNonce(null), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
+});
+
+test('v5 adds only the seventh logo TABLE ID and retains exact responsive CSS after Office rewrites', () => {
+    const source = fixture({ responsive: true, standalone: true, legal: true });
+    const plan = prepareNativeLayoutRestore(source.html, standaloneSignatureContract(source.html), nonce);
+    assert.equal(Object.keys(plan.ids).length, 7);
+    assert.equal(plan.ids.logo, `rt-native-layout-${nonce}-l`);
+    assert.equal(plan.html.replace(/ id="rt-native-layout-[0-9a-f]{32}-[rpcthsl]"/g, ''), source.html);
+    const body = (plan.stylePayload + plan.html).replace(/id="rt-native-layout-/g, 'id="x_rt-native-layout-')
+        .replace(/#rt-native-layout-/g, '#x_rt-native-layout-').replace(/;}/g, '}');
+    const inferred = standaloneSignatureContract(body);
+    assert.equal(inferred.layoutIds.logo, plan.ids.logo);
+    assert.equal(nativeLayoutRestoreRetained(body, inferred, plan.ids), true);
+    assert.equal(removeNativeLayoutRestoreCarrier(body, inferred, plan.ids), body.slice(body.indexOf('</table>') + 8));
+    const css = nativeLayoutRestoreCss(plan.ids);
+    assert.equal(css.split('min-width:min(100%,max(340px,calc((680px - 100%) * 1000)))!important;').length - 1, 4);
+    assert.ok(css.includes('margin-bottom:max(0px,min(10px,calc((680px - 100%) * 1000)))!important;'));
+    assert.match(css, /@media\(max-width:680px\)\{/);
+    assert.match(css, /width:100%!important;min-width:0!important;max-width:100%!important;float:none!important;clear:both!important;position:static!important;top:auto!important/);
+    assert.match(css, /-l\{margin-bottom:10px!important;\}/);
+    assert.match(css, /border-left:40px solid transparent!important;border-right:40px solid transparent!important/);
+    assert.match(css, /border-right-width:18px!important/);
+    const rules = [...css.replace('@media(max-width:680px){', '').matchAll(/([^{}]+)\{([^{}]*)\}/g)];
+    assert.ok(rules.length > 10);
+    for (const [, selector] of rules) assert.match(selector, /^#rt-native-layout-[0-9a-f]{32}-[rpcthslif]$/);
+    assert.doesNotMatch(css, /(?:^|[},])\s*(?:img|div|font|span|td|table)\b|[>+~]|direction:rtl|width:520px|first-child|last-child/);
+    assert.throws(() => nativeLayoutRestoreRetained(body.replace('max-width:680px', 'max-width:681px'), inferred, plan.ids), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
+});
+
+test('v5 binds optional inset/legal TABLE wrappers with pure ID responsive rules and exact retained ownership', () => {
+    const source = fixture({ responsive: true, standalone: true, legal: true, wrappers: true });
+    const plan = prepareNativeLayoutRestore(source.html, standaloneSignatureContract(source.html), nonce);
+    assert.equal(Object.keys(plan.ids).length, 9);
+    assert.equal(plan.ids.inset, `rt-native-layout-${nonce}-i`);
+    assert.equal(plan.ids.footer, `rt-native-layout-${nonce}-f`);
+    assert.equal(plan.html.replace(/ id="rt-native-layout-[0-9a-f]{32}-[rpcthslif]"/g, ''), source.html);
+    const body = plan.stylePayload + plan.html;
+    const parsed = standaloneSignatureContract(body);
+    assert.deepEqual(parsed.layoutIds, plan.ids);
+    assert.equal(nativeLayoutRestoreRetained(body, parsed, plan.ids), true);
+    const css = nativeLayoutRestoreCss(plan.ids);
+    assert.match(css, /-i\{width:40px!important;min-width:40px!important;max-width:40px!important;\}/);
+    assert.match(css, /-i\{width:18px!important;min-width:18px!important;max-width:18px!important;\}/);
+    assert.match(css, /-f\{border-left-width:18px!important;border-right-width:18px!important;\}/);
+    assert.doesNotMatch(css, /[>+~]|direction:rtl|width:520px|first-child|last-child/);
+    assert.equal(removeNativeLayoutRestoreCarrier(body, parsed, plan.ids), plan.html);
+});
+
+test('only the owned v5 raster places h on its inner five-cell TABLE and overrides the fixed mirror with automatic layout', () => {
+    const source = fixture({ responsive: true, standalone: true, legal: true, wrappers: true, ownedRaster: true });
+    const plan = prepareNativeLayoutRestore(source.html, standaloneSignatureContract(source.html), nonce);
+    const parsed = standaloneSignatureContract(plan.html, plan.html, plan.ids);
+    const header = parsed.elements.find(node => node.attrs.id === plan.ids.header);
+    assert.equal(header.attrs.class, 'owned-raster');
+    const hotline = parsed.elements[header.parent];
+    assert.equal(hotline.attrs['data-rt-brand-hotline'], 'v1');
+    assert.match(nativeLayoutRestoreCss(plan.ids), /-h\{color:#ffffff!important;table-layout:auto!important;width:100%!important;\}/);
+    const body = plan.stylePayload + plan.html;
+    assert.equal(nativeLayoutRestoreRetained(body, standaloneSignatureContract(body), plan.ids), true);
+    for (const responsive of [false, true]) {
+        const other = fixture({ responsive, standalone: true, legal: true, wrappers: true });
+        const fallback = prepareNativeLayoutRestore(other.html, standaloneSignatureContract(other.html), nonce);
+        const fallbackHeader = standaloneSignatureContract(fallback.html, fallback.html, fallback.ids).elements.find(node => node.attrs.id === fallback.ids.header);
+        assert.equal(fallbackHeader.attrs.class, 'banner');
+    }
+});
+
+test('v5 template gutter ID belongs only to the combined template and retains pure ID responsive borders', () => {
+    const source = fixture({ responsive: true, wire: true, legal: true, wrappers: true, templateGutter: true });
+    const plan = prepareNativeLayoutRestore(source.html, managedTemplateContract(source.html), nonce);
+    assert.equal(Object.keys(plan.ids).length, 10);
+    assert.equal(plan.ids.templateGutter, `rt-native-layout-${nonce}-q`);
+    const body = plan.stylePayload + plan.html;
+    const parsed = managedTemplateContract(body);
+    assert.equal(nativeLayoutRestoreRetained(body, parsed, plan.ids), true);
+    assert.equal(removeNativeLayoutRestoreCarrier(body, parsed, plan.ids), plan.html);
+    const css = nativeLayoutRestoreCss(plan.ids);
+    assert.match(css, /-q\{border-left-width:18px!important;border-right-width:18px!important;\}/);
+    for (const [, selector] of css.replace('@media(max-width:680px){', '').matchAll(/([^{}]+)\{[^{}]*\}/g)) {
+        assert.match(selector, /^#rt-native-layout-[0-9a-f]{32}-[rpcthslifq]$/);
+    }
+    const foreign = { ...parsed, template: parsed.signature };
+    assert.throws(() => nativeLayoutRestoreRetained(body, foreign, plan.ids), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
+});
+
+test('v5 requires the exact logo/person/company/train sibling order and one bounded logo frame', () => {
+    for (const corrupt of [
+        source => { source.elements[source.byClass('rt-personal-logo-column')].parent = source.byClass('rt-personal-right'); },
+        source => { source.elements[source.byClass('rt-personal-logo-frame')].attrs.class = 'foreign-logo-frame'; },
+        source => { source.elements[source.byClass('rt-personal-columns')].attrs['data-rt-desktop-flow'] = 'outlook-desktop-flow-v6'; },
+    ]) {
+        const source = fixture({ responsive: true }); corrupt(source);
+        assert.throws(() => prepareNativeLayoutRestore(source.html, source.contract, nonce), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
+    }
+    const source = fixture({ responsive: true });
+    const logoIndex = source.byClass('rt-personal-logo-column');
+    const personIndex = source.byClass('rt-personal-left');
+    const oldParent = source.elements[logoIndex].parent;
+    source.elements[logoIndex].parent = personIndex;
+    source.elements[personIndex].parent = oldParent;
+    assert.throws(() => prepareNativeLayoutRestore(source.html, source.contract, nonce), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
 });
 
 test('only five trusted TABLE openings change; user/quote/footer/MSO/image bytes remain exact', () => {

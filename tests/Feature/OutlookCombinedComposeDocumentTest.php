@@ -101,7 +101,7 @@ final class OutlookCombinedComposeDocumentTest extends TestCase
         self::assertSame(1, $xpath->query('//table[contains(@class,"rt-hotline-banner")]')->length);
         self::assertStringContainsString('24/7', $output);
         self::assertStringContainsString('padding-left:40px;padding-right:40px;', $output);
-        self::assertStringContainsString('padding-left:22px!important;padding-right:22px!important;', $output);
+        self::assertStringContainsString('padding-left:40px!important;padding-right:40px!important;', $output);
         self::assertSame(1, $xpath->query('//img[contains(concat(" ",normalize-space(@class)," ")," rt-delivery-train ")]')->length);
         self::assertStringNotContainsString('background-image:', $output);
         OutlookTrainBottomOverlay::assertRuntime($signature);

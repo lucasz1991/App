@@ -33,19 +33,22 @@ const nativeGroups = '<table class="rt-personal-columns" data-rt-personal-flow="
     + '<table class="rt-df-train"><tbody><tr><td><div class="rt-train-window"><img class="rt-delivery-train" src="cid:train" width="300" height="38"></div><!--[if mso]><img src="cid:still" width="220" height="28"><![endif]--></td></tr></tbody></table>'
     + '</td></tr></tbody></table>';
 
-function stableArtifact({ content = '<p class="design-spacer"><br></p>', greeting = false, sentinels = false, native = false, footer = false } = {}) {
+function stableArtifact({ content = '<p class="design-spacer"><br></p>', greeting = false, sentinels = false, native = false, footer = false, responsive = false, wrappers = false, templateGutter = false } = {}) {
+    const groups = responsive ? nativeGroups.replace('outlook-desktop-flow-v4', 'outlook-desktop-flow-v5')
+        .replace('<table class="rt-personal-left">', '<table class="rt-personal-logo-column"><tbody><tr><td><table class="rt-personal-logo-frame"><tbody><tr><td><img src="cid:separate-logo" width="200" height="34"></td></tr></tbody></table></td></tr></tbody></table><table class="rt-personal-left">') : nativeGroups;
     return '<div class="rt-combined-compose-document rtc0123456789ab" data-rt-compose-document="combined-v1" style="display:block;width:100%;">'
         + '<table class="rt-combined-compose-frame rt-managed-combined-v1 rtc0123456789ab"><tbody><tr><td>'
         + '<style data-rt-combined-compose-css="1">table.rtc0123456789ab{width:100%}</style>'
         + '<div class="rt-outlook-template rtt0123456789ab"><table class="rt-native-compose-frame rt-managed-template-v1 rtt0123456789ab"><tbody><tr><td>'
+        + (templateGutter ? '<table class="rt-shell design-v27"><tbody><tr><td>' : '')
         + metadata(MARKER) + (greeting ? '<p>Guten Tag,</p>' : '')
         + '<table class="rt-compose-editable rt-compose-editable-v1" data-rt-compose-editable="v1"><tbody><tr><td style="padding:0;">' + (sentinels ? metadata(START) : '') + content + (sentinels ? metadata(END) : '') + '</td></tr></tbody></table>'
-        + (greeting ? '<p>Mit freundlichen Grüßen,</p>' : '') + '</td></tr></tbody></table></div>'
+        + (greeting ? '<p>Mit freundlichen Grüßen,</p>' : '') + (templateGutter ? '</td></tr></tbody></table>' : '') + '</td></tr></tbody></table></div>'
         + '<div class="rt-outlook-signature rts0123456789"><table class="rt-combined-signature-frame rt-managed-signature-v1 rts0123456789"><tbody><tr><td>'
         + (footer ? '' : metadata('RT-SIGNATURE-MANAGED-V1') + metadata('RT-SIGNATURE-VERSION:0123456789abcdef'))
-        + (native ? '<table><tbody><tr><td class="design-hotline-row"><strong>24/7</strong> erreichbar</td></tr></tbody></table>' + nativeGroups
+        + (native ? '<table><tbody><tr><td class="design-hotline-row">' + (wrappers ? '<table class="rt-brand-hotline-gutter"><tbody><tr><td><img src="cid:fill" width="100%" height="34"></td></tr></tbody></table>' : '') + '<strong>24/7</strong> erreichbar</td></tr></tbody></table>' + groups
             : '<p>Personal signature</p><img class="rt-delivery-train" src="cid:train" width="520" height="65">')
-        + (footer ? '</td></tr><tr><td style="color:#718096;"><p><font color="#718096">Legal footer</font></p>' + metadata('RT-SIGNATURE-MANAGED-V1') + metadata('RT-SIGNATURE-VERSION:0123456789abcdef') : '')
+        + (footer ? '</td></tr><tr><td style="color:#718096;">' + (wrappers ? '<table class="rt-brand-legal-table"><tbody><tr><td>' : '') + '<p><font color="#718096">Legal footer</font></p>' + (wrappers ? '</td></tr></tbody></table>' : '') + metadata('RT-SIGNATURE-MANAGED-V1') + metadata('RT-SIGNATURE-VERSION:0123456789abcdef') : '')
         + '</td></tr></tbody></table></div>'
         + '</td></tr></tbody></table></div>';
 }
@@ -459,8 +462,8 @@ test('text ownership rejects damaged, visible, contradictory or ambiguous bounda
     assert.throws(() => replace(body, stableArtifact()), { code: 'TEMPLATE_REPLACEMENT_UNAVAILABLE' }, 'cannot discard durable boundaries');
 });
 
-function nativeHost({ footer = false } = {}) {
-    const h = host({ body: OUTSIDE + afterOfficeTyping(stableArtifact({ sentinels: true, content: TYPED, native: true, footer })) + '<p>Outside after</p>' });
+function nativeHost({ footer = false, responsive = false, wrappers = false, templateGutter = false } = {}) {
+    const h = host({ body: OUTSIDE + afterOfficeTyping(stableArtifact({ sentinels: true, content: TYPED, native: true, footer, responsive, wrappers, templateGutter })) + '<p>Outside after</p>' });
     h.item.body.setAsync = (html, _options, callback) => {
         h.state.writes.push(html);
         h.state.body = afterOfficeSet(html);
@@ -471,7 +474,7 @@ function nativeHost({ footer = false } = {}) {
         h.state.body = officeRetainedCarrier(html) + h.state.body;
         callback(succeeded());
     };
-    h.run = (options = {}, check = () => {}) => replaceManagedTemplate(h.office, h.item, stableArtifact({ sentinels: true, native: true, greeting: true, footer }), check, options);
+    h.run = (options = {}, check = () => {}) => replaceManagedTemplate(h.office, h.item, stableArtifact({ sentinels: true, native: true, greeting: true, footer, responsive, wrappers, templateGutter }), check, options);
     return h;
 }
 
@@ -513,6 +516,44 @@ test('native repeated exchanges preserve content and remove only the exact prece
         assert.equal((h.state.body.match(/data-rt-native-layout-restore=/g) || []).length, 1);
         assert.equal((h.state.body.match(/My &amp;/g) || []).length, 1);
         assert.ok(h.state.body.endsWith('<p>Outside after</p><style>.unrelated{color:blue}</style>'));
+        assert.equal(isTemplateInsertionBlocked(h.item), false);
+    }
+});
+
+test('v5 seven-ID combined exchanges remove only the verified preceding carrier and preserve user/quote bytes', async () => {
+    const h = nativeHost({ footer: true, responsive: true });
+    h.state.body += '<style>.foreign{color:blue}</style><blockquote><p>Preserved history</p></blockquote>';
+    for (let count = 1; count <= 3; count++) {
+        await h.run();
+        assert.equal(h.state.writes.length, count); assert.equal(h.state.prepends.length, count);
+        assert.equal((h.state.body.match(/RT-NATIVE-LAYOUT-RESTORE-V1:/g) || []).length, 1);
+        assert.equal((h.state.writes.at(-1).match(/ id="rt-native-layout-[0-9a-f]{32}-[rpcthsl]"/g) || []).length, 7);
+        assert.equal((h.state.body.match(/My &amp;/g) || []).length, 1);
+        assert.ok(h.state.body.endsWith('<p>Outside after</p><style>.foreign{color:blue}</style><blockquote><p>Preserved history</p></blockquote>'));
+        assert.equal(isTemplateInsertionBlocked(h.item), false);
+    }
+});
+
+test('v5 nine-ID combined refresh preserves outer legal metadata and removes the exact old carrier', async () => {
+    const h = nativeHost({ footer: true, responsive: true, wrappers: true });
+    for (let count = 1; count <= 3; count++) {
+        await h.run();
+        assert.equal((h.state.body.match(/RT-NATIVE-LAYOUT-RESTORE-V1:/g) || []).length, 1);
+        assert.equal((h.state.writes.at(-1).match(/ id="rt-native-layout-[0-9a-f]{32}-[rpcthslif]"/g) || []).length, 9);
+        assert.equal((h.state.body.match(/My &amp;/g) || []).length, 1);
+        assert.equal(h.state.body.split(OUTSIDE).length - 1, 1); assert.ok(h.state.body.endsWith('<p>Outside after</p>'));
+        assert.equal(isTemplateInsertionBlocked(h.item), false);
+    }
+});
+
+test('v5 ten-ID combined refresh scopes template q outside signature and removes each exact preceding carrier', async () => {
+    const h = nativeHost({ footer: true, responsive: true, wrappers: true, templateGutter: true });
+    for (let count = 1; count <= 3; count++) {
+        await h.run();
+        assert.equal((h.state.body.match(/RT-NATIVE-LAYOUT-RESTORE-V1:/g) || []).length, 1);
+        assert.equal((h.state.writes.at(-1).match(/ id="rt-native-layout-[0-9a-f]{32}-[rpcthslifq]"/g) || []).length, 10);
+        assert.equal((h.state.body.match(/My &amp;/g) || []).length, 1);
+        assert.equal(h.state.body.split(OUTSIDE).length - 1, 1); assert.ok(h.state.body.endsWith('<p>Outside after</p>'));
         assert.equal(isTemplateInsertionBlocked(h.item), false);
     }
 });

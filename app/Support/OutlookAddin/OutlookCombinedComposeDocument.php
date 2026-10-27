@@ -100,7 +100,7 @@ final class OutlookCombinedComposeDocument
         // correctness no longer depends on Outlook retaining this STYLE.
         $css = 'table.'.$scope.'{width:100%!important;border-collapse:separate!important;border-spacing:0!important;'
             .'table-layout:fixed!important;box-sizing:border-box!important;background-color:#ffffff!important;border-left:6px solid #e90032!important;}'
-            .'table.'.$scope.'>tbody>tr>td{padding:0!important;}';
+            .'.'.$scope.' .rt-combined-compose-cell{padding:0!important;}';
         $output = '<div class="rt-combined-compose-document '.$scope.'" data-rt-compose-document="'.self::MODE.'" style="display:block;width:100%;">'
             .'<table class="rt-combined-compose-frame '.self::DOCUMENT_TABLE_CLASS.' '.$scope.'" role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="'.$frameStyle.'">'
             .'<tbody><tr><td class="rt-combined-compose-cell" width="100%" valign="top" style="width:100%;padding:0;vertical-align:top;">'

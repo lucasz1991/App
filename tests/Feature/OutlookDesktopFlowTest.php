@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Support\Mail\OutlookSignatureInlineStyle;
+use App\Support\Mail\SignaturePersonalColumns;
 use App\Support\Mail\SignatureTableOverlapDelivery;
 use App\Support\Mail\TrustedOutlookSignatureCss;
 use App\Support\OutlookAddin\OutlookClientPresentation;
@@ -75,6 +76,39 @@ final class OutlookDesktopFlowTest extends TestCase
         self::assertTrue(OutlookDesktopFlow::mobile($mobileColumns));
         self::assertSame($mobileColumns, OutlookDesktopFlow::project($mobileColumns));
         self::assertStringNotContainsString('data-rt-desktop-flow=', OutlookClientPresentation::payload($mobile)['signature']['html']);
+    }
+
+    public function test_personal_v5_has_one_logo_and_natural_narrow_reading_order_without_a_layout_copy(): void
+    {
+        $canonical = $this->document(personal: true);
+        $html = OutlookDesktopFlow::project($canonical);
+        self::assertSame($html, OutlookDesktopFlow::project($html));
+        SignaturePersonalColumns::assertRuntime($html);
+        self::assertSame($this->inventory($canonical), $this->inventory($html));
+        $xpath = $this->xpath($html);
+        $groups = $xpath->query('//table[@data-rt-desktop-flow="outlook-desktop-flow-v5"]/tbody/tr/td/table');
+        self::assertCount(4, $groups);
+        foreach (['rt-personal-logo-column', 'rt-personal-left', 'rt-personal-right', 'rt-df-train'] as $index => $class) {
+            self::assertStringContainsString($class, $groups->item($index)->getAttribute('class'));
+            self::assertStringContainsString('min-width:min(100%,max(340px,calc((680px - 100%) * 1000)));', $groups->item($index)->getAttribute('style'));
+            self::assertStringContainsString('border-right:40px solid transparent;', $groups->item($index)->getAttribute('style'));
+        }
+        self::assertSame(1, $xpath->query('//img[contains(concat(" ",normalize-space(@class)," ")," rt-logo ")]')->length);
+        self::assertSame(1, $xpath->query('.//img[contains(concat(" ",normalize-space(@class)," ")," rt-logo ")]', $groups->item(0))->length);
+        self::assertStringContainsString('@media(max-width:680px){', $html);
+        self::assertMatchesRegularExpression('/\.(rt-df[0-9]+[0-9a-f]{10}) \.rt-personal-cell-logo,\.\1 \.rt-personal-cell-left,\.\1 \.rt-personal-cell-right\{padding:0!important;/', $html);
+        preg_match_all('~<style\b[^>]*>(.*?)</style\s*>~is', $html, $styles);
+        self::assertDoesNotMatchRegularExpression('/>\s*(?:tbody|tr|td)\b/', implode('', $styles[1]), 'Outlook send/receive rewriting must not broaden child-selector rules into global element styles.');
+        self::assertStringContainsString('border-left-width:18px!important;border-right-width:18px!important;', $html);
+        self::assertStringContainsString('margin-bottom:10px!important;', $html);
+        self::assertStringContainsString('float:none!important;clear:both!important;position:static!important;top:auto!important;', $html);
+        self::assertStringContainsString('width:520px;max-width:none!important;height:auto;', $html);
+        $this->assertBudget($html, 12288, 30000);
+
+        $malformed = str_replace('class="rt-personal-cell-logo"', 'class="rt-personal-cell-logo" data-fixture="1"', $html);
+        $malformed = preg_replace('~(<td class="rt-personal-cell-logo"[^>]*>)~', '$1<p>Unexpected text</p>', $malformed, 1);
+        $this->expectException(RuntimeException::class);
+        OutlookDesktopFlow::project($malformed);
     }
 
     public function test_combined_template_and_signature_roots_keep_their_distinct_scopes_and_shared_version_markers(): void
@@ -183,11 +217,16 @@ final class OutlookDesktopFlowTest extends TestCase
         return ['signature' => ['html' => $this->document(), 'media' => [['contentId' => 'train.gif', 'base64' => 'fixture']]], 'templates' => [], 'version' => ['signature' => '0123456789abcdef']];
     }
 
-    private function document(bool $profile = true): string
+    private function document(bool $profile = true, bool $personal = false): string
     {
         $rows = trim(file_get_contents(base_path('tests/Fixtures/mail/signature-v27-ledger.html')));
         if ($profile) {
             $rows = str_replace('rt-sign-layout rt-sign-ledger', 'rt-sign-layout rt-sign-ledger design-train-logo', $rows);
+        }
+        if ($personal) {
+            $rows = str_replace('design-train-logo', 'design-train-logo design-personal-columns', $rows);
+            $rows = preg_replace('~(<img class="rt-logo"[^>]*>\s*<!--\[if mso\]>.*?<!\[endif\]-->)~s', '<table role="presentation" width="180" border="0" cellspacing="0" cellpadding="0" style="width:180px;max-width:100%;table-layout:fixed;"><tbody><tr><td style="padding:0;font-size:0;line-height:0;">$1</td></tr></tbody></table>', $rows, 1, $logoCount);
+            self::assertSame(1, $logoCount);
         }
         $rows = preg_replace_callback('/\{\{([A-Z0-9_]+)\}\}/', static fn ($match) => match ($match[1]) {
             'TRAIN_SRC' => 'cid:train.gif', 'LOGO_SRC' => 'cid:logo.gif', 'LOGO_STILL_SRC' => 'cid:logo.png',
@@ -195,6 +234,7 @@ final class OutlookDesktopFlowTest extends TestCase
             default => str_ends_with($match[1], '_SRC') ? 'cid:icon.png' : 'Fixture',
         }, $rows);
         $rows = SignatureTableOverlapDelivery::project($rows, 'cid:train-still.png');
+        $rows = SignaturePersonalColumns::project($rows);
         $html = TrustedOutlookSignatureCss::style($rows, scopeClass: 'rts0123456789')
             .'<div class="rt-outlook-signature rts0123456789"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;border-left:6px solid #e90032;"><tbody>'.$rows.'</tbody></table></div>';
         $html = OutlookSignatureInlineStyle::apply($html, 'rts0123456789');

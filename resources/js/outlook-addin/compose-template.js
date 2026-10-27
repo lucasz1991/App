@@ -1,5 +1,5 @@
 import { hasUnquotedSignatureLayoutCarrier, managedTemplateContract, managedTemplateReplacement, standaloneSignatureContract } from './managed-template.js';
-import { createNativeLayoutNonce, nativeLayoutRestoreCarrierPresent, nativeLayoutRestoreCss, nativeLayoutRestoreRetained, prepareNativeLayoutRestore, removeNativeLayoutRestoreCarrier } from './native-layout-restore.js';
+import { createNativeLayoutNonce, nativeLayoutRestoreCarrierIsExternal, nativeLayoutRestoreCarrierPresent, nativeLayoutRestoreCss, nativeLayoutRestoreRetained, prepareNativeLayoutRestore, removeNativeLayoutRestoreCarrier } from './native-layout-restore.js';
 import { confirmedOfficeWrite, markSignatureWriteConfirmed } from './office-write.js';
 
 // Automatic insertion only prepends. Explicit taskpane replacement below owns
@@ -632,6 +632,7 @@ export function standaloneSignatureLayoutIsCurrent(html, currentHtml, version) {
         const contract = standaloneSignatureContract(html, currentHtml, null, version);
         if (!contract.layoutIds) return false;
         const scoped = layoutIdsContract(html, currentHtml, contract.layoutIds, contract);
+        if (!contract.layoutIds.logo && nativeLayoutRestoreCarrierIsExternal(html, scoped, contract.layoutIds)) return false;
         return nativeLayoutRestoreRetained(html, scoped, contract.layoutIds) === true;
     } catch { return false; }
 }
@@ -676,21 +677,31 @@ export async function insertStandaloneSignature(office, item, html, beforeWrite 
         const current = currentComposeBodyHtml(original.html, original.composeType);
         if (current === null || templateStateFromBody(original.html, original.composeType).present) throw failure('SIGNATURE_LAYOUT_UNAVAILABLE');
         const previous = existingStandalone(original);
-        let reuse = null;
+        let layout = null;
         if (previous) {
             let valid = false;
             try { valid = nativeLayoutRestoreRetained(original.html, previous.contract, previous.ids) === true; } catch { /* No retry against a stale carrier. */ }
             if (!valid) { operation.phase = 'uncertain'; throw failure('SIGNATURE_LAYOUT_UNCONFIRMED'); }
-            if (previous.contract.version === incoming.version) {
+            if (!previous.ids.logo && nativeLayoutRestoreCarrierIsExternal(original.html, previous.contract, previous.ids)) {
+                throw failure('SIGNATURE_LAYOUT_LEGACY_CARRIER', { phase: 'signature-legacy-carrier-preflight' });
+            }
+            const reuse = /^rt-native-layout-([0-9a-f]{32})-r$/.exec(previous.ids.root)?.[1];
+            if (!reuse) throw failure('SIGNATURE_LAYOUT_UNAVAILABLE');
+            const candidate = prepareNativeLayoutRestore(html, incoming, reuse);
+            const compatible = candidate && Object.keys(candidate.ids).length === Object.keys(previous.ids).length
+                && Object.keys(previous.ids).every(key => candidate.ids[key] === previous.ids[key])
+                && nativeLayoutRestoreCss(candidate.ids) === nativeLayoutRestoreCss(previous.ids);
+            if (compatible && previous.contract.version === incoming.version) {
                 await beforeWrite(); await signatureSession(office, item, operation, 'claim'); await beforeWrite();
                 const latest = await replacementSnapshot(office, item);
                 if (latest.html !== original.html || latest.composeType !== original.composeType) throw failure('COMPOSE_BODY_CHANGED');
                 options.beforeCommit?.(); await signatureSession(office, item, operation, 'complete'); markSignatureWriteConfirmed(item); return 'current';
             }
-            reuse = /^rt-native-layout-([0-9a-f]{32})-r$/.exec(previous.ids.root)?.[1];
-            if (!reuse) throw failure('SIGNATURE_LAYOUT_UNAVAILABLE');
+            // Only simple-ID carriers may remain outside the native slot.
+            // Unsafe legacy sheets were rejected before any session/body write.
+            if (compatible) layout = candidate;
         } else if (hasUnquotedSignatureLayoutCarrier(original.html, current)) { operation.phase = 'uncertain'; throw failure('SIGNATURE_LAYOUT_UNCONFIRMED'); }
-        const layout = prepareNativeLayoutRestore(html, incoming, reuse || undefined);
+        layout ||= prepareNativeLayoutRestore(html, incoming);
         if (layout?.html.length > 30000) throw failure('SIGNATURE_TOO_LARGE');
         if (!layout?.ids.signature || original.html.length + layout.html.length + layout.stylePayload.length > TEMPLATE_INSERT_LIMITS.bodyLength) throw failure('SIGNATURE_LAYOUT_UNAVAILABLE');
         await beforeWrite();
@@ -750,9 +761,10 @@ function layoutIdsContract(html, currentHtml, ids, standalone = null) {
         // A prefix is accepted only after its exact Office form is established.
         const matches = contract.elements.map((node, index) => ({ node, index })).filter(value => typeof value.node.attrs.id === 'string'
             && value.node.attrs.id.endsWith(ids[key]));
+        const owner = key === 'templateGutter' ? (contract.kind === 'standalone-signature-v1' ? null : contract.template?.index) : contract.signature.index;
         if (matches.length !== 1 || matches[0].node.tag !== 'table'
             || ![ids[key], `x_${ids[key]}`].includes(matches[0].node.attrs.id)
-            || !withinContract(contract, matches[0].index, contract.signature.index)) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
+            || !Number.isInteger(owner) || !withinContract(contract, matches[0].index, owner)) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
         targets[key] = matches[0];
     }
     const children = parent => contract.elements.map((node, index) => ({ node, index })).filter(value => value.node.parent === parent);
@@ -763,12 +775,18 @@ function layoutIdsContract(html, currentHtml, ids, standalone = null) {
     };
     const cell = only(only(only(targets.root.index, 'tbody'), 'tr'), 'td');
     const groups = children(cell);
-    if (groups.length !== 3 || groups.some((value, index) => value.index !== [targets.person.index, targets.company.index, targets.train.index][index])
+    const order = [...(targets.logo ? [targets.logo.index] : []), targets.person.index, targets.company.index, targets.train.index];
+    if (groups.length !== order.length || groups.some((value, index) => value.index !== order[index])
         || (targets.header && withinContract(contract, targets.header.index, targets.root.index))) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
     if (targets.header) {
         const rows = children(only(targets.header.index, 'tbody'));
         if (!rows.length || rows.some(value => value.node.tag !== 'tr')
             || withinContract(contract, targets.root.index, rows[0].index)) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
+    }
+    if (targets.inset) {
+        if (!targets.logo || !targets.header || !withinContract(contract, targets.inset.index, targets.header.index)) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
+        const image = only(only(only(only(targets.inset.index, 'tbody'), 'tr'), 'td'), 'img');
+        if (contract.elements[image].attrs.width !== '100%' || contract.elements[image].attrs.height !== '34') throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
     }
     if (targets.signature) {
         const rows = children(only(targets.signature.index, 'tbody'));
@@ -780,6 +798,12 @@ function layoutIdsContract(html, currentHtml, ids, standalone = null) {
             || !withinContract(contract, contract.signatureMetadata.managed, lastCell)
             || !withinContract(contract, contract.signatureMetadata.version, lastCell)
             || (targets.header && !withinContract(contract, targets.header.index, firstCell))) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
+        if (targets.footer) {
+            if (!targets.logo || !withinContract(contract, targets.footer.index, lastCell)
+                || withinContract(contract, contract.signatureMetadata.managed, targets.footer.index)
+                || withinContract(contract, contract.signatureMetadata.version, targets.footer.index)) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
+            only(only(only(targets.footer.index, 'tbody'), 'tr'), 'td');
+        }
     }
     return contract;
 }
@@ -792,6 +816,14 @@ function removePreviousLayoutSheet(html, contract) {
     if (roots.length !== 1) return html;
     const base = roots[0].attrs.id.replace(/^x_/, '').slice(0, -1);
     const ids = { root: base + 'r', person: base + 'p', company: base + 'c', train: base + 't' };
+    if (contract.elements.some((node, index) => withinContract(contract, index, contract.signature.index)
+        && [base + 'l', 'x_' + base + 'l'].includes(node.attrs.id))) ids.logo = base + 'l';
+    for (const [key, suffix] of [['inset', 'i'], ['footer', 'f']]) {
+        if (contract.elements.some((node, index) => withinContract(contract, index, contract.signature.index)
+            && [base + suffix, 'x_' + base + suffix].includes(node.attrs.id))) ids[key] = base + suffix;
+    }
+    if (Number.isInteger(contract.template?.index) && contract.elements.some((node, index) => withinContract(contract, index, contract.template.index)
+        && [base + 'q', 'x_' + base + 'q'].includes(node.attrs.id))) ids.templateGutter = base + 'q';
     if (contract.elements.some((node, index) => withinContract(contract, index, contract.signature.index)
         && [base + 'h', 'x_' + base + 'h'].includes(node.attrs.id))) ids.header = base + 'h';
     if (contract.elements.some((node, index) => withinContract(contract, index, contract.signature.index)

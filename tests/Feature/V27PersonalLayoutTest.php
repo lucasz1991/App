@@ -95,7 +95,8 @@ final class V27PersonalLayoutTest extends TestCase
             'outlook_released' => true, 'published_signature_document_id' => $this->personal->id,
             'signature_document_id' => $this->personal->id,
         ]);
-        $withGreeting = str_replace('{{APPLICATION_CONTENT}}', '<p class="design-salutation">Guten Tag,</p>{{APPLICATION_CONTENT}}<p class="design-greeting">Mit freundlichen Grüßen,</p>', self::TEMPLATE);
+        $withGreeting = preg_replace('~(<p class="design-spacer"[^>]*>.*?</p>)~s', '<p class="design-salutation">Guten Tag,</p>$1<p class="design-greeting">Mit freundlichen Grüßen,</p>', self::TEMPLATE, 1, $greetingCount);
+        self::assertSame(1, $greetingCount);
         $this->variant = $this->publish(MailDocumentKind::Template, $withGreeting, self::TEMPLATE_CSS, [
             'id' => 15, 'name' => 'Synthetic offered template', 'is_active' => null, 'outlook_released' => true,
             'published_signature_document_id' => $this->personal->id, 'signature_document_id' => $this->personal->id,
@@ -396,12 +397,12 @@ final class V27PersonalLayoutTest extends TestCase
         $invalidContainer = $this->one($invalid, 'rt-personal-columns');
         $invalid->query('./tbody/tr/td', $invalidContainer)->item(0)->insertBefore($this->one($invalid, 'rt-df-train'), $this->one($invalid, 'rt-personal-right'));
         $this->assertNativeRuntimeRejected($invalid->document->saveHTML());
-        foreach (['rt-personal-left', 'rt-personal-right', 'rt-df-train'] as $class) {
+        foreach (['rt-personal-logo-column', 'rt-personal-left', 'rt-personal-right', 'rt-df-train'] as $class) {
             $item = $this->one($nativeXpath, $class);
             self::assertTrue($item->parentNode->isSameNode($nativeCell));
             self::assertSame('100%', $item->getAttribute('width'));
             self::assertStringContainsString('display:table;', $item->getAttribute('style'), 'Without presentation CSS, ordinary full-width table attributes remain.');
-            self::assertStringContainsString('width:50%;min-width:0;max-width:100%;', $item->getAttribute('style'));
+            self::assertStringContainsString('width:50%;min-width:min(100%,max(340px,calc((680px - 100%) * 1000)));max-width:100%;', $item->getAttribute('style'));
         }
         foreach (['rt-personal-company-block' => '220', 'rt-personal-logo-frame' => '200'] as $class => $maximum) {
             $table = $this->one($nativeXpath, $class);
@@ -541,10 +542,10 @@ final class V27PersonalLayoutTest extends TestCase
                 self::assertSame('420px', $this->winningExplicitRule($xpath, $window, 'max-width'));
                 self::assertSame('table', $this->winningExplicitRule($xpath, $container, 'display'));
                 self::assertSame('hidden', $this->winningExplicitRule($xpath, $container, 'overflow'));
-                foreach (['rt-personal-left' => 'left', 'rt-personal-right' => 'right', 'rt-df-train' => 'left'] as $class => $float) {
+                foreach (['rt-personal-logo-column' => 'right', 'rt-personal-left' => 'left', 'rt-personal-right' => 'right', 'rt-df-train' => 'left'] as $class => $float) {
                     $item = $this->one($xpath, $class);
                     self::assertSame('50%', $this->winningExplicitRule($xpath, $item, 'width'));
-                    self::assertSame('0', $this->winningExplicitRule($xpath, $item, 'min-width'));
+                    self::assertSame('min(100%,max(340px,calc((680px - 100%) * 1000)))', $this->winningExplicitRule($xpath, $item, 'min-width'));
                     self::assertSame('100%', $this->winningExplicitRule($xpath, $item, 'max-width'));
                     self::assertSame($float, $this->winningExplicitRule($xpath, $item, 'float'));
                 }
@@ -555,8 +556,9 @@ final class V27PersonalLayoutTest extends TestCase
                 self::assertStringNotContainsString('display:grid', $html);
                 self::assertStringNotContainsString('grid-column:', $html);
                 self::assertStringNotContainsString('width:calc(', $html);
-                foreach (['rt-personal-cell-left', 'rt-personal-cell-right'] as $class) {
-                    self::assertSame('0 40px', $this->winningExplicitRule($xpath, $this->one($xpath, $class), 'padding'), 'Native gutters match the template, hotline and legal row.');
+                foreach (['rt-personal-cell-logo', 'rt-personal-cell-left', 'rt-personal-cell-right'] as $class) {
+                    self::assertSame('0', $this->winningExplicitRule($xpath, $this->one($xpath, $class), 'padding'));
+                    self::assertSame('40px solid transparent', $this->winningExplicitRule($xpath, $this->one($xpath, $class)->parentNode->parentNode->parentNode, 'border-left'), 'Native gutters belong to their responsive TABLE owner.');
                 }
                 foreach (['rt-personal-company-block' => '220px', 'rt-personal-logo-frame' => '200px', 'rt-logo' => '200px'] as $class => $maximum) {
                     $node = $this->one($xpath, $class);
@@ -592,7 +594,12 @@ final class V27PersonalLayoutTest extends TestCase
         $converter = new CssSelectorConverter;
         $parser = new Parser;
         foreach ($xpath->query('//style') as $style) {
-            preg_match_all('~([^{}]+)\{([^{}]*)\}~s', $style->textContent, $rules, PREG_SET_ORDER);
+            // This helper evaluates the desktop identity. Responsive native
+            // geometry is asserted separately at the explicit narrow rule.
+            $css = $style->hasAttribute('data-rt-desktop-flow-css')
+                ? preg_replace('~@media\b[^{}]*\{(?:[^{}]*\{[^{}]*\})*\s*\}~s', '', $style->textContent)
+                : $style->textContent;
+            preg_match_all('~([^{}]+)\{([^{}]*)\}~s', $css, $rules, PREG_SET_ORDER);
             foreach ($rules as $rule) {
                 foreach (explode(',', trim($rule[1])) as $selector) {
                     try {
@@ -636,13 +643,15 @@ final class V27PersonalLayoutTest extends TestCase
         self::assertStringContainsString('Musterweg 12', $right->textContent);
         self::assertStringNotContainsString($email, $right->textContent);
         $mobile = OutlookDesktopFlow::mobile($html);
+        $native = OutlookDesktopFlow::projected($html);
+        $logoOwner = $native ? $this->one($xpath, 'rt-personal-logo-column') : ($mobile ? $left : $right);
         self::assertSame($mobile ? 1 : 0, $xpath->query('.//img[contains(concat(" ",normalize-space(@class)," ")," rt-logo ") or contains(concat(" ",normalize-space(@class)," ")," rt-client-logo ")]', $left)->length);
-        self::assertSame($mobile ? 0 : 1, $xpath->query('.//img[contains(concat(" ",normalize-space(@class)," ")," rt-logo ") or contains(concat(" ",normalize-space(@class)," ")," rt-client-logo ")]', $right)->length);
+        self::assertSame($mobile || $native ? 0 : 1, $xpath->query('.//img[contains(concat(" ",normalize-space(@class)," ")," rt-logo ") or contains(concat(" ",normalize-space(@class)," ")," rt-client-logo ")]', $right)->length);
         $logoFrame = $this->one($xpath, 'rt-personal-logo-frame');
         self::assertSame('table', $logoFrame->tagName);
         self::assertSame('200', $logoFrame->getAttribute('width'));
         self::assertSame('presentation', $logoFrame->getAttribute('role'));
-        self::assertSame(1, $xpath->query('.//*[contains(concat(" ",normalize-space(@class)," ")," rt-personal-logo-frame ")]', $mobile ? $left : $right)->length);
+        self::assertSame(1, $xpath->query('.//*[contains(concat(" ",normalize-space(@class)," ")," rt-personal-logo-frame ")]', $logoOwner)->length);
         self::assertSame('left', $this->one($xpath, 'rt-personal-company-block')->getAttribute('align'));
         $companyContacts = $this->one($xpath, 'rt-personal-company-contacts');
         if ($companyContacts->hasAttribute('style')) {
@@ -668,9 +677,9 @@ final class V27PersonalLayoutTest extends TestCase
             self::assertSame('table', $container->tagName);
             self::assertCount(1, $xpath->query('./tbody/tr/td', $container));
             $children = $xpath->query('./tbody/tr/td/*', $container);
-            self::assertCount(3, $children);
-            foreach (['rt-personal-left', 'rt-personal-right', 'rt-df-train'] as $index => $class) {
-                self::assertTrue($children->item($index)->isSameNode($this->one($xpath, $class)), 'DOM reading order stays Person, Company, Train.');
+            self::assertCount(4, $children);
+            foreach (['rt-personal-logo-column', 'rt-personal-left', 'rt-personal-right', 'rt-df-train'] as $index => $class) {
+                self::assertTrue($children->item($index)->isSameNode($this->one($xpath, $class)), 'DOM reading order stays Logo, Person, Company, Train.');
                 self::assertSame('table', $children->item($index)->tagName);
             }
             self::assertSame(1, $xpath->query('./tr|./tbody/tr', $this->one($xpath, 'rt-sign-content-frame'))->length);
@@ -681,7 +690,8 @@ final class V27PersonalLayoutTest extends TestCase
             self::assertSame('overflow:hidden;direction:rtl;max-width:420px;', $window->getAttribute('style'));
             self::assertStringContainsString('width:520px;max-width:none!important;height:auto;', $images->item(0)->getAttribute('style'));
             self::assertStringContainsString('float:left;clear:left;position:sticky;top:100%;', $this->one($xpath, 'rt-df-train')->getAttribute('style'));
-            self::assertStringContainsString('padding:0 40px 0 0;', $this->one($xpath, 'rt-dfc-train')->getAttribute('style'));
+            self::assertStringContainsString('padding:0;', $this->one($xpath, 'rt-dfc-train')->getAttribute('style'));
+            self::assertStringContainsString('border-right:40px solid transparent;', $this->one($xpath, 'rt-df-train')->getAttribute('style'));
         } else {
             self::assertStringNotContainsString('rt-train-window', $html);
             self::assertStringNotContainsString(SignaturePersonalColumns::NATIVE_FLOW_ATTRIBUTE, $html);

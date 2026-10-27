@@ -119,6 +119,78 @@ final class OutlookBrandedSignature
         return self::replace($rows, $edits);
     }
 
+    /** Final wire geometry, after reversible compilers and their CSS mirrors. */
+    public static function recipientTables(string $html): string
+    {
+        if (OutlookDesktopFlow::mobile($html)) {
+            return $html;
+        }
+        $nodes = self::nodes($html);
+        $edits = [];
+        $responsive = str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v5"') && str_contains($html, 'data-rt-personal-flow="v1"');
+        foreach ($nodes as $index => $node) {
+            if ($node['tag'] !== 'td' || ($node['attrs']['data-rt-brand-hotline'] ?? '') !== self::MARKER) {
+                continue;
+            }
+            $table = self::singleChild($html, $nodes, $index, 'table');
+            $row = self::singleRow($html, $nodes, $table);
+            $cells = self::rowCells($html, $nodes, $row, 5);
+            foreach ($nodes as $imageIndex => $image) {
+                if ($image['tag'] !== 'img' || ! self::within($nodes, $imageIndex, $index)) {
+                    continue;
+                }
+                $width = $image['attrs']['width'] ?? '';
+                if (! in_array($width, ['18', '40', '137', '42', '100%'], true) || ($image['attrs']['height'] ?? '') !== '34') {
+                    self::fail();
+                }
+                $style = self::property($image['attrs']['style'] ?? '', 'width', $width === '100%' ? $width : $width.'px', important: false);
+                $style = self::property(self::property($style, 'height', '34px'), 'max-height', '34px');
+                $edits[] = [$image['start'], $image['openEnd'] - $image['start'], self::opening($image, ['style' => $style])];
+            }
+            if (! $responsive || array_filter($nodes, static fn (array $candidate): bool => self::has($candidate, 'rt-brand-hotline-gutter')) !== []) {
+                continue;
+            }
+            $inset = $nodes[$cells[0]];
+            $image = self::singleChild($html, $nodes, $cells[0], 'img');
+            $imageNode = $nodes[$image];
+            // Replace the first image edit with the nested TABLE's content.
+            $edits = array_values(array_filter($edits, static fn (array $edit): bool => $edit[0] !== $imageNode['start']));
+            $imageStyle = self::property(self::property('display:block;width:100%;', 'height', '34px'), 'max-height', '34px');
+            $gutter = '<table class="rt-brand-hotline-gutter" role="presentation" width="40" border="0" cellspacing="0" cellpadding="0" style="width:40px;table-layout:fixed;border-collapse:collapse;"><tbody><tr><td style="padding:0;font-size:0;line-height:0;">'
+                .self::opening($imageNode, ['width' => '100%', 'style' => $imageStyle]).'</td></tr></tbody></table>';
+            $edits[] = [$inset['start'], $inset['openEnd'] - $inset['start'], self::opening($inset, ['width' => '1', 'style' => self::CELL_STYLE.'width:1px;'])];
+            $edits[] = [$inset['openEnd'], $inset['close'] - $inset['openEnd'], $gutter];
+            $edits[] = [$nodes[$table]['start'], $nodes[$table]['openEnd'] - $nodes[$table]['start'], self::opening($nodes[$table], ['style' => 'width:100%;table-layout:auto;'])];
+        }
+        if ($responsive && array_filter($nodes, static fn (array $node): bool => self::has($node, 'rt-brand-legal-table')) === []) {
+            $roots = array_keys(array_filter($nodes, static fn (array $node): bool => self::has($node, 'rt-outlook-signature')));
+            if (count($roots) !== 1) {
+                self::fail();
+            }
+            $tables = $nodes[$roots[0]]['tag'] === 'table' ? [$roots[0]]
+                : array_values(array_filter(self::direct($nodes, $roots[0]), static fn (int $index): bool => $nodes[$index]['tag'] === 'table'));
+            if (count($tables) !== 1) {
+                self::fail();
+            }
+            $body = self::singleChild($html, $nodes, $tables[0], 'tbody');
+            $rows = self::direct($nodes, $body);
+            if (count($rows) !== 2 || $nodes[$rows[1]]['tag'] !== 'tr') {
+                self::fail();
+            }
+            $legal = self::singleChild($html, $nodes, $rows[1], 'td');
+            $cell = $nodes[$legal];
+            $content = self::inner($html, $cell);
+            $at = preg_match('~<style\b[^>]*data-rt-outlook-marker-css|<!--\s*RT-SIGNATURE-(?:MANAGED|VERSION)~i', $content, $metadata, PREG_OFFSET_CAPTURE) ? $metadata[0][1] : strlen($content);
+            $visual = substr($content, 0, $at);
+            $wrapped = '<table class="rt-brand-legal-table" role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;box-sizing:border-box;border-collapse:separate;border-spacing:0;border-left:40px solid transparent;border-right:40px solid transparent;"><tbody><tr><td style="padding:0;">'.$visual.'</td></tr></tbody></table>'.substr($content, $at);
+            $style = self::property(self::property($cell['attrs']['style'] ?? '', 'padding-left', '0'), 'padding-right', '0');
+            $edits[] = [$cell['start'], $cell['openEnd'] - $cell['start'], self::opening($cell, ['style' => $style])];
+            $edits[] = [$cell['openEnd'], $cell['close'] - $cell['openEnd'], $wrapped];
+        }
+
+        return self::replace($html, $edits);
+    }
+
     private static function raster(string $mailOpen, string $mailClose, string $phoneOpen, string $phoneClose, string $baseUrl): string
     {
         $cell = ' style="'.self::CELL_STYLE.'"';

@@ -37,6 +37,51 @@ test('native-only restores exact ID CSS after classes/STYLE disappear, preservin
     assert.equal(isStandaloneSignatureInsertionBlocked(h.item), false);
 });
 
+test('external v4 carrier blocks migration before any write because received selector downgrades can affect every image', async () => {
+    const h = fixture(); await h.run(standaloneHtml(STANDALONE_VERSION, false));
+    const snapshot = h.body(); const sessions = new Map(h.state.sessions);
+    assert.match(h.state.carrier, />tbody>tr>td>div>img/);
+    assert.equal(standaloneSignatureLayoutIsCurrent(h.body(), h.body(), STANDALONE_VERSION), false);
+    await assert.rejects(h.run(standaloneHtml('3123456789abcdef', true)), { code: 'SIGNATURE_LAYOUT_LEGACY_CARRIER' });
+    assert.equal(h.body(), snapshot); assert.deepEqual(h.state.sessions, sessions);
+    assert.equal(h.state.writes.length, 1); assert.equal(h.state.prepends.length, 1); assert.equal(h.state.fullWrites, 0);
+    assert.equal(isStandaloneSignatureInsertionBlocked(h.item), false);
+});
+
+test('a verified v4 carrier inside the native slot is removed by the v5 native replacement with fresh IDs', async () => {
+    const h = fixture(); await h.run(standaloneHtml(STANDALONE_VERSION, false));
+    const oldIds = h.state.writes[0].match(/id="rt-native-layout-[^"]+"/g);
+    h.state.signature = h.state.signature.replace('<td>', '<td>' + h.state.carrier); h.state.carrier = '';
+    const version = '3123456789abcdef'; await h.run(standaloneHtml(version, true));
+    assert.notDeepEqual(h.state.writes.at(-1).match(/id="rt-native-layout-[^"]+"/g), oldIds);
+    assert.equal((h.body().match(/RT-NATIVE-LAYOUT-RESTORE-V1:/g) || []).length, 1);
+    assert.equal(standaloneSignatureLayoutIsCurrent(h.body(), h.body(), version), true);
+    assert.equal(h.state.fullWrites, 0);
+});
+
+test('same-version layout migration cannot return current using a different safe ID shape', async () => {
+    const h = fixture(); await h.run(); await h.run(standaloneHtml(STANDALONE_VERSION, true, true));
+    assert.equal(h.state.writes.length, 2); assert.equal(h.state.prepends.length, 2);
+    assert.equal(standaloneSignatureContract(h.body()).layoutIds.logo.endsWith('-l'), true);
+});
+
+test('v5 nine-ID native insertion proves inset/footer retention and never emits a descendant selector', async () => {
+    const h = fixture(); await h.run();
+    const version = '5123456789abcdef';
+    await h.run(standaloneHtml(version, true, true));
+    const contract = standaloneSignatureContract(h.body());
+    assert.equal(Object.keys(contract.layoutIds).length, 9);
+    assert.equal(standaloneSignatureLayoutIsCurrent(h.body(), h.body(), version), true);
+    const payload = h.state.prepends.at(-1);
+    const css = /<style\b[^>]*>([^]*?)<\/style>/.exec(payload)[1];
+    for (const [, selector] of css.replace('@media(max-width:680px){', '').matchAll(/([^{}]+)\{[^{}]*\}/g)) {
+        assert.match(selector, /^#rt-native-layout-[0-9a-f]{32}-[rpcthslif]$/);
+    }
+    assert.equal(h.state.fullWrites, 0);
+    const snapshot = h.body(); await h.run(standaloneHtml(version, true, true));
+    assert.equal(h.body(), snapshot); assert.equal(h.state.prepends.length, 2);
+});
+
 test('same version without any carrier is repaired; only a positively retained current version becomes a no-op', async () => {
     const h = fixture(); h.state.signature = nativeOfficeHtml(standaloneHtml());
     assert.equal(standaloneSignatureLayoutIsCurrent(h.body(), h.body(), STANDALONE_VERSION), false);
