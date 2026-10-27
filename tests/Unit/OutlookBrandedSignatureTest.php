@@ -45,7 +45,8 @@ final class OutlookBrandedSignatureTest extends TestCase
         $result = $this->project($source);
         self::assertStringContainsString('valign="top"', $result);
         self::assertStringContainsString('vertical-align:top!important;', $result);
-        self::assertStringContainsString('color:#142231!important;', $result);
+        self::assertStringContainsString('color:#142231;', $result);
+        self::assertStringNotContainsString('color:#142231!important;', $result);
         self::assertStringContainsString('Street<br>City', $result);
         self::assertStringContainsString('href="tel:+49123" style="color:#142231;text-decoration:none"', $result);
         self::assertSame($result, $this->project($result));

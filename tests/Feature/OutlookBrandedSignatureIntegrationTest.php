@@ -317,7 +317,8 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
             self::assertSame(2, $addressCells->length);
             self::assertSame('top', $addressCells->item(0)->getAttribute('valign'));
             self::assertMatchesRegularExpression('/vertical-align\s*:\s*top/i', $addressCells->item(0)->getAttribute('style'));
-            self::assertMatchesRegularExpression('/(?:^|;)\s*color\s*:\s*#142231\s*!important/i', $addressCells->item(1)->getAttribute('style'));
+            self::assertMatchesRegularExpression('/(?:^|;)\s*color\s*:\s*#142231\s*;/i', $addressCells->item(1)->getAttribute('style'));
+            self::assertDoesNotMatchRegularExpression('/(?:^|;)\s*color\s*:[^;]*!important/i', $addressCells->item(1)->getAttribute('style'), 'Outlook dark-mode inline colors must outrank the fallback color mirror.');
             self::assertSame(0, $xpath->query('.//a', $addressCells->item(1))->length, 'Address formatting does not invent a link.');
             self::assertSame(1, $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-personal-logo-frame ")]')->length);
             self::assertSame(1, $xpath->query('//div[contains(concat(" ",normalize-space(@class)," ")," rt-personal-name ")]')->length);

@@ -291,7 +291,7 @@ final class OutlookBrandedSignature
                     continue;
                 }
                 $edits[] = [$node['start'], $node['openEnd'] - $node['start'], self::opening($node, [
-                    'style' => self::property($node['attrs']['style'] ?? '', 'color', $color),
+                    'style' => self::property($node['attrs']['style'] ?? '', 'color', $color, important: false),
                 ])];
             }
         }
@@ -315,11 +315,11 @@ final class OutlookBrandedSignature
         return [[$cell['start'], $cell['openEnd'] - $cell['start'], self::opening($cell, ['style' => $style])]];
     }
 
-    private static function property(string $style, string $name, string $value): string
+    private static function property(string $style, string $name, string $value, bool $important = true): string
     {
         $parts = array_filter(self::styleParts($style), static fn (string $part): bool => preg_match('/\A\s*'.preg_quote($name, '/').'\s*:/i', $part) !== 1);
 
-        return rtrim(implode('', $parts), "; \t\r\n").';'.$name.':'.$value.'!important;';
+        return rtrim(implode('', $parts), "; \t\r\n").';'.$name.':'.$value.($important ? '!important' : '').';';
     }
 
     private static function white(string $value): bool
