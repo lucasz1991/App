@@ -19,6 +19,7 @@ use App\Support\Mail\TemplateDocumentContract;
 use App\Support\Mail\TrustedEmailCss;
 use App\Support\Mail\TrustedOutlookSignatureCss;
 use App\Support\OutlookAddin\OutlookAddinWordingPolicy;
+use App\Support\OutlookAddin\OutlookBrandedSignature;
 use App\Support\OutlookAddin\OutlookComposeFrame;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\Schema;
@@ -58,6 +59,8 @@ class EmailTemplateBuilder
         'email' => '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',
         'web' => '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',
     ];
+
+    private bool $outlookBranding = false;
 
     public function __construct(protected User $user) {}
 
@@ -312,6 +315,7 @@ class EmailTemplateBuilder
         if ($rows === '' || preg_match('~<(?:html|body|script)\b~i', $rows) === 1) {
             throw new RuntimeException('Die veroeffentlichte Signatur kann nicht sicher als Outlook-Fragment ausgegeben werden.');
         }
+        $rows = OutlookBrandedSignature::project($rows, rtrim((string) config('app.url'), '/'));
 
         $publishedCss = $signature->publishedCss();
         $border = self::emailThemeValues($theme)['SIGNATURE_BORDER'];
@@ -362,16 +366,22 @@ class EmailTemplateBuilder
             $wordingPreferences ??= app(OutlookAddinWordingPolicy::class)->preferencesForUser($this->user);
         }
 
-        $document = $this->buildEmailHtml(
-            inlineImages: false,
-            theme: $theme,
-            // cidOutlookImages bindet den Hauptzug explizit an railtime-train.
-            // false unterdrueckt lediglich das alte, CSS-getaktete Idle-Overlay.
-            animatedSignature: false,
-            staticAnimations: false,
-            cidOutlookImages: true,
-            outlookWording: $wordingPreferences,
-        );
+        $previousBranding = $this->outlookBranding;
+        $this->outlookBranding = true;
+        try {
+            $document = $this->buildEmailHtml(
+                inlineImages: false,
+                theme: $theme,
+                // cidOutlookImages bindet den Hauptzug explizit an railtime-train.
+                // false unterdrueckt lediglich das alte, CSS-getaktete Idle-Overlay.
+                animatedSignature: false,
+                staticAnimations: false,
+                cidOutlookImages: true,
+                outlookWording: $wordingPreferences,
+            );
+        } finally {
+            $this->outlookBranding = $previousBranding;
+        }
         $body = self::outlookAddinFragment($document, includeStyles: false);
         // Der Scope ist inhaltsgebunden: andere Vorlagen und zitierte alte
         // Versionen im selben Compose-Body bleiben von diesen Regeln unberuehrt.
@@ -822,7 +832,9 @@ class EmailTemplateBuilder
         array $layout = [],
         array $overrides = [],
     ): string {
-        return $signature->render($layout, $overrides);
+        $rows = $signature->render($layout, $overrides);
+
+        return $this->outlookBranding ? OutlookBrandedSignature::project($rows, rtrim((string) config('app.url'), '/')) : $rows;
     }
 
     /**
@@ -859,7 +871,11 @@ class EmailTemplateBuilder
     protected function substitute(string $template, array $values): string
     {
         $personalSource = app(PublishedMailDocumentSnapshotStore::class)->personalSignatureSnapshot();
-        $values['RESPONSIVE_CSS'] ??= static::responsiveCss($values['SIGNATURE_BORDER'] ?? null, signatureHtml: $personalSource['html'] ?? null);
+        $signatureHtml = $personalSource['html'] ?? null;
+        if ($this->outlookBranding && is_string($signatureHtml)) {
+            $signatureHtml = OutlookBrandedSignature::project($signatureHtml, rtrim((string) config('app.url'), '/'));
+        }
+        $values['RESPONSIVE_CSS'] ??= static::responsiveCss($values['SIGNATURE_BORDER'] ?? null, signatureHtml: $signatureHtml);
 
         foreach ($values as $key => $value) {
             $template = str_replace('{{'.$key.'}}', $value, $template);

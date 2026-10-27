@@ -125,6 +125,12 @@ final class OutlookMobileSignature
         $ledger = $personal ? null : $ledgers->item(0);
         if ($personal) {
             self::personalColumns($xpath);
+            $logoCells = $xpath->query(self::classQuery('rt-personal-logo-frame', 'table').'/tbody/tr/td | '.self::classQuery('rt-personal-logo-frame', 'table').'/tr/td');
+            if ($logoCells->length !== 1) {
+                throw new RuntimeException('Der mobile Logoabstand besitzt keine eindeutige Zelle.');
+            }
+            $logoCell = $logoCells->item(0);
+            $logoCell->setAttribute('style', rtrim($logoCell->getAttribute('style'), ';').';padding-bottom:10px;');
         } else {
             self::stack($dom, $xpath, $ledger, ['rt-ledger-brand', 'rt-ledger-contacts']);
             $contactCells = $xpath->query(self::classQuery('rt-ledger-contacts'));
@@ -144,6 +150,9 @@ final class OutlookMobileSignature
         // Only the explicitly authored outer hotline cell follows the phone
         // gutter. Its compact vertical padding and nested action cells remain.
         foreach ($xpath->query(self::classQuery('rt-sign-cell').'/table/tbody/tr/td[contains(concat(" ",normalize-space(@class)," ")," design-hotline-row ")] | '.self::classQuery('rt-sign-cell').'/table/tr/td[contains(concat(" ",normalize-space(@class)," ")," design-hotline-row ")]') as $cell) {
+            if ($cell->getAttribute('data-rt-brand-hotline') === OutlookBrandedSignature::MARKER) {
+                continue;
+            }
             // Outlook iOS can recolor HTML text independently of the white PNG
             // actions. Protect this authored white banner's inherited text fill
             // after sanitization; the mobile mirror retains it without inline CSS.
@@ -153,6 +162,17 @@ final class OutlookMobileSignature
             if (count($colors[1]) === 1 && preg_match('/\A#(?:fff|ffffff)\s*(?:!important\s*)?\z/i', trim($colors[1][0]))) {
                 $cell->setAttribute('style', $cell->getAttribute('style').'-webkit-text-fill-color:#fff;');
             }
+        }
+        foreach ($xpath->query(self::classQuery('rt-brand-hotline-inset', 'td')) as $cell) {
+            $images = $xpath->query('./img', $cell);
+            if ($images->length !== 1) {
+                throw new RuntimeException('Der mobile Hotline-Bildsteg ist nicht eindeutig.');
+            }
+            $cell->setAttribute('width', '18');
+            self::style($cell, 'padding:0;font-size:0;line-height:0;');
+            $image = $images->item(0);
+            $image->setAttribute('width', '18');
+            self::style($image, 'display:block;');
         }
         foreach (['rt-ledger-brand', 'rt-ledger-contacts', 'rt-ledger-direct', 'rt-ledger-company'] as $class) {
             foreach ($xpath->query(self::classQuery($class)) as $cell) {
