@@ -93,9 +93,25 @@ final class OutlookDesktopFlowTest extends TestCase
             self::assertStringContainsString('display:'.($index === 3 ? 'inline-table' : 'inline-block').';', $groups->item($index)->getAttribute('style'));
             self::assertStringContainsString('width:100%;min-width:0;max-width:340px;', $groups->item($index)->getAttribute('style'));
             self::assertDoesNotMatchRegularExpression('/\b(?:min|max|calc)\s*\(/i', $groups->item($index)->getAttribute('style'));
-            self::assertDoesNotMatchRegularExpression('/(?:^|;)\s*(?:float|clear|position|top)\s*:/i', $groups->item($index)->getAttribute('style'));
+            self::assertDoesNotMatchRegularExpression('/(?:^|;)\s*(?:position|top)\s*:|float\s*:\s*right/i', $groups->item($index)->getAttribute('style'));
+            if (in_array($index, [1, 3], true)) {
+                self::assertStringContainsString('float:left;', $groups->item($index)->getAttribute('style'));
+            } else {
+                self::assertDoesNotMatchRegularExpression('/(?:^|;)\s*float\s*:/i', $groups->item($index)->getAttribute('style'));
+            }
+            if ($index === 3) {
+                self::assertStringContainsString('clear:left;', $groups->item($index)->getAttribute('style'));
+            } else {
+                self::assertDoesNotMatchRegularExpression('/(?:^|;)\s*clear\s*:/i', $groups->item($index)->getAttribute('style'));
+            }
             self::assertSame('ltr', $groups->item($index)->getAttribute('dir'));
+            self::assertStringContainsString('direction:ltr;text-align:left;', $groups->item($index)->getAttribute('style'));
             self::assertStringContainsString('border-right:40px solid transparent;', $groups->item($index)->getAttribute('style'));
+            $cell = $xpath->query('./tbody/tr/td', $groups->item($index))->item(0);
+            self::assertSame('ltr', $cell->getAttribute('dir'));
+            self::assertSame('left', $cell->getAttribute('align'));
+            self::assertStringContainsString('direction:ltr;text-align:left;', $cell->getAttribute('style'));
+            self::assertStringContainsString($index === 3 ? 'font-size:0;line-height:0;' : 'font-size:13px;line-height:18px;', $cell->getAttribute('style'));
         }
         self::assertSame(1, $xpath->query('//img[contains(concat(" ",normalize-space(@class)," ")," rt-logo ")]')->length);
         self::assertSame(1, $xpath->query('.//img[contains(concat(" ",normalize-space(@class)," ")," rt-logo ")]', $groups->item(0))->length);
@@ -110,15 +126,21 @@ final class OutlookDesktopFlowTest extends TestCase
         self::assertStringContainsString('rt-personal-company-contacts" style="padding-top:0;"', $html);
         self::assertStringNotContainsString('.rt-personal-company-contacts{padding-top:14px!important;}', $html);
         self::assertStringContainsString('.rt-personal-direct{padding-top:14px!important;}', $html);
-        self::assertStringContainsString('.rt-df-train{display:inline-table!important;vertical-align:bottom!important;border-left:0!important;}', $html);
+        self::assertStringContainsString('.rt-personal-left{float:left!important;}', $html);
+        self::assertStringContainsString('.rt-df-train{display:inline-table!important;vertical-align:bottom!important;border-left:0!important;float:left!important;clear:left!important;}', $html);
         self::assertStringContainsString('width:520px;max-width:none!important;height:auto;', $html);
         $this->assertBudget($html, 12288, 30000);
         $styleless = $this->xpath(preg_replace('~<style\b[^>]*>.*?</style\s*>~is', '', $html));
         $stylelessFlow = $styleless->query('//table[@data-rt-desktop-flow="outlook-desktop-flow-v5"]')->item(0);
-        self::assertSame('rtl', $stylelessFlow->getAttribute('dir'));
-        self::assertSame('rtl', $styleless->query('./tbody/tr/td', $stylelessFlow)->item(0)->getAttribute('dir'));
+        self::assertSame('ltr', $stylelessFlow->getAttribute('dir'));
+        $stylelessCell = $styleless->query('./tbody/tr/td', $stylelessFlow)->item(0);
+        self::assertSame('ltr', $stylelessCell->getAttribute('dir'));
+        self::assertSame('left', $stylelessCell->getAttribute('align'));
+        self::assertStringContainsString('direction:ltr;text-align:left;', $stylelessCell->getAttribute('style'));
         self::assertStringContainsString('max-width:680px;', $stylelessFlow->getAttribute('style'));
         self::assertStringContainsString('text-align:left;', $stylelessFlow->getAttribute('style'));
+        self::assertStringContainsString('direction:ltr;margin:0 auto 0 0;', $stylelessFlow->getAttribute('style'));
+        self::assertSame(1, $styleless->query('//*[@dir="rtl"]')->length, 'Only the bounded train clipping window needs RTL.');
         self::assertSame(4, $styleless->query('./tbody/tr/td/table', $stylelessFlow)->length);
         self::assertSame($this->inventory($html), $this->inventory($styleless->document->saveHTML()));
 

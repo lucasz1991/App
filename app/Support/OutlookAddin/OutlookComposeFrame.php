@@ -29,7 +29,7 @@ final class OutlookComposeFrame
             }
             $style = rtrim($nodes[$index]['attrs']['style'] ?? '', ';').';padding-left:0!important;padding-right:0!important;direction:ltr;text-align:left;';
             if ($order === 0) {
-                $style .= 'padding-top:0!important;';
+                $style .= 'padding-top:8px!important;';
             }
             $edits[$index] = self::style($nodes[$index]['opening'], $style);
         }

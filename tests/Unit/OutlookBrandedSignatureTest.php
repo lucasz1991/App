@@ -17,6 +17,57 @@ require_once __DIR__.'/../../app/Support/OutlookAddin/OutlookBrandedSignature.ph
 
 final class OutlookBrandedSignatureTest extends TestCase
 {
+    public function test_final_logo_surface_removes_white_fill_and_only_its_generated_paint_declarations(): void
+    {
+        foreach (['#fff', '#ffffff', 'white', 'rgb(255, 255, 255)', 'rgba(255,255,255,1)'] as $white) {
+            $media = '<img class="rt-logo" src="cid:original.png" width="180" height="31"><!--[if mso]><img src="cid:original-still.png" width="180"><![endif]-->';
+            $sheet = '<style data-rt-outlook-signature-inline-css="1">.rts0123456789.oit,.rts0123456789 .oit{width:200px;background-color:'.$white.'!important;height:auto;}</style>';
+            $source = $sheet.'<div class="rt-outlook-signature rts0123456789"><table><tr data-rt-artifact-version="v27"><td><table class="rt-personal-logo-frame oit" bgcolor="'.$white.'" style="width:200px;background-color:'.$white.'!important;height:auto;"><tr><td>'.$media.'</td></tr></table></td></tr></table></div>';
+            $result = OutlookBrandedSignature::transparentLogoSurface($source);
+            self::assertStringContainsString('class="rt-personal-logo-frame oit"', $result);
+            self::assertStringContainsString('style="background-color:transparent!important;width:200px;height:auto;"', $result);
+            self::assertStringContainsString('.oit{width:200px;height:auto;}', $result);
+            self::assertStringNotContainsString('bgcolor=', $result);
+            self::assertStringNotContainsString('background-color:'.$white, $result);
+            self::assertStringContainsString($media, $result);
+            self::assertSame($result, OutlookBrandedSignature::transparentLogoSurface($result));
+            self::assertStringContainsString('background-color:transparent!important;', OutlookBrandedSignature::transparentLogoSurface(str_replace('rt-outlook-signature', 'rt-outlook-template', $source)), 'The managed template-only field keeps its embedded logo transparent too.');
+            $noInline = preg_replace('/\sstyle="[^"]*"/', '', $result);
+            self::assertStringNotContainsString('background-color:', (new CssToInlineStyles)->convert($noInline), 'No-inline delivery must not restore the removed generated white fill.');
+        }
+    }
+
+    public function test_mobile_logo_detaches_shared_paint_only_alias_and_retains_all_geometry_and_unowned_white_nodes(): void
+    {
+        $sheet = '<style data-rt-outlook-mobile-css="1">.m123.xy.xy .gm{background-color:#fff!important}.m123.xy.xy .mt{width:200px!important}</style>';
+        $other = '<td class="gm" style="background-color:#fff!important;">Other white cell</td>';
+        $source = $sheet.'<div class="xz x10 m123 xy"><table><tr data-rt-artifact-version="v27"><td><table class="rt-personal-logo-frame oit gm mt" bgcolor="#fff" style="background-color:#fff!important;width:200px;height:auto;"><tr><td><img class="rt-logo" src="cid:original.png"></td></tr></table></td>'.$other.'</tr></table></div>';
+        $result = OutlookBrandedSignature::transparentLogoSurface($source);
+        self::assertStringContainsString($sheet, $result);
+        self::assertStringContainsString($other, $result);
+        self::assertStringContainsString('class="rt-personal-logo-frame oit mt"', $result);
+        self::assertStringContainsString('style="background-color:transparent!important;width:200px;height:auto;"', $result);
+        self::assertSame($result, OutlookBrandedSignature::transparentLogoSurface($result));
+        $noInline = preg_replace('/\sstyle="[^"]*"/', '', $result);
+        $inlined = (new CssToInlineStyles)->convert($noInline);
+        self::assertMatchesRegularExpression('/class="rt-personal-logo-frame oit mt"[^>]*style="[^"]*width: 200px/', $inlined);
+        self::assertDoesNotMatchRegularExpression('/class="rt-personal-logo-frame oit mt"[^>]*style="[^"]*background/', $inlined);
+        self::assertMatchesRegularExpression('/class="gm"[^>]*style="[^"]*background-color: #fff/', $inlined);
+    }
+
+    public function test_logo_surface_leaves_unowned_authored_nonwhite_and_shared_mixed_aliases_unchanged(): void
+    {
+        $frame = '<table class="rt-personal-logo-frame oit" bgcolor="#fff" style="background-color:#fff!important;width:200px;"><tr><td><img class="rt-logo" src="cid:logo.png"></td></tr></table>';
+        $owned = '<div class="rt-outlook-signature rts0123456789"><table><tr data-rt-artifact-version="v27"><td>'.$frame.'</td></tr></table></div>';
+        foreach ([$frame, str_replace('v27', 'v26', $owned), str_replace('rt-outlook-signature', 'other-signature', $owned), str_replace('bgcolor="#fff"', 'bgcolor="#123456"', $owned), str_replace('background-color:#fff!important;', 'background:#fff;background-color:red;', $owned), str_replace('class="rt-logo"', 'class="other-logo"', $owned)] as $source) {
+            self::assertSame($source, OutlookBrandedSignature::transparentLogoSurface($source));
+        }
+        $shared = '<style data-rt-outlook-signature-inline-css="1">.rts0123456789 .oit{width:200px;background-color:#fff!important;}</style>'.$owned.'<table class="oit"><tr><td>Unowned</td></tr></table>';
+        self::assertSame($shared, OutlookBrandedSignature::transparentLogoSurface($shared));
+        $authored = '<style data-rt-mail-document-css="signature">.rts0123456789 .oit{background-color:#fff!important;}</style>';
+        self::assertStringContainsString($authored, OutlookBrandedSignature::transparentLogoSurface($authored.$owned), 'The final helper never edits authored CSS.');
+    }
+
     public function test_legal_gutter_has_priority_without_touching_vertical_spacing_or_text(): void
     {
         $content = 'Legal<br><a href="https://example.test/legal">Disclaimer</a>';

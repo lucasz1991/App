@@ -552,15 +552,21 @@ final class V27PersonalLayoutTest extends TestCase
                 self::assertSame('420px', $this->winningExplicitRule($xpath, $window, 'max-width'));
                 self::assertSame('table', $this->winningExplicitRule($xpath, $container, 'display'));
                 self::assertSame('hidden', $this->winningExplicitRule($xpath, $container, 'overflow'));
-                foreach (['rt-personal-logo-column' => 'right', 'rt-personal-left' => 'left', 'rt-personal-right' => 'right', 'rt-df-train' => 'left'] as $class => $float) {
+                self::assertSame('ltr', $this->winningExplicitRule($xpath, $container, 'direction'));
+                self::assertSame('0 auto 0 0', $this->winningExplicitRule($xpath, $container, 'margin'));
+                self::assertSame('ltr', $container->getAttribute('dir'));
+                $flowCell = $xpath->query('./tbody/tr/td|./tr/td', $container)->item(0);
+                self::assertSame('ltr', $flowCell->getAttribute('dir'));
+                self::assertSame('left', $flowCell->getAttribute('align'));
+                foreach (['rt-personal-logo-column' => null, 'rt-personal-left' => 'left', 'rt-personal-right' => null, 'rt-df-train' => 'left'] as $class => $float) {
                     $item = $this->one($xpath, $class);
                     self::assertSame('100%', $this->winningExplicitRule($xpath, $item, 'width'));
                     self::assertSame('0', $this->winningExplicitRule($xpath, $item, 'min-width'));
                     self::assertSame('340px', $this->winningExplicitRule($xpath, $item, 'max-width'));
-                    self::assertNull($this->winningExplicitRule($xpath, $item, 'float'));
+                    self::assertSame($float, $this->winningExplicitRule($xpath, $item, 'float'));
                 }
                 $train = $this->one($xpath, 'rt-df-train');
-                self::assertNull($this->winningExplicitRule($xpath, $train, 'clear'));
+                self::assertSame('left', $this->winningExplicitRule($xpath, $train, 'clear'));
                 self::assertNull($this->winningExplicitRule($xpath, $train, 'position'));
                 self::assertNull($this->winningExplicitRule($xpath, $train, 'top'));
                 self::assertStringNotContainsString('display:grid', $html);
@@ -578,7 +584,7 @@ final class V27PersonalLayoutTest extends TestCase
                 }
                 $noSticky = $this->xpath(str_replace('position:sticky!important;', '', $noInline));
                 self::assertNull($this->winningExplicitRule($noSticky, $this->one($noSticky, 'rt-df-train'), 'position'));
-                self::assertNull($this->winningExplicitRule($noSticky, $this->one($noSticky, 'rt-df-train'), 'clear'));
+                self::assertSame('left', $this->winningExplicitRule($noSticky, $this->one($noSticky, 'rt-df-train'), 'clear'));
             } else {
                 self::assertSame(0, $xpath->query('//*[contains(concat(" ",normalize-space(@class)," ")," rt-train-window ")]')->length);
             }
@@ -666,7 +672,7 @@ final class V27PersonalLayoutTest extends TestCase
         self::assertSame('left', $this->one($xpath, 'rt-personal-company-block')->getAttribute('align'));
         $companyContacts = $this->one($xpath, 'rt-personal-company-contacts');
         if ($companyContacts->hasAttribute('style')) {
-            self::assertStringContainsString('padding-top:'.($native ? '0' : '14px'), $companyContacts->getAttribute('style'));
+            self::assertStringContainsString('padding-top:'.($native ? '0' : ($hybrid ? '4px!important;' : '14px')), $companyContacts->getAttribute('style'));
         }
         if ($hybrid) {
             $this->assertMobileHybridGroups($html, $left->hasAttribute('style'));
@@ -682,10 +688,10 @@ final class V27PersonalLayoutTest extends TestCase
         $flow = $this->one($xpath, 'rt-mobile-hybrid-v1');
         self::assertSame('v1', $flow->getAttribute('data-rt-mobile-hybrid'));
         self::assertSame('v1', $flow->getAttribute('data-rt-personal-columns'));
-        self::assertSame('rtl', $flow->getAttribute('dir'));
+        self::assertSame('ltr', $flow->getAttribute('dir'));
         $cells = $xpath->query('./tbody/tr/td|./tr/td', $flow);
         self::assertCount(1, $cells);
-        self::assertSame('rtl', $cells->item(0)->getAttribute('dir'));
+        self::assertSame('ltr', $cells->item(0)->getAttribute('dir'));
         self::assertSame('left', $cells->item(0)->getAttribute('align'));
         $groups = $xpath->query('./table', $cells->item(0));
         self::assertCount(4, $groups);
@@ -706,9 +712,20 @@ final class V27PersonalLayoutTest extends TestCase
             self::assertStringContainsString('display:'.($kind === 'train' ? 'inline-table' : 'inline-block').';', $group->getAttribute('style'));
             self::assertStringContainsString('width:100%;max-width:340px;', $group->getAttribute('style'));
             self::assertStringContainsString('border-width:0 18px;', $group->getAttribute('style'));
-            self::assertStringContainsString('direction:ltr;', $group->getAttribute('style'));
+            self::assertSame('ltr', $groupCells->item(0)->getAttribute('dir'));
+            self::assertSame('left', $groupCells->item(0)->getAttribute('align'));
             self::assertStringContainsString('vertical-align:'.($kind === 'train' ? 'bottom' : 'top').';', $group->getAttribute('style'));
-            self::assertDoesNotMatchRegularExpression('/(?:^|;)\s*(?:float|clear|position|top)\s*:|\b(?:min|max|calc)\s*\(/i', $group->getAttribute('style'));
+            self::assertDoesNotMatchRegularExpression('/(?:^|;)\s*(?:position|top)\s*:|float\s*:\s*right|\b(?:min|max|calc)\s*\(/i', $group->getAttribute('style'));
+            if (in_array($kind, ['person', 'train'], true)) {
+                self::assertStringContainsString('float:left;', $group->getAttribute('style'));
+            } else {
+                self::assertDoesNotMatchRegularExpression('/(?:^|;)\s*float\s*:/i', $group->getAttribute('style'));
+            }
+            if ($kind === 'train') {
+                self::assertStringContainsString('clear:left;', $group->getAttribute('style'));
+            } else {
+                self::assertDoesNotMatchRegularExpression('/(?:^|;)\s*clear\s*:/i', $group->getAttribute('style'));
+            }
             if (in_array($kind, ['person', 'company'], true)) {
                 self::assertStringContainsString('font-size:13px;line-height:18px;', $groupCells->item(0)->getAttribute('style'));
             }

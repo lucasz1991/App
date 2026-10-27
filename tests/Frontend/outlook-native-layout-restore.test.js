@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { createNativeLayoutNonce, nativeLayoutRestoreCarrierPresent, nativeLayoutRestoreCss, nativeLayoutRestoreResponsiveCss, nativeLayoutRestoreRetained, nativeLayoutRestoreStylePayload, prepareNativeLayoutRestore, removeNativeLayoutRestoreCarrier } from '../../resources/js/outlook-addin/native-layout-restore.js';
+import { createNativeLayoutNonce, nativeLayoutRestoreCarrierPresent, nativeLayoutRestoreCellsAligned, nativeLayoutRestoreCss, nativeLayoutRestoreResponsiveCss, nativeLayoutRestoreRetained, nativeLayoutRestoreStylePayload, prepareNativeLayoutRestore, removeNativeLayoutRestoreCarrier } from '../../resources/js/outlook-addin/native-layout-restore.js';
 import { managedTemplateContract, standaloneSignatureContract } from '../../resources/js/outlook-addin/managed-template.js';
 
 const nonce = '1234567890abcdef1234567890abcdef';
@@ -90,10 +90,13 @@ test('v5 adds only the seventh logo TABLE ID and retains exact responsive CSS af
     assert.ok(css.includes('#' + plan.ids.train + '{display:inline-table!important;vertical-align:bottom!important;'));
     assert.equal(css.split('width:100%!important;min-width:0!important;max-width:340px!important;direction:ltr!important;').length - 1, 4);
     assert.match(css, /max-width:680px!important;/);
-    assert.match(css, /direction:rtl!important;/);
+    assert.equal(css.split('direction:ltr!important;').length - 1, 5);
+    assert.match(css, /margin:0 auto 0 0!important;/);
+    assert.match(css, /-p\{float:left!important;\}/);
+    assert.match(css, /-t\{float:left!important;clear:left!important;\}/);
     assert.match(css, /-l\{margin-bottom:10px!important;\}/);
     assert.match(css, /border-top:4px solid transparent!important;/);
-    assert.doesNotMatch(css, /min\(|max\(|calc\(|@media|[;{](?:float|clear|position|top):/);
+    assert.doesNotMatch(css, /min\(|max\(|calc\(|@media|direction:rtl|float:right|[;{](?:position|top):/);
     assert.doesNotMatch(responsive, /min\(|max\(|calc\(/);
     assert.match(responsive, /@media\(max-width:680px\)\{/);
     assert.match(responsive, /width:100%!important;min-width:0!important;max-width:100%!important;/);
@@ -124,6 +127,79 @@ test('v5 binds optional inset/legal TABLE wrappers with pure ID responsive rules
     assert.match(responsive, /-f\{border-left-width:18px!important;border-right-width:18px!important;\}/);
     assert.doesNotMatch(css, /[>+~]|width:520px|first-child|last-child/);
     assert.equal(removeNativeLayoutRestoreCarrier(body, parsed, plan.ids), plan.html);
+});
+
+test('current layout never acknowledges an explicit opposite alignment on any owned direct TD', () => {
+    const source = fixture({ responsive: true, standalone: true, legal: true });
+    const plan = prepareNativeLayoutRestore(source.html, standaloneSignatureContract(source.html), nonce);
+    const original = plan.stylePayload + plan.html;
+    for (const role of ['root', 'logo', 'person', 'company', 'train']) {
+        for (const attribute of ['align="right"', 'align="center"', 'dir="rtl"',
+            'style="text-align:right"', 'style="text-align:end"', 'style="direction:rtl"',
+            'style="text-align:left;text-align:right!important"']) {
+            const parsed = standaloneSignatureContract(original);
+            const table = parsed.elements.findIndex(node => node.attrs.id === plan.ids[role]);
+            const body = parsed.elements.findIndex(node => node.parent === table && node.tag === 'tbody');
+            const row = parsed.elements.findIndex(node => node.parent === body && node.tag === 'tr');
+            const cell = parsed.elements.find(node => node.parent === row && node.tag === 'td');
+            const changed = original.slice(0, cell.openEnd - 1) + ' ' + attribute + original.slice(cell.openEnd - 1);
+            assert.throws(() => nativeLayoutRestoreRetained(changed, standaloneSignatureContract(changed), plan.ids), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
+            assert.equal(removeNativeLayoutRestoreCarrier(changed, standaloneSignatureContract(changed), plan.ids), changed.replace(plan.stylePayload, ''), 'Known empty carriers remain safely removable even when their content geometry is wrong.');
+        }
+    }
+    const quotedFont = original.replace('<td><p>Synthetic personal text', '<td style="font-family:&quot;name;text-align:right&quot;;direction:ltr;text-align:left"><p>Synthetic personal text');
+    assert.equal(nativeLayoutRestoreRetained(quotedFont, standaloneSignatureContract(quotedFont), plan.ids), true);
+});
+
+test('actual sanitized R61 swap TD overrides fail alignment even with the exact new protected TABLE core', () => {
+    let html = readFileSync(new URL('../Fixtures/outlook/r61-office-opposite-cell-alignment.html', import.meta.url), 'utf8');
+    let contract = managedTemplateContract(html);
+    const roles = { r: 'root', p: 'person', c: 'company', t: 'train', h: 'header', s: 'signature', l: 'logo', i: 'inset', f: 'footer', q: 'templateGutter' };
+    const ids = {};
+    for (const node of contract.elements) {
+        const match = /^x_(rt-native-layout-1{32}-)([rpcthslifq])$/.exec(node.attrs.id || '');
+        if (match) ids[roles[match[2]]] = match[1] + match[2];
+    }
+    assert.equal(Object.keys(ids).length, 10);
+    assert.throws(() => nativeLayoutRestoreCellsAligned(contract, ids), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
+    assert.throws(() => nativeLayoutRestoreRetained(html, contract, ids), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
+    const oldCarrier = contract.elements.find(node => node.attrs.id === 'x_rt-native-layout-' + '1'.repeat(32) + '-carrier');
+    assert.equal(removeNativeLayoutRestoreCarrier(html, contract, ids), html.slice(0, oldCarrier.start) + html.slice(oldCarrier.end), 'The exact published R61 carrier is removable without accepting its bad TD alignment.');
+    const sheet = contract.elements.find(node => node.tag === 'style');
+    html = html.slice(0, sheet.openEnd) + nativeLayoutRestoreCss(ids).replace(/#rt-native-layout-/g, '#x_rt-native-layout-') + html.slice(sheet.close);
+    contract = managedTemplateContract(html);
+    assert.throws(() => nativeLayoutRestoreRetained(html, contract, ids), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
+    const edits = [];
+    for (const role of ['root', 'logo', 'person', 'company', 'train']) {
+        const table = contract.elements.findIndex(node => node.attrs.id === 'x_' + ids[role]);
+        const body = contract.elements.findIndex(node => node.parent === table && node.tag === 'tbody');
+        const row = contract.elements.findIndex(node => node.parent === body && node.tag === 'tr');
+        const cell = contract.elements.find(node => node.parent === row && node.tag === 'td');
+        const style = (cell.attrs.style || '').split(';').filter(part => !/^\s*(?:direction|text-align)\s*:/i.test(part)).join(';') + ';direction:ltr;text-align:left;';
+        const opening = html.slice(cell.start, cell.openEnd).replace(/\sstyle="[^"]*"/, ' style="' + style + '"');
+        edits.push({ start: cell.start, end: cell.openEnd, opening });
+    }
+    for (const edit of edits.sort((a, b) => b.start - a.start)) html = html.slice(0, edit.start) + edit.opening + html.slice(edit.end);
+    assert.equal(nativeLayoutRestoreRetained(html, managedTemplateContract(html), ids), true);
+});
+
+test('an opposite root flow TD cannot acknowledge success even when all four child cells explicitly align left', () => {
+    const source = fixture({ responsive: true, standalone: true, legal: true });
+    const plan = prepareNativeLayoutRestore(source.html, standaloneSignatureContract(source.html), nonce);
+    let html = plan.stylePayload + plan.html;
+    let contract = standaloneSignatureContract(html);
+    const edits = [];
+    for (const role of ['root', 'logo', 'person', 'company', 'train']) {
+        const table = contract.elements.findIndex(node => node.attrs.id === plan.ids[role]);
+        const body = contract.elements.findIndex(node => node.parent === table && node.tag === 'tbody');
+        const row = contract.elements.findIndex(node => node.parent === body && node.tag === 'tr');
+        const cell = contract.elements.find(node => node.parent === row && node.tag === 'td');
+        edits.push({ at: cell.openEnd - 1, value: ' align="left" dir="' + (role === 'root' ? 'rtl' : 'ltr') + '" style="text-align:left;direction:' + (role === 'root' ? 'rtl' : 'ltr') + '"' });
+    }
+    for (const edit of edits.sort((a, b) => b.at - a.at)) html = html.slice(0, edit.at) + edit.value + html.slice(edit.at);
+    contract = standaloneSignatureContract(html);
+    assert.throws(() => nativeLayoutRestoreCellsAligned(contract, plan.ids), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
+    assert.throws(() => nativeLayoutRestoreRetained(html, contract, plan.ids), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
 });
 
 test('only the owned v5 raster places h on its inner five-cell TABLE and overrides the fixed mirror with automatic layout', () => {

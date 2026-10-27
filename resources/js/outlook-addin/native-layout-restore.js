@@ -88,14 +88,16 @@ function responsiveRestoreCss(ids) {
     // Every new rule therefore contains one owned ID and no combinator or tag.
     const rule = (key, declarations) => responsiveRestoreRule(ids, key, declarations);
     const columns = ['logo', 'person', 'company', 'train'];
-    let css = rule('root', 'font-size:0!important;line-height:0!important;text-align:left!important;width:100%!important;max-width:680px!important;display:table!important;table-layout:fixed!important;border-collapse:collapse!important;overflow:hidden!important;direction:rtl!important;');
+    let css = rule('root', 'font-size:0!important;line-height:0!important;text-align:left!important;width:100%!important;max-width:680px!important;display:table!important;table-layout:fixed!important;border-collapse:collapse!important;overflow:hidden!important;direction:ltr!important;margin:0 auto 0 0!important;');
     for (const key of columns) {
-        css += rule(key, 'display:' + (key === 'train' ? 'inline-table' : 'inline-block') + '!important;vertical-align:' + (key === 'train' ? 'bottom' : 'top') + '!important;width:100%!important;min-width:0!important;max-width:340px!important;direction:ltr!important;table-layout:fixed!important;border-collapse:separate!important;border-spacing:0!important;box-sizing:border-box!important;'
+        css += rule(key, 'display:' + (key === 'train' ? 'inline-table' : 'inline-block') + '!important;vertical-align:' + (key === 'train' ? 'bottom' : 'top') + '!important;width:100%!important;min-width:0!important;max-width:340px!important;direction:ltr!important;text-align:left!important;table-layout:fixed!important;border-collapse:separate!important;border-spacing:0!important;box-sizing:border-box!important;'
             + (key === 'train' ? 'border-left:0!important;' : 'border-left:40px solid transparent!important;')
             + 'border-right:40px solid transparent!important;');
     }
     css += rule('logo', 'margin-bottom:10px!important;')
-        + rule('company', 'border-top:4px solid transparent!important;');
+        + rule('company', 'border-top:4px solid transparent!important;')
+        + rule('person', 'float:left!important;')
+        + rule('train', 'float:left!important;clear:left!important;');
     if (ids.header) css += rule('header', 'color:#ffffff!important;table-layout:auto!important;width:100%!important;');
     // The two-row signature ID owns both its main content and legal row; a
     // color override here would also recolor personal/company text. Legal
@@ -126,6 +128,35 @@ function legacyColumnCoreCss(ids) {
     if (ids.footer) css += rule('footer', 'border-left:40px solid transparent!important;border-right:40px solid transparent!important;box-sizing:border-box!important;border-collapse:separate!important;border-spacing:0!important;');
     if (ids.templateGutter) css += rule('templateGutter', 'border-left:40px solid transparent!important;border-right:40px solid transparent!important;box-sizing:border-box!important;border-collapse:separate!important;border-spacing:0!important;');
     return css;
+}
+
+// Published R61 (9430) is immutable cleanup evidence, including its old RTL
+// container and missing cell-alignment protection. It never confirms success.
+function legacyHybridCoreCss(ids) {
+    const rule = (key, declarations) => responsiveRestoreRule(ids, key, declarations);
+    let css = rule('root', 'font-size:0!important;line-height:0!important;text-align:left!important;width:100%!important;max-width:680px!important;display:table!important;table-layout:fixed!important;border-collapse:collapse!important;overflow:hidden!important;direction:rtl!important;');
+    for (const key of ['logo', 'person', 'company', 'train']) {
+        css += rule(key, 'display:' + (key === 'train' ? 'inline-table' : 'inline-block') + '!important;vertical-align:' + (key === 'train' ? 'bottom' : 'top') + '!important;width:100%!important;min-width:0!important;max-width:340px!important;direction:ltr!important;table-layout:fixed!important;border-collapse:separate!important;border-spacing:0!important;box-sizing:border-box!important;'
+            + (key === 'train' ? 'border-left:0!important;' : 'border-left:40px solid transparent!important;') + 'border-right:40px solid transparent!important;');
+    }
+    css += rule('logo', 'margin-bottom:10px!important;') + rule('company', 'border-top:4px solid transparent!important;');
+    if (ids.header) css += rule('header', 'color:#ffffff!important;table-layout:auto!important;width:100%!important;');
+    if (ids.signature) css += rule('signature', 'border-collapse:separate!important;border-spacing:0!important;');
+    if (ids.inset) css += rule('inset', 'width:40px!important;min-width:40px!important;max-width:40px!important;');
+    if (ids.footer) css += rule('footer', 'border-left:40px solid transparent!important;border-right:40px solid transparent!important;box-sizing:border-box!important;border-collapse:separate!important;border-spacing:0!important;');
+    if (ids.templateGutter) css += rule('templateGutter', 'border-left:40px solid transparent!important;border-right:40px solid transparent!important;box-sizing:border-box!important;border-collapse:separate!important;border-spacing:0!important;');
+    return css;
+}
+
+function legacyHybridResponsiveRules(ids) {
+    const rule = (key, declarations) => responsiveRestoreRule(ids, key, declarations);
+    const media = ['logo', 'person', 'company', 'train'].map(key => rule(key, 'width:100%!important;min-width:0!important;max-width:100%!important;'
+        + (key === 'train' ? '' : 'border-left-width:18px!important;') + 'border-right-width:18px!important;'));
+    media.push(rule('logo', 'margin-bottom:10px!important;'));
+    if (ids.inset) media.push(rule('inset', 'width:18px!important;min-width:18px!important;max-width:18px!important;'));
+    if (ids.footer) media.push(rule('footer', 'border-left-width:18px!important;border-right-width:18px!important;'));
+    if (ids.templateGutter) media.push(rule('templateGutter', 'border-left-width:18px!important;border-right-width:18px!important;'));
+    return { base: [], media };
 }
 
 function responsiveRestoreRule(ids, key, declarations) {
@@ -206,9 +237,9 @@ function normalizedRestoreCss(css, ids) {
     return normalized.replace(/\s+/g, '').replace(/;}/g, '}');
 }
 
-function approvedResponsiveSubset(css, ids, legacyCalc = false) {
+function approvedResponsiveSubset(css, ids, historical = false) {
     const text = normalizedRestoreCss(css, ids);
-    const expected = responsiveRestoreRules(ids, legacyCalc);
+    const expected = historical === 'hybrid-r61' ? legacyHybridResponsiveRules(ids) : responsiveRestoreRules(ids, historical === true);
     const rules = value => {
         const result = [];
         let remainder = value;
@@ -250,6 +281,50 @@ function standaloneSignatureFrame(contract, nodes) {
     if (!Number.isInteger(frame?.index) || nodes[frame.index] !== frame.node
         || frame.node.tag !== 'table' || root !== frame.node || rootIndex !== frame.index) invalid();
     return frame;
+}
+
+function inlineCellProperties(style) {
+    const parts = [];
+    let start = 0, quote = null, depth = 0;
+    for (let offset = 0; offset <= style.length; offset += 1) {
+        const char = style[offset] || ';';
+        if (quote) {
+            if (char === '\\') offset += 1;
+            else if (char === quote) quote = null;
+        } else if (char === '"' || char === "'") quote = char;
+        else if (char === '/' && style[offset + 1] === '*') invalid();
+        else if (char === '(') depth += 1;
+        else if (char === ')') { depth -= 1; if (depth < 0) invalid(); }
+        else if (char === ';' && depth === 0) { parts.push(style.slice(start, offset)); start = offset + 1; }
+    }
+    if (quote || depth !== 0) invalid();
+    return parts.filter(part => part.trim()).map(part => {
+        const match = /^\s*([a-z_-][a-z0-9_-]*)\s*:\s*(.*?)\s*$/is.exec(part);
+        if (!match) invalid();
+        return [match[1].toLowerCase(), match[2].replace(/\s*!important\s*$/i, '').trim().toLowerCase()];
+    });
+}
+
+/** Parent TABLE recovery cannot defeat an explicit opposite direct TD value. */
+export function nativeLayoutRestoreCellsAligned(contract, ids) {
+    idsScope(ids);
+    if (!ids.logo) return true;
+    const nodes = contract?.elements;
+    if (!Array.isArray(nodes) || !Number.isInteger(contract.signature?.index)) invalid();
+    for (const role of ['root', 'logo', 'person', 'company', 'train']) {
+        const matches = nodes.map((node, index) => ({ node, index })).filter(value => [ids[role], 'x_' + ids[role]].includes(value.node.attrs.id));
+        if (matches.length !== 1 || matches[0].node.tag !== 'table' || isQuoted(nodes, matches[0].index)
+            || !within(nodes, matches[0].index, contract.signature.index)) invalid();
+        const cell = onlyChild(nodes, onlyChild(nodes, onlyChild(nodes, matches[0].index, 'tbody').index, 'tr').index, 'td');
+        const align = (cell.node.attrs.align || '').trim().toLowerCase();
+        const direction = (cell.node.attrs.dir || '').trim().toLowerCase();
+        if ((align && !['left', 'start'].includes(align)) || (direction && direction !== 'ltr')) invalid();
+        for (const [name, value] of inlineCellProperties(cell.node.attrs.style || '')) {
+            if ((name === 'text-align' && !['left', 'start', 'inherit'].includes(value))
+                || (name === 'direction' && !['ltr', 'inherit'].includes(value))) invalid();
+        }
+    }
+    return true;
 }
 
 /** Any same-operation carrier, even invalid/quoted, prevents another prepend. */
@@ -318,7 +393,7 @@ function retainedCarrier(html, contract, ids, legacyColumns = false) {
     const spans = descendants.filter(value => value.node.tag === 'span' && html.slice(value.node.openEnd, value.node.close).replace(/\s+/g, '') === token);
     if (styles.length < 1 || styles.length > (ids.logo ? 2 : 1) || spans.length !== 1) invalid();
     if (legacyColumns && !ids.logo) invalid();
-    const css = normalizedRestoreCss(legacyColumns ? legacyColumnCoreCss(ids) : nativeLayoutRestoreCss(ids), ids);
+    const css = normalizedRestoreCss(legacyColumns === 'hybrid-r61' ? legacyHybridCoreCss(ids) : legacyColumns ? legacyColumnCoreCss(ids) : nativeLayoutRestoreCss(ids), ids);
     const core = styles.filter(value => normalizedRestoreCss(html.slice(value.node.openEnd, value.node.close), ids) === css);
     if (core.length !== 1) invalid();
     const retainedCss = html.slice(core[0].node.openEnd, core[0].node.close);
@@ -352,6 +427,7 @@ function retainedCarrier(html, contract, ids, legacyColumns = false) {
 /** A success callback is insufficient: a fresh SDK read must retain this exact owned CSS carrier. */
 export function nativeLayoutRestoreRetained(html, contract, ids) {
     retainedCarrier(html, contract, ids);
+    nativeLayoutRestoreCellsAligned(contract, ids);
     return true;
 }
 
@@ -368,10 +444,12 @@ export function removeNativeLayoutRestoreCarrier(html, contract, ids) {
         return html.slice(0, carrier.start) + html.slice(carrier.end);
     } catch {
         if (ids?.logo) {
-            try {
-                const carrier = retainedCarrier(html, contract, ids, true);
-                return html.slice(0, carrier.start) + html.slice(carrier.end);
-            } catch { /* Unknown/incomplete historical content stays opaque. */ }
+            for (const historical of [true, 'hybrid-r61']) {
+                try {
+                    const carrier = retainedCarrier(html, contract, ids, historical);
+                    return html.slice(0, carrier.start) + html.slice(carrier.end);
+                } catch { /* Unknown/incomplete historical content stays opaque. */ }
+            }
         }
         return html;
     }

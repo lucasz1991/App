@@ -383,7 +383,7 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
         if ($personal) {
             $companyContacts = $xpath->query('//div[contains(concat(" ",normalize-space(@class)," ")," rt-personal-company-contacts ")]');
             self::assertSame(1, $companyContacts->length);
-            self::assertMatchesRegularExpression($responsive ? '/padding-top\s*:\s*0(?:px)?\s*;/i' : '/padding-top\s*:\s*14px/i', $companyContacts->item(0)->getAttribute('style'));
+            self::assertMatchesRegularExpression($responsive ? '/padding-top\s*:\s*0(?:px)?\s*;/i' : ($mobileHybrid ? '/padding-top\s*:\s*4px!important/i' : '/padding-top\s*:\s*14px/i'), $companyContacts->item(0)->getAttribute('style'));
             $contactTable = $xpath->query('.//table[contains(concat(" ",normalize-space(@class)," ")," rt-company-contact ") or contains(concat(" ",normalize-space(@class)," ")," xj ")]', $companyContacts->item(0));
             self::assertSame(1, $contactTable->length);
             $addressCells = $xpath->query('./tbody/tr[1]/td|./tr[1]/td', $contactTable->item(0));
