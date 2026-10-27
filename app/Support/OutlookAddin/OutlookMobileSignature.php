@@ -144,7 +144,15 @@ final class OutlookMobileSignature
         // Only the explicitly authored outer hotline cell follows the phone
         // gutter. Its compact vertical padding and nested action cells remain.
         foreach ($xpath->query(self::classQuery('rt-sign-cell').'/table/tbody/tr/td[contains(concat(" ",normalize-space(@class)," ")," design-hotline-row ")] | '.self::classQuery('rt-sign-cell').'/table/tr/td[contains(concat(" ",normalize-space(@class)," ")," design-hotline-row ")]') as $cell) {
+            // Outlook iOS can recolor HTML text independently of the white PNG
+            // actions. Protect this authored white banner's inherited text fill
+            // after sanitization; the mobile mirror retains it without inline CSS.
             $cell->setAttribute('style', rtrim($cell->getAttribute('style'), ';').';padding-left:18px;padding-right:18px;');
+            $style = $cell->getAttribute('style');
+            preg_match_all('/(?:^|;)\s*color\s*:\s*([^;]+)/i', $style, $colors);
+            if (count($colors[1]) === 1 && preg_match('/\A#(?:fff|ffffff)\s*(?:!important\s*)?\z/i', trim($colors[1][0]))) {
+                $cell->setAttribute('style', $cell->getAttribute('style').'-webkit-text-fill-color:#fff;');
+            }
         }
         foreach (['rt-ledger-brand', 'rt-ledger-contacts', 'rt-ledger-direct', 'rt-ledger-company'] as $class) {
             foreach ($xpath->query(self::classQuery($class)) as $cell) {
@@ -288,6 +296,9 @@ final class OutlookMobileSignature
         // Compile the real train IMG only after the mobile mirror is complete.
         // Its strict inverse leaves the Word flow fallback and all CID bytes intact.
         $output = OutlookTrainBottomOverlay::projectMobile($output);
+        // Strict canonical train/personal inverses above still require the
+        // desktop logo slot. Only this finished mobile view moves the same logo.
+        $output = OutlookMobileBrandOrder::project($output);
         // The device artifact has its own marker, rather than falsely claiming
         // byte equality with the desktop signature. Media and source stay intact.
         $markerPattern = '/RT-SIGNATURE-VERSION:[0-9a-f]{16}/i';
