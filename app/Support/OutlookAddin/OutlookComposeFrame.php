@@ -13,6 +13,7 @@ final class OutlookComposeFrame
     /** Recipient gutters use one TABLE ID; no selector may degrade to a global TD. */
     public static function recipientTables(string $html): string
     {
+        $html = self::recipientPreheader($html);
         if (! str_contains($html, 'rt-native-template-pad') || OutlookDesktopFlow::mobile($html)) {
             return $html;
         }
@@ -41,6 +42,56 @@ final class OutlookComposeFrame
         }
 
         return $html;
+    }
+
+    /** Office drops display/max-height hiding during a body replacement. */
+    private static function recipientPreheader(string $html): string
+    {
+        if (! str_contains($html, 'rt-managed-template-v1') || ! str_contains($html, 'max-height')) {
+            return $html;
+        }
+        try {
+            $nodes = self::nodes($html);
+        } catch (RuntimeException) {
+            return $html;
+        }
+        $frames = [];
+        foreach ($nodes as $index => $node) {
+            if ($node['tag'] !== 'table' || ! self::hasClass($node, 'rt-managed-template-v1')
+                || (! self::hasClass($node, 'rt-native-compose-frame') && ! self::hasClass($node, 'x3'))) {
+                continue;
+            }
+            for ($ancestor = $node['parent']; $ancestor !== null; $ancestor = $nodes[$ancestor]['parent']) {
+                if ($nodes[$ancestor]['tag'] === 'blockquote'
+                    || in_array(strtolower($nodes[$ancestor]['attrs']['id'] ?? ''), ['divrplyfwdmsg', 'x_divrplyfwdmsg', 'mail-editor-reference-message-container'], true)) {
+                    continue 2;
+                }
+            }
+            $frames[] = $index;
+        }
+        if (count($frames) !== 1) {
+            return $html;
+        }
+        $frame = $frames[0];
+        $root = $nodes[$frame]['parent'];
+        $mobile = self::hasClass($nodes[$frame], 'x3');
+        if ($root === null || $nodes[$root]['tag'] !== 'div'
+            || ! self::hasClass($nodes[$root], $mobile ? 'x8' : 'rt-outlook-template')) {
+            return $html;
+        }
+        $children = array_keys(array_filter($nodes, static fn (array $node): bool => $node['parent'] === $root));
+        if (count($children) !== 2 || $children[1] !== $frame) {
+            return $html;
+        }
+        $preheader = $children[0];
+        $node = $nodes[$preheader];
+        if ($node['tag'] !== 'div' || array_keys($node['attrs']) !== ['style']
+            || array_filter($nodes, static fn (array $child): bool => $child['parent'] === $preheader) !== []
+            || preg_match('/\A\s*display\s*:\s*none\s*;\s*max-height\s*:\s*0\s*;\s*max-width\s*:\s*0\s*;\s*overflow\s*:\s*hidden\s*;\s*opacity\s*:\s*0\s*;\s*color\s*:\s*transparent\s*;\s*mso-hide\s*:\s*all\s*;?\s*\z/i', $node['attrs']['style']) !== 1) {
+            return $html;
+        }
+
+        return substr_replace($html, self::style($node['opening'], 'display:none;font-size:0;line-height:0;color:transparent;mso-hide:all;'), $node['start'], strlen($node['opening']));
     }
 
     /** @return array{html: string, css: string} */

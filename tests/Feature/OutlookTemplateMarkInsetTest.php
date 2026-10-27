@@ -38,6 +38,10 @@ final class OutlookTemplateMarkInsetTest extends TestCase
                     libxml_use_internal_errors($previous);
                 }
                 $xpath = new DOMXPath($dom);
+                $preheaders = $xpath->query('//div[contains(concat(" ",normalize-space(@class)," ")," rt-outlook-template ") or contains(concat(" ",normalize-space(@class)," ")," x8 ")]/div[not(*)]');
+                self::assertSame(1, $preheaders->length);
+                self::assertMatchesRegularExpression('/\Adisplay:none;font-size:0;line-height:0;color:transparent;mso-hide:all;?\z/', $preheaders->item(0)->getAttribute('style'));
+                self::assertStringStartsWith('Ihre Nachricht von ', $preheaders->item(0)->textContent);
                 $pads = $xpath->query('//td[contains(concat(" ",normalize-space(@class)," ")," rt-native-template-pad ") or contains(concat(" ",normalize-space(@class)," ")," x6 ")]');
                 self::assertSame(2, $pads->length);
                 self::assertMatchesRegularExpression('/(?:^|;)padding-top:8px!important(?:;|$)/', $pads->item(0)->getAttribute('style'));
