@@ -288,12 +288,34 @@
 .employee-profile[data-profile-shell] .employee-profile__identity { border-radius: 16px; box-shadow: 0 0 0 1px var(--profile-rail-line), 0 6px 16px -14px rgb(16 24 40 / .35) !important; }
 .employee-profile[data-profile-shell] .employee-profile__navigation { margin-top: 12px; padding: 4px 8px 0; border-top: 0; border-radius: 16px; box-shadow: 0 0 0 1px var(--profile-rail-line), 0 8px 20px -16px rgb(16 24 40 / .4); }
 .employee-profile[data-profile-shell] .employee-profile__tab-row { margin-block: 4px 8px; }
-@container employee-profile (min-width: 1000px) {
-    .employee-profile[data-profile-shell] .employee-profile__workspace { display: grid; grid-template-columns: minmax(280px, 320px) minmax(0, 1fr); align-items: start; gap: 24px; }
+/* Schnellaktionen und Mobilnummer: Tablet rechts neben der Person, Status darunter ueber die volle Breite. */
+.employee-profile[data-profile-shell] .employee-profile__actions { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.employee-profile[data-profile-shell] .employee-profile__actions > .grid { width: 288px; max-width: 100%; }
+.employee-profile[data-profile-shell] .employee-profile__status { grid-column: 1 / -1; }
+.employee-profile[data-profile-shell] .employee-profile__contact-link { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 10px; border-radius: 10px; color: var(--employee-ink); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.employee-profile[data-profile-shell] .employee-profile__contact-link > i { color: var(--employee-muted); }
+.employee-profile[data-profile-shell] .employee-profile__contact-link:hover { background: var(--profile-control-inset); }
+.employee-profile[data-profile-shell] .employee-profile__contact-link:focus-visible { outline: 2px solid var(--profile-duty-signal); outline-offset: 2px; }
+@media (max-width: 767.98px) {
+    .employee-profile[data-profile-shell] .employee-profile__actions > .grid { width: 100%; }
+}
+@container employee-profile (min-width: 860px) {
+    .employee-profile[data-profile-shell] .employee-profile__workspace { display: grid; grid-template-columns: minmax(260px, 300px) minmax(0, 1fr); align-items: start; gap: 20px; }
     .employee-profile[data-profile-shell] .employee-profile__sidebar { position: sticky; top: 70px; }
-    .employee-profile[data-profile-shell] .employee-profile__identity { padding: 20px !important; }
-    .employee-profile[data-profile-shell] .employee-profile__identity-layout { grid-template-columns: minmax(0, 1fr); gap: 16px; }
-    .employee-profile[data-profile-shell] .employee-profile__status { justify-self: stretch; }
+    /* Seitenleiste: Personenkarte (Person + Schnellaktionen) und Statuskarte getrennt. */
+    .employee-profile[data-profile-shell] .employee-profile__identity { padding: 0 !important; background: transparent !important; box-shadow: none !important; }
+    .employee-profile[data-profile-shell] .employee-profile__identity-layout { grid-template-columns: minmax(0, 1fr); gap: 0; }
+    .employee-profile[data-profile-shell] .employee-profile__person,
+    .employee-profile[data-profile-shell] .employee-profile__actions,
+    .employee-profile[data-profile-shell] .employee-profile__status { background: var(--profile-record-surface); border: 1px solid var(--profile-rail-line); }
+    .employee-profile[data-profile-shell] .employee-profile__person { align-items: flex-start; padding: 20px 20px 12px; border-bottom: 0; border-radius: 16px 16px 0 0; }
+    .employee-profile[data-profile-shell] .employee-profile__actions { padding: 4px 12px 16px; border-top: 0; border-radius: 0 0 16px 16px; }
+    .employee-profile[data-profile-shell] .employee-profile__actions > .grid { width: 100%; }
+    .employee-profile[data-profile-shell] .employee-profile__actions .employee-profile__contact-link { justify-content: flex-start; margin-top: 4px; border-top: 1px solid var(--profile-rail-line); border-radius: 0; padding-top: 4px; }
+    .employee-profile[data-profile-shell] .employee-profile__identity-layout:not(:has(.employee-profile__actions)) .employee-profile__person { padding-bottom: 20px; border-bottom: 1px solid var(--profile-rail-line); border-radius: 16px; }
+    .employee-profile[data-profile-shell] .employee-profile__status { justify-self: stretch; margin-top: 12px; padding: 12px; border-radius: 16px; box-shadow: 0 6px 16px -14px rgb(16 24 40 / .35); }
+    .employee-profile[data-profile-shell] .employee-profile__status .employee-profile__status-trigger:hover,
+    .employee-profile[data-profile-shell] .employee-profile__status .employee-profile__status-trigger[aria-expanded='true'] { background: var(--profile-control-inset); }
     .employee-profile[data-profile-shell] .employee-profile__status-rail { row-gap: 4px; }
     .employee-profile[data-profile-shell] .employee-profile__status-group + .employee-profile__status-group { padding-left: 0; border-left: 0; }
     .employee-profile[data-profile-shell] .employee-profile__name-text { font-size: 20px; white-space: normal; overflow-wrap: anywhere; }

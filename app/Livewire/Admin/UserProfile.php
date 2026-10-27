@@ -4,6 +4,7 @@ namespace App\Livewire\Admin;
 
 use App\Actions\Jetstream\DeleteUser;
 use App\Livewire\Admin\Employees\EmployeeTeamModal;
+use App\Livewire\Concerns\InteractsWithPersonQuickActions;
 use App\Models\DeviceAssignment;
 use App\Models\User;
 use App\Models\UserProfile as ProfileModel;
@@ -26,6 +27,9 @@ use Livewire\Component;
 
 class UserProfile extends Component
 {
+    // Chat, Anruf und Nachricht wie in der Personen-Schnellansicht.
+    use InteractsWithPersonQuickActions;
+
     #[Locked]
     public bool $embedded = false;
 

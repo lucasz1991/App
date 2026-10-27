@@ -292,8 +292,8 @@
         <livewire:admin.employees.employee-team-modal :key="'profile-team-change-'.$user->id" />
     @endif
 
-    {{-- Compose-Modal fuer den Nachrichten-Tab --}}
-    @if(Gate::allows('users.messages.create') && $profileTab === 'userMessages')
+    {{-- Compose-Modal fuer den Nachrichten-Tab und die Schnellaktion "Nachricht" --}}
+    @if(Gate::allows('users.messages.create'))
         <livewire:admin.users.messages.message-form :key="'profile-message-form'" />
     @endif
 </div>

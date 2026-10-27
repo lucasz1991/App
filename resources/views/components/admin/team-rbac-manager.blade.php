@@ -47,7 +47,17 @@
                 </span>
             </div>
 
-            <x-admin.team-create-form />
+            <div class="border-b border-rt-border/60 px-4 pb-4 dark:border-rt-dark-border/60 sm:px-5">
+                <x-ui.buttons.button-basic
+                    wire:click="openCreateTeam"
+                    x-on:team-create-closed.window="$nextTick(() => $el.focus({ preventScroll: true }))"
+                    class="min-h-11 w-full"
+                    data-team-create-trigger
+                >
+                    <i class="far fa-plus" aria-hidden="true"></i>
+                    Team erstellen
+                </x-ui.buttons.button-basic>
+            </div>
 
             <div
                 class="scroll-container grid max-h-60 grid-cols-1 gap-1.5 overflow-y-auto p-2 sm:p-3 lg:max-h-[36rem]"

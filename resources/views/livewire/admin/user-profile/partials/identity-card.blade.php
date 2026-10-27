@@ -36,6 +36,14 @@
           ['key' => 'member', 'icon' => 'far fa-calendar-alt', 'label' => __('app.member_since'), 'value' => $user->created_at?->format('d.m.Y') ?: '—'],
           ['key' => 'activity', 'icon' => 'far fa-clock', 'label' => __('app.last_online'), 'value' => $lastActivityAt ? $lastActivityAt->format('d.m.Y H:i') : __('app.never')],
       ]));
+
+      // Schnellaktionen wie in der Personen-Schnellansicht (person-preview-modal).
+      $viewer = auth()->user();
+      $canReachPerson = $user->isActive() && ! $user->is($viewer);
+      $canCallPerson = $canReachPerson
+          && ($viewer->isAdmin() || $viewer->hasRbacPermission('calls.start'))
+          && ($user->isAdmin() || $user->hasRbacPermission('calls.join'));
+      $mobileNumber = trim((string) ($profile?->mobile ?: $profile?->phone));
   @endphp
 
   <div class="employee-profile__identity-layout">
@@ -108,6 +116,27 @@
             </div>
           </div>
       </div>
+
+      @if ($canReachPerson || $mobileNumber !== '')
+          <div class="employee-profile__actions" data-profile-actions>
+              <x-user.quick-actions
+                  :user="$user"
+                  :can-chat="$canReachPerson"
+                  :can-call="$canCallPerson"
+                  :can-message="$canReachPerson && $viewer->can('users.messages.create')"
+                  chat-action="openDirectChat"
+                  call-action="startDirectCall"
+                  message-action="openMessage"
+                  variant="grid"
+              />
+              @if ($mobileNumber !== '')
+                  <a href="tel:{{ preg_replace('/[^0-9+]/', '', $mobileNumber) }}" class="employee-profile__contact-link">
+                      <i class="far fa-mobile-alt" aria-hidden="true"></i>
+                      <span>{{ $mobileNumber }}</span>
+                  </a>
+              @endif
+          </div>
+      @endif
 
       <section class="employee-profile__status" data-profile-status aria-labelledby="{{ $profilePrefix }}-status-title">
           <h2 id="{{ $profilePrefix }}-status-title">Einrichtungs Status</h2>

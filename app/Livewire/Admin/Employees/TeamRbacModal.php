@@ -17,6 +17,8 @@ class TeamRbacModal extends Component
 {
     public bool $showModal = false;
 
+    public bool $showCreateTeamModal = false;
+
     #[Locked]
     public bool $embedded = false;
 
@@ -50,6 +52,7 @@ class TeamRbacModal extends Component
             $this->selectedTeamId = $teamId;
         }
 
+        $this->resetTeamCreation();
         $this->showModal = true;
         $this->prepareManager();
     }
@@ -57,8 +60,32 @@ class TeamRbacModal extends Component
     public function close(): void
     {
         $this->showModal = false;
-        $this->newTeamName = '';
+        $this->resetTeamCreation();
         $this->resetValidation();
+    }
+
+    public function openCreateTeam(): void
+    {
+        $this->authorizeManager();
+        $this->resetTeamCreation();
+        $this->showCreateTeamModal = true;
+
+        if (! $this->embedded) {
+            $this->showModal = true;
+        }
+    }
+
+    public function closeCreateTeam(): void
+    {
+        $this->resetTeamCreation();
+        $this->dispatch('team-create-closed');
+    }
+
+    private function resetTeamCreation(): void
+    {
+        $this->showCreateTeamModal = false;
+        $this->newTeamName = '';
+        $this->resetValidation('newTeamName');
     }
 
     public function setTeam(int $teamId): void
@@ -155,11 +182,11 @@ class TeamRbacModal extends Component
     {
         $this->authorizeManager();
         $team = app(EmployeeTeamService::class)->create($this->newTeamName);
-        $this->newTeamName = '';
-        $this->resetValidation('newTeamName');
+        $this->resetTeamCreation();
         $this->selectedTeamId = (int) $team->id;
         $this->matrix[(string) $team->id] = $this->defaultMatrixForTeam();
         $this->dispatch('employeeSaved');
+        $this->dispatch('team-create-closed');
         $this->dispatch('swal:toast', type: 'success', text: 'Team erstellt. Berechtigungen sind zunächst ausgeschaltet.');
     }
 
