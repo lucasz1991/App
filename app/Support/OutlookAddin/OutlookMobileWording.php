@@ -39,12 +39,15 @@ final class OutlookMobileWording
         $greeting = $xpath->query('//p[@class="design-greeting"]');
         $spacer = $xpath->query('//p[@class="design-spacer"]');
         if ($salutation->length !== 1 || $greeting->length !== 1 || $spacer->length !== 1
+            || trim($spacer->item(0)->textContent) !== ''
+            || $xpath->query('./*[not(self::br)]', $spacer->item(0))->length !== 0
             || ! $salutation->item(0)->parentNode instanceof DOMElement
             || ! $salutation->item(0)->parentNode->isSameNode($greeting->item(0)->parentNode)) {
             return $html;
         }
         $parent = $salutation->item(0)->parentNode;
-        if ($parent->tagName !== 'td' || ! in_array('rt-native-template-pad', explode(' ', $parent->getAttribute('class')), true)) {
+        if ($parent->tagName !== 'td' || ! in_array('rt-native-template-pad', explode(' ', $parent->getAttribute('class')), true)
+            || preg_match('/(?:^|;)\s*(?:word-break|word-wrap|overflow-wrap)\s*:/i', $parent->getAttribute('style'))) {
             return $html;
         }
         $scoped = false;
@@ -58,10 +61,29 @@ final class OutlookMobileWording
         if (! $scoped) {
             return $html;
         }
+        // Moving the two identical, inheritable wrap values to this cell is
+        // allowed only when its visible text belongs to these three P nodes.
+        foreach ($xpath->query('.//text()', $parent) as $text) {
+            if (trim($text->nodeValue) === '') {
+                continue;
+            }
+            $known = false;
+            for ($ancestor = $text->parentNode; $ancestor instanceof DOMElement && ! $ancestor->isSameNode($parent); $ancestor = $ancestor->parentNode) {
+                if ($ancestor->tagName === 'p') {
+                    $known = in_array($ancestor->getAttribute('class'), ['design-salutation', 'design-greeting', 'design-spacer'], true);
+                    break;
+                }
+            }
+            $metadata = $text->parentNode;
+            if (! $known && (! $metadata instanceof DOMElement || $metadata->tagName !== 'span' || ! $metadata->hasAttribute('hidden')
+                || ! in_array($text->nodeValue, ['RT-COMPOSE-EDITABLE-START-V1', 'RT-COMPOSE-EDITABLE-END-V1'], true))) {
+                return $html;
+            }
+        }
         // The editable TABLE may sit between the spacer and this same cell.
         for ($node = $spacer->item(0)->parentNode; $node instanceof DOMElement && ! $node->isSameNode($parent); $node = $node->parentNode) {
             if (! $node instanceof DOMElement || ! in_array($node->tagName, ['table', 'tbody', 'tr', 'td'], true)
-                || preg_match('/(?:^|;)\s*(?:font[\w-]*|color|line-height|all)\s*:/i', $node->getAttribute('style'))) {
+                || preg_match('/(?:^|;)\s*(?:font[\w-]*|color|line-height|all|word-break|word-wrap|overflow-wrap)\s*:/i', $node->getAttribute('style'))) {
                 return $html;
             }
         }
@@ -76,6 +98,8 @@ final class OutlookMobileWording
             }
             $inherited[$property] = $parentDeclarations[$property];
         }
+        $inherited['overflow-wrap'] = 'anywhere';
+        $inherited['word-break'] = 'break-word';
         $css = $styles[1][0][0];
         $wrapRule = OutlookTemplateWording::wrappingCss($scope[1]);
         if (substr_count($css, $wrapRule) !== 1) {
@@ -116,7 +140,7 @@ final class OutlookMobileWording
         $remaining = preg_replace('~'.preg_quote('.'.$scope[1].' .design-', '~').'(?:salutation|greeting|spacer)\{[^{}]*\}~', '', $css);
         $remaining = str_replace('.'.$scope[1].' a{color: inherit;}', '', $remaining);
         $remaining = str_replace('.'.$scope[1].' img{border: 0; display: block; height: auto; line-height: 100%; outline: none; text-decoration: none;}', '', $remaining);
-        if (preg_match('/(?:^|[;{])\s*(?:font[\w-]*|color|line-height|all)\s*:/i', $remaining)) {
+        if (preg_match('/(?:^|[;{])\s*(?:font[\w-]*|color|line-height|all|word-break|word-wrap|overflow-wrap)\s*:/i', $remaining)) {
             return $html;
         }
         $parentOpening = null;
@@ -134,6 +158,9 @@ final class OutlookMobileWording
             return $html;
         }
         $newParent = str_replace('class="'.$parent->getAttribute('class').'"', 'class="'.$parent->getAttribute('class').' rt-wc"', $parentOpening[0]);
+        $oldStyle = $parent->getAttribute('style');
+        $newStyle = rtrim(self::compactCellPadding($oldStyle), '; ').';'.OutlookTemplateWording::WRAP_DECLARATIONS;
+        $newParent = str_replace('style="'.$oldStyle.'"', 'style="'.$newStyle.'"', $newParent);
         $edits[] = [$parentOpening[1], strlen($parentOpening[0]), $newParent];
         $css .= '.'.$scope[1].' .rt-wc{'.self::serialize($inherited).'}';
         $edits[] = [$styles[1][0][1], strlen($styles[1][0][0]), $css];
@@ -192,6 +219,35 @@ final class OutlookMobileWording
         ksort($result);
 
         return $result;
+    }
+
+    /** Fold only the exact physical mobile left/right override into its shorthand. */
+    private static function compactCellPadding(string $style): string
+    {
+        $parts = explode(';', $style);
+        $padding = [];
+        foreach ($parts as $index => $part) {
+            if (preg_match('/^\s*(padding[\w-]*)\s*:\s*(.*?)\s*$/i', $part, $match)) {
+                $key = strtolower($match[1]);
+                if (isset($padding[$key]) || ! in_array($key, ['padding', 'padding-left', 'padding-right'], true)) {
+                    return $style;
+                }
+                $padding[$key] = ['index' => $index, 'value' => $match[2]];
+            }
+        }
+        if (count($padding) !== 3 || ($padding['padding-left']['value'] ?? null) !== '18px' || ($padding['padding-right']['value'] ?? null) !== '18px'
+            || $padding['padding']['index'] > min($padding['padding-left']['index'], $padding['padding-right']['index'])
+            || preg_match('/^(?:0|\d+(?:\.\d+)?px)(?:\s+(?:0|\d+(?:\.\d+)?px)){0,3}$/', $padding['padding']['value']) !== 1) {
+            return $style;
+        }
+        $values = preg_split('/\s+/', $padding['padding']['value']);
+        $top = $values[0] === '0px' ? '0' : $values[0];
+        $bottom = $values[2] ?? $values[0];
+        $bottom = $bottom === '0px' ? '0' : $bottom;
+        $parts[$padding['padding']['index']] = 'padding:'.$top.' 18px'.($bottom === $top ? '' : ' '.$bottom);
+        unset($parts[$padding['padding-left']['index']], $parts[$padding['padding-right']['index']]);
+
+        return implode(';', $parts);
     }
 
     private static function compact(array $declarations, array $inherited): string

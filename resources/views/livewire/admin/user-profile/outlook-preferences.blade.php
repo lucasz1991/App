@@ -1,0 +1,17 @@
+<x-outlook.preferences
+    :instance-prefix="$instancePrefix"
+    context="employee"
+    :target-name="$targetName"
+    :preferences="$preferences"
+    :available="$available"
+    :notice="$notice"
+    :choice-selections="$choiceSelections ?? []"
+    :template-options="$templateOptions ?? []"
+    :choices-available="$choicesAvailable ?? false"
+    :choices-notice="$choicesNotice ?? ''"
+    :choices-revision="$choicesRevision ?? ''"
+    :greeting="$greeting"
+    :farewell="$farewell"
+    :wording-available="$wordingAvailable"
+    :wording-notice="$wordingNotice"
+/>

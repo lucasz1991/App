@@ -131,6 +131,7 @@ final class OutlookAddinConfiguration
                 'bootstrap' => $baseUrl !== '' ? $baseUrl.'/api/outlook-addin/bootstrap' : '',
                 'preferences' => $baseUrl !== '' ? $baseUrl.'/api/outlook-addin/preferences' : '',
                 'accountPreferences' => $baseUrl !== '' ? $baseUrl.'/api/outlook-addin/account-preferences' : '',
+                'accountWording' => $baseUrl !== '' ? $baseUrl.'/api/outlook-addin/account-wording' : '',
             ],
             'urls' => ['profileSettings' => $baseUrl !== '' ? $baseUrl.'/user/profile?tab=outlook' : ''],
             'marker' => (string) config('outlook_addin.marker', 'RT-SIGNATURE-MANAGED-V1'),

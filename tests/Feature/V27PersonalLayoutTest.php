@@ -167,10 +167,20 @@ final class V27PersonalLayoutTest extends TestCase
         }
         $mobile = OutlookMobileSignature::payload($after);
         $mobileVariant = collect($mobile['templates'])->firstWhere('isDefault', false);
-        self::assertStringContainsString('Hallo &amp; willkommen,', $mobileVariant['mobileComposeHtml']);
+        self::assertStringContainsString('Hallo & willkommen,', html_entity_decode(strip_tags($mobileVariant['mobileComposeHtml']), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
         self::assertMatchesRegularExpression('~Viele Grüße,<br\s*/?>Mara Muster~u', $mobileVariant['mobileComposeHtml']);
         self::assertSame($rows, $this->storedSources());
         Http::assertNothingSent();
+    }
+
+    public function test_wording_preferences_do_not_change_any_unopted_r55_payload_or_fingerprint(): void
+    {
+        $service = app(OutlookAddinPayloadService::class);
+        $beforeFingerprint = $service->sourceFingerprint($this->person->fresh());
+        $before = $service->forUser($this->person->fresh());
+        $this->wording('Andere Anrede,', 'Anderer Gruß,');
+        self::assertSame($beforeFingerprint, $service->sourceFingerprint($this->person->fresh()));
+        self::assertSame($before, $service->forUser($this->person->fresh()));
     }
 
     public function test_generic_template_defaults_and_system_mails_do_not_consume_personal_wording(): void
