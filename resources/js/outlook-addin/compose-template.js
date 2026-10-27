@@ -752,6 +752,33 @@ function withinContract(contract, index, parent) {
     return false;
 }
 
+function insetImageWidth(node) {
+    const width = node.attrs.width;
+    if (width !== undefined && width !== '100%') return false;
+    const style = node.attrs.style || '';
+    const parts = [];
+    let start = 0, quote = null, depth = 0;
+    for (let offset = 0; offset <= style.length; offset += 1) {
+        const char = style[offset] || ';';
+        if (char === '\\') return false;
+        if (quote) { if (char === quote) quote = null; }
+        else if (char === '"' || char === "'") quote = char;
+        else if (char === '(') depth += 1;
+        else if (char === ')') { depth -= 1; if (depth < 0) return false; }
+        else if (char === ';' && depth === 0) { parts.push(style.slice(start, offset)); start = offset + 1; }
+    }
+    if (quote || depth !== 0 || /\/\*|\*\//.test(style)) return false;
+    const declarations = [];
+    for (const part of parts) {
+        if (!part.trim()) continue;
+        const declaration = /^\s*([a-z-]+)\s*:\s*(.*?)\s*$/is.exec(part);
+        if (!declaration) return false;
+        if (/^(?:min-|max-)?width$/i.test(declaration[1])) declarations.push(declaration);
+    }
+    return declarations.length === 0 ? width === '100%'
+        : declarations.length === 1 && declarations[0][1].toLowerCase() === 'width' && declarations[0][2] === '100%';
+}
+
 function layoutIdsContract(html, currentHtml, ids, standalone = null) {
     const contract = standalone || managedTemplateContract(html, currentHtml);
     if (!['text-v1', 'standalone-signature-v1'].includes(contract.kind)) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
@@ -785,8 +812,24 @@ function layoutIdsContract(html, currentHtml, ids, standalone = null) {
     }
     if (targets.inset) {
         if (!targets.logo || !targets.header || !withinContract(contract, targets.inset.index, targets.header.index)) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
-        const image = only(only(only(only(targets.inset.index, 'tbody'), 'tr'), 'td'), 'img');
-        if (contract.elements[image].attrs.width !== '100%' || contract.elements[image].attrs.height !== '34') throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
+        let container = only(only(only(targets.inset.index, 'tbody'), 'tr'), 'td');
+        let wrappers = 0;
+        while (children(container).length === 1 && children(container)[0].node.tag === 'div') {
+            const child = children(container)[0];
+            const parent = contract.elements[container];
+            const outside = html.slice(parent.openEnd, child.node.start) + html.slice(child.node.end, parent.close);
+            if (wrappers >= 2 || child.node.attrs.id !== undefined
+                || Object.keys(child.node.attrs).some(name => name.startsWith('data-rt-'))
+                || outside.replace(/&nbsp;|&#160;|&#x0*a0;/gi, ' ').trim()) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
+            container = child.index;
+            wrappers += 1;
+        }
+        const image = only(container, 'img');
+        const parent = contract.elements[container];
+        const node = contract.elements[image];
+        const outside = html.slice(parent.openEnd, node.start) + html.slice(node.end, parent.close);
+        if (outside.replace(/&nbsp;|&#160;|&#x0*a0;/gi, ' ').trim()
+            || !insetImageWidth(node) || node.attrs.height !== '34') throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
     }
     if (targets.signature) {
         const rows = children(only(targets.signature.index, 'tbody'));

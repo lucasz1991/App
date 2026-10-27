@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import { managedTemplateContract, managedTemplateReplacement } from '../../resources/js/outlook-addin/managed-template.js';
 import { currentComposeBodyHtml, replaceManagedTemplate, isTemplateInsertionBlocked, TEMPLATE_INSERT_LIMITS } from '../../resources/js/outlook-addin/compose-template.js';
 
@@ -555,6 +556,54 @@ test('v5 ten-ID combined refresh scopes template q outside signature and removes
         assert.equal((h.state.body.match(/My &amp;/g) || []).length, 1);
         assert.equal(h.state.body.split(OUTSIDE).length - 1, 1); assert.ok(h.state.body.endsWith('<p>Outside after</p>'));
         assert.equal(isTemplateInsertionBlocked(h.item), false);
+    }
+});
+
+function officeInsetImage(html, { depth = 1, style = 'width:100%;height:34px;max-height:34px;display:block;', text = '', duplicate = false } = {}) {
+    const contract = managedTemplateContract(html);
+    const inset = contract.elements.find(node => (node.attrs.id || '').endsWith('-i'));
+    const image = contract.elements.find(node => node.tag === 'img' && node.start > inset.start && node.end < inset.end);
+    const opening = html.slice(image.start, image.openEnd).replace(/\swidth="100%"/, '').replace(/>$/, ' style="' + style + '">');
+    const content = '<div style="font-family:Aptos;font-size:13px;">'.repeat(depth) + text + opening + (duplicate ? opening : '') + '</div>'.repeat(depth);
+    return html.slice(0, image.start) + content + html.slice(image.end);
+}
+
+test('observed inset image typography DIVs and removed percent-width attribute retain exact ten-ID ownership', async () => {
+    for (const depth of [0, 1, 2]) {
+        const h = nativeHost({ footer: true, responsive: true, wrappers: true, templateGutter: true });
+        h.item.body.setAsync = (html, _options, callback) => { h.state.writes.push(html); h.state.body = officeInsetImage(afterOfficeSet(html), { depth }); callback(succeeded()); };
+        await h.run();
+        assert.equal(h.state.writes.length, 1); assert.equal(h.state.prepends.length, 1);
+        assert.equal(isTemplateInsertionBlocked(h.item), false);
+    }
+});
+
+test('sanitized actual R59 Office ten-ID DOM completes restore through the real coordinator', async () => {
+    const captured = readFileSync(new URL('../fixtures/outlook/r59-office-inset-wrapper.html', import.meta.url), 'utf8');
+    const observed = managedTemplateContract(captured);
+    assert.equal(observed.kind, 'text-v1');
+    assert.equal(observed.signatureMetadata.managed, observed.signatureMetadata.version, 'The real Office body coalesced hidden signature metadata.');
+    const h = nativeHost({ footer: true, responsive: true, wrappers: true, templateGutter: true });
+    h.item.body.setAsync = (html, _options, callback) => {
+        h.state.writes.push(html);
+        const nonce = /id="rt-native-layout-([0-9a-f]{32})-r"/.exec(html)[1];
+        h.state.body = captured.replaceAll('rt-native-layout-11223344556677889900aabbccddeeff-', 'rt-native-layout-' + nonce + '-');
+        callback(succeeded());
+    };
+    await h.run();
+    assert.equal(h.state.writes.length, 1); assert.equal(h.state.prepends.length, 1);
+    assert.equal(h.state.session, '1'); assert.equal(isTemplateInsertionBlocked(h.item), false);
+});
+
+test('inset readback still rejects extra content/images, excessive wrappers and ambiguous CSS width before prepend', async () => {
+    for (const changes of [{ depth: 3 }, { text: 'User text' }, { duplicate: true },
+        { style: '' }, { style: 'width:50%;' }, { style: 'width:100%!important;' },
+        { style: 'width:100%;width:100%;' }, { style: 'width:100%;max-width:40px;' },
+        { style: 'font-family:&quot;name;width:100%;&quot;;' }]) {
+        const h = nativeHost({ footer: true, responsive: true, wrappers: true, templateGutter: true });
+        h.item.body.setAsync = (html, _options, callback) => { h.state.writes.push(html); h.state.body = officeInsetImage(afterOfficeSet(html), changes); callback(succeeded()); };
+        await assert.rejects(h.run(), { code: 'TEMPLATE_LAYOUT_UNCONFIRMED' });
+        assert.equal(h.state.writes.length, 1); assert.equal(h.state.prepends.length, 0);
     }
 });
 
