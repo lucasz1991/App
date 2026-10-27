@@ -12,7 +12,7 @@ use RuntimeException;
 /** Final wire presentation, after every canonical inverse/mobile/combined check. */
 final class OutlookClientPresentation
 {
-    public const REVISION = 'outlook-client-presentation-v8';
+    public const REVISION = 'outlook-client-presentation-v9';
 
     private const SIGNATURE_VERSION = 'RT-SIGNATURE-VERSION:';
 
@@ -43,7 +43,7 @@ final class OutlookClientPresentation
         }
         unset($template);
 
-        return $payload;
+        return OutlookIntrinsicTrainDelivery::payload($payload);
     }
 
     private static function version(string $kind, string $version): string
@@ -54,7 +54,9 @@ final class OutlookClientPresentation
 
         // Canonical IDs already bind source bytes/profile/media. Mapping them
         // preserves desktop/mobile distinctions after the reversible compilers.
-        return substr(hash('sha256', self::REVISION."\0".$kind."\0".$version), 0, 16);
+        return substr(hash('sha256', self::REVISION."\0"
+            .json_encode(OutlookIntrinsicTrainDelivery::fingerprint(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)
+            ."\0".$kind."\0".$version), 0, 16);
     }
 
     private static function document(string $html, int $maxCharacters, int $maxCss, bool $desktopFlow = true): string

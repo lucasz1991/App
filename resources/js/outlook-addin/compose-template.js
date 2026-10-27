@@ -731,10 +731,15 @@ export async function insertStandaloneSignature(office, item, html, beforeWrite 
         let layout = null;
         if (previous) {
             let valid = false;
+            let historical = previous.historical;
             try {
-                valid = previous.historical ? removeNativeLayoutRestoreCarrier(original.html, previous.contract, previous.ids) !== original.html
+                valid = historical ? removeNativeLayoutRestoreCarrier(original.html, previous.contract, previous.ids) !== original.html
                     : nativeLayoutRestoreRetained(original.html, previous.contract, previous.ids) === true;
             } catch { /* No retry against an unknown carrier. */ }
+            if (!valid && !historical && previous.ids.logo) {
+                valid = removeNativeLayoutRestoreCarrier(original.html, previous.contract, previous.ids) !== original.html;
+                historical = valid;
+            }
             if (!valid) { operation.phase = 'uncertain'; throw failure('SIGNATURE_LAYOUT_UNCONFIRMED'); }
             if (!previous.ids.logo && nativeLayoutRestoreCarrierIsExternal(original.html, previous.contract, previous.ids)) {
                 throw failure('SIGNATURE_LAYOUT_LEGACY_CARRIER', { phase: 'signature-legacy-carrier-preflight' });
@@ -742,7 +747,7 @@ export async function insertStandaloneSignature(office, item, html, beforeWrite 
             const reuse = /^rt-native-layout-([0-9a-f]{32})-r$/.exec(previous.ids.root)?.[1];
             if (!reuse) throw failure('SIGNATURE_LAYOUT_UNAVAILABLE');
             const candidate = prepareNativeLayoutRestore(html, incoming, reuse);
-            const compatible = !previous.historical && candidate && Object.keys(candidate.ids).length === Object.keys(previous.ids).length
+            const compatible = !historical && candidate && Object.keys(candidate.ids).length === Object.keys(previous.ids).length
                 && Object.keys(previous.ids).every(key => candidate.ids[key] === previous.ids[key])
                 && nativeLayoutRestoreCss(candidate.ids) === nativeLayoutRestoreCss(previous.ids);
             if (compatible && previous.contract.version === incoming.version) {

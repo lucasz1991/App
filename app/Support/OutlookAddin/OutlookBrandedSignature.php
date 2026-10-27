@@ -128,7 +128,7 @@ final class OutlookBrandedSignature
         }
         $nodes = self::nodes($html);
         $edits = [];
-        $responsive = (str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v5"') || str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v6"')) && str_contains($html, 'data-rt-personal-flow="v1"');
+        $responsive = (str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v5"') || str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v6"') || str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v7"')) && str_contains($html, 'data-rt-personal-flow="v1"');
         foreach ($nodes as $index => $node) {
             if ($node['tag'] !== 'td' || ($node['attrs']['data-rt-brand-hotline'] ?? '') !== self::MARKER) {
                 continue;

@@ -81,6 +81,29 @@ test('R63 owned native-only drafts migrate with fresh IDs without acknowledging 
     assert.equal(isStandaloneSignatureInsertionBlocked(h.item), false);
 });
 
+test('R64 same-shape historical core migrates with a fresh nonce instead of falsely reporting current', async () => {
+    for (const removeOwnAlignment of [false, true]) {
+        const h = fixture();
+        let frozen = readFileSync(new URL('../Fixtures/outlook/r64-native-two-row-carrier.html', import.meta.url), 'utf8').trimEnd();
+        let contract = standaloneSignatureContract(frozen);
+        if (removeOwnAlignment) {
+            const person = contract.elements.find(node => node.attrs.id === contract.layoutIds.person);
+            const style = person.attrs.style.split(';').filter(value => !/^\s*text-align\s*:/i.test(value)).join(';');
+            const opening = frozen.slice(person.start, person.openEnd).replace(/\sstyle="[^"]*"/, ' style="' + style + '"');
+            frozen = frozen.slice(0, person.start) + opening + frozen.slice(person.openEnd);
+            contract = standaloneSignatureContract(frozen);
+        }
+        const carrier = contract.elements.find(node => (node.attrs.id || '').endsWith('-carrier'));
+        h.state.carrier = officeCarrier(frozen.slice(carrier.start, carrier.end));
+        h.state.signature = nativeOfficeHtml(frozen.slice(carrier.end));
+        assert.equal(standaloneSignatureLayoutIsCurrent(h.body(), h.body(), contract.version), false);
+        await h.run(standaloneHtml(contract.version, true, true));
+        assert.equal(h.state.writes.length, 1); assert.equal(h.state.prepends.length, 1); assert.equal(h.state.fullWrites, 0);
+        assert.equal(h.state.writes[0].includes('rt-native-layout-' + '64'.repeat(16)), false);
+        assert.equal(standaloneSignatureLayoutIsCurrent(h.body(), h.body(), contract.version), true);
+    }
+});
+
 test('v5 nine-ID native insertion proves inset/footer retention and never emits a descendant selector', async () => {
     const h = fixture(); await h.run();
     const version = '5123456789abcdef';

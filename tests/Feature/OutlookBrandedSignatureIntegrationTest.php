@@ -11,6 +11,7 @@ use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\OutlookAddin\OutlookAddinPayloadService;
 use App\Support\OutlookAddin\OutlookClientPresentation;
+use App\Support\OutlookAddin\OutlookIntrinsicTrainDelivery;
 use App\Support\OutlookAddin\OutlookMobileSignature;
 use DOMDocument;
 use DOMElement;
@@ -66,7 +67,16 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
         self::assertSame($rows, MailDocument::query()->orderBy('id')->get()->toArray());
         self::assertSame($desktop, OutlookClientPresentation::payload($payload));
         self::assertSame($mobileCanonical, OutlookMobileSignature::payload($payload));
-        self::assertSame($payload['signature']['media'], $mobile['signature']['media']);
+        $preIntrinsicSignature = [
+            'html' => (new ReflectionMethod(OutlookClientPresentation::class, 'document'))->invoke(null, $mobileCanonical['signature']['html'], 30000, 12288, false),
+            'media' => $mobileCanonical['signature']['media'],
+        ];
+        $expectedIntrinsic = OutlookIntrinsicTrainDelivery::payload(['signature' => $preIntrinsicSignature]);
+        self::assertSame($expectedIntrinsic['signature']['media'], $mobile['signature']['media'], 'Only the pinned train projection may change the complete canonical media list.');
+        if (! $personal) {
+            self::assertSame($payload['signature']['media'], $mobile['signature']['media'], 'Unowned company layouts retain every original attachment byte and position.');
+            self::assertSame($payload['signature']['media'], $desktop['signature']['media']);
+        }
         $this->assertDocument($desktop['signature']['html'], $desktop['signature']['media'], false, 30000, 12288, $personal);
         $this->assertDocument($mobile['signature']['html'], $mobile['signature']['media'], true, 30000, 12288, $personal);
         $this->assertVersion($desktop['signature']['html'], 'RT-SIGNATURE-VERSION:', $desktop['version']['signature']);
@@ -268,8 +278,8 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
 
     private function assertDocument(string $html, array $media, bool $mobile, int $characters, int $cssBytes, bool $personal, bool $mirrored = true): void
     {
-        $responsive = preg_match('/data-rt-desktop-flow="outlook-desktop-flow-v[56]"/', $html) === 1 && str_contains($html, 'data-rt-personal-flow="v1"');
-        $mobileHybrid = str_contains($html, 'data-rt-mobile-hybrid="v1"');
+        $responsive = preg_match('/data-rt-desktop-flow="outlook-desktop-flow-v[567]"/', $html) === 1 && str_contains($html, 'data-rt-personal-flow="v1"');
+        $mobileHybrid = str_contains($html, 'data-rt-mobile-hybrid="v2"');
         self::assertLessThanOrEqual($characters, intdiv(strlen(mb_convert_encoding($html, 'UTF-16LE', 'UTF-8')), 2));
         preg_match_all('~<style\b[^>]*>(.*?)</style\s*>~is', $html, $styles);
         self::assertLessThan($cssBytes, array_sum(array_map('strlen', $styles[1])));
@@ -337,6 +347,18 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
             $trainCells = $xpath->query('//td[contains(concat(" ",normalize-space(@class)," ")," rt-delivery-train-cell ") or contains(concat(" ",normalize-space(@class)," ")," xq ")]');
         }
         self::assertSame(1, $trainCells->length);
+        if ($personal && ($responsive || $mobileHybrid)) {
+            $intrinsicImages = $xpath->query('.//img[contains(concat(" ",normalize-space(@class)," ")," rt-delivery-train ") or contains(concat(" ",normalize-space(@class)," ")," rt-mhy-image ")]', $trainCells->item(0));
+            self::assertSame(1, $intrinsicImages->length);
+            $intrinsic = $intrinsicImages->item(0);
+            self::assertSame('300', $intrinsic->getAttribute('width'));
+            self::assertSame('65', $intrinsic->getAttribute('height'));
+            $attachment = array_column($media, null, 'contentId')[substr($intrinsic->getAttribute('src'), 4)];
+            $binary = base64_decode($attachment['base64'], true);
+            self::assertContains(hash('sha256', $binary), OutlookIntrinsicTrainDelivery::fingerprint(), 'The final train bytes must be one of the immutable approved assets.');
+            $dimensions = getimagesizefromstring($binary);
+            self::assertSame([695, 151], [$dimensions[0], $dimensions[1]]);
+        }
         $trainStyle = $trainCells->item(0)->getAttribute('style');
         if ($responsive || $mobileHybrid) {
             self::assertStringContainsString('padding:0;', $trainStyle);
@@ -363,10 +385,11 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
                 self::assertFalse($trainImages->item(0)->parentNode->hasAttribute('style'));
                 self::assertFalse($trainImages->item(0)->parentNode->hasAttribute('dir'));
                 self::assertStringContainsString('width:100%;max-width:100%;', $trainImages->item(0)->getAttribute('style'));
-                self::assertStringContainsString('.rt-w'.$scope[1].'{overflow:hidden;padding-top:9.2%}.rt-i'.$scope[1].'{transform:scale(1.733333);transform-origin:100% 100%}', $html);
+                self::assertStringContainsString('.rt-w'.$scope[1].'{padding-top:0}', $html);
+                self::assertDoesNotMatchRegularExpression('/(?:^|[;{])\s*transform\s*:/i', $html);
                 self::assertStringNotContainsString('.rt-mhy-image{', $html);
-                self::assertSame(3, $xpath->query('//table[@data-rt-mobile-hybrid="v1"]/tbody/tr[1]/td/table')->length);
-                self::assertSame('rt-mhy-train', $xpath->query('//table[@data-rt-mobile-hybrid="v1"]/tbody/tr[2]/td/table')->item(0)->getAttribute('class'));
+                self::assertSame(3, $xpath->query('//table[@data-rt-mobile-hybrid="v2"]/tbody/tr[1]/td/table')->length);
+                self::assertSame('rt-mhy-train', $xpath->query('//table[@data-rt-mobile-hybrid="v2"]/tbody/tr[2]/td/table')->item(0)->getAttribute('class'));
             }
         }
         $footerCells = $xpath->query('//td[not(.//td) and contains(.,"Diese E-Mail kann vertrauliche Informationen enthalten.")]');

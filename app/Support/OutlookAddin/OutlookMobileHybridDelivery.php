@@ -128,7 +128,7 @@ final class OutlookMobileHybridDelivery
         $trainBlock = self::block('train', $moving);
         $before = self::inventory($html);
         $edits = [
-            [$nodes[$flow]['start'], $nodes[$flow]['openEnd'], '<table class="rt-mobile-hybrid-v1" '.self::MARKER.'="v1" data-rt-personal-columns="v1" role=presentation dir=ltr width=100% cellpadding=0 cellspacing=0 style="'.self::FLOW.'"><tbody><tr><td dir=ltr align=left style="padding:0;">'.$logoBlock],
+            [$nodes[$flow]['start'], $nodes[$flow]['openEnd'], '<table class="rt-mobile-hybrid-v2" '.self::MARKER.'="v2" data-rt-personal-columns="v1" role=presentation dir=ltr width=100% cellpadding=0 cellspacing=0 style="'.self::FLOW.'"><tbody><tr><td dir=ltr align=left style="padding:0;">'.$logoBlock],
             [$nodes[$flow]['close'], $nodes[$flow]['end'], '</td></tr><tr><td dir=ltr align=left style="padding:0;">'.$trainBlock.'</td></tr></tbody></table>'],
             [$nodes[$left]['start'], $nodes[$left]['openEnd'], self::tableOpening('person')],
             [$nodes[$right]['start'], $nodes[$right]['openEnd'], self::tableOpening('company')],
@@ -158,7 +158,7 @@ final class OutlookMobileHybridDelivery
             self::fail();
         }
         $projected = self::nodes($output);
-        $flow = self::one($projected, 'rt-mobile-hybrid-v1', 'table');
+        $flow = self::one($projected, 'rt-mobile-hybrid-v2', 'table');
         self::assertProjected($output, $projected, $flow);
 
         return $output;
@@ -186,8 +186,8 @@ final class OutlookMobileHybridDelivery
 
     private static function assertProjected(string $html, array $nodes, int $flow): void
     {
-        if (($nodes[$flow]['attrs'][self::MARKER] ?? '') !== 'v1' || $nodes[$flow]['tag'] !== 'table'
-            || ! self::has($nodes[$flow], 'rt-mobile-hybrid-v1') || ($nodes[$flow]['attrs']['dir'] ?? '') !== 'ltr'
+        if (($nodes[$flow]['attrs'][self::MARKER] ?? '') !== 'v2' || $nodes[$flow]['tag'] !== 'table'
+            || ! self::has($nodes[$flow], 'rt-mobile-hybrid-v2') || ($nodes[$flow]['attrs']['dir'] ?? '') !== 'ltr'
             || ($nodes[$flow]['attrs']['style'] ?? '') !== self::FLOW) {
             self::fail();
         }
@@ -257,12 +257,12 @@ final class OutlookMobileHybridDelivery
 
     private static function scope(string $html): string
     {
-        return substr(hash('sha256', "outlook-mobile-hybrid-v64\0".serialize(self::inventory($html))), 0, 6);
+        return substr(hash('sha256', "outlook-mobile-hybrid-v65\0".serialize(self::inventory($html))), 0, 6);
     }
 
     private static function enhancement(string $scope): string
     {
-        return '.rt-w'.$scope.'{overflow:hidden;padding-top:9.2%}.rt-i'.$scope.'{transform:scale(1.733333);transform-origin:100% 100%}';
+        return '.rt-w'.$scope.'{padding-top:0}';
     }
 
     private static function styles(string $html, string $scope): void
@@ -281,11 +281,11 @@ final class OutlookMobileHybridDelivery
                 $css = substr($css, 0, -strlen($enhancement));
             }
             if (preg_match('/\A\s+data-rt-(?:outlook-(?:signature|mobile|marker|template)-css|combined-compose-css)\s*=\s*(["\'])1\1\s*\z/i', $style[1]) !== 1
-                || str_contains($css, 'rt-mhy-') || str_contains($css, 'rt-mobile-hybrid-v1') || preg_match('/\.rt-(?:w|[wi][0-9a-f]{6})(?![-_a-z0-9])/i', $css) === 1) {
+                || str_contains($css, 'rt-mhy-') || str_contains($css, 'rt-mobile-hybrid-') || preg_match('/\.rt-(?:w|[wi][0-9a-f]{6})(?![-_a-z0-9])/i', $css) === 1) {
                 self::fail();
             }
         }
-        if ($enhancements !== (str_contains($html, self::MARKER.'="v1"') ? 1 : 0)) {
+        if ($enhancements !== (str_contains($html, self::MARKER.'="v2"') ? 1 : 0)) {
             self::fail();
         }
     }

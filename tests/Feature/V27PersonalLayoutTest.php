@@ -25,6 +25,7 @@ use App\Support\MailSignature;
 use App\Support\OutlookAddin\OutlookAddinPayloadService;
 use App\Support\OutlookAddin\OutlookAddinUserSnapshotStore;
 use App\Support\OutlookAddin\OutlookClientPresentation;
+use App\Support\OutlookAddin\OutlookIntrinsicTrainDelivery;
 use App\Support\OutlookAddin\OutlookDesktopFlow;
 use App\Support\OutlookAddin\OutlookMobileSignature;
 use DOMDocument;
@@ -374,9 +375,19 @@ final class V27PersonalLayoutTest extends TestCase
         $this->assertBudget($mobile['signature']['html'], 30000, 12288);
         $this->assertAttachedCids($desktop['signature']['html'], $desktop['signature']['media']);
         $this->assertAttachedCids($mobile['signature']['html'], $mobile['signature']['media']);
-        $this->assertOriginalTrainMedia($desktop['signature']['media']);
-        self::assertSame($canonical['signature']['media'], $desktop['signature']['media']);
-        self::assertSame($canonical['signature']['media'], $mobile['signature']['media']);
+        $this->assertOriginalTrainMedia($canonical['signature']['media']);
+        $mobileCanonical = OutlookMobileSignature::payload($canonical);
+        foreach ([[$canonical['signature'], $desktop['signature'], true], [$mobileCanonical['signature'], $mobile['signature'], false]] as [$source, $final, $desktopFlow]) {
+            $preIntrinsic = ['signature' => ['html' => (new \ReflectionMethod(OutlookClientPresentation::class, 'document'))->invoke(null, $source['html'], 30000, 12288, $desktopFlow), 'media' => $source['media']]];
+            $expected = OutlookIntrinsicTrainDelivery::payload($preIntrinsic);
+            self::assertSame($expected['signature']['media'], $final['media'], 'Only the pinned modern train asset changes; every other attachment remains byte-exact.');
+            $bytes = array_map(static fn ($item) => base64_decode($item['base64'], true), $final['media']);
+            $modern = file_get_contents(public_path('mail-assets/zug-dampf-outlook-intrinsic-v1-light.gif'));
+            self::assertSame('45f4109cf7dbeed8c31c4c8a56bfdd9065b947b4b576596ba4bd6e5373b73fb8', hash('sha256', $modern));
+            self::assertContains($modern, $bytes);
+            self::assertSame([695, 151], array_slice(getimagesizefromstring($modern), 0, 2));
+            self::assertContains(file_get_contents(resource_path('mail-templates/assets/zug-dampf-v27-delivery-light.png')), $bytes, 'The opaque MSO fallback retains its original full PNG bytes.');
+        }
         self::assertTrue(OutlookDesktopFlow::projected($desktop['signature']['html']));
         self::assertFalse(OutlookDesktopFlow::projected($mobile['signature']['html']));
         self::assertSame($desktop['signature']['html'], OutlookDesktopFlow::project($desktop['signature']['html']));
@@ -519,7 +530,7 @@ final class V27PersonalLayoutTest extends TestCase
             self::assertSame($this->imageSources($html), $this->imageSources($noInline));
             $this->assertPersonalGroups($noInline);
             $this->assertBudget($noInline, 30000, 12288);
-            if (str_contains($html, 'data-rt-mobile-hybrid="v1"')) {
+            if (str_contains($html, 'data-rt-mobile-hybrid="v2"')) {
                 $styleless = preg_replace('~<style\b[^>]*>.*?</style\s*>~is', '', $html);
                 $this->assertMobileHybridGroups($html, true);
                 $this->assertMobileHybridGroups($styleless, true);
@@ -544,14 +555,14 @@ final class V27PersonalLayoutTest extends TestCase
                 $image = $this->one($xpath, 'rt-delivery-train');
                 self::assertTrue($image->parentNode->isSameNode($window));
                 self::assertSame('', $window->getAttribute('dir'));
-                self::assertSame('hidden', $this->winningExplicitRule($xpath, $window, 'overflow'));
+                self::assertNull($this->winningExplicitRule($xpath, $window, 'overflow'));
                 self::assertNull($this->winningExplicitRule($xpath, $window, 'direction'));
                 self::assertSame('100%', $this->winningExplicitRule($xpath, $image, 'width'));
                 self::assertSame('100%', $this->winningExplicitRule($xpath, $image, 'max-width'));
                 self::assertSame('auto', $this->winningExplicitRule($xpath, $image, 'height'));
                 self::assertNull($this->winningExplicitRule($xpath, $window, 'max-width'));
-                self::assertSame('9.2%', $this->winningExplicitRule($xpath, $window, 'padding-top'));
-                self::assertSame('scale(1.733333)', $this->winningExplicitRule($xpath, $image, 'transform'));
+                self::assertSame('0', $this->winningExplicitRule($xpath, $window, 'padding-top'));
+                self::assertNull($this->winningExplicitRule($xpath, $image, 'transform'));
                 self::assertSame('table', $this->winningExplicitRule($xpath, $container, 'display'));
                 self::assertSame('hidden', $this->winningExplicitRule($xpath, $container, 'overflow'));
                 self::assertSame('ltr', $this->winningExplicitRule($xpath, $container, 'direction'));
@@ -652,7 +663,7 @@ final class V27PersonalLayoutTest extends TestCase
     private function assertPersonalGroups(string $html, string $name = 'Mara Muster', string $email = 'mara@example.test'): void
     {
         $xpath = $this->xpath($html);
-        $hybrid = str_contains($html, 'data-rt-mobile-hybrid="v1"');
+        $hybrid = str_contains($html, 'data-rt-mobile-hybrid="v2"');
         $left = $this->one($xpath, $hybrid ? 'rt-mhy-person' : 'rt-personal-left');
         $right = $this->one($xpath, $hybrid ? 'rt-mhy-company' : 'rt-personal-right');
         self::assertStringContainsString($name, preg_replace('/\s+/u', ' ', $left->textContent));
@@ -687,8 +698,8 @@ final class V27PersonalLayoutTest extends TestCase
     private function assertMobileHybridGroups(string $html, bool $inline): void
     {
         $xpath = $this->xpath($html);
-        $flow = $this->one($xpath, 'rt-mobile-hybrid-v1');
-        self::assertSame('v1', $flow->getAttribute('data-rt-mobile-hybrid'));
+        $flow = $this->one($xpath, 'rt-mobile-hybrid-v2');
+        self::assertSame('v2', $flow->getAttribute('data-rt-mobile-hybrid'));
         self::assertSame('v1', $flow->getAttribute('data-rt-personal-columns'));
         self::assertSame('ltr', $flow->getAttribute('dir'));
         self::assertCount(2, $xpath->query('./tbody/tr|./tr', $flow));
@@ -745,11 +756,11 @@ final class V27PersonalLayoutTest extends TestCase
         $images = $xpath->query('//img[contains(concat(" ",normalize-space(@class)," ")," rt-delivery-train ") or contains(concat(" ",normalize-space(@class)," ")," xr ") or contains(concat(" ",normalize-space(@class)," ")," rt-mhy-image ")]');
         self::assertCount(1, $images);
         self::assertSame('300', $images->item(0)->getAttribute('width'));
-        self::assertSame('38', $images->item(0)->getAttribute('height'));
+        self::assertSame(str_contains($html, 'data-rt-mobile-hybrid="v2"') || str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v7"') ? '65' : '38', $images->item(0)->getAttribute('height'));
         self::assertStringContainsString('height:auto', $images->item(0)->getAttribute('style'));
         self::assertStringNotContainsString('-4.647303%', $html);
         self::assertMatchesRegularExpression('~<!--\[if mso\]><img\b[^>]*rt-delivery-train-mso[^>]*width="220" height="28"~', $html);
-        if (str_contains($html, 'data-rt-mobile-hybrid="v1"')) {
+        if (str_contains($html, 'data-rt-mobile-hybrid="v2"')) {
             $this->assertMobileHybridGroups($html, true);
             $window = $images->item(0)->parentNode;
             self::assertSame('div', $window->tagName);
@@ -758,12 +769,12 @@ final class V27PersonalLayoutTest extends TestCase
             self::assertFalse($window->hasAttribute('dir'));
             self::assertFalse($window->hasAttribute('style'));
             self::assertStringContainsString('width:100%;max-width:100%;height:auto;', $images->item(0)->getAttribute('style'));
-            self::assertStringContainsString('.rt-w'.$enhancement[1].'{overflow:hidden;padding-top:9.2%}.rt-i'.$enhancement[1].'{transform:scale(1.733333);transform-origin:100% 100%}', $html);
+            self::assertStringContainsString('.rt-w'.$enhancement[1].'{padding-top:0}', $html);
             self::assertStringNotContainsString('.rt-mhy-image{transform:', $html);
         } elseif (OutlookDesktopFlow::projected($html)) {
             $container = $this->one($xpath, 'rt-personal-columns');
             self::assertSame('v1', $container->getAttribute(SignaturePersonalColumns::NATIVE_FLOW_ATTRIBUTE));
-            self::assertSame('outlook-desktop-flow-v6', $container->getAttribute('data-rt-desktop-flow'));
+            self::assertSame('outlook-desktop-flow-v7', $container->getAttribute('data-rt-desktop-flow'));
             self::assertSame('table', $container->tagName);
             self::assertCount(2, $xpath->query('./tbody/tr', $container));
             self::assertCount(2, $xpath->query('./tbody/tr/td', $container));

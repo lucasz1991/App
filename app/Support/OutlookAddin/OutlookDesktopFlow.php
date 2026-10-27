@@ -13,7 +13,9 @@ use RuntimeException;
 /** Final native desktop wire view. Canonical sources and mobile stay untouched. */
 final class OutlookDesktopFlow
 {
-    public const REVISION = 'outlook-desktop-flow-v6';
+    public const REVISION = 'outlook-desktop-flow-v7';
+
+    private const ROW_PREVIOUS_REVISION = 'outlook-desktop-flow-v6';
 
     private const PREVIOUS_REVISION = 'outlook-desktop-flow-v5';
 
@@ -32,6 +34,7 @@ final class OutlookDesktopFlow
     public static function projected(string $html): bool
     {
         return str_contains($html, self::MARKER.'="'.self::REVISION.'"')
+            || str_contains($html, self::MARKER.'="'.self::ROW_PREVIOUS_REVISION.'"')
             || str_contains($html, self::MARKER.'="'.self::PREVIOUS_REVISION.'"')
             || str_contains($html, self::MARKER.'="'.self::LEGACY_REVISION.'"');
     }
@@ -288,15 +291,21 @@ final class OutlookDesktopFlow
         return $html;
     }
 
-    private static function personalCss(string $scope, bool $legacy = false, bool $previous = false): string
+    private static function personalCss(string $scope, bool $legacy = false, bool $previous = false, bool $rowPrevious = false): string
     {
         if ($legacy || $previous) {
             return self::personalCssPrevious($scope, $legacy);
         }
-        $p = '.'.self::personalHost($scope).' ';
+        $p = '.'.self::personalHost($scope, rowPrevious: $rowPrevious).' ';
+        $commonTableStyle = self::personalTableStyle();
+        if (! $rowPrevious) {
+            // Outlook otherwise converts the PERSON TABLE's legacy align=left
+            // into text-align and loses the layout float on reply/forward.
+            $commonTableStyle = str_replace('text-align:left;', '', $commonTableStyle);
+        }
 
         return $p.'.rt-personal-columns{'.self::importantDeclarations(self::personalFlowStyle()).'}'
-            .$p.'.rt-personal-column,'.$p.'.rt-df-train{'.self::importantDeclarations(self::personalTableStyle()).'}'
+            .$p.'.rt-personal-column,'.$p.'.rt-df-train{'.self::importantDeclarations($commonTableStyle).'}'
             .$p.'.rt-personal-left{display:inline-table!important;min-height:50px!important;height:50px!important;}'
             .$p.'.rt-personal-right{border-top:4px solid transparent!important;}'
             .$p.'.rt-personal-logo-column{margin-bottom:10px!important;}'
@@ -307,8 +316,9 @@ final class OutlookDesktopFlow
             .$p.'.rt-df-train{display:inline-table!important;vertical-align:bottom!important;border-left:0!important;}'
             .$p.'.rt-dfc-train{'.self::importantDeclarations(self::personalTrainCellStyle()).'}'
             .$p.'.rt-personal-company-contacts{padding-top:0!important;}'
-            .$p.'.rt-train-window{overflow:hidden!important;padding-top:9.2%!important;}'
-            .$p.'.rt-delivery-train{transform:scale(1.733333);transform-origin:100% 100%;}'
+            .($rowPrevious ? $p.'.rt-train-window{overflow:hidden!important;padding-top:9.2%!important;}'
+                .$p.'.rt-delivery-train{transform:scale(1.733333);transform-origin:100% 100%;}'
+                : $p.'.rt-train-window{padding-top:0!important;}')
             .'@media(max-width:680px){'.$p.'.rt-personal-column,'.$p.'.rt-df-train{max-width:100%!important;}'
             .$p.'.rt-personal-column{border-left-width:18px!important;border-right-width:18px!important;}'
             .$p.'.rt-personal-logo-column table{max-width:175px!important;}'
@@ -389,11 +399,14 @@ final class OutlookDesktopFlow
         return implode(';', $parts).';width:100%;max-width:'.$maximum.'px;'.($image ? 'height:auto;' : 'table-layout:fixed;');
     }
 
-    private static function personalColumnStyle(string $side, bool $legacy = false, bool $previous = false): string
+    private static function personalColumnStyle(string $side, bool $legacy = false, bool $previous = false, bool $rowPrevious = false): string
     {
         $style = self::personalTableStyle($legacy);
         if (! $legacy && ! $previous && $side === 'left') {
             $style = str_replace('display:inline-block;', 'display:inline-table;', $style);
+            if (! $rowPrevious) {
+                $style = str_replace('text-align:left;', '', $style);
+            }
         }
 
         return $style.($legacy ? 'float:'.$side.';' : ($side === 'left' ? ($previous ? 'float:left;' : 'min-height:50px;height:50px;') : '')).($side === 'right' && ! $legacy ? 'border-top:4px solid transparent;' : '')
@@ -424,6 +437,7 @@ final class OutlookDesktopFlow
         $flow = self::one($nodes, 'rt-personal-columns', 'table');
         $legacy = ($nodes[$flow]['attrs'][self::MARKER] ?? '') === self::LEGACY_REVISION;
         $previous = ($nodes[$flow]['attrs'][self::MARKER] ?? '') === self::PREVIOUS_REVISION;
+        $rowPrevious = ($nodes[$flow]['attrs'][self::MARKER] ?? '') === self::ROW_PREVIOUS_REVISION;
         $rowTrain = ! $legacy && ! $previous;
         $trainBlock = self::one($nodes, 'rt-df-train', 'table');
         $window = self::one($nodes, 'rt-train-window', 'div');
@@ -486,7 +500,7 @@ final class OutlookDesktopFlow
                 || array_filter([$logoColumn, $left, $right, $trainBlock], static fn (int $index): bool => ($nodes[$index]['attrs']['dir'] ?? '') !== 'ltr') !== []
                 || array_filter([$leftCell, $rightCell, $trainCell], static fn (int $index): bool => ($nodes[$index]['attrs']['dir'] ?? '') !== 'ltr' || ($nodes[$index]['attrs']['align'] ?? '') !== 'left') !== []
                 || ($nodes[$trainCell]['attrs']['style'] ?? '') !== self::personalTrainCellStyle()))
-            || ($nodes[$left]['attrs']['style'] ?? '') !== self::personalColumnStyle('left', $legacy, $previous)
+            || ($nodes[$left]['attrs']['style'] ?? '') !== self::personalColumnStyle('left', $legacy, $previous, $rowPrevious)
             || ($nodes[$right]['attrs']['style'] ?? '') !== self::personalColumnStyle('right', $legacy, $previous)
             || (! $legacy && (($nodes[$logoColumn]['attrs']['style'] ?? '') !== self::personalColumnStyle('logo')
                 || ! self::within($nodes, $logoFrame, $logoColumn)))
@@ -507,12 +521,12 @@ final class OutlookDesktopFlow
             || ($nodes[$company]['attrs']['style'] ?? '') !== 'padding-top:'.($legacy ? '14px' : '0').';') {
             self::fail();
         }
-        if (! in_array($nodes[$flow]['attrs'][self::MARKER] ?? '', [self::REVISION, self::PREVIOUS_REVISION, self::LEGACY_REVISION], true)
+        if (! in_array($nodes[$flow]['attrs'][self::MARKER] ?? '', [self::REVISION, self::ROW_PREVIOUS_REVISION, self::PREVIOUS_REVISION, self::LEGACY_REVISION], true)
             || ! preg_match('/(?:^|\s)(rts[0-9a-f]{10})(?=\s|$)/', $nodes[$root]['attrs']['class'] ?? '', $scope)) {
             self::fail();
         }
-        $style = '<style '.self::STYLE.'="1">'.self::personalCss($scope[1], $legacy, $previous).'</style>';
-        if (! self::has($nodes[$root], self::personalHost($scope[1], previous: ! $rowTrain)) || substr_count($html, $style) !== 1
+        $style = '<style '.self::STYLE.'="1">'.self::personalCss($scope[1], $legacy, $previous, $rowPrevious).'</style>';
+        if (! self::has($nodes[$root], self::personalHost($scope[1], previous: ! $rowTrain, rowPrevious: $rowPrevious)) || substr_count($html, $style) !== 1
             || substr($html, $nodes[$root]['openEnd'], strlen($style)) !== $style) {
             self::fail();
         }
@@ -823,9 +837,9 @@ final class OutlookDesktopFlow
         return 'rt-df4'.substr($scope, 3);
     }
 
-    private static function personalHost(string $scope, bool $previous = false): string
+    private static function personalHost(string $scope, bool $previous = false, bool $rowPrevious = false): string
     {
-        return $previous ? self::host($scope) : 'rt-df6'.substr($scope, 3);
+        return $previous ? self::host($scope) : ($rowPrevious ? 'rt-df6' : 'rt-df7').substr($scope, 3);
     }
 
     private static function critical(string $style): string
@@ -881,7 +895,7 @@ final class OutlookDesktopFlow
     {
         $flows = array_keys(array_filter($nodes, static fn (array $node): bool => isset($node['attrs'][self::MARKER])));
         $root = self::one($nodes, 'rt-outlook-signature', 'div');
-        if (count($flows) !== 1 || ! in_array($nodes[$flows[0]]['attrs'][self::MARKER] ?? '', [self::REVISION, self::PREVIOUS_REVISION, self::LEGACY_REVISION], true)
+        if (count($flows) !== 1 || ! in_array($nodes[$flows[0]]['attrs'][self::MARKER] ?? '', [self::REVISION, self::ROW_PREVIOUS_REVISION, self::PREVIOUS_REVISION, self::LEGACY_REVISION], true)
             || ! self::has($nodes[$root], self::HOST) || ! self::within($nodes, $flows[0], $root)) {
             self::fail();
         }

@@ -20,7 +20,7 @@ use Throwable;
 final class OutlookAddinPayloadService
 {
     /** Bei jeder Aenderung der Compilersemantik bewusst anheben. */
-    private const RENDERER_REVISION = 64;
+    private const RENDERER_REVISION = 65;
 
     private const WORDING_REVISION = 'personal-template-wording-v1';
 
@@ -888,7 +888,12 @@ final class OutlookAddinPayloadService
                 ...$this->cssImageSources($templateSnapshot['css']),
             ];
         }
+        // Final Add-in delivery media are immutable and stay outside canonical
+        // authoring contracts, but must still invalidate reusable snapshots.
         $hashes = [];
+        foreach (OutlookIntrinsicTrainDelivery::fingerprint() as $filename => $hash) {
+            $hashes['outlook-intrinsic:'.$filename] = $hash;
+        }
 
         foreach (array_values(array_unique($sources)) as $encodedSource) {
             $source = $this->decodedImageSource((string) $encodedSource);
