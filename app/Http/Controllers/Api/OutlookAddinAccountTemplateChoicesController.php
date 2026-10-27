@@ -1,0 +1,91 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Support\OutlookAddin\EntraAccessTokenValidator;
+use App\Support\OutlookAddin\OutlookAddinAutomaticInsertionPolicy;
+use App\Support\OutlookAddin\OutlookAddinException;
+use App\Support\OutlookAddin\OutlookAddinIdentityResolver;
+use App\Support\OutlookAddin\OutlookAddinTemplateChoicesPolicy;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
+use Throwable;
+
+/** Own context-template choices only: no selected message, sender or activation. */
+final class OutlookAddinAccountTemplateChoicesController extends Controller
+{
+    public function __invoke(Request $request, EntraAccessTokenValidator $validator, OutlookAddinIdentityResolver $resolver, OutlookAddinTemplateChoicesPolicy $policy): JsonResponse
+    {
+        $resolved = null;
+        $identity = null;
+        try {
+            $token = $request->bearerToken();
+            if (! is_string($token) || trim($token) === '') {
+                throw new OutlookAddinException('Die Microsoft-Anmeldung fehlt.', 401, 'outlook_addin_unauthorized');
+            }
+            $identity = $validator->validate($token);
+            if ($request->header('X-RailTime-Compose-Contract') !== 'native-signature-v1') {
+                throw new OutlookAddinException('Bitte die Outlook-App neu laden.', 409, 'outlook_addin_client_outdated');
+            }
+            if ($request->header('X-RailTime-Outlook-Context') !== 'account-settings') {
+                throw new OutlookAddinException('Bitte die RailTime-Einstellungen öffnen.', 403, 'outlook_addin_preferences_context_required');
+            }
+            $resolved = $resolver->resolveOwnAccount($identity, (string) $request->header('X-RailTime-Outlook-Mailbox'));
+            if ($request->isMethod('get')) {
+                if ($request->all() !== []) {
+                    throw ValidationException::withMessages(['templateChoices' => 'Die Kontoeinstellungen benötigen keine Nachrichtendaten.']);
+                }
+                $preferences = $policy->preferencesForIdentity($resolved['user'], $identity, $resolved['binding']);
+            } else {
+                if (! $request->isJson() || array_diff(array_keys($request->all()), ['group', 'selection', 'revision']) !== []) {
+                    throw ValidationException::withMessages(['templateChoices' => 'Bitte die Vorlagenauswahl als JSON senden.']);
+                }
+                $data = $request->validate([
+                    'group' => ['required', 'string', 'in:newMessages,replies'],
+                    'selection' => ['required', 'string', 'max:36'],
+                    'revision' => ['required', 'string', 'regex:/\A[0-9a-f]{64}\z/'],
+                ]);
+                $preferences = $policy->updateForIdentity($resolved['user'], $identity, $resolved['binding'], $data['group'], $data['selection'], $data['revision']);
+            }
+
+            return $this->respond(['templateChoicesPreferences' => $preferences, 'automaticInsertionPreferences' => app(OutlookAddinAutomaticInsertionPolicy::class)->preferencesForUser($resolved['user']), 'binding' => $resolved['binding']]);
+        } catch (OutlookAddinException $error) {
+            $body = ['error' => $error->errorCode, 'message' => $error->getMessage()];
+            if ($error->errorCode === 'outlook_addin_template_choices_conflict' && $resolved !== null && $identity !== null) {
+                try {
+                    $fresh = $resolver->resolveOwnAccount($identity, (string) $request->header('X-RailTime-Outlook-Mailbox'));
+                    $body['templateChoicesPreferences'] = $policy->preferencesForIdentity($fresh['user'], $identity, $fresh['binding']);
+                    $body['binding'] = $fresh['binding'];
+                    $body['automaticInsertionPreferences'] = app(OutlookAddinAutomaticInsertionPolicy::class)->preferencesForUser($fresh['user']);
+                } catch (OutlookAddinException $current) {
+                    return $this->respond(['error' => $current->errorCode, 'message' => $current->getMessage()], $current->httpStatus);
+                } catch (Throwable) {
+                    return $this->unavailable();
+                }
+            }
+
+            return $this->respond($body, $error->httpStatus);
+        } catch (ValidationException) {
+            return $this->respond(['error' => 'outlook_addin_template_choices_invalid', 'message' => 'Die Vorlagenauswahl ist ungültig.'], 422);
+        } catch (Throwable) {
+            return $this->unavailable();
+        }
+    }
+
+    private function unavailable(): JsonResponse
+    {
+        return $this->respond(['error' => 'outlook_addin_error', 'message' => 'Die Vorlagenauswahl konnte vorübergehend nicht geladen werden.'], 500);
+    }
+
+    private function respond(array $body, int $status = 200): JsonResponse
+    {
+        return response()->json($body, $status, [
+            'Cache-Control' => 'private, no-store, max-age=0', 'Referrer-Policy' => 'no-referrer', 'X-Content-Type-Options' => 'nosniff',
+            'Vary' => 'Authorization, X-RailTime-Outlook-Mailbox, X-RailTime-Compose-Contract, X-RailTime-Outlook-Context',
+        ]);
+    }
+}

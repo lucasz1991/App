@@ -111,7 +111,7 @@ export function bindAutomaticPreferencesView(root, { save }) {
             feedback.dataset.tone = saving ? 'neutral' : tone;
             feedback.textContent = saving ? 'Wird gespeichert …'
                 : !state.available || !state.preferences ? 'Mit Microsoft verbinden, um Ihre Auswahl zu laden.'
-                    : message || 'Ihre Auswahl wird automatisch gespeichert.';
+                    : message;
         }
     };
 
@@ -135,7 +135,7 @@ export function bindAutomaticPreferencesView(root, { save }) {
             if (generation !== expectedGeneration) return;
             state.preferences = preferences;
             tone = 'success';
-            message = 'Gespeichert. Gilt für künftige Einfügungen.';
+            message = 'Gespeichert.';
         } catch (error) {
             if (generation !== expectedGeneration) return;
             const current = normalizeAutomaticPreferences(error?.currentPreferences);

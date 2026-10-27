@@ -150,6 +150,12 @@
         @endif
 
         {{-- Native inline-edit actions remain within the existing server-owned tab. --}}
+        @if(isset($employeeProfileTabs['outlook']) && $profileTab === 'outlook')
+            <x-operations.panel.tab name="outlook" :id-prefix="$profilePrefix" model="$wire.profileTab" class="employee-profile__panel">
+                <livewire:admin.user-profile.outlook-preferences :user-id="(int) $user->id" :key="'employee-outlook-'.$user->id" />
+            </x-operations.panel.tab>
+        @endif
+
         @if($profileTab === 'userDetails')
             <x-operations.panel.tab name="userDetails" :id-prefix="$profilePrefix" model="$wire.profileTab" class="employee-profile__panel">
                 @include('livewire.admin.user-profile.partials.overview')

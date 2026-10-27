@@ -30,7 +30,9 @@ function runtime({ enabled = false, composeType = 'newMail', mobile = false, bin
         isStandaloneSignatureInsertionBlocked,
         console, setTimeout, clearTimeout,
         __payload: { automaticInsertionEnabled: enabled,
-            automaticInsertion: { schema: 2, composeType, signature: enabled, template: enabled }, binding: {
+            automaticInsertion: { schema: 2, composeType, signature: enabled, template: enabled },
+            automaticTemplateChoice: { schema: 1, composeType, selection: 'default', templateId: enabled ? 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' : null },
+            automaticTemplateId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', templates: [{ id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', isDefault: true }], binding: {
             schema: 1, mailboxAddress: 'sender@company.test', senderAddress: 'sender@company.test',
             allowedSenderAddresses: ['sender@company.test'],
         } },

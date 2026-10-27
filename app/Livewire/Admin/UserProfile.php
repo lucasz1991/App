@@ -10,6 +10,7 @@ use App\Notifications\EmployeeAccountInvitation;
 use App\Services\Operations\PersonnelScopeService;
 use App\Services\Personnel\EmployeePhoneStatusService;
 use App\Support\Operations\EmployeeProfileSections;
+use App\Support\OutlookAddin\OutlookEmployeePreferencesAccess;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
@@ -164,6 +165,9 @@ class UserProfile extends Component
         }
         if (Gate::allows('devices.view')) {
             $tabs['devices'] = ['label' => 'Geräte', 'icon' => 'fad fa-laptop'];
+        }
+        if (app(OutlookEmployeePreferencesAccess::class)->canManage(auth()->user(), $this->user)) {
+            $tabs['outlook'] = ['label' => 'Outlook', 'icon' => 'far fa-envelope'];
         }
         if ($this->personnelAllowed('employees.master-data.view')) {
             $tabs['masterData'] = ['label' => __('app.master_data'), 'icon' => 'fad fa-user-lock', 'group' => 'Personalakte'];

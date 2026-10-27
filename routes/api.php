@@ -5,6 +5,8 @@ use App\Http\Controllers\Api\DeviceDesktopClientController;
 use App\Http\Controllers\Api\DeviceProviderWebhookController;
 use App\Http\Controllers\Api\OperationsController;
 use App\Http\Controllers\Api\OutlookAddinAccountPreferencesController;
+use App\Http\Controllers\Api\OutlookAddinAccountTemplateChoicesController;
+use App\Http\Controllers\Api\OutlookAddinAccountWordingController;
 use App\Http\Controllers\Api\OutlookAddinBootstrapController;
 use App\Http\Controllers\Api\OutlookAddinPreferencesController;
 use App\Http\Controllers\Api\WorkTimeV2Controller;
@@ -75,6 +77,14 @@ Route::patch('/outlook-addin/preferences', OutlookAddinPreferencesController::cl
 Route::match(['get', 'patch'], '/outlook-addin/account-preferences', OutlookAddinAccountPreferencesController::class)
     ->middleware('throttle:outlook-addin')
     ->name('api.outlook-addin.account-preferences');
+
+Route::match(['get', 'patch'], '/outlook-addin/account-wording', OutlookAddinAccountWordingController::class)
+    ->middleware('throttle:outlook-addin')
+    ->name('api.outlook-addin.account-wording');
+
+Route::match(['get', 'patch'], '/outlook-addin/account-template-choices', OutlookAddinAccountTemplateChoicesController::class)
+    ->middleware('throttle:outlook-addin')
+    ->name('api.outlook-addin.account-template-choices');
 
 // Connector-Rueckmeldungen sind HMAC-signiert (Zeitstempel + Rohbody),
 // groessenbegrenzt und zusaetzlich durch den allgemeinen API-Limiter geschuetzt.

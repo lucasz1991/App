@@ -41,13 +41,25 @@ export function readAutomaticComposeType(office, item, { timeoutMs = 5000 } = {}
 }
 
 /** Only a fresh matching v2 server decision authorizes automatic writes. */
-export function automaticComposeDecision(payload, composeType) {
+export function automaticComposeDecision(payload, composeType, { requireTemplateChoice = false } = {}) {
     const policy = payload?.automaticInsertion;
     const none = reason => Object.freeze({ mode: 'none', signature: false, template: false, composeType: 'unknown', reason });
     if (!KNOWN_COMPOSE_TYPES.has(composeType) || policy?.schema !== 2
         || policy.composeType !== composeType || typeof policy.signature !== 'boolean' || typeof policy.template !== 'boolean'
         || typeof payload?.automaticInsertionEnabled !== 'boolean'
         || payload.automaticInsertionEnabled !== (policy.signature || policy.template)) return none('AUTOMATIC_POLICY_UNCONFIRMED');
+    if (requireTemplateChoice) {
+        const choice = payload?.automaticTemplateChoice;
+        const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+        if (choice?.schema !== 1 || choice.composeType !== composeType
+            || !['default', 'none'].includes(choice.selection) && !uuid.test(choice.selection || '')
+            || policy.template && (choice.selection === 'none' || !uuid.test(choice.templateId || '')
+                || choice.templateId !== payload.automaticTemplateId
+                || choice.selection !== 'default' && choice.selection !== choice.templateId
+                || !Array.isArray(payload.templates)
+                || payload.templates.filter(entry => entry?.id === choice.templateId && entry.isDefault === true).length !== 1)
+            || !policy.template && choice.templateId !== null) return none('AUTOMATIC_POLICY_UNCONFIRMED');
+    }
     return Object.freeze({
         mode: policy.signature ? (policy.template ? 'both' : 'signature') : (policy.template ? 'template' : 'none'),
         signature: policy.signature, template: policy.template, composeType,

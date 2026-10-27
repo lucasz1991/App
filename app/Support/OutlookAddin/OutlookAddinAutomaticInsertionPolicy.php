@@ -55,6 +55,32 @@ final class OutlookAddinAutomaticInsertionPolicy
         }, 3);
     }
 
+    public function preferencesForManagedUser(User $actor, User $target): array
+    {
+        return DB::transaction(function () use ($actor, $target): array {
+            $access = app(OutlookEmployeePreferencesAccess::class);
+            [, $employee] = $access->resolve($actor, $target, lock: true);
+            $access->requireEligibleTarget($employee);
+            $this->sessionIdentity($employee);
+
+            return $this->preferencesForUser($employee);
+        }, 3);
+    }
+
+    public function updateForManagedUser(User $actor, User $target, string $group, string $field, bool $enabled, string $revision): array
+    {
+        $this->validateChange($group, $field, $revision);
+
+        return DB::transaction(function () use ($actor, $target, $group, $field, $enabled, $revision): array {
+            $access = app(OutlookEmployeePreferencesAccess::class);
+            [$operator, $employee] = $access->resolve($actor, $target, lock: true);
+            $access->requireEligibleTarget($employee);
+            $account = $this->sessionIdentity($employee);
+
+            return $this->writePreference($employee, $account, $group, $field, $enabled, $revision, $operator);
+        }, 3);
+    }
+
     public function allEnabled(array $preferences): bool
     {
         return $preferences['newMessages']['signature'] && $preferences['newMessages']['template']
@@ -142,31 +168,7 @@ final class OutlookAddinAutomaticInsertionPolicy
         $this->validateChange($group, $field, $revision);
 
         return DB::transaction(function () use ($user, $verified, $binding, $group, $field, $enabled, $revision): array {
-            $employee = User::query()->whereKey($user->getKey())->lockForUpdate()->first();
-            if (! $employee instanceof User || ! $employee->isActive() || $employee->email_verified_at === null
-                || ! in_array($employee->role, ['admin', 'staff'], true)) {
-                throw new OutlookAddinException('Die Mitarbeiterfreigabe ist nicht mehr gültig.', 403, 'outlook_addin_identity_not_linked');
-            }
-            $accounts = EmployeeIdentityAccount::query()->forProvider(AccountProvider::Microsoft365)->active()
-                ->whereRaw('LOWER(external_id) = ?', [strtolower($verified->objectId)])->lockForUpdate()->get();
-            $account = $accounts->count() === 1 ? $accounts->first() : null;
-            $tenant = strtolower(trim((string) config('outlook_addin.entra.tenant_id')));
-            $trusted = $account ? array_values(array_unique(array_filter(array_map(
-                static fn (mixed $value): string => strtolower(trim((string) $value)), [$account->principal, $account->email],
-            ), static fn (string $value): bool => filter_var($value, FILTER_VALIDATE_EMAIL) !== false))) : [];
-            $previousTrusted = $binding['allowedSenderAddresses'] ?? [];
-            sort($trusted);
-            sort($previousTrusted);
-            if (! $account instanceof EmployeeIdentityAccount || (int) $account->user_id !== (int) $employee->getKey()
-                || ! Str::isUuid($tenant) || ! Str::isUuid($verified->objectId)
-                || ! hash_equals($tenant, strtolower($verified->tenantId))
-                || ! hash_equals($tenant, strtolower((string) $account->tenant_id))
-                || $previousTrusted !== $trusted
-                || ! in_array(strtolower($verified->principal), $trusted, true)
-                || ! in_array(strtolower((string) ($binding['mailboxAddress'] ?? '')), $trusted, true)
-                || ! in_array(strtolower((string) ($binding['senderAddress'] ?? '')), $trusted, true)) {
-                throw new OutlookAddinException('Die Microsoft-Zuordnung ist nicht mehr gültig.', 403, 'outlook_addin_identity_not_linked');
-            }
+            [$employee, $account] = app(OutlookAddinOwnAccountAccess::class)->employee($user, $verified, $binding);
 
             return $this->writePreference($employee, $account, $group, $field, $enabled, $revision);
         }, 3);
@@ -223,7 +225,7 @@ final class OutlookAddinAutomaticInsertionPolicy
     }
 
     /** Called only after each entry point revalidates its own principal inside the user/identity transaction. */
-    private function writePreference(User $employee, EmployeeIdentityAccount $account, string $group, string $field, bool $enabled, string $revision): array
+    private function writePreference(User $employee, EmployeeIdentityAccount $account, string $group, string $field, bool $enabled, string $revision, ?User $actor = null): array
     {
         $setting = Setting::query()->where('type', self::GROUP)->where('key', $this->key($employee))->lockForUpdate()->first();
         $preferences = $this->preferencesValue($employee, $setting?->value);
@@ -237,7 +239,7 @@ final class OutlookAddinAutomaticInsertionPolicy
         $preferences[$group][$field] = $enabled;
         $stored = $this->storedValue($preferences, (array) $setting?->value);
         Setting::setValue(self::GROUP, $this->key($employee), $stored);
-        activity('outlook-addin')->causedBy($employee)->performedOn($employee)->withProperties([
+        activity('outlook-addin')->causedBy($actor ?? $employee)->performedOn($employee)->withProperties([
             'employee_id' => (int) $employee->getKey(), 'identity_id' => (int) $account->getKey(),
             'group' => $group, 'field' => $field, 'enabled_before' => $previous, 'enabled_after' => $enabled,
         ])->log('outlook_addin_automatic_preference_changed');
@@ -310,6 +312,9 @@ final class OutlookAddinAutomaticInsertionPolicy
     private function storedValue(array $preferences, array $previous): array
     {
         unset($preferences['revision']);
+        foreach (['newMessages', 'replies'] as $group) {
+            $preferences[$group] = array_replace(is_array($previous[$group] ?? null) ? $previous[$group] : [], $preferences[$group]);
+        }
 
         return array_replace($previous, $preferences, ['enabled' => $this->allEnabled($preferences), 'nonce' => Str::random(32)]);
     }

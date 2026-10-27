@@ -37,6 +37,29 @@ final class OutlookAddinWordingPolicy
         return DB::transaction(fn (): array => $this->readForUser($this->sessionUser($user)), 3);
     }
 
+    public function preferencesForIdentity(User $user, VerifiedEntraIdentity $verified, array $binding): array
+    {
+        return DB::transaction(function () use ($user, $verified, $binding): array {
+            [$employee] = app(OutlookAddinOwnAccountAccess::class)->employee($user, $verified, $binding);
+
+            return $this->readForUser($employee);
+        }, 3);
+    }
+
+    public function updateForIdentity(User $user, VerifiedEntraIdentity $verified, array $binding, mixed $greeting, mixed $farewell, string $revision): array
+    {
+        $texts = $this->texts($greeting, $farewell);
+        if (preg_match('/\A[0-9a-f]{64}\z/', $revision) !== 1) {
+            throw ValidationException::withMessages(['wording' => 'Bitte die gespeicherten Texte neu laden.']);
+        }
+
+        return DB::transaction(function () use ($user, $verified, $binding, $texts, $revision): array {
+            [$employee] = app(OutlookAddinOwnAccountAccess::class)->employee($user, $verified, $binding);
+
+            return $this->writeWording($employee, $employee, $texts, $revision);
+        }, 3);
+    }
+
     public function updateForSession(User $user, mixed $greeting, mixed $farewell, string $revision): array
     {
         $texts = $this->texts($greeting, $farewell);
@@ -46,27 +69,60 @@ final class OutlookAddinWordingPolicy
 
         return DB::transaction(function () use ($user, $texts, $revision): array {
             $employee = $this->sessionUser($user);
-            $setting = Setting::query()->where('type', OutlookAddinAutomaticInsertionPolicy::GROUP)
-                ->where('key', $this->key($employee))->lockForUpdate()->first();
-            $current = $this->value($employee, $setting?->value);
-            if (! hash_equals($current['revision'], $revision)) {
-                throw new OutlookAddinException('Die persönlichen Vorlagentexte wurden inzwischen geändert.', 409, 'outlook_addin_wording_conflict');
-            }
-            if ($current['greeting'] === $texts['greeting'] && $current['farewell'] === $texts['farewell']) {
-                return $current;
-            }
-            $stored = array_replace((array) $setting?->value, ['schema' => 1] + $texts + ['nonce' => Str::random(32)]);
-            Setting::setValue(OutlookAddinAutomaticInsertionPolicy::GROUP, $this->key($employee), $stored);
-            $next = $this->value($employee, $stored);
-            activity('outlook-addin')->causedBy($employee)->performedOn($employee)->withProperties([
-                'employee_id' => (int) $employee->getKey(),
-                'greeting_changed' => $current['greeting'] !== $texts['greeting'],
-                'farewell_changed' => $current['farewell'] !== $texts['farewell'],
-                'revision_before' => $current['revision'], 'revision_after' => $next['revision'],
-            ])->log('outlook_addin_template_wording_changed');
 
-            return $next;
+            return $this->writeWording($employee, $employee, $texts, $revision);
         }, 3);
+    }
+
+    public function readForManagedUser(User $actor, User $target): array
+    {
+        return DB::transaction(function () use ($actor, $target): array {
+            $access = app(OutlookEmployeePreferencesAccess::class);
+            [, $employee] = $access->resolve($actor, $target, lock: true);
+            $access->requireEligibleTarget($employee);
+
+            return $this->readForUser($employee);
+        }, 3);
+    }
+
+    public function updateForManagedUser(User $actor, User $target, mixed $greeting, mixed $farewell, string $revision): array
+    {
+        $texts = $this->texts($greeting, $farewell);
+        if (preg_match('/\A[0-9a-f]{64}\z/', $revision) !== 1) {
+            throw ValidationException::withMessages(['wording' => 'Bitte die gespeicherten Texte neu laden.']);
+        }
+
+        return DB::transaction(function () use ($actor, $target, $texts, $revision): array {
+            $access = app(OutlookEmployeePreferencesAccess::class);
+            [$operator, $employee] = $access->resolve($actor, $target, lock: true);
+            $access->requireEligibleTarget($employee);
+
+            return $this->writeWording($operator, $employee, $texts, $revision);
+        }, 3);
+    }
+
+    private function writeWording(User $actor, User $employee, array $texts, string $revision): array
+    {
+        $setting = Setting::query()->where('type', OutlookAddinAutomaticInsertionPolicy::GROUP)
+            ->where('key', $this->key($employee))->lockForUpdate()->first();
+        $current = $this->value($employee, $setting?->value);
+        if (! hash_equals($current['revision'], $revision)) {
+            throw new OutlookAddinException('Die persönlichen Vorlagentexte wurden inzwischen geändert.', 409, 'outlook_addin_wording_conflict');
+        }
+        if ($current['greeting'] === $texts['greeting'] && $current['farewell'] === $texts['farewell']) {
+            return $current;
+        }
+        $stored = array_replace((array) $setting?->value, ['schema' => 1] + $texts + ['nonce' => Str::random(32)]);
+        Setting::setValue(OutlookAddinAutomaticInsertionPolicy::GROUP, $this->key($employee), $stored);
+        $next = $this->value($employee, $stored);
+        activity('outlook-addin')->causedBy($actor)->performedOn($employee)->withProperties([
+            'employee_id' => (int) $employee->getKey(),
+            'greeting_changed' => $current['greeting'] !== $texts['greeting'],
+            'farewell_changed' => $current['farewell'] !== $texts['farewell'],
+            'revision_before' => $current['revision'], 'revision_after' => $next['revision'],
+        ])->log('outlook_addin_template_wording_changed');
+
+        return $next;
     }
 
     private function sessionUser(User $user): User
