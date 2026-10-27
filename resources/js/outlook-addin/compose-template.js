@@ -560,14 +560,37 @@ export async function prependTemplate(office, item, html, beforeWrite = () => {}
     if (appliedItems.has(item) && !canConfirmAdditional) throw failure('TEMPLATE_ALREADY_INSERTED');
     const markedHtml = validatedInsertionHtml(html, options.media ?? []);
     if (!supportsTemplatePrepend(office, item)) throw failure('TEMPLATE_PREPEND_UNAVAILABLE');
+    let layout = null;
+    if (combinedTemplateMarker.test(markedHtml) && /\bdata-rt-personal-flow\s*=/.test(markedHtml)) {
+        const incoming = managedTemplateContract(markedHtml);
+        if (incoming.kind !== 'text-v1') throw failure('TEMPLATE_REPLACEMENT_UNAVAILABLE');
+        layout = prepareNativeLayoutRestore(markedHtml, incoming);
+        if (!layout) throw failure('TEMPLATE_REPLACEMENT_UNAVAILABLE');
+    }
     const operation = { phase: 'preflight', beforeWrite };
     insertionOperations.set(item, operation);
     try {
         const state = await assertTemplateInsertable(office, item, { allowAdditional: canConfirmAdditional });
-        if (state.bodyLength + markedHtml.length > TEMPLATE_INSERT_LIMITS.bodyLength) {
+        if (state.bodyLength + (layout?.html.length ?? markedHtml.length) + (layout?.stylePayload.length ?? 0) > TEMPLATE_INSERT_LIMITS.bodyLength) {
             throw failure('COMPOSE_BODY_TOO_LARGE');
         }
         await beforeWrite();
+        if (layout) {
+            // The native-slot cleanup callback cannot remove an external old
+            // carrier. Prove its ownership and safe current protocol before
+            // that callback can erase the target IDs needed for this check.
+            const snapshot = await replacementSnapshot(office, item);
+            const current = currentComposeBodyHtml(snapshot.html, snapshot.composeType);
+            if (hasUnquotedSignatureLayoutCarrier(snapshot.html, current ?? snapshot.html)) {
+                let safe = false;
+                try {
+                    const previous = existingStandalone(snapshot);
+                    safe = previous && nativeLayoutRestoreRetained(snapshot.html, previous.contract, previous.ids) === true
+                        && (!nativeLayoutRestoreCarrierIsExternal(snapshot.html, previous.contract, previous.ids) || Boolean(previous.ids.logo));
+                } catch { /* Unknown/currently unverified carrier stays opaque. */ }
+                if (!safe) throw failure('SIGNATURE_LAYOUT_LEGACY_CARRIER', { phase: 'template-legacy-carrier-preflight' });
+            }
+        }
         if (state.present) {
             if (await options.confirmAdditional(state) !== true) throw failure('TEMPLATE_INSERT_CANCELLED');
             operation.additionalConfirmed = true;
@@ -578,9 +601,32 @@ export async function prependTemplate(office, item, html, beforeWrite = () => {}
         operation.phase = 'preparing';
         await options.beforeInsert?.();
         await beforeWrite();
+        let original = null;
+        if (layout) {
+            // Preparation may clear the prior native signature. Snapshot after
+            // that authorized work; the initial write still only prepends.
+            original = await replacementSnapshot(office, item);
+            if (templateStateFromBody(original.html, original.composeType).present) throw failure('TEMPLATE_ALREADY_INSERTED');
+            if (original.html.length + layout.html.length + layout.stylePayload.length > TEMPLATE_INSERT_LIMITS.bodyLength) throw failure('COMPOSE_BODY_TOO_LARGE');
+            if (operation.sessionClaimed) {
+                const ownership = await readSession(office, item);
+                if (!ownership.succeeded || ownership.value !== operation.sessionToken) {
+                    operation.phase = 'uncertain';
+                    throw failure('TEMPLATE_INSERT_UNCERTAIN', { ...ownership, phase: 'session-readback', reason: ownership.succeeded ? 'mismatch' : ownership.reason });
+                }
+            }
+            await beforeWrite();
+            operation.deferCompletion = true;
+        }
+        options.beforeCommit?.();
         operation.phase = 'writing';
-        await nativeTemplateWrite(office, item, markedHtml, operation);
+        await nativeTemplateWrite(office, item, layout?.html ?? markedHtml, operation);
+        if (layout) await restoreNativeLayout(office, item, layout, operation, original, options);
     } catch (error) {
+        if (operation.bodyApplied && operation.phase !== 'applied') {
+            operation.phase = 'uncertain';
+            throw failure('TEMPLATE_LAYOUT_UNCONFIRMED', { phase: error?.phase || 'layout-verify', reason: error?.reason || 'unconfirmed' });
+        }
         if (['INLINE_ATTACHMENT_UNCERTAIN', 'SIGNATURE_INSERT_UNCERTAIN'].includes(error?.code)) operation.phase = 'uncertain';
         await releaseDefiniteSessionFailure(office, item, operation);
         throw error;

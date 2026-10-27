@@ -241,14 +241,16 @@ final class OutlookDesktopFlow
         }
         $trainBlock = self::block('train', 460, '0', $moving);
         $trainBlock = preg_replace('~style="[^"]*"~', 'style="'.self::personalTrainStyle().'"', $trainBlock, 1);
+        $trainBlock = preg_replace('~\A<table\b~', '<table dir="ltr"', $trainBlock, 1);
         // Move the one existing logo carrier into the first flow group. Its
         // natural order remains usable when a receiver discards media rules.
         $logoHtml = substr($html, $nodes[$logoFrame]['start'], $nodes[$logoFrame]['end'] - $nodes[$logoFrame]['start']);
         $logoHtml = str_replace($nodes[$logoFrame]['opening'], self::attribute($nodes[$logoFrame]['opening'], 'style', self::boundedPersonalStyle($nodes[$logoFrame]['attrs']['style'] ?? '', 200)), $logoHtml);
         $logoHtml = str_replace($nodes[$logo]['opening'], self::attribute($nodes[$logo]['opening'], 'style', self::boundedPersonalStyle($nodes[$logo]['attrs']['style'] ?? '', 200, image: true)), $logoHtml);
-        $logoBlock = '<table class="rt-personal-column rt-personal-logo-column" role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="'.self::personalColumnStyle('logo').'"><tbody><tr><td class="rt-personal-cell-logo" style="'.self::personalCellStyle().'">'.$logoHtml.'</td></tr></tbody></table>';
+        $logoBlock = '<table class="rt-personal-column rt-personal-logo-column" dir="ltr" role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="'.self::personalColumnStyle('logo').'"><tbody><tr><td class="rt-personal-cell-logo" style="'.self::personalCellStyle().'">'.$logoHtml.'</td></tr></tbody></table>';
         $flowOpening = self::attribute($nodes[$flow]['opening'], 'style', self::personalFlowStyle());
         $flowOpening = preg_replace('~\A<div\b~', '<table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0"', $flowOpening, 1);
+        $flowOpening = self::directionAttribute($flowOpening, 'rtl');
         $flowOpening = substr($flowOpening, 0, -1).' '.self::MARKER.'="'.self::REVISION.'" '.SignaturePersonalColumns::NATIVE_FLOW_ATTRIBUTE.'="v1">';
         // The canonical 14px alias is shared with personal-direct. Leave that
         // family intact there, and release only the company node from it.
@@ -258,9 +260,9 @@ final class OutlookDesktopFlow
             [$nodes[$trainRow]['start'], $nodes[$trainRow]['end'], ''],
             [$nodes[$flow]['close'], $nodes[$flow]['end'], $trainBlock.'</td></tr></tbody></table>'],
             [$nodes[$content]['start'], $nodes[$content]['openEnd'], self::removeAttribute($nodes[$content]['opening'], 'colspan')],
-            [$nodes[$flow]['start'], $nodes[$flow]['openEnd'], $flowOpening.'<tbody><tr><td width="100%" valign="top" style="padding:0;width:100%;vertical-align:top;">'.$logoBlock],
-            [$nodes[$left]['start'], $nodes[$left]['openEnd'], self::attribute($nodes[$left]['opening'], 'style', self::personalColumnStyle('left'))],
-            [$nodes[$right]['start'], $nodes[$right]['openEnd'], self::attribute($nodes[$right]['opening'], 'style', self::personalColumnStyle('right'))],
+            [$nodes[$flow]['start'], $nodes[$flow]['openEnd'], $flowOpening.'<tbody><tr><td dir="rtl" width="100%" valign="top" style="padding:0;width:100%;vertical-align:top;">'.$logoBlock],
+            [$nodes[$left]['start'], $nodes[$left]['openEnd'], self::directionAttribute(self::attribute($nodes[$left]['opening'], 'style', self::personalColumnStyle('left')), 'ltr')],
+            [$nodes[$right]['start'], $nodes[$right]['openEnd'], self::directionAttribute(self::attribute($nodes[$right]['opening'], 'style', self::personalColumnStyle('right')), 'ltr')],
             [$nodes[$leftCell]['start'], $nodes[$leftCell]['openEnd'], self::attribute($nodes[$leftCell]['opening'], 'style', self::personalCellStyle())],
             [$nodes[$rightCell]['start'], $nodes[$rightCell]['openEnd'], self::attribute($nodes[$rightCell]['opening'], 'style', self::personalCellStyle())],
             [$nodes[$companyBlock]['start'], $nodes[$companyBlock]['openEnd'], self::attribute($nodes[$companyBlock]['opening'], 'style', self::boundedPersonalStyle($nodes[$companyBlock]['attrs']['style'] ?? '', 220))],
@@ -284,37 +286,36 @@ final class OutlookDesktopFlow
     {
         $p = '.'.self::host($scope).' ';
 
-        return $p.'.rt-personal-columns{'.self::importantDeclarations(self::personalFlowStyle()).'}'
+        return $p.'.rt-personal-columns{'.self::importantDeclarations(self::personalFlowStyle($legacy)).'}'
             .$p.'.rt-personal-column,'.$p.'.rt-df-train{'.self::importantDeclarations(self::personalTableStyle($legacy)).'}'
-            .$p.'.rt-personal-left{float:left!important;}'
-            .$p.'.rt-personal-right{float:right!important;'.($legacy ? '' : 'clear:right!important;border-top:4px solid transparent!important;').'}'
-            .($legacy ? '' : $p.'.rt-personal-logo-column{float:right!important;margin-bottom:10px!important;}')
+            .($legacy ? $p.'.rt-personal-left{float:left!important;}'.$p.'.rt-personal-right{float:right!important;}'
+                : $p.'.rt-personal-right{border-top:4px solid transparent!important;}'.$p.'.rt-personal-logo-column{margin-bottom:10px!important;}')
             .($legacy ? $p.'.rt-personal-column .rt-personal-cell-left,'.$p.'.rt-personal-column .rt-personal-cell-right' : $p.'.rt-personal-cell-logo,'.$p.'.rt-personal-cell-left,'.$p.'.rt-personal-cell-right').'{padding:'.($legacy ? '0 40px' : '0').'!important;'.($legacy ? '' : 'font-size:13px!important;line-height:18px!important;vertical-align:top!important;').'}'
             .$p.'.rt-personal-right .rt-personal-company-block{width:100%!important;max-width:220px!important;table-layout:fixed!important;}'
             .($legacy ? $p.'.rt-personal-right .rt-personal-logo-frame{width:100%!important;max-width:200px!important;table-layout:fixed!important;height:auto!important;}'
                 .$p.'.rt-personal-right .rt-personal-logo-frame img.rt-logo{width:100%!important;max-width:200px!important;height:auto!important;}'
                 : $p.'.rt-personal-logo-column table,'.$p.'.rt-personal-logo-column img{width:100%!important;max-width:200px!important;table-layout:fixed!important;height:auto!important;}')
-            .$p.'.rt-df-train{float:left!important;clear:left!important;position:sticky!important;top:100%!important;'.($legacy ? '' : 'border-left:0!important;').'}'
+            .$p.'.rt-df-train{'.($legacy ? 'float:left!important;clear:left!important;position:sticky!important;top:100%!important;' : 'display:inline-table!important;vertical-align:bottom!important;border-left:0!important;').'}'
             .$p.'.rt-dfc-train{padding:'.($legacy ? '0 40px 0 0' : '0').'!important;border:0!important;}'
             .($legacy ? $p.'.rt-personal-right .rt-personal-company-contacts{padding-top:14px!important;}' : $p.'.rt-personal-company-contacts{padding-top:0!important;}')
             .$p.'.rt-train-window{overflow:hidden!important;direction:rtl!important;max-width:420px!important;}'
             .($legacy ? '' : '@media(max-width:680px){'
-                .$p.'.rt-personal-column,'.$p.'.rt-df-train{width:100%!important;min-width:0!important;float:none!important;clear:both!important;position:static!important;top:auto!important;}'
+                .$p.'.rt-personal-column,'.$p.'.rt-df-train{max-width:100%!important;}'
                 .$p.'.rt-personal-column{border-left-width:18px!important;border-right-width:18px!important;}'
                 .$p.'.rt-personal-logo-column{margin-bottom:10px!important;}'
                 .$p.'.rt-personal-logo-column table{max-width:175px!important;}'
                 .$p.'.rt-df-train{border-right-width:18px!important;}}');
     }
 
-    private static function personalFlowStyle(): string
+    private static function personalFlowStyle(bool $legacy = false): string
     {
-        return 'font-size:0;line-height:0;text-align:left;width:100%;max-width:920px;display:table;table-layout:fixed;border-collapse:collapse;overflow:hidden;';
+        return 'font-size:0;line-height:0;text-align:left;width:100%;max-width:'.($legacy ? '920' : '680').'px;display:table;table-layout:fixed;border-collapse:collapse;overflow:hidden;'.($legacy ? '' : 'direction:rtl;');
     }
 
     private static function personalTableStyle(bool $legacy = false): string
     {
-        return 'display:table;vertical-align:top;width:'.($legacy ? '50%' : '460px').';min-width:0;max-width:100%;table-layout:fixed;'
-            .($legacy ? 'border-collapse:collapse;' : 'border-collapse:separate;border-spacing:0;box-sizing:border-box;border-left:40px solid transparent;border-right:40px solid transparent;');
+        return 'display:'.($legacy ? 'table' : 'inline-block').';vertical-align:top;width:'.($legacy ? '50%' : '100%').';min-width:0;max-width:'.($legacy ? '100%' : '340px').';table-layout:fixed;'
+            .($legacy ? 'border-collapse:collapse;' : 'border-collapse:separate;border-spacing:0;box-sizing:border-box;border-left:40px solid transparent;border-right:40px solid transparent;direction:ltr;');
     }
 
     private static function personalCellStyle(bool $legacy = false): string
@@ -332,13 +333,20 @@ final class OutlookDesktopFlow
 
     private static function personalColumnStyle(string $side, bool $legacy = false): string
     {
-        return self::personalTableStyle($legacy).'float:'.($side === 'logo' ? 'right' : $side).';'.($side === 'right' && ! $legacy ? 'clear:right;border-top:4px solid transparent;' : '')
+        return self::personalTableStyle($legacy).($legacy ? 'float:'.$side.';' : '').($side === 'right' && ! $legacy ? 'border-top:4px solid transparent;' : '')
             .($side === 'logo' && ! $legacy ? 'margin-bottom:10px;' : '');
     }
 
     private static function personalTrainStyle(bool $legacy = false): string
     {
-        return self::personalTableStyle($legacy).'float:left;clear:left;position:sticky;top:100%;'.($legacy ? '' : 'border-left:0;');
+        $table = self::personalTableStyle($legacy);
+        // Keep the fixed TABLE formatting context around the 520px image;
+        // inline-block creates an anonymous auto-layout table that can overflow.
+        if (! $legacy) {
+            $table = str_replace('display:inline-block;', 'display:inline-table;', $table);
+        }
+
+        return $table.($legacy ? 'float:left;clear:left;position:sticky;top:100%;' : 'vertical-align:bottom;border-left:0;');
     }
 
     private static function importantDeclarations(string $style): string
@@ -399,7 +407,9 @@ final class OutlookDesktopFlow
             || ! self::onlyChildren($html, $nodes, $rows[0], [$content])
             || ! self::onlyChildren($html, $nodes, $content, [$flow])
             || ($nodes[$flow]['attrs'][SignaturePersonalColumns::NATIVE_FLOW_ATTRIBUTE] ?? '') !== 'v1'
-            || ($nodes[$flow]['attrs']['style'] ?? '') !== self::personalFlowStyle()
+            || ($nodes[$flow]['attrs']['style'] ?? '') !== self::personalFlowStyle($legacy)
+            || (! $legacy && (($nodes[$flow]['attrs']['dir'] ?? '') !== 'rtl' || ($nodes[$flowCell]['attrs']['dir'] ?? '') !== 'rtl'
+                || array_filter([$logoColumn, $left, $right, $trainBlock], static fn (int $index): bool => ($nodes[$index]['attrs']['dir'] ?? '') !== 'ltr') !== []))
             || ($nodes[$left]['attrs']['style'] ?? '') !== self::personalColumnStyle('left', $legacy)
             || ($nodes[$right]['attrs']['style'] ?? '') !== self::personalColumnStyle('right', $legacy)
             || (! $legacy && (($nodes[$logoColumn]['attrs']['style'] ?? '') !== self::personalColumnStyle('logo')
@@ -952,6 +962,13 @@ final class OutlookDesktopFlow
         $output = preg_replace('~\s+'.preg_quote($name, '~').'\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)~i', addcslashes($replacement, '\\$'), $tag, -1, $count);
 
         return $count === 1 ? $output : self::fail();
+    }
+
+    private static function directionAttribute(string $tag, string $direction): string
+    {
+        return array_key_exists('dir', self::attributes($tag))
+            ? self::attribute($tag, 'dir', $direction)
+            : substr($tag, 0, -1).' dir="'.$direction.'">';
     }
 
     private static function removeAttribute(string $tag, string $name): string

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import { createNativeLayoutNonce, nativeLayoutRestoreCarrierPresent, nativeLayoutRestoreCss, nativeLayoutRestoreResponsiveCss, nativeLayoutRestoreRetained, nativeLayoutRestoreStylePayload, prepareNativeLayoutRestore, removeNativeLayoutRestoreCarrier } from '../../resources/js/outlook-addin/native-layout-restore.js';
 import { managedTemplateContract, standaloneSignatureContract } from '../../resources/js/outlook-addin/managed-template.js';
 
@@ -85,19 +86,23 @@ test('v5 adds only the seventh logo TABLE ID and retains exact responsive CSS af
     assert.equal(removeNativeLayoutRestoreCarrier(body, inferred, plan.ids), body.slice(body.indexOf('</table>') + 8));
     const css = nativeLayoutRestoreCss(plan.ids);
     const responsive = nativeLayoutRestoreResponsiveCss(plan.ids);
-    assert.equal(css.split('width:460px!important;min-width:0!important;max-width:100%!important;').length - 1, 4);
-    assert.match(css, /-l\{float:right!important;margin-bottom:10px!important;\}/);
+    assert.equal(css.split('display:inline-block!important;').length - 1, 3);
+    assert.ok(css.includes('#' + plan.ids.train + '{display:inline-table!important;vertical-align:bottom!important;'));
+    assert.equal(css.split('width:100%!important;min-width:0!important;max-width:340px!important;direction:ltr!important;').length - 1, 4);
+    assert.match(css, /max-width:680px!important;/);
+    assert.match(css, /direction:rtl!important;/);
+    assert.match(css, /-l\{margin-bottom:10px!important;\}/);
     assert.match(css, /border-top:4px solid transparent!important;/);
-    assert.doesNotMatch(css, /min\(|max\(|calc\(|@media/);
-    assert.equal(responsive.split('width:calc(680000px - 100000%)!important;min-width:50%!important;max-width:100%!important;').length - 1, 4);
+    assert.doesNotMatch(css, /min\(|max\(|calc\(|@media|[;{](?:float|clear|position|top):/);
+    assert.doesNotMatch(responsive, /min\(|max\(|calc\(/);
     assert.match(responsive, /@media\(max-width:680px\)\{/);
-    assert.match(responsive, /width:100%!important;min-width:0!important;max-width:100%!important;float:none!important;clear:both!important;position:static!important;top:auto!important/);
+    assert.match(responsive, /width:100%!important;min-width:0!important;max-width:100%!important;/);
     assert.match(css, /border-left:40px solid transparent!important;border-right:40px solid transparent!important/);
     assert.match(responsive, /border-right-width:18px!important/);
     const rules = [...(css + responsive).replace('@media(max-width:680px){', '').matchAll(/([^{}]+)\{([^{}]*)\}/g)];
     assert.ok(rules.length > 10);
     for (const [, selector] of rules) assert.match(selector, /^#rt-native-layout-[0-9a-f]{32}-[rpcthslif]$/);
-    assert.doesNotMatch(css, /(?:^|[},])\s*(?:img|div|font|span|td|table)\b|[>+~]|direction:rtl|width:520px|first-child|last-child/);
+    assert.doesNotMatch(css, /(?:^|[},])\s*(?:img|div|font|span|td|table)\b|[>+~]|width:520px|first-child|last-child/);
     assert.throws(() => nativeLayoutRestoreRetained(body.replace('max-width:680px', 'max-width:681px'), inferred, plan.ids), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
 });
 
@@ -117,7 +122,7 @@ test('v5 binds optional inset/legal TABLE wrappers with pure ID responsive rules
     assert.match(css, /-i\{width:40px!important;min-width:40px!important;max-width:40px!important;\}/);
     assert.match(responsive, /-i\{width:18px!important;min-width:18px!important;max-width:18px!important;\}/);
     assert.match(responsive, /-f\{border-left-width:18px!important;border-right-width:18px!important;\}/);
-    assert.doesNotMatch(css, /[>+~]|direction:rtl|width:520px|first-child|last-child/);
+    assert.doesNotMatch(css, /[>+~]|width:520px|first-child|last-child/);
     assert.equal(removeNativeLayoutRestoreCarrier(body, parsed, plan.ids), plan.html);
 });
 
@@ -163,11 +168,10 @@ test('v5 exact function-free core is required while the separate responsive shee
     const source = fixture({ responsive: true, standalone: true, legal: true, wrappers: true });
     const plan = prepareNativeLayoutRestore(source.html, standaloneSignatureContract(source.html), nonce);
     const optional = nativeLayoutRestoreResponsiveCss(plan.ids);
-    const outside = optional.slice(0, optional.indexOf('@media'));
-    const media = optional.slice(optional.indexOf('@media'));
-    const firstRule = outside.match(/^#[^{}]+\{[^{}]+\}/)[0];
+    const media = optional;
+    const firstRule = optional.slice('@media(max-width:680px){'.length, -1).match(/^#[^{}]+\{[^{}]+\}/)[0];
     const optionalNode = /<style data-rt-native-layout-responsive="v1">[\s\S]*?<\/style>/;
-    for (const value of [null, '', outside, firstRule, media, '@media(max-width:680px){}', optional]) {
+    for (const value of [null, '', media, '@media(max-width:680px){' + firstRule + '}', '@media(max-width:680px){}']) {
         const payload = plan.stylePayload.replace(optionalNode, value === null ? '' : '<style>' + value + '</style>');
         const body = payload + plan.html;
         const parsed = standaloneSignatureContract(body);
@@ -175,8 +179,8 @@ test('v5 exact function-free core is required while the separate responsive shee
         assert.equal(removeNativeLayoutRestoreCarrier(body, parsed, plan.ids), plan.html);
     }
     for (const changed of [
-        plan.stylePayload.replace('width:460px!important;', 'width:459px!important;'),
-        plan.stylePayload.replace(optionalNode, '<style>' + firstRule.replace('680000px', '680001px') + '</style>'),
+        plan.stylePayload.replace('max-width:340px!important;', 'max-width:341px!important;'),
+        plan.stylePayload.replace(optionalNode, '<style>' + firstRule + '</style>'),
         plan.stylePayload.replace(optionalNode, '<style>' + firstRule + firstRule + '</style>'),
         plan.stylePayload.replace(optionalNode, '<style>img{width:520px!important;}</style>'),
         plan.stylePayload.replace(optionalNode, '<style>@media(max-width:681px){}</style>'),
@@ -186,6 +190,26 @@ test('v5 exact function-free core is required while the separate responsive shee
         const parsed = standaloneSignatureContract(body);
         assert.throws(() => nativeLayoutRestoreRetained(body, parsed, plan.ids), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
         assert.equal(removeNativeLayoutRestoreCarrier(body, parsed, plan.ids), body);
+    }
+});
+
+test('actual sanitized R60 filtered optional declarations permit exact owned cleanup but never acknowledge the new hybrid core', () => {
+    const body = readFileSync(new URL('../Fixtures/outlook/r60-office-filtered-responsive.html', import.meta.url), 'utf8');
+    const contract = managedTemplateContract(body);
+    const suffixes = { r: 'root', p: 'person', c: 'company', t: 'train', h: 'header', s: 'signature', l: 'logo', i: 'inset', f: 'footer', q: 'templateGutter' };
+    const ids = {};
+    for (const node of contract.elements) {
+        const match = /^(?:x_)?(rt-native-layout-[0-9a-f]{32}-)([rpcthslifq])$/.exec(node.attrs.id || '');
+        if (match) ids[suffixes[match[2]]] = match[1] + match[2];
+    }
+    assert.equal(Object.keys(ids).length, 10);
+    assert.throws(() => nativeLayoutRestoreRetained(body, contract, ids), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
+    const carrier = contract.elements.find(node => (node.attrs.id || '').endsWith('-carrier'));
+    assert.equal(removeNativeLayoutRestoreCarrier(body, contract, ids), body.slice(0, carrier.start) + body.slice(carrier.end));
+    const fullCalc = body.replace(/(\{\s*)(min-width:50%!important;)/g, '$1width:calc(680000px - 100000%)!important;$2');
+    assert.notEqual(removeNativeLayoutRestoreCarrier(fullCalc, managedTemplateContract(fullCalc), ids), fullCalc);
+    for (const changed of [body.replace('width:460px!important', 'width:461px!important'), body.replace('min-width:50%!important', 'min-width:51%!important')]) {
+        assert.equal(removeNativeLayoutRestoreCarrier(changed, managedTemplateContract(changed), ids), changed);
     }
 });
 

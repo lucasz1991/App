@@ -88,20 +88,39 @@ function responsiveRestoreCss(ids) {
     // Every new rule therefore contains one owned ID and no combinator or tag.
     const rule = (key, declarations) => responsiveRestoreRule(ids, key, declarations);
     const columns = ['logo', 'person', 'company', 'train'];
-    let css = rule('root', 'font-size:0!important;line-height:0!important;text-align:left!important;width:100%!important;max-width:920px!important;display:table!important;table-layout:fixed!important;border-collapse:collapse!important;overflow:hidden!important;');
+    let css = rule('root', 'font-size:0!important;line-height:0!important;text-align:left!important;width:100%!important;max-width:680px!important;display:table!important;table-layout:fixed!important;border-collapse:collapse!important;overflow:hidden!important;direction:rtl!important;');
     for (const key of columns) {
-        css += rule(key, 'display:table!important;vertical-align:top!important;width:460px!important;min-width:0!important;max-width:100%!important;table-layout:fixed!important;border-collapse:separate!important;border-spacing:0!important;box-sizing:border-box!important;'
+        css += rule(key, 'display:' + (key === 'train' ? 'inline-table' : 'inline-block') + '!important;vertical-align:' + (key === 'train' ? 'bottom' : 'top') + '!important;width:100%!important;min-width:0!important;max-width:340px!important;direction:ltr!important;table-layout:fixed!important;border-collapse:separate!important;border-spacing:0!important;box-sizing:border-box!important;'
             + (key === 'train' ? 'border-left:0!important;' : 'border-left:40px solid transparent!important;')
             + 'border-right:40px solid transparent!important;');
+    }
+    css += rule('logo', 'margin-bottom:10px!important;')
+        + rule('company', 'border-top:4px solid transparent!important;');
+    if (ids.header) css += rule('header', 'color:#ffffff!important;table-layout:auto!important;width:100%!important;');
+    // The two-row signature ID owns both its main content and legal row; a
+    // color override here would also recolor personal/company text. Legal
+    // paint stays in its already compiled inline declarations.
+    if (ids.signature) css += rule('signature', 'border-collapse:separate!important;border-spacing:0!important;');
+    if (ids.inset) css += rule('inset', 'width:40px!important;min-width:40px!important;max-width:40px!important;');
+    if (ids.footer) css += rule('footer', 'border-left:40px solid transparent!important;border-right:40px solid transparent!important;box-sizing:border-box!important;border-collapse:separate!important;border-spacing:0!important;');
+    if (ids.templateGutter) css += rule('templateGutter', 'border-left:40px solid transparent!important;border-right:40px solid transparent!important;box-sizing:border-box!important;border-collapse:separate!important;border-spacing:0!important;');
+    return css;
+}
+
+// Exact R60 core is recognized only for complete owned-carrier cleanup.
+// It can never satisfy current-layout readback or acknowledge a new write.
+function legacyColumnCoreCss(ids) {
+    const rule = (key, declarations) => responsiveRestoreRule(ids, key, declarations);
+    let css = rule('root', 'font-size:0!important;line-height:0!important;text-align:left!important;width:100%!important;max-width:920px!important;display:table!important;table-layout:fixed!important;border-collapse:collapse!important;overflow:hidden!important;');
+    for (const key of ['logo', 'person', 'company', 'train']) {
+        css += rule(key, 'display:table!important;vertical-align:top!important;width:460px!important;min-width:0!important;max-width:100%!important;table-layout:fixed!important;border-collapse:separate!important;border-spacing:0!important;box-sizing:border-box!important;'
+            + (key === 'train' ? 'border-left:0!important;' : 'border-left:40px solid transparent!important;') + 'border-right:40px solid transparent!important;');
     }
     css += rule('logo', 'float:right!important;margin-bottom:10px!important;')
         + rule('person', 'float:left!important;')
         + rule('company', 'float:right!important;clear:right!important;border-top:4px solid transparent!important;')
         + rule('train', 'float:left!important;clear:left!important;position:sticky!important;top:100%!important;');
     if (ids.header) css += rule('header', 'color:#ffffff!important;table-layout:auto!important;width:100%!important;');
-    // The two-row signature ID owns both its main content and legal row; a
-    // color override here would also recolor personal/company text. Legal
-    // paint stays in its already compiled inline declarations.
     if (ids.signature) css += rule('signature', 'border-collapse:separate!important;border-spacing:0!important;');
     if (ids.inset) css += rule('inset', 'width:40px!important;min-width:40px!important;max-width:40px!important;');
     if (ids.footer) css += rule('footer', 'border-left:40px solid transparent!important;border-right:40px solid transparent!important;box-sizing:border-box!important;border-collapse:separate!important;border-spacing:0!important;');
@@ -115,13 +134,13 @@ function responsiveRestoreRule(ids, key, declarations) {
     return '#' + id + '{' + declarations + '}';
 }
 
-function responsiveRestoreRules(ids) {
+function responsiveRestoreRules(ids, legacyCalc = false) {
     const rule = (key, declarations) => responsiveRestoreRule(ids, key, declarations);
     const columns = ['logo', 'person', 'company', 'train'];
-    const base = columns.map(key => rule(key, 'width:calc(680000px - 100000%)!important;min-width:50%!important;max-width:100%!important;'));
+    const base = legacyCalc ? columns.map(key => rule(key, 'width:calc(680000px - 100000%)!important;min-width:50%!important;max-width:100%!important;')) : [];
     const media = [];
     for (const key of columns) {
-        media.push(rule(key, 'width:100%!important;min-width:0!important;max-width:100%!important;float:none!important;clear:both!important;position:static!important;top:auto!important;'
+        media.push(rule(key, 'width:100%!important;min-width:0!important;max-width:100%!important;' + (legacyCalc ? 'float:none!important;clear:both!important;position:static!important;top:auto!important;' : '')
             + (key === 'train' ? '' : 'border-left-width:18px!important;') + 'border-right-width:18px!important;'));
     }
     media.push(rule('logo', 'margin-bottom:10px!important;'));
@@ -187,9 +206,9 @@ function normalizedRestoreCss(css, ids) {
     return normalized.replace(/\s+/g, '').replace(/;}/g, '}');
 }
 
-function approvedResponsiveSubset(css, ids) {
+function approvedResponsiveSubset(css, ids, legacyCalc = false) {
     const text = normalizedRestoreCss(css, ids);
-    const expected = responsiveRestoreRules(ids);
+    const expected = responsiveRestoreRules(ids, legacyCalc);
     const rules = value => {
         const result = [];
         let remainder = value;
@@ -201,11 +220,12 @@ function approvedResponsiveSubset(css, ids) {
         }
         return result;
     };
-    const subsequence = (actual, approved) => {
+    const subsequence = (actual, approved, allowFilteredCalc = false) => {
         if (!actual) return false;
         let next = 0;
         for (const rule of actual) {
-            const index = approved.indexOf(rule, next);
+            const index = approved.findIndex((value, index) => index >= next && (value === rule || (allowFilteredCalc
+                && value.replace('width:calc(680000px-100000%)!important;', '') === rule)));
             if (index === -1) return false;
             next = index + 1;
         }
@@ -219,7 +239,7 @@ function approvedResponsiveSubset(css, ids) {
         base = text.slice(0, mediaStart);
         media = text.slice(mediaStart + prefix.length, -1);
     }
-    return subsequence(rules(base), expected.base.map(rule => normalizedRestoreCss(rule, ids)))
+    return subsequence(rules(base), expected.base.map(rule => normalizedRestoreCss(rule, ids)), true)
         && subsequence(rules(media), expected.media.map(rule => normalizedRestoreCss(rule, ids)));
 }
 
@@ -242,7 +262,7 @@ export function nativeLayoutRestoreCarrierPresent(html, contract, ids) {
         || html.includes('RT-NATIVE-LAYOUT-RESTORE-V1:' + scope);
 }
 
-function retainedCarrier(html, contract, ids) {
+function retainedCarrier(html, contract, ids, legacyColumns = false) {
     const scope = idsScope(ids);
     const nodes = contract?.elements;
     if (typeof html !== 'string' || !Array.isArray(nodes) || !contract.root || !contract.signature) invalid();
@@ -297,7 +317,8 @@ function retainedCarrier(html, contract, ids) {
     const token = 'RT-NATIVE-LAYOUT-RESTORE-V1:' + scope;
     const spans = descendants.filter(value => value.node.tag === 'span' && html.slice(value.node.openEnd, value.node.close).replace(/\s+/g, '') === token);
     if (styles.length < 1 || styles.length > (ids.logo ? 2 : 1) || spans.length !== 1) invalid();
-    const css = normalizedRestoreCss(nativeLayoutRestoreCss(ids), ids);
+    if (legacyColumns && !ids.logo) invalid();
+    const css = normalizedRestoreCss(legacyColumns ? legacyColumnCoreCss(ids) : nativeLayoutRestoreCss(ids), ids);
     const core = styles.filter(value => normalizedRestoreCss(html.slice(value.node.openEnd, value.node.close), ids) === css);
     if (core.length !== 1) invalid();
     const retainedCss = html.slice(core[0].node.openEnd, core[0].node.close);
@@ -309,7 +330,7 @@ function retainedCarrier(html, contract, ids) {
     if (exactSheets.length !== 1 || normalizedRestoreCss(retainedCss, ids) !== css) invalid();
     for (const optional of styles.filter(value => value !== core[0])) {
         const optionalCss = html.slice(optional.node.openEnd, optional.node.close);
-        if (!ids.logo || !approvedResponsiveSubset(optionalCss, ids)) invalid();
+        if (!ids.logo || !approvedResponsiveSubset(optionalCss, ids, legacyColumns)) invalid();
         for (const key of Object.keys(ids)) {
             const selectors = optionalCss.match(new RegExp('#(?:x_)?' + ids[key] + '(?![\\w-])', 'g')) || [];
             if (selectors.some(selector => selector !== '#' + actualIds[key])) invalid();
@@ -346,6 +367,12 @@ export function removeNativeLayoutRestoreCarrier(html, contract, ids) {
         const carrier = retainedCarrier(html, contract, ids);
         return html.slice(0, carrier.start) + html.slice(carrier.end);
     } catch {
+        if (ids?.logo) {
+            try {
+                const carrier = retainedCarrier(html, contract, ids, true);
+                return html.slice(0, carrier.start) + html.slice(carrier.end);
+            } catch { /* Unknown/incomplete historical content stays opaque. */ }
+        }
         return html;
     }
 }

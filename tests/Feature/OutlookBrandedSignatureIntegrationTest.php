@@ -269,6 +269,7 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
     private function assertDocument(string $html, array $media, bool $mobile, int $characters, int $cssBytes, bool $personal, bool $mirrored = true): void
     {
         $responsive = str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v5"') && str_contains($html, 'data-rt-personal-flow="v1"');
+        $mobileHybrid = str_contains($html, 'data-rt-mobile-hybrid="v1"');
         self::assertLessThanOrEqual($characters, intdiv(strlen(mb_convert_encoding($html, 'UTF-16LE', 'UTF-8')), 2));
         preg_match_all('~<style\b[^>]*>(.*?)</style\s*>~is', $html, $styles);
         self::assertLessThan($cssBytes, array_sum(array_map('strlen', $styles[1])));
@@ -329,23 +330,37 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
             }
         }
         $trainCells = $xpath->query('//td[contains(concat(" ",normalize-space(@class)," ")," rt-dfc-train ")]');
+        if ($mobileHybrid) {
+            $trainCells = $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-mhy-train ")]/tbody/tr/td');
+        }
         if ($trainCells->length === 0) {
             $trainCells = $xpath->query('//td[contains(concat(" ",normalize-space(@class)," ")," rt-delivery-train-cell ") or contains(concat(" ",normalize-space(@class)," ")," xq ")]');
         }
         self::assertSame(1, $trainCells->length);
         $trainStyle = $trainCells->item(0)->getAttribute('style');
-        if ($responsive) {
+        if ($responsive || $mobileHybrid) {
             self::assertStringContainsString('padding:0;', $trainStyle);
-            self::assertStringContainsString('border-right:40px solid transparent;', $trainCells->item(0)->parentNode->parentNode->parentNode->getAttribute('style'));
+            $trainTableStyle = $trainCells->item(0)->parentNode->parentNode->parentNode->getAttribute('style');
+            if ($mobileHybrid) {
+                self::assertStringContainsString('border:0 solid transparent;', $trainTableStyle);
+                self::assertStringContainsString('border-width:0 18px;', $trainTableStyle);
+            } else {
+                self::assertStringContainsString('border-right:40px solid transparent;', $trainTableStyle);
+            }
         } else {
             self::assertMatchesRegularExpression('/(?:^|;)\s*padding\s*:\s*0\s+'.($mobile ? '18' : '40').'px\s+0\s+0\s*(?:!important\s*)?(?:;|$)/i', $trainStyle);
         }
         if ($mobile) {
-            self::assertMatchesRegularExpression('/(?:^|;)\s*box-sizing\s*:\s*border-box\s*(?:;|$)/i', $trainStyle);
+            self::assertMatchesRegularExpression('/(?:^|;)\s*box-sizing\s*:\s*border-box\s*(?:;|$)/i', $mobileHybrid ? $trainCells->item(0)->parentNode->parentNode->parentNode->getAttribute('style') : $trainStyle);
             self::assertSame(0, $xpath->query('//*[contains(concat(" ",normalize-space(@class)," ")," rt-train-window ")]')->length);
-            $trainImages = $xpath->query('.//img[contains(concat(" ",normalize-space(@class)," ")," rt-delivery-train ") or contains(concat(" ",normalize-space(@class)," ")," xr ")]', $trainCells->item(0));
+            $trainImages = $xpath->query('.//img[contains(concat(" ",normalize-space(@class)," ")," rt-delivery-train ") or contains(concat(" ",normalize-space(@class)," ")," xr ") or contains(concat(" ",normalize-space(@class)," ")," rt-mhy-image ")]', $trainCells->item(0));
             self::assertSame(1, $trainImages->length);
             self::assertMatchesRegularExpression('/(?:^|;)\s*height\s*:\s*auto\s*(?:!important\s*)?(?:;|$)/i', $trainImages->item(0)->getAttribute('style'), 'The full train and smoke keep their natural aspect ratio.');
+            if ($mobileHybrid) {
+                self::assertSame('rtl', $trainImages->item(0)->parentNode->getAttribute('dir'));
+                self::assertStringContainsString('overflow:hidden;', $trainImages->item(0)->parentNode->getAttribute('style'));
+                self::assertStringContainsString('width:520px!important;', $trainImages->item(0)->getAttribute('style'));
+            }
         }
         $footerCells = $xpath->query('//td[not(.//td) and contains(.,"Diese E-Mail kann vertrauliche Informationen enthalten.")]');
         self::assertSame(1, $footerCells->length);
@@ -387,12 +402,15 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
             $nameAt = strpos($modern, 'class="rt-personal-name');
             self::assertNotFalse($logoAt);
             self::assertNotFalse($nameAt);
-            self::assertSame($mobile || $responsive, $logoAt < $nameAt, 'Recipient-responsive source order places one logo first; desktop floats it right.');
+            self::assertSame($mobile || $responsive, $logoAt < $nameAt, 'Hybrid source order places one logo first; the wide RTL flow orders complete LTR blocks.');
             $personalCells = $xpath->query('//td[contains(concat(" ",normalize-space(@class)," ")," rt-personal-cell-left ")]');
+            if ($mobileHybrid) {
+                $personalCells = $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-mhy-person ")]/tbody/tr/td');
+            }
             self::assertSame(1, $personalCells->length);
-            if ($responsive) {
+            if ($responsive || $mobileHybrid) {
                 $this->assertHorizontalGutter($personalCells->item(0), 0);
-                $this->assertTableGutter($personalCells->item(0)->parentNode->parentNode->parentNode, 40);
+                $this->assertTableGutter($personalCells->item(0)->parentNode->parentNode->parentNode, $mobileHybrid ? 18 : 40);
             } else {
                 $this->assertHorizontalGutter($personalCells->item(0), $mobile ? 18 : 40);
             }
@@ -501,6 +519,11 @@ final class OutlookBrandedSignatureIntegrationTest extends TestCase
     private function assertTableGutter(DOMElement $table, int $pixels): void
     {
         self::assertSame('table', strtolower($table->tagName));
+        if (str_contains($table->getAttribute('style'), 'border-width:0 '.$pixels.'px;')) {
+            self::assertStringContainsString('border:0 solid transparent;', $table->getAttribute('style'));
+
+            return;
+        }
         foreach (['left', 'right'] as $side) {
             self::assertStringContainsString('border-'.$side.':'.$pixels.'px solid transparent;', $table->getAttribute('style'));
         }

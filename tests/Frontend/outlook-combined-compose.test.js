@@ -27,6 +27,17 @@ const flush = async (until = () => false) => {
     for (let i = 0; i < 300 && !until(); i += 1) await Promise.resolve();
 };
 
+function personalCombinedHtml() {
+    const metadata = value => '<span hidden aria-hidden="true" style="display:none!important;font-size:0;line-height:0;">' + value + '</span>';
+    const template = '<div class="rt-outlook-template rtt0123456789ab"><table class="rt-native-compose-frame rt-managed-template-v1 rtt0123456789ab"><tbody><tr><td>'
+        + '<table class="rt-shell design-v27"><tbody><tr><td>' + metadata(compose.COMBINED_TEMPLATE_MARKER)
+        + '<table class="rt-compose-editable rt-compose-editable-v1"><tbody><tr><td>' + metadata('RT-COMPOSE-EDITABLE-START-V1')
+        + '<p><br></p>' + metadata('RT-COMPOSE-EDITABLE-END-V1') + '</td></tr></tbody></table></td></tr></tbody></table></td></tr></tbody></table></div>';
+    return '<div class="rt-combined-compose-document" data-rt-compose-document="combined-v1"><table class="rt-combined-compose-frame rt-managed-combined-v1 rtc0123456789ab"><tbody><tr><td>'
+        + template + standaloneHtml(VERSION, true, true).replace('rt-managed-signature-v1 rts0123456789', 'rt-combined-signature-frame rt-managed-signature-v1 rts0123456789')
+        + '</td></tr></tbody></table></div>';
+}
+
 function documentContract(changes = {}) {
     return {
         id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', key: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', isDefault: true,
@@ -242,6 +253,42 @@ test('desktop automatic compose attaches media, clears native ownership, then wr
     await flush();
     assert.deepEqual(h.state.signatures, ['']);
     assert.equal(h.state.prepends.length, 1);
+});
+
+test('production automatic personal combined insertion prepends ten IDs and verifies the separate core after Office filtering', async () => {
+    const h = await runtimeHarness({ composeType: 'reply', body: TYPED + OLD_SIGNATURE + QUOTE }, fixture => {
+        fixture.bootstrap.templates[0].combinedComposeHtml = personalCombinedHtml();
+        fixture.item.body.prependAsync = (html, _options, callback) => {
+            fixture.state.prepends.push(html);
+            const output = html.includes('data-rt-native-layout-restore')
+                ? officeCarrier(html.replace(/<style data-rt-native-layout-responsive="v1">[\s\S]*?<\/style>/, '<style></style>')) : nativeOfficeHtml(html);
+            fixture.state.body = output + fixture.state.body; callback(success());
+        };
+    });
+    await h.run();
+    assert.deepEqual(h.state.signatures, ['']); assert.equal(h.state.prepends.length, 2);
+    assert.equal((h.state.prepends[0].match(/ id="rt-native-layout-[0-9a-f]{32}-[rpcthslifq]"/g) || []).length, 10);
+    assert.ok(h.state.prepends[1].includes('data-rt-native-layout-restore'));
+    assert.ok(h.state.body.endsWith(TYPED + QUOTE)); assert.deepEqual(h.state.replacements, []);
+    assert.equal(h.state.session, '1'); assert.equal(h.completed, 1);
+    await h.run(); assert.equal(h.state.prepends.length, 2);
+});
+
+test('production automatic personal insertion never acknowledges a damaged required core or repeats its body write', async () => {
+    const h = await runtimeHarness({}, fixture => {
+        fixture.bootstrap.templates[0].combinedComposeHtml = personalCombinedHtml();
+        fixture.item.body.prependAsync = (html, _options, callback) => {
+            fixture.state.prepends.push(html);
+            const output = html.includes('data-rt-native-layout-restore')
+                ? officeCarrier(html.replace('max-width:340px!important;', 'max-width:341px!important;')) : nativeOfficeHtml(html);
+            fixture.state.body = output + fixture.state.body; callback(success());
+        };
+    });
+    await h.run();
+    assert.equal(h.state.prepends.length, 2); assert.match(h.state.session, /^pending:/);
+    assert.equal(compose.isTemplateInsertionBlocked(h.item), true);
+    assert.ok(h.state.body.endsWith(TYPED)); assert.deepEqual(h.state.replacements, []);
+    await h.run(); assert.equal(h.state.prepends.length, 2);
 });
 
 test('new, fully opened reply and forward preserve all typed and quoted bytes outside native ownership', async () => {

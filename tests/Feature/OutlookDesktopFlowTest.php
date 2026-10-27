@@ -90,8 +90,11 @@ final class OutlookDesktopFlowTest extends TestCase
         self::assertCount(4, $groups);
         foreach (['rt-personal-logo-column', 'rt-personal-left', 'rt-personal-right', 'rt-df-train'] as $index => $class) {
             self::assertStringContainsString($class, $groups->item($index)->getAttribute('class'));
-            self::assertStringContainsString('width:460px;min-width:0;max-width:100%;', $groups->item($index)->getAttribute('style'));
+            self::assertStringContainsString('display:'.($index === 3 ? 'inline-table' : 'inline-block').';', $groups->item($index)->getAttribute('style'));
+            self::assertStringContainsString('width:100%;min-width:0;max-width:340px;', $groups->item($index)->getAttribute('style'));
             self::assertDoesNotMatchRegularExpression('/\b(?:min|max|calc)\s*\(/i', $groups->item($index)->getAttribute('style'));
+            self::assertDoesNotMatchRegularExpression('/(?:^|;)\s*(?:float|clear|position|top)\s*:/i', $groups->item($index)->getAttribute('style'));
+            self::assertSame('ltr', $groups->item($index)->getAttribute('dir'));
             self::assertStringContainsString('border-right:40px solid transparent;', $groups->item($index)->getAttribute('style'));
         }
         self::assertSame(1, $xpath->query('//img[contains(concat(" ",normalize-space(@class)," ")," rt-logo ")]')->length);
@@ -107,9 +110,17 @@ final class OutlookDesktopFlowTest extends TestCase
         self::assertStringContainsString('rt-personal-company-contacts" style="padding-top:0;"', $html);
         self::assertStringNotContainsString('.rt-personal-company-contacts{padding-top:14px!important;}', $html);
         self::assertStringContainsString('.rt-personal-direct{padding-top:14px!important;}', $html);
-        self::assertStringContainsString('float:none!important;clear:both!important;position:static!important;top:auto!important;', $html);
+        self::assertStringContainsString('.rt-df-train{display:inline-table!important;vertical-align:bottom!important;border-left:0!important;}', $html);
         self::assertStringContainsString('width:520px;max-width:none!important;height:auto;', $html);
         $this->assertBudget($html, 12288, 30000);
+        $styleless = $this->xpath(preg_replace('~<style\b[^>]*>.*?</style\s*>~is', '', $html));
+        $stylelessFlow = $styleless->query('//table[@data-rt-desktop-flow="outlook-desktop-flow-v5"]')->item(0);
+        self::assertSame('rtl', $stylelessFlow->getAttribute('dir'));
+        self::assertSame('rtl', $styleless->query('./tbody/tr/td', $stylelessFlow)->item(0)->getAttribute('dir'));
+        self::assertStringContainsString('max-width:680px;', $stylelessFlow->getAttribute('style'));
+        self::assertStringContainsString('text-align:left;', $stylelessFlow->getAttribute('style'));
+        self::assertSame(4, $styleless->query('./tbody/tr/td/table', $stylelessFlow)->length);
+        self::assertSame($this->inventory($html), $this->inventory($styleless->document->saveHTML()));
 
         $malformed = str_replace('class="rt-personal-cell-logo"', 'class="rt-personal-cell-logo" data-fixture="1"', $html);
         $malformed = preg_replace('~(<td class="rt-personal-cell-logo"[^>]*>)~', '$1<p>Unexpected text</p>', $malformed, 1);

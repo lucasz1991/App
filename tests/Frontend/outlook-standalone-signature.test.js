@@ -102,7 +102,7 @@ test('changed versions reuse exact prior IDs and carrier, without orphan accumul
 });
 
 test('a retained but damaged existing carrier blocks without another native write or prepend', async () => {
-    const h = fixture(); await h.run(); h.state.carrier = h.state.carrier.replace('float:left!important', 'float:none!important');
+    const h = fixture(); await h.run(); h.state.carrier = h.state.carrier.replace('max-width:340px!important', 'max-width:341px!important');
     await assert.rejects(h.run(standaloneHtml('1123456789abcdef')), { code: 'SIGNATURE_LAYOUT_UNCONFIRMED' });
     assert.equal(h.state.writes.length, 1); assert.equal(h.state.prepends.length, 1);
 });
