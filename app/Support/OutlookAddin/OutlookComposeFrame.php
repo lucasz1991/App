@@ -44,7 +44,7 @@ final class OutlookComposeFrame
             .'.'.$scope.' .rt-native-compose-inner{display:block!important;width:auto!important;border:0!important;background-color:#ffffff!important;}'
             .'.'.$scope.' .rt-native-template-pad{padding-left:40px!important;padding-right:40px!important;}'
             .'.'.$scope.' .rt-native-template-mark{padding-left:0!important;}'
-            .'@media(max-width:860px){.'.$scope.' .rt-native-template-pad{padding-left:22px!important;padding-right:22px!important;}}'];
+            .'@media(max-width:860px){.'.$scope.' .rt-native-template-pad{padding-left:40px!important;padding-right:40px!important;}}'];
     }
 
     private static function targets(string $html, string $scope): array

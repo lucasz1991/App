@@ -61,7 +61,11 @@ def label(font_dir: Path) -> Image.Image:
     middle = image.height / 2
     draw.text((left - first[0], middle - (first[1] + first[3]) / 2), "24/7", font=main, fill=WHITE)
     draw.text((left + first_width + gap - second[0], middle - (second[1] + second[3]) / 2), "erreichbar", font=secondary, fill=WHITE)
-    return image
+    # The reviewed glyphs start at physical x=44 on the centred source canvas.
+    # Remove only that blank gutter, preserving every glyph pixel, font size,
+    # baseline and inter-word gap. 137 logical pixels keep the following mail
+    # icon's optical gap within one third of a pixel of the original artwork.
+    return image.crop((44, 0, 44 + 137 * SCALE, image.height))
 
 
 class OutlinePen(BasePen):
@@ -137,7 +141,8 @@ def validate(image: Image.Image, kind: str) -> dict:
     if image.mode != "RGB":
         raise RuntimeError("Hotline assets must be opaque RGB, without alpha")
     edges = [image.getpixel((x, y)) for x in range(image.width) for y in (0, image.height - 1)]
-    edges += [image.getpixel((x, y)) for y in range(image.height) for x in (0, image.width - 1)]
+    vertical_edges = (image.width - 1,) if kind == "label" else (0, image.width - 1)
+    edges += [image.getpixel((x, y)) for y in range(image.height) for x in vertical_edges]
     if any(pixel != RED for pixel in edges):
         raise RuntimeError("Every asset edge must match the native red border")
     whites = sum(pixel == WHITE for pixel in image.get_flattened_data())
@@ -149,6 +154,7 @@ def validate(image: Image.Image, kind: str) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--font-dir", type=Path, default=Path("C:/Windows/Fonts"))
+    parser.add_argument("--only", action="append", choices=("fill", "label", "mail", "phone"), help="Write only these assets; the default writes all four")
     args = parser.parse_args()
     if PILLOW_VERSION != "12.2.0":
         raise RuntimeError("Deterministic builder expects the existing Pillow 12.2.0 runtime")
@@ -158,6 +164,8 @@ def main() -> None:
         raise RuntimeError("Run from the existing repository; output directory is missing")
     receipt = {}
     for kind, image in assets.items():
+        if args.only and kind not in args.only:
+            continue
         proof = validate(image, kind)
         path = target / f"outlook-hotline-{kind}-v1.png"
         image.save(path, format="PNG", optimize=False, compress_level=9)

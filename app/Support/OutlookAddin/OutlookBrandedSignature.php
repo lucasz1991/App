@@ -18,6 +18,8 @@ final class OutlookBrandedSignature
 
     private const CELL_STYLE = 'padding:0;font-size:0;line-height:0;';
 
+    private const OUTER_STYLE = 'padding:0!important;font-size:0;line-height:0;';
+
     /** Managed source changes participate in the existing payload cache key. */
     public static function assetHashes(): array
     {
@@ -57,7 +59,7 @@ final class OutlookBrandedSignature
         }
         $baseUrl = rtrim($baseUrl, '/');
         $artifact = $artifacts[0];
-        $edits = self::roleEdits($nodes, $artifact);
+        $edits = array_merge(self::roleEdits($nodes, $artifact), self::addressEdits($rows, $nodes, $artifact), self::footerEdits($nodes, $artifact));
         $authored = array_keys(array_filter($nodes, static fn (array $node): bool => self::has($node, 'design-hotline-row')
             && self::has($node, 'design-hotline-spaced') && ! isset($node['attrs']['data-rt-brand-hotline'])));
         $owned = array_keys(array_filter($nodes, static fn (array $node): bool => isset($node['attrs']['data-rt-brand-hotline'])));
@@ -72,11 +74,7 @@ final class OutlookBrandedSignature
             $table = self::outerTable($rows, $nodes, $cell, $artifact);
             $inner = self::singleChild($rows, $nodes, $cell, 'table');
             $row = self::singleRow($rows, $nodes, $inner);
-            $columns = self::direct($nodes, $row);
-            if (count($columns) !== 5 || array_filter($columns, static fn (int $index): bool => $nodes[$index]['tag'] !== 'td')) {
-                self::fail();
-            }
-            self::children($rows, $nodes, $row, $columns);
+            $columns = self::rowCells($rows, $nodes, $row, 5);
             if ($authored !== []) {
                 $strong = self::singleChild($rows, $nodes, $columns[0], 'strong');
                 self::plainText($rows, $nodes, $strong, '24/7');
@@ -88,7 +86,7 @@ final class OutlookBrandedSignature
                 $classes[] = 'rt-brand-hotline-cell';
                 $opening = self::opening($nodes[$cell], [
                     'class' => implode(' ', $classes), 'data-rt-brand-hotline' => self::MARKER,
-                    'style' => self::CELL_STYLE, 'bgcolor' => self::RED,
+                    'style' => self::OUTER_STYLE, 'bgcolor' => self::RED,
                 ]);
                 $edits[] = [$nodes[$cell]['start'], $nodes[$cell]['openEnd'] - $nodes[$cell]['start'], $opening];
                 $edits[] = [$nodes[$cell]['openEnd'], $nodes[$cell]['close'] - $nodes[$cell]['openEnd'], self::raster($mailOpen, $mailClose, $phoneOpen, $phoneClose, $baseUrl)];
@@ -105,7 +103,7 @@ final class OutlookBrandedSignature
                 if ($nodes[$cell]['attrs']['data-rt-brand-hotline'] !== self::MARKER
                     || ! self::has($nodes[$cell], 'rt-brand-hotline-cell')
                     || ! self::has($nodes[$cell], 'design-hotline-row') || self::has($nodes[$cell], 'design-hotline-spaced')
-                    || ($nodes[$cell]['attrs']['style'] ?? '') !== self::CELL_STYLE
+                    || ($nodes[$cell]['attrs']['style'] ?? '') !== self::OUTER_STYLE
                     || ($nodes[$cell]['attrs']['bgcolor'] ?? '') !== self::RED) {
                     self::fail();
                 }
@@ -126,8 +124,8 @@ final class OutlookBrandedSignature
         $cell = ' style="'.self::CELL_STYLE.'"';
 
         return '<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" bgcolor="'.self::RED.'" style="width:100%;table-layout:fixed;"><tbody><tr>'
-            .'<td class="rt-brand-hotline-inset" width="40"'.$cell.'>'.self::image('fill', '40', '', $baseUrl).'</td>'
-            .'<td width="152"'.$cell.'>'.self::image('label', '152', '24/7 erreichbar', $baseUrl).'</td>'
+            .'<td class="rt-brand-hotline-inset" width="40" style="'.self::CELL_STYLE.'width:40px;">'.self::image('fill', '40', '', $baseUrl).'</td>'
+            .'<td width="137"'.$cell.'>'.self::image('label', '137', '24/7 erreichbar', $baseUrl).'</td>'
             .'<td width="42"'.$cell.'>'.$mailOpen.self::image('mail', '42', 'E-Mail an die Hotline', $baseUrl).$mailClose.'</td>'
             .'<td width="42"'.$cell.'>'.$phoneOpen.self::image('phone', '42', 'Hotline anrufen', $baseUrl).$phoneClose.'</td>'
             .'<td class="rt-brand-hotline-fill"'.$cell.'>'.self::image('fill', '100%', '', $baseUrl).'</td>'
@@ -234,6 +232,94 @@ final class OutlookBrandedSignature
         }
 
         return $edits;
+    }
+
+    /** Only the existing unlinked address row in the personal company column. */
+    private static function addressEdits(string $html, array $nodes, int $artifact): array
+    {
+        $groups = array_keys(array_filter($nodes, static fn (array $node): bool => self::has($node, 'rt-personal-company-contacts')));
+        if (count($groups) !== 1 || ! self::within($nodes, $groups[0], $artifact)) {
+            return [];
+        }
+        $tables = array_keys(array_filter($nodes, static fn (array $node, int $index): bool => $node['tag'] === 'table'
+            && self::has($node, 'rt-company-contact') && self::within($nodes, $index, $groups[0]), ARRAY_FILTER_USE_BOTH));
+        if (count($tables) !== 1) {
+            return [];
+        }
+        $rows = self::direct($nodes, $tables[0]);
+        if (count($rows) === 1 && $nodes[$rows[0]]['tag'] === 'tbody') {
+            $rows = self::direct($nodes, $rows[0]);
+        }
+        if ($rows === [] || $nodes[$rows[0]]['tag'] !== 'tr') {
+            return [];
+        }
+        $cells = self::direct($nodes, $rows[0]);
+        if (count($cells) !== 2 || ! self::has($nodes[$cells[0]], 'rt-company-contact-icon')
+            || ! self::has($nodes[$cells[1]], 'rt-company-contact-text')
+            || trim(html_entity_decode(strip_tags(self::inner($html, $nodes[$cells[1]])), ENT_QUOTES | ENT_HTML5, 'UTF-8')) === '') {
+            return [];
+        }
+        $colors = [];
+        $ambiguousColor = false;
+        foreach ($nodes as $index => $node) {
+            if ($node['tag'] !== 'a' || ! self::within($nodes, $index, $tables[0])) {
+                continue;
+            }
+            if (self::within($nodes, $index, $cells[1])) {
+                return []; // Without an address, the first row can be a phone link.
+            }
+            $linkColors = [];
+            foreach (self::styleParts($node['attrs']['style'] ?? '') as $part) {
+                if (preg_match('/\A\s*color\s*:\s*(.*?)\s*;?\z/is', $part, $declaration) === 1) {
+                    $linkColors[] = trim(rtrim($declaration[1], ';'));
+                }
+            }
+            if (count($linkColors) !== 1 || preg_match('/\A(#[0-9a-f]{6}|#[0-9a-f]{3})\s*(?:!important\s*)?\z/i', $linkColors[0], $match) !== 1) {
+                $ambiguousColor = true;
+            } else {
+                $colors[strtolower($match[1])] = true;
+            }
+        }
+        $icon = $nodes[$cells[0]];
+        $edits = [[$icon['start'], $icon['openEnd'] - $icon['start'], self::opening($icon, [
+            'valign' => 'top', 'style' => self::property($icon['attrs']['style'] ?? '', 'vertical-align', 'top'),
+        ])]];
+        if (! $ambiguousColor && count($colors) === 1) {
+            $color = array_key_first($colors);
+            foreach ($nodes as $index => $node) {
+                if ($index !== $cells[1] && (! self::within($nodes, $index, $cells[1]) || ! in_array($node['tag'], ['p', 'span'], true))) {
+                    continue;
+                }
+                $edits[] = [$node['start'], $node['openEnd'] - $node['start'], self::opening($node, [
+                    'style' => self::property($node['attrs']['style'] ?? '', 'color', $color),
+                ])];
+            }
+        }
+
+        return $edits;
+    }
+
+    private static function footerEdits(array $nodes, int $artifact): array
+    {
+        $rows = array_keys(array_filter($nodes, static fn (array $node): bool => $node['tag'] === 'tr' && $node['parent'] === null));
+        if (count($rows) !== 2 || $rows[0] !== $artifact) {
+            return [];
+        }
+        $cells = self::direct($nodes, $rows[1]);
+        if (count($cells) !== 1 || $nodes[$cells[0]]['tag'] !== 'td' || ! self::has($nodes[$cells[0]], 'rt-pad')) {
+            return [];
+        }
+        $cell = $nodes[$cells[0]];
+        $style = self::property(self::property($cell['attrs']['style'] ?? '', 'padding-left', '40px'), 'padding-right', '40px');
+
+        return [[$cell['start'], $cell['openEnd'] - $cell['start'], self::opening($cell, ['style' => $style])]];
+    }
+
+    private static function property(string $style, string $name, string $value): string
+    {
+        $parts = array_filter(self::styleParts($style), static fn (string $part): bool => preg_match('/\A\s*'.preg_quote($name, '/').'\s*:/i', $part) !== 1);
+
+        return rtrim(implode('', $parts), "; \t\r\n").';'.$name.':'.$value.'!important;';
     }
 
     private static function white(string $value): bool
@@ -347,6 +433,17 @@ final class OutlookBrandedSignature
         }
 
         return self::singleChild($html, $nodes, $table, 'tr');
+    }
+
+    private static function rowCells(string $html, array $nodes, int $row, int $count): array
+    {
+        $columns = self::direct($nodes, $row);
+        if (count($columns) !== $count || array_filter($columns, static fn (int $index): bool => $nodes[$index]['tag'] !== 'td')) {
+            self::fail();
+        }
+        self::children($html, $nodes, $row, $columns);
+
+        return $columns;
     }
 
     private static function plainText(string $html, array $nodes, int $node, string $expected): void

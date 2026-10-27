@@ -253,7 +253,7 @@ final class OutlookDesktopFlow
             [$nodes[$companyBlock]['start'], $nodes[$companyBlock]['openEnd'], self::attribute($nodes[$companyBlock]['opening'], 'style', self::boundedPersonalStyle($nodes[$companyBlock]['attrs']['style'] ?? '', 220))],
             [$nodes[$logoFrame]['start'], $nodes[$logoFrame]['openEnd'], self::attribute($nodes[$logoFrame]['opening'], 'style', self::boundedPersonalStyle($nodes[$logoFrame]['attrs']['style'] ?? '', 200))],
             [$nodes[$logo]['start'], $nodes[$logo]['openEnd'], self::attribute($nodes[$logo]['opening'], 'style', self::boundedPersonalStyle($nodes[$logo]['attrs']['style'] ?? '', 200, image: true))],
-            [$nodes[$company]['start'], $nodes[$company]['openEnd'], self::attribute($nodes[$company]['opening'], 'style', 'padding-top:4px;')],
+            [$nodes[$company]['start'], $nodes[$company]['openEnd'], self::attribute($nodes[$company]['opening'], 'style', 'padding-top:14px;')],
             [$nodes[$root]['start'], $nodes[$root]['openEnd'], self::attribute($nodes[$root]['opening'], 'class', trim($nodes[$root]['attrs']['class'].' '.self::HOST.' '.self::host($scope)))],
         ]);
         $html = self::stylesForFlow($html, $scope, $changes, $aliases, personalFlow: true);
@@ -276,13 +276,13 @@ final class OutlookDesktopFlow
             .$p.'.rt-personal-column,'.$p.'.rt-df-train{'.self::importantDeclarations(self::personalTableStyle()).'}'
             .$p.'.rt-personal-left{float:left!important;}'
             .$p.'.rt-personal-right{float:right!important;}'
-            .$p.'.rt-personal-column .rt-personal-cell-left,'.$p.'.rt-personal-column .rt-personal-cell-right{padding:0 8.695652%!important;}'
+            .$p.'.rt-personal-column .rt-personal-cell-left,'.$p.'.rt-personal-column .rt-personal-cell-right{padding:0 40px!important;}'
             .$p.'.rt-personal-right .rt-personal-company-block{width:100%!important;max-width:220px!important;table-layout:fixed!important;}'
             .$p.'.rt-personal-right .rt-personal-logo-frame{width:100%!important;max-width:200px!important;table-layout:fixed!important;height:auto!important;}'
             .$p.'.rt-personal-right .rt-personal-logo-frame img.rt-logo{width:100%!important;max-width:200px!important;height:auto!important;}'
             .$p.'.rt-df-train{float:left!important;clear:left!important;position:sticky!important;top:100%!important;}'
             .$p.'.rt-dfc-train{padding:0 40px 0 0!important;border:0!important;}'
-            .$p.'.rt-personal-right .rt-personal-company-contacts{padding-top:4px!important;}'
+            .$p.'.rt-personal-right .rt-personal-company-contacts{padding-top:14px!important;}'
             .$p.'.rt-train-window{overflow:hidden!important;direction:rtl!important;max-width:420px!important;}';
     }
 
@@ -298,7 +298,7 @@ final class OutlookDesktopFlow
 
     private static function personalCellStyle(): string
     {
-        return 'padding:0 8.695652%;font-size:13px;line-height:18px;vertical-align:top;';
+        return 'padding:0 40px;font-size:13px;line-height:18px;vertical-align:top;';
     }
 
     private static function boundedPersonalStyle(string $style, int $maximum, bool $image = false): string
@@ -379,7 +379,7 @@ final class OutlookDesktopFlow
             || trim(self::inner($html, $nodes[$window])) !== $nodes[$image]['opening'] || ($nodes[$window]['attrs']['dir'] ?? '') !== 'rtl'
             || ($nodes[$window]['attrs']['style'] ?? '') !== 'overflow:hidden;direction:rtl;max-width:420px;'
             || ($nodes[$image]['attrs']['style'] ?? '') !== 'display:block;width:520px;max-width:none!important;height:auto;margin:0;border:0;vertical-align:bottom;'
-            || ($nodes[$company]['attrs']['style'] ?? '') !== 'padding-top:4px;') {
+            || ($nodes[$company]['attrs']['style'] ?? '') !== 'padding-top:14px;') {
             self::fail();
         }
         if (($nodes[$flow]['attrs'][self::MARKER] ?? '') !== self::REVISION

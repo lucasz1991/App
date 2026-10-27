@@ -20,7 +20,7 @@ use Throwable;
 final class OutlookAddinPayloadService
 {
     /** Bei jeder Aenderung der Compilersemantik bewusst anheben. */
-    private const RENDERER_REVISION = 56;
+    private const RENDERER_REVISION = 57;
 
     private const WORDING_REVISION = 'personal-template-wording-v1';
 

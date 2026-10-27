@@ -527,7 +527,7 @@ final class V27PersonalLayoutTest extends TestCase
             self::assertSame('100%', $this->winningExplicitRule($xpath, $container, 'width'));
             self::assertSame('920px', $this->winningExplicitRule($xpath, $container, 'max-width'));
             self::assertSame('14px', $this->winningExplicitRule($xpath, $this->one($xpath, 'rt-personal-direct'), 'padding-top'));
-            self::assertSame(OutlookDesktopFlow::projected($html) ? '4px' : '14px', $this->winningExplicitRule($xpath, $this->one($xpath, 'rt-personal-company-contacts'), 'padding-top'));
+            self::assertSame('14px', $this->winningExplicitRule($xpath, $this->one($xpath, 'rt-personal-company-contacts'), 'padding-top'));
             if (OutlookDesktopFlow::projected($html)) {
                 $window = $this->one($xpath, 'rt-train-window');
                 $image = $this->one($xpath, 'rt-delivery-train');
@@ -556,7 +556,7 @@ final class V27PersonalLayoutTest extends TestCase
                 self::assertStringNotContainsString('grid-column:', $html);
                 self::assertStringNotContainsString('width:calc(', $html);
                 foreach (['rt-personal-cell-left', 'rt-personal-cell-right'] as $class) {
-                    self::assertSame('0 8.695652%', $this->winningExplicitRule($xpath, $this->one($xpath, $class), 'padding'), 'Native proportional gutters win over canonical40px and viewport rules.');
+                    self::assertSame('0 40px', $this->winningExplicitRule($xpath, $this->one($xpath, $class), 'padding'), 'Native gutters match the template, hotline and legal row.');
                 }
                 foreach (['rt-personal-company-block' => '220px', 'rt-personal-logo-frame' => '200px', 'rt-logo' => '200px'] as $class => $maximum) {
                     $node = $this->one($xpath, $class);
@@ -635,19 +635,20 @@ final class V27PersonalLayoutTest extends TestCase
         self::assertStringContainsString('office@example.test', $right->textContent);
         self::assertStringContainsString('Musterweg 12', $right->textContent);
         self::assertStringNotContainsString($email, $right->textContent);
-        self::assertSame(0, $xpath->query('.//img[contains(concat(" ",normalize-space(@class)," ")," rt-logo ") or contains(concat(" ",normalize-space(@class)," ")," rt-client-logo ")]', $left)->length);
-        self::assertSame(1, $xpath->query('.//img[contains(concat(" ",normalize-space(@class)," ")," rt-logo ") or contains(concat(" ",normalize-space(@class)," ")," rt-client-logo ")]', $right)->length);
+        $mobile = OutlookDesktopFlow::mobile($html);
+        self::assertSame($mobile ? 1 : 0, $xpath->query('.//img[contains(concat(" ",normalize-space(@class)," ")," rt-logo ") or contains(concat(" ",normalize-space(@class)," ")," rt-client-logo ")]', $left)->length);
+        self::assertSame($mobile ? 0 : 1, $xpath->query('.//img[contains(concat(" ",normalize-space(@class)," ")," rt-logo ") or contains(concat(" ",normalize-space(@class)," ")," rt-client-logo ")]', $right)->length);
         $logoFrame = $this->one($xpath, 'rt-personal-logo-frame');
         self::assertSame('table', $logoFrame->tagName);
         self::assertSame('200', $logoFrame->getAttribute('width'));
         self::assertSame('presentation', $logoFrame->getAttribute('role'));
-        self::assertSame(1, $xpath->query('.//*[contains(concat(" ",normalize-space(@class)," ")," rt-personal-logo-frame ")]', $right)->length);
+        self::assertSame(1, $xpath->query('.//*[contains(concat(" ",normalize-space(@class)," ")," rt-personal-logo-frame ")]', $mobile ? $left : $right)->length);
         self::assertSame('left', $this->one($xpath, 'rt-personal-company-block')->getAttribute('align'));
         $companyContacts = $this->one($xpath, 'rt-personal-company-contacts');
         if ($companyContacts->hasAttribute('style')) {
-            self::assertStringContainsString('padding-top:'.(OutlookDesktopFlow::projected($html) ? '4px' : '14px'), $companyContacts->getAttribute('style'));
+            self::assertStringContainsString('padding-top:14px', $companyContacts->getAttribute('style'));
         }
-        self::assertSame(1, $xpath->query('//td[contains(concat(" ",normalize-space(@class)," ")," design-hotline-row ") and contains(concat(" ",normalize-space(@class)," ")," design-hotline-spaced ")]')->length);
+        self::assertSame(1, $xpath->query('//td[contains(concat(" ",normalize-space(@class)," ")," design-hotline-row ") and (contains(concat(" ",normalize-space(@class)," ")," design-hotline-spaced ") or @data-rt-brand-hotline="v1")]')->length);
         self::assertStringNotContainsString('data-rt-train-bottom-overlay=', $html);
     }
 

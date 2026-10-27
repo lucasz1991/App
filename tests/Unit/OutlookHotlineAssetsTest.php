@@ -14,7 +14,7 @@ final class OutlookHotlineAssetsTest extends TestCase
     {
         return [
             'fill' => ['fill', 1, 34, 75, '3ee5033b5b112852a0255cf62d99542391117ba462408510c460c799a5ad6583', 0],
-            'label' => ['label', 456, 102, 6506, 'e8e8153525e509729ad511e2eed706759bb69b4917bbd94619dbdda1814c151c', 4581],
+            'label' => ['label', 411, 102, 6485, 'c52d2cdb4861ec8714d6d33d45204a50dfd86de4b77c6d6c1f9f0d02185fd16d', 4581],
             'mail' => ['mail', 126, 102, 2415, '36ecdeda3135132910ead299dec2fdef8786ed05a39d7fadb3ee4156e5d1696d', 758],
             'phone' => ['phone', 126, 102, 4360, 'a3564d9bc8fafc2fc9dcd577361b882dda579f539049876e589fd6d12b090dc5', 614],
         ];
@@ -38,16 +38,29 @@ final class OutlookHotlineAssetsTest extends TestCase
         try {
             self::assertTrue(imageistruecolor($image));
             $white = 0;
+            $firstPaint = $width;
+            $lastPaint = -1;
             for ($y = 0; $y < $height; $y++) {
                 for ($x = 0; $x < $width; $x++) {
                     $pixel = imagecolorat($image, $x, $y);
-                    if ($x === 0 || $x === $width - 1 || $y === 0 || $y === $height - 1 || $kind === 'fill') {
+                    if (($x === 0 && $kind !== 'label') || $x === $width - 1 || $y === 0 || $y === $height - 1 || $kind === 'fill') {
                         self::assertSame(0xE90032, $pixel, 'No recolored edge or transparent seam can differ from the native left border.');
+                    }
+                    if ($pixel !== 0xE90032) {
+                        $firstPaint = min($firstPaint, $x);
+                        $lastPaint = max($lastPaint, $x);
                     }
                     $white += $pixel === 0xFFFFFF ? 1 : 0;
                 }
             }
             self::assertSame($whitePixels, $white, 'The visible white label/outline pixels are bound to the reviewed artwork.');
+            if ($kind === 'label') {
+                self::assertSame(0, $firstPaint, 'Visible label ink starts at the shared text gutter, without a hidden image inset.');
+                self::assertSame(371, $lastPaint, 'Every existing glyph pixel remains after translating the reviewed typography.');
+                $oldRightGap = 152 - 415 / 3;
+                $newRightGap = 137 - $lastPaint / 3;
+                self::assertLessThanOrEqual(1, abs($oldRightGap - $newRightGap), 'The next mail icon retains its optical gap within one logical pixel.');
+            }
         } finally {
             imagedestroy($image);
         }

@@ -189,9 +189,11 @@ final class OutlookMobileCombinedComposeDocument
         if ($changed !== 2 || preg_match('/(?:^|\s)(rtt[0-9a-f]{12})(?:\s|$)/', self::attributes(self::rootRange($html, 'rt-outlook-template')[2])['class'], $scope) !== 1) {
             self::fail();
         }
-        foreach (['40', '22'] as $padding) {
-            $prefix = $padding === '40' ? '.'.$scope[1].' .rt-native-template-pad{' : '@media(max-width:860px){.'.$scope[1].' .rt-native-template-pad{';
-            $old = $prefix.'padding-left:'.$padding.'px!important;padding-right:'.$padding.'px!important;}';
+        // Replace the media rule first: its declarations now deliberately
+        // match the desktop rule, whose selector is also a substring of it.
+        foreach ([true, false] as $mediaRule) {
+            $prefix = $mediaRule ? '@media(max-width:860px){.'.$scope[1].' .rt-native-template-pad{' : '.'.$scope[1].' .rt-native-template-pad{';
+            $old = $prefix.'padding-left:40px!important;padding-right:40px!important;}';
             $html = self::replaceStyleRule($html, 'data-rt-outlook-template-css', $old, $prefix.'padding-left:18px!important;padding-right:18px!important;}');
         }
 

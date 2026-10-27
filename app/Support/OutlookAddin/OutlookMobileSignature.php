@@ -122,6 +122,15 @@ final class OutlookMobileSignature
                 $span->setAttribute('class', trim($span->getAttribute('class').' '.$markerClass));
             }
         }
+        // Keep the existing legal row and its vertical spacing; only the
+        // mobile side gutters follow the name, template and hotline inset.
+        $legalCells = $xpath->query('./table/tbody/tr[2]/td[contains(concat(" ",normalize-space(@class)," ")," rt-pad ")] | ./table/tr[2]/td[contains(concat(" ",normalize-space(@class)," ")," rt-pad ")]', $scope);
+        if ($legalCells->length > 1) {
+            throw new RuntimeException('Der mobile Disclaimer besitzt keine eindeutige Abstandszelle.');
+        }
+        foreach ($legalCells as $legalCell) {
+            $legalCell->setAttribute('style', rtrim($legalCell->getAttribute('style'), ';').';padding-left:18px!important;padding-right:18px!important;');
+        }
         $ledger = $personal ? null : $ledgers->item(0);
         if ($personal) {
             self::personalColumns($xpath);
@@ -215,7 +224,7 @@ final class OutlookMobileSignature
             $gap->parentNode->removeChild($gap);
             $contents->item(0)->removeAttribute('colspan');
             $train->setAttribute('width', '100%');
-            self::style($train, 'width:100%;padding:0;border:0;font-size:0;line-height:0;vertical-align:bottom;');
+            self::style($train, 'width:100%;padding:0 18px 0 0;box-sizing:border-box;border:0;font-size:0;line-height:0;vertical-align:bottom;');
         }
         foreach ($xpath->query(self::classQuery('rt-contact', 'table')) as $table) {
             $table->setAttribute('width', '100%');

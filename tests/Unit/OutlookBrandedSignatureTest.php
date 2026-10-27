@@ -10,12 +10,49 @@ use Illuminate\Foundation\Application;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use TijsVerkoyen\CssToInlineStyles\CssToInlineStyles;
 
 // The shared checkout's autoloader must not resolve a different worktree copy.
 require_once __DIR__.'/../../app/Support/OutlookAddin/OutlookBrandedSignature.php';
 
 final class OutlookBrandedSignatureTest extends TestCase
 {
+    public function test_legal_gutter_has_priority_without_touching_vertical_spacing_or_text(): void
+    {
+        $content = 'Legal<br><a href="https://example.test/legal">Disclaimer</a>';
+        $source = $this->document().'<tr><td class="rt-pad" style="padding:12px 40px;color:#718096">'.$content.'</td></tr>';
+        $result = $this->project($source);
+        self::assertStringContainsString('padding:12px 40px;color:#718096;padding-left:40px!important;padding-right:40px!important;', $result);
+        self::assertStringContainsString($content, $result);
+        self::assertSame($result, $this->project($result));
+    }
+
+    public function test_ambiguous_or_quoted_link_colors_do_not_recolor_the_address(): void
+    {
+        foreach (['color:#142231;color:#ff0000;', 'color:#142231;color:rgb(255,0,0);', 'font-family:&quot;a;color:#ff0000;&quot;;'] as $style) {
+            $address = '<td class="rt-company-contact-text" style="color:#667588"><p>Street</p></td>';
+            $contacts = '<div class="rt-personal-company-contacts"><table class="rt-company-contact"><tr><td class="rt-company-contact-icon"><img src="/pin.png"></td>'.$address.'</tr><tr><td></td><td><a href="tel:+49123" style="'.$style.'">Phone</a></td></tr></table></div>';
+            $result = $this->project(str_replace($this->outside(), $contacts.$this->outside(), $this->document()));
+            self::assertStringContainsString($address, $result);
+            self::assertSame($result, $this->project($result));
+        }
+    }
+
+    public function test_address_uses_the_existing_link_color_top_icon_and_preserves_content_idempotently(): void
+    {
+        $contacts = '<div class="rt-personal-company-contacts"><table class="rt-company-contact"><tr><td class="rt-company-contact-icon" valign="middle"><img src="/pin.png"></td><td class="rt-company-contact-text" style="color:#667588"><p><span>Street<br>City</span></p></td></tr><tr><td></td><td><a href="tel:+49123" style="color:#142231;text-decoration:none">+49123</a></td></tr></table></div>';
+        $source = str_replace($this->outside(), $contacts.$this->outside(), $this->document());
+        $result = $this->project($source);
+        self::assertStringContainsString('valign="top"', $result);
+        self::assertStringContainsString('vertical-align:top!important;', $result);
+        self::assertStringContainsString('color:#142231!important;', $result);
+        self::assertStringContainsString('Street<br>City', $result);
+        self::assertStringContainsString('href="tel:+49123" style="color:#142231;text-decoration:none"', $result);
+        self::assertSame($result, $this->project($result));
+        $withoutAddress = str_replace('<p><span>Street<br>City</span></p>', '<a href="tel:+49234" style="color:#142231">+49234</a>', $contacts);
+        self::assertStringContainsString($withoutAddress, $this->project(str_replace($this->outside(), $withoutAddress.$this->outside(), $this->document())));
+    }
+
     public function test_raster_banner_keeps_actions_and_surrounding_content_without_serializing_them(): void
     {
         $source = $this->document();
@@ -33,12 +70,17 @@ final class OutlookBrandedSignatureTest extends TestCase
         }
         self::assertSame(5, substr_count($output, 'height="34" align="top"'));
         self::assertStringContainsString('width="100%" height="34" align="top" alt=""', $output);
-        self::assertStringContainsString('width="152" height="34" align="top" alt="24/7 erreichbar"', $output);
+        self::assertStringContainsString('width="137" height="34" align="top" alt="24/7 erreichbar"', $output);
+        self::assertStringContainsString('<td class="rt-brand-hotline-inset" width="40" style="padding:0;font-size:0;line-height:0;width:40px;"><img', $output);
+        self::assertSame(1, substr_count($output, 'width="100%" height="34" align="top" alt=""'));
         self::assertStringContainsString('width="42" height="34"', $output);
         self::assertStringContainsString('bgcolor="#e90032"', $output);
         self::assertSame(5, substr_count($output, 'border="0" style="display:block;"'));
         self::assertSame(1, substr_count($output, 'style="width:100%;table-layout:fixed;"'));
-        self::assertSame(6, substr_count($output, 'style="padding:0;font-size:0;line-height:0;"'));
+        self::assertStringNotContainsString('rt-brand-hotline-cap', $output);
+        self::assertStringNotContainsString('rt-brand-hotline-tail', $output);
+        self::assertSame(4, substr_count($output, 'style="padding:0;font-size:0;line-height:0;"'));
+        self::assertSame(1, substr_count($output, 'style="padding:0!important;font-size:0;line-height:0;"'));
         self::assertStringNotContainsString('max-width:none', $output);
         self::assertStringNotContainsString('vertical-align:middle', $output);
         self::assertStringNotContainsString('data:', $output);
@@ -54,6 +96,62 @@ final class OutlookBrandedSignatureTest extends TestCase
         self::assertSame(2, substr_count($output, $opaque));
         self::assertStringContainsString($this->outside(), $output);
         self::assertSame($output, $this->project($output));
+    }
+
+    public function test_outer_zero_padding_survives_real_inlining_of_published_important_gutters(): void
+    {
+        $projected = $this->project($this->document());
+        $html = '<html><body><table class="published"><tbody>'.$projected.'</tbody></table></body></html>';
+        $css = '.published td.design-hotline-row{padding-left:40px!important;padding-right:40px!important;padding-top:3px!important;padding-bottom:3px!important;}';
+        $inlined = (new CssToInlineStyles)->convert($html, $css);
+        $dom = new \DOMDocument;
+        $previous = libxml_use_internal_errors(true);
+        try {
+            self::assertTrue($dom->loadHTML($inlined, LIBXML_NONET));
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
+        $cells = (new \DOMXPath($dom))->query('//td[@data-rt-brand-hotline="v1"]');
+        self::assertCount(1, $cells);
+        $style = preg_replace('/\s+/', '', $cells->item(0)->getAttribute('style'));
+        self::assertStringContainsString('padding:0!important;', $style);
+        // The library appends the authored inline shorthand after its CSS
+        // longhands. Its importance plus final position preserves all zeros.
+        self::assertGreaterThan(strpos($style, 'padding-left:40px!important;'), strpos($style, 'padding:0!important;'));
+        self::assertGreaterThan(strpos($style, 'padding-right:40px!important;'), strpos($style, 'padding:0!important;'));
+        self::assertGreaterThan(strpos($style, 'padding-top:3px!important;'), strpos($style, 'padding:0!important;'));
+        self::assertGreaterThan(strpos($style, 'padding-bottom:3px!important;'), strpos($style, 'padding:0!important;'));
+        self::assertStringContainsString('design-hotline-row', $cells->item(0)->getAttribute('class'));
+    }
+
+    public function test_fixed_common_desktop_gutter_survives_the_real_inliner(): void
+    {
+        $projected = $this->project($this->document());
+        $inlined = (new CssToInlineStyles)->convert('<html><body><table><tbody>'.$projected.'</tbody></table></body></html>');
+        $dom = new \DOMDocument;
+        $previous = libxml_use_internal_errors(true);
+        try {
+            self::assertTrue($dom->loadHTML($inlined, LIBXML_NONET));
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
+        $xpath = new \DOMXPath($dom);
+        $insets = $xpath->query('//td[@class="rt-brand-hotline-inset"]');
+        self::assertCount(1, $insets);
+        self::assertSame('40', $insets->item(0)->getAttribute('width'));
+        self::assertStringContainsString('width:40px', preg_replace('/\s+/', '', $insets->item(0)->getAttribute('style')));
+        self::assertStringNotContainsString('min(', $insets->item(0)->getAttribute('style'));
+        self::assertSame(5, $xpath->query('./td', $insets->item(0)->parentNode)->length);
+        self::assertSame('40', $insets->item(0)->firstElementChild->getAttribute('width'));
+    }
+
+    public function test_owned_raster_with_a_tampered_fixed_inset_is_rejected(): void
+    {
+        $projected = $this->project($this->document());
+        $this->expectException(RuntimeException::class);
+        $this->project(str_replace('width="40"', 'width="41"', $projected));
     }
 
     public function test_unknown_designs_and_marker_text_are_unchanged(): void
