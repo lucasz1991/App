@@ -663,13 +663,12 @@
                             class="template-select"
                             id="outlook-template-select"
                             data-outlook-template-select
-                            aria-describedby="outlook-template-meta"
                             disabled
                         >
                             <option value="">Vorlagen werden geladen …</option>
                         </select>
 
-                        <div class="template-meta" id="outlook-template-meta" data-outlook-template-meta>
+                        <div class="template-meta" id="outlook-template-meta" data-outlook-template-meta hidden aria-hidden="true">
                             <div class="template-meta-copy">
                                 <strong data-outlook-template-name>Keine Vorlage ausgewählt</strong>
                                 <span class="template-version" data-outlook-template-version>Version nicht verfügbar</span>

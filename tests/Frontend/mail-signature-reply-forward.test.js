@@ -1724,5 +1724,19 @@ test('inline connection errors stay escaped and requested focus goes to visible 
         setStatus('success', 'RailTime ist bereit');
         assert.equal(feedback.hidden, true);
         assert.equal(document.querySelector('[data-outlook-diagnostics]').hidden, true);
+        const detail = document.querySelector('[data-outlook-status-detail]');
+        setStatus('success', 'Mit RailTime verbunden', 'Technischer Hintergrundstatus bleibt intern verfügbar.');
+        assert.equal(detail.hidden, true);
+        assert.match(detail.textContent, /Hintergrundstatus/);
+        for (const tone of ['working', 'error', 'neutral']) {
+            setStatus(tone, 'Verbindung prüfen', 'Nötige Rückmeldung bleibt sichtbar.');
+            assert.equal(detail.hidden, false);
+            assert.match(detail.textContent, /sichtbar/);
+        }
+        const metadata = document.querySelector('[data-outlook-template-meta]');
+        assert.equal(metadata.hidden, true);
+        assert.equal(metadata.getAttribute('aria-hidden'), 'true');
+        assert.ok(metadata.querySelector('[data-outlook-template-version]'), 'version data remains available to existing selection logic');
+        assert.equal(document.querySelector('[data-outlook-template-select]').hasAttribute('aria-describedby'), false);
     } finally { globalThis.document = previous; }
 });

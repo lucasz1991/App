@@ -75,14 +75,14 @@
                                 @endphp
                                 <div wire:key="{{ $prefix }}-choice-{{ $group }}-{{ $choiceKey }}" class="min-w-0">
                                     <x-ui.forms.label :for="$prefix.'-'.$group.'-template'">Vorlage</x-ui.forms.label>
-                                    <x-ui.forms.select :id="$prefix.'-'.$group.'-template'" :value="$selection" :change="$changeAction" :aria-label="'Vorlage für '.$title" aria-describedby="{{ $prefix }}-shared-hint{{ $missingChoice ? ' '.$prefix.'-'.$group.'-unavailable' : '' }}">
-                                        <option value="none">Keine Vorlage</option>
-                                        <option value="default" @disabled(! $hasDefault)>{{ $hasDefault ? 'Standardvorlage verwenden' : 'Standardvorlage nicht verfügbar' }}</option>
+                                    <x-ui.forms.select :id="$prefix.'-'.$group.'-template'" :change="$changeAction" :aria-label="'Vorlage für '.$title" aria-describedby="{{ $prefix }}-shared-hint{{ $missingChoice ? ' '.$prefix.'-'.$group.'-unavailable' : '' }}">
+                                        <option value="none" @selected($selection === 'none')>Keine Vorlage</option>
+                                        <option value="default" @selected($selection === 'default') @disabled(! $hasDefault)>{{ $hasDefault ? 'Standardvorlage verwenden' : 'Standardvorlage nicht verfügbar' }}</option>
                                         @foreach ($templateOptions as $template)
-                                            <option value="{{ $template['id'] }}">{{ $template['name'] }}</option>
+                                            <option value="{{ $template['id'] }}" @selected($selection === $template['id'])>{{ $template['name'] }}</option>
                                         @endforeach
                                         @if ($missingChoice && ! in_array($selection, ['default', 'none'], true))
-                                            <option value="{{ $selection }}" disabled>Gespeicherte Vorlage nicht mehr verfügbar</option>
+                                            <option value="{{ $selection }}" selected disabled>Gespeicherte Vorlage nicht mehr verfügbar</option>
                                         @endif
                                     </x-ui.forms.select>
                                     @if ($missingChoice)

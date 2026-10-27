@@ -710,6 +710,7 @@ export function setStatus(tone, title, detail = '', focus = false) {
     view.statusSymbol.textContent = symbolByTone[tone] || 'i';
     view.statusTitle.textContent = title;
     view.statusDetail.textContent = detail;
+    view.statusDetail.hidden = tone === 'success';
     const diagnostics = document.querySelector('[data-outlook-diagnostics]');
     if (diagnostics) diagnostics.hidden = tone !== 'error';
     if (view.feedback) {
