@@ -109,6 +109,10 @@
                     </x-ui.accordion.section>
                 </div>
                 @break
+
+            @case('outlook')
+                <livewire:profile.outlook-preferences />
+                @break
         @endswitch
     @else
         <x-ui.lazy-placeholder />

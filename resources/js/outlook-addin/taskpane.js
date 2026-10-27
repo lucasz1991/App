@@ -24,7 +24,7 @@ import { automaticTemplate } from './compose-template.js';
 import { readComposeSender, assertMailboxBinding } from './mailbox-guard.js';
 import { diagnoseStep, recordDiagnostic, diagnosticReport } from './diagnostics.js';
 import { confirmedOfficeWrite, hasUncertainWrite } from './office-write.js';
-import { bindAutomaticPreferencesView, normalizeAutomaticPreferences } from './automatic-preferences-view.js';
+import { bindAutomaticPreferencesView, createAccountPreferencesSession, normalizeAutomaticPreferences } from './automatic-preferences-view.js';
 
 const CONFIG_META_NAME = 'railtime-outlook-config-url';
 const CONFIG_TIMEOUT_MS = 8000;
@@ -47,11 +47,16 @@ let signatureStateRefreshPromise;
 let lastActionError = null;
 let observedComposeItem = null;
 let automaticPreferencesView;
+let accountPreferencesSession;
+let accountSettingsBusy = false;
+let accountSettingsReady = false;
+let lastAccountSettingsRefreshAt = 0;
 // Display evidence only, never cached authorization for another Office write.
 const confirmedInsertions = new WeakMap();
 const boundDialogRoots = new WeakSet();
 const startedTaskpaneRoots = new WeakSet();
 const taskpaneState = {
+    settingsMode: false,
     authenticated: false,
     bootstrapReady: false,
     busy: false,
@@ -287,7 +292,11 @@ function validateConfig(payload) {
             bootstrap: requiredHttpsUrl(payload.endpoints?.bootstrap, 'CONFIG_BOOTSTRAP_URL_INVALID'),
             preferences: payload.endpoints?.preferences
                 ? requiredHttpsUrl(payload.endpoints.preferences, 'CONFIG_PREFERENCES_URL_INVALID') : null,
+            accountPreferences: payload.endpoints?.accountPreferences
+                ? requiredHttpsUrl(payload.endpoints.accountPreferences, 'CONFIG_ACCOUNT_PREFERENCES_URL_INVALID') : null,
         }),
+        urls: Object.freeze({ profileSettings: payload.urls?.profileSettings
+            ? requiredHttpsUrl(payload.urls.profileSettings, 'CONFIG_PROFILE_SETTINGS_URL_INVALID') : null }),
         marker: requiredString(payload.marker, 'CONFIG_MARKER_MISSING'),
     });
 }
@@ -414,7 +423,9 @@ async function acquireAccessToken(config, allowPopup) {
     return requiredString(currentTokenResult?.accessToken, 'ACCESS_TOKEN_MISSING');
 }
 
-async function loadBootstrap(config, accessToken, item = Office.context.mailbox.item) {
+async function loadBootstrap(config, accessToken, item = null) {
+    if (taskpaneState.settingsMode) throw codedError('ACCOUNT_SETTINGS_READ_ONLY');
+    item = item || Office.context.mailbox.item;
     const sender = await diagnoseStep('sender-read', () => readComposeSender(Office, item));
     const payload = await fetchJson(config.endpoints.bootstrap, {
         method: 'GET',
@@ -608,6 +619,7 @@ function composeItem() {
 }
 
 function captureComposeTarget() {
+    if (taskpaneState.settingsMode) throw codedError('ACCOUNT_SETTINGS_READ_ONLY');
     return Object.freeze({
         item: composeItem(),
         revision: mailboxItemRevision,
@@ -1441,6 +1453,7 @@ async function authenticateInteractively(button) {
 }
 
 async function withAuthenticatedBootstrap(button, callback) {
+    if (taskpaneState.settingsMode) throw codedError('ACCOUNT_SETTINGS_READ_ONLY');
     if (taskpaneState.busy) return;
     let bootstrapWasLoaded = false;
 
@@ -1704,6 +1717,7 @@ export function bindOutlookDialogs(root = document) {
 }
 
 function bindActions() {
+    if (taskpaneState.settingsMode) throw codedError('ACCOUNT_SETTINGS_READ_ONLY');
     const view = elements();
     automaticPreferencesView = bindAutomaticPreferencesView(document, { save: saveAutomaticPreference });
 
@@ -1764,7 +1778,95 @@ function bindActions() {
     }
 }
 
+function renderAccountSettings(tone, message) {
+    const root = document.querySelector('[data-outlook-addin-taskpane]');
+    const status = document.querySelector('[data-outlook-settings-status]');
+    const connect = document.querySelector('[data-outlook-settings-connect]');
+    const snapshot = accountPreferencesSession?.current();
+    root?.setAttribute('aria-busy', accountSettingsBusy ? 'true' : 'false');
+    if (status && typeof message === 'string') {
+        status.textContent = message;
+        status.dataset.tone = tone;
+        status.setAttribute('role', tone === 'error' ? 'alert' : 'status');
+    }
+    if (connect) {
+        connect.disabled = !currentConfig || accountSettingsBusy;
+        connect.textContent = accountSettingsReady ? 'Verbindung prüfen' : 'Mit Microsoft verbinden';
+    }
+    automaticPreferencesView?.update({ preferences: snapshot?.preferences,
+        available: accountSettingsReady && Boolean(snapshot), busy: accountSettingsBusy, account: snapshot?.account || '' });
+}
+
+function accountSettingsFailure(error) {
+    accountSettingsReady = false;
+    const code = safeErrorCode(error);
+    const message = code === 'NAA_NOT_SUPPORTED'
+        ? 'Diese Outlook-Version unterstützt die sichere Anmeldung hier nicht. Öffnen Sie Ihre Outlook-Einstellungen in RailTime.'
+        : code === 'MAILBOX_MISMATCH' || code === 'ACCOUNT_PREFERENCES_BINDING_INVALID'
+            ? 'Das eigene Outlook-Konto konnte nicht sicher bestätigt werden. Bitte erneut verbinden.'
+            : isInteractionRequired(error)
+                ? 'Verbinden Sie Ihr Microsoft-Firmenkonto oder öffnen Sie Ihre Outlook-Einstellungen in RailTime.'
+                : 'Die Einstellungen konnten nicht sicher geladen oder gespeichert werden. Bitte die Verbindung erneut prüfen oder RailTime öffnen.';
+    renderAccountSettings(isInteractionRequired(error) ? 'neutral' : 'error', message);
+}
+
+async function refreshAccountSettings(allowPopup = false) {
+    if (!taskpaneState.settingsMode || accountSettingsBusy || !accountPreferencesSession) return;
+    accountSettingsBusy = true;
+    renderAccountSettings('working', 'Ihr eigenes Firmenkonto wird geprüft …');
+    try {
+        await accountPreferencesSession.load(allowPopup);
+        accountSettingsReady = true;
+        lastAccountSettingsRefreshAt = Date.now();
+        renderAccountSettings('success', 'Verbunden. Ihre Auswahl gilt für Ihr Firmenkonto auf allen Geräten.');
+    } catch (error) { accountSettingsFailure(error); }
+    finally { accountSettingsBusy = false; renderAccountSettings(); }
+}
+
+async function saveAccountPreference(change) {
+    if (!taskpaneState.settingsMode || !accountSettingsReady || accountSettingsBusy) throw codedError('PREFERENCES_UNAVAILABLE');
+    accountSettingsBusy = true;
+    renderAccountSettings('working', 'Ihre Auswahl wird gespeichert …');
+    try {
+        const response = await accountPreferencesSession.save(change);
+        renderAccountSettings('success', 'Gespeichert. Gilt für künftige Einfügungen auf allen Geräten.');
+        return response;
+    } catch (error) {
+        if (!accountPreferencesSession.current() || authenticationWasLost(error) || /MAILBOX|BINDING/.test(safeErrorCode(error))) accountSettingsFailure(error);
+        else renderAccountSettings('error', 'Speichern nicht bestätigt. Bitte den aktuellen Stand der Schalter beachten.');
+        throw error;
+    } finally { accountSettingsBusy = false; renderAccountSettings(); }
+}
+
+async function initializeAccountSettings() {
+    automaticPreferencesView = bindAutomaticPreferencesView(document, { save: saveAccountPreference });
+    const connect = document.querySelector('[data-outlook-settings-connect]');
+    connect?.addEventListener('click', () => refreshAccountSettings(true));
+    accountSettingsBusy = true;
+    renderAccountSettings('working', 'Die sichere Kontoverbindung wird geprüft …');
+    try {
+        currentConfig = await loadConfig();
+        if (!currentConfig.endpoints.accountPreferences) throw codedError('CONFIG_ACCOUNT_PREFERENCES_URL_INVALID');
+        const profileLink = document.querySelector('[data-outlook-profile-settings]');
+        if (profileLink && currentConfig.urls.profileSettings) profileLink.href = currentConfig.urls.profileSettings;
+        accountPreferencesSession = createAccountPreferencesSession({
+            readMailbox: mailboxAddress,
+            authenticate: allowPopup => acquireAccessToken(currentConfig, allowPopup),
+            request: options => fetchJson(currentConfig.endpoints.accountPreferences, options, API_TIMEOUT_MS),
+        });
+    } catch (error) { accountSettingsFailure(error); }
+    finally { accountSettingsBusy = false; renderAccountSettings(); }
+    if (!accountPreferencesSession) return;
+    const refreshOnFocus = () => {
+        if (!accountSettingsBusy && Date.now() - lastAccountSettingsRefreshAt >= SILENT_BOOTSTRAP_REFRESH_INTERVAL_MS) refreshAccountSettings(false);
+    };
+    window.addEventListener('focus', refreshOnFocus);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshOnFocus(); });
+    await refreshAccountSettings(false);
+}
+
 async function initialize() {
+    if (taskpaneState.settingsMode) return initializeAccountSettings();
     bindActions();
     clearTemplateChoices('loading');
     syncActionState();
@@ -1816,12 +1918,19 @@ export function startOutlookTaskpane(office = globalThis.Office) {
     const root = document.querySelector('[data-outlook-addin-taskpane]');
     if (!root || startedTaskpaneRoots.has(root)) return;
     startedTaskpaneRoots.add(root);
+    taskpaneState.settingsMode = root.dataset?.outlookContext === 'settings'
+        || (typeof URLSearchParams === 'function' && new URLSearchParams(globalThis.location?.search || '').get('context') === 'settings');
 
     // Installation and help are ordinary browser UI, not Office host APIs.
     // Keep them usable even if Office.js is blocked or its handshake is pending.
     bindOutlookDialogs();
 
     const showOutsideOutlook = () => {
+        if (taskpaneState.settingsMode) {
+            accountSettingsReady = false;
+            renderAccountSettings('neutral', 'Öffnen Sie Ihre Outlook-Einstellungen in RailTime. Hier außerhalb von Outlook wird keine Nachricht gelesen oder verändert.');
+            return;
+        }
         taskpaneState.configReady = false;
         clearTemplateChoices('error');
         setBusy(false);

@@ -37,5 +37,19 @@ final class OutlookAddinMobileManifestTest extends TestCase
         // The Windows JS-only allow-list continues to use its exact stable URL.
         $this->assertSame('https://example.test/outlook-addin/runtime.js', $manifest->urls()['runtime_js']);
         $this->assertSame(['Signature.Read'], $manifest->metadata()['scope']);
+        $xpath->registerNamespace('xsi', 'http://www.w3.org/2001/XMLSchema-instance');
+        $read = $xpath->query('//*[local-name()="MobileFormFactor"]/*[local-name()="ExtensionPoint" and @xsi:type="MobileMessageReadCommandSurface"]');
+        self::assertCount(1, $read);
+        self::assertCount(9, $xpath->query('.//*[local-name()="Image"]', $read->item(0)));
+        self::assertSame('Settings.Url', $xpath->evaluate('string(.//*[local-name()="SourceLocation"]/@resid)', $read->item(0)));
+        foreach ([25, 32, 48] as $size) {
+            foreach ([1, 2, 3] as $scale) {
+                self::assertCount(1, $xpath->query('.//*[local-name()="Image" and @size="'.$size.'" and @scale="'.$scale.'"]', $read->item(0)));
+            }
+        }
+        self::assertCount(2, $xpath->query('//*[local-name()="DesktopFormFactor"]/*[local-name()="ExtensionPoint" and @xsi:type="MessageReadCommandSurface"]'));
+        self::assertCount(2, $xpath->query('//*[local-name()="DesktopFormFactor"]/*[local-name()="ExtensionPoint" and @xsi:type="MessageComposeCommandSurface"]'));
+        self::assertCount(2, $xpath->query('//*[local-name()="Url" and @id="Settings.Url" and @DefaultValue="https://example.test/outlook-addin/taskpane?context=settings"]'));
+        self::assertSame('1.0.3.0', OutlookAddinManifest::ADDIN_VERSION);
     }
 }

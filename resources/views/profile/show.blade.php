@@ -8,6 +8,7 @@
             'personal' => ['label' => __('app.personal_data'), 'icon' => 'fad fa-user-edit'],
             'security' => ['label' => __('app.security'), 'icon' => 'fad fa-shield-alt'],
             'app' => ['label' => __('app.settings'), 'icon' => 'fad fa-cog'],
+            'outlook' => ['label' => 'Outlook', 'icon' => 'fad fa-envelope'],
         ];
         $requestedProfileTab = request('tab', 'personal') === 'sessions'
             ? 'security'
@@ -38,6 +39,10 @@
 
             <x-ui.accordion.tab-panel for="app" content-class="space-y-8">
                 <livewire:profile.profile-tab-content tab="app" />
+            </x-ui.accordion.tab-panel>
+
+            <x-ui.accordion.tab-panel for="outlook" content-class="space-y-8">
+                <livewire:profile.profile-tab-content tab="outlook" />
             </x-ui.accordion.tab-panel>
 
             </x-ui.accordion.tabs>

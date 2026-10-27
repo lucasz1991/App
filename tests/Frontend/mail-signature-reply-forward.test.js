@@ -342,7 +342,7 @@ test('outlook taskpane keeps templates visible and hides resolved maintenance ac
     assert.match(taskpane, /replaceManagedTemplate\(Office, item, template\.html/);
     assert.doesNotMatch(taskpane, /confirmAdditional|Zusätzlich oberhalb einfügen/);
     assert.doesNotMatch(taskpane, /window\.confirm/);
-    assert.match(taskpane, /async function withAuthenticatedBootstrap\(button, callback\) \{\s*if \(taskpaneState\.busy\) return;/);
+    assert.match(taskpane, /async function withAuthenticatedBootstrap\(button, callback\) \{\s*if \(taskpaneState\.settingsMode\) throw codedError\('ACCOUNT_SETTINGS_READ_ONLY'\);\s*if \(taskpaneState\.busy\) return;/);
     assert.match(taskpane, /acceptBootstrap\(bootstrap, \{ inspectBody: false \}\)/);
     assert.equal(occurrences(taskpane, /await refreshSignatureCurrentState\(\);/g), 2);
     assert.doesNotMatch(taskpane, /taskpaneState\.signatureCurrent = await signatureIsCurrent/);
