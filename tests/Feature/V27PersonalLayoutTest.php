@@ -402,7 +402,7 @@ final class V27PersonalLayoutTest extends TestCase
             self::assertTrue($item->parentNode->isSameNode($nativeCell));
             self::assertSame('100%', $item->getAttribute('width'));
             self::assertStringContainsString('display:table;', $item->getAttribute('style'), 'Without presentation CSS, ordinary full-width table attributes remain.');
-            self::assertStringContainsString('width:50%;min-width:min(100%,max(340px,calc((680px - 100%) * 1000)));max-width:100%;', $item->getAttribute('style'));
+            self::assertStringContainsString('width:460px;min-width:0;max-width:100%;', $item->getAttribute('style'));
         }
         foreach (['rt-personal-company-block' => '220', 'rt-personal-logo-frame' => '200'] as $class => $maximum) {
             $table = $this->one($nativeXpath, $class);
@@ -528,7 +528,7 @@ final class V27PersonalLayoutTest extends TestCase
             self::assertSame('100%', $this->winningExplicitRule($xpath, $container, 'width'));
             self::assertSame('920px', $this->winningExplicitRule($xpath, $container, 'max-width'));
             self::assertSame('14px', $this->winningExplicitRule($xpath, $this->one($xpath, 'rt-personal-direct'), 'padding-top'));
-            self::assertSame('14px', $this->winningExplicitRule($xpath, $this->one($xpath, 'rt-personal-company-contacts'), 'padding-top'));
+            self::assertSame(OutlookDesktopFlow::projected($html) ? '0' : '14px', $this->winningExplicitRule($xpath, $this->one($xpath, 'rt-personal-company-contacts'), 'padding-top'));
             if (OutlookDesktopFlow::projected($html)) {
                 $window = $this->one($xpath, 'rt-train-window');
                 $image = $this->one($xpath, 'rt-delivery-train');
@@ -544,8 +544,8 @@ final class V27PersonalLayoutTest extends TestCase
                 self::assertSame('hidden', $this->winningExplicitRule($xpath, $container, 'overflow'));
                 foreach (['rt-personal-logo-column' => 'right', 'rt-personal-left' => 'left', 'rt-personal-right' => 'right', 'rt-df-train' => 'left'] as $class => $float) {
                     $item = $this->one($xpath, $class);
-                    self::assertSame('50%', $this->winningExplicitRule($xpath, $item, 'width'));
-                    self::assertSame('min(100%,max(340px,calc((680px - 100%) * 1000)))', $this->winningExplicitRule($xpath, $item, 'min-width'));
+                    self::assertSame('460px', $this->winningExplicitRule($xpath, $item, 'width'));
+                    self::assertSame('0', $this->winningExplicitRule($xpath, $item, 'min-width'));
                     self::assertSame('100%', $this->winningExplicitRule($xpath, $item, 'max-width'));
                     self::assertSame($float, $this->winningExplicitRule($xpath, $item, 'float'));
                 }
@@ -655,7 +655,7 @@ final class V27PersonalLayoutTest extends TestCase
         self::assertSame('left', $this->one($xpath, 'rt-personal-company-block')->getAttribute('align'));
         $companyContacts = $this->one($xpath, 'rt-personal-company-contacts');
         if ($companyContacts->hasAttribute('style')) {
-            self::assertStringContainsString('padding-top:14px', $companyContacts->getAttribute('style'));
+            self::assertStringContainsString('padding-top:'.($native ? '0' : '14px'), $companyContacts->getAttribute('style'));
         }
         self::assertSame(1, $xpath->query('//td[contains(concat(" ",normalize-space(@class)," ")," design-hotline-row ") and (contains(concat(" ",normalize-space(@class)," ")," design-hotline-spaced ") or @data-rt-brand-hotline="v1")]')->length);
         self::assertStringNotContainsString('data-rt-train-bottom-overlay=', $html);

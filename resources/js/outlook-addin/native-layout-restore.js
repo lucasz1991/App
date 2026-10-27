@@ -86,22 +86,17 @@ function responsiveRestoreCss(ids) {
     // Received Outlook mail can discard an ID ancestor yet keep its final tag
     // selector. A train descendant IMG/DIV rule then damages the whole message.
     // Every new rule therefore contains one owned ID and no combinator or tag.
-    const rule = (key, declarations) => {
-        const id = ids[key];
-        if (!/^rt-native-layout-[0-9a-f]{32}-[rpcthslifq]$/.test(id || '')
-            || /[{}]/.test(declarations)) invalid();
-        return '#' + id + '{' + declarations + '}';
-    };
+    const rule = (key, declarations) => responsiveRestoreRule(ids, key, declarations);
     const columns = ['logo', 'person', 'company', 'train'];
     let css = rule('root', 'font-size:0!important;line-height:0!important;text-align:left!important;width:100%!important;max-width:920px!important;display:table!important;table-layout:fixed!important;border-collapse:collapse!important;overflow:hidden!important;');
     for (const key of columns) {
-        css += rule(key, 'display:table!important;vertical-align:top!important;width:50%!important;min-width:min(100%,max(340px,calc((680px - 100%) * 1000)))!important;max-width:100%!important;table-layout:fixed!important;border-collapse:separate!important;border-spacing:0!important;box-sizing:border-box!important;'
+        css += rule(key, 'display:table!important;vertical-align:top!important;width:460px!important;min-width:0!important;max-width:100%!important;table-layout:fixed!important;border-collapse:separate!important;border-spacing:0!important;box-sizing:border-box!important;'
             + (key === 'train' ? 'border-left:0!important;' : 'border-left:40px solid transparent!important;')
             + 'border-right:40px solid transparent!important;');
     }
-    css += rule('logo', 'float:right!important;margin-bottom:max(0px,min(10px,calc((680px - 100%) * 1000)))!important;')
+    css += rule('logo', 'float:right!important;margin-bottom:10px!important;')
         + rule('person', 'float:left!important;')
-        + rule('company', 'float:right!important;clear:right!important;')
+        + rule('company', 'float:right!important;clear:right!important;border-top:4px solid transparent!important;')
         + rule('train', 'float:left!important;clear:left!important;position:sticky!important;top:100%!important;');
     if (ids.header) css += rule('header', 'color:#ffffff!important;table-layout:auto!important;width:100%!important;');
     // The two-row signature ID owns both its main content and legal row; a
@@ -111,16 +106,34 @@ function responsiveRestoreCss(ids) {
     if (ids.inset) css += rule('inset', 'width:40px!important;min-width:40px!important;max-width:40px!important;');
     if (ids.footer) css += rule('footer', 'border-left:40px solid transparent!important;border-right:40px solid transparent!important;box-sizing:border-box!important;border-collapse:separate!important;border-spacing:0!important;');
     if (ids.templateGutter) css += rule('templateGutter', 'border-left:40px solid transparent!important;border-right:40px solid transparent!important;box-sizing:border-box!important;border-collapse:separate!important;border-spacing:0!important;');
-    css += '@media(max-width:680px){';
+    return css;
+}
+
+function responsiveRestoreRule(ids, key, declarations) {
+    const id = ids[key];
+    if (!/^rt-native-layout-[0-9a-f]{32}-[rpcthslifq]$/.test(id || '') || /[{}]/.test(declarations)) invalid();
+    return '#' + id + '{' + declarations + '}';
+}
+
+function responsiveRestoreRules(ids) {
+    const rule = (key, declarations) => responsiveRestoreRule(ids, key, declarations);
+    const columns = ['logo', 'person', 'company', 'train'];
+    const base = columns.map(key => rule(key, 'width:calc(680000px - 100000%)!important;min-width:50%!important;max-width:100%!important;'));
+    const media = [];
     for (const key of columns) {
-        css += rule(key, 'width:100%!important;min-width:0!important;max-width:100%!important;float:none!important;clear:both!important;position:static!important;top:auto!important;'
-            + (key === 'train' ? '' : 'border-left-width:18px!important;') + 'border-right-width:18px!important;');
+        media.push(rule(key, 'width:100%!important;min-width:0!important;max-width:100%!important;float:none!important;clear:both!important;position:static!important;top:auto!important;'
+            + (key === 'train' ? '' : 'border-left-width:18px!important;') + 'border-right-width:18px!important;'));
     }
-    css += rule('logo', 'margin-bottom:10px!important;');
-    if (ids.inset) css += rule('inset', 'width:18px!important;min-width:18px!important;max-width:18px!important;');
-    if (ids.footer) css += rule('footer', 'border-left-width:18px!important;border-right-width:18px!important;');
-    if (ids.templateGutter) css += rule('templateGutter', 'border-left-width:18px!important;border-right-width:18px!important;');
-    return css + '}';
+    media.push(rule('logo', 'margin-bottom:10px!important;'));
+    if (ids.inset) media.push(rule('inset', 'width:18px!important;min-width:18px!important;max-width:18px!important;'));
+    if (ids.footer) media.push(rule('footer', 'border-left-width:18px!important;border-right-width:18px!important;'));
+    if (ids.templateGutter) media.push(rule('templateGutter', 'border-left-width:18px!important;border-right-width:18px!important;'));
+    return { base, media };
+}
+
+function responsiveRestoreOptionalCss(ids) {
+    const { base, media } = responsiveRestoreRules(ids);
+    return base.join('') + '@media(max-width:680px){' + media.join('') + '}';
 }
 
 function idsScope(ids) {
@@ -142,11 +155,17 @@ export function nativeLayoutRestoreCss(ids) {
     return restoreCss(ids);
 }
 
+export function nativeLayoutRestoreResponsiveCss(ids) {
+    idsScope(ids);
+    return ids.logo ? responsiveRestoreOptionalCss(ids) : '';
+}
+
 /** An empty presentation carrier gives Office a real HTML insertion, not a discarded bare STYLE. */
 export function nativeLayoutRestoreStylePayload(ids) {
     const scope = idsScope(ids);
     return `<table id="${PREFIX + scope}-carrier" role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;border-spacing:0;margin:0;font-size:0;line-height:0;"><tbody><tr><td style="padding:0;height:0;font-size:0;line-height:0;">`
         + `<style data-rt-native-layout-restore="v1">${restoreCss(ids)}</style>`
+        + (ids.logo ? `<style data-rt-native-layout-responsive="v1">${responsiveRestoreOptionalCss(ids)}</style>` : '')
         + `<span hidden aria-hidden="true" style="display:none!important;mso-hide:all;font-size:0;line-height:0;max-height:0;overflow:hidden;">RT-NATIVE-LAYOUT-RESTORE-V1:${scope}</span>`
         + '</td></tr></tbody></table>';
 }
@@ -166,6 +185,42 @@ function normalizedRestoreCss(css, ids) {
     // Accept only the observed Office x_ rewrite of our exact generated ID selectors.
     for (const id of Object.values(ids)) normalized = normalized.replace(new RegExp('#x_' + id + '(?![\\w-])', 'g'), '#' + id);
     return normalized.replace(/\s+/g, '').replace(/;}/g, '}');
+}
+
+function approvedResponsiveSubset(css, ids) {
+    const text = normalizedRestoreCss(css, ids);
+    const expected = responsiveRestoreRules(ids);
+    const rules = value => {
+        const result = [];
+        let remainder = value;
+        while (remainder) {
+            const match = /^#[a-z0-9-]+\{[^{}]*\}/i.exec(remainder);
+            if (!match) return null;
+            result.push(match[0]);
+            remainder = remainder.slice(match[0].length);
+        }
+        return result;
+    };
+    const subsequence = (actual, approved) => {
+        if (!actual) return false;
+        let next = 0;
+        for (const rule of actual) {
+            const index = approved.indexOf(rule, next);
+            if (index === -1) return false;
+            next = index + 1;
+        }
+        return true;
+    };
+    const mediaStart = text.indexOf('@');
+    let base = text, media = '';
+    if (mediaStart !== -1) {
+        const prefix = '@media(max-width:680px){';
+        if (!text.startsWith(prefix, mediaStart) || !text.endsWith('}')) return false;
+        base = text.slice(0, mediaStart);
+        media = text.slice(mediaStart + prefix.length, -1);
+    }
+    return subsequence(rules(base), expected.base.map(rule => normalizedRestoreCss(rule, ids)))
+        && subsequence(rules(media), expected.media.map(rule => normalizedRestoreCss(rule, ids)));
 }
 
 function standaloneSignatureFrame(contract, nodes) {
@@ -241,22 +296,32 @@ function retainedCarrier(html, contract, ids) {
     const styles = descendants.filter(value => value.node.tag === 'style');
     const token = 'RT-NATIVE-LAYOUT-RESTORE-V1:' + scope;
     const spans = descendants.filter(value => value.node.tag === 'span' && html.slice(value.node.openEnd, value.node.close).replace(/\s+/g, '') === token);
-    if (styles.length !== 1 || spans.length !== 1) invalid();
+    if (styles.length < 1 || styles.length > (ids.logo ? 2 : 1) || spans.length !== 1) invalid();
     const css = normalizedRestoreCss(nativeLayoutRestoreCss(ids), ids);
-    const retainedCss = html.slice(styles[0].node.openEnd, styles[0].node.close);
+    const core = styles.filter(value => normalizedRestoreCss(html.slice(value.node.openEnd, value.node.close), ids) === css);
+    if (core.length !== 1) invalid();
+    const retainedCss = html.slice(core[0].node.openEnd, core[0].node.close);
     for (const key of Object.keys(ids)) {
         const selectors = retainedCss.match(new RegExp('#(?:x_)?' + ids[key] + '(?![\\w-])', 'g')) || [];
         if (!selectors.length || selectors.some(selector => selector !== '#' + actualIds[key])) invalid();
     }
     const exactSheets = nodes.filter(node => node.tag === 'style' && normalizedRestoreCss(html.slice(node.openEnd, node.close), ids) === css);
     if (exactSheets.length !== 1 || normalizedRestoreCss(retainedCss, ids) !== css) invalid();
+    for (const optional of styles.filter(value => value !== core[0])) {
+        const optionalCss = html.slice(optional.node.openEnd, optional.node.close);
+        if (!ids.logo || !approvedResponsiveSubset(optionalCss, ids)) invalid();
+        for (const key of Object.keys(ids)) {
+            const selectors = optionalCss.match(new RegExp('#(?:x_)?' + ids[key] + '(?![\\w-])', 'g')) || [];
+            if (selectors.some(selector => selector !== '#' + actualIds[key])) invalid();
+        }
+    }
     const metadata = spans[0].node;
     const hidden = owns(metadata.attrs, 'hidden') || metadata.attrs['aria-hidden'] === 'true'
         || /(?:^|;)\s*display\s*:\s*none(?:\s*!important)?\s*(?:;|$)/i.test(metadata.attrs.style || '')
         || (/(?:^|;)\s*font-size\s*:\s*0(?:px|pt)?(?:\s*!important)?\s*(?:;|$)/i.test(metadata.attrs.style || '')
             && /(?:^|;)\s*line-height\s*:\s*0(?:px|pt)?(?:\s*!important)?\s*(?:;|$)/i.test(metadata.attrs.style || ''));
     if (!hidden) invalid();
-    const ranges = [styles[0].node, metadata].sort((left, right) => right.start - left.start);
+    const ranges = [...styles.map(value => value.node), metadata].sort((left, right) => right.start - left.start);
     let remaining = html.slice(cell.node.openEnd, cell.node.close);
     for (const node of ranges) remaining = remaining.slice(0, node.start - cell.node.openEnd) + remaining.slice(node.end - cell.node.openEnd);
     if (remaining.includes('<!--') || remaining.replace(/<[^>]*>/g, '').replace(/&nbsp;|&#160;|&#xa0;/gi, ' ').trim() !== '') invalid();

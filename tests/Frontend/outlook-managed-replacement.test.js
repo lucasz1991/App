@@ -609,6 +609,25 @@ test('inset readback still rejects extra content/images, excessive wrappers and 
     }
 });
 
+test('function-free required carrier core completes even when Office drops the separate responsive sheet', async () => {
+    for (const keepEmpty of [false, true]) {
+        const h = nativeHost({ footer: true, responsive: true, wrappers: true, templateGutter: true });
+        h.item.body.prependAsync = (html, _options, callback) => {
+            h.state.prepends.push(html);
+            const filtered = html.replace(/<style data-rt-native-layout-responsive="v1">[\s\S]*?<\/style>/,
+                keepEmpty ? '<style></style>' : '');
+            h.state.body = officeRetainedCarrier(filtered) + h.state.body;
+            callback(succeeded());
+        };
+        await h.run();
+        assert.equal(h.state.writes.length, 1); assert.equal(h.state.prepends.length, 1);
+        assert.equal(h.state.session, '1'); assert.equal(isTemplateInsertionBlocked(h.item), false);
+        const retainedCss = [...h.state.body.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/g)].map(match => match[1]).join('');
+        assert.ok(retainedCss.includes('width:460px!important;'));
+        assert.doesNotMatch(retainedCss, /min\(|max\(|calc\(|@media/);
+    }
+});
+
 test('a confirmed prepend callback without retained trusted CSS never completes the layout operation', async () => {
     const h = nativeHost();
     h.item.body.prependAsync = (html, _options, callback) => { h.state.prepends.push(html); callback(succeeded()); };
