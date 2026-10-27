@@ -579,7 +579,7 @@ test('observed inset image typography DIVs and removed percent-width attribute r
 });
 
 test('sanitized actual R59 Office ten-ID DOM completes restore through the real coordinator', async () => {
-    const captured = readFileSync(new URL('../fixtures/outlook/r59-office-inset-wrapper.html', import.meta.url), 'utf8');
+    const captured = readFileSync(new URL('../Fixtures/outlook/r59-office-inset-wrapper.html', import.meta.url), 'utf8');
     const observed = managedTemplateContract(captured);
     assert.equal(observed.kind, 'text-v1');
     assert.equal(observed.signatureMetadata.managed, observed.signatureMetadata.version, 'The real Office body coalesced hidden signature metadata.');
