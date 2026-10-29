@@ -4,19 +4,20 @@ import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { createNativeLayoutNonce, nativeLayoutRestoreCarrierPresent, nativeLayoutRestoreCellsAligned, nativeLayoutRestoreCss, nativeLayoutRestoreResponsiveCss, nativeLayoutRestoreRetained, nativeLayoutRestoreStylePayload, prepareNativeLayoutRestore, removeNativeLayoutRestoreCarrier } from '../../resources/js/outlook-addin/native-layout-restore.js';
 import { managedTemplateContract, standaloneSignatureContract } from '../../resources/js/outlook-addin/managed-template.js';
+import { nativeOfficeHtml, officeCarrier } from './outlook-standalone-fixture.js';
 
 const nonce = '1234567890abcdef1234567890abcdef';
 const element = (tag, attrs = {}, children = []) => ({ tag, attrs, children });
 const table = (className, children = [], attrs = {}) => element('table', { class: className, ...attrs }, [element('tbody', {}, [element('tr', {}, [element('td', {}, children)])])]);
 
 // This source builder records offsets as it emits bytes; no DOM serialization is used.
-function fixture({ header = true, legacy = false, quotedCopy = false, legal = false, legalColor = '#718096', wire = false, standalone = false, responsive = false, wrappers = false, templateGutter = false, ownedRaster = false } = {}) {
+function fixture({ header = true, legacy = false, quotedCopy = false, legal = false, legalColor = '#718096', wire = false, standalone = false, responsive = false, wrappers = false, templateGutter = false, ownedRaster = false, enlargedTrain = false } = {}) {
     const metadata = value => element('span', { hidden: '', style: 'font-size:0;line-height:0;' }, [value]);
     const person = table('rt-personal-left', [element('p', {}, ['Synthetic personal text'])], responsive ? { align: 'left', height: '50' } : {});
     const company = table('rt-personal-right', [element('img', { src: 'cid:logo.png', width: '180', height: '31' })]);
     const logo = table('rt-personal-logo-column', [table('rt-personal-logo-frame', [element('img', { src: 'cid:separate-logo.png', width: '200', height: '34' })])]);
-    const train = table('rt-df-train', [element('div', { class: 'rt-train-window' }, [element('img', {
-        class: 'rt-delivery-train', src: 'cid:train.gif', width: '300', height: responsive ? '65' : '38',
+    const train = table('rt-df-train' + (enlargedTrain ? ' rt-train-enlarged-v1' : ''), [element('div', { class: 'rt-train-window' }, [element('img', {
+        class: 'rt-delivery-train', src: 'cid:train.gif', width: enlargedTrain ? '324' : '300', height: enlargedTrain ? '70' : responsive ? '65' : '38',
     })]), '<!--[if mso]><img class="rt-delivery-train-mso" src="cid:still.png" width="220" height="28"><![endif]-->']);
     const flow = table('rt-personal-columns', [...(responsive ? [logo] : []), person, company, ...(responsive ? [] : [train])], {
         'data-rt-personal-flow': 'v1', 'data-rt-personal-columns': 'v1', 'data-rt-desktop-flow': 'outlook-desktop-flow-v' + (responsive ? '8' : '4'),
@@ -221,6 +222,98 @@ test('only the owned v5 raster places h on its inner five-cell TABLE and overrid
         const fallback = prepareNativeLayoutRestore(other.html, standaloneSignatureContract(other.html), nonce);
         const fallbackHeader = standaloneSignatureContract(fallback.html, fallback.html, fallback.ids).elements.find(node => node.attrs.id === fallback.ids.header);
         assert.equal(fallbackHeader.attrs.class, 'banner');
+    }
+});
+
+test('transparent outline header keeps the existing native IDs and never repaints its red caption or thin outer edge', () => {
+    const source = fixture({ responsive: true, wire: true, legal: true, wrappers: true, templateGutter: true, ownedRaster: true });
+    const prior = prepareNativeLayoutRestore(source.html, managedTemplateContract(source.html), nonce);
+    const original = managedTemplateContract(source.html);
+    const raster = original.elements.find(node => node.attrs.class === 'owned-raster');
+    const priorGutter = original.elements.find(node => (node.attrs.class || '').split(/\s+/).includes('rt-brand-hotline-gutter'));
+    const gutterHtml = source.html.slice(priorGutter.start, priorGutter.end);
+    const label = '<table class="rt-brand-outline-label" role="presentation" style="display:inline-block;vertical-align:middle;max-width:100%;"><tbody><tr><td style="color:#e90032;background-color:transparent;">Dispo 24/7 erreichbar</td></tr></tbody></table>';
+    const actions = '<table class="rt-brand-outline-actions" role="presentation" style="display:inline-block;vertical-align:middle;max-width:100%;"><tbody><tr><td><a href="mailto:info@example.test" style="color:#e90032;"><img src="cid:red-mail.png" width="20" height="20"></a></td><td><a href="tel:+494171546803" style="color:#e90032;"><img src="cid:red-phone.png" width="20" height="20"><font color="#e90032">04171546803</font></a></td></tr></tbody></table>';
+    const header = '<table class="owned-raster rt-brand-outline-v1" style="background-color:transparent;border-top:1px solid #e90032;table-layout:auto;"><tbody><tr><td width="1">' + gutterHtml + '</td><td>' + label + actions + '</td><td></td><td></td><td></td></tr></tbody></table>';
+    const html = (source.html.slice(0, raster.start) + header + source.html.slice(raster.end))
+        .replace('<div>', '<div style="border-left:3px solid #e90032;">');
+    const plan = prepareNativeLayoutRestore(html, managedTemplateContract(html), nonce);
+    assert.deepEqual(plan.ids, prior.ids);
+    assert.equal(nativeLayoutRestoreCss(plan.ids), nativeLayoutRestoreCss(prior.ids), 'Presentation changes must not change historical native carrier CSS.');
+    assert.equal(nativeLayoutRestoreResponsiveCss(plan.ids), nativeLayoutRestoreResponsiveCss(prior.ids));
+    assert.equal(plan.html.replace(/ id="rt-native-layout-[0-9a-f]{32}-[rpcthslifqwj]"/g, ''), html);
+    assert.doesNotMatch(plan.stylePayload, /background(?:-color)?:|border-left:6px|border-top:1px|color:#e90032/);
+    const body = officeCarrier(plan.stylePayload) + nativeOfficeHtml(plan.html);
+    const parsed = managedTemplateContract(body, body, plan.ids);
+    assert.equal(nativeLayoutRestoreRetained(body, parsed, plan.ids), true);
+    const actualHeader = parsed.elements.find(node => node.attrs.id === 'x_' + plan.ids.header);
+    assert.match(actualHeader.attrs.style, /background-color:transparent;border-top:1px solid #e90032/);
+    assert.match(body, /border-left:3px solid #e90032/);
+    assert.match(body, /color:#e90032;background-color:transparent;">Dispo 24\/7 erreichbar/);
+    assert.match(body, /href="tel:\+494171546803"/);
+    const before = '<p>Unknown user content</p>', after = '<blockquote><p>Unknown quoted content</p></blockquote>';
+    const complete = before + body + after;
+    assert.equal(removeNativeLayoutRestoreCarrier(complete, managedTemplateContract(complete), plan.ids), before + nativeOfficeHtml(plan.html) + after);
+});
+
+test('the exact enlarged train uses k with a 324px image stage and retains every stop gutter without rewriting old j CSS', () => {
+    const options = { responsive: true, standalone: true, legal: true, wrappers: true, ownedRaster: true };
+    const old = fixture(options), source = fixture({ ...options, enlargedTrain: true });
+    const prior = prepareNativeLayoutRestore(old.html, standaloneSignatureContract(old.html), nonce);
+    const plan = prepareNativeLayoutRestore(source.html, standaloneSignatureContract(source.html), nonce);
+    assert.equal(prior.ids.trainImage, `rt-native-layout-${nonce}-j`);
+    assert.equal(plan.ids.trainImage, `rt-native-layout-${nonce}-k`);
+    assert.equal(Object.keys(plan.ids).length, Object.keys(prior.ids).length);
+    assert.equal(plan.html.length - source.html.length, 627);
+    const css = nativeLayoutRestoreCss(plan.ids);
+    assert.match(css, /-t\{[^}]*max-width:364px!important;[^}]*border-left:0!important;border-right:40px solid transparent!important;/);
+    assert.equal(css.replaceAll(plan.ids.trainImage, prior.ids.trainImage).replace(/(-t\{[^}]*?)max-width:364px/, '$1max-width:340px'), nativeLayoutRestoreCss(prior.ids));
+    assert.equal(nativeLayoutRestoreResponsiveCss(plan.ids), nativeLayoutRestoreResponsiveCss(prior.ids));
+    assert.doesNotMatch(css, /transform|width:108%|max-width:none/);
+    const body = officeCarrier(plan.stylePayload) + nativeOfficeHtml(plan.html);
+    const parsed = standaloneSignatureContract(body);
+    assert.equal(parsed.layoutIds.trainImage, plan.ids.trainImage);
+    assert.equal(nativeLayoutRestoreRetained(body, parsed, parsed.layoutIds), true);
+    const before = '<p>Preserved user bytes</p>', after = '<blockquote>Preserved quote bytes</blockquote>';
+    const whole = before + body + after;
+    assert.equal(removeNativeLayoutRestoreCarrier(whole, standaloneSignatureContract(whole), plan.ids), before + nativeOfficeHtml(plan.html) + after);
+    const wrong = body.replace('max-width:364px!important;', 'max-width:340px!important;');
+    assert.throws(() => nativeLayoutRestoreRetained(wrong, standaloneSignatureContract(wrong), plan.ids), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
+    assert.equal(removeNativeLayoutRestoreCarrier(wrong, standaloneSignatureContract(wrong), plan.ids), wrong, 'A fabricated historical-size k carrier remains opaque.');
+});
+
+test('enlarged train admission fails closed for mismatched dimensions, missing stage marker or legacy flow', () => {
+    for (const change of [
+        html => html.replace('rt-df-train rt-train-enlarged-v1', 'rt-df-train'),
+        html => html.replace('width="324"', 'width="300"'),
+        html => html.replace('height="70"', 'height="65"'),
+        html => html.replace('height="70"', 'height="71"'),
+    ]) {
+        const source = fixture({ responsive: true, standalone: true, legal: true, enlargedTrain: true });
+        const html = change(source.html);
+        assert.throws(() => prepareNativeLayoutRestore(html, standaloneSignatureContract(html), nonce), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
+    }
+    const legacy = fixture({ standalone: true, legal: true, enlargedTrain: true });
+    assert.throws(() => prepareNativeLayoutRestore(legacy.html, standaloneSignatureContract(legacy.html), nonce), { code: 'NATIVE_LAYOUT_RESTORE_INVALID' });
+});
+
+test('observed Outlook HTTPS image wrapper permits exactly one style-only DIV without accepting arbitrary nested content', () => {
+    for (const enlargedTrain of [false, true]) {
+        const source = fixture({ responsive: true, standalone: true, legal: true, wrappers: true, ownedRaster: true, enlargedTrain });
+        const plan = prepareNativeLayoutRestore(source.html, standaloneSignatureContract(source.html), nonce);
+        const body = officeCarrier(plan.stylePayload) + nativeOfficeHtml(plan.html);
+        const parsed = standaloneSignatureContract(body);
+        const image = parsed.elements.find(node => node.attrs.id === 'x_' + plan.ids.trainImage);
+        const wrap = opening => body.slice(0, image.start) + opening + body.slice(image.start, image.end) + '</div>' + body.slice(image.end);
+        const wrapped = wrap('<div style="direction:ltr;text-align:left;line-height:0;font-size:0px;">');
+        assert.equal(nativeLayoutRestoreRetained(wrapped, standaloneSignatureContract(wrapped), plan.ids), true);
+        assert.equal(removeNativeLayoutRestoreCarrier(wrapped, standaloneSignatureContract(wrapped), plan.ids), wrapped.replace(officeCarrier(plan.stylePayload), ''));
+        const nested = body.slice(0, image.start) + '<div><div>' + body.slice(image.start, image.end) + '</div></div>' + body.slice(image.end);
+        for (const malformed of [wrap('<div id="unknown-wrapper">'), wrap('<div class="unknown-wrapper">'),
+            wrap('<div><span>Unknown content</span>'), nested]) {
+            assert.throws(() => nativeLayoutRestoreRetained(malformed, standaloneSignatureContract(malformed), plan.ids));
+            assert.equal(removeNativeLayoutRestoreCarrier(malformed, standaloneSignatureContract(malformed), plan.ids), malformed);
+        }
     }
 });
 

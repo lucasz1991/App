@@ -75,6 +75,9 @@ final class OutlookIntrinsicTrainDelivery
         if ($target === null) {
             return $pair;
         }
+        $enlarged = $target['enlarged'];
+        $width = $enlarged ? '324' : '300';
+        $height = $enlarged ? '70' : '65';
         if (! is_array($pair[$mediaKey] ?? null) || ! array_is_list($pair[$mediaKey])) {
             self::fail();
         }
@@ -125,11 +128,11 @@ final class OutlookIntrinsicTrainDelivery
             }
         }
         if ($asset === null || $oldCid !== 'railtime-'.substr($sha, 0, 20).'.'.$asset['extension']
-            || ($target['attrs']['width'] ?? '') !== '300' || ($target['attrs']['height'] ?? '') !== ($already ? '65' : '38')) {
+            || ($target['attrs']['width'] ?? '') !== ($already ? $width : '300') || ($target['attrs']['height'] ?? '') !== ($already ? $height : '38')) {
             self::fail();
         }
-        if (preg_match('/(?:\A|;)\s*height\s*:\s*(38|65)px/i', $target['attrs']['style'] ?? '', $fixedHeight)
-            && $fixedHeight[1] !== ($already ? '65' : '38')) {
+        if (preg_match('/(?:\A|;)\s*height\s*:\s*(38|65|70)px/i', $target['attrs']['style'] ?? '', $fixedHeight)
+            && $fixedHeight[1] !== ($already ? $height : '38')) {
             self::fail();
         }
         $image = @getimagesizefromstring($record['binary']);
@@ -145,12 +148,24 @@ final class OutlookIntrinsicTrainDelivery
 
             return $pair;
         }
-        $opening = self::attribute(self::attribute($target['opening'], 'src', 'cid:'.$asset['attachment']['contentId']), 'height', '65');
+        $opening = self::attribute(self::attribute(self::attribute($target['opening'], 'src', 'cid:'.$asset['attachment']['contentId']), 'width', $width), 'height', $height);
         if (preg_match('/(?:\A|;)\s*height\s*:\s*38px\s*(?:!important\s*)?(?=;|\z)/i', $target['attrs']['style'] ?? '')) {
-            $style = preg_replace('/((?:\A|;)\s*height\s*:\s*)38px(?=\s*(?:!important\s*)?(?:;|\z))/i', '${1}65px', $target['attrs']['style']);
+            $style = preg_replace('/((?:\A|;)\s*height\s*:\s*)38px(?=\s*(?:!important\s*)?(?:;|\z))/i', '${1}'.$height.'px', $target['attrs']['style']);
+            if ($enlarged) {
+                $style = preg_replace('/((?:\A|;)\s*(?:max-)?width\s*:\s*)300px(?=\s*(?:!important\s*)?(?:;|\z))/i', '${1}324px', $style);
+            }
             $opening = self::attribute($opening, 'style', $style);
         }
         $html = substr_replace($html, $opening, $target['start'], strlen($target['opening']));
+        if ($enlarged && ! $target['mobile']) {
+            $stage = $target['stage'];
+            $stageStyle = preg_replace('/((?:\A|;)\s*max-width\s*:\s*)340px(?=\s*(?:!important\s*)?(?:;|\z))/i', '${1}364px!important', $stage['attrs']['style'] ?? '', 1, $changed);
+            if ($changed !== 1 || self::has($stage, 'rt-train-enlarged-v1')) {
+                self::fail();
+            }
+            $stageOpening = self::attribute(self::attribute($stage['opening'], 'class', trim(($stage['attrs']['class'] ?? '').' rt-train-enlarged-v1')), 'style', $stageStyle);
+            $html = substr_replace($html, $stageOpening, $stage['start'], strlen($stage['opening']));
+        }
         $newKey = strtolower($asset['attachment']['contentId']);
         if (isset($byCid[$newKey]) && $byCid[$newKey]['attachment'] !== $asset['attachment']) {
             self::fail();
@@ -257,7 +272,7 @@ final class OutlookIntrinsicTrainDelivery
             self::fail();
         }
         $style = strtolower(preg_replace('/\s+/', '', $nodes[$image]['attrs']['style'] ?? ''));
-        if (preg_match('/\Adisplay:block;width:100%;max-width:100%;height:(?:auto|(?:38|65)px)(?:!important)?;margin:0;border:0;(?:vertical-align:bottom;)?\z/', rtrim($style, ';').';') !== 1) {
+        if (preg_match('/\Adisplay:block;width:100%;max-width:100%;height:(?:auto|(?:38|65|70)px)(?:!important)?;margin:0;border:0;(?:vertical-align:bottom;)?\z/', rtrim($style, ';').';') !== 1) {
             self::fail();
         }
         if ($mobile) {
@@ -269,7 +284,9 @@ final class OutlookIntrinsicTrainDelivery
             self::fail();
         }
 
-        return $nodes[$image];
+        $enlarged = self::has($nodes[$train], 'rt-train-enlarged-v1') || array_filter($nodes, static fn (array $node): bool => $node['tag'] === 'table' && self::has($node, 'rt-brand-outline-v1')) !== [];
+
+        return $nodes[$image] + ['stage' => $nodes[$train], 'mobile' => $mobile, 'enlarged' => $enlarged];
     }
 
     private static function assets(): array

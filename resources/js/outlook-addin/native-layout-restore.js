@@ -162,12 +162,14 @@ function legacyIntrinsicRowsCoreCss(ids) {
     return css;
 }
 
-// Current v8 keeps the established two-row, function-free transport fallback.
+// The enlarged train has its own k image ID; historical j CSS stays byte exact.
+// Both retain the established two-row, function-free transport fallback.
 function responsiveRestoreCss(ids) {
     const rule = (key, declarations) => responsiveRestoreRule(ids, key, declarations);
+    const enlargedTrain = ids.trainImage?.endsWith('-k');
     let css = rule('root', 'font-size:0!important;line-height:0!important;text-align:left!important;width:100%!important;max-width:680px!important;display:table!important;table-layout:fixed!important;border-collapse:collapse!important;overflow:hidden!important;direction:ltr!important;margin:0 auto 0 0!important;');
     for (const key of ['logo', 'person', 'company', 'train']) {
-        css += rule(key, 'display:' + (['person', 'train'].includes(key) ? 'inline-table' : 'inline-block') + '!important;vertical-align:' + (key === 'train' ? 'bottom' : 'top') + '!important;width:100%!important;min-width:0!important;max-width:340px!important;direction:ltr!important;'
+        css += rule(key, 'display:' + (['person', 'train'].includes(key) ? 'inline-table' : 'inline-block') + '!important;vertical-align:' + (key === 'train' ? 'bottom' : 'top') + '!important;width:100%!important;min-width:0!important;max-width:' + (key === 'train' && enlargedTrain ? '364' : '340') + 'px!important;direction:ltr!important;'
             + (key === 'person' ? '' : 'text-align:left!important;') + 'table-layout:fixed!important;border-collapse:separate!important;border-spacing:0!important;box-sizing:border-box!important;'
             + (key === 'train' ? 'border-left:0!important;' : 'border-left:40px solid transparent!important;')
             + 'border-right:40px solid transparent!important;');
@@ -237,7 +239,7 @@ function legacyHybridResponsiveRules(ids) {
 
 function responsiveRestoreRule(ids, key, declarations) {
     const id = ids[key];
-    if (!/^rt-native-layout-[0-9a-f]{32}-[rpcthslifqwj]$/.test(id || '') || /[{}]/.test(declarations)) invalid();
+    if (!/^rt-native-layout-[0-9a-f]{32}-[rpcthslifqwjk]$/.test(id || '') || /[{}]/.test(declarations)) invalid();
     return '#' + id + '{' + declarations + '}';
 }
 
@@ -266,7 +268,7 @@ function responsiveRestoreOptionalCss(ids) {
 function idsScope(ids) {
     if (!ids || typeof ids !== 'object') invalid();
     const root = /^rt-native-layout-([0-9a-f]{32})-r$/.exec(ids.root || '');
-    const suffixes = { root: 'r', person: 'p', company: 'c', train: 't', header: 'h', signature: 's', logo: 'l', inset: 'i', footer: 'f', templateGutter: 'q', window: 'w', trainImage: 'j' };
+    const suffixes = { root: 'r', person: 'p', company: 'c', train: 't', header: 'h', signature: 's', logo: 'l', inset: 'i', footer: 'f', templateGutter: 'q', window: 'w', trainImage: ids.trainImage?.endsWith('-k') ? 'k' : 'j' };
     const keys = Object.keys(ids);
     if (!root || keys.length !== 4 + ['header', 'signature', 'logo', 'inset', 'footer', 'templateGutter', 'window', 'trainImage'].filter(key => owns(ids, key)).length
         || ['root', 'person', 'company', 'train'].some(key => !owns(ids, key))
@@ -445,8 +447,14 @@ function retainedCarrier(html, contract, ids, legacyColumns = false) {
     }
     if (ids.window) {
         const trainCell = onlyChild(nodes, onlyChild(nodes, onlyChild(nodes, targets.train.index, 'tbody').index, 'tr').index, 'td');
+        let imageParent = targets.window.index;
+        const windowChildren = children(nodes, imageParent);
+        if (windowChildren.length === 1 && windowChildren[0].node.tag === 'div') {
+            if (Object.keys(windowChildren[0].node.attrs).some(name => name !== 'style')) invalid();
+            imageParent = windowChildren[0].index;
+        }
         if (onlyChild(nodes, trainCell.index, 'div').index !== targets.window.index
-            || onlyChild(nodes, targets.window.index, 'img').index !== targets.trainImage.index) invalid();
+            || onlyChild(nodes, imageParent, 'img').index !== targets.trainImage.index) invalid();
     }
     const carrierId = PREFIX + scope + '-carrier';
     const carriers = nodes.map((node, index) => ({ node, index })).filter(value => typeof value.node.attrs.id === 'string' && value.node.attrs.id.endsWith(carrierId));
@@ -486,7 +494,7 @@ function retainedCarrier(html, contract, ids, legacyColumns = false) {
     const token = 'RT-NATIVE-LAYOUT-RESTORE-V1:' + scope;
     const spans = descendants.filter(value => value.node.tag === 'span' && html.slice(value.node.openEnd, value.node.close).replace(/\s+/g, '') === token);
     if (styles.length < 1 || styles.length > (ids.logo ? 2 : 1) || spans.length !== 1) invalid();
-    if (legacyColumns && !ids.logo) invalid();
+    if (legacyColumns && (!ids.logo || ids.trainImage?.endsWith('-k'))) invalid();
     const css = normalizedRestoreCss(legacyColumns === 'rows-r65' ? legacyIntrinsicRowsCoreCss(ids) : legacyColumns === 'rows-r64' ? legacyRowsCoreCss(ids) : legacyColumns === 'mixed-r63' ? legacyMixedCoreCss(ids) : legacyColumns === 'hybrid-r61' ? legacyHybridCoreCss(ids) : legacyColumns ? legacyColumnCoreCss(ids) : nativeLayoutRestoreCss(ids), ids);
     const core = styles.filter(value => normalizedRestoreCss(html.slice(value.node.openEnd, value.node.close), ids) === css);
     if (core.length !== 1) invalid();
@@ -619,7 +627,10 @@ export function prepareNativeLayoutRestore(html, contract, nonce) {
     const window = onlyChild(nodes, trainCell.index, 'div');
     if (!has(window.node, 'rt-train-window')) invalid();
     const image = onlyChild(nodes, window.index, 'img');
-    if (!has(image.node, 'rt-delivery-train') || image.node.attrs.width !== '300' || image.node.attrs.height !== (responsive ? '65' : '38')) invalid();
+    const enlargedTrain = has(train.node, 'rt-train-enlarged-v1');
+    if ((enlargedTrain && !responsive) || !has(image.node, 'rt-delivery-train')
+        || image.node.attrs.width !== (enlargedTrain ? '324' : '300')
+        || image.node.attrs.height !== (enlargedTrain ? '70' : responsive ? '65' : '38')) invalid();
 
     const targets = { root, person, company, train };
     if (logo) targets.logo = logo;
@@ -708,7 +719,7 @@ export function prepareNativeLayoutRestore(html, contract, nonce) {
     if (typeof scope !== 'string' || !/^[0-9a-f]{32}$/.test(scope) || html.includes(PREFIX + scope)) invalid();
     const ids = {};
     const edits = [];
-    const suffixes = { root: 'r', person: 'p', company: 'c', train: 't', header: 'h', signature: 's', logo: 'l', inset: 'i', footer: 'f', templateGutter: 'q', window: 'w', trainImage: 'j' };
+    const suffixes = { root: 'r', person: 'p', company: 'c', train: 't', header: 'h', signature: 's', logo: 'l', inset: 'i', footer: 'f', templateGutter: 'q', window: 'w', trainImage: enlargedTrain ? 'k' : 'j' };
     for (const key of Object.keys(targets)) {
         const { node } = targets[key];
         if (key === 'templateGutter') {

@@ -155,10 +155,30 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--font-dir", type=Path, default=Path("C:/Windows/Fonts"))
     parser.add_argument("--only", action="append", choices=("fill", "label", "mail", "phone"), help="Write only these assets; the default writes all four")
+    parser.add_argument("--outline", action="store_true", help="Build the transparent red outline-header assets without changing frozen v1 assets")
     args = parser.parse_args()
     if PILLOW_VERSION != "12.2.0":
         raise RuntimeError("Deterministic builder expects the existing Pillow 12.2.0 runtime")
     assets = {"fill": Image.new("RGB", (1, HEIGHT), RED), "label": label(args.font_dir), "mail": action("mail"), "phone": action("phone")}
+    if args.outline:
+        image = Image.new("RGBA", (184 * SCALE, HEIGHT * SCALE), (*RED, 0))
+        draw = ImageDraw.Draw(image)
+        normal = ImageFont.truetype(str(pinned(args.font_dir / "arialbd.ttf", FONT_HASHES["arialbd.ttf"])), 14 * SCALE)
+        main = ImageFont.truetype(str(pinned(args.font_dir / "arialbi.ttf", FONT_HASHES["arialbi.ttf"])), 24 * SCALE)
+        x = 0
+        for text, font, gap in [("Dispo", normal, 7), ("24/7", main, 9), ("erreichbar", normal, 0)]:
+            box = font.getbbox(text)
+            draw.text((x - box[0], (image.height - box[1] - box[3]) / 2), text, font=font, fill=(*RED, 255))
+            x += box[2] - box[0] + gap * SCALE
+        if x > image.width:
+            raise RuntimeError("The exact outline caption exceeds its approved width")
+        outlined = {"fill": Image.new("RGBA", (1, HEIGHT), (*RED, 0)), "label": image}
+        for kind in ("mail", "phone"):
+            original = assets[kind]
+            transparent = Image.new("RGBA", original.size, (*RED, 0))
+            transparent.putalpha(original.getchannel("G"))
+            outlined[kind] = transparent
+        assets = outlined
     target = ROOT / "public/mail-assets"
     if not target.is_dir():
         raise RuntimeError("Run from the existing repository; output directory is missing")
@@ -166,8 +186,15 @@ def main() -> None:
     for kind, image in assets.items():
         if args.only and kind not in args.only:
             continue
-        proof = validate(image, kind)
-        path = target / f"outlook-hotline-{kind}-v1.png"
+        if args.outline:
+            if image.mode != "RGBA" or any(pixel[:3] != RED for pixel in image.get_flattened_data()):
+                raise RuntimeError("Outline assets must preserve exact red with transparent alpha")
+            proof = {"physical": list(image.size), "mode": image.mode, "opaque_red_pixels": sum(pixel[3] == 255 for pixel in image.get_flattened_data())}
+            if kind != "fill" and proof["opaque_red_pixels"] < 100:
+                raise RuntimeError("The intended red glyphs are missing")
+        else:
+            proof = validate(image, kind)
+        path = target / f"outlook-hotline-{kind}-{'outline-v1' if args.outline else 'v1'}.png"
         image.save(path, format="PNG", optimize=False, compress_level=9)
         binary = path.read_bytes()
         receipt[path.name] = {**proof, "bytes": len(binary), "sha256": hashlib.sha256(binary).hexdigest()}

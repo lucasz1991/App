@@ -12,7 +12,7 @@ use RuntimeException;
 /** Final wire presentation, after every canonical inverse/mobile/combined check. */
 final class OutlookClientPresentation
 {
-    public const REVISION = 'outlook-client-presentation-v11';
+    public const REVISION = 'outlook-client-presentation-v12';
 
     private const SIGNATURE_VERSION = 'RT-SIGNATURE-VERSION:';
 
@@ -21,20 +21,29 @@ final class OutlookClientPresentation
     public static function payload(array $payload): array
     {
         $desktopFlow = ! OutlookDesktopFlow::mobile($payload['signature']['html']);
+        $before = $payload['signature']['html'];
         $payload['signature']['html'] = self::document($payload['signature']['html'], 30000, 12288, $desktopFlow);
+        $payload['signature']['media'] = self::withoutRemovedMark($before, $payload['signature']['html'], $payload['signature']['media']);
         $payload['version']['signature'] = self::version('signature', $payload['version']['signature']);
         if (isset($payload['template']['html'])) {
+            $before = $payload['template']['html'];
             $payload['template']['html'] = self::document($payload['template']['html'], 99000, 24576, $desktopFlow);
+            $payload['template']['media'] = self::withoutRemovedMark($before, $payload['template']['html'], $payload['template']['media']);
         }
         foreach ($payload['templates'] as &$template) {
             foreach (['html', 'composeHtml', 'combinedComposeHtml', 'mobileComposeHtml'] as $field) {
                 if (isset($template[$field])) {
+                    $before = $template[$field];
                     $mobile = $field === 'mobileComposeHtml';
                     $template[$field] = self::document($template[$field], $mobile ? 30000 : 99000, $mobile ? 12288 : 24576, $desktopFlow);
+                    $media = $field === 'html' ? 'media' : substr($field, 0, -4).'Media';
+                    $template[$media] = self::withoutRemovedMark($before, $template[$field], $template[$media]);
                 }
             }
             if (isset($template['signature'])) {
+                $before = $template['signature']['html'];
                 $template['signature']['html'] = self::document($template['signature']['html'], 30000, 12288, $desktopFlow);
+                $template['signature']['media'] = self::withoutRemovedMark($before, $template['signature']['html'], $template['signature']['media']);
                 $template['signatureVersion'] = self::version('signature', $template['signatureVersion']);
             }
             if (isset($template['mobileComposeVersion'])) {
@@ -44,6 +53,25 @@ final class OutlookClientPresentation
         unset($template);
 
         return OutlookIntrinsicTrainDelivery::payload($payload);
+    }
+
+    /** Prune only a proven removed template mark, never arbitrary unused media. */
+    private static function withoutRemovedMark(string $before, string $after, array $media): array
+    {
+        preg_match_all('~<img\b(?:[^"\'<>]|"[^"]*"|\'[^\']*\')*>~is', $before, $images);
+        $removed = [];
+        foreach ($images[0] as $image) {
+            if (! in_array('rt-mark', self::classes($image), true)
+                || ! preg_match('~\ssrc\s*=\s*(["\'])cid:([^"\']+)\1~i', $image, $source)) {
+                continue;
+            }
+            $cid = CssSemantic::decodeHtmlEntitiesOnce($source[2]);
+            if (! str_contains(strtolower($after), strtolower('cid:'.$cid))) {
+                $removed[$cid] = true;
+            }
+        }
+
+        return array_values(array_filter($media, static fn (array $attachment): bool => ! isset($removed[$attachment['contentId'] ?? ''])));
     }
 
     private static function version(string $kind, string $version): string
@@ -104,6 +132,7 @@ final class OutlookClientPresentation
         $html = OutlookComposeFrame::recipientTables($html);
         $html = OutlookMobileHybridDelivery::project($html);
         $html = OutlookBrandedSignature::compactRecipientContactSpacing($html);
+        $html = OutlookBrandedSignature::outlinedPresentation($html);
         $html = self::wrapUrls($html);
         $html = EmailClientStyleBlocks::project($html, static fn (string $opening, string $css): bool => preg_match('~\bdata-rt-outlook-(?:signature|template)-css=["\']1["\']~', $opening) === 1);
         $html = preg_replace_callback('/'.self::SIGNATURE_VERSION.'([0-9a-f]{16})/', static fn (array $marker): string => self::SIGNATURE_VERSION.self::version('signature', $marker[1]), $html) ?? $html;

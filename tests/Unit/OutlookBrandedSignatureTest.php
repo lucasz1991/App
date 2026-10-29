@@ -17,6 +17,34 @@ require_once __DIR__.'/../../app/Support/OutlookAddin/OutlookBrandedSignature.ph
 
 final class OutlookBrandedSignatureTest extends TestCase
 {
+    public function test_outlined_hotline_keeps_actions_actual_phone_and_five_native_guard_cells(): void
+    {
+        $source = $this->project($this->document());
+        $output = OutlookBrandedSignature::outlinedPresentation($source);
+        self::assertStringContainsString('class="rt-hotline-banner rt-brand-outline-v1"', $output);
+        self::assertStringContainsString('border-top:1px solid #e90032;', $output);
+        self::assertStringNotContainsString('bgcolor=', $output);
+        self::assertStringContainsString('alt="Dispo 24/7 erreichbar"', $output);
+        self::assertStringContainsString('width="184" height="34"', $output);
+        self::assertStringContainsString('>+491234</a>', $output);
+        self::assertSame(2, substr_count($output, 'href="tel:+491234"'));
+        self::assertStringContainsString($this->mailOpen(), $output);
+        self::assertStringContainsString('display:inline-block;vertical-align:middle;', $output);
+        self::assertStringContainsString($this->outside(), $output, 'The train and its Word fallback remain untouched.');
+        self::assertSame($output, OutlookBrandedSignature::outlinedPresentation($output));
+    }
+
+    public function test_outlined_frames_and_template_mark_are_only_changed_in_managed_documents(): void
+    {
+        $unowned = '<table style="border-left:6px solid #e90032;"><tr><td><img class="rt-mark" src="unknown.png"></td></tr></table>';
+        self::assertSame($unowned, OutlookBrandedSignature::outlinedPresentation($unowned));
+        $source = '<div class="rt-outlook-template"><table class="rt-native-compose-frame" style="border-left:6px solid #e90032;"><tr><td class="rt-pad" style="padding:8px 40px 24px;"><img class="rt-mark" src="owned.png" width="44" height="44"></td></tr></table></div>';
+        $output = OutlookBrandedSignature::outlinedPresentation($source);
+        self::assertStringNotContainsString('<img', $output);
+        self::assertStringContainsString('border-left:3px solid #e90032!important;', $output);
+        self::assertStringContainsString('padding-top:0!important;padding-bottom:0!important;', $output);
+    }
+
     public function test_final_logo_surface_removes_white_fill_and_only_its_generated_paint_declarations(): void
     {
         foreach (['#fff', '#ffffff', 'white', 'rgb(255, 255, 255)', 'rgba(255,255,255,1)'] as $white) {
@@ -116,9 +144,9 @@ final class OutlookBrandedSignatureTest extends TestCase
         self::assertStringContainsString($this->mailOpen(), $output);
         self::assertStringContainsString($this->phoneOpen(), $output);
         self::assertStringContainsString($this->outside(), $output);
-        self::assertSame(2, substr_count($output, '/mail-assets/outlook-hotline-fill-v1.png'));
+        self::assertSame(2, substr_count($output, '/mail-assets/outlook-hotline-fill-outline-v1.png'));
         foreach (['label', 'mail', 'phone'] as $kind) {
-            self::assertSame(1, substr_count($output, '/mail-assets/outlook-hotline-'.$kind.'-v1.png'));
+            self::assertSame(1, substr_count($output, '/mail-assets/outlook-hotline-'.$kind.'-outline-v1.png'));
         }
         self::assertSame(5, substr_count($output, 'height="34" align="top"'));
         self::assertStringContainsString('width="100%" height="34" align="top" alt=""', $output);
@@ -330,7 +358,7 @@ final class OutlookBrandedSignatureTest extends TestCase
     {
         $projected = $this->project($this->document());
         $this->expectException(RuntimeException::class);
-        $this->project(str_replace('outlook-hotline-label-v1.png', 'foreign-label.png', $projected));
+        $this->project(str_replace('outlook-hotline-label-outline-v1.png', 'foreign-label.png', $projected));
     }
 
     public function test_owned_raster_cannot_reintroduce_the_legacy_spaced_padding_contract(): void
@@ -343,7 +371,7 @@ final class OutlookBrandedSignatureTest extends TestCase
     public function test_trusted_absolute_base_with_path_and_port_is_preserved(): void
     {
         $output = OutlookBrandedSignature::project($this->document(), 'http://localhost:8080/railtime/');
-        self::assertStringContainsString('src="http://localhost:8080/railtime/mail-assets/outlook-hotline-label-v1.png"', $output);
+        self::assertStringContainsString('src="http://localhost:8080/railtime/mail-assets/outlook-hotline-label-outline-v1.png"', $output);
         self::assertSame($output, OutlookBrandedSignature::project($output, 'http://localhost:8080/railtime/'));
     }
 
@@ -367,13 +395,13 @@ final class OutlookBrandedSignatureTest extends TestCase
             $before = OutlookBrandedSignature::assetHashes();
             self::assertCount(4, $before);
             foreach (['fill', 'label', 'mail', 'phone'] as $kind) {
-                $url = '/mail-assets/outlook-hotline-'.$kind.'-v1.png';
+                $url = '/mail-assets/outlook-hotline-'.$kind.'-outline-v1.png';
                 self::assertSame(hash_file('sha256', $directory.$url), $before[$url]);
             }
-            file_put_contents($directory.'/mail-assets/outlook-hotline-label-v1.png', $this->png().'trailing approved-test-byte');
+            file_put_contents($directory.'/mail-assets/outlook-hotline-label-outline-v1.png', $this->png().'trailing approved-test-byte');
             $after = OutlookBrandedSignature::assetHashes();
-            self::assertNotSame($before['/mail-assets/outlook-hotline-label-v1.png'], $after['/mail-assets/outlook-hotline-label-v1.png']);
-            unset($before['/mail-assets/outlook-hotline-label-v1.png'], $after['/mail-assets/outlook-hotline-label-v1.png']);
+            self::assertNotSame($before['/mail-assets/outlook-hotline-label-outline-v1.png'], $after['/mail-assets/outlook-hotline-label-outline-v1.png']);
+            unset($before['/mail-assets/outlook-hotline-label-outline-v1.png'], $after['/mail-assets/outlook-hotline-label-outline-v1.png']);
             self::assertSame($before, $after);
         });
     }
@@ -381,7 +409,7 @@ final class OutlookBrandedSignatureTest extends TestCase
     public function test_missing_asset_is_not_silently_accepted(): void
     {
         $this->withAssets(function (string $directory): void {
-            unlink($directory.'/mail-assets/outlook-hotline-phone-v1.png');
+            unlink($directory.'/mail-assets/outlook-hotline-phone-outline-v1.png');
             $this->expectException(RuntimeException::class);
             OutlookBrandedSignature::assetHashes();
         });
@@ -390,7 +418,7 @@ final class OutlookBrandedSignatureTest extends TestCase
     public function test_non_png_asset_is_not_silently_accepted(): void
     {
         $this->withAssets(function (string $directory): void {
-            file_put_contents($directory.'/mail-assets/outlook-hotline-label-v1.png', 'not a png');
+            file_put_contents($directory.'/mail-assets/outlook-hotline-label-outline-v1.png', 'not a png');
             $this->expectException(RuntimeException::class);
             OutlookBrandedSignature::assetHashes();
         });
@@ -401,7 +429,7 @@ final class OutlookBrandedSignatureTest extends TestCase
         $directory = sys_get_temp_dir().'/rt-branded-signature-'.bin2hex(random_bytes(6));
         mkdir($directory.'/mail-assets', 0777, true);
         foreach (['fill', 'label', 'mail', 'phone'] as $kind) {
-            file_put_contents($directory.'/mail-assets/outlook-hotline-'.$kind.'-v1.png', $this->png());
+            file_put_contents($directory.'/mail-assets/outlook-hotline-'.$kind.'-outline-v1.png', $this->png());
         }
         $previous = Container::getInstance();
         (new Application(dirname(__DIR__, 2)))->usePublicPath($directory);

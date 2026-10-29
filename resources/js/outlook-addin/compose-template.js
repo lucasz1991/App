@@ -872,7 +872,14 @@ function layoutIdsContract(html, currentHtml, ids, standalone = null, cleanup = 
     if (!legacy) {
         if (!targets.window || !targets.trainImage) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
         const trainCell = only(only(only(targets.train.index, 'tbody'), 'tr'), 'td');
-        if (only(trainCell, 'div') !== targets.window.index || only(targets.window.index, 'img') !== targets.trainImage.index) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
+        let imageParent = targets.window.index;
+        const windowChildren = children(imageParent);
+        // Outlook adds one style-only DIV around HTTPS images on native readback.
+        if (windowChildren.length === 1 && windowChildren[0].node.tag === 'div') {
+            if (Object.keys(windowChildren[0].node.attrs).some(name => name !== 'style')) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
+            imageParent = windowChildren[0].index;
+        }
+        if (only(trainCell, 'div') !== targets.window.index || only(imageParent, 'img') !== targets.trainImage.index) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
     }
     if (!cleanup) {
         try { nativeLayoutRestoreCellsAligned(contract, ids); } catch { throw failure('TEMPLATE_LAYOUT_UNCONFIRMED'); }
@@ -933,10 +940,14 @@ function removePreviousLayoutSheet(html, contract) {
     const ids = { root: base + 'r', person: base + 'p', company: base + 'c', train: base + 't' };
     if (contract.elements.some((node, index) => withinContract(contract, index, contract.signature.index)
         && [base + 'l', 'x_' + base + 'l'].includes(node.attrs.id))) ids.logo = base + 'l';
-    for (const [key, suffix] of [['inset', 'i'], ['footer', 'f'], ['window', 'w'], ['trainImage', 'j']]) {
+    for (const [key, suffix] of [['inset', 'i'], ['footer', 'f'], ['window', 'w']]) {
         if (contract.elements.some((node, index) => withinContract(contract, index, contract.signature.index)
             && [base + suffix, 'x_' + base + suffix].includes(node.attrs.id))) ids[key] = base + suffix;
     }
+    const trainImages = ['j', 'k'].filter(suffix => contract.elements.some((node, index) => withinContract(contract, index, contract.signature.index)
+        && [base + suffix, 'x_' + base + suffix].includes(node.attrs.id)));
+    if (trainImages.length > 1) return html;
+    if (trainImages.length === 1) ids.trainImage = base + trainImages[0];
     if (Number.isInteger(contract.template?.index) && contract.elements.some((node, index) => withinContract(contract, index, contract.template.index)
         && [base + 'q', 'x_' + base + 'q'].includes(node.attrs.id))) ids.templateGutter = base + 'q';
     if (contract.elements.some((node, index) => withinContract(contract, index, contract.signature.index)

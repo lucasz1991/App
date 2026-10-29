@@ -2,7 +2,7 @@
 
 Usage: python scripts/mail/build_static_linked_test_assets.py [--check]
 
-The 29 original assets and 21 existing PNG selections are pinned by full SHA256,
+The 33 original assets and 25 existing PNG selections are pinned by full SHA256,
 byte length, MIME and dimensions. This build never renders or re-encodes an
 image. It copies only the selected PNG bytes to public/m/<first10SHA256>.png.
 No resources copy is needed: every original already has its canonical backup.
@@ -413,6 +413,58 @@ MANIFEST = json.loads(r"""{
       "png": "zug-dampf-outlook-intrinsic-v1-dark-mirrored.png",
       "png_sha256": "4b6995aa470fb7730c0efa88d95528eb053bf95e3314a9567f2d36084370bd78",
       "output": "/m/4b6995aa47.png"
+    },
+    {
+      "source": "outlook-hotline-fill-outline-v1.png",
+      "sha256": "a27ccfb5bfa433fb8d4a13401a3ea1ffbf1d77482e0ba1162a041f218548abe3",
+      "bytes": 76,
+      "mime": "image/png",
+      "dimensions": [
+        1,
+        34
+      ],
+      "png": "outlook-hotline-fill-outline-v1.png",
+      "png_sha256": "a27ccfb5bfa433fb8d4a13401a3ea1ffbf1d77482e0ba1162a041f218548abe3",
+      "output": "/m/a27ccfb5bf.png"
+    },
+    {
+      "source": "outlook-hotline-label-outline-v1.png",
+      "sha256": "003919f6fe18e62a958217d165f9c3a93602f513af78bbd1470aaa6dc95a18ec",
+      "bytes": 6474,
+      "mime": "image/png",
+      "dimensions": [
+        552,
+        102
+      ],
+      "png": "outlook-hotline-label-outline-v1.png",
+      "png_sha256": "003919f6fe18e62a958217d165f9c3a93602f513af78bbd1470aaa6dc95a18ec",
+      "output": "/m/003919f6fe.png"
+    },
+    {
+      "source": "outlook-hotline-mail-outline-v1.png",
+      "sha256": "dcf209bd170e4581760ec5c8183830d445cd4fc2e46277bc5ff265bacbc85e9d",
+      "bytes": 1684,
+      "mime": "image/png",
+      "dimensions": [
+        126,
+        102
+      ],
+      "png": "outlook-hotline-mail-outline-v1.png",
+      "png_sha256": "dcf209bd170e4581760ec5c8183830d445cd4fc2e46277bc5ff265bacbc85e9d",
+      "output": "/m/dcf209bd17.png"
+    },
+    {
+      "source": "outlook-hotline-phone-outline-v1.png",
+      "sha256": "e24cb8b0ac6770bd9b2a453c50b7c7157531f5929e96713f9aa03d42647f3ea1",
+      "bytes": 2924,
+      "mime": "image/png",
+      "dimensions": [
+        126,
+        102
+      ],
+      "png": "outlook-hotline-phone-outline-v1.png",
+      "png_sha256": "e24cb8b0ac6770bd9b2a453c50b7c7157531f5929e96713f9aa03d42647f3ea1",
+      "output": "/m/e24cb8b0ac.png"
     }
   ],
   "targets": {
@@ -625,6 +677,46 @@ MANIFEST = json.loads(r"""{
         1205,
         151
       ]
+    },
+    "/m/a27ccfb5bf.png": {
+      "source": "outlook-hotline-fill-outline-v1.png",
+      "sha256": "a27ccfb5bfa433fb8d4a13401a3ea1ffbf1d77482e0ba1162a041f218548abe3",
+      "bytes": 76,
+      "mime": "image/png",
+      "dimensions": [
+        1,
+        34
+      ]
+    },
+    "/m/003919f6fe.png": {
+      "source": "outlook-hotline-label-outline-v1.png",
+      "sha256": "003919f6fe18e62a958217d165f9c3a93602f513af78bbd1470aaa6dc95a18ec",
+      "bytes": 6474,
+      "mime": "image/png",
+      "dimensions": [
+        552,
+        102
+      ]
+    },
+    "/m/dcf209bd17.png": {
+      "source": "outlook-hotline-mail-outline-v1.png",
+      "sha256": "dcf209bd170e4581760ec5c8183830d445cd4fc2e46277bc5ff265bacbc85e9d",
+      "bytes": 1684,
+      "mime": "image/png",
+      "dimensions": [
+        126,
+        102
+      ]
+    },
+    "/m/e24cb8b0ac.png": {
+      "source": "outlook-hotline-phone-outline-v1.png",
+      "sha256": "e24cb8b0ac6770bd9b2a453c50b7c7157531f5929e96713f9aa03d42647f3ea1",
+      "bytes": 2924,
+      "mime": "image/png",
+      "dimensions": [
+        126,
+        102
+      ]
     }
   }
 }""")
@@ -817,8 +909,8 @@ def main() -> int:
     parser.add_argument("--check", action="store_true", help="Verify exact existing outputs without writing files or directories")
     arguments = parser.parse_args()
     try:
-        if len(MANIFEST["sources"]) != 29 or len(MANIFEST["targets"]) != 21:
-            raise ValueError("The approved 29-source / 21-target inventory changed")
+        if len(MANIFEST["sources"]) != 33 or len(MANIFEST["targets"]) != 25:
+            raise ValueError("The approved 33-source / 25-target inventory changed")
         report = build_assets(check=arguments.check)
     except (OSError, ValueError, SyntaxError) as error:
         print("Static linked asset verification failed: " + str(error), file=sys.stderr)

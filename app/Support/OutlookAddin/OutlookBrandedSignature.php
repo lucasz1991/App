@@ -398,6 +398,142 @@ final class OutlookBrandedSignature
         return self::replace($html, $edits);
     }
 
+    /** Current output presentation only; never changes the authored V27 grammar. */
+    public static function outlinedPresentation(string $html): string
+    {
+        if (! str_contains($html, 'rt-outlook-') && ! str_contains($html, 'data-rt-artifact-version="v27"')) {
+            return $html;
+        }
+        $nodes = self::nodes($html);
+        $edits = [];
+        $markPads = [];
+        $frameClasses = [];
+        $headerClasses = [];
+        $mobile = str_contains($html, 'data-rt-mobile-hybrid="v2"') || OutlookDesktopFlow::mobile($html);
+        foreach ($nodes as $index => $node) {
+            if ($node['tag'] === 'img' && self::has($node, 'rt-mark')) {
+                $edits[] = [$node['start'], $node['end'] - $node['start'], ''];
+                $markContainer = $node['parent'];
+                for ($ancestor = $node['parent']; $ancestor !== null; $ancestor = $nodes[$ancestor]['parent']) {
+                    if ($nodes[$ancestor]['tag'] === 'td' && (self::has($nodes[$ancestor], 'rt-native-template-pad') || self::has($nodes[$ancestor], 'rt-pad'))) {
+                        $style = self::property(self::property($nodes[$ancestor]['attrs']['style'] ?? '', 'padding-top', '0'), 'padding-bottom', '0');
+                        $edits[] = [$nodes[$ancestor]['start'], $nodes[$ancestor]['openEnd'] - $nodes[$ancestor]['start'], self::opening($nodes[$ancestor], ['style' => $style])];
+                        $markPads[$ancestor][] = $node['attrs']['src'] ?? '';
+                        $markContainer = null;
+                        break;
+                    }
+                }
+                if ($markContainer !== null) {
+                    $markPads[$markContainer][] = $node['attrs']['src'] ?? '';
+                }
+            }
+            $style = $node['attrs']['style'] ?? '';
+            if (preg_match('/(?:^|;)\s*border-left\s*:\s*6px\s+solid\s+#e90032\s*(?:!important)?\s*(?:;|$)/i', $style)
+                && (array_intersect(self::classes($node), ['rt-shell', 'rt-native-compose-frame', 'rt-combined-compose-frame', 'rt-signature-compose-frame', 'rt-outlook-signature']) !== []
+                    || ($mobile && $frameClasses === [] && in_array($node['tag'], ['table', 'div'], true))
+                    || array_filter(self::direct($nodes, $index), static fn (int $child): bool => self::has($nodes[$child], 'rt-shell')) !== [])) {
+                $edits[] = [$node['start'], $node['openEnd'] - $node['start'], self::opening($node, ['style' => self::property($style, 'border-left', '3px solid '.self::RED)])];
+                $frameClasses = array_merge($frameClasses, self::classes($node));
+            }
+            if ($node['tag'] !== 'td' || ($node['attrs']['data-rt-brand-hotline'] ?? '') !== self::MARKER) {
+                continue;
+            }
+            $table = self::singleChild($html, $nodes, $index, 'table');
+            $row = self::singleRow($html, $nodes, $table);
+            $cells = self::rowCells($html, $nodes, $row, 5);
+            if (self::has($node, 'rt-brand-outline-cell')) {
+                continue;
+            }
+            [$mailOpen, $mailClose] = self::action($html, $nodes, $cells[2], 'mailto:');
+            [$phoneOpen, $phoneClose] = self::action($html, $nodes, $cells[3], 'tel:');
+            $phoneAnchor = self::singleChild($html, $nodes, $cells[3], 'a');
+            $phone = CssSemantic::decodeHtmlEntitiesOnce(substr($nodes[$phoneAnchor]['attrs']['href'], 4));
+            if (! preg_match('/\A\+?[0-9().-]{3,32}\z/D', $phone)) {
+                self::fail();
+            }
+            $images = [];
+            foreach ([0 => 'fill', 1 => 'label', 2 => 'mail', 3 => 'phone'] as $column => $kind) {
+                $descendants = array_values(array_filter(array_keys($nodes), static fn (int $child): bool => $nodes[$child]['tag'] === 'img' && self::within($nodes, $child, $cells[$column])));
+                if (count($descendants) !== 1) {
+                    self::fail();
+                }
+                $image = $nodes[$descendants[0]];
+                $headerClasses = array_merge($headerClasses, self::classes($image));
+                $width = $kind === 'label' ? '184' : ($kind === 'fill' ? '100%' : '42');
+                $alt = match ($kind) {
+                    'label' => 'Dispo 24/7 erreichbar',
+                    'mail' => 'E-Mail',
+                    'phone' => 'Telefon',
+                    default => '',
+                };
+                $display = in_array($kind, ['label', 'phone'], true) ? 'inline-block;vertical-align:middle;' : 'block;';
+                $images[$kind] = '<img src="'.htmlspecialchars($image['attrs']['src'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'" width="'.$width.'" height="34" alt="'.htmlspecialchars($alt, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'" style="display:'.$display.'">';
+            }
+            $anchorStyle = 'color:'.self::RED.'!important;text-decoration:none;font:700 13px Arial,sans-serif;white-space:nowrap;';
+            $phoneOpen = self::opening($nodes[$phoneAnchor], ['style' => $anchorStyle]);
+            $group = ' role="presentation" cellspacing="0" cellpadding="0" style="display:inline-block;vertical-align:middle;"';
+            $gutter = '<table class="rt-brand-hotline-gutter" role="presentation" width="40" cellspacing="0" cellpadding="0"><tbody><tr><td>'.$images['fill'].'</td></tr></tbody></table>';
+            $content = '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;"><tbody><tr>'
+                .'<td width="1">'.$gutter.'</td>'
+                .'<td style="padding:0 40px 0 0;font-size:0;line-height:0;">'
+                .'<table'.$group.'><tbody><tr><td>'.$images['label'].'</td></tr></tbody></table>'
+                .'<table'.$group.'><tbody><tr><td>'.$mailOpen.$images['mail'].$mailClose.'</td>'
+                .'<td>'.$phoneOpen.$images['phone'].$phoneClose.'</td>'
+                .'<td>'.$phoneOpen.htmlspecialchars($phone, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').$phoneClose.'</td></tr></tbody></table>'
+                .'</td><td></td><td></td><td></td></tr></tbody></table>';
+            $edits[] = [$node['start'], $node['openEnd'] - $node['start'], self::opening($node, ['class' => 'design-hotline-row rt-brand-hotline-cell rt-brand-outline-cell', 'bgcolor' => null, 'style' => self::OUTER_STYLE.'background-color:transparent!important;'])];
+            $edits[] = [$node['openEnd'], $node['close'] - $node['openEnd'], $content];
+            $outer = $nodes[$node['parent']]['parent'];
+            if ($outer !== null && $nodes[$outer]['tag'] === 'tbody') {
+                $outer = $nodes[$outer]['parent'];
+            }
+            if ($outer === null || $nodes[$outer]['tag'] !== 'table' || (! self::has($nodes[$outer], 'rt-hotline-banner') && ! $mobile)) {
+                self::fail();
+            }
+            $headerClasses = array_merge($headerClasses, self::classes($node), self::classes($nodes[$outer]));
+            $edits[] = [$nodes[$outer]['start'], $nodes[$outer]['openEnd'] - $nodes[$outer]['start'], self::opening($nodes[$outer], ['class' => 'rt-hotline-banner rt-brand-outline-v1', 'bgcolor' => null, 'style' => 'width:100%;border-collapse:collapse;border-top:1px solid '.self::RED.';background-color:transparent!important;'])];
+        }
+        foreach ($markPads as $pad => $sources) {
+            preg_match_all('~<!--\[if\b.*?<!\[endif\]-->~is', self::inner($html, $nodes[$pad]), $comments, PREG_OFFSET_CAPTURE);
+            foreach ($comments[0] as [$comment, $offset]) {
+                $replacement = preg_replace_callback('~<img\b(?:[^"\'<>]|"[^"]*"|\'[^\']*\')*>~is', static function (array $image) use ($sources): string {
+                    if (preg_match('~\ssrc\s*=\s*(["\'])(.*?)\1~is', $image[0], $source)
+                        && in_array(CssSemantic::decodeHtmlEntitiesOnce($source[2]), $sources, true)) {
+                        return '';
+                    }
+
+                    return $image[0];
+                }, $comment) ?? $comment;
+                if ($replacement !== $comment) {
+                    $edits[] = [$nodes[$pad]['openEnd'] + $offset, strlen($comment), $replacement];
+                }
+            }
+        }
+        $html = self::replace($html, $edits);
+        $liveClasses = [];
+        foreach (self::nodes($html) as $node) {
+            $liveClasses = array_merge($liveClasses, self::classes($node));
+        }
+        $deadHeaderClasses = array_values(array_diff(array_unique($headerClasses), $liveClasses));
+
+        // Generated frame mirrors retain their selectors and all other rules.
+        return preg_replace_callback('~<style\b[^>]*>.*?</style\s*>~is', static function (array $sheet) use ($frameClasses, $deadHeaderClasses): string {
+            $generated = preg_match('/data-rt-outlook-(?:signature-inline|mobile)-css=/', $sheet[0]) === 1;
+
+            return preg_replace_callback('~([^{}]+)\{([^{}]*)\}~', static function (array $rule) use ($frameClasses, $deadHeaderClasses, $generated): string {
+                if ($generated && preg_match('/\A[a-z0-9_.#\s,>+~-]+\z/i', $rule[1])
+                    && array_filter($deadHeaderClasses, static fn (string $class): bool => array_filter(explode(',', $rule[1]), static fn (string $selector): bool => preg_match('/\.'.preg_quote($class, '/').'(?![a-z0-9_-])/i', $selector) !== 1) === []) !== []) {
+                    return '';
+                }
+
+                return preg_match('/rt-(?:native-compose-frame|combined-compose-frame|signature-compose-frame|outlook-signature|shell)/', $rule[1])
+                    || array_filter($frameClasses, static fn (string $class): bool => preg_match('/\.'.preg_quote($class, '/').'(?![a-z0-9_-])/i', $rule[1]) === 1) !== []
+                    ? $rule[1].'{'.preg_replace('/border-left\s*:\s*6px\s+solid\s+#e90032/i', 'border-left:3px solid '.self::RED, $rule[2]).'}'
+                    : $rule[0];
+            }, $sheet[0]) ?? $sheet[0];
+        }, $html) ?? $html;
+    }
+
     /** Release only the managed logo's white carrier, after all CSS mirrors. */
     public static function transparentLogoSurface(string $html): string
     {
@@ -502,7 +638,7 @@ final class OutlookBrandedSignature
 
     private static function asset(string $kind): string
     {
-        return '/mail-assets/outlook-hotline-'.$kind.'-v1.png';
+        return '/mail-assets/outlook-hotline-'.$kind.'-outline-v1.png';
     }
 
     /** Keep every original anchor attribute, including its encoded href/ARIA. */

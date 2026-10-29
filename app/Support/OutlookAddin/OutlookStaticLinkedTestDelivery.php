@@ -31,6 +31,10 @@ final class OutlookStaticLinkedTestDelivery
         'contact-mobile.png' => ['8f6e4932f895cad94c310caa7b88d0ae95c8e71c556b1fe606d0251753cb487f', 826, 'image/png', 44, 44, '/m/8f6e4932f8.png', '8f6e4932f895cad94c310caa7b88d0ae95c8e71c556b1fe606d0251753cb487f'],
         'contact-email.png' => ['cfa8c6821180635369af1759ab5719f694aaa663e9fdefdc2dafcceac439f2dc', 1556, 'image/png', 44, 44, '/m/cfa8c68211.png', 'cfa8c6821180635369af1759ab5719f694aaa663e9fdefdc2dafcceac439f2dc'],
         'contact-web.png' => ['09d2f890b7ad37987fc7798e4a4470d9a6dd919f5bf9e2bcded88ba1dedbe71b', 2663, 'image/png', 44, 44, '/m/09d2f890b7.png', '09d2f890b7ad37987fc7798e4a4470d9a6dd919f5bf9e2bcded88ba1dedbe71b'],
+        'outlook-hotline-fill-outline-v1.png' => ['a27ccfb5bfa433fb8d4a13401a3ea1ffbf1d77482e0ba1162a041f218548abe3', 76, 'image/png', 1, 34, '/m/a27ccfb5bf.png', 'a27ccfb5bfa433fb8d4a13401a3ea1ffbf1d77482e0ba1162a041f218548abe3'],
+        'outlook-hotline-label-outline-v1.png' => ['003919f6fe18e62a958217d165f9c3a93602f513af78bbd1470aaa6dc95a18ec', 6474, 'image/png', 552, 102, '/m/003919f6fe.png', '003919f6fe18e62a958217d165f9c3a93602f513af78bbd1470aaa6dc95a18ec'],
+        'outlook-hotline-mail-outline-v1.png' => ['dcf209bd170e4581760ec5c8183830d445cd4fc2e46277bc5ff265bacbc85e9d', 1684, 'image/png', 126, 102, '/m/dcf209bd17.png', 'dcf209bd170e4581760ec5c8183830d445cd4fc2e46277bc5ff265bacbc85e9d'],
+        'outlook-hotline-phone-outline-v1.png' => ['e24cb8b0ac6770bd9b2a453c50b7c7157531f5929e96713f9aa03d42647f3ea1', 2924, 'image/png', 126, 102, '/m/e24cb8b0ac.png', 'e24cb8b0ac6770bd9b2a453c50b7c7157531f5929e96713f9aa03d42647f3ea1'],
         'outlook-hotline-fill-v1.png' => ['3ee5033b5b112852a0255cf62d99542391117ba462408510c460c799a5ad6583', 75, 'image/png', 1, 34, '/m/3ee5033b5b.png', '3ee5033b5b112852a0255cf62d99542391117ba462408510c460c799a5ad6583'],
         'outlook-hotline-label-v1.png' => ['c52d2cdb4861ec8714d6d33d45204a50dfd86de4b77c6d6c1f9f0d02185fd16d', 6485, 'image/png', 411, 102, '/m/c52d2cdb48.png', 'c52d2cdb4861ec8714d6d33d45204a50dfd86de4b77c6d6c1f9f0d02185fd16d'],
         'outlook-hotline-mail-v1.png' => ['36ecdeda3135132910ead299dec2fdef8786ed05a39d7fadb3ee4156e5d1696d', 2415, 'image/png', 126, 102, '/m/36ecdeda31.png', '36ecdeda3135132910ead299dec2fdef8786ed05a39d7fadb3ee4156e5d1696d'],
@@ -574,7 +578,7 @@ final class OutlookStaticLinkedTestDelivery
             $fingerprint['map:'.$sha] = $pngSha;
             $fingerprint[$output] = $pngSha;
         }
-        if (count($sources) !== 29 || count($targets) !== 21) {
+        if (count($sources) !== 33 || count($targets) !== 25) {
             self::fail();
         }
         ksort($fingerprint);
