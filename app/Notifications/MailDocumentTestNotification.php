@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Enums\MailDocumentKind;
+use Closure;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
@@ -14,6 +15,7 @@ final class MailDocumentTestNotification extends Notification
         private readonly int $documentVersion,
         private readonly ?string $artifactVersion,
         private readonly string $contentHash,
+        private readonly ?Closure $beforeSend = null,
     ) {}
 
     public function via(object $notifiable): array
@@ -26,7 +28,7 @@ final class MailDocumentTestNotification extends Notification
         $layoutVersion = $this->artifactVersion ?? 'nicht gekennzeichnet';
         $shortHash = substr(strtolower(trim($this->contentHash)), 0, 12);
 
-        return (new MailMessage)
+        $message = (new MailMessage)
             ->subject(
                 '[TEST] '.$this->kind->label()
                 .' · Layout '.$layoutVersion
@@ -40,5 +42,11 @@ final class MailDocumentTestNotification extends Notification
             ->line('Prüfkennung: '.$shortHash.'.')
             ->line('Andere Mailbausteine stammen weiterhin aus ihrer veröffentlichten Version.')
             ->salutation('RailTime Systemtest');
+
+        if ($this->beforeSend !== null) {
+            $message->withSymfonyMessage($this->beforeSend);
+        }
+
+        return $message;
     }
 }

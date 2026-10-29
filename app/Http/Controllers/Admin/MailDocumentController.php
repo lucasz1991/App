@@ -31,6 +31,7 @@ use App\Support\Mail\SignatureDocumentContract;
 use App\Support\Mail\SignatureImgOverlapFallback;
 use App\Support\Mail\TemplateDocumentContract;
 use App\Support\OutlookAddin\OutlookAddinSnapshotRefreshScheduler;
+use App\Support\OutlookAddin\OutlookStaticLinkedTestDelivery;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -43,6 +44,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\Mime\Email;
 
 /**
  * Speichern und Veroeffentlichen der beiden Maildokumente.
@@ -431,6 +433,13 @@ final class MailDocumentController extends Controller
                 'preview' => 'Die Versandvorschau benötigt eine gültige Vorlage und Signatur.',
             ]);
         }
+        $finalHtml = $this->staticLinkedSystemPreview(
+            $document,
+            (string) $validated['expected_hash'],
+            $htmlReport->html,
+            $cssReport->html,
+            $finalHtml,
+        );
         $compatibility = $this->auditCompiledSystemMail($compatibilityAuditor, $finalHtml);
 
         $candidate = $this->payload($document);
@@ -1323,6 +1332,25 @@ final class MailDocumentController extends Controller
         $this->assertCompatibilityPublishable($compatibility);
         $artifactVersion = SignatureArtifactVersion::detect($document->kind, $html);
         $shortHash = substr(strtolower((string) $document->content_hash), 0, 12);
+        $beforeSend = null;
+        if ($document->kind === MailDocumentKind::Signature && $this->markedStaticSystemSignature($html)) {
+            // A synchronous, selected test only. Laravel calls this after its
+            // inliner and before MessageSending; no global listener is changed.
+            $beforeSend = function (Email $message) use ($document, $validated, $html, $cssReport): void {
+                $rendered = $message->getHtmlBody();
+                if (! is_string($rendered)) {
+                    throw ValidationException::withMessages(['preview' => 'Die statische Testmail enthält keinen gültigen HTML-Inhalt.']);
+                }
+                $message->html($this->staticLinkedSystemPreview(
+                    $document,
+                    (string) $validated['expected_hash'],
+                    $html,
+                    $cssReport->html,
+                    $rendered,
+                    requirePublished: true,
+                ), $message->getHtmlCharset() ?? 'utf-8');
+            };
+        }
         $snapshots->useSnapshot($document->kind, $html, $cssReport->html);
 
         try {
@@ -1332,6 +1360,7 @@ final class MailDocumentController extends Controller
                     (int) $document->version,
                     $artifactVersion,
                     (string) $document->content_hash,
+                    $beforeSend,
                 ),
             );
         } finally {
@@ -1908,6 +1937,109 @@ final class MailDocumentController extends Controller
         } catch (\RuntimeException $exception) {
             throw ValidationException::withMessages(['signature' => $exception->getMessage()]);
         }
+    }
+
+    /** Project the selected published test signature; static testmail requires that exact publication. */
+    private function staticLinkedSystemPreview(
+        MailDocument $document,
+        string $expectedHash,
+        string $candidateHtml,
+        string $candidateCss,
+        string $finalHtml,
+        bool $requirePublished = false,
+    ): string {
+        if ($document->kind !== MailDocumentKind::Signature) {
+            return $finalHtml;
+        }
+        $published = MailDocument::query()->withPublishedSnapshot()->whereKey($document->getKey())
+            ->where('kind', MailDocumentKind::Signature->value)->first();
+        if (! $published instanceof MailDocument
+            || ! hash_equals((string) $published->published_html, $candidateHtml)
+            || ! hash_equals((string) $published->published_css, $candidateCss)
+            || ! $this->markedStaticSystemSignature($candidateHtml)) {
+            if ($requirePublished) {
+                throw ValidationException::withMessages(['preview' => 'Die statische Testmail benötigt den unveränderten veröffentlichten Stand der ausgewählten Testsignatur.']);
+            }
+
+            return $finalHtml;
+        }
+        if (! $published->matchesContentHash($expectedHash)) {
+            throw ValidationException::withMessages(['expected_hash' => 'Die veröffentlichte Testsignatur wurde inzwischen geändert. Bitte lade die Seite neu.']);
+        }
+        $guard = array_intersect_key($published->getRawOriginal(), array_fill_keys([
+            'id', 'kind', 'content_hash', 'published_at', 'published_html', 'published_css',
+        ], true));
+        try {
+            $projected = OutlookStaticLinkedTestDelivery::renderedPreview(
+                $finalHtml,
+                OutlookStaticLinkedTestDelivery::PROFILE,
+                (string) config('app.url'),
+            );
+        } catch (\RuntimeException) {
+            throw ValidationException::withMessages(['preview' => 'Die veröffentlichte statische Testsignatur ist nicht eindeutig freigegeben.']);
+        }
+        $fresh = MailDocument::query()->whereKey($published->getKey())->first();
+        foreach ($guard as $field => $value) {
+            if (! $fresh instanceof MailDocument || $fresh->getRawOriginal($field) !== $value) {
+                throw ValidationException::withMessages(['expected_hash' => 'Die veröffentlichte Testsignatur wurde inzwischen geändert. Bitte lade die Seite neu.']);
+            }
+        }
+
+        return $projected;
+    }
+
+    /** Same raw source-attribute admission as the Outlook pair adapter; never infer it from rendered bytes. */
+    private function markedStaticSystemSignature(string $html): bool
+    {
+        preg_match_all('~<!--.*?-->|<(?:style|script)\b[^>]*>.*?</(?:style|script)\s*>|</?[a-z][a-z0-9:-]*(?:[^"\'<>]|"[^"]*"|\'[^\']*\')*>~is', $html, $matches);
+        $markers = $targets = [];
+        $firstRow = null;
+        $quotes = 0;
+        $ambiguous = false;
+        foreach ($matches[0] as $index => $tag) {
+            if (str_starts_with($tag, '<!--') || preg_match('~\A<(?:style|script)\b~i', $tag)) {
+                continue;
+            }
+            if (preg_match('~\A</blockquote\s*>~i', $tag)) {
+                $quotes--;
+
+                continue;
+            }
+            if (! preg_match('~\A<([a-z][a-z0-9:-]*)\b~i', $tag, $name)) {
+                continue;
+            }
+            $name = strtolower($name[1]);
+            $quotes += (int) ($name === 'blockquote');
+            $attributes = [];
+            preg_match_all('~\s+([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s>]+)))?~', substr($tag, strlen($name) + 1, -1), $pairs, PREG_SET_ORDER | PREG_UNMATCHED_AS_NULL);
+            foreach ($pairs as $pair) {
+                $key = strtolower($pair[1]);
+                if (array_key_exists($key, $attributes) && in_array($key, ['class', 'data-rt-static', 'data-rt-artifact-version'], true)) {
+                    $ambiguous = true;
+                }
+                $attributes[$key] = $pair[2] ?? $pair[3] ?? $pair[4] ?? null;
+            }
+            if ($name === 'tr' && $firstRow === null) {
+                $firstRow = $index;
+            }
+            if ($name === 'tr' && ($attributes['data-rt-artifact-version'] ?? null) === 'v27') {
+                $targets[] = $index;
+            }
+            if (array_key_exists('data-rt-static', $attributes)) {
+                if ($attributes['data-rt-static'] !== 'v1' || $quotes !== 0) {
+                    throw ValidationException::withMessages(['preview' => 'Die veröffentlichte statische Testsignatur ist nicht eindeutig freigegeben.']);
+                }
+                $markers[] = $index;
+            }
+        }
+        if ($markers === []) {
+            return false;
+        }
+        if ($ambiguous || count($markers) !== 1 || count($targets) !== 1 || $markers[0] !== $targets[0] || $markers[0] !== $firstRow) {
+            throw ValidationException::withMessages(['preview' => 'Die veröffentlichte statische Testsignatur ist nicht eindeutig freigegeben.']);
+        }
+
+        return true;
     }
 
     /** Bewertet das bereits final zusammengesetzte Versand-HTML. */

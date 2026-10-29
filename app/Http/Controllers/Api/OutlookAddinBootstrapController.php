@@ -12,6 +12,7 @@ use App\Support\OutlookAddin\OutlookAddinTemplateChoicesPolicy;
 use App\Support\OutlookAddin\OutlookAddinUserSnapshotStore;
 use App\Support\OutlookAddin\OutlookClientPresentation;
 use App\Support\OutlookAddin\OutlookMobileSignature;
+use App\Support\OutlookAddin\OutlookStaticLinkedTestProfiles;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -123,6 +124,7 @@ final class OutlookAddinBootstrapController extends Controller
                 $payload = OutlookMobileSignature::payload($payload);
             }
             $payload = OutlookClientPresentation::payload($payload);
+            $payload = OutlookStaticLinkedTestProfiles::payload($payload, $resolved['user']);
             if ($templateOnly) {
                 $payload = $this->templateOnlyPayload($payload, $request->header('X-RailTime-Outlook-Profile') === OutlookMobileSignature::PROFILE);
             }
