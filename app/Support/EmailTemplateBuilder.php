@@ -742,8 +742,6 @@ class EmailTemplateBuilder
             .'mso-line-height-rule:exactly;">&nbsp;</td></tr>';
         $html = str_replace($slot, $applicationRow, $html);
 
-        $html = OutlookBrandedSignature::outlinedPresentation(OutlookBrandedSignature::project($html, rtrim((string) config('app.url'), '/')));
-
         return SystemMailInlineImageEmbedder::mark(
             self::embedPublishedCss(
                 $html,
