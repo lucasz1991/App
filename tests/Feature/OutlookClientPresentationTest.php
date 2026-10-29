@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\MailDocument;
+use App\Support\OutlookAddin\OutlookBrandedSignature;
 use App\Support\OutlookAddin\OutlookClientPresentation;
 use App\Support\OutlookAddin\OutlookMobileSignature;
 use App\Support\OutlookAddin\OutlookStaticBrandImages;
@@ -72,7 +73,7 @@ final class OutlookClientPresentationTest extends TestCase
         $method = new ReflectionMethod(OutlookClientPresentation::class, 'document');
         self::assertSame($mobile, $method->invoke(null, $mobile, 30000, 12288, true));
         self::assertSame($pair, $method->invoke(null, $pair, 30000, 12288, false));
-        self::assertSame('outlook-client-presentation-v11', OutlookClientPresentation::REVISION);
+        self::assertSame('outlook-client-presentation-v12', OutlookClientPresentation::REVISION);
     }
 
     public function test_advanced_authored_logo_class_observers_keep_their_original_contract(): void
@@ -154,7 +155,7 @@ final class OutlookClientPresentationTest extends TestCase
             $new = $result['templates'][$index];
             $this->assertProjection($old['signature']['html'], $new['signature']['html'], 30000, 12288, normalizeBrands: false);
             $this->assertProjection($old['mobileComposeHtml'], $new['mobileComposeHtml'], 30000, 12288, normalizeBrands: false);
-            self::assertSame($old['mobileComposeMedia'], $new['mobileComposeMedia']);
+            $this->assertPresentationMedia($old['mobileComposeHtml'], $new['mobileComposeHtml'], $old['mobileComposeMedia'], $new['mobileComposeMedia']);
             self::assertSame($old['mobileComposeDocumentMode'], $new['mobileComposeDocumentMode']);
             self::assertNotSame($old['mobileComposeVersion'], $new['mobileComposeVersion']);
             self::assertMatchesRegularExpression('/\A[0-9a-f]{16}\z/', $new['mobileComposeVersion']);
@@ -281,10 +282,20 @@ final class OutlookClientPresentationTest extends TestCase
         self::assertSame($old['version']['personal'], $new['version']['personal']);
         self::assertSame($old['version']['template'], $new['version']['template']);
         foreach ($old['templates'] as $index => $template) {
-            foreach (['id', 'key', 'name', 'label', 'active', 'isDefault', 'version', 'hash', 'media', 'composeMedia', 'combinedComposeMedia', 'signatureMode', 'composeDocumentMode'] as $key) {
+            foreach (['id', 'key', 'name', 'label', 'active', 'isDefault', 'version', 'hash', 'signatureMode', 'composeDocumentMode'] as $key) {
                 self::assertSame($template[$key], $new['templates'][$index][$key], $key);
             }
+            foreach (['html' => 'media', 'composeHtml' => 'composeMedia', 'combinedComposeHtml' => 'combinedComposeMedia'] as $html => $media) {
+                $this->assertPresentationMedia($template[$html], $new['templates'][$index][$html], $template[$media], $new['templates'][$index][$media]);
+            }
         }
+    }
+
+    private function assertPresentationMedia(string $before, string $after, array $old, array $new): void
+    {
+        preg_match_all('~<img\b[^>]*\bclass="[^"]*\brt-mark\b[^"]*"[^>]*\bsrc="cid:([^"]+)"[^>]*>~i', $before, $marks);
+        $removed = array_filter($marks[1], static fn (string $cid): bool => ! str_contains($after, 'cid:'.$cid));
+        self::assertSame(array_values(array_filter($old, static fn (array $media): bool => ! in_array($media['contentId'], $removed, true))), $new, 'Only a removed template mark loses its orphan media entry.');
     }
 
     private function assertSignatureVersion(string $html, string $version): void
@@ -296,6 +307,7 @@ final class OutlookClientPresentationTest extends TestCase
     private function assertProjection(string $old, string $new, int $htmlLimit, int $cssLimit, bool $logo = true, bool $normalizeBrands = true): void
     {
         $old = $normalizeBrands ? OutlookStaticBrandImages::project($old) : $old;
+        $old = OutlookBrandedSignature::outlinedPresentation($old);
         self::assertSame($this->images($old), $this->images($new), 'Only proven duplicate static brand images may be removed; the remaining media/dimensions stay intact.');
         self::assertSame($this->comments($old), $this->comments($new), 'Unrelated and train conditional Word branches stay byte-identical.');
         self::assertLessThanOrEqual($htmlLimit, intdiv(strlen(mb_convert_encoding($new, 'UTF-16LE', 'UTF-8')), 2));
