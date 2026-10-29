@@ -21,6 +21,7 @@ use App\Support\Mail\TrustedOutlookSignatureCss;
 use App\Support\OutlookAddin\OutlookAddinWordingPolicy;
 use App\Support\OutlookAddin\OutlookBrandedSignature;
 use App\Support\OutlookAddin\OutlookComposeFrame;
+use App\Support\OutlookAddin\OutlookThreeColumnPresentation;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
@@ -741,6 +742,8 @@ class EmailTemplateBuilder
             .'style="height:14px;background:'.$values['SURFACE_BG'].';font-size:0;line-height:0;'
             .'mso-line-height-rule:exactly;">&nbsp;</td></tr>';
         $html = str_replace($slot, $applicationRow, $html);
+
+        $html = OutlookThreeColumnPresentation::systemDocument($html, rtrim((string) config('app.url'), '/'), $signature->publishedCss());
 
         return SystemMailInlineImageEmbedder::mark(
             self::embedPublishedCss(

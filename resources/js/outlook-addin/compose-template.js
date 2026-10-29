@@ -586,7 +586,7 @@ export async function prependTemplate(office, item, html, beforeWrite = () => {}
                 try {
                     const previous = existingStandalone(snapshot);
                     safe = previous && nativeLayoutRestoreRetained(snapshot.html, previous.contract, previous.ids) === true
-                        && (!nativeLayoutRestoreCarrierIsExternal(snapshot.html, previous.contract, previous.ids) || Boolean(previous.ids.logo));
+                        && (!nativeLayoutRestoreCarrierIsExternal(snapshot.html, previous.contract, previous.ids) || Boolean(previous.ids.logo || previous.ids.dispatch));
                 } catch { /* Unknown/currently unverified carrier stays opaque. */ }
                 if (!safe) throw failure('SIGNATURE_LAYOUT_LEGACY_CARRIER', { phase: 'template-legacy-carrier-preflight' });
             }
@@ -683,7 +683,7 @@ export function standaloneSignatureLayoutIsCurrent(html, currentHtml, version) {
         const contract = standaloneSignatureContract(html, currentHtml, null, version);
         if (!contract.layoutIds) return false;
         const scoped = layoutIdsContract(html, currentHtml, contract.layoutIds, contract);
-        if (!contract.layoutIds.logo && nativeLayoutRestoreCarrierIsExternal(html, scoped, contract.layoutIds)) return false;
+        if (!contract.layoutIds.logo && !contract.layoutIds.dispatch && nativeLayoutRestoreCarrierIsExternal(html, scoped, contract.layoutIds)) return false;
         return nativeLayoutRestoreRetained(html, scoped, contract.layoutIds) === true;
     } catch { return false; }
 }
@@ -736,12 +736,12 @@ export async function insertStandaloneSignature(office, item, html, beforeWrite 
                 valid = historical ? removeNativeLayoutRestoreCarrier(original.html, previous.contract, previous.ids) !== original.html
                     : nativeLayoutRestoreRetained(original.html, previous.contract, previous.ids) === true;
             } catch { /* No retry against an unknown carrier. */ }
-            if (!valid && !historical && previous.ids.logo) {
+            if (!valid && !historical && (previous.ids.logo || previous.ids.dispatch)) {
                 valid = removeNativeLayoutRestoreCarrier(original.html, previous.contract, previous.ids) !== original.html;
                 historical = valid;
             }
             if (!valid) { operation.phase = 'uncertain'; throw failure('SIGNATURE_LAYOUT_UNCONFIRMED'); }
-            if (!previous.ids.logo && nativeLayoutRestoreCarrierIsExternal(original.html, previous.contract, previous.ids)) {
+            if (!previous.ids.logo && !previous.ids.dispatch && nativeLayoutRestoreCarrierIsExternal(original.html, previous.contract, previous.ids)) {
                 throw failure('SIGNATURE_LAYOUT_LEGACY_CARRIER', { phase: 'signature-legacy-carrier-preflight' });
             }
             const reuse = /^rt-native-layout-([0-9a-f]{32})-r$/.exec(previous.ids.root)?.[1];
@@ -848,7 +848,8 @@ function layoutIdsContract(html, currentHtml, ids, standalone = null, cleanup = 
         const matches = contract.elements.map((node, index) => ({ node, index })).filter(value => typeof value.node.attrs.id === 'string'
             && value.node.attrs.id.endsWith(ids[key]));
         const owner = key === 'templateGutter' ? (contract.kind === 'standalone-signature-v1' ? null : contract.template?.index) : contract.signature.index;
-        const tag = key === 'window' ? 'div' : key === 'trainImage' ? 'img' : 'table';
+        const tag = key === 'window' ? 'div' : key === 'trainImage' ? 'img'
+            : ids.dispatch && (key.endsWith('Cell') || key === 'footer') ? 'td' : 'table';
         if (matches.length !== 1 || matches[0].node.tag !== tag
             || ![ids[key], `x_${ids[key]}`].includes(matches[0].node.attrs.id)
             || !Number.isInteger(owner) || !withinContract(contract, matches[0].index, owner)) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
@@ -861,12 +862,14 @@ function layoutIdsContract(html, currentHtml, ids, standalone = null, cleanup = 
         return values[0].index;
     };
     const rootRows = children(only(targets.root.index, 'tbody'));
-    const legacy = !targets.logo || (cleanup && rootRows.length === 1);
+    const legacy = (!targets.logo && !targets.dispatch) || (cleanup && rootRows.length === 1);
     if (rootRows.length !== (legacy ? 1 : 2) || rootRows.some(row => row.node.tag !== 'tr')) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
     const cells = rootRows.map(row => only(row.index, 'td'));
+    if (targets.dispatch && (!targets.lineCell || !withinContract(contract, targets.root.index, targets.lineCell.index))) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
     const groups = children(cells[0]);
-    const order = [...(targets.logo ? [targets.logo.index] : []), targets.person.index, targets.company.index, ...(legacy ? [targets.train.index] : [])];
-    if (groups.length !== order.length || groups.some((value, index) => value.index !== order[index])
+    const order = [...(targets.logo ? [targets.logo.index] : []), targets.person.index, targets.company.index, ...(targets.dispatch ? [targets.dispatch.index] : []), ...(legacy ? [targets.train.index] : [])];
+    if (groups.length !== order.length + (targets.dispatch ? 1 : 0) || groups.slice(0, order.length).some((value, index) => value.index !== order[index])
+        || (targets.dispatch && (groups[3].node.tag !== 'br' || (groups[3].node.attrs.clear || '').toLowerCase() !== 'all'))
         || (!legacy && only(cells[1], 'table') !== targets.train.index)
         || (targets.header && withinContract(contract, targets.header.index, targets.root.index))) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
     if (!legacy) {
@@ -921,10 +924,16 @@ function layoutIdsContract(html, currentHtml, ids, standalone = null, cleanup = 
             || !withinContract(contract, contract.signatureMetadata.version, lastCell)
             || (targets.header && !withinContract(contract, targets.header.index, firstCell))) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
         if (targets.footer) {
-            if (!targets.logo || !withinContract(contract, targets.footer.index, lastCell)
+            if ((!targets.logo && !targets.dispatch) || !withinContract(contract, targets.footer.index, lastCell)
                 || withinContract(contract, contract.signatureMetadata.managed, targets.footer.index)
                 || withinContract(contract, contract.signatureMetadata.version, targets.footer.index)) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
-            only(only(only(targets.footer.index, 'tbody'), 'tr'), 'td');
+            if (targets.dispatch) {
+                const row = contract.elements[targets.footer.node.parent];
+                const body = contract.elements[row?.parent];
+                const table = contract.elements[body?.parent];
+                if (row?.tag !== 'tr' || body?.tag !== 'tbody' || table?.tag !== 'table'
+                    || only(only(only(body.parent, 'tbody'), 'tr'), 'td') !== targets.footer.index) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
+            } else only(only(only(targets.footer.index, 'tbody'), 'tr'), 'td');
         }
     }
     return contract;
@@ -940,7 +949,7 @@ function removePreviousLayoutSheet(html, contract) {
     const ids = { root: base + 'r', person: base + 'p', company: base + 'c', train: base + 't' };
     if (contract.elements.some((node, index) => withinContract(contract, index, contract.signature.index)
         && [base + 'l', 'x_' + base + 'l'].includes(node.attrs.id))) ids.logo = base + 'l';
-    for (const [key, suffix] of [['inset', 'i'], ['footer', 'f'], ['window', 'w']]) {
+    for (const [key, suffix] of [['inset', 'i'], ['footer', 'f'], ['window', 'w'], ['dispatch', 'd'], ['personCell', 'a'], ['companyCell', 'b'], ['dispatchCell', 'e'], ['trainCell', 'g'], ['lineCell', 'o']]) {
         if (contract.elements.some((node, index) => withinContract(contract, index, contract.signature.index)
             && [base + suffix, 'x_' + base + suffix].includes(node.attrs.id))) ids[key] = base + suffix;
     }

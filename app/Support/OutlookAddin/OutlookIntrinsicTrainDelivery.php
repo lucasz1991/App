@@ -38,6 +38,29 @@ final class OutlookIntrinsicTrainDelivery
         return $hashes;
     }
 
+    /** Exact known train remapping for the independent current three-column view. */
+    public static function currentAttachment(array $attachment): ?array
+    {
+        if (! is_string($attachment['contentId'] ?? null) || ($attachment['name'] ?? null) !== $attachment['contentId']
+            || ! is_string($attachment['base64'] ?? null) || strlen($attachment['base64']) > 4 * (int) ceil(self::MAX_MEDIA_BYTES / 3)
+            || ($binary = base64_decode($attachment['base64'], true)) === false || base64_encode($binary) !== $attachment['base64']) {
+            return null;
+        }
+        $sha = hash('sha256', $binary);
+        foreach (self::assets() as $source => $asset) {
+            if ($attachment['contentId'] === 'railtime-'.substr($sha, 0, 20).'.'.$asset['extension']) {
+                if ($source === $sha) {
+                    return $asset['attachment'];
+                }
+                if ($asset['sha256'] === $sha && $asset['attachment'] === $attachment) {
+                    return $attachment;
+                }
+            }
+        }
+
+        return null;
+    }
+
     /** Versions and signature-free composeHtml/composeMedia remain byte-exact. */
     public static function payload(array $payload): array
     {

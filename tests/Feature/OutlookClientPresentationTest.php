@@ -73,7 +73,7 @@ final class OutlookClientPresentationTest extends TestCase
         $method = new ReflectionMethod(OutlookClientPresentation::class, 'document');
         self::assertSame($mobile, $method->invoke(null, $mobile, 30000, 12288, true));
         self::assertSame($pair, $method->invoke(null, $pair, 30000, 12288, false));
-        self::assertSame('outlook-client-presentation-v12', OutlookClientPresentation::REVISION);
+        self::assertSame('outlook-client-presentation-v13', OutlookClientPresentation::REVISION);
     }
 
     public function test_advanced_authored_logo_class_observers_keep_their_original_contract(): void

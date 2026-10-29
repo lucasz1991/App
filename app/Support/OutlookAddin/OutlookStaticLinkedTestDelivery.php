@@ -262,7 +262,8 @@ final class OutlookStaticLinkedTestDelivery
         }
         $html = self::markers($html, 'RT-SIGNATURE-VERSION:', $oldSignature, $newSignature);
         $html = self::markers($html, OutlookMobileCombinedComposeDocument::VERSION_MARKER, $oldMobile, $newMobile);
-        $reserve = $nativeSignature && ! OutlookDesktopFlow::mobile($html) ? 627 : 0;
+        $reserve = $nativeSignature && ! OutlookDesktopFlow::mobile($html)
+            ? (str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v9"') ? 798 : 627) : 0;
         self::budget($html, $maxCharacters, $maxCss, $reserve);
         $pair[$htmlKey] = $html;
         $pair[$mediaKey] = [];

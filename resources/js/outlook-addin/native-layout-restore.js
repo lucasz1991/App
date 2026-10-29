@@ -51,7 +51,7 @@ function tableOpening(html, node) {
 
 function targetOpening(html, node) {
     if (node.tag === 'table') return tableOpening(html, node);
-    if (!['div', 'img'].includes(node.tag) || !Number.isInteger(node.start) || !Number.isInteger(node.openEnd)
+    if (!['div', 'img', 'td'].includes(node.tag) || !Number.isInteger(node.start) || !Number.isInteger(node.openEnd)
         || node.start < 0 || node.openEnd <= node.start || node.openEnd > html.length || owns(node.attrs, 'id')) invalid();
     const opening = html.slice(node.start, node.openEnd);
     if (!new RegExp('^<' + node.tag + '\\b(?:[^"\'<>]|"[^"]*"|\'[^\']*\')*>$', 'i').test(opening) || /\/\s*>$/.test(opening)) invalid();
@@ -67,6 +67,7 @@ export function createNativeLayoutNonce(provider = globalThis.crypto) {
 }
 
 function restoreCss(ids) {
+    if (ids.dispatch) return threeColumnRestoreCss(ids);
     if (ids.logo) return responsiveRestoreCss(ids);
     const selector = key => '#' + ids[key];
     const train = selector('train');
@@ -87,6 +88,37 @@ function restoreCss(ids) {
             + '{color:#718096!important;}';
     }
     return css;
+}
+
+// V9 uses numeric 240px TABLEs and real TD padding so Word needs no comments.
+// Its dispatch ID selects this family; every historical v8/j/k rule stays exact.
+function threeColumnRestoreCss(ids) {
+    const rule = (key, declarations) => responsiveRestoreRule(ids, key, declarations);
+    let css = rule('root', 'font-size:0!important;line-height:0!important;text-align:left!important;width:100%!important;max-width:720px!important;display:table!important;table-layout:fixed!important;border-collapse:collapse!important;direction:ltr!important;margin:0 auto 0 0!important;border-top:0!important;')
+        + rule('lineCell', 'border-top:3px solid #e90032!important;');
+    for (const key of ['person', 'company', 'dispatch']) {
+        css += rule(key, 'display:inline-table!important;float:left!important;vertical-align:top!important;width:240px!important;min-width:0!important;max-width:100%!important;direction:ltr!important;'
+            + (key === 'person' ? '' : 'text-align:left!important;') + 'border:0!important;border-collapse:collapse!important;border-spacing:0!important;margin:0!important;');
+    }
+    for (const key of ['personCell', 'companyCell', 'dispatchCell']) css += rule(key, 'padding-left:40px!important;padding-right:40px!important;font-size:13px!important;line-height:16px!important;direction:ltr!important;text-align:left!important;');
+    css += rule('train', 'display:table!important;float:none!important;clear:both!important;vertical-align:bottom!important;width:100%!important;min-width:0!important;max-width:364px!important;direction:ltr!important;text-align:left!important;border:0!important;border-collapse:collapse!important;border-spacing:0!important;margin:0!important;')
+        + rule('trainCell', 'padding-left:0!important;padding-right:40px!important;direction:ltr!important;text-align:left!important;')
+        + rule('window', 'padding-top:0!important;')
+        + rule('trainImage', 'display:block!important;width:100%!important;max-width:100%!important;height:auto!important;margin:0!important;border:0!important;vertical-align:bottom!important;');
+    if (ids.signature) css += rule('signature', 'border-collapse:separate!important;border-spacing:0!important;');
+    if (ids.footer) css += rule('footer', 'padding-left:40px!important;padding-right:40px!important;font-size:9px!important;line-height:14px!important;direction:ltr!important;text-align:left!important;');
+    if (ids.templateGutter) css += rule('templateGutter', 'border-left:40px solid transparent!important;border-right:40px solid transparent!important;box-sizing:border-box!important;border-collapse:separate!important;border-spacing:0!important;');
+    return css;
+}
+
+function threeColumnRestoreRules(ids) {
+    const rule = (key, declarations) => responsiveRestoreRule(ids, key, declarations);
+    const media = ['person', 'company', 'dispatch', 'train'].map(key => rule(key, 'width:100%!important;min-width:0!important;max-width:' + (key === 'train' ? '364px' : '100%') + '!important;float:none!important;clear:both!important;'));
+    for (const key of ['personCell', 'companyCell', 'dispatchCell']) media.push(rule(key, 'padding-left:18px!important;padding-right:18px!important;'));
+    media.push(rule('trainCell', 'padding-right:18px!important;'));
+    if (ids.footer) media.push(rule('footer', 'padding-left:18px!important;padding-right:18px!important;'));
+    if (ids.templateGutter) media.push(rule('templateGutter', 'border-left-width:18px!important;border-right-width:18px!important;'));
+    return { base: [], media };
 }
 
 // Published R62/R63 mixed-column core is immutable owned-cleanup evidence.
@@ -239,7 +271,7 @@ function legacyHybridResponsiveRules(ids) {
 
 function responsiveRestoreRule(ids, key, declarations) {
     const id = ids[key];
-    if (!/^rt-native-layout-[0-9a-f]{32}-[rpcthslifqwjk]$/.test(id || '') || /[{}]/.test(declarations)) invalid();
+    if (!/^rt-native-layout-[0-9a-f]{32}-[rpcthslifqwjkdabego]$/.test(id || '') || /[{}]/.test(declarations)) invalid();
     return '#' + id + '{' + declarations + '}';
 }
 
@@ -261,23 +293,31 @@ function responsiveRestoreRules(ids, legacyCalc = false, historical = false) {
 }
 
 function responsiveRestoreOptionalCss(ids) {
-    const { base, media } = responsiveRestoreRules(ids);
-    return base.join('') + '@media(max-width:680px){' + media.join('') + '}';
+    const { base, media } = ids.dispatch ? threeColumnRestoreRules(ids) : responsiveRestoreRules(ids);
+    return base.join('') + '@media(max-width:' + (ids.dispatch ? '600' : '680') + 'px){' + media.join('') + '}';
 }
 
 function idsScope(ids) {
     if (!ids || typeof ids !== 'object') invalid();
     const root = /^rt-native-layout-([0-9a-f]{32})-r$/.exec(ids.root || '');
-    const suffixes = { root: 'r', person: 'p', company: 'c', train: 't', header: 'h', signature: 's', logo: 'l', inset: 'i', footer: 'f', templateGutter: 'q', window: 'w', trainImage: ids.trainImage?.endsWith('-k') ? 'k' : 'j' };
+    const suffixes = { root: 'r', person: 'p', company: 'c', train: 't', header: 'h', signature: 's', logo: 'l', inset: 'i', footer: 'f', templateGutter: 'q', window: 'w', trainImage: ids.trainImage?.endsWith('-k') ? 'k' : 'j', dispatch: 'd', personCell: 'a', companyCell: 'b', dispatchCell: 'e', trainCell: 'g', lineCell: 'o' };
     const keys = Object.keys(ids);
-    if (!root || keys.length !== 4 + ['header', 'signature', 'logo', 'inset', 'footer', 'templateGutter', 'window', 'trainImage'].filter(key => owns(ids, key)).length
+    if (!root || keys.length !== 4 + ['header', 'signature', 'logo', 'inset', 'footer', 'templateGutter', 'window', 'trainImage', 'dispatch', 'personCell', 'companyCell', 'dispatchCell', 'trainCell', 'lineCell'].filter(key => owns(ids, key)).length
         || ['root', 'person', 'company', 'train'].some(key => !owns(ids, key))
+        || (owns(ids, 'dispatch') && (['logo', 'header', 'inset'].some(key => owns(ids, key)) || !ids.trainImage?.endsWith('-k')
+            || ['personCell', 'companyCell', 'dispatchCell', 'trainCell', 'lineCell'].some(key => !owns(ids, key))))
+        || (['personCell', 'companyCell', 'dispatchCell', 'trainCell', 'lineCell'].some(key => owns(ids, key)) && !owns(ids, 'dispatch'))
         || (owns(ids, 'inset') && (!owns(ids, 'logo') || !owns(ids, 'header')))
-        || (owns(ids, 'footer') && (!owns(ids, 'logo') || !owns(ids, 'signature')))
-        || (owns(ids, 'templateGutter') && !owns(ids, 'logo'))
-        || (owns(ids, 'window') !== owns(ids, 'trainImage')) || (owns(ids, 'window') && !owns(ids, 'logo'))
+        || (owns(ids, 'footer') && ((!owns(ids, 'logo') && !owns(ids, 'dispatch')) || !owns(ids, 'signature')))
+        || (owns(ids, 'templateGutter') && !owns(ids, 'logo') && !owns(ids, 'dispatch'))
+        || (owns(ids, 'window') !== owns(ids, 'trainImage')) || (owns(ids, 'window') && !owns(ids, 'logo') && !owns(ids, 'dispatch'))
         || keys.some(key => !owns(suffixes, key) || ids[key] !== PREFIX + root[1] + '-' + suffixes[key])) invalid();
     return root[1];
+}
+
+function targetTag(ids, key) {
+    return key === 'window' ? 'div' : key === 'trainImage' ? 'img'
+        : ids.dispatch && (key.endsWith('Cell') || key === 'footer') ? 'td' : 'table';
 }
 
 export function nativeLayoutRestoreCss(ids) {
@@ -287,7 +327,7 @@ export function nativeLayoutRestoreCss(ids) {
 
 export function nativeLayoutRestoreResponsiveCss(ids) {
     idsScope(ids);
-    return ids.logo ? responsiveRestoreOptionalCss(ids) : '';
+    return ids.logo || ids.dispatch ? responsiveRestoreOptionalCss(ids) : '';
 }
 
 /** An empty presentation carrier gives Office a real HTML insertion, not a discarded bare STYLE. */
@@ -295,7 +335,7 @@ export function nativeLayoutRestoreStylePayload(ids) {
     const scope = idsScope(ids);
     return `<table id="${PREFIX + scope}-carrier" role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;border-spacing:0;margin:0;font-size:0;line-height:0;"><tbody><tr><td style="padding:0;height:0;font-size:0;line-height:0;">`
         + `<style data-rt-native-layout-restore="v1">${restoreCss(ids)}</style>`
-        + (ids.logo ? `<style data-rt-native-layout-responsive="v1">${responsiveRestoreOptionalCss(ids)}</style>` : '')
+        + (ids.logo || ids.dispatch ? `<style data-rt-native-layout-responsive="v1">${responsiveRestoreOptionalCss(ids)}</style>` : '')
         + `<span hidden aria-hidden="true" style="display:none!important;mso-hide:all;font-size:0;line-height:0;max-height:0;overflow:hidden;">RT-NATIVE-LAYOUT-RESTORE-V1:${scope}</span>`
         + '</td></tr></tbody></table>';
 }
@@ -319,7 +359,7 @@ function normalizedRestoreCss(css, ids) {
 
 function approvedResponsiveSubset(css, ids, historical = false) {
     const text = normalizedRestoreCss(css, ids);
-    const expected = historical === 'hybrid-r61' ? legacyHybridResponsiveRules(ids) : responsiveRestoreRules(ids, historical === true, historical);
+    const expected = ids.dispatch ? threeColumnRestoreRules(ids) : historical === 'hybrid-r61' ? legacyHybridResponsiveRules(ids) : responsiveRestoreRules(ids, historical === true, historical);
     const rules = value => {
         const result = [];
         let remainder = value;
@@ -347,7 +387,7 @@ function approvedResponsiveSubset(css, ids, historical = false) {
     const mediaStart = text.indexOf('@');
     let base = text, media = '';
     if (mediaStart !== -1) {
-        const prefix = '@media(max-width:680px){';
+        const prefix = '@media(max-width:' + (ids.dispatch ? '600' : '680') + 'px){';
         if (!text.startsWith(prefix, mediaStart) || !text.endsWith('}')) return false;
         base = text.slice(0, mediaStart);
         media = text.slice(mediaStart + prefix.length, -1);
@@ -390,20 +430,36 @@ function inlineCellProperties(style) {
 /** Parent TABLE recovery cannot defeat an explicit opposite direct TD value. */
 export function nativeLayoutRestoreCellsAligned(contract, ids) {
     idsScope(ids);
-    if (!ids.logo) return true;
+    if (!ids.logo && !ids.dispatch) return true;
     const nodes = contract?.elements;
     if (!Array.isArray(nodes) || !Number.isInteger(contract.signature?.index)) invalid();
-    const cells = [];
-    for (const role of ['root', 'logo', 'person', 'company', 'train']) {
+    const cells = [], tables = {};
+    for (const role of ids.dispatch ? ['root', 'person', 'company', 'dispatch', 'train'] : ['root', 'logo', 'person', 'company', 'train']) {
         const matches = nodes.map((node, index) => ({ node, index })).filter(value => [ids[role], 'x_' + ids[role]].includes(value.node.attrs.id));
         if (matches.length !== 1 || matches[0].node.tag !== 'table' || isQuoted(nodes, matches[0].index)
             || !within(nodes, matches[0].index, contract.signature.index)) invalid();
         if (role === 'person' && (matches[0].node.attrs.align || '').trim().toLowerCase() !== 'left') invalid();
+        if (ids.dispatch && role !== 'root' && (matches[0].node.attrs.align || '').trim().toLowerCase() !== 'left') invalid();
         if (role === 'person' && inlineCellProperties(matches[0].node.attrs.style || '').some(([name]) => name === 'text-align')) invalid();
+        tables[role] = matches[0];
         const body = onlyChild(nodes, matches[0].index, 'tbody');
         const rows = children(nodes, body.index);
         if (rows.length !== (role === 'root' ? 2 : 1) || rows.some(row => row.node.tag !== 'tr')) invalid();
         cells.push(...rows.map(row => onlyChild(nodes, row.index, 'td')));
+    }
+    if (ids.dispatch) {
+        const lines = nodes.map((node, index) => ({ node, index })).filter(value => [ids.lineCell, 'x_' + ids.lineCell].includes(value.node.attrs.id));
+        if (lines.length !== 1 || lines[0].node.tag !== 'td' || !within(nodes, tables.root.index, lines[0].index)
+            || !within(nodes, lines[0].index, contract.signature.index) || isQuoted(nodes, lines[0].index)) invalid();
+        const rows = children(nodes, onlyChild(nodes, tables.root.index, 'tbody').index);
+        const groups = children(nodes, onlyChild(nodes, rows[0].index, 'td').index);
+        if (groups.length !== 4 || groups.slice(0, 3).some((value, index) => value.index !== tables[['person', 'company', 'dispatch'][index]].index)
+            || groups[3].node.tag !== 'br' || (groups[3].node.attrs.clear || '').toLowerCase() !== 'all'
+            || onlyChild(nodes, onlyChild(nodes, rows[1].index, 'td').index, 'table').index !== tables.train.index) invalid();
+        for (const role of ['person', 'company', 'dispatch', 'train']) {
+            const cell = onlyChild(nodes, onlyChild(nodes, onlyChild(nodes, tables[role].index, 'tbody').index, 'tr').index, 'td');
+            if (![ids[role + 'Cell'], 'x_' + ids[role + 'Cell']].includes(cell.node.attrs.id)) invalid();
+        }
     }
     for (const cell of cells) {
         const align = (cell.node.attrs.align || '').trim().toLowerCase();
@@ -438,7 +494,7 @@ function retainedCarrier(html, contract, ids, legacyColumns = false) {
     for (const key of Object.keys(ids)) {
         const owner = key === 'templateGutter' ? (standalone ? null : contract.template?.index) : contract.signature.index;
         const matches = nodes.map((node, index) => ({ node, index })).filter(value => typeof value.node.attrs.id === 'string' && value.node.attrs.id.endsWith(ids[key]));
-        const tag = key === 'window' ? 'div' : key === 'trainImage' ? 'img' : 'table';
+        const tag = targetTag(ids, key);
         if (matches.length !== 1 || matches[0].node.tag !== tag
             || ![ids[key], 'x_' + ids[key]].includes(matches[0].node.attrs.id)
             || !Number.isInteger(owner) || !within(nodes, matches[0].index, owner) || isQuoted(nodes, matches[0].index)) invalid();
@@ -493,7 +549,7 @@ function retainedCarrier(html, contract, ids, legacyColumns = false) {
     const styles = descendants.filter(value => value.node.tag === 'style');
     const token = 'RT-NATIVE-LAYOUT-RESTORE-V1:' + scope;
     const spans = descendants.filter(value => value.node.tag === 'span' && html.slice(value.node.openEnd, value.node.close).replace(/\s+/g, '') === token);
-    if (styles.length < 1 || styles.length > (ids.logo ? 2 : 1) || spans.length !== 1) invalid();
+    if (styles.length < 1 || styles.length > (ids.logo || ids.dispatch ? 2 : 1) || spans.length !== 1) invalid();
     if (legacyColumns && (!ids.logo || ids.trainImage?.endsWith('-k'))) invalid();
     const css = normalizedRestoreCss(legacyColumns === 'rows-r65' ? legacyIntrinsicRowsCoreCss(ids) : legacyColumns === 'rows-r64' ? legacyRowsCoreCss(ids) : legacyColumns === 'mixed-r63' ? legacyMixedCoreCss(ids) : legacyColumns === 'hybrid-r61' ? legacyHybridCoreCss(ids) : legacyColumns ? legacyColumnCoreCss(ids) : nativeLayoutRestoreCss(ids), ids);
     const core = styles.filter(value => normalizedRestoreCss(html.slice(value.node.openEnd, value.node.close), ids) === css);
@@ -507,7 +563,7 @@ function retainedCarrier(html, contract, ids, legacyColumns = false) {
     if (exactSheets.length !== 1 || normalizedRestoreCss(retainedCss, ids) !== css) invalid();
     for (const optional of styles.filter(value => value !== core[0])) {
         const optionalCss = html.slice(optional.node.openEnd, optional.node.close);
-        if (!ids.logo || !approvedResponsiveSubset(optionalCss, ids, legacyColumns)) invalid();
+        if ((!ids.logo && !ids.dispatch) || !approvedResponsiveSubset(optionalCss, ids, legacyColumns)) invalid();
         for (const key of Object.keys(ids)) {
             const selectors = optionalCss.match(new RegExp('#(?:x_)?' + ids[key] + '(?![\\w-])', 'g')) || [];
             if (selectors.some(selector => selector !== '#' + actualIds[key])) invalid();
@@ -528,7 +584,7 @@ function retainedCarrier(html, contract, ids, legacyColumns = false) {
 
 /** A success callback is insufficient: a fresh SDK read must retain this exact owned CSS carrier. */
 export function nativeLayoutRestoreRetained(html, contract, ids) {
-    if (ids?.logo && !ids.window) invalid();
+    if ((ids?.logo || ids?.dispatch) && !ids.window) invalid();
     retainedCarrier(html, contract, ids);
     nativeLayoutRestoreCellsAligned(contract, ids);
     return true;
@@ -578,9 +634,12 @@ export function prepareNativeLayoutRestore(html, contract, nonce) {
     if (candidates.length !== 1 || candidates[0].node.tag !== 'table'
         || !has(candidates[0].node, 'rt-personal-columns') || candidates[0].node.attrs[FLOW] !== 'v1'
         || candidates[0].node.attrs['data-rt-personal-columns'] !== 'v1'
-        || !['outlook-desktop-flow-v4', 'outlook-desktop-flow-v8'].includes(candidates[0].node.attrs['data-rt-desktop-flow'])) invalid();
+        || !['outlook-desktop-flow-v4', 'outlook-desktop-flow-v8', 'outlook-desktop-flow-v9'].includes(candidates[0].node.attrs['data-rt-desktop-flow'])) invalid();
     const root = candidates[0];
-    const responsive = root.node.attrs['data-rt-desktop-flow'] === 'outlook-desktop-flow-v8';
+    const threeColumn = root.node.attrs['data-rt-desktop-flow'] === 'outlook-desktop-flow-v9';
+    const responsive = threeColumn || root.node.attrs['data-rt-desktop-flow'] === 'outlook-desktop-flow-v8';
+    if (threeColumn && (!has(root.node, 'rt-v9-columns') || root.node.attrs.width !== '100%'
+        || !inlineCellProperties(root.node.attrs.style || '').some(([name, value]) => name === 'max-width' && value === '720px'))) invalid();
     if (responsive) {
         const ancestors = [];
         for (let index = root.index, depth = 0; Number.isInteger(index); index = nodes[index].parent, depth += 1) {
@@ -596,11 +655,11 @@ export function prepareNativeLayoutRestore(html, contract, nonce) {
             const classes = host.attrs.class.split(/\s+/);
             const scopes = classes.filter(name => /^rts[0-9a-f]{10}$/.test(name));
             const names = classes.filter(name => /^rt-df[0-9][0-9a-f]{10}$/.test(name));
-            if (scopes.length !== 1 || names.length !== 1 || names[0] !== 'rt-df8' + scopes[0].slice(3)) invalid();
+            if (scopes.length !== 1 || names.length !== 1 || names[0] !== 'rt-df' + (threeColumn ? '9' : '8') + scopes[0].slice(3)) invalid();
             if (expectedHost !== null && names[0] !== expectedHost) invalid();
             expectedHost = names[0];
         }
-        if (ancestors.some(node => (node.attrs.class || '').split(/\s+/).some(name => /^rt-df[467][0-9a-f]{10}$/.test(name)))) invalid();
+        if (ancestors.some(node => (node.attrs.class || '').split(/\s+/).some(name => new RegExp('^rt-df[' + (threeColumn ? '4678' : '4679') + '][0-9a-f]{10}$').test(name)))) invalid();
     }
     const body = onlyChild(nodes, root.index, 'tbody');
     const rows = children(nodes, body.index);
@@ -609,12 +668,15 @@ export function prepareNativeLayoutRestore(html, contract, nonce) {
     const person = one(nodes, root.index, 'rt-personal-left', 'table');
     const company = one(nodes, root.index, 'rt-personal-right', 'table');
     const train = one(nodes, root.index, 'rt-df-train', 'table');
-    const logo = responsive ? one(nodes, root.index, 'rt-personal-logo-column', 'table') : null;
+    const logo = responsive && !threeColumn ? one(nodes, root.index, 'rt-personal-logo-column', 'table') : null;
+    const dispatch = threeColumn ? one(nodes, root.index, 'rt-dispatch-column', 'table') : null;
     const groups = children(nodes, cells[0].index);
-    const order = [...(logo ? [logo.index] : []), person.index, company.index, ...(responsive ? [] : [train.index])];
-    if (groups.length !== order.length || groups.some((value, index) => value.index !== order[index])
+    const order = [...(logo ? [logo.index] : []), person.index, company.index, ...(dispatch ? [dispatch.index] : []), ...(responsive ? [] : [train.index])];
+    if (groups.length !== order.length + (threeColumn ? 1 : 0) || groups.slice(0, order.length).some((value, index) => value.index !== order[index])
+        || (threeColumn && (groups[3].node.tag !== 'br' || groups[3].node.attrs.clear !== 'all'
+            || Object.keys(groups[3].node.attrs).some(name => !['clear', 'style'].includes(name))))
         || (responsive && onlyChild(nodes, cells[1].index, 'table').index !== train.index)) invalid();
-    if (responsive && (person.node.attrs.align !== 'left' || person.node.attrs.height !== '50')) invalid();
+    if (responsive && (person.node.attrs.align !== 'left' || (!threeColumn && person.node.attrs.height !== '50'))) invalid();
     if (responsive && inlineCellProperties(person.node.attrs.style || '').some(([name]) => name === 'text-align')) invalid();
     if (logo) {
         const logoCell = onlyChild(nodes, onlyChild(nodes, onlyChild(nodes, logo.index, 'tbody').index, 'tr').index, 'td');
@@ -629,10 +691,31 @@ export function prepareNativeLayoutRestore(html, contract, nonce) {
     const image = onlyChild(nodes, window.index, 'img');
     const enlargedTrain = has(train.node, 'rt-train-enlarged-v1');
     if ((enlargedTrain && !responsive) || !has(image.node, 'rt-delivery-train')
-        || image.node.attrs.width !== (enlargedTrain ? '324' : '300')
-        || image.node.attrs.height !== (enlargedTrain ? '70' : responsive ? '65' : '38')) invalid();
+        || image.node.attrs.width !== (threeColumn ? '200' : enlargedTrain ? '324' : '300')
+        || image.node.attrs.height !== (threeColumn ? '43' : enlargedTrain ? '70' : responsive ? '65' : '38')) invalid();
 
     const targets = { root, person, company, train };
+    if (threeColumn) {
+        const lineCell = one(nodes, signature.index, 'rt-v9-top-rule', 'td');
+        if (!within(nodes, root.index, lineCell.index)) invalid();
+        targets.lineCell = lineCell;
+        const trainProperties = inlineCellProperties(train.node.attrs.style || '');
+        if (!enlargedTrain || train.node.attrs.width !== '240' || train.node.attrs.align !== 'left'
+            || ![['width', '240px'], ['max-width', '100%']].every(([name, value]) => trainProperties.some(part => part[0] === name && part[1] === value))) invalid();
+        const frame = one(nodes, person.index, 'rt-personal-logo-frame', 'table');
+        for (const [role, target] of [['person', person], ['company', company], ['dispatch', dispatch]]) {
+            if (!has(target.node, 'rt-v9-column') || target.node.attrs.width !== '240' || target.node.attrs.align !== 'left') invalid();
+            const properties = inlineCellProperties(target.node.attrs.style || '');
+            if (![['width', '240px'], ['max-width', '100%'], ['float', 'left']].every(([name, value]) => properties.some(part => part[0] === name && part[1] === value))) invalid();
+            const cell = onlyChild(nodes, onlyChild(nodes, onlyChild(nodes, target.index, 'tbody').index, 'tr').index, 'td');
+            if (!has(cell.node, 'rt-v9-' + role + '-cell') || !inlineCellProperties(cell.node.attrs.style || '').some(([name, value]) => name === 'padding' && value === '0 40px')) invalid();
+            targets[role + 'Cell'] = cell;
+        }
+        if (children(nodes, targets.personCell.index)[0]?.index !== frame.index) invalid();
+        if (!has(trainCell.node, 'rt-v9-train-cell') || !inlineCellProperties(trainCell.node.attrs.style || '').some(([name, value]) => name === 'padding' && value === '0 40px 0 0')) invalid();
+        targets.dispatch = dispatch;
+        targets.trainCell = trainCell;
+    }
     if (logo) targets.logo = logo;
     if (responsive) { targets.window = window; targets.trainImage = image; }
     if (responsive && contract.kind !== 'standalone-signature-v1' && Number.isInteger(contract.template?.index)) {
@@ -644,6 +727,7 @@ export function prepareNativeLayoutRestore(html, contract, nonce) {
     const hotline = nodes.map((node, index) => ({ node, index })).filter(value => within(nodes, value.index, signature.index)
         && has(value.node, 'design-hotline-row'));
     if (hotline.length > 1) invalid();
+    if (threeColumn && hotline.length) invalid();
     if (hotline.length) {
         if (hotline[0].node.tag !== 'td') invalid();
         let index = hotline[0].node.parent;
@@ -709,7 +793,8 @@ export function prepareNativeLayoutRestore(html, contract, nonce) {
                     const legal = footers[0];
                     onlyChild(nodes, onlyChild(nodes, onlyChild(nodes, legal.index, 'tbody').index, 'tr').index, 'td');
                     if (/RT-SIGNATURE-MANAGED-V1|RT-SIGNATURE-VERSION:/.test(html.slice(legal.node.openEnd, legal.node.close))) invalid();
-                    targets.footer = legal;
+                    targets.footer = threeColumn ? onlyChild(nodes, onlyChild(nodes, onlyChild(nodes, legal.index, 'tbody').index, 'tr').index, 'td') : legal;
+                    if (threeColumn && !has(targets.footer.node, 'rt-v9-legal-cell')) invalid();
                 }
             }
         }
@@ -719,7 +804,7 @@ export function prepareNativeLayoutRestore(html, contract, nonce) {
     if (typeof scope !== 'string' || !/^[0-9a-f]{32}$/.test(scope) || html.includes(PREFIX + scope)) invalid();
     const ids = {};
     const edits = [];
-    const suffixes = { root: 'r', person: 'p', company: 'c', train: 't', header: 'h', signature: 's', logo: 'l', inset: 'i', footer: 'f', templateGutter: 'q', window: 'w', trainImage: enlargedTrain ? 'k' : 'j' };
+    const suffixes = { root: 'r', person: 'p', company: 'c', train: 't', header: 'h', signature: 's', logo: 'l', inset: 'i', footer: 'f', templateGutter: 'q', window: 'w', trainImage: enlargedTrain ? 'k' : 'j', dispatch: 'd', personCell: 'a', companyCell: 'b', dispatchCell: 'e', trainCell: 'g', lineCell: 'o' };
     for (const key of Object.keys(targets)) {
         const { node } = targets[key];
         if (key === 'templateGutter') {
