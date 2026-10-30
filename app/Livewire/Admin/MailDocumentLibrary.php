@@ -5,6 +5,7 @@ namespace App\Livewire\Admin;
 use App\Enums\MailDocumentKind;
 use App\Models\MailDocument;
 use App\Models\User;
+use App\Support\Mail\MailDocumentArchive;
 use App\Support\Mail\MailDocumentDeletion;
 use App\Support\Mail\MailDocumentDelivery;
 use App\Support\Mail\MailDocumentSignaturePairing;
@@ -28,6 +29,8 @@ class MailDocumentLibrary extends Component
     public string $filter = 'all';
 
     public string $name = '';
+
+    public string $restoreName = '';
 
     public bool $createOpen = false;
 
@@ -91,7 +94,7 @@ class MailDocumentLibrary extends Component
     public function selectFilter(string $filter): void
     {
         $this->admin();
-        abort_unless(in_array($filter, ['all', 'draft', 'released', 'default', 'system', 'outlook', 'available', 'hidden'], true), 422);
+        abort_unless(in_array($filter, ['all', 'draft', 'released', 'default', 'system', 'outlook', 'available', 'hidden', 'archive'], true), 422);
         $this->filter = $filter;
     }
 
@@ -104,7 +107,7 @@ class MailDocumentLibrary extends Component
     public function toggleHistory(string $documentId): void
     {
         $this->admin();
-        $document = $this->document($documentId);
+        $document = $this->document($documentId, $this->filter === 'archive');
         $this->historyId = $this->historyId === $document->public_id ? null : $document->public_id;
     }
 
@@ -224,13 +227,17 @@ class MailDocumentLibrary extends Component
     public function prepareAction(string $action, string $documentId, string $expectedHash, ?string $versionId = null): void
     {
         $this->admin();
-        abort_unless(in_array($action, ['publish', 'default', 'withdraw', 'restore', 'delete'], true), 422);
+        abort_unless(in_array($action, ['publish', 'default', 'withdraw', 'restore', 'delete', 'archive', 'unarchive'], true), 422);
         if (MailDocumentDelivery::available()) {
-            abort_unless(in_array($action, ['publish', 'restore', 'delete', 'withdraw'], true), 422);
+            abort_unless(in_array($action, ['publish', 'restore', 'delete', 'withdraw', 'archive', 'unarchive'], true), 422);
         }
         $this->resetValidation();
-        $document = $this->document($documentId);
+        $document = $this->document($documentId, $action === 'unarchive');
+        abort_unless($document->isArchived() === ($action === 'unarchive'), 422);
         $this->assertCurrent($document, $expectedHash);
+        if ($action === 'unarchive') {
+            $this->restoreName = mb_substr((string) $document->name, 0, 55).' – wiederhergestellt';
+        }
         if ($action === 'withdraw' && MailDocumentDelivery::available()) {
             abort_unless($document->kind === MailDocumentKind::Template, 422);
         } elseif (in_array($action, ['default', 'withdraw'], true)) {
@@ -259,12 +266,14 @@ class MailDocumentLibrary extends Component
     {
         $actor = $this->admin();
         abort_unless($this->confirmOpen && isset($this->pending['document'], $this->pending['hash']), 403);
-        $document = $this->document($this->pending['document']);
+        $document = $this->document($this->pending['document'], $this->pending['action'] === 'unarchive');
         $hash = $this->pending['hash'];
         $action = $this->pending['action'];
 
         try {
             match ($action) {
+                'archive' => app(MailDocumentArchive::class)->archive($actor, $document, $hash),
+                'unarchive' => app(MailDocumentArchive::class)->restore($actor, $document, $hash, $this->restoreName),
                 'delete' => $deletion->delete($document, $hash),
                 'publish' => $library->publish($actor, $document, $hash),
                 'default' => $library->setDefault($actor, $document, $hash),
@@ -286,6 +295,8 @@ class MailDocumentLibrary extends Component
         }
 
         $this->notice = match ($action) {
+            'archive' => '„'.$this->pending['name'].'“ wurde archiviert. Inhalt und Versionsverlauf bleiben im Archiv erhalten.',
+            'unarchive' => 'Das Dokument wurde wiederhergestellt. Eine Freigabe oder Standardzuordnung wurde nicht aktiviert.',
             'delete' => '„'.$this->pending['name'].'“ wurde mit seinem Versionsverlauf gelöscht.',
             'restore' => 'Version '.$this->pending['revision'].' wurde als Entwurf wiederhergestellt. Die Freigabe bleibt unverändert.',
             'default' => 'Die Outlook-Standardvorlage wurde geändert. Systemmails bleiben unverändert.',
@@ -301,7 +312,7 @@ class MailDocumentLibrary extends Component
         if ($action === 'withdraw') {
             $this->dispatch('mail-delivery-changed');
         }
-        if ($action === 'delete' && $this->historyId === $document->public_id) {
+        if (in_array($action, ['delete', 'archive', 'unarchive'], true) && $this->historyId === $document->public_id) {
             $this->historyId = null;
         }
         $this->dispatch('mail-document-library-changed');
@@ -313,7 +324,8 @@ class MailDocumentLibrary extends Component
         $ready = Schema::hasTable('mail_documents');
         $libraryReady = $ready && app(OutlookTemplateLibrary::class)->available();
         $historyReady = $ready && Schema::hasTable('mail_document_versions');
-        $documents = $ready ? $this->readDocuments($libraryReady, $historyReady) : collect();
+        $archiveReady = $ready && Schema::hasColumn('mail_documents', 'archived_at');
+        $documents = $ready ? $this->readDocuments($libraryReady, $historyReady, $archiveReady && $this->filter === 'archive') : collect();
         $pairingReady = $ready && MailDocumentSignatureResolver::available();
         $signatures = $pairingReady
             ? MailDocument::query()->where('kind', MailDocumentKind::Signature->value)
@@ -336,13 +348,14 @@ class MailDocumentLibrary extends Component
             });
         $history = collect();
         if ($historyReady && $this->historyId !== null && $visible->contains('id', $this->historyId)) {
-            $selected = MailDocument::query()->where('public_id', $this->historyId)->firstOrFail(['id']);
+            $selected = MailDocument::withoutGlobalScope('unarchived')->where('public_id', $this->historyId)->firstOrFail(['id']);
             $history = $selected->versions()->with('creator:id,name')
                 ->limit(40)->get(['id', 'public_id', 'mail_document_id', 'revision', 'action', 'content_hash', 'was_published', 'created_by', 'created_at']);
         }
 
         return view('livewire.admin.mail-document-library', [
             'ready' => $ready,
+            'archiveReady' => $archiveReady,
             'libraryReady' => $libraryReady,
             'deliveryReady' => MailDocumentDelivery::available(),
             'historyReady' => $historyReady,
@@ -351,18 +364,22 @@ class MailDocumentLibrary extends Component
             'documents' => $visible->values(),
             'history' => $history,
             'currentKind' => $kind,
-            'kindCounts' => $documents->countBy('kind'),
+            'kindCounts' => $this->filter !== 'archive' ? $documents->countBy('kind')
+                : ($ready ? MailDocument::query()->get(['kind'])->countBy(fn ($document) => $document->kind->value) : collect()),
             'filterLabel' => match ($this->filter) {
                 'draft' => 'Mit Entwurf', 'released' => 'Veröffentlicht', 'default' => 'Standard',
-                'system' => 'Systemmail-Standard', 'outlook' => 'Outlook-Standard', 'available' => 'Im Add-in verfügbar', 'hidden' => 'Im Add-in ausgeblendet', default => 'Alle Stände',
+                'system' => 'Systemmail-Standard', 'outlook' => 'Outlook-Standard', 'available' => 'Im Add-in verfügbar', 'hidden' => 'Im Add-in ausgeblendet', 'archive' => 'Archiv', default => 'Alle Stände',
             },
         ]);
     }
 
     /** List metadata only: no image catalog, full HTML or builder payload in Livewire state. */
-    private function readDocuments(bool $libraryReady, bool $historyReady): Collection
+    private function readDocuments(bool $libraryReady, bool $historyReady, bool $archived = false): Collection
     {
         $columns = ['id', 'public_id', 'kind', 'name', 'status', 'version', 'content_hash', 'published_at', 'updated_at', 'updated_by'];
+        if (Schema::hasColumn('mail_documents', 'archived_at')) {
+            $columns[] = 'archived_at';
+        }
         if (Schema::hasColumn('mail_documents', 'is_active')) {
             $columns[] = 'is_active';
         }
@@ -373,7 +390,8 @@ class MailDocumentLibrary extends Component
         if ($pairingReady) {
             array_push($columns, 'signature_document_id', 'published_signature_document_id');
         }
-        $query = MailDocument::query()->select($columns)->with('updater:id,name')
+        $query = MailDocument::query()->when($archived, fn ($query) => $query->withoutGlobalScope('unarchived')->whereNotNull('archived_at'))
+            ->select($columns)->with('updater:id,name')
             ->selectRaw("CASE WHEN published_at IS NOT NULL AND TRIM(COALESCE(published_html, '')) <> '' THEN 1 ELSE 0 END AS library_has_release")
             ->selectRaw("CASE WHEN TRIM(COALESCE(html, '')) <> TRIM(COALESCE(published_html, '')) OR TRIM(COALESCE(css, '')) <> TRIM(COALESCE(published_css, ''))".($pairingReady ? ' OR CASE WHEN signature_document_id IS NULL AND published_signature_document_id IS NULL THEN 0 WHEN signature_document_id = published_signature_document_id THEN 0 ELSE 1 END = 1' : '').' THEN 1 ELSE 0 END AS library_has_changes')
             ->when($pairingReady, fn ($query) => $query->with([
@@ -392,6 +410,7 @@ class MailDocumentLibrary extends Component
 
             return [
                 'id' => $document->public_id,
+                'archived' => $document->isArchived(),
                 'name' => (string) ($document->name ?: $document->kind->label()),
                 'kind' => $document->kind->value,
                 'library' => $library,
@@ -418,9 +437,10 @@ class MailDocumentLibrary extends Component
         })->sortByDesc('is_default')->values();
     }
 
-    private function document(string $id): MailDocument
+    private function document(string $id, bool $includeArchived = false): MailDocument
     {
-        return MailDocument::query()->where('public_id', $id)->firstOrFail();
+        return MailDocument::query()->when($includeArchived, fn ($query) => $query->withoutGlobalScope('unarchived'))
+            ->where('public_id', $id)->firstOrFail();
     }
 
     private function assertCurrent(MailDocument $document, string $hash): void

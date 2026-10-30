@@ -1044,3 +1044,21 @@ test('uncertain or failed STYLE confirmation never rewrites the body, retries ST
         await assert.rejects(h.run(), { code: 'TEMPLATE_INSERT_UNCERTAIN' });
     }
 });
+
+
+test('independent greeting/closing refresh preserves exact authored body and quoted history in all four states', () => {
+    const quote = '<blockquote><p>Quoted &amp; <em>formatted</em> history</p></blockquote>';
+    const current = OUTSIDE + artifact({ content: TYPED, greeting: true, name: 'old' }) + quote;
+    for (const greeting of [false, true]) for (const farewell of [false, true]) {
+        let next = artifact({ greeting: true, name: 'new' });
+        if (!greeting) next = next.replace('<p class="design-salutation">Guten Tag,</p>', '');
+        if (!farewell) next = next.replace('<p class="design-greeting">Mit freundlichen Grüßen,</p>', '');
+        const plan = replace(current, next);
+        assert.equal(plan.html.includes(TYPED), true);
+        assert.equal(plan.html.endsWith(quote), true);
+        assert.equal(plan.html.startsWith(OUTSIDE), true);
+        assert.equal((plan.html.match(/class="design-salutation"/g) || []).length, Number(greeting));
+        assert.equal((plan.html.match(/class="design-greeting"/g) || []).length, Number(farewell));
+        assert.equal((plan.html.match(/My &amp;/g) || []).length, 1);
+    }
+});

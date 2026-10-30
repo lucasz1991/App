@@ -665,11 +665,13 @@
         .settings-note { font-size: 12px; line-height: 1.55; }
         .settings-help { margin-top: 12px; }
         .wording-region { margin-top: 20px; padding-top: 0; }
-        .wording-region > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; cursor: pointer; font-size: 14px; font-weight: 600; list-style: none; }
-        .wording-region > summary::-webkit-details-marker { display: none; }
-        .wording-region > summary::after { content: ''; width: 7px; height: 7px; flex: 0 0 auto; margin-right: 3px; border-right: 1.5px solid var(--rt-muted); border-bottom: 1.5px solid var(--rt-muted); transform: rotate(45deg); }
-        .wording-region[open] > summary::after { transform: rotate(225deg); }
-        .wording-region > summary:focus-visible { outline: 3px solid var(--rt-focus); outline-offset: 2px; border-radius: 4px; }
+        .wording-region details > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; cursor: pointer; font-size: 14px; font-weight: 600; list-style: none; }
+        .wording-region details > summary::-webkit-details-marker { display: none; }
+        .wording-region details > summary::after { content: ''; width: 7px; height: 7px; flex: 0 0 auto; margin-right: 3px; border-right: 1.5px solid var(--rt-muted); border-bottom: 1.5px solid var(--rt-muted); transform: rotate(45deg); }
+        .wording-region details[open] > summary::after { transform: rotate(225deg); }
+        .wording-region details > summary:focus-visible { outline: 3px solid var(--rt-focus); outline-offset: 2px; border-radius: 4px; }
+        .wording-toggles button { min-height:44px; flex:1 1 120px; }
+        .wording-toggles button[aria-pressed="true"] { background:var(--rt-red); color:#fff; border-color:var(--rt-red); }
         .wording-region .settings-fields { margin-top: 12px; }
         .settings-buttons .glass-button { min-height: 44px; border-radius: 8px; padding-inline: 14px; }
         .connection-state { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--rt-line); }
@@ -801,9 +803,15 @@
                         <p class="automatic-feedback" data-automatic-feedback role="status" aria-live="polite"></p>
                     </div>
                     <p class="settings-note settings-help">Gilt beim nächsten Verfassen. Bereits geöffnete Nachrichten bleiben unverändert.</p>
-                    <details class="wording-region" data-outlook-wording-region aria-busy="false" aria-labelledby="outlook-wording-heading" @if ($accountSettingsMode) open @endif>
-                        <summary id="outlook-wording-heading">Anrede &amp; Gruß</summary>
-                        <p class="settings-note" id="outlook-wording-note">Für Vorlagen mit Anrede und Gruß. Ihr Name folgt automatisch.</p>
+                    <section class="wording-region" data-outlook-wording-region aria-busy="false" aria-labelledby="outlook-wording-heading">
+                        <h3 id="outlook-wording-heading">Anrede &amp; Verabschiedung</h3>
+                        <div class="settings-buttons wording-toggles">
+                            <button type="button" class="glass-button" data-wording-toggle="showGreeting" aria-pressed="false" disabled>Anrede anzeigen</button>
+                            <button type="button" class="glass-button" data-wording-toggle="showFarewell" aria-pressed="false" disabled>Verabschiedung anzeigen</button>
+                        </div>
+                        <details>
+                        <summary>Texte anpassen</summary>
+                        <p class="settings-note" id="outlook-wording-note">Für die Standardvorlage. Änderungen aktualisieren eine bereits verwaltete Vorlage sofort. Sonst die Standardvorlage einfügen. Ihr Name folgt automatisch unter der Verabschiedung.</p>
                         <div class="settings-fields">
                             <label for="outlook-wording-greeting">Anrede
                                 <input id="outlook-wording-greeting" data-wording-field="greeting" type="text" maxlength="120" autocomplete="off" disabled aria-describedby="outlook-wording-note outlook-wording-feedback">
@@ -816,8 +824,9 @@
                             <button type="button" class="glass-button save-button" data-wording-save disabled>Texte speichern</button>
                             <button type="button" class="glass-button" data-wording-reload hidden>Gespeicherten Stand laden</button>
                         </div>
+                        </details>
                         <p id="outlook-wording-feedback" class="automatic-feedback" data-wording-feedback role="status" aria-live="polite"></p>
-                    </details>
+                    </section>
                     @unless ($accountSettingsMode)
                     <div class="connection-state">
                         <div class="status" data-outlook-status data-tone="working" role="status" aria-live="polite" aria-atomic="true" tabindex="-1">

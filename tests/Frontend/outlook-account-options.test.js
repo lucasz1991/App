@@ -78,7 +78,7 @@ test('resource CAS receipt requires its own binding; account changes quarantine 
 function wordingViewFixture(save = async () => ({ wordingPreferences: wording('2') })) {
     const { document, window } = parseHTML(`<section data-outlook-wording-region>
         <input data-wording-field="greeting"><input data-wording-field="farewell">
-        <button data-wording-save>Save</button><button data-wording-reload>Reload</button><p data-wording-feedback></p></section>`);
+        <button data-wording-toggle="showGreeting" aria-pressed="false">Greeting</button><button data-wording-toggle="showFarewell" aria-pressed="false">Farewell</button><button data-wording-save>Save</button><button data-wording-reload>Reload</button><p data-wording-feedback></p></section>`);
     const view = bindWordingPreferencesView(document, { save, reload: async () => ({ wordingPreferences: wording('3') }) });
     view.update({ account: own, preferences: wording(), available: true, busy: false });
     return { document, window, view, input: document.querySelector('input'), save: document.querySelector('[data-wording-save]') };
@@ -193,4 +193,72 @@ test('the next actual manual action fetches fresh compiled wording and never sub
     assert.equal(accepted, freshPayload);
     assert.equal(received, freshPayload);
     assert.equal(context.currentBootstrap, oldPayload, 'test proves the action uses the fresh argument, not cached state');
+});
+
+
+test('two visibility toggles save independently, preserve a dirty text draft and never optimistically acknowledge', async () => {
+    const requests = []; let finish;
+    const h = wordingViewFixture(change => { requests.push(change); return new Promise(resolve => { finish = resolve; }); });
+    const greeting = h.document.querySelector('[data-wording-toggle="showGreeting"]');
+    const farewell = h.document.querySelector('[data-wording-toggle="showFarewell"]');
+    h.input.value = 'Unsaved personal text,'; h.input.dispatchEvent(new h.window.Event('input'));
+    greeting.click(); await tick();
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].greeting, 'Guten Tag,', 'visibility never commits a deferred text draft');
+    assert.equal(requests[0].showGreeting, true); assert.equal(requests[0].showFarewell, false);
+    assert.equal(greeting.getAttribute('aria-pressed'), 'false');
+    assert.equal(farewell.disabled, true);
+    finish({ wordingPreferences: { ...wording('2'), showGreeting: true, showFarewell: false } }); await tick();
+    assert.equal(greeting.getAttribute('aria-pressed'), 'true');
+    assert.equal(farewell.getAttribute('aria-pressed'), 'false');
+    assert.equal(h.input.value, 'Unsaved personal text,'); assert.equal(h.save.disabled, false);
+    farewell.click(); await tick();
+    assert.equal(requests[1].revision, '2'.repeat(64));
+    assert.equal(requests[1].showGreeting, true); assert.equal(requests[1].showFarewell, true);
+});
+
+test('visibility session strictly validates booleans, retains old text-only PATCH and binds account receipts', async () => {
+    const h = fixture(); await h.session.load();
+    for (const value of [1, 'true', null, []]) {
+        await assert.rejects(h.session.save({ ...wording(), showGreeting: value }), { code: 'PREFERENCES_INVALID' });
+    }
+    h.state.response.wordingPreferences = { ...wording('2'), showGreeting: true, showFarewell: false };
+    await h.session.save({ ...wording(), showGreeting: true, showFarewell: false });
+    assert.equal(JSON.parse(h.state.requests.at(-1).body).showGreeting, true);
+    assert.equal(normalizeWordingPreferences({ ...wording(), showFarewell: 'false' }), null);
+});
+
+test('immediate wording replacement requires a known managed template and never falls through to prepend', async () => {
+    const source = await readFile(new URL('../../resources/js/outlook-addin/taskpane.js', import.meta.url), 'utf8');
+    const start = source.indexOf('async function insertTemplate(');
+    const end = source.indexOf('\nasync function showDiagnosticReport', start);
+    let writes = 0; let reloads = 0;
+    const state = { busy: false };
+    const context = vm.createContext({ taskpaneState: state, Office: {}, currentConfig: { marker: 'marker' },
+        selectedTemplate: () => ({ name: 'Standard', document: {} }), setStatus() {},
+        withAuthenticatedBootstrap: async (_button, action) => { reloads++; await action({ signature: {} }, {}); },
+        assertComposeTarget: () => ({ body: {} }), combinedComposeDocument: () => ({ html: 'fresh', media: [] }),
+        nativeComposeTemplate() {}, validatedDocument: value => value, diagnoseStep: (_name, action) => action(),
+        readTemplateState: async () => ({ readable: true, present: false }), codedError: code => fail(code),
+        prependTemplate: async () => { writes++; }, replaceManagedTemplate: async () => { writes++; } });
+    vm.runInContext(source.slice(start, end), context);
+    const result = await context.insertTemplate(null, { replaceOnly: true });
+    assert.equal(result.applied, false); assert.equal(result.reason, 'no-managed-template');
+    assert.equal(reloads, 1); assert.equal(writes, 0);
+    assert.match(source, /afterSaved:[\s\S]*insertTemplate\(null, \{ replaceOnly: true, expectedTarget: context.target, expectedAccount: context.account \}\)/);
+});
+
+
+test('wording refresh carries the click-time account and compose target, rather than a later active item', async () => {
+    const { document } = parseHTML(`<section data-outlook-wording-region><input data-wording-field="greeting"><input data-wording-field="farewell">
+        <button data-wording-toggle="showGreeting">Toggle</button><button data-wording-save>Save</button><button data-wording-reload>Reload</button><p data-wording-feedback></p></section>`);
+    const target = { item: 'original-compose' }; let active = target; let finish; let applied;
+    const view = bindWordingPreferencesView(document, { beforeSave: () => active,
+        save: () => new Promise(resolve => { finish = resolve; }), reload: async () => {},
+        afterSaved: async context => { applied = context; return 'Saved'; } });
+    view.update({ account: own, preferences: wording(), available: true, busy: false });
+    document.querySelector('[data-wording-toggle]').click(); await tick();
+    active = { item: 'different-compose' };
+    finish({ wordingPreferences: { ...wording('2'), showGreeting: true } }); await tick();
+    assert.equal(applied.account, own); assert.equal(applied.target, target); assert.notEqual(applied.target, active);
 });

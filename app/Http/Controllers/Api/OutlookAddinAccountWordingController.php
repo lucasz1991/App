@@ -40,15 +40,17 @@ final class OutlookAddinAccountWordingController extends Controller
                 }
                 $preferences = $policy->preferencesForIdentity($resolved['user'], $identity, $resolved['binding']);
             } else {
-                if (! $request->isJson() || array_diff(array_keys($request->all()), ['greeting', 'farewell', 'revision']) !== []) {
+                if (! $request->isJson() || array_diff(array_keys($request->all()), ['greeting', 'farewell', 'revision', 'showGreeting', 'showFarewell']) !== []) {
                     throw ValidationException::withMessages(['wording' => 'Bitte die Vorlagentexte als JSON senden.']);
                 }
                 $data = $request->validate([
                     'greeting' => ['required', 'string', 'max:'.OutlookAddinWordingPolicy::MAX_LENGTH],
                     'farewell' => ['required', 'string', 'max:'.OutlookAddinWordingPolicy::MAX_LENGTH],
                     'revision' => ['required', 'string', 'regex:/\A[0-9a-f]{64}\z/'],
+                    'showGreeting' => ['sometimes', 'required', 'boolean'],
+                    'showFarewell' => ['sometimes', 'required', 'boolean'],
                 ]);
-                $preferences = $policy->updateForIdentity($resolved['user'], $identity, $resolved['binding'], $data['greeting'], $data['farewell'], $data['revision']);
+                $preferences = $policy->updateForIdentity($resolved['user'], $identity, $resolved['binding'], $data['greeting'], $data['farewell'], $data['revision'], $data['showGreeting'] ?? null, $data['showFarewell'] ?? null);
             }
 
             return $this->respond(['wordingPreferences' => $preferences, 'binding' => $resolved['binding']]);

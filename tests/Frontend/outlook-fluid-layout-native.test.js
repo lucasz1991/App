@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
 import { fluidLayoutContract, managedTemplateContract, standaloneSignatureContract } from '../../resources/js/outlook-addin/managed-template.js';
-import { prepareNativeLayoutRestore, verifyFluidLayoutMaterial } from '../../resources/js/outlook-addin/native-layout-restore.js';
-import { insertStandaloneSignature, isStandaloneSignatureInsertionBlocked, prependTemplate, replaceManagedTemplate, standaloneSignatureLayoutIsCurrent } from '../../resources/js/outlook-addin/compose-template.js';
+import { outlookSignatureDeliveryProfile, prepareNativeLayoutRestore, verifyFluidLayoutMaterial } from '../../resources/js/outlook-addin/native-layout-restore.js';
+import { insertStandaloneSignature, isStandaloneSignatureInsertionBlocked, prependTemplate, replaceManagedTemplate, signatureHostProfileIsCurrent, standaloneSignatureLayoutIsCurrent } from '../../resources/js/outlook-addin/compose-template.js';
 import { nativeOfficeHtml } from './outlook-standalone-fixture.js';
 
 const version = '0123456789abcdef', nonce = '11'.repeat(16);
@@ -77,6 +78,22 @@ function dispatchCardFixture(combined = false, token = version) {
         .replace('width="547" style="width:547px;max-width:100%!important;"', 'width="242" style="width:min(547px,100%)!important;max-width:100%!important;"')
         .replace('width="529" height="115" style="width:529px;max-width:100%!important;height:auto;"',
             'width="224" height="49" style="width:min(529px,100%)!important;max-width:100%!important;height:auto!important;"');
+}
+
+function hostProfileFixture(combined = false, token = version) {
+    return dispatchCardFixture(combined, token).replaceAll('rt-v14-', 'rt-v15-').replaceAll('rt-df14', 'rt-df15')
+        .replaceAll('outlook-desktop-flow-v14', 'outlook-desktop-flow-v15').replaceAll('data-rt-dispatch-card="v14"', 'data-rt-dispatch-card="v15"')
+        .replace('width:min(547px,100%)!important;', 'width:242px;')
+        .replace('width:min(529px,100%)!important;', 'width:224px;')
+        .replace('width:min(199px,100%)!important;', 'width:177px;')
+        .replace('https://mail.example.test/train.png', 'https://mail.example.test/m/4700745390.gif');
+}
+
+function modernHost(rewrite = wordProfile) {
+    const result = host(rewrite);
+    result.office.context.platform = 'OfficeOnline';
+    result.office.context.mailbox.diagnostics.hostName = 'OutlookWebApp';
+    return result;
 }
 
 function swapReferenceContactRows(html, index) {
@@ -383,5 +400,110 @@ test('v14 accepts only its numeric image bases after the observed Word inch rewr
         const changed = host(html => mutate(boundedWordImages(html)));
         await assert.rejects(insertStandaloneSignature(changed.office, changed.item, dispatchCardFixture(), () => {}, { media: [] }), error => error.code === 'SIGNATURE_LAYOUT_UNCONFIRMED');
         assert.equal(changed.state.signatures, 1); assert.equal(isStandaloneSignatureInsertionBlocked(changed.item), true);
+    }
+});
+
+test('v15 chooses the modern profile only for the evidenced OfficeOnline OutlookWebApp pair', () => {
+    for (const [platform, hostName, expected] of [
+        ['OfficeOnline', 'OutlookWebApp', 'M'], ['PC', 'Outlook', 'B'], ['Mac', 'Outlook', 'B'],
+        ['OfficeOnline', 'Outlook', 'B'], ['OfficeOnline', 'newOutlookWindows', 'B'], ['PC', 'OutlookWebApp', 'B'],
+        ['iOS', 'OutlookIOS', 'B'], ['Android', 'OutlookAndroid', 'B'], ['', 'OutlookWebApp', 'B'],
+        ['OfficeOnline', '', 'B'], ['OfficeOnline', 'OutlookWebApp ', 'B'], ['OfficeOnlineUnknown', 'OutlookWebApp', 'B'],
+    ]) assert.equal(outlookSignatureDeliveryProfile({ context: { platform, mailbox: { diagnostics: { hostName } } } }), expected);
+    assert.equal(outlookSignatureDeliveryProfile(undefined), 'B');
+});
+
+test('v15 prepares bounded canonical sources and enlarges only three verified image targets on the modern host', () => {
+    for (const combined of [false, true]) {
+        const html = hostProfileFixture(combined), source = combined ? managedTemplateContract(html) : standaloneSignatureContract(html);
+        for (const [office, expected] of [[host().office, 'B'], [modernHost().office, 'M'], [undefined, 'B']]) {
+            const plan = prepareNativeLayoutRestore(html, source, nonce, office);
+            assert.equal(plan.profile, expected); assert.equal(plan.sourceOnly, 'fluid-v15'); assert.equal(plan.family, 15);
+            assert.equal(plan.html.length - html.length, expected === 'M' ? 168 : 167);
+            assert.equal(plan.ids, null); assert.equal(plan.stylePayload, '');
+            assert.match(plan.html, new RegExp('RT-FLUID-LAYOUT-V15' + expected + ':' + nonce + ':' + version));
+            assert.match(plan.html, /src="https:\/\/mail\.example\.test\/m\/4700745390\.gif"/);
+            assert.match(plan.html, new RegExp('width="' + (expected === 'M' ? 529 : 224) + '" height="' + (expected === 'M' ? 115 : 49) + '"'));
+            const received = wordProfile(plan.html), proof = fluidLayoutContract(received, received, nonce, version);
+            assert.equal(proof.fluidLayout.profile, expected); assert.equal(verifyFluidLayoutMaterial(received, proof).family, 15);
+        }
+        for (const changed of [html.replace('width:242px;', 'width:547px;'), html.replace('width="224"', 'width="529"'),
+            html.replace('width:177px;', 'width:199px;'), html.replace('width:224px;', 'width:min(529px,100%);'),
+            html.replace('4700745390.gif', '4700745390.png'), html.replace('4700745390.gif', 'unknown.gif')]) {
+            assert.throws(() => prepareNativeLayoutRestore(changed, combined ? managedTemplateContract(changed) : standaloneSignatureContract(changed), nonce, modernHost().office));
+        }
+    }
+});
+
+test('v15 currentness includes the actual host profile and changing profiles replaces only the owned native signature', async () => {
+    const state = host(), html = hostProfileFixture(), outside = state.state.body;
+    await insertStandaloneSignature(state.office, state.item, html, () => {}, { media: [] });
+    assert.equal(fluidLayoutContract(state.state.body).fluidLayout.profile, 'B');
+    assert.equal(standaloneSignatureLayoutIsCurrent(state.state.body, state.state.body, version, state.office), true);
+    state.office.context.platform = 'OfficeOnline'; state.office.context.mailbox.diagnostics.hostName = 'OutlookWebApp';
+    assert.equal(standaloneSignatureLayoutIsCurrent(state.state.body, state.state.body, version, state.office), false);
+    await insertStandaloneSignature(state.office, state.item, html, () => {}, { media: [] });
+    assert.equal(state.state.signatures, 2); assert.equal(state.state.prepends, 0); assert.equal(state.state.replacements, 0);
+    assert.equal(fluidLayoutContract(state.state.body).fluidLayout.profile, 'M');
+    assert.equal(signatureHostProfileIsCurrent(state.state.body, state.state.body, version, state.office), true);
+    assert.ok(state.state.body.endsWith(outside));
+    const combined = modernHost();
+    await prependTemplate(combined.office, combined.item, hostProfileFixture(true), () => {}, { media: [] });
+    assert.equal(fluidLayoutContract(combined.state.body).fluidLayout.profile, 'M');
+    assert.equal(signatureHostProfileIsCurrent(combined.state.body, combined.state.body, version, combined.office), true);
+    await replaceManagedTemplate(combined.office, combined.item, hostProfileFixture(true, 'ff'.repeat(8)), () => {}, { media: [] });
+    assert.equal(combined.state.prepends, 1); assert.equal(combined.state.replacements, 1); assert.ok(combined.state.body.endsWith(outside));
+});
+
+test('v15 profile markers, versions and material cannot be interchanged or silently downgraded after writing', async () => {
+    for (const mutate of [html => html.replace('RT-FLUID-LAYOUT-V15M:', 'RT-FLUID-LAYOUT-V15B:'),
+        html => html.replace('RT-FLUID-LAYOUT-V15M:', 'RT-FLUID-LAYOUT-V15X:'),
+        html => html.replace('RT-FLUID-LAYOUT-V15M:', 'RT-FLUID-LAYOUT-V14:'),
+        html => html.replace('width:529px;max-width:100%!important;', 'width:529px;'),
+        html => html.replace('width:547px;max-width:100%!important;', 'width:547px;'),
+        html => html.replace('width:199px;max-width:100%!important;', 'width:199px;')]) {
+        const state = modernHost(html => wordProfile(mutate(html)));
+        await assert.rejects(insertStandaloneSignature(state.office, state.item, hostProfileFixture(), () => {}, { media: [] }), error => error.code === 'SIGNATURE_LAYOUT_UNCONFIRMED');
+        assert.equal(state.state.signatures, 1); assert.equal(isStandaloneSignatureInsertionBlocked(state.item), true);
+    }
+    const html = hostProfileFixture(), plan = prepareNativeLayoutRestore(html, standaloneSignatureContract(html), nonce, modernHost().office);
+    assert.throws(() => fluidLayoutContract(plan.html + plan.html));
+    assert.throws(() => fluidLayoutContract(plan.html, plan.html, '22'.repeat(16), version));
+    assert.throws(() => fluidLayoutContract(plan.html, plan.html, nonce, 'ff'.repeat(8)));
+});
+
+test('v15 bounded material tolerates only equivalent finite Word image units without certifying an unsafe modern profile', async () => {
+    const wordLoss = html => wordProfile(html.replace('width:242px;max-width:100%!important;', 'width:2.5208in;')
+        .replace('width:224px;max-width:100%!important;height:auto!important;', 'width:2.3333in;height:.5104in;')
+        .replace('width:177px;max-width:100%!important;height:auto!important;', 'width:1.8437in;height:.3541in;'));
+    const bounded = host(wordLoss);
+    await insertStandaloneSignature(bounded.office, bounded.item, hostProfileFixture(), () => {}, { media: [] });
+    assert.equal(bounded.state.signatures, 1); assert.equal(fluidLayoutContract(bounded.state.body).fluidLayout.profile, 'B');
+    const quoted = bounded.state.body + '<blockquote>' + bounded.state.body + '</blockquote>';
+    assert.equal(verifyFluidLayoutMaterial(quoted, fluidLayoutContract(quoted, quoted)).family, 15);
+    const changed = host(html => wordProfile(html.replace('width:177px;max-width:100%!important;', 'width:100%;max-width:100%!important;')));
+    await assert.rejects(insertStandaloneSignature(changed.office, changed.item, hostProfileFixture(), () => {}, { media: [] }), error => error.code === 'SIGNATURE_LAYOUT_UNCONFIRMED');
+    assert.equal(changed.state.signatures, 1);
+});
+
+test('the production taskpane currentness check distinguishes V15 profiles for standalone and combined bodies', () => {
+    const source = readFileSync(new URL('../../resources/js/outlook-addin/taskpane.js', import.meta.url), 'utf8');
+    const declaration = /function signatureIsCurrent\([\s\S]*?\n\}/.exec(source)?.[0];
+    assert.ok(declaration);
+    for (const combined of [false, true]) {
+        const html = hostProfileFixture(combined), incoming = combined ? managedTemplateContract(html) : standaloneSignatureContract(html);
+        const payload = { signatureVersion: version, signature: { html } };
+        for (const office of [host().office, modernHost().office]) {
+            const context = vm.createContext({ Office: office, snapshotSignatureVersion: value => value.signatureVersion,
+                hasCurrentSnapshot: () => true, currentComposeBodyHtml: value => value, isMobileComposeHost: () => false,
+                requiresStandaloneSignatureLayout: () => true, standaloneSignatureLayoutIsCurrent, signatureHostProfileIsCurrent,
+                templateStateFromBody: () => ({ present: combined }), signatureVersionsFromBody: () => [] });
+            vm.runInContext(declaration + ';globalThis.check=signatureIsCurrent;', context);
+            for (const target of [host().office, modernHost().office]) {
+                const plan = prepareNativeLayoutRestore(html, incoming, nonce, target), body = wordProfile(plan.html);
+                assert.equal(context.check(payload, body, 'newMail'), plan.profile === outlookSignatureDeliveryProfile(office));
+                assert.equal(context.check({ ...payload, signatureVersion: 'ff'.repeat(8) }, body, 'newMail'), false);
+            }
+        }
     }
 });

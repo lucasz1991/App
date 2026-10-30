@@ -463,6 +463,7 @@ const FLUID_FLOW = 'outlook-desktop-flow-v11';
 const FLAT_FLUID_FLOW = 'outlook-desktop-flow-v12';
 const REFERENCE_FLUID_FLOW = 'outlook-desktop-flow-v13';
 const DISPATCH_CARD_FLOW = 'outlook-desktop-flow-v14';
+const HOST_PROFILE_FLOW = 'outlook-desktop-flow-v15';
 const FLUID_COLUMNS = [
     ['identity', 176, 16], ['direct', 204, 0], ['company', 172, 12], ['dispatch', 164, 4],
 ];
@@ -472,7 +473,14 @@ const REFERENCE_FLUID_COLUMNS = [
 
 export function isFluidLayoutSource(contract) {
     return Array.isArray(contract?.elements) && Number.isInteger(contract.signature?.index)
-        && contract.elements.some((node, index) => [FLUID_FLOW, FLAT_FLUID_FLOW, REFERENCE_FLUID_FLOW, DISPATCH_CARD_FLOW].includes(node.attrs['data-rt-desktop-flow']) && within(contract.elements, index, contract.signature.index));
+        && contract.elements.some((node, index) => [FLUID_FLOW, FLAT_FLUID_FLOW, REFERENCE_FLUID_FLOW, DISPATCH_CARD_FLOW, HOST_PROFILE_FLOW].includes(node.attrs['data-rt-desktop-flow']) && within(contract.elements, index, contract.signature.index));
+}
+
+/** Unknown, mobile, Mac and native Windows hosts keep the bounded source. */
+export function outlookSignatureDeliveryProfile(office) {
+    const platform = String(office?.context?.platform || '').toLowerCase();
+    const host = String(office?.context?.mailbox?.diagnostics?.hostName || '').toLowerCase();
+    return platform === 'officeonline' && host === 'outlookwebapp' ? 'M' : 'B';
 }
 
 function fluidPixels(value) {
@@ -582,14 +590,50 @@ function dispatchAdaptiveStage(node, source) {
         : close(node.attrs.width ?? properties.get('width')) && (!properties.has('width') || close(properties.get('width')));
 }
 
-function dispatchCardPaint(node, source) {
+function hostProfileImage(node, width, height, source, modern) {
+    if (!referenceImage(node, width, height, source, dispatchPixels)) return false;
+    const properties = new Map(inlineCellProperties(node.attrs.style || ''));
+    if (source) return Math.abs(dispatchPixels(node.attrs.width) - width) < 0.05
+        && Math.abs(dispatchPixels(node.attrs.height) - height) < 0.05
+        && Math.abs(dispatchPixels(properties.get('width')) - width) < 0.05
+        && properties.get('max-width') === '100%' && properties.get('height') === 'auto'
+        && /(?:^|;)\s*max-width\s*:\s*100%\s*!important\s*(?:;|$)/i.test(node.attrs.style || '');
+    return modern ? properties.get('max-width') === '100%'
+        : !properties.has('width') || Math.abs(dispatchPixels(properties.get('width')) - width) < 0.05;
+}
+
+function hostProfileStage(node, source, modern) {
+    const properties = new Map(inlineCellProperties(node.attrs.style || ''));
+    const widths = [node.attrs.width, properties.get('width')].filter(value => value !== undefined);
+    if (!widths.length || !widths.every(value => Math.abs(dispatchPixels(value) - (modern ? 547 : 242)) < 0.05)) return false;
+    return !(source || modern) || properties.get('max-width') === '100%'
+        && (!source || /(?:^|;)\s*max-width\s*:\s*100%\s*!important\s*(?:;|$)/i.test(node.attrs.style || ''));
+}
+
+function linkedTrainAsset(value) {
+    return [
+        ['light', '47007453902679fbc96eda87bb8701db7f701b2c340d83e9561fa68c4dbd503d'],
+        ['dark', '243786c7e426e2f06165858c8a1883cfd5598b72df1247c7cc2b3ff6e41220a5'],
+        ['light-mirrored', '67d1600699cad2f1f2af69ea59a9d88a7085f26556966f083ab615401e430d39'],
+        ['dark-mirrored', 'ed21ba08d9d32ede363a30d13d182aa802b426330fd0110c4b0f50b11c960768'],
+    ].some(([variant, sha]) => {
+        if (value === 'cid:railtime-' + sha.slice(0, 20) + '.gif') return true;
+        try {
+            const url = new URL(value);
+            return url.protocol === 'https:' && !url.username && !url.password && !url.search && !url.hash
+                && ['/m/' + sha.slice(0, 10) + '.gif', '/mail-assets/zug-dampf-outlook-brand-v1-' + variant + '.gif'].includes(url.pathname);
+        } catch { return false; }
+    });
+}
+
+function dispatchCardPaint(node, source, family = 14) {
     const properties = new Map(inlineCellProperties(node.attrs.style || ''));
     const red = value => ['#e90032', 'rgb(233,0,50)'].includes((value || '').replace(/\s+/g, '').toLowerCase());
     const fills = [node.attrs.background, /^url\(\s*["']?([^"')]+)["']?\s*\)$/i.exec(properties.get('background-image') || '')?.[1]];
     const known = value => dispatchCardAsset(value, 'outlook-hotline-fill-v1.png', '3ee5033b5b112852a0255cf62d99542391117ba462408510c460c799a5ad6583');
     if (!red(node.attrs.bgcolor) || !red(properties.get('background-color')) || fills.some(value => !known(value))
         || fills[0] !== fills[1] || (properties.has('border-radius') && Math.abs(fluidPixels(properties.get('border-radius')) - 8) > 0.05)
-        || (source && (node.attrs['data-rt-dispatch-card'] !== 'v14' || properties.get('background-repeat') !== 'repeat'
+        || (source && (node.attrs['data-rt-dispatch-card'] !== 'v' + family || properties.get('background-repeat') !== 'repeat'
             || Math.abs(fluidPixels(properties.get('border-radius')) - 8) > 0.05))) invalid();
     if (inlineCellProperties(node.attrs.style || '').some(([name]) => name === 'background')) invalid();
 }
@@ -599,21 +643,21 @@ export function verifyFluidLayoutMaterial(html, contract, source = false) {
     const nodes = contract?.elements, signature = contract?.signature;
     if (typeof html !== 'string' || !Array.isArray(nodes) || !Number.isInteger(signature?.index)) invalid();
     const scoped = nodes.map((node, index) => ({ node, index })).filter(value => within(nodes, value.index, signature.index) && !isQuoted(nodes, value.index));
-    let root, columns, family;
+    let root, columns, family, caption;
     if (source) {
-        const candidates = scoped.filter(value => [FLUID_FLOW, FLAT_FLUID_FLOW, REFERENCE_FLUID_FLOW, DISPATCH_CARD_FLOW].includes(value.node.attrs['data-rt-desktop-flow']));
+        const candidates = scoped.filter(value => [FLUID_FLOW, FLAT_FLUID_FLOW, REFERENCE_FLUID_FLOW, DISPATCH_CARD_FLOW, HOST_PROFILE_FLOW].includes(value.node.attrs['data-rt-desktop-flow']));
         if (candidates.length !== 1 || candidates[0].node.tag !== 'table') invalid();
         root = candidates[0];
-        family = root.node.attrs['data-rt-desktop-flow'] === DISPATCH_CARD_FLOW ? 14 : root.node.attrs['data-rt-desktop-flow'] === REFERENCE_FLUID_FLOW ? 13 : root.node.attrs['data-rt-desktop-flow'] === FLAT_FLUID_FLOW ? 12 : 11;
+        family = root.node.attrs['data-rt-desktop-flow'] === HOST_PROFILE_FLOW ? 15 : root.node.attrs['data-rt-desktop-flow'] === DISPATCH_CARD_FLOW ? 14 : root.node.attrs['data-rt-desktop-flow'] === REFERENCE_FLUID_FLOW ? 13 : root.node.attrs['data-rt-desktop-flow'] === FLAT_FLUID_FLOW ? 12 : 11;
         if (!has(root.node, 'rt-v' + family + '-columns') || (family >= 12 && !has(root.node, 'rt-sign-content-frame'))) invalid();
         const scopes = (signature.node.attrs.class || '').split(/\s+/).filter(name => /^rts[0-9a-f]{10}$/.test(name));
-        const hosts = (root.node.attrs.class || '').split(/\s+/).filter(name => /^rt-df(?:[0-9]|10|11|12|13|14)[0-9a-f]{10}$/.test(name));
+        const hosts = (root.node.attrs.class || '').split(/\s+/).filter(name => /^rt-df(?:[0-9]|10|11|12|13|14|15)[0-9a-f]{10}$/.test(name));
         if (scopes.length !== 1 || hosts.length !== 1 || hosts[0] !== 'rt-df' + family + scopes[0].slice(3)
             || root.node.attrs['data-rt-personal-flow'] !== 'v1' || root.node.attrs['data-rt-personal-columns'] !== 'v1') invalid();
     } else {
         if (!contract.fluidLayout) invalid();
         family = contract.fluidLayout.family;
-        if (![11, 12, 13, 14].includes(family)) invalid();
+        if (![11, 12, 13, 14, 15].includes(family)) invalid();
         const floats = scoped.filter(value => value.node.tag === 'table' && (value.node.attrs.align || '').toLowerCase() === 'left');
         if (floats.length !== 4 || floats.some(value => value.node.parent !== floats[0].node.parent)) invalid();
         let index = floats[0].node.parent;
@@ -622,6 +666,9 @@ export function verifyFluidLayoutMaterial(html, contract, source = false) {
         root = { node: nodes[index], index };
         columns = floats;
     }
+    const profile = family === 15 ? source ? 'B' : contract.fluidLayout.profile : null;
+    if (family === 15 && !['M', 'B'].includes(profile)) invalid();
+    const modern = profile === 'M';
     const rootProperties = new Map(inlineCellProperties(root.node.attrs.style || ''));
     if (source && family === 11 && rootProperties.get('max-width') !== '734px') invalid();
     if (family >= 12 && rootProperties.has('max-width') && !['100%', 'none'].includes(rootProperties.get('max-width'))) invalid();
@@ -663,7 +710,7 @@ export function verifyFluidLayoutMaterial(html, contract, source = false) {
                     || /^mso-table-anchor-|^mso-table-left$/.test(name))))) invalid();
         if (family >= 13 && role === 'identity') {
             const logos = scoped.filter(value => value.node.tag === 'img' && within(nodes, value.index, column.index));
-            if (logos.length !== 1 || !referenceImage(logos[0].node, 184, 32, source, family === 14 ? dispatchPixels : fluidPixels)) invalid();
+            if (logos.length !== 1 || !referenceImage(logos[0].node, 184, 32, source, family >= 14 ? dispatchPixels : fluidPixels)) invalid();
         }
         if (family >= 13 && role === 'company') {
             const links = scoped.filter(value => value.node.tag === 'a' && within(nodes, value.index, column.index));
@@ -702,7 +749,7 @@ export function verifyFluidLayoutMaterial(html, contract, source = false) {
             const blockPadding = fluidPadding(blockCell.node);
             const blockStyle = new Map(inlineCellProperties(block.node.attrs.style || ''));
             if ((owns(block.node.attrs, 'width') && block.node.attrs.width !== '100%')
-                || (family === 14 && !source ? ![undefined, 'auto', '100%'].includes(blockStyle.get('width')) : blockStyle.get('width') !== '100%')
+                || (family >= 14 && !source ? ![undefined, 'auto', '100%'].includes(blockStyle.get('width')) : blockStyle.get('width') !== '100%')
                 || !(Math.abs(fluidPixels(blockStyle.get('max-width')) - 227) < 0.05)
                 || (source && block.node.attrs.width !== '100%')
                 || (family === 13 ? !Object.values(blockPadding).every(value => value === 0)
@@ -713,15 +760,15 @@ export function verifyFluidLayoutMaterial(html, contract, source = false) {
             if (family === 13 && scoped.some(value => within(nodes, value.index, column.index) && (['background', 'data-rt-dispatch-card'].some(name => owns(value.node.attrs, name))
                 || (owns(value.node.attrs, 'bgcolor') && (source || !neutralBackground(value.node.attrs.bgcolor)))
                 || inlineCellProperties(value.node.attrs.style || '').some(([name, property]) => /^background(?:-|$)/.test(name) && (source || !neutralBackground(property)))))) invalid();
-            if (family === 14) {
-                dispatchCardPaint(block.node, source); dispatchCardPaint(blockCell.node, source);
+            if (family >= 14) {
+                dispatchCardPaint(block.node, source, family); dispatchCardPaint(blockCell.node, source, family);
                 if (scoped.some(value => within(nodes, value.index, column.index) && ![block.index, blockCell.index].includes(value.index)
                     && (['background', 'bgcolor', 'data-rt-dispatch-card'].some(name => owns(value.node.attrs, name))
                         || inlineCellProperties(value.node.attrs.style || '').some(([name]) => /^background(?:-|$)/.test(name))))) invalid();
             }
             const actions = children(nodes, blockCell.index).filter(value => value.node.tag === 'table');
             if (actions.length !== 1) invalid();
-            if (family === 14) {
+            if (family >= 14) {
                 const divider = new Map(inlineCellProperties(actions[0].node.attrs.style || '')).get('border-top');
                 const parts = /^(\S+)\s+solid\s+(#ff6b8b|rgb\(255,\s*107,\s*139\))$/.exec(divider || '');
                 if (!parts || Math.abs(dispatchPixels(parts[1]) - 1) > 0.05) invalid();
@@ -730,14 +777,15 @@ export function verifyFluidLayoutMaterial(html, contract, source = false) {
             if (slots.length !== 3 || slots.some(value => value.node.tag !== 'td')) invalid();
             const images = scoped.filter(value => value.node.tag === 'img' && within(nodes, value.index, block.index));
             const links = scoped.filter(value => value.node.tag === 'a' && within(nodes, value.index, block.index));
-            if (images.length !== 3 || links.length !== 3 || !(family === 14 ? dispatchAdaptiveImage(images[0].node, 177, 34, 199, source) : referenceImage(images[0].node, 199, 28, source))
-                || !referenceImage(images[1].node, 25, 25, source, family === 14 ? dispatchPixels : fluidPixels)
-                || !referenceImage(images[2].node, 25, 25, source, family === 14 ? dispatchPixels : fluidPixels)
+            if (images.length !== 3 || links.length !== 3 || !(family === 15 ? hostProfileImage(images[0].node, modern ? 199 : 177, modern ? 38 : 34, source, modern)
+                : family === 14 ? dispatchAdaptiveImage(images[0].node, 177, 34, 199, source) : referenceImage(images[0].node, 199, 28, source))
+                || !referenceImage(images[1].node, 25, 25, source, family >= 14 ? dispatchPixels : fluidPixels)
+                || !referenceImage(images[2].node, 25, 25, source, family >= 14 ? dispatchPixels : fluidPixels)
                 || !/^mailto:/i.test(links[0].node.attrs.href || '') || !/^tel:/i.test(links[1].node.attrs.href || '')
                 || links[1].node.attrs.href !== links[2].node.attrs.href
                 || !links.every((value, index) => within(nodes, value.index, slots[index].index))
                 || !within(nodes, images[1].index, slots[0].index) || !within(nodes, images[2].index, slots[1].index)) invalid();
-            if (family === 14 && ![
+            if (family >= 14 && ![
                 ['outlook-dispo-card-caption-v1.png', '464054a84f32ad05d4c6e65a67105c6500ed070a818a40935d3b9f390bec7ab7'],
                 ['outlook-hotline-mail-v1.png', '36ecdeda3135132910ead299dec2fdef8786ed05a39d7fadb3ee4156e5d1696d'],
                 ['outlook-hotline-phone-v1.png', 'a3564d9bc8fafc2fc9dcd577361b882dda579f539049876e589fd6d12b090dc5'],
@@ -747,12 +795,13 @@ export function verifyFluidLayoutMaterial(html, contract, source = false) {
             const phone = html.slice(links[2].node.openEnd, links[2].node.close).replace(/<[^>]*>/g, '').replace(/&nbsp;|&#160;|&#x0*a0;/gi, ' ').trim();
             const digits = phone.replace(/\D/g, ''), target = links[2].node.attrs.href.slice(4).replace(/\D/g, '');
             if (!digits || digits !== target || !scoped.some(value => within(nodes, value.index, links[2].index)
-                && Math.abs(fluidPixels(new Map(inlineCellProperties(value.node.attrs.style || '')).get('font-size')) - (family === 14 ? 12 : 13)) < 0.05)) invalid();
-            if (family === 14) {
+                && Math.abs(fluidPixels(new Map(inlineCellProperties(value.node.attrs.style || '')).get('font-size')) - (family >= 14 ? 12 : 13)) < 0.05)) invalid();
+            if (family >= 14) {
                 const white = value => ['#fff', '#ffffff', 'white', 'rgb(255,255,255)'].includes((value || '').replace(/\s+/g, '').toLowerCase());
                 if (!links.every(link => scoped.some(value => within(nodes, value.index, link.index)
                     && white(new Map(inlineCellProperties(value.node.attrs.style || '')).get('color'))))) invalid();
             }
+            if (family === 15) caption = images[0];
         }
     }
     const trainHost = onlyChild(nodes, rows[1].index, 'td');
@@ -761,9 +810,10 @@ export function verifyFluidLayoutMaterial(html, contract, source = false) {
     const trainCell = onlyChild(nodes, onlyChild(nodes, onlyChild(nodes, train.index, 'tbody').index, 'tr').index, 'td');
     const trainImages = scoped.filter(value => value.node.tag === 'img' && within(nodes, value.index, train.index));
     const trainWidth = family >= 13 ? 547 : 218, imageWidth = family >= 13 ? 529 : 200, imageHeight = family >= 13 ? 115 : 43;
-    if ((family === 14 ? !dispatchAdaptiveStage(train.node, source) : !fluidNumber(train.node, 'width', trainWidth)) || owns(train.node.attrs, 'align') || trainImages.length !== 1
+    if ((family === 15 ? !hostProfileStage(train.node, source, modern) : family === 14 ? !dispatchAdaptiveStage(train.node, source) : !fluidNumber(train.node, 'width', trainWidth)) || owns(train.node.attrs, 'align') || trainImages.length !== 1
         || Math.abs(fluidPadding(trainCell.node).right - 18) > 0.05 || fluidPadding(trainCell.node).left !== 0) invalid();
     const image = trainImages[0].node, imageProperties = new Map(inlineCellProperties(image.attrs.style || ''));
+    if (family === 15 && !linkedTrainAsset(image.attrs.src)) invalid();
     if (family === 13) {
         fluidOuterSafe(image);
         const stageProperties = new Map(inlineCellProperties(train.node.attrs.style || ''));
@@ -778,7 +828,8 @@ export function verifyFluidLayoutMaterial(html, contract, source = false) {
         && (image.attrs.height === undefined || Math.abs(fluidPixels(image.attrs.height) - imageHeight) < 0.05)
         && (imageProperties.get('width') === '100%' || Math.abs(fluidPixels(imageProperties.get('width')) - imageWidth) < 0.05)
         && imageProperties.get('max-width') === '100%' && imageProperties.get('height') === 'auto';
-    if (family === 14 ? !dispatchAdaptiveImage(image, 224, 49, 529, source) : !fixedImage && (!boundedImage || source)) invalid();
+    if (family === 15 ? !hostProfileImage(image, modern ? 529 : 224, modern ? 115 : 49, source, modern)
+        : family === 14 ? !dispatchAdaptiveImage(image, 224, 49, 529, source) : !fixedImage && (!boundedImage || source)) invalid();
     const signatureRows = children(nodes, onlyChild(nodes, signature.index, 'tbody').index);
     if (signatureRows.length !== 2 || signatureRows.some(value => value.node.tag !== 'tr')
         || !within(nodes, root.index, signatureRows[0].index)) invalid();
@@ -788,17 +839,43 @@ export function verifyFluidLayoutMaterial(html, contract, source = false) {
     const legal = onlyChild(nodes, onlyChild(nodes, onlyChild(nodes, legalTables[0].index, 'tbody').index, 'tr').index, 'td');
     if (Math.abs(fluidPadding(legal.node).left - 18) > 0.05
         || !within(nodes, contract.signatureMetadata.managed, legalHost.index) || !within(nodes, contract.signatureMetadata.version, legalHost.index)) invalid();
-    return { root, columns, train, sourceOnly: true, family };
+    return { root, columns, train, sourceOnly: true, family, ...(family === 15 ? { caption, trainImage: trainImages[0] } : {}) };
 }
 
-function prepareFluidLayout(html, contract, nonce) {
-    const { family } = verifyFluidLayoutMaterial(html, contract, true);
+function hostProfileOpening(html, target, width, height = null) {
+    const node = target?.node;
+    if (!node || !['table', 'img'].includes(node.tag)) invalid();
+    let opening = targetOpening(html, node);
+    let count = 0;
+    const style = (node.attrs.style || '').replace(/(^|;)(\s*width\s*:\s*)[0-9]+px(\s*(?:!important)?\s*)(?=;|$)/gi, (_match, prefix, property, suffix) => {
+        count += 1; return prefix + property + width + 'px' + suffix;
+    });
+    if (count !== 1) invalid();
+    const changes = { width: String(width), style, ...(height === null ? {} : { height: String(height) }) };
+    for (const [name, value] of Object.entries(changes)) {
+        const pattern = new RegExp('(\\s)' + name + '\\s*=\\s*(?:"[^"]*"|\'[^\']*\'|[^\\s"\'=<>`]+)', 'gi');
+        let changed = 0;
+        opening = opening.replace(pattern, (_match, space) => {
+            changed += 1; return space + name + '="' + value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;') + '"';
+        });
+        if (changed !== 1) invalid();
+    }
+    return { start: node.start, end: node.openEnd, value: opening };
+}
+
+function prepareFluidLayout(html, contract, nonce, office) {
+    const material = verifyFluidLayoutMaterial(html, contract, true), { family } = material;
     const versionNode = contract.elements[contract.signatureMetadata.version];
     const version = /RT-SIGNATURE-VERSION:([0-9a-f]{16})/i.exec(html.slice(versionNode.openEnd, versionNode.close))?.[1]?.toLowerCase();
     const scope = nonce === undefined ? createNativeLayoutNonce() : nonce;
-    if (!version || !/^[0-9a-f]{32}$/.test(scope) || /RT-FLUID-LAYOUT-V1[1234]:/.test(html)) invalid();
-    const marker = '<span hidden aria-hidden="true" style="display:none!important;font-size:0;line-height:0;">RT-FLUID-LAYOUT-V' + family + ':' + scope + ':' + version + '</span>';
-    return Object.freeze({ html: html.slice(0, versionNode.end) + marker + html.slice(versionNode.end), sourceOnly: 'fluid-v' + family, family, nonce: scope, version, stylePayload: '', ids: null });
+    if (!version || !/^[0-9a-f]{32}$/.test(scope) || /RT-FLUID-LAYOUT-V(?:1[1234]:|15)/.test(html)) invalid();
+    const profile = family === 15 ? outlookSignatureDeliveryProfile(office) : '';
+    const marker = '<span hidden aria-hidden="true" style="display:none!important;font-size:0;line-height:0;">RT-FLUID-LAYOUT-V' + family + profile + ':' + scope + ':' + version + '</span>';
+    const edits = [{ start: versionNode.end, end: versionNode.end, value: marker }];
+    if (profile === 'M') edits.push(hostProfileOpening(html, material.train, 547), hostProfileOpening(html, material.trainImage, 529, 115), hostProfileOpening(html, material.caption, 199, 38));
+    let modified = html;
+    for (const edit of edits.sort((a, b) => b.start - a.start)) modified = modified.slice(0, edit.start) + edit.value + modified.slice(edit.end);
+    return Object.freeze({ html: modified, sourceOnly: 'fluid-v' + family, family, nonce: scope, version, stylePayload: '', ids: null, ...(family === 15 ? { profile } : {}) });
 }
 
 /** Outlook replaces our empty clear BR with one zero-line, style-only DIV. */
@@ -1133,7 +1210,7 @@ export function removeNativeLayoutRestoreCarrier(html, contract, ids) {
  * incoming document, before editable content is spliced into its new shell.
  * The coordinator must verify every ID after the SDK write before prepending stylePayload.
  */
-export function prepareNativeLayoutRestore(html, contract, nonce) {
+export function prepareNativeLayoutRestore(html, contract, nonce, office) {
     if (typeof html !== 'string' || !Array.isArray(contract?.elements)
         || !Number.isInteger(contract?.signature?.index)) invalid();
     const nodes = contract.elements;
@@ -1142,7 +1219,7 @@ export function prepareNativeLayoutRestore(html, contract, nonce) {
     if (!nodes[owner] || nodes[owner] !== contract.signature.node) invalid();
     if (contract.kind === 'standalone-signature-v1') standaloneSignatureFrame(contract, nodes);
     const signature = one(nodes, owner, 'rt-managed-signature-v1', 'table');
-    if (isFluidLayoutSource(contract)) return prepareFluidLayout(html, contract, nonce);
+    if (isFluidLayoutSource(contract)) return prepareFluidLayout(html, contract, nonce, office);
     const candidates = nodes.map((node, index) => ({ node, index })).filter(value => within(nodes, value.index, signature.index)
         && (has(value.node, 'rt-personal-columns') || owns(value.node.attrs, FLOW)));
     if (!candidates.length) return null;

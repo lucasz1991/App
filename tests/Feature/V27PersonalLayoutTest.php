@@ -21,12 +21,13 @@ use App\Support\Mail\SignatureTableOverlapDelivery;
 use App\Support\Mail\SignatureTrainCarrier;
 use App\Support\Mail\SystemMailInlineImageEmbedder;
 use App\Support\Mail\TemplateDocumentContract;
+use App\Support\Mail\TemplateForwardingStyle;
 use App\Support\MailSignature;
 use App\Support\OutlookAddin\OutlookAddinPayloadService;
 use App\Support\OutlookAddin\OutlookAddinUserSnapshotStore;
 use App\Support\OutlookAddin\OutlookClientPresentation;
-use App\Support\OutlookAddin\OutlookIntrinsicTrainDelivery;
 use App\Support\OutlookAddin\OutlookDesktopFlow;
+use App\Support\OutlookAddin\OutlookIntrinsicTrainDelivery;
 use App\Support\OutlookAddin\OutlookMobileSignature;
 use DOMDocument;
 use DOMElement;
@@ -91,12 +92,12 @@ final class V27PersonalLayoutTest extends TestCase
         $this->personal = $this->publish(MailDocumentKind::Signature, $this->source(personal: true), '', [
             'id' => 16, 'name' => 'Synthetic personal signature', 'is_active' => null, 'outlook_default' => true,
         ]);
-        $this->template = $this->publish(MailDocumentKind::Template, self::TEMPLATE, self::TEMPLATE_CSS, [
+        $this->template = $this->publish(MailDocumentKind::Template, self::templateSource(), self::TEMPLATE_CSS, [
             'id' => 12, 'name' => 'Synthetic default template', 'is_active' => true, 'outlook_default' => true,
             'outlook_released' => true, 'published_signature_document_id' => $this->personal->id,
             'signature_document_id' => $this->personal->id,
         ]);
-        $withGreeting = preg_replace('~(<p class="design-spacer"[^>]*>.*?</p>)~s', '<p class="design-salutation">Guten Tag,</p>$1<p class="design-greeting">Mit freundlichen Grüßen,</p>', self::TEMPLATE, 1, $greetingCount);
+        $withGreeting = preg_replace('~(<p class="design-spacer"[^>]*>.*?</p>)~s', '<p class="design-salutation">Guten Tag,</p>$1<p class="design-greeting">Mit freundlichen Grüßen,</p>', self::templateSource(), 1, $greetingCount);
         self::assertSame(1, $greetingCount);
         $this->variant = $this->publish(MailDocumentKind::Template, $withGreeting, self::TEMPLATE_CSS, [
             'id' => 15, 'name' => 'Synthetic offered template', 'is_active' => null, 'outlook_released' => true,
@@ -137,6 +138,45 @@ final class V27PersonalLayoutTest extends TestCase
         }
         self::assertSame($before, $this->storedSources());
         Http::assertNothingSent();
+    }
+
+    public function test_blank_standard_optional_flags_compile_all_four_states_without_changing_signature_or_system_sources(): void
+    {
+        $service = app(OutlookAddinPayloadService::class);
+        $before = $service->forUser($this->person);
+        $sources = $this->storedSources();
+        $system = EmailTemplateBuilder::buildSystemMailHtml(new HtmlString('<p>System unchanged</p>'));
+        foreach ([false, true] as $greeting) {
+            foreach ([false, true] as $farewell) {
+                Setting::setValue('outlook_addin', 'template_wording_user_'.$this->person->id, [
+                    'schema' => 1, 'greeting' => 'Optional willkommen,', 'farewell' => 'Optional Grüße,',
+                    'showGreeting' => $greeting, 'showFarewell' => $farewell,
+                ]);
+                $payload = $service->forUser($this->person);
+                self::assertSame($before['signature'], $payload['signature']);
+                $mobile = OutlookMobileSignature::payload($payload);
+                foreach ($payload['templates'] as $index => $template) {
+                    if (! $template['isDefault']) {
+                        self::assertSame($before['templates'][$index], $template);
+
+                        continue;
+                    }
+                    foreach (['composeHtml', 'combinedComposeHtml'] as $field) {
+                        self::assertSame($greeting, str_contains($template[$field], 'Optional willkommen,'), $field);
+                        self::assertSame($farewell, str_contains($template[$field], 'Optional Grüße,'), $field);
+                    }
+                    $html = $mobile['templates'][$index]['mobileComposeHtml'];
+                    self::assertSame($greeting, str_contains($html, 'Optional willkommen,'));
+                    self::assertSame($farewell, str_contains($html, 'Optional Grüße,'));
+                    self::assertLessThanOrEqual(30000, mb_strlen(mb_convert_encoding($html, 'UTF-16LE', 'UTF-8'), '8bit') / 2);
+                    $xpath = $this->xpath($template['combinedComposeHtml']);
+                    self::assertSame(1, $xpath->query('//table[@data-rt-compose-editable="v1"]')->length);
+                    self::assertSame(0, $xpath->query('//table[@data-rt-compose-editable="v1"]//*[contains(@class,"design-salutation") or contains(@class,"design-greeting")]')->length);
+                }
+                self::assertSame($system, EmailTemplateBuilder::buildSystemMailHtml(new HtmlString('<p>System unchanged</p>')));
+                self::assertSame($sources, $this->storedSources());
+            }
+        }
     }
 
     public function test_personal_wording_is_explicit_and_changes_all_variant_fields_but_no_signature_or_default_bytes(): void
@@ -265,7 +305,7 @@ final class V27PersonalLayoutTest extends TestCase
     private function wordingVariant(): string
     {
         $source = preg_replace('~(<p class="design-spacer"[^>]*>.*?</p>)~s',
-            '<p class="design-salutation">{{OUTLOOK_ANREDE}}</p>$1<p class="design-greeting">{{OUTLOOK_GRUSS}}</p>', self::TEMPLATE, 1, $count);
+            '<p class="design-salutation">{{OUTLOOK_ANREDE}}</p>$1<p class="design-greeting">{{OUTLOOK_GRUSS}}</p>', self::templateSource(), 1, $count);
         self::assertSame(1, $count);
         $this->variant->forceFill(['html' => $source, 'published_html' => $source])->saveQuietly();
         app(PublishedMailDocumentSnapshotStore::class)->forget(MailDocumentKind::Template);
@@ -538,6 +578,7 @@ final class V27PersonalLayoutTest extends TestCase
                 self::assertSame($this->imageSources($html), $this->imageSources($styleless));
                 self::assertSame($this->msoTrain($html), $this->msoTrain($styleless));
                 $this->assertPersonalGroups($styleless);
+
                 continue;
             }
             self::assertStringContainsString(OutlookDesktopFlow::projected($html) ? 'padding-right:24px!important' : 'padding-right:18px!important', $html);
@@ -907,6 +948,18 @@ final class V27PersonalLayoutTest extends TestCase
         Diese E-Mail kann vertrauliche Informationen enthalten. Sollten Sie nicht der vorgesehene Empfänger sein, informieren Sie bitte den Absender und löschen Sie diese Nachricht.
     </td></tr>
 SIGNATURE_HTML;
+
+    private static function templateSource(): string
+    {
+        // Preserve exact current canonical fragments across LF/CRLF checkouts.
+        $master = file_get_contents(EmailTemplateBuilder::masterPath('email-master.html'));
+        preg_match('~<style\b[^>]*>.*?</style>~s', $master, $style);
+        preg_match('~<!-- RT_TEMPLATE_MARK_START -->.*?<!-- RT_TEMPLATE_MARK_END -->~s', $master, $mark);
+        $source = preg_replace_callback('~<style\b[^>]*>.*?</style>~s', static fn (): string => $style[0], self::TEMPLATE, 1);
+
+        return preg_replace_callback('~<!-- RT_TEMPLATE_MARK_START -->.*?<!-- RT_TEMPLATE_MARK_END -->~s',
+            static fn (): string => TemplateForwardingStyle::framedMarkFragment($mark[0]), $source, 1);
+    }
 
     private const TEMPLATE = <<<'TEMPLATE_HTML'
 <!doctype html>

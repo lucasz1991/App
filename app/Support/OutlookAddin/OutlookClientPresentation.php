@@ -12,7 +12,7 @@ use RuntimeException;
 /** Final wire presentation, after every canonical inverse/mobile/combined check. */
 final class OutlookClientPresentation
 {
-    public const REVISION = 'outlook-client-presentation-v19';
+    public const REVISION = 'outlook-client-presentation-v20';
 
     private const SIGNATURE_VERSION = 'RT-SIGNATURE-VERSION:';
 
@@ -52,7 +52,7 @@ final class OutlookClientPresentation
         }
         unset($template);
 
-        return OutlookDispatchCardPresentation::payload(OutlookReferenceCardPresentation::payload(OutlookContentFramePresentation::payload(OutlookFluidSignaturePresentation::payload(OutlookThreeCellPresentation::payload(OutlookThreeColumnPresentation::payload(OutlookIntrinsicTrainDelivery::payload($payload)))))));
+        return OutlookAnimatedSignaturePresentation::payload(OutlookDispatchCardPresentation::payload(OutlookReferenceCardPresentation::payload(OutlookContentFramePresentation::payload(OutlookFluidSignaturePresentation::payload(OutlookThreeCellPresentation::payload(OutlookThreeColumnPresentation::payload(OutlookIntrinsicTrainDelivery::payload($payload))))))));
     }
 
     /** Prune only a proven removed template mark, never arbitrary unused media. */

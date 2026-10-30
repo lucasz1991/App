@@ -11,6 +11,8 @@
     :choices-revision="$choicesRevision ?? ''"
     :greeting="$greeting"
     :farewell="$farewell"
+    :show-greeting="$showGreeting ?? false"
+    :show-farewell="$showFarewell ?? false"
     :wording-available="$wordingAvailable"
     :wording-notice="$wordingNotice"
 />

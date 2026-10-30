@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Enums\MailDocumentKind;
 use App\Models\User;
 use App\Support\Mail\CssSemantic;
+use App\Support\Mail\OutlookOptionalTemplateWording;
 use App\Support\Mail\OutlookSignatureInlineStyle;
 use App\Support\Mail\OutlookTemplateWording;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
@@ -19,6 +20,7 @@ use App\Support\Mail\TemplateDocumentContract;
 use App\Support\Mail\TrustedEmailCss;
 use App\Support\Mail\TrustedOutlookSignatureCss;
 use App\Support\OutlookAddin\OutlookAddinWordingPolicy;
+use App\Support\OutlookAddin\OutlookAnimatedSignaturePresentation;
 use App\Support\OutlookAddin\OutlookBrandedSignature;
 use App\Support\OutlookAddin\OutlookComposeFrame;
 use App\Support\OutlookAddin\OutlookContentFramePresentation;
@@ -368,7 +370,7 @@ class EmailTemplateBuilder
         }
         $source = self::runtimeDocument(MailDocumentKind::Template)
             ?? (string) file_get_contents(self::masterPath('email-master.html'));
-        if (OutlookTemplateWording::requested($source)) {
+        if (OutlookTemplateWording::requested($source) || OutlookOptionalTemplateWording::eligible($source)) {
             $wordingPreferences ??= app(OutlookAddinWordingPolicy::class)->preferencesForUser($this->user);
         }
 
@@ -388,6 +390,7 @@ class EmailTemplateBuilder
         } finally {
             $this->outlookBranding = $previousBranding;
         }
+        $document = OutlookOptionalTemplateWording::render($document, $wordingPreferences, $this->profileValues()['VORNAME_NACHNAME']);
         $body = self::outlookAddinFragment($document, includeStyles: false);
         // Der Scope ist inhaltsgebunden: andere Vorlagen und zitierte alte
         // Versionen im selben Compose-Body bleiben von diesen Regeln unberuehrt.
@@ -748,7 +751,7 @@ class EmailTemplateBuilder
             .'mso-line-height-rule:exactly;">&nbsp;</td></tr>';
         $html = str_replace($slot, $applicationRow, $html);
 
-        $html = OutlookDispatchCardPresentation::document(OutlookReferenceCardPresentation::document(OutlookContentFramePresentation::document(OutlookFluidSignaturePresentation::document(OutlookThreeCellPresentation::document(OutlookThreeColumnPresentation::systemDocument($html, rtrim((string) config('app.url'), '/'), $signature->publishedCss()))))));
+        $html = OutlookAnimatedSignaturePresentation::document(OutlookDispatchCardPresentation::document(OutlookReferenceCardPresentation::document(OutlookContentFramePresentation::document(OutlookFluidSignaturePresentation::document(OutlookThreeCellPresentation::document(OutlookThreeColumnPresentation::systemDocument($html, rtrim((string) config('app.url'), '/'), $signature->publishedCss())))))));
 
         return SystemMailInlineImageEmbedder::mark(
             self::embedPublishedCss(

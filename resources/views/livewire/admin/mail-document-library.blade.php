@@ -3,6 +3,8 @@
     $isSignature = $currentKind === \App\Enums\MailDocumentKind::Signature;
     $pendingAction = $pending['action'] ?? '';
     $confirmationTitle = match ($pendingAction) {
+        'archive' => 'Dokument archivieren',
+        'unarchive' => 'Dokument wiederherstellen',
         'delete' => (($pending['kind'] ?? '') === 'signature' ? 'Signatur' : 'Vorlage').' endgültig löschen',
         'restore' => 'Version als Entwurf wiederherstellen',
         'default' => 'Outlook-Standard festlegen',
@@ -68,6 +70,9 @@
                             @if ($filter === $filterValue)<i class="far fa-check" aria-hidden="true"></i>@endif
                         </button>
                     @endforeach
+                    @if ($archiveReady)
+                        <button type="button" role="menuitemradio" aria-checked="{{ $filter === 'archive' ? 'true' : 'false' }}" wire:click="selectFilter('archive')" x-on:click="close()" class="rt-mail-library-menu__item"><span>Archiv</span>@if ($filter === 'archive')<i class="far fa-check" aria-hidden="true"></i>@endif</button>
+                    @endif
                 </x-slot:content>
             </x-ui.dropdown.anchor-dropdown>
         </div>
@@ -88,9 +93,9 @@
                 <article class="rt-mail-library__entry" wire:key="mail-library-document-{{ $document['id'] }}" data-mail-library-document="{{ $document['id'] }}">
                     <div class="rt-mail-library__row">
                         <div class="rt-mail-library__document">
-                            <x-ui.page-builder.mail-thumbnail :url="$document['preview_url']" :name="$document['name']" :version="$document['version']" />
+                            @unless ($document['archived'])<x-ui.page-builder.mail-thumbnail :url="$document['preview_url']" :name="$document['name']" :version="$document['version']" />@endunless
                             <div class="rt-mail-library__name">
-                                <a href="{{ $document['editor_url'] }}" data-mail-library-edit>{{ $document['name'] }}</a>
+                                @if ($document['archived'])<strong>{{ $document['name'] }}</strong>@else<a href="{{ $document['editor_url'] }}" data-mail-library-edit>{{ $document['name'] }}</a>@endif
                                 <small>{{ $isSignature ? 'Signatur' : 'Vorlage' }}<span aria-hidden="true"> · </span>Version {{ $document['version'] }}</small>
                                 @if (! $isSignature && $pairingReady)
                                     <small class="rt-mail-library__pairing">
@@ -104,7 +109,9 @@
                             </div>
                         </div>
                         <div class="rt-mail-library__statuses">
-                            @if ($deliveryReady)
+                            @if ($document['archived'])
+                                <span class="rt-mail-library__status">Archiviert</span>
+                            @elseif ($deliveryReady)
                                 <livewire:admin.mail-document-delivery-controls :document-id="$document['id']" presentation="badges" :key="'list-delivery-'.$document['id']" />
                             @else
                             @if ($document['is_default'])
@@ -127,6 +134,9 @@
                             <x-ui.dropdown.anchor-dropdown align="right" width="72" dropdown-id="{{ $libraryId }}-actions-{{ $document['id'] }}" layer-group="mail-document-library" content-label="Aktionen für {{ $document['name'] }}" content-classes="p-1.5 bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text">
                                 <x-slot:trigger><button type="button" class="rt-mail-library__icon-button" aria-label="Aktionen für {{ $document['name'] }}"><i class="far fa-ellipsis-h" aria-hidden="true"></i></button></x-slot:trigger>
                                 <x-slot:content>
+                                    @if ($document['archived'])
+                                        <button type="button" role="menuitem" wire:click="prepareAction('unarchive', '{{ $document['id'] }}', '{{ $document['hash'] }}')" x-on:click="close()" class="rt-mail-library-menu__item" data-mail-library-unarchive><i class="far fa-undo" aria-hidden="true"></i>Aus Archiv wiederherstellen</button>
+                                    @else
                                     <a href="{{ $document['editor_url'] }}" role="menuitem" class="rt-mail-library-menu__item"><i class="far fa-pen" aria-hidden="true"></i>Im Editor öffnen</a>
                                     <a href="{{ $document['preview_url'] }}" role="menuitem" class="rt-mail-library-menu__item"><i class="far fa-eye" aria-hidden="true"></i>Vorschau öffnen</a>
                                     @if ($deliveryReady)
@@ -148,7 +158,11 @@
                                         @endif
                                     @endif
                                     <div class="rt-mail-library-menu__divider" role="separator"></div>
+                                    @if ($archiveReady)
+                                        <button type="button" role="menuitem" wire:click="prepareAction('archive', '{{ $document['id'] }}', '{{ $document['hash'] }}')" x-on:click="close()" class="rt-mail-library-menu__item" data-mail-library-archive><i class="far fa-archive" aria-hidden="true"></i>Archivieren</button>
+                                    @endif
                                     <button type="button" role="menuitem" wire:click="prepareAction('delete', '{{ $document['id'] }}', '{{ $document['hash'] }}')" x-on:click="close()" class="rt-mail-library-menu__item text-red-700 dark:text-red-300" data-mail-library-delete><i class="far fa-trash-alt" aria-hidden="true"></i>{{ $isSignature ? 'Signatur löschen' : 'Vorlage löschen' }}</button>
+                                    @endif
                                 </x-slot:content>
                             </x-ui.dropdown.anchor-dropdown>
                         </div>
@@ -176,7 +190,7 @@
                                         <div class="rt-mail-library__version-copy"><strong>{{ $versionLabel }}</strong><small>{{ $version->created_at?->format('d.m.Y · H:i') }}@if ($version->creator) · {{ $version->creator->name }}@endif</small></div>
                                         @if ($isCurrent)
                                             <span class="rt-mail-library__status">Aktueller Entwurf</span>
-                                        @elseif ($libraryReady)
+                                        @elseif ($libraryReady && ! $document['archived'])
                                             <button type="button" class="rt-mail-library__button rt-mail-library__button--subtle" wire:click="prepareAction('restore', '{{ $document['id'] }}', '{{ $document['hash'] }}', '{{ $version->public_id }}')" data-mail-library-restore><i class="far fa-undo" aria-hidden="true"></i>Wiederherstellen</button>
                                         @endif
                                     </li>
@@ -255,6 +269,10 @@
                     Diese freigegebene Vorlage wird bei neuen E-Mails, Antworten und Weiterleitungen in unterstützten Outlook-Clients automatisch oberhalb eingefügt. Vorhandener Text, zitierte Nachrichten und der Systemmail-Standard bleiben unverändert. Mobile Clients verwenden weiterhin die automatische Signatur.
                 @elseif ($pendingAction === 'withdraw')
                     Die Vorlage wird aus der Outlook-Auswahl entfernt und nicht mehr als Outlook-Standard eingefügt. Der Entwurf, sein Versionsverlauf und eine Verwendung für Systemmails bleiben erhalten.
+                @elseif ($pendingAction === 'archive')
+                    Das Dokument wird aus der normalen Auswahl und dem Add-in genommen. Sein Entwurf, der veröffentlichte Stand und alle Versionen bleiben im Archiv erhalten. Aktive Standards müssen zuvor abgelöst werden.
+                @elseif ($pendingAction === 'unarchive')
+                    Das Dokument kehrt in die Bibliothek zurück. Es wird weder als Standard aktiviert noch im Add-in freigegeben.
                 @elseif ($pendingAction === 'delete')
                     Der Entwurf und sein gesamter Versionsverlauf werden dauerhaft gelöscht. Eine Outlook-Freigabe und die Outlook-Standardzuordnung einer Vorlage werden dabei automatisch aufgehoben. Aktive Systemmail-Stände, die Outlook-Standardsignatur und noch zugeordnete Signaturen müssen zuerst abgelöst beziehungsweise getrennt werden. Diese Aktion kann nicht rückgängig gemacht werden.
                 @elseif ($deliveryReady)
@@ -265,11 +283,15 @@
                     Der gespeicherte Entwurf wird geprüft und anschließend als neuer Standard für Systemmails verwendet. Die bisher aktive {{ ($pending['kind'] ?? '') === 'signature' ? 'Signatur' : 'Systemvorlage' }} wird dadurch abgelöst.
                 @endif
             </p>
+            @if ($pendingAction === 'unarchive')
+                <label for="{{ $libraryId }}-restore-name">Name des wiederhergestellten Dokuments</label>
+                <input id="{{ $libraryId }}-restore-name" wire:model="restoreName" type="text" maxlength="80" required class="w-full rounded-lg border p-3" />
+            @endif
             @error('operation')<p class="rt-mail-library__error" role="alert">{{ $message }}</p>@enderror
         </div>
         <x-slot:footer>
             <button type="button" class="rt-mail-library__button" x-on:click="confirmDialog = false">Abbrechen</button>
-            <button type="button" wire:click="confirmAction" class="rt-mail-library__button {{ $pendingAction === 'delete' ? 'rt-mail-library__button--danger' : 'rt-mail-library__button--primary' }}" wire:loading.attr="disabled" wire:target="confirmAction"><span wire:loading.remove wire:target="confirmAction">{{ $pendingAction === 'delete' ? 'Endgültig löschen' : ($pendingAction === 'restore' ? 'Als Entwurf wiederherstellen' : ($pendingAction === 'default' ? 'Standard festlegen' : ($pendingAction === 'withdraw' ? 'Freigabe zurücknehmen' : 'Prüfen und veröffentlichen'))) }}</span><span wire:loading wire:target="confirmAction">Wird verarbeitet …</span></button>
+            <button type="button" wire:click="confirmAction" class="rt-mail-library__button {{ $pendingAction === 'delete' ? 'rt-mail-library__button--danger' : 'rt-mail-library__button--primary' }}" wire:loading.attr="disabled" wire:target="confirmAction"><span wire:loading.remove wire:target="confirmAction">{{ match ($pendingAction) { 'archive' => 'Archivieren', 'unarchive' => 'Wiederherstellen', 'delete' => 'Endgültig löschen', 'restore' => 'Als Entwurf wiederherstellen', 'default' => 'Standard festlegen', 'withdraw' => 'Freigabe zurücknehmen', default => 'Prüfen und veröffentlichen' } }}</span><span wire:loading wire:target="confirmAction">Wird verarbeitet …</span></button>
         </x-slot:footer>
     </x-ui.state-modal>
     <x-ui.state-modal :id="$libraryId.'-preview'" state="previewDialog" title="Designvorschau" description="Aktuell gespeicherter Entwurf · Browserdarstellung, kein Mailclient-Nachweis." icon="far fa-eye" max-width="6xl">

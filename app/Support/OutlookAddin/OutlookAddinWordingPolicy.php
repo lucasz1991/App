@@ -46,9 +46,9 @@ final class OutlookAddinWordingPolicy
         }, 3);
     }
 
-    public function updateForIdentity(User $user, VerifiedEntraIdentity $verified, array $binding, mixed $greeting, mixed $farewell, string $revision): array
+    public function updateForIdentity(User $user, VerifiedEntraIdentity $verified, array $binding, mixed $greeting, mixed $farewell, string $revision, mixed $showGreeting = null, mixed $showFarewell = null): array
     {
-        $texts = $this->texts($greeting, $farewell);
+        $texts = $this->texts($greeting, $farewell) + $this->visibility($showGreeting, $showFarewell);
         if (preg_match('/\A[0-9a-f]{64}\z/', $revision) !== 1) {
             throw ValidationException::withMessages(['wording' => 'Bitte die gespeicherten Texte neu laden.']);
         }
@@ -60,9 +60,9 @@ final class OutlookAddinWordingPolicy
         }, 3);
     }
 
-    public function updateForSession(User $user, mixed $greeting, mixed $farewell, string $revision): array
+    public function updateForSession(User $user, mixed $greeting, mixed $farewell, string $revision, mixed $showGreeting = null, mixed $showFarewell = null): array
     {
-        $texts = $this->texts($greeting, $farewell);
+        $texts = $this->texts($greeting, $farewell) + $this->visibility($showGreeting, $showFarewell);
         if (preg_match('/\A[0-9a-f]{64}\z/', $revision) !== 1) {
             throw ValidationException::withMessages(['wording' => 'Bitte die gespeicherten Texte neu laden.']);
         }
@@ -85,9 +85,9 @@ final class OutlookAddinWordingPolicy
         }, 3);
     }
 
-    public function updateForManagedUser(User $actor, User $target, mixed $greeting, mixed $farewell, string $revision): array
+    public function updateForManagedUser(User $actor, User $target, mixed $greeting, mixed $farewell, string $revision, mixed $showGreeting = null, mixed $showFarewell = null): array
     {
-        $texts = $this->texts($greeting, $farewell);
+        $texts = $this->texts($greeting, $farewell) + $this->visibility($showGreeting, $showFarewell);
         if (preg_match('/\A[0-9a-f]{64}\z/', $revision) !== 1) {
             throw ValidationException::withMessages(['wording' => 'Bitte die gespeicherten Texte neu laden.']);
         }
@@ -109,7 +109,13 @@ final class OutlookAddinWordingPolicy
         if (! hash_equals($current['revision'], $revision)) {
             throw new OutlookAddinException('Die persönlichen Vorlagentexte wurden inzwischen geändert.', 409, 'outlook_addin_wording_conflict');
         }
-        if ($current['greeting'] === $texts['greeting'] && $current['farewell'] === $texts['farewell']) {
+        $nextValues = $texts + ['showGreeting' => $current['showGreeting'], 'showFarewell' => $current['showFarewell']];
+        $explicitVisibilityMissing = false;
+        foreach (['showGreeting', 'showFarewell'] as $field) {
+            $explicitVisibilityMissing = $explicitVisibilityMissing || array_key_exists($field, $texts) && ! array_key_exists($field, (array) $setting?->value);
+        }
+        if (! $explicitVisibilityMissing && $current['greeting'] === $texts['greeting'] && $current['farewell'] === $texts['farewell']
+            && $current['showGreeting'] === $nextValues['showGreeting'] && $current['showFarewell'] === $nextValues['showFarewell']) {
             return $current;
         }
         $stored = array_replace((array) $setting?->value, ['schema' => 1] + $texts + ['nonce' => Str::random(32)]);
@@ -119,6 +125,8 @@ final class OutlookAddinWordingPolicy
             'employee_id' => (int) $employee->getKey(),
             'greeting_changed' => $current['greeting'] !== $texts['greeting'],
             'farewell_changed' => $current['farewell'] !== $texts['farewell'],
+            'greeting_visibility_changed' => $current['showGreeting'] !== $next['showGreeting'],
+            'farewell_visibility_changed' => $current['showFarewell'] !== $next['showFarewell'],
             'revision_before' => $current['revision'], 'revision_after' => $next['revision'],
         ])->log('outlook_addin_template_wording_changed');
 
@@ -168,7 +176,34 @@ final class OutlookAddinWordingPolicy
             }
         }
 
-        return ['schema' => 1] + $texts + ['revision' => hash('sha256', json_encode([(int) $user->getKey(), $stored], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES))];
+        $visibility = ['showGreeting' => false, 'showFarewell' => false];
+        foreach ($visibility as $field => $default) {
+            if (is_array($stored) && array_key_exists($field, $stored)) {
+                if (! is_bool($stored[$field])) {
+                    throw new RuntimeException('Die Sichtbarkeit der persönlichen Vorlagentexte ist ungültig.');
+                }
+                $visibility[$field] = $stored[$field];
+            }
+        }
+
+        return ['schema' => 1] + $texts + $visibility + ['revision' => hash('sha256', json_encode([(int) $user->getKey(), $stored], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES))];
+    }
+
+    /** Omitted fields preserve existing flags, including requests from older clients. */
+    private function visibility(mixed $greeting, mixed $farewell): array
+    {
+        $values = [];
+        foreach (['showGreeting' => $greeting, 'showFarewell' => $farewell] as $field => $value) {
+            if ($value === null) {
+                continue;
+            }
+            if (! is_bool($value)) {
+                throw ValidationException::withMessages(['wording' => 'Bitte die Sichtbarkeit als Schalterwert senden.']);
+            }
+            $values[$field] = $value;
+        }
+
+        return $values;
     }
 
     private function texts(mixed $greeting, mixed $farewell): array

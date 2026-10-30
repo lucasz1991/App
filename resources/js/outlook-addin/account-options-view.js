@@ -11,7 +11,9 @@ export function validWordingText(value) {
 export function normalizeWordingPreferences(value) {
     if (value?.schema !== 1 || !REVISION.test(value.revision || '')
         || !validWordingText(value.greeting) || !validWordingText(value.farewell)) return null;
-    return Object.freeze({ schema: 1, greeting: value.greeting, farewell: value.farewell, revision: value.revision });
+    if (['showGreeting', 'showFarewell'].some(key => key in value && typeof value[key] !== 'boolean')) return null;
+    return Object.freeze({ schema: 1, greeting: value.greeting, farewell: value.farewell,
+        showGreeting: value.showGreeting ?? false, showFarewell: value.showFarewell ?? false, revision: value.revision });
 }
 
 export function normalizeTemplateChoicePreferences(value) {
@@ -66,6 +68,7 @@ export function createAccountOptionsSession({ kind, readMailbox, authenticate, r
         const version = generation;
         const assertCurrent = () => { if (version !== generation || account() !== mailbox) throw fail('MAILBOX_MISMATCH'); };
         if (method === 'PATCH') {
+            if (kind === 'wording' && ['showGreeting', 'showFarewell'].some(key => key in (change || {}) && typeof change[key] !== 'boolean')) throw fail('PREFERENCES_INVALID');
             if (!snapshot || change?.revision !== snapshot.preferences.revision) throw fail('PREFERENCES_UNAVAILABLE');
             if (kind === 'wording' ? !validWordingText(change.greeting) || !validWordingText(change.farewell)
                 : !GROUPS.includes(change.group) || !['default', 'none'].includes(change.selection)
@@ -82,7 +85,8 @@ export function createAccountOptionsSession({ kind, readMailbox, authenticate, r
             if (method === 'PATCH') {
                 options.headers['Content-Type'] = 'application/json';
                 options.body = JSON.stringify(kind === 'wording'
-                    ? { greeting: change.greeting, farewell: change.farewell, revision: change.revision }
+                    ? { greeting: change.greeting, farewell: change.farewell, revision: change.revision,
+                        ...Object.fromEntries(['showGreeting', 'showFarewell'].filter(key => key in change).map(key => [key, change[key]])) }
                     : { group: change.group, selection: change.selection, revision: change.revision });
             }
             const payload = await request(options);
@@ -103,10 +107,11 @@ export function createAccountOptionsSession({ kind, readMailbox, authenticate, r
         current: () => snapshot, reset() { generation += 1; snapshot = null; } });
 }
 
-export function bindWordingPreferencesView(root, { save, reload }) {
+export function bindWordingPreferencesView(root, { save, reload, beforeSave = () => null, afterSaved = async () => '' }) {
     const region = root.querySelector('[data-outlook-wording-region]');
     if (!region) return { update() {}, unavailable() {} };
     const fields = Object.fromEntries(['greeting', 'farewell'].map(key => [key, region.querySelector(`[data-wording-field="${key}"]`)]));
+    const toggles = [...region.querySelectorAll('[data-wording-toggle]')];
     const button = region.querySelector('[data-wording-save]');
     const reloadButton = region.querySelector('[data-wording-reload]');
     const feedback = region.querySelector('[data-wording-feedback]');
@@ -127,6 +132,10 @@ export function bindWordingPreferencesView(root, { save, reload }) {
             input.disabled = !available || saving || state.busy;
             input.setAttribute('aria-invalid', dirty && !validWordingText(input.value) ? 'true' : 'false');
         });
+        toggles.forEach(toggle => {
+            toggle.disabled = !available || saving || state.busy || conflict;
+            toggle.setAttribute('aria-pressed', state.preferences?.[toggle.dataset.wordingToggle] === true ? 'true' : 'false');
+        });
         button.disabled = !available || saving || state.busy || conflict || !dirty
             || !Object.values(fields).every(input => validWordingText(input.value));
         reloadButton.hidden = !conflict;
@@ -141,11 +150,13 @@ export function bindWordingPreferencesView(root, { save, reload }) {
     button.addEventListener('click', async () => {
         if (button.disabled) return;
         const version = generation;
+        const operationContext = { account: state.account, target: beforeSave() };
         saving = true;
         render();
         message('Wird gespeichert …');
         try {
-            const response = await save({ greeting: fields.greeting.value, farewell: fields.farewell.value, revision: state.preferences.revision });
+            const response = await save({ greeting: fields.greeting.value, farewell: fields.farewell.value, revision: state.preferences.revision,
+                showGreeting: state.preferences.showGreeting, showFarewell: state.preferences.showFarewell });
             if (version !== generation) return;
             const preferences = normalizeWordingPreferences(response?.wordingPreferences);
             if (!preferences) throw fail('PREFERENCES_RESPONSE_INVALID');
@@ -154,7 +165,8 @@ export function bindWordingPreferencesView(root, { save, reload }) {
             fields.farewell.value = preferences.farewell;
             dirty = false;
             conflict = false;
-            message('Texte gespeichert.');
+            const applied = await afterSaved(operationContext);
+            if (version === generation) message(applied || 'Texte gespeichert.');
         } catch (error) {
             if (version !== generation) return;
             conflict = error?.code === 'HTTP_409';
@@ -162,6 +174,33 @@ export function bindWordingPreferencesView(root, { save, reload }) {
                 : 'Speichern nicht bestätigt. Ihre Eingabe bleibt erhalten.', true);
         } finally { saving = false; render(); }
     });
+    toggles.forEach(toggle => toggle.addEventListener('click', async () => {
+        if (toggle.disabled) return;
+        const key = toggle.dataset.wordingToggle;
+        if (!['showGreeting', 'showFarewell'].includes(key)) return;
+        const version = generation;
+        const operationContext = { account: state.account, target: beforeSave() };
+        saving = true;
+        render();
+        message('Wird gespeichert …');
+        try {
+            const response = await save({ greeting: state.preferences.greeting, farewell: state.preferences.farewell,
+                revision: state.preferences.revision, showGreeting: state.preferences.showGreeting,
+                showFarewell: state.preferences.showFarewell, [key]: !state.preferences[key] });
+            if (version !== generation) return;
+            const preferences = normalizeWordingPreferences(response?.wordingPreferences);
+            if (!preferences) throw fail('PREFERENCES_RESPONSE_INVALID');
+            state.preferences = preferences;
+            conflict = false;
+            const applied = await afterSaved(operationContext);
+            if (version === generation) message(applied || 'Anzeige gespeichert.');
+        } catch (error) {
+            if (version !== generation) return;
+            conflict = error?.code === 'HTTP_409';
+            message(conflict ? 'Inzwischen geändert. Ihre Eingabe bleibt erhalten. Bitte den gespeicherten Stand laden.'
+                : 'Anzeige konnte nicht bestätigt werden. Ihre Texte bleiben erhalten.', true);
+        } finally { saving = false; render(); }
+    }));
     reloadButton.addEventListener('click', async () => {
         if (reloadButton.disabled) return;
         const version = generation;

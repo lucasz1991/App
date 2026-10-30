@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Support\Mail;
 
 use App\Enums\MailDocumentKind;
-use App\Support\OutlookAddin\OutlookStaticLinkedTestDelivery;
 use App\Support\OutlookAddin\OutlookStaticLinkedTestProfiles;
 use RuntimeException;
 
@@ -33,7 +32,7 @@ final class PublishedStaticSystemDelivery
         if ($used !== $before) {
             self::changed();
         }
-        $projected = OutlookStaticLinkedTestDelivery::renderedPreview($html, $profile, (string) config('app.url'));
+        $projected = OutlookStaticLinkedTestProfiles::renderedPreview($html, $profile, (string) config('app.url'));
         if ($before !== self::fresh()) {
             self::changed();
         }

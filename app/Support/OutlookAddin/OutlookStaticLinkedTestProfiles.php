@@ -39,13 +39,13 @@ final class OutlookStaticLinkedTestProfiles
                 self::invalid();
             }
             $result = $payload;
-            if (self::signatureProfile($documents->outlookSignatureSnapshot()) !== null) {
-                $signature = OutlookStaticLinkedTestDelivery::entry([
+            if (($profile = self::signatureProfile($documents->outlookSignatureSnapshot())) !== null) {
+                $signature = self::projectEntry([
                     'kind' => 'signature',
                     'html' => $payload['signature']['html'] ?? null,
                     'media' => $payload['signature']['media'] ?? null,
                     'version' => $payload['version']['signature'] ?? null,
-                ], OutlookStaticLinkedTestDelivery::PROFILE, (string) config('app.url'));
+                ], $profile);
                 $result['signature']['html'] = $signature['html'];
                 $result['signature']['media'] = $signature['media'];
                 $result['version']['signature'] = $signature['version'];
@@ -70,11 +70,7 @@ final class OutlookStaticLinkedTestProfiles
                     if (($entry['signatureDocumentId'] ?? null) !== $admission[$id]['signatureId']) {
                         self::invalid();
                     }
-                    $result['templates'][$index] = OutlookStaticLinkedTestDelivery::entry(
-                        $entry,
-                        OutlookStaticLinkedTestDelivery::PROFILE,
-                        (string) config('app.url'),
-                    );
+                    $result['templates'][$index] = self::projectEntry($entry, $admission[$id]['profile']);
                 } catch (RuntimeException $error) {
                     if ($error instanceof OutlookAddinException && $error->errorCode !== 'outlook_addin_static_profile_invalid') {
                         throw $error;
@@ -127,23 +123,57 @@ final class OutlookStaticLinkedTestProfiles
             self::invalid();
         }
 
-        return self::marked($snapshot['html'], true) ? OutlookStaticLinkedTestDelivery::PROFILE : null;
+        return self::profile($snapshot['html'], true);
     }
 
     /** Parse only entries actually offered in this response, including their exact published partner. */
     private static function admission(array $snapshot): array
     {
-        $templateMarked = self::marked($snapshot['html'], false);
+        $templateProfile = self::profile($snapshot['html'], false);
         $signature = $snapshot['publishedSignature'] ?? null;
-        $signatureMarked = is_array($signature) && is_string($signature['html'] ?? null)
-            && self::marked($signature['html'], true);
-        if ($templateMarked !== $signatureMarked || ($templateMarked
+        $signatureProfile = is_array($signature) && is_string($signature['html'] ?? null) ? self::profile($signature['html'], true) : null;
+        $templateMarked = $templateProfile !== null;
+        if ($templateProfile !== $signatureProfile || ($templateMarked
             && (($signature['paired'] ?? false) !== true || ! is_string($signature['id'] ?? null)
                 || ! Str::isUuid($signature['id'])))) {
             self::invalid();
         }
 
-        return ['marked' => $templateMarked, 'signatureId' => $signature['id'] ?? null];
+        return ['marked' => $templateMarked, 'profile' => $templateProfile, 'signatureId' => $signature['id'] ?? null];
+    }
+
+    public static function renderedPreview(string $html, ?string $trustedProfile, string $httpsAppUrl): string
+    {
+        if ($trustedProfile === null) {
+            return $html;
+        }
+
+        return self::delivery($trustedProfile)::renderedPreview($html, $trustedProfile, $httpsAppUrl);
+    }
+
+    private static function projectEntry(array $entry, string $profile): array
+    {
+        return self::delivery($profile)::entry($entry, $profile, (string) config('app.url'));
+    }
+
+    private static function delivery(string $profile): string
+    {
+        return match ($profile) {
+            OutlookStaticLinkedTestDelivery::PROFILE => OutlookStaticLinkedTestDelivery::class,
+            OutlookLinkedAnimatedDelivery::PROFILE => OutlookLinkedAnimatedDelivery::class,
+            default => self::invalid(),
+        };
+    }
+
+    private static function profile(string $html, bool $signature): ?string
+    {
+        $static = self::marked($html, $signature);
+        $animated = self::marked($html, $signature, 'data-rt-linked', 'animated-v1');
+        if ($static && $animated) {
+            self::invalid();
+        }
+
+        return $animated ? OutlookLinkedAnimatedDelivery::PROFILE : ($static ? OutlookStaticLinkedTestDelivery::PROFILE : null);
     }
 
     /** A relation loaded by authentication must not hide a concurrent profile change. */
@@ -157,7 +187,7 @@ final class OutlookStaticLinkedTestProfiles
     }
 
     /** Inspect published source attributes without decoding entities or losing duplicates. */
-    private static function marked(string $html, bool $signature): bool
+    private static function marked(string $html, bool $signature, string $attribute = 'data-rt-static', string $value = 'v1'): bool
     {
         preg_match_all(self::TOKENS, $html, $matches);
         $markers = [];
@@ -183,7 +213,7 @@ final class OutlookStaticLinkedTestProfiles
             preg_match_all('~\s+([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s>]+)))?~', substr($tag, strlen($name) + 1, -1), $pairs, PREG_SET_ORDER | PREG_UNMATCHED_AS_NULL);
             foreach ($pairs as $pair) {
                 $key = strtolower($pair[1]);
-                if (array_key_exists($key, $attributes) && in_array($key, ['class', 'data-rt-static', 'data-rt-artifact-version'], true)) {
+                if (array_key_exists($key, $attributes) && in_array($key, ['class', $attribute, 'data-rt-artifact-version'], true)) {
                     $ambiguous = true;
                 }
                 $attributes[$key] = $pair[2] ?? $pair[3] ?? $pair[4] ?? null;
@@ -196,8 +226,8 @@ final class OutlookStaticLinkedTestProfiles
                 : $name === 'table' && in_array('rt-shell', $classes, true) && in_array('design-v27', $classes, true)) {
                 $targets[] = $index;
             }
-            if (array_key_exists('data-rt-static', $attributes)) {
-                if ($attributes['data-rt-static'] !== 'v1' || $quotes !== 0) {
+            if (array_key_exists($attribute, $attributes)) {
+                if ($attributes[$attribute] !== $value || $quotes !== 0) {
                     self::invalid();
                 }
                 $markers[] = $index;

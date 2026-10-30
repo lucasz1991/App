@@ -44,7 +44,7 @@ final class MailDocumentDeletion
             }
             if ($locked->kind === MailDocumentKind::Signature
                 && MailDocumentSignatureResolver::available()
-                && MailDocument::query()->where(static fn ($query) => $query
+                && MailDocument::withoutGlobalScope('unarchived')->where(static fn ($query) => $query
                     ->where('signature_document_id', $locked->getKey())
                     ->orWhere('published_signature_document_id', $locked->getKey()))->exists()) {
                 throw ValidationException::withMessages([

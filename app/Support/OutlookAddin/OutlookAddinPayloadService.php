@@ -6,6 +6,7 @@ use App\Enums\MailDocumentKind;
 use App\Models\User;
 use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\MailDocumentDelivery;
+use App\Support\Mail\OutlookOptionalTemplateWording;
 use App\Support\Mail\OutlookSignatureInlineStyle;
 use App\Support\Mail\OutlookTemplateWording;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
@@ -348,7 +349,7 @@ final class OutlookAddinPayloadService
                 }
 
                 $templateHash = $this->personalTemplateHash($snapshot, $wordingPreferences,
-                    OutlookTemplateWording::requested($snapshot['html']) ? $builder->profileValues()['VORNAME_NACHNAME'] : '');
+                    (OutlookTemplateWording::requested($snapshot['html']) || OutlookOptionalTemplateWording::eligible($snapshot['html'])) ? $builder->profileValues()['VORNAME_NACHNAME'] : '');
                 $template = [
                     'id' => $snapshot['id'],
                     'key' => $snapshot['key'],
@@ -1418,9 +1419,16 @@ final class OutlookAddinPayloadService
 
     private function templateWordingPreferences(User $user, array $snapshots): ?array
     {
+        $wording = null;
         foreach ($snapshots as $snapshot) {
             if (OutlookTemplateWording::requested($snapshot['html'])) {
-                return app(OutlookAddinWordingPolicy::class)->preferencesForUser($user);
+                return $wording ?? app(OutlookAddinWordingPolicy::class)->preferencesForUser($user);
+            }
+            if (OutlookOptionalTemplateWording::eligible($snapshot['html'])) {
+                $wording ??= app(OutlookAddinWordingPolicy::class)->preferencesForUser($user);
+                if ($wording['showGreeting'] || $wording['showFarewell']) {
+                    return $wording;
+                }
             }
         }
 
@@ -1430,7 +1438,11 @@ final class OutlookAddinPayloadService
     private function personalTemplateHash(array $snapshot, ?array $wording, string $employeeName): string
     {
         $source = $this->fullSnapshotHash($snapshot);
-        if (! OutlookTemplateWording::requested($snapshot['html'])) {
+        if (! OutlookTemplateWording::requested($snapshot['html']) && ! OutlookOptionalTemplateWording::eligible($snapshot['html'])) {
+            return $source;
+        }
+        if (! OutlookTemplateWording::requested($snapshot['html'])
+            && ($wording === null || ! $wording['showGreeting'] && ! $wording['showFarewell'])) {
             return $source;
         }
         if ($wording === null) {
@@ -1439,6 +1451,7 @@ final class OutlookAddinPayloadService
 
         return hash('sha256', $source."\0".self::WORDING_REVISION."\0".json_encode([
             'greeting' => $wording['greeting'], 'farewell' => $wording['farewell'], 'employeeName' => $employeeName,
+            ...(! OutlookTemplateWording::requested($snapshot['html']) ? ['renderer' => OutlookOptionalTemplateWording::REVISION, 'showGreeting' => $wording['showGreeting'], 'showFarewell' => $wording['showFarewell']] : []),
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
 

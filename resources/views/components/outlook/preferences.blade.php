@@ -12,6 +12,8 @@
     'choicesRevision' => '',
     'greeting' => '',
     'farewell' => '',
+    'showGreeting' => false,
+    'showFarewell' => false,
     'wordingAvailable' => false,
     'wordingNotice' => '',
 ])
@@ -118,11 +120,16 @@
         <section class="space-y-4 p-4 sm:p-6" aria-labelledby="{{ $prefix }}-wording-heading">
             <div>
                 <h3 id="{{ $prefix }}-wording-heading" class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">Anrede und Grußformel</h3>
-                <p id="{{ $prefix }}-wording-hint" class="mt-1 max-w-3xl text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">Für „Standard – mit Anrede und Gruß“. {{ $employeeContext ? 'Der Name des Mitarbeiters' : 'Dein Name' }} wird automatisch unter der Grußformel ergänzt.</p>
+                <p id="{{ $prefix }}-wording-hint" class="mt-1 max-w-3xl text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">Für „Standard – mit Anrede und Gruߓ. {{ $employeeContext ? 'Der Name des Mitarbeiters' : 'Dein Name' }} wird automatisch unter der Grußformel ergänzt.</p>
             </div>
             @if ($wordingAvailable)
+                <div class="flex flex-wrap gap-2" aria-label="Vorlagentexte anzeigen">
+                    @foreach (['showGreeting' => 'Anrede anzeigen', 'showFarewell' => 'Verabschiedung anzeigen'] as $field => $label)
+                        <x-ui.buttons.button-basic type="button" :mode="$$field ? 'primary' : 'secondary'" class="min-h-11" wire:click="toggleWordingVisibility('{{ $field }}')" wire:loading.attr="disabled" wire:target="toggleWordingVisibility,saveWording,reloadWording" :aria-pressed="$$field ? 'true' : 'false'">{{ $label }}</x-ui.buttons.button-basic>
+                    @endforeach
+                </div>
                 <form wire:submit="saveWording" data-profile-outlook-wording data-outlook-wording-save="manual">
-                    <fieldset class="min-w-0 space-y-4" wire:loading.attr="disabled" wire:target="saveWording,reloadWording">
+                    <fieldset class="min-w-0 space-y-4" wire:loading.attr="disabled" wire:target="saveWording,reloadWording,toggleWordingVisibility">
                         <legend class="sr-only">Persönliche Vorlagentexte</legend>
                         <div class="grid gap-4 sm:grid-cols-2">
                             @foreach (['greeting' => 'Anrede', 'farewell' => 'Grußformel'] as $field => $label)
@@ -149,7 +156,7 @@
                 @if ($wordingNotice !== '' && $wordingNotice !== $notice)
                     <p>{{ $wordingNotice }}</p>
                 @endif
-                <p wire:loading wire:target="saveWording,reloadWording">Persönliche Texte werden abgeglichen …</p>
+                <p wire:loading wire:target="saveWording,reloadWording,toggleWordingVisibility">Persönliche Texte werden abgeglichen …</p>
             </div>
             @error('wording')
                 <p role="alert" class="text-sm text-red-600 dark:text-red-400">{{ $message }}</p>

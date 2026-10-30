@@ -67,6 +67,38 @@ final class OutlookProfileWordingTest extends TestCase
         $this->actingAs($this->employee);
     }
 
+    public function test_explicit_false_flags_are_recorded_once_but_old_noop_clients_still_write_nothing(): void
+    {
+        $policy = app(OutlookAddinWordingPolicy::class);
+        $current = $policy->readForUser($this->employee);
+        $policy->updateForSession($this->employee, $current['greeting'], $current['farewell'], $current['revision']);
+        self::assertSame(0, Setting::query()->count());
+        $current = $policy->updateForSession($this->employee, $current['greeting'], $current['farewell'], $current['revision'], false, false);
+        $stored = Setting::getValueUncached('outlook_addin', $this->key());
+        self::assertFalse($stored['showGreeting']);
+        self::assertFalse($stored['showFarewell']);
+        $before = DB::table('settings')->get()->toJson();
+        $policy->updateForSession($this->employee, $current['greeting'], $current['farewell'], $current['revision'], false, false);
+        self::assertSame($before, DB::table('settings')->get()->toJson());
+    }
+
+    public function test_visibility_is_independent_and_toggle_preserves_unsaved_text_drafts_and_old_client_flags(): void
+    {
+        $component = Livewire::test(OutlookPreferences::class)->assertSet('showGreeting', false)->assertSet('showFarewell', false);
+        $component->set('greeting', 'Noch nicht gespeichert,')->call('toggleWordingVisibility', 'showGreeting')
+            ->assertSet('showGreeting', true)->assertSet('showFarewell', false)->assertSet('greeting', 'Noch nicht gespeichert,');
+        $policy = app(OutlookAddinWordingPolicy::class);
+        $stored = $policy->readForUser($this->employee);
+        self::assertSame('Guten Tag,', $stored['greeting']);
+        self::assertTrue($stored['showGreeting']);
+        $next = $policy->updateForSession($this->employee, 'Hallo,', 'Grüße,', $stored['revision']);
+        self::assertTrue($next['showGreeting'], 'An old text-only client must preserve the additive flags.');
+        self::assertFalse($next['showFarewell']);
+        $component->call('toggleWordingVisibility', 'showFarewell')->assertSet('showFarewell', false)
+            ->assertSet('greeting', 'Noch nicht gespeichert,')->assertSee('Inzwischen geändert');
+        self::assertSame(0, Setting::query()->where('key', 'like', 'automatic_insertion_user_%')->count());
+    }
+
     private function key(?User $user = null): string
     {
         return 'template_wording_user_'.($user ?? $this->employee)->id;
@@ -97,7 +129,7 @@ final class OutlookProfileWordingTest extends TestCase
         Auth::logout();
         $defaults = $policy->readForUser($this->employee);
         self::assertSame($defaults, $policy->preferencesForUser($this->employee));
-        self::assertSame(['schema', 'greeting', 'farewell', 'revision'], array_keys($defaults));
+        self::assertSame(['schema', 'greeting', 'farewell', 'showGreeting', 'showFarewell', 'revision'], array_keys($defaults));
         self::assertSame(0, Setting::query()->count());
         Setting::setValue('outlook_addin', $this->key(), ['schema' => 1, 'greeting' => 'Hallo,', 'farewell' => 'Viele Grüße,']);
         self::assertSame('Hallo,', $policy->preferencesForUser($this->employee)['greeting']);

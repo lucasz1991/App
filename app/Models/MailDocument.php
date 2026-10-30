@@ -45,6 +45,7 @@ class MailDocument extends Model
         'version',
         'created_by',
         'updated_by',
+        'archived_at',
     ];
 
     protected $casts = [
@@ -59,10 +60,18 @@ class MailDocument extends Model
         'builder_data' => 'array',
         'published_at' => 'datetime',
         'version' => 'integer',
+        'archived_at' => 'datetime',
     ];
 
     protected static function booted(): void
     {
+        // Archived variants remain recoverable, but must never reappear in
+        // delivery, pairing selectors or an old saved Outlook selection.
+        static::addGlobalScope('unarchived', static function (Builder $query): void {
+            if (Schema::hasColumn($query->getModel()->getTable(), 'archived_at')) {
+                $query->whereNull($query->getModel()->qualifyColumn('archived_at'));
+            }
+        });
         static::creating(function (self $document): void {
             if (blank($document->public_id)) {
                 $document->public_id = (string) Str::uuid();
@@ -154,6 +163,9 @@ class MailDocument extends Model
 
     public function isActive(): bool
     {
+        if ($this->isArchived()) {
+            return false;
+        }
         if (! MailDocumentDelivery::available() && $this->isOutlookTemplate()) {
             return false;
         }
@@ -165,6 +177,9 @@ class MailDocument extends Model
 
     public function isPublished(): bool
     {
+        if ($this->isArchived()) {
+            return false;
+        }
         if (MailDocumentDelivery::available()) {
             return $this->published_at !== null && $this->publishedHtml() !== null;
         }
@@ -184,6 +199,11 @@ class MailDocument extends Model
     public function isOutlookTemplate(): bool
     {
         return $this->kind === MailDocumentKind::Template && $this->is_outlook_template === true;
+    }
+
+    public function isArchived(): bool
+    {
+        return $this->archived_at !== null;
     }
 
     /**

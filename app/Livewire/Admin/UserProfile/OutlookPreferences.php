@@ -61,6 +61,12 @@ final class OutlookPreferences extends Component
     public string $farewell = '';
 
     #[Locked]
+    public bool $showGreeting = false;
+
+    #[Locked]
+    public bool $showFarewell = false;
+
+    #[Locked]
     public string $wordingRevision = '';
 
     #[Locked]
@@ -188,6 +194,32 @@ final class OutlookPreferences extends Component
         $this->loadWording();
     }
 
+    public function toggleWordingVisibility(string $field): void
+    {
+        if (! in_array($field, ['showGreeting', 'showFarewell'], true)) {
+            throw ValidationException::withMessages(['wording' => 'Bitte eine gültige Anzeige auswählen.']);
+        }
+        $this->wordingNotice = '';
+        try {
+            $policy = app(OutlookAddinWordingPolicy::class);
+            $stored = $policy->readForManagedUser($this->actor(), $this->user());
+            $next = $policy->updateForManagedUser($this->actor(), $this->user(), $stored['greeting'], $stored['farewell'], $this->wordingRevision,
+                $field === 'showGreeting' ? ! $this->showGreeting : $this->showGreeting,
+                $field === 'showFarewell' ? ! $this->showFarewell : $this->showFarewell);
+            // Deferred text edits remain local until the explicit text save.
+            $this->showGreeting = $next['showGreeting'];
+            $this->showFarewell = $next['showFarewell'];
+            $this->wordingRevision = $next['revision'];
+            $this->wordingNotice = 'Anzeige gespeichert. Gilt beim nächsten Einfügen der Standardvorlage.';
+        } catch (OutlookAddinException $error) {
+            $this->wordingNotice = $error->errorCode === 'outlook_addin_wording_conflict'
+                ? 'Inzwischen geändert. Deine Eingabe bleibt erhalten. Bitte den gespeicherten Stand neu laden.'
+                : $error->getMessage();
+        } catch (Throwable) {
+            $this->wordingNotice = 'Die Anzeige konnte nicht bestätigt werden. Bitte neu laden.';
+        }
+    }
+
     public function saveWording(): void
     {
         $this->resetErrorBag(['greeting', 'farewell', 'wording']);
@@ -229,6 +261,8 @@ final class OutlookPreferences extends Component
     {
         $this->greeting = $wording['greeting'];
         $this->farewell = $wording['farewell'];
+        $this->showGreeting = $wording['showGreeting'];
+        $this->showFarewell = $wording['showFarewell'];
         $this->wordingRevision = $wording['revision'];
         $this->wordingAvailable = true;
     }
@@ -237,6 +271,7 @@ final class OutlookPreferences extends Component
     {
         $this->greeting = $this->farewell = $this->wordingRevision = '';
         $this->wordingAvailable = false;
+        $this->showGreeting = $this->showFarewell = false;
         $this->wordingNotice = $message;
     }
 

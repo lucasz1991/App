@@ -31,7 +31,8 @@ use App\Support\Mail\SignatureDocumentContract;
 use App\Support\Mail\SignatureImgOverlapFallback;
 use App\Support\Mail\TemplateDocumentContract;
 use App\Support\OutlookAddin\OutlookAddinSnapshotRefreshScheduler;
-use App\Support\OutlookAddin\OutlookStaticLinkedTestDelivery;
+use App\Support\OutlookAddin\OutlookLinkedAnimatedDelivery;
+use App\Support\OutlookAddin\OutlookStaticLinkedTestProfiles;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -1970,9 +1971,9 @@ final class MailDocumentController extends Controller
             'id', 'kind', 'content_hash', 'published_at', 'published_html', 'published_css',
         ], true));
         try {
-            $projected = OutlookStaticLinkedTestDelivery::renderedPreview(
+            $projected = OutlookStaticLinkedTestProfiles::renderedPreview(
                 $finalHtml,
-                OutlookStaticLinkedTestDelivery::PROFILE,
+                OutlookStaticLinkedTestProfiles::signatureProfile(['html' => $candidateHtml]),
                 (string) config('app.url'),
             );
         } catch (\RuntimeException) {
@@ -1985,12 +1986,20 @@ final class MailDocumentController extends Controller
             }
         }
 
-        return $projected;
+        return $requirePublished && OutlookStaticLinkedTestProfiles::signatureProfile(['html' => $candidateHtml]) === OutlookLinkedAnimatedDelivery::PROFILE
+            ? OutlookLinkedAnimatedDelivery::withoutRuntimeMarker($projected) : $projected;
     }
 
     /** Same raw source-attribute admission as the Outlook pair adapter; never infer it from rendered bytes. */
     private function markedStaticSystemSignature(string $html): bool
     {
+        if (stripos($html, 'data-rt-linked') !== false) {
+            try {
+                return OutlookStaticLinkedTestProfiles::signatureProfile(['html' => $html]) !== null;
+            } catch (\RuntimeException) {
+                return false;
+            }
+        }
         preg_match_all('~<!--.*?-->|<(?:style|script)\b[^>]*>.*?</(?:style|script)\s*>|</?[a-z][a-z0-9:-]*(?:[^"\'<>]|"[^"]*"|\'[^\']*\')*>~is', $html, $matches);
         $markers = $targets = [];
         $firstRow = null;

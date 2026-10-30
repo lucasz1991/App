@@ -88,7 +88,7 @@ final class OutlookAddinWordingApiTest extends TestCase
         $before = $this->rows();
         $response = $this->getJson(self::URL, $this->headers() + ['X-RailTime-Outlook-Sender' => 'foreign@other.test'])->assertOk();
         self::assertSame(['wordingPreferences', 'binding'], array_keys($response->json()));
-        self::assertSame(['schema', 'greeting', 'farewell', 'revision'], array_keys($response->json('wordingPreferences')));
+        self::assertSame(['schema', 'greeting', 'farewell', 'showGreeting', 'showFarewell', 'revision'], array_keys($response->json('wordingPreferences')));
         $response->assertJsonPath('wordingPreferences.schema', 1)->assertJsonPath('wordingPreferences.greeting', 'Guten Tag,')
             ->assertJsonPath('wordingPreferences.farewell', 'Mit freundlichen Grüßen,')
             ->assertJsonPath('binding.mailboxAddress', 'own@company.test')->assertJsonPath('binding.senderAddress', 'own@company.test');
@@ -96,6 +96,23 @@ final class OutlookAddinWordingApiTest extends TestCase
         self::assertSame($before, $this->rows());
         self::assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
         $response->assertHeader('X-Content-Type-Options', 'nosniff')->assertHeader('Referrer-Policy', 'no-referrer');
+    }
+
+    public function test_visibility_flags_are_strict_independent_and_old_text_clients_preserve_them(): void
+    {
+        $data = ['greeting' => 'Hallo,', 'farewell' => 'Grüße,', 'revision' => $this->revision(), 'showGreeting' => true, 'showFarewell' => false];
+        $response = $this->patchJson(self::URL, $data, $this->headers())->assertOk()
+            ->assertJsonPath('wordingPreferences.showGreeting', true)->assertJsonPath('wordingPreferences.showFarewell', false);
+        unset($data['showGreeting'], $data['showFarewell']);
+        $data['greeting'] = 'Hallo Team,';
+        $data['revision'] = $response->json('wordingPreferences.revision');
+        $response = $this->patchJson(self::URL, $data, $this->headers())->assertOk()->assertJsonPath('wordingPreferences.showGreeting', true);
+        $before = $this->rows();
+        $data['revision'] = $response->json('wordingPreferences.revision');
+        foreach ([1, 'true', null, []] as $invalid) {
+            $this->patchJson(self::URL, $data + ['showGreeting' => $invalid], $this->headers())->assertUnprocessable();
+            self::assertSame($before, $this->rows());
+        }
     }
 
     public function test_patch_and_stale_retry_change_only_own_texts_and_hash_only_audit(): void
@@ -128,7 +145,7 @@ final class OutlookAddinWordingApiTest extends TestCase
         self::assertStringNotContainsString($data['greeting'], $audit->properties);
         self::assertStringNotContainsString($data['farewell'], $audit->properties);
         $properties = json_decode($audit->properties, true, flags: JSON_THROW_ON_ERROR);
-        self::assertSame(['employee_id', 'greeting_changed', 'farewell_changed', 'revision_before', 'revision_after'], array_keys($properties));
+        self::assertSame(['employee_id', 'greeting_changed', 'farewell_changed', 'greeting_visibility_changed', 'farewell_visibility_changed', 'revision_before', 'revision_after'], array_keys($properties));
     }
 
     public function test_maximum_unicode_plain_values_are_preserved_and_a_noop_has_no_audit(): void

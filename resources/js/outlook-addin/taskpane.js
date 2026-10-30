@@ -9,6 +9,7 @@ import {
     insertStandaloneSignature,
     requiresStandaloneSignatureLayout,
     standaloneSignatureLayoutIsCurrent,
+    signatureHostProfileIsCurrent,
     combinedComposeDocument,
     currentComposeBodyHtml as scopedComposeBodyHtml,
     prependTemplate,
@@ -960,9 +961,12 @@ function signatureIsCurrent(payload, bodyHtml, composeType) {
         return false;
     }
 
+    if (!isMobileComposeHost(Office) && /\bdata-rt-desktop-flow\s*=\s*["']outlook-desktop-flow-v15["']/.test(payload.signature?.html || '')) {
+        return signatureHostProfileIsCurrent(bodyHtml, currentBodyHtml, expectedVersion, Office);
+    }
     if (!isMobileComposeHost(Office) && requiresStandaloneSignatureLayout(payload.signature?.html)
         && !templateStateFromBody(bodyHtml, composeType).present) {
-        return standaloneSignatureLayoutIsCurrent(bodyHtml, currentBodyHtml, expectedVersion);
+        return standaloneSignatureLayoutIsCurrent(bodyHtml, currentBodyHtml, expectedVersion, Office);
     }
     return signatureVersionsFromBody(currentBodyHtml).includes(expectedVersion);
 }
@@ -1561,8 +1565,9 @@ async function updateSignature(button) {
     });
 }
 
-async function insertTemplate(button) {
-    if (taskpaneState.busy) return;
+async function insertTemplate(button, { replaceOnly = false, expectedTarget = null, expectedAccount = null } = {}) {
+    if (taskpaneState.busy) return { applied: false, reason: 'busy' };
+    let result = { applied: false, reason: 'unconfirmed' };
     const selected = selectedTemplate();
 
     setStatus(
@@ -1573,6 +1578,8 @@ async function insertTemplate(button) {
 
     await withAuthenticatedBootstrap(button, async (bootstrap, target) => {
         const item = assertComposeTarget(target);
+        if (expectedTarget) assertComposeTarget(expectedTarget);
+        if (expectedAccount && bootstrap.binding?.mailboxAddress !== expectedAccount) throw codedError('MAILBOX_MISMATCH');
         const templateChoice = selectedTemplate();
 
         if (!templateChoice) {
@@ -1590,6 +1597,11 @@ async function insertTemplate(button) {
         if (!state.readable) throw Object.assign(codedError(state.errorCode || 'COMPOSE_BODY_UNREADABLE'), { phase: state.phase, officeCode: state.officeCode, reason: state.reason });
         if (state.tooLarge) throw codedError('COMPOSE_BODY_TOO_LARGE');
         const replacing = state.present;
+        if (replaceOnly && !replacing) {
+            result = { applied: false, reason: 'no-managed-template' };
+            setStatus('ready', 'Anzeige gespeichert', 'Zum Anwenden die Standardvorlage einfügen. Ihr Nachrichtentext bleibt erhalten.');
+            return;
+        }
         if (replacing && !combinedDocument) throw codedError('TEMPLATE_REPLACEMENT_UNAVAILABLE');
         let signature = null;
         if (usesNativeSignature) {
@@ -1640,6 +1652,7 @@ async function insertTemplate(button) {
         if (combinedDocument) rememberConfirmedInsertion(item, 'signature', bootstrap.binding);
         observedComposeItem = item;
         taskpaneState.templatePresent = true;
+        result = { applied: true };
         renderSelectedTemplate();
 
         setStatus(
@@ -1650,6 +1663,7 @@ async function insertTemplate(button) {
                 : templateChoice.name,
         );
     });
+    return result;
 }
 
 async function showDiagnosticReport() {
@@ -1815,6 +1829,21 @@ function bindAccountOptionViews() {
     wordingView = bindWordingPreferencesView(document, {
         save: change => changeAccountOption(wordingSession, change),
         reload: () => changeAccountOption(wordingSession, null),
+        beforeSave: () => {
+            if (taskpaneState.settingsMode) return null;
+            try { return captureComposeTarget(); } catch { return null; }
+        },
+        afterSaved: async context => {
+            if (taskpaneState.settingsMode || !context?.target) return 'Gespeichert. Gilt beim nächsten Einfügen der Standardvorlage.';
+            try {
+                if (mailboxAddress().toLowerCase() !== context.account) throw codedError('MAILBOX_MISMATCH');
+                assertComposeTarget(context.target);
+            } catch { return 'Gespeichert. Die Nachricht oder das Konto hat gewechselt; die offene Nachricht bleibt unverändert.'; }
+            const result = await insertTemplate(null, { replaceOnly: true, expectedTarget: context.target, expectedAccount: context.account });
+            return result?.applied ? 'Gespeichert und in dieser Nachricht aktualisiert.'
+                : result?.reason === 'no-managed-template' ? 'Gespeichert. Zum Anwenden die Standardvorlage einfügen.'
+                    : 'Gespeichert. Die offene Nachricht wurde nicht verändert; Standardvorlage erneut einsetzen.';
+        },
     });
     templateChoicesView = bindTemplateChoiceView(document, { save: change => changeAccountOption(templateChoicesSession, change) });
 }
