@@ -55,6 +55,15 @@ final class OutlookStaticLinkedTestDelivery
         'zug-dampf-outlook-intrinsic-v1-light-mirrored.gif' => ['9db04d54004742501156413430e77ccf1b1ed8515018caa9c7d00caedaf63f17', 142477, 'image/gif', 695, 151, '/m/dc6eb47779.png', 'dc6eb47779cca236195052802aac7c1e22dba1f8198fbfbadb5729b504df99d6'],
         'zug-dampf-outlook-intrinsic-v1-dark-mirrored.png' => ['4b6995aa470fb7730c0efa88d95528eb053bf95e3314a9567f2d36084370bd78', 2884, 'image/png', 695, 151, '/m/4b6995aa47.png', '4b6995aa470fb7730c0efa88d95528eb053bf95e3314a9567f2d36084370bd78'],
         'zug-dampf-outlook-intrinsic-v1-dark-mirrored.gif' => ['18567efab2a728b8058195b8fef1651e97b2aff8c116261af9698afabdaad4d9', 98776, 'image/gif', 695, 151, '/m/4b6995aa47.png', '4b6995aa470fb7730c0efa88d95528eb053bf95e3314a9567f2d36084370bd78'],
+        'zug-dampf-outlook-brand-v1-light.png' => ['0b9b8d55f6a2343198a721915fe2fa2e61df6eb1e52f72bb91f32a4c4a2a5258', 7371, 'image/png', 695, 151, '/m/0b9b8d55f6.png', '0b9b8d55f6a2343198a721915fe2fa2e61df6eb1e52f72bb91f32a4c4a2a5258'],
+        'zug-dampf-outlook-brand-v1-light.gif' => ['47007453902679fbc96eda87bb8701db7f701b2c340d83e9561fa68c4dbd503d', 179636, 'image/gif', 695, 151, '/m/0b9b8d55f6.png', '0b9b8d55f6a2343198a721915fe2fa2e61df6eb1e52f72bb91f32a4c4a2a5258'],
+        'zug-dampf-outlook-brand-v1-dark.png' => ['d8370fc0cc4d87ddad0a076cb5c2468e36ad1f5667966418cbfc2c519bd878b3', 4411, 'image/png', 695, 151, '/m/d8370fc0cc.png', 'd8370fc0cc4d87ddad0a076cb5c2468e36ad1f5667966418cbfc2c519bd878b3'],
+        'zug-dampf-outlook-brand-v1-dark.gif' => ['243786c7e426e2f06165858c8a1883cfd5598b72df1247c7cc2b3ff6e41220a5', 130062, 'image/gif', 695, 151, '/m/d8370fc0cc.png', 'd8370fc0cc4d87ddad0a076cb5c2468e36ad1f5667966418cbfc2c519bd878b3'],
+        'zug-dampf-outlook-brand-v1-light-mirrored.png' => ['b6d051cacd77535d71366db071b9c077fdbd7d4d487eb369fed2a77fbe142792', 7572, 'image/png', 695, 151, '/m/b6d051cacd.png', 'b6d051cacd77535d71366db071b9c077fdbd7d4d487eb369fed2a77fbe142792'],
+        'zug-dampf-outlook-brand-v1-light-mirrored.gif' => ['67d1600699cad2f1f2af69ea59a9d88a7085f26556966f083ab615401e430d39', 178583, 'image/gif', 695, 151, '/m/b6d051cacd.png', 'b6d051cacd77535d71366db071b9c077fdbd7d4d487eb369fed2a77fbe142792'],
+        'zug-dampf-outlook-brand-v1-dark-mirrored.png' => ['917e8f055d74b6e4b2294df05fb74079cfb5e8526902cc87fda2e260b658861b', 4566, 'image/png', 695, 151, '/m/917e8f055d.png', '917e8f055d74b6e4b2294df05fb74079cfb5e8526902cc87fda2e260b658861b'],
+        'zug-dampf-outlook-brand-v1-dark-mirrored.gif' => ['ed21ba08d9d32ede363a30d13d182aa802b426330fd0110c4b0f50b11c960768', 129369, 'image/gif', 695, 151, '/m/917e8f055d.png', '917e8f055d74b6e4b2294df05fb74079cfb5e8526902cc87fda2e260b658861b'],
+        'outlook-hotline-label-inktop-v1.png' => ['37683e55f5469c8593450bfeaeea13ed0b1849976dce15b7479d7095d998540a', 6293, 'image/png', 552, 77, '/m/37683e55f5.png', '37683e55f5469c8593450bfeaeea13ed0b1849976dce15b7479d7095d998540a'],
     ];
 
     /** @return array<string, string> Full hashes bind both the input map and every immutable public PNG. */
@@ -263,8 +272,9 @@ final class OutlookStaticLinkedTestDelivery
         $html = self::markers($html, 'RT-SIGNATURE-VERSION:', $oldSignature, $newSignature);
         $html = self::markers($html, OutlookMobileCombinedComposeDocument::VERSION_MARKER, $oldMobile, $newMobile);
         $reserve = $nativeSignature && ! OutlookDesktopFlow::mobile($html)
-            ? (str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v10"') ? 855
-                : (str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v9"') ? 798 : 627)) : 0;
+            ? (str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v11"') ? 166
+                : (str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v10"') ? 855
+                    : (str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v9"') ? 798 : 627))) : 0;
         self::budget($html, $maxCharacters, $maxCss, $reserve);
         $pair[$htmlKey] = $html;
         $pair[$mediaKey] = [];
@@ -580,7 +590,7 @@ final class OutlookStaticLinkedTestDelivery
             $fingerprint['map:'.$sha] = $pngSha;
             $fingerprint[$output] = $pngSha;
         }
-        if (count($sources) !== 33 || count($targets) !== 25) {
+        if (count($sources) !== 42 || count($targets) !== 30) {
             self::fail();
         }
         ksort($fingerprint);

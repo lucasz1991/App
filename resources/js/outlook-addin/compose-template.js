@@ -1,5 +1,5 @@
-import { hasUnquotedSignatureLayoutCarrier, managedTemplateContract, managedTemplateReplacement, standaloneSignatureContract } from './managed-template.js';
-import { createNativeLayoutNonce, inferredNativeGridRow, nativeLayoutClearBarrier, nativeLayoutReadbackContract, nativeLayoutThreeCellTopology, nativeLayoutRestoreCarrierIsExternal, nativeLayoutRestoreCarrierPresent, nativeLayoutRestoreCellsAligned, nativeLayoutRestoreCss, nativeLayoutRestoreRetained, prepareNativeLayoutRestore, removeNativeLayoutRestoreCarrier } from './native-layout-restore.js';
+import { fluidLayoutContract, hasUnquotedFluidLayoutMarker, hasUnquotedSignatureLayoutCarrier, managedTemplateContract, managedTemplateReplacement, standaloneSignatureContract } from './managed-template.js';
+import { createNativeLayoutNonce, inferredNativeGridRow, isFluidLayoutSource, verifyFluidLayoutMaterial, nativeLayoutClearBarrier, nativeLayoutReadbackContract, nativeLayoutThreeCellTopology, nativeLayoutRestoreCarrierIsExternal, nativeLayoutRestoreCarrierPresent, nativeLayoutRestoreCellsAligned, nativeLayoutRestoreCss, nativeLayoutRestoreRetained, prepareNativeLayoutRestore, removeNativeLayoutRestoreCarrier } from './native-layout-restore.js';
 import { confirmedOfficeWrite, markSignatureWriteConfirmed } from './office-write.js';
 
 // Automatic insertion only prepends. Explicit taskpane replacement below owns
@@ -680,6 +680,11 @@ function existingStandalone(snapshot, cleanup = false) {
 
 export function standaloneSignatureLayoutIsCurrent(html, currentHtml, version) {
     try {
+        const fluid = fluidLayoutContract(html, currentHtml, null, version);
+        if (fluid.kind !== 'standalone-signature-v1') return false;
+        return verifyFluidLayoutMaterial(html, fluid).sourceOnly === true;
+    } catch { /* Historical families retain their existing independent proof. */ }
+    try {
         const contract = standaloneSignatureContract(html, currentHtml, null, version);
         if (!contract.layoutIds) return false;
         const scoped = layoutIdsContract(html, currentHtml, contract.layoutIds, contract);
@@ -713,6 +718,65 @@ async function signatureSession(office, item, operation, mode) {
     }
 }
 
+async function insertFluidStandalone(office, item, html, incoming, beforeWrite, options) {
+    const operation = { phase: 'preflight', beforeWrite, token: `pending:signature:${createNativeLayoutNonce()}` };
+    signatureOperations.set(item, operation);
+    try {
+        const original = await replacementSnapshot(office, item);
+        const current = currentComposeBodyHtml(original.html, original.composeType);
+        if (current === null || templateStateFromBody(original.html, original.composeType).present) throw failure('SIGNATURE_LAYOUT_UNAVAILABLE');
+        const activeFluid = hasUnquotedFluidLayoutMarker(original.html, current);
+        let previous = null;
+        if (activeFluid) {
+            previous = fluidLayoutContract(original.html, current);
+            if (previous.kind !== 'standalone-signature-v1') throw failure('SIGNATURE_LAYOUT_UNAVAILABLE');
+            verifyFluidLayoutMaterial(original.html, previous);
+        }
+        if (hasUnquotedSignatureLayoutCarrier(original.html, current)) {
+            const historical = existingStandalone(original);
+            if (!historical || !historical.ids.logo && !historical.ids.dispatch
+                || nativeLayoutRestoreRetained(original.html, historical.contract, historical.ids) !== true) throw failure('SIGNATURE_LAYOUT_LEGACY_CARRIER');
+        }
+        const layout = prepareNativeLayoutRestore(html, incoming, previous?.fluidLayout.nonce);
+        if (layout?.sourceOnly !== 'fluid-v11' || layout.html.length > 30000) throw failure('SIGNATURE_TOO_LARGE');
+        if (original.html.length + layout.html.length > TEMPLATE_INSERT_LIMITS.bodyLength) throw failure('SIGNATURE_LAYOUT_UNAVAILABLE');
+        await beforeWrite(); await signatureSession(office, item, operation, 'claim'); await beforeWrite();
+        const latest = await replacementSnapshot(office, item);
+        if (latest.html !== original.html || latest.composeType !== original.composeType) throw failure('COMPOSE_BODY_CHANGED');
+        if (previous?.fluidLayout.version === layout.version) {
+            options.beforeCommit?.(); await signatureSession(office, item, operation, 'complete');
+            markSignatureWriteConfirmed(item); return 'current';
+        }
+        await options.beforeInsert?.(); await beforeWrite(); await signatureSession(office, item, operation, 'verify');
+        const ready = await replacementSnapshot(office, item);
+        if (ready.html !== original.html || ready.composeType !== original.composeType) throw failure('COMPOSE_BODY_CHANGED');
+        options.beforeCommit?.(); operation.phase = 'writing';
+        await confirmedOfficeWrite(office, item, 'signature-write', 'SIGNATURE_INSERT_UNCERTAIN',
+            callback => item.body.setSignatureAsync(layout.html, { coercionType: office.CoercionType.Html }, callback), { deferSignatureConfirmation: true });
+        operation.bodyApplied = true; operation.phase = 'verifying-source-layout';
+        await beforeWrite(); await signatureSession(office, item, operation, 'verify'); await beforeWrite();
+        const written = await replacementSnapshot(office, item);
+        if (written.composeType !== original.composeType) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
+        const owned = fluidLayoutContract(written.html, currentComposeBodyHtml(written.html, written.composeType), layout.nonce, layout.version);
+        if (owned.kind !== 'standalone-signature-v1') throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
+        verifyFluidLayoutMaterial(written.html, owned);
+        options.beforeCommit?.(); await signatureSession(office, item, operation, 'complete');
+        markSignatureWriteConfirmed(item); operation.phase = 'applied'; return 'applied';
+    } catch (error) {
+        if (operation.bodyApplied) {
+            operation.phase = 'uncertain';
+            throw failure('SIGNATURE_LAYOUT_UNCONFIRMED', { phase: error?.phase || 'fluid-layout-readback' });
+        }
+        if (['SIGNATURE_INSERT_UNCERTAIN', 'INLINE_ATTACHMENT_UNCERTAIN'].includes(error?.code)) operation.phase = 'uncertain';
+        if (operation.phase !== 'uncertain') {
+            try { await signatureSession(office, item, operation, 'release'); } catch { operation.phase = 'uncertain'; }
+        }
+        throw error;
+    } finally {
+        if (operation.phase !== 'uncertain' && signatureOperations.get(item) === operation) signatureOperations.delete(item);
+    }
+}
+
 /** Native slot only; no full-body rewrite and no Template/session ownership. */
 export async function insertStandaloneSignature(office, item, html, beforeWrite = () => {}, options = {}) {
     if (insertionOperations.has(item)) throw failure('TEMPLATE_INSERT_UNCERTAIN');
@@ -721,6 +785,7 @@ export async function insertStandaloneSignature(office, item, html, beforeWrite 
     if (isMobileComposeHost(office) || typeof item?.body?.setSignatureAsync !== 'function') throw failure('SIGNATURE_LAYOUT_UNAVAILABLE');
     validatedInsertionHtml(html, options.media ?? []);
     const incoming = standaloneSignatureContract(html);
+    if (isFluidLayoutSource(incoming)) return insertFluidStandalone(office, item, html, incoming, beforeWrite, options);
     const operation = { phase: 'preflight', beforeWrite, token: `pending:signature:${createNativeLayoutNonce()}` };
     signatureOperations.set(item, operation);
     try {
@@ -1028,6 +1093,12 @@ async function restoreNativeLayout(office, item, layout, operation, original, op
     await operation.beforeWrite();
     const written = await replacementSnapshot(office, item);
     if (written.composeType !== original.composeType) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
+    if (layout.sourceOnly === 'fluid-v11') {
+        const owned = fluidLayoutContract(written.html, currentComposeBodyHtml(written.html, written.composeType), layout.nonce, layout.version);
+        if (owned.kind !== 'text-v1') throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
+        verifyFluidLayoutMaterial(written.html, owned);
+        options.beforeCommit?.(); await markTemplateApplied(item, operation); return;
+    }
     layoutIdsContract(written.html, currentComposeBodyHtml(written.html, written.composeType), layout.ids);
     options.beforeCommit?.();
     operation.phase = 'restoring-layout';
@@ -1068,7 +1139,10 @@ export async function replaceManagedTemplate(office, item, html, beforeWrite = (
             && (Object.prototype.hasOwnProperty.call(node.attrs, 'data-rt-personal-flow') || (node.attrs.class || '').split(/\s+/).includes('rt-personal-columns')));
         if (nativePersonal && incoming.kind !== 'text-v1') throw failure('TEMPLATE_REPLACEMENT_UNAVAILABLE');
         const layout = nativePersonal ? prepareNativeLayoutRestore(markedHtml, incoming) : null;
-        const oldContract = managedTemplateContract(original.html, currentComposeBodyHtml(original.html, original.composeType));
+        const currentBody = currentComposeBodyHtml(original.html, original.composeType);
+        const oldContract = hasUnquotedFluidLayoutMarker(original.html, currentBody)
+            ? fluidLayoutContract(original.html, currentBody) : managedTemplateContract(original.html, currentBody);
+        if (oldContract.fluidLayout) verifyFluidLayoutMaterial(original.html, oldContract);
         const cleaned = removePreviousLayoutSheet(original.html, oldContract);
         const plan = managedTemplateReplacement(cleaned, currentComposeBodyHtml(cleaned, original.composeType), layout?.html ?? markedHtml);
         if (plan.html.length + (layout?.stylePayload.length ?? 0) > TEMPLATE_INSERT_LIMITS.bodyLength) throw failure('COMPOSE_BODY_TOO_LARGE');

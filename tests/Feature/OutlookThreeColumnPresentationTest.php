@@ -12,6 +12,7 @@ use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\Mail\SystemMailInlineImageEmbedder;
 use App\Support\OutlookAddin\OutlookAddinPayloadService;
 use App\Support\OutlookAddin\OutlookClientPresentation;
+use App\Support\OutlookAddin\OutlookFluidSignaturePresentation;
 use App\Support\OutlookAddin\OutlookMobileSignature;
 use App\Support\OutlookAddin\OutlookStaticLinkedTestDelivery;
 use App\Support\OutlookAddin\OutlookThreeCellPresentation;
@@ -28,7 +29,7 @@ use TijsVerkoyen\CssToInlineStyles\CssToInlineStyles;
 
 final class OutlookThreeColumnPresentationTest extends TestCase
 {
-    public function test_actual_personal_desktop_and_mobile_keep_three_bounded_source_tables_and_media(): void
+    public function test_actual_personal_desktop_and_mobile_keep_four_portable_source_tables_and_media(): void
     {
         $user = $this->fixture(true);
         $canonical = app(OutlookAddinPayloadService::class)->forUser($user);
@@ -37,24 +38,24 @@ final class OutlookThreeColumnPresentationTest extends TestCase
             $result = OutlookClientPresentation::payload($source);
             $html = $result['signature']['html'];
             $xpath = $this->xpath($html);
-            self::assertSame(1, $xpath->query('//table[@data-rt-desktop-flow="outlook-desktop-flow-v10"]')->length);
-            self::assertSame(3, $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-v10-column ")][@width="240"][not(@align)]')->length);
+            self::assertSame(1, $xpath->query('//table[@data-rt-desktop-flow="outlook-desktop-flow-v11"]')->length);
+            self::assertSame(4, $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-v11-column ")][@align="left"]')->length);
             self::assertSame(1, $xpath->query('//table[contains(@class,"rt-personal-left")]/tbody/tr/td/table[contains(@class,"rt-personal-logo-frame")]//img[@width="160"][@height="27"]')->length);
             self::assertSame(0, $xpath->query('//table[contains(@class,"rt-personal-right")]//img[contains(@class,"rt-v9-logo")]')->length);
             self::assertSame(1, $xpath->query('//table[contains(@class,"rt-dispatch-column")]//img[@alt="Dispo 24/7 erreichbar"][@width="160"]')->length);
-            self::assertSame(0, $xpath->query('//br[@clear="all"]')->length);
-            self::assertSame(3, $xpath->query('//tr[@class="rt-v10-grid-row"]/td[@width="240"][@valign="top"]')->length);
-            self::assertSame(1, $xpath->query('//tr[@class="rt-v10-train-row"]/td[@colspan="3"]')->length);
+            self::assertSame(1, $xpath->query('//br[@clear="all"]')->length);
+            self::assertSame(0, $xpath->query('//tr[@class="rt-v10-grid-row"]')->length);
+            self::assertSame(1, $xpath->query('//td[@class="rt-v11-columns-cell"]')->length);
             self::assertSame(1, $xpath->query('//td[contains(concat(" ",normalize-space(@class)," ")," rt-v9-top-rule ")]')->length);
             self::assertSame(1, $xpath->query('//p[@class="rt-v9-address"]')->length);
             self::assertSame(1, $xpath->query('//p[@class="rt-v9-address"]//br')->length);
-            foreach ($xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-v10-column ")]//span') as $span) {
+            foreach ($xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-v11-column ")]//span') as $span) {
                 self::assertDoesNotMatchRegularExpression('/background(?:-color)?\s*:\s*(?:#fff(?:fff)?|white|rgb\(\s*255\s*,\s*255\s*,\s*255\s*\))/i', $span->getAttribute('style'));
             }
             foreach ($result['templates'] as $entry) {
                 foreach (['html', 'combinedComposeHtml', 'mobileComposeHtml'] as $field) {
                     if (isset($entry[$field])) {
-                        self::assertStringContainsString('data-rt-desktop-flow="outlook-desktop-flow-v10"', $entry[$field], $field.' must not retain the old fallback layout.');
+                        self::assertStringContainsString('data-rt-desktop-flow="outlook-desktop-flow-v11"', $entry[$field], $field.' must not retain the old fallback layout.');
                     }
                 }
             }
@@ -62,7 +63,7 @@ final class OutlookThreeColumnPresentationTest extends TestCase
             self::assertStringNotContainsString('data-rt-brand-hotline=', $html);
             self::assertStringNotContainsString('rt-brand-outline-cell', $html);
             self::assertLessThanOrEqual(30000 - 855, intdiv(strlen(mb_convert_encoding($html, 'UTF-16LE', 'UTF-8')), 2));
-            self::assertSame($html, OutlookThreeCellPresentation::document($html));
+            self::assertSame($html, OutlookFluidSignaturePresentation::document($html));
             $refs = [];
             preg_match_all('/cid:([A-Za-z0-9._-]+)/', $html, $refs);
             $ids = array_column($result['signature']['media'], 'contentId');
@@ -135,7 +136,9 @@ final class OutlookThreeColumnPresentationTest extends TestCase
     public function test_word_fallback_has_three_real_cells_without_paragraph_anchored_tables(): void
     {
         $user = $this->fixture(true);
-        $html = OutlookClientPresentation::payload(app(OutlookAddinPayloadService::class)->forUser($user))['signature']['html'];
+        $canonical = app(OutlookAddinPayloadService::class)->forUser($user);
+        $base = (new ReflectionMethod(OutlookClientPresentation::class, 'document'))->invoke(null, $canonical['signature']['html'], 30000, 12288, true);
+        $html = OutlookThreeCellPresentation::document(OutlookThreeColumnPresentation::document($base));
         $xpath = $this->xpath($html);
         $root = $xpath->query('//table[@data-rt-desktop-flow="outlook-desktop-flow-v10"]')->item(0);
         self::assertSame('720', $root->getAttribute('width'));
@@ -150,6 +153,7 @@ final class OutlookThreeColumnPresentationTest extends TestCase
             self::assertCount(1, $columns);
             self::assertFalse($columns->item(0)->hasAttribute('align'));
             self::assertStringNotContainsString('float:', $columns->item(0)->getAttribute('style'));
+            self::assertStringContainsString('padding:0 12px 0 40px;', $xpath->query('./tbody/tr/td', $columns->item(0))->item(0)->getAttribute('style'));
         }
         $train = $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-df-train ")]')->item(0);
         $image = $xpath->query('//img[contains(@class,"rt-v10-train-image")]')->item(0);
@@ -160,6 +164,33 @@ final class OutlookThreeColumnPresentationTest extends TestCase
         self::assertStringContainsString('width:100%;max-width:100%;height:auto;', $image->getAttribute('style'));
         self::assertSame(1, $xpath->query('./tbody/tr[2]/td[@colspan="3"]', $root)->length);
         self::assertSame('outlook-desktop-flow-v9', OutlookThreeColumnPresentation::FLOW, 'The historical family keeps its own immutable source contract.');
+    }
+
+    public function test_word_border_paint_is_on_owned_frame_cells_and_keeps_a_single_three_pixel_edge(): void
+    {
+        $user = $this->fixture(true);
+        $payload = OutlookClientPresentation::payload(app(OutlookAddinPayloadService::class)->forUser($user));
+        $examples = [$payload['signature']['html']];
+        foreach ($payload['templates'] as $entry) {
+            if (isset($entry['combinedComposeHtml'])) {
+                $examples[] = $entry['combinedComposeHtml'];
+            }
+        }
+        foreach ($examples as $html) {
+            $xpath = $this->xpath($html);
+            $frames = $xpath->query('//table[contains(@class,"rt-managed-combined-v1") or (contains(@class,"rt-managed-signature-v1") and not(contains(@class,"rt-combined-signature-frame")))]');
+            self::assertSame(1, $frames->length);
+            $frame = $frames->item(0);
+            self::assertStringContainsString('border-left:0!important;', $frame->getAttribute('style'));
+            foreach ($xpath->query('./tbody/tr/td', $frame) as $cell) {
+                self::assertStringContainsString('border-left:3px solid #e90032!important;', $cell->getAttribute('style'));
+            }
+            foreach ($xpath->query('//*[@style]') as $element) {
+                self::assertStringNotContainsString('border-left:6px solid #e90032;', $element->getAttribute('style'));
+            }
+            self::assertStringContainsString('padding:0 18px 0 0;', $xpath->query('//td[contains(@class,"rt-v11-train-cell")]')->item(0)->getAttribute('style'));
+            self::assertStringContainsString('padding:0 18px;', $xpath->query('//td[contains(@class,"rt-v11-legal-cell")]')->item(0)->getAttribute('style'));
+        }
     }
 
     public function test_word_losing_table_and_anchor_inheritance_keeps_legal_and_dispatch_leaf_paint(): void
@@ -173,7 +204,7 @@ final class OutlookThreeColumnPresentationTest extends TestCase
         foreach ($xpath->query('//style') as $style) {
             $style->parentNode->removeChild($style);
         }
-        $legal = $xpath->query('//td[@class="rt-v9-legal-cell"]')->item(0);
+        $legal = $xpath->query('//td[@class="rt-v11-legal-cell"]')->item(0);
         $textNodes = $xpath->query('.//text()[normalize-space(.) != ""]', $legal);
         self::assertGreaterThanOrEqual(2, $textNodes->length);
         foreach ($textNodes as $text) {

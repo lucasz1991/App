@@ -137,12 +137,19 @@ function threeCellRestoreCss(ids) {
         css = css.slice(0, from) + rule(key, 'display:table!important;float:none!important;vertical-align:top!important;width:100%!important;min-width:0!important;max-width:100%!important;direction:ltr!important;'
             + (key === 'person' ? '' : 'text-align:left!important;') + 'border:0!important;border-collapse:collapse!important;border-spacing:0!important;margin:0!important;') + css.slice(end + 1);
     }
+    for (const key of ['personCell', 'companyCell', 'dispatchCell']) {
+        const selector = '#' + ids[key] + '{', from = css.indexOf(selector), end = css.indexOf('}', from);
+        const previous = css.slice(from, end + 1);
+        if (from < 0 || end < 0 || !previous.includes('padding-right:40px!important;')) invalid();
+        css = css.slice(0, from) + previous.replace('padding-right:40px!important;', 'padding-right:12px!important;') + css.slice(end + 1);
+    }
     return css + rule('gridRow', 'display:block!important;padding:0!important;font-size:0!important;line-height:0!important;text-align:left!important;');
 }
 
 function threeCellRestoreRules(ids) {
     const rule = (key, declarations) => responsiveRestoreRule(ids, key, declarations);
-    return { base: [], media: [rule('train', 'width:100%!important;min-width:0!important;max-width:364px!important;float:none!important;clear:both!important;')] };
+    return { base: [], media: [rule('train', 'width:100%!important;min-width:0!important;max-width:364px!important;float:none!important;clear:both!important;'),
+        ...['personCell', 'companyCell', 'dispatchCell'].map(key => rule(key, 'padding-left:18px!important;padding-right:18px!important;'))] };
 }
 
 // Published R62/R63 mixed-column core is immutable owned-cleanup evidence.
@@ -452,6 +459,176 @@ function inlineCellProperties(style) {
     });
 }
 
+const FLUID_FLOW = 'outlook-desktop-flow-v11';
+const FLUID_COLUMNS = [
+    ['identity', 176, 16], ['direct', 204, 0], ['company', 172, 12], ['dispatch', 164, 4],
+];
+
+export function isFluidLayoutSource(contract) {
+    return Array.isArray(contract?.elements) && Number.isInteger(contract.signature?.index)
+        && contract.elements.some((node, index) => node.attrs['data-rt-desktop-flow'] === FLUID_FLOW && within(contract.elements, index, contract.signature.index));
+}
+
+function fluidPixels(value) {
+    const match = /^([0-9]+(?:\.[0-9]+)?)(px|pt|cm)?$/.exec(value || '');
+    return match ? Number(match[1]) * (match[2] === 'pt' ? 4 / 3 : match[2] === 'cm' ? 96 / 2.54 : 1) : NaN;
+}
+
+function fluidPadding(node) {
+    const padding = { top: 0, right: 0, bottom: 0, left: 0 };
+    for (const [name, value] of inlineCellProperties(node.attrs.style || '')) {
+        if (name === 'padding') {
+            const parts = value.split(/\s+/).map(fluidPixels);
+            if (!parts.length || parts.length > 4 || parts.some(value => !Number.isFinite(value))) invalid();
+            [padding.top, padding.right, padding.bottom, padding.left] = [parts[0], parts[1] ?? parts[0], parts[2] ?? parts[0], parts[3] ?? parts[1] ?? parts[0]];
+        } else if (/^padding-(?:top|right|bottom|left)$/.test(name)) padding[name.slice(8)] = fluidPixels(value);
+    }
+    return padding;
+}
+
+function fluidNumber(node, name, expected) {
+    const properties = new Map(inlineCellProperties(node.attrs.style || ''));
+    const values = [node.attrs[name], properties.get(name)].filter(value => value !== undefined);
+    return values.length > 0 && values.every(value => Math.abs(fluidPixels(value) - expected) < 0.05);
+}
+
+function fluidOuterSafe(node) {
+    for (const [name, value] of inlineCellProperties(node.attrs.style || '')) {
+        if ((name === 'min-width' && fluidPixels(value) !== 0) || (name === 'position' && value !== 'static')
+            || (name === 'transform' && value !== 'none') || (name === 'display' && value === 'none')
+            || (name === 'visibility' && value !== 'visible')) invalid();
+        if (['left', 'right', 'margin-left', 'margin-right'].includes(name) && value !== 'auto' && fluidPixels(value) !== 0) invalid();
+        if (name === 'margin') {
+            const parts = value.split(/\s+/);
+            const horizontal = [parts[1] ?? parts[0], parts[3] ?? parts[1] ?? parts[0]];
+            if (horizontal.some(value => value !== 'auto' && fluidPixels(value) !== 0)) invalid();
+        }
+    }
+}
+
+function fluidBlank(html, nodes, value) {
+    if (value.node.tag === 'br' && (value.node.attrs.clear || '').toLowerCase() === 'all') return true;
+    if (!['p', 'div', 'span', 'br'].includes(value.node.tag) || owns(value.node.attrs, 'id')) return false;
+    const descendants = nodes.filter((node, index) => within(nodes, index, value.index));
+    if (descendants.some(node => !['p', 'div', 'span', 'br', 'o:p'].includes(node.tag))) return false;
+    const text = html.slice(value.node.openEnd, value.node.close).replace(/<[^>]*>/g, '').replace(/&nbsp;|&#160;|&#x0*a0;/gi, ' ').trim();
+    const properties = new Map(inlineCellProperties(value.node.attrs.style || ''));
+    return !text && (properties.get('display') === 'none' || properties.get('mso-hide') === 'all'
+        || (fluidPixels(properties.get('font-size')) === 0 && fluidPixels(properties.get('line-height')) === 0));
+}
+
+/** V11 relies on retained HTML material, not on restored or virtual CSS IDs. */
+export function verifyFluidLayoutMaterial(html, contract, source = false) {
+    const nodes = contract?.elements, signature = contract?.signature;
+    if (typeof html !== 'string' || !Array.isArray(nodes) || !Number.isInteger(signature?.index)) invalid();
+    const scoped = nodes.map((node, index) => ({ node, index })).filter(value => within(nodes, value.index, signature.index) && !isQuoted(nodes, value.index));
+    let root, columns;
+    if (source) {
+        const candidates = scoped.filter(value => value.node.attrs['data-rt-desktop-flow'] === FLUID_FLOW);
+        if (candidates.length !== 1 || candidates[0].node.tag !== 'table' || !has(candidates[0].node, 'rt-v11-columns')) invalid();
+        root = candidates[0];
+        const scopes = (signature.node.attrs.class || '').split(/\s+/).filter(name => /^rts[0-9a-f]{10}$/.test(name));
+        const hosts = (root.node.attrs.class || '').split(/\s+/).filter(name => /^rt-df(?:[0-9]|10|11)[0-9a-f]{10}$/.test(name));
+        if (scopes.length !== 1 || hosts.length !== 1 || hosts[0] !== 'rt-df11' + scopes[0].slice(3)
+            || root.node.attrs['data-rt-personal-flow'] !== 'v1' || root.node.attrs['data-rt-personal-columns'] !== 'v1') invalid();
+    } else {
+        if (!contract.fluidLayout) invalid();
+        const floats = scoped.filter(value => value.node.tag === 'table' && (value.node.attrs.align || '').toLowerCase() === 'left');
+        if (floats.length !== 4 || floats.some(value => value.node.parent !== floats[0].node.parent)) invalid();
+        let index = floats[0].node.parent;
+        while (Number.isInteger(index) && nodes[index].tag !== 'table') index = nodes[index].parent;
+        if (!Number.isInteger(index)) invalid();
+        root = { node: nodes[index], index };
+        columns = floats;
+    }
+    const rootProperties = new Map(inlineCellProperties(root.node.attrs.style || ''));
+    if (source && rootProperties.get('max-width') !== '734px') invalid();
+    if (!source && rootProperties.has('max-width') && rootProperties.get('max-width') !== '100%'
+        && Math.abs(fluidPixels(rootProperties.get('max-width')) - 734) > 0.05) invalid();
+    if ((root.node.attrs.width !== undefined && root.node.attrs.width !== '100%')
+        || (rootProperties.has('width') && rootProperties.get('width') !== '100%')
+        || (root.node.attrs.width !== '100%' && rootProperties.get('width') !== '100%')) invalid();
+    for (let index = root.index; Number.isInteger(index) && within(nodes, index, contract.rootIndex); index = nodes[index].parent) {
+        const node = nodes[index], properties = new Map(inlineCellProperties(node.attrs.style || ''));
+        fluidOuterSafe(node);
+        if (node.tag === 'table' && ((node.attrs.width !== undefined && node.attrs.width !== '100%')
+            || (properties.has('width') && !['100%', 'auto'].includes(properties.get('width'))))) invalid();
+    }
+    const rows = children(nodes, onlyChild(nodes, root.index, 'tbody').index);
+    if (rows.length !== 2 || rows.some(value => value.node.tag !== 'tr')) invalid();
+    const cell = onlyChild(nodes, rows[0].index, 'td'), items = children(nodes, cell.index);
+    columns ||= items.filter(value => value.node.tag === 'table');
+    if (columns.length !== 4 || columns.some(value => value.node.parent !== cell.index)
+        || columns.some((value, index) => items.filter(item => item.node.tag === 'table')[index]?.index !== value.index)) invalid();
+    const gap = fluidPadding(cell.node);
+    if (Math.abs(gap.left - 18) > 0.05 || gap.right !== 0) invalid();
+    const barriers = items.filter(value => value.node.tag !== 'table');
+    if (!barriers.length || items[items.length - 1].node.tag === 'table' || barriers.some(value => !fluidBlank(html, nodes, value))
+        || (source && (barriers.length !== 1 || barriers[0].node.tag !== 'br' || barriers[0].node.attrs.clear !== 'all'))) invalid();
+    for (const [index, [role, width, right]] of FLUID_COLUMNS.entries()) {
+        const column = columns[index], properties = new Map(inlineCellProperties(column.node.attrs.style || ''));
+        fluidOuterSafe(column.node);
+        if (column.node.tag !== 'table' || column.node.attrs.align?.toLowerCase() !== 'left' || !fluidNumber(column.node, 'width', width)
+            || (properties.has('float') && properties.get('float') !== 'left')
+            || (properties.has('max-width') && properties.get('max-width') !== '100%') || (source && !has(column.node, 'rt-v11-' + role))) invalid();
+        const content = onlyChild(nodes, onlyChild(nodes, onlyChild(nodes, column.index, 'tbody').index, 'tr').index, 'td');
+        const padding = fluidPadding(content.node);
+        if (padding.left !== 0 || Math.abs(padding.right - right) > 0.05) invalid();
+        if (nodes.some((node, position) => position !== column.index && node.tag === 'table' && within(nodes, position, column.index)
+            && (['left', 'right'].includes((node.attrs.align || '').toLowerCase())
+                || inlineCellProperties(node.attrs.style || '').some(([name, value]) => name === 'float' && value !== 'none'
+                    || /^mso-table-anchor-|^mso-table-left$/.test(name))))) invalid();
+        if (role === 'direct') {
+            const emails = scoped.filter(value => value.node.tag === 'a' && /^mailto:/i.test(value.node.attrs.href || '') && within(nodes, value.index, column.index));
+            if (emails.length !== 1) invalid();
+            let row = emails[0].node.parent;
+            while (Number.isInteger(row) && nodes[row].tag !== 'tr') row = nodes[row].parent;
+            if (!Number.isInteger(row) || !within(nodes, row, column.index)) invalid();
+            const values = children(nodes, row);
+            if (values.length !== 2 || values.some(value => value.node.tag !== 'td') || !fluidNumber(values[0].node, 'width', 27)
+                || fluidPadding(values[1].node).left !== 0 || fluidPadding(values[1].node).right !== 0) invalid();
+            if (nodes.some((node, position) => within(nodes, position, values[1].index)
+                && (owns(node.attrs, 'nowrap') || inlineCellProperties(node.attrs.style || '').some(([name, value]) => name === 'white-space' && value === 'nowrap')))) invalid();
+        }
+    }
+    const trainHost = onlyChild(nodes, rows[1].index, 'td');
+    const train = onlyChild(nodes, trainHost.index, 'table');
+    fluidOuterSafe(train.node);
+    const trainCell = onlyChild(nodes, onlyChild(nodes, onlyChild(nodes, train.index, 'tbody').index, 'tr').index, 'td');
+    const trainImages = scoped.filter(value => value.node.tag === 'img' && within(nodes, value.index, train.index));
+    if (!fluidNumber(train.node, 'width', 218) || owns(train.node.attrs, 'align') || trainImages.length !== 1
+        || Math.abs(fluidPadding(trainCell.node).right - 18) > 0.05 || fluidPadding(trainCell.node).left !== 0) invalid();
+    const image = trainImages[0].node, imageProperties = new Map(inlineCellProperties(image.attrs.style || ''));
+    const fixedImage = Math.abs(fluidPixels(image.attrs.width ?? imageProperties.get('width')) - 200) < 0.05
+        && Math.abs(fluidPixels(image.attrs.height ?? imageProperties.get('height')) - 43) < 0.05
+        && (!imageProperties.has('width') || imageProperties.get('width') === '100%' || Math.abs(fluidPixels(imageProperties.get('width')) - 200) < 0.05)
+        && (!imageProperties.has('height') || imageProperties.get('height') === 'auto' || Math.abs(fluidPixels(imageProperties.get('height')) - 43) < 0.05);
+    const boundedImage = image.attrs.width === undefined && image.attrs.height === undefined
+        && (imageProperties.get('width') === '100%' || Math.abs(fluidPixels(imageProperties.get('width')) - 200) < 0.05)
+        && imageProperties.get('max-width') === '100%' && imageProperties.get('height') === 'auto';
+    if (!fixedImage && (!boundedImage || source)) invalid();
+    const signatureRows = children(nodes, onlyChild(nodes, signature.index, 'tbody').index);
+    if (signatureRows.length !== 2 || signatureRows.some(value => value.node.tag !== 'tr')
+        || !within(nodes, root.index, signatureRows[0].index)) invalid();
+    const legalHost = onlyChild(nodes, signatureRows[1].index, 'td');
+    const legalTables = children(nodes, legalHost.index).filter(value => value.node.tag === 'table');
+    if (legalTables.length !== 1) invalid();
+    const legal = onlyChild(nodes, onlyChild(nodes, onlyChild(nodes, legalTables[0].index, 'tbody').index, 'tr').index, 'td');
+    if (Math.abs(fluidPadding(legal.node).left - 18) > 0.05
+        || !within(nodes, contract.signatureMetadata.managed, legalHost.index) || !within(nodes, contract.signatureMetadata.version, legalHost.index)) invalid();
+    return { root, columns, train, sourceOnly: true };
+}
+
+function prepareFluidLayout(html, contract, nonce) {
+    verifyFluidLayoutMaterial(html, contract, true);
+    const versionNode = contract.elements[contract.signatureMetadata.version];
+    const version = /RT-SIGNATURE-VERSION:([0-9a-f]{16})/i.exec(html.slice(versionNode.openEnd, versionNode.close))?.[1]?.toLowerCase();
+    const scope = nonce === undefined ? createNativeLayoutNonce() : nonce;
+    if (!version || !/^[0-9a-f]{32}$/.test(scope) || html.includes('RT-FLUID-LAYOUT-V11:')) invalid();
+    const marker = '<span hidden aria-hidden="true" style="display:none!important;font-size:0;line-height:0;">RT-FLUID-LAYOUT-V11:' + scope + ':' + version + '</span>';
+    return Object.freeze({ html: html.slice(0, versionNode.end) + marker + html.slice(versionNode.end), sourceOnly: 'fluid-v11', nonce: scope, version, stylePayload: '', ids: null });
+}
+
 /** Outlook replaces our empty clear BR with one zero-line, style-only DIV. */
 export function nativeLayoutClearBarrier(contract, index, html = contract?.nativeReadbackHtml) {
     const nodes = contract?.elements, node = nodes?.[index];
@@ -530,7 +707,8 @@ export function nativeLayoutReadbackContract(html, contract, ids) {
             const border = (values.get('border-top') || '').replace(/\s+/g, '').toLowerCase();
             if (!['3pxsolid#e90032', '3pxsolidrgb(233,0,50)'].includes(border)) invalid();
         } else {
-            if (padding.right !== '40px' || (key === 'trainCell' ? !/^0(?:px)?$/.test(padding.left) : padding.left !== '40px')) invalid();
+            if (padding.right !== (ids.gridRow && ['personCell', 'companyCell', 'dispatchCell'].includes(key) ? '12px' : '40px')
+                || (key === 'trainCell' ? !/^0(?:px)?$/.test(padding.left) : padding.left !== '40px')) invalid();
             if (values.has('line-height') && values.get('line-height') !== (key === 'footer' ? '14px' : key === 'trainCell' ? '0' : '16px')
                 && !(key === 'trainCell' && values.get('line-height') === '0px')) invalid();
             if (values.has('font-size') && values.get('font-size') !== (key === 'footer' ? '9px' : key === 'trainCell' ? '0' : '13px')
@@ -792,6 +970,7 @@ export function prepareNativeLayoutRestore(html, contract, nonce) {
     if (!nodes[owner] || nodes[owner] !== contract.signature.node) invalid();
     if (contract.kind === 'standalone-signature-v1') standaloneSignatureFrame(contract, nodes);
     const signature = one(nodes, owner, 'rt-managed-signature-v1', 'table');
+    if (isFluidLayoutSource(contract)) return prepareFluidLayout(html, contract, nonce);
     const candidates = nodes.map((node, index) => ({ node, index })).filter(value => within(nodes, value.index, signature.index)
         && (has(value.node, 'rt-personal-columns') || owns(value.node.attrs, FLOW)));
     if (!candidates.length) return null;
@@ -890,7 +1069,7 @@ export function prepareNativeLayoutRestore(html, contract, nonce) {
             if (![['width', '240px'], ['max-width', '100%'], ...(threeCell ? [] : [['float', 'left']])].every(([name, value]) => properties.some(part => part[0] === name && part[1] === value))
                 || (threeCell && properties.some(([name, value]) => name === 'float' && value !== 'none'))) invalid();
             const cell = onlyChild(nodes, onlyChild(nodes, onlyChild(nodes, target.index, 'tbody').index, 'tr').index, 'td');
-            if (!has(cell.node, 'rt-v9-' + role + '-cell') || !inlineCellProperties(cell.node.attrs.style || '').some(([name, value]) => name === 'padding' && value === '0 40px')) invalid();
+            if (!has(cell.node, 'rt-v9-' + role + '-cell') || !inlineCellProperties(cell.node.attrs.style || '').some(([name, value]) => name === 'padding' && value === (threeCell ? '0 12px 0 40px' : '0 40px'))) invalid();
             targets[role + 'Cell'] = cell;
         }
         if (children(nodes, targets.personCell.index)[0]?.index !== frame.index) invalid();

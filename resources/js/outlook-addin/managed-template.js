@@ -1,5 +1,5 @@
 // Offset-only edits keep Outlook's unrelated HTML and quoted history opaque.
-import { inferredNativeGridRow } from './native-layout-restore.js';
+import { inferredNativeGridRow, verifyFluidLayoutMaterial } from './native-layout-restore.js';
 const TOKEN = /<!--[\s\S]*?-->|<(?:style|script|textarea|title)\b(?:[^"'<>]|"[^"]*"|'[^']*')*>[\s\S]*?<\/(?:style|script|textarea|title)\s*>|<!doctype\b[^>]*>|<\?[^>]*\?>|<\/?[a-z][a-z0-9:-]*(?:[^"'<>]|"[^"]*"|'[^']*')*>/gi;
 const VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
 const MODE = 'combined-v1';
@@ -133,7 +133,7 @@ function markerSpans(html, tree, currentLength) {
     const candidates = tree.elements.map((node, index) => ({ node, index })).filter(({ node, index }) => node.tag === 'span'
         && node.end <= currentLength && !quoted(tree.elements, index)).map(value => ({ ...value,
         value: decoded(html.slice(value.node.openEnd, value.node.close).replace(/<!--[\s\S]*?-->|<[^>]*>/g, '')).trim() }))
-        .filter(value => /^RT-(?:COMPOSE-EDITABLE-|TEMPLATE-MANAGED-|SIGNATURE-MANAGED-|SIGNATURE-VERSION:)/.test(value.value));
+        .filter(value => /^RT-(?:COMPOSE-EDITABLE-|TEMPLATE-MANAGED-|SIGNATURE-MANAGED-|SIGNATURE-VERSION:|FLUID-LAYOUT-V11:)/.test(value.value));
     return candidates.filter(value => !candidates.some(outer => outer.index !== value.index && outer.value === value.value
         && within(tree.elements, value.index, outer.index)));
 }
@@ -400,6 +400,78 @@ export function standaloneSignatureContract(html, currentHtml = html, ids = null
         version: token.toLowerCase(), layoutIds: boundIds };
 }
 
+/** A separate V11 ownership protocol; no CSS target IDs are invented here. */
+export function fluidLayoutContract(html, currentHtml = html, expectedNonce = null, expectedVersion = null) {
+    if (typeof html !== 'string' || typeof currentHtml !== 'string' || !html.startsWith(currentHtml)) unavailable();
+    const original = nodes(html);
+    // Word may omit optional TBODY tags. Model their actual implied DOM shape
+    // only in this explicitly nonce-bound family, never in historical guards.
+    const elements = original.elements.map(node => ({ ...node, attrs: { ...node.attrs } }));
+    for (let index = 0, count = elements.length; index < count; index++) {
+        if (elements[index].tag !== 'table') continue;
+        const rows = elements.map((node, position) => ({ node, index: position })).filter(value => value.node.parent === index);
+        if (!rows.length || rows.some(value => value.node.tag !== 'tr')) continue;
+        const body = elements.length;
+        elements.push({ tag: 'tbody', attrs: {}, parent: index, start: rows[0].node.start, openEnd: rows[0].node.start,
+            close: rows[rows.length - 1].node.end, end: rows[rows.length - 1].node.end });
+        for (const row of rows) elements[row.index].parent = body;
+    }
+    const tree = { ...original, elements }, spans = markerSpans(html, tree, currentHtml.length);
+    const found = [];
+    const canonical = spans.map(span => {
+        const separate = /^RT-FLUID-LAYOUT-V11:([0-9a-f]{32}):([0-9a-f]{16})$/i.exec(span.value);
+        const merged = /^(RT-SIGNATURE-(?:MANAGED-V1\s*RT-SIGNATURE-VERSION:|VERSION:)([0-9a-f]{16}))\s*RT-FLUID-LAYOUT-V11:([0-9a-f]{32}):([0-9a-f]{16})$/i.exec(span.value);
+        if (separate) {
+            found.push({ ...span, nonce: separate[1].toLowerCase(), version: separate[2].toLowerCase() });
+            return null;
+        }
+        if (merged) {
+            if (merged[2].toLowerCase() !== merged[4].toLowerCase()) unavailable();
+            found.push({ ...span, nonce: merged[3].toLowerCase(), version: merged[4].toLowerCase() });
+            return { ...span, value: merged[1] };
+        }
+        return span;
+    }).filter(Boolean);
+    const fluid = exactlyOne(found);
+    if (!metadataHidden(fluid.node, elements) || (expectedNonce !== null && fluid.nonce !== expectedNonce)
+        || (expectedVersion !== null && fluid.version !== expectedVersion.toLowerCase())) unavailable();
+    const occurrences = matches(currentHtml, /RT-FLUID-LAYOUT-V11:/g).filter(match => !quotedOffset(elements, match.index)
+        && !tree.comments.some(comment => match.index >= comment.start && match.index < comment.end));
+    if (occurrences.length !== 1 || occurrences[0].index < fluid.node.openEnd || occurrences[0].index >= fluid.node.close) unavailable();
+    const template = canonical.filter(span => span.value.startsWith('RT-TEMPLATE-MANAGED-'));
+    let contract;
+    if (template.length) {
+        contract = sentinelContract(html, currentHtml.length, tree, canonical);
+    } else {
+        if (canonical.some(span => span.value.startsWith('RT-COMPOSE-EDITABLE-'))
+            || matches(currentHtml, /RT-TEMPLATE-MANAGED-V1/g).some(match => !quotedOffset(elements, match.index))) unavailable();
+        const managed = exactlyOne(canonical.filter(span => span.value.startsWith('RT-SIGNATURE-MANAGED-')));
+        const merged = /^RT-SIGNATURE-MANAGED-V1\s*RT-SIGNATURE-VERSION:([0-9a-f]{16})$/i.exec(managed.value);
+        const versions = canonical.filter(span => span.value.startsWith('RT-SIGNATURE-VERSION:'));
+        const version = merged ? managed : exactlyOne(versions);
+        const token = merged?.[1] || /^RT-SIGNATURE-VERSION:([0-9a-f]{16})$/i.exec(version.value)?.[1];
+        if ((!merged && managed.value !== 'RT-SIGNATURE-MANAGED-V1') || (merged && versions.length)
+            || token?.toLowerCase() !== fluid.version || !metadataHidden(managed.node, elements) || !metadataHidden(version.node, elements)) unavailable();
+        const signatureIndex = tableAncestor(elements, managed.index), signature = elements[signatureIndex];
+        if (signatureIndex !== tableAncestor(elements, version.index) || signature.end > currentHtml.length || quoted(elements, signatureIndex)) unavailable();
+        contract = { ...tree, kind: 'standalone-signature-v1', root: signature, rootIndex: signatureIndex,
+            signature: { node: signature, index: signatureIndex }, signatureMetadata: { managed: managed.index, version: version.index }, version: fluid.version };
+    }
+    if (!within(elements, fluid.index, contract.signature.index) || quoted(elements, fluid.index)) unavailable();
+    const bodies = elements.map((node, index) => ({ node, index })).filter(value => value.node.parent === contract.signature.index);
+    if (bodies.length !== 1 || bodies[0].node.tag !== 'tbody') unavailable();
+    const rows = elements.map((node, index) => ({ node, index })).filter(value => value.node.parent === bodies[0].index);
+    if (rows.length !== 2 || rows.some(value => value.node.tag !== 'tr') || !within(elements, fluid.index, rows[1].index)) unavailable();
+    return { ...contract, fluidLayout: { nonce: fluid.nonce, version: fluid.version, marker: { node: fluid.node, index: fluid.index } } };
+}
+
+export function hasUnquotedFluidLayoutMarker(html, currentHtml = html) {
+    if (typeof currentHtml !== 'string' || !html.startsWith(currentHtml)) unavailable();
+    const tree = nodes(html);
+    return matches(currentHtml, /RT-FLUID-LAYOUT-V11:/g).some(match => !quotedOffset(tree.elements, match.index)
+        && !tree.comments.some(comment => match.index >= comment.start && match.index < comment.end));
+}
+
 export function hasUnquotedSignatureLayoutCarrier(html, currentHtml = html) {
     if (typeof currentHtml !== 'string' || !html.startsWith(currentHtml)) unavailable();
     const tree = nodes(html);
@@ -460,7 +532,9 @@ function editableRegion(html, contract, allowLegacy) {
 export function managedTemplateReplacement(bodyHtml, currentHtml, nextHtml) {
     if (typeof bodyHtml !== 'string' || typeof currentHtml !== 'string' || !bodyHtml.startsWith(currentHtml)
         || typeof nextHtml !== 'string') unavailable();
-    const oldContract = rootContract(bodyHtml, currentHtml.length);
+    const oldContract = hasUnquotedFluidLayoutMarker(bodyHtml, currentHtml)
+        ? fluidLayoutContract(bodyHtml, currentHtml) : rootContract(bodyHtml, currentHtml.length);
+    if (oldContract.fluidLayout) verifyFluidLayoutMaterial(bodyHtml, oldContract);
     const nextContract = rootContract(nextHtml, nextHtml.length);
     const oldRegion = editableRegion(bodyHtml, oldContract, true);
     const nextRegion = editableRegion(nextHtml, nextContract, false);

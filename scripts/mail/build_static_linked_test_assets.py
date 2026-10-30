@@ -2,7 +2,7 @@
 
 Usage: python scripts/mail/build_static_linked_test_assets.py [--check]
 
-The 33 original assets and 25 existing PNG selections are pinned by full SHA256,
+The 42 assets (33 historical plus 9 new) and 30 PNG selections are pinned by full SHA256,
 byte length, MIME and dimensions. This build never renders or re-encodes an
 image. It copies only the selected PNG bytes to public/m/<first10SHA256>.png.
 No resources copy is needed: every original already has its canonical backup.
@@ -31,7 +31,7 @@ from PIL import Image
 
 APP = Path(__file__).absolute().parents[2]
 PROFILE = "static-linked-test-v1"
-MANIFEST_SOURCE_SHA256 = "78cdbec6e7a63a736fc6912a13fa5d854b3570d0221fbe77d36f1ba7fa0ca77b"
+MANIFEST_SOURCE_SHA256 = "79653592b00fb9dcf3547e7cbd130e7547d217275389d3c7568940612bd717d3"
 MANIFEST = json.loads(r"""{
   "profile": "static-linked-test-v1",
   "source_marker": "data-rt-static=\"v1\"",
@@ -465,6 +465,123 @@ MANIFEST = json.loads(r"""{
       "png": "outlook-hotline-phone-outline-v1.png",
       "png_sha256": "e24cb8b0ac6770bd9b2a453c50b7c7157531f5929e96713f9aa03d42647f3ea1",
       "output": "/m/e24cb8b0ac.png"
+    },
+    {
+      "source": "zug-dampf-outlook-brand-v1-light.png",
+      "sha256": "0b9b8d55f6a2343198a721915fe2fa2e61df6eb1e52f72bb91f32a4c4a2a5258",
+      "bytes": 7371,
+      "mime": "image/png",
+      "dimensions": [
+        695,
+        151
+      ],
+      "png": "zug-dampf-outlook-brand-v1-light.png",
+      "png_sha256": "0b9b8d55f6a2343198a721915fe2fa2e61df6eb1e52f72bb91f32a4c4a2a5258",
+      "output": "/m/0b9b8d55f6.png"
+    },
+    {
+      "source": "zug-dampf-outlook-brand-v1-light.gif",
+      "sha256": "47007453902679fbc96eda87bb8701db7f701b2c340d83e9561fa68c4dbd503d",
+      "bytes": 179636,
+      "mime": "image/gif",
+      "dimensions": [
+        695,
+        151
+      ],
+      "png": "zug-dampf-outlook-brand-v1-light.png",
+      "png_sha256": "0b9b8d55f6a2343198a721915fe2fa2e61df6eb1e52f72bb91f32a4c4a2a5258",
+      "output": "/m/0b9b8d55f6.png"
+    },
+    {
+      "source": "zug-dampf-outlook-brand-v1-dark.png",
+      "sha256": "d8370fc0cc4d87ddad0a076cb5c2468e36ad1f5667966418cbfc2c519bd878b3",
+      "bytes": 4411,
+      "mime": "image/png",
+      "dimensions": [
+        695,
+        151
+      ],
+      "png": "zug-dampf-outlook-brand-v1-dark.png",
+      "png_sha256": "d8370fc0cc4d87ddad0a076cb5c2468e36ad1f5667966418cbfc2c519bd878b3",
+      "output": "/m/d8370fc0cc.png"
+    },
+    {
+      "source": "zug-dampf-outlook-brand-v1-dark.gif",
+      "sha256": "243786c7e426e2f06165858c8a1883cfd5598b72df1247c7cc2b3ff6e41220a5",
+      "bytes": 130062,
+      "mime": "image/gif",
+      "dimensions": [
+        695,
+        151
+      ],
+      "png": "zug-dampf-outlook-brand-v1-dark.png",
+      "png_sha256": "d8370fc0cc4d87ddad0a076cb5c2468e36ad1f5667966418cbfc2c519bd878b3",
+      "output": "/m/d8370fc0cc.png"
+    },
+    {
+      "source": "zug-dampf-outlook-brand-v1-light-mirrored.png",
+      "sha256": "b6d051cacd77535d71366db071b9c077fdbd7d4d487eb369fed2a77fbe142792",
+      "bytes": 7572,
+      "mime": "image/png",
+      "dimensions": [
+        695,
+        151
+      ],
+      "png": "zug-dampf-outlook-brand-v1-light-mirrored.png",
+      "png_sha256": "b6d051cacd77535d71366db071b9c077fdbd7d4d487eb369fed2a77fbe142792",
+      "output": "/m/b6d051cacd.png"
+    },
+    {
+      "source": "zug-dampf-outlook-brand-v1-light-mirrored.gif",
+      "sha256": "67d1600699cad2f1f2af69ea59a9d88a7085f26556966f083ab615401e430d39",
+      "bytes": 178583,
+      "mime": "image/gif",
+      "dimensions": [
+        695,
+        151
+      ],
+      "png": "zug-dampf-outlook-brand-v1-light-mirrored.png",
+      "png_sha256": "b6d051cacd77535d71366db071b9c077fdbd7d4d487eb369fed2a77fbe142792",
+      "output": "/m/b6d051cacd.png"
+    },
+    {
+      "source": "zug-dampf-outlook-brand-v1-dark-mirrored.png",
+      "sha256": "917e8f055d74b6e4b2294df05fb74079cfb5e8526902cc87fda2e260b658861b",
+      "bytes": 4566,
+      "mime": "image/png",
+      "dimensions": [
+        695,
+        151
+      ],
+      "png": "zug-dampf-outlook-brand-v1-dark-mirrored.png",
+      "png_sha256": "917e8f055d74b6e4b2294df05fb74079cfb5e8526902cc87fda2e260b658861b",
+      "output": "/m/917e8f055d.png"
+    },
+    {
+      "source": "zug-dampf-outlook-brand-v1-dark-mirrored.gif",
+      "sha256": "ed21ba08d9d32ede363a30d13d182aa802b426330fd0110c4b0f50b11c960768",
+      "bytes": 129369,
+      "mime": "image/gif",
+      "dimensions": [
+        695,
+        151
+      ],
+      "png": "zug-dampf-outlook-brand-v1-dark-mirrored.png",
+      "png_sha256": "917e8f055d74b6e4b2294df05fb74079cfb5e8526902cc87fda2e260b658861b",
+      "output": "/m/917e8f055d.png"
+    },
+    {
+      "source": "outlook-hotline-label-inktop-v1.png",
+      "sha256": "37683e55f5469c8593450bfeaeea13ed0b1849976dce15b7479d7095d998540a",
+      "bytes": 6293,
+      "mime": "image/png",
+      "dimensions": [
+        552,
+        77
+      ],
+      "png": "outlook-hotline-label-inktop-v1.png",
+      "png_sha256": "37683e55f5469c8593450bfeaeea13ed0b1849976dce15b7479d7095d998540a",
+      "output": "/m/37683e55f5.png"
     }
   ],
   "targets": {
@@ -717,6 +834,56 @@ MANIFEST = json.loads(r"""{
         126,
         102
       ]
+    },
+    "/m/0b9b8d55f6.png": {
+      "source": "zug-dampf-outlook-brand-v1-light.png",
+      "sha256": "0b9b8d55f6a2343198a721915fe2fa2e61df6eb1e52f72bb91f32a4c4a2a5258",
+      "bytes": 7371,
+      "mime": "image/png",
+      "dimensions": [
+        695,
+        151
+      ]
+    },
+    "/m/d8370fc0cc.png": {
+      "source": "zug-dampf-outlook-brand-v1-dark.png",
+      "sha256": "d8370fc0cc4d87ddad0a076cb5c2468e36ad1f5667966418cbfc2c519bd878b3",
+      "bytes": 4411,
+      "mime": "image/png",
+      "dimensions": [
+        695,
+        151
+      ]
+    },
+    "/m/b6d051cacd.png": {
+      "source": "zug-dampf-outlook-brand-v1-light-mirrored.png",
+      "sha256": "b6d051cacd77535d71366db071b9c077fdbd7d4d487eb369fed2a77fbe142792",
+      "bytes": 7572,
+      "mime": "image/png",
+      "dimensions": [
+        695,
+        151
+      ]
+    },
+    "/m/917e8f055d.png": {
+      "source": "zug-dampf-outlook-brand-v1-dark-mirrored.png",
+      "sha256": "917e8f055d74b6e4b2294df05fb74079cfb5e8526902cc87fda2e260b658861b",
+      "bytes": 4566,
+      "mime": "image/png",
+      "dimensions": [
+        695,
+        151
+      ]
+    },
+    "/m/37683e55f5.png": {
+      "source": "outlook-hotline-label-inktop-v1.png",
+      "sha256": "37683e55f5469c8593450bfeaeea13ed0b1849976dce15b7479d7095d998540a",
+      "bytes": 6293,
+      "mime": "image/png",
+      "dimensions": [
+        552,
+        77
+      ]
     }
   }
 }""")
@@ -909,8 +1076,8 @@ def main() -> int:
     parser.add_argument("--check", action="store_true", help="Verify exact existing outputs without writing files or directories")
     arguments = parser.parse_args()
     try:
-        if len(MANIFEST["sources"]) != 33 or len(MANIFEST["targets"]) != 25:
-            raise ValueError("The approved 33-source / 25-target inventory changed")
+        if len(MANIFEST["sources"]) != 42 or len(MANIFEST["targets"]) != 30:
+            raise ValueError("The approved 42-source / 30-target inventory changed")
         report = build_assets(check=arguments.check)
     except (OSError, ValueError, SyntaxError) as error:
         print("Static linked asset verification failed: " + str(error), file=sys.stderr)

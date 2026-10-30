@@ -13,7 +13,7 @@ const image = (name, width, height, attributes = '') => `<img src="https://mail.
 function fixture(combined = false) {
     const logo = table('class="rt-personal-logo-frame"', image('0000000001', '160', '27'));
     const column = (role, name, content) => table(`class="${name} rt-v10-column" width="240" style="width:240px;max-width:100%;table-layout:fixed;border-collapse:collapse;"`, content,
-        `class="rt-v9-${role}-cell" align="left" dir="ltr" style="padding:0 40px;text-align:left;direction:ltr;"`);
+        `class="rt-v9-${role}-cell" align="left" dir="ltr" style="padding:0 12px 0 40px;text-align:left;direction:ltr;"`);
     const person = column('person', 'rt-personal-left', logo + '<p>Synthetic person</p><p>Role</p><p>person@example.test</p>');
     const company = column('company', 'rt-personal-right', '<p>Synthetic company address</p><p>company@example.test</p>');
     const dispatch = column('dispatch', 'rt-dispatch-column', image('0000000002', '160', '30') + '<p>Dispo 24/7 erreichbar</p><a href="tel:+490123456789">0123456789</a>');
@@ -62,6 +62,12 @@ test('v10 recovery has only pure owned ID rules and never turns inner tables int
     const html = fixture(), plan = prepareNativeLayoutRestore(html, standaloneSignatureContract(html), nonce);
     const css = nativeLayoutRestoreCss(plan.ids), responsive = nativeLayoutRestoreResponsiveCss(plan.ids);
     for (const suffix of ['p', 'c', 'd']) assert.match(css, new RegExp('-' + suffix + '\\{[^}]*display:table!important;float:none!important;[^}]*width:100%!important;'));
+    for (const suffix of ['a', 'b', 'e']) {
+        assert.match(css, new RegExp('-' + suffix + '\\{padding-left:40px!important;padding-right:12px!important;'));
+        assert.match(responsive, new RegExp('-' + suffix + '\\{padding-left:18px!important;padding-right:18px!important;'));
+    }
+    assert.match(css, /-g\{padding-left:0!important;padding-right:40px!important;/);
+    assert.match(css, /-f\{padding-left:40px!important;padding-right:40px!important;/);
     assert.match(css, /-u\{display:block!important;padding:0!important;font-size:0!important;line-height:0!important;text-align:left!important;\}/);
     assert.doesNotMatch(css + responsive, /[>+~]|float:left|word-break|background(?:-color)?|display:none/);
     for (const [, selector] of (css + responsive).replace('@media(max-width:600px){', '').matchAll(/([^{}]+)\{[^{}]*\}/g)) assert.match(selector, /^#rt-native-layout-[0-9a-f]{32}-[rpctsfqwkdaebgou]$/);
@@ -84,6 +90,7 @@ test('v10 rejects V9 floating rewrites, missing cells, extra wrappers and incorr
         html => html.replace('class="rt-personal-left rt-v10-column"', 'align="left" class="rt-personal-left rt-v10-column"'),
         html => html.replace('style="width:240px;max-width:100%;table-layout:', 'style="float:left;width:240px;max-width:100%;table-layout:'),
         html => html.replace('width="324" height="70"', 'width="200" height="43"'),
+        html => html.replace('padding:0 12px 0 40px', 'padding:0 40px'),
     ]) {
         const changed = mutate(fixture());
         assert.throws(() => prepareNativeLayoutRestore(changed, standaloneSignatureContract(changed), nonce));
@@ -91,6 +98,7 @@ test('v10 rejects V9 floating rewrites, missing cells, extra wrappers and incorr
     const html = fixture(), plan = prepareNativeLayoutRestore(html, standaloneSignatureContract(html), nonce), body = rewritten(plan.html);
     for (const mutate of [
         value => value.replace('display:inline-block;width:240px', 'display:inline-block;width:241px'),
+        value => value.replace('padding:0 12px 0 40px', 'padding:0 40px'),
         value => value.replace('colspan="3"', 'colspan="2"'),
         value => value.replace('display:block;padding:0;font-size:0', 'display:block;padding:0;font-size:1px'),
         value => value.replace('style="border-top:', 'id="foreign" style="border-top:'),

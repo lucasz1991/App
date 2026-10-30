@@ -12,7 +12,7 @@ final class OutlookThreeCellPresentation
 {
     public const FLOW = 'outlook-desktop-flow-v10';
 
-    public const REVISION = 'outlook-three-cell-presentation-v1';
+    public const REVISION = 'outlook-three-cell-presentation-v2';
 
     private const TOKENS = '~<!doctype\b[^>]*>|<!--.*?-->|<style\b(?:[^"\'<>]|"[^"]*"|\'[^\']*\')*>.*?</style\s*>|</?[a-z][a-z0-9:-]*(?:[^"\'<>]|"[^"]*"|\'[^\']*\')*>~is';
 
@@ -92,6 +92,7 @@ final class OutlookThreeCellPresentation
             $classes = str_replace('rt-v9-column', 'rt-v10-column', $column['attrs']['class']);
             $opening = self::opening($column, ['class' => $classes, 'align' => null, 'style' => 'width:240px;max-width:100%;table-layout:fixed;border-collapse:collapse;mso-table-lspace:0pt;mso-table-rspace:0pt;']);
             $content = $opening.substr($html, $column['openEnd'], $column['end'] - $column['openEnd']);
+            $content = self::columnGutter($content);
             if ($position === 2) {
                 $content = self::dispatchLeaf($content);
             }
@@ -118,10 +119,11 @@ final class OutlookThreeCellPresentation
             self::fail();
         }
         $html = self::legalLeaves($html);
+        $html = self::framePaint($html);
         $html = str_replace($oldScope, $scope, $html);
         $css = '.'.$scope.'.rt-v10-columns{width:720px!important;max-width:100%!important;direction:ltr!important;text-align:left!important;}'
             .'.'.$scope.' .rt-v10-column{width:240px!important;max-width:100%!important;float:none!important;border:0!important;}'
-            .'.'.$scope.' .rt-v9-cell{padding:0 40px!important;}'
+            .'.'.$scope.' .rt-v9-cell{padding:0 12px 0 40px!important;}'
             .'.'.$scope.' .rt-df-train{width:364px!important;max-width:100%!important;border:0!important;}'
             .'.'.$scope.' .rt-personal-logo-frame{width:160px!important;max-width:100%!important;border:0!important;background-color:transparent!important;}'
             .'.'.$scope.' .rt-v9-address{word-break:normal!important;overflow-wrap:anywhere!important;}'
@@ -148,6 +150,49 @@ final class OutlookThreeCellPresentation
         self::assertCurrent($html, $nodes, $newRoots[0]);
 
         return $html;
+    }
+
+    private static function columnGutter(string $html): string
+    {
+        $nodes = self::nodes($html);
+        $roots = array_keys(array_filter($nodes, static fn (array $node): bool => $node['parent'] === null && $node['tag'] === 'table'));
+        if (count($roots) !== 1) {
+            self::fail();
+        }
+        $row = self::singleRow($html, $nodes, $roots[0]);
+        $cell = $nodes[self::singleChild($html, $nodes, $row, 'td')];
+        $style = str_replace('padding:0 40px;', 'padding:0 12px 0 40px;', $cell['attrs']['style'] ?? '', $changed);
+        if ($changed !== 1) {
+            self::fail();
+        }
+
+        return substr_replace($html, self::opening($cell, ['style' => $style]), $cell['start'], $cell['openEnd'] - $cell['start']);
+    }
+
+    /** Word retains individual TD borders, while it discards this border on the outer TABLE. */
+    private static function framePaint(string $html): string
+    {
+        $nodes = self::nodes($html);
+        $edits = [];
+        foreach ($nodes as $index => $node) {
+            if ($node['tag'] !== 'table' || (! self::has($node, 'rt-managed-combined-v1')
+                && (! self::has($node, 'rt-managed-signature-v1') || self::has($node, 'rt-combined-signature-frame')))) {
+                continue;
+            }
+            $style = preg_replace('/border-left\s*:\s*(?:3|6)px\s+solid\s+#e90032(?:\s*!important)?\s*;/i', 'border-left:0!important;', $node['attrs']['style'] ?? '', -1, $changed);
+            if ($changed !== 1) {
+                self::fail();
+            }
+            $edits[] = [$node['start'], $node['openEnd'] - $node['start'], self::opening($node, ['style' => $style])];
+            $body = self::singleChild($html, $nodes, $index, 'tbody');
+            foreach (self::direct($nodes, $body) as $row) {
+                $cell = $nodes[self::singleChild($html, $nodes, $row, 'td')];
+                $cellStyle = rtrim($cell['attrs']['style'] ?? '', ';').';border-left:3px solid #e90032!important;';
+                $edits[] = [$cell['start'], $cell['openEnd'] - $cell['start'], self::opening($cell, ['style' => $cellStyle])];
+            }
+        }
+
+        return self::replace($html, $edits);
     }
 
     /** Word imports the phone anchor into a fresh character run without its inherited paint. */
