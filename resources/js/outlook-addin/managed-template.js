@@ -371,6 +371,11 @@ export function standaloneSignatureContract(html, currentHtml = html, ids = null
             for (const [key, suffix] of [['dispatch', 'd'], ['personCell', 'a'], ['companyCell', 'b'], ['dispatchCell', 'e'], ['trainCell', 'g'], ['lineCell', 'o']]) {
                 if (elements.some(node => (node.attrs.id || '').endsWith(retained[1] + suffix))) inferred[key] = retained[1] + suffix;
             }
+            // Only V9's retained dispatch anchor permits structural TD recovery.
+            // The readback guard still proves each direct cell and inline fallback.
+            if (inferred.dispatch) {
+                for (const [key, suffix] of [['personCell', 'a'], ['companyCell', 'b'], ['dispatchCell', 'e'], ['trainCell', 'g'], ['lineCell', 'o'], ['footer', 'f']]) inferred[key] = retained[1] + suffix;
+            }
             const trainImages = ['j', 'k'].filter(suffix => elements.some(node => (node.attrs.id || '').endsWith(retained[1] + suffix)));
             if (trainImages.length > 1) unavailable();
             if (trainImages.length === 1) inferred.trainImage = retained[1] + trainImages[0];

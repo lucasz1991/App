@@ -1,5 +1,5 @@
 import { hasUnquotedSignatureLayoutCarrier, managedTemplateContract, managedTemplateReplacement, standaloneSignatureContract } from './managed-template.js';
-import { createNativeLayoutNonce, nativeLayoutRestoreCarrierIsExternal, nativeLayoutRestoreCarrierPresent, nativeLayoutRestoreCellsAligned, nativeLayoutRestoreCss, nativeLayoutRestoreRetained, prepareNativeLayoutRestore, removeNativeLayoutRestoreCarrier } from './native-layout-restore.js';
+import { createNativeLayoutNonce, nativeLayoutClearBarrier, nativeLayoutReadbackContract, nativeLayoutRestoreCarrierIsExternal, nativeLayoutRestoreCarrierPresent, nativeLayoutRestoreCellsAligned, nativeLayoutRestoreCss, nativeLayoutRestoreRetained, prepareNativeLayoutRestore, removeNativeLayoutRestoreCarrier } from './native-layout-restore.js';
 import { confirmedOfficeWrite, markSignatureWriteConfirmed } from './office-write.js';
 
 // Automatic insertion only prepends. Explicit taskpane replacement below owns
@@ -839,8 +839,9 @@ function insetImageWidth(node) {
 }
 
 function layoutIdsContract(html, currentHtml, ids, standalone = null, cleanup = false) {
-    const contract = standalone || managedTemplateContract(html, currentHtml);
+    let contract = standalone || managedTemplateContract(html, currentHtml);
     if (!['text-v1', 'standalone-signature-v1'].includes(contract.kind)) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
+    try { contract = nativeLayoutReadbackContract(html, contract, ids); } catch { throw failure('TEMPLATE_LAYOUT_UNCONFIRMED'); }
     const targets = {};
     for (const key of Object.keys(ids)) {
         // Count every matching ID in the whole body, including quoted history.
@@ -869,7 +870,7 @@ function layoutIdsContract(html, currentHtml, ids, standalone = null, cleanup = 
     const groups = children(cells[0]);
     const order = [...(targets.logo ? [targets.logo.index] : []), targets.person.index, targets.company.index, ...(targets.dispatch ? [targets.dispatch.index] : []), ...(legacy ? [targets.train.index] : [])];
     if (groups.length !== order.length + (targets.dispatch ? 1 : 0) || groups.slice(0, order.length).some((value, index) => value.index !== order[index])
-        || (targets.dispatch && (groups[3].node.tag !== 'br' || (groups[3].node.attrs.clear || '').toLowerCase() !== 'all'))
+        || (targets.dispatch && !nativeLayoutClearBarrier(contract, groups[3].index, html))
         || (!legacy && only(cells[1], 'table') !== targets.train.index)
         || (targets.header && withinContract(contract, targets.header.index, targets.root.index))) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
     if (!legacy) {
@@ -963,6 +964,9 @@ function removePreviousLayoutSheet(html, contract) {
         && [base + 'h', 'x_' + base + 'h'].includes(node.attrs.id))) ids.header = base + 'h';
     if (contract.elements.some((node, index) => withinContract(contract, index, contract.signature.index)
         && [base + 's', 'x_' + base + 's'].includes(node.attrs.id))) ids.signature = base + 's';
+    if (ids.dispatch && ids.signature) {
+        for (const [key, suffix] of [['personCell', 'a'], ['companyCell', 'b'], ['dispatchCell', 'e'], ['trainCell', 'g'], ['lineCell', 'o'], ['footer', 'f']]) ids[key] = base + suffix;
+    }
     try { layoutIdsContract(html, html.slice(0, contract.root.end), ids, null, true); } catch { return html; }
     const withoutCarrier = removeNativeLayoutRestoreCarrier(html, contract, ids);
     if (withoutCarrier !== html) return withoutCarrier;

@@ -114,10 +114,13 @@ function threeColumnRestoreCss(ids) {
 function threeColumnRestoreRules(ids) {
     const rule = (key, declarations) => responsiveRestoreRule(ids, key, declarations);
     const media = ['person', 'company', 'dispatch', 'train'].map(key => rule(key, 'width:100%!important;min-width:0!important;max-width:' + (key === 'train' ? '364px' : '100%') + '!important;float:none!important;clear:both!important;'));
-    for (const key of ['personCell', 'companyCell', 'dispatchCell']) media.push(rule(key, 'padding-left:18px!important;padding-right:18px!important;'));
-    media.push(rule('trainCell', 'padding-right:18px!important;'));
-    if (ids.footer) media.push(rule('footer', 'padding-left:18px!important;padding-right:18px!important;'));
-    if (ids.templateGutter) media.push(rule('templateGutter', 'border-left-width:18px!important;border-right-width:18px!important;'));
+    // Outlook can discard TD IDs while retaining TABLE IDs. Keep this family's
+    // mobile gutter equal to its inline fallback so template and signature
+    // remain aligned even when only the template's TABLE rule survives.
+    for (const key of ['personCell', 'companyCell', 'dispatchCell']) media.push(rule(key, 'padding-left:40px!important;padding-right:40px!important;'));
+    media.push(rule('trainCell', 'padding-right:40px!important;'));
+    if (ids.footer) media.push(rule('footer', 'padding-left:40px!important;padding-right:40px!important;'));
+    if (ids.templateGutter) media.push(rule('templateGutter', 'border-left-width:40px!important;border-right-width:40px!important;'));
     return { base: [], media };
 }
 
@@ -427,6 +430,88 @@ function inlineCellProperties(style) {
     });
 }
 
+/** Outlook replaces our empty clear BR with one zero-line, style-only DIV. */
+export function nativeLayoutClearBarrier(contract, index, html = contract?.nativeReadbackHtml) {
+    const nodes = contract?.elements, node = nodes?.[index];
+    if (node?.tag === 'br') return (node.attrs.clear || '').toLowerCase() === 'all';
+    if (node?.tag !== 'div' || typeof html !== 'string' || Object.keys(node.attrs).some(name => name !== 'style')) return false;
+    const content = children(nodes, index);
+    if (content.length !== 1 || content[0].node.tag !== 'br' || Object.keys(content[0].node.attrs).length
+        || (html.slice(node.openEnd, content[0].node.start) + html.slice(content[0].node.end, node.close)).trim()) return false;
+    const properties = inlineCellProperties(node.attrs.style || '');
+    return properties.every(([name, value]) => ['direction', 'font-family', 'font-size', 'line-height', 'color'].includes(name)
+        && (name !== 'direction' || value === 'ltr'))
+        && properties.some(([name, value]) => name === 'font-size' && /^0(?:px|pt)?$/.test(value))
+        && properties.some(([name, value]) => name === 'line-height' && /^0(?:px|pt)?$/.test(value));
+}
+
+/**
+ * Office drops TD IDs, while retaining the V9 operation's TABLE anchors. Bind
+ * only their proven direct cells in memory; never rewrite user HTML or emit a
+ * descendant CSS selector. Their inline 40px fallback remains authoritative.
+ */
+export function nativeLayoutReadbackContract(html, contract, ids) {
+    idsScope(ids);
+    if (!ids.dispatch) return contract;
+    const original = contract?.elements;
+    if (typeof html !== 'string' || !Array.isArray(original) || !Number.isInteger(contract.signature?.index)) invalid();
+    const nodes = original.slice(), anchors = {}, virtual = new Set(contract.nativeVirtualCellKeys || []);
+    const matches = key => nodes.map((node, index) => ({ node, index })).filter(value => typeof value.node.attrs.id === 'string' && value.node.attrs.id.endsWith(ids[key]));
+    for (const key of Object.keys(ids).filter(key => !key.endsWith('Cell') && key !== 'footer')) {
+        const found = matches(key), owner = key === 'templateGutter' ? contract.template?.index : contract.signature.index;
+        if (found.length !== 1 || found[0].node.tag !== targetTag(ids, key)
+            || ![ids[key], 'x_' + ids[key]].includes(found[0].node.attrs.id)
+            || !Number.isInteger(owner) || !within(nodes, found[0].index, owner) || isQuoted(nodes, found[0].index)) invalid();
+        anchors[key] = found[0];
+    }
+    if (anchors.signature?.index !== contract.signature.index) invalid();
+    const rows = children(nodes, onlyChild(nodes, anchors.signature.index, 'tbody').index);
+    if (rows.length !== 2 || rows.some(value => value.node.tag !== 'tr')) invalid();
+    const first = onlyChild(nodes, rows[0].index, 'td'), last = onlyChild(nodes, rows[1].index, 'td');
+    if (!within(nodes, anchors.root.index, first.index)) invalid();
+    const directCell = table => onlyChild(nodes, onlyChild(nodes, onlyChild(nodes, table.index, 'tbody').index, 'tr').index, 'td');
+    const candidates = { lineCell: first };
+    for (const key of ['person', 'company', 'dispatch', 'train']) candidates[key + 'Cell'] = directCell(anchors[key]);
+    if (ids.footer) {
+        const tables = children(nodes, last.index).filter(value => value.node.tag === 'table');
+        if (tables.length !== 1) invalid();
+        candidates.footer = directCell(tables[0]);
+        if (!Number.isInteger(contract.signatureMetadata?.managed) || !Number.isInteger(contract.signatureMetadata?.version)
+            || !within(nodes, contract.signatureMetadata.managed, last.index) || !within(nodes, contract.signatureMetadata.version, last.index)
+            || within(nodes, contract.signatureMetadata.managed, candidates.footer.index) || within(nodes, contract.signatureMetadata.version, candidates.footer.index)) invalid();
+    }
+    for (const [key, candidate] of Object.entries(candidates)) {
+        const found = matches(key);
+        if (found.length) {
+            if (found.length !== 1 || found[0].index !== candidate.index || ![ids[key], 'x_' + ids[key]].includes(found[0].node.attrs.id)) invalid();
+            if (!virtual.has(key)) continue;
+        } else if (owns(candidate.node.attrs, 'id')) invalid();
+        const properties = inlineCellProperties(candidate.node.attrs.style || '');
+        const values = new Map(properties);
+        const padding = { top: '0', right: '0', bottom: '0', left: '0' };
+        for (const [name, value] of properties) {
+            if (name === 'padding') {
+                const parts = value.split(/\s+/);
+                if (parts.length < 1 || parts.length > 4 || parts.some(part => !/^(?:0|\d+px)$/.test(part))) invalid();
+                [padding.top, padding.right, padding.bottom, padding.left] = [parts[0], parts[1] || parts[0], parts[2] || parts[0], parts[3] || parts[1] || parts[0]];
+            } else if (/^padding-(?:top|right|bottom|left)$/.test(name)) padding[name.slice(8)] = value;
+        }
+        if (key === 'lineCell') {
+            const border = (values.get('border-top') || '').replace(/\s+/g, '').toLowerCase();
+            if (!['3pxsolid#e90032', '3pxsolidrgb(233,0,50)'].includes(border)) invalid();
+        } else {
+            if (padding.right !== '40px' || (key === 'trainCell' ? !/^0(?:px)?$/.test(padding.left) : padding.left !== '40px')) invalid();
+            if (values.has('line-height') && values.get('line-height') !== (key === 'footer' ? '14px' : key === 'trainCell' ? '0' : '16px')
+                && !(key === 'trainCell' && values.get('line-height') === '0px')) invalid();
+            if (values.has('font-size') && values.get('font-size') !== (key === 'footer' ? '9px' : key === 'trainCell' ? '0' : '13px')
+                && !(key === 'trainCell' && values.get('font-size') === '0px')) invalid();
+        }
+        virtual.add(key);
+        nodes[candidate.index] = { ...candidate.node, attrs: { ...candidate.node.attrs, id: anchors.root.node.attrs.id.startsWith('x_') ? 'x_' + ids[key] : ids[key] } };
+    }
+    return { ...contract, elements: nodes, nativeVirtualCellKeys: [...virtual], nativeReadbackHtml: html };
+}
+
 /** Parent TABLE recovery cannot defeat an explicit opposite direct TD value. */
 export function nativeLayoutRestoreCellsAligned(contract, ids) {
     idsScope(ids);
@@ -454,7 +539,7 @@ export function nativeLayoutRestoreCellsAligned(contract, ids) {
         const rows = children(nodes, onlyChild(nodes, tables.root.index, 'tbody').index);
         const groups = children(nodes, onlyChild(nodes, rows[0].index, 'td').index);
         if (groups.length !== 4 || groups.slice(0, 3).some((value, index) => value.index !== tables[['person', 'company', 'dispatch'][index]].index)
-            || groups[3].node.tag !== 'br' || (groups[3].node.attrs.clear || '').toLowerCase() !== 'all'
+            || !nativeLayoutClearBarrier(contract, groups[3].index)
             || onlyChild(nodes, onlyChild(nodes, rows[1].index, 'td').index, 'table').index !== tables.train.index) invalid();
         for (const role of ['person', 'company', 'dispatch', 'train']) {
             const cell = onlyChild(nodes, onlyChild(nodes, onlyChild(nodes, tables[role].index, 'tbody').index, 'tr').index, 'td');
@@ -485,6 +570,7 @@ export function nativeLayoutRestoreCarrierPresent(html, contract, ids) {
 
 function retainedCarrier(html, contract, ids, legacyColumns = false) {
     const scope = idsScope(ids);
+    contract = nativeLayoutReadbackContract(html, contract, ids);
     const nodes = contract?.elements;
     if (typeof html !== 'string' || !Array.isArray(nodes) || !contract.root || !contract.signature) invalid();
     const standalone = contract.kind === 'standalone-signature-v1';
@@ -557,7 +643,7 @@ function retainedCarrier(html, contract, ids, legacyColumns = false) {
     const retainedCss = html.slice(core[0].node.openEnd, core[0].node.close);
     for (const key of Object.keys(ids)) {
         const selectors = retainedCss.match(new RegExp('#(?:x_)?' + ids[key] + '(?![\\w-])', 'g')) || [];
-        if (!selectors.length || selectors.some(selector => selector !== '#' + actualIds[key])) invalid();
+        if (!selectors.length || (!contract.nativeVirtualCellKeys?.includes(key) && selectors.some(selector => selector !== '#' + actualIds[key]))) invalid();
     }
     const exactSheets = nodes.filter(node => node.tag === 'style' && normalizedRestoreCss(html.slice(node.openEnd, node.close), ids) === css);
     if (exactSheets.length !== 1 || normalizedRestoreCss(retainedCss, ids) !== css) invalid();
@@ -566,7 +652,7 @@ function retainedCarrier(html, contract, ids, legacyColumns = false) {
         if ((!ids.logo && !ids.dispatch) || !approvedResponsiveSubset(optionalCss, ids, legacyColumns)) invalid();
         for (const key of Object.keys(ids)) {
             const selectors = optionalCss.match(new RegExp('#(?:x_)?' + ids[key] + '(?![\\w-])', 'g')) || [];
-            if (selectors.some(selector => selector !== '#' + actualIds[key])) invalid();
+            if (!contract.nativeVirtualCellKeys?.includes(key) && selectors.some(selector => selector !== '#' + actualIds[key])) invalid();
         }
     }
     const metadata = spans[0].node;
@@ -585,6 +671,7 @@ function retainedCarrier(html, contract, ids, legacyColumns = false) {
 /** A success callback is insufficient: a fresh SDK read must retain this exact owned CSS carrier. */
 export function nativeLayoutRestoreRetained(html, contract, ids) {
     if ((ids?.logo || ids?.dispatch) && !ids.window) invalid();
+    contract = nativeLayoutReadbackContract(html, contract, ids);
     retainedCarrier(html, contract, ids);
     nativeLayoutRestoreCellsAligned(contract, ids);
     return true;

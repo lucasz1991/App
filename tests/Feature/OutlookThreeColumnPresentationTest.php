@@ -163,7 +163,7 @@ final class OutlookThreeColumnPresentationTest extends TestCase
 
     private function legacySystem(): array
     {
-        return json_decode(file_get_contents(__DIR__.'/../Fixtures/Mail/r70-legacy-system-source.json'), true, 512, JSON_THROW_ON_ERROR);
+        return json_decode(file_get_contents(__DIR__.'/../Fixtures/mail/r70-legacy-system-source.json'), true, 512, JSON_THROW_ON_ERROR);
     }
 
     private function xpath(string $html): DOMXPath
