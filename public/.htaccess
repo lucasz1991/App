@@ -31,6 +31,11 @@ AddType application/manifest+json .webmanifest
     RewriteCond %{REQUEST_URI} (.+)/$
     RewriteRule ^ %1 [L,R=301]
 
+    # The Classic manifest uses this stable URL. Let the runtime controller
+    # apply its no-store policy instead of Apache serving the existing file.
+    RewriteCond %{QUERY_STRING} ^$
+    RewriteRule ^outlook-addin/runtime\.js$ index.php [L]
+
     # Send Requests To Front Controller...
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_FILENAME} !-f

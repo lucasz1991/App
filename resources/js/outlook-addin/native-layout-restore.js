@@ -461,13 +461,17 @@ function inlineCellProperties(style) {
 
 const FLUID_FLOW = 'outlook-desktop-flow-v11';
 const FLAT_FLUID_FLOW = 'outlook-desktop-flow-v12';
+const REFERENCE_FLUID_FLOW = 'outlook-desktop-flow-v13';
 const FLUID_COLUMNS = [
     ['identity', 176, 16], ['direct', 204, 0], ['company', 172, 12], ['dispatch', 164, 4],
+];
+const REFERENCE_FLUID_COLUMNS = [
+    ['identity', 200, 16], ['direct', 260, 16], ['company', 230, 16], ['dispatch', 247, 20],
 ];
 
 export function isFluidLayoutSource(contract) {
     return Array.isArray(contract?.elements) && Number.isInteger(contract.signature?.index)
-        && contract.elements.some((node, index) => [FLUID_FLOW, FLAT_FLUID_FLOW].includes(node.attrs['data-rt-desktop-flow']) && within(contract.elements, index, contract.signature.index));
+        && contract.elements.some((node, index) => [FLUID_FLOW, FLAT_FLUID_FLOW, REFERENCE_FLUID_FLOW].includes(node.attrs['data-rt-desktop-flow']) && within(contract.elements, index, contract.signature.index));
 }
 
 function fluidPixels(value) {
@@ -491,6 +495,20 @@ function fluidNumber(node, name, expected) {
     const properties = new Map(inlineCellProperties(node.attrs.style || ''));
     const values = [node.attrs[name], properties.get(name)].filter(value => value !== undefined);
     return values.length > 0 && values.every(value => Math.abs(fluidPixels(value) - expected) < 0.05);
+}
+
+function referenceImage(node, width, height, source) {
+    fluidOuterSafe(node);
+    const style = new Map(inlineCellProperties(node.attrs.style || ''));
+    if ((owns(node.attrs, 'width') && !(Math.abs(fluidPixels(node.attrs.width) - width) < 0.05))
+        || (owns(node.attrs, 'height') && !(Math.abs(fluidPixels(node.attrs.height) - height) < 0.05))
+        || (style.has('width') && style.get('width') !== '100%' && !(Math.abs(fluidPixels(style.get('width')) - width) < 0.05))
+        || (style.has('height') && style.get('height') !== 'auto' && !(Math.abs(fluidPixels(style.get('height')) - height) < 0.05))) return false;
+    const widthBound = Math.abs(fluidPixels(node.attrs.width ?? style.get('width')) - width) < 0.05
+        || (style.get('width') === '100%' && style.get('max-width') === '100%');
+    const heightBound = Math.abs(fluidPixels(node.attrs.height ?? style.get('height')) - height) < 0.05
+        || (!source && style.get('height') === 'auto');
+    return widthBound && heightBound;
 }
 
 function fluidOuterSafe(node) {
@@ -525,19 +543,19 @@ export function verifyFluidLayoutMaterial(html, contract, source = false) {
     const scoped = nodes.map((node, index) => ({ node, index })).filter(value => within(nodes, value.index, signature.index) && !isQuoted(nodes, value.index));
     let root, columns, family;
     if (source) {
-        const candidates = scoped.filter(value => [FLUID_FLOW, FLAT_FLUID_FLOW].includes(value.node.attrs['data-rt-desktop-flow']));
+        const candidates = scoped.filter(value => [FLUID_FLOW, FLAT_FLUID_FLOW, REFERENCE_FLUID_FLOW].includes(value.node.attrs['data-rt-desktop-flow']));
         if (candidates.length !== 1 || candidates[0].node.tag !== 'table') invalid();
         root = candidates[0];
-        family = root.node.attrs['data-rt-desktop-flow'] === FLAT_FLUID_FLOW ? 12 : 11;
-        if (!has(root.node, 'rt-v' + family + '-columns') || (family === 12 && !has(root.node, 'rt-sign-content-frame'))) invalid();
+        family = root.node.attrs['data-rt-desktop-flow'] === REFERENCE_FLUID_FLOW ? 13 : root.node.attrs['data-rt-desktop-flow'] === FLAT_FLUID_FLOW ? 12 : 11;
+        if (!has(root.node, 'rt-v' + family + '-columns') || (family >= 12 && !has(root.node, 'rt-sign-content-frame'))) invalid();
         const scopes = (signature.node.attrs.class || '').split(/\s+/).filter(name => /^rts[0-9a-f]{10}$/.test(name));
-        const hosts = (root.node.attrs.class || '').split(/\s+/).filter(name => /^rt-df(?:[0-9]|10|11|12)[0-9a-f]{10}$/.test(name));
+        const hosts = (root.node.attrs.class || '').split(/\s+/).filter(name => /^rt-df(?:[0-9]|10|11|12|13)[0-9a-f]{10}$/.test(name));
         if (scopes.length !== 1 || hosts.length !== 1 || hosts[0] !== 'rt-df' + family + scopes[0].slice(3)
             || root.node.attrs['data-rt-personal-flow'] !== 'v1' || root.node.attrs['data-rt-personal-columns'] !== 'v1') invalid();
     } else {
         if (!contract.fluidLayout) invalid();
         family = contract.fluidLayout.family;
-        if (![11, 12].includes(family)) invalid();
+        if (![11, 12, 13].includes(family)) invalid();
         const floats = scoped.filter(value => value.node.tag === 'table' && (value.node.attrs.align || '').toLowerCase() === 'left');
         if (floats.length !== 4 || floats.some(value => value.node.parent !== floats[0].node.parent)) invalid();
         let index = floats[0].node.parent;
@@ -548,7 +566,7 @@ export function verifyFluidLayoutMaterial(html, contract, source = false) {
     }
     const rootProperties = new Map(inlineCellProperties(root.node.attrs.style || ''));
     if (source && family === 11 && rootProperties.get('max-width') !== '734px') invalid();
-    if (family === 12 && rootProperties.has('max-width') && !['100%', 'none'].includes(rootProperties.get('max-width'))) invalid();
+    if (family >= 12 && rootProperties.has('max-width') && !['100%', 'none'].includes(rootProperties.get('max-width'))) invalid();
     if (!source && family === 11 && rootProperties.has('max-width') && rootProperties.get('max-width') !== '100%'
         && Math.abs(fluidPixels(rootProperties.get('max-width')) - 734) > 0.05) invalid();
     if ((root.node.attrs.width !== undefined && root.node.attrs.width !== '100%')
@@ -557,7 +575,7 @@ export function verifyFluidLayoutMaterial(html, contract, source = false) {
     for (let index = root.index; Number.isInteger(index) && within(nodes, index, contract.rootIndex); index = nodes[index].parent) {
         const node = nodes[index], properties = new Map(inlineCellProperties(node.attrs.style || ''));
         fluidOuterSafe(node);
-        if (family === 12 && index !== root.index && index !== signature.index && node.tag === 'table' && within(nodes, index, signature.index)) invalid();
+        if (family >= 12 && index !== root.index && index !== signature.index && node.tag === 'table' && within(nodes, index, signature.index)) invalid();
         if (node.tag === 'table' && ((node.attrs.width !== undefined && node.attrs.width !== '100%')
             || (properties.has('width') && !['100%', 'auto'].includes(properties.get('width'))))) invalid();
     }
@@ -568,11 +586,11 @@ export function verifyFluidLayoutMaterial(html, contract, source = false) {
     if (columns.length !== 4 || columns.some(value => value.node.parent !== cell.index)
         || columns.some((value, index) => items.filter(item => item.node.tag === 'table')[index]?.index !== value.index)) invalid();
     const gap = fluidPadding(cell.node);
-    if (Math.abs(gap.left - 18) > 0.05 || gap.right !== 0) invalid();
+    if (Math.abs(gap.left - 18) > 0.05 || gap.right !== 0 || (family === 13 && Math.abs(gap.top - 12) > 0.05)) invalid();
     const barriers = items.filter(value => value.node.tag !== 'table');
     if (!barriers.length || items[items.length - 1].node.tag === 'table' || barriers.some(value => !fluidBlank(html, nodes, value))
         || (source && (barriers.length !== 1 || barriers[0].node.tag !== 'br' || barriers[0].node.attrs.clear !== 'all'))) invalid();
-    for (const [index, [role, width, right]] of FLUID_COLUMNS.entries()) {
+    for (const [index, [role, width, right]] of (family === 13 ? REFERENCE_FLUID_COLUMNS : FLUID_COLUMNS).entries()) {
         const column = columns[index], properties = new Map(inlineCellProperties(column.node.attrs.style || ''));
         fluidOuterSafe(column.node);
         if (column.node.tag !== 'table' || column.node.attrs.align?.toLowerCase() !== 'left' || !fluidNumber(column.node, 'width', width)
@@ -585,9 +603,31 @@ export function verifyFluidLayoutMaterial(html, contract, source = false) {
             && (['left', 'right'].includes((node.attrs.align || '').toLowerCase())
                 || inlineCellProperties(node.attrs.style || '').some(([name, value]) => name === 'float' && value !== 'none'
                     || /^mso-table-anchor-|^mso-table-left$/.test(name))))) invalid();
+        if (family === 13 && role === 'identity') {
+            const logos = scoped.filter(value => value.node.tag === 'img' && within(nodes, value.index, column.index));
+            if (logos.length !== 1 || !referenceImage(logos[0].node, 184, 32, source)) invalid();
+        }
+        if (family === 13 && role === 'company') {
+            const links = scoped.filter(value => value.node.tag === 'a' && within(nodes, value.index, column.index));
+            if (links.length !== 1 || !/^https?:\/\//i.test(links[0].node.attrs.href || '')) invalid();
+            let row = links[0].node.parent;
+            while (Number.isInteger(row) && nodes[row].tag !== 'tr') row = nodes[row].parent;
+            if (!Number.isInteger(row) || !within(nodes, row, column.index)) invalid();
+            const contactRows = children(nodes, nodes[row].parent);
+            if (contactRows.length !== 2 || contactRows[0].index !== row || contactRows.some(value => value.node.tag !== 'tr')) invalid();
+            for (const contactRow of contactRows) {
+                const cells = children(nodes, contactRow.index);
+                if (cells.length !== 2 || cells.some(value => value.node.tag !== 'td') || !fluidNumber(cells[0].node, 'width', 27)
+                    || fluidPadding(cells[1].node).left !== 0 || fluidPadding(cells[1].node).right !== 0) invalid();
+            }
+        }
         if (role === 'direct') {
             const emails = scoped.filter(value => value.node.tag === 'a' && /^mailto:/i.test(value.node.attrs.href || '') && within(nodes, value.index, column.index));
             if (emails.length !== 1) invalid();
+            if (family === 13) {
+                const links = scoped.filter(value => value.node.tag === 'a' && within(nodes, value.index, column.index));
+                if (links[0]?.index !== emails[0].index || links.slice(1).some(value => !/^tel:/i.test(value.node.attrs.href || ''))) invalid();
+            }
             let row = emails[0].node.parent;
             while (Number.isInteger(row) && nodes[row].tag !== 'tr') row = nodes[row].parent;
             if (!Number.isInteger(row) || !within(nodes, row, column.index)) invalid();
@@ -597,22 +637,62 @@ export function verifyFluidLayoutMaterial(html, contract, source = false) {
             if (nodes.some((node, position) => within(nodes, position, values[1].index)
                 && (owns(node.attrs, 'nowrap') || inlineCellProperties(node.attrs.style || '').some(([name, value]) => name === 'white-space' && value === 'nowrap')))) invalid();
         }
+        if (family === 13 && role === 'dispatch') {
+            const block = onlyChild(nodes, content.index, 'table');
+            const blockCell = onlyChild(nodes, onlyChild(nodes, onlyChild(nodes, block.index, 'tbody').index, 'tr').index, 'td');
+            fluidOuterSafe(block.node); fluidOuterSafe(blockCell.node);
+            const blockPadding = fluidPadding(blockCell.node);
+            const blockStyle = new Map(inlineCellProperties(block.node.attrs.style || ''));
+            if ((owns(block.node.attrs, 'width') && block.node.attrs.width !== '100%')
+                || blockStyle.get('width') !== '100%' || !(Math.abs(fluidPixels(blockStyle.get('max-width')) - 227) < 0.05)
+                || (source && block.node.attrs.width !== '100%') || !Object.values(blockPadding).every(value => value === 0)
+                || (source && !has(block.node, 'rt-v13-dispatch-block'))) invalid();
+            const neutralBackground = value => ['none', 'transparent', 'white', '#fff', '#ffffff', 'rgb(255,255,255)'].includes(value.replace(/\s+/g, '').toLowerCase());
+            if (scoped.some(value => within(nodes, value.index, column.index) && (['background', 'data-rt-dispatch-card'].some(name => owns(value.node.attrs, name))
+                || (owns(value.node.attrs, 'bgcolor') && (source || !neutralBackground(value.node.attrs.bgcolor)))
+                || inlineCellProperties(value.node.attrs.style || '').some(([name, property]) => /^background(?:-|$)/.test(name) && (source || !neutralBackground(property)))))) invalid();
+            const actions = children(nodes, blockCell.index).filter(value => value.node.tag === 'table');
+            if (actions.length !== 1) invalid();
+            const slots = children(nodes, onlyChild(nodes, onlyChild(nodes, actions[0].index, 'tbody').index, 'tr').index);
+            if (slots.length !== 3 || slots.some(value => value.node.tag !== 'td')) invalid();
+            const images = scoped.filter(value => value.node.tag === 'img' && within(nodes, value.index, block.index));
+            const links = scoped.filter(value => value.node.tag === 'a' && within(nodes, value.index, block.index));
+            if (images.length !== 3 || links.length !== 3 || !referenceImage(images[0].node, 199, 28, source)
+                || !referenceImage(images[1].node, 25, 25, source) || !referenceImage(images[2].node, 25, 25, source)
+                || !/^mailto:/i.test(links[0].node.attrs.href || '') || !/^tel:/i.test(links[1].node.attrs.href || '')
+                || links[1].node.attrs.href !== links[2].node.attrs.href
+                || !links.every((value, index) => within(nodes, value.index, slots[index].index))
+                || !within(nodes, images[1].index, slots[0].index) || !within(nodes, images[2].index, slots[1].index)) invalid();
+            if (new Map(inlineCellProperties(images[0].node.attrs.style || '')).get('max-width') !== '100%'
+                || (source && !/(?:^|;)\s*max-width\s*:\s*100%\s*!important\s*(?:;|$)/i.test(images[0].node.attrs.style || ''))) invalid();
+            const phone = html.slice(links[2].node.openEnd, links[2].node.close).replace(/<[^>]*>/g, '').replace(/&nbsp;|&#160;|&#x0*a0;/gi, ' ').trim();
+            const digits = phone.replace(/\D/g, ''), target = links[2].node.attrs.href.slice(4).replace(/\D/g, '');
+            if (!digits || digits !== target || !scoped.some(value => within(nodes, value.index, links[2].index)
+                && Math.abs(fluidPixels(new Map(inlineCellProperties(value.node.attrs.style || '')).get('font-size')) - 13) < 0.05)) invalid();
+        }
     }
     const trainHost = onlyChild(nodes, rows[1].index, 'td');
     const train = onlyChild(nodes, trainHost.index, 'table');
     fluidOuterSafe(train.node);
     const trainCell = onlyChild(nodes, onlyChild(nodes, onlyChild(nodes, train.index, 'tbody').index, 'tr').index, 'td');
     const trainImages = scoped.filter(value => value.node.tag === 'img' && within(nodes, value.index, train.index));
-    if (!fluidNumber(train.node, 'width', 218) || owns(train.node.attrs, 'align') || trainImages.length !== 1
+    const trainWidth = family === 13 ? 547 : 218, imageWidth = family === 13 ? 529 : 200, imageHeight = family === 13 ? 115 : 43;
+    if (!fluidNumber(train.node, 'width', trainWidth) || owns(train.node.attrs, 'align') || trainImages.length !== 1
         || Math.abs(fluidPadding(trainCell.node).right - 18) > 0.05 || fluidPadding(trainCell.node).left !== 0) invalid();
     const image = trainImages[0].node, imageProperties = new Map(inlineCellProperties(image.attrs.style || ''));
-    const fixedImage = Math.abs(fluidPixels(image.attrs.width ?? imageProperties.get('width')) - 200) < 0.05
-        && Math.abs(fluidPixels(image.attrs.height ?? imageProperties.get('height')) - 43) < 0.05
-        && (!imageProperties.has('width') || imageProperties.get('width') === '100%' || Math.abs(fluidPixels(imageProperties.get('width')) - 200) < 0.05)
-        && (!imageProperties.has('height') || imageProperties.get('height') === 'auto' || Math.abs(fluidPixels(imageProperties.get('height')) - 43) < 0.05);
-    const boundedImage = (image.attrs.width === undefined || Math.abs(fluidPixels(image.attrs.width) - 200) < 0.05)
-        && (image.attrs.height === undefined || Math.abs(fluidPixels(image.attrs.height) - 43) < 0.05)
-        && (imageProperties.get('width') === '100%' || Math.abs(fluidPixels(imageProperties.get('width')) - 200) < 0.05)
+    if (family === 13) {
+        fluidOuterSafe(image);
+        const stageProperties = new Map(inlineCellProperties(train.node.attrs.style || ''));
+        if (stageProperties.get('max-width') !== '100%' || imageProperties.get('max-width') !== '100%'
+            || (source && [train.node, image].some(node => !/(?:^|;)\s*max-width\s*:\s*100%\s*!important\s*(?:;|$)/i.test(node.attrs.style || '')))) invalid();
+    }
+    const fixedImage = Math.abs(fluidPixels(image.attrs.width ?? imageProperties.get('width')) - imageWidth) < 0.05
+        && Math.abs(fluidPixels(image.attrs.height ?? imageProperties.get('height')) - imageHeight) < 0.05
+        && (!imageProperties.has('width') || imageProperties.get('width') === '100%' || Math.abs(fluidPixels(imageProperties.get('width')) - imageWidth) < 0.05)
+        && (!imageProperties.has('height') || imageProperties.get('height') === 'auto' || Math.abs(fluidPixels(imageProperties.get('height')) - imageHeight) < 0.05);
+    const boundedImage = (image.attrs.width === undefined || Math.abs(fluidPixels(image.attrs.width) - imageWidth) < 0.05)
+        && (image.attrs.height === undefined || Math.abs(fluidPixels(image.attrs.height) - imageHeight) < 0.05)
+        && (imageProperties.get('width') === '100%' || Math.abs(fluidPixels(imageProperties.get('width')) - imageWidth) < 0.05)
         && imageProperties.get('max-width') === '100%' && imageProperties.get('height') === 'auto';
     if (!fixedImage && (!boundedImage || source)) invalid();
     const signatureRows = children(nodes, onlyChild(nodes, signature.index, 'tbody').index);
@@ -632,7 +712,7 @@ function prepareFluidLayout(html, contract, nonce) {
     const versionNode = contract.elements[contract.signatureMetadata.version];
     const version = /RT-SIGNATURE-VERSION:([0-9a-f]{16})/i.exec(html.slice(versionNode.openEnd, versionNode.close))?.[1]?.toLowerCase();
     const scope = nonce === undefined ? createNativeLayoutNonce() : nonce;
-    if (!version || !/^[0-9a-f]{32}$/.test(scope) || /RT-FLUID-LAYOUT-V1[12]:/.test(html)) invalid();
+    if (!version || !/^[0-9a-f]{32}$/.test(scope) || /RT-FLUID-LAYOUT-V1[123]:/.test(html)) invalid();
     const marker = '<span hidden aria-hidden="true" style="display:none!important;font-size:0;line-height:0;">RT-FLUID-LAYOUT-V' + family + ':' + scope + ':' + version + '</span>';
     return Object.freeze({ html: html.slice(0, versionNode.end) + marker + html.slice(versionNode.end), sourceOnly: 'fluid-v' + family, family, nonce: scope, version, stylePayload: '', ids: null });
 }

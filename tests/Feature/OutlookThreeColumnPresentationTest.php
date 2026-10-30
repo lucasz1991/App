@@ -35,7 +35,7 @@ final class OutlookThreeColumnPresentationTest extends TestCase
         $canonical = app(OutlookAddinPayloadService::class)->forUser($user);
         $published = MailDocument::query()->orderBy('id')->get()->toArray();
         foreach ([$canonical, OutlookMobileSignature::payload($canonical)] as $source) {
-            $result = OutlookClientPresentation::payload($source);
+            $result = OutlookReferenceCardPresentationTest::historicalPayload($source);
             $html = $result['signature']['html'];
             $xpath = $this->xpath($html);
             self::assertSame(1, $xpath->query('//table[@data-rt-desktop-flow="outlook-desktop-flow-v12"]')->length);
@@ -95,7 +95,7 @@ final class OutlookThreeColumnPresentationTest extends TestCase
         self::assertSame(1, $this->xpath($html)->query('//img[contains(@class,"rt-delivery-train")]')->length);
         self::assertStringContainsString((string) __('app.mail_signature_company_role'), html_entity_decode(strip_tags($html)));
         $message = (new Email)->from('system@example.test')->to('self@example.test')->html($html);
-        self::assertGreaterThanOrEqual(8, app(SystemMailInlineImageEmbedder::class)->embed($message));
+        self::assertSame(7, app(SystemMailInlineImageEmbedder::class)->embed($message));
         self::assertStringContainsString('cid:', $message->getHtmlBody());
         self::assertSame($published, MailDocument::query()->orderBy('id')->get()->toArray());
     }
@@ -113,7 +113,7 @@ final class OutlookThreeColumnPresentationTest extends TestCase
         self::assertStringNotContainsString('/mail-assets/', $linked);
         self::assertStringNotContainsString('cid:', $linked);
         self::assertStringNotContainsString('data-rt-static=', $linked);
-        self::assertSame(9, $this->xpath($linked)->query('//img')->length);
+        self::assertSame(7, $this->xpath($linked)->query('//img')->length);
         foreach ($this->xpath($linked)->query('//img') as $image) {
             self::assertMatchesRegularExpression('~\Ahttps://mail\.example\.test/m/[a-f0-9]{10}\.png\z~', $image->getAttribute('src'));
         }
@@ -169,7 +169,7 @@ final class OutlookThreeColumnPresentationTest extends TestCase
     public function test_word_border_paint_is_on_owned_frame_cells_and_keeps_a_single_three_pixel_edge(): void
     {
         $user = $this->fixture(true);
-        $payload = OutlookClientPresentation::payload(app(OutlookAddinPayloadService::class)->forUser($user));
+        $payload = OutlookReferenceCardPresentationTest::historicalPayload(app(OutlookAddinPayloadService::class)->forUser($user));
         $examples = [$payload['signature']['html']];
         foreach ($payload['templates'] as $entry) {
             if (isset($entry['combinedComposeHtml'])) {
@@ -197,7 +197,7 @@ final class OutlookThreeColumnPresentationTest extends TestCase
     public function test_word_losing_table_and_anchor_inheritance_keeps_legal_and_dispatch_leaf_paint(): void
     {
         $user = $this->fixture(true);
-        $html = OutlookClientPresentation::payload(app(OutlookAddinPayloadService::class)->forUser($user))['signature']['html'];
+        $html = OutlookReferenceCardPresentationTest::historicalPayload(app(OutlookAddinPayloadService::class)->forUser($user))['signature']['html'];
         $xpath = $this->xpath($html);
         foreach ($xpath->query('//table | //td | //a') as $element) {
             $element->removeAttribute('style');

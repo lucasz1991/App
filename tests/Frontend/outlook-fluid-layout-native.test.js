@@ -33,6 +33,39 @@ function flatFixture(combined = false, token = version) {
         .replace('max-width:734px;', '');
 }
 
+function referenceFixture(combined = false, token = version) {
+    const row = (href, label) => '<tr><td width="27" style="width:27px;padding:0;"><img src="https://mail.example.test/icon.png" width="18" height="18"></td><td style="padding:0;">'
+        + (href ? '<a href="' + href + '">' + label + '</a>' : label) + '</td></tr>';
+    const contact = rows => '<table width="100%"><tbody>' + rows + '</tbody></table>';
+    const column = (role, width, right, content) => table('class="rt-v13-' + role + '" width="' + width + '" align="left" style="width:' + width + 'px;max-width:100%;"', content, 'style="padding:0 ' + right + 'px 0 0;"');
+    const block = table('class="rt-v13-dispatch-block" width="100%" style="width:100%;max-width:227px;"',
+        '<img src="https://mail.example.test/caption.png" width="199" height="28" style="width:199px;max-width:100%!important;height:auto;">'
+        + '<table width="100%"><tbody><tr><td><a href="mailto:office@example.test"><img src="https://mail.example.test/mail.png" width="25" height="25" style="width:25px;height:25px;"></a></td>'
+        + '<td><a href="tel:+490123456789"><img src="https://mail.example.test/phone.png" width="25" height="25" style="width:25px;height:25px;"></a></td>'
+        + '<td><a href="tel:+490123456789"><span style="font-size:13px;">+490123456789</span></a></td></tr></tbody></table>',
+        'style="padding:0;"');
+    const train = table('width="547" style="width:547px;max-width:100%!important;"', '<img src="https://mail.example.test/train.png" width="529" height="115" style="width:529px;max-width:100%!important;height:auto;">', 'style="padding:0 18px 0 0;"');
+    const root = '<table class="rt-sign-content-frame rt-personal-columns rt-v13-columns rt-df130123456789" width="100%" style="width:100%;" data-rt-personal-flow="v1" data-rt-personal-columns="v1" data-rt-desktop-flow="outlook-desktop-flow-v13"><tbody><tr><td style="padding:12px 0 0 18px;font-size:0;line-height:0;">'
+        + column('identity', 200, 16, '<img src="https://mail.example.test/logo.png" width="184" height="32" style="width:184px;max-width:100%;height:auto;"><p>Synthetic person</p><p>Role</p>')
+        + column('direct', 260, 16, contact(row('mailto:person@example.test', 'person@example.test') + row('tel:+490123456789', '0123456789')))
+        + column('company', 230, 16, contact(row('https://example.test', 'example.test') + row(null, 'Synthetic address<br>Synthetic city')))
+        + column('dispatch', 247, 20, block)
+        + '<br clear="all" style="font-size:0;line-height:0;"></td></tr><tr><td style="padding:0;">' + train + '</td></tr></tbody></table>';
+    const legal = table('width="100%"', '<p>Synthetic legal content</p>', 'style="padding:0 18px;"');
+    const signature = '<table class="rt-managed-signature-v1 rts0123456789" width="100%"><tbody><tr><td>' + root + '</td></tr><tr><td>' + legal
+        + meta('RT-SIGNATURE-MANAGED-V1') + meta('RT-SIGNATURE-VERSION:' + token) + '</td></tr></tbody></table>';
+    if (!combined) return signature;
+    const template = meta('RT-TEMPLATE-MANAGED-V1:COMBINED-DOCUMENT') + table('class="rt-compose-editable rt-compose-editable-v1"', meta('RT-COMPOSE-EDITABLE-START-V1') + '<p>Preserved editable text</p>' + meta('RT-COMPOSE-EDITABLE-END-V1'));
+    return table('class="rt-managed-combined-v1" width="100%"', table('class="rt-managed-template-v1" width="100%"', template) + signature);
+}
+
+function swapReferenceContactRows(html, index) {
+    const contacts = [...html.matchAll(/<table width="100%"><tbody>(<tr><td width="27"[\s\S]*?)<\/tbody><\/table>/g)];
+    const contact = contacts[index], rows = [...contact[1].matchAll(/<tr>[\s\S]*?<\/tr>/g)].map(match => match[0]);
+    assert.equal(rows.length, 2);
+    return html.slice(0, contact.index) + contact[0].replace(contact[1], rows[1] + rows[0]) + html.slice(contact.index + contact[0].length);
+}
+
 // Explicitly a model, not a native Classic SDK capture: remove stylesheet and
 // identity attributes, omit optional TBODYs, and retain the actual HTML floats.
 function wordProfile(html) {
@@ -197,4 +230,61 @@ test('v12 verifies native-slot writes and explicit combined replacement without 
     await assert.rejects(insertStandaloneSignature(wrongFamily.office, wrongFamily.item, flatFixture(), () => {}, { media: [] }), error => error.code === 'SIGNATURE_LAYOUT_UNCONFIRMED');
     assert.equal(wrongFamily.state.signatures, 1);
     assert.equal(isStandaloneSignatureInsertionBlocked(wrongFamily.item), true);
+});
+
+test('v13 independently pins reference groups, contact order, source train bounds and family ownership', () => {
+    for (const combined of [false, true]) {
+        const html = referenceFixture(combined), source = combined ? managedTemplateContract(html) : standaloneSignatureContract(html);
+        const plan = prepareNativeLayoutRestore(html, source, nonce);
+        assert.equal(plan.sourceOnly, 'fluid-v13'); assert.equal(plan.family, 13);
+        assert.equal(plan.html.length - html.length, 166); assert.equal(plan.ids, null); assert.equal(plan.stylePayload, '');
+        const filtered = wordProfile(plan.html);
+        assert.equal(verifyFluidLayoutMaterial(filtered, fluidLayoutContract(filtered, filtered, nonce, version)).family, 13);
+        for (const changed of [html.replace('width="260"', 'width="261"'), html.replace('padding:12px 0 0 18px', 'padding:10px 0 0 18px'),
+            html.replace('width="184"', 'width="160"'), html.replace('https://example.test', 'mailto:person@example.test'),
+            html.replace('width="547"', 'width="218"'), html.replace('width="529"', 'width="200"'),
+            html.replace('height="115"', 'height="116"'), html.replace('max-width:100%!important', 'max-width:100%'),
+            html.replace('style="width:529px;max-width:100%!important;height:auto;"', 'style="width:529px;height:auto;"'),
+            html.replace('style="width:100%;max-width:227px;"', 'style="width:227px;max-width:100%;"'),
+            html.replace('max-width:227px;', 'min-width:900px;max-width:227px;'),
+            html.replace('max-width:227px;', 'max-width:228px;'), html.replace('width="199"', 'width="198"'), html.replace('height="28"', 'height="29"'),
+            html.replace('width="199"', 'width="invalid"'), html.replace('width:199px;', 'width:199px;min-width:900px;'), html.replace('width="25"', 'width="24"'),
+            html.replace('font-size:13px;', 'font-size:12px;'), html.replace('class="rt-v13-dispatch-block"', 'class="rt-v13-dispatch-card" bgcolor="#e90032"'),
+            html.replace('>+490123456789</span>', '>+490123456780</span>'),
+            swapReferenceContactRows(html, 0), swapReferenceContactRows(html, 1)]) {
+            assert.throws(() => prepareNativeLayoutRestore(changed, combined ? managedTemplateContract(changed) : standaloneSignatureContract(changed), nonce));
+        }
+    }
+});
+
+test('v13 writes once and rejects an incorrect family callback without touching manual text or quoted history', async () => {
+    const state = host();
+    await insertStandaloneSignature(state.office, state.item, referenceFixture(), () => {}, { media: [] });
+    assert.equal(state.state.signatures, 1); assert.equal(state.state.prepends, 0); assert.equal(state.state.replacements, 0);
+    assert.ok(state.state.body.endsWith('<p>Unknown user bytes</p><blockquote>Unknown history</blockquote>'));
+    const combined = host(), outside = combined.state.body;
+    await prependTemplate(combined.office, combined.item, referenceFixture(true), () => {}, { media: [] });
+    await replaceManagedTemplate(combined.office, combined.item, referenceFixture(true, 'ff'.repeat(8)), () => {}, { media: [] });
+    assert.equal(combined.state.prepends, 1); assert.equal(combined.state.replacements, 1); assert.ok(combined.state.body.endsWith(outside));
+    const altered = host(html => wordProfile(html.replace('RT-FLUID-LAYOUT-V13:', 'RT-FLUID-LAYOUT-V12:')));
+    await assert.rejects(insertStandaloneSignature(altered.office, altered.item, referenceFixture(), () => {}, { media: [] }), error => error.code === 'SIGNATURE_LAYOUT_UNCONFIRMED');
+    assert.equal(altered.state.signatures, 1); assert.equal(isStandaloneSignatureInsertionBlocked(altered.item), true);
+    const formattedPhone = host(html => wordProfile(html.replace('>+490123456789</span>', '>+49 0123 456 789</span>')));
+    await insertStandaloneSignature(formattedPhone.office, formattedPhone.item, referenceFixture(), () => {}, { media: [] });
+    assert.equal(formattedPhone.state.signatures, 1);
+    const wrongPhone = host(html => wordProfile(html.replace('>+490123456789</span>', '>+490123456780</span>')));
+    await assert.rejects(insertStandaloneSignature(wrongPhone.office, wrongPhone.item, referenceFixture(), () => {}, { media: [] }), error => error.code === 'SIGNATURE_LAYOUT_UNCONFIRMED');
+    assert.equal(wrongPhone.state.signatures, 1); assert.equal(isStandaloneSignatureInsertionBlocked(wrongPhone.item), true);
+    const unexpectedFill = host(html => wordProfile(html.replace('max-width:227px;', 'background-color:#e90032;max-width:227px;')));
+    await assert.rejects(insertStandaloneSignature(unexpectedFill.office, unexpectedFill.item, referenceFixture(), () => {}, { media: [] }), error => error.code === 'SIGNATURE_LAYOUT_UNCONFIRMED');
+    assert.equal(unexpectedFill.state.signatures, 1);
+    for (const mutate of [html => html.replace('max-width:227px;', 'max-width:228px;'),
+        html => html.replace('max-width:227px;', 'min-width:900px;max-width:227px;'),
+        html => html.replace('width:100%;max-width:227px;', 'width:227px;max-width:100%;'),
+        html => html.replace('width:199px;max-width:100%!important;', 'width:199px;')]) {
+        const changedBounds = host(html => wordProfile(mutate(html)));
+        await assert.rejects(insertStandaloneSignature(changedBounds.office, changedBounds.item, referenceFixture(), () => {}, { media: [] }), error => error.code === 'SIGNATURE_LAYOUT_UNCONFIRMED');
+        assert.equal(changedBounds.state.signatures, 1);
+        assert.equal(isStandaloneSignatureInsertionBlocked(changedBounds.item), true);
+    }
 });

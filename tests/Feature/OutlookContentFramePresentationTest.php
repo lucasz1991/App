@@ -47,7 +47,7 @@ final class OutlookContentFramePresentationTest extends TestCase
 
     public function test_current_source_retains_all_four_natural_groups_without_an_intermediate_auto_width_table(): void
     {
-        $result = OutlookClientPresentation::payload(app(OutlookAddinPayloadService::class)->forUser($this->fixture()));
+        $result = OutlookReferenceCardPresentationTest::historicalPayload(app(OutlookAddinPayloadService::class)->forUser($this->fixture()));
         $html = $result['signature']['html'];
         $xpath = $this->xpath($html);
         $root = $xpath->query('//table[@data-rt-desktop-flow="outlook-desktop-flow-v12"]')->item(0);
@@ -79,7 +79,7 @@ final class OutlookContentFramePresentationTest extends TestCase
 
     public function test_current_family_rejects_a_lost_percentage_root_instead_of_acknowledging_it_as_responsive(): void
     {
-        $html = OutlookClientPresentation::payload(app(OutlookAddinPayloadService::class)->forUser($this->fixture()))['signature']['html'];
+        $html = OutlookReferenceCardPresentationTest::historicalPayload(app(OutlookAddinPayloadService::class)->forUser($this->fixture()))['signature']['html'];
         $html = preg_replace_callback('~<table\b(?=[^>]*data-rt-desktop-flow="outlook-desktop-flow-v12")[^>]*>~', static fn (array $tag): string => str_replace(' width="100%"', '', $tag[0]), $html, 1, $changed);
         self::assertSame(1, $changed);
         $this->expectException(RuntimeException::class);
@@ -89,7 +89,7 @@ final class OutlookContentFramePresentationTest extends TestCase
     public function test_physical_mobile_compose_promotes_the_owned_minified_percentage_host(): void
     {
         $canonical = app(OutlookAddinPayloadService::class)->forUser($this->fixture());
-        $result = OutlookClientPresentation::payload(OutlookMobileSignature::payload($canonical));
+        $result = OutlookReferenceCardPresentationTest::historicalPayload(OutlookMobileSignature::payload($canonical));
         $checked = 0;
         foreach ($result['templates'] as $entry) {
             if (! isset($entry['mobileComposeHtml'])) {

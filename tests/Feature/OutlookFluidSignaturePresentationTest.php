@@ -7,7 +7,6 @@ namespace Tests\Feature;
 use App\Models\MailDocument;
 use App\Models\User;
 use App\Support\OutlookAddin\OutlookAddinPayloadService;
-use App\Support\OutlookAddin\OutlookClientPresentation;
 use App\Support\OutlookAddin\OutlookContentFramePresentation;
 use App\Support\OutlookAddin\OutlookFluidSignaturePresentation;
 use App\Support\OutlookAddin\OutlookMobileSignature;
@@ -26,7 +25,7 @@ final class OutlookFluidSignaturePresentationTest extends TestCase
         $canonical = app(OutlookAddinPayloadService::class)->forUser($user);
         $published = MailDocument::query()->orderBy('id')->get()->toArray();
         foreach ([$canonical, OutlookMobileSignature::payload($canonical)] as $payload) {
-            $result = OutlookClientPresentation::payload($payload);
+            $result = OutlookReferenceCardPresentationTest::historicalPayload($payload);
             $xpath = $this->xpath($result['signature']['html']);
             $root = $xpath->query('//table[@data-rt-desktop-flow="outlook-desktop-flow-v12"]')->item(0);
             self::assertSame('100%', $root->getAttribute('width'));
@@ -66,7 +65,7 @@ final class OutlookFluidSignaturePresentationTest extends TestCase
     {
         $user = $this->fixture();
         User::withoutEvents(fn () => $user->update(['email' => 'it-technikxxxxx@rail-time.de']));
-        $result = OutlookClientPresentation::payload(app(OutlookAddinPayloadService::class)->forUser($user->fresh()));
+        $result = OutlookReferenceCardPresentationTest::historicalPayload(app(OutlookAddinPayloadService::class)->forUser($user->fresh()));
         $xpath = $this->xpath($result['signature']['html']);
         $identity = $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-v12-identity ")]')->item(0);
         $direct = $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-v12-direct ")]')->item(0);
@@ -91,7 +90,7 @@ final class OutlookFluidSignaturePresentationTest extends TestCase
     public function test_new_media_are_exact_pinned_colored_train_and_tight_caption_with_no_orphan_cids(): void
     {
         $user = $this->fixture();
-        $signature = OutlookClientPresentation::payload(app(OutlookAddinPayloadService::class)->forUser($user))['signature'];
+        $signature = OutlookReferenceCardPresentationTest::historicalPayload(app(OutlookAddinPayloadService::class)->forUser($user))['signature'];
         $xpath = $this->xpath($signature['html']);
         $expected = ['rt-v12-train-image' => 'zug-dampf-outlook-brand-v1-light.gif', 'rt-v12-dispatch-label' => 'outlook-hotline-label-inktop-v1.png'];
         foreach ($expected as $class => $filename) {
@@ -111,7 +110,7 @@ final class OutlookFluidSignaturePresentationTest extends TestCase
     public function test_template_gutters_match_the_signature_and_legal_gutters_in_every_compose_variant(): void
     {
         $user = $this->fixture();
-        $payload = OutlookClientPresentation::payload(app(OutlookAddinPayloadService::class)->forUser($user));
+        $payload = OutlookReferenceCardPresentationTest::historicalPayload(app(OutlookAddinPayloadService::class)->forUser($user));
         foreach ($payload['templates'] as $template) {
             foreach (['composeHtml', 'combinedComposeHtml', 'mobileComposeHtml'] as $field) {
                 if (! isset($template[$field])) {
