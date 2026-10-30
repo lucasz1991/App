@@ -603,7 +603,8 @@ export function verifyFluidLayoutMaterial(html, contract, source = false) {
         && Math.abs(fluidPixels(image.attrs.height ?? imageProperties.get('height')) - 43) < 0.05
         && (!imageProperties.has('width') || imageProperties.get('width') === '100%' || Math.abs(fluidPixels(imageProperties.get('width')) - 200) < 0.05)
         && (!imageProperties.has('height') || imageProperties.get('height') === 'auto' || Math.abs(fluidPixels(imageProperties.get('height')) - 43) < 0.05);
-    const boundedImage = image.attrs.width === undefined && image.attrs.height === undefined
+    const boundedImage = (image.attrs.width === undefined || Math.abs(fluidPixels(image.attrs.width) - 200) < 0.05)
+        && (image.attrs.height === undefined || Math.abs(fluidPixels(image.attrs.height) - 43) < 0.05)
         && (imageProperties.get('width') === '100%' || Math.abs(fluidPixels(imageProperties.get('width')) - 200) < 0.05)
         && imageProperties.get('max-width') === '100%' && imageProperties.get('height') === 'auto';
     if (!fixedImage && (!boundedImage || source)) invalid();

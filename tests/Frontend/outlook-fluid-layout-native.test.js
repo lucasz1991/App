@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import { fluidLayoutContract, managedTemplateContract, standaloneSignatureContract } from '../../resources/js/outlook-addin/managed-template.js';
 import { prepareNativeLayoutRestore, verifyFluidLayoutMaterial } from '../../resources/js/outlook-addin/native-layout-restore.js';
 import { insertStandaloneSignature, isStandaloneSignatureInsertionBlocked, prependTemplate, replaceManagedTemplate, standaloneSignatureLayoutIsCurrent } from '../../resources/js/outlook-addin/compose-template.js';
@@ -119,6 +120,22 @@ test('v11 wrong SDK material hard-fails after the single write and blocks blind 
     assert.equal(standaloneSignatureLayoutIsCurrent(state.body, state.body, version), false);
     await assert.rejects(insertStandaloneSignature(office, item, fixture(), () => {}, { media: [] }));
     assert.equal(state.signatures, 1);
+});
+
+test('v11 actual OWA DOM serialization retains the bounded train width while omitting its height attribute', () => {
+    // Sanitized from an actual OWA compose DOM capture, not Office SDK evidence.
+    const html = readFileSync(new URL('./fixtures/outlook-v11-owa-rewritten.html', import.meta.url), 'utf8');
+    const contract = fluidLayoutContract(html, html, nonce, version);
+    assert.equal(contract.kind, 'text-v1');
+    assert.equal(verifyFluidLayoutMaterial(html, contract).sourceOnly, true);
+    const image = contract.elements.find(node => node.tag === 'img' && node.attrs.width === '200');
+    assert.ok(image);
+    assert.equal(image.attrs.height, undefined);
+    assert.match(image.attrs.style, /height:\s*auto/);
+    for (const replacement of ['width="201"', 'width="200" height="44"']) {
+        const changed = html.slice(0, image.start) + html.slice(image.start, image.openEnd).replace('width="200"', replacement) + html.slice(image.openEnd);
+        assert.throws(() => verifyFluidLayoutMaterial(changed, fluidLayoutContract(changed, changed, nonce, version)));
+    }
 });
 
 test('v11 explicit combined replacement preserves editable text and outside history without a carrier', async () => {
