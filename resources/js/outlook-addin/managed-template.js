@@ -133,7 +133,7 @@ function markerSpans(html, tree, currentLength) {
     const candidates = tree.elements.map((node, index) => ({ node, index })).filter(({ node, index }) => node.tag === 'span'
         && node.end <= currentLength && !quoted(tree.elements, index)).map(value => ({ ...value,
         value: decoded(html.slice(value.node.openEnd, value.node.close).replace(/<!--[\s\S]*?-->|<[^>]*>/g, '')).trim() }))
-        .filter(value => /^RT-(?:COMPOSE-EDITABLE-|TEMPLATE-MANAGED-|SIGNATURE-MANAGED-|SIGNATURE-VERSION:|FLUID-LAYOUT-V11:)/.test(value.value));
+        .filter(value => /^RT-(?:COMPOSE-EDITABLE-|TEMPLATE-MANAGED-|SIGNATURE-MANAGED-|SIGNATURE-VERSION:|FLUID-LAYOUT-V1[12]:)/.test(value.value));
     return candidates.filter(value => !candidates.some(outer => outer.index !== value.index && outer.value === value.value
         && within(tree.elements, value.index, outer.index)));
 }
@@ -400,7 +400,7 @@ export function standaloneSignatureContract(html, currentHtml = html, ids = null
         version: token.toLowerCase(), layoutIds: boundIds };
 }
 
-/** A separate V11 ownership protocol; no CSS target IDs are invented here. */
+/** Explicit fluid ownership protocols; no CSS target IDs are invented here. */
 export function fluidLayoutContract(html, currentHtml = html, expectedNonce = null, expectedVersion = null) {
     if (typeof html !== 'string' || typeof currentHtml !== 'string' || !html.startsWith(currentHtml)) unavailable();
     const original = nodes(html);
@@ -419,15 +419,15 @@ export function fluidLayoutContract(html, currentHtml = html, expectedNonce = nu
     const tree = { ...original, elements }, spans = markerSpans(html, tree, currentHtml.length);
     const found = [];
     const canonical = spans.map(span => {
-        const separate = /^RT-FLUID-LAYOUT-V11:([0-9a-f]{32}):([0-9a-f]{16})$/i.exec(span.value);
-        const merged = /^(RT-SIGNATURE-(?:MANAGED-V1\s*RT-SIGNATURE-VERSION:|VERSION:)([0-9a-f]{16}))\s*RT-FLUID-LAYOUT-V11:([0-9a-f]{32}):([0-9a-f]{16})$/i.exec(span.value);
+        const separate = /^RT-FLUID-LAYOUT-V(11|12):([0-9a-f]{32}):([0-9a-f]{16})$/i.exec(span.value);
+        const merged = /^(RT-SIGNATURE-(?:MANAGED-V1\s*RT-SIGNATURE-VERSION:|VERSION:)([0-9a-f]{16}))\s*RT-FLUID-LAYOUT-V(11|12):([0-9a-f]{32}):([0-9a-f]{16})$/i.exec(span.value);
         if (separate) {
-            found.push({ ...span, nonce: separate[1].toLowerCase(), version: separate[2].toLowerCase() });
+            found.push({ ...span, family: Number(separate[1]), nonce: separate[2].toLowerCase(), version: separate[3].toLowerCase() });
             return null;
         }
         if (merged) {
-            if (merged[2].toLowerCase() !== merged[4].toLowerCase()) unavailable();
-            found.push({ ...span, nonce: merged[3].toLowerCase(), version: merged[4].toLowerCase() });
+            if (merged[2].toLowerCase() !== merged[5].toLowerCase()) unavailable();
+            found.push({ ...span, family: Number(merged[3]), nonce: merged[4].toLowerCase(), version: merged[5].toLowerCase() });
             return { ...span, value: merged[1] };
         }
         return span;
@@ -435,7 +435,7 @@ export function fluidLayoutContract(html, currentHtml = html, expectedNonce = nu
     const fluid = exactlyOne(found);
     if (!metadataHidden(fluid.node, elements) || (expectedNonce !== null && fluid.nonce !== expectedNonce)
         || (expectedVersion !== null && fluid.version !== expectedVersion.toLowerCase())) unavailable();
-    const occurrences = matches(currentHtml, /RT-FLUID-LAYOUT-V11:/g).filter(match => !quotedOffset(elements, match.index)
+    const occurrences = matches(currentHtml, /RT-FLUID-LAYOUT-V1[12]:/g).filter(match => !quotedOffset(elements, match.index)
         && !tree.comments.some(comment => match.index >= comment.start && match.index < comment.end));
     if (occurrences.length !== 1 || occurrences[0].index < fluid.node.openEnd || occurrences[0].index >= fluid.node.close) unavailable();
     const template = canonical.filter(span => span.value.startsWith('RT-TEMPLATE-MANAGED-'));
@@ -462,13 +462,13 @@ export function fluidLayoutContract(html, currentHtml = html, expectedNonce = nu
     if (bodies.length !== 1 || bodies[0].node.tag !== 'tbody') unavailable();
     const rows = elements.map((node, index) => ({ node, index })).filter(value => value.node.parent === bodies[0].index);
     if (rows.length !== 2 || rows.some(value => value.node.tag !== 'tr') || !within(elements, fluid.index, rows[1].index)) unavailable();
-    return { ...contract, fluidLayout: { nonce: fluid.nonce, version: fluid.version, marker: { node: fluid.node, index: fluid.index } } };
+    return { ...contract, fluidLayout: { family: fluid.family, nonce: fluid.nonce, version: fluid.version, marker: { node: fluid.node, index: fluid.index } } };
 }
 
 export function hasUnquotedFluidLayoutMarker(html, currentHtml = html) {
     if (typeof currentHtml !== 'string' || !html.startsWith(currentHtml)) unavailable();
     const tree = nodes(html);
-    return matches(currentHtml, /RT-FLUID-LAYOUT-V11:/g).some(match => !quotedOffset(tree.elements, match.index)
+    return matches(currentHtml, /RT-FLUID-LAYOUT-V1[12]:/g).some(match => !quotedOffset(tree.elements, match.index)
         && !tree.comments.some(comment => match.index >= comment.start && match.index < comment.end));
 }
 

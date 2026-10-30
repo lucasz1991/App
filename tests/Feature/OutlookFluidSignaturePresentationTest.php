@@ -8,6 +8,7 @@ use App\Models\MailDocument;
 use App\Models\User;
 use App\Support\OutlookAddin\OutlookAddinPayloadService;
 use App\Support\OutlookAddin\OutlookClientPresentation;
+use App\Support\OutlookAddin\OutlookContentFramePresentation;
 use App\Support\OutlookAddin\OutlookFluidSignaturePresentation;
 use App\Support\OutlookAddin\OutlookMobileSignature;
 use DOMDocument;
@@ -27,13 +28,14 @@ final class OutlookFluidSignaturePresentationTest extends TestCase
         foreach ([$canonical, OutlookMobileSignature::payload($canonical)] as $payload) {
             $result = OutlookClientPresentation::payload($payload);
             $xpath = $this->xpath($result['signature']['html']);
-            $root = $xpath->query('//table[@data-rt-desktop-flow="outlook-desktop-flow-v11"]')->item(0);
+            $root = $xpath->query('//table[@data-rt-desktop-flow="outlook-desktop-flow-v12"]')->item(0);
             self::assertSame('100%', $root->getAttribute('width'));
             $main = $xpath->query('./tbody/tr[1]/td', $root)->item(0);
             self::assertStringContainsString('padding:10px 0 0 18px;', $main->getAttribute('style'));
             $contentAncestor = $xpath->query('//td[contains(concat(" ",normalize-space(@class)," ")," rt-sign-content ")]')->item(0);
-            self::assertNotNull($contentAncestor);
-            self::assertStringContainsString('padding:0!important;', $contentAncestor->getAttribute('style'), 'The owned ancestor must defeat historical important mobile rt-pad rules; otherwise the18px gutter is doubled.');
+            self::assertNull($contentAncestor, 'V12 removes the redundant content TD and its historical mobile padding alias.');
+            self::assertStringContainsString('rt-sign-content-frame', $root->getAttribute('class'));
+            self::assertSame('100%', $main->getAttribute('width'));
             $columns = $xpath->query('./table', $main);
             self::assertCount(4, $columns);
             foreach ([176, 204, 172, 164] as $position => $width) {
@@ -46,16 +48,16 @@ final class OutlookFluidSignaturePresentationTest extends TestCase
                     self::assertContains($nested->getAttribute('width'), ['100%', '160']);
                 }
             }
-            $train = $xpath->query('//table[contains(@class,"rt-v11-train")]')->item(0);
-            $image = $xpath->query('//img[contains(@class,"rt-v11-train-image")]')->item(0);
+            $train = $xpath->query('//table[contains(@class,"rt-v12-train")]')->item(0);
+            $image = $xpath->query('//img[contains(@class,"rt-v12-train-image")]')->item(0);
             self::assertSame('218', $train->getAttribute('width'));
             self::assertSame('200', $image->getAttribute('width'));
             self::assertSame('43', $image->getAttribute('height'));
             self::assertLessThanOrEqual(226, 218 + 3);
             self::assertSame(1, $xpath->query('.//br[@clear="all"]', $main)->length);
-            self::assertSame(1, $xpath->query('//img[contains(@class,"rt-v11-dispatch-label")][@width="160"][@height="22"]')->length);
-            self::assertStringContainsString('padding:0 18px;', $xpath->query('//td[@class="rt-v11-legal-cell"]')->item(0)->getAttribute('style'));
-            self::assertSame($result['signature']['html'], OutlookFluidSignaturePresentation::document($result['signature']['html']));
+            self::assertSame(1, $xpath->query('//img[contains(@class,"rt-v12-dispatch-label")][@width="160"][@height="22"]')->length);
+            self::assertStringContainsString('padding:0 18px;', $xpath->query('//td[@class="rt-v12-legal-cell"]')->item(0)->getAttribute('style'));
+            self::assertSame($result['signature']['html'], OutlookContentFramePresentation::document($result['signature']['html']));
         }
         self::assertSame($published, MailDocument::query()->orderBy('id')->get()->toArray());
     }
@@ -66,8 +68,8 @@ final class OutlookFluidSignaturePresentationTest extends TestCase
         User::withoutEvents(fn () => $user->update(['email' => 'it-technikxxxxx@rail-time.de']));
         $result = OutlookClientPresentation::payload(app(OutlookAddinPayloadService::class)->forUser($user->fresh()));
         $xpath = $this->xpath($result['signature']['html']);
-        $identity = $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-v11-identity ")]')->item(0);
-        $direct = $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-v11-direct ")]')->item(0);
+        $identity = $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-v12-identity ")]')->item(0);
+        $direct = $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-v12-direct ")]')->item(0);
         self::assertStringContainsString('Mara Muster', $identity->textContent);
         self::assertSame(1, $xpath->query('.//table[contains(@class,"rt-personal-logo-frame")]', $identity)->length);
         self::assertSame(0, $xpath->query('.//a[starts-with(@href,"mailto:")]', $identity)->length);
@@ -91,7 +93,7 @@ final class OutlookFluidSignaturePresentationTest extends TestCase
         $user = $this->fixture();
         $signature = OutlookClientPresentation::payload(app(OutlookAddinPayloadService::class)->forUser($user))['signature'];
         $xpath = $this->xpath($signature['html']);
-        $expected = ['rt-v11-train-image' => 'zug-dampf-outlook-brand-v1-light.gif', 'rt-v11-dispatch-label' => 'outlook-hotline-label-inktop-v1.png'];
+        $expected = ['rt-v12-train-image' => 'zug-dampf-outlook-brand-v1-light.gif', 'rt-v12-dispatch-label' => 'outlook-hotline-label-inktop-v1.png'];
         foreach ($expected as $class => $filename) {
             $image = $xpath->query('//img[contains(@class,"'.$class.'")]')->item(0);
             $cid = substr($image->getAttribute('src'), 4);
@@ -116,7 +118,7 @@ final class OutlookFluidSignaturePresentationTest extends TestCase
                     continue;
                 }
                 $xpath = $this->xpath($template[$field]);
-                foreach ($xpath->query('//td[contains(@class,"rt-v11-template-pad")]') as $cell) {
+                foreach ($xpath->query('//td[contains(@class,"rt-v12-template-pad")]') as $cell) {
                     self::assertMatchesRegularExpression('/padding:[^;]*18px[^;]*18px!important;/', $cell->getAttribute('style'));
                     self::assertStringNotContainsString('padding-left:0!important', $cell->getAttribute('style'));
                 }

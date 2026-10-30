@@ -460,13 +460,14 @@ function inlineCellProperties(style) {
 }
 
 const FLUID_FLOW = 'outlook-desktop-flow-v11';
+const FLAT_FLUID_FLOW = 'outlook-desktop-flow-v12';
 const FLUID_COLUMNS = [
     ['identity', 176, 16], ['direct', 204, 0], ['company', 172, 12], ['dispatch', 164, 4],
 ];
 
 export function isFluidLayoutSource(contract) {
     return Array.isArray(contract?.elements) && Number.isInteger(contract.signature?.index)
-        && contract.elements.some((node, index) => node.attrs['data-rt-desktop-flow'] === FLUID_FLOW && within(contract.elements, index, contract.signature.index));
+        && contract.elements.some((node, index) => [FLUID_FLOW, FLAT_FLUID_FLOW].includes(node.attrs['data-rt-desktop-flow']) && within(contract.elements, index, contract.signature.index));
 }
 
 function fluidPixels(value) {
@@ -517,22 +518,26 @@ function fluidBlank(html, nodes, value) {
         || (fluidPixels(properties.get('font-size')) === 0 && fluidPixels(properties.get('line-height')) === 0));
 }
 
-/** V11 relies on retained HTML material, not on restored or virtual CSS IDs. */
+/** Fluid families rely on retained HTML material, not on restored or virtual CSS IDs. */
 export function verifyFluidLayoutMaterial(html, contract, source = false) {
     const nodes = contract?.elements, signature = contract?.signature;
     if (typeof html !== 'string' || !Array.isArray(nodes) || !Number.isInteger(signature?.index)) invalid();
     const scoped = nodes.map((node, index) => ({ node, index })).filter(value => within(nodes, value.index, signature.index) && !isQuoted(nodes, value.index));
-    let root, columns;
+    let root, columns, family;
     if (source) {
-        const candidates = scoped.filter(value => value.node.attrs['data-rt-desktop-flow'] === FLUID_FLOW);
-        if (candidates.length !== 1 || candidates[0].node.tag !== 'table' || !has(candidates[0].node, 'rt-v11-columns')) invalid();
+        const candidates = scoped.filter(value => [FLUID_FLOW, FLAT_FLUID_FLOW].includes(value.node.attrs['data-rt-desktop-flow']));
+        if (candidates.length !== 1 || candidates[0].node.tag !== 'table') invalid();
         root = candidates[0];
+        family = root.node.attrs['data-rt-desktop-flow'] === FLAT_FLUID_FLOW ? 12 : 11;
+        if (!has(root.node, 'rt-v' + family + '-columns') || (family === 12 && !has(root.node, 'rt-sign-content-frame'))) invalid();
         const scopes = (signature.node.attrs.class || '').split(/\s+/).filter(name => /^rts[0-9a-f]{10}$/.test(name));
-        const hosts = (root.node.attrs.class || '').split(/\s+/).filter(name => /^rt-df(?:[0-9]|10|11)[0-9a-f]{10}$/.test(name));
-        if (scopes.length !== 1 || hosts.length !== 1 || hosts[0] !== 'rt-df11' + scopes[0].slice(3)
+        const hosts = (root.node.attrs.class || '').split(/\s+/).filter(name => /^rt-df(?:[0-9]|10|11|12)[0-9a-f]{10}$/.test(name));
+        if (scopes.length !== 1 || hosts.length !== 1 || hosts[0] !== 'rt-df' + family + scopes[0].slice(3)
             || root.node.attrs['data-rt-personal-flow'] !== 'v1' || root.node.attrs['data-rt-personal-columns'] !== 'v1') invalid();
     } else {
         if (!contract.fluidLayout) invalid();
+        family = contract.fluidLayout.family;
+        if (![11, 12].includes(family)) invalid();
         const floats = scoped.filter(value => value.node.tag === 'table' && (value.node.attrs.align || '').toLowerCase() === 'left');
         if (floats.length !== 4 || floats.some(value => value.node.parent !== floats[0].node.parent)) invalid();
         let index = floats[0].node.parent;
@@ -542,8 +547,9 @@ export function verifyFluidLayoutMaterial(html, contract, source = false) {
         columns = floats;
     }
     const rootProperties = new Map(inlineCellProperties(root.node.attrs.style || ''));
-    if (source && rootProperties.get('max-width') !== '734px') invalid();
-    if (!source && rootProperties.has('max-width') && rootProperties.get('max-width') !== '100%'
+    if (source && family === 11 && rootProperties.get('max-width') !== '734px') invalid();
+    if (family === 12 && rootProperties.has('max-width') && !['100%', 'none'].includes(rootProperties.get('max-width'))) invalid();
+    if (!source && family === 11 && rootProperties.has('max-width') && rootProperties.get('max-width') !== '100%'
         && Math.abs(fluidPixels(rootProperties.get('max-width')) - 734) > 0.05) invalid();
     if ((root.node.attrs.width !== undefined && root.node.attrs.width !== '100%')
         || (rootProperties.has('width') && rootProperties.get('width') !== '100%')
@@ -551,6 +557,7 @@ export function verifyFluidLayoutMaterial(html, contract, source = false) {
     for (let index = root.index; Number.isInteger(index) && within(nodes, index, contract.rootIndex); index = nodes[index].parent) {
         const node = nodes[index], properties = new Map(inlineCellProperties(node.attrs.style || ''));
         fluidOuterSafe(node);
+        if (family === 12 && index !== root.index && index !== signature.index && node.tag === 'table' && within(nodes, index, signature.index)) invalid();
         if (node.tag === 'table' && ((node.attrs.width !== undefined && node.attrs.width !== '100%')
             || (properties.has('width') && !['100%', 'auto'].includes(properties.get('width'))))) invalid();
     }
@@ -570,7 +577,7 @@ export function verifyFluidLayoutMaterial(html, contract, source = false) {
         fluidOuterSafe(column.node);
         if (column.node.tag !== 'table' || column.node.attrs.align?.toLowerCase() !== 'left' || !fluidNumber(column.node, 'width', width)
             || (properties.has('float') && properties.get('float') !== 'left')
-            || (properties.has('max-width') && properties.get('max-width') !== '100%') || (source && !has(column.node, 'rt-v11-' + role))) invalid();
+            || (properties.has('max-width') && properties.get('max-width') !== '100%') || (source && !has(column.node, 'rt-v' + family + '-' + role))) invalid();
         const content = onlyChild(nodes, onlyChild(nodes, onlyChild(nodes, column.index, 'tbody').index, 'tr').index, 'td');
         const padding = fluidPadding(content.node);
         if (padding.left !== 0 || Math.abs(padding.right - right) > 0.05) invalid();
@@ -617,17 +624,17 @@ export function verifyFluidLayoutMaterial(html, contract, source = false) {
     const legal = onlyChild(nodes, onlyChild(nodes, onlyChild(nodes, legalTables[0].index, 'tbody').index, 'tr').index, 'td');
     if (Math.abs(fluidPadding(legal.node).left - 18) > 0.05
         || !within(nodes, contract.signatureMetadata.managed, legalHost.index) || !within(nodes, contract.signatureMetadata.version, legalHost.index)) invalid();
-    return { root, columns, train, sourceOnly: true };
+    return { root, columns, train, sourceOnly: true, family };
 }
 
 function prepareFluidLayout(html, contract, nonce) {
-    verifyFluidLayoutMaterial(html, contract, true);
+    const { family } = verifyFluidLayoutMaterial(html, contract, true);
     const versionNode = contract.elements[contract.signatureMetadata.version];
     const version = /RT-SIGNATURE-VERSION:([0-9a-f]{16})/i.exec(html.slice(versionNode.openEnd, versionNode.close))?.[1]?.toLowerCase();
     const scope = nonce === undefined ? createNativeLayoutNonce() : nonce;
-    if (!version || !/^[0-9a-f]{32}$/.test(scope) || html.includes('RT-FLUID-LAYOUT-V11:')) invalid();
-    const marker = '<span hidden aria-hidden="true" style="display:none!important;font-size:0;line-height:0;">RT-FLUID-LAYOUT-V11:' + scope + ':' + version + '</span>';
-    return Object.freeze({ html: html.slice(0, versionNode.end) + marker + html.slice(versionNode.end), sourceOnly: 'fluid-v11', nonce: scope, version, stylePayload: '', ids: null });
+    if (!version || !/^[0-9a-f]{32}$/.test(scope) || /RT-FLUID-LAYOUT-V1[12]:/.test(html)) invalid();
+    const marker = '<span hidden aria-hidden="true" style="display:none!important;font-size:0;line-height:0;">RT-FLUID-LAYOUT-V' + family + ':' + scope + ':' + version + '</span>';
+    return Object.freeze({ html: html.slice(0, versionNode.end) + marker + html.slice(versionNode.end), sourceOnly: 'fluid-v' + family, family, nonce: scope, version, stylePayload: '', ids: null });
 }
 
 /** Outlook replaces our empty clear BR with one zero-line, style-only DIV. */

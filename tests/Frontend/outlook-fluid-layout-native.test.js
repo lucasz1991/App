@@ -26,6 +26,13 @@ function fixture(combined = false, token = version) {
     return table('class="rt-managed-combined-v1" width="100%"', table('class="rt-managed-template-v1" width="100%"', template) + signature);
 }
 
+function flatFixture(combined = false, token = version) {
+    return fixture(combined, token).replaceAll('rt-v11-', 'rt-v12-').replaceAll('rt-df11', 'rt-df12')
+        .replace('outlook-desktop-flow-v11', 'outlook-desktop-flow-v12')
+        .replace('rt-personal-columns rt-v12-columns', 'rt-sign-content-frame rt-personal-columns rt-v12-columns')
+        .replace('max-width:734px;', '');
+}
+
 // Explicitly a model, not a native Classic SDK capture: remove stylesheet and
 // identity attributes, omit optional TBODYs, and retain the actual HTML floats.
 function wordProfile(html) {
@@ -153,4 +160,41 @@ test('v11 explicit combined replacement preserves editable text and outside hist
     const updated = fluidLayoutContract(state.body);
     assert.equal(updated.fluidLayout.version, 'ff'.repeat(8));
     assert.equal(verifyFluidLayoutMaterial(state.body, updated).sourceOnly, true);
+});
+
+test('v12 binds the flat surviving fluid content frame and preserves the v11 source protocol', () => {
+    for (const combined of [false, true]) {
+        const html = flatFixture(combined), contract = combined ? managedTemplateContract(html) : standaloneSignatureContract(html);
+        const plan = prepareNativeLayoutRestore(html, contract, nonce);
+        assert.equal(plan.sourceOnly, 'fluid-v12'); assert.equal(plan.family, 12);
+        assert.equal(plan.html.length - html.length, 166); assert.equal(plan.ids, null); assert.equal(plan.stylePayload, '');
+        const retained = wordProfile(plan.html), owned = fluidLayoutContract(retained, retained, nonce, version);
+        assert.equal(owned.fluidLayout.family, 12);
+        assert.equal(verifyFluidLayoutMaterial(retained, owned).family, 12);
+        for (const changed of [html.replace('rt-sign-content-frame ', ''), html.replace('width:100%;', 'width:720px;'),
+            html.replace('width:100%;', 'width:100%;max-width:734px;'), html.replace('rt-df12', 'rt-df11')]) {
+            assert.throws(() => prepareNativeLayoutRestore(changed, combined ? managedTemplateContract(changed) : standaloneSignatureContract(changed), nonce));
+        }
+    }
+    const legacy = fixture(), previous = prepareNativeLayoutRestore(legacy, standaloneSignatureContract(legacy), nonce);
+    assert.equal(previous.sourceOnly, 'fluid-v11');
+    assert.ok(previous.html.includes('RT-FLUID-LAYOUT-V11:' + nonce + ':' + version));
+    assert.equal(previous.html.length - legacy.length, 166);
+});
+
+test('v12 verifies native-slot writes and explicit combined replacement without restoring styles', async () => {
+    const standalone = host();
+    await insertStandaloneSignature(standalone.office, standalone.item, flatFixture(), () => {}, { media: [] });
+    assert.equal(standalone.state.signatures, 1); assert.equal(standalone.state.prepends, 0); assert.equal(standalone.state.replacements, 0);
+    assert.equal(fluidLayoutContract(standalone.state.body).fluidLayout.family, 12);
+    const combined = host(), outside = combined.state.body;
+    await prependTemplate(combined.office, combined.item, flatFixture(true), () => {}, { media: [] });
+    await replaceManagedTemplate(combined.office, combined.item, flatFixture(true, 'ff'.repeat(8)), () => {}, { media: [] });
+    assert.equal(combined.state.prepends, 1); assert.equal(combined.state.replacements, 1);
+    assert.ok(combined.state.body.endsWith(outside));
+    assert.equal(verifyFluidLayoutMaterial(combined.state.body, fluidLayoutContract(combined.state.body)).family, 12);
+    const wrongFamily = host(html => wordProfile(html.replace('RT-FLUID-LAYOUT-V12:', 'RT-FLUID-LAYOUT-V11:')));
+    await assert.rejects(insertStandaloneSignature(wrongFamily.office, wrongFamily.item, flatFixture(), () => {}, { media: [] }), error => error.code === 'SIGNATURE_LAYOUT_UNCONFIRMED');
+    assert.equal(wrongFamily.state.signatures, 1);
+    assert.equal(isStandaloneSignatureInsertionBlocked(wrongFamily.item), true);
 });

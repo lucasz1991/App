@@ -12,7 +12,7 @@ use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\Mail\SystemMailInlineImageEmbedder;
 use App\Support\OutlookAddin\OutlookAddinPayloadService;
 use App\Support\OutlookAddin\OutlookClientPresentation;
-use App\Support\OutlookAddin\OutlookFluidSignaturePresentation;
+use App\Support\OutlookAddin\OutlookContentFramePresentation;
 use App\Support\OutlookAddin\OutlookMobileSignature;
 use App\Support\OutlookAddin\OutlookStaticLinkedTestDelivery;
 use App\Support\OutlookAddin\OutlookThreeCellPresentation;
@@ -38,32 +38,32 @@ final class OutlookThreeColumnPresentationTest extends TestCase
             $result = OutlookClientPresentation::payload($source);
             $html = $result['signature']['html'];
             $xpath = $this->xpath($html);
-            self::assertSame(1, $xpath->query('//table[@data-rt-desktop-flow="outlook-desktop-flow-v11"]')->length);
-            self::assertSame(4, $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-v11-column ")][@align="left"]')->length);
+            self::assertSame(1, $xpath->query('//table[@data-rt-desktop-flow="outlook-desktop-flow-v12"]')->length);
+            self::assertSame(4, $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-v12-column ")][@align="left"]')->length);
             self::assertSame(1, $xpath->query('//table[contains(@class,"rt-personal-left")]/tbody/tr/td/table[contains(@class,"rt-personal-logo-frame")]//img[@width="160"][@height="27"]')->length);
             self::assertSame(0, $xpath->query('//table[contains(@class,"rt-personal-right")]//img[contains(@class,"rt-v9-logo")]')->length);
             self::assertSame(1, $xpath->query('//table[contains(@class,"rt-dispatch-column")]//img[@alt="Dispo 24/7 erreichbar"][@width="160"]')->length);
             self::assertSame(1, $xpath->query('//br[@clear="all"]')->length);
             self::assertSame(0, $xpath->query('//tr[@class="rt-v10-grid-row"]')->length);
-            self::assertSame(1, $xpath->query('//td[@class="rt-v11-columns-cell"]')->length);
+            self::assertSame(1, $xpath->query('//td[@class="rt-v12-columns-cell"]')->length);
             self::assertSame(1, $xpath->query('//td[contains(concat(" ",normalize-space(@class)," ")," rt-v9-top-rule ")]')->length);
             self::assertSame(1, $xpath->query('//p[@class="rt-v9-address"]')->length);
             self::assertSame(1, $xpath->query('//p[@class="rt-v9-address"]//br')->length);
-            foreach ($xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-v11-column ")]//span') as $span) {
+            foreach ($xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-v12-column ")]//span') as $span) {
                 self::assertDoesNotMatchRegularExpression('/background(?:-color)?\s*:\s*(?:#fff(?:fff)?|white|rgb\(\s*255\s*,\s*255\s*,\s*255\s*\))/i', $span->getAttribute('style'));
             }
             foreach ($result['templates'] as $entry) {
                 foreach (['html', 'combinedComposeHtml', 'mobileComposeHtml'] as $field) {
                     if (isset($entry[$field])) {
-                        self::assertStringContainsString('data-rt-desktop-flow="outlook-desktop-flow-v11"', $entry[$field], $field.' must not retain the old fallback layout.');
+                        self::assertStringContainsString('data-rt-desktop-flow="outlook-desktop-flow-v12"', $entry[$field], $field.' must not retain the old fallback layout.');
                     }
                 }
             }
             self::assertStringContainsString('border-top:3px solid #e90032;', $html);
             self::assertStringNotContainsString('data-rt-brand-hotline=', $html);
             self::assertStringNotContainsString('rt-brand-outline-cell', $html);
-            self::assertLessThanOrEqual(30000 - 855, intdiv(strlen(mb_convert_encoding($html, 'UTF-16LE', 'UTF-8')), 2));
-            self::assertSame($html, OutlookFluidSignaturePresentation::document($html));
+            self::assertLessThanOrEqual(30000 - 166, intdiv(strlen(mb_convert_encoding($html, 'UTF-16LE', 'UTF-8')), 2));
+            self::assertSame($html, OutlookContentFramePresentation::document($html));
             $refs = [];
             preg_match_all('/cid:([A-Za-z0-9._-]+)/', $html, $refs);
             $ids = array_column($result['signature']['media'], 'contentId');
@@ -183,13 +183,14 @@ final class OutlookThreeColumnPresentationTest extends TestCase
             $frame = $frames->item(0);
             self::assertStringContainsString('border-left:0!important;', $frame->getAttribute('style'));
             foreach ($xpath->query('./tbody/tr/td', $frame) as $cell) {
-                self::assertStringContainsString('border-left:3px solid #e90032!important;', $cell->getAttribute('style'));
+                self::assertStringContainsString('border-left:3px solid #e90032;', $cell->getAttribute('style'));
+                self::assertStringNotContainsString('border-left:3px solid #e90032!important;', $cell->getAttribute('style'));
             }
             foreach ($xpath->query('//*[@style]') as $element) {
                 self::assertStringNotContainsString('border-left:6px solid #e90032;', $element->getAttribute('style'));
             }
-            self::assertStringContainsString('padding:0 18px 0 0;', $xpath->query('//td[contains(@class,"rt-v11-train-cell")]')->item(0)->getAttribute('style'));
-            self::assertStringContainsString('padding:0 18px;', $xpath->query('//td[contains(@class,"rt-v11-legal-cell")]')->item(0)->getAttribute('style'));
+            self::assertStringContainsString('padding:0 18px 0 0;', $xpath->query('//td[contains(@class,"rt-v12-train-cell")]')->item(0)->getAttribute('style'));
+            self::assertStringContainsString('padding:0 18px;', $xpath->query('//td[contains(@class,"rt-v12-legal-cell")]')->item(0)->getAttribute('style'));
         }
     }
 
@@ -204,7 +205,7 @@ final class OutlookThreeColumnPresentationTest extends TestCase
         foreach ($xpath->query('//style') as $style) {
             $style->parentNode->removeChild($style);
         }
-        $legal = $xpath->query('//td[@class="rt-v11-legal-cell"]')->item(0);
+        $legal = $xpath->query('//td[@class="rt-v12-legal-cell"]')->item(0);
         $textNodes = $xpath->query('.//text()[normalize-space(.) != ""]', $legal);
         self::assertGreaterThanOrEqual(2, $textNodes->length);
         foreach ($textNodes as $text) {
