@@ -738,7 +738,7 @@ async function insertFluidStandalone(office, item, html, incoming, beforeWrite, 
                 || nativeLayoutRestoreRetained(original.html, historical.contract, historical.ids) !== true) throw failure('SIGNATURE_LAYOUT_LEGACY_CARRIER');
         }
         const layout = prepareNativeLayoutRestore(html, incoming, previous?.fluidLayout.nonce);
-        if (!['fluid-v11', 'fluid-v12', 'fluid-v13'].includes(layout?.sourceOnly) || layout.html.length > 30000) throw failure('SIGNATURE_TOO_LARGE');
+        if (!['fluid-v11', 'fluid-v12', 'fluid-v13', 'fluid-v14'].includes(layout?.sourceOnly) || layout.html.length > 30000) throw failure('SIGNATURE_TOO_LARGE');
         if (original.html.length + layout.html.length > TEMPLATE_INSERT_LIMITS.bodyLength) throw failure('SIGNATURE_LAYOUT_UNAVAILABLE');
         await beforeWrite(); await signatureSession(office, item, operation, 'claim'); await beforeWrite();
         const latest = await replacementSnapshot(office, item);
@@ -1093,7 +1093,7 @@ async function restoreNativeLayout(office, item, layout, operation, original, op
     await operation.beforeWrite();
     const written = await replacementSnapshot(office, item);
     if (written.composeType !== original.composeType) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
-    if (['fluid-v11', 'fluid-v12', 'fluid-v13'].includes(layout.sourceOnly)) {
+    if (['fluid-v11', 'fluid-v12', 'fluid-v13', 'fluid-v14'].includes(layout.sourceOnly)) {
         const owned = fluidLayoutContract(written.html, currentComposeBodyHtml(written.html, written.composeType), layout.nonce, layout.version);
         if (owned.kind !== 'text-v1' || owned.fluidLayout.family !== layout.family) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
         verifyFluidLayoutMaterial(written.html, owned);

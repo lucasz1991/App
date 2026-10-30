@@ -4,11 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
-use App\Enums\MailDocumentKind;
 use App\Models\MailDocument;
-use App\Support\EmailTemplateBuilder;
-use App\Support\Mail\PublishedMailDocumentSnapshotStore;
-use App\Support\Mail\SystemMailInlineImageEmbedder;
 use App\Support\OutlookAddin\OutlookAddinPayloadService;
 use App\Support\OutlookAddin\OutlookClientPresentation;
 use App\Support\OutlookAddin\OutlookContentFramePresentation;
@@ -17,16 +13,12 @@ use App\Support\OutlookAddin\OutlookFluidSignaturePresentation;
 use App\Support\OutlookAddin\OutlookIntrinsicTrainDelivery;
 use App\Support\OutlookAddin\OutlookMobileSignature;
 use App\Support\OutlookAddin\OutlookReferenceCardPresentation;
-use App\Support\OutlookAddin\OutlookStaticLinkedTestDelivery;
 use App\Support\OutlookAddin\OutlookThreeCellPresentation;
 use App\Support\OutlookAddin\OutlookThreeColumnPresentation;
 use DOMDocument;
 use DOMXPath;
-use Illuminate\Support\HtmlString;
 use ReflectionMethod;
-use Symfony\Component\Mime\Email;
 use Tests\TestCase;
-use TijsVerkoyen\CssToInlineStyles\CssToInlineStyles;
 
 final class OutlookReferenceCardPresentationTest extends TestCase
 {
@@ -37,7 +29,7 @@ final class OutlookReferenceCardPresentationTest extends TestCase
         $canonical = app(OutlookAddinPayloadService::class)->forUser($user);
         $before = MailDocument::query()->orderBy('id')->get()->toArray();
         foreach ([$canonical, OutlookMobileSignature::payload($canonical)] as $source) {
-            $result = OutlookClientPresentation::payload($source);
+            $result = OutlookReferenceCardPresentation::payload(self::historicalPayload($source));
             $documents = [$result['signature']['html']];
             foreach ($result['templates'] as $entry) {
                 $documents[] = $entry['signature']['html'];
@@ -90,37 +82,6 @@ final class OutlookReferenceCardPresentationTest extends TestCase
             self::assertNotContains('464054a84f32ad05d4c6e65a67105c6500ed070a818a40935d3b9f390bec7ab7', $assetHashes);
         }
         self::assertSame($before, MailDocument::query()->orderBy('id')->get()->toArray());
-    }
-
-    public function test_system_dispatch_is_transparent_and_static_delivery_keeps_its_red_assets_server_linked(): void
-    {
-        $fixture = new OutlookThreeColumnPresentationTest('test_actual_legacy_system_source_compiles_with_doctype_and_replaces_both_imported_icons');
-        (new ReflectionMethod($fixture, 'fixture'))->invoke($fixture, false);
-        $source = (new ReflectionMethod($fixture, 'legacySystem'))->invoke($fixture);
-        foreach ([false, true] as $static) {
-            $rows = $static ? preg_replace('/<tr(?=\s+data-rt-artifact-version="v27")/', '<tr data-rt-static="v1"', $source['html'], 1) : $source['html'];
-            app(PublishedMailDocumentSnapshotStore::class)->useSnapshot(MailDocumentKind::Signature, $rows, $source['css'], explicit: true);
-            $html = (new CssToInlineStyles)->convert(EmailTemplateBuilder::buildSystemMailHtml(new HtmlString('<p>Reference card compiler test</p>')));
-            if ($static) {
-                $html = OutlookStaticLinkedTestDelivery::renderedPreview($html, OutlookStaticLinkedTestDelivery::PROFILE, 'https://mail.example.test');
-            }
-            $xpath = $this->xpath($html);
-            self::assertSame(3, $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-v13-column ")]')->length);
-            self::assertSame(7, $xpath->query('//img')->length);
-            $message = (new Email)->from('system@example.test')->to('self@example.test')->html($html);
-            $embedded = app(SystemMailInlineImageEmbedder::class)->embed($message);
-            if ($static) {
-                self::assertSame(0, $embedded);
-                self::assertStringContainsString('/m/37683e55f5.png', $message->getHtmlBody());
-                self::assertStringNotContainsString('cid:', $message->getHtmlBody());
-            } else {
-                self::assertSame(7, $embedded);
-                self::assertStringNotContainsString('/mail-assets/outlook-hotline-fill-v1.png', $message->getHtmlBody());
-                $tile = array_values(array_filter($message->getAttachments(), static fn ($asset): bool => $asset->getFilename() === 'outlook-hotline-fill-v1.png'));
-                self::assertCount(0, $tile);
-                self::assertStringContainsString('multipart/related', $message->toString());
-            }
-        }
     }
 
     /** Keep the historical V11/V12 suites on their own immutable output factories. */

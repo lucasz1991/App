@@ -64,6 +64,7 @@ final class OutlookStaticLinkedTestDelivery
         'zug-dampf-outlook-brand-v1-dark-mirrored.png' => ['917e8f055d74b6e4b2294df05fb74079cfb5e8526902cc87fda2e260b658861b', 4566, 'image/png', 695, 151, '/m/917e8f055d.png', '917e8f055d74b6e4b2294df05fb74079cfb5e8526902cc87fda2e260b658861b'],
         'zug-dampf-outlook-brand-v1-dark-mirrored.gif' => ['ed21ba08d9d32ede363a30d13d182aa802b426330fd0110c4b0f50b11c960768', 129369, 'image/gif', 695, 151, '/m/917e8f055d.png', '917e8f055d74b6e4b2294df05fb74079cfb5e8526902cc87fda2e260b658861b'],
         'outlook-hotline-label-inktop-v1.png' => ['37683e55f5469c8593450bfeaeea13ed0b1849976dce15b7479d7095d998540a', 6293, 'image/png', 552, 77, '/m/37683e55f5.png', '37683e55f5469c8593450bfeaeea13ed0b1849976dce15b7479d7095d998540a'],
+        'outlook-dispo-card-caption-v1.png' => ['464054a84f32ad05d4c6e65a67105c6500ed070a818a40935d3b9f390bec7ab7', 6597, 'image/png', 398, 76, '/m/464054a84f.png', '464054a84f32ad05d4c6e65a67105c6500ed070a818a40935d3b9f390bec7ab7'],
     ];
 
     /** @return array<string, string> Full hashes bind both the input map and every immutable public PNG. */
@@ -272,7 +273,7 @@ final class OutlookStaticLinkedTestDelivery
         $html = self::markers($html, 'RT-SIGNATURE-VERSION:', $oldSignature, $newSignature);
         $html = self::markers($html, OutlookMobileCombinedComposeDocument::VERSION_MARKER, $oldMobile, $newMobile);
         $reserve = $nativeSignature && ! OutlookDesktopFlow::mobile($html)
-            ? (str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v11"') || str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v12"') || str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v13"') ? 166
+            ? (str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v11"') || str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v12"') || str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v13"') || str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v14"') ? 166
                 : (str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v10"') ? 855
                     : (str_contains($html, 'data-rt-desktop-flow="outlook-desktop-flow-v9"') ? 798 : 627))) : 0;
         self::budget($html, $maxCharacters, $maxCss, $reserve);
@@ -590,7 +591,7 @@ final class OutlookStaticLinkedTestDelivery
             $fingerprint['map:'.$sha] = $pngSha;
             $fingerprint[$output] = $pngSha;
         }
-        if (count($sources) !== 42 || count($targets) !== 30) {
+        if (count($sources) !== 43 || count($targets) !== 31) {
             self::fail();
         }
         ksort($fingerprint);

@@ -248,8 +248,8 @@ final class OutlookStaticLinkedTestDeliveryTest extends TestCase
     public function test_fingerprint_binds_all_source_mappings_and_public_png_files(): void
     {
         $fingerprint = Delivery::fingerprint();
-        self::assertCount(72, $fingerprint);
-        self::assertCount(42, array_filter(array_keys($fingerprint), static fn (string $key): bool => str_starts_with($key, 'map:')));
+        self::assertCount(74, $fingerprint);
+        self::assertCount(43, array_filter(array_keys($fingerprint), static fn (string $key): bool => str_starts_with($key, 'map:')));
         foreach ($fingerprint as $path => $sha) {
             if (str_starts_with($path, '/m/')) {
                 self::assertSame('/m/'.substr($sha, 0, 10).'.png', $path);

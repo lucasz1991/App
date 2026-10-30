@@ -59,6 +59,26 @@ function referenceFixture(combined = false, token = version) {
     return table('class="rt-managed-combined-v1" width="100%"', table('class="rt-managed-template-v1" width="100%"', template) + signature);
 }
 
+function dispatchCardFixture(combined = false, token = version) {
+    const fill = 'https://mail.example.test/m/3ee5033b5b.png';
+    const paint = 'background-color:#e90032;background-image:url(' + fill + ');background-repeat:repeat;border-radius:8px;';
+    const card = table('class="rt-v14-dispatch-block" data-rt-dispatch-card="v14" width="100%" bgcolor="#e90032" background="' + fill + '" style="width:100%;max-width:227px;' + paint + '"',
+        '<img src="https://mail.example.test/m/464054a84f.png" width="177" height="34" style="width:min(199px,100%)!important;max-width:100%!important;height:auto!important;">'
+        + '<table width="100%" style="width:100%;border-top:1px solid #ff6b8b;"><tbody><tr><td><a href="mailto:office@example.test" style="color:#ffffff;"><img src="https://mail.example.test/m/36ecdeda31.png" width="25" height="25" style="width:25px;height:25px;"></a></td>'
+        + '<td><a href="tel:+490123456789" style="color:#ffffff;"><img src="https://mail.example.test/m/a3564d9bc8.png" width="25" height="25" style="width:25px;height:25px;"></a></td>'
+        + '<td><a href="tel:+490123456789" style="color:#ffffff;"><span style="font-size:12px;color:#ffffff;">+490123456789</span></a></td></tr></tbody></table>',
+        'data-rt-dispatch-card="v14" bgcolor="#e90032" background="' + fill + '" style="padding:8px 14px 5px;' + paint + '"');
+    const base = referenceFixture(combined, token);
+    const opening = base.indexOf('<table class="rt-v13-dispatch-block"');
+    const closing = base.indexOf('</table></td></tr></tbody></table>', opening) + '</table></td></tr></tbody></table>'.length;
+    assert.ok(opening > 0 && closing > opening);
+    return (base.slice(0, opening) + card + base.slice(closing)).replaceAll('rt-v13-', 'rt-v14-')
+        .replaceAll('rt-df13', 'rt-df14').replaceAll('outlook-desktop-flow-v13', 'outlook-desktop-flow-v14')
+        .replace('width="547" style="width:547px;max-width:100%!important;"', 'width="242" style="width:min(547px,100%)!important;max-width:100%!important;"')
+        .replace('width="529" height="115" style="width:529px;max-width:100%!important;height:auto;"',
+            'width="224" height="49" style="width:min(529px,100%)!important;max-width:100%!important;height:auto!important;"');
+}
+
 function swapReferenceContactRows(html, index) {
     const contacts = [...html.matchAll(/<table width="100%"><tbody>(<tr><td width="27"[\s\S]*?)<\/tbody><\/table>/g)];
     const contact = contacts[index], rows = [...contact[1].matchAll(/<tr>[\s\S]*?<\/tr>/g)].map(match => match[0]);
@@ -286,5 +306,82 @@ test('v13 writes once and rejects an incorrect family callback without touching 
         await assert.rejects(insertStandaloneSignature(changedBounds.office, changedBounds.item, referenceFixture(), () => {}, { media: [] }), error => error.code === 'SIGNATURE_LAYOUT_UNCONFIRMED');
         assert.equal(changedBounds.state.signatures, 1);
         assert.equal(isStandaloneSignatureInsertionBlocked(changedBounds.item), true);
+    }
+});
+
+test('v14 separately binds the red dispatch card and retains the 166-character source-only ownership contract', () => {
+    for (const combined of [false, true]) {
+        const html = dispatchCardFixture(combined), source = combined ? managedTemplateContract(html) : standaloneSignatureContract(html);
+        const plan = prepareNativeLayoutRestore(html, source, nonce);
+        assert.equal(plan.sourceOnly, 'fluid-v14'); assert.equal(plan.family, 14);
+        assert.equal(plan.html.length - html.length, 166); assert.equal(plan.ids, null); assert.equal(plan.stylePayload, '');
+        const filtered = wordProfile(plan.html);
+        assert.equal(verifyFluidLayoutMaterial(filtered, fluidLayoutContract(filtered, filtered, nonce, version)).family, 14);
+        for (const changed of [html.replace('padding:8px 14px 5px;', 'padding:8px 13px 5px;'),
+            html.replace('height="34"', 'height="38"'), html.replace('width="177"', 'width="199"'),
+            html.replaceAll('3ee5033b5b.png', 'unknown.png'), html.replace('3ee5033b5b.png);', '3ee5033b5b.png),url(https://mail.example.test/unknown.png);'),
+            html.replace('36ecdeda31.png', 'dcf209bd17.png'), html.replace('background-color:#e90032;', 'background-color:#000000;'),
+            html.replace('bgcolor="#e90032"', 'bgcolor="#ffffff"'), html.replace('border-radius:8px;', 'border-radius:20px;'),
+            html.replace('border-top:1px solid #ff6b8b;', 'border-top:2px solid #ff6b8b;'),
+            html.replace('font-size:12px;', 'font-size:13px;'), html.replaceAll('color:#ffffff;', 'color:#e90032;'),
+            html.replace('>+490123456789</span>', '>+490123456780</span>'),
+            html.replace('min(529px,100%)', 'min(530px,100%)'), html.replace('min(199px,100%)', 'min(200px,100%)'),
+            html.replace('width="242"', 'width="547"'), html.replace('min(547px,100%)', 'min(548px,100%)'),
+            html.replace('width="224"', 'width="529"'), html.replace('height="49"', 'height="115"'),
+            html.replace('min(529px,100%)!important;', 'min(529px,100%);')]) {
+            assert.throws(() => prepareNativeLayoutRestore(changed, combined ? managedTemplateContract(changed) : standaloneSignatureContract(changed), nonce));
+        }
+    }
+});
+
+test('v14 source-only insertion preserves manual and quoted bytes and fails closed on changed card or lost train bounds', async () => {
+    const standalone = host(), outside = standalone.state.body;
+    await insertStandaloneSignature(standalone.office, standalone.item, dispatchCardFixture(), () => {}, { media: [] });
+    assert.equal(standalone.state.signatures, 1); assert.equal(standalone.state.replacements, 0); assert.equal(standalone.state.prepends, 0);
+    assert.ok(standalone.state.body.endsWith(outside));
+    const combined = host();
+    await prependTemplate(combined.office, combined.item, dispatchCardFixture(true), () => {}, { media: [] });
+    await replaceManagedTemplate(combined.office, combined.item, dispatchCardFixture(true, 'ff'.repeat(8)), () => {}, { media: [] });
+    assert.equal(combined.state.prepends, 1); assert.equal(combined.state.replacements, 1); assert.ok(combined.state.body.endsWith(outside));
+    for (const mutate of [html => html.replace('RT-FLUID-LAYOUT-V14:', 'RT-FLUID-LAYOUT-V13:'),
+        html => html.replace('padding:8px 14px 5px;', 'padding:8px 0 5px;'),
+        html => html.replaceAll('3ee5033b5b.png', 'unknown.png'),
+        html => html.replace('36ecdeda31.png', 'dcf209bd17.png'),
+        html => html.replace('>+490123456789</span>', '>+490123456780</span>'),
+        html => html.replace('min(529px,100%)', 'min(900px,100%)'),
+        html => html.replace('min(199px,100%)', 'min(900px,100%)')]) {
+        const altered = host(html => wordProfile(mutate(html)));
+        await assert.rejects(insertStandaloneSignature(altered.office, altered.item, dispatchCardFixture(), () => {}, { media: [] }), error => error.code === 'SIGNATURE_LAYOUT_UNCONFIRMED');
+        assert.equal(altered.state.signatures, 1); assert.equal(isStandaloneSignatureInsertionBlocked(altered.item), true);
+        assert.ok(altered.state.body.endsWith(outside));
+    }
+});
+
+test('v14 accepts only its numeric image bases after the observed Word inch rewrite, never an unbounded modern image', async () => {
+    // This is a model of the units/style loss measured in the actual V13 MIME,
+    // applied to the new V14 safe bases; it is not native V14 acceptance.
+    const boundedWordImages = html => wordProfile(html
+        .replace('width:min(547px,100%)!important;max-width:100%!important;', 'width:2.5208in;')
+        .replace('width:min(529px,100%)!important;max-width:100%!important;height:auto!important;', 'width:2.3333in;height:.5104in;')
+        .replace('width:min(199px,100%)!important;max-width:100%!important;height:auto!important;', 'width:1.8437in;height:.3541in;')
+        .replace('width="100%" bgcolor="#e90032"', 'bgcolor="#e90032"')
+        .replace('width:100%;max-width:227px;', 'max-width:227px;')
+        .replace('width:184px;max-width:100%;height:auto;', 'width:1.9166in;height:.3333in;')
+        .replaceAll('width:25px;height:25px;', 'width:.2604in;height:.2604in;'));
+    const sample = dispatchCardFixture(), plan = prepareNativeLayoutRestore(sample, standaloneSignatureContract(sample), nonce);
+    const filtered = boundedWordImages(plan.html);
+    assert.equal(verifyFluidLayoutMaterial(filtered, fluidLayoutContract(filtered, filtered, nonce, version)).family, 14);
+    const state = host(boundedWordImages);
+    await insertStandaloneSignature(state.office, state.item, dispatchCardFixture(), () => {}, { media: [] });
+    assert.equal(state.state.signatures, 1); assert.equal(state.state.prepends, 0); assert.equal(state.state.replacements, 0);
+    for (const mutate of [html => html.replace('width="224" height="49"', 'width="529" height="115"').replace('width:2.3333in;height:.5104in;', 'width:5.5104in;height:1.1979in;'),
+        html => html.replace('width="177" height="34"', 'width="199" height="38"').replace('width:1.8437in;height:.3541in;', 'width:2.0729in;height:.3958in;'),
+        html => html.replace('width:2.3333in;', 'width:3in;'), html => html.replace('max-width:170.25pt;', 'max-width:171pt;'),
+        html => html.replace('width:.2604in;', 'width:.5in;'), html => html.replace('width:1.9166in;', 'width:3in;'),
+        html => html.replace('width="242"', 'width="547"').replace('width:2.5208in;', 'width:5.6979in;')]) {
+        assert.notEqual(mutate(filtered), filtered, 'The negative must alter the modeled readback.');
+        const changed = host(html => mutate(boundedWordImages(html)));
+        await assert.rejects(insertStandaloneSignature(changed.office, changed.item, dispatchCardFixture(), () => {}, { media: [] }), error => error.code === 'SIGNATURE_LAYOUT_UNCONFIRMED');
+        assert.equal(changed.state.signatures, 1); assert.equal(isStandaloneSignatureInsertionBlocked(changed.item), true);
     }
 });

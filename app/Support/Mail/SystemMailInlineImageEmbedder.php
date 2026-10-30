@@ -112,6 +112,7 @@ final class SystemMailInlineImageEmbedder
 
         if (is_string($rewritten)) {
             $rewritten = $this->embedSignatureBackgrounds($rewritten, $assets, $locations);
+            $rewritten = $this->embedDispatchCardBackgrounds($rewritten, $assets, $locations);
         }
 
         if (! is_string($rewritten) || $assets === []) {
@@ -269,6 +270,51 @@ final class SystemMailInlineImageEmbedder
             },
             $html,
         ) ?? $html;
+    }
+
+    /** Only the two generated V14 card surfaces may embed the pinned red tile. */
+    private function embedDispatchCardBackgrounds(string $html, array &$assets, array $locations): string
+    {
+        if (substr_count($html, 'data-rt-desktop-flow="outlook-desktop-flow-v14"') !== 1
+            || substr_count($html, 'data-rt-dispatch-card="v14"') !== 2) {
+            return $html;
+        }
+
+        return preg_replace_callback('~<(table|td)\b(?:"[^"]*"|\'[^\']*\'|[^\'">])*>~i', function (array $match) use (&$assets, $locations): string {
+            $tag = $match[0];
+            $attrs = $this->tagAttributes($tag);
+            $class = strtolower($match[1]) === 'table' ? 'rt-v14-dispatch-block' : 'rt-v14-dispatch-block-cell';
+            if (($attrs['data-rt-dispatch-card']['value'] ?? '') !== 'v14'
+                || ! preg_match('/(?:\A|\s)'.preg_quote($class, '/').'(?:\s|\z)/', $attrs['class']['value'] ?? '')
+                || ($attrs['bgcolor']['value'] ?? '') !== '#e90032'
+                || ! isset($attrs['background'], $attrs['style'])) {
+                return $tag;
+            }
+            $source = $attrs['background']['value'];
+            $style = $attrs['style']['value'];
+            if (preg_match_all('/(?:\A|;)\s*background-image\s*:/i', $style) !== 1
+                || ! preg_match('~((?:\A|;)\s*background-image\s*:\s*)url\(\s*(?:(["\'])(.*?)\2|([^\s"\'()]+))\s*\)(\s*(?:!important\s*)?)(?=;|\z)~is', $style, $image)
+                || ($image[3] !== '' ? $image[3] : $image[4]) !== $source
+                || ! preg_match('/(?:\A|;)\s*background-color\s*:\s*#e90032\s*(?:;|\z)/i', $style)) {
+                return $tag;
+            }
+            $asset = $this->resolveAsset($source, $locations);
+            if ($asset === null || $asset['filename'] !== 'outlook-hotline-fill-v1.png'
+                || hash_file('sha256', $asset['path']) !== '3ee5033b5b112852a0255cf62d99542391117ba462408510c460c799a5ad6583') {
+                return $tag;
+            }
+            $assets[$asset['path']] = $asset;
+            $edits = [];
+            foreach (['background' => 'cid:'.$asset['cid'], 'style' => str_replace($image[0], $image[1]."url('cid:".$asset['cid']."')".($image[5] ?? ''), $style)] as $name => $value) {
+                $edits[] = [$attrs[$name]['offset'], $attrs[$name]['length'], ' '.$name.'="'.htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8').'"'];
+            }
+            usort($edits, static fn (array $a, array $b): int => $b[0] <=> $a[0]);
+            foreach ($edits as [$offset, $length, $value]) {
+                $tag = substr_replace($tag, $value, $offset, $length);
+            }
+
+            return $tag;
+        }, $html) ?? $html;
     }
 
     /** @return array<string, array{value: string, offset: int, length: int}> */

@@ -2,7 +2,7 @@
 
 Usage: python scripts/mail/build_static_linked_test_assets.py [--check]
 
-The 42 assets (33 historical plus 9 new) and 30 PNG selections are pinned by full SHA256,
+The 43 assets (42 retained plus one new caption) and 31 PNG selections are pinned by full SHA256,
 byte length, MIME and dimensions. This build never renders or re-encodes an
 image. It copies only the selected PNG bytes to public/m/<first10SHA256>.png.
 No resources copy is needed: every original already has its canonical backup.
@@ -582,6 +582,19 @@ MANIFEST = json.loads(r"""{
       "png": "outlook-hotline-label-inktop-v1.png",
       "png_sha256": "37683e55f5469c8593450bfeaeea13ed0b1849976dce15b7479d7095d998540a",
       "output": "/m/37683e55f5.png"
+    },
+    {
+      "source": "outlook-dispo-card-caption-v1.png",
+      "sha256": "464054a84f32ad05d4c6e65a67105c6500ed070a818a40935d3b9f390bec7ab7",
+      "bytes": 6597,
+      "mime": "image/png",
+      "dimensions": [
+        398,
+        76
+      ],
+      "png": "outlook-dispo-card-caption-v1.png",
+      "png_sha256": "464054a84f32ad05d4c6e65a67105c6500ed070a818a40935d3b9f390bec7ab7",
+      "output": "/m/464054a84f.png"
     }
   ],
   "targets": {
@@ -884,6 +897,16 @@ MANIFEST = json.loads(r"""{
         552,
         77
       ]
+    },
+    "/m/464054a84f.png": {
+      "source": "outlook-dispo-card-caption-v1.png",
+      "sha256": "464054a84f32ad05d4c6e65a67105c6500ed070a818a40935d3b9f390bec7ab7",
+      "bytes": 6597,
+      "mime": "image/png",
+      "dimensions": [
+        398,
+        76
+      ]
     }
   }
 }""")
@@ -1076,8 +1099,8 @@ def main() -> int:
     parser.add_argument("--check", action="store_true", help="Verify exact existing outputs without writing files or directories")
     arguments = parser.parse_args()
     try:
-        if len(MANIFEST["sources"]) != 42 or len(MANIFEST["targets"]) != 30:
-            raise ValueError("The approved 42-source / 30-target inventory changed")
+        if len(MANIFEST["sources"]) != 43 or len(MANIFEST["targets"]) != 31:
+            raise ValueError("The approved 43-source / 31-target inventory changed")
         report = build_assets(check=arguments.check)
     except (OSError, ValueError, SyntaxError) as error:
         print("Static linked asset verification failed: " + str(error), file=sys.stderr)

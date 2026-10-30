@@ -5,6 +5,7 @@ Run the offline builder with Python 3.12, Pillow 12.2.0 and CairoSVG 2.9.0:
 ```powershell
 python scripts/mail/build_branded_outlook_train.py
 python scripts/mail/build_branded_outlook_train.py --check
+python scripts/mail/build_dispatch_card_caption.py --check
 python scripts/mail/build_static_linked_test_assets.py
 python scripts/mail/build_static_linked_test_assets.py --check
 ```
@@ -35,3 +36,11 @@ corresponding branded PNG; every `/m/<first10SHA256>.png` is an exact PNG copy.
 The runtime catalog and offline manifest are checked together by
 `OutlookBrandedTrainAssetsTest`. These media checks do not establish Outlook
 send, receive, reply, forward or device acceptance.
+
+The appended `outlook-dispo-card-caption-v1.png` is an opaque brand-red
+(`#e90032`) caption with white Arial outlines, rendered at 398 × 76 for a
+199 × 38 display. Its separate builder pins the installed Arial font bytes
+and reconstructs the approved PNG without overwriting any existing asset.
+It requires fontTools 4.63.0 in addition to the rendering dependencies above.
+No font files are distributed. This one addition retains all prior 42 source
+mappings and 30 PNG targets exactly, giving 43 sources and 31 targets.

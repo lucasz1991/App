@@ -13,7 +13,8 @@ final class OutlookBrandedTrainAssetsTest extends TestCase
     public function test_historical_catalog_is_unchanged_and_new_assets_are_only_appended(): void
     {
         $assets = (new \ReflectionClass(OutlookStaticLinkedTestDelivery::class))->getConstant('ASSETS');
-        self::assertCount(42, $assets);
+        self::assertCount(43, $assets);
+        self::assertSame('ac9308c1dc9cd08f6aa196cd482a1a4adeeae70111e965f1952f316b1fa8f7d4', hash('sha256', json_encode(array_slice($assets, 0, 42, true), JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)));
         self::assertSame('9111e4eea3bf1463da22574cb2e1112e444afa6d73fb9ce4a6e9be94bb507b7a', hash('sha256', json_encode(array_slice($assets, 0, 33, true), JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)));
     }
 
@@ -42,8 +43,8 @@ final class OutlookBrandedTrainAssetsTest extends TestCase
         self::assertSame(1, preg_match('/MANIFEST = json.loads\(r"""(.*?)"""\)/s', $builder, $match));
         $manifest = json_decode($match[1], true, flags: JSON_THROW_ON_ERROR);
         $assets = (new \ReflectionClass(OutlookStaticLinkedTestDelivery::class))->getConstant('ASSETS');
-        self::assertCount(42, $manifest['sources']);
-        self::assertCount(30, $manifest['targets']);
+        self::assertCount(43, $manifest['sources']);
+        self::assertCount(31, $manifest['targets']);
         foreach ($manifest['sources'] as $source) {
             self::assertSame([$source['sha256'], $source['bytes'], $source['mime'], ...$source['dimensions'], $source['output'], $source['png_sha256']], $assets[$source['source']]);
         }
@@ -60,5 +61,6 @@ final class OutlookBrandedTrainAssetsTest extends TestCase
         yield 'mirrored dark PNG' => ['zug-dampf-outlook-brand-v1-dark-mirrored.png', '917e8f055d74b6e4b2294df05fb74079cfb5e8526902cc87fda2e260b658861b', 695, 151];
         yield 'mirrored dark GIF' => ['zug-dampf-outlook-brand-v1-dark-mirrored.gif', 'ed21ba08d9d32ede363a30d13d182aa802b426330fd0110c4b0f50b11c960768', 695, 151];
         yield 'transparent caption crop' => ['outlook-hotline-label-inktop-v1.png', '37683e55f5469c8593450bfeaeea13ed0b1849976dce15b7479d7095d998540a', 552, 77];
+        yield 'opaque white dispatch caption' => ['outlook-dispo-card-caption-v1.png', '464054a84f32ad05d4c6e65a67105c6500ed070a818a40935d3b9f390bec7ab7', 398, 76];
     }
 }

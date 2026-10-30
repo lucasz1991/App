@@ -462,6 +462,7 @@ function inlineCellProperties(style) {
 const FLUID_FLOW = 'outlook-desktop-flow-v11';
 const FLAT_FLUID_FLOW = 'outlook-desktop-flow-v12';
 const REFERENCE_FLUID_FLOW = 'outlook-desktop-flow-v13';
+const DISPATCH_CARD_FLOW = 'outlook-desktop-flow-v14';
 const FLUID_COLUMNS = [
     ['identity', 176, 16], ['direct', 204, 0], ['company', 172, 12], ['dispatch', 164, 4],
 ];
@@ -471,7 +472,7 @@ const REFERENCE_FLUID_COLUMNS = [
 
 export function isFluidLayoutSource(contract) {
     return Array.isArray(contract?.elements) && Number.isInteger(contract.signature?.index)
-        && contract.elements.some((node, index) => [FLUID_FLOW, FLAT_FLUID_FLOW, REFERENCE_FLUID_FLOW].includes(node.attrs['data-rt-desktop-flow']) && within(contract.elements, index, contract.signature.index));
+        && contract.elements.some((node, index) => [FLUID_FLOW, FLAT_FLUID_FLOW, REFERENCE_FLUID_FLOW, DISPATCH_CARD_FLOW].includes(node.attrs['data-rt-desktop-flow']) && within(contract.elements, index, contract.signature.index));
 }
 
 function fluidPixels(value) {
@@ -497,16 +498,16 @@ function fluidNumber(node, name, expected) {
     return values.length > 0 && values.every(value => Math.abs(fluidPixels(value) - expected) < 0.05);
 }
 
-function referenceImage(node, width, height, source) {
+function referenceImage(node, width, height, source, pixels = fluidPixels) {
     fluidOuterSafe(node);
     const style = new Map(inlineCellProperties(node.attrs.style || ''));
-    if ((owns(node.attrs, 'width') && !(Math.abs(fluidPixels(node.attrs.width) - width) < 0.05))
-        || (owns(node.attrs, 'height') && !(Math.abs(fluidPixels(node.attrs.height) - height) < 0.05))
-        || (style.has('width') && style.get('width') !== '100%' && !(Math.abs(fluidPixels(style.get('width')) - width) < 0.05))
-        || (style.has('height') && style.get('height') !== 'auto' && !(Math.abs(fluidPixels(style.get('height')) - height) < 0.05))) return false;
-    const widthBound = Math.abs(fluidPixels(node.attrs.width ?? style.get('width')) - width) < 0.05
+    if ((owns(node.attrs, 'width') && !(Math.abs(pixels(node.attrs.width) - width) < 0.05))
+        || (owns(node.attrs, 'height') && !(Math.abs(pixels(node.attrs.height) - height) < 0.05))
+        || (style.has('width') && style.get('width') !== '100%' && !(Math.abs(pixels(style.get('width')) - width) < 0.05))
+        || (style.has('height') && style.get('height') !== 'auto' && !(Math.abs(pixels(style.get('height')) - height) < 0.05))) return false;
+    const widthBound = Math.abs(pixels(node.attrs.width ?? style.get('width')) - width) < 0.05
         || (style.get('width') === '100%' && style.get('max-width') === '100%');
-    const heightBound = Math.abs(fluidPixels(node.attrs.height ?? style.get('height')) - height) < 0.05
+    const heightBound = Math.abs(pixels(node.attrs.height ?? style.get('height')) - height) < 0.05
         || (!source && style.get('height') === 'auto');
     return widthBound && heightBound;
 }
@@ -536,6 +537,63 @@ function fluidBlank(html, nodes, value) {
         || (fluidPixels(properties.get('font-size')) === 0 && fluidPixels(properties.get('line-height')) === 0));
 }
 
+function dispatchCardAsset(value, filename, sha) {
+    if (value === 'cid:railtime-' + sha.slice(0, 20) + '.png') return true;
+    try {
+        const url = new URL(value);
+        return url.protocol === 'https:' && !url.username && !url.password && !url.search && !url.hash
+            && [('/m/' + sha.slice(0, 10) + '.png'), ('/mail-assets/' + filename)].includes(url.pathname);
+    } catch { return false; }
+}
+
+function dispatchPixels(value) {
+    const normalized = /^\.[0-9]/.test(value || '') ? '0' + value : value;
+    return /^([0-9]+(?:\.[0-9]+)?)in$/.test(normalized || '') ? Number.parseFloat(normalized) * 96 : fluidPixels(normalized);
+}
+
+function dispatchAdaptiveImage(node, baseWidth, baseHeight, modernWidth, source) {
+    fluidOuterSafe(node);
+    const properties = new Map(inlineCellProperties(node.attrs.style || ''));
+    const close = (value, expected) => Math.abs(dispatchPixels(value) - expected) < 0.05;
+    if ((owns(node.attrs, 'width') && !close(node.attrs.width, baseWidth))
+        || (owns(node.attrs, 'height') && !close(node.attrs.height, baseHeight))) return false;
+    const width = properties.get('width')?.replace(/\s+/g, '');
+    const formula = width === 'min(' + modernWidth + 'px,100%)';
+    const important = name => new RegExp('(?:^|;)\\s*' + name + '\\s*:[^;]+!important\\s*(?:;|$)', 'i').test(node.attrs.style || '');
+    if (source) return close(node.attrs.width, baseWidth) && close(node.attrs.height, baseHeight) && formula
+        && properties.get('max-width') === '100%' && properties.get('height') === 'auto'
+        && ['width', 'max-width', 'height'].every(important);
+    if (formula) return properties.get('max-width') === '100%' && properties.get('height') === 'auto';
+    const boundedWidth = close(node.attrs.width ?? properties.get('width'), baseWidth)
+        && (!properties.has('width') || close(properties.get('width'), baseWidth));
+    const boundedHeight = close(node.attrs.height ?? properties.get('height'), baseHeight)
+        && (!properties.has('height') || properties.get('height') === 'auto' || close(properties.get('height'), baseHeight));
+    return boundedWidth && boundedHeight;
+}
+
+function dispatchAdaptiveStage(node, source) {
+    const properties = new Map(inlineCellProperties(node.attrs.style || ''));
+    const close = value => Math.abs(dispatchPixels(value) - 242) < 0.05;
+    if (owns(node.attrs, 'width') && !close(node.attrs.width)) return false;
+    const formula = properties.get('width')?.replace(/\s+/g, '') === 'min(547px,100%)';
+    if (source) return close(node.attrs.width) && formula && properties.get('max-width') === '100%'
+        && ['width', 'max-width'].every(name => new RegExp('(?:^|;)\\s*' + name + '\\s*:[^;]+!important\\s*(?:;|$)', 'i').test(node.attrs.style || ''));
+    return formula ? properties.get('max-width') === '100%'
+        : close(node.attrs.width ?? properties.get('width')) && (!properties.has('width') || close(properties.get('width')));
+}
+
+function dispatchCardPaint(node, source) {
+    const properties = new Map(inlineCellProperties(node.attrs.style || ''));
+    const red = value => ['#e90032', 'rgb(233,0,50)'].includes((value || '').replace(/\s+/g, '').toLowerCase());
+    const fills = [node.attrs.background, /^url\(\s*["']?([^"')]+)["']?\s*\)$/i.exec(properties.get('background-image') || '')?.[1]];
+    const known = value => dispatchCardAsset(value, 'outlook-hotline-fill-v1.png', '3ee5033b5b112852a0255cf62d99542391117ba462408510c460c799a5ad6583');
+    if (!red(node.attrs.bgcolor) || !red(properties.get('background-color')) || fills.some(value => !known(value))
+        || fills[0] !== fills[1] || (properties.has('border-radius') && Math.abs(fluidPixels(properties.get('border-radius')) - 8) > 0.05)
+        || (source && (node.attrs['data-rt-dispatch-card'] !== 'v14' || properties.get('background-repeat') !== 'repeat'
+            || Math.abs(fluidPixels(properties.get('border-radius')) - 8) > 0.05))) invalid();
+    if (inlineCellProperties(node.attrs.style || '').some(([name]) => name === 'background')) invalid();
+}
+
 /** Fluid families rely on retained HTML material, not on restored or virtual CSS IDs. */
 export function verifyFluidLayoutMaterial(html, contract, source = false) {
     const nodes = contract?.elements, signature = contract?.signature;
@@ -543,19 +601,19 @@ export function verifyFluidLayoutMaterial(html, contract, source = false) {
     const scoped = nodes.map((node, index) => ({ node, index })).filter(value => within(nodes, value.index, signature.index) && !isQuoted(nodes, value.index));
     let root, columns, family;
     if (source) {
-        const candidates = scoped.filter(value => [FLUID_FLOW, FLAT_FLUID_FLOW, REFERENCE_FLUID_FLOW].includes(value.node.attrs['data-rt-desktop-flow']));
+        const candidates = scoped.filter(value => [FLUID_FLOW, FLAT_FLUID_FLOW, REFERENCE_FLUID_FLOW, DISPATCH_CARD_FLOW].includes(value.node.attrs['data-rt-desktop-flow']));
         if (candidates.length !== 1 || candidates[0].node.tag !== 'table') invalid();
         root = candidates[0];
-        family = root.node.attrs['data-rt-desktop-flow'] === REFERENCE_FLUID_FLOW ? 13 : root.node.attrs['data-rt-desktop-flow'] === FLAT_FLUID_FLOW ? 12 : 11;
+        family = root.node.attrs['data-rt-desktop-flow'] === DISPATCH_CARD_FLOW ? 14 : root.node.attrs['data-rt-desktop-flow'] === REFERENCE_FLUID_FLOW ? 13 : root.node.attrs['data-rt-desktop-flow'] === FLAT_FLUID_FLOW ? 12 : 11;
         if (!has(root.node, 'rt-v' + family + '-columns') || (family >= 12 && !has(root.node, 'rt-sign-content-frame'))) invalid();
         const scopes = (signature.node.attrs.class || '').split(/\s+/).filter(name => /^rts[0-9a-f]{10}$/.test(name));
-        const hosts = (root.node.attrs.class || '').split(/\s+/).filter(name => /^rt-df(?:[0-9]|10|11|12|13)[0-9a-f]{10}$/.test(name));
+        const hosts = (root.node.attrs.class || '').split(/\s+/).filter(name => /^rt-df(?:[0-9]|10|11|12|13|14)[0-9a-f]{10}$/.test(name));
         if (scopes.length !== 1 || hosts.length !== 1 || hosts[0] !== 'rt-df' + family + scopes[0].slice(3)
             || root.node.attrs['data-rt-personal-flow'] !== 'v1' || root.node.attrs['data-rt-personal-columns'] !== 'v1') invalid();
     } else {
         if (!contract.fluidLayout) invalid();
         family = contract.fluidLayout.family;
-        if (![11, 12, 13].includes(family)) invalid();
+        if (![11, 12, 13, 14].includes(family)) invalid();
         const floats = scoped.filter(value => value.node.tag === 'table' && (value.node.attrs.align || '').toLowerCase() === 'left');
         if (floats.length !== 4 || floats.some(value => value.node.parent !== floats[0].node.parent)) invalid();
         let index = floats[0].node.parent;
@@ -586,11 +644,11 @@ export function verifyFluidLayoutMaterial(html, contract, source = false) {
     if (columns.length !== 4 || columns.some(value => value.node.parent !== cell.index)
         || columns.some((value, index) => items.filter(item => item.node.tag === 'table')[index]?.index !== value.index)) invalid();
     const gap = fluidPadding(cell.node);
-    if (Math.abs(gap.left - 18) > 0.05 || gap.right !== 0 || (family === 13 && Math.abs(gap.top - 12) > 0.05)) invalid();
+    if (Math.abs(gap.left - 18) > 0.05 || gap.right !== 0 || (family >= 13 && Math.abs(gap.top - 12) > 0.05)) invalid();
     const barriers = items.filter(value => value.node.tag !== 'table');
     if (!barriers.length || items[items.length - 1].node.tag === 'table' || barriers.some(value => !fluidBlank(html, nodes, value))
         || (source && (barriers.length !== 1 || barriers[0].node.tag !== 'br' || barriers[0].node.attrs.clear !== 'all'))) invalid();
-    for (const [index, [role, width, right]] of (family === 13 ? REFERENCE_FLUID_COLUMNS : FLUID_COLUMNS).entries()) {
+    for (const [index, [role, width, right]] of (family >= 13 ? REFERENCE_FLUID_COLUMNS : FLUID_COLUMNS).entries()) {
         const column = columns[index], properties = new Map(inlineCellProperties(column.node.attrs.style || ''));
         fluidOuterSafe(column.node);
         if (column.node.tag !== 'table' || column.node.attrs.align?.toLowerCase() !== 'left' || !fluidNumber(column.node, 'width', width)
@@ -603,11 +661,11 @@ export function verifyFluidLayoutMaterial(html, contract, source = false) {
             && (['left', 'right'].includes((node.attrs.align || '').toLowerCase())
                 || inlineCellProperties(node.attrs.style || '').some(([name, value]) => name === 'float' && value !== 'none'
                     || /^mso-table-anchor-|^mso-table-left$/.test(name))))) invalid();
-        if (family === 13 && role === 'identity') {
+        if (family >= 13 && role === 'identity') {
             const logos = scoped.filter(value => value.node.tag === 'img' && within(nodes, value.index, column.index));
-            if (logos.length !== 1 || !referenceImage(logos[0].node, 184, 32, source)) invalid();
+            if (logos.length !== 1 || !referenceImage(logos[0].node, 184, 32, source, family === 14 ? dispatchPixels : fluidPixels)) invalid();
         }
-        if (family === 13 && role === 'company') {
+        if (family >= 13 && role === 'company') {
             const links = scoped.filter(value => value.node.tag === 'a' && within(nodes, value.index, column.index));
             if (links.length !== 1 || !/^https?:\/\//i.test(links[0].node.attrs.href || '')) invalid();
             let row = links[0].node.parent;
@@ -624,7 +682,7 @@ export function verifyFluidLayoutMaterial(html, contract, source = false) {
         if (role === 'direct') {
             const emails = scoped.filter(value => value.node.tag === 'a' && /^mailto:/i.test(value.node.attrs.href || '') && within(nodes, value.index, column.index));
             if (emails.length !== 1) invalid();
-            if (family === 13) {
+            if (family >= 13) {
                 const links = scoped.filter(value => value.node.tag === 'a' && within(nodes, value.index, column.index));
                 if (links[0]?.index !== emails[0].index || links.slice(1).some(value => !/^tel:/i.test(value.node.attrs.href || ''))) invalid();
             }
@@ -637,38 +695,64 @@ export function verifyFluidLayoutMaterial(html, contract, source = false) {
             if (nodes.some((node, position) => within(nodes, position, values[1].index)
                 && (owns(node.attrs, 'nowrap') || inlineCellProperties(node.attrs.style || '').some(([name, value]) => name === 'white-space' && value === 'nowrap')))) invalid();
         }
-        if (family === 13 && role === 'dispatch') {
+        if (family >= 13 && role === 'dispatch') {
             const block = onlyChild(nodes, content.index, 'table');
             const blockCell = onlyChild(nodes, onlyChild(nodes, onlyChild(nodes, block.index, 'tbody').index, 'tr').index, 'td');
             fluidOuterSafe(block.node); fluidOuterSafe(blockCell.node);
             const blockPadding = fluidPadding(blockCell.node);
             const blockStyle = new Map(inlineCellProperties(block.node.attrs.style || ''));
             if ((owns(block.node.attrs, 'width') && block.node.attrs.width !== '100%')
-                || blockStyle.get('width') !== '100%' || !(Math.abs(fluidPixels(blockStyle.get('max-width')) - 227) < 0.05)
-                || (source && block.node.attrs.width !== '100%') || !Object.values(blockPadding).every(value => value === 0)
-                || (source && !has(block.node, 'rt-v13-dispatch-block'))) invalid();
+                || (family === 14 && !source ? ![undefined, 'auto', '100%'].includes(blockStyle.get('width')) : blockStyle.get('width') !== '100%')
+                || !(Math.abs(fluidPixels(blockStyle.get('max-width')) - 227) < 0.05)
+                || (source && block.node.attrs.width !== '100%')
+                || (family === 13 ? !Object.values(blockPadding).every(value => value === 0)
+                    : Math.abs(blockPadding.top - 8) > 0.05 || Math.abs(blockPadding.right - 14) > 0.05
+                        || Math.abs(blockPadding.bottom - 5) > 0.05 || Math.abs(blockPadding.left - 14) > 0.05)
+                || (source && !has(block.node, 'rt-v' + family + '-dispatch-block'))) invalid();
             const neutralBackground = value => ['none', 'transparent', 'white', '#fff', '#ffffff', 'rgb(255,255,255)'].includes(value.replace(/\s+/g, '').toLowerCase());
-            if (scoped.some(value => within(nodes, value.index, column.index) && (['background', 'data-rt-dispatch-card'].some(name => owns(value.node.attrs, name))
+            if (family === 13 && scoped.some(value => within(nodes, value.index, column.index) && (['background', 'data-rt-dispatch-card'].some(name => owns(value.node.attrs, name))
                 || (owns(value.node.attrs, 'bgcolor') && (source || !neutralBackground(value.node.attrs.bgcolor)))
                 || inlineCellProperties(value.node.attrs.style || '').some(([name, property]) => /^background(?:-|$)/.test(name) && (source || !neutralBackground(property)))))) invalid();
+            if (family === 14) {
+                dispatchCardPaint(block.node, source); dispatchCardPaint(blockCell.node, source);
+                if (scoped.some(value => within(nodes, value.index, column.index) && ![block.index, blockCell.index].includes(value.index)
+                    && (['background', 'bgcolor', 'data-rt-dispatch-card'].some(name => owns(value.node.attrs, name))
+                        || inlineCellProperties(value.node.attrs.style || '').some(([name]) => /^background(?:-|$)/.test(name))))) invalid();
+            }
             const actions = children(nodes, blockCell.index).filter(value => value.node.tag === 'table');
             if (actions.length !== 1) invalid();
+            if (family === 14) {
+                const divider = new Map(inlineCellProperties(actions[0].node.attrs.style || '')).get('border-top');
+                const parts = /^(\S+)\s+solid\s+(#ff6b8b|rgb\(255,\s*107,\s*139\))$/.exec(divider || '');
+                if (!parts || Math.abs(dispatchPixels(parts[1]) - 1) > 0.05) invalid();
+            }
             const slots = children(nodes, onlyChild(nodes, onlyChild(nodes, actions[0].index, 'tbody').index, 'tr').index);
             if (slots.length !== 3 || slots.some(value => value.node.tag !== 'td')) invalid();
             const images = scoped.filter(value => value.node.tag === 'img' && within(nodes, value.index, block.index));
             const links = scoped.filter(value => value.node.tag === 'a' && within(nodes, value.index, block.index));
-            if (images.length !== 3 || links.length !== 3 || !referenceImage(images[0].node, 199, 28, source)
-                || !referenceImage(images[1].node, 25, 25, source) || !referenceImage(images[2].node, 25, 25, source)
+            if (images.length !== 3 || links.length !== 3 || !(family === 14 ? dispatchAdaptiveImage(images[0].node, 177, 34, 199, source) : referenceImage(images[0].node, 199, 28, source))
+                || !referenceImage(images[1].node, 25, 25, source, family === 14 ? dispatchPixels : fluidPixels)
+                || !referenceImage(images[2].node, 25, 25, source, family === 14 ? dispatchPixels : fluidPixels)
                 || !/^mailto:/i.test(links[0].node.attrs.href || '') || !/^tel:/i.test(links[1].node.attrs.href || '')
                 || links[1].node.attrs.href !== links[2].node.attrs.href
                 || !links.every((value, index) => within(nodes, value.index, slots[index].index))
                 || !within(nodes, images[1].index, slots[0].index) || !within(nodes, images[2].index, slots[1].index)) invalid();
-            if (new Map(inlineCellProperties(images[0].node.attrs.style || '')).get('max-width') !== '100%'
-                || (source && !/(?:^|;)\s*max-width\s*:\s*100%\s*!important\s*(?:;|$)/i.test(images[0].node.attrs.style || ''))) invalid();
+            if (family === 14 && ![
+                ['outlook-dispo-card-caption-v1.png', '464054a84f32ad05d4c6e65a67105c6500ed070a818a40935d3b9f390bec7ab7'],
+                ['outlook-hotline-mail-v1.png', '36ecdeda3135132910ead299dec2fdef8786ed05a39d7fadb3ee4156e5d1696d'],
+                ['outlook-hotline-phone-v1.png', 'a3564d9bc8fafc2fc9dcd577361b882dda579f539049876e589fd6d12b090dc5'],
+            ].every(([filename, sha], index) => dispatchCardAsset(images[index].node.attrs.src, filename, sha))) invalid();
+            if (family === 13 && (new Map(inlineCellProperties(images[0].node.attrs.style || '')).get('max-width') !== '100%'
+                || (source && !/(?:^|;)\s*max-width\s*:\s*100%\s*!important\s*(?:;|$)/i.test(images[0].node.attrs.style || '')))) invalid();
             const phone = html.slice(links[2].node.openEnd, links[2].node.close).replace(/<[^>]*>/g, '').replace(/&nbsp;|&#160;|&#x0*a0;/gi, ' ').trim();
             const digits = phone.replace(/\D/g, ''), target = links[2].node.attrs.href.slice(4).replace(/\D/g, '');
             if (!digits || digits !== target || !scoped.some(value => within(nodes, value.index, links[2].index)
-                && Math.abs(fluidPixels(new Map(inlineCellProperties(value.node.attrs.style || '')).get('font-size')) - 13) < 0.05)) invalid();
+                && Math.abs(fluidPixels(new Map(inlineCellProperties(value.node.attrs.style || '')).get('font-size')) - (family === 14 ? 12 : 13)) < 0.05)) invalid();
+            if (family === 14) {
+                const white = value => ['#fff', '#ffffff', 'white', 'rgb(255,255,255)'].includes((value || '').replace(/\s+/g, '').toLowerCase());
+                if (!links.every(link => scoped.some(value => within(nodes, value.index, link.index)
+                    && white(new Map(inlineCellProperties(value.node.attrs.style || '')).get('color'))))) invalid();
+            }
         }
     }
     const trainHost = onlyChild(nodes, rows[1].index, 'td');
@@ -676,8 +760,8 @@ export function verifyFluidLayoutMaterial(html, contract, source = false) {
     fluidOuterSafe(train.node);
     const trainCell = onlyChild(nodes, onlyChild(nodes, onlyChild(nodes, train.index, 'tbody').index, 'tr').index, 'td');
     const trainImages = scoped.filter(value => value.node.tag === 'img' && within(nodes, value.index, train.index));
-    const trainWidth = family === 13 ? 547 : 218, imageWidth = family === 13 ? 529 : 200, imageHeight = family === 13 ? 115 : 43;
-    if (!fluidNumber(train.node, 'width', trainWidth) || owns(train.node.attrs, 'align') || trainImages.length !== 1
+    const trainWidth = family >= 13 ? 547 : 218, imageWidth = family >= 13 ? 529 : 200, imageHeight = family >= 13 ? 115 : 43;
+    if ((family === 14 ? !dispatchAdaptiveStage(train.node, source) : !fluidNumber(train.node, 'width', trainWidth)) || owns(train.node.attrs, 'align') || trainImages.length !== 1
         || Math.abs(fluidPadding(trainCell.node).right - 18) > 0.05 || fluidPadding(trainCell.node).left !== 0) invalid();
     const image = trainImages[0].node, imageProperties = new Map(inlineCellProperties(image.attrs.style || ''));
     if (family === 13) {
@@ -694,7 +778,7 @@ export function verifyFluidLayoutMaterial(html, contract, source = false) {
         && (image.attrs.height === undefined || Math.abs(fluidPixels(image.attrs.height) - imageHeight) < 0.05)
         && (imageProperties.get('width') === '100%' || Math.abs(fluidPixels(imageProperties.get('width')) - imageWidth) < 0.05)
         && imageProperties.get('max-width') === '100%' && imageProperties.get('height') === 'auto';
-    if (!fixedImage && (!boundedImage || source)) invalid();
+    if (family === 14 ? !dispatchAdaptiveImage(image, 224, 49, 529, source) : !fixedImage && (!boundedImage || source)) invalid();
     const signatureRows = children(nodes, onlyChild(nodes, signature.index, 'tbody').index);
     if (signatureRows.length !== 2 || signatureRows.some(value => value.node.tag !== 'tr')
         || !within(nodes, root.index, signatureRows[0].index)) invalid();
@@ -712,7 +796,7 @@ function prepareFluidLayout(html, contract, nonce) {
     const versionNode = contract.elements[contract.signatureMetadata.version];
     const version = /RT-SIGNATURE-VERSION:([0-9a-f]{16})/i.exec(html.slice(versionNode.openEnd, versionNode.close))?.[1]?.toLowerCase();
     const scope = nonce === undefined ? createNativeLayoutNonce() : nonce;
-    if (!version || !/^[0-9a-f]{32}$/.test(scope) || /RT-FLUID-LAYOUT-V1[123]:/.test(html)) invalid();
+    if (!version || !/^[0-9a-f]{32}$/.test(scope) || /RT-FLUID-LAYOUT-V1[1234]:/.test(html)) invalid();
     const marker = '<span hidden aria-hidden="true" style="display:none!important;font-size:0;line-height:0;">RT-FLUID-LAYOUT-V' + family + ':' + scope + ':' + version + '</span>';
     return Object.freeze({ html: html.slice(0, versionNode.end) + marker + html.slice(versionNode.end), sourceOnly: 'fluid-v' + family, family, nonce: scope, version, stylePayload: '', ids: null });
 }
