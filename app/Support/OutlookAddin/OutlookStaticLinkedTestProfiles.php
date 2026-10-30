@@ -126,6 +126,12 @@ final class OutlookStaticLinkedTestProfiles
         return self::profile($snapshot['html'], true);
     }
 
+    /** Reuse the exact admission contract for read-only candidate budget validation. */
+    public static function templateProfile(array $snapshot): ?string
+    {
+        return self::admission($snapshot)['profile'];
+    }
+
     /** Parse only entries actually offered in this response, including their exact published partner. */
     private static function admission(array $snapshot): array
     {

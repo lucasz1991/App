@@ -118,6 +118,7 @@ final class OutlookAddinWordingPolicy
             && $current['showGreeting'] === $nextValues['showGreeting'] && $current['showFarewell'] === $nextValues['showFarewell']) {
             return $current;
         }
+        app(OutlookOptionalWordingBudget::class)->validate($employee, $nextValues);
         $stored = array_replace((array) $setting?->value, ['schema' => 1] + $texts + ['nonce' => Str::random(32)]);
         Setting::setValue(OutlookAddinAutomaticInsertionPolicy::GROUP, $this->key($employee), $stored);
         $next = $this->value($employee, $stored);

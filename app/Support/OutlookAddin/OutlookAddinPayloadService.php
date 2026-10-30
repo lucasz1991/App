@@ -115,6 +115,10 @@ final class OutlookAddinPayloadService
             $wording = $this->templateWordingPreferences($user, $templateSnapshots);
             if ($wording !== null) {
                 $input['personal_template_wording'] = ['renderer' => self::WORDING_REVISION, 'preferences' => $wording];
+                if (($wording['showGreeting'] || $wording['showFarewell'])
+                    && array_filter($templateSnapshots, static fn (array $snapshot): bool => OutlookOptionalTemplateWording::eligible($snapshot['html'])) !== []) {
+                    $input['personal_template_wording']['optionalRenderer'] = OutlookOptionalTemplateWording::REVISION;
+                }
             }
 
             return hash('sha256', json_encode(
@@ -134,7 +138,7 @@ final class OutlookAddinPayloadService
     }
 
     /** @return array<string, mixed> */
-    public function forUser(User $user): array
+    public function forUser(User $user, ?array $wordingCandidate = null): array
     {
         $signatureOverride = $this->publishedDocuments->hasExplicitSnapshot(MailDocumentKind::Signature);
         $systemSignature = $this->publishedDocuments->snapshot(MailDocumentKind::Signature);
@@ -148,7 +152,7 @@ final class OutlookAddinPayloadService
 
             $builder = new EmailTemplateBuilder($user);
             $signature = $this->renderSignature($builder, $signatureSnapshot);
-            $wordingPreferences = $this->templateWordingPreferences($user, $templateSnapshots);
+            $wordingPreferences = $wordingCandidate ?? $this->templateWordingPreferences($user, $templateSnapshots);
 
             $templates = $this->renderTemplates(
                 $builder,

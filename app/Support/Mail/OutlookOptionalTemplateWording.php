@@ -12,7 +12,7 @@ use RuntimeException;
 /** Only the factory's empty, application-owned writing paragraph is eligible. */
 final class OutlookOptionalTemplateWording
 {
-    public const REVISION = 'optional-template-wording-v1';
+    public const REVISION = 'optional-template-wording-v2';
 
     public static function eligible(string $html): bool
     {
@@ -39,6 +39,46 @@ final class OutlookOptionalTemplateWording
         $after = $farewell ? '<p class="design-greeting" style="'.$style.'margin-top:20px;">'.$escape($preferences['farewell'] ?? OutlookTemplateWording::DEFAULT_FAREWELL).($name !== '' ? '<br>'.$escape($name) : '').'</p>' : '';
 
         return substr_replace($html, $before.$anchor[0].$after, $anchor[1], strlen($anchor[0]));
+    }
+
+    /** Compact only the exact two generated text leaves, after the CSS inliner. */
+    public static function compactGenerated(string $html, string $source, ?array $preferences, string $name): string
+    {
+        if (! self::eligible($source) || (! ($preferences['showGreeting'] ?? false) && ! ($preferences['showFarewell'] ?? false))) {
+            return $html;
+        }
+        $roles = [];
+        if (($preferences['showGreeting'] ?? false) === true) {
+            $roles['design-salutation'] = [$preferences['greeting'] ?? OutlookTemplateWording::DEFAULT_GREETING, 0];
+        }
+        if (($preferences['showFarewell'] ?? false) === true) {
+            $roles['design-greeting'] = [($preferences['farewell'] ?? OutlookTemplateWording::DEFAULT_FAREWELL).$name, (int) ($name !== '')];
+        }
+        $edits = [];
+        foreach ($roles as $role => [$expected, $breaks]) {
+            $pattern = '~(<p\b[^>]*\bclass="'.preg_quote($role, '~').'"[^>]*>)(.*?)(</p>)~s';
+            if (preg_match_all($pattern, $html, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) !== 1) {
+                return $html;
+            }
+            $match = $matches[0];
+            $text = preg_replace('~<br\s*/?>~i', '', $match[2][0], -1, $count);
+            if ($count !== $breaks || str_contains($text, '<') || str_contains($text, '>')
+                || html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8') !== $expected) {
+                return $html;
+            }
+            // All alphanumeric/# entity prefixes remain encoded, including legacy semicolon-less entities.
+            $inner = preg_replace('/&amp;(?=[^A-Za-z0-9#]|$)/', '&', $match[2][0]);
+            // A later normal shorthand supersedes these exact earlier normal longhands in full.
+            // Never remove an !important declaration or a later longhand (e.g. the farewell's top margin).
+            $opening = preg_replace('~style="\s*(?:margin-(?:top|right|bottom|left):\s*(?:0(?:px)?|20px)\s*;\s*){1,4}(?=margin:\s*0\s+0\s+20px\s*;)~', 'style="', $match[1][0]);
+            $edits[] = [$match[0][1], strlen($match[0][0]), $opening.$inner.$match[3][0]];
+        }
+        usort($edits, static fn (array $a, array $b): int => $b[0] <=> $a[0]);
+        foreach ($edits as [$offset, $length, $replacement]) {
+            $html = substr_replace($html, $replacement, $offset, $length);
+        }
+
+        return $html;
     }
 
     /** @return array{string,int}|null */

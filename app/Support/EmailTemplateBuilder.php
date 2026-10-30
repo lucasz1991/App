@@ -432,6 +432,7 @@ class EmailTemplateBuilder
         // gescopten Regeln bleiben parallel erhalten, weil prependAsync die
         // Uebernahme von Inline-CSS nicht fuer jeden Client garantiert.
         $fragment = self::outlookAddinFragment($inlined, includeStyles: false);
+        $fragment = OutlookOptionalTemplateWording::compactGenerated($fragment, $source, $wordingPreferences, $this->profileValues()['VORNAME_NACHNAME']);
         if (OutlookTemplateWording::requested($source)) {
             $fragment = OutlookTemplateWording::wrapOutlookParagraphs($fragment);
             $css .= OutlookTemplateWording::wrappingCss($scope);
