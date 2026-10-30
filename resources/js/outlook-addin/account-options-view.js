@@ -2,6 +2,7 @@ const GROUPS = ['newMessages', 'replies'];
 const REVISION = /^[a-f0-9]{64}$/;
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const fail = code => Object.assign(new Error(code), { code });
+const WORDING_VALIDATION_FEEDBACK = 'Anrede und Verabschiedung können so nicht sicher in die mobile Signatur übernommen werden. Bitte die Texte kürzen oder einen Schalter ausschalten. Ihre Eingabe und die gespeicherten Werte bleiben erhalten.';
 
 export function validWordingText(value) {
     return typeof value === 'string' && value.trim() !== '' && [...value].length <= 120
@@ -171,7 +172,7 @@ export function bindWordingPreferencesView(root, { save, reload, beforeSave = ()
             if (version !== generation) return;
             conflict = error?.code === 'HTTP_409';
             message(conflict ? 'Inzwischen geändert. Ihre Eingabe bleibt erhalten. Zum Weiterbearbeiten den gespeicherten Stand laden.'
-                : 'Speichern nicht bestätigt. Ihre Eingabe bleibt erhalten.', true);
+                : error?.code === 'HTTP_422' ? WORDING_VALIDATION_FEEDBACK : 'Speichern nicht bestätigt. Ihre Eingabe bleibt erhalten.', true);
         } finally { saving = false; render(); }
     });
     toggles.forEach(toggle => toggle.addEventListener('click', async () => {
@@ -198,7 +199,7 @@ export function bindWordingPreferencesView(root, { save, reload, beforeSave = ()
             if (version !== generation) return;
             conflict = error?.code === 'HTTP_409';
             message(conflict ? 'Inzwischen geändert. Ihre Eingabe bleibt erhalten. Bitte den gespeicherten Stand laden.'
-                : 'Anzeige konnte nicht bestätigt werden. Ihre Texte bleiben erhalten.', true);
+                : error?.code === 'HTTP_422' ? WORDING_VALIDATION_FEEDBACK : 'Anzeige konnte nicht bestätigt werden. Ihre Texte bleiben erhalten.', true);
         } finally { saving = false; render(); }
     }));
     reloadButton.addEventListener('click', async () => {

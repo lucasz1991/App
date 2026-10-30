@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Support\OutlookAddin\OutlookAddinAutomaticInsertionPolicy;
 use App\Support\OutlookAddin\OutlookAddinException;
 use App\Support\OutlookAddin\OutlookAddinWordingPolicy;
+use App\Support\OutlookAddin\OutlookOptionalWordingBudget;
 use App\Support\OutlookAddin\VerifiedEntraIdentity;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Events\TransactionBeginning;
@@ -22,6 +23,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
@@ -77,6 +79,18 @@ final class EmployeeOutlookPreferencesTest extends TestCase
             'principal' => 'target@company.test', 'email' => 'target@company.test', 'lifecycle_status' => 'active',
         ]);
         $this->actingAs($this->actor);
+    }
+
+    public function test_managed_toggle_shows_budget_validation_and_preserves_the_employee_wording_draft(): void
+    {
+        $component = $this->preferencesComponent()->set('farewell', 'Noch nicht gespeicherter Gruß,');
+        $revision = $component->get('wordingRevision');
+        $before = DB::table('settings')->get()->toJson();
+        app()->bind(OutlookOptionalWordingBudget::class, static fn () => throw ValidationException::withMessages(['wording' => 'Anrede und Verabschiedung sind zu lang für die mobile Signatur. Bitte kürzen.']));
+        $component->call('toggleWordingVisibility', 'showFarewell')->assertHasErrors('wording')->assertSee('zu lang für die mobile Signatur')
+            ->assertSet('showGreeting', false)->assertSet('showFarewell', false)->assertSet('wordingRevision', $revision)
+            ->assertSet('farewell', 'Noch nicht gespeicherter Gruß,');
+        self::assertSame($before, DB::table('settings')->get()->toJson());
     }
 
     private function preferencesComponent(): Testable

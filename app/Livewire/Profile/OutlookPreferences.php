@@ -177,6 +177,7 @@ final class OutlookPreferences extends Component
         if (! in_array($field, ['showGreeting', 'showFarewell'], true)) {
             throw ValidationException::withMessages(['wording' => 'Bitte eine gültige Anzeige auswählen.']);
         }
+        $this->resetErrorBag('wording');
         $this->wordingNotice = '';
         try {
             $policy = app(OutlookAddinWordingPolicy::class);
@@ -189,6 +190,8 @@ final class OutlookPreferences extends Component
             $this->showFarewell = $next['showFarewell'];
             $this->wordingRevision = $next['revision'];
             $this->wordingNotice = 'Anzeige gespeichert. Gilt beim nächsten Einfügen der Standardvorlage.';
+        } catch (ValidationException $error) {
+            throw $error;
         } catch (OutlookAddinException $error) {
             $this->wordingNotice = $error->errorCode === 'outlook_addin_wording_conflict'
                 ? 'Inzwischen geändert. Deine Eingabe bleibt erhalten. Bitte den gespeicherten Stand neu laden.'

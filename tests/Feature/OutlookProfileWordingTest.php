@@ -11,6 +11,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Support\OutlookAddin\OutlookAddinException;
 use App\Support\OutlookAddin\OutlookAddinWordingPolicy;
+use App\Support\OutlookAddin\OutlookOptionalWordingBudget;
 use Illuminate\Database\Events\TransactionBeginning;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Auth;
@@ -97,6 +98,21 @@ final class OutlookProfileWordingTest extends TestCase
         $component->call('toggleWordingVisibility', 'showFarewell')->assertSet('showFarewell', false)
             ->assertSet('greeting', 'Noch nicht gespeichert,')->assertSee('Inzwischen geändert');
         self::assertSame(0, Setting::query()->where('key', 'like', 'automatic_insertion_user_%')->count());
+    }
+
+    public function test_toggle_budget_validation_is_visible_and_preserves_draft_flags_revision_and_stored_values(): void
+    {
+        $component = Livewire::test(OutlookPreferences::class)->set('greeting', 'Mein ungespeicherter Entwurf,');
+        $revision = $component->get('wordingRevision');
+        $before = DB::table('settings')->get()->toJson();
+        app()->bind(OutlookOptionalWordingBudget::class, static fn () => throw ValidationException::withMessages(['wording' => 'Anrede und Verabschiedung sind zu lang für die mobile Signatur. Bitte kürzen.']));
+        $component->call('toggleWordingVisibility', 'showGreeting')->assertHasErrors('wording')
+            ->assertSee('zu lang für die mobile Signatur')->assertSet('showGreeting', false)
+            ->assertSet('showFarewell', false)->assertSet('wordingRevision', $revision)->assertSet('greeting', 'Mein ungespeicherter Entwurf,');
+        self::assertSame($before, DB::table('settings')->get()->toJson());
+        app()->bind(OutlookOptionalWordingBudget::class, OutlookOptionalWordingBudget::class);
+        $component->call('toggleWordingVisibility', 'showGreeting')->assertHasNoErrors('wording')->assertSet('showGreeting', true)
+            ->assertSet('greeting', 'Mein ungespeicherter Entwurf,');
     }
 
     private function key(?User $user = null): string

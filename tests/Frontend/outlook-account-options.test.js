@@ -262,3 +262,21 @@ test('wording refresh carries the click-time account and compose target, rather 
     finish({ wordingPreferences: { ...wording('2'), showGreeting: true } }); await tick();
     assert.equal(applied.account, own); assert.equal(applied.target, target); assert.notEqual(applied.target, active);
 });
+
+
+test('422 explains the mobile wording limit for both saves and toggles without changing confirmed flags or drafts', async () => {
+    const attempts = [];
+    const h = wordingViewFixture(async change => { attempts.push(change); throw Object.assign(fail('HTTP_422'), { message: '<img src=x onerror=alert(1)>' }); });
+    h.input.value = 'Unsaved personal draft,'; h.input.dispatchEvent(new h.window.Event('input'));
+    const toggle = h.document.querySelector('[data-wording-toggle="showGreeting"]');
+    toggle.click(); await tick();
+    const feedback = h.document.querySelector('[data-wording-feedback]');
+    assert.match(feedback.textContent, /mobile Signatur/); assert.match(feedback.textContent, /Texte kürzen/);
+    assert.equal(feedback.getAttribute('role'), 'alert'); assert.equal(feedback.querySelector('img'), null);
+    assert.equal(toggle.getAttribute('aria-pressed'), 'false'); assert.equal(toggle.disabled, false);
+    assert.equal(h.input.value, 'Unsaved personal draft,'); assert.equal(h.save.disabled, false);
+    h.save.click(); await tick();
+    assert.match(feedback.textContent, /mobile Signatur/); assert.equal(h.input.value, 'Unsaved personal draft,');
+    assert.equal(attempts.length, 2); assert.equal(attempts[1].revision, '1'.repeat(64));
+    assert.equal(attempts[1].showGreeting, false); assert.equal(attempts[1].showFarewell, false);
+});
