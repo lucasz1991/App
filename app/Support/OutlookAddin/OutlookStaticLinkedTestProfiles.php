@@ -25,7 +25,8 @@ final class OutlookStaticLinkedTestProfiles
                 || ! hash_equals(substr($before, 0, 16), $payload['version']['personal'])) {
                 self::changed();
             }
-            $published = app(PublishedMailDocumentSnapshotStore::class)->freshTemplateSnapshots();
+            $documents = app(PublishedMailDocumentSnapshotStore::class);
+            $published = $documents->freshTemplateSnapshots();
             $sources = [];
             foreach ($published as $snapshot) {
                 $id = $snapshot['id'] ?? null;
@@ -38,6 +39,17 @@ final class OutlookStaticLinkedTestProfiles
                 self::invalid();
             }
             $result = $payload;
+            if (self::signatureProfile($documents->outlookSignatureSnapshot()) !== null) {
+                $signature = OutlookStaticLinkedTestDelivery::entry([
+                    'kind' => 'signature',
+                    'html' => $payload['signature']['html'] ?? null,
+                    'media' => $payload['signature']['media'] ?? null,
+                    'version' => $payload['version']['signature'] ?? null,
+                ], OutlookStaticLinkedTestDelivery::PROFILE, (string) config('app.url'));
+                $result['signature']['html'] = $signature['html'];
+                $result['signature']['media'] = $signature['media'];
+                $result['version']['signature'] = $signature['version'];
+            }
             $seen = [];
             $active = [];
             $admission = [];
@@ -103,6 +115,19 @@ final class OutlookStaticLinkedTestProfiles
         } catch (Throwable $error) {
             self::invalid($error);
         }
+    }
+
+    /** The caller supplies an effective published source snapshot, never rendered/request HTML. */
+    public static function signatureProfile(?array $snapshot): ?string
+    {
+        if ($snapshot === null) {
+            return null;
+        }
+        if (! is_string($snapshot['html'] ?? null)) {
+            self::invalid();
+        }
+
+        return self::marked($snapshot['html'], true) ? OutlookStaticLinkedTestDelivery::PROFILE : null;
     }
 
     /** Parse only entries actually offered in this response, including their exact published partner. */

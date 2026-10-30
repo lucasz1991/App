@@ -10,6 +10,7 @@ use App\Models\UserProfile;
 use App\Support\OutlookAddin\OutlookAddinException;
 use App\Support\OutlookAddin\OutlookAddinPayloadService;
 use App\Support\OutlookAddin\OutlookClientPresentation;
+use App\Support\OutlookAddin\OutlookDesktopFlow;
 use App\Support\OutlookAddin\OutlookMobileSignature;
 use App\Support\OutlookAddin\OutlookStaticLinkedTestProfiles;
 use Illuminate\Support\Facades\Http;
@@ -102,7 +103,7 @@ final class OutlookStaticLinkedTestProfilesWireTest extends TestCase
             if (isset($entry['mobileComposeHtml'])) {
                 self::assertSame([$entry['signatureVersion']], $markerVersions['mobileComposeHtml']);
             }
-            if (! str_contains($wire['signature']['html'], 'data-rt-mobile-hybrid="v2"')) {
+            if (! OutlookDesktopFlow::mobile($wire['signature']['html'])) {
                 self::assertSame([$entry['signatureVersion']], $markerVersions['html']);
             }
             $projected = OutlookStaticLinkedTestProfiles::payload($wire, $user);
@@ -127,7 +128,11 @@ final class OutlookStaticLinkedTestProfilesWireTest extends TestCase
                     self::assertSame([], $result[$media]);
                     self::assertStringNotContainsString('cid:', $result[$html]);
                     self::assertStringNotContainsString('data-rt-static', $result[$html]);
-                    self::assertStringContainsString('https://mail.example.test/m/', $result[$html]);
+                    if (preg_match('/<img\b/i', $result[$html])) {
+                        self::assertStringContainsString('https://mail.example.test/m/', $result[$html]);
+                    } else {
+                        self::assertSame('composeHtml', $html, 'Only the deliberately signature-free compose document has no media.');
+                    }
                     self::assertLessThanOrEqual($html === 'mobileComposeHtml' ? 30000 : 99000, intdiv(strlen(mb_convert_encoding($result[$html], 'UTF-16LE', 'UTF-8')), 2));
                 }
                 self::assertSame([], $result['signature']['media']);
@@ -137,6 +142,49 @@ final class OutlookStaticLinkedTestProfilesWireTest extends TestCase
         }
         self::assertSame($fingerprint, $payloads->sourceFingerprint($user));
         self::assertSame($documents, MailDocument::query()->orderBy('id')->get()->toArray());
+        Http::assertNothingSent();
+    }
+
+    public function test_actual_published_employee_default_is_static_for_desktop_and_mobile_signature_only(): void
+    {
+        $fixture = new OutlookBrandedSignatureIntegrationTest('test_actual_global_paired_desktop_and_mobile_documents_keep_exact_media_and_budgets');
+        (new ReflectionMethod($fixture, 'setUp'))->invoke($fixture);
+        [, $user] = (new ReflectionMethod($fixture, 'fixture'))->invoke($fixture, true);
+        Http::preventStrayRequests();
+        config(['app.url' => 'https://mail.example.test']);
+        $original = MailDocument::query()->where('kind', 'signature')->where('outlook_default', true)->firstOrFail();
+        $linked = $original->replicate();
+        $linked->public_id = (string) Str::uuid();
+        $linked->name = 'Synthetic published static employee default';
+        $linked->outlook_default = true;
+        $linked->is_active = null;
+        $linked->html = $linked->published_html = preg_replace('~<tr\b(?=[^>]*\bdata-rt-artifact-version="v27")~', '$0 data-rt-static="v1"', $linked->published_html, -1, $count);
+        self::assertSame(1, $count);
+        $original->forceFill(['outlook_default' => null])->saveQuietly();
+        $linked->saveQuietly();
+        $this->app->forgetScopedInstances();
+        $payloads = app(OutlookAddinPayloadService::class);
+        $fingerprint = $payloads->sourceFingerprint($user);
+        $canonical = $payloads->forUser($user);
+        $canonical['version']['personal'] = substr($fingerprint, 0, 16);
+        $beforeRows = MailDocument::query()->orderBy('id')->get()->toArray();
+        foreach ([$canonical, OutlookMobileSignature::payload($canonical)] as $device) {
+            $wire = OutlookClientPresentation::payload($device);
+            $wire['templates'] = [];
+            $wire['automaticTemplateId'] = null;
+            unset($wire['template'], $wire['version']['template']);
+            $before = $wire;
+            $projected = OutlookStaticLinkedTestProfiles::payload($wire, $user);
+            self::assertSame([], $projected['signature']['media']);
+            self::assertDoesNotMatchRegularExpression('/\b(?:cid|data):|\.gif(?:[?"\'])|data-rt-static/i', $projected['signature']['html']);
+            self::assertStringContainsString('https://mail.example.test/m/', $projected['signature']['html']);
+            self::assertNotSame($before['version']['signature'], $projected['version']['signature']);
+            self::assertSame($before['version']['personal'], $projected['version']['personal']);
+            self::assertSame([], $projected['templates']);
+            self::assertLessThanOrEqual(30000, intdiv(strlen(mb_convert_encoding($projected['signature']['html'], 'UTF-16LE', 'UTF-8')), 2) + 166);
+        }
+        self::assertSame($beforeRows, MailDocument::query()->orderBy('id')->get()->toArray());
+        self::assertSame($fingerprint, $payloads->sourceFingerprint($user));
         Http::assertNothingSent();
     }
 

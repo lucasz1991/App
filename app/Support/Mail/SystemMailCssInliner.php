@@ -44,7 +44,7 @@ final class SystemMailCssInliner extends CssToInlineStyles
 
             $output = parent::convert($html, $css);
 
-            return $this->systemMail ? $this->splitRuntimeStyles($output) : $output;
+            return $this->systemMail ? PublishedStaticSystemDelivery::project($this->splitRuntimeStyles($output)) : $output;
         } finally {
             $this->systemMail = false;
         }

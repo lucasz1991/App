@@ -125,6 +125,55 @@ final class OutlookStaticLinkedTestProfilesTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_published_static_outlook_default_also_projects_signature_only_without_changing_other_channels(): void
+    {
+        MailDocument::query()->where('public_id', self::GLOBAL_SIGNATURE_ID)->update(['outlook_default' => null]);
+        $this->signature->updateQuietly(['outlook_default' => true]);
+        $payload = $this->payload();
+        $payload['signature'] = $this->entry(self::TEST_ID, self::TEST_SIGNATURE_ID, true)['signature'];
+        $before = $payload;
+        $documents = MailDocument::query()->orderBy('id')->get()->toArray();
+        $result = OutlookStaticLinkedTestProfiles::payload($payload, $this->user);
+        self::assertSame([], $result['signature']['media']);
+        self::assertStringContainsString('https://mail.example.test/m/', $result['signature']['html']);
+        self::assertStringNotContainsString('cid:', $result['signature']['html']);
+        self::assertNotSame($before['version']['signature'], $result['version']['signature']);
+        self::assertSame($before['version']['personal'], $result['version']['personal']);
+        foreach (['template', 'automaticTemplateId', 'marker', 'metadata'] as $field) {
+            self::assertSame($before[$field], $result[$field], $field);
+        }
+        self::assertSame($before['templates'][0], $result['templates'][0], 'An explicit original signature pair stays unchanged.');
+        self::assertSame($documents, MailDocument::query()->orderBy('id')->get()->toArray());
+        $signatureOnly = $before;
+        $signatureOnly['templates'] = [];
+        $signatureOnly['automaticTemplateId'] = null;
+        unset($signatureOnly['template'], $signatureOnly['version']['template']);
+        $single = OutlookStaticLinkedTestProfiles::payload($signatureOnly, $this->user);
+        self::assertSame($result['signature'], $single['signature']);
+        self::assertSame($result['version']['signature'], $single['version']['signature']);
+        self::assertSame([], $single['templates']);
+        Http::assertNothingSent();
+    }
+
+    public function test_invalid_static_global_default_fails_closed_even_without_templates(): void
+    {
+        MailDocument::query()->where('public_id', self::GLOBAL_SIGNATURE_ID)->update(['outlook_default' => null]);
+        $this->signature->updateQuietly(['outlook_default' => true, 'published_html' => str_replace('data-rt-static="v1"', 'data-rt-static="v2"', $this->sourceSignature(true))]);
+        $payload = $this->payload();
+        $payload['templates'] = [];
+        $payload['automaticTemplateId'] = null;
+        $this->assertDenied($payload);
+    }
+
+    public function test_an_unpublished_marker_in_the_default_draft_does_not_enable_static_delivery(): void
+    {
+        MailDocument::query()->where('public_id', self::GLOBAL_SIGNATURE_ID)->update(['html' => $this->sourceSignature(true)]);
+        $payload = $this->payload();
+        $result = OutlookStaticLinkedTestProfiles::payload($payload, $this->user);
+        self::assertSame($payload['signature'], $result['signature']);
+        self::assertSame($payload['version'], $result['version']);
+    }
+
     public function test_projected_active_entry_updates_only_its_current_legacy_template_alias(): void
     {
         $payload = $this->payload();
