@@ -1,5 +1,5 @@
 import { hasUnquotedSignatureLayoutCarrier, managedTemplateContract, managedTemplateReplacement, standaloneSignatureContract } from './managed-template.js';
-import { createNativeLayoutNonce, nativeLayoutClearBarrier, nativeLayoutReadbackContract, nativeLayoutRestoreCarrierIsExternal, nativeLayoutRestoreCarrierPresent, nativeLayoutRestoreCellsAligned, nativeLayoutRestoreCss, nativeLayoutRestoreRetained, prepareNativeLayoutRestore, removeNativeLayoutRestoreCarrier } from './native-layout-restore.js';
+import { createNativeLayoutNonce, inferredNativeGridRow, nativeLayoutClearBarrier, nativeLayoutReadbackContract, nativeLayoutThreeCellTopology, nativeLayoutRestoreCarrierIsExternal, nativeLayoutRestoreCarrierPresent, nativeLayoutRestoreCellsAligned, nativeLayoutRestoreCss, nativeLayoutRestoreRetained, prepareNativeLayoutRestore, removeNativeLayoutRestoreCarrier } from './native-layout-restore.js';
 import { confirmedOfficeWrite, markSignatureWriteConfirmed } from './office-write.js';
 
 // Automatic insertion only prepends. Explicit taskpane replacement below owns
@@ -849,7 +849,7 @@ function layoutIdsContract(html, currentHtml, ids, standalone = null, cleanup = 
         const matches = contract.elements.map((node, index) => ({ node, index })).filter(value => typeof value.node.attrs.id === 'string'
             && value.node.attrs.id.endsWith(ids[key]));
         const owner = key === 'templateGutter' ? (contract.kind === 'standalone-signature-v1' ? null : contract.template?.index) : contract.signature.index;
-        const tag = key === 'window' ? 'div' : key === 'trainImage' ? 'img'
+        const tag = key === 'gridRow' ? 'tr' : key === 'window' ? 'div' : key === 'trainImage' ? 'img'
             : ids.dispatch && (key.endsWith('Cell') || key === 'footer') ? 'td' : 'table';
         if (matches.length !== 1 || matches[0].node.tag !== tag
             || ![ids[key], `x_${ids[key]}`].includes(matches[0].node.attrs.id)
@@ -865,12 +865,17 @@ function layoutIdsContract(html, currentHtml, ids, standalone = null, cleanup = 
     const rootRows = children(only(targets.root.index, 'tbody'));
     const legacy = (!targets.logo && !targets.dispatch) || (cleanup && rootRows.length === 1);
     if (rootRows.length !== (legacy ? 1 : 2) || rootRows.some(row => row.node.tag !== 'tr')) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
-    const cells = rootRows.map(row => only(row.index, 'td'));
+    let cells;
+    if (targets.gridRow) {
+        try { nativeLayoutThreeCellTopology(contract, ids); } catch { throw failure('TEMPLATE_LAYOUT_UNCONFIRMED'); }
+        cells = [null, only(rootRows[1].index, 'td')];
+    } else cells = rootRows.map(row => only(row.index, 'td'));
     if (targets.dispatch && (!targets.lineCell || !withinContract(contract, targets.root.index, targets.lineCell.index))) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
-    const groups = children(cells[0]);
+    const groups = targets.gridRow ? [] : children(cells[0]);
     const order = [...(targets.logo ? [targets.logo.index] : []), targets.person.index, targets.company.index, ...(targets.dispatch ? [targets.dispatch.index] : []), ...(legacy ? [targets.train.index] : [])];
-    if (groups.length !== order.length + (targets.dispatch ? 1 : 0) || groups.slice(0, order.length).some((value, index) => value.index !== order[index])
+    if ((!targets.gridRow && (groups.length !== order.length + (targets.dispatch ? 1 : 0) || groups.slice(0, order.length).some((value, index) => value.index !== order[index])
         || (targets.dispatch && !nativeLayoutClearBarrier(contract, groups[3].index, html))
+        ))
         || (!legacy && only(cells[1], 'table') !== targets.train.index)
         || (targets.header && withinContract(contract, targets.header.index, targets.root.index))) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
     if (!legacy) {
@@ -967,6 +972,8 @@ function removePreviousLayoutSheet(html, contract) {
     if (ids.dispatch && ids.signature) {
         for (const [key, suffix] of [['personCell', 'a'], ['companyCell', 'b'], ['dispatchCell', 'e'], ['trainCell', 'g'], ['lineCell', 'o'], ['footer', 'f']]) ids[key] = base + suffix;
     }
+    const gridRow = inferredNativeGridRow(contract.elements, base);
+    if (gridRow) ids.gridRow = gridRow;
     try { layoutIdsContract(html, html.slice(0, contract.root.end), ids, null, true); } catch { return html; }
     const withoutCarrier = removeNativeLayoutRestoreCarrier(html, contract, ids);
     if (withoutCarrier !== html) return withoutCarrier;

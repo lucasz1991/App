@@ -40,8 +40,14 @@ final class OutlookAddinController extends Controller
         $javascript = file_get_contents($path);
         abort_unless(is_string($javascript), 503, 'Das Outlook-Add-in konnte nicht geladen werden.');
 
+        // Classic's JavaScript-only manifest entry has no bundle fingerprint.
+        // Keep that URL fresh; only the matching content hash may be cached.
+        $version = request()->query('v');
+        $cacheable = $bundle !== 'runtime' || (is_string($version)
+            && hash_equals(substr(hash('sha256', $javascript), 0, 16), $version));
+
         return response($javascript, 200, [
-            'Cache-Control' => 'public, max-age=3600',
+            'Cache-Control' => $cacheable ? 'public, max-age=3600' : 'no-store, no-cache, max-age=0, must-revalidate',
             'Content-Type' => 'text/javascript; charset=UTF-8',
             'X-Content-Type-Options' => 'nosniff',
         ]);

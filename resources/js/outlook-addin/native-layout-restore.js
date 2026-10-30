@@ -51,7 +51,7 @@ function tableOpening(html, node) {
 
 function targetOpening(html, node) {
     if (node.tag === 'table') return tableOpening(html, node);
-    if (!['div', 'img', 'td'].includes(node.tag) || !Number.isInteger(node.start) || !Number.isInteger(node.openEnd)
+    if (!['div', 'img', 'td', 'tr'].includes(node.tag) || !Number.isInteger(node.start) || !Number.isInteger(node.openEnd)
         || node.start < 0 || node.openEnd <= node.start || node.openEnd > html.length || owns(node.attrs, 'id')) invalid();
     const opening = html.slice(node.start, node.openEnd);
     if (!new RegExp('^<' + node.tag + '\\b(?:[^"\'<>]|"[^"]*"|\'[^\']*\')*>$', 'i').test(opening) || /\/\s*>$/.test(opening)) invalid();
@@ -67,6 +67,7 @@ export function createNativeLayoutNonce(provider = globalThis.crypto) {
 }
 
 function restoreCss(ids) {
+    if (ids.gridRow) return threeCellRestoreCss(ids);
     if (ids.dispatch) return threeColumnRestoreCss(ids);
     if (ids.logo) return responsiveRestoreCss(ids);
     const selector = key => '#' + ids[key];
@@ -122,6 +123,26 @@ function threeColumnRestoreRules(ids) {
     if (ids.footer) media.push(rule('footer', 'padding-left:40px!important;padding-right:40px!important;'));
     if (ids.templateGutter) media.push(rule('templateGutter', 'border-left-width:40px!important;border-right-width:40px!important;'));
     return { base: [], media };
+}
+
+// A separate V10 family preserves Word's real three-cell row. It never floats
+// the inner tables; their outer inline-block cells provide the modern wrap.
+function threeCellRestoreCss(ids) {
+    const rule = (key, declarations) => responsiveRestoreRule(ids, key, declarations);
+    let css = threeColumnRestoreCss(ids);
+    for (const key of ['person', 'company', 'dispatch']) {
+        const selector = '#' + ids[key];
+        const from = css.indexOf(selector + '{'), end = css.indexOf('}', from);
+        if (from < 0 || end < 0) invalid();
+        css = css.slice(0, from) + rule(key, 'display:table!important;float:none!important;vertical-align:top!important;width:100%!important;min-width:0!important;max-width:100%!important;direction:ltr!important;'
+            + (key === 'person' ? '' : 'text-align:left!important;') + 'border:0!important;border-collapse:collapse!important;border-spacing:0!important;margin:0!important;') + css.slice(end + 1);
+    }
+    return css + rule('gridRow', 'display:block!important;padding:0!important;font-size:0!important;line-height:0!important;text-align:left!important;');
+}
+
+function threeCellRestoreRules(ids) {
+    const rule = (key, declarations) => responsiveRestoreRule(ids, key, declarations);
+    return { base: [], media: [rule('train', 'width:100%!important;min-width:0!important;max-width:364px!important;float:none!important;clear:both!important;')] };
 }
 
 // Published R62/R63 mixed-column core is immutable owned-cleanup evidence.
@@ -274,7 +295,7 @@ function legacyHybridResponsiveRules(ids) {
 
 function responsiveRestoreRule(ids, key, declarations) {
     const id = ids[key];
-    if (!/^rt-native-layout-[0-9a-f]{32}-[rpcthslifqwjkdabego]$/.test(id || '') || /[{}]/.test(declarations)) invalid();
+    if (!/^rt-native-layout-[0-9a-f]{32}-[rpcthslifqwjkdabegou]$/.test(id || '') || /[{}]/.test(declarations)) invalid();
     return '#' + id + '{' + declarations + '}';
 }
 
@@ -296,20 +317,21 @@ function responsiveRestoreRules(ids, legacyCalc = false, historical = false) {
 }
 
 function responsiveRestoreOptionalCss(ids) {
-    const { base, media } = ids.dispatch ? threeColumnRestoreRules(ids) : responsiveRestoreRules(ids);
+    const { base, media } = ids.gridRow ? threeCellRestoreRules(ids) : ids.dispatch ? threeColumnRestoreRules(ids) : responsiveRestoreRules(ids);
     return base.join('') + '@media(max-width:' + (ids.dispatch ? '600' : '680') + 'px){' + media.join('') + '}';
 }
 
 function idsScope(ids) {
     if (!ids || typeof ids !== 'object') invalid();
     const root = /^rt-native-layout-([0-9a-f]{32})-r$/.exec(ids.root || '');
-    const suffixes = { root: 'r', person: 'p', company: 'c', train: 't', header: 'h', signature: 's', logo: 'l', inset: 'i', footer: 'f', templateGutter: 'q', window: 'w', trainImage: ids.trainImage?.endsWith('-k') ? 'k' : 'j', dispatch: 'd', personCell: 'a', companyCell: 'b', dispatchCell: 'e', trainCell: 'g', lineCell: 'o' };
+    const suffixes = { root: 'r', person: 'p', company: 'c', train: 't', header: 'h', signature: 's', logo: 'l', inset: 'i', footer: 'f', templateGutter: 'q', window: 'w', trainImage: ids.trainImage?.endsWith('-k') ? 'k' : 'j', dispatch: 'd', personCell: 'a', companyCell: 'b', dispatchCell: 'e', trainCell: 'g', lineCell: 'o', gridRow: 'u' };
     const keys = Object.keys(ids);
-    if (!root || keys.length !== 4 + ['header', 'signature', 'logo', 'inset', 'footer', 'templateGutter', 'window', 'trainImage', 'dispatch', 'personCell', 'companyCell', 'dispatchCell', 'trainCell', 'lineCell'].filter(key => owns(ids, key)).length
+    if (!root || keys.length !== 4 + ['header', 'signature', 'logo', 'inset', 'footer', 'templateGutter', 'window', 'trainImage', 'dispatch', 'personCell', 'companyCell', 'dispatchCell', 'trainCell', 'lineCell', 'gridRow'].filter(key => owns(ids, key)).length
         || ['root', 'person', 'company', 'train'].some(key => !owns(ids, key))
         || (owns(ids, 'dispatch') && (['logo', 'header', 'inset'].some(key => owns(ids, key)) || !ids.trainImage?.endsWith('-k')
             || ['personCell', 'companyCell', 'dispatchCell', 'trainCell', 'lineCell'].some(key => !owns(ids, key))))
         || (['personCell', 'companyCell', 'dispatchCell', 'trainCell', 'lineCell'].some(key => owns(ids, key)) && !owns(ids, 'dispatch'))
+        || (owns(ids, 'gridRow') && !owns(ids, 'dispatch'))
         || (owns(ids, 'inset') && (!owns(ids, 'logo') || !owns(ids, 'header')))
         || (owns(ids, 'footer') && ((!owns(ids, 'logo') && !owns(ids, 'dispatch')) || !owns(ids, 'signature')))
         || (owns(ids, 'templateGutter') && !owns(ids, 'logo') && !owns(ids, 'dispatch'))
@@ -319,7 +341,7 @@ function idsScope(ids) {
 }
 
 function targetTag(ids, key) {
-    return key === 'window' ? 'div' : key === 'trainImage' ? 'img'
+    return key === 'gridRow' ? 'tr' : key === 'window' ? 'div' : key === 'trainImage' ? 'img'
         : ids.dispatch && (key.endsWith('Cell') || key === 'footer') ? 'td' : 'table';
 }
 
@@ -362,7 +384,7 @@ function normalizedRestoreCss(css, ids) {
 
 function approvedResponsiveSubset(css, ids, historical = false) {
     const text = normalizedRestoreCss(css, ids);
-    const expected = ids.dispatch ? threeColumnRestoreRules(ids) : historical === 'hybrid-r61' ? legacyHybridResponsiveRules(ids) : responsiveRestoreRules(ids, historical === true, historical);
+    const expected = ids.gridRow ? threeCellRestoreRules(ids) : ids.dispatch ? threeColumnRestoreRules(ids) : historical === 'hybrid-r61' ? legacyHybridResponsiveRules(ids) : responsiveRestoreRules(ids, historical === true, historical);
     const rules = value => {
         const result = [];
         let remainder = value;
@@ -457,7 +479,7 @@ export function nativeLayoutReadbackContract(html, contract, ids) {
     if (typeof html !== 'string' || !Array.isArray(original) || !Number.isInteger(contract.signature?.index)) invalid();
     const nodes = original.slice(), anchors = {}, virtual = new Set(contract.nativeVirtualCellKeys || []);
     const matches = key => nodes.map((node, index) => ({ node, index })).filter(value => typeof value.node.attrs.id === 'string' && value.node.attrs.id.endsWith(ids[key]));
-    for (const key of Object.keys(ids).filter(key => !key.endsWith('Cell') && key !== 'footer')) {
+    for (const key of Object.keys(ids).filter(key => !key.endsWith('Cell') && key !== 'footer' && key !== 'gridRow')) {
         const found = matches(key), owner = key === 'templateGutter' ? contract.template?.index : contract.signature.index;
         if (found.length !== 1 || found[0].node.tag !== targetTag(ids, key)
             || ![ids[key], 'x_' + ids[key]].includes(found[0].node.attrs.id)
@@ -471,6 +493,11 @@ export function nativeLayoutReadbackContract(html, contract, ids) {
     if (!within(nodes, anchors.root.index, first.index)) invalid();
     const directCell = table => onlyChild(nodes, onlyChild(nodes, onlyChild(nodes, table.index, 'tbody').index, 'tr').index, 'td');
     const candidates = { lineCell: first };
+    if (ids.gridRow) {
+        const gridRows = children(nodes, onlyChild(nodes, anchors.root.index, 'tbody').index);
+        if (gridRows.length !== 2 || gridRows.some(value => value.node.tag !== 'tr')) invalid();
+        candidates.gridRow = gridRows[0];
+    }
     for (const key of ['person', 'company', 'dispatch', 'train']) candidates[key + 'Cell'] = directCell(anchors[key]);
     if (ids.footer) {
         const tables = children(nodes, last.index).filter(value => value.node.tag === 'table');
@@ -496,7 +523,10 @@ export function nativeLayoutReadbackContract(html, contract, ids) {
                 [padding.top, padding.right, padding.bottom, padding.left] = [parts[0], parts[1] || parts[0], parts[2] || parts[0], parts[3] || parts[1] || parts[0]];
             } else if (/^padding-(?:top|right|bottom|left)$/.test(name)) padding[name.slice(8)] = value;
         }
-        if (key === 'lineCell') {
+        if (key === 'gridRow') {
+            if (values.get('display') !== 'block' || !/^0(?:px|pt)?$/.test(values.get('font-size') || '')
+                || !/^0(?:px|pt)?$/.test(values.get('line-height') || '')) invalid();
+        } else if (key === 'lineCell') {
             const border = (values.get('border-top') || '').replace(/\s+/g, '').toLowerCase();
             if (!['3pxsolid#e90032', '3pxsolidrgb(233,0,50)'].includes(border)) invalid();
         } else {
@@ -512,6 +542,46 @@ export function nativeLayoutReadbackContract(html, contract, ids) {
     return { ...contract, elements: nodes, nativeVirtualCellKeys: [...virtual], nativeReadbackHtml: html };
 }
 
+/** V10's real three-cell row must not be mistaken for V9's floating siblings. */
+export function nativeLayoutThreeCellTopology(contract, ids) {
+    if (!ids.gridRow) invalid();
+    const nodes = contract.elements;
+    const find = key => {
+        const values = nodes.map((node, index) => ({ node, index })).filter(value => [ids[key], 'x_' + ids[key]].includes(value.node.attrs.id));
+        if (values.length !== 1 || values[0].node.tag !== targetTag(ids, key)) invalid();
+        return values[0];
+    };
+    const root = find('root'), row = find('gridRow');
+    const rows = children(nodes, onlyChild(nodes, root.index, 'tbody').index);
+    if (rows.length !== 2 || rows.some(value => value.node.tag !== 'tr') || rows[0].index !== row.index) invalid();
+    const cells = children(nodes, row.index);
+    if (cells.length !== 3 || cells.some(value => value.node.tag !== 'td')) invalid();
+    for (const [index, role] of ['person', 'company', 'dispatch'].entries()) {
+        if (onlyChild(nodes, cells[index].index, 'table').index !== find(role).index) invalid();
+        const properties = new Map(inlineCellProperties(cells[index].node.attrs.style || ''));
+        if (properties.get('display') !== 'inline-block' || properties.get('max-width') !== '100%'
+            || !['240px', '180pt', '180.0pt'].includes(properties.get('width'))
+            || (properties.has('padding') && !/^0(?:px)?$/.test(properties.get('padding')))) invalid();
+    }
+    const trainCell = onlyChild(nodes, rows[1].index, 'td');
+    if (trainCell.node.attrs.colspan !== '3' || onlyChild(nodes, trainCell.index, 'table').index !== find('train').index) invalid();
+    return { row, cells, trainCell };
+}
+
+/** Saved V10 identity is recoverable only from the exact owned three-cell grid. */
+export function inferredNativeGridRow(elements, base) {
+    const roots = elements.map((node, index) => ({ node, index })).filter(value => [base + 'r', 'x_' + base + 'r'].includes(value.node.attrs.id));
+    if (roots.length !== 1 || roots[0].node.tag !== 'table') return null;
+    try {
+        const rows = children(elements, onlyChild(elements, roots[0].index, 'tbody').index);
+        if (rows.length !== 2 || rows.some(value => value.node.tag !== 'tr')) return null;
+        const cells = children(elements, rows[0].index);
+        if (cells.length !== 3 || cells.some(value => value.node.tag !== 'td')) return null;
+        if (cells.some((value, index) => ![base + ['p', 'c', 'd'][index], 'x_' + base + ['p', 'c', 'd'][index]].includes(onlyChild(elements, value.index, 'table').node.attrs.id))) return null;
+        return base + 'u';
+    } catch { return null; }
+}
+
 /** Parent TABLE recovery cannot defeat an explicit opposite direct TD value. */
 export function nativeLayoutRestoreCellsAligned(contract, ids) {
     idsScope(ids);
@@ -523,24 +593,31 @@ export function nativeLayoutRestoreCellsAligned(contract, ids) {
         const matches = nodes.map((node, index) => ({ node, index })).filter(value => [ids[role], 'x_' + ids[role]].includes(value.node.attrs.id));
         if (matches.length !== 1 || matches[0].node.tag !== 'table' || isQuoted(nodes, matches[0].index)
             || !within(nodes, matches[0].index, contract.signature.index)) invalid();
-        if (role === 'person' && (matches[0].node.attrs.align || '').trim().toLowerCase() !== 'left') invalid();
-        if (ids.dispatch && role !== 'root' && (matches[0].node.attrs.align || '').trim().toLowerCase() !== 'left') invalid();
+        if (!ids.gridRow && role === 'person' && (matches[0].node.attrs.align || '').trim().toLowerCase() !== 'left') invalid();
+        if (!ids.gridRow && ids.dispatch && role !== 'root' && (matches[0].node.attrs.align || '').trim().toLowerCase() !== 'left') invalid();
+        if (ids.gridRow && ((matches[0].node.attrs.align || '').trim()
+            || inlineCellProperties(matches[0].node.attrs.style || '').some(([name, value]) => name === 'float' && value !== 'none'))) invalid();
         if (role === 'person' && inlineCellProperties(matches[0].node.attrs.style || '').some(([name]) => name === 'text-align')) invalid();
         tables[role] = matches[0];
         const body = onlyChild(nodes, matches[0].index, 'tbody');
         const rows = children(nodes, body.index);
         if (rows.length !== (role === 'root' ? 2 : 1) || rows.some(row => row.node.tag !== 'tr')) invalid();
-        cells.push(...rows.map(row => onlyChild(nodes, row.index, 'td')));
+        if (ids.gridRow && role === 'root') {
+            const grid = nativeLayoutThreeCellTopology(contract, ids);
+            cells.push(...grid.cells, grid.trainCell);
+        } else cells.push(...rows.map(row => onlyChild(nodes, row.index, 'td')));
     }
     if (ids.dispatch) {
         const lines = nodes.map((node, index) => ({ node, index })).filter(value => [ids.lineCell, 'x_' + ids.lineCell].includes(value.node.attrs.id));
         if (lines.length !== 1 || lines[0].node.tag !== 'td' || !within(nodes, tables.root.index, lines[0].index)
             || !within(nodes, lines[0].index, contract.signature.index) || isQuoted(nodes, lines[0].index)) invalid();
-        const rows = children(nodes, onlyChild(nodes, tables.root.index, 'tbody').index);
-        const groups = children(nodes, onlyChild(nodes, rows[0].index, 'td').index);
-        if (groups.length !== 4 || groups.slice(0, 3).some((value, index) => value.index !== tables[['person', 'company', 'dispatch'][index]].index)
-            || !nativeLayoutClearBarrier(contract, groups[3].index)
-            || onlyChild(nodes, onlyChild(nodes, rows[1].index, 'td').index, 'table').index !== tables.train.index) invalid();
+        if (!ids.gridRow) {
+            const rows = children(nodes, onlyChild(nodes, tables.root.index, 'tbody').index);
+            const groups = children(nodes, onlyChild(nodes, rows[0].index, 'td').index);
+            if (groups.length !== 4 || groups.slice(0, 3).some((value, index) => value.index !== tables[['person', 'company', 'dispatch'][index]].index)
+                || !nativeLayoutClearBarrier(contract, groups[3].index)
+                || onlyChild(nodes, onlyChild(nodes, rows[1].index, 'td').index, 'table').index !== tables.train.index) invalid();
+        }
         for (const role of ['person', 'company', 'dispatch', 'train']) {
             const cell = onlyChild(nodes, onlyChild(nodes, onlyChild(nodes, tables[role].index, 'tbody').index, 'tr').index, 'td');
             if (![ids[role + 'Cell'], 'x_' + ids[role + 'Cell']].includes(cell.node.attrs.id)) invalid();
@@ -721,12 +798,14 @@ export function prepareNativeLayoutRestore(html, contract, nonce) {
     if (candidates.length !== 1 || candidates[0].node.tag !== 'table'
         || !has(candidates[0].node, 'rt-personal-columns') || candidates[0].node.attrs[FLOW] !== 'v1'
         || candidates[0].node.attrs['data-rt-personal-columns'] !== 'v1'
-        || !['outlook-desktop-flow-v4', 'outlook-desktop-flow-v8', 'outlook-desktop-flow-v9'].includes(candidates[0].node.attrs['data-rt-desktop-flow'])) invalid();
+        || !['outlook-desktop-flow-v4', 'outlook-desktop-flow-v8', 'outlook-desktop-flow-v9', 'outlook-desktop-flow-v10'].includes(candidates[0].node.attrs['data-rt-desktop-flow'])) invalid();
     const root = candidates[0];
-    const threeColumn = root.node.attrs['data-rt-desktop-flow'] === 'outlook-desktop-flow-v9';
+    const threeCell = root.node.attrs['data-rt-desktop-flow'] === 'outlook-desktop-flow-v10';
+    const threeColumn = threeCell || root.node.attrs['data-rt-desktop-flow'] === 'outlook-desktop-flow-v9';
     const responsive = threeColumn || root.node.attrs['data-rt-desktop-flow'] === 'outlook-desktop-flow-v8';
-    if (threeColumn && (!has(root.node, 'rt-v9-columns') || root.node.attrs.width !== '100%'
-        || !inlineCellProperties(root.node.attrs.style || '').some(([name, value]) => name === 'max-width' && value === '720px'))) invalid();
+    if (threeColumn && (!has(root.node, threeCell ? 'rt-v10-columns' : 'rt-v9-columns') || root.node.attrs.width !== (threeCell ? '720' : '100%')
+        || !inlineCellProperties(root.node.attrs.style || '').some(([name, value]) => name === 'max-width' && value === (threeCell ? '100%' : '720px'))
+        || (threeCell && !inlineCellProperties(root.node.attrs.style || '').some(([name, value]) => name === 'width' && value === '720px')))) invalid();
     if (responsive) {
         const ancestors = [];
         for (let index = root.index, depth = 0; Number.isInteger(index); index = nodes[index].parent, depth += 1) {
@@ -741,29 +820,42 @@ export function prepareNativeLayoutRestore(html, contract, nonce) {
         for (const host of hosts) {
             const classes = host.attrs.class.split(/\s+/);
             const scopes = classes.filter(name => /^rts[0-9a-f]{10}$/.test(name));
-            const names = classes.filter(name => /^rt-df[0-9][0-9a-f]{10}$/.test(name));
-            if (scopes.length !== 1 || names.length !== 1 || names[0] !== 'rt-df' + (threeColumn ? '9' : '8') + scopes[0].slice(3)) invalid();
+            const names = classes.filter(name => /^rt-df(?:[0-9]|10)[0-9a-f]{10}$/.test(name));
+            if (scopes.length !== 1 || names.length !== 1 || names[0] !== 'rt-df' + (threeCell ? '10' : threeColumn ? '9' : '8') + scopes[0].slice(3)) invalid();
             if (expectedHost !== null && names[0] !== expectedHost) invalid();
             expectedHost = names[0];
         }
         if (ancestors.some(node => (node.attrs.class || '').split(/\s+/).some(name => new RegExp('^rt-df[' + (threeColumn ? '4678' : '4679') + '][0-9a-f]{10}$').test(name)))) invalid();
+        if (threeCell && ancestors.some(node => (node.attrs.class || '').split(/\s+/).some(name => /^rt-df9[0-9a-f]{10}$/.test(name)))) invalid();
     }
     const body = onlyChild(nodes, root.index, 'tbody');
     const rows = children(nodes, body.index);
     if (rows.length !== (responsive ? 2 : 1) || rows.some(row => row.node.tag !== 'tr')) invalid();
-    const cells = rows.map(row => onlyChild(nodes, row.index, 'td'));
+    const cells = threeCell ? [null, onlyChild(nodes, rows[1].index, 'td')] : rows.map(row => onlyChild(nodes, row.index, 'td'));
     const person = one(nodes, root.index, 'rt-personal-left', 'table');
     const company = one(nodes, root.index, 'rt-personal-right', 'table');
     const train = one(nodes, root.index, 'rt-df-train', 'table');
     const logo = responsive && !threeColumn ? one(nodes, root.index, 'rt-personal-logo-column', 'table') : null;
     const dispatch = threeColumn ? one(nodes, root.index, 'rt-dispatch-column', 'table') : null;
-    const groups = children(nodes, cells[0].index);
+    const groups = threeCell ? children(nodes, rows[0].index) : children(nodes, cells[0].index);
     const order = [...(logo ? [logo.index] : []), person.index, company.index, ...(dispatch ? [dispatch.index] : []), ...(responsive ? [] : [train.index])];
-    if (groups.length !== order.length + (threeColumn ? 1 : 0) || groups.slice(0, order.length).some((value, index) => value.index !== order[index])
+    if (threeCell) {
+        if (!has(rows[0].node, 'rt-v10-grid-row') || groups.length !== 3 || groups.some(value => value.node.tag !== 'td')
+            || cells[1].node.attrs.colspan !== '3') invalid();
+        const properties = inlineCellProperties(rows[0].node.attrs.style || '');
+        if (![['display', 'block'], ['padding', '0'], ['font-size', '0'], ['line-height', '0']].every(([name, value]) => properties.some(part => part[0] === name && part[1] === value))) invalid();
+        for (const [index, group] of groups.entries()) {
+            const properties = inlineCellProperties(group.node.attrs.style || '');
+            if (!has(group.node, 'rt-v10-grid-cell') || group.node.attrs.width !== '240' || group.node.attrs.valign !== 'top'
+                || onlyChild(nodes, group.index, 'table').index !== order[index]
+                || ![['display', 'inline-block'], ['width', '240px'], ['max-width', '100%'], ['padding', '0']].every(([name, value]) => properties.some(part => part[0] === name && part[1] === value))) invalid();
+        }
+    } else if (groups.length !== order.length + (threeColumn ? 1 : 0) || groups.slice(0, order.length).some((value, index) => value.index !== order[index])
         || (threeColumn && (groups[3].node.tag !== 'br' || groups[3].node.attrs.clear !== 'all'
             || Object.keys(groups[3].node.attrs).some(name => !['clear', 'style'].includes(name))))
         || (responsive && onlyChild(nodes, cells[1].index, 'table').index !== train.index)) invalid();
-    if (responsive && (person.node.attrs.align !== 'left' || (!threeColumn && person.node.attrs.height !== '50'))) invalid();
+    if (threeCell && onlyChild(nodes, cells[1].index, 'table').index !== train.index) invalid();
+    if (responsive && !threeCell && (person.node.attrs.align !== 'left' || (!threeColumn && person.node.attrs.height !== '50'))) invalid();
     if (responsive && inlineCellProperties(person.node.attrs.style || '').some(([name]) => name === 'text-align')) invalid();
     if (logo) {
         const logoCell = onlyChild(nodes, onlyChild(nodes, onlyChild(nodes, logo.index, 'tbody').index, 'tr').index, 'td');
@@ -778,22 +870,25 @@ export function prepareNativeLayoutRestore(html, contract, nonce) {
     const image = onlyChild(nodes, window.index, 'img');
     const enlargedTrain = has(train.node, 'rt-train-enlarged-v1');
     if ((enlargedTrain && !responsive) || !has(image.node, 'rt-delivery-train')
-        || image.node.attrs.width !== (threeColumn ? '200' : enlargedTrain ? '324' : '300')
-        || image.node.attrs.height !== (threeColumn ? '43' : enlargedTrain ? '70' : responsive ? '65' : '38')) invalid();
+        || image.node.attrs.width !== (threeColumn && !threeCell ? '200' : enlargedTrain ? '324' : '300')
+        || image.node.attrs.height !== (threeColumn && !threeCell ? '43' : enlargedTrain ? '70' : responsive ? '65' : '38')) invalid();
 
     const targets = { root, person, company, train };
     if (threeColumn) {
+        if (threeCell) targets.gridRow = rows[0];
         const lineCell = one(nodes, signature.index, 'rt-v9-top-rule', 'td');
         if (!within(nodes, root.index, lineCell.index)) invalid();
         targets.lineCell = lineCell;
         const trainProperties = inlineCellProperties(train.node.attrs.style || '');
-        if (!enlargedTrain || train.node.attrs.width !== '240' || train.node.attrs.align !== 'left'
-            || ![['width', '240px'], ['max-width', '100%']].every(([name, value]) => trainProperties.some(part => part[0] === name && part[1] === value))) invalid();
+        if (!enlargedTrain || train.node.attrs.width !== (threeCell ? '364' : '240') || (threeCell ? owns(train.node.attrs, 'align') : train.node.attrs.align !== 'left')
+            || ![['width', threeCell ? '364px' : '240px'], ['max-width', '100%']].every(([name, value]) => trainProperties.some(part => part[0] === name && part[1] === value))) invalid();
         const frame = one(nodes, person.index, 'rt-personal-logo-frame', 'table');
         for (const [role, target] of [['person', person], ['company', company], ['dispatch', dispatch]]) {
-            if (!has(target.node, 'rt-v9-column') || target.node.attrs.width !== '240' || target.node.attrs.align !== 'left') invalid();
+            if (!has(target.node, threeCell ? 'rt-v10-column' : 'rt-v9-column') || target.node.attrs.width !== '240'
+                || (threeCell ? owns(target.node.attrs, 'align') : target.node.attrs.align !== 'left')) invalid();
             const properties = inlineCellProperties(target.node.attrs.style || '');
-            if (![['width', '240px'], ['max-width', '100%'], ['float', 'left']].every(([name, value]) => properties.some(part => part[0] === name && part[1] === value))) invalid();
+            if (![['width', '240px'], ['max-width', '100%'], ...(threeCell ? [] : [['float', 'left']])].every(([name, value]) => properties.some(part => part[0] === name && part[1] === value))
+                || (threeCell && properties.some(([name, value]) => name === 'float' && value !== 'none'))) invalid();
             const cell = onlyChild(nodes, onlyChild(nodes, onlyChild(nodes, target.index, 'tbody').index, 'tr').index, 'td');
             if (!has(cell.node, 'rt-v9-' + role + '-cell') || !inlineCellProperties(cell.node.attrs.style || '').some(([name, value]) => name === 'padding' && value === '0 40px')) invalid();
             targets[role + 'Cell'] = cell;
@@ -891,7 +986,7 @@ export function prepareNativeLayoutRestore(html, contract, nonce) {
     if (typeof scope !== 'string' || !/^[0-9a-f]{32}$/.test(scope) || html.includes(PREFIX + scope)) invalid();
     const ids = {};
     const edits = [];
-    const suffixes = { root: 'r', person: 'p', company: 'c', train: 't', header: 'h', signature: 's', logo: 'l', inset: 'i', footer: 'f', templateGutter: 'q', window: 'w', trainImage: enlargedTrain ? 'k' : 'j', dispatch: 'd', personCell: 'a', companyCell: 'b', dispatchCell: 'e', trainCell: 'g', lineCell: 'o' };
+    const suffixes = { root: 'r', person: 'p', company: 'c', train: 't', header: 'h', signature: 's', logo: 'l', inset: 'i', footer: 'f', templateGutter: 'q', window: 'w', trainImage: enlargedTrain ? 'k' : 'j', dispatch: 'd', personCell: 'a', companyCell: 'b', dispatchCell: 'e', trainCell: 'g', lineCell: 'o', gridRow: 'u' };
     for (const key of Object.keys(targets)) {
         const { node } = targets[key];
         if (key === 'templateGutter') {

@@ -14,6 +14,7 @@ use App\Support\OutlookAddin\OutlookAddinPayloadService;
 use App\Support\OutlookAddin\OutlookClientPresentation;
 use App\Support\OutlookAddin\OutlookMobileSignature;
 use App\Support\OutlookAddin\OutlookStaticLinkedTestDelivery;
+use App\Support\OutlookAddin\OutlookThreeCellPresentation;
 use App\Support\OutlookAddin\OutlookThreeColumnPresentation;
 use DOMDocument;
 use DOMXPath;
@@ -36,30 +37,32 @@ final class OutlookThreeColumnPresentationTest extends TestCase
             $result = OutlookClientPresentation::payload($source);
             $html = $result['signature']['html'];
             $xpath = $this->xpath($html);
-            self::assertSame(1, $xpath->query('//table[@data-rt-desktop-flow="outlook-desktop-flow-v9"]')->length);
-            self::assertSame(3, $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-v9-column ")][@width="240"][@align="left"]')->length);
+            self::assertSame(1, $xpath->query('//table[@data-rt-desktop-flow="outlook-desktop-flow-v10"]')->length);
+            self::assertSame(3, $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-v10-column ")][@width="240"][not(@align)]')->length);
             self::assertSame(1, $xpath->query('//table[contains(@class,"rt-personal-left")]/tbody/tr/td/table[contains(@class,"rt-personal-logo-frame")]//img[@width="160"][@height="27"]')->length);
             self::assertSame(0, $xpath->query('//table[contains(@class,"rt-personal-right")]//img[contains(@class,"rt-v9-logo")]')->length);
             self::assertSame(1, $xpath->query('//table[contains(@class,"rt-dispatch-column")]//img[@alt="Dispo 24/7 erreichbar"][@width="160"]')->length);
-            self::assertSame(1, $xpath->query('//br[@clear="all"]')->length);
+            self::assertSame(0, $xpath->query('//br[@clear="all"]')->length);
+            self::assertSame(3, $xpath->query('//tr[@class="rt-v10-grid-row"]/td[@width="240"][@valign="top"]')->length);
+            self::assertSame(1, $xpath->query('//tr[@class="rt-v10-train-row"]/td[@colspan="3"]')->length);
             self::assertSame(1, $xpath->query('//td[contains(concat(" ",normalize-space(@class)," ")," rt-v9-top-rule ")]')->length);
             self::assertSame(1, $xpath->query('//p[@class="rt-v9-address"]')->length);
             self::assertSame(1, $xpath->query('//p[@class="rt-v9-address"]//br')->length);
-            foreach ($xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-v9-column ")]//span') as $span) {
+            foreach ($xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-v10-column ")]//span') as $span) {
                 self::assertDoesNotMatchRegularExpression('/background(?:-color)?\s*:\s*(?:#fff(?:fff)?|white|rgb\(\s*255\s*,\s*255\s*,\s*255\s*\))/i', $span->getAttribute('style'));
             }
             foreach ($result['templates'] as $entry) {
                 foreach (['html', 'combinedComposeHtml', 'mobileComposeHtml'] as $field) {
                     if (isset($entry[$field])) {
-                        self::assertStringContainsString('data-rt-desktop-flow="outlook-desktop-flow-v9"', $entry[$field], $field.' must not retain the old fallback layout.');
+                        self::assertStringContainsString('data-rt-desktop-flow="outlook-desktop-flow-v10"', $entry[$field], $field.' must not retain the old fallback layout.');
                     }
                 }
             }
             self::assertStringContainsString('border-top:3px solid #e90032;', $html);
             self::assertStringNotContainsString('data-rt-brand-hotline=', $html);
             self::assertStringNotContainsString('rt-brand-outline-cell', $html);
-            self::assertLessThanOrEqual(30000 - 741, intdiv(strlen(mb_convert_encoding($html, 'UTF-16LE', 'UTF-8')), 2));
-            self::assertSame($html, OutlookThreeColumnPresentation::document($html));
+            self::assertLessThanOrEqual(30000 - 855, intdiv(strlen(mb_convert_encoding($html, 'UTF-16LE', 'UTF-8')), 2));
+            self::assertSame($html, OutlookThreeCellPresentation::document($html));
             $refs = [];
             preg_match_all('/cid:([A-Za-z0-9._-]+)/', $html, $refs);
             $ids = array_column($result['signature']['media'], 'contentId');
@@ -129,24 +132,64 @@ final class OutlookThreeColumnPresentationTest extends TestCase
         self::assertSame($custom, OutlookThreeColumnPresentation::document($custom));
     }
 
-    public function test_word_source_width_loss_model_states_column_and_train_limits_separately(): void
+    public function test_word_fallback_has_three_real_cells_without_paragraph_anchored_tables(): void
     {
         $user = $this->fixture(true);
         $html = OutlookClientPresentation::payload(app(OutlookAddinPayloadService::class)->forUser($user))['signature']['html'];
         $xpath = $this->xpath($html);
-        $columns = $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-v9-column ")]');
-        foreach (range(240, 1440) as $available) {
-            foreach ($columns as $column) {
-                self::assertLessThanOrEqual($available, (int) $column->getAttribute('width'), 'Numeric columns remain bounded without max-width when at least 240px exists.');
-            }
+        $root = $xpath->query('//table[@data-rt-desktop-flow="outlook-desktop-flow-v10"]')->item(0);
+        self::assertSame('720', $root->getAttribute('width'));
+        self::assertStringContainsString('width:720px;max-width:100%;', $root->getAttribute('style'));
+        $cells = $xpath->query('./tbody/tr[1]/td', $root);
+        self::assertCount(3, $cells);
+        foreach ($cells as $cell) {
+            self::assertSame('240', $cell->getAttribute('width'));
+            self::assertSame('top', $cell->getAttribute('valign'));
+            self::assertStringContainsString('display:inline-block;', $cell->getAttribute('style'));
+            $columns = $xpath->query('./table', $cell);
+            self::assertCount(1, $columns);
+            self::assertFalse($columns->item(0)->hasAttribute('align'));
+            self::assertStringNotContainsString('float:', $columns->item(0)->getAttribute('style'));
         }
         $train = $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-df-train ")]')->item(0);
-        $image = $xpath->query('//img[contains(@class,"rt-v9-train-image")]')->item(0);
-        self::assertSame('240', $train->getAttribute('width'));
-        self::assertSame('200', $image->getAttribute('width'));
-        self::assertSame('43', $image->getAttribute('height'));
-        self::assertLessThanOrEqual(240, (int) $image->getAttribute('width') + 40, 'The source-only train and stop gutter fit the same 240px fallback boundary.');
-        self::assertStringContainsString('max-width:364px!important', $html, 'The modern enhancement keeps the larger 324px train plus its stop gutter.');
+        $image = $xpath->query('//img[contains(@class,"rt-v10-train-image")]')->item(0);
+        self::assertSame('364', $train->getAttribute('width'));
+        self::assertFalse($train->hasAttribute('align'));
+        self::assertSame('324', $image->getAttribute('width'));
+        self::assertSame('70', $image->getAttribute('height'));
+        self::assertStringContainsString('width:100%;max-width:100%;height:auto;', $image->getAttribute('style'));
+        self::assertSame(1, $xpath->query('./tbody/tr[2]/td[@colspan="3"]', $root)->length);
+        self::assertSame('outlook-desktop-flow-v9', OutlookThreeColumnPresentation::FLOW, 'The historical family keeps its own immutable source contract.');
+    }
+
+    public function test_word_losing_table_and_anchor_inheritance_keeps_legal_and_dispatch_leaf_paint(): void
+    {
+        $user = $this->fixture(true);
+        $html = OutlookClientPresentation::payload(app(OutlookAddinPayloadService::class)->forUser($user))['signature']['html'];
+        $xpath = $this->xpath($html);
+        foreach ($xpath->query('//table | //td | //a') as $element) {
+            $element->removeAttribute('style');
+        }
+        foreach ($xpath->query('//style') as $style) {
+            $style->parentNode->removeChild($style);
+        }
+        $legal = $xpath->query('//td[@class="rt-v9-legal-cell"]')->item(0);
+        $textNodes = $xpath->query('.//text()[normalize-space(.) != ""]', $legal);
+        self::assertGreaterThanOrEqual(2, $textNodes->length);
+        foreach ($textNodes as $text) {
+            self::assertSame('span', $text->parentNode->nodeName);
+            self::assertStringContainsString('font-size:9px;', $text->parentNode->getAttribute('style'));
+            self::assertStringContainsString('line-height:14px;', $text->parentNode->getAttribute('style'));
+            self::assertStringContainsString('color:#718096;', $text->parentNode->getAttribute('style'));
+        }
+        $phone = $xpath->query('//table[contains(@class,"rt-dispatch-column")]//a[starts-with(@href,"tel:")]/span')->item(0);
+        self::assertNotNull($phone);
+        self::assertStringContainsString('font-size:13px;', $phone->getAttribute('style'));
+        self::assertStringContainsString('line-height:16px;', $phone->getAttribute('style'));
+        self::assertStringContainsString('color:#e90032;', $phone->getAttribute('style'));
+        self::assertSame('tel:'.preg_replace('/[^+0-9]/', '', $phone->textContent), $phone->parentNode->getAttribute('href'));
+        $authored = '<style data-rt-mail-document-css="signature">.custom{color:purple}</style>'.$html;
+        self::assertSame($authored, OutlookThreeCellPresentation::document($authored));
     }
 
     private function fixture(bool $personal): User

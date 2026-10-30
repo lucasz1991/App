@@ -1,4 +1,5 @@
 // Offset-only edits keep Outlook's unrelated HTML and quoted history opaque.
+import { inferredNativeGridRow } from './native-layout-restore.js';
 const TOKEN = /<!--[\s\S]*?-->|<(?:style|script|textarea|title)\b(?:[^"'<>]|"[^"]*"|'[^']*')*>[\s\S]*?<\/(?:style|script|textarea|title)\s*>|<!doctype\b[^>]*>|<\?[^>]*\?>|<\/?[a-z][a-z0-9:-]*(?:[^"'<>]|"[^"]*"|'[^']*')*>/gi;
 const VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
 const MODE = 'combined-v1';
@@ -375,6 +376,8 @@ export function standaloneSignatureContract(html, currentHtml = html, ids = null
             // The readback guard still proves each direct cell and inline fallback.
             if (inferred.dispatch) {
                 for (const [key, suffix] of [['personCell', 'a'], ['companyCell', 'b'], ['dispatchCell', 'e'], ['trainCell', 'g'], ['lineCell', 'o'], ['footer', 'f']]) inferred[key] = retained[1] + suffix;
+                const gridRow = inferredNativeGridRow(elements, retained[1]);
+                if (gridRow) inferred.gridRow = gridRow;
             }
             const trainImages = ['j', 'k'].filter(suffix => elements.some(node => (node.attrs.id || '').endsWith(retained[1] + suffix)));
             if (trainImages.length > 1) unavailable();
