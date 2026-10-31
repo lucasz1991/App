@@ -900,8 +900,13 @@ function prepareFluidLayout(html, contract, nonce, office) {
     const scope = nonce === undefined ? createNativeLayoutNonce() : nonce;
     if (!version || !/^[0-9a-f]{32}$/.test(scope) || /RT-FLUID-LAYOUT-V(?:1[1234]:|15)/.test(html)) invalid();
     const profile = family === 15 ? outlookSignatureDeliveryProfile(office) : '';
-    const marker = '<span hidden aria-hidden="true" style="display:none!important;font-size:0;line-height:0;">RT-FLUID-LAYOUT-V' + family + profile + ':' + scope + ':' + version + '</span>';
-    const edits = [{ start: versionNode.end, end: versionNode.end, value: marker }];
+    const token = 'RT-FLUID-LAYOUT-V' + family + profile + ':' + scope + ':' + version;
+    const boundedV15 = family === 15 && profile === 'B';
+    // Reuse the already verified hidden version run instead of creating an
+    // additional Word formatting run. Its exact merged-token protocol exists.
+    const marker = boundedV15 ? ' ' + token : '<span hidden aria-hidden="true" style="display:none!important;font-size:0;line-height:0;">' + token + '</span>';
+    const position = boundedV15 ? versionNode.close : versionNode.end;
+    const edits = [{ start: position, end: position, value: marker }];
     if (profile === 'M') edits.push(hostProfileOpening(html, material.train, 547), hostProfileOpening(html, material.trainImage, 529, 115), hostProfileOpening(html, material.caption, 199, 38));
     let modified = html;
     for (const edit of edits.sort((a, b) => b.start - a.start)) modified = modified.slice(0, edit.start) + edit.value + modified.slice(edit.end);

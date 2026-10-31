@@ -419,7 +419,7 @@ test('v15 prepares bounded canonical sources and enlarges only three verified im
         for (const [office, expected] of [[host().office, 'B'], [modernHost().office, 'M'], [undefined, 'B']]) {
             const plan = prepareNativeLayoutRestore(html, source, nonce, office);
             assert.equal(plan.profile, expected); assert.equal(plan.sourceOnly, 'fluid-v15'); assert.equal(plan.family, 15);
-            assert.equal(plan.html.length - html.length, expected === 'M' ? 168 : 167);
+            assert.equal(plan.html.length - html.length, expected === 'M' ? 168 : 71);
             assert.equal(plan.ids, null); assert.equal(plan.stylePayload, '');
             assert.match(plan.html, new RegExp('RT-FLUID-LAYOUT-V15' + expected + ':' + nonce + ':' + version));
             assert.match(plan.html, /src="https:\/\/mail\.example\.test\/m\/4700745390\.gif"/);
@@ -432,6 +432,36 @@ test('v15 prepares bounded canonical sources and enlarges only three verified im
             html.replace('4700745390.gif', '4700745390.png'), html.replace('4700745390.gif', 'unknown.gif')]) {
             assert.throws(() => prepareNativeLayoutRestore(changed, combined ? managedTemplateContract(changed) : standaloneSignatureContract(changed), nonce, modernHost().office));
         }
+    }
+});
+
+test('V15B reuses only the existing hidden version leaf and saves 96 UTF16 units without changing source bytes or visibility rules', () => {
+    for (const combined of [false, true]) {
+        const html = hostProfileFixture(combined), contract = combined ? managedTemplateContract(html) : standaloneSignatureContract(html);
+        const leaf = contract.elements[contract.signatureMetadata.version];
+        const plan = prepareNativeLayoutRestore(html, contract, nonce, host().office);
+        const token = 'RT-FLUID-LAYOUT-V15B:' + nonce + ':' + version;
+        const expected = html.slice(0, leaf.close) + ' ' + token + html.slice(leaf.close);
+        assert.equal(plan.html, expected);
+        assert.equal(plan.html.length - html.length, 71);
+        const previousMarker = '<span hidden aria-hidden="true" style="display:none!important;font-size:0;line-height:0;">' + token + '</span>';
+        assert.equal(previousMarker.length - (plan.html.length - html.length), 96);
+        assert.equal((plan.html.match(/<span\b/g) || []).length, (html.match(/<span\b/g) || []).length);
+        assert.equal(plan.version, version); assert.equal(plan.profile, 'B'); assert.equal(plan.stylePayload, '');
+        assert.equal(verifyFluidLayoutMaterial(plan.html, fluidLayoutContract(plan.html, plan.html, nonce, version)).family, 15);
+        const originalOpening = html.slice(leaf.start, leaf.openEnd);
+        assert.equal(plan.html.slice(leaf.start, leaf.openEnd), originalOpening);
+        const visibleOpening = originalOpening.replace('font-size:0;', 'font-size:1pt;');
+        assert.notEqual(visibleOpening, originalOpening);
+        const visible = plan.html.slice(0, leaf.start) + visibleOpening + plan.html.slice(leaf.openEnd);
+        assert.throws(() => fluidLayoutContract(visible), error => error.code === 'TEMPLATE_REPLACEMENT_UNAVAILABLE');
+        const foreign = plan.html.replace(' ' + token, ' Foreign visible text ' + token);
+        assert.throws(() => fluidLayoutContract(foreign), error => error.code === 'TEMPLATE_REPLACEMENT_UNAVAILABLE');
+        assert.throws(() => fluidLayoutContract(plan.html, plan.html, '22'.repeat(16), version));
+        assert.throws(() => fluidLayoutContract(plan.html, plan.html, nonce, 'ff'.repeat(8)));
+        assert.throws(() => fluidLayoutContract(plan.html + plan.html));
+        const badSource = html.slice(0, leaf.start) + visibleOpening + html.slice(leaf.openEnd);
+        assert.throws(() => prepareNativeLayoutRestore(badSource, combined ? managedTemplateContract(badSource) : standaloneSignatureContract(badSource), nonce, host().office));
     }
 });
 
