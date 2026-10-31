@@ -11,6 +11,7 @@ import {
     standaloneSignatureLayoutIsCurrent,
     signatureHostProfileIsCurrent,
     combinedComposeDocument,
+    diagnoseUncertainV15Readback,
     currentComposeBodyHtml as scopedComposeBodyHtml,
     prependTemplate,
     replaceManagedTemplate,
@@ -1666,11 +1667,12 @@ async function insertTemplate(button, { replaceOnly = false, expectedTarget = nu
     return result;
 }
 
-async function showDiagnosticReport() {
+async function showDiagnosticReport({ readV15 = false } = {}) {
     const output = document.querySelector('[data-outlook-diagnostics-output]');
     if (!output) return;
     let boundMailbox = false;
     let boundMailboxChecked = false;
+    let diagnosticTarget = null, diagnosticPayload = null;
     if (taskpaneState.authenticated && taskpaneState.bootstrapReady && currentBootstrap) {
         const payload = currentBootstrap;
         try {
@@ -1680,6 +1682,7 @@ async function showDiagnosticReport() {
             boundMailbox = taskpaneState.authenticated && taskpaneState.bootstrapReady
                 && payload.binding?.mailboxAddress === currentBootstrap?.binding?.mailboxAddress
                 && payload.binding?.senderAddress === currentBootstrap?.binding?.senderAddress;
+            diagnosticTarget = target; diagnosticPayload = payload;
         } catch {
             // A failed current From read is not a successful historical check.
             // Reporting itself never writes or grants permission to insert.
@@ -1691,6 +1694,13 @@ async function showDiagnosticReport() {
         automaticTemplate: Boolean(automaticTemplate(currentBootstrap)), writeBlocked: insertionBlocked(),
         ...(boundMailbox ? insertionDisplayEvidence() : {}),
     });
+    const uncertain = insertionBlocked() || ['TEMPLATE_LAYOUT_UNCONFIRMED', 'SIGNATURE_LAYOUT_UNCONFIRMED',
+        'TEMPLATE_INSERT_UNCERTAIN', 'SIGNATURE_INSERT_UNCERTAIN', 'INLINE_ATTACHMENT_UNCERTAIN'].includes(safeErrorCode(lastActionError));
+    if (readV15 && boundMailbox && uncertain && !taskpaneState.busy) {
+        report.v15Readback = await diagnoseUncertainV15Readback(Office, diagnosticTarget.item, {
+            requested: true, uncertain: true, beforeRead: () => assertWriteTarget(diagnosticTarget, diagnosticPayload.binding),
+        });
+    }
     output.value = JSON.stringify(report, null, 2);
     output.hidden = false;
 }
@@ -1723,7 +1733,7 @@ async function runDiagnostics(button) {
         setBusy(false);
         button.disabled = false;
         syncActionState();
-        await showDiagnosticReport();
+        await showDiagnosticReport({ readV15: true });
     }
 }
 
@@ -1775,7 +1785,7 @@ function bindActions() {
     diagnosticButton?.addEventListener('click', () => runDiagnostics(diagnosticButton));
     document.querySelector('[data-outlook-diagnostics-copy]')?.addEventListener('click', async () => {
         const output = document.querySelector('[data-outlook-diagnostics-output]');
-        await showDiagnosticReport();
+        await showDiagnosticReport({ readV15: true });
         if (!output?.value) return;
         try {
             await navigator.clipboard.writeText(output.value);

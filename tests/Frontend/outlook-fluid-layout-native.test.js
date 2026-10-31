@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { fluidLayoutContract, managedTemplateContract, standaloneSignatureContract } from '../../resources/js/outlook-addin/managed-template.js';
 import { outlookSignatureDeliveryProfile, prepareNativeLayoutRestore, verifyFluidLayoutMaterial } from '../../resources/js/outlook-addin/native-layout-restore.js';
-import { insertStandaloneSignature, isStandaloneSignatureInsertionBlocked, prependTemplate, replaceManagedTemplate, signatureHostProfileIsCurrent, standaloneSignatureLayoutIsCurrent } from '../../resources/js/outlook-addin/compose-template.js';
+import { diagnoseUncertainV15Readback, insertStandaloneSignature, isStandaloneSignatureInsertionBlocked, prependTemplate, replaceManagedTemplate, signatureHostProfileIsCurrent, standaloneSignatureLayoutIsCurrent } from '../../resources/js/outlook-addin/compose-template.js';
 import { nativeOfficeHtml } from './outlook-standalone-fixture.js';
 
 const version = '0123456789abcdef', nonce = '11'.repeat(16);
@@ -506,4 +506,126 @@ test('the production taskpane currentness check distinguishes V15 profiles for s
             }
         }
     }
+});
+
+const capturedV15OwaBody = () => readFileSync(new URL('./fixtures/outlook-v15-owa-normalized.html', import.meta.url), 'utf8');
+
+test('v15 accepts the captured OWA cell paint and locally inherited phone size while retaining its complete parent proof', () => {
+    const html = capturedV15OwaBody(), contract = fluidLayoutContract(html, html, nonce, version);
+    assert.equal(verifyFluidLayoutMaterial(html, contract).family, 15);
+    assert.equal(contract.fluidLayout.profile, 'M');
+    const negatives = [
+        value => value.replace('background-color: rgb(233, 0, 50); padding: 8px', 'background-color: rgb(0, 0, 0); padding: 8px'),
+        value => value.replace('background-color: rgb(233, 0, 50); padding: 8px', 'background-color: transparent; padding: 8px'),
+        value => value.replace('border-radius: 8px; background-color: rgb(233, 0, 50)', 'border-radius: 0px; background-color: rgb(233, 0, 50)'),
+        value => value.replace('background-color: rgb(233, 0, 50); padding: 8px', 'background-color: rgb(233, 0, 50); background-image: url(https://mail.example.test/foreign.png); padding: 8px'),
+        value => value.replaceAll('3ee5033b5b.png', 'unknown.png'),
+        value => value.replace('bgcolor="#e90032"', 'bgcolor="#000000"'),
+        value => value.replace('font-size: 12px; color: rgb(255, 255, 255);', 'font-size: 13px; color: rgb(255, 255, 255);'),
+        value => value.replace('font-size: 12px; color: rgb(255, 255, 255);', 'font-size: inherit; color: rgb(255, 255, 255);'),
+        value => value.replace('<b>+49305550000</b>', '<b style="font-size:20px;">+49305550000</b>'),
+        value => value.replace('<b>+49305550000</b>', '<b>+49305550001</b>'),
+    ];
+    for (const mutate of negatives) {
+        const changed = mutate(html);
+        assert.notEqual(changed, html, 'Every negative must alter the actual captured markup.');
+        assert.throws(() => verifyFluidLayoutMaterial(changed, fluidLayoutContract(changed, changed)), error => error.code === 'NATIVE_LAYOUT_RESTORE_INVALID');
+    }
+    assert.throws(() => fluidLayoutContract(html + html));
+    assert.throws(() => fluidLayoutContract(html, html, '22'.repeat(16), version));
+});
+
+test('the observed OWA normalization is readback-only and cannot loosen V15 sources or historical V14 paint', () => {
+    const normalizedCell = (html, family) => html.replace(new RegExp('data-rt-dispatch-card="v' + family + '" bgcolor="#e90032" background="[^"]+" style="padding:8px 14px 5px;[^"]*"'),
+        'style="padding:8px 14px 5px;background-color:rgb(233,0,50);border-radius:8px;"');
+    const source = hostProfileFixture(true), changed = normalizedCell(source, 15);
+    assert.notEqual(source, changed);
+    assert.throws(() => prepareNativeLayoutRestore(changed, managedTemplateContract(changed), nonce, modernHost().office));
+    const legacy = dispatchCardFixture(true), plan = prepareNativeLayoutRestore(legacy, managedTemplateContract(legacy), nonce);
+    const legacyChanged = normalizedCell(plan.html, 14);
+    assert.notEqual(legacyChanged, plan.html);
+    assert.throws(() => verifyFluidLayoutMaterial(legacyChanged, fluidLayoutContract(legacyChanged, legacyChanged)));
+});
+
+test('replacing the captured OWA V15 body preserves the exact editable message and quoted history', async () => {
+    const html = capturedV15OwaBody(), contract = fluidLayoutContract(html, html);
+    const originalText = html.slice(contract.region.start, contract.region.end);
+    const quote = '<blockquote><p>Unrelated quoted bytes &amp; punctuation.</p></blockquote>';
+    const state = modernHost(value => value);
+    state.state.body = html + quote;
+    await replaceManagedTemplate(state.office, state.item, hostProfileFixture(true, 'ff'.repeat(8)), () => {}, { media: [] });
+    assert.equal(state.state.replacements, 1);
+    assert.equal(state.state.prepends, 0);
+    assert.equal(state.state.signatures, 0);
+    assert.ok(state.state.body.includes(originalText));
+    assert.ok(state.state.body.endsWith(quote));
+    assert.equal(fluidLayoutContract(state.state.body).fluidLayout.version, 'ff'.repeat(8));
+});
+
+test('the explicit uncertain V15 diagnostic separates SDK, parser, contract and material without exporting body or granting ACK', async () => {
+    const html = capturedV15OwaBody(), state = modernHost(value => value);
+    let reads = 0, bindings = 0;
+    state.item.body.getAsync = (_type, cb) => { reads++; cb({ status: 'succeeded', value: state.state.body }); };
+    state.state.body = html;
+    const options = { requested: true, uncertain: true, beforeRead: () => { bindings++; } };
+    await diagnoseUncertainV15Readback(state.office, state.item, { ...options, requested: false });
+    await diagnoseUncertainV15Readback(state.office, state.item, { ...options, uncertain: false });
+    assert.equal(reads, 0); assert.equal(bindings, 0);
+    const complete = await diagnoseUncertainV15Readback(state.office, state.item, options);
+    assert.equal(complete.phase, 'diagnostic-v15-complete');
+    for (const key of ['sdkRead', 'v15Candidate', 'parse', 'contract', 'nonceMetadata', 'material']) assert.equal(complete[key], true);
+    assert.equal(complete.writeNonceCompared, false); assert.equal(complete.acknowledgementGranted, false);
+    assert.equal(reads, 1); assert.equal(bindings, 2);
+    assert.doesNotMatch(JSON.stringify(complete), /person@|Synthetic|https:|RT-|[a-f0-9]{32}/);
+    for (const [body, phase, parsed, contracted] of [
+        [html.replace('Synthetic editable message remains byte-identical.', '<span>Synthetic editable message remains byte-identical.'), 'diagnostic-v15-parse', false, false],
+        [html + html, 'diagnostic-v15-contract', true, false],
+        [html.replace('background-color: rgb(233, 0, 50); padding: 8px', 'background-color: black; padding: 8px'), 'diagnostic-v15-material', true, true],
+    ]) {
+        state.state.body = body;
+        const result = await diagnoseUncertainV15Readback(state.office, state.item, options);
+        assert.equal(result.phase, phase); assert.equal(result.parse, parsed); assert.equal(result.contract, contracted);
+        assert.equal(result.material, false); assert.equal(result.acknowledgementGranted, false);
+    }
+    state.state.body = dispatchCardFixture();
+    assert.equal((await diagnoseUncertainV15Readback(state.office, state.item, options)).phase, 'diagnostic-not-v15');
+    state.item.body.getAsync = (_type, cb) => cb({ status: 'failed', error: { message: 'private user body', code: 'private@example.test' } });
+    const failed = await diagnoseUncertainV15Readback(state.office, state.item, options);
+    assert.equal(failed.phase, 'body-read'); assert.equal(failed.sdkRead, false);
+    assert.doesNotMatch(JSON.stringify(failed), /private|example/);
+    assert.equal(state.state.signatures + state.state.prepends + state.state.replacements, 0);
+    assert.equal(state.state.sessions.size, 0);
+});
+
+test('the read-only V15 diagnostic cannot clear an actual uncertain native operation or write session data', async () => {
+    const state = modernHost(html => wordProfile(html.replace('>+490123456789</span>', '>+490123456780</span>')));
+    await assert.rejects(insertStandaloneSignature(state.office, state.item, hostProfileFixture(), () => {}, { media: [] }));
+    const before = state.state.body, sessions = [...state.state.sessions];
+    assert.equal(isStandaloneSignatureInsertionBlocked(state.item), true);
+    const report = await diagnoseUncertainV15Readback(state.office, state.item, { requested: true, uncertain: true });
+    assert.equal(report.phase, 'diagnostic-v15-material');
+    assert.equal(isStandaloneSignatureInsertionBlocked(state.item), true);
+    assert.equal(state.state.body, before); assert.deepEqual([...state.state.sessions], sessions);
+    assert.equal(state.state.signatures, 1); assert.equal(state.state.prepends + state.state.replacements, 0);
+});
+
+test('the taskpane requests V15 readback only from explicit diagnostics in an authenticated uncertain idle item', async () => {
+    const source = readFileSync(new URL('../../resources/js/outlook-addin/taskpane.js', import.meta.url), 'utf8');
+    const declaration = /async function showDiagnosticReport\([\s\S]*?\n\}/.exec(source)?.[0];
+    assert.ok(declaration);
+    const output = {}, target = { item: {} }, binding = { mailboxAddress: 'private@example.test', senderAddress: 'private@example.test' };
+    let probes = 0, blocked = true;
+    const state = { authenticated: true, bootstrapReady: true, busy: false };
+    const context = vm.createContext({ document: { querySelector: () => output }, Office: {}, taskpaneState: state,
+        currentBootstrap: { binding }, lastActionError: null, captureComposeTarget: () => target,
+        diagnoseStep: (_phase, fn) => fn(), assertWriteTarget: () => {}, automaticTemplate: () => null,
+        insertionDisplayEvidence: () => ({}), diagnosticReport: () => ({}), insertionBlocked: () => blocked,
+        safeErrorCode: error => error?.code, diagnoseUncertainV15Readback: async () => { probes++; return { material: false }; } });
+    vm.runInContext(declaration + ';globalThis.show=showDiagnosticReport;', context);
+    await context.show(); assert.equal(probes, 0);
+    await context.show({ readV15: true }); assert.equal(probes, 1);
+    state.busy = true; await context.show({ readV15: true }); assert.equal(probes, 1);
+    state.busy = false; blocked = false; await context.show({ readV15: true }); assert.equal(probes, 1);
+    state.authenticated = false; blocked = true; await context.show({ readV15: true }); assert.equal(probes, 1);
+    assert.equal((source.match(/showDiagnosticReport\(\{ readV15: true \}\)/g) || []).length, 2);
 });

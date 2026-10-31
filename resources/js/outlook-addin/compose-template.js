@@ -1,4 +1,4 @@
-import { fluidLayoutContract, hasUnquotedFluidLayoutMarker, hasUnquotedSignatureLayoutCarrier, managedTemplateContract, managedTemplateReplacement, standaloneSignatureContract } from './managed-template.js';
+import { fluidLayoutContract, hasUnquotedFluidLayoutMarker, hasUnquotedSignatureLayoutCarrier, managedTemplateContract, managedTemplateReplacement, standaloneSignatureContract, v15ReadbackParses } from './managed-template.js';
 import { createNativeLayoutNonce, inferredNativeGridRow, isFluidLayoutSource, outlookSignatureDeliveryProfile, verifyFluidLayoutMaterial, nativeLayoutClearBarrier, nativeLayoutReadbackContract, nativeLayoutThreeCellTopology, nativeLayoutRestoreCarrierIsExternal, nativeLayoutRestoreCarrierPresent, nativeLayoutRestoreCellsAligned, nativeLayoutRestoreCss, nativeLayoutRestoreRetained, prepareNativeLayoutRestore, removeNativeLayoutRestoreCarrier } from './native-layout-restore.js';
 import { confirmedOfficeWrite, markSignatureWriteConfirmed } from './office-write.js';
 
@@ -649,6 +649,46 @@ async function replacementSnapshot(office, item) {
     if (!body.succeeded || typeof body.value !== 'string') throw failure('COMPOSE_BODY_UNREADABLE', { ...body, phase: 'body-read' });
     if (body.value.length > TEMPLATE_INSERT_LIMITS.bodyLength) throw failure('COMPOSE_BODY_TOO_LARGE');
     return { html: body.value, composeType: compose.value?.composeType };
+}
+
+/** Explicit diagnostic only: this can never acknowledge, retry or unblock a write. */
+export async function diagnoseUncertainV15Readback(office, item, { requested = false, uncertain = false, beforeRead = () => {} } = {}) {
+    const result = { schema: 1, phase: 'not-requested', requested: requested === true, uncertain: uncertain === true,
+        sdkRead: false, v15Candidate: false, parse: false, contract: false, nonceMetadata: false, material: false,
+        writeNonceCompared: false, acknowledgementGranted: false };
+    if (!result.requested || !result.uncertain) return result;
+    result.phase = 'diagnostic-mailbox-binding';
+    try { await beforeRead(); } catch { return result; }
+    let snapshot;
+    try { snapshot = await replacementSnapshot(office, item); }
+    catch (error) {
+        result.phase = ['body-type-read', 'compose-type-read', 'body-read'].includes(error?.phase) ? error.phase : 'diagnostic-sdk-read';
+        return result;
+    }
+    result.sdkRead = true;
+    try { await beforeRead(); } catch { return result; }
+    const current = currentComposeBodyHtml(snapshot.html, snapshot.composeType);
+    result.phase = 'diagnostic-not-v15';
+    if (typeof current !== 'string' || !/RT-FLUID-LAYOUT-V15[MB]:[0-9a-f]{32}:[0-9a-f]{16}/i.test(current)) return result;
+    result.v15Candidate = true;
+    result.phase = 'diagnostic-v15-parse';
+    if (!v15ReadbackParses(snapshot.html)) return result;
+    result.parse = true;
+    result.phase = 'diagnostic-v15-contract';
+    let contract;
+    try {
+        contract = fluidLayoutContract(snapshot.html, current);
+        if (contract.fluidLayout.family !== 15) return result;
+    } catch { return result; }
+    result.contract = true;
+    // The hidden unique nonce agrees with the signature metadata. This does
+    // not claim comparison with the initiating runtime's private write plan.
+    result.nonceMetadata = true;
+    result.phase = 'diagnostic-v15-material';
+    try { verifyFluidLayoutMaterial(snapshot.html, contract); } catch { return result; }
+    result.material = true;
+    result.phase = 'diagnostic-v15-complete';
+    return result;
 }
 
 export function requiresStandaloneSignatureLayout(html) {

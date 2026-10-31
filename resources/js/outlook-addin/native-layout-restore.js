@@ -638,6 +638,33 @@ function dispatchCardPaint(node, source, family = 14) {
     if (inlineCellProperties(node.attrs.style || '').some(([name]) => name === 'background')) invalid();
 }
 
+function v15NormalizedDispatchCell(node, source, family) {
+    // OWA can retain the pinned fill on the verified parent TABLE while
+    // serializing its direct TD as the same explicit, rounded brand colour.
+    // Sources and historical families still require both complete paint layers.
+    if (source || family !== 15 || node.tag !== 'td' || owns(node.attrs, 'bgcolor') || owns(node.attrs, 'background')) return false;
+    const declarations = inlineCellProperties(node.attrs.style || ''), properties = new Map(declarations);
+    const red = value => ['#e90032', 'rgb(233,0,50)'].includes((value || '').replace(/\s+/g, '').toLowerCase());
+    return red(properties.get('background-color')) && Math.abs(fluidPixels(properties.get('border-radius')) - 8) < 0.05
+        && declarations.every(([name, value]) => !/^background(?:-|$)/.test(name) || name === 'background-color' && red(value));
+}
+
+function v15InheritedPhoneSize(nodes, link, slot, source, family) {
+    if (source || family !== 15) return false;
+    // OWA lifts the 12px leaf onto a DIV inside this exact action cell.
+    // Resolve only that local inheritance; another cell can never supply it.
+    if (nodes.some((node, index) => within(nodes, index, link) && inlineCellProperties(node.attrs.style || '')
+        .some(([name, value]) => name === 'font-size' && !(Math.abs(fluidPixels(value) - 12) < 0.05)))) return false;
+    for (let index = link; Number.isInteger(index) && within(nodes, index, slot); index = nodes[index].parent) {
+        const node = nodes[index];
+        if (!['a', 'span', 'div', 'td'].includes(node.tag)) return false;
+        const size = new Map(inlineCellProperties(node.attrs.style || '')).get('font-size');
+        if (size !== undefined) return Math.abs(fluidPixels(size) - 12) < 0.05;
+        if (index === slot) break;
+    }
+    return false;
+}
+
 /** Fluid families rely on retained HTML material, not on restored or virtual CSS IDs. */
 export function verifyFluidLayoutMaterial(html, contract, source = false) {
     const nodes = contract?.elements, signature = contract?.signature;
@@ -761,7 +788,8 @@ export function verifyFluidLayoutMaterial(html, contract, source = false) {
                 || (owns(value.node.attrs, 'bgcolor') && (source || !neutralBackground(value.node.attrs.bgcolor)))
                 || inlineCellProperties(value.node.attrs.style || '').some(([name, property]) => /^background(?:-|$)/.test(name) && (source || !neutralBackground(property)))))) invalid();
             if (family >= 14) {
-                dispatchCardPaint(block.node, source, family); dispatchCardPaint(blockCell.node, source, family);
+                dispatchCardPaint(block.node, source, family);
+                if (!v15NormalizedDispatchCell(blockCell.node, source, family)) dispatchCardPaint(blockCell.node, source, family);
                 if (scoped.some(value => within(nodes, value.index, column.index) && ![block.index, blockCell.index].includes(value.index)
                     && (['background', 'bgcolor', 'data-rt-dispatch-card'].some(name => owns(value.node.attrs, name))
                         || inlineCellProperties(value.node.attrs.style || '').some(([name]) => /^background(?:-|$)/.test(name))))) invalid();
@@ -794,8 +822,9 @@ export function verifyFluidLayoutMaterial(html, contract, source = false) {
                 || (source && !/(?:^|;)\s*max-width\s*:\s*100%\s*!important\s*(?:;|$)/i.test(images[0].node.attrs.style || '')))) invalid();
             const phone = html.slice(links[2].node.openEnd, links[2].node.close).replace(/<[^>]*>/g, '').replace(/&nbsp;|&#160;|&#x0*a0;/gi, ' ').trim();
             const digits = phone.replace(/\D/g, ''), target = links[2].node.attrs.href.slice(4).replace(/\D/g, '');
-            if (!digits || digits !== target || !scoped.some(value => within(nodes, value.index, links[2].index)
-                && Math.abs(fluidPixels(new Map(inlineCellProperties(value.node.attrs.style || '')).get('font-size')) - (family >= 14 ? 12 : 13)) < 0.05)) invalid();
+            const phoneSize = scoped.some(value => within(nodes, value.index, links[2].index)
+                && Math.abs(fluidPixels(new Map(inlineCellProperties(value.node.attrs.style || '')).get('font-size')) - (family >= 14 ? 12 : 13)) < 0.05);
+            if (!digits || digits !== target || (!phoneSize && !v15InheritedPhoneSize(nodes, links[2].index, slots[2].index, source, family))) invalid();
             if (family >= 14) {
                 const white = value => ['#fff', '#ffffff', 'white', 'rgb(255,255,255)'].includes((value || '').replace(/\s+/g, '').toLowerCase());
                 if (!links.every(link => scoped.some(value => within(nodes, value.index, link.index)

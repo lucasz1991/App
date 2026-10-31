@@ -401,6 +401,11 @@ export function standaloneSignatureContract(html, currentHtml = html, ids = null
 }
 
 /** Explicit fluid ownership protocols; no CSS target IDs are invented here. */
+export function v15ReadbackParses(html) {
+    if (typeof html !== 'string' || !/RT-FLUID-LAYOUT-V15[MB]:[0-9a-f]{32}:[0-9a-f]{16}/i.test(html)) return false;
+    try { nodes(html); return true; } catch { return false; }
+}
+
 export function fluidLayoutContract(html, currentHtml = html, expectedNonce = null, expectedVersion = null) {
     if (typeof html !== 'string' || typeof currentHtml !== 'string' || !html.startsWith(currentHtml)) unavailable();
     const original = nodes(html);
