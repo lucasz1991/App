@@ -509,6 +509,17 @@ test('the production taskpane currentness check distinguishes V15 profiles for s
 });
 
 const capturedV15OwaBody = () => readFileSync(new URL('./fixtures/outlook-v15-owa-normalized.html', import.meta.url), 'utf8');
+const capturedV15PostwriteBody = () => readFileSync(new URL('./fixtures/outlook-v15-owa-postwrite.html', import.meta.url), 'utf8');
+
+function capturedCardPaint(html, surface, rewrite) {
+    const contract = fluidLayoutContract(html, html), nodes = contract.elements;
+    let index = nodes.findIndex(node => node.tag === 'img' && node.attrs.src.endsWith('/m/464054a84f.png'));
+    while (Number.isInteger(index) && nodes[index].tag !== surface) index = nodes[index].parent;
+    assert.ok(Number.isInteger(index));
+    const node = nodes[index], opening = html.slice(node.start, node.openEnd), next = rewrite(opening);
+    assert.notEqual(next, opening, 'The captured card surface must actually change.');
+    return html.slice(0, node.start) + next + html.slice(node.openEnd);
+}
 
 test('v15 accepts the captured OWA cell paint and locally inherited phone size while retaining its complete parent proof', () => {
     const html = capturedV15OwaBody(), contract = fluidLayoutContract(html, html, nonce, version);
@@ -560,6 +571,47 @@ test('replacing the captured OWA V15 body preserves the exact editable message a
     assert.ok(state.state.body.includes(originalText));
     assert.ok(state.state.body.endsWith(quote));
     assert.equal(fluidLayoutContract(state.state.body).fluidLayout.version, 'ff'.repeat(8));
+});
+
+test('v15 accepts only the two exact CSS brand surfaces retained by actual OWA setAsync', () => {
+    const html = capturedV15PostwriteBody();
+    assert.equal(verifyFluidLayoutMaterial(html, fluidLayoutContract(html, html, nonce, version)).family, 15);
+    assert.doesNotMatch(html, /background=|bgcolor=|background-image:/);
+    const negatives = [
+        value => value.replace('rgb(233, 0, 50)', 'rgb(232, 0, 50)'),
+        value => value.replace('rgb(233, 0, 50)', 'rgba(233, 0, 50, 1)'),
+        value => value.replace('background-color: rgb(233, 0, 50)', 'background: rgb(233, 0, 50)'),
+        value => value.replace('background-color: rgb(233, 0, 50)', 'background-color: black; background-color: #e90032'),
+        value => value.replace('border-radius: 8px', 'border-radius: 9px'),
+        value => value.replace('border-radius: 8px', 'border-radius: calc(8px)'),
+        value => value.replace('style="', 'style="background-image:url(https://mail.example.test/foreign.png);'),
+        value => value.replace('style="', 'background="https://mail.example.test/foreign.png" style="'),
+        value => value.replace('style="', 'bgcolor="#e90032" style="'),
+    ];
+    for (const surface of ['table', 'td']) {
+        for (const mutate of negatives) {
+            const changed = capturedCardPaint(html, surface, mutate);
+            assert.throws(() => verifyFluidLayoutMaterial(changed, fluidLayoutContract(changed, changed)), error => error.code === 'NATIVE_LAYOUT_RESTORE_INVALID');
+        }
+    }
+    const wrongAsset = html.replace('36ecdeda31.png', 'unknown.png');
+    assert.throws(() => verifyFluidLayoutMaterial(wrongAsset, fluidLayoutContract(wrongAsset, wrongAsset)));
+    for (const family of [14, 15]) {
+        const source = family === 15 ? hostProfileFixture(true) : dispatchCardFixture(true);
+        const incomplete = source.replace('bgcolor="#e90032" background="https://mail.example.test/m/3ee5033b5b.png"', '');
+        assert.throws(() => prepareNativeLayoutRestore(incomplete, managedTemplateContract(incomplete), nonce, modernHost().office));
+    }
+});
+
+test('the actual OWA postwrite body remains safely replaceable with exact text and quoted bytes', async () => {
+    const html = capturedV15PostwriteBody(), contract = fluidLayoutContract(html, html);
+    const text = html.slice(contract.region.start, contract.region.end), quote = '<blockquote>Postwrite quote &amp; bytes.</blockquote>';
+    const state = modernHost(value => value);
+    state.state.body = html + quote;
+    await replaceManagedTemplate(state.office, state.item, hostProfileFixture(true, 'ee'.repeat(8)), () => {}, { media: [] });
+    assert.equal(state.state.replacements, 1); assert.equal(state.state.prepends + state.state.signatures, 0);
+    assert.ok(state.state.body.includes(text)); assert.ok(state.state.body.endsWith(quote));
+    assert.equal(verifyFluidLayoutMaterial(state.state.body, fluidLayoutContract(state.state.body)).family, 15);
 });
 
 test('the explicit uncertain V15 diagnostic separates SDK, parser, contract and material without exporting body or granting ACK', async () => {

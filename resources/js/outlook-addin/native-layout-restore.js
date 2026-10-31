@@ -638,11 +638,12 @@ function dispatchCardPaint(node, source, family = 14) {
     if (inlineCellProperties(node.attrs.style || '').some(([name]) => name === 'background')) invalid();
 }
 
-function v15NormalizedDispatchCell(node, source, family) {
-    // OWA can retain the pinned fill on the verified parent TABLE while
-    // serializing its direct TD as the same explicit, rounded brand colour.
+function v15NormalizedDispatchPaint(node, source, family) {
+    // OWA setAsync can serialize the two proven card surfaces as the same
+    // explicit rounded brand colour while removing their redundant fill tile.
+    // This proves CSS paint, not retention of the anti-dark-mode image layer.
     // Sources and historical families still require both complete paint layers.
-    if (source || family !== 15 || node.tag !== 'td' || owns(node.attrs, 'bgcolor') || owns(node.attrs, 'background')) return false;
+    if (source || family !== 15 || !['table', 'td'].includes(node.tag) || owns(node.attrs, 'bgcolor') || owns(node.attrs, 'background')) return false;
     const declarations = inlineCellProperties(node.attrs.style || ''), properties = new Map(declarations);
     const red = value => ['#e90032', 'rgb(233,0,50)'].includes((value || '').replace(/\s+/g, '').toLowerCase());
     return red(properties.get('background-color')) && Math.abs(fluidPixels(properties.get('border-radius')) - 8) < 0.05
@@ -788,8 +789,8 @@ export function verifyFluidLayoutMaterial(html, contract, source = false) {
                 || (owns(value.node.attrs, 'bgcolor') && (source || !neutralBackground(value.node.attrs.bgcolor)))
                 || inlineCellProperties(value.node.attrs.style || '').some(([name, property]) => /^background(?:-|$)/.test(name) && (source || !neutralBackground(property)))))) invalid();
             if (family >= 14) {
-                dispatchCardPaint(block.node, source, family);
-                if (!v15NormalizedDispatchCell(blockCell.node, source, family)) dispatchCardPaint(blockCell.node, source, family);
+                if (!v15NormalizedDispatchPaint(block.node, source, family)) dispatchCardPaint(block.node, source, family);
+                if (!v15NormalizedDispatchPaint(blockCell.node, source, family)) dispatchCardPaint(blockCell.node, source, family);
                 if (scoped.some(value => within(nodes, value.index, column.index) && ![block.index, blockCell.index].includes(value.index)
                     && (['background', 'bgcolor', 'data-rt-dispatch-card'].some(name => owns(value.node.attrs, name))
                         || inlineCellProperties(value.node.attrs.style || '').some(([name]) => /^background(?:-|$)/.test(name))))) invalid();
