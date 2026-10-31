@@ -655,7 +655,7 @@ async function replacementSnapshot(office, item) {
 export async function diagnoseUncertainV15Readback(office, item, { requested = false, uncertain = false, beforeRead = () => {} } = {}) {
     const result = { schema: 1, phase: 'not-requested', requested: requested === true, uncertain: uncertain === true,
         sdkRead: false, v15Candidate: false, parse: false, contract: false, nonceMetadata: false, material: false,
-        contractStage: 'not-run', writeNonceCompared: false, acknowledgementGranted: false };
+        contractStage: 'not-run', fluidMarkerShape: null, writeNonceCompared: false, acknowledgementGranted: false };
     if (!result.requested || !result.uncertain) return result;
     result.phase = 'diagnostic-mailbox-binding';
     try { await beforeRead(); } catch { return result; }
@@ -677,8 +677,9 @@ export async function diagnoseUncertainV15Readback(office, item, { requested = f
     result.phase = 'diagnostic-v15-contract';
     let contract;
     try {
-        contract = fluidLayoutContract(snapshot.html, current, null, null, stage => {
+        contract = fluidLayoutContract(snapshot.html, current, null, null, (stage, shape) => {
             if (V15_READBACK_CONTRACT_STAGES.includes(stage)) result.contractStage = stage;
+            if (stage === 'fluid-marker-hidden' && shape !== null) result.fluidMarkerShape = shape;
         });
         if (contract.fluidLayout.family !== 15) return result;
     } catch { return result; }

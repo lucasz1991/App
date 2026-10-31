@@ -14,8 +14,8 @@ export const V15_READBACK_CONTRACT_STAGES = Object.freeze(['not-run', 'fluid-mar
     'fluid-marker-occurrence', 'editable-markers', 'editable-marker-hidden', 'editable-start-carrier',
     'editable-end-carrier', 'editable-cell', 'document-markers', 'document-ownership', 'signature-footer', 'contract-complete']);
 
-function contractCheckpoint(observer, stage) {
-    if (typeof observer === 'function') observer(stage);
+function contractCheckpoint(observer, stage, shape = null) {
+    if (typeof observer === 'function') observer(stage, shape);
 }
 
 function matches(value, pattern) {
@@ -193,6 +193,67 @@ function metadataHidden(node, elements) {
         if (parent.tag === 'td' || ['font-size', 'line-height'].every(name => owns(values, name))) break;
     }
     return ['font-size', 'line-height'].every(name => /^0(?:px|pt)?$/.test(values[name] || ''));
+}
+
+/** Structural facts only; no text, attribute values or offsets leave this helper. */
+function v15FluidMarkerShape(html, tree, fluid) {
+    const { elements } = tree, selected = [];
+    let truncated = false;
+    for (let index = 0; index < elements.length; index++) {
+        if (!within(elements, index, fluid.index)) continue;
+        if (selected.length === 64) { truncated = true; break; }
+        selected.push({ node: elements[index], index });
+    }
+    const text = node => decoded(html.slice(node.openEnd, node.close).replace(/<!--[\s\S]*?-->|<[^>]*>/g, '')).trim();
+    const token = 'RT-FLUID-LAYOUT-V15' + fluid.profile + ':' + fluid.nonce + ':' + fluid.version;
+    const exact = selected.filter(value => value.index !== fluid.index && value.node.tag === 'span' && text(value.node).toLowerCase() === token.toLowerCase());
+    const leaves = exact.filter(value => !exact.some(inner => inner.index !== value.index && within(elements, inner.index, value.index)));
+    let remainder = html.slice(fluid.node.openEnd, fluid.node.close);
+    for (const leaf of [...leaves].sort((a, b) => b.node.start - a.node.start)) {
+        const start = leaf.node.start - fluid.node.openEnd;
+        remainder = remainder.slice(0, start) + remainder.slice(leaf.node.end - fluid.node.openEnd);
+    }
+    const fonts = [];
+    for (const declaration of (fluid.node.attrs.style || '').split(';')) {
+        const colon = declaration.indexOf(':');
+        if (colon <= 0) continue;
+        const name = declaration.slice(0, colon).trim().toLowerCase();
+        const value = declaration.slice(colon + 1).trim().replace(/\s*!important\s*$/i, '').toLowerCase();
+        if (name === 'font' || name === 'all') fonts.push('conflict');
+        if (name !== 'font-size') continue;
+        fonts.push(/^0(?:px|pt)?$/.test(value) ? 'zero'
+            : /^[0-9]+(?:\.[0-9]+)?(?:px|pt|em|rem|in|cm|mm|%)?$/.test(value) && Number.parseFloat(value) > 0 ? 'nonzero' : 'conflict');
+    }
+    const outerFont = !fonts.length ? 'missing' : fonts.every(value => value === fonts[0]) ? fonts[0] : 'conflict';
+    const allowedAttributes = ['style', 'class', 'lang', 'xml:lang', 'dir', 'hidden', 'aria-hidden'];
+    const ownZero = { 'font-size': false, 'line-height': false };
+    let ownConflict = false;
+    if (leaves.length === 1) {
+        for (const declaration of (leaves[0].node.attrs.style || '').split(';')) {
+            const colon = declaration.indexOf(':');
+            if (colon <= 0) continue;
+            const name = declaration.slice(0, colon).trim().toLowerCase();
+            const value = declaration.slice(colon + 1).trim().replace(/\s*!important\s*$/i, '').toLowerCase();
+            if (name === 'font' || name === 'all') ownConflict = true;
+            if (!owns(ownZero, name)) continue;
+            if (/^0(?:px|pt)?$/.test(value)) ownZero[name] = true;
+            else ownConflict = true;
+        }
+    }
+    return {
+        outerTag: ['span', 'div', 'p', 'td', 'table'].includes(fluid.node.tag) ? fluid.node.tag : 'other', outerFont,
+        innerExactTokenCount: leaves.length === 0 ? '0' : leaves.length === 1 ? '1' : 'many',
+        innerExplicitHidden: leaves.length === 1 && (owns(leaves[0].node.attrs, 'hidden')
+            || /(?:^|;)\s*display\s*:\s*none(?:\s*!important)?\s*(?:;|$)/i.test(leaves[0].node.attrs.style || '')),
+        innerHiddenByExistingRule: leaves.length === 1 && metadataHidden(leaves[0].node, elements),
+        innerOwnZeroMetrics: leaves.length === 1 && !ownConflict && ownZero['font-size'] && ownZero['line-height'],
+        outsideText: decoded(remainder.replace(/<!--[\s\S]*?-->|<[^>]*>/g, '')).trim() !== '',
+        descendantOtherTags: selected.some(value => value.index !== fluid.index && value.node.tag !== 'span'),
+        unexpectedAttributes: selected.some(value => Object.keys(value.node.attrs).some(name => !allowedAttributes.includes(name))),
+        nodeCount: selected.length, nodeCountTruncated: truncated,
+        pureSpanSingleChain: !truncated && selected.every(value => value.node.tag === 'span'
+            && selected.filter(child => child.node.parent === value.index).length <= 1),
+    };
 }
 
 function boundaryCarrier(html, tree, span) {
@@ -465,7 +526,7 @@ export function fluidLayoutContract(html, currentHtml = html, expectedNonce = nu
         return span;
     }).filter(Boolean);
     const fluid = exactlyOne(found);
-    contractCheckpoint(trace, 'fluid-marker-hidden');
+    contractCheckpoint(trace, 'fluid-marker-hidden', typeof trace === 'function' && fluid.family === 15 ? v15FluidMarkerShape(html, tree, fluid) : null);
     if (!metadataHidden(fluid.node, elements) || (expectedNonce !== null && fluid.nonce !== expectedNonce)
         || (expectedVersion !== null && fluid.version !== expectedVersion.toLowerCase())) unavailable();
     contractCheckpoint(trace, 'fluid-marker-occurrence');

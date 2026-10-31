@@ -686,6 +686,51 @@ test('V15 diagnostic checkpoints identify hidden wrappers and boundary carriers 
     assert.deepEqual(oldTrace, []);
 });
 
+test('the V15 fluid shape report exposes only bounded structural facts and never changes hidden-marker acceptance', async () => {
+    const source = hostProfileFixture(true), plan = prepareNativeLayoutRestore(source, managedTemplateContract(source), nonce, modernHost().office);
+    const token = 'RT-FLUID-LAYOUT-V15M:' + nonce + ':' + version;
+    const wrap = (opening, middle = '$1', closing = '</span>') => plan.html.replace(new RegExp('(<span\\b[^>]*>' + token + '</span>)'), opening + middle + closing);
+    const read = async html => {
+        const state = modernHost(value => value); state.state.body = html;
+        return diagnoseUncertainV15Readback(state.office, state.item, { requested: true, uncertain: true });
+    };
+    const normal = wrap('<span lang="en" style="font-size:1pt;">');
+    const report = await read(normal), shape = report.fluidMarkerShape;
+    assert.equal(report.contractStage, 'fluid-marker-hidden'); assert.equal(report.contract, false);
+    assert.deepEqual(shape, { outerTag: 'span', outerFont: 'nonzero', innerExactTokenCount: '1', innerExplicitHidden: true,
+        innerHiddenByExistingRule: true, innerOwnZeroMetrics: true,
+        outsideText: false, descendantOtherTags: false, unexpectedAttributes: false, nodeCount: 2, nodeCountTruncated: false, pureSpanSingleChain: true });
+    assert.throws(() => fluidLayoutContract(normal), error => error.code === 'TEMPLATE_REPLACEMENT_UNAVAILABLE');
+    const conflicting = await read(wrap('<span style="font-size:1pt;font-size:0px;">'));
+    assert.equal(conflicting.fluidMarkerShape.outerFont, 'conflict'); assert.equal(conflicting.contract, false);
+    const missing = await read(wrap('<span lang="en">'));
+    assert.equal(missing.fluidMarkerShape.outerFont, 'missing');
+    const noExplicitHidden = await read(wrap('<span style="font-size:1pt;">', '<span style="font-size:0;line-height:0;">' + token + '</span>'));
+    assert.equal(noExplicitHidden.fluidMarkerShape.innerExplicitHidden, false); assert.equal(noExplicitHidden.contract, false);
+    assert.equal(noExplicitHidden.fluidMarkerShape.innerHiddenByExistingRule, true); assert.equal(noExplicitHidden.fluidMarkerShape.innerOwnZeroMetrics, true);
+    const inheritedOnly = await read(wrap('<span style="font-size:0;line-height:0;">', '<span>' + token + '</span>'));
+    assert.equal(inheritedOnly.fluidMarkerShape.innerHiddenByExistingRule, true); assert.equal(inheritedOnly.fluidMarkerShape.innerOwnZeroMetrics, false);
+    for (const style of ['font-size:1pt;font-size:0;line-height:0;', 'font-size:0;line-height:0;font:inherit;', 'font-size:0;line-height:0;all:initial;']) {
+        const contradictory = await read(wrap('<span style="font-size:1pt;">', '<span style="' + style + '">' + token + '</span>'));
+        assert.equal(contradictory.fluidMarkerShape.innerHiddenByExistingRule, false); assert.equal(contradictory.fluidMarkerShape.innerOwnZeroMetrics, false);
+        assert.equal(contradictory.contract, false);
+    }
+    const zero = await read(wrap('<span style="font-size:0;line-height:0;">'));
+    assert.equal(zero.fluidMarkerShape.outerFont, 'zero'); assert.equal(zero.contract, true);
+    const tagged = await read(wrap('<span title="private user" style="font-size:1pt;">', '<a href="mailto:private@example.test">$1</a>'));
+    assert.equal(tagged.fluidMarkerShape.descendantOtherTags, true); assert.equal(tagged.fluidMarkerShape.unexpectedAttributes, true);
+    assert.equal(tagged.fluidMarkerShape.pureSpanSingleChain, false); assert.equal(tagged.contract, false);
+    assert.doesNotMatch(JSON.stringify(tagged), /private|example\.test|RT-|[a-f0-9]{32}|https:|href|title/);
+    const deep = await read(wrap('<span style="font-size:1pt;">'.repeat(70), '$1', '</span>'.repeat(70)));
+    assert.equal(deep.fluidMarkerShape.nodeCount, 64); assert.equal(deep.fluidMarkerShape.nodeCountTruncated, true);
+    assert.equal(deep.fluidMarkerShape.pureSpanSingleChain, false); assert.equal(deep.contract, false);
+    const plain = await read(plan.html);
+    assert.equal(plain.fluidMarkerShape.innerExactTokenCount, '0'); assert.equal(plain.fluidMarkerShape.outsideText, true);
+    const legacy = modernHost(value => value); legacy.state.body = dispatchCardFixture(true);
+    const old = await diagnoseUncertainV15Readback(legacy.office, legacy.item, { requested: true, uncertain: true });
+    assert.equal(old.fluidMarkerShape, null); assert.equal(old.phase, 'diagnostic-not-v15');
+});
+
 test('the read-only V15 diagnostic cannot clear an actual uncertain native operation or write session data', async () => {
     const state = modernHost(html => wordProfile(html.replace('>+490123456789</span>', '>+490123456780</span>')));
     await assert.rejects(insertStandaloneSignature(state.office, state.item, hostProfileFixture(), () => {}, { media: [] }));
