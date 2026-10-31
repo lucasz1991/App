@@ -85,6 +85,61 @@ final class OutlookV30ReferencePresentationTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_system_frames_and_media_queries_remain_fluid_without_inlining_mobile_visibility_into_desktop(): void
+    {
+        $fixture = new PublishedStaticSystemDeliveryTest('test_effective_published_system_pair_uses_remote_pngs_through_the_real_inliner_and_embedder');
+        (new ReflectionMethod($fixture, 'setUp'))->invoke($fixture);
+        $signature = (new ReflectionProperty($fixture, 'linked'))->getValue($fixture);
+        $template = (new ReflectionProperty($fixture, 'template'))->getValue($fixture);
+        $signature->forceFill(['html' => $this->mark($signature->published_html, true), 'published_html' => $this->mark($signature->published_html, true)])->saveQuietly();
+        $template->forceFill(['html' => $this->mark($template->published_html, false), 'published_html' => $this->mark($template->published_html, false), 'published_signature_document_id' => $signature->id])->saveQuietly();
+        app()->forgetScopedInstances();
+        $before = MailDocument::query()->orderBy('id')->get()->toArray();
+        $compiled = EmailTemplateBuilder::buildSystemMailHtml(new HtmlString('<p>Opaque application bytes &amp; text.</p>'));
+        self::assertSame($compiled, Reference::document($compiled));
+        $previous = Reference::canonicalizeToV15($compiled);
+        self::assertStringContainsString('outlook-desktop-flow-v15', $previous);
+        self::assertStringContainsString('box-sizing:border-box;border-left:3px solid #e90032;overflow:hidden;', $previous);
+        self::assertSame($compiled, Reference::document($previous));
+        $sourceDom = new \DOMDocument;
+        @$sourceDom->loadHTML('<?xml encoding="UTF-8">'.$compiled, LIBXML_NONET);
+        $sourceXpath = new \DOMXPath($sourceDom);
+        $sourceShell = $sourceXpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-shell ")]')->item(0);
+        self::assertStringContainsString(';table-layout:fixed!important;', $sourceShell->getAttribute('style'));
+        $ancestors = $sourceXpath->query('ancestor::table', $sourceShell);
+        self::assertCount(1, $ancestors);
+        self::assertStringContainsString(';table-layout:fixed!important;', $ancestors->item(0)->getAttribute('style'));
+        self::assertStringContainsString('box-sizing:border-box;border-left:0!important;overflow:hidden;', $compiled);
+        self::assertStringContainsString('@media (max-width:520px)', $compiled);
+        self::assertStringNotContainsString('@media(max-width:520px)', $compiled);
+        self::assertStringContainsString('.rt-personal-logo-frame{float:none!important;width:184px!important;margin:0!important}', $compiled);
+        self::assertStringContainsString('.rt-v16-company{width:100%!important}', $compiled);
+        foreach ([
+            [';table-layout:fixed!important;', ';table-layout:auto!important;'],
+            ['box-sizing:border-box;border-left:0!important;overflow:hidden;', 'box-sizing:border-box;border-left:9px solid #e90032;overflow:hidden;'],
+            ['@media (max-width:520px)', '@media(max-width:520px)'],
+        ] as [$old, $new]) {
+            try {
+                Reference::canonicalizeToV15(str_replace($old, $new, $compiled));
+                self::fail('A changed system frame or CSS contract must not be inverted.');
+            } catch (RuntimeException $error) {
+                self::assertStringContainsString('keinen eindeutigen', $error->getMessage());
+            }
+        }
+        $html = (new SystemMailCssInliner)->convert($compiled);
+        $dom = new \DOMDocument;
+        @$dom->loadHTML('<?xml encoding="UTF-8">'.$html, LIBXML_NONET);
+        $xpath = new \DOMXPath($dom);
+        $dispatch = $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-v16-dispatch ")]');
+        self::assertCount(1, $dispatch);
+        self::assertDoesNotMatchRegularExpression('/display\s*:\s*none/i', $dispatch->item(0)->getAttribute('style'));
+        $shell = $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-shell ")]')->item(0);
+        self::assertMatchesRegularExpression('/table-layout\s*:\s*fixed!important/i', $shell->getAttribute('style'));
+        self::assertMatchesRegularExpression('/border-left\s*:\s*0!important/i', $shell->parentNode->getAttribute('style'));
+        self::assertSame($before, MailDocument::query()->orderBy('id')->get()->toArray());
+        Http::assertNothingSent();
+    }
+
     public function test_unrecognized_and_authored_layouts_remain_byte_exact(): void
     {
         self::assertSame('<p>Authored content</p>', Reference::document('<p>Authored content</p>'));

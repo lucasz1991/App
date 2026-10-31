@@ -25,6 +25,8 @@ final class OutlookV30ReferencePresentation
 
     private const SHELL_SUFFIX = ';max-width:1040px!important;margin:0!important;';
 
+    private const SYSTEM_LAYOUT_SUFFIX = ';table-layout:fixed!important;';
+
     /** The existing admitted linked-delivery adapter enforces final UTF16/CSS budgets after compaction. */
     public static function payload(array $payload): array
     {
@@ -184,6 +186,12 @@ final class OutlookV30ReferencePresentation
         $family = $forward ? 15 : 16;
         $nodes = self::nodes($html);
         $root = self::one($nodes, static fn (array $node): bool => ($node['attrs']['data-rt-desktop-flow'] ?? '') === 'outlook-desktop-flow-v'.$family);
+        $system = self::has($nodes[$root], 'rt-system-columns');
+        if (! $forward && $system) {
+            $html = self::systemFrames($html, false);
+            $nodes = self::nodes($html);
+            $root = self::one($nodes, static fn (array $node): bool => ($node['attrs']['data-rt-desktop-flow'] ?? '') === 'outlook-desktop-flow-v'.$family);
+        }
         $main = self::oneClass($nodes, 'rt-v'.$family.'-columns-cell');
         $legal = self::oneClass($nodes, 'rt-v'.$family.'-legal-cell');
         $legalTable = self::oneClass($nodes, 'rt-brand-legal-table');
@@ -371,7 +379,7 @@ final class OutlookV30ReferencePresentation
 
         $scope = self::scope($nodes[$root], $family);
         $bar = self::mobileBar($html, $nodes, $root, $family);
-        $css = self::css(str_replace('rt-df'.$family, 'rt-df16', $scope));
+        $css = self::css(str_replace('rt-df'.$family, 'rt-df16', $scope), $system);
         if ($forward) {
             if (str_contains($html, 'data-rt-v30-css=') || str_contains($html, 'rt-v16-mobile-dispatch')) {
                 self::fail();
@@ -394,7 +402,9 @@ final class OutlookV30ReferencePresentation
         }
         $result = self::replace($html, $edits);
 
-        return self::family($result, $forward ? 15 : 16, $forward ? 16 : 15);
+        $result = self::family($result, $forward ? 15 : 16, $forward ? 16 : 15);
+
+        return $forward && $system ? self::systemFrames($result, true) : $result;
     }
 
     private static function mobileBar(string $html, array $nodes, int $root, int $family): string
@@ -432,11 +442,11 @@ final class OutlookV30ReferencePresentation
         return '<div class="rt-v16-mobile-dispatch" style="display:none;mso-hide:all;padding:7px 20px;background-color:#e90032;background-image:url('.self::escape($fill).');color:#ffffff;font-family:Arial,sans-serif;font-size:12px;line-height:18px;">Dispo <span style="font-style:italic;">24/7</span>'.implode('', $parts).'</div>';
     }
 
-    private static function css(string $scope): string
+    private static function css(string $scope, bool $system = false): string
     {
         $s = '.v30';
 
-        return '<style data-rt-v30-css="v30-c-1">'
+        $css = '<style data-rt-v30-css="v30-c-1">'
             .$s.' .rt-delivery-contact-value{line-height:19px!important;word-break:normal!important}'
             .$s.' .rt-company-contact{margin-top:0!important}'
             .'@media(max-width:520px){'
@@ -456,6 +466,71 @@ final class OutlookV30ReferencePresentation
             .$s.' .rt-v16-legal-cell{padding-left:20px!important;padding-right:20px!important}'
             .$s.' .rt-v16-template-pad{padding-left:20px!important;padding-right:20px!important}'
             .'}</style>';
+        if (! $system) {
+            return $css;
+        }
+
+        // The installed system inliner recognizes media queries only with a
+        // space after @media. Keep employee wire bytes unchanged here.
+        return str_replace([
+            '@media(max-width:520px)',
+            '.v30 .rt-personal-logo-frame{float:right!important;width:104px!important;margin:5px 0 0 12px!important}',
+            '.v30 .rt-personal-logo-frame td{padding:0!important}',
+            '.v30 .rt-v9-logo{width:104px!important;height:auto!important}',
+            '.v30 .rt-v16-direct{width:52%!important}',
+            '.v30 .rt-v16-company{width:48%!important}',
+            '.v30 .rt-v16-direct-cell{padding-right:4px!important}',
+            '.v30 .rt-v16-company-cell{padding:0 0 0 4px!important}',
+        ], [
+            '@media (max-width:520px)',
+            '.v30 .rt-personal-logo-frame{float:none!important;width:184px!important;margin:0!important}',
+            '',
+            '.v30 .rt-v9-logo{width:184px!important;height:auto!important}',
+            '',
+            '.v30 .rt-v16-company{width:100%!important}',
+            '',
+            '.v30 .rt-v16-company-cell{padding:0!important}',
+        ], $css);
+    }
+
+    /** Exactly the canonical system factory ancestors, never employee frames. */
+    private static function systemFrames(string $html, bool $forward): string
+    {
+        $nodes = self::nodes($html);
+        $root = self::one($nodes, static fn (array $node): bool => ($node['attrs']['data-rt-desktop-flow'] ?? '') === self::FLOW);
+        if (! self::has($nodes[$root], 'rt-system-columns')) {
+            self::fail();
+        }
+        $shell = self::oneClass($nodes, 'rt-shell');
+        $wrapper = $nodes[$shell]['parent'];
+        if (! self::within($nodes, $root, $shell) || ! is_int($wrapper) || $nodes[$wrapper]['tag'] !== 'div') {
+            self::fail();
+        }
+        $cell = $nodes[$wrapper]['parent'];
+        $row = is_int($cell) ? $nodes[$cell]['parent'] : null;
+        $body = is_int($row) ? $nodes[$row]['parent'] : null;
+        $outer = is_int($body) ? $nodes[$body]['parent'] : null;
+        if (! is_int($cell) || $nodes[$cell]['tag'] !== 'td' || ! self::has($nodes[$cell], 'design-page-pad')
+            || ! is_int($row) || $nodes[$row]['tag'] !== 'tr' || ! is_int($body) || $nodes[$body]['tag'] !== 'tbody'
+            || ! is_int($outer) || $nodes[$outer]['tag'] !== 'table' || ($nodes[$outer]['attrs']['width'] ?? '') !== '100%'
+            || ($nodes[$outer]['attrs']['class'] ?? '') !== '' || ($nodes[$wrapper]['attrs']['class'] ?? '') !== '') {
+            self::fail();
+        }
+        $base = 'background-color:#ffffff!important;width:100%;';
+        $wrapperBefore = $base.'box-sizing:border-box;border-left:3px solid #e90032;overflow:hidden;';
+        $wrapperAfter = $base.'box-sizing:border-box;border-left:0!important;overflow:hidden;';
+        $shellStyle = $nodes[$shell]['attrs']['style'] ?? '';
+        if (! str_ends_with($shellStyle, $forward ? self::SHELL_SUFFIX : self::SHELL_SUFFIX.self::SYSTEM_LAYOUT_SUFFIX)
+            || ($nodes[$outer]['attrs']['style'] ?? '') !== $base.($forward ? '' : self::SYSTEM_LAYOUT_SUFFIX)
+            || ($nodes[$wrapper]['attrs']['style'] ?? '') !== ($forward ? $wrapperBefore : $wrapperAfter)) {
+            self::fail();
+        }
+
+        return self::replace($html, [
+            [$nodes[$wrapper]['start'], $nodes[$wrapper]['openEnd'] - $nodes[$wrapper]['start'], self::opening($nodes[$wrapper], ['style' => $forward ? $wrapperAfter : $wrapperBefore])],
+            [$nodes[$outer]['start'], $nodes[$outer]['openEnd'] - $nodes[$outer]['start'], self::opening($nodes[$outer], ['style' => $base.($forward ? self::SYSTEM_LAYOUT_SUFFIX : '')])],
+            [$nodes[$shell]['start'], $nodes[$shell]['openEnd'] - $nodes[$shell]['start'], self::opening($nodes[$shell], ['style' => $forward ? $shellStyle.self::SYSTEM_LAYOUT_SUFFIX : substr($shellStyle, 0, -strlen(self::SYSTEM_LAYOUT_SUFFIX))])],
+        ]);
     }
 
     private static function scope(array $root, int $family): string
