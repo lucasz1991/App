@@ -1,4 +1,4 @@
-import { fluidLayoutContract, hasUnquotedFluidLayoutMarker, hasUnquotedSignatureLayoutCarrier, managedTemplateContract, managedTemplateReplacement, standaloneSignatureContract, v15ReadbackParses } from './managed-template.js';
+import { fluidLayoutContract, hasUnquotedFluidLayoutMarker, hasUnquotedSignatureLayoutCarrier, managedTemplateContract, managedTemplateReplacement, standaloneSignatureContract, v15ReadbackParses, V15_READBACK_CONTRACT_STAGES } from './managed-template.js';
 import { createNativeLayoutNonce, inferredNativeGridRow, isFluidLayoutSource, outlookSignatureDeliveryProfile, verifyFluidLayoutMaterial, nativeLayoutClearBarrier, nativeLayoutReadbackContract, nativeLayoutThreeCellTopology, nativeLayoutRestoreCarrierIsExternal, nativeLayoutRestoreCarrierPresent, nativeLayoutRestoreCellsAligned, nativeLayoutRestoreCss, nativeLayoutRestoreRetained, prepareNativeLayoutRestore, removeNativeLayoutRestoreCarrier } from './native-layout-restore.js';
 import { confirmedOfficeWrite, markSignatureWriteConfirmed } from './office-write.js';
 
@@ -655,7 +655,7 @@ async function replacementSnapshot(office, item) {
 export async function diagnoseUncertainV15Readback(office, item, { requested = false, uncertain = false, beforeRead = () => {} } = {}) {
     const result = { schema: 1, phase: 'not-requested', requested: requested === true, uncertain: uncertain === true,
         sdkRead: false, v15Candidate: false, parse: false, contract: false, nonceMetadata: false, material: false,
-        writeNonceCompared: false, acknowledgementGranted: false };
+        contractStage: 'not-run', writeNonceCompared: false, acknowledgementGranted: false };
     if (!result.requested || !result.uncertain) return result;
     result.phase = 'diagnostic-mailbox-binding';
     try { await beforeRead(); } catch { return result; }
@@ -677,7 +677,9 @@ export async function diagnoseUncertainV15Readback(office, item, { requested = f
     result.phase = 'diagnostic-v15-contract';
     let contract;
     try {
-        contract = fluidLayoutContract(snapshot.html, current);
+        contract = fluidLayoutContract(snapshot.html, current, null, null, stage => {
+            if (V15_READBACK_CONTRACT_STAGES.includes(stage)) result.contractStage = stage;
+        });
         if (contract.fluidLayout.family !== 15) return result;
     } catch { return result; }
     result.contract = true;

@@ -10,6 +10,13 @@ const MARKER_END = '(?=-->|[\\s"\'<>]|$)';
 const combinedMarker = new RegExp(MARKER + MARKER_END);
 const otherTemplateMarker = new RegExp(`RT-TEMPLATE-MANAGED-V1(?!:COMBINED-DOCUMENT${MARKER_END})`);
 const owns = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
+export const V15_READBACK_CONTRACT_STAGES = Object.freeze(['not-run', 'fluid-marker-shape', 'fluid-marker-hidden',
+    'fluid-marker-occurrence', 'editable-markers', 'editable-marker-hidden', 'editable-start-carrier',
+    'editable-end-carrier', 'editable-cell', 'document-markers', 'document-ownership', 'signature-footer', 'contract-complete']);
+
+function contractCheckpoint(observer, stage) {
+    if (typeof observer === 'function') observer(stage);
+}
 
 function matches(value, pattern) {
     const expression = new RegExp(pattern.source, pattern.flags);
@@ -203,8 +210,9 @@ function boundaryCarrier(html, tree, span) {
     return { node: parent, index: span.node.parent, cellIndex: parent.parent };
 }
 
-function sentinelContract(html, currentLength, tree, spans) {
+function sentinelContract(html, currentLength, tree, spans, diagnosticObserver = null) {
     const { elements } = tree;
+    contractCheckpoint(diagnosticObserver, 'editable-markers');
     const boundaries = spans.filter(value => value.value.startsWith('RT-COMPOSE-EDITABLE-'));
     // A completely empty region can be coalesced into one hidden span. There
     // must then be no other TD content; text between the tokens is not editable.
@@ -212,9 +220,13 @@ function sentinelContract(html, currentLength, tree, spans) {
     if (!mergedEmpty && boundaries.length !== 2) unavailable();
     const start = mergedEmpty ? boundaries[0] : exactlyOne(boundaries.filter(value => value.value === EDITABLE_START));
     const end = mergedEmpty ? boundaries[0] : exactlyOne(boundaries.filter(value => value.value === EDITABLE_END));
+    contractCheckpoint(diagnosticObserver, 'editable-marker-hidden');
     if (!metadataHidden(start.node, elements) || !metadataHidden(end.node, elements)) unavailable();
+    contractCheckpoint(diagnosticObserver, 'editable-start-carrier');
     const startBoundary = boundaryCarrier(html, tree, start);
+    contractCheckpoint(diagnosticObserver, 'editable-end-carrier');
     const endBoundary = boundaryCarrier(html, tree, end);
+    contractCheckpoint(diagnosticObserver, 'editable-cell');
     if (startBoundary.cellIndex !== endBoundary.cellIndex || (!mergedEmpty && startBoundary.node.end > endBoundary.node.start)) unavailable();
     const cellIndex = startBoundary.cellIndex;
     const editableIndex = tableAncestor(elements, cellIndex);
@@ -222,6 +234,7 @@ function sentinelContract(html, currentLength, tree, spans) {
     const cell = elements[cellIndex];
     const outer = html.slice(cell.openEnd, startBoundary.node.start) + html.slice(endBoundary.node.end, cell.close);
     if (decoded(outer).trim() !== '') unavailable();
+    contractCheckpoint(diagnosticObserver, 'document-markers');
     const templateMarker = exactlyOne(spans.filter(value => value.value.startsWith('RT-TEMPLATE-MANAGED-V1')));
     const signatureMarker = exactlyOne(spans.filter(value => value.value.startsWith('RT-SIGNATURE-MANAGED-')));
     const separateVersions = spans.filter(value => value.value.startsWith('RT-SIGNATURE-VERSION:'));
@@ -234,6 +247,7 @@ function sentinelContract(html, currentLength, tree, spans) {
         || !metadataHidden(templateMarker.node, elements) || !metadataHidden(signatureMarker.node, elements) || !metadataHidden(version.node, elements)
         || templateMarker.node.end > elements[editableIndex].start
         || within(elements, templateMarker.index, editableIndex)) unavailable();
+    contractCheckpoint(diagnosticObserver, 'document-ownership');
     const templateIndex = commonTable(elements, templateMarker.index, editableIndex);
     const signatureIndex = tableAncestor(elements, signatureMarker.index);
     if (signatureIndex !== tableAncestor(elements, version.index) || elements[templateIndex].end > elements[signatureIndex].start
@@ -406,7 +420,7 @@ export function v15ReadbackParses(html) {
     try { nodes(html); return true; } catch { return false; }
 }
 
-export function fluidLayoutContract(html, currentHtml = html, expectedNonce = null, expectedVersion = null) {
+export function fluidLayoutContract(html, currentHtml = html, expectedNonce = null, expectedVersion = null, diagnosticObserver = null) {
     if (typeof html !== 'string' || typeof currentHtml !== 'string' || !html.startsWith(currentHtml)) unavailable();
     const original = nodes(html);
     // Word may omit optional TBODY tags. Model their actual implied DOM shape
@@ -421,6 +435,8 @@ export function fluidLayoutContract(html, currentHtml = html, expectedNonce = nu
             close: rows[rows.length - 1].node.end, end: rows[rows.length - 1].node.end });
         for (const row of rows) elements[row.index].parent = body;
     }
+    const trace = /RT-FLUID-LAYOUT-V15[MB]:[0-9a-f]{32}:[0-9a-f]{16}/i.test(currentHtml) ? diagnosticObserver : null;
+    contractCheckpoint(trace, 'fluid-marker-shape');
     const tree = { ...original, elements }, spans = markerSpans(html, tree, currentHtml.length);
     const found = [];
     const canonical = spans.map(span => {
@@ -449,16 +465,19 @@ export function fluidLayoutContract(html, currentHtml = html, expectedNonce = nu
         return span;
     }).filter(Boolean);
     const fluid = exactlyOne(found);
+    contractCheckpoint(trace, 'fluid-marker-hidden');
     if (!metadataHidden(fluid.node, elements) || (expectedNonce !== null && fluid.nonce !== expectedNonce)
         || (expectedVersion !== null && fluid.version !== expectedVersion.toLowerCase())) unavailable();
+    contractCheckpoint(trace, 'fluid-marker-occurrence');
     const occurrences = matches(currentHtml, /RT-FLUID-LAYOUT-V(?:1[1234]:|15)/g).filter(match => !quotedOffset(elements, match.index)
         && !tree.comments.some(comment => match.index >= comment.start && match.index < comment.end));
     if (occurrences.length !== 1 || occurrences[0].index < fluid.node.openEnd || occurrences[0].index >= fluid.node.close) unavailable();
     const template = canonical.filter(span => span.value.startsWith('RT-TEMPLATE-MANAGED-'));
     let contract;
     if (template.length) {
-        contract = sentinelContract(html, currentHtml.length, tree, canonical);
+        contract = sentinelContract(html, currentHtml.length, tree, canonical, trace);
     } else {
+        contractCheckpoint(trace, 'document-markers');
         if (canonical.some(span => span.value.startsWith('RT-COMPOSE-EDITABLE-'))
             || matches(currentHtml, /RT-TEMPLATE-MANAGED-V1/g).some(match => !quotedOffset(elements, match.index))) unavailable();
         const managed = exactlyOne(canonical.filter(span => span.value.startsWith('RT-SIGNATURE-MANAGED-')));
@@ -468,16 +487,19 @@ export function fluidLayoutContract(html, currentHtml = html, expectedNonce = nu
         const token = merged?.[1] || /^RT-SIGNATURE-VERSION:([0-9a-f]{16})$/i.exec(version.value)?.[1];
         if ((!merged && managed.value !== 'RT-SIGNATURE-MANAGED-V1') || (merged && versions.length)
             || token?.toLowerCase() !== fluid.version || !metadataHidden(managed.node, elements) || !metadataHidden(version.node, elements)) unavailable();
+        contractCheckpoint(trace, 'document-ownership');
         const signatureIndex = tableAncestor(elements, managed.index), signature = elements[signatureIndex];
         if (signatureIndex !== tableAncestor(elements, version.index) || signature.end > currentHtml.length || quoted(elements, signatureIndex)) unavailable();
         contract = { ...tree, kind: 'standalone-signature-v1', root: signature, rootIndex: signatureIndex,
             signature: { node: signature, index: signatureIndex }, signatureMetadata: { managed: managed.index, version: version.index }, version: fluid.version };
     }
+    contractCheckpoint(trace, 'signature-footer');
     if (!within(elements, fluid.index, contract.signature.index) || quoted(elements, fluid.index)) unavailable();
     const bodies = elements.map((node, index) => ({ node, index })).filter(value => value.node.parent === contract.signature.index);
     if (bodies.length !== 1 || bodies[0].node.tag !== 'tbody') unavailable();
     const rows = elements.map((node, index) => ({ node, index })).filter(value => value.node.parent === bodies[0].index);
     if (rows.length !== 2 || rows.some(value => value.node.tag !== 'tr') || !within(elements, fluid.index, rows[1].index)) unavailable();
+    contractCheckpoint(trace, 'contract-complete');
     return { ...contract, fluidLayout: { family: fluid.family, nonce: fluid.nonce, version: fluid.version, marker: { node: fluid.node, index: fluid.index }, ...(fluid.family === 15 ? { profile: fluid.profile } : {}) } };
 }
 

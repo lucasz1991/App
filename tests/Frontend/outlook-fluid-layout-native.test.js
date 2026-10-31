@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
-import { fluidLayoutContract, managedTemplateContract, standaloneSignatureContract } from '../../resources/js/outlook-addin/managed-template.js';
+import { fluidLayoutContract, managedTemplateContract, standaloneSignatureContract, V15_READBACK_CONTRACT_STAGES } from '../../resources/js/outlook-addin/managed-template.js';
 import { outlookSignatureDeliveryProfile, prepareNativeLayoutRestore, verifyFluidLayoutMaterial } from '../../resources/js/outlook-addin/native-layout-restore.js';
 import { diagnoseUncertainV15Readback, insertStandaloneSignature, isStandaloneSignatureInsertionBlocked, prependTemplate, replaceManagedTemplate, signatureHostProfileIsCurrent, standaloneSignatureLayoutIsCurrent } from '../../resources/js/outlook-addin/compose-template.js';
 import { nativeOfficeHtml } from './outlook-standalone-fixture.js';
@@ -625,18 +625,20 @@ test('the explicit uncertain V15 diagnostic separates SDK, parser, contract and 
     assert.equal(reads, 0); assert.equal(bindings, 0);
     const complete = await diagnoseUncertainV15Readback(state.office, state.item, options);
     assert.equal(complete.phase, 'diagnostic-v15-complete');
+    assert.equal(complete.contractStage, 'contract-complete');
     for (const key of ['sdkRead', 'v15Candidate', 'parse', 'contract', 'nonceMetadata', 'material']) assert.equal(complete[key], true);
     assert.equal(complete.writeNonceCompared, false); assert.equal(complete.acknowledgementGranted, false);
     assert.equal(reads, 1); assert.equal(bindings, 2);
     assert.doesNotMatch(JSON.stringify(complete), /person@|Synthetic|https:|RT-|[a-f0-9]{32}/);
-    for (const [body, phase, parsed, contracted] of [
-        [html.replace('Synthetic editable message remains byte-identical.', '<span>Synthetic editable message remains byte-identical.'), 'diagnostic-v15-parse', false, false],
-        [html + html, 'diagnostic-v15-contract', true, false],
-        [html.replace('background-color: rgb(233, 0, 50); padding: 8px', 'background-color: black; padding: 8px'), 'diagnostic-v15-material', true, true],
+    for (const [body, phase, parsed, contracted, stage] of [
+        [html.replace('Synthetic editable message remains byte-identical.', '<span>Synthetic editable message remains byte-identical.'), 'diagnostic-v15-parse', false, false, 'not-run'],
+        [html + html, 'diagnostic-v15-contract', true, false, 'fluid-marker-shape'],
+        [html.replace('background-color: rgb(233, 0, 50); padding: 8px', 'background-color: black; padding: 8px'), 'diagnostic-v15-material', true, true, 'contract-complete'],
     ]) {
         state.state.body = body;
         const result = await diagnoseUncertainV15Readback(state.office, state.item, options);
         assert.equal(result.phase, phase); assert.equal(result.parse, parsed); assert.equal(result.contract, contracted);
+        assert.equal(result.contractStage, stage);
         assert.equal(result.material, false); assert.equal(result.acknowledgementGranted, false);
     }
     state.state.body = dispatchCardFixture();
@@ -647,6 +649,41 @@ test('the explicit uncertain V15 diagnostic separates SDK, parser, contract and 
     assert.doesNotMatch(JSON.stringify(failed), /private|example/);
     assert.equal(state.state.signatures + state.state.prepends + state.state.replacements, 0);
     assert.equal(state.state.sessions.size, 0);
+});
+
+test('V15 diagnostic checkpoints identify hidden wrappers and boundary carriers without changing any acceptance rule', async () => {
+    const source = hostProfileFixture(true), plan = prepareNativeLayoutRestore(source, managedTemplateContract(source), nonce, modernHost().office);
+    const html = plan.html, trace = [];
+    const normal = fluidLayoutContract(html, html, nonce, version);
+    assert.deepEqual(fluidLayoutContract(html, html, nonce, version, stage => trace.push(stage)), normal);
+    assert.equal(trace.at(-1), 'contract-complete');
+    assert.ok(trace.every(stage => V15_READBACK_CONTRACT_STAGES.includes(stage)));
+    const fluidToken = 'RT-FLUID-LAYOUT-V15M:' + nonce + ':' + version;
+    const wrap = (value, token, opening) => value.replace(new RegExp('(<span\\b[^>]*>' + token + '</span>)'), opening + '$1' + (opening.startsWith('<p') ? '</p>' : '</span>'));
+    const cases = [
+        [wrap(html, fluidToken, '<span style="font-size:1pt;">'), 'fluid-marker-hidden'],
+        [wrap(html, 'RT-COMPOSE-EDITABLE-START-V1', '<span style="font-size:1pt;">'), 'editable-marker-hidden'],
+        [wrap(html, 'RT-COMPOSE-EDITABLE-START-V1', '<p style="font-size:0;line-height:0;">'), 'editable-start-carrier'],
+        [wrap(html, 'RT-COMPOSE-EDITABLE-END-V1', '<p style="font-size:0;line-height:0;">'), 'editable-end-carrier'],
+    ];
+    for (const [changed, expected] of cases) {
+        assert.notEqual(changed, html);
+        const observed = [];
+        assert.throws(() => fluidLayoutContract(changed, changed, null, null, stage => observed.push(stage)), error => error.code === 'TEMPLATE_REPLACEMENT_UNAVAILABLE');
+        assert.equal(observed.at(-1), expected);
+        assert.throws(() => fluidLayoutContract(changed, changed), error => error.code === 'TEMPLATE_REPLACEMENT_UNAVAILABLE');
+        const state = modernHost(value => value); state.state.body = changed;
+        const report = await diagnoseUncertainV15Readback(state.office, state.item, { requested: true, uncertain: true });
+        assert.equal(report.parse, true); assert.equal(report.contract, false); assert.equal(report.contractStage, expected);
+        assert.equal(report.acknowledgementGranted, false);
+        assert.doesNotMatch(JSON.stringify(report), /RT-|[a-f0-9]{32}|https:|Synthetic/);
+    }
+    const zeroWrapper = wrap(html, fluidToken, '<span style="font-size:0;line-height:0;">');
+    assert.equal(fluidLayoutContract(zeroWrapper).fluidLayout.family, 15);
+    const legacy = dispatchCardFixture(true), previous = prepareNativeLayoutRestore(legacy, managedTemplateContract(legacy), nonce);
+    const oldTrace = [];
+    assert.deepEqual(fluidLayoutContract(previous.html, previous.html, null, null, stage => oldTrace.push(stage)), fluidLayoutContract(previous.html));
+    assert.deepEqual(oldTrace, []);
 });
 
 test('the read-only V15 diagnostic cannot clear an actual uncertain native operation or write session data', async () => {
