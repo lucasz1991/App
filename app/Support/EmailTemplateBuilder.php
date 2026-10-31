@@ -29,6 +29,7 @@ use App\Support\OutlookAddin\OutlookFluidSignaturePresentation;
 use App\Support\OutlookAddin\OutlookReferenceCardPresentation;
 use App\Support\OutlookAddin\OutlookThreeCellPresentation;
 use App\Support\OutlookAddin\OutlookThreeColumnPresentation;
+use App\Support\OutlookAddin\OutlookV30ReferencePresentation;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
@@ -752,7 +753,7 @@ class EmailTemplateBuilder
             .'mso-line-height-rule:exactly;">&nbsp;</td></tr>';
         $html = str_replace($slot, $applicationRow, $html);
 
-        $html = OutlookAnimatedSignaturePresentation::document(OutlookDispatchCardPresentation::document(OutlookReferenceCardPresentation::document(OutlookContentFramePresentation::document(OutlookFluidSignaturePresentation::document(OutlookThreeCellPresentation::document(OutlookThreeColumnPresentation::systemDocument($html, rtrim((string) config('app.url'), '/'), $signature->publishedCss())))))));
+        $html = OutlookV30ReferencePresentation::document(OutlookAnimatedSignaturePresentation::document(OutlookDispatchCardPresentation::document(OutlookReferenceCardPresentation::document(OutlookContentFramePresentation::document(OutlookFluidSignaturePresentation::document(OutlookThreeCellPresentation::document(OutlookThreeColumnPresentation::systemDocument($html, rtrim((string) config('app.url'), '/'), $signature->publishedCss()))))))));
 
         return SystemMailInlineImageEmbedder::mark(
             self::embedPublishedCss(

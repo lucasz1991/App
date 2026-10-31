@@ -725,7 +725,7 @@ export function standaloneSignatureLayoutIsCurrent(html, currentHtml, version, o
     try {
         const fluid = fluidLayoutContract(html, currentHtml, null, version);
         if (fluid.kind !== 'standalone-signature-v1') return false;
-        if (fluid.fluidLayout.family === 15 && fluid.fluidLayout.profile !== outlookSignatureDeliveryProfile(office)) return false;
+        if ([15, 16].includes(fluid.fluidLayout.family) && fluid.fluidLayout.profile !== outlookSignatureDeliveryProfile(office)) return false;
         return verifyFluidLayoutMaterial(html, fluid).sourceOnly === true;
     } catch { /* Historical families retain their existing independent proof. */ }
     try {
@@ -737,11 +737,11 @@ export function standaloneSignatureLayoutIsCurrent(html, currentHtml, version, o
     } catch { return false; }
 }
 
-/** V15 binds the host profile for standalone and combined managed documents. */
+/** Each profiled family binds the host for standalone and combined documents. */
 export function signatureHostProfileIsCurrent(html, currentHtml, version, office) {
     try {
         const contract = fluidLayoutContract(html, currentHtml, null, version);
-        return contract.fluidLayout.family === 15
+        return [15, 16].includes(contract.fluidLayout.family)
             && contract.fluidLayout.profile === outlookSignatureDeliveryProfile(office)
             && verifyFluidLayoutMaterial(html, contract).sourceOnly === true;
     } catch { return false; }
@@ -792,7 +792,7 @@ async function insertFluidStandalone(office, item, html, incoming, beforeWrite, 
                 || nativeLayoutRestoreRetained(original.html, historical.contract, historical.ids) !== true) throw failure('SIGNATURE_LAYOUT_LEGACY_CARRIER');
         }
         const layout = prepareNativeLayoutRestore(html, incoming, previous?.fluidLayout.nonce, office);
-        if (!['fluid-v11', 'fluid-v12', 'fluid-v13', 'fluid-v14', 'fluid-v15'].includes(layout?.sourceOnly) || layout.html.length > 30000) throw failure('SIGNATURE_TOO_LARGE');
+        if (!['fluid-v11', 'fluid-v12', 'fluid-v13', 'fluid-v14', 'fluid-v15', 'fluid-v16'].includes(layout?.sourceOnly) || layout.html.length > 30000) throw failure('SIGNATURE_TOO_LARGE');
         if (original.html.length + layout.html.length > TEMPLATE_INSERT_LIMITS.bodyLength) throw failure('SIGNATURE_LAYOUT_UNAVAILABLE');
         await beforeWrite(); await signatureSession(office, item, operation, 'claim'); await beforeWrite();
         const latest = await replacementSnapshot(office, item);
@@ -1149,7 +1149,7 @@ async function restoreNativeLayout(office, item, layout, operation, original, op
     await operation.beforeWrite();
     const written = await replacementSnapshot(office, item);
     if (written.composeType !== original.composeType) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
-    if (['fluid-v11', 'fluid-v12', 'fluid-v13', 'fluid-v14', 'fluid-v15'].includes(layout.sourceOnly)) {
+    if (['fluid-v11', 'fluid-v12', 'fluid-v13', 'fluid-v14', 'fluid-v15', 'fluid-v16'].includes(layout.sourceOnly)) {
         const owned = fluidLayoutContract(written.html, currentComposeBodyHtml(written.html, written.composeType), layout.nonce, layout.version);
         if (owned.kind !== 'text-v1' || owned.fluidLayout.family !== layout.family
             || owned.fluidLayout.profile !== layout.profile) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');

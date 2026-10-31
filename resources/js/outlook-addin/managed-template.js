@@ -140,7 +140,7 @@ function markerSpans(html, tree, currentLength) {
     const candidates = tree.elements.map((node, index) => ({ node, index })).filter(({ node, index }) => node.tag === 'span'
         && node.end <= currentLength && !quoted(tree.elements, index)).map(value => ({ ...value,
         value: decoded(html.slice(value.node.openEnd, value.node.close).replace(/<!--[\s\S]*?-->|<[^>]*>/g, '')).trim() }))
-        .filter(value => /^RT-(?:COMPOSE-EDITABLE-|TEMPLATE-MANAGED-|SIGNATURE-MANAGED-|SIGNATURE-VERSION:|FLUID-LAYOUT-V(?:1[1234]:|15))/.test(value.value));
+        .filter(value => /^RT-(?:COMPOSE-EDITABLE-|TEMPLATE-MANAGED-|SIGNATURE-MANAGED-|SIGNATURE-VERSION:|FLUID-LAYOUT-V(?:1[1234]:|15|16))/.test(value.value));
     return candidates.filter(value => !candidates.some(outer => outer.index !== value.index && outer.value === value.value
         && within(tree.elements, value.index, outer.index)));
 }
@@ -501,6 +501,17 @@ export function fluidLayoutContract(html, currentHtml = html, expectedNonce = nu
     const tree = { ...original, elements }, spans = markerSpans(html, tree, currentHtml.length);
     const found = [];
     const canonical = spans.map(span => {
+        const reference = /^RT-FLUID-LAYOUT-V16([MB]):([0-9a-f]{32}):([0-9a-f]{16})$/i.exec(span.value);
+        const mergedReference = /^(RT-SIGNATURE-(?:MANAGED-V1\s*RT-SIGNATURE-VERSION:|VERSION:)([0-9a-f]{16}))\s*RT-FLUID-LAYOUT-V16([MB]):([0-9a-f]{32}):([0-9a-f]{16})$/i.exec(span.value);
+        if (reference) {
+            found.push({ ...span, family: 16, profile: reference[1].toUpperCase(), nonce: reference[2].toLowerCase(), version: reference[3].toLowerCase() });
+            return null;
+        }
+        if (mergedReference) {
+            if (mergedReference[2].toLowerCase() !== mergedReference[5].toLowerCase()) unavailable();
+            found.push({ ...span, family: 16, profile: mergedReference[3].toUpperCase(), nonce: mergedReference[4].toLowerCase(), version: mergedReference[5].toLowerCase() });
+            return { ...span, value: mergedReference[1] };
+        }
         const profile = /^RT-FLUID-LAYOUT-V15([MB]):([0-9a-f]{32}):([0-9a-f]{16})$/i.exec(span.value);
         const mergedProfile = /^(RT-SIGNATURE-(?:MANAGED-V1\s*RT-SIGNATURE-VERSION:|VERSION:)([0-9a-f]{16}))\s*RT-FLUID-LAYOUT-V15([MB]):([0-9a-f]{32}):([0-9a-f]{16})$/i.exec(span.value);
         if (profile) {
@@ -530,7 +541,7 @@ export function fluidLayoutContract(html, currentHtml = html, expectedNonce = nu
     if (!metadataHidden(fluid.node, elements) || (expectedNonce !== null && fluid.nonce !== expectedNonce)
         || (expectedVersion !== null && fluid.version !== expectedVersion.toLowerCase())) unavailable();
     contractCheckpoint(trace, 'fluid-marker-occurrence');
-    const occurrences = matches(currentHtml, /RT-FLUID-LAYOUT-V(?:1[1234]:|15)/g).filter(match => !quotedOffset(elements, match.index)
+    const occurrences = matches(currentHtml, /RT-FLUID-LAYOUT-V(?:1[1234]:|15|16)/g).filter(match => !quotedOffset(elements, match.index)
         && !tree.comments.some(comment => match.index >= comment.start && match.index < comment.end));
     if (occurrences.length !== 1 || occurrences[0].index < fluid.node.openEnd || occurrences[0].index >= fluid.node.close) unavailable();
     const template = canonical.filter(span => span.value.startsWith('RT-TEMPLATE-MANAGED-'));
@@ -561,13 +572,13 @@ export function fluidLayoutContract(html, currentHtml = html, expectedNonce = nu
     const rows = elements.map((node, index) => ({ node, index })).filter(value => value.node.parent === bodies[0].index);
     if (rows.length !== 2 || rows.some(value => value.node.tag !== 'tr') || !within(elements, fluid.index, rows[1].index)) unavailable();
     contractCheckpoint(trace, 'contract-complete');
-    return { ...contract, fluidLayout: { family: fluid.family, nonce: fluid.nonce, version: fluid.version, marker: { node: fluid.node, index: fluid.index }, ...(fluid.family === 15 ? { profile: fluid.profile } : {}) } };
+    return { ...contract, fluidLayout: { family: fluid.family, nonce: fluid.nonce, version: fluid.version, marker: { node: fluid.node, index: fluid.index }, ...([15, 16].includes(fluid.family) ? { profile: fluid.profile } : {}) } };
 }
 
 export function hasUnquotedFluidLayoutMarker(html, currentHtml = html) {
     if (typeof currentHtml !== 'string' || !html.startsWith(currentHtml)) unavailable();
     const tree = nodes(html);
-    return matches(currentHtml, /RT-FLUID-LAYOUT-V(?:1[1234]:|15)/g).some(match => !quotedOffset(tree.elements, match.index)
+    return matches(currentHtml, /RT-FLUID-LAYOUT-V(?:1[1234]:|15|16)/g).some(match => !quotedOffset(tree.elements, match.index)
         && !tree.comments.some(comment => match.index >= comment.start && match.index < comment.end));
 }
 
@@ -634,7 +645,11 @@ export function managedTemplateReplacement(bodyHtml, currentHtml, nextHtml) {
     const oldContract = hasUnquotedFluidLayoutMarker(bodyHtml, currentHtml)
         ? fluidLayoutContract(bodyHtml, currentHtml) : rootContract(bodyHtml, currentHtml.length);
     if (oldContract.fluidLayout) verifyFluidLayoutMaterial(bodyHtml, oldContract);
-    const nextContract = rootContract(nextHtml, nextHtml.length);
+    // A prepared, profiled destination can merge its nonce into the verified
+    // hidden version run. Prove that complete wire contract before splicing.
+    const nextContract = hasUnquotedFluidLayoutMarker(nextHtml)
+        ? fluidLayoutContract(nextHtml) : rootContract(nextHtml, nextHtml.length);
+    if (nextContract.fluidLayout) verifyFluidLayoutMaterial(nextHtml, nextContract);
     const oldRegion = editableRegion(bodyHtml, oldContract, true);
     const nextRegion = editableRegion(nextHtml, nextContract, false);
     if (oldContract.kind === 'text-v1' && nextContract.kind !== 'text-v1') unavailable();

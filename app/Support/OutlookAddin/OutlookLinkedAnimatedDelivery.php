@@ -185,7 +185,7 @@ final class OutlookLinkedAnimatedDelivery
         $result = preg_replace_callback(self::TOKENS, static function (array $match) use ($origin, &$trains): string {
             $tag = $match[0];
             if (! preg_match('~\A<img\b~i', $tag) || ! preg_match('~\sclass="([^"]*)"~', $tag, $classes)
-                || ! in_array('rt-v15-train-image', preg_split('/\s+/', trim($classes[1])), true)) {
+                || array_intersect(['rt-v15-train-image', 'rt-v16-train-image'], preg_split('/\s+/', trim($classes[1]))) === []) {
                 return $tag;
             }
             if (! preg_match('~\ssrc="([^"]*)"~', $tag, $source)) {
@@ -199,7 +199,8 @@ final class OutlookLinkedAnimatedDelivery
 
             return str_replace($source[0], ' src="'.$origin.'/mail-assets/'.$asset[0].'"', $tag);
         }, $html);
-        $flow = str_contains($html, 'data-rt-desktop-flow="'.OutlookAnimatedSignaturePresentation::FLOW.'"');
+        $flow = str_contains($html, 'data-rt-desktop-flow="'.OutlookAnimatedSignaturePresentation::FLOW.'"')
+            || str_contains($html, 'data-rt-desktop-flow="'.OutlookV30ReferencePresentation::FLOW.'"');
         if (($flow && $trains !== 1) || (! $flow && $trains !== 0) || preg_match('/\b(?:cid|data)\s*:/i', $result)) {
             self::fail();
         }

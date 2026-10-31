@@ -15,6 +15,7 @@ use App\Support\OutlookAddin\OutlookClientPresentation;
 use App\Support\OutlookAddin\OutlookLinkedAnimatedDelivery;
 use App\Support\OutlookAddin\OutlookMobileSignature;
 use App\Support\OutlookAddin\OutlookStaticLinkedTestProfiles;
+use App\Support\OutlookAddin\OutlookV30ReferencePresentation;
 use DOMDocument;
 use DOMXPath;
 use Illuminate\Support\Facades\Http;
@@ -48,7 +49,7 @@ final class OutlookLinkedAnimatedDeliveryTest extends TestCase
         $before = MailDocument::query()->orderBy('id')->get()->toArray();
         foreach ([$canonical, OutlookMobileSignature::payload($canonical)] as $source) {
             $wire = OutlookClientPresentation::payload($source);
-            self::assertSame($wire['signature']['html'], OutlookAnimatedSignaturePresentation::document($wire['signature']['html']));
+            self::assertSame($wire['signature']['html'], OutlookV30ReferencePresentation::document($wire['signature']['html']));
             $result = OutlookStaticLinkedTestProfiles::payload($wire, $user);
             $documents = [[$result['signature']['html'], $result['signature']['media'], 30000]];
             self::assertStringContainsString('RT-SIGNATURE-VERSION:'.$result['version']['signature'], $result['signature']['html']);
@@ -66,16 +67,16 @@ final class OutlookLinkedAnimatedDeliveryTest extends TestCase
                 self::assertSame([], $media);
                 self::assertDoesNotMatchRegularExpression('/\b(?:cid|data):|data-rt-linked|data-rt-static/i', $html);
                 $xpath = $this->xpath($html);
-                self::assertSame(1, $xpath->query('//table[@data-rt-desktop-flow="outlook-desktop-flow-v15"]')->length);
-                $trains = $xpath->query('//img[contains(concat(" ",normalize-space(@class)," ")," rt-v15-train-image ")]');
+                self::assertSame(1, $xpath->query('//table[@data-rt-desktop-flow="outlook-desktop-flow-v16"]')->length);
+                $trains = $xpath->query('//img[contains(concat(" ",normalize-space(@class)," ")," rt-v16-train-image ")]');
                 self::assertCount(1, $trains);
                 self::assertStringContainsString('https://mail.example.test/mail-assets/zug-dampf-outlook-brand-v1-', $trains->item(0)->getAttribute('src'));
                 self::assertStringEndsWith('.gif', $trains->item(0)->getAttribute('src'));
-                self::assertSame('224', $trains->item(0)->getAttribute('width'));
-                self::assertSame('49', $trains->item(0)->getAttribute('height'));
-                self::assertStringContainsString('width:224px;', $trains->item(0)->getAttribute('style'));
+                self::assertSame('529', $trains->item(0)->getAttribute('width'));
+                self::assertSame('115', $trains->item(0)->getAttribute('height'));
+                self::assertStringContainsString('width:529px;', $trains->item(0)->getAttribute('style'));
                 self::assertStringNotContainsString('min(', $trains->item(0)->getAttribute('style'));
-                self::assertSame(1, $xpath->query('//table[contains(@class,"rt-v15-train")][@width="242"]')->length);
+                self::assertSame(1, $xpath->query('//table[contains(@class,"rt-v16-train")][@width="547"]')->length);
                 foreach ($xpath->query('//img') as $image) {
                     if ($image !== $trains->item(0)) {
                         self::assertStringStartsWith('https://mail.example.test/m/', $image->getAttribute('src'));
@@ -109,7 +110,7 @@ final class OutlookLinkedAnimatedDeliveryTest extends TestCase
         );
         foreach ([$normal, $testmail] as $html) {
             self::assertStringContainsString('Literal RT-SIGNATURE-VERSION:0123456789abcdef must stay unchanged.', $html);
-            self::assertSame(3, $this->xpath($html)->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-v15-column ")]')->length);
+            self::assertSame(3, $this->xpath($html)->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-v16-column ")]')->length);
             self::assertSame(1, $this->xpath($html)->query('//img[contains(@src,"/mail-assets/zug-dampf-outlook-brand-v1-")][contains(@src,".gif")]')->length);
             self::assertDoesNotMatchRegularExpression('/\b(?:cid|data):|data-rt-linked|data-rt-static|data-rt-system-mail-inline-assets/i', $html);
             $message = (new Email)->from('system@example.test')->to('self@example.test')->html($html);

@@ -1,4 +1,5 @@
 // Only the verified incoming native signature is annotated; editable/quoted HTML stays opaque.
+import { verifyV30ReferenceMaterial } from './v30-reference-layout.js';
 const PREFIX = 'rt-native-layout-';
 const FLOW = 'data-rt-personal-flow';
 const owns = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
@@ -464,6 +465,7 @@ const FLAT_FLUID_FLOW = 'outlook-desktop-flow-v12';
 const REFERENCE_FLUID_FLOW = 'outlook-desktop-flow-v13';
 const DISPATCH_CARD_FLOW = 'outlook-desktop-flow-v14';
 const HOST_PROFILE_FLOW = 'outlook-desktop-flow-v15';
+const V30_REFERENCE_FLOW = 'outlook-desktop-flow-v16';
 const FLUID_COLUMNS = [
     ['identity', 176, 16], ['direct', 204, 0], ['company', 172, 12], ['dispatch', 164, 4],
 ];
@@ -473,7 +475,7 @@ const REFERENCE_FLUID_COLUMNS = [
 
 export function isFluidLayoutSource(contract) {
     return Array.isArray(contract?.elements) && Number.isInteger(contract.signature?.index)
-        && contract.elements.some((node, index) => [FLUID_FLOW, FLAT_FLUID_FLOW, REFERENCE_FLUID_FLOW, DISPATCH_CARD_FLOW, HOST_PROFILE_FLOW].includes(node.attrs['data-rt-desktop-flow']) && within(contract.elements, index, contract.signature.index));
+        && contract.elements.some((node, index) => [FLUID_FLOW, FLAT_FLUID_FLOW, REFERENCE_FLUID_FLOW, DISPATCH_CARD_FLOW, HOST_PROFILE_FLOW, V30_REFERENCE_FLOW].includes(node.attrs['data-rt-desktop-flow']) && within(contract.elements, index, contract.signature.index));
 }
 
 /** Unknown, mobile, Mac and native Windows hosts keep the bounded source. */
@@ -670,6 +672,9 @@ function v15InheritedPhoneSize(nodes, link, slot, source, family) {
 export function verifyFluidLayoutMaterial(html, contract, source = false) {
     const nodes = contract?.elements, signature = contract?.signature;
     if (typeof html !== 'string' || !Array.isArray(nodes) || !Number.isInteger(signature?.index)) invalid();
+    const reference = source ? nodes.some((node, index) => node.attrs['data-rt-desktop-flow'] === V30_REFERENCE_FLOW
+        && within(nodes, index, signature.index) && !isQuoted(nodes, index)) : contract.fluidLayout?.family === 16;
+    if (reference) return verifyV30ReferenceMaterial(html, contract, source, verifyFluidLayoutMaterial);
     const scoped = nodes.map((node, index) => ({ node, index })).filter(value => within(nodes, value.index, signature.index) && !isQuoted(nodes, value.index));
     let root, columns, family, caption;
     if (source) {
@@ -898,19 +903,19 @@ function prepareFluidLayout(html, contract, nonce, office) {
     const versionNode = contract.elements[contract.signatureMetadata.version];
     const version = /RT-SIGNATURE-VERSION:([0-9a-f]{16})/i.exec(html.slice(versionNode.openEnd, versionNode.close))?.[1]?.toLowerCase();
     const scope = nonce === undefined ? createNativeLayoutNonce() : nonce;
-    if (!version || !/^[0-9a-f]{32}$/.test(scope) || /RT-FLUID-LAYOUT-V(?:1[1234]:|15)/.test(html)) invalid();
-    const profile = family === 15 ? outlookSignatureDeliveryProfile(office) : '';
+    if (!version || !/^[0-9a-f]{32}$/.test(scope) || /RT-FLUID-LAYOUT-V(?:1[1234]:|15|16)/.test(html)) invalid();
+    const profile = [15, 16].includes(family) ? outlookSignatureDeliveryProfile(office) : '';
     const token = 'RT-FLUID-LAYOUT-V' + family + profile + ':' + scope + ':' + version;
-    const boundedV15 = family === 15 && profile === 'B';
+    const boundedV15 = [15, 16].includes(family) && profile === 'B';
     // Reuse the already verified hidden version run instead of creating an
     // additional Word formatting run. Its exact merged-token protocol exists.
     const marker = boundedV15 ? ' ' + token : '<span hidden aria-hidden="true" style="display:none!important;font-size:0;line-height:0;">' + token + '</span>';
     const position = boundedV15 ? versionNode.close : versionNode.end;
     const edits = [{ start: position, end: position, value: marker }];
-    if (profile === 'M') edits.push(hostProfileOpening(html, material.train, 547), hostProfileOpening(html, material.trainImage, 529, 115), hostProfileOpening(html, material.caption, 199, 38));
+    if (family === 15 && profile === 'M') edits.push(hostProfileOpening(html, material.train, 547), hostProfileOpening(html, material.trainImage, 529, 115), hostProfileOpening(html, material.caption, 199, 38));
     let modified = html;
     for (const edit of edits.sort((a, b) => b.start - a.start)) modified = modified.slice(0, edit.start) + edit.value + modified.slice(edit.end);
-    return Object.freeze({ html: modified, sourceOnly: 'fluid-v' + family, family, nonce: scope, version, stylePayload: '', ids: null, ...(family === 15 ? { profile } : {}) });
+    return Object.freeze({ html: modified, sourceOnly: 'fluid-v' + family, family, nonce: scope, version, stylePayload: '', ids: null, ...([15, 16].includes(family) ? { profile } : {}) });
 }
 
 /** Outlook replaces our empty clear BR with one zero-line, style-only DIV. */
