@@ -568,6 +568,7 @@ export async function prependTemplate(office, item, html, beforeWrite = () => {}
         if (!layout) throw failure('TEMPLATE_REPLACEMENT_UNAVAILABLE');
     }
     const operation = { phase: 'preflight', beforeWrite };
+    retainV16DiagnosticPlan(operation, layout, 'text-v1');
     insertionOperations.set(item, operation);
     try {
         const state = await assertTemplateInsertable(office, item, { allowAdditional: canConfirmAdditional });
@@ -651,6 +652,75 @@ async function replacementSnapshot(office, item) {
     return { html: body.value, composeType: compose.value?.composeType };
 }
 
+// Diagnostic metadata only. Never persisted, used for a write, or treated as
+// recovery authority; an old operation after reload intentionally has no plan.
+function retainV16DiagnosticPlan(operation, layout, kind) {
+    if (layout?.sourceOnly !== 'fluid-v16' || layout.family !== 16 || !['M', 'B'].includes(layout.profile)
+        || !/^[0-9a-f]{32}$/.test(layout.nonce || '') || !/^[0-9a-f]{16}$/.test(layout.version || '')) return;
+    operation.v16DiagnosticPlan = Object.freeze({ family: 16, profile: layout.profile, nonce: layout.nonce, version: layout.version, kind });
+}
+
+function v16DiagnosticShape(html, current, contract) {
+    const nodes = contract.elements, scoped = nodes.map((node, index) => ({ node, index }))
+        .filter(value => withinContract(contract, value.index, contract.signature.index));
+    if (scoped.length > 512) return { elementBoundExceeded: true };
+    const styles = value => new Map((value.attrs.style || '').split(';').map(part => {
+        const colon = part.indexOf(':');
+        return colon > 0 ? [part.slice(0, colon).trim().toLowerCase(), part.slice(colon + 1).trim().replace(/\s*!important\s*$/i, '').toLowerCase()] : ['', ''];
+    }));
+    const body = nodes.findIndex(node => node.parent === contract.signature.index && node.tag === 'tbody');
+    const footerRow = scoped.filter(value => value.node.parent === body && value.node.tag === 'tr')[1];
+    const footer = nodes.findIndex(node => node.parent === footerRow?.index && node.tag === 'td');
+    const direct = scoped.filter(value => value.node.parent === footer);
+    const bars = direct.filter(value => value.node.tag === 'div' && (/(?:^|\s)(?:x_)?rt-v16-mobile-dispatch(?:\s|$)/.test(value.node.attrs.class || '')
+        || ['a', 'img'].every((tag, index) => scoped.filter(child => child.node.tag === tag && withinContract(contract, child.index, value.index)).length === [3, 2][index])));
+    const metadata = direct.filter(value => value.node.tag === 'style').map(value => html.slice(value.node.openEnd, value.node.close).replace(/\s+/g, '').toLowerCase());
+    const knownZeroLine = /^\.(?:x_)?rt-office-metadata\{font-size:0;line-height:0;max-height:0;overflow:hidden;?\}$/;
+    const bar = bars.length === 1 ? styles(bars[0].node) : new Map();
+    const floats = scoped.filter(value => value.node.tag === 'table' && value.node.attrs.align?.toLowerCase() === 'left');
+    return {
+        elementBoundExceeded: false, signatureElements: scoped.length,
+        currentStyleBlocks: Math.min((current.match(/<style\b/gi) || []).length, 512),
+        currentMediaQueries: Math.min((current.match(/@media\b/gi) || []).length, 512),
+        footerStyleBlocks: Math.min(metadata.length, 8),
+        footerOwaZeroLineStyles: Math.min(metadata.filter(value => knownZeroLine.test(value)).length, 8),
+        mobileDispatchCandidates: Math.min(bars.length, 8),
+        mobileDispatchDisplayNone: bar.get('display') === 'none', mobileDispatchMsoHideAll: bar.get('mso-hide') === 'all',
+        mobileDispatchMaxHeightZero: /^(?:0|0px|0pt)$/.test(bar.get('max-height') || ''),
+        mobileDispatchOverflowHidden: bar.get('overflow') === 'hidden',
+        mobileDispatchPaddingZero: /^(?:0|0px|0pt)(?:\s+(?:0|0px|0pt)){0,3}$/.test(bar.get('padding') || ''),
+        alignedTables: Math.min(floats.length, 8),
+        columnWidths: floats.slice(0, 4).map(value => /^\d{1,4}$/.test(value.node.attrs.width || '') && Number(value.node.attrs.width) <= 4096 ? Number(value.node.attrs.width) : null),
+    };
+}
+
+function diagnoseV16Readback(html, current, item, result) {
+    result.v16Candidate = true;
+    const pending = [insertionOperations.get(item), signatureOperations.get(item)].find(operation => operation?.phase === 'uncertain' && operation.v16DiagnosticPlan);
+    const plan = pending?.v16DiagnosticPlan;
+    result.sourcePlanAvailable = Boolean(plan);
+    result.sourcePlanMatched = null;
+    result.phase = 'diagnostic-v16-contract';
+    let contract;
+    try {
+        result.writeNonceCompared = Boolean(plan);
+        if (plan) result.sourcePlanMatched = false;
+        contract = fluidLayoutContract(html, current, plan?.nonce ?? null, plan?.version ?? null);
+        if (contract.fluidLayout.family !== 16 || plan && (contract.fluidLayout.profile !== plan.profile || contract.kind !== plan.kind)) return result;
+    } catch { return result; }
+    result.parse = result.contract = result.nonceMetadata = true;
+    result.family = 16; result.profile = contract.fluidLayout.profile;
+    result.contractStage = 'contract-complete';
+    result.sourcePlanMatched = plan ? true : null;
+    result.v16Shape = v16DiagnosticShape(html, current, contract);
+    if (result.v16Shape.elementBoundExceeded) { result.phase = 'diagnostic-v16-shape-bound'; return result; }
+    result.phase = 'diagnostic-v16-material';
+    try { verifyFluidLayoutMaterial(html, contract); } catch { return result; }
+    result.material = true;
+    result.phase = 'diagnostic-v16-complete';
+    return result;
+}
+
 /** Explicit diagnostic only: this can never acknowledge, retry or unblock a write. */
 export async function diagnoseUncertainV15Readback(office, item, { requested = false, uncertain = false, beforeRead = () => {} } = {}) {
     const result = { schema: 1, phase: 'not-requested', requested: requested === true, uncertain: uncertain === true,
@@ -668,6 +738,7 @@ export async function diagnoseUncertainV15Readback(office, item, { requested = f
     result.sdkRead = true;
     try { await beforeRead(); } catch { return result; }
     const current = currentComposeBodyHtml(snapshot.html, snapshot.composeType);
+    if (typeof current === 'string' && /RT-FLUID-LAYOUT-V16[MB]:[0-9a-f]{32}:[0-9a-f]{16}/i.test(current)) return diagnoseV16Readback(snapshot.html, current, item, result);
     result.phase = 'diagnostic-not-v15';
     if (typeof current !== 'string' || !/RT-FLUID-LAYOUT-V15[MB]:[0-9a-f]{32}:[0-9a-f]{16}/i.test(current)) return result;
     result.v15Candidate = true;
@@ -793,6 +864,7 @@ async function insertFluidStandalone(office, item, html, incoming, beforeWrite, 
         }
         const layout = prepareNativeLayoutRestore(html, incoming, previous?.fluidLayout.nonce, office);
         if (!['fluid-v11', 'fluid-v12', 'fluid-v13', 'fluid-v14', 'fluid-v15', 'fluid-v16'].includes(layout?.sourceOnly) || layout.html.length > 30000) throw failure('SIGNATURE_TOO_LARGE');
+        retainV16DiagnosticPlan(operation, layout, incoming.kind);
         if (original.html.length + layout.html.length > TEMPLATE_INSERT_LIMITS.bodyLength) throw failure('SIGNATURE_LAYOUT_UNAVAILABLE');
         await beforeWrite(); await signatureSession(office, item, operation, 'claim'); await beforeWrite();
         const latest = await replacementSnapshot(office, item);
@@ -1196,6 +1268,7 @@ export async function replaceManagedTemplate(office, item, html, beforeWrite = (
             && (Object.prototype.hasOwnProperty.call(node.attrs, 'data-rt-personal-flow') || (node.attrs.class || '').split(/\s+/).includes('rt-personal-columns')));
         if (nativePersonal && incoming.kind !== 'text-v1') throw failure('TEMPLATE_REPLACEMENT_UNAVAILABLE');
         const layout = nativePersonal ? prepareNativeLayoutRestore(markedHtml, incoming, undefined, office) : null;
+        retainV16DiagnosticPlan(operation, layout, incoming.kind);
         const currentBody = currentComposeBodyHtml(original.html, original.composeType);
         const oldContract = hasUnquotedFluidLayoutMarker(original.html, currentBody)
             ? fluidLayoutContract(original.html, currentBody) : managedTemplateContract(original.html, currentBody);
