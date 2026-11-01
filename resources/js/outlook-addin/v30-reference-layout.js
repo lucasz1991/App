@@ -224,10 +224,11 @@ function markerStyle(html, node, source) {
     // Observed saved Outlook MIME may wrap this inert STYLE text in one
     // ordinary line-format DIV. Accept only those exact wrappers and the one
     // known zero-line metadata selector, never arbitrary CSS/HTML siblings.
-    const wrapper = /^<div style="([^"]*)">([\s\S]*)<\/div>$/i.exec(css);
+    const wrapper = /^<div(?: class="([^"]*)")? style="([^"]*)">([\s\S]*)<\/div>$/i.exec(css);
     if (wrapper) {
-        if (!['direction:rtl;text-align:right;line-height:0', 'line-height:14px'].includes(wrapper[1].replace(/\s/g, '').replace(/;$/, '').toLowerCase())) return false;
-        css = wrapper[2];
+        if (wrapper[1] !== undefined && wrapper[1] !== 'elementToProof'
+            || !['direction:rtl;text-align:right;line-height:0', 'line-height:14px'].includes(wrapper[2].replace(/\s/g, '').replace(/;$/, '').toLowerCase())) return false;
+        css = wrapper[3];
     }
     return /^\.(?:x_)?rt-office-metadata\{font-size:0;line-height:0;max-height:0;overflow:hidden;?\}$/.test(css.replace(/\s+/g, '').toLowerCase());
 }
@@ -251,7 +252,8 @@ function metadataGap(html, gap, next, nodes, contract) {
 function officeMetadataWrapper(html, nodes, value, contract) {
     // Ordinary Outlook save can wrap only the two marker STYLEs and the two
     // already-bound hidden marker leaves in this exact font-formatting shape.
-    if (value.node.tag !== 'div' || Object.keys(value.node.attrs).some(name => name !== 'style')) return false;
+    if (value.node.tag !== 'div' || Object.keys(value.node.attrs).some(name => !['style', 'class'].includes(name))
+        || owns(value.node.attrs, 'class') && value.node.attrs.class !== 'elementToProof') return false;
     const style = properties(value.node);
     if (style.size !== 2 || !close(style.get('line-height'), 14)
         || style.get('font-family')?.replace(/\s/g, '') !== '"trebuchetms",arial,sans-serif') return false;

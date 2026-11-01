@@ -32,14 +32,15 @@ function savedOffice(html, { selected = false, noMath = false, wrapper = 'line' 
         : html.replace('width:clamp(248px,calc(100% - 220px),280px)', 'width: clamp(248px, calc(100% - 220px), 280px)').replace('width:min(547px,100%)', 'width: min(547px, 100%)');
 }
 
-function wordMetadataHost(html) {
+function wordMetadataHost(html, elementToProof = false) {
     const contract = fluidLayoutContract(html), material = verifyFluidLayoutMaterial(html, contract), nodes = contract.elements;
     const leaf = nodes[contract.signatureMetadata.managed], legalHost = nodes[leaf.parent];
     const legalTable = nodes.find(node => node.parent === leaf.parent && node.tag === 'table');
     assert.ok(legalTable && material.singleDispatch);
-    const css = '<span style="font-size:9px;"><style><div style="line-height:14px;">.x_rt-office-metadata{font-size:0;line-height:0;max-height:0;overflow:hidden}</div></style></span>';
+    const officeClass = elementToProof ? ' class="elementToProof"' : '';
+    const css = '<span style="font-size:9px;"><style><div' + officeClass + ' style="line-height:14px;">.x_rt-office-metadata{font-size:0;line-height:0;max-height:0;overflow:hidden}</div></style></span>';
     const marker = value => '<span style="font-size:0px;line-height:0;">' + value + '</span>';
-    const meta = '<div style="line-height:14px;font-family:&quot;Trebuchet MS&quot;,Arial,sans-serif;">' + css + marker('RT-SIGNATURE-MANAGED-V1') + css
+    const meta = '<div' + officeClass + ' style="line-height:14px;font-family:&quot;Trebuchet MS&quot;,Arial,sans-serif;">' + css + marker('RT-SIGNATURE-MANAGED-V1') + css
         + marker('RT-SIGNATURE-VERSION:' + contract.fluidLayout.version + ' RT-FLUID-LAYOUT-V16' + contract.fluidLayout.profile + ':' + contract.fluidLayout.nonce + ':' + contract.fluidLayout.version) + '</div>';
     return html.slice(0, legalTable.end) + meta + html.slice(legalHost.close);
 }
@@ -112,6 +113,29 @@ for (const [kind, html] of Object.entries(fixture.source)) for (const profile of
             ['.x_rt-office-metadata{', '.unmanaged{'],
         ]) { assert.ok(metadata.includes(before)); failed(prefix + metadata.replace(before, after)); }
     });
+
+    test('single dispatch ' + kind + '/' + profile + ' accepts only the exact reply proofing class on known metadata DIVs', () => {
+        const plan = prepareNativeLayoutRestore(html, sourceContract(html, kind), nonce, host(profile));
+        const saved = wordMetadataHost(savedOffice(plan.html, { selected: true, noMath: true }), true);
+        assert.equal(check(saved).singleDispatch, true);
+        const offset = saved.lastIndexOf('<div class="elementToProof" style="line-height:14px;font-family:');
+        assert.ok(offset > 0); const prefix = saved.slice(0, offset), metadata = saved.slice(offset);
+        const classes = [...metadata.matchAll(/ class="elementToProof"/g)]; assert.equal(classes.length, 3);
+        for (let mask = 0; mask < 8; mask++) {
+            let current = metadata;
+            for (const [index, match] of [...classes.entries()].reverse()) {
+                if (!(mask & (1 << index))) current = current.slice(0, match.index) + current.slice(match.index + match[0].length);
+            }
+            assert.equal(check(prefix + current).singleDispatch, true);
+        }
+        for (const match of classes) for (const replacement of [
+            ' class="unknown"', ' class="elementToProof extra"', ' class="x_elementToProof"',
+            ' class="elementToProof-other"', ' class="ElementToProof"', ' class=""',
+            ' class="elementToProof" id="unowned"', ' class="elementToProof" data-any="1"',
+            ' class="elementToProof" onclick="doSomething()"', ' class="elementToProof" hidden',
+        ]) failed(prefix + metadata.slice(0, match.index) + replacement + metadata.slice(match.index + match[0].length));
+        failed(prefix + metadata.replace('<span style="font-size:9px;">', '<span class="elementToProof" style="font-size:9px;">'));
+    });
 }
 
 function mailbox(profile, rewrite = value => value) {
@@ -172,7 +196,7 @@ for (const profile of ['M', 'B']) for (const path of ['standalone', 'prepend', '
 
     test('source-bound ' + profile + '/' + path + ' confirms the new single card after only proved saved Word rewrites', async () => {
         const input = fixture.source[path === 'standalone' ? 'standalone' : 'combined'];
-        const { state, item, office } = mailbox(profile, value => wordMetadataHost(savedOffice(value, { selected: true, noMath: true })));
+        const { state, item, office } = mailbox(profile, value => wordMetadataHost(savedOffice(value, { selected: true, noMath: true }), true));
         if (path === 'replace') state.html = prepareNativeLayoutRestore(fixture.source.combined, managedTemplateContract(fixture.source.combined), '22'.repeat(16), host(profile)).html;
         const result = path === 'standalone' ? await insertStandaloneSignature(office, item, input, () => {}, { media: [] })
             : path === 'prepend' ? await prependTemplate(office, item, input, () => {}, { media: [] })
