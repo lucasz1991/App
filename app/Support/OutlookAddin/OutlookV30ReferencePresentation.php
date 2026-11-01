@@ -501,6 +501,10 @@ final class OutlookV30ReferencePresentation
         if (! self::has($nodes[$root], 'rt-system-columns')) {
             self::fail();
         }
+        $train = self::oneClass($nodes, 'rt-v16-train');
+        if (! self::within($nodes, $train, $root)) {
+            self::fail();
+        }
         $shell = self::oneClass($nodes, 'rt-shell');
         $wrapper = $nodes[$shell]['parent'];
         if (! self::within($nodes, $root, $shell) || ! is_int($wrapper) || $nodes[$wrapper]['tag'] !== 'div') {
@@ -520,13 +524,22 @@ final class OutlookV30ReferencePresentation
         $wrapperBefore = $base.'box-sizing:border-box;border-left:3px solid #e90032;overflow:hidden;';
         $wrapperAfter = $base.'box-sizing:border-box;border-left:0!important;overflow:hidden;';
         $shellStyle = $nodes[$shell]['attrs']['style'] ?? '';
+        $rootStyle = 'width:100%;table-layout:fixed;border-collapse:collapse;direction:ltr;';
+        $trainStyle = 'width:547px;max-width:100%!important;border-collapse:collapse;';
         if (! str_ends_with($shellStyle, $forward ? self::SHELL_SUFFIX : self::SHELL_SUFFIX.self::SYSTEM_LAYOUT_SUFFIX)
             || ($nodes[$outer]['attrs']['style'] ?? '') !== $base.($forward ? '' : self::SYSTEM_LAYOUT_SUFFIX)
-            || ($nodes[$wrapper]['attrs']['style'] ?? '') !== ($forward ? $wrapperBefore : $wrapperAfter)) {
+            || ($nodes[$wrapper]['attrs']['style'] ?? '') !== ($forward ? $wrapperBefore : $wrapperAfter)
+            || ($nodes[$root]['attrs']['style'] ?? '') !== $rootStyle.($forward ? '' : self::SYSTEM_LAYOUT_SUFFIX)
+            || ($nodes[$train]['attrs']['style'] ?? '') !== $trainStyle.($forward ? '' : self::SYSTEM_LAYOUT_SUFFIX)) {
             self::fail();
         }
 
         return self::replace($html, [
+            // Legacy responsive system CSS sets table-layout:auto!important.
+            // Authored inline important keeps these owned tables fixed even
+            // when that media rule is retained after system inlining.
+            [$nodes[$root]['start'], $nodes[$root]['openEnd'] - $nodes[$root]['start'], self::opening($nodes[$root], ['style' => $rootStyle.($forward ? self::SYSTEM_LAYOUT_SUFFIX : '')])],
+            [$nodes[$train]['start'], $nodes[$train]['openEnd'] - $nodes[$train]['start'], self::opening($nodes[$train], ['style' => $trainStyle.($forward ? self::SYSTEM_LAYOUT_SUFFIX : '')])],
             [$nodes[$wrapper]['start'], $nodes[$wrapper]['openEnd'] - $nodes[$wrapper]['start'], self::opening($nodes[$wrapper], ['style' => $forward ? $wrapperAfter : $wrapperBefore])],
             [$nodes[$outer]['start'], $nodes[$outer]['openEnd'] - $nodes[$outer]['start'], self::opening($nodes[$outer], ['style' => $base.($forward ? self::SYSTEM_LAYOUT_SUFFIX : '')])],
             [$nodes[$shell]['start'], $nodes[$shell]['openEnd'] - $nodes[$shell]['start'], self::opening($nodes[$shell], ['style' => $forward ? $shellStyle.self::SYSTEM_LAYOUT_SUFFIX : substr($shellStyle, 0, -strlen(self::SYSTEM_LAYOUT_SUFFIX))])],

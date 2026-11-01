@@ -109,6 +109,10 @@ final class OutlookV30ReferencePresentationTest extends TestCase
         $ancestors = $sourceXpath->query('ancestor::table', $sourceShell);
         self::assertCount(1, $ancestors);
         self::assertStringContainsString(';table-layout:fixed!important;', $ancestors->item(0)->getAttribute('style'));
+        foreach (['rt-v16-columns', 'rt-v16-train'] as $class) {
+            $table = $sourceXpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," '.$class.' ")]')->item(0);
+            self::assertStringContainsString(';table-layout:fixed!important;', $table->getAttribute('style'));
+        }
         self::assertStringContainsString('box-sizing:border-box;border-left:0!important;overflow:hidden;', $compiled);
         self::assertStringContainsString('@media (max-width:520px)', $compiled);
         self::assertStringNotContainsString('@media(max-width:520px)', $compiled);
@@ -136,6 +140,11 @@ final class OutlookV30ReferencePresentationTest extends TestCase
         $shell = $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-shell ")]')->item(0);
         self::assertMatchesRegularExpression('/table-layout\s*:\s*fixed!important/i', $shell->getAttribute('style'));
         self::assertMatchesRegularExpression('/border-left\s*:\s*0!important/i', $shell->parentNode->getAttribute('style'));
+        self::assertStringContainsString('.rt-sign-content-frame{table-layout:auto!important;}', $html, 'Retain historical media CSS; the scoped inline fallback must beat it.');
+        foreach (['rt-v16-columns', 'rt-v16-train'] as $class) {
+            $table = $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," '.$class.' ")]')->item(0);
+            self::assertMatchesRegularExpression('/(?:^|;)\s*table-layout\s*:\s*fixed!important\s*(?:;|$)/i', $table->getAttribute('style'));
+        }
         self::assertSame($before, MailDocument::query()->orderBy('id')->get()->toArray());
         Http::assertNothingSent();
     }
