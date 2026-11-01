@@ -6,6 +6,7 @@ namespace Tests\Feature;
 
 use App\Models\MailDocument;
 use App\Support\EmailTemplateBuilder;
+use App\Support\Mail\EmailCompatibilityAuditor;
 use App\Support\Mail\SystemMailCssInliner;
 use App\Support\Mail\SystemMailInlineImageEmbedder;
 use App\Support\OutlookAddin\OutlookAddinPayloadService;
@@ -24,6 +25,31 @@ use Tests\TestCase;
 
 final class OutlookV30ReferencePresentationTest extends TestCase
 {
+    public function test_mobile_dispatch_actions_have_meaningful_alternatives_for_the_real_linked_image_auditor(): void
+    {
+        [$canonical] = $this->source();
+        foreach ([$canonical, OutlookMobileSignature::payload($canonical)] as $input) {
+            $html = OutlookClientPresentation::payload($input)['signature']['html'];
+            self::assertSame(1, preg_match('~<div class="rt-v16-mobile-dispatch"[^>]*>.*?</div>~s', $html, $match));
+            $bar = $match[0];
+            $dom = new \DOMDocument;
+            @$dom->loadHTML('<?xml encoding="UTF-8">'.$bar, LIBXML_NONET);
+            $images = (new \DOMXPath($dom))->query('//a/img');
+            self::assertCount(2, $images);
+            self::assertSame('E-Mail', $images->item(0)->getAttribute('alt'));
+            self::assertSame('Telefon', $images->item(1)->getAttribute('alt'));
+            self::assertStringStartsWith('mailto:', $images->item(0)->parentNode->getAttribute('href'));
+            self::assertStringStartsWith('tel:', $images->item(1)->parentNode->getAttribute('href'));
+            $audit = app(EmailCompatibilityAuditor::class)->audit($bar, '', ['document_kind' => 'signature']);
+            self::assertNotContains('EMAIL-IMAGE-001', array_column($audit->findings, 'rule_id'));
+            $broken = str_replace('alt="E-Mail"', 'alt=""', $bar);
+            self::assertNotSame($bar, $broken);
+            $negative = app(EmailCompatibilityAuditor::class)->audit($broken, '', ['document_kind' => 'signature']);
+            self::assertContains('EMAIL-IMAGE-001', array_column($negative->findings, 'rule_id'), 'The normal auditor must still reject an unnamed linked action.');
+        }
+        Http::assertNothingSent();
+    }
+
     public function test_actual_employee_fields_keep_the_published_source_and_exact_inverse_with_remote_animation(): void
     {
         [$canonical, $user] = $this->source();
@@ -256,6 +282,8 @@ final class OutlookV30ReferencePresentationTest extends TestCase
             'source css' => ['@media(max-width:520px)', '@media(max-width:900px)'],
             'contact geometry' => ['width:26px!important;min-width:26px!important;', 'width:25px!important;min-width:25px!important;'],
             'phone disagreement' => ['Dispo <span style="font-style:italic;">24/7</span>', 'Foreign <span style="font-style:italic;">24/7</span>'],
+            'unnamed mail action' => ['alt="E-Mail" style="display:inline-block;', 'alt="" style="display:inline-block;'],
+            'unnamed phone action' => ['alt="Telefon" style="display:inline-block;', 'alt="" style="display:inline-block;'],
         ];
     }
 

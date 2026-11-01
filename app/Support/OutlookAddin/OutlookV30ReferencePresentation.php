@@ -425,7 +425,7 @@ final class OutlookV30ReferencePresentation
                 if (count($children) !== 1 || $nodes[$children[0]]['tag'] !== 'img') {
                     self::fail();
                 }
-                $inner = '<img src="'.self::escape($nodes[$children[0]]['attrs']['src'] ?? '').'" width="18" height="18" alt="" style="display:inline-block;vertical-align:middle;border:0;">';
+                $inner = '<img src="'.self::escape($nodes[$children[0]]['attrs']['src'] ?? '').'" width="18" height="18" alt="'.($position === 0 ? 'E-Mail' : 'Telefon').'" style="display:inline-block;vertical-align:middle;border:0;">';
             } else {
                 $inner = self::escape(trim(CssSemantic::decodeHtmlEntitiesOnce(strip_tags(substr($html, $nodes[$index]['openEnd'], $nodes[$index]['close'] - $nodes[$index]['openEnd'])))));
                 if ($inner === '' || preg_replace('/\D/', '', $inner) !== preg_replace('/\D/', '', $href)) {
