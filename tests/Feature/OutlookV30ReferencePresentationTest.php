@@ -11,6 +11,7 @@ use App\Support\Mail\SystemMailCssInliner;
 use App\Support\Mail\SystemMailInlineImageEmbedder;
 use App\Support\OutlookAddin\OutlookAddinPayloadService;
 use App\Support\OutlookAddin\OutlookClientPresentation;
+use App\Support\OutlookAddin\OutlookCompactReferencePresentation as Compact;
 use App\Support\OutlookAddin\OutlookMobileSignature;
 use App\Support\OutlookAddin\OutlookStaticLinkedTestProfiles;
 use App\Support\OutlookAddin\OutlookV30ReferencePresentation as Reference;
@@ -92,7 +93,10 @@ final class OutlookV30ReferencePresentationTest extends TestCase
                 self::assertStringContainsString('width:15px!important;height:15px!important;', $html);
             }
             self::assertSame([], $result['signature']['media']);
-            self::assertSame(1, substr_count($result['signature']['html'], '/mail-assets/zug-dampf-outlook-brand-v1-'));
+            self::assertSame(1, substr_count($result['signature']['html'], '/mail-assets/zug-dampf-outlook-brand-v2-'));
+            $historical = Compact::canonicalizeToV16($result['signature']['html']);
+            self::assertSame(1, substr_count($historical, '/mail-assets/zug-dampf-outlook-brand-v1-'));
+            self::assertSame($result['signature']['html'], Compact::document($historical));
             self::assertDoesNotMatchRegularExpression('/\b(?:cid|data):/i', $result['signature']['html']);
         }
         self::assertSame($before, MailDocument::query()->orderBy('id')->get()->toArray());
@@ -150,9 +154,9 @@ final class OutlookV30ReferencePresentationTest extends TestCase
         app()->forgetScopedInstances();
         $before = MailDocument::query()->orderBy('id')->get()->toArray();
         $html = (new SystemMailCssInliner)->convert(EmailTemplateBuilder::buildSystemMailHtml(new HtmlString('<p>Application content stays literal.</p>')));
-        self::assertStringContainsString('outlook-desktop-flow-v16', $html);
-        self::assertSame(3, substr_count($html, ' rt-v16-column '));
-        self::assertStringContainsString('rt-v16-single-dispatch', $html);
+        self::assertStringContainsString('outlook-desktop-flow-v17', $html);
+        self::assertSame(3, substr_count($html, ' rt-v17-column '));
+        self::assertStringContainsString('rt-v17-single-dispatch', $html);
         self::assertStringNotContainsString('rt-v16-mobile-dispatch', $html);
         self::assertStringContainsString('Application content stays literal.', $html);
         self::assertDoesNotMatchRegularExpression('/\b(?:cid|data):|data-rt-system-mail-inline-assets/i', $html);
@@ -173,8 +177,13 @@ final class OutlookV30ReferencePresentationTest extends TestCase
         $template->forceFill(['html' => $this->mark($template->published_html, false), 'published_html' => $this->mark($template->published_html, false), 'published_signature_document_id' => $signature->id])->saveQuietly();
         app()->forgetScopedInstances();
         $before = MailDocument::query()->orderBy('id')->get()->toArray();
-        $compiled = EmailTemplateBuilder::buildSystemMailHtml(new HtmlString('<p>Opaque application bytes &amp; text.</p>'));
+        $current = EmailTemplateBuilder::buildSystemMailHtml(new HtmlString('<p>Opaque application bytes &amp; text.</p>'));
+        self::assertStringContainsString('outlook-desktop-flow-v17', $current);
+        // Exercise the frozen V16 frame/media contract through the exact new inverse.
+        // The compact suite separately covers the current V17 System inliner.
+        $compiled = Compact::canonicalizeToV16($current);
         self::assertSame($compiled, Reference::document($compiled));
+        self::assertSame($current, Compact::document($compiled));
         $previous = Reference::canonicalizeToV15($compiled);
         self::assertStringContainsString('outlook-desktop-flow-v15', $previous);
         self::assertStringContainsString('box-sizing:border-box;border-left:3px solid #e90032;overflow:hidden;', $previous);

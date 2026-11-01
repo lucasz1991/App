@@ -17,6 +17,11 @@ final class OutlookLinkedAnimatedDelivery
 
     /** Admitted PNG poster => [immutable GIF filename, complete GIF SHA256]. */
     private const TRAINS = [
+        '/m/063984f410.png' => ['zug-dampf-outlook-brand-v2-light.gif', '6aeef403af2bd639b8fee076312a37b6b3e27f22c148ae835ca8d5d43fcc3a2e'],
+        '/m/19d3969cd4.png' => ['zug-dampf-outlook-brand-v2-dark.gif', '92913c81a7a44a28560e23f61907ae38b992b31dd10494ab4f3d9d13fc20ca24'],
+        '/m/f1a2c9e0ba.png' => ['zug-dampf-outlook-brand-v2-light-mirrored.gif', '11ded023b6a25d319c87a8fb25f105c98e8b58a5f9b0fcb711cb6ff3dc10bee6'],
+        '/m/e0cd25a52a.png' => ['zug-dampf-outlook-brand-v2-dark-mirrored.gif', 'c5ae93d54d0d2ed7a30ea3b8402a5598f57e25271d267b37719f899361308c5a'],
+
         '/m/0b9b8d55f6.png' => ['zug-dampf-outlook-brand-v1-light.gif', '47007453902679fbc96eda87bb8701db7f701b2c340d83e9561fa68c4dbd503d'],
         '/m/d8370fc0cc.png' => ['zug-dampf-outlook-brand-v1-dark.gif', '243786c7e426e2f06165858c8a1883cfd5598b72df1247c7cc2b3ff6e41220a5'],
         '/m/b6d051cacd.png' => ['zug-dampf-outlook-brand-v1-light-mirrored.gif', '67d1600699cad2f1f2af69ea59a9d88a7085f26556966f083ab615401e430d39'],
@@ -61,12 +66,12 @@ final class OutlookLinkedAnimatedDelivery
         $salt = self::salt($httpsAppUrl);
         foreach (['html', 'composeHtml', 'combinedComposeHtml', 'mobileComposeHtml'] as $field) {
             if (isset($result[$field])) {
-                $result[$field] = self::animated($result[$field], $httpsAppUrl, $salt);
+                $result[$field] = OutlookCompactReferencePresentation::document(self::animated($result[$field], $httpsAppUrl, $salt));
                 self::budget($result[$field], $field === 'mobileComposeHtml' || ($result['kind'] ?? '') === 'signature' ? 30000 : 99000);
             }
         }
         if (isset($result['signature']['html'])) {
-            $result['signature']['html'] = self::animated($result['signature']['html'], $httpsAppUrl, $salt);
+            $result['signature']['html'] = OutlookCompactReferencePresentation::document(self::animated($result['signature']['html'], $httpsAppUrl, $salt));
             self::budget($result['signature']['html'], 30000, 168);
             $result['signatureVersion'] = self::mapped('signature', $result['signatureVersion'], $salt);
             if (isset($result['signature']['version'])) {
@@ -185,7 +190,7 @@ final class OutlookLinkedAnimatedDelivery
         $result = preg_replace_callback(self::TOKENS, static function (array $match) use ($origin, &$trains): string {
             $tag = $match[0];
             if (! preg_match('~\A<img\b~i', $tag) || ! preg_match('~\sclass="([^"]*)"~', $tag, $classes)
-                || array_intersect(['rt-v15-train-image', 'rt-v16-train-image'], preg_split('/\s+/', trim($classes[1]))) === []) {
+                || array_intersect(['rt-v15-train-image', 'rt-v16-train-image', 'rt-v17-train-image'], preg_split('/\s+/', trim($classes[1]))) === []) {
                 return $tag;
             }
             if (! preg_match('~\ssrc="([^"]*)"~', $tag, $source)) {
@@ -200,7 +205,8 @@ final class OutlookLinkedAnimatedDelivery
             return str_replace($source[0], ' src="'.$origin.'/mail-assets/'.$asset[0].'"', $tag);
         }, $html);
         $flow = str_contains($html, 'data-rt-desktop-flow="'.OutlookAnimatedSignaturePresentation::FLOW.'"')
-            || str_contains($html, 'data-rt-desktop-flow="'.OutlookV30ReferencePresentation::FLOW.'"');
+            || str_contains($html, 'data-rt-desktop-flow="'.OutlookV30ReferencePresentation::FLOW.'"')
+            || str_contains($html, 'data-rt-desktop-flow="'.OutlookCompactReferencePresentation::FLOW.'"');
         if (($flow && $trains !== 1) || (! $flow && $trains !== 0) || preg_match('/\b(?:cid|data)\s*:/i', $result)) {
             self::fail();
         }

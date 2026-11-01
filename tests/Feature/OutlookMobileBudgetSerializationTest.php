@@ -106,6 +106,8 @@ final class OutlookMobileBudgetSerializationTest extends TestCase
         $mobile = (new ReflectionMethod($case, 'standaloneMobile'))->invoke($case, $desktop);
         $html = (new ReflectionMethod($case, 'canonical'))->invoke($case, $desktop, $mobile);
         $html = str_replace('data-rt-compose-document="combined-v1"', 'data-rt-compose-document="combined-native-v1"', $html);
+        // Match the existing compiler's bounded editable-marker serialization.
+        $html = OutlookCombinedComposeDocument::compactMobileEditableBounds($html);
         $placeholder = OutlookMobileCombinedComposeDocument::VERSION_MARKER.str_repeat('0', 16);
         $metadata = '<!-- '.$placeholder.' --><span hidden aria-hidden="true" class="rt-office-metadata" '
             .'data-rt-mobile-compose-version="1" style="display:none!important;mso-hide:all;font-size:0;line-height:0;max-height:0;overflow:hidden;">'.$placeholder.'</span>';

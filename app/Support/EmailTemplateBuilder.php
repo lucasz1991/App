@@ -22,6 +22,7 @@ use App\Support\Mail\TrustedOutlookSignatureCss;
 use App\Support\OutlookAddin\OutlookAddinWordingPolicy;
 use App\Support\OutlookAddin\OutlookAnimatedSignaturePresentation;
 use App\Support\OutlookAddin\OutlookBrandedSignature;
+use App\Support\OutlookAddin\OutlookCompactReferencePresentation;
 use App\Support\OutlookAddin\OutlookComposeFrame;
 use App\Support\OutlookAddin\OutlookContentFramePresentation;
 use App\Support\OutlookAddin\OutlookDispatchCardPresentation;
@@ -754,6 +755,7 @@ class EmailTemplateBuilder
         $html = str_replace($slot, $applicationRow, $html);
 
         $html = OutlookV30ReferencePresentation::document(OutlookAnimatedSignaturePresentation::document(OutlookDispatchCardPresentation::document(OutlookReferenceCardPresentation::document(OutlookContentFramePresentation::document(OutlookFluidSignaturePresentation::document(OutlookThreeCellPresentation::document(OutlookThreeColumnPresentation::systemDocument($html, rtrim((string) config('app.url'), '/'), $signature->publishedCss()))))))));
+        $html = OutlookCompactReferencePresentation::document($html);
 
         return SystemMailInlineImageEmbedder::mark(
             self::embedPublishedCss(

@@ -13,7 +13,7 @@ final class OutlookBrandedTrainAssetsTest extends TestCase
     public function test_historical_catalog_is_unchanged_and_new_assets_are_only_appended(): void
     {
         $assets = (new \ReflectionClass(OutlookStaticLinkedTestDelivery::class))->getConstant('ASSETS');
-        self::assertCount(43, $assets);
+        self::assertCount(65, $assets);
         self::assertSame('ac9308c1dc9cd08f6aa196cd482a1a4adeeae70111e965f1952f316b1fa8f7d4', hash('sha256', json_encode(array_slice($assets, 0, 42, true), JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)));
         self::assertSame('9111e4eea3bf1463da22574cb2e1112e444afa6d73fb9ce4a6e9be94bb507b7a', hash('sha256', json_encode(array_slice($assets, 0, 33, true), JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)));
     }

@@ -140,7 +140,7 @@ function markerSpans(html, tree, currentLength) {
     const candidates = tree.elements.map((node, index) => ({ node, index })).filter(({ node, index }) => node.tag === 'span'
         && node.end <= currentLength && !quoted(tree.elements, index)).map(value => ({ ...value,
         value: decoded(html.slice(value.node.openEnd, value.node.close).replace(/<!--[\s\S]*?-->|<[^>]*>/g, '')).trim() }))
-        .filter(value => /^RT-(?:COMPOSE-EDITABLE-|TEMPLATE-MANAGED-|SIGNATURE-MANAGED-|SIGNATURE-VERSION:|FLUID-LAYOUT-V(?:1[1234]:|15|16))/.test(value.value));
+        .filter(value => /^RT-(?:COMPOSE-EDITABLE-|TEMPLATE-MANAGED-|SIGNATURE-MANAGED-|SIGNATURE-VERSION:|FLUID-LAYOUT-V(?:1[1234]:|15|16|17))/.test(value.value));
     return candidates.filter(value => !candidates.some(outer => outer.index !== value.index && outer.value === value.value
         && within(tree.elements, value.index, outer.index)));
 }
@@ -501,6 +501,17 @@ export function fluidLayoutContract(html, currentHtml = html, expectedNonce = nu
     const tree = { ...original, elements }, spans = markerSpans(html, tree, currentHtml.length);
     const found = [];
     const canonical = spans.map(span => {
+        const compact = /^RT-FLUID-LAYOUT-V17([MB]):([0-9a-f]{32}):([0-9a-f]{16})$/i.exec(span.value);
+        const mergedCompact = /^(RT-SIGNATURE-(?:MANAGED-V1\s*RT-SIGNATURE-VERSION:|VERSION:)([0-9a-f]{16}))\s*RT-FLUID-LAYOUT-V17([MB]):([0-9a-f]{32}):([0-9a-f]{16})$/i.exec(span.value);
+        if (compact) {
+            found.push({ ...span, family: 17, profile: compact[1].toUpperCase(), nonce: compact[2].toLowerCase(), version: compact[3].toLowerCase() });
+            return null;
+        }
+        if (mergedCompact) {
+            if (mergedCompact[2].toLowerCase() !== mergedCompact[5].toLowerCase()) unavailable();
+            found.push({ ...span, family: 17, profile: mergedCompact[3].toUpperCase(), nonce: mergedCompact[4].toLowerCase(), version: mergedCompact[5].toLowerCase() });
+            return { ...span, value: mergedCompact[1] };
+        }
         const reference = /^RT-FLUID-LAYOUT-V16([MB]):([0-9a-f]{32}):([0-9a-f]{16})$/i.exec(span.value);
         const mergedReference = /^(RT-SIGNATURE-(?:MANAGED-V1\s*RT-SIGNATURE-VERSION:|VERSION:)([0-9a-f]{16}))\s*RT-FLUID-LAYOUT-V16([MB]):([0-9a-f]{32}):([0-9a-f]{16})$/i.exec(span.value);
         if (reference) {
@@ -541,7 +552,7 @@ export function fluidLayoutContract(html, currentHtml = html, expectedNonce = nu
     if (!metadataHidden(fluid.node, elements) || (expectedNonce !== null && fluid.nonce !== expectedNonce)
         || (expectedVersion !== null && fluid.version !== expectedVersion.toLowerCase())) unavailable();
     contractCheckpoint(trace, 'fluid-marker-occurrence');
-    const occurrences = matches(currentHtml, /RT-FLUID-LAYOUT-V(?:1[1234]:|15|16)/g).filter(match => !quotedOffset(elements, match.index)
+    const occurrences = matches(currentHtml, /RT-FLUID-LAYOUT-V(?:1[1234]:|15|16|17)/g).filter(match => !quotedOffset(elements, match.index)
         && !tree.comments.some(comment => match.index >= comment.start && match.index < comment.end));
     if (occurrences.length !== 1 || occurrences[0].index < fluid.node.openEnd || occurrences[0].index >= fluid.node.close) unavailable();
     const template = canonical.filter(span => span.value.startsWith('RT-TEMPLATE-MANAGED-'));
@@ -572,13 +583,13 @@ export function fluidLayoutContract(html, currentHtml = html, expectedNonce = nu
     const rows = elements.map((node, index) => ({ node, index })).filter(value => value.node.parent === bodies[0].index);
     if (rows.length !== 2 || rows.some(value => value.node.tag !== 'tr') || !within(elements, fluid.index, rows[1].index)) unavailable();
     contractCheckpoint(trace, 'contract-complete');
-    return { ...contract, fluidLayout: { family: fluid.family, nonce: fluid.nonce, version: fluid.version, marker: { node: fluid.node, index: fluid.index }, ...([15, 16].includes(fluid.family) ? { profile: fluid.profile } : {}) } };
+    return { ...contract, fluidLayout: { family: fluid.family, nonce: fluid.nonce, version: fluid.version, marker: { node: fluid.node, index: fluid.index }, ...([15, 16, 17].includes(fluid.family) ? { profile: fluid.profile } : {}) } };
 }
 
 export function hasUnquotedFluidLayoutMarker(html, currentHtml = html) {
     if (typeof currentHtml !== 'string' || !html.startsWith(currentHtml)) unavailable();
     const tree = nodes(html);
-    return matches(currentHtml, /RT-FLUID-LAYOUT-V(?:1[1234]:|15|16)/g).some(match => !quotedOffset(tree.elements, match.index)
+    return matches(currentHtml, /RT-FLUID-LAYOUT-V(?:1[1234]:|15|16|17)/g).some(match => !quotedOffset(tree.elements, match.index)
         && !tree.comments.some(comment => match.index >= comment.start && match.index < comment.end));
 }
 
