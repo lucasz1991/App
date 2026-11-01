@@ -657,7 +657,8 @@ async function replacementSnapshot(office, item) {
 function retainV16DiagnosticPlan(operation, layout, kind) {
     if (layout?.sourceOnly !== 'fluid-v16' || layout.family !== 16 || !['M', 'B'].includes(layout.profile)
         || !/^[0-9a-f]{32}$/.test(layout.nonce || '') || !/^[0-9a-f]{16}$/.test(layout.version || '')) return;
-    operation.v16DiagnosticPlan = Object.freeze({ family: 16, profile: layout.profile, nonce: layout.nonce, version: layout.version, kind });
+    operation.v16DiagnosticPlan = Object.freeze({ family: 16, profile: layout.profile, nonce: layout.nonce, version: layout.version, kind,
+        singleDispatch: layout.singleDispatch });
 }
 
 function v16DiagnosticShape(html, current, contract) {
@@ -715,7 +716,12 @@ function diagnoseV16Readback(html, current, item, result) {
     result.v16Shape = v16DiagnosticShape(html, current, contract);
     if (result.v16Shape.elementBoundExceeded) { result.phase = 'diagnostic-v16-shape-bound'; return result; }
     result.phase = 'diagnostic-v16-material';
-    try { verifyFluidLayoutMaterial(html, contract); } catch { return result; }
+    try {
+        const material = verifyFluidLayoutMaterial(html, contract);
+        if (plan && (typeof plan.singleDispatch !== 'boolean' || (material.singleDispatch === true) !== plan.singleDispatch)) {
+            result.sourcePlanMatched = false; return result;
+        }
+    } catch { return result; }
     result.material = true;
     result.phase = 'diagnostic-v16-complete';
     return result;
@@ -851,11 +857,11 @@ async function insertFluidStandalone(office, item, html, incoming, beforeWrite, 
         const current = currentComposeBodyHtml(original.html, original.composeType);
         if (current === null || templateStateFromBody(original.html, original.composeType).present) throw failure('SIGNATURE_LAYOUT_UNAVAILABLE');
         const activeFluid = hasUnquotedFluidLayoutMarker(original.html, current);
-        let previous = null;
+        let previous = null, previousMaterial = null;
         if (activeFluid) {
             previous = fluidLayoutContract(original.html, current);
             if (previous.kind !== 'standalone-signature-v1') throw failure('SIGNATURE_LAYOUT_UNAVAILABLE');
-            verifyFluidLayoutMaterial(original.html, previous);
+            previousMaterial = verifyFluidLayoutMaterial(original.html, previous);
         }
         if (hasUnquotedSignatureLayoutCarrier(original.html, current)) {
             const historical = existingStandalone(original);
@@ -871,6 +877,8 @@ async function insertFluidStandalone(office, item, html, incoming, beforeWrite, 
         if (latest.html !== original.html || latest.composeType !== original.composeType) throw failure('COMPOSE_BODY_CHANGED');
         if (previous?.fluidLayout.version === layout.version && previous.fluidLayout.family === layout.family
             && previous.fluidLayout.profile === layout.profile) {
+            if (layout.family === 16 && (typeof layout.singleDispatch !== 'boolean'
+                || (previousMaterial.singleDispatch === true) !== layout.singleDispatch)) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
             options.beforeCommit?.(); await signatureSession(office, item, operation, 'complete');
             markSignatureWriteConfirmed(item); return 'current';
         }
@@ -887,7 +895,9 @@ async function insertFluidStandalone(office, item, html, incoming, beforeWrite, 
         const owned = fluidLayoutContract(written.html, currentComposeBodyHtml(written.html, written.composeType), layout.nonce, layout.version);
         if (owned.kind !== 'standalone-signature-v1' || owned.fluidLayout.family !== layout.family
             || owned.fluidLayout.profile !== layout.profile) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
-        verifyFluidLayoutMaterial(written.html, owned);
+        const material = verifyFluidLayoutMaterial(written.html, owned);
+        if (layout.family === 16 && (typeof layout.singleDispatch !== 'boolean'
+            || (material.singleDispatch === true) !== layout.singleDispatch)) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
         options.beforeCommit?.(); await signatureSession(office, item, operation, 'complete');
         markSignatureWriteConfirmed(item); operation.phase = 'applied'; return 'applied';
     } catch (error) {
@@ -1225,7 +1235,9 @@ async function restoreNativeLayout(office, item, layout, operation, original, op
         const owned = fluidLayoutContract(written.html, currentComposeBodyHtml(written.html, written.composeType), layout.nonce, layout.version);
         if (owned.kind !== 'text-v1' || owned.fluidLayout.family !== layout.family
             || owned.fluidLayout.profile !== layout.profile) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
-        verifyFluidLayoutMaterial(written.html, owned);
+        const material = verifyFluidLayoutMaterial(written.html, owned);
+        if (layout.family === 16 && (typeof layout.singleDispatch !== 'boolean'
+            || (material.singleDispatch === true) !== layout.singleDispatch)) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
         options.beforeCommit?.(); await markTemplateApplied(item, operation); return;
     }
     layoutIdsContract(written.html, currentComposeBodyHtml(written.html, written.composeType), layout.ids);

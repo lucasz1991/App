@@ -63,6 +63,17 @@ function numeric(node, name, expected, source = false) {
         && values.every(value => close(value, expected));
 }
 
+// Only the two constant expressions emitted by the single-card renderer.
+// Office may serialize spacing or fall back to the same HTML pixel width.
+function singleCardWidth(node, expected, expression, source) {
+    const style = properties(node), width = style.get('width');
+    if (style.get('max-width') !== '100%' || source && node.attrs.width !== String(expected)
+        || node.attrs.width !== undefined && !close(node.attrs.width, expected)) return false;
+    if (source) return width === expression;
+    return width === undefined ? node.attrs.width !== undefined
+        : width.replace(/\s+/g, '') === expression.replace(/\s+/g, '') || close(width, expected);
+}
+
 function padding(node) {
     const result = { top: 0, right: 0, bottom: 0, left: 0 };
     for (const [name, value] of properties(node)) {
@@ -207,8 +218,18 @@ function retainedMetadata(html, nodes, value, contract) {
 function markerStyle(html, node, source) {
     if (node.tag !== 'style' || Object.keys(node.attrs).some(name => name !== 'data-rt-outlook-marker-css')
         || source && node.attrs['data-rt-outlook-marker-css'] !== '1') return false;
-    return html.slice(node.openEnd, node.close).trim()
-        === '.rt-office-metadata{display:none!important;mso-hide:all;font-size:0;line-height:0;max-height:0;overflow:hidden;}';
+    let css = html.slice(node.openEnd, node.close).trim();
+    if (css === '.rt-office-metadata{display:none!important;mso-hide:all;font-size:0;line-height:0;max-height:0;overflow:hidden;}') return true;
+    if (source) return false;
+    // Observed saved Outlook MIME may wrap this inert STYLE text in one
+    // ordinary line-format DIV. Accept only those exact wrappers and the one
+    // known zero-line metadata selector, never arbitrary CSS/HTML siblings.
+    const wrapper = /^<div style="([^"]*)">([\s\S]*)<\/div>$/i.exec(css);
+    if (wrapper) {
+        if (!['direction:rtl;text-align:right;line-height:0', 'line-height:14px'].includes(wrapper[1].replace(/\s/g, '').replace(/;$/, '').toLowerCase())) return false;
+        css = wrapper[2];
+    }
+    return /^\.(?:x_)?rt-office-metadata\{font-size:0;line-height:0;max-height:0;overflow:hidden;?\}$/.test(css.replace(/\s+/g, '').toLowerCase());
 }
 
 function metadataGap(html, gap, next, nodes, contract) {
@@ -227,13 +248,43 @@ function metadataGap(html, gap, next, nodes, contract) {
     return !!comment && comment[1] === expected && retainedMetadata(html, nodes, next, contract);
 }
 
-function legalHostContents(html, nodes, legalHost, bar, legalTable, source, contract) {
+function officeMetadataWrapper(html, nodes, value, contract) {
+    // Ordinary Outlook save can wrap only the two marker STYLEs and the two
+    // already-bound hidden marker leaves in this exact font-formatting shape.
+    if (value.node.tag !== 'div' || Object.keys(value.node.attrs).some(name => name !== 'style')) return false;
+    const style = properties(value.node);
+    if (style.size !== 2 || !close(style.get('line-height'), 14)
+        || style.get('font-family')?.replace(/\s/g, '') !== '"trebuchetms",arial,sans-serif') return false;
+    const direct = children(nodes, value.index).sort((left, right) => left.node.start - right.node.start);
+    if (direct.length !== 4 || direct[1].index !== contract.signatureMetadata?.managed
+        || direct[3].index !== contract.signatureMetadata?.version
+        || direct[3].index !== contract.fluidLayout?.marker?.index
+        || !retainedMetadata(html, nodes, direct[1], contract) || !retainedMetadata(html, nodes, direct[3], contract)) return false;
+    for (const index of [0, 2]) {
+        const span = direct[index], font = properties(span.node), nested = children(nodes, span.index);
+        if (span.node.tag !== 'span' || Object.keys(span.node.attrs).some(name => name !== 'style')
+            || font.size !== 1 || !close(font.get('font-size'), 9) || nested.length !== 1
+            || !markerStyle(html, nested[0].node, false)
+            || html.slice(span.node.openEnd, nested[0].node.start).trim()
+            || html.slice(nested[0].node.end, span.node.close).trim()) return false;
+    }
+    let cursor = value.node.openEnd;
+    for (const child of direct) {
+        if (child.node.start < cursor || html.slice(cursor, child.node.start).trim()) return false;
+        cursor = child.node.end;
+    }
+    return !html.slice(cursor, value.node.close).trim();
+}
+
+function legalHostContents(html, nodes, legalHost, bar, legalTable, source, contract, single = false) {
     const direct = children(nodes, legalHost).sort((left, right) => left.node.start - right.node.start);
     let styles = 0;
     for (const value of direct) {
-        if ([bar.index, legalTable.index].includes(value.index)) continue;
+        if ([bar?.index, legalTable.index].includes(value.index)) continue;
         if (value.node.start >= legalTable.node.end && retainedMetadata(html, nodes, value, contract)) continue;
         if (value.node.start >= legalTable.node.end && markerStyle(html, value.node, source) && ++styles <= 2) continue;
+        if (single && !source && value.node.start >= legalTable.node.end && !styles
+            && officeMetadataWrapper(html, nodes, value, contract)) { styles = 2; continue; }
         if (source || !zeroLineTrivia(html, nodes, value)) invalid();
     }
     // Text nodes are deliberately absent from the structural parser. Check the
@@ -307,6 +358,13 @@ function mobileBar(html, nodes, legalHost, desktop, source, contract) {
     return { bar, legalTable: tables[0] };
 }
 
+function singleCardFooter(html, nodes, legalHost, source, contract) {
+    const tables = children(nodes, legalHost).filter(value => value.node.tag === 'table');
+    if (tables.length !== 1) invalid();
+    legalHostContents(html, nodes, legalHost, null, tables[0], source, contract, true);
+    return { bar: null, legalTable: tables[0] };
+}
+
 /** Validate V16, then delegate unchanged historical semantics on cloned attrs. */
 export function verifyV30ReferenceMaterial(html, contract, source, verifyLegacyMaterial) {
     const nodes = contract?.elements, signature = contract?.signature;
@@ -332,6 +390,17 @@ export function verifyV30ReferenceMaterial(html, contract, source, verifyLegacyM
     const main = only(nodes, rows[0].index, 'td'), items = children(nodes, main.index);
     const columns = items.filter(value => value.node.tag === 'table');
     if (columns.length !== 4) invalid();
+    const signatureRows = children(nodes, only(nodes, signature.index, 'tbody').index);
+    if (signatureRows.length !== 2 || signatureRows.some(value => value.node.tag !== 'tr')) invalid();
+    const legalHost = only(nodes, signatureRows[1].index, 'td');
+    const footerActions = children(nodes, legalHost.index).filter(value => value.node.tag === 'div'
+        && descendant(nodes, value.index, 'a').length === 3 && descendant(nodes, value.index, 'img').length === 2);
+    const markedSingle = /(?:^|\s)(?:x_)?rt-v16-single-dispatch(?:\s|$)/.test(root.node.attrs.class || '');
+    const single = source ? has(root.node, 'rt-v16-single-dispatch') : markedSingle || footerActions.length === 0;
+    if (single && scoped.some(value => /(?:^|\s)(?:x_)?rt-v16-mobile-dispatch(?:\s|$)/.test(value.node.attrs.class || ''))) invalid();
+    if (single && scoped.some(value => value.node.tag === 'style'
+        && (/(?:^|[^\w-])(?:x_)?rt-v16-mobile-dispatch(?:[^\w-]|$)/i.test(html.slice(value.node.openEnd, value.node.close))
+            || /\.(?:x_)?rt-v16-dispatch\b[^{}]*\{[^{}]*\bdisplay\s*:\s*none\b/i.test(html.slice(value.node.openEnd, value.node.close))))) invalid();
     outerFrames(nodes, root, signature, source);
     exactPadding(main.node, { top: 12, right: 40, bottom: 0, left: 40 });
     const original = nodes.map(node => ({ ...node, attrs: { ...node.attrs } }));
@@ -346,7 +415,10 @@ export function verifyV30ReferenceMaterial(html, contract, source, verifyLegacyM
     rewritePadding(original[main.index], '12px 0 0 18px');
     for (const [position, [role, width, right]] of COLUMNS.entries()) {
         const column = columns[position];
-        if (column.node.attrs.align?.toLowerCase() !== 'left' || !numeric(column.node, 'width', width, source)
+        const knownWidth = single && role === 'direct'
+            ? singleCardWidth(column.node, 280, 'clamp(248px,calc(100% - 220px),280px)', source)
+            : numeric(column.node, 'width', width, source);
+        if (column.node.attrs.align?.toLowerCase() !== 'left' || !knownWidth
             || source && !has(column.node, 'rt-v16-' + role)) invalid();
         safe(column.node);
         const cell = only(nodes, only(nodes, only(nodes, column.index, 'tbody').index, 'tr').index, 'td');
@@ -368,22 +440,40 @@ export function verifyV30ReferenceMaterial(html, contract, source, verifyLegacyM
         }
     }
     const stage = only(nodes, only(nodes, rows[1].index, 'td').index, 'table');
-    if (!numeric(stage.node, 'width', 547, source) || properties(stage.node).get('max-width') !== '100%') invalid();
+    if (!(single ? singleCardWidth(stage.node, 547, 'min(547px,100%)', source) : numeric(stage.node, 'width', 547, source))
+        || properties(stage.node).get('max-width') !== '100%') invalid();
     const trains = descendant(nodes, stage.index, 'img');
     if (trains.length !== 1) invalid();
-    image(trains[0].node, 529, 115, source);
+    const trainImage = { ...trains[0].node, attrs: { ...trains[0].node.attrs } };
+    const editorTrain = !source && trainImage.attrs.id === 'image_0';
+    if (editorTrain) {
+        // This exact ID is added by ordinary Outlook image selection/save. It
+        // is never authority: the owned train's SRC, width/aspect and material
+        // still have to pass the existing immutable asset/geometry contract.
+        if (nodes.filter(node => node.attrs.id === 'image_0').length !== 1) invalid();
+        delete trainImage.attrs.id;
+        delete original[trains[0].index].attrs.id;
+    }
+    image(trainImage, 529, 115, source);
     const dispatchImages = descendant(nodes, columns[3].index, 'img');
     const dispatchLinks = descendant(nodes, columns[3].index, 'a');
     if (dispatchImages.length !== 3 || dispatchLinks.length !== 3) invalid();
+    if (editorTrain) {
+        // An editor-generated ID cannot broaden the existing factory asset
+        // contract or relocate the train to a different delivery origin.
+        try {
+            const trainUrl = new URL(trainImage.attrs.src), captionUrl = new URL(dispatchImages[0].node.attrs.src);
+            if (trainUrl.protocol !== 'https:' || trainUrl.origin !== captionUrl.origin) invalid();
+        } catch { invalid(); }
+    }
     image(dispatchImages[0].node, 199, 38, source);
-    const signatureRows = children(nodes, only(nodes, signature.index, 'tbody').index);
-    if (signatureRows.length !== 2 || signatureRows.some(value => value.node.tag !== 'tr')) invalid();
-    const legalHost = only(nodes, signatureRows[1].index, 'td');
-    const bar = mobileBar(html, nodes, legalHost.index, { links: dispatchLinks, images: dispatchImages }, source, contract);
+    const bar = single ? singleCardFooter(html, nodes, legalHost.index, source, contract)
+        : mobileBar(html, nodes, legalHost.index, { links: dispatchLinks, images: dispatchImages }, source, contract);
     const legal = only(nodes, only(nodes, only(nodes, bar.legalTable.index, 'tbody').index, 'tr').index, 'td');
     exactPadding(legal.node, { top: 12, right: 40, bottom: 16, left: 40 });
     rewritePadding(original[legal.index], '12px 18px 16px 18px');
     const modern = !source && contract.fluidLayout.profile === 'M';
+    if (single && modern) resize(original[stage.index], 547);
     if (!modern) {
         resize(original[stage.index], 242);
         resize(original[trains[0].index], 224, 49);
@@ -393,5 +483,5 @@ export function verifyV30ReferenceMaterial(html, contract, source, verifyLegacyM
     const actual = value => value && { ...value, node: nodes[value.index] };
     return { ...proved, root: actual(proved.root), columns: proved.columns.map(actual), train: actual(proved.train),
         caption: actual(proved.caption), trainImage: actual(proved.trainImage), mobileBar: bar.bar,
-        sourceOnly: true, family: 16 };
+        sourceOnly: true, family: 16, ...(single ? { singleDispatch: true } : {}) };
 }

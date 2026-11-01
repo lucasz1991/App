@@ -25,27 +25,37 @@ use Tests\TestCase;
 
 final class OutlookV30ReferencePresentationTest extends TestCase
 {
-    public function test_mobile_dispatch_actions_have_meaningful_alternatives_for_the_real_linked_image_auditor(): void
+    public function test_single_dispatch_card_keeps_accessible_actions_even_when_office_loses_all_style_blocks(): void
     {
         [$canonical] = $this->source();
         foreach ([$canonical, OutlookMobileSignature::payload($canonical)] as $input) {
             $html = OutlookClientPresentation::payload($input)['signature']['html'];
-            self::assertSame(1, preg_match('~<div class="rt-v16-mobile-dispatch"[^>]*>.*?</div>~s', $html, $match));
-            $bar = $match[0];
+            self::assertStringNotContainsString('rt-v16-mobile-dispatch', $html);
+            self::assertStringNotContainsString('.rt-v16-dispatch{display:none', $html);
             $dom = new \DOMDocument;
-            @$dom->loadHTML('<?xml encoding="UTF-8">'.$bar, LIBXML_NONET);
-            $images = (new \DOMXPath($dom))->query('//a/img');
+            @$dom->loadHTML('<?xml encoding="UTF-8">'.$html, LIBXML_NONET);
+            $xpath = new \DOMXPath($dom);
+            $cards = $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-v16-dispatch-block ")]');
+            self::assertCount(1, $cards);
+            $card = $cards->item(0);
+            $images = $xpath->query('.//a/img', $card);
             self::assertCount(2, $images);
-            self::assertSame('E-Mail', $images->item(0)->getAttribute('alt'));
+            self::assertNotSame('', $images->item(0)->getAttribute('alt'));
             self::assertSame('Telefon', $images->item(1)->getAttribute('alt'));
             self::assertStringStartsWith('mailto:', $images->item(0)->parentNode->getAttribute('href'));
             self::assertStringStartsWith('tel:', $images->item(1)->parentNode->getAttribute('href'));
-            $audit = app(EmailCompatibilityAuditor::class)->audit($bar, '', ['document_kind' => 'signature']);
+            $cardHtml = $dom->saveHTML($card);
+            $audit = app(EmailCompatibilityAuditor::class)->audit($cardHtml, '', ['document_kind' => 'signature']);
             self::assertNotContains('EMAIL-IMAGE-001', array_column($audit->findings, 'rule_id'));
-            $broken = str_replace('alt="E-Mail"', 'alt=""', $bar);
-            self::assertNotSame($bar, $broken);
+            $broken = str_replace('alt="'.$images->item(0)->getAttribute('alt').'"', 'alt=""', $cardHtml);
+            self::assertNotSame($cardHtml, $broken);
             $negative = app(EmailCompatibilityAuditor::class)->audit($broken, '', ['document_kind' => 'signature']);
             self::assertContains('EMAIL-IMAGE-001', array_column($negative->findings, 'rule_id'), 'The normal auditor must still reject an unnamed linked action.');
+            $withoutStyles = preg_replace('~<style\b[^>]*>.*?</style\s*>~is', '', $html);
+            @$dom->loadHTML('<?xml encoding="UTF-8">'.$withoutStyles, LIBXML_NONET);
+            $surviving = (new \DOMXPath($dom))->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-v16-dispatch ")]');
+            self::assertCount(1, $surviving);
+            self::assertDoesNotMatchRegularExpression('/(?:display\s*:\s*none|mso-hide\s*:\s*all|max-height\s*:\s*0)/i', $surviving->item(0)->getAttribute('style'));
         }
         Http::assertNothingSent();
     }
@@ -71,7 +81,8 @@ final class OutlookV30ReferencePresentationTest extends TestCase
                 $previous = Reference::canonicalizeToV15($html);
                 self::assertStringContainsString('outlook-desktop-flow-v15', $previous);
                 self::assertSame($html, Reference::document($previous));
-                self::assertSame(1, substr_count($html, 'class="rt-v16-mobile-dispatch"'));
+                self::assertSame(1, substr_count($html, ' rt-v16-single-dispatch"'));
+                self::assertStringNotContainsString('rt-v16-mobile-dispatch', $html);
                 self::assertStringContainsString('width="220" align="left"', $html);
                 self::assertStringContainsString('width="280" align="left"', $html);
                 self::assertStringContainsString('width="529"', $html);
@@ -88,7 +99,47 @@ final class OutlookV30ReferencePresentationTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_actual_system_inliner_emits_three_groups_and_derived_mobile_bar_without_attachments(): void
+    public function test_mime_style_loss_cannot_reveal_a_second_card_and_numeric_train_fallback_is_preserved(): void
+    {
+        [$canonical] = $this->source();
+        $html = OutlookClientPresentation::payload($canonical)['signature']['html'];
+        // Model only properties actually removed in the saved Office MIME.
+        // This is a structural counterexample, not native rendering evidence.
+        $lost = preg_replace('~<style\b[^>]*>.*?</style\s*>~is', '', $html);
+        $lost = preg_replace_callback('~\bstyle="([^"]*)"~', static fn (array $match): string => 'style="'.preg_replace('~(?:^|;)\s*(?:display|mso-hide)\s*:[^;]*;?~i', ';', $match[1]).'"', $lost);
+        $lost = str_replace(['width:clamp(248px,calc(100% - 220px),280px);', 'width:min(547px,100%);'], '', $lost);
+        $dom = new \DOMDocument;
+        @$dom->loadHTML('<?xml encoding="UTF-8">'.$lost, LIBXML_NONET);
+        $xpath = new \DOMXPath($dom);
+        $cards = $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-v16-dispatch-block ")]');
+        self::assertCount(1, $cards);
+        self::assertCount(3, $xpath->query('.//a', $cards->item(0)));
+        self::assertCount(0, $xpath->query('//*[contains(concat(" ",normalize-space(@class)," ")," rt-v16-mobile-dispatch ")]'));
+        $direct = $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-v16-direct ")]')->item(0);
+        self::assertSame('280', $direct->getAttribute('width'));
+        self::assertStringContainsString('max-width:100%', $direct->getAttribute('style'));
+        $train = $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-v16-train ")]')->item(0);
+        self::assertSame('547', $train->getAttribute('width'));
+        self::assertStringContainsString('max-width:100%!important', $train->getAttribute('style'));
+        $image = $xpath->query('.//img', $train)->item(0);
+        self::assertSame('529', $image->getAttribute('width'));
+        self::assertSame('115', $image->getAttribute('height'));
+        self::assertStringContainsString('max-width:100%!important', $image->getAttribute('style'));
+        self::assertStringContainsString('padding:0 18px 0 0', $xpath->query('.//td', $train)->item(0)->getAttribute('style'));
+        self::assertCount(1, $xpath->query('following::table[contains(concat(" ",normalize-space(@class)," ")," rt-v16-train ")]', $cards->item(0)));
+    }
+
+    public function test_single_card_source_rejects_a_reintroduced_footer_duplicate(): void
+    {
+        [$canonical] = $this->source();
+        $html = OutlookClientPresentation::payload($canonical)['signature']['html'];
+        $changed = preg_replace('~(?=<table\b[^>]*class="[^"]*\brt-brand-legal-table\b)~', '<div class="rt-v16-mobile-dispatch">Dispo 24/7</div>', $html, 1, $count);
+        self::assertSame(1, $count);
+        $this->expectException(RuntimeException::class);
+        Reference::canonicalizeToV15($changed);
+    }
+
+    public function test_actual_system_inliner_emits_three_groups_and_one_visible_card_without_attachments(): void
     {
         $fixture = new PublishedStaticSystemDeliveryTest('test_effective_published_system_pair_uses_remote_pngs_through_the_real_inliner_and_embedder');
         (new ReflectionMethod($fixture, 'setUp'))->invoke($fixture);
@@ -101,7 +152,8 @@ final class OutlookV30ReferencePresentationTest extends TestCase
         $html = (new SystemMailCssInliner)->convert(EmailTemplateBuilder::buildSystemMailHtml(new HtmlString('<p>Application content stays literal.</p>')));
         self::assertStringContainsString('outlook-desktop-flow-v16', $html);
         self::assertSame(3, substr_count($html, ' rt-v16-column '));
-        self::assertSame(1, substr_count($html, 'class="rt-v16-mobile-dispatch"'));
+        self::assertStringContainsString('rt-v16-single-dispatch', $html);
+        self::assertStringNotContainsString('rt-v16-mobile-dispatch', $html);
         self::assertStringContainsString('Application content stays literal.', $html);
         self::assertDoesNotMatchRegularExpression('/\b(?:cid|data):|data-rt-system-mail-inline-assets/i', $html);
         $message = (new Email)->from('system@example.test')->to('self@example.test')->html($html);
@@ -277,13 +329,11 @@ final class OutlookV30ReferencePresentationTest extends TestCase
             'main gutter' => ['padding:12px 40px 0 40px;', 'padding:12px 41px 0 40px;'],
             'legal gutter' => ['padding:12px 40px 16px;', 'padding:12px 41px 16px;'],
             'train geometry' => ['width="529"', 'width="530"'],
-            'mobile paint' => ['display:none;mso-hide:all;padding:7px 20px;background-color:#e90032;', 'display:none;mso-hide:all;padding:7px 20px;background-color:#000000;'],
-            'mobile link' => ['margin-left:12px;', 'margin-left:13px;'],
+            'single card marker' => [' rt-v16-single-dispatch"', ' rt-v16-other-dispatch"'],
+            'direct adaptive width' => ['width:clamp(248px,calc(100% - 220px),280px);', 'width:clamp(248px,calc(100% - 221px),280px);'],
+            'train adaptive width' => ['width:min(547px,100%);', 'width:min(548px,100%);'],
             'source css' => ['@media(max-width:520px)', '@media(max-width:900px)'],
             'contact geometry' => ['width:26px!important;min-width:26px!important;', 'width:25px!important;min-width:25px!important;'],
-            'phone disagreement' => ['Dispo <span style="font-style:italic;">24/7</span>', 'Foreign <span style="font-style:italic;">24/7</span>'],
-            'unnamed mail action' => ['alt="E-Mail" style="display:inline-block;', 'alt="" style="display:inline-block;'],
-            'unnamed phone action' => ['alt="Telefon" style="display:inline-block;', 'alt="" style="display:inline-block;'],
         ];
     }
 

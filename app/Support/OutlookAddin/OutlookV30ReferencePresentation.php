@@ -12,7 +12,7 @@ final class OutlookV30ReferencePresentation
 {
     public const FLOW = 'outlook-desktop-flow-v16';
 
-    public const REVISION = 'outlook-v30-c-1-presentation-v1';
+    public const REVISION = 'outlook-v30-c-1-presentation-v2';
 
     private const TOKENS = '~<!doctype\b[^>]*>|<!--.*?-->|<style\b(?:[^"\'<>]|"[^"]*"|\'[^\']*\')*>.*?</style\s*>|</?[a-z][a-z0-9:-]*(?:[^"\'<>]|"[^"]*"|\'[^\']*\')*>~is';
 
@@ -213,6 +213,19 @@ final class OutlookV30ReferencePresentation
         };
         $style($main, 'padding:12px 0 0 18px;font-size:0;line-height:0;vertical-align:top;', 'padding:12px 40px 0 40px;font-size:0;line-height:0;vertical-align:top;');
         $style($legal, 'padding:0 18px;', 'padding:12px 40px 16px;');
+        $rootClass = $nodes[$root]['attrs']['class'] ?? '';
+        if ($forward) {
+            if (str_contains($rootClass, 'rt-v16-single-dispatch')) {
+                self::fail();
+            }
+            $set($root, ['class' => $rootClass.' rt-v16-single-dispatch']);
+        } else {
+            if (! str_ends_with($rootClass, ' rt-v16-single-dispatch')
+                || count(self::findClass($nodes, 'rt-v16-single-dispatch')) !== 1) {
+                self::fail();
+            }
+            $set($root, ['class' => substr($rootClass, 0, -strlen(' rt-v16-single-dispatch'))]);
+        }
 
         $identity = null;
         foreach (self::COLUMNS as $role => [$oldWidth, $newWidth, $oldRight, $newRight]) {
@@ -232,7 +245,8 @@ final class OutlookV30ReferencePresentation
                 self::fail();
             }
             $set($index, ['width' => (string) ($forward ? $newWidth : $oldWidth)]);
-            $style($index, 'width:'.$oldWidth.'px;max-width:100%;border-collapse:collapse;mso-table-lspace:0;mso-table-rspace:0;', 'width:'.$newWidth.'px;max-width:100%;border-collapse:collapse;mso-table-lspace:0;mso-table-rspace:0;');
+            $referenceWidth = $role === 'direct' ? 'clamp(248px,calc(100% - 220px),280px)' : $newWidth.'px';
+            $style($index, 'width:'.$oldWidth.'px;max-width:100%;border-collapse:collapse;mso-table-lspace:0;mso-table-rspace:0;', 'width:'.$referenceWidth.';max-width:100%;border-collapse:collapse;mso-table-lspace:0;mso-table-rspace:0;');
             $cell = self::oneClass($nodes, 'rt-v'.$family.'-'.$role.'-cell');
             $style($cell, 'padding:0 '.$oldRight.'px 0 0;vertical-align:top;font-family:Arial,sans-serif;font-size:13px;line-height:17px;', 'padding:0 '.$newRight.'px 0 0;vertical-align:top;font-family:\'Trebuchet MS\',Arial,sans-serif;font-size:13px;line-height:19px;');
         }
@@ -307,7 +321,8 @@ final class OutlookV30ReferencePresentation
                 || ($oldHeight !== null && ($nodes[$index]['attrs']['height'] ?? '') !== (string) ($forward ? $oldHeight : $newHeight))) {
                 self::fail();
             }
-            $attrs = ['width' => (string) ($forward ? $newWidth : $oldWidth), 'style' => self::exactReplace($nodes[$index]['attrs']['style'] ?? '', 'width:'.($forward ? $oldWidth : $newWidth).'px;', 'width:'.($forward ? $newWidth : $oldWidth).'px;')];
+            $referenceWidth = $index === $train ? 'min(547px,100%)' : $newWidth.'px';
+            $attrs = ['width' => (string) ($forward ? $newWidth : $oldWidth), 'style' => self::exactReplace($nodes[$index]['attrs']['style'] ?? '', 'width:'.($forward ? $oldWidth.'px' : $referenceWidth).';', 'width:'.($forward ? $referenceWidth : $oldWidth.'px').';')];
             if ($oldHeight !== null) {
                 $attrs['height'] = (string) ($forward ? $newHeight : $oldHeight);
             }
@@ -378,68 +393,30 @@ final class OutlookV30ReferencePresentation
         $set($legalHost, ['style' => self::exactReplace($current, $forward ? ';padding:8px 0!important;' : ';padding:0!important;', $forward ? ';padding:0!important;' : ';padding:8px 0!important;')]);
 
         $scope = self::scope($nodes[$root], $family);
-        $bar = self::mobileBar($html, $nodes, $root, $family);
         $css = self::css(str_replace('rt-df'.$family, 'rt-df16', $scope), $system);
+        // One real card remains visible even when Office removes STYLE/media.
+        // A second hidden copy cannot be proved safe after that transport.
+        if (str_contains($html, 'rt-v16-mobile-dispatch')) {
+            self::fail();
+        }
         if ($forward) {
-            if (str_contains($html, 'data-rt-v30-css=') || str_contains($html, 'rt-v16-mobile-dispatch')) {
+            if (str_contains($html, 'data-rt-v30-css=')) {
                 self::fail();
             }
-            $edits[] = [$nodes[$root]['start'], 0, $css];
-            $edits[] = [$nodes[$legalTable]['start'], 0, $bar];
         } else {
-            if (substr_count($html, $css) !== 1 || substr_count($html, $bar) !== 1) {
-                self::fail();
-            }
-            $bars = self::findClass($nodes, 'rt-v16-mobile-dispatch');
-            if (count($bars) !== 1 || $nodes[$bars[0]]['parent'] !== $legalHost || $nodes[$bars[0]]['end'] !== $nodes[$legalTable]['start']) {
+            if (substr_count($html, $css) !== 1) {
                 self::fail();
             }
             $edits[] = [strpos($html, $css), strlen($css), ''];
-            $edits[] = [$nodes[$bars[0]]['start'], $nodes[$bars[0]]['end'] - $nodes[$bars[0]]['start'], ''];
         }
         foreach ($changes as $index => $attributes) {
-            $edits[] = [$nodes[$index]['start'], $nodes[$index]['openEnd'] - $nodes[$index]['start'], self::opening($nodes[$index], $attributes)];
+            $edits[] = [$nodes[$index]['start'], $nodes[$index]['openEnd'] - $nodes[$index]['start'], ($forward && $index === $root ? $css : '').self::opening($nodes[$index], $attributes)];
         }
         $result = self::replace($html, $edits);
 
         $result = self::family($result, $forward ? 15 : 16, $forward ? 16 : 15);
 
         return $forward && $system ? self::systemFrames($result, true) : $result;
-    }
-
-    private static function mobileBar(string $html, array $nodes, int $root, int $family): string
-    {
-        $card = self::oneClass($nodes, 'rt-v'.$family.'-dispatch-block');
-        if (! self::within($nodes, $card, $root)) {
-            self::fail();
-        }
-        $links = array_keys(array_filter($nodes, static fn (array $n, int $i): bool => $n['tag'] === 'a' && self::within($nodes, $i, $card), ARRAY_FILTER_USE_BOTH));
-        if (count($links) !== 3) {
-            self::fail();
-        }
-        $parts = [];
-        foreach ($links as $position => $index) {
-            $href = $nodes[$index]['attrs']['href'] ?? '';
-            $children = self::direct($nodes, $index);
-            if ($position < 2) {
-                if (count($children) !== 1 || $nodes[$children[0]]['tag'] !== 'img') {
-                    self::fail();
-                }
-                $inner = '<img src="'.self::escape($nodes[$children[0]]['attrs']['src'] ?? '').'" width="18" height="18" alt="'.($position === 0 ? 'E-Mail' : 'Telefon').'" style="display:inline-block;vertical-align:middle;border:0;">';
-            } else {
-                $inner = self::escape(trim(CssSemantic::decodeHtmlEntitiesOnce(strip_tags(substr($html, $nodes[$index]['openEnd'], $nodes[$index]['close'] - $nodes[$index]['openEnd'])))));
-                if ($inner === '' || preg_replace('/\D/', '', $inner) !== preg_replace('/\D/', '', $href)) {
-                    self::fail();
-                }
-            }
-            $parts[] = '<a href="'.self::escape($href).'" style="'.($position < 2 ? 'margin-left:12px;' : 'color:#ffffff;text-decoration:none;margin-left:12px;white-space:nowrap;').'">'.$inner.'</a>';
-        }
-        $fill = $nodes[$card]['attrs']['background'] ?? '';
-        if ($fill === '') {
-            self::fail();
-        }
-
-        return '<div class="rt-v16-mobile-dispatch" style="display:none;mso-hide:all;padding:7px 20px;background-color:#e90032;background-image:url('.self::escape($fill).');color:#ffffff;font-family:Arial,sans-serif;font-size:12px;line-height:18px;">Dispo <span style="font-style:italic;">24/7</span>'.implode('', $parts).'</div>';
     }
 
     private static function css(string $scope, bool $system = false): string
@@ -461,8 +438,6 @@ final class OutlookV30ReferencePresentation
             .$s.' .rt-v16-direct-cell{padding-right:4px!important}'
             .$s.' .rt-v16-company-cell{padding:0 0 0 4px!important}'
             .$s.' .rt-contact td,'.$s.' .rt-delivery-contact-value{font-size:12px!important;line-height:18px!important}'
-            .$s.' .rt-v16-dispatch{display:none!important}'
-            .$s.' .rt-v16-mobile-dispatch{display:block!important}'
             .$s.' .rt-v16-legal-cell{padding-left:20px!important;padding-right:20px!important}'
             .$s.' .rt-v16-template-pad{padding-left:20px!important;padding-right:20px!important}'
             .'}</style>';
@@ -525,7 +500,7 @@ final class OutlookV30ReferencePresentation
         $wrapperAfter = $base.'box-sizing:border-box;border-left:0!important;overflow:hidden;';
         $shellStyle = $nodes[$shell]['attrs']['style'] ?? '';
         $rootStyle = 'width:100%;table-layout:fixed;border-collapse:collapse;direction:ltr;';
-        $trainStyle = 'width:547px;max-width:100%!important;border-collapse:collapse;';
+        $trainStyle = 'width:min(547px,100%);max-width:100%!important;border-collapse:collapse;';
         if (! str_ends_with($shellStyle, $forward ? self::SHELL_SUFFIX : self::SHELL_SUFFIX.self::SYSTEM_LAYOUT_SUFFIX)
             || ($nodes[$outer]['attrs']['style'] ?? '') !== $base.($forward ? '' : self::SYSTEM_LAYOUT_SUFFIX)
             || ($nodes[$wrapper]['attrs']['style'] ?? '') !== ($forward ? $wrapperBefore : $wrapperAfter)

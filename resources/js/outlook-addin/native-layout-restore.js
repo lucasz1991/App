@@ -915,7 +915,8 @@ function prepareFluidLayout(html, contract, nonce, office) {
     if (family === 15 && profile === 'M') edits.push(hostProfileOpening(html, material.train, 547), hostProfileOpening(html, material.trainImage, 529, 115), hostProfileOpening(html, material.caption, 199, 38));
     let modified = html;
     for (const edit of edits.sort((a, b) => b.start - a.start)) modified = modified.slice(0, edit.start) + edit.value + modified.slice(edit.end);
-    return Object.freeze({ html: modified, sourceOnly: 'fluid-v' + family, family, nonce: scope, version, stylePayload: '', ids: null, ...([15, 16].includes(family) ? { profile } : {}) });
+    return Object.freeze({ html: modified, sourceOnly: 'fluid-v' + family, family, nonce: scope, version, stylePayload: '', ids: null,
+        ...([15, 16].includes(family) ? { profile } : {}), ...(family === 16 ? { singleDispatch: material.singleDispatch === true } : {}) });
 }
 
 /** Outlook replaces our empty clear BR with one zero-line, style-only DIV. */
