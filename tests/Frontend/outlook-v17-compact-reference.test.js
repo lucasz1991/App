@@ -271,3 +271,135 @@ test('V17 rejects conflicting important padding even when a later ordinary short
         failure(opening(plan.html, target, value => appendStyle(value, 'padding:900px!important;padding:12px 40px 0 40px;')));
     }
 });
+
+
+test('V17 proves all four effective edges across every owned pad before proxy normalization', () => {
+    const padClasses = ['rt-v17-columns-cell', 'rt-v17-identity-cell', 'rt-v17-direct-cell', 'rt-v17-company-cell', 'rt-v17-dispatch-cell',
+        'rt-v17-dispatch-block-cell', 'rt-v17-train-host', 'rt-v17-train-cell', 'rt-v17-legal-cell', 'rt-native-template-pad'];
+    const targets = contract => {
+        const nodes = contract.elements, found = new Set();
+        for (const [index, node] of nodes.entries()) {
+            if (node.tag === 'td' && padClasses.some(name => (node.attrs.class || '').split(/\s+/).includes(name))) found.add(index);
+            if (node.tag === 'td' && (node.attrs.class || '').split(/\s+/).includes('rt-contact-icon')) {
+                nodes.forEach((sibling, position) => { if (sibling.parent === node.parent && sibling.tag === 'td') found.add(position); });
+            }
+            if (node.tag === 'td' && nodes[node.parent]?.tag === 'tr') {
+                const table = nodes[nodes[node.parent].parent]?.parent;
+                const classes = (nodes[table]?.attrs.class || '').split(/\s+/);
+                if (classes.includes('rt-personal-logo-frame') || classes.includes('rt-v17-dispatch-actions')) found.add(index);
+            }
+        }
+        found.add(nodes[contract.signatureMetadata.managed].parent);
+        return [...found].sort((a, b) => a - b).map(index => ({ index, node: nodes[index] }));
+    };
+    const prepend = (value, declaration) => value.replace(/style="([^"]*)"/, (_all, css) => 'style="' + declaration + css + '"');
+    for (const [kind, html] of Object.entries(current.source)) {
+        const contract = sourceContract(html, kind), pads = targets(contract);
+        assert.ok(pads.length >= 24);
+        for (const target of pads) {
+            // A losing earlier ordinary shorthand is semantically harmless.
+            const safe = opening(html, target, value => prepend(value, 'padding:900px;'));
+            assert.equal(verifyFluidLayoutMaterial(safe, sourceContract(safe, kind), true).family, 17);
+            for (const edge of ['top', 'right', 'bottom', 'left']) {
+                const bad = opening(html, target, value => appendStyle(value, 'padding-' + edge + ':900px!important;padding-' + edge + ':0px;'));
+                assert.throws(() => prepare(bad, kind, 'M'), error => error.code === 'NATIVE_LAYOUT_RESTORE_INVALID', kind + ':' + target.index + ':' + edge);
+            }
+        }
+        for (const profile of ['M', 'B']) {
+            const plan = prepare(html, kind, profile), scoped = fluidLayoutContract(plan.html);
+            for (const target of targets(scoped)) for (const edge of ['top', 'right', 'bottom', 'left']) {
+                const bad = opening(plan.html, target, value => appendStyle(value, 'padding-' + edge + ':900px!important;padding-' + edge + ':0px;'));
+                failure(word(bad));
+            }
+        }
+        const main = pads.find(value => (value.node.attrs.class || '').includes('rt-v17-columns-cell'));
+        for (const before of ['padding-top:900px!important;', 'padding:900px!important;']) {
+            const bad = opening(html, main, value => prepend(value, before));
+            assert.throws(() => prepare(bad, kind, 'M'), error => error.code === 'NATIVE_LAYOUT_RESTORE_INVALID');
+        }
+    }
+});
+
+
+const registeredLogo = verifyFluidLayoutMaterial(current.source.standalone, sourceContract(current.source.standalone, 'standalone'), true).sourceLogoUrl;
+const registeredCheck = (html, url = registeredLogo) => verifyFluidLayoutMaterial(html, { ...fluidLayoutContract(html), sourceLogoUrl: url });
+function actualOfficeModel(html, reply = false) {
+    const contract = fluidLayoutContract(html), material = registeredCheck(html), nodes = contract.elements;
+    const own = (node, parent) => node.start > parent.node.start && node.end < parent.node.end;
+    const logo = nodes.map((node, index) => ({ node, index })).find(value => value.node.tag === 'img' && value.node.attrs.src === registeredLogo && own(value.node, material.columns[0]));
+    const actions = nodes.map((node, index) => ({ node, index })).find(value => value.node.tag === 'table' && (value.node.attrs.class || '').includes('rt-v17-dispatch-actions'));
+    const links = nodes.map((node, index) => ({ node, index })).filter(value => value.node.tag === 'a' && own(value.node, material.columns[3]));
+    const cellBody = nodes.findIndex(node => node.parent === actions.index && node.tag === 'tbody');
+    const row = nodes.findIndex(node => node.parent === cellBody && node.tag === 'tr');
+    const cells = nodes.map((node, index) => ({ node, index })).filter(value => value.node.parent === row && value.node.tag === 'td');
+    const edits = [];
+    const imgLinks = value => html.slice(value.node.start, value.node.end).replace(/vertical-align:middle;/g, '').replace(/border:0;/g, '');
+    const host = (position, inner) => '<div style="direction:ltr;' + (position === 2 ? 'text-align:right;' : '') + 'line-height:19px;' + (position !== 1 ? 'white-space:nowrap;' : '')
+        + 'font-family:' + (position === 2 ? 'Arial' : '&quot;Trebuchet MS&quot;,Arial') + ',sans-serif;font-size:13px;color:#ffffff;">' + inner + '</div>';
+    const phoneSpan = nodes.find(node => node.parent === links[3].index && node.tag === 'span');
+    const phone = html.slice(phoneSpan.openEnd, phoneSpan.close);
+    const phoneLink = html.slice(links[3].node.start, links[3].node.openEnd) + '<b>' + phone + '</b></a>';
+    for (const [position, cell] of cells.entries()) {
+        const inner = position === 0 ? imgLinks(links[0]) + imgLinks(links[1]) : position === 1 ? imgLinks(links[2]) : '<span style="line-height:24px;">' + phoneLink + '</span>';
+        const begin = html.slice(cell.node.start, cell.node.openEnd).replace(/\swidth="[^"]*"/, '');
+        edits.push({ start: cell.node.start, end: cell.node.end, value: begin + host(position, inner) + '</td>' });
+    }
+    edits.push({ start: logo.node.start, end: logo.node.openEnd, value: html.slice(logo.node.start, logo.node.openEnd).replace(/\s(?:width|height)="(?:184|32)"/g, '') });
+    for (const node of nodes) {
+        if (node.tag === 'p' && (node.attrs.class || '').includes('rt-sign-name')) edits.push({ start: node.start, end: node.end,
+            value: html.slice(node.start, node.openEnd).replace(/font-weight:bold;/g, '') + '<b>' + html.slice(node.openEnd, node.close) + '</b></p>' });
+        if (node.tag === 'p' && (node.attrs.class || '').includes('rt-delivery-contact-value')) edits.push({ start: node.start, end: node.openEnd,
+            value: html.slice(node.start, node.openEnd).replace(/word-break:normal(?:!important)?;/g, '') });
+        if (node.tag === 'td' && (node.attrs.class || '').includes('rt-v17-legal-cell')) edits.push({ start: node.start, end: node.openEnd,
+            value: html.slice(node.start, node.openEnd).replace('padding:8px 40px 8px;', 'padding:8px 20px;').replace(/padding-(?:left|right):20px!important;/g, '') });
+        if (node.tag === 'br' && nodes[node.parent]?.tag === 'div' && (nodes[node.parent].attrs.style || '').includes('line-height:15px')) {
+            edits.push({ start: node.start, end: node.end, value: '<span style="font-size:9px;"><br></span>' });
+        }
+    }
+    let value = html;
+    for (const edit of edits.sort((a, b) => b.start - a.start)) value = value.slice(0, edit.start) + edit.value + value.slice(edit.end);
+    value = word(value);
+    if (reply) {
+        const currentContract = fluidLayoutContract(value), list = currentContract.elements;
+        const wa = list.map((node, index) => ({ node, index })).find(item => item.node.tag === 'a' && item.node.attrs.href === 'https://wa.me/491601881848');
+        value = opening(value, wa, text => text.replace('<a ', '<a class="x_rt-v17-dispatch-whatsapp OWAAutoLink" id="OWA12345678-1234-1234-1234-123456789abc" '));
+        value = value.replace(/<div style="direction:ltr;(?=(?:text-align:right;)?line-height:19px;)/g, '<div class="elementToProof" style="direction:ltr;');
+    }
+    return value;
+}
+for (const profile of ['M', 'B']) for (const [kind, html] of Object.entries(current.source)) test('registered V17 ' + kind + '/' + profile + ' preserves the exact real Office receive/reply model and source-bound logo', () => {
+    const plan = prepare(html, kind, profile);
+    assert.equal(plan.sourceLogoUrl, registeredLogo);
+    for (const reply of [false, true]) {
+        const received = actualOfficeModel(plan.html, reply);
+        assert.equal(registeredCheck(received).family, 17);
+        assert.throws(() => checked(received), error => error.code === 'NATIVE_LAYOUT_RESTORE_INVALID');
+        assert.throws(() => registeredCheck(received, 'https://mail.example.test/m/0000000000.png'), error => error.code === 'NATIVE_LAYOUT_RESTORE_INVALID');
+        const scoped = fluidLayoutContract(received), image = scoped.elements.map((node, index) => ({ node, index })).find(value => value.node.tag === 'img' && value.node.attrs.src === registeredLogo);
+        for (const attribute of ['width="185"', 'height="33"']) assert.throws(() => registeredCheck(opening(received, image, value => value.replace('<img ', '<img ' + attribute + ' '))), error => error.code === 'NATIVE_LAYOUT_RESTORE_INVALID');
+        const badUrl = opening(received, image, value => value.replace(registeredLogo, 'https://outside.invalid/logo.png'));
+        assert.throws(() => registeredCheck(badUrl), error => error.code === 'NATIVE_LAYOUT_RESTORE_INVALID');
+        const wa = scoped.elements.find(node => node.tag === 'a' && node.attrs.href === 'https://wa.me/491601881848');
+        const host = { node: scoped.elements[wa.parent] };
+        assert.throws(() => registeredCheck(opening(received, host, value => value.replace('line-height:19px;', 'line-height:20px;'))), error => error.code === 'NATIVE_LAYOUT_RESTORE_INVALID');
+        const legalBreak = scoped.elements.map((node, index) => ({ node, index })).find(value => value.node.tag === 'span' && value.node.attrs.style === 'font-size:9px;');
+        assert.ok(legalBreak);
+        assert.throws(() => registeredCheck(opening(received, legalBreak, value => value.replace('font-size:9px;', 'font-size:10px;'))), error => error.code === 'NATIVE_LAYOUT_RESTORE_INVALID');
+        const phoneFormat = scoped.elements.map((node, index) => ({ node, index })).find(value => value.node.tag === 'div' && value.node.attrs.style?.includes('font-family:Arial,sans-serif;font-size:13px;color:#ffffff;'));
+        assert.ok(phoneFormat);
+        assert.throws(() => registeredCheck(opening(received, phoneFormat, value => value.replace('font-family:Arial,sans-serif;', 'font-family:Unknown,sans-serif;'))), error => error.code === 'NATIVE_LAYOUT_RESTORE_INVALID');
+        if (reply) for (const [before, after] of [
+            ['x_rt-v17-dispatch-whatsapp OWAAutoLink', 'x_rt-v17-dispatch-whatsapp Foreign'],
+            ['OWA12345678-1234-1234-1234-123456789abc', 'arbitrary-id'], ['class="elementToProof"', 'class="unknown"'],
+        ]) assert.throws(() => registeredCheck(received.replace(before, after)), error => error.code === 'NATIVE_LAYOUT_RESTORE_INVALID');
+    }
+});
+for (const profile of ['M', 'B']) for (const path of ['standalone', 'prepend', 'replace']) test('registered logo-loss readback ' + profile + '/' + path + ' is confirmed only against the verified source URL', async () => {
+    const box = mailbox(profile, html => actualOfficeModel(html, true));
+    if (path === 'replace') box.state.html = prepare(current.source.combined.replaceAll(current.version, 'ee'.repeat(8)), 'combined', profile).html;
+    if (path === 'standalone') await insertStandaloneSignature(box.office, box.item, current.source.standalone, () => {}, { media: [] });
+    else if (path === 'prepend') await prependTemplate(box.office, box.item, current.source.combined, () => {}, { media: [] });
+    else await replaceManagedTemplate(box.office, box.item, current.source.combined, () => {}, { media: [] });
+    assert.equal(box.state.writes, 1); assert.equal(box.state.completed, 1);
+    assert.equal(registeredCheck(box.state.html).family, 17);
+});

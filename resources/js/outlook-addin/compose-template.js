@@ -665,7 +665,7 @@ function retainReferenceDiagnosticPlan(operation, layout, kind) {
     if (layout?.family !== 17) return retainV16DiagnosticPlan(operation, layout, kind);
     if (layout.sourceOnly !== 'fluid-v17' || !['M', 'B'].includes(layout.profile) || layout.singleDispatch !== true || typeof layout.raisedTrain !== 'boolean'
         || !/^[0-9a-f]{32}$/.test(layout.nonce || '') || !/^[0-9a-f]{16}$/.test(layout.version || '')) return;
-    operation.v17DiagnosticPlan = Object.freeze({ family: 17, profile: layout.profile, nonce: layout.nonce, version: layout.version, kind, singleDispatch: true, raisedTrain: layout.raisedTrain });
+    operation.v17DiagnosticPlan = Object.freeze({ family: 17, profile: layout.profile, nonce: layout.nonce, version: layout.version, kind, singleDispatch: true, raisedTrain: layout.raisedTrain, sourceLogoUrl: layout.sourceLogoUrl });
 }
 
 function v16DiagnosticShape(html, current, contract) {
@@ -756,7 +756,7 @@ function diagnoseV17Readback(html, current, item, result) {
     if (result.v17Shape.elementBoundExceeded) { result.phase = 'diagnostic-v17-shape-bound'; return result; }
     result.phase = 'diagnostic-v17-material';
     try {
-        const material = verifyFluidLayoutMaterial(html, contract);
+        const material = verifyFluidLayoutMaterial(html, plan ? { ...contract, sourceLogoUrl: plan.sourceLogoUrl } : contract);
         if (material.singleDispatch !== true || plan && (plan.singleDispatch !== true || typeof plan.raisedTrain !== 'boolean' || material.raisedTrain !== plan.raisedTrain)) { result.sourcePlanMatched = plan ? false : null; return result; }
     } catch { return result; }
     result.material = true;
@@ -899,7 +899,7 @@ async function insertFluidStandalone(office, item, html, incoming, beforeWrite, 
         if (activeFluid) {
             previous = fluidLayoutContract(original.html, current);
             if (previous.kind !== 'standalone-signature-v1') throw failure('SIGNATURE_LAYOUT_UNAVAILABLE');
-            previousMaterial = verifyFluidLayoutMaterial(original.html, previous);
+
         }
         if (hasUnquotedSignatureLayoutCarrier(original.html, current)) {
             const historical = existingStandalone(original);
@@ -907,6 +907,8 @@ async function insertFluidStandalone(office, item, html, incoming, beforeWrite, 
                 || nativeLayoutRestoreRetained(original.html, historical.contract, historical.ids) !== true) throw failure('SIGNATURE_LAYOUT_LEGACY_CARRIER');
         }
         const layout = prepareNativeLayoutRestore(html, incoming, previous?.fluidLayout.nonce, office);
+        if (previous) previousMaterial = verifyFluidLayoutMaterial(original.html, previous.fluidLayout.family === 17 && previous.fluidLayout.version === layout.version
+            ? { ...previous, sourceLogoUrl: layout.sourceLogoUrl } : previous);
         if (!['fluid-v11', 'fluid-v12', 'fluid-v13', 'fluid-v14', 'fluid-v15', 'fluid-v16', 'fluid-v17'].includes(layout?.sourceOnly) || layout.html.length > 30000) throw failure('SIGNATURE_TOO_LARGE');
         retainReferenceDiagnosticPlan(operation, layout, incoming.kind);
         if (original.html.length + layout.html.length > TEMPLATE_INSERT_LIMITS.bodyLength) throw failure('SIGNATURE_LAYOUT_UNAVAILABLE');
@@ -933,7 +935,7 @@ async function insertFluidStandalone(office, item, html, incoming, beforeWrite, 
         const owned = fluidLayoutContract(written.html, currentComposeBodyHtml(written.html, written.composeType), layout.nonce, layout.version);
         if (owned.kind !== 'standalone-signature-v1' || owned.fluidLayout.family !== layout.family
             || owned.fluidLayout.profile !== layout.profile) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
-        const material = verifyFluidLayoutMaterial(written.html, owned);
+        const material = verifyFluidLayoutMaterial(written.html, layout.family === 17 ? { ...owned, sourceLogoUrl: layout.sourceLogoUrl } : owned);
         if ([16, 17].includes(layout.family) && (typeof layout.singleDispatch !== 'boolean'
             || (material.singleDispatch === true) !== layout.singleDispatch) || layout.family === 17 && (typeof layout.raisedTrain !== 'boolean' || material.raisedTrain !== layout.raisedTrain)) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
         options.beforeCommit?.(); await signatureSession(office, item, operation, 'complete');
@@ -1273,7 +1275,7 @@ async function restoreNativeLayout(office, item, layout, operation, original, op
         const owned = fluidLayoutContract(written.html, currentComposeBodyHtml(written.html, written.composeType), layout.nonce, layout.version);
         if (owned.kind !== 'text-v1' || owned.fluidLayout.family !== layout.family
             || owned.fluidLayout.profile !== layout.profile) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
-        const material = verifyFluidLayoutMaterial(written.html, owned);
+        const material = verifyFluidLayoutMaterial(written.html, layout.family === 17 ? { ...owned, sourceLogoUrl: layout.sourceLogoUrl } : owned);
         if ([16, 17].includes(layout.family) && (typeof layout.singleDispatch !== 'boolean'
             || (material.singleDispatch === true) !== layout.singleDispatch) || layout.family === 17 && (typeof layout.raisedTrain !== 'boolean' || material.raisedTrain !== layout.raisedTrain)) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
         options.beforeCommit?.(); await markTemplateApplied(item, operation); return;
