@@ -10,6 +10,8 @@ import {
     requiresStandaloneSignatureLayout,
     standaloneSignatureLayoutIsCurrent,
     signatureHostProfileIsCurrent,
+    insertHeadTransportProbe,
+    headTransportProbeReport,
     signatureOfficeWire,
     combinedComposeDocument,
     diagnoseUncertainV15Readback,
@@ -27,6 +29,7 @@ import { automaticTemplate } from './compose-template.js';
 import { readComposeSender, assertMailboxBinding } from './mailbox-guard.js';
 import { diagnoseStep, recordDiagnostic, diagnosticReport } from './diagnostics.js';
 import { confirmedOfficeWrite, hasUncertainWrite } from './office-write.js';
+import { headProbeContextAvailable } from './head-transport-probe.js';
 import { bindAutomaticPreferencesView, createAccountPreferencesSession, normalizeAutomaticPreferences } from './automatic-preferences-view.js';
 import { bindWordingPreferencesView, bindTemplateChoiceView, createAccountOptionsSession,
     normalizeWordingPreferences, normalizeTemplateChoicePreferences } from './account-options-view.js';
@@ -716,7 +719,7 @@ export function setStatus(tone, title, detail = '', focus = false) {
     view.statusDetail.textContent = detail;
     view.statusDetail.hidden = tone === 'success';
     const diagnostics = document.querySelector('[data-outlook-diagnostics]');
-    if (diagnostics) diagnostics.hidden = tone !== 'error';
+    if (diagnostics) diagnostics.hidden = tone !== 'error' && !headProbeAvailable();
     if (view.feedback) {
         view.feedback.textContent = [title, detail].filter(Boolean).join('. ');
         view.feedback.dataset.tone = tone;
@@ -1097,6 +1100,7 @@ function syncActionState() {
 
     updateDisabledStates();
     syncAutomaticPreferences();
+    syncHeadProbeButton();
 }
 
 function setBusy(busy, activeButton = null) {
@@ -1111,6 +1115,22 @@ function setBusy(busy, activeButton = null) {
     updateDisabledStates();
     syncAutomaticPreferences();
     syncAccountOptions();
+    syncHeadProbeButton();
+}
+
+function headProbeAvailable() {
+    return !taskpaneState.settingsMode && taskpaneState.authenticated && taskpaneState.bootstrapReady
+        && headProbeContextAvailable(globalThis.Office, currentBootstrap?.binding);
+}
+
+function syncHeadProbeButton() {
+    const button = document.querySelector('[data-outlook-head-probe]');
+    if (!button) return;
+    const available = headProbeAvailable(); button.hidden = !available;
+    button.disabled = !available || taskpaneState.busy || insertionBlocked()
+        || headTransportProbeReport(globalThis.Office?.context?.mailbox?.item)?.attempted === true;
+    const region = document.querySelector('[data-outlook-diagnostics]');
+    if (available && region) region.hidden = false;
 }
 
 function syncAutomaticPreferences() {
@@ -1238,6 +1258,12 @@ function authenticationWasLost(error) {
 
 function userMessage(error) {
     const code = safeErrorCode(error);
+    if (code === 'HEAD_PROBE_UNCONFIRMED' || code === 'HEAD_PROBE_ALREADY_ATTEMPTED') {
+        return 'Der technische Probeversuch ist gesperrt. Den Entwurf prüfen; es wird nichts erneut eingefügt oder zurückgesetzt.';
+    }
+    if (code.startsWith('HEAD_PROBE_')) {
+        return 'Die technische Probe benötigt den benannten neuen Selbsttest-Entwurf mit genau einem eigenen Empfänger, leerem Nachrichtenbereich und ohne Anhänge oder Zitate.';
+    }
     if (code === 'TEMPLATE_REPLACEMENT_UNAVAILABLE') {
         return 'Diese ältere oder bearbeitete Vorlage lässt sich nicht sicher ersetzen. Ihr Entwurf bleibt erhalten. Bitte verwenden Sie für den Vorlagenwechsel einen neuen Entwurf.';
     }
@@ -1696,6 +1722,8 @@ async function showDiagnosticReport({ readV15 = false } = {}) {
         automaticTemplate: Boolean(automaticTemplate(currentBootstrap)), writeBlocked: insertionBlocked(),
         ...(boundMailbox ? insertionDisplayEvidence() : {}),
     });
+    const headProbe = headTransportProbeReport(globalThis.Office?.context?.mailbox?.item);
+    if (headProbe) report.headTransportProbe = headProbe;
     const uncertain = insertionBlocked() || ['TEMPLATE_LAYOUT_UNCONFIRMED', 'SIGNATURE_LAYOUT_UNCONFIRMED',
         'TEMPLATE_INSERT_UNCERTAIN', 'SIGNATURE_INSERT_UNCERTAIN', 'INLINE_ATTACHMENT_UNCERTAIN'].includes(safeErrorCode(lastActionError));
     if (readV15 && boundMailbox && uncertain && !taskpaneState.busy) {
@@ -1737,6 +1765,26 @@ async function runDiagnostics(button) {
         syncActionState();
         await showDiagnosticReport({ readV15: true });
     }
+}
+
+async function runHeadTransportProbe(button) {
+    if (!headProbeAvailable() || taskpaneState.busy || button.disabled) return;
+    await withAuthenticatedBootstrap(button, async (bootstrap, target) => {
+        const entry = bootstrap.templates?.find(value => value.isDefault === true);
+        if (!entry) throw codedError('HEAD_PROBE_SOURCE_INVALID');
+        const sourceDocument = combinedComposeDocument(entry);
+        if (!sourceDocument) throw codedError('HEAD_PROBE_SOURCE_INVALID');
+        const report = await insertHeadTransportProbe(Office, target.item, {
+            sourceDocument, binding: bootstrap.binding, beforeWrite: () => assertWriteTarget(target, bootstrap.binding),
+        });
+        setStatus('neutral', 'Transportprobe einmalig eingefügt', report.probeHeadStyles === 1 && report.probeBodyStyles === 0 && report.exactCss && report.mediaRetained
+            ? 'Der SDK-Readback enthält die gebundene HEAD-CSS. Die Prüfung der empfangenen E-Mail steht noch aus.'
+            : 'Outlook hat die Probe übernommen und die CSS verändert. Der Diagnosebericht zeigt den Transportbefund; keine erneute Einfügung.');
+        const region = document.querySelector('[data-outlook-diagnostics]');
+        if (region) region.open = true;
+        await showDiagnosticReport();
+    });
+    await showDiagnosticReport();
 }
 
 export function bindOutlookDialogs(root = document) {
@@ -1785,6 +1833,8 @@ function bindActions() {
     view.template.addEventListener('click', () => insertTemplate(view.template));
     const diagnosticButton = document.querySelector('[data-outlook-diagnostics-run]');
     diagnosticButton?.addEventListener('click', () => runDiagnostics(diagnosticButton));
+    const headProbeButton = document.querySelector('[data-outlook-head-probe]');
+    headProbeButton?.addEventListener('click', () => runHeadTransportProbe(headProbeButton));
     document.querySelector('[data-outlook-diagnostics-copy]')?.addEventListener('click', async () => {
         const output = document.querySelector('[data-outlook-diagnostics-output]');
         await showDiagnosticReport({ readV15: true });

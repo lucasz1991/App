@@ -783,7 +783,7 @@ test('the taskpane requests V15 readback only from explicit diagnostics in an au
     const context = vm.createContext({ document: { querySelector: () => output }, Office: {}, taskpaneState: state,
         currentBootstrap: { binding }, lastActionError: null, captureComposeTarget: () => target,
         diagnoseStep: (_phase, fn) => fn(), assertWriteTarget: () => {}, automaticTemplate: () => null,
-        insertionDisplayEvidence: () => ({}), diagnosticReport: () => ({}), insertionBlocked: () => blocked,
+        insertionDisplayEvidence: () => ({}), diagnosticReport: () => ({}), insertionBlocked: () => blocked, headTransportProbeReport: () => null,
         safeErrorCode: error => error?.code, diagnoseUncertainV15Readback: async () => { probes++; return { material: false }; } });
     vm.runInContext(declaration + ';globalThis.show=showDiagnosticReport;', context);
     await context.show(); assert.equal(probes, 0);

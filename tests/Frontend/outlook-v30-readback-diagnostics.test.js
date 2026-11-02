@@ -128,7 +128,7 @@ test('the actual taskpane report renderer replaces a stale visible report with f
         captureComposeTarget: () => ({ item }), diagnoseStep: (_phase, operation) => operation(), assertWriteTarget: async () => {},
         diagnosticReport, globalThis: { Office: office }, Office: office, automaticTemplate: () => null,
         insertionBlocked: () => true, insertionDisplayEvidence: () => ({}), safeErrorCode: error => error?.code,
-        lastActionError: { code: 'TEMPLATE_LAYOUT_UNCONFIRMED' }, diagnoseUncertainV15Readback,
+        lastActionError: { code: 'TEMPLATE_LAYOUT_UNCONFIRMED' }, diagnoseUncertainV15Readback, headTransportProbeReport: () => null,
     };
     const render = new Function('dependencies', 'const {' + Object.keys(dependencies).join(',') + '} = dependencies; return (' + source.slice(start, end) + ');')(dependencies);
     await render({ readV15: true });

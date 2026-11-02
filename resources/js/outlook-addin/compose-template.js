@@ -2,7 +2,9 @@ import { fluidLayoutContract, hasUnquotedFluidLayoutMarker, hasUnquotedSignature
 import { createNativeLayoutNonce, inferredNativeGridRow, isFluidLayoutSource, outlookSignatureDeliveryProfile, verifyFluidLayoutMaterial, nativeLayoutClearBarrier, nativeLayoutReadbackContract, nativeLayoutThreeCellTopology, nativeLayoutRestoreCarrierIsExternal, nativeLayoutRestoreCarrierPresent, nativeLayoutRestoreCellsAligned, nativeLayoutRestoreCss, nativeLayoutRestoreRetained, prepareNativeLayoutRestore, removeNativeLayoutRestoreCarrier } from './native-layout-restore.js';
 import { applyV17OfficeWireEdits, mobileV17OfficeWire, v17OfficeWireEdits } from './v17-office-wire.js';
 import { v17MsoColumnEdits } from './v17-mso-columns.js';
-import { confirmedOfficeWrite, markSignatureWriteConfirmed } from './office-write.js';
+import { confirmedOfficeWrite, markSignatureWriteConfirmed, hasUncertainWrite } from './office-write.js';
+import { assertMailboxBinding } from './mailbox-guard.js';
+import { HEAD_PROBE_MAILBOX, HEAD_PROBE_SUBJECT, HEAD_PROBE_SESSION_KEY, headProbeContextAvailable, headProbeDocument, inspectHeadProbe } from './head-transport-probe.js';
 
 // Automatic insertion only prepends. Explicit taskpane replacement below owns
 // one verified current-message shell and preserves every outside/quoted byte.
@@ -1524,5 +1526,128 @@ export async function insertMobileCombinedTemplate(office, item, html, beforeWri
         throw error;
     } finally {
         if (operation.phase !== 'uncertain' && insertionOperations.get(item) === operation) insertionOperations.delete(item);
+    }
+}
+
+// R783 is an explicit IT diagnostic, not an insertion family or a library item.
+export function headTransportProbeReport(item) {
+    const operation = signatureOperations.get(item);
+    return operation?.headProbe === true ? { ...operation.headProbeReport } : null;
+}
+
+async function headProbeSession(office, item, key) {
+    const read = await officeResult(office, callback => item.sessionData.getAsync(key, callback));
+    if (!read.succeeded && read.reason === 'failed' && read.officeCode === '9050') return '';
+    if (!read.succeeded || typeof read.value !== 'string' && read.value !== undefined && read.value !== null) throw failure('HEAD_PROBE_SESSION_UNAVAILABLE');
+    return read.value || '';
+}
+
+async function headProbeTarget(office, item, binding, beforeWrite) {
+    await beforeWrite(); await assertMailboxBinding(office, item, binding);
+    if (!headProbeContextAvailable(office, binding)) throw failure('HEAD_PROBE_NOT_ELIGIBLE');
+    const read = async operation => { const result = await officeResult(office, operation); if (!result.succeeded) throw failure('HEAD_PROBE_TARGET_UNREADABLE'); return result.value; };
+    if (![item.subject, item.to, item.cc, item.bcc].every(value => typeof value?.getAsync === 'function')
+        || typeof item.getAttachmentsAsync !== 'function') throw failure('HEAD_PROBE_TARGET_UNREADABLE');
+    const subject = await read(callback => item.subject.getAsync(callback));
+    const to = await read(callback => item.to.getAsync(callback));
+    const cc = await read(callback => item.cc.getAsync(callback));
+    const bcc = await read(callback => item.bcc.getAsync(callback));
+    const attachments = await read(callback => item.getAttachmentsAsync(callback));
+    if (subject !== HEAD_PROBE_SUBJECT || !Array.isArray(to) || to.length !== 1
+        || String(to[0]?.emailAddress || '').trim().toLowerCase() !== HEAD_PROBE_MAILBOX
+        || !Array.isArray(cc) || cc.length || !Array.isArray(bcc) || bcc.length || !Array.isArray(attachments) || attachments.length) throw failure('HEAD_PROBE_NOT_ELIGIBLE');
+    await beforeWrite(); await assertMailboxBinding(office, item, binding);
+}
+
+function emptyHeadProbeFrame(html, expectedVersion, sourceLogoUrl, allowedProbe = null, expectedNonce = null) {
+    const contract = fluidLayoutContract(html, html, expectedNonce, expectedVersion);
+    if (contract.kind !== 'text-v1' || contract.fluidLayout.family !== 17 || !contract.region
+        || contract.elements.some(node => node.tag === 'blockquote' || /^(?:x_)?(?:divrplyfwdmsg|mail-editor-reference-message-container|stopspelling)$/i.test(node.attrs.id || ''))) throw failure('HEAD_PROBE_SOURCE_INVALID');
+    verifyFluidLayoutMaterial(html, { ...contract, sourceLogoUrl });
+    const region = html.slice(contract.region.start, contract.region.end);
+    if (region.includes('<!--') || contract.elements.some(node => node.start >= contract.region.start && node.end <= contract.region.end
+        && !['p', 'div', 'span', 'br'].includes(node.tag))
+        || region.replace(/<[^>]*>/g, '').replace(/&nbsp;|&#160;|&#x0*a0;/gi, ' ').trim()) throw failure('HEAD_PROBE_SOURCE_INVALID');
+    const remove = [contract.root, ...(allowedProbe ? [allowedProbe.node] : [])];
+    if (allowedProbe && (allowedProbe.node.start < contract.root.end && allowedProbe.node.end > contract.root.start)) throw failure('HEAD_PROBE_SOURCE_INVALID');
+    for (const node of contract.elements.filter(node => node.tag === 'head')) {
+        if (node.start < contract.root.end && node.end > contract.root.start) throw failure('HEAD_PROBE_SOURCE_INVALID');
+        remove.push(node);
+    }
+    const outsideForbidden = contract.elements.some((node, index) => !withinContract(contract, index, contract.rootIndex)
+        && !remove.some(range => node.start >= range.start && node.end <= range.end)
+        && !['html', 'body', 'div', 'p', 'span', 'br'].includes(node.tag));
+    if (outsideForbidden) throw failure('HEAD_PROBE_SOURCE_INVALID');
+    let outside = html;
+    for (const node of remove.sort((a, b) => b.start - a.start)) outside = outside.slice(0, node.start) + outside.slice(node.end);
+    if (outside.replace(/<!doctype\b[^>]*>|<!--[\s\S]*?-->|<[^>]*>/gi, '').replace(/&nbsp;|&#160;|&#x0*a0;/gi, ' ').trim()) throw failure('HEAD_PROBE_SOURCE_INVALID');
+    return contract;
+}
+
+/** One fixed native-slot experiment in a strictly bound empty technical draft. */
+export async function insertHeadTransportProbe(office, item, { sourceDocument, binding, beforeWrite = () => {} } = {}) {
+    if (insertionOperations.has(item) || signatureOperations.has(item) || hasUncertainWrite(item)) throw failure('HEAD_PROBE_ALREADY_ATTEMPTED');
+    if (!headProbeContextAvailable(office, binding) || typeof item?.sessionData?.getAsync !== 'function'
+        || typeof item?.sessionData?.setAsync !== 'function') throw failure('HEAD_PROBE_NOT_ELIGIBLE');
+    const operation = { phase: 'preflight', headProbe: true, headProbeReport: { schema: 1, attempted: false, state: 'preflight' } };
+    signatureOperations.set(item, operation);
+    try {
+        await headProbeTarget(office, item, binding, beforeWrite);
+        for (const key of [TEMPLATE_SESSION_KEY, SIGNATURE_SESSION_KEY]) {
+            const value = await headProbeSession(office, item, key);
+            if (!['', '1'].includes(value)) throw failure('HEAD_PROBE_ALREADY_ATTEMPTED');
+        }
+        if (await headProbeSession(office, item, HEAD_PROBE_SESSION_KEY) !== '') {
+            operation.claimed = true; throw failure('HEAD_PROBE_ALREADY_ATTEMPTED');
+        }
+        if (typeof sourceDocument?.html !== 'string' || !Array.isArray(sourceDocument.media) || sourceDocument.media.length) throw failure('HEAD_PROBE_SOURCE_INVALID');
+        const source = managedTemplateContract(sourceDocument.html), material = verifyFluidLayoutMaterial(sourceDocument.html, source, true);
+        if (source.kind !== 'text-v1' || material.family !== 17) throw failure('HEAD_PROBE_SOURCE_INVALID');
+        const versionNode = source.elements[source.signatureMetadata.version];
+        const version = /RT-SIGNATURE-VERSION:([0-9a-f]{16})/i.exec(sourceDocument.html.slice(versionNode.openEnd, versionNode.close))?.[1];
+        if (!version) throw failure('HEAD_PROBE_SOURCE_INVALID');
+        const original = await replacementSnapshot(office, item);
+        if (original.composeType !== 'newMail' || /rt-head-probe-[0-9a-f]{32}|data-rt-head-probe/i.test(original.html)) throw failure('HEAD_PROBE_SOURCE_INVALID');
+        const frame = emptyHeadProbeFrame(original.html, version, material.sourceLogoUrl);
+        const sourcePlan = prepareNativeLayoutRestore(sourceDocument.html, source, frame.fluidLayout.nonce, office);
+        const currentMaterial = verifyFluidLayoutMaterial(original.html, { ...frame, sourceLogoUrl: sourcePlan.sourceLogoUrl });
+        if (frame.fluidLayout.profile !== sourcePlan.profile || !v17OfficeWireMatches(currentMaterial, sourcePlan)
+            || currentMaterial.singleDispatch !== sourcePlan.singleDispatch || currentMaterial.raisedTrain !== sourcePlan.raisedTrain) throw failure('HEAD_PROBE_SOURCE_INVALID');
+        const probe = headProbeDocument(createNativeLayoutNonce()), token = 'pending:head-probe:' + probe.nonce;
+        await beforeWrite();
+        const claimed = await officeResult(office, callback => item.sessionData.setAsync(HEAD_PROBE_SESSION_KEY, token, callback));
+        operation.claimed = true;
+        if (!claimed.succeeded || await headProbeSession(office, item, HEAD_PROBE_SESSION_KEY) !== token) throw failure('HEAD_PROBE_UNCONFIRMED');
+        await headProbeTarget(office, item, binding, beforeWrite);
+        const latest = await replacementSnapshot(office, item);
+        if (latest.html !== original.html || latest.composeType !== original.composeType) throw failure('HEAD_PROBE_CONTEXT_CHANGED');
+        operation.phase = 'writing'; operation.headProbeReport = { schema: 1, attempted: true, state: 'pending' };
+        await confirmedOfficeWrite(office, item, 'head-probe-write', 'HEAD_PROBE_UNCONFIRMED',
+            callback => item.body.setSignatureAsync(probe.html, { coercionType: office.CoercionType.Html }, callback), { deferSignatureConfirmation: true });
+        operation.bodyApplied = true;
+        await headProbeTarget(office, item, binding, beforeWrite);
+        const snapshot = await replacementSnapshot(office, item);
+        if (snapshot.composeType !== 'newMail') throw failure('HEAD_PROBE_UNCONFIRMED');
+        const parsed = fluidLayoutContract(snapshot.html), inspected = inspectHeadProbe(snapshot.html, parsed.elements, probe);
+        operation.headProbeReport = { ...inspected.report, state: 'pending' };
+        if (!inspected.root || !inspected.report.rectangles || !inspected.report.nonceBound
+            || inspected.report.probeBodyStyles !== 0 || inspected.report.probeHeadStyles > 1) throw failure('HEAD_PROBE_UNCONFIRMED');
+        const retained = emptyHeadProbeFrame(snapshot.html, version, material.sourceLogoUrl, inspected.root, frame.fluidLayout.nonce);
+        const retainedMaterial = verifyFluidLayoutMaterial(snapshot.html, { ...retained, sourceLogoUrl: sourcePlan.sourceLogoUrl });
+        if (!v17OfficeWireMatches(retainedMaterial, sourcePlan) || retainedMaterial.raisedTrain !== sourcePlan.raisedTrain) throw failure('HEAD_PROBE_UNCONFIRMED');
+        if (await headProbeSession(office, item, HEAD_PROBE_SESSION_KEY) !== token) throw failure('HEAD_PROBE_UNCONFIRMED');
+        await beforeWrite();
+        const completed = await officeResult(office, callback => item.sessionData.setAsync(HEAD_PROBE_SESSION_KEY, '1', callback));
+        if (!completed.succeeded) throw failure('HEAD_PROBE_UNCONFIRMED');
+        operation.phase = 'head-probe-applied'; operation.headProbeReport = { ...inspected.report, state: 'complete' };
+        // Keep the ordinary signature lock: this technical draft is not a
+        // published signature and must not authorize a later normal overwrite.
+        return { ...operation.headProbeReport };
+    } catch (error) {
+        if (operation.claimed || operation.bodyApplied) {
+            operation.phase = 'uncertain'; operation.headProbeReport = { ...operation.headProbeReport, attempted: true, state: 'uncertain' };
+            throw failure('HEAD_PROBE_UNCONFIRMED');
+        }
+        signatureOperations.delete(item); throw error;
     }
 }

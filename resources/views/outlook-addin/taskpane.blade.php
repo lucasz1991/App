@@ -847,6 +847,7 @@
                             <div class="diagnostics-actions">
                                 <button type="button" class="glass-button" data-outlook-diagnostics-run>Erneut prüfen</button>
                                 <button type="button" class="glass-button" data-outlook-diagnostics-copy>Diagnose kopieren</button>
+                                <button type="button" class="glass-button" data-outlook-head-probe hidden disabled>HEAD-CSS-Transportprobe (IT)</button>
                             </div>
                             <textarea data-outlook-diagnostics-output readonly aria-label="Datensparsamer Diagnosebericht" hidden></textarea>
                             <p class="automatic-feedback" data-outlook-diagnostics-feedback role="status"></p>
