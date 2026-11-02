@@ -8,6 +8,7 @@ import { insertHeadTransportProbe, headTransportProbeReport, isStandaloneSignatu
 import { managedTemplateContract, fluidLayoutContract } from '../../resources/js/outlook-addin/managed-template.js';
 import { prepareNativeLayoutRestore } from '../../resources/js/outlook-addin/native-layout-restore.js';
 import { wasSignatureWriteConfirmed, hasUncertainWrite } from '../../resources/js/outlook-addin/office-write.js';
+import { recordDiagnostic, diagnosticReport } from '../../resources/js/outlook-addin/diagnostics.js';
 const fixture = JSON.parse(await readFile(new URL('../Fixtures/mail/outlook-v17-compact-reference/v17-source.json', import.meta.url), 'utf8'));
 const SOURCE = fixture.source.combined;
 const binding = { schema: 1, mailboxAddress: HEAD_PROBE_MAILBOX, senderAddress: HEAD_PROBE_MAILBOX, allowedSenderAddresses: [HEAD_PROBE_MAILBOX] };
@@ -15,14 +16,14 @@ const success = value => ({ status: 'succeeded', value });
 
 function harness(options = {}) {
     const state = { writes: [], bodyWrites: 0, session: options.session || new Map(), subject: HEAD_PROBE_SUBJECT,
-        to: [{ emailAddress: HEAD_PROBE_MAILBOX }], cc: [], bcc: [], attachments: [], reads: 0, body: '', before: 0 };
+        to: [{ emailAddress: HEAD_PROBE_MAILBOX }], cc: [], bcc: [], attachments: [], reads: 0, body: '', before: 0, sessionReads: [], sessionWrites: [] };
     const item = { from: { getAsync: callback => callback(success({ emailAddress: HEAD_PROBE_MAILBOX })) },
         subject: { getAsync: callback => callback(success(state.subject)) },
         to: { getAsync: callback => callback(success(state.to)) }, cc: { getAsync: callback => callback(success(state.cc)) }, bcc: { getAsync: callback => callback(success(state.bcc)) },
         getAttachmentsAsync: callback => callback(success(state.attachments)),
         getComposeTypeAsync: callback => callback(success({ composeType: options.composeType || 'newMail' })),
-        sessionData: { getAsync: (key, callback) => callback(success(state.session.get(key))),
-            setAsync: (key, value, callback) => { state.session.set(key, value); options.afterSession?.(state, key, value); callback(success()); } },
+        sessionData: { getAsync: (key, callback) => { state.sessionReads.push(key); callback(success(state.session.get(key))); },
+            setAsync: (key, value, callback) => { state.sessionWrites.push(key); state.session.set(key, value); options.afterSession?.(state, key, value); callback(success()); } },
         body: { getTypeAsync: callback => callback(success(options.format || 'html')), getAsync: (_type, callback) => { state.reads++; callback(success(state.body)); },
             setSignatureAsync: (html, _options, callback) => {
                 state.writes.push(html);
@@ -143,4 +144,46 @@ test('Status UI reuses its diagnostic row and exposes the probe only in the boun
     const button = document.querySelector('button'); assert.equal(button.hidden, false); assert.equal(button.disabled, false);
     state.busy = true; context.syncProbe(); assert.equal(button.disabled, true);
     state.busy = false; box.office.context.mailbox.userProfile.emailAddress = 'other@example.invalid'; context.syncProbe(); assert.equal(button.hidden, true);
+});
+
+for (const [key, value, reason, reads] of [
+    ['railtime.template.inserted.v1', 'pending:private-template-token', 'template-session-pending', 1],
+    ['railtime.template.inserted.v1', 'private-unrecognized-claim', 'template-session-other', 1],
+    ['railtime.signature.layout.v1', 'uncertain:private-signature-token', 'signature-session-pending', 2],
+    ['railtime.signature.layout.v1', 'private-unrecognized-claim', 'signature-session-other', 2],
+]) test('guard reports only finite ' + reason + ' without another session read or mutation', async () => {
+    const box = harness(); box.state.session.set(key, value); const original = box.state.body;
+    let failure;
+    await assert.rejects(box.invoke(), error => { failure = error; return error.code === 'HEAD_PROBE_ALREADY_ATTEMPTED' && error.phase === 'head-probe-preflight' && error.reason === reason; });
+    assert.equal(box.state.writes.length, 0); assert.equal(box.state.bodyWrites, 0); assert.equal(box.state.body, original);
+    assert.equal(box.state.sessionReads.length, reads); assert.equal(box.state.sessionWrites.length, 0); assert.equal(box.state.session.get(key), value);
+    assert.equal(headTransportProbeReport(box.item), null); assert.equal(box.state.session.has(HEAD_PROBE_SESSION_KEY), false);
+    recordDiagnostic('user-action', 'failed', failure);
+    const event = diagnosticReport(box.office).events.at(-1);
+    assert.equal(event.reason, reason); assert.doesNotMatch(JSON.stringify(event), /private-|@|pending:|uncertain:/);
+});
+
+for (const [templateLock, signatureLock, officeUncertain, reason] of [
+    [true, false, false, 'preflight-template-lock'],
+    [false, true, false, 'preflight-signature-lock'],
+    [false, false, true, 'preflight-office-uncertain'],
+]) test('entry guard identifies ' + reason + ' before any SDK/session dependency', async () => {
+    const source = await readFile(new URL('../../resources/js/outlook-addin/compose-template.js', import.meta.url), 'utf8');
+    const start = source.indexOf('export async function insertHeadTransportProbe(');
+    const context = vm.createContext({ insertionOperations: { has: () => templateLock }, signatureOperations: { has: () => signatureLock },
+        hasUncertainWrite: () => officeUncertain, failure: (code, details) => Object.assign(new Error(code), { code, ...details }) });
+    vm.runInContext(source.slice(start).replace(/^export /, '') + '\nglobalThis.probe=insertHeadTransportProbe;', context);
+    await assert.rejects(context.probe({}, {}), error => error.code === 'HEAD_PROBE_ALREADY_ATTEMPTED' && error.reason === reason && error.phase === 'head-probe-preflight');
+});
+
+test('an existing private probe claim is categorized and retained without reading its token into diagnostics or writing again', async () => {
+    const box = harness(); box.state.session.set(HEAD_PROBE_SESSION_KEY, 'pending:private-prior-probe-token');
+    await assert.rejects(box.invoke(), error => error.code === 'HEAD_PROBE_UNCONFIRMED' && error.reason === 'prior-probe-claim');
+    const report = headTransportProbeReport(box.item);
+    assert.equal(report.reason, 'prior-probe-claim'); assert.equal(report.state, 'uncertain');
+    assert.equal(box.state.sessionReads.length, 3); assert.equal(box.state.sessionWrites.length, 0); assert.equal(box.state.writes.length, 0);
+    assert.equal(box.state.session.get(HEAD_PROBE_SESSION_KEY), 'pending:private-prior-probe-token');
+    assert.doesNotMatch(JSON.stringify(report), /private-|@|pending:|[0-9a-f]{32}/);
+    await assert.rejects(box.invoke(), error => error.code === 'HEAD_PROBE_ALREADY_ATTEMPTED' && error.reason === 'preflight-signature-lock');
+    assert.equal(box.state.sessionReads.length, 3); assert.equal(box.state.sessionWrites.length, 0); assert.equal(box.state.writes.length, 0);
 });

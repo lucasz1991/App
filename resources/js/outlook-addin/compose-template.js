@@ -1586,19 +1586,25 @@ function emptyHeadProbeFrame(html, expectedVersion, sourceLogoUrl, allowedProbe 
 
 /** One fixed native-slot experiment in a strictly bound empty technical draft. */
 export async function insertHeadTransportProbe(office, item, { sourceDocument, binding, beforeWrite = () => {} } = {}) {
-    if (insertionOperations.has(item) || signatureOperations.has(item) || hasUncertainWrite(item)) throw failure('HEAD_PROBE_ALREADY_ATTEMPTED');
+    const lockReason = insertionOperations.has(item) ? 'preflight-template-lock'
+        : signatureOperations.has(item) ? 'preflight-signature-lock' : hasUncertainWrite(item) ? 'preflight-office-uncertain' : null;
+    if (lockReason) throw failure('HEAD_PROBE_ALREADY_ATTEMPTED', { phase: 'head-probe-preflight', reason: lockReason });
     if (!headProbeContextAvailable(office, binding) || typeof item?.sessionData?.getAsync !== 'function'
         || typeof item?.sessionData?.setAsync !== 'function') throw failure('HEAD_PROBE_NOT_ELIGIBLE');
     const operation = { phase: 'preflight', headProbe: true, headProbeReport: { schema: 1, attempted: false, state: 'preflight' } };
     signatureOperations.set(item, operation);
     try {
         await headProbeTarget(office, item, binding, beforeWrite);
-        for (const key of [TEMPLATE_SESSION_KEY, SIGNATURE_SESSION_KEY]) {
+        for (const [key, category] of [[TEMPLATE_SESSION_KEY, 'template'], [SIGNATURE_SESSION_KEY, 'signature']]) {
             const value = await headProbeSession(office, item, key);
-            if (!['', '1'].includes(value)) throw failure('HEAD_PROBE_ALREADY_ATTEMPTED');
+            if (!['', '1'].includes(value)) throw failure('HEAD_PROBE_ALREADY_ATTEMPTED', {
+                phase: 'head-probe-preflight', reason: category + '-session-' + (pendingSession(value) ? 'pending' : 'other'),
+            });
         }
         if (await headProbeSession(office, item, HEAD_PROBE_SESSION_KEY) !== '') {
-            operation.claimed = true; throw failure('HEAD_PROBE_ALREADY_ATTEMPTED');
+            operation.claimed = true;
+            operation.headProbeReport.reason = 'prior-probe-claim';
+            throw failure('HEAD_PROBE_ALREADY_ATTEMPTED');
         }
         if (typeof sourceDocument?.html !== 'string' || !Array.isArray(sourceDocument.media) || sourceDocument.media.length) throw failure('HEAD_PROBE_SOURCE_INVALID');
         const source = managedTemplateContract(sourceDocument.html), material = verifyFluidLayoutMaterial(sourceDocument.html, source, true);
@@ -1646,7 +1652,8 @@ export async function insertHeadTransportProbe(office, item, { sourceDocument, b
     } catch (error) {
         if (operation.claimed || operation.bodyApplied) {
             operation.phase = 'uncertain'; operation.headProbeReport = { ...operation.headProbeReport, attempted: true, state: 'uncertain' };
-            throw failure('HEAD_PROBE_UNCONFIRMED');
+            throw failure('HEAD_PROBE_UNCONFIRMED', operation.headProbeReport.reason === 'prior-probe-claim'
+                ? { phase: 'head-probe-preflight', reason: 'prior-probe-claim' } : {});
         }
         signatureOperations.delete(item); throw error;
     }
