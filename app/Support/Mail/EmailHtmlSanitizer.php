@@ -1279,7 +1279,7 @@ final class EmailHtmlSanitizer
             return;
         }
 
-        [$filtered, $findings] = $this->filterStyleSheet($css, $path);
+        [$filtered, $findings] = $this->filterStyleSheet($css, $path, $element);
 
         if ($findings === []) {
             return;
@@ -1340,8 +1340,13 @@ final class EmailHtmlSanitizer
      *
      * @return array{0: string, 1: list<array{code: string, severity: string, message: string, context: string}>}
      */
-    private function filterStyleSheet(string $css, string $path): array
+    private function filterStyleSheet(string $css, string $path, ?DOMElement $source = null): array
     {
+        // Only fixed renderer bytes may carry this family's six floats/one
+        // clear. This admits CSS, never a publication, identity or mail body.
+        if ($source !== null && $this->isExactNativeHeadStyle($source, $css)) {
+            return [$css, []];
+        }
         $mask = self::maskPlaceholders($css);
         $findings = [];
         $cuts = [];
@@ -1409,6 +1414,29 @@ final class EmailHtmlSanitizer
         }
 
         return [$css, $findings];
+    }
+
+    private function isExactNativeHeadStyle(DOMElement $style, string $css): bool
+    {
+        $scope = $style->getAttribute('data-rt-native-style');
+        if (! $style->parentNode instanceof DOMElement || strtolower($style->parentNode->tagName) !== 'head'
+            || ! preg_match('/\Art-handoff-[0-9a-f]{32}\z/', $scope)
+            || ! NativeSignatureHandoffRenderer::recognizesHeadStyleSheet($css, $scope)) {
+            return false;
+        }
+        $ids = $styles = 0;
+        $table = false;
+        foreach ($style->ownerDocument->getElementsByTagName('*') as $element) {
+            if ($element->getAttribute('id') === $scope) {
+                $ids++;
+                $table = strtolower($element->tagName) === 'table';
+            }
+            if (strtolower($element->tagName) === 'style' && $element->getAttribute('data-rt-native-style') === $scope) {
+                $styles++;
+            }
+        }
+
+        return $ids === 1 && $table && $styles === 1;
     }
 
     /**

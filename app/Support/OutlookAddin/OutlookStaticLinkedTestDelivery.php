@@ -89,6 +89,10 @@ final class OutlookStaticLinkedTestDelivery
         'outlook-dispo-whatsapp-weiss-v3.png' => ['f9d88b899d574851c64d02c9835a5b5fcf8d7c68e05d6c9b3f5618d3ac38bbd9', 1515, 'image/png', 72, 72, '/m/f9d88b899d.png', 'f9d88b899d574851c64d02c9835a5b5fcf8d7c68e05d6c9b3f5618d3ac38bbd9'],
         'outlook-dispo-mobile-caption-alpha-v1.png' => ['fc43cf451bca7c4ad1c5c75e34fa80c4683687687e5adc72d88a54bd5e30d5f3', 2081, 'image/png', 160, 36, '/m/fc43cf451b.png', 'fc43cf451bca7c4ad1c5c75e34fa80c4683687687e5adc72d88a54bd5e30d5f3'],
         'outlook-dispo-default-phone-alpha-v1.png' => ['ef89fd23c6e9791cc03dfddb31e7f8e319b0b1992b1a0e839b4ebb771b18c674', 2813, 'image/png', 216, 40, '/m/ef89fd23c6.png', 'ef89fd23c6e9791cc03dfddb31e7f8e319b0b1992b1a0e839b4ebb771b18c674'],
+        'native-handoff-contact-email-v1.png' => ['9dfa25b253b065c73173b884939db2a032453c44eb2ba6e9e65434a95a072675', 1004, 'image/png', 44, 44, '/m/9dfa25b253.png', '9dfa25b253b065c73173b884939db2a032453c44eb2ba6e9e65434a95a072675'],
+        'native-handoff-contact-mobile-v1.png' => ['d92bd192b664c536fe29b1c927023bca44041de90bc9bfe34e6df03be5006d32', 591, 'image/png', 44, 44, '/m/d92bd192b6.png', 'd92bd192b664c536fe29b1c927023bca44041de90bc9bfe34e6df03be5006d32'],
+        'native-handoff-contact-web-v1.png' => ['1593d63ccacf8c884b71870fe1478f218ea0f541e918d84115978bc2b75c64ff', 1649, 'image/png', 44, 44, '/m/1593d63cca.png', '1593d63ccacf8c884b71870fe1478f218ea0f541e918d84115978bc2b75c64ff'],
+        'native-handoff-contact-location-v1.png' => ['a38bc7d27c9c8c04c2a20815ad9576c76aebfe0bd651f9c5e90909b83bdf6925', 1226, 'image/png', 44, 44, '/m/a38bc7d27c.png', 'a38bc7d27c9c8c04c2a20815ad9576c76aebfe0bd651f9c5e90909b83bdf6925'],
     ];
 
     /** @return array<string, string> Full hashes bind both the input map and every immutable public PNG. */
@@ -615,7 +619,7 @@ final class OutlookStaticLinkedTestDelivery
             $fingerprint['map:'.$sha] = $pngSha;
             $fingerprint[$output] = $pngSha;
         }
-        if (count($sources) !== 67 || count($targets) !== 51) {
+        if (count($sources) !== 71 || count($targets) !== 55) {
             self::fail();
         }
         ksort($fingerprint);

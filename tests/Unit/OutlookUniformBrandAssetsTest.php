@@ -37,25 +37,30 @@ final class OutlookUniformBrandAssetsTest extends TestCase
         'zug-dampf-outlook-brand-v2-dark-mirrored.png' => ['e0cd25a52aa69159b10af004d407994cb2c6673a0c459d67856232d1e9a1ef63', 5058, 'image/png', 695, 151, 'e0cd25a52aa69159b10af004d407994cb2c6673a0c459d67856232d1e9a1ef63'],
         'outlook-dispo-mobile-caption-alpha-v1.png' => ['fc43cf451bca7c4ad1c5c75e34fa80c4683687687e5adc72d88a54bd5e30d5f3', 2081, 'image/png', 160, 36, 'fc43cf451bca7c4ad1c5c75e34fa80c4683687687e5adc72d88a54bd5e30d5f3'],
         'outlook-dispo-default-phone-alpha-v1.png' => ['ef89fd23c6e9791cc03dfddb31e7f8e319b0b1992b1a0e839b4ebb771b18c674', 2813, 'image/png', 216, 40, 'ef89fd23c6e9791cc03dfddb31e7f8e319b0b1992b1a0e839b4ebb771b18c674'],
+        'native-handoff-contact-email-v1.png' => ['9dfa25b253b065c73173b884939db2a032453c44eb2ba6e9e65434a95a072675', 1004, 'image/png', 44, 44, '9dfa25b253b065c73173b884939db2a032453c44eb2ba6e9e65434a95a072675'],
+        'native-handoff-contact-mobile-v1.png' => ['d92bd192b664c536fe29b1c927023bca44041de90bc9bfe34e6df03be5006d32', 591, 'image/png', 44, 44, 'd92bd192b664c536fe29b1c927023bca44041de90bc9bfe34e6df03be5006d32'],
+        'native-handoff-contact-web-v1.png' => ['1593d63ccacf8c884b71870fe1478f218ea0f541e918d84115978bc2b75c64ff', 1649, 'image/png', 44, 44, '1593d63ccacf8c884b71870fe1478f218ea0f541e918d84115978bc2b75c64ff'],
+        'native-handoff-contact-location-v1.png' => ['a38bc7d27c9c8c04c2a20815ad9576c76aebfe0bd651f9c5e90909b83bdf6925', 1226, 'image/png', 44, 44, 'a38bc7d27c9c8c04c2a20815ad9576c76aebfe0bd651f9c5e90909b83bdf6925'],
 
     ];
 
-    public function test_the_original_43_pins_are_unchanged_and_only_24_known_sources_are_appended(): void
+    public function test_the_original_43_pins_are_unchanged_and_only_28_known_sources_are_appended(): void
     {
         $assets = $this->catalog();
-        self::assertCount(67, $assets);
+        self::assertCount(71, $assets);
         self::assertSame('ca35d43932cbe01b355bc545bc7ed153a870c98eed21208688cac3ab8a72d8ef', hash('sha256', json_encode(array_slice($assets, 0, 43, true), JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)));
         self::assertSame('c53c55bb9d93e9a5a5e2f70523de12dccf05f9f59891396c53be63fe9302c519', hash('sha256', json_encode(array_slice($assets, 0, 65, true), JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)));
         self::assertSame('2155f165542583b3724f232b6f0e621b917ecdd933ecef6d783c6d91c337710f', hash('sha256', json_encode(array_slice($assets, 0, 66, true), JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)));
+        self::assertSame('f03fc00be82d9bf95e1693b78df00ddec7466aab434858ef3842619d5978a9d1', hash('sha256', json_encode(array_slice($assets, 0, 67, true), JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)));
         $new = array_keys(array_slice($assets, 43, null, true));
         $expected = array_keys(self::NEW_PINS);
         sort($new);
         sort($expected);
         self::assertSame($expected, $new);
         $fingerprint = OutlookStaticLinkedTestDelivery::fingerprint();
-        self::assertCount(118, $fingerprint);
-        self::assertCount(67, array_filter(array_keys($fingerprint), static fn (string $key): bool => str_starts_with($key, 'map:')));
-        self::assertCount(51, array_filter(array_keys($fingerprint), static fn (string $key): bool => str_starts_with($key, '/m/')));
+        self::assertCount(126, $fingerprint);
+        self::assertCount(71, array_filter(array_keys($fingerprint), static fn (string $key): bool => str_starts_with($key, 'map:')));
+        self::assertCount(55, array_filter(array_keys($fingerprint), static fn (string $key): bool => str_starts_with($key, '/m/')));
     }
 
     #[DataProvider('newAssets')]
@@ -140,6 +145,9 @@ final class OutlookUniformBrandAssetsTest extends TestCase
 
     public static function foregroundAssets(): iterable
     {
+        foreach (['email', 'mobile', 'web', 'location'] as $kind) {
+            yield 'handoff red '.$kind => ['native-handoff-contact-'.$kind.'-v1.png', [228, 0, 43]];
+        }
         foreach (['location', 'phone', 'mobile', 'email', 'web'] as $kind) {
             yield 'red '.$kind => ['contact-'.$kind.'-brand-v2.png', [233, 0, 50]];
         }
