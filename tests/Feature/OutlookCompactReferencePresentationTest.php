@@ -138,11 +138,11 @@ final class OutlookCompactReferencePresentationTest extends TestCase
             'variant' => [' rt-v17-compact', ' rt-v17-other'],
             'legal gutter' => ['padding:8px 40px 8px;', 'padding:8px 41px 8px;'],
             'legal background' => ['background:#dde1e6', 'background:#000000'],
-            'underlap' => ['clamp(-8px,calc((500px - 100%)/10),0px)', 'clamp(-80px,calc((500px - 100%)/10),0px)'],
-            'underlap extra' => ['margin-top:clamp(-8px,calc((500px - 100%)/10),0px)!important;', 'margin-top:clamp(-8px,calc((500px - 100%)/10),0px)!important;position:relative;top:-999px;'],
+            'underlap' => ['margin-top:0!important;', 'margin-top:-8px!important;'],
+            'underlap extra' => ['margin-top:0!important;', 'margin-top:0!important;position:relative;top:-999px;'],
             'raised flag' => [' rt-v17-raised', ''],
-            'direct responsive width' => ['min(280px,52%)', 'min(280px,53%)'],
-            'company responsive width' => ['min(210px,48%)', 'min(210px,49%)'],
+            'direct responsive width' => ['width:280px!important;', 'width:281px!important;'],
+            'company responsive width' => ['width:210px!important;', 'width:211px!important;'],
             'contact row spacing' => ['padding-bottom:3px!important;', 'padding-bottom:999px!important;'],
             'card separator' => ['border-top:1px solid #ffffff;', 'border-top:1px solid #000000;'],
             'unadmitted animation' => ['zug-dampf-outlook-brand-v2-', 'zug-dampf-outlook-brand-v9-'],
@@ -171,6 +171,9 @@ final class OutlookCompactReferencePresentationTest extends TestCase
         self::assertStringContainsString('rt-v17-compact', $html);
         self::assertStringNotContainsString('rt-v17-mobile-dispatch', $html);
         $x = $this->xpath($html);
+        foreach ($x->query('//*[@style]') as $element) {
+            self::assertDoesNotMatchRegularExpression('/\b(?:min|max|clamp|calc)\s*\(/i', $element->getAttribute('style'));
+        }
         $cards = $x->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-v17-dispatch-block ")]');
         self::assertCount(1, $cards);
         self::assertSame('', $cards->item(0)->getAttribute('background'));

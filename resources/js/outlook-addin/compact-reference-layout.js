@@ -53,7 +53,7 @@ function only(nodes, index, tag) {
 }
 
 function properties(node) {
-    const result = new Map();
+    const result = new Map(), priorities = new Map();
     for (const declaration of (node.attrs.style || '').split(';')) {
         if (!declaration.trim()) continue;
         const colon = declaration.indexOf(':');
@@ -61,7 +61,8 @@ function properties(node) {
         const name = declaration.slice(0, colon).trim().toLowerCase();
         const value = declaration.slice(colon + 1).trim().replace(/\s*!important\s*$/i, '').toLowerCase();
         if (['all', 'padding-inline', 'padding-inline-start', 'padding-inline-end'].includes(name)) invalid();
-        result.set(name, value);
+        const important = /!important\s*$/i.test(declaration.slice(colon + 1).trim());
+        if (!priorities.get(name) || important) { result.set(name, value); priorities.set(name, important); }
     }
     return result;
 }
@@ -141,13 +142,14 @@ function fits(value, size, limit, bold) {
     if (!value || /[^\x20-\x7e]/.test(value)) return false;
     return [...value].reduce((sum, char) => sum + (bold ? BOLD : REGULAR)[char.charCodeAt(0) - 32] * size / 1000, 0) <= limit;
 }
-function raisedSource(html, nodes, root, direct) {
+function raisedSource(html, nodes, root, direct, source = true) {
     if (has(root.node, 'rt-system-columns')) return false;
-    const names = descendants(nodes, root.index, 'p').filter(value => has(value.node, 'rt-sign-name'));
-    const roles = descendants(nodes, root.index, 'p').filter(value => has(value.node, 'rt-personal-role'));
+    const identity = one(children(nodes, direct.node.parent).filter(value => value.node.tag === 'table' && close(value.node.attrs.width, 220)));
+    const names = descendants(nodes, identity.index, 'p').filter(value => source ? has(value.node, 'rt-sign-name') : close(properties(value.node).get('font-size'), 22) && properties(value.node).get('font-weight') === 'bold');
+    const roles = descendants(nodes, identity.index, 'p').filter(value => source ? has(value.node, 'rt-personal-role') : close(properties(value.node).get('font-size'), 10) && close(properties(value.node).get('letter-spacing'), 1.6));
     if (names.length !== 1 || roles.length !== 1) return false;
     const name = text(html, names[0].node), role = text(html, roles[0].node);
-    const values = descendants(nodes, direct.index, 'p').filter(value => has(value.node, 'rt-delivery-contact-value'));
+    const values = descendants(nodes, direct.index, 'p').filter(value => source ? has(value.node, 'rt-delivery-contact-value') : close(properties(value.node).get('font-size'), 13) && close(properties(value.node).get('line-height'), 19));
     return fits(name, 22, 184, true) && fits(role.toUpperCase(), 10, 174 - role.length * 1.6, true)
         && values.length <= 2 && values.every(value => fits(text(html, value.node), 13, 222, false));
 }
@@ -165,45 +167,53 @@ function normalizeFluid(html, actual, root, source, contract) {
     const main = only(nodes, rows[0].index, 'td'), columns = children(nodes, main.index).filter(value => value.node.tag === 'table');
     if (columns.length !== 4) invalid();
     const system = has(root.node, 'rt-system-columns');
-    const widths = ['clamp(220px,calc((500px - 100%)*1000),100%)', 'min(280px,52%)', system ? 'clamp(210px,calc((500px - 100%)*1000),100%)' : 'min(210px,48%)', 'clamp(247px,calc((500px - 100%)*1000),100%)'];
+    const widths = ['220px', '280px', '210px', '247px'];
+    const previousWidths = ['clamp(220px,calc((500px - 100%)*1000),100%)', 'min(280px,52%)', system ? '210px' : 'min(210px,48%)', '247px'];
     columns.forEach((column, position) => {
         expectExpression(column.node, 'width', widths[position]);
-        setStyle(column.node, { width: position === 2 && system ? '210px' : position === 3 ? '247px' : widths[position] });
+        setStyle(column.node, { width: previousWidths[position] });
     });
     const cells = columns.map(column => cellOf(nodes, column.index));
     if (!system) {
         const logo = one(descendants(nodes, columns[0].index, 'table').filter(value => close(value.node.attrs.width, 184)));
         const image = one(descendants(nodes, logo.index, 'img')), logoCell = cellOf(nodes, logo.index);
-        expectExpression(logo.node, 'width', 'clamp(104px,calc((250px - 100%)*1000),184px)');
-        expectExpression(logo.node, 'float', 'right');
-        expectExpression(logo.node, 'margin', 'clamp(0px,calc((100% - 250px)*1000),5px) clamp(0px,calc((250px - 100%)*1000),12px) 0 clamp(0px,calc((100% - 250px)*1000),12px)');
+        expectExpression(logo.node, 'width', '184px');
         expectExpression(image.node, 'width', '100%'); expectExpression(image.node, 'height', 'auto');
-        if (!close(image.node.attrs.width, 184) || image.node.attrs.height !== undefined && !close(image.node.attrs.height, 32)) invalid();
-        expectExpression(logoCell.node, 'padding-bottom', 'clamp(0px,calc((100% - 104px)*1000),13px)');
-        setStyle(logo.node, { width: '184px', float: null, margin: null });
-        setStyle(image.node, { width: '184px' }); setStyle(logoCell.node, { 'padding-bottom': null });
-    } else {
-        expectExpression(cells[2].node, 'padding-right', 'clamp(0px,calc((250px - 100%)*1000),16px)');
-        setStyle(cells[2].node, { 'padding-right': null });
+        if (properties(logo.node).get('float') !== 'none' || !close(properties(logo.node).get('margin'), 0)
+            || !close(image.node.attrs.width, 184) || image.node.attrs.height !== undefined && !close(image.node.attrs.height, 32)) invalid();
+        setStyle(logo.node, { float: null, margin: null });
+        setStyle(image.node, { width: '184px' });
     }
     exactPadding(cells[3].node, { top: 0, right: 0, bottom: 0, left: 0 });
     const block = only(nodes, cells[3].index, 'table'); expectExpression(block.node, 'max-width', '100%');
     setStyle(block.node, { 'max-width': '247px' });
     const gutter = value => {
-        for (const side of ['left', 'right']) expectExpression(value.node, 'padding-' + side, 'clamp(20px,3.846154%,40px)');
+        for (const side of ['left', 'right']) expectExpression(value.node, 'padding-' + side, '20px');
         setStyle(value.node, { 'padding-left': null, 'padding-right': null });
     };
     gutter(main);
     const signatureRows = children(nodes, only(nodes, contract.signature.index, 'tbody').index);
     const legalHost = only(nodes, signatureRows[1].index, 'td');
     const legal = cellOf(nodes, one(children(nodes, legalHost.index).filter(value => value.node.tag === 'table')).index); gutter(legal);
-    // Only the managed template's own padding cells can carry matching gutters.
-    for (const value of nodes.map((node, index) => ({ node, index })).filter(value => !within(nodes, value.index, contract.signature.index))) {
-        const style = properties(value.node);
-        if (expression(style.get('padding-left')) !== 'clamp(20px,3.846154%,40px)' && expression(style.get('padding-right')) !== 'clamp(20px,3.846154%,40px)') continue;
-        if (value.node.tag !== 'td' || !contract.template || !within(nodes, value.index, contract.template.index)) invalid();
-        gutter(value);
+    // Template padding is bound by the known direct rows, never arbitrary
+    // styled content inside the editable message region.
+    if (contract.template) {
+        const templateBody = only(nodes, contract.template.index, 'tbody');
+        const templateRows = children(nodes, templateBody.index);
+        if (templateRows.length !== 2 || templateRows.some(value => value.node.tag !== 'tr')) invalid();
+        for (const row of templateRows) gutter(only(nodes, row.index, 'td'));
     }
+    const train = only(nodes, only(nodes, rows[1].index, 'td').index, 'table');
+    expectExpression(train.node, 'width', '100%'); expectExpression(train.node, 'max-width', '547px');
+    if (train.node.attrs.width !== '100%') invalid();
+    train.node.attrs.width = '547'; setStyle(train.node, { width: 'min(547px,100%)', 'max-width': '100%!important' });
+    const offset = properties(train.node).get('margin-top');
+    if (!close(offset, 0)) invalid();
+    // Numeric v3 always has zero physical overlap. This historical class is
+    // used solely to reconstruct the exact pre-inline source for validation.
+    const eligible = raisedSource(html, nodes, root, columns[1], source);
+    if (has(root.node, 'rt-v17-raised') && !eligible) invalid();
+    setStyle(train.node, { 'margin-top': eligible ? TRAIN_OFFSET : '0' });
     for (const column of columns.slice(1, 3)) for (const value of descendants(nodes, column.index, 'p').filter(value => has(value.node, 'rt-delivery-contact-value') || close(properties(value.node).get('line-height'), 19))) {
         expectExpression(value.node, 'line-height', '19px'); expectExpression(value.node, 'word-break', 'normal');
         // These are exactly the two old CSS declarations now carried inline.

@@ -8,6 +8,7 @@ use App\Models\UserProfile;
 use App\Support\OutlookAddin\OutlookAddinPayloadService;
 use App\Support\OutlookAddin\OutlookClientPresentation;
 use App\Support\OutlookAddin\OutlookCompactMobilePresentation as Mobile;
+use App\Support\OutlookAddin\OutlookCompactReferencePresentation as Compact;
 use App\Support\OutlookAddin\OutlookMobileSignature;
 use App\Support\OutlookAddin\OutlookStaticLinkedTestProfiles;
 use DOMDocument;
@@ -42,24 +43,31 @@ final class OutlookCompactMobilePresentationTest extends TestCase
             self::assertStringContainsString('max-width:1040px!important', $this->one($xpath, 'rt-v17-columns')->getAttribute('style'));
             $logo = $this->one($xpath, 'rt-personal-logo-frame');
             self::assertSame('184', $logo->getAttribute('width'), 'Word keeps its existing wide numeric fallback.');
-            self::assertStringContainsString('width:clamp(104px,calc((250px - 100%)*1000),184px)!important', $logo->getAttribute('style'));
+            self::assertStringContainsString('width:184px!important', $logo->getAttribute('style'));
+            self::assertStringContainsString('float:none!important;margin:0!important', $logo->getAttribute('style'));
+            foreach ($xpath->query('//*[@style]') as $element) {
+                self::assertDoesNotMatchRegularExpression('/\b(?:min|max|clamp|calc)\s*\(/i', $element->getAttribute('style'), 'No recipient width may depend on CSS math filtered by Outlook.');
+            }
             self::assertStringContainsString('width:100%!important', $this->one($xpath, 'rt-v9-logo')->getAttribute('style'));
-            self::assertStringContainsString('width:clamp(220px,calc((500px - 100%)*1000),100%)!important', $this->one($xpath, 'rt-v17-identity')->getAttribute('style'));
-            self::assertStringContainsString('width:min(280px,52%)!important', $this->one($xpath, 'rt-v17-direct')->getAttribute('style'));
-            self::assertStringContainsString('width:min(210px,48%)!important', $this->one($xpath, 'rt-v17-company')->getAttribute('style'));
+            self::assertStringContainsString('width:220px!important', $this->one($xpath, 'rt-v17-identity')->getAttribute('style'));
+            self::assertStringContainsString('width:280px!important', $this->one($xpath, 'rt-v17-direct')->getAttribute('style'));
+            self::assertStringContainsString('width:210px!important', $this->one($xpath, 'rt-v17-company')->getAttribute('style'));
             foreach (['rt-v17-columns-cell', 'rt-v17-legal-cell'] as $class) {
                 $style = $this->one($xpath, $class)->getAttribute('style');
-                self::assertStringContainsString('padding-left:clamp(20px,3.846154%,40px)!important', $style);
-                self::assertStringContainsString('padding-right:clamp(20px,3.846154%,40px)!important', $style);
+                self::assertStringContainsString('padding-left:20px!important', $style);
+                self::assertStringContainsString('padding-right:20px!important', $style);
             }
-            self::assertStringContainsString('width:clamp(247px,calc((500px - 100%)*1000),100%)!important', $this->one($xpath, 'rt-v17-dispatch')->getAttribute('style'));
+            self::assertStringContainsString('width:247px!important', $this->one($xpath, 'rt-v17-dispatch')->getAttribute('style'));
             self::assertStringContainsString('padding:0!important', $this->one($xpath, 'rt-v17-dispatch-cell')->getAttribute('style'));
             $role = $this->one($xpath, 'rt-personal-role');
             foreach (['color:#e90032!important', 'letter-spacing:1.6px!important', 'font-size:10px!important', 'line-height:15px!important'] as $paint) {
                 self::assertStringContainsString($paint, $role->getAttribute('style'));
             }
             self::assertStringContainsString('background:#dde1e6!important', $this->one($xpath, 'rt-brand-legal-table')->parentNode->getAttribute('style'));
-            self::assertStringContainsString('width:min(547px,100%)!important', $this->one($xpath, 'rt-v17-train')->getAttribute('style'));
+            self::assertStringContainsString('width:100%!important', $this->one($xpath, 'rt-v17-train')->getAttribute('style'));
+            self::assertSame('100%', $this->one($xpath, 'rt-v17-train')->getAttribute('width'));
+            self::assertStringContainsString('max-width:547px!important', $this->one($xpath, 'rt-v17-train')->getAttribute('style'));
+            self::assertStringContainsString('margin-top:0!important', $this->one($xpath, 'rt-v17-train')->getAttribute('style'));
             self::assertStringContainsString('width:529px!important', $this->one($xpath, 'rt-v17-train-image')->getAttribute('style'));
             self::assertStringContainsString('max-width:100%!important', $this->one($xpath, 'rt-v17-train-image')->getAttribute('style'));
             self::assertStringContainsString('padding:0 18px 0 0', $this->one($xpath, 'rt-v17-train-cell')->getAttribute('style'));
@@ -116,13 +124,13 @@ final class OutlookCompactMobilePresentationTest extends TestCase
     public static function tampering(): iterable
     {
         yield 'unknown source width' => ['width:min(280px,52%);', 'width:51%;', false];
-        yield 'unknown fluid width' => ['width:min(280px,52%)!important;', 'width:min(280px,51%)!important;', true];
+        yield 'unknown fluid width' => ['width:280px!important;', 'width:281px!important;', true];
         yield 'foreign flow cap' => [';max-width:1040px!important;', ';max-width:1041px!important;', true];
         yield 'foreign mobile marker' => ['data-rt-compact-mobile="v17"', 'data-rt-compact-mobile="foreign"', true];
-        yield 'changed gutter' => ['padding-left:clamp(20px,3.846154%,40px)!important;', 'padding-left:clamp(21px,3.846154%,40px)!important;', true];
+        yield 'changed gutter' => ['padding-left:20px!important;', 'padding-left:21px!important;', true];
         yield 'changed role paint' => ['color:#e90032!important;', 'color:#e4002b!important;', true];
         yield 'changed legal paint' => ['background:#dde1e6!important;', 'background:#f3f5f7!important;', true];
-        yield 'foreign train bound' => ['width:min(547px,100%)!important;', 'width:min(548px,100%)!important;', true];
+        yield 'foreign train bound' => ['max-width:547px!important;', 'max-width:548px!important;', true];
         yield 'duplicate flow' => ['class="xz ', 'data-rt-desktop-flow="outlook-desktop-flow-v17" class="xz ', false];
         yield 'unknown V30 stylesheet' => ['.v30 .rt-delivery-contact-value{line-height:19px!important;word-break:normal!important}', '.v30 .rt-delivery-contact-value{line-height:20px!important;word-break:normal!important}', false];
         yield 'unknown compact stylesheet' => ['.v30 .rt-v17-dispatch{width:100%!important}', '.v30 .rt-v17-dispatch{width:99%!important}', false];
@@ -134,6 +142,18 @@ final class OutlookCompactMobilePresentationTest extends TestCase
             self::assertSame($html, Mobile::document($html));
             self::assertSame($html, Mobile::canonicalize($html));
         }
+    }
+
+    public function test_historical_v16_delivery_is_not_reprojected_by_numeric_v17(): void
+    {
+        [$mobile, $desktop] = $this->entries();
+        foreach ([$mobile['signature']['html'], $desktop['signature']['html']] as $current) {
+            $historical = Compact::canonicalizeToV16($current);
+            self::assertStringContainsString('outlook-desktop-flow-v16', $historical);
+            self::assertSame($historical, Mobile::document($historical));
+            self::assertSame($historical, Mobile::canonicalize($historical));
+        }
+        Http::assertNothingSent();
     }
 
     private function entries(): array

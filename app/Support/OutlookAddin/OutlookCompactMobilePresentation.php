@@ -12,15 +12,15 @@ final class OutlookCompactMobilePresentation
 {
     public const MARKER = 'data-rt-compact-mobile';
 
-    public const REVISION = 'outlook-recipient-fluid-v17-v2';
+    public const REVISION = 'outlook-recipient-fluid-v17-v3';
 
     private const CLASS_NAME = 'rt-v17-mobile-inline';
 
-    private const GUTTER_SUFFIX = ';padding-left:clamp(20px,3.846154%,40px)!important;padding-right:clamp(20px,3.846154%,40px)!important;';
+    private const GUTTER_SUFFIX = ';padding-left:20px!important;padding-right:20px!important;';
 
-    private const LOGO_WIDTH = 'clamp(104px,calc((250px - 100%)*1000),184px)!important';
+    private const LOGO_WIDTH = '184px!important';
 
-    private const LOGO_SUFFIX = ';float:right!important;margin:clamp(0px,calc((100% - 250px)*1000),5px) clamp(0px,calc((250px - 100%)*1000),12px) 0 clamp(0px,calc((100% - 250px)*1000),12px)!important;';
+    private const LOGO_SUFFIX = ';float:none!important;margin:0!important;';
 
     private const COMPACT_CSS = '<style data-rt-compact-css="1">@media (max-width:520px){.v30 .rt-v17-train{margin-top:0!important}.v30 .rt-v17-dispatch{width:100%!important}.v30 .rt-v17-dispatch-cell{padding:14px 0 0!important}.v30 .rt-v17-legal-cell{padding:8px 20px!important}}</style>';
 
@@ -134,15 +134,14 @@ final class OutlookCompactMobilePresentation
         $suffix($flow, ';max-width:1040px!important;');
         $identityWidth = 'clamp(220px,calc((500px - 100%)*1000),100%)';
         $companyBase = $system ? $companyWidth.'px' : 'min('.$companyWidth.'px,48%)';
-        $companyFluid = $system ? 'clamp('.$companyWidth.'px,calc((500px - 100%)*1000),100%)' : $companyBase;
         $rules = [
-            'rt-v17-identity' => ['width' => [$identityWidth, $identityWidth.'!important']],
-            'rt-v17-direct' => ['width' => ['min(280px,52%)', 'min(280px,52%)!important']],
-            'rt-v17-company' => ['width' => [$companyBase, $companyFluid.'!important']],
-            'rt-v17-dispatch' => ['width' => [$dispatchWidth.'px', 'clamp('.$dispatchWidth.'px,calc((500px - 100%)*1000),100%)!important']],
+            'rt-v17-identity' => ['width' => [$identityWidth, '220px!important']],
+            'rt-v17-direct' => ['width' => ['min(280px,52%)', '280px!important']],
+            'rt-v17-company' => ['width' => [$companyBase, $companyWidth.'px!important']],
+            'rt-v17-dispatch' => ['width' => [$dispatchWidth.'px', $dispatchWidth.'px!important']],
             'rt-v17-dispatch-cell' => ['padding' => ['0 0px 0 0', '0!important']],
             'rt-v17-dispatch-block' => ['max-width' => [$dispatchWidth.'px', '100%!important']],
-            'rt-v17-train' => ['width' => ['min(547px,100%)', 'min(547px,100%)!important']],
+            'rt-v17-train' => ['width' => ['min(547px,100%)', '100%!important'], 'max-width' => ['100%!important', '547px!important']],
             'rt-v17-train-image' => ['width' => ['529px', '529px!important'], 'height' => ['auto', 'auto!important']],
         ];
         foreach ($rules as $className => $properties) {
@@ -184,9 +183,15 @@ final class OutlookCompactMobilePresentation
             }
         }
         $train = self::one($nodes, 'rt-v17-train');
+        if (($nodes[$train]['attrs']['width'] ?? '') !== ($forward ? '547' : '100%')) {
+            self::fail();
+        }
+        $set($train, ['width' => $forward ? '100%' : '547']);
+        $suffix($train, ';table-layout:fixed;');
         $raised = self::has($nodes[$flow], 'rt-v17-raised');
         $offset = $raised ? 'clamp(-8px,calc((500px - 100%)/10),0px)' : '0';
-        $set($train, ['style' => self::property($styleOf($train), 'margin-top', $forward ? $offset : $offset.'!important', $forward ? $offset.'!important' : $offset)]);
+        $numericOffset = '0!important';
+        $set($train, ['style' => self::property($styleOf($train), 'margin-top', $forward ? $offset : $numericOffset, $forward ? $numericOffset : $offset)]);
         if (! $system) {
             $logo = self::one($nodes, 'rt-personal-logo-frame');
             $image = self::one($nodes, 'rt-v9-logo');
@@ -210,15 +215,12 @@ final class OutlookCompactMobilePresentation
                 }
                 $set($index, ['style' => $style]);
             }
-            $suffix(self::singleCell($nodes, $logo), ';padding-bottom:clamp(0px,calc((100% - 104px)*1000),13px)!important;');
             $role = self::one($nodes, 'rt-personal-role');
             $roleStyle = $styleOf($role);
             foreach (['color' => '#e90032', 'line-height' => '15px', 'letter-spacing' => '1.6px', 'font-size' => '10px'] as $property => $value) {
                 $roleStyle = self::property($roleStyle, $property, $forward ? $value : $value.'!important', $forward ? $value.'!important' : $value);
             }
             $set($role, ['style' => $roleStyle]);
-        } else {
-            $suffix(self::one($nodes, 'rt-v17-company-cell'), ';padding-right:clamp(0px,calc((250px - 100%)*1000),16px)!important;');
         }
         $legalTable = self::one($nodes, 'rt-brand-legal-table');
         $legalHost = $nodes[$legalTable]['parent'];
@@ -231,7 +233,16 @@ final class OutlookCompactMobilePresentation
             $edits[] = [$nodes[$index]['start'], $nodes[$index]['openEnd'] - $nodes[$index]['start'], (! $forward && $index === $flow ? $prefix : '').self::opening($nodes[$index], $attrs)];
         }
 
-        return self::replace($html, $edits);
+        $result = self::replace($html, $edits);
+        if ($forward) {
+            foreach (self::nodes($result) as $node) {
+                if (preg_match('~\b(?:min|max|clamp|calc)\s*\(~i', $node['attrs']['style'] ?? '') === 1) {
+                    self::fail();
+                }
+            }
+        }
+
+        return $result;
     }
 
     private static function legacyCss(bool $system): string
@@ -330,6 +341,17 @@ final class OutlookCompactMobilePresentation
         $edits = [];
         $new = '';
         foreach ($changes as $key => $value) {
+            if ($key === 'width' && isset($node['ranges'][$key])) {
+                [$offset, $length] = $node['ranges'][$key];
+                $original = substr($tag, $offset, $length);
+                if (! is_string($value) || preg_match('~\A[0-9]+%?\z~', $value) !== 1
+                    || preg_match('~\A(\s+width\s*=\s*)(["\']?)([^"\'\s]+)\2\z~i', $original, $match) !== 1) {
+                    self::fail();
+                }
+                $edits[] = [$offset, $length, $match[1].$match[2].$value.$match[2]];
+
+                continue;
+            }
             $quoteMode = isset($node['ranges'][$key]) && str_contains(substr($tag, $node['ranges'][$key][0], $node['ranges'][$key][1]), '&#039;') ? ENT_QUOTES : ENT_COMPAT;
             $attribute = $value === null ? '' : ' '.$key.'="'.htmlspecialchars($value, $quoteMode | ENT_SUBSTITUTE, 'UTF-8').'"';
             if (isset($node['ranges'][$key])) {

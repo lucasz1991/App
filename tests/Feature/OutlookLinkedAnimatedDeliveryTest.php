@@ -76,7 +76,7 @@ final class OutlookLinkedAnimatedDeliveryTest extends TestCase
                 self::assertSame('115', $trains->item(0)->getAttribute('height'));
                 self::assertStringContainsString('width:529px!important;', $trains->item(0)->getAttribute('style'));
                 self::assertStringNotContainsString('min(', $trains->item(0)->getAttribute('style'));
-                self::assertSame(1, $xpath->query('//table[contains(@class,"rt-v17-train")][@width="547"]')->length);
+                self::assertSame(1, $xpath->query('//table[contains(@class,"rt-v17-train")][@width="100%"]')->length);
                 foreach ($xpath->query('//img') as $image) {
                     if ($image !== $trains->item(0)) {
                         self::assertStringStartsWith('https://mail.example.test/m/', $image->getAttribute('src'));
