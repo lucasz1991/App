@@ -1,5 +1,7 @@
 // V17 is an independent late linked-delivery projection. Historical V16 stays
 // unchanged; only proved new material receives a virtual inverse for reuse.
+import { normalizeV17OfficeActions } from './v17-office-actions.js';
+import { normalizeV17MsoColumns } from './v17-mso-columns.js';
 const VERIFIED_V17_ASSET_CONTRACT = [
     { role: 'contact', filename: 'contact-location-brand-v2.png', sha256: 'ef78563be5b36fb14bbfb9aec2f08e8ab55493648b31aecac64418693ad4a52b', extension: 'png', previousPath: '/m/097e33e85e.png' },
     { role: 'contact', filename: 'contact-phone-brand-v2.png', sha256: 'ad1ce232f6020548515acfb00b50bfd79cfc08ba9392553419a699a6d80a207b', extension: 'png', previousPath: '/m/741a9d43f5.png' },
@@ -292,6 +294,13 @@ function rootFor(nodes, scoped, source, contract) {
 
 /** Prove only V17 changes, then invoke unchanged V16 on cloned material. */
 export function verifyCompactReferenceMaterial(html, contract, source, verifyV16Material) {
+    let inlineHybrid = false;
+    if (!source) {
+        const ghost = normalizeV17MsoColumns(html, contract);
+        inlineHybrid = ghost.inlineHybrid === true;
+        if (ghost.msoColumns) contract = { ...contract, elements: ghost.elements,
+            signature: { ...contract.signature, node: ghost.elements[contract.signature.index] } };
+    }
     const actualNodes = contract?.elements, signature = contract?.signature;
     if (typeof html !== 'string' || !Array.isArray(actualNodes) || !Number.isInteger(signature?.index)
         || actualNodes[signature.index] !== signature.node || typeof verifyV16Material !== 'function') invalid();
@@ -305,6 +314,9 @@ export function verifyCompactReferenceMaterial(html, contract, source, verifyV16
     if (rows.length !== 2 || rows.some(value => value.node.tag !== 'tr')) invalid();
     const main = only(nodes, rows[0].index, 'td'), columns = children(nodes, main.index).filter(value => value.node.tag === 'table');
     if (columns.length !== 4) invalid();
+    const dispatchColumnCell = cellOf(nodes, columns[3].index);
+    const wireActions = normalizeV17OfficeActions(html, nodes, dispatchColumnCell.index, source);
+    html = wireActions.html;
     const virtual = nodes.map(node => ({ ...node, attrs: { ...node.attrs } }));
     for (const [position, [role, width, compact, previous]] of COLUMNS.entries()) {
         const column = columns[position], style = properties(column.node);
@@ -513,5 +525,6 @@ export function verifyCompactReferenceMaterial(html, contract, source, verifyV16
     if (proved.singleDispatch !== true) invalid();
     const actual = value => value && { ...value, node: actualNodes[value.index] };
     return { ...proved, root: actual(proved.root), columns: proved.columns.map(actual), train: actual(proved.train),
-        caption: actual(proved.caption), trainImage: actual(proved.trainImage), family: 17, singleDispatch: true, raisedTrain, fluidInline: true, sourceLogoUrl: normalized.sourceLogoUrl };
+        caption: actual(proved.caption), trainImage: actual(proved.trainImage), family: 17, singleDispatch: true, raisedTrain, fluidInline: true, sourceLogoUrl: normalized.sourceLogoUrl,
+        officeActionsWire: wireActions.officeActionsWire, defaultDispatchPhoneImage: wireActions.defaultDispatchPhoneImage, inlineHybrid };
 }

@@ -12,7 +12,7 @@ use RuntimeException;
 /** Final wire presentation, after every canonical inverse/mobile/combined check. */
 final class OutlookClientPresentation
 {
-    public const REVISION = 'outlook-client-presentation-v25';
+    public const REVISION = 'outlook-client-presentation-v26';
 
     private const SIGNATURE_VERSION = 'RT-SIGNATURE-VERSION:';
 

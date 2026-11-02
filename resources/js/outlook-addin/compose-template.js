@@ -1,6 +1,7 @@
 import { fluidLayoutContract, hasUnquotedFluidLayoutMarker, hasUnquotedSignatureLayoutCarrier, managedTemplateContract, managedTemplateReplacement, standaloneSignatureContract, v15ReadbackParses, V15_READBACK_CONTRACT_STAGES } from './managed-template.js';
 import { createNativeLayoutNonce, inferredNativeGridRow, isFluidLayoutSource, outlookSignatureDeliveryProfile, verifyFluidLayoutMaterial, nativeLayoutClearBarrier, nativeLayoutReadbackContract, nativeLayoutThreeCellTopology, nativeLayoutRestoreCarrierIsExternal, nativeLayoutRestoreCarrierPresent, nativeLayoutRestoreCellsAligned, nativeLayoutRestoreCss, nativeLayoutRestoreRetained, prepareNativeLayoutRestore, removeNativeLayoutRestoreCarrier } from './native-layout-restore.js';
 import { applyV17OfficeWireEdits, mobileV17OfficeWire, v17OfficeWireEdits } from './v17-office-wire.js';
+import { v17MsoColumnEdits } from './v17-mso-columns.js';
 import { confirmedOfficeWrite, markSignatureWriteConfirmed } from './office-write.js';
 
 // Automatic insertion only prepends. Explicit taskpane replacement below owns
@@ -666,7 +667,22 @@ function retainReferenceDiagnosticPlan(operation, layout, kind) {
     if (layout?.family !== 17) return retainV16DiagnosticPlan(operation, layout, kind);
     if (layout.sourceOnly !== 'fluid-v17' || !['M', 'B'].includes(layout.profile) || layout.singleDispatch !== true || typeof layout.raisedTrain !== 'boolean'
         || !/^[0-9a-f]{32}$/.test(layout.nonce || '') || !/^[0-9a-f]{16}$/.test(layout.version || '')) return;
-    operation.v17DiagnosticPlan = Object.freeze({ family: 17, profile: layout.profile, nonce: layout.nonce, version: layout.version, kind, singleDispatch: true, raisedTrain: layout.raisedTrain, sourceLogoUrl: layout.sourceLogoUrl });
+    operation.v17DiagnosticPlan = Object.freeze({ family: 17, profile: layout.profile, nonce: layout.nonce, version: layout.version, kind, singleDispatch: true, raisedTrain: layout.raisedTrain, sourceLogoUrl: layout.sourceLogoUrl,
+        officeActionsWire: layout.officeActionsWire, defaultDispatchPhoneImage: layout.defaultDispatchPhoneImage, inlineHybrid: layout.inlineHybrid });
+}
+
+function v17OfficeWireMatches(material, plan) {
+    return plan.officeActionsWire === true && material.officeActionsWire === true && plan.inlineHybrid === true && material.inlineHybrid === true
+        && typeof plan.defaultDispatchPhoneImage === 'boolean' && material.defaultDispatchPhoneImage === plan.defaultDispatchPhoneImage;
+}
+
+function currentV17OfficeWire(material, contract) {
+    if (material.family !== 17) return true;
+    if (material.officeActionsWire !== true || material.inlineHybrid !== true) return false;
+    const dispatch = material.columns[3].index;
+    const knownDefault = contract.elements.some((node, index) => node.tag === 'a' && node.attrs.href === 'tel:+491601881839'
+        && withinContract(contract, index, dispatch));
+    return !knownDefault || material.defaultDispatchPhoneImage === true;
 }
 
 function v16DiagnosticShape(html, current, contract) {
@@ -758,7 +774,7 @@ function diagnoseV17Readback(html, current, item, result) {
     result.phase = 'diagnostic-v17-material';
     try {
         const material = verifyFluidLayoutMaterial(html, plan ? { ...contract, sourceLogoUrl: plan.sourceLogoUrl } : contract);
-        if (material.singleDispatch !== true || plan && (plan.singleDispatch !== true || typeof plan.raisedTrain !== 'boolean' || material.raisedTrain !== plan.raisedTrain)) { result.sourcePlanMatched = plan ? false : null; return result; }
+        if (material.singleDispatch !== true || plan && (plan.singleDispatch !== true || typeof plan.raisedTrain !== 'boolean' || material.raisedTrain !== plan.raisedTrain || !v17OfficeWireMatches(material, plan))) { result.sourcePlanMatched = plan ? false : null; return result; }
     } catch { return result; }
     result.material = true;
     result.phase = 'diagnostic-v17-complete';
@@ -820,7 +836,7 @@ export function signatureOfficeWire(html) {
     if (/<div\b[^>]*\bclass\s*=\s*["'][^"']*\b(?:rt-mobile-ledger|x10)\b/i.test(html)) return mobileV17OfficeWire(html);
     const contract = standaloneSignatureContract(html);
     const material = verifyFluidLayoutMaterial(html, contract, true);
-    return applyV17OfficeWireEdits(html, v17OfficeWireEdits(html, contract, material));
+    return applyV17OfficeWireEdits(html, [...v17OfficeWireEdits(html, contract, material), ...v17MsoColumnEdits(html, contract, material)]);
 }
 
 export function isStandaloneSignatureInsertionBlocked(item) {
@@ -851,7 +867,8 @@ export function standaloneSignatureLayoutIsCurrent(html, currentHtml, version, o
         const fluid = fluidLayoutContract(html, currentHtml, null, version);
         if (fluid.kind !== 'standalone-signature-v1') return false;
         if ([15, 16, 17].includes(fluid.fluidLayout.family) && fluid.fluidLayout.profile !== outlookSignatureDeliveryProfile(office)) return false;
-        return verifyFluidLayoutMaterial(html, fluid).sourceOnly === true;
+        const material = verifyFluidLayoutMaterial(html, fluid);
+        return material.sourceOnly === true && currentV17OfficeWire(material, fluid);
     } catch { /* Historical families retain their existing independent proof. */ }
     try {
         const contract = standaloneSignatureContract(html, currentHtml, null, version);
@@ -866,9 +883,10 @@ export function standaloneSignatureLayoutIsCurrent(html, currentHtml, version, o
 export function signatureHostProfileIsCurrent(html, currentHtml, version, office) {
     try {
         const contract = fluidLayoutContract(html, currentHtml, null, version);
+        const material = verifyFluidLayoutMaterial(html, contract);
         return [15, 16, 17].includes(contract.fluidLayout.family)
             && contract.fluidLayout.profile === outlookSignatureDeliveryProfile(office)
-            && verifyFluidLayoutMaterial(html, contract).sourceOnly === true;
+            && material.sourceOnly === true && currentV17OfficeWire(material, contract);
     } catch { return false; }
 }
 
@@ -928,7 +946,7 @@ async function insertFluidStandalone(office, item, html, incoming, beforeWrite, 
         if (previous?.fluidLayout.version === layout.version && previous.fluidLayout.family === layout.family
             && previous.fluidLayout.profile === layout.profile) {
             if ([16, 17].includes(layout.family) && (typeof layout.singleDispatch !== 'boolean'
-                || (previousMaterial.singleDispatch === true) !== layout.singleDispatch) || layout.family === 17 && (typeof layout.raisedTrain !== 'boolean' || previousMaterial.raisedTrain !== layout.raisedTrain)) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
+                || (previousMaterial.singleDispatch === true) !== layout.singleDispatch) || layout.family === 17 && (typeof layout.raisedTrain !== 'boolean' || previousMaterial.raisedTrain !== layout.raisedTrain || !v17OfficeWireMatches(previousMaterial, layout))) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
             options.beforeCommit?.(); await signatureSession(office, item, operation, 'complete');
             markSignatureWriteConfirmed(item); return 'current';
         }
@@ -947,7 +965,7 @@ async function insertFluidStandalone(office, item, html, incoming, beforeWrite, 
             || owned.fluidLayout.profile !== layout.profile) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
         const material = verifyFluidLayoutMaterial(written.html, layout.family === 17 ? { ...owned, sourceLogoUrl: layout.sourceLogoUrl } : owned);
         if ([16, 17].includes(layout.family) && (typeof layout.singleDispatch !== 'boolean'
-            || (material.singleDispatch === true) !== layout.singleDispatch) || layout.family === 17 && (typeof layout.raisedTrain !== 'boolean' || material.raisedTrain !== layout.raisedTrain)) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
+            || (material.singleDispatch === true) !== layout.singleDispatch) || layout.family === 17 && (typeof layout.raisedTrain !== 'boolean' || material.raisedTrain !== layout.raisedTrain || !v17OfficeWireMatches(material, layout))) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
         options.beforeCommit?.(); await signatureSession(office, item, operation, 'complete');
         markSignatureWriteConfirmed(item); operation.phase = 'applied'; return 'applied';
     } catch (error) {
@@ -1287,7 +1305,7 @@ async function restoreNativeLayout(office, item, layout, operation, original, op
             || owned.fluidLayout.profile !== layout.profile) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
         const material = verifyFluidLayoutMaterial(written.html, layout.family === 17 ? { ...owned, sourceLogoUrl: layout.sourceLogoUrl } : owned);
         if ([16, 17].includes(layout.family) && (typeof layout.singleDispatch !== 'boolean'
-            || (material.singleDispatch === true) !== layout.singleDispatch) || layout.family === 17 && (typeof layout.raisedTrain !== 'boolean' || material.raisedTrain !== layout.raisedTrain)) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
+            || (material.singleDispatch === true) !== layout.singleDispatch) || layout.family === 17 && (typeof layout.raisedTrain !== 'boolean' || material.raisedTrain !== layout.raisedTrain || !v17OfficeWireMatches(material, layout))) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
         options.beforeCommit?.(); await markTemplateApplied(item, operation); return;
     }
     layoutIdsContract(written.html, currentComposeBodyHtml(written.html, written.composeType), layout.ids);

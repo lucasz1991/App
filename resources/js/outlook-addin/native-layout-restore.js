@@ -2,6 +2,7 @@
 import { verifyV30ReferenceMaterial } from './v30-reference-layout.js';
 import { verifyCompactReferenceMaterial } from './compact-reference-layout.js';
 import { v17OfficeWireEdits } from './v17-office-wire.js';
+import { v17MsoColumnEdits } from './v17-mso-columns.js';
 const PREFIX = 'rt-native-layout-';
 const FLOW = 'data-rt-personal-flow';
 const owns = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
@@ -918,12 +919,15 @@ function prepareFluidLayout(html, contract, nonce, office) {
     // additional Word formatting run. Its exact merged-token protocol exists.
     const marker = boundedV15 ? ' ' + token : '<span hidden aria-hidden="true" style="display:none!important;font-size:0;line-height:0;">' + token + '</span>';
     const position = boundedV15 ? versionNode.close : versionNode.end;
-    const edits = [{ start: position, end: position, value: marker }, ...(family === 17 ? v17OfficeWireEdits(html, contract, material) : [])];
+    const wire = family === 17 ? v17OfficeWireEdits(html, contract, material) : [];
+    const msoEdits = family === 17 ? v17MsoColumnEdits(html, contract, material) : [];
+    const edits = [{ start: position, end: position, value: marker }, ...wire, ...msoEdits];
     if (family === 15 && profile === 'M') edits.push(hostProfileOpening(html, material.train, 547), hostProfileOpening(html, material.trainImage, 529, 115), hostProfileOpening(html, material.caption, 199, 38));
     let modified = html;
     for (const edit of edits.sort((a, b) => b.start - a.start)) modified = modified.slice(0, edit.start) + edit.value + modified.slice(edit.end);
     return Object.freeze({ html: modified, sourceOnly: 'fluid-v' + family, family, nonce: scope, version, stylePayload: '', ids: null,
-        ...([15, 16, 17].includes(family) ? { profile } : {}), ...([16, 17].includes(family) ? { singleDispatch: material.singleDispatch === true } : {}), ...(family === 17 ? { raisedTrain: material.raisedTrain === true, sourceLogoUrl: material.sourceLogoUrl } : {}) });
+        ...([15, 16, 17].includes(family) ? { profile } : {}), ...([16, 17].includes(family) ? { singleDispatch: material.singleDispatch === true } : {}), ...(family === 17 ? { raisedTrain: material.raisedTrain === true, sourceLogoUrl: material.sourceLogoUrl,
+            officeActionsWire: wire.officeActionsWire, defaultDispatchPhoneImage: wire.defaultDispatchPhoneImage, inlineHybrid: msoEdits.length === 5 } : {}) });
 }
 
 /** Outlook replaces our empty clear BR with one zero-line, style-only DIV. */

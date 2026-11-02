@@ -1,6 +1,7 @@
 // Office's Word importer may expose BODY STYLE raw text as visible content.
 // This projection is only for a newly verified compiler fragment, never a body
 // readback. Runtime editable text and quoted history are deliberately opaque.
+import { v17OfficeActionProjection } from './v17-office-actions.js';
 const FLOW = 'outlook-desktop-flow-v17';
 const STYLE_MARKERS = new Set(['data-rt-combined-compose-css', 'data-rt-outlook-template-css',
     'data-rt-outlook-signature-inline-css', 'data-rt-outlook-signature-css', 'data-rt-outlook-mobile-css', 'data-rt-outlook-marker-css']);
@@ -39,7 +40,7 @@ export function applyV17OfficeWireEdits(html, edits) {
     }
     return html;
 }
-function edits(html, contract, signature, size, sourceLogoUrl = null) {
+function edits(html, contract, signature, size, sourceLogoUrl = null, mobile = false) {
     const nodes = contract.elements, region = contract.region;
     const result = [];
     for (let index = 0; index < nodes.length; index++) {
@@ -65,6 +66,10 @@ function edits(html, contract, signature, size, sourceLogoUrl = null) {
         || !/(?:^|;)\s*max-width\s*:\s*100%(?:\s*!important)?\s*(?:;|$)/i.test(style)) invalid();
     result.push(opening(html, logo, { width: String(size.width), height: String(size.height),
         style: style.replace(/(^|;)(\s*width\s*:\s*)[^;]+/i, '$1$2' + size.width + 'px!important') }));
+    const action = v17OfficeActionProjection(html, nodes, signature, mobile);
+    result.push(...action.edits);
+    result.officeActionsWire = action.officeActionsWire;
+    result.defaultDispatchPhoneImage = action.defaultDispatchPhoneImage;
     return result;
 }
 
@@ -125,5 +130,5 @@ export function mobileV17OfficeWire(html) {
     if (start.length !== end.length || start.length > 1 || start.length && start[0].node.end > end[0].node.start) invalid();
     const region = start.length ? { start: start[0].node.end, end: end[0].node.start } : null;
     const size = reference === 'v1' ? { width: 104, height: 18 } : { width: 184, height: 32 };
-    return applyV17OfficeWireEdits(html, edits(html, { elements: nodes, region }, signatures[0].index, size));
+    return applyV17OfficeWireEdits(html, edits(html, { elements: nodes, region }, signatures[0].index, size, null, true));
 }

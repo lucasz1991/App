@@ -120,7 +120,7 @@ test('V17 numeric readback rejects Math-CSS, changed geometry and invisible subs
             ['width:280px!important', 'width:min(280px,52%)!important'], ['width:210px!important', 'width:min(210px,48%)!important'],
             ['width:247px!important', 'width:clamp(247px,calc((500px - 100%)*1000),100%)!important'],
             ['padding-left:20px!important', 'padding-left:clamp(20px,3.846154%,40px)!important'],
-            ['margin-left:14px;', 'margin-left:0;'], ['white-space:nowrap;', 'white-space:normal;'],
+            ['margin-left:14px;', 'margin-left:0;'], ['white-space:nowrap!important;', 'white-space:normal!important;'],
         ]) { assert.ok(received.includes(before)); failure(received.replace(before, after)); }
         const contract = fluidLayoutContract(received), material = verifyFluidLayoutMaterial(received, contract);
         failure(opening(received, material.trainImage, value => appendStyle(value, 'max-width:none;')));
@@ -182,6 +182,54 @@ for (const profile of ['M', 'B']) for (const path of ['standalone', 'prepend', '
         assert.equal(checked(box.state.html).family, 17);
     });
 }
+
+for (const profile of ['M', 'B']) for (const path of ['standalone', 'prepend', 'replace']) test('V17 ' + profile + '/' + path + ' cannot acknowledge loss of the source-bound action table and default number image', async () => {
+    const kind = path === 'standalone' ? 'standalone' : 'combined';
+    const input = current.source[kind].replaceAll('+491705550202', '+491601881839');
+    const original = sourceContract(input, kind), action = original.elements.find(node => node.tag === 'table' && (node.attrs.class || '').includes('rt-v17-dispatch-actions'));
+    const oldAction = input.slice(action.start, action.end);
+    const box = mailbox(profile, value => {
+        const parsed = fluidLayoutContract(value), target = parsed.elements.find(node => node.tag === 'table' && (node.attrs.class || '').includes('rt-v17-dispatch-actions'));
+        const changed = word(value.slice(0, target.start) + oldAction + value.slice(target.end));
+        const material = checked(changed); assert.equal(material.officeActionsWire, false); assert.equal(material.defaultDispatchPhoneImage, false);
+        return changed;
+    });
+    if (path === 'replace') box.state.html = prepare(input.replaceAll(current.version, 'ee'.repeat(8)), kind, profile).html;
+    const invoke = () => path === 'standalone' ? insertStandaloneSignature(box.office, box.item, input, () => {}, { media: [] })
+        : path === 'prepend' ? prependTemplate(box.office, box.item, input, () => {}, { media: [] }) : replaceManagedTemplate(box.office, box.item, input, () => {}, { media: [] });
+    await assert.rejects(invoke(), error => ['SIGNATURE_LAYOUT_UNCONFIRMED', 'TEMPLATE_LAYOUT_UNCONFIRMED'].includes(error.code));
+    assert.equal(box.state.writes, 1); assert.equal(box.state.completed, 0);
+    await assert.rejects(invoke()); assert.equal(box.state.writes, 1);
+});
+
+for (const profile of ['M', 'B']) test('V17 ' + profile + ' independently binds the default phone PNG even when the new action geometry survives', async () => {
+    const input = current.source.standalone.replaceAll('+491705550202', '+491601881839');
+    const box = mailbox(profile, value => {
+        const changed = word(value.replace(/<img\b[^>]*ef89fd23c6\.png[^>]*>/, '+49 160 1881839'));
+        const material = checked(changed); assert.equal(material.officeActionsWire, true); assert.equal(material.defaultDispatchPhoneImage, false);
+        return changed;
+    });
+    const invoke = () => insertStandaloneSignature(box.office, box.item, input, () => {}, { media: [] });
+    await assert.rejects(invoke(), error => error.code === 'SIGNATURE_LAYOUT_UNCONFIRMED');
+    assert.equal(box.state.writes, 1); assert.equal(box.state.completed, 0); await assert.rejects(invoke()); assert.equal(box.state.writes, 1);
+});
+
+for (const profile of ['M', 'B']) test('V17 ' + profile + ' independently binds the physical four-cell hybrid when actions survive', async () => {
+    const input = current.source.standalone;
+    const box = mailbox(profile, value => {
+        const parsed = fluidLayoutContract(value), nodes = parsed.elements;
+        const ghost = nodes.find(node => node.tag === 'table' && (node.attrs.class || '').includes('rt-v17-inline-columns'));
+        const body = nodes.findIndex(node => node.parent === nodes.indexOf(ghost) && node.tag === 'tbody');
+        const row = nodes.findIndex(node => node.parent === body && node.tag === 'tr');
+        const cells = nodes.filter(node => node.parent === row && node.tag === 'td'); assert.equal(cells.length, 4);
+        const changed = word(value.slice(0, ghost.start) + cells.map(node => value.slice(node.openEnd, node.close)).join('') + value.slice(ghost.end));
+        const material = checked(changed); assert.equal(material.officeActionsWire, true); assert.equal(material.inlineHybrid, false);
+        return changed;
+    });
+    const invoke = () => insertStandaloneSignature(box.office, box.item, input, () => {}, { media: [] });
+    await assert.rejects(invoke(), error => error.code === 'SIGNATURE_LAYOUT_UNCONFIRMED');
+    assert.equal(box.state.writes, 1); assert.equal(box.state.completed, 0); await assert.rejects(invoke()); assert.equal(box.state.writes, 1);
+});
 
 
 function savedMetadata(html) {
