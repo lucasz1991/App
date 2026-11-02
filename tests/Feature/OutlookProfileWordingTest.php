@@ -90,7 +90,7 @@ final class OutlookProfileWordingTest extends TestCase
             ->assertSet('showGreeting', true)->assertSet('showFarewell', false)->assertSet('greeting', 'Noch nicht gespeichert,');
         $policy = app(OutlookAddinWordingPolicy::class);
         $stored = $policy->readForUser($this->employee);
-        self::assertSame('Guten Tag,', $stored['greeting']);
+        self::assertSame('Hallo zusammen', $stored['greeting']);
         self::assertTrue($stored['showGreeting']);
         $next = $policy->updateForSession($this->employee, 'Hallo,', 'Grüße,', $stored['revision']);
         self::assertTrue($next['showGreeting'], 'An old text-only client must preserve the additive flags.');
@@ -123,8 +123,8 @@ final class OutlookProfileWordingTest extends TestCase
     public function test_unbound_own_session_has_text_defaults_but_cannot_change_automatic_insertion(): void
     {
         $component = Livewire::test(OutlookPreferences::class)->assertSet('available', false)
-            ->assertSet('wordingAvailable', true)->assertSet('greeting', 'Guten Tag,')
-            ->assertSet('farewell', 'Mit freundlichen Grüßen,')->assertSee('Texte speichern')
+            ->assertSet('wordingAvailable', true)->assertSet('greeting', 'Hallo zusammen')
+            ->assertSet('farewell', 'Beste Grüße')->assertSee('Texte speichern')
             ->assertSee('Dein Name wird automatisch')->assertDontSeeHtml('role="switch"');
         self::assertSame(0, Setting::query()->count());
         $component->set('greeting', 'Hallo zusammen,')->set('farewell', 'Beste Grüße,');
@@ -158,8 +158,23 @@ final class OutlookProfileWordingTest extends TestCase
         $component = Livewire::test(OutlookPreferences::class);
         $revision = $component->get('wordingRevision');
         $component->call('saveWording')->assertHasNoErrors()->assertSet('wordingRevision', $revision)
-            ->assertSet('greeting', 'Guten Tag,')->assertSet('farewell', 'Mit freundlichen Grüßen,');
+            ->assertSet('greeting', 'Hallo zusammen')->assertSet('farewell', 'Beste Grüße');
         self::assertSame(0, Setting::query()->count());
+        self::assertSame(0, DB::table('activity_log')->count());
+    }
+
+    public function test_new_defaults_never_replace_saved_former_defaults_or_visibility(): void
+    {
+        $saved = ['schema' => 1, 'greeting' => 'Guten Tag,', 'farewell' => 'Mit freundlichen Grüßen,',
+            'showGreeting' => true, 'showFarewell' => false, 'keep' => 'individual'];
+        Setting::setValue('outlook_addin', $this->key(), $saved);
+        $before = DB::table('settings')->get()->toJson();
+        $wording = app(OutlookAddinWordingPolicy::class)->readForUser($this->employee);
+        self::assertSame('Guten Tag,', $wording['greeting']);
+        self::assertSame('Mit freundlichen Grüßen,', $wording['farewell']);
+        self::assertTrue($wording['showGreeting']);
+        self::assertFalse($wording['showFarewell']);
+        self::assertSame($before, DB::table('settings')->get()->toJson());
         self::assertSame(0, DB::table('activity_log')->count());
     }
 

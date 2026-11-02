@@ -16,9 +16,9 @@ use RuntimeException;
 /** Plain personal wording only; the renderer owns the opt-in variant and canonical employee name. */
 final class OutlookAddinWordingPolicy
 {
-    public const DEFAULT_GREETING = 'Guten Tag,';
+    public const DEFAULT_GREETING = 'Hallo zusammen';
 
-    public const DEFAULT_FAREWELL = 'Mit freundlichen Grüßen,';
+    public const DEFAULT_FAREWELL = 'Beste Grüße';
 
     public const MAX_LENGTH = 120;
 

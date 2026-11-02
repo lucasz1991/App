@@ -16,9 +16,9 @@ final class OutlookTemplateWording
 
     public const FAREWELL_TOKEN = '{{OUTLOOK_GRUSS}}';
 
-    public const DEFAULT_GREETING = 'Guten Tag,';
+    public const DEFAULT_GREETING = 'Hallo zusammen';
 
-    public const DEFAULT_FAREWELL = 'Mit freundlichen Grüßen,';
+    public const DEFAULT_FAREWELL = 'Beste Grüße';
 
     public const WRAP_DECLARATIONS = 'overflow-wrap:anywhere;word-break:break-word;';
 

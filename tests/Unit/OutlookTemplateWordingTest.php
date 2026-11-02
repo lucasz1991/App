@@ -16,9 +16,18 @@ final class OutlookTemplateWordingTest extends TestCase
     {
         self::assertSame('<p>Guten Tag,</p>', OutlookTemplateWording::render('<p>Guten Tag,</p>'));
         $rendered = OutlookTemplateWording::render(self::SOURCE, null, 'Mara Muster');
-        self::assertSame(strtr(self::SOURCE, [OutlookTemplateWording::GREETING_TOKEN => 'Guten Tag,',
-            OutlookTemplateWording::FAREWELL_TOKEN => 'Mit freundlichen Grüßen,<br>Mara Muster']), $rendered);
-        self::assertStringContainsString('>Mit freundlichen Grüßen,</p>', OutlookTemplateWording::render(self::SOURCE));
+        self::assertSame(strtr(self::SOURCE, [OutlookTemplateWording::GREETING_TOKEN => 'Hallo zusammen',
+            OutlookTemplateWording::FAREWELL_TOKEN => 'Beste Grüße<br>Mara Muster']), $rendered);
+        self::assertStringContainsString('>Beste Grüße</p>', OutlookTemplateWording::render(self::SOURCE));
+    }
+
+    public function test_saved_individual_texts_including_former_defaults_keep_precedence(): void
+    {
+        $rendered = OutlookTemplateWording::render(self::SOURCE, [
+            'greeting' => 'Guten Tag,', 'farewell' => 'Mit freundlichen Grüßen,',
+        ], 'Mara Muster');
+        self::assertStringContainsString('>Guten Tag,</p>', $rendered);
+        self::assertStringContainsString('>Mit freundlichen Grüßen,<br>Mara Muster</p>', $rendered);
     }
 
     public function test_plain_text_is_escaped_once_and_never_becomes_another_template_substitution(): void

@@ -89,8 +89,8 @@ final class OutlookAddinWordingApiTest extends TestCase
         $response = $this->getJson(self::URL, $this->headers() + ['X-RailTime-Outlook-Sender' => 'foreign@other.test'])->assertOk();
         self::assertSame(['wordingPreferences', 'binding'], array_keys($response->json()));
         self::assertSame(['schema', 'greeting', 'farewell', 'showGreeting', 'showFarewell', 'revision'], array_keys($response->json('wordingPreferences')));
-        $response->assertJsonPath('wordingPreferences.schema', 1)->assertJsonPath('wordingPreferences.greeting', 'Guten Tag,')
-            ->assertJsonPath('wordingPreferences.farewell', 'Mit freundlichen Grüßen,')
+        $response->assertJsonPath('wordingPreferences.schema', 1)->assertJsonPath('wordingPreferences.greeting', 'Hallo zusammen')
+            ->assertJsonPath('wordingPreferences.farewell', 'Beste Grüße')
             ->assertJsonPath('binding.mailboxAddress', 'own@company.test')->assertJsonPath('binding.senderAddress', 'own@company.test');
         self::assertMatchesRegularExpression('/\A[0-9a-f]{64}\z/', $response->json('wordingPreferences.revision'));
         self::assertSame($before, $this->rows());

@@ -40,8 +40,8 @@ final class OutlookTemplateWordingPreviewTest extends TestCase
         $before = $this->documents();
         foreach (['light', 'dark'] as $theme) {
             $html = app(PageBuilderPreviewService::class)->mail($template, $user, $theme)['html'];
-            self::assertStringContainsString('Guten Tag,', $html);
-            self::assertStringContainsString('Mit freundlichen Grüßen,', $html);
+            self::assertStringContainsString('Hallo zusammen', $html);
+            self::assertStringContainsString('Beste Grüße', $html);
             self::assertStringNotContainsString('{{OUTLOOK_ANREDE}}', $html);
             self::assertStringNotContainsString('{{OUTLOOK_GRUSS}}', $html);
             self::assertDoesNotMatchRegularExpression('~<p\b[^>]*class="design-(?:salutation|greeting)"[^>]*>\s*—\s*</p>~', $html);
