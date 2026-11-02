@@ -4,7 +4,7 @@ import { applyV17OfficeWireEdits, mobileV17OfficeWire, v17OfficeWireEdits } from
 import { v17MsoColumnEdits } from './v17-mso-columns.js';
 import { confirmedOfficeWrite, markSignatureWriteConfirmed, hasUncertainWrite } from './office-write.js';
 import { assertMailboxBinding } from './mailbox-guard.js';
-import { HEAD_PROBE_MAILBOX, HEAD_PROBE_SUBJECT, HEAD_PROBE_SESSION_KEY, headProbeContextAvailable, headProbeDocument, inspectHeadProbe } from './head-transport-probe.js';
+import { HEAD_PROBE_MAILBOX, HEAD_PROBE_SUBJECT, HEAD_BODY_PROBE_SUBJECT, HEAD_PROBE_SESSION_KEY, headProbeContextAvailable, headProbeDocument, headBodyProbeDocument, inspectHeadProbe } from './head-transport-probe.js';
 
 // Automatic insertion only prepends. Explicit taskpane replacement below owns
 // one verified current-message shell and preserves every outside/quoted byte.
@@ -1562,9 +1562,9 @@ async function headProbeSession(office, item, key) {
     return read.value || '';
 }
 
-async function headProbeTarget(office, item, binding, beforeWrite) {
+async function headProbeTarget(office, item, binding, beforeWrite, method) {
     await beforeWrite(); await assertMailboxBinding(office, item, binding);
-    if (!headProbeContextAvailable(office, binding)) throw failure('HEAD_PROBE_NOT_ELIGIBLE');
+    if (!headProbeContextAvailable(office, binding, method)) throw failure('HEAD_PROBE_NOT_ELIGIBLE');
     const read = async operation => { const result = await officeResult(office, operation); if (!result.succeeded) throw failure('HEAD_PROBE_TARGET_UNREADABLE'); return result.value; };
     if (![item.subject, item.to, item.cc, item.bcc].every(value => typeof value?.getAsync === 'function')
         || typeof item.getAttachmentsAsync !== 'function') throw failure('HEAD_PROBE_TARGET_UNREADABLE');
@@ -1573,7 +1573,7 @@ async function headProbeTarget(office, item, binding, beforeWrite) {
     const cc = await read(callback => item.cc.getAsync(callback));
     const bcc = await read(callback => item.bcc.getAsync(callback));
     const attachments = await read(callback => item.getAttachmentsAsync(callback));
-    if (subject !== HEAD_PROBE_SUBJECT || !Array.isArray(to) || to.length !== 1
+    if (subject !== (method === 'setAsync' ? HEAD_BODY_PROBE_SUBJECT : HEAD_PROBE_SUBJECT) || !Array.isArray(to) || to.length !== 1
         || String(to[0]?.emailAddress || '').trim().toLowerCase() !== HEAD_PROBE_MAILBOX
         || !Array.isArray(cc) || cc.length || !Array.isArray(bcc) || bcc.length || !Array.isArray(attachments) || attachments.length) throw failure('HEAD_PROBE_NOT_ELIGIBLE');
     await beforeWrite(); await assertMailboxBinding(office, item, binding);
@@ -1604,17 +1604,18 @@ function emptyHeadProbeFrame(html, expectedVersion, sourceLogoUrl, allowedProbe 
     return contract;
 }
 
-/** One fixed native-slot experiment in a strictly bound empty technical draft. */
-export async function insertHeadTransportProbe(office, item, { sourceDocument, binding, beforeWrite = () => {} } = {}) {
+/** One fixed experiment in a strictly bound empty technical draft. The second
+ * method preserves that proven source in a complete HTML body replacement. */
+export async function insertHeadTransportProbe(office, item, { sourceDocument, binding, beforeWrite = () => {}, method = 'setSignatureAsync' } = {}) {
     const lockReason = insertionOperations.has(item) ? 'preflight-template-lock'
         : signatureOperations.has(item) ? 'preflight-signature-lock' : hasUncertainWrite(item) ? 'preflight-office-uncertain' : null;
     if (lockReason) throw failure('HEAD_PROBE_ALREADY_ATTEMPTED', { phase: 'head-probe-preflight', reason: lockReason });
-    if (!headProbeContextAvailable(office, binding) || typeof item?.sessionData?.getAsync !== 'function'
+    if (!headProbeContextAvailable(office, binding, method) || typeof item?.sessionData?.getAsync !== 'function'
         || typeof item?.sessionData?.setAsync !== 'function') throw failure('HEAD_PROBE_NOT_ELIGIBLE');
-    const operation = { phase: 'preflight', headProbe: true, headProbeReport: { schema: 1, attempted: false, state: 'preflight' } };
+    const operation = { phase: 'preflight', headProbe: true, headProbeReport: { schema: 1, attempted: false, state: 'preflight', method } };
     signatureOperations.set(item, operation);
     try {
-        await headProbeTarget(office, item, binding, beforeWrite);
+        await headProbeTarget(office, item, binding, beforeWrite, method);
         for (const [key, category] of [[TEMPLATE_SESSION_KEY, 'template'], [SIGNATURE_SESSION_KEY, 'signature']]) {
             const value = await headProbeSession(office, item, key);
             if (!['', '1'].includes(value)) throw failure('HEAD_PROBE_ALREADY_ATTEMPTED', {
@@ -1639,23 +1640,25 @@ export async function insertHeadTransportProbe(office, item, { sourceDocument, b
         const currentMaterial = verifyFluidLayoutMaterial(original.html, { ...frame, sourceLogoUrl: sourcePlan.sourceLogoUrl });
         if (frame.fluidLayout.profile !== sourcePlan.profile || !v17OfficeWireMatches(currentMaterial, sourcePlan)
             || currentMaterial.singleDispatch !== sourcePlan.singleDispatch || currentMaterial.raisedTrain !== sourcePlan.raisedTrain) throw failure('HEAD_PROBE_SOURCE_INVALID');
-        const probe = headProbeDocument(createNativeLayoutNonce()), token = 'pending:head-probe:' + probe.nonce;
+        const nonce = createNativeLayoutNonce();
+        const probe = method === 'setAsync' ? headBodyProbeDocument(original.html, frame.elements, frame.root, nonce) : headProbeDocument(nonce);
+        const token = 'pending:head-probe:' + probe.nonce;
         await beforeWrite();
         const claimed = await officeResult(office, callback => item.sessionData.setAsync(HEAD_PROBE_SESSION_KEY, token, callback));
         operation.claimed = true;
         if (!claimed.succeeded || await headProbeSession(office, item, HEAD_PROBE_SESSION_KEY) !== token) throw failure('HEAD_PROBE_UNCONFIRMED');
-        await headProbeTarget(office, item, binding, beforeWrite);
+        await headProbeTarget(office, item, binding, beforeWrite, method);
         const latest = await replacementSnapshot(office, item);
         if (latest.html !== original.html || latest.composeType !== original.composeType) throw failure('HEAD_PROBE_CONTEXT_CHANGED');
-        operation.phase = 'writing'; operation.headProbeReport = { schema: 1, attempted: true, state: 'pending' };
+        operation.phase = 'writing'; operation.headProbeReport = { schema: 1, attempted: true, state: 'pending', method };
         await confirmedOfficeWrite(office, item, 'head-probe-write', 'HEAD_PROBE_UNCONFIRMED',
-            callback => item.body.setSignatureAsync(probe.html, { coercionType: office.CoercionType.Html }, callback), { deferSignatureConfirmation: true });
+            callback => item.body[method](probe.html, { coercionType: office.CoercionType.Html }, callback), { deferSignatureConfirmation: true });
         operation.bodyApplied = true;
-        await headProbeTarget(office, item, binding, beforeWrite);
+        await headProbeTarget(office, item, binding, beforeWrite, method);
         const snapshot = await replacementSnapshot(office, item);
         if (snapshot.composeType !== 'newMail') throw failure('HEAD_PROBE_UNCONFIRMED');
         const parsed = fluidLayoutContract(snapshot.html), inspected = inspectHeadProbe(snapshot.html, parsed.elements, probe);
-        operation.headProbeReport = { ...inspected.report, state: 'pending' };
+        operation.headProbeReport = { ...inspected.report, state: 'pending', method };
         if (!inspected.root || !inspected.report.rectangles || !inspected.report.nonceBound
             || inspected.report.probeBodyStyles !== 0 || inspected.report.probeHeadStyles > 1) throw failure('HEAD_PROBE_UNCONFIRMED');
         const retained = emptyHeadProbeFrame(snapshot.html, version, material.sourceLogoUrl, inspected.root, frame.fluidLayout.nonce);
@@ -1665,7 +1668,7 @@ export async function insertHeadTransportProbe(office, item, { sourceDocument, b
         await beforeWrite();
         const completed = await officeResult(office, callback => item.sessionData.setAsync(HEAD_PROBE_SESSION_KEY, '1', callback));
         if (!completed.succeeded) throw failure('HEAD_PROBE_UNCONFIRMED');
-        operation.phase = 'head-probe-applied'; operation.headProbeReport = { ...inspected.report, state: 'complete' };
+        operation.phase = 'head-probe-applied'; operation.headProbeReport = { ...inspected.report, state: 'complete', method };
         // Keep the ordinary signature lock: this technical draft is not a
         // published signature and must not authorize a later normal overwrite.
         return { ...operation.headProbeReport };

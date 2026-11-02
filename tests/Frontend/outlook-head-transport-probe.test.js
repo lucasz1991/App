@@ -3,7 +3,7 @@ import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { parseHTML } from 'linkedom';
-import { HEAD_PROBE_MAILBOX, HEAD_PROBE_SUBJECT, HEAD_PROBE_SESSION_KEY, headProbeContextAvailable, headProbeDocument } from '../../resources/js/outlook-addin/head-transport-probe.js';
+import { HEAD_PROBE_MAILBOX, HEAD_PROBE_SUBJECT, HEAD_BODY_PROBE_SUBJECT, HEAD_PROBE_SESSION_KEY, headProbeContextAvailable, headProbeDocument, headBodyProbeDocument } from '../../resources/js/outlook-addin/head-transport-probe.js';
 import { insertHeadTransportProbe, headTransportProbeReport, isStandaloneSignatureInsertionBlocked } from '../../resources/js/outlook-addin/compose-template.js';
 import { managedTemplateContract, fluidLayoutContract } from '../../resources/js/outlook-addin/managed-template.js';
 import { prepareNativeLayoutRestore } from '../../resources/js/outlook-addin/native-layout-restore.js';
@@ -15,7 +15,7 @@ const binding = { schema: 1, mailboxAddress: HEAD_PROBE_MAILBOX, senderAddress: 
 const success = value => ({ status: 'succeeded', value });
 
 function harness(options = {}) {
-    const state = { writes: [], bodyWrites: 0, session: options.session || new Map(), subject: HEAD_PROBE_SUBJECT,
+    const state = { writes: [], bodyWrites: 0, session: options.session || new Map(), subject: options.method === 'setAsync' ? HEAD_BODY_PROBE_SUBJECT : HEAD_PROBE_SUBJECT,
         to: [{ emailAddress: HEAD_PROBE_MAILBOX }], cc: [], bcc: [], attachments: [], reads: 0, body: '', before: 0, sessionReads: [], sessionWrites: [] };
     const item = { from: { getAsync: callback => callback(success({ emailAddress: HEAD_PROBE_MAILBOX })) },
         subject: { getAsync: callback => callback(success(state.subject)) },
@@ -31,13 +31,22 @@ function harness(options = {}) {
                 if (options.writeFailure) { callback({ status: 'failed', error: { code: '5001', message: 'private text' } }); return; }
                 const written = options.rewrite ? options.rewrite(html, state) : html;
                 state.body += written; callback(success());
-            }, setAsync: () => { state.bodyWrites++; throw Error('Forbidden full-body write'); }, prependAsync: () => { state.bodyWrites++; throw Error('Forbidden body prepend'); } } };
+            }, setAsync: (html, _options, callback) => {
+                state.bodyWrites++;
+                if (options.method !== 'setAsync') throw Error('Forbidden full-body write');
+                state.writes.push(html);
+                if (options.throwWrite) throw Error('private exception must not leak');
+                if (options.noCallback) return;
+                if (options.writeFailure) { callback({ status: 'failed', error: { code: '5001', message: 'private text' } }); return; }
+                state.body = options.rewrite ? options.rewrite(html, state) : html; callback(success());
+            }, prependAsync: () => { state.bodyWrites++; throw Error('Forbidden body prepend'); } } };
     const office = { AsyncResultStatus: { Succeeded: 'succeeded' }, CoercionType: { Html: 'html' },
         context: { platform: options.profile === 'B' ? 'PC' : 'OfficeOnline', mailbox: { item, userProfile: { emailAddress: HEAD_PROBE_MAILBOX },
             diagnostics: { hostName: options.profile === 'B' ? 'Outlook' : 'OutlookWebApp' } } } };
     const plan = prepareNativeLayoutRestore(SOURCE, managedTemplateContract(SOURCE), '78'.repeat(16), office);
-    state.body = plan.html;
+    state.body = options.fullDocument ? '<!doctype html><html><head><meta charset="utf-8"></head><body>' + plan.html + '</body></html>' : plan.html;
     return { state, item, office, plan, invoke: () => insertHeadTransportProbe(office, item, { sourceDocument: { html: SOURCE, media: [] }, binding,
+        method: options.method,
         beforeWrite: async () => { state.before++; options.beforeWrite?.(state, office, item); } }) };
 }
 
@@ -135,15 +144,98 @@ for (const [name, rewrite] of [
 test('Status UI reuses its diagnostic row and exposes the probe only in the bound IT compose context', async () => {
     const [js, blade] = await Promise.all([readFile(new URL('../../resources/js/outlook-addin/taskpane.js', import.meta.url), 'utf8'), readFile(new URL('../../resources/views/outlook-addin/taskpane.blade.php', import.meta.url), 'utf8')]);
     assert.match(blade, /data-outlook-head-probe hidden disabled/); assert.match(js, /headProbeButton\?\.addEventListener\('click', \(\) => runHeadTransportProbe/);
-    const { document } = parseHTML('<details data-outlook-diagnostics hidden><button data-outlook-head-probe hidden disabled>Probe</button></details>');
+    assert.match(blade, /data-outlook-head-body-probe hidden disabled/); assert.match(js, /runHeadTransportProbe\(headBodyProbeButton, 'setAsync'\)/);
+    const { document } = parseHTML('<details data-outlook-diagnostics hidden><button data-outlook-head-probe hidden disabled>Probe</button><button data-outlook-head-body-probe hidden disabled>Body</button></details>');
     const box = harness(), state = { settingsMode: false, authenticated: true, bootstrapReady: true, busy: false };
     const context = vm.createContext({ document, taskpaneState: state, currentBootstrap: { binding }, Office: box.office,
         headProbeContextAvailable, headTransportProbeReport, insertionBlocked: () => false });
-    const start = js.indexOf('function headProbeAvailable()'), end = js.indexOf('function syncAutomaticPreferences()', start);
+    const start = js.indexOf('function headProbeAvailable('), end = js.indexOf('function syncAutomaticPreferences()', start);
     vm.runInContext(js.slice(start, end) + '\nglobalThis.syncProbe=syncHeadProbeButton;', context); context.syncProbe();
-    const button = document.querySelector('button'); assert.equal(button.hidden, false); assert.equal(button.disabled, false);
+    const button = document.querySelector('button'), bodyButton = document.querySelector('[data-outlook-head-body-probe]');
+    assert.equal(button.hidden, false); assert.equal(button.disabled, false); assert.equal(bodyButton.hidden, false); assert.equal(bodyButton.disabled, false);
     state.busy = true; context.syncProbe(); assert.equal(button.disabled, true);
     state.busy = false; box.office.context.mailbox.userProfile.emailAddress = 'other@example.invalid'; context.syncProbe(); assert.equal(button.hidden, true);
+    assert.equal(bodyButton.hidden, true);
+});
+
+for (const profile of ['M', 'B']) for (const fullDocument of [false, true]) test('Body R786 preserves the entire proved source once in one full-HTML write: ' + profile + '/' + fullDocument, async () => {
+    const box = harness({ method: 'setAsync', profile, fullDocument }), original = box.state.body;
+    const result = await box.invoke(), written = box.state.writes[0];
+    assert.equal(box.state.writes.length, 1); assert.equal(box.state.bodyWrites, 1);
+    assert.equal(result.method, 'setAsync'); assert.equal(result.state, 'complete'); assert.equal(result.probeHeadStyles, 1); assert.equal(result.probeBodyStyles, 0);
+    assert.equal(result.exactCss, true); assert.equal(result.mediaRetained, true);
+    assert.equal(written.split(box.plan.html).length, 2);
+    const probe = headProbeDocument(/rt-head-probe-([0-9a-f]{32})/.exec(written)[1]);
+    const style = probe.html.slice(probe.html.indexOf('<style'), probe.html.indexOf('</head>'));
+    const rectangles = probe.html.slice(probe.html.indexOf('<body>') + 6, probe.html.indexOf('</body>'));
+    const stripped = written.replace(style, '').replace(rectangles, '');
+    assert.equal(stripped, fullDocument ? original : '<!doctype html><html><head><meta charset="utf-8"></head><body>' + original + '</body></html>');
+    assert.equal(box.state.session.get(HEAD_PROBE_SESSION_KEY), '1'); assert.equal(wasSignatureWriteConfirmed(box.item), false);
+    await assert.rejects(box.invoke()); assert.equal(box.state.writes.length, 1);
+});
+
+test('Body builder rejects partial, duplicate or misplaced HTML document shells before claiming/writing', async () => {
+    for (const wrap of [html => '<html><body>' + html + '</body></html>', html => '<head></head>' + html,
+        html => '<html><head></head><head></head><body>' + html + '</body></html>',
+        html => '<html><head></head><body>' + html + '</body><body></body></html>',
+        html => '<!doctype html>' + html, html => '<html><head>' + html + '</head><body></body></html>']) {
+        const box = harness({ method: 'setAsync' }); box.state.body = wrap(box.state.body);
+        await assert.rejects(box.invoke()); assert.equal(box.state.writes.length, 0); assert.equal(box.state.session.has(HEAD_PROBE_SESSION_KEY), false);
+    }
+    const box = harness(), contract = fluidLayoutContract(box.state.body);
+    assert.throws(() => headBodyProbeDocument(' '.repeat(500001), contract.elements, contract.root, '12'.repeat(16)));
+});
+
+test('Body probe shares all subject, account, author, quote, source and target gates and never claims an ineligible draft', async () => {
+    for (const change of [box => { box.state.subject = HEAD_PROBE_SUBJECT; }, box => { box.state.to.push({ emailAddress: 'other@example.invalid' }); },
+        box => { box.state.cc.push({ emailAddress: HEAD_PROBE_MAILBOX }); }, box => { box.state.bcc.push({ emailAddress: HEAD_PROBE_MAILBOX }); },
+        box => { box.state.attachments.push({ name: 'private.pdf' }); }, box => { box.state.body += '<blockquote>Quote</blockquote>'; },
+        box => { box.state.body += '<p>Authored content</p>'; }, box => { const c = managedTemplateContract(box.state.body); box.state.body = box.state.body.slice(0, c.region.start) + '<p>Authored content</p>' + box.state.body.slice(c.region.end); },
+        box => { box.state.body = box.state.body.replace(/RT-SIGNATURE-VERSION:[0-9a-f]{16}/, 'RT-SIGNATURE-VERSION:ffffffffffffffff'); },
+        box => { box.office.context.mailbox.userProfile.emailAddress = 'other@example.invalid'; },
+        box => { box.item.from.getAsync = callback => callback(success({ emailAddress: 'other@example.invalid' })); },
+        box => { box.state.session.set('railtime.template.inserted.v1', 'pending:old'); }, box => { delete box.item.body.setAsync; }]) {
+        const box = harness({ method: 'setAsync' }); change(box); const original = box.state.body;
+        await assert.rejects(box.invoke()); assert.equal(box.state.writes.length, 0); assert.equal(box.state.body, original); assert.equal(box.state.session.has(HEAD_PROBE_SESSION_KEY), false);
+    }
+    for (const composeType of ['reply', 'forward']) { const box = harness({ method: 'setAsync', composeType }); await assert.rejects(box.invoke()); assert.equal(box.state.writes.length, 0); }
+    const invalid = harness({ method: 'prependAsync' }); await assert.rejects(invalid.invoke()); assert.equal(invalid.state.writes.length, 0);
+});
+
+test('Body probe rechecks source bytes after its claim and leaves a changed item untouched and locked', async () => {
+    const box = harness({ method: 'setAsync', afterSession(state, key) { if (key === HEAD_PROBE_SESSION_KEY) state.body += '<p>Concurrent edit</p>'; } });
+    await assert.rejects(box.invoke(), error => error.code === 'HEAD_PROBE_UNCONFIRMED'); assert.equal(box.state.writes.length, 0);
+    assert.match(box.state.session.get(HEAD_PROBE_SESSION_KEY), /^pending:/); await assert.rejects(box.invoke()); assert.equal(box.state.writes.length, 0);
+});
+
+test('Body callback failures, missing source or malformed probe retain the shared uncertain lock with one write', async () => {
+    for (const options of [{ throwWrite: true }, { writeFailure: true }, { rewrite: () => '' },
+        { rewrite: html => html.replace('>Alpha<', '>Other<') },
+        { rewrite: html => { const css = /<style\b[^>]*>[\s\S]*?<\/style>/.exec(html)[0]; return html.replace(css, '').replace('<body>', '<body>' + css); } }]) {
+        const box = harness({ method: 'setAsync', ...options }); await assert.rejects(box.invoke(), error => error.code === 'HEAD_PROBE_UNCONFIRMED');
+        assert.equal(box.state.writes.length, 1); assert.equal(box.state.bodyWrites, 1); assert.equal(headTransportProbeReport(box.item).state, 'uncertain');
+        const reopened = harness({ method: 'setAsync', session: box.state.session }); await assert.rejects(reopened.invoke()); assert.equal(reopened.state.writes.length, 0);
+        await assert.rejects(box.invoke()); assert.equal(box.state.writes.length, 1);
+    }
+});
+
+test('Body CSS filtering is reported as negative transport evidence and cannot authorize another method on the same item', async () => {
+    const box = harness({ method: 'setAsync', rewrite: html => html.replace(/<style\b[^>]*>[\s\S]*?<\/style>/, '') });
+    const report = await box.invoke(); assert.equal(report.state, 'complete'); assert.equal(report.method, 'setAsync'); assert.equal(report.mediaRetained, false);
+    assert.equal(report.probeHeadStyles, 0); assert.equal(report.probeBodyStyles, 0); assert.equal(wasSignatureWriteConfirmed(box.item), false);
+    box.state.subject = HEAD_PROBE_SUBJECT;
+    await assert.rejects(insertHeadTransportProbe(box.office, box.item, { sourceDocument: { html: SOURCE, media: [] }, binding }));
+    assert.equal(box.state.writes.length, 1);
+});
+
+test('a Body bridge callback timeout leaves the operation uncertain and never issues a second body write', async t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const box = harness({ method: 'setAsync', noCallback: true }), pending = box.invoke();
+    const rejected = assert.rejects(pending, error => error.code === 'HEAD_PROBE_UNCONFIRMED');
+    while (!box.state.writes.length) await new Promise(setImmediate);
+    t.mock.timers.tick(30001); await rejected;
+    assert.equal(box.state.writes.length, 1); assert.equal(box.state.bodyWrites, 1); assert.equal(hasUncertainWrite(box.item), true);
+    assert.equal(headTransportProbeReport(box.item).state, 'uncertain'); await assert.rejects(box.invoke()); assert.equal(box.state.writes.length, 1);
 });
 
 for (const [key, value, reason, reads] of [

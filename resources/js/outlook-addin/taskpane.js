@@ -1118,17 +1118,19 @@ function setBusy(busy, activeButton = null) {
     syncHeadProbeButton();
 }
 
-function headProbeAvailable() {
+function headProbeAvailable(method = 'setSignatureAsync') {
     return !taskpaneState.settingsMode && taskpaneState.authenticated && taskpaneState.bootstrapReady
-        && headProbeContextAvailable(globalThis.Office, currentBootstrap?.binding);
+        && headProbeContextAvailable(globalThis.Office, currentBootstrap?.binding, method);
 }
 
 function syncHeadProbeButton() {
-    const button = document.querySelector('[data-outlook-head-probe]');
-    if (!button) return;
-    const available = headProbeAvailable(); button.hidden = !available;
-    button.disabled = !available || taskpaneState.busy || insertionBlocked()
-        || headTransportProbeReport(globalThis.Office?.context?.mailbox?.item)?.attempted === true;
+    let available = false;
+    for (const button of document.querySelectorAll('[data-outlook-head-probe], [data-outlook-head-body-probe]')) {
+        const eligible = headProbeAvailable(button.hasAttribute('data-outlook-head-body-probe') ? 'setAsync' : 'setSignatureAsync');
+        available ||= eligible; button.hidden = !eligible;
+        button.disabled = !eligible || taskpaneState.busy || insertionBlocked()
+            || headTransportProbeReport(globalThis.Office?.context?.mailbox?.item)?.attempted === true;
+    }
     const region = document.querySelector('[data-outlook-diagnostics]');
     if (available && region) region.hidden = false;
 }
@@ -1767,15 +1769,15 @@ async function runDiagnostics(button) {
     }
 }
 
-async function runHeadTransportProbe(button) {
-    if (!headProbeAvailable() || taskpaneState.busy || button.disabled) return;
+async function runHeadTransportProbe(button, method = 'setSignatureAsync') {
+    if (!headProbeAvailable(method) || taskpaneState.busy || button.disabled) return;
     await withAuthenticatedBootstrap(button, async (bootstrap, target) => {
         const entry = bootstrap.templates?.find(value => value.isDefault === true);
         if (!entry) throw codedError('HEAD_PROBE_SOURCE_INVALID');
         const sourceDocument = combinedComposeDocument(entry);
         if (!sourceDocument) throw codedError('HEAD_PROBE_SOURCE_INVALID');
         const report = await insertHeadTransportProbe(Office, target.item, {
-            sourceDocument, binding: bootstrap.binding, beforeWrite: () => assertWriteTarget(target, bootstrap.binding),
+            sourceDocument, binding: bootstrap.binding, method, beforeWrite: () => assertWriteTarget(target, bootstrap.binding),
         });
         setStatus('neutral', 'Transportprobe einmalig eingefügt', report.probeHeadStyles === 1 && report.probeBodyStyles === 0 && report.exactCss && report.mediaRetained
             ? 'Der SDK-Readback enthält die gebundene HEAD-CSS. Die Prüfung der empfangenen E-Mail steht noch aus.'
@@ -1835,6 +1837,8 @@ function bindActions() {
     diagnosticButton?.addEventListener('click', () => runDiagnostics(diagnosticButton));
     const headProbeButton = document.querySelector('[data-outlook-head-probe]');
     headProbeButton?.addEventListener('click', () => runHeadTransportProbe(headProbeButton));
+    const headBodyProbeButton = document.querySelector('[data-outlook-head-body-probe]');
+    headBodyProbeButton?.addEventListener('click', () => runHeadTransportProbe(headBodyProbeButton, 'setAsync'));
     document.querySelector('[data-outlook-diagnostics-copy]')?.addEventListener('click', async () => {
         const output = document.querySelector('[data-outlook-diagnostics-output]');
         await showDiagnosticReport({ readV15: true });

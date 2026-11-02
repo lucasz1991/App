@@ -1,16 +1,50 @@
 // Deliberately separate from published templates/signatures. This diagnostic
 // builds one fixed, nonpersonal test; callers cannot supply HTML or CSS.
 export const HEAD_PROBE_SUBJECT = '[TEST] RailTime – CSS-Transportprobe R783';
+export const HEAD_BODY_PROBE_SUBJECT = '[TEST] RailTime – CSS-Transportprobe Body R786';
 export const HEAD_PROBE_MAILBOX = 'it-technik@rail-time.de';
 export const HEAD_PROBE_SESSION_KEY = 'railtime.head-probe.v1';
 const address = value => typeof value === 'string' ? value.trim().toLowerCase() : '';
 
-export function headProbeContextAvailable(office, binding) {
+export function headProbeContextAvailable(office, binding, method = 'setSignatureAsync') {
     return binding?.schema === 1 && address(binding.mailboxAddress) === HEAD_PROBE_MAILBOX
         && address(binding.senderAddress) === HEAD_PROBE_MAILBOX
         && Array.isArray(binding.allowedSenderAddresses) && binding.allowedSenderAddresses.some(value => address(value) === HEAD_PROBE_MAILBOX)
         && address(office?.context?.mailbox?.userProfile?.emailAddress) === HEAD_PROBE_MAILBOX
-        && typeof office?.context?.mailbox?.item?.body?.setSignatureAsync === 'function';
+        && ['setSignatureAsync', 'setAsync'].includes(method)
+        && typeof office?.context?.mailbox?.item?.body?.[method] === 'function';
+}
+
+/** Only called after the existing current-source/empty-draft proof. Keep its
+ * original bytes; the existing parser proves an unambiguous document shell. */
+export function headBodyProbeDocument(original, elements, sourceRoot, nonce) {
+    const invalid = () => { throw Object.assign(new Error('HEAD_PROBE_SOURCE_INVALID'), { code: 'HEAD_PROBE_SOURCE_INVALID' }); };
+    if (typeof original !== 'string' || original.length > 500000 || !Array.isArray(elements) || elements.length > 4096
+        || !sourceRoot || original.slice(sourceRoot.start, sourceRoot.openEnd)[0] !== '<') invalid();
+    const probe = headProbeDocument(nonce);
+    const style = probe.html.slice(probe.html.indexOf('<style'), probe.html.indexOf('</head>'));
+    const body = probe.html.slice(probe.html.indexOf('<body>') + 6, probe.html.indexOf('</body>'));
+    const tagged = tag => elements.map((node, index) => ({ node, index })).filter(value => value.node.tag === tag);
+    const html = tagged('html'), head = tagged('head'), bodies = tagged('body');
+    let result;
+    if (!html.length && !head.length && !bodies.length) {
+        if (/<!doctype\b/i.test(original)) invalid();
+        result = '<!doctype html><html><head><meta charset="utf-8">' + style + '</head><body>' + original + body + '</body></html>';
+    } else {
+        if (html.length !== 1 || head.length !== 1 || bodies.length !== 1 || html[0].node.parent !== undefined
+            || head[0].node.parent !== html[0].index || bodies[0].node.parent !== html[0].index
+            || head[0].node.end > bodies[0].node.start
+            || sourceRoot.start < bodies[0].node.openEnd || sourceRoot.end > bodies[0].node.close
+            || elements.some(node => node.parent === undefined && node !== html[0].node)
+            || elements.filter(node => node.parent === html[0].index).length !== 2) invalid();
+        const outside = original.slice(0, html[0].node.start) + original.slice(html[0].node.end);
+        if (outside.replace(/<!doctype\s+html\s*>|<!--[\s\S]*?-->/gi, '').trim()
+            || (outside.match(/<!doctype\b/gi) || []).length > 1) invalid();
+        result = original.slice(0, head[0].node.close) + style + original.slice(head[0].node.close, bodies[0].node.close)
+            + body + original.slice(bodies[0].node.close);
+    }
+    if (result.length > 500000) invalid();
+    return Object.freeze({ ...probe, html: result });
 }
 
 export function headProbeDocument(nonce) {
