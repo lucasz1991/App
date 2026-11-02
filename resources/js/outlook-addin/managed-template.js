@@ -13,6 +13,8 @@ const owns = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 export const V15_READBACK_CONTRACT_STAGES = Object.freeze(['not-run', 'fluid-marker-shape', 'fluid-marker-hidden',
     'fluid-marker-occurrence', 'editable-markers', 'editable-marker-hidden', 'editable-start-carrier',
     'editable-end-carrier', 'editable-cell', 'document-markers', 'document-ownership', 'signature-footer', 'contract-complete']);
+export const V17_READBACK_CONTRACT_STAGES = Object.freeze(['input-bound', 'html-parse', 'html-parsed',
+    ...V15_READBACK_CONTRACT_STAGES.filter(stage => stage !== 'not-run')]);
 
 function contractCheckpoint(observer, stage, shape = null) {
     if (typeof observer === 'function') observer(stage, shape);
@@ -482,8 +484,13 @@ export function v15ReadbackParses(html) {
 }
 
 export function fluidLayoutContract(html, currentHtml = html, expectedNonce = null, expectedVersion = null, diagnosticObserver = null) {
+    const v17Trace = typeof currentHtml === 'string' && /RT-FLUID-LAYOUT-V17[MB]:[0-9a-f]{32}:[0-9a-f]{16}/i.test(currentHtml)
+        ? diagnosticObserver : null;
+    contractCheckpoint(v17Trace, 'input-bound');
     if (typeof html !== 'string' || typeof currentHtml !== 'string' || !html.startsWith(currentHtml)) unavailable();
+    contractCheckpoint(v17Trace, 'html-parse');
     const original = nodes(html);
+    contractCheckpoint(v17Trace, 'html-parsed');
     // Word may omit optional TBODY tags. Model their actual implied DOM shape
     // only in this explicitly nonce-bound family, never in historical guards.
     const elements = original.elements.map(node => ({ ...node, attrs: { ...node.attrs } }));
@@ -496,7 +503,7 @@ export function fluidLayoutContract(html, currentHtml = html, expectedNonce = nu
             close: rows[rows.length - 1].node.end, end: rows[rows.length - 1].node.end });
         for (const row of rows) elements[row.index].parent = body;
     }
-    const trace = /RT-FLUID-LAYOUT-V15[MB]:[0-9a-f]{32}:[0-9a-f]{16}/i.test(currentHtml) ? diagnosticObserver : null;
+    const trace = /RT-FLUID-LAYOUT-V15[MB]:[0-9a-f]{32}:[0-9a-f]{16}/i.test(currentHtml) ? diagnosticObserver : v17Trace;
     contractCheckpoint(trace, 'fluid-marker-shape');
     const tree = { ...original, elements }, spans = markerSpans(html, tree, currentHtml.length);
     const found = [];

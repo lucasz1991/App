@@ -1273,7 +1273,7 @@ function userMessage(error) {
         return 'Die Nachricht wurde während der Vorbereitung geändert. Bitte den Vorlagenwechsel nach Ihrer Bearbeitung erneut starten.';
     }
     if (code === 'TEMPLATE_LAYOUT_UNCONFIRMED') {
-        return 'Die Vorlage wurde mit Ihrem Nachrichtentext ersetzt. Outlook konnte die Darstellung jedoch nicht sicher bestätigen. Bitte den Entwurf prüfen; der Austausch wird nicht automatisch wiederholt.';
+        return 'Outlook hat den Einfügeaufruf für die Vorlage angenommen. Die Darstellung ließ sich danach nicht sicher bestätigen. Bitte den Entwurf prüfen; RailTime fügt nichts erneut ein.';
     }
     if (code === 'SIGNATURE_LAYOUT_UNCONFIRMED') {
         return 'Die Darstellung der Signatur ist nicht sicher bestätigt. Nachrichtentext und Zitate wurden nicht neu geschrieben. Bitte den Entwurf prüfen; die Aktualisierung wird nicht automatisch wiederholt.';
@@ -1350,7 +1350,9 @@ function userMessage(error) {
         return 'Vorlage, Bilder oder Nachrichtenverlauf überschreiten das RailTime-Sicherheitsbudget für die Outlook-Einfügung. Bitte eine kompaktere Vorlage oder eine neue Nachricht verwenden.';
     }
     if (['TEMPLATE_INSERT_UNCERTAIN', 'INLINE_ATTACHMENT_UNCERTAIN', 'SIGNATURE_INSERT_UNCERTAIN'].includes(code)) {
-        return 'Outlook hat die Einfügung nicht rechtzeitig bestätigt. Sie kann bereits erfolgt sein. Bitte diese Nachricht prüfen und nicht erneut einfügen; RailTime startet keinen weiteren Schreibversuch.';
+        return error?.reason === 'timeout'
+            ? 'Outlook hat die Einfügung nicht rechtzeitig bestätigt. Sie kann bereits erfolgt sein. Bitte diese Nachricht prüfen und nicht erneut einfügen; RailTime startet keinen weiteren Schreibversuch.'
+            : 'Die Einfügung ist nicht sicher bestätigt und kann bereits erfolgt sein. Bitte den Entwurf prüfen und nicht erneut einfügen; RailTime startet keinen weiteren Schreibversuch. Die Diagnose unter Status zeigt den Prüfschritt.';
     }
     if (code === 'TEMPLATE_INSERT_IN_PROGRESS') {
         return 'Für diese Nachricht läuft bereits eine Einfügung. Bitte deren Abschluss abwarten.';
@@ -1422,7 +1424,8 @@ function handleFailure(error, bootstrapWasLoaded = false) {
 
     setBusy(false);
     syncActionState();
-    setStatus('error', 'Aktion nicht abgeschlossen', userMessage(error), true);
+    const layoutUnconfirmed = ['TEMPLATE_LAYOUT_UNCONFIRMED', 'SIGNATURE_LAYOUT_UNCONFIRMED'].includes(safeErrorCode(error));
+    setStatus('error', layoutUnconfirmed ? 'Darstellung nicht bestätigt' : 'Aktion nicht abgeschlossen', userMessage(error), true);
 }
 
 function requestSilentBootstrapRefresh() {

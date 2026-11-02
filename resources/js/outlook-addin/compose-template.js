@@ -1,4 +1,4 @@
-import { fluidLayoutContract, hasUnquotedFluidLayoutMarker, hasUnquotedSignatureLayoutCarrier, managedTemplateContract, managedTemplateReplacement, standaloneSignatureContract, v15ReadbackParses, V15_READBACK_CONTRACT_STAGES } from './managed-template.js';
+import { fluidLayoutContract, hasUnquotedFluidLayoutMarker, hasUnquotedSignatureLayoutCarrier, managedTemplateContract, managedTemplateReplacement, standaloneSignatureContract, v15ReadbackParses, V15_READBACK_CONTRACT_STAGES, V17_READBACK_CONTRACT_STAGES } from './managed-template.js';
 import { createNativeLayoutNonce, inferredNativeGridRow, isFluidLayoutSource, outlookSignatureDeliveryProfile, verifyFluidLayoutMaterial, nativeLayoutClearBarrier, nativeLayoutReadbackContract, nativeLayoutThreeCellTopology, nativeLayoutRestoreCarrierIsExternal, nativeLayoutRestoreCarrierPresent, nativeLayoutRestoreCellsAligned, nativeLayoutRestoreCss, nativeLayoutRestoreRetained, prepareNativeLayoutRestore, removeNativeLayoutRestoreCarrier } from './native-layout-restore.js';
 import { applyV17OfficeWireEdits, mobileV17OfficeWire, v17OfficeWireEdits } from './v17-office-wire.js';
 import { v17MsoColumnEdits } from './v17-mso-columns.js';
@@ -779,13 +779,32 @@ function diagnoseV17Readback(html, current, item, result) {
     result.sourcePlanAvailable = Boolean(plan);
     result.sourcePlanMatched = null;
     result.phase = 'diagnostic-v17-contract';
+    result.parse = null;
+    result.htmlParseStatus = 'not-run';
+    result.nonceCheckStatus = 'not-run';
     let contract;
     try {
-        result.writeNonceCompared = Boolean(plan);
-        if (plan) result.sourcePlanMatched = false;
-        contract = fluidLayoutContract(html, current, plan?.nonce ?? null, plan?.version ?? null);
-        if (contract.fluidLayout.family !== 17 || plan && (contract.fluidLayout.profile !== plan.profile || contract.kind !== plan.kind)) return result;
-    } catch { return result; }
+        contract = fluidLayoutContract(html, current, plan?.nonce ?? null, plan?.version ?? null, stage => {
+            if (!V17_READBACK_CONTRACT_STAGES.includes(stage)) return;
+            result.contractStage = stage;
+            if (stage === 'html-parse') result.htmlParseStatus = 'started';
+            if (stage === 'html-parsed') { result.parse = true; result.htmlParseStatus = 'passed'; }
+            if (stage === 'fluid-marker-hidden') result.nonceCheckStatus = 'entered';
+            // The previous compound hidden/expected-nonce/version guard passed.
+            // Reaching it is distinct from merely having a private write plan.
+            if (stage === 'fluid-marker-occurrence') {
+                result.nonceCheckStatus = 'passed';
+                result.writeNonceCompared = Boolean(plan);
+            }
+        });
+        if (contract.fluidLayout.family !== 17 || plan && (contract.fluidLayout.profile !== plan.profile || contract.kind !== plan.kind)) {
+            result.sourcePlanMatched = plan ? false : null;
+            return result;
+        }
+    } catch {
+        if (result.htmlParseStatus === 'started') { result.parse = false; result.htmlParseStatus = 'failed'; }
+        return result;
+    }
     result.parse = result.contract = result.nonceMetadata = true;
     result.family = 17; result.profile = contract.fluidLayout.profile;
     result.contractStage = 'contract-complete';

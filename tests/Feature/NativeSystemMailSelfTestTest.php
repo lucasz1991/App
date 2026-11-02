@@ -10,6 +10,7 @@ use App\Support\Mail\NativeSystemMailSelfTest;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 use Mockery;
 use PHPUnit\Framework\AssertionFailedError;
 use ReflectionMethod;
@@ -264,6 +265,42 @@ final class NativeSystemMailSelfTestTest extends TestCase
             app()->setBasePath($base);
             app()->usePublicPath($public);
         }
+    }
+
+    public function test_one_shared_active_outlook_standard_uses_the_exact_system_snapshots_without_changing_assignments(): void
+    {
+        $template = MailDocument::query()->published()->where('kind', 'template')->sole();
+        $template->forceFill(['is_outlook_template' => true, 'outlook_released' => true, 'outlook_default' => true])->saveQuietly();
+        $before = MailDocument::query()->orderBy('id')->get()->toArray();
+        $record = (new NativeSystemMailSelfTest)->prepare(self::OPERATION);
+        self::assertSame('prepared', $record['state']);
+        self::assertFileExists($this->path('message.eml'));
+        self::assertFileDoesNotExist($this->path('send.claim'));
+        self::assertCount(0, $this->transport->calls);
+        self::assertSame($before, MailDocument::query()->orderBy('id')->get()->toArray());
+    }
+
+    public function test_offered_outlook_default_without_an_active_system_assignment_is_not_guessed_as_system_source(): void
+    {
+        $template = MailDocument::query()->published()->where('kind', 'template')->sole();
+        $template->forceFill(['is_active' => null, 'is_outlook_template' => true, 'outlook_released' => true, 'outlook_default' => true])->saveQuietly();
+        $this->assertDenied(fn () => (new NativeSystemMailSelfTest)->prepare(self::OPERATION));
+        self::assertFileDoesNotExist($this->path('message.eml'));
+        self::assertCount(0, $this->transport->calls);
+    }
+
+    public function test_ambiguous_active_templates_are_rejected_instead_of_selecting_the_first_one(): void
+    {
+        // Model a legacy database lacking the modern uniqueness constraint.
+        // The fixture is SQLite :memory:, never the application database.
+        Schema::table('mail_documents', static fn ($table) => $table->dropUnique('mail_documents_kind_active_unique'));
+        $template = MailDocument::query()->published()->where('kind', 'template')->sole();
+        $other = $template->replicate();
+        $other->forceFill(['public_id' => '11888abc-1234-4123-8123-123456789abc', 'is_outlook_template' => true, 'outlook_default' => null])->saveQuietly();
+        self::assertSame(2, MailDocument::query()->published()->where('kind', 'template')->count());
+        $this->assertDenied(fn () => (new NativeSystemMailSelfTest)->prepare(self::OPERATION));
+        self::assertFileDoesNotExist($this->path('message.eml'));
+        self::assertCount(0, $this->transport->calls);
     }
 
     private function path(string $name): string

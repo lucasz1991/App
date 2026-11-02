@@ -130,7 +130,9 @@ final class NativeSystemMailSelfTest
     private function source(): array
     {
         $generation = $this->generation();
-        $templates = MailDocument::query()->published()->where('kind', 'template')->where('is_outlook_template', false)->get();
+        // published() already binds the active system assignment, including a
+        // shared Outlook/System Standard when the delivery contract is present.
+        $templates = MailDocument::query()->published()->where('kind', 'template')->get();
         $signatures = MailDocument::query()->published()->where('kind', 'signature')->get();
         if ($templates->count() !== 1 || $signatures->count() !== 1 || SignaturePersonalColumns::requested($signatures[0]->published_html)
             || OutlookStaticLinkedTestProfiles::signatureProfile(['html' => $signatures[0]->published_html]) !== OutlookLinkedAnimatedDelivery::PROFILE) {

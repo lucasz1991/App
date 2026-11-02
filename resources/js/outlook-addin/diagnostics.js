@@ -33,7 +33,7 @@ export function diagnosticReport(office, state = {}) {
     };
     const item = office?.context?.mailbox?.item;
     return {
-        schema: 1, clientRevision: 'native-img-overlay-20260906',
+        schema: 1, clientRevision: 'native-img-overlay-20260906', diagnosticRevision: 'v17-contract-checkpoints-v1',
         generatedAt: new Date().toISOString(),
         host: safeWord(office?.context?.diagnostics?.host),
         platform: safeWord(office?.context?.diagnostics?.platform),
