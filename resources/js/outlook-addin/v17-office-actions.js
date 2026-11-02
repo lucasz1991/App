@@ -118,6 +118,18 @@ function shape(nodes, owner) {
     return { action, cells, link: one(links) };
 }
 
+function proveDefaultPhoneImage(html, nodes, cells, link, image) {
+    const paint = props(image.node), attrs = image.node.attrs; let url; try { url = new URL(attrs.src); } catch { invalid(); }
+    const phoneIcon = nodes.filter((node, index) => node.tag === 'img' && within(nodes, index, cells[1].index));
+    if (phoneIcon.length !== 1 || url.origin !== new URL(phoneIcon[0].attrs.src).origin || url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || url.pathname !== PHONE_PATH
+        || link.node.attrs.href !== 'tel:' + DEFAULT_PHONE || attrs.alt !== PHONE_LABEL || attrs.width !== '108' || attrs.height !== '20'
+        || Object.keys(attrs).some(name => !['src', 'width', 'height', 'alt', 'style'].includes(name))
+        || paint.size !== 4 || paint.get('display') !== 'block' || !close(paint.get('width'), 108) || !close(paint.get('height'), 20) || !close(paint.get('border'), 0)) invalid();
+    const parent = nodes[image.node.parent];
+    if (!['a', 'span', 'b'].includes(parent?.tag) || children(nodes, image.node.parent).length !== 1
+        || html.slice(parent.openEnd, image.node.start).trim() || html.slice(image.node.end, parent.close).trim()) invalid();
+}
+
 /** Only after the caller has proved the canonical fragment and its ownership. */
 export function v17OfficeActionProjection(html, nodes, owner, mobile = false) {
     const { action, cells, link } = shape(nodes, owner), span = only(nodes, link.index, 'span'), edits = [];
@@ -154,6 +166,15 @@ export function normalizeV17OfficeActions(html, nodes, owner, source) {
     const officeActionsWire = officeGeometry && pair.present && phone.present;
     const images = nodes.map((node, index) => ({ node, index })).filter(value => value.node.tag === 'img' && within(nodes, value.index, link.index));
     const image = images.length === 1 ? images[0] : null;
+    if (image) proveDefaultPhoneImage(html, nodes, cells, link, image);
+    // Actual OWA strips overflow-wrap even while retaining nowrap and normal
+    // word-break. Only the already proved, fixed white-number image plus both
+    // physical action groups can make that absent declaration immaterial.
+    const missingImageWrap = officeActionsWire && Boolean(image);
+    const normalWrap = (paint, role) => paint.get('overflow-wrap') === 'normal' || missingImageWrap && !paint.has('overflow-wrap')
+        && [...paint.keys()].every(key => (role === 'cell'
+            ? ['width','padding','padding-left','vertical-align','text-align','white-space','word-break']
+            : ['color','text-decoration','font-family','font-size','line-height','font-weight','white-space','word-break']).includes(key));
     if (!officeGeometry && !image) return { html, officeActionsWire: false, defaultDispatchPhoneImage: false };
     if (officeGeometry) {
         if (!close(style.get('width'), 215) || !close(action.node.attrs.width, 215) || style.get('table-layout') !== 'auto' || style.get('max-width') !== '100%') invalid();
@@ -162,7 +183,7 @@ export function normalizeV17OfficeActions(html, nodes, owner, source) {
             const values = props(cell.node); if (!close(values.get('width'), widths[index]) || cell.node.attrs.width !== undefined && !close(cell.node.attrs.width, widths[index])
                 || index !== 1 && (!Object.hasOwn(cell.node.attrs, 'nowrap') || values.get('white-space') !== 'nowrap')
                 || index === 1 && !close(values.get('padding-right'), 0)
-                || index === 2 && (values.get('word-break') !== 'normal' || values.get('overflow-wrap') !== 'normal'
+                || index === 2 && (values.get('word-break') !== 'normal' || !normalWrap(values, 'cell')
                     || officeActionsWire && (!close(values.get('padding-left'), 0) || values.get('text-align') !== 'left'))) invalid();
             if (index !== 1) delete cell.node.attrs.nowrap;
             if (index === 2) delete cell.node.attrs.width; else cell.node.attrs.width = String(index === 0 ? '100%' : 32);
@@ -173,22 +194,13 @@ export function normalizeV17OfficeActions(html, nodes, owner, source) {
     }
     const defaultDispatchPhoneImage = Boolean(image);
     if (image) {
-        const paint = props(image.node), attrs = image.node.attrs; let url; try { url = new URL(attrs.src); } catch { invalid(); }
-        const phoneIcon = nodes.filter((node, index) => node.tag === 'img' && within(nodes, index, cells[1].index));
-        if (phoneIcon.length !== 1 || url.origin !== new URL(phoneIcon[0].attrs.src).origin || url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || url.pathname !== PHONE_PATH
-            || link.node.attrs.href !== 'tel:' + DEFAULT_PHONE || attrs.alt !== PHONE_LABEL || attrs.width !== '108' || attrs.height !== '20'
-            || Object.keys(attrs).some(name => !['src', 'width', 'height', 'alt', 'style'].includes(name))
-            || paint.size !== 4 || paint.get('display') !== 'block' || !close(paint.get('width'), 108) || !close(paint.get('height'), 20) || !close(paint.get('border'), 0)) invalid();
-        const parent = nodes[image.node.parent];
-        if (!['a', 'span', 'b'].includes(parent?.tag) || children(nodes, image.node.parent).length !== 1
-            || html.slice(parent.openEnd, image.node.start).trim() || html.slice(image.node.end, parent.close).trim()) invalid();
         const oldLength = image.node.end - image.node.start; if (oldLength < PHONE_LABEL.length) invalid();
         html = html.slice(0, image.node.start) + PHONE_LABEL.padEnd(oldLength, ' ') + html.slice(image.node.end); image.node.parent = null;
     }
     if (officeGeometry || image) {
         const runs = nodes.map((node, index) => ({ node, index })).filter(value => value.index === link.index || value.node.tag === 'span' && within(nodes, value.index, link.index));
         for (const value of runs) {
-            const paint = props(value.node); if (paint.get('white-space') !== 'nowrap' || paint.get('word-break') !== 'normal' || paint.get('overflow-wrap') !== 'normal') invalid();
+            const paint = props(value.node); if (paint.get('white-space') !== 'nowrap' || paint.get('word-break') !== 'normal' || !normalWrap(paint, 'run')) invalid();
             setStyle(value.node, { 'white-space': null, 'word-break': null, 'overflow-wrap': null });
         }
     }

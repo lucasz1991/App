@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { managedTemplateContract, standaloneSignatureContract, fluidLayoutContract } from '../../resources/js/outlook-addin/managed-template.js';
 import { prepareNativeLayoutRestore, verifyFluidLayoutMaterial } from '../../resources/js/outlook-addin/native-layout-restore.js';
 import { mobileV17OfficeWire } from '../../resources/js/outlook-addin/v17-office-wire.js';
-import { signatureHostProfileIsCurrent, standaloneSignatureLayoutIsCurrent } from '../../resources/js/outlook-addin/compose-template.js';
+import { signatureHostProfileIsCurrent, standaloneSignatureLayoutIsCurrent, currentComposeBodyHtml } from '../../resources/js/outlook-addin/compose-template.js';
 const fixture = JSON.parse(await readFile(new URL('../Fixtures/mail/outlook-v17-compact-reference/v17-source.json', import.meta.url), 'utf8'));
 const mobile = JSON.parse(await readFile(new URL('../Fixtures/mail/outlook-mobile-reference/mobile-reference-v1.json', import.meta.url), 'utf8'));
 const configured = JSON.parse(await readFile(new URL('../Fixtures/mail/outlook-v17-office-actions/configured-default.json', import.meta.url), 'utf8'));
@@ -131,6 +131,84 @@ test('nondefault dispatch numbers remain real text with a bounded nowrap geometr
     const source = fixture.source.standalone, plan = prepareNativeLayoutRestore(source, canonical(source, 'standalone'), '84'.repeat(16), host('B'));
     assert.equal(plan.defaultDispatchPhoneImage, false); assert.doesNotMatch(plan.html, /ef89fd23c6/); assert.match(plan.html, /\+491705550202<\/span>/);
     assert.equal(verifyFluidLayoutMaterial(plan.html, contract(plan.html, plan)).defaultDispatchPhoneImage, false);
+});
+
+function defaultPhoneTargets(html,plan){
+    const nodes=contract(html,plan).elements,image=nodes.find(n=>n.tag==='img'&&(n.attrs.src||'').endsWith('/m/ef89fd23c6.png'));
+    const span=nodes[image.parent],anchor=nodes[span.parent],cell=nodes[anchor.parent];
+    assert.equal(span.tag,'span');assert.equal(anchor.tag,'a');assert.equal(cell.tag,'td');return{nodes,image,span,anchor,cell};
+}
+function changeOpenings(html,targets,change){let result=html;for(const node of [...targets].sort((a,b)=>b.start-a.start))result=result.slice(0,node.start)+change(result.slice(node.start,node.openEnd))+result.slice(node.openEnd);return result;}
+
+test('actual OWA overflow-wrap loss is immaterial only to the fully proved fixed default PNG and both physical action groups',()=>{
+    for(const profile of['M','B'])for(const[kind,source]of Object.entries(configured.source)){
+        const plan=prepareNativeLayoutRestore(source,canonical(source,kind),'90'.repeat(16),host(profile));
+        const {span,anchor,cell}=defaultPhoneTargets(plan.html,plan),targets=[cell,anchor,span];
+        for(let mask=0;mask<8;mask++){
+            const changed=changeOpenings(plan.html,targets.filter((_,i)=>mask&(1<<i)),value=>value.replace(/overflow-wrap:[^;"]+;?/g,''));
+            const material=verifyFluidLayoutMaterial(changed,contract(changed,plan));
+            assert.equal(material.officeActionsWire,true);assert.equal(material.defaultDispatchPhoneImage,true);
+        }
+        assert.match(plan.html,/overflow-wrap:normal!important/);
+    }
+});
+
+test('optional fixed-image overflow-wrap cannot admit live text, unknown PNG metadata, altered geometry or foreign CSS',()=>{
+    const source=configured.source.standalone,plan=prepareNativeLayoutRestore(source,canonical(source,'standalone'),'91'.repeat(16),host('M'));
+    const {image,span,anchor,cell}=defaultPhoneTargets(plan.html,plan);
+    const missing=changeOpenings(plan.html,[cell,anchor,span],value=>value.replace(/overflow-wrap:[^;"]+;?/g,''));
+    const targets=defaultPhoneTargets(missing,plan),edit=(node,change)=>changeOpenings(missing,[node],change);
+    const changes=[
+        edit(targets.image,value=>value.replace('ef89fd23c6.png','ef89fd23c7.png')),
+        edit(targets.image,value=>value.replace('width="108"','width="107"')),
+        edit(targets.image,value=>value.replace('height="20"','height="21"')),
+        edit(targets.image,value=>value.replace('<img ','<img loadstarttime="1793635443747" ')),
+        edit(targets.image,value=>value.replace('border:0;','border:0;opacity:0;')),
+        edit(targets.anchor,value=>value.replace('tel:+491601881839','tel:+491601881830')),
+        edit(targets.cell,value=>value.replace('width:108px!important','width:107px!important')),
+        edit(targets.cell,value=>value.replace('padding-left:0!important','padding-left:1px!important')),
+        edit(targets.cell,value=>value.replace('text-align:left!important','text-align:right!important')),
+        edit(targets.cell,value=>value.replace('word-break:normal!important','word-break:break-all!important')),
+        edit(targets.cell,value=>value.replace('white-space:nowrap!important','white-space:normal!important')),
+        edit(targets.anchor,value=>value.replace('word-break:normal!important','word-break:normal!important;overflow-wrap:anywhere!important')),
+        edit(targets.span,value=>value.replace('word-break:normal!important','word-break:normal!important;overflow-wrap:anywhere')),
+        edit(targets.span,value=>value.replace('word-break:normal!important','word-break:normal!important;position:absolute')),
+        missing.replace('class="rt-v17-action-pair"','class="foreign-wrapper"'),
+    ];
+    for(const[index,changed]of changes.entries()){assert.notEqual(changed,missing);assert.throws(()=>verifyFluidLayoutMaterial(changed,contract(changed,plan)),'case '+index);}
+    const generic=prepareNativeLayoutRestore(fixture.source.standalone,canonical(fixture.source.standalone,'standalone'),'92'.repeat(16),host('M'));
+    const liveMissing=generic.html.replaceAll('overflow-wrap:normal!important;','');
+    assert.throws(()=>verifyFluidLayoutMaterial(liveMissing,contract(liveMissing,generic)));
+});
+
+const backgroundFields=['image','position','size','repeat','attachment','origin','clip'].map(name=>'background-'+name);
+function legalHost(html,c=fluidLayoutContract(html)){const nodes=c.elements,children=index=>nodes.map((node,index)=>({node,index})).filter(v=>v.node.parent===index);const body=children(c.signature.index)[0],rows=children(body.index);return children(rows[1].index)[0].node;}
+function expandedLegal(html,c){return changeOpenings(html,[legalHost(html,c)],value=>value.replace(/background:#dde1e6(?:!important)?/g,'background-color:#dde1e6').replace(/border-left:0!important;/g,'').replace(/style="([^"]*)"/,(_all,css)=>'style="'+css+';'+backgroundFields.map(name=>name+':initial!important;').join('')+'"'));}
+
+test('saved OWA neutral Legal background expansion is readback-only and complete on the one owned host',()=>{
+    for(const profile of['M','B'])for(const[kind,source]of Object.entries(configured.source)){
+        const plan=prepareNativeLayoutRestore(source,canonical(source,kind),'93'.repeat(16),host(profile)),received=expandedLegal(plan.html);
+        assert.equal(verifyFluidLayoutMaterial(received,contract(received,plan)).officeActionsWire,true);
+        assert.equal(verifyFluidLayoutMaterial(plan.html,contract(plan.html,plan)).family,17);
+        const sourceExpanded=expandedLegal(source,canonical(source,kind));
+        assert.throws(()=>prepareNativeLayoutRestore(sourceExpanded,canonical(sourceExpanded,kind),'94'.repeat(16),host(profile)));
+        for(const name of backgroundFields){
+            for(const replacement of ['',name+':initial;',name+':inherit!important;',name+':url(https://foreign.invalid/paint.png)!important;',name+':initial!important;'+name+':initial!important;']){
+                const changed=received.replace(name+':initial!important;',replacement);assert.notEqual(changed,received);
+                assert.throws(()=>verifyFluidLayoutMaterial(changed,contract(changed,plan)),name+':'+replacement);
+            }
+        }
+        const wrongColor=received.replace('background-color:#dde1e6','background-color:#dde1e7');
+        assert.throws(()=>verifyFluidLayoutMaterial(wrongColor,contract(wrongColor,plan)));
+        const foreignCss=changeOpenings(received,[legalHost(received)],value=>value.replace('style="','style="position:absolute;'));
+        assert.throws(()=>verifyFluidLayoutMaterial(foreignCss,contract(foreignCss,plan)));
+        const quote='<blockquote type="cite">'+received.replaceAll(plan.nonce,'ee'.repeat(16))+'</blockquote>';
+        const reply=plan.html+quote,current=currentComposeBodyHtml(reply,'reply');
+        const scoped={...fluidLayoutContract(reply,current,plan.nonce,plan.version),sourceLogoUrl:plan.sourceLogoUrl};
+        assert.equal(verifyFluidLayoutMaterial(reply,scoped).family,17);assert.equal(reply.slice(current.length),quote);
+        const brokenCurrent=received.replace('background-image:initial!important;',''),quotedGood=brokenCurrent+quote;
+        assert.throws(()=>verifyFluidLayoutMaterial(quotedGood,{...fluidLayoutContract(quotedGood,currentComposeBodyHtml(quotedGood,'reply'),plan.nonce,plan.version),sourceLogoUrl:plan.sourceLogoUrl}));
+    }
 });
 
 test('reloaded currentness never labels old action geometry or a lost default phone image as current', () => {

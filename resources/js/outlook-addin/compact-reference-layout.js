@@ -469,10 +469,23 @@ export function verifyCompactReferenceMaterial(html, contract, source, verifyV16
     exactPadding(legal.node, { top: 8, right: 40, bottom: 8, left: 40 });
     setStyle(virtual[legal.index], { padding: '12px 40px 16px' });
     const legalPaint = properties(legalHost.node);
+    const neutralBackground = ['image','position','size','repeat','attachment','origin','clip'].map(name => 'background-' + name);
+    const backgroundExtras = [...legalPaint.keys()].filter(name => /^background-/.test(name) && name !== 'background-color');
+    if (backgroundExtras.length) {
+        // Exact saved OWA MIME expands this one shorthand to seven neutral
+        // initial!important components. Prove the complete readback-only form
+        // before removing it from the virtual legacy contract, never the HTML.
+        const allowed = ['width','color','font-family','font-size','line-height','padding','background-color',...neutralBackground];
+        if (source || legalPaint.has('background') || backgroundExtras.length !== neutralBackground.length
+            || [...legalPaint.keys()].some(name => !allowed.includes(name))
+            || neutralBackground.some(name => legalPaint.get(name) !== 'initial'
+                || (legalHost.node.attrs.style || '').split(';').filter(value => value.slice(0,value.indexOf(':')).trim().toLowerCase() === name).length !== 1
+                || !(legalHost.node.attrs.style || '').split(';').some(value => new RegExp('^\\s*' + name + '\\s*:\\s*initial\\s*!important\\s*$','i').test(value)))) invalid();
+    }
     if (!color(legalPaint.get('background') ?? legalPaint.get('background-color'), '#dde1e6')
-        || [...legalPaint.keys()].some(name => /^background-/.test(name) && name !== 'background-color')
         || owns(legalHost.node.attrs, 'bgcolor') && !color(legalHost.node.attrs.bgcolor, '#dde1e6')) invalid();
-    setStyle(virtual[legalHost.index], { background: '#f3f5f7', 'background-color': null });
+    setStyle(virtual[legalHost.index], { background: '#f3f5f7', 'background-color': null,
+        ...Object.fromEntries(neutralBackground.map(name => [name,null])) });
     if (owns(legalHost.node.attrs, 'bgcolor')) virtual[legalHost.index].attrs.bgcolor = '#f3f5f7';
     const lines = children(nodes, legal.index);
     if (lines.length !== 1 || lines[0].node.tag !== 'div') invalid();
