@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { confirmedOfficeWrite, hasUncertainWrite, wasSignatureWriteConfirmed } from '../../resources/js/outlook-addin/office-write.js';
-import { hasMobileTemplateOwnership, isStandaloneSignatureInsertionBlocked, requiresStandaloneSignatureLayout } from '../../resources/js/outlook-addin/compose-template.js';
+import { hasMobileTemplateOwnership, isStandaloneSignatureInsertionBlocked, requiresStandaloneSignatureLayout, signatureOfficeWire } from '../../resources/js/outlook-addin/compose-template.js';
 import * as automaticPolicy from '../../resources/js/outlook-addin/automatic-compose-policy.js';
 
 const source = await readFile(new URL('../../resources/js/outlook-addin/runtime.js', import.meta.url), 'utf8');
@@ -71,7 +71,7 @@ function harness(options = {}) {
         Office: office, setTimeout, clearTimeout,
         console: { info() {} }, LOG_PREFIX: '[fixture]', AUTH_TIMEOUT_MS: 15000,
         confirmedInlineMedia: new WeakMap(), pendingNativeSignatures: new WeakMap(),
-        confirmedOfficeWrite, hasUncertainWrite, wasSignatureWriteConfirmed, hasMobileTemplateOwnership, isStandaloneSignatureInsertionBlocked, requiresStandaloneSignatureLayout,
+        confirmedOfficeWrite, hasUncertainWrite, wasSignatureWriteConfirmed, hasMobileTemplateOwnership, isStandaloneSignatureInsertionBlocked, requiresStandaloneSignatureLayout, signatureOfficeWire,
         ...automaticPolicy,
         isMobileComposeHost: () => options.mobile === true,
         codedError: (code) => Object.assign(new Error(code), { code }),

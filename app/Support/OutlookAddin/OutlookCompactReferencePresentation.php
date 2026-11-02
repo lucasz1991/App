@@ -81,6 +81,7 @@ final class OutlookCompactReferencePresentation
     private static function project(string $html, bool $forward): string
     {
         if (! $forward) {
+            $html = OutlookMobileReferencePresentation::canonicalize($html);
             $html = OutlookCompactMobilePresentation::canonicalize($html);
         }
         $family = $forward ? 16 : 17;
@@ -289,7 +290,7 @@ final class OutlookCompactReferencePresentation
         $result = self::replace($html, $edits);
         $result = self::family($result, $forward ? 16 : 17, $forward ? 17 : 16);
 
-        return $forward ? OutlookCompactMobilePresentation::document($result) : $result;
+        return $forward ? OutlookMobileReferencePresentation::document(OutlookCompactMobilePresentation::document($result)) : $result;
     }
 
     private static function whatsapp(string $fill): string

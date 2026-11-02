@@ -12,6 +12,7 @@ use App\Support\Mail\SystemMailInlineImageEmbedder;
 use App\Support\OutlookAddin\OutlookAddinPayloadService;
 use App\Support\OutlookAddin\OutlookClientPresentation;
 use App\Support\OutlookAddin\OutlookCompactReferencePresentation as Compact;
+use App\Support\OutlookAddin\OutlookMobileReferencePresentation;
 use App\Support\OutlookAddin\OutlookMobileSignature;
 use App\Support\OutlookAddin\OutlookStaticLinkedTestProfiles;
 use DOMDocument;
@@ -166,6 +167,9 @@ final class OutlookCompactReferencePresentationTest extends TestCase
 
     private function assertCompact(string $html, bool $system): void
     {
+        // The numeric V17 base remains frozen underneath the separately tested
+        // physical-mobile reference projection.
+        $html = OutlookMobileReferencePresentation::canonicalize($html);
         self::assertDoesNotMatchRegularExpression('/\b(?:cid|data):|data-rt-linked|data-rt-static|data-rt-system-mail-inline-assets/i', $html);
         self::assertStringContainsString('outlook-desktop-flow-v17', $html);
         self::assertStringContainsString('rt-v17-compact', $html);

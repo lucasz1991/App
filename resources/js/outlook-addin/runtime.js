@@ -19,6 +19,7 @@ import {
     readTemplateState,
     supportsTemplatePrepend,
     signatureFreeComposeTemplate,
+    signatureOfficeWire,
     validateTemplateInsertionPayload,
 } from './compose-template.js';
 import { readComposeSender, assertMailboxBinding } from './mailbox-guard.js';
@@ -457,6 +458,7 @@ async function attachInlineMedia(item, media, assertTarget) {
 }
 
 function setSignature(item, html) {
+    html = signatureOfficeWire(html);
     if (html.length > 30000) throw codedError('SIGNATURE_TOO_LARGE');
     return confirmedOfficeWrite(Office, item, 'signature-write', 'SIGNATURE_INSERT_UNCERTAIN',
         (callback) => item.body.setSignatureAsync(html, { coercionType: Office.CoercionType.Html }, callback));

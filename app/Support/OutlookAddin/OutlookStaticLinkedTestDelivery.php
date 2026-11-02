@@ -87,6 +87,7 @@ final class OutlookStaticLinkedTestDelivery
         'outlook-dispo-mail-kraeftig-v3.png' => ['19125261c2bc8274933b7a1c9efd1c5db23cd751c65fc1f88d2dcae22e4481b1', 859, 'image/png', 72, 72, '/m/19125261c2.png', '19125261c2bc8274933b7a1c9efd1c5db23cd751c65fc1f88d2dcae22e4481b1'],
         'outlook-dispo-telefon-kraeftig-v3.png' => ['1111670ac86e12aff6ad7809e11959b7af3c1275d4c5f2832b60934992f8f19a', 1333, 'image/png', 72, 72, '/m/1111670ac8.png', '1111670ac86e12aff6ad7809e11959b7af3c1275d4c5f2832b60934992f8f19a'],
         'outlook-dispo-whatsapp-weiss-v3.png' => ['f9d88b899d574851c64d02c9835a5b5fcf8d7c68e05d6c9b3f5618d3ac38bbd9', 1515, 'image/png', 72, 72, '/m/f9d88b899d.png', 'f9d88b899d574851c64d02c9835a5b5fcf8d7c68e05d6c9b3f5618d3ac38bbd9'],
+        'outlook-dispo-mobile-caption-alpha-v1.png' => ['fc43cf451bca7c4ad1c5c75e34fa80c4683687687e5adc72d88a54bd5e30d5f3', 2081, 'image/png', 160, 36, '/m/fc43cf451b.png', 'fc43cf451bca7c4ad1c5c75e34fa80c4683687687e5adc72d88a54bd5e30d5f3'],
     ];
 
     /** @return array<string, string> Full hashes bind both the input map and every immutable public PNG. */
@@ -613,7 +614,7 @@ final class OutlookStaticLinkedTestDelivery
             $fingerprint['map:'.$sha] = $pngSha;
             $fingerprint[$output] = $pngSha;
         }
-        if (count($sources) !== 65 || count($targets) !== 49) {
+        if (count($sources) !== 66 || count($targets) !== 50) {
             self::fail();
         }
         ksort($fingerprint);

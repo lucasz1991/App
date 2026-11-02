@@ -1,5 +1,6 @@
 import { fluidLayoutContract, hasUnquotedFluidLayoutMarker, hasUnquotedSignatureLayoutCarrier, managedTemplateContract, managedTemplateReplacement, standaloneSignatureContract, v15ReadbackParses, V15_READBACK_CONTRACT_STAGES } from './managed-template.js';
 import { createNativeLayoutNonce, inferredNativeGridRow, isFluidLayoutSource, outlookSignatureDeliveryProfile, verifyFluidLayoutMaterial, nativeLayoutClearBarrier, nativeLayoutReadbackContract, nativeLayoutThreeCellTopology, nativeLayoutRestoreCarrierIsExternal, nativeLayoutRestoreCarrierPresent, nativeLayoutRestoreCellsAligned, nativeLayoutRestoreCss, nativeLayoutRestoreRetained, prepareNativeLayoutRestore, removeNativeLayoutRestoreCarrier } from './native-layout-restore.js';
+import { applyV17OfficeWireEdits, mobileV17OfficeWire, v17OfficeWireEdits } from './v17-office-wire.js';
 import { confirmedOfficeWrite, markSignatureWriteConfirmed } from './office-write.js';
 
 // Automatic insertion only prepends. Explicit taskpane replacement below owns
@@ -813,6 +814,15 @@ export function requiresStandaloneSignatureLayout(html) {
     return typeof html === 'string' && /\bdata-rt-personal-flow\s*=/.test(html);
 }
 
+/** Prepare only a fresh published fragment, never a read or editable body. */
+export function signatureOfficeWire(html) {
+    if (!/\bdata-rt-desktop-flow\s*=\s*["']outlook-desktop-flow-v17["']/i.test(html)) return html;
+    if (/<div\b[^>]*\bclass\s*=\s*["'][^"']*\b(?:rt-mobile-ledger|x10)\b/i.test(html)) return mobileV17OfficeWire(html);
+    const contract = standaloneSignatureContract(html);
+    const material = verifyFluidLayoutMaterial(html, contract, true);
+    return applyV17OfficeWireEdits(html, v17OfficeWireEdits(html, contract, material));
+}
+
 export function isStandaloneSignatureInsertionBlocked(item) {
     return signatureOperations.has(item);
 }
@@ -1451,7 +1461,7 @@ export async function insertMobileCombinedTemplate(office, item, html, beforeWri
     if (typeof item?.body?.setSignatureAsync !== 'function'
         || typeof item?.body?.getAsync !== 'function'
         || typeof item?.getComposeTypeAsync !== 'function') throw failure('COMPOSE_API_UNAVAILABLE');
-    const markedHtml = validatedInsertionHtml(html, options.media ?? []);
+    let markedHtml = validatedInsertionHtml(html, options.media ?? []);
     if (options.documentMode === 'template-native-v1') {
         const opening = '<div data-rt-compose-document="template-native-v1">';
         if (!markedHtml.startsWith(opening) || !markedHtml.endsWith('</div>')) throw failure('MOBILE_TEMPLATE_ONLY_INVALID');
@@ -1461,6 +1471,7 @@ export async function insertMobileCombinedTemplate(office, item, html, beforeWri
         } catch { throw failure('MOBILE_TEMPLATE_ONLY_INVALID'); }
     } else if (options.documentMode !== undefined || !combinedTemplateMarker.test(markedHtml)
         || !/\bdata-rt-compose-document\s*=\s*["']combined-native-v1["']/i.test(markedHtml)) throw failure('MOBILE_COMBINED_TEMPLATE_INVALID');
+    markedHtml = mobileV17OfficeWire(markedHtml);
     if (markedHtml.length > 30000) throw failure('SIGNATURE_TOO_LARGE');
     const operation = { phase: 'preflight', beforeWrite, mobileNative: true };
     insertionOperations.set(item, operation);

@@ -35,23 +35,25 @@ final class OutlookUniformBrandAssetsTest extends TestCase
         'zug-dampf-outlook-brand-v2-light-mirrored.png' => ['f1a2c9e0ba241c210ba9a1331dd406f7fce8d893e3b2b89528f33999853498da', 8056, 'image/png', 695, 151, 'f1a2c9e0ba241c210ba9a1331dd406f7fce8d893e3b2b89528f33999853498da'],
         'zug-dampf-outlook-brand-v2-dark-mirrored.gif' => ['c5ae93d54d0d2ed7a30ea3b8402a5598f57e25271d267b37719f899361308c5a', 136792, 'image/gif', 695, 151, 'e0cd25a52aa69159b10af004d407994cb2c6673a0c459d67856232d1e9a1ef63'],
         'zug-dampf-outlook-brand-v2-dark-mirrored.png' => ['e0cd25a52aa69159b10af004d407994cb2c6673a0c459d67856232d1e9a1ef63', 5058, 'image/png', 695, 151, 'e0cd25a52aa69159b10af004d407994cb2c6673a0c459d67856232d1e9a1ef63'],
+        'outlook-dispo-mobile-caption-alpha-v1.png' => ['fc43cf451bca7c4ad1c5c75e34fa80c4683687687e5adc72d88a54bd5e30d5f3', 2081, 'image/png', 160, 36, 'fc43cf451bca7c4ad1c5c75e34fa80c4683687687e5adc72d88a54bd5e30d5f3'],
 
     ];
 
-    public function test_the_original_43_pins_are_unchanged_and_only_22_known_sources_are_appended(): void
+    public function test_the_original_43_pins_are_unchanged_and_only_23_known_sources_are_appended(): void
     {
         $assets = $this->catalog();
-        self::assertCount(65, $assets);
+        self::assertCount(66, $assets);
         self::assertSame('ca35d43932cbe01b355bc545bc7ed153a870c98eed21208688cac3ab8a72d8ef', hash('sha256', json_encode(array_slice($assets, 0, 43, true), JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)));
+        self::assertSame('c53c55bb9d93e9a5a5e2f70523de12dccf05f9f59891396c53be63fe9302c519', hash('sha256', json_encode(array_slice($assets, 0, 65, true), JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)));
         $new = array_keys(array_slice($assets, 43, null, true));
         $expected = array_keys(self::NEW_PINS);
         sort($new);
         sort($expected);
         self::assertSame($expected, $new);
         $fingerprint = OutlookStaticLinkedTestDelivery::fingerprint();
-        self::assertCount(114, $fingerprint);
-        self::assertCount(65, array_filter(array_keys($fingerprint), static fn (string $key): bool => str_starts_with($key, 'map:')));
-        self::assertCount(49, array_filter(array_keys($fingerprint), static fn (string $key): bool => str_starts_with($key, '/m/')));
+        self::assertCount(116, $fingerprint);
+        self::assertCount(66, array_filter(array_keys($fingerprint), static fn (string $key): bool => str_starts_with($key, 'map:')));
+        self::assertCount(50, array_filter(array_keys($fingerprint), static fn (string $key): bool => str_starts_with($key, '/m/')));
     }
 
     #[DataProvider('newAssets')]
@@ -139,7 +141,7 @@ final class OutlookUniformBrandAssetsTest extends TestCase
         foreach (['location', 'phone', 'mobile', 'email', 'web'] as $kind) {
             yield 'red '.$kind => ['contact-'.$kind.'-brand-v2.png', [233, 0, 50]];
         }
-        foreach (['outlook-dispo-card-caption-alpha-v2.png', 'outlook-hotline-mail-alpha-v2.png', 'outlook-hotline-phone-alpha-v2.png', 'outlook-dispo-card-caption-alpha-v3.png', 'outlook-dispo-mail-kraeftig-v3.png', 'outlook-dispo-telefon-kraeftig-v3.png', 'outlook-dispo-whatsapp-weiss-v3.png'] as $filename) {
+        foreach (['outlook-dispo-card-caption-alpha-v2.png', 'outlook-hotline-mail-alpha-v2.png', 'outlook-hotline-phone-alpha-v2.png', 'outlook-dispo-card-caption-alpha-v3.png', 'outlook-dispo-mail-kraeftig-v3.png', 'outlook-dispo-telefon-kraeftig-v3.png', 'outlook-dispo-whatsapp-weiss-v3.png', 'outlook-dispo-mobile-caption-alpha-v1.png'] as $filename) {
             yield 'white '.$filename => [$filename, [255, 255, 255]];
         }
     }

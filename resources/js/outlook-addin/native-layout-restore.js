@@ -1,6 +1,7 @@
 // Only the verified incoming native signature is annotated; editable/quoted HTML stays opaque.
 import { verifyV30ReferenceMaterial } from './v30-reference-layout.js';
 import { verifyCompactReferenceMaterial } from './compact-reference-layout.js';
+import { v17OfficeWireEdits } from './v17-office-wire.js';
 const PREFIX = 'rt-native-layout-';
 const FLOW = 'data-rt-personal-flow';
 const owns = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
@@ -917,7 +918,7 @@ function prepareFluidLayout(html, contract, nonce, office) {
     // additional Word formatting run. Its exact merged-token protocol exists.
     const marker = boundedV15 ? ' ' + token : '<span hidden aria-hidden="true" style="display:none!important;font-size:0;line-height:0;">' + token + '</span>';
     const position = boundedV15 ? versionNode.close : versionNode.end;
-    const edits = [{ start: position, end: position, value: marker }];
+    const edits = [{ start: position, end: position, value: marker }, ...(family === 17 ? v17OfficeWireEdits(html, contract, material) : [])];
     if (family === 15 && profile === 'M') edits.push(hostProfileOpening(html, material.train, 547), hostProfileOpening(html, material.trainImage, 529, 115), hostProfileOpening(html, material.caption, 199, 38));
     let modified = html;
     for (const edit of edits.sort((a, b) => b.start - a.start)) modified = modified.slice(0, edit.start) + edit.value + modified.slice(edit.end);

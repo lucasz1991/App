@@ -9,6 +9,7 @@ use App\Support\OutlookAddin\OutlookAddinPayloadService;
 use App\Support\OutlookAddin\OutlookClientPresentation;
 use App\Support\OutlookAddin\OutlookCompactMobilePresentation as Mobile;
 use App\Support\OutlookAddin\OutlookCompactReferencePresentation as Compact;
+use App\Support\OutlookAddin\OutlookMobileReferencePresentation;
 use App\Support\OutlookAddin\OutlookMobileSignature;
 use App\Support\OutlookAddin\OutlookStaticLinkedTestProfiles;
 use DOMDocument;
@@ -21,10 +22,11 @@ use Tests\TestCase;
 
 final class OutlookCompactMobilePresentationTest extends TestCase
 {
-    public function test_all_recipient_roots_keep_fluid_inline_geometry_exact_inverse_and_one_card(): void
+    public function test_numeric_base_under_recipient_roots_keeps_exact_inverse_and_one_card(): void
     {
         [$mobile, $desktop] = $this->entries();
         foreach ([[$mobile['signature']['html'], 30000], [$mobile['mobileComposeHtml'], 30000], [$desktop['signature']['html'], 30000], [$desktop['combinedComposeHtml'], 99000]] as [$html, $limit]) {
+            $html = OutlookMobileReferencePresentation::canonicalize($html);
             $source = Mobile::canonicalize($html);
             $result = Mobile::document($source);
             self::assertSame($source, Mobile::canonicalize($result));
@@ -90,6 +92,7 @@ final class OutlookCompactMobilePresentationTest extends TestCase
         foreach ($wire['templates'] as $entry) {
             foreach ([$entry['signature']['html'], $entry['mobileComposeHtml']] as $html) {
                 self::assertLessThanOrEqual(30000, intdiv(strlen(mb_convert_encoding($html, 'UTF-16LE', 'UTF-8')), 2) + 168);
+                $html = OutlookMobileReferencePresentation::canonicalize($html);
                 self::assertSame($html, Mobile::document($html));
                 self::assertSame($html, Mobile::document(Mobile::canonicalize($html)));
             }
@@ -163,7 +166,17 @@ final class OutlookCompactMobilePresentationTest extends TestCase
         $desktop = OutlookStaticLinkedTestProfiles::payload(OutlookClientPresentation::payload($canonical), $user);
         $mobile = OutlookStaticLinkedTestProfiles::payload(OutlookClientPresentation::payload(OutlookMobileSignature::payload($canonical)), $user);
 
-        return [$mobile['templates'][0], $desktop['templates'][0]];
+        $entries = [$mobile['templates'][0], $desktop['templates'][0]];
+        foreach ($entries as &$entry) {
+            foreach (['html', 'composeHtml', 'combinedComposeHtml', 'mobileComposeHtml'] as $field) {
+                if (isset($entry[$field])) {
+                    $entry[$field] = OutlookMobileReferencePresentation::canonicalize($entry[$field]);
+                }
+            }
+            $entry['signature']['html'] = OutlookMobileReferencePresentation::canonicalize($entry['signature']['html']);
+        }
+
+        return $entries;
     }
 
     private function xpath(string $html): DOMXPath

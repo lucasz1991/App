@@ -194,7 +194,12 @@ function normalizeFluid(html, actual, root, source, contract) {
         const logo = one(descendants(nodes, columns[0].index, 'table').filter(value => close(value.node.attrs.width, 184)));
         const image = one(descendants(nodes, logo.index, 'img')), logoCell = cellOf(nodes, logo.index);
         expectExpression(logo.node, 'width', '184px');
-        expectExpression(image.node, 'width', '100%'); expectExpression(image.node, 'height', 'auto');
+        const imageWidth = properties(image.node).get('width');
+        // The verified SDK egress pins the Word image itself, rather than
+        // relying on its percentage width inside an HTML TABLE. Canonical
+        // source remains unchanged; readback admits only the same 184px box.
+        if (expression(imageWidth) !== '100%' && (source || !close(imageWidth, 184))) invalid();
+        expectExpression(image.node, 'height', 'auto');
         if (properties(logo.node).get('float') !== 'none' || !close(properties(logo.node).get('margin'), 0)
             || source && (!close(image.node.attrs.width, 184) || !close(image.node.attrs.height, 32))
             || image.node.attrs.width !== undefined && !close(image.node.attrs.width, 184)

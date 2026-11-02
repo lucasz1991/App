@@ -10,6 +10,7 @@ import {
     requiresStandaloneSignatureLayout,
     standaloneSignatureLayoutIsCurrent,
     signatureHostProfileIsCurrent,
+    signatureOfficeWire,
     combinedComposeDocument,
     diagnoseUncertainV15Readback,
     currentComposeBodyHtml as scopedComposeBodyHtml,
@@ -597,6 +598,7 @@ function existingAttachments(item) {
 }
 
 function setSignature(item, html) {
+    html = signatureOfficeWire(html);
     if (html.length > 30000) throw codedError('SIGNATURE_TOO_LARGE');
     const binding = currentBootstrap?.binding;
     return confirmedOfficeWrite(Office, item, 'signature-write', 'SIGNATURE_INSERT_UNCERTAIN',
