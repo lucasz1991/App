@@ -255,6 +255,46 @@ test('desktop automatic compose attaches media, clears native ownership, then wr
     assert.equal(h.state.prepends.length, 1);
 });
 
+for (const mobile of [false, true]) test((mobile ? 'mobile' : 'desktop') + ' compose event remains alive through final SessionData callback and exact readback', async () => {
+    let finishSet, finishRead;
+    const h = await runtimeHarness({ mobile }, fixture => {
+        if (mobile) Object.assign(fixture.bootstrap.templates[0], { mobileComposeDocumentMode: 'combined-native-v1', mobileComposeHtml: MOBILE_HTML, mobileComposeMedia: [MEDIA], mobileComposeVersion: VERSION });
+        fixture.item.sessionData.setAsync = (_key, value, cb) => {
+            fixture.state.sessionWrites.push(value);
+            if (value === '1') { finishSet = () => { fixture.state.session = value; cb(success()); }; return; }
+            fixture.state.session = value; cb(success());
+        };
+        fixture.item.sessionData.getAsync = (_key, cb) => {
+            if (fixture.state.session === '1') { finishRead = () => cb(success('1')); return; }
+            cb(success(fixture.state.session));
+        };
+    });
+    const run = h.run();
+    await flush(() => finishSet); assert.equal(typeof finishSet, 'function');
+    assert.equal(h.completed, 0); assert.match(h.state.session, /^pending:/); assert.equal(compose.isTemplateInsertionBlocked(h.item), true);
+    assert.equal(mobile ? h.state.signatures.length : h.state.prepends.length, 1);
+    finishSet(); await flush(() => finishRead); assert.equal(typeof finishRead, 'function');
+    assert.equal(h.completed, 0); assert.equal(compose.isTemplateInsertionBlocked(h.item), true);
+    finishRead(); await run;
+    assert.equal(h.completed, 1); assert.equal(h.state.session, '1'); assert.equal(compose.isTemplateInsertionBlocked(h.item), false);
+    assert.equal(mobile ? h.state.signatures.length : h.state.prepends.length, 1);
+});
+
+test('failed final SessionData acknowledgement completes the event uncertain and never starts a second body write', async () => {
+    const h = await runtimeHarness({}, fixture => {
+        fixture.item.sessionData.setAsync = (_key, value, cb) => {
+            fixture.state.sessionWrites.push(value);
+            if (value === '1') { cb(failure('FINAL_SET_FAILED')); return; }
+            fixture.state.session = value; cb(success());
+        };
+    });
+    await h.run();
+    assert.equal(h.completed, 1); assert.equal(h.state.prepends.length, 1); assert.match(h.state.session, /^pending:/);
+    assert.equal(compose.isTemplateInsertionBlocked(h.item), true);
+    await h.run(); assert.equal(h.completed, 2); assert.equal(h.state.prepends.length, 1);
+    assert.equal(h.state.sessionWrites.filter(value => value === '1').length, 1);
+});
+
 test('production automatic personal combined insertion prepends ten IDs and verifies the separate core after Office filtering', async () => {
     const h = await runtimeHarness({ composeType: 'reply', body: TYPED + OLD_SIGNATURE + QUOTE }, fixture => {
         fixture.bootstrap.templates[0].combinedComposeHtml = personalCombinedHtml();

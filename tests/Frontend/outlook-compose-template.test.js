@@ -787,12 +787,13 @@ test('native success after account switch does not mutate session metadata in th
         allowed = false;
         callback(success());
     };
-    await prependTemplate(office, item, '<p>Template</p>', async () => {
+    await assert.rejects(prependTemplate(office, item, '<p>Template</p>', async () => {
         await Promise.resolve();
         if (!allowed) throw Object.assign(new Error('Changed'), { code: 'MAILBOX_NOT_AUTHORIZED' });
-    });
+    }), { code: 'TEMPLATE_INSERT_UNCERTAIN', phase: 'session-final-target' });
     assert.equal(state.prepends.length, 1);
     assert.equal(state.sessionWrites.length, 1);
     assert.match(state.session, /^pending:/);
-    await assert.rejects(prependTemplate(office, item, '<p>Duplicate</p>'), { code: 'TEMPLATE_ALREADY_INSERTED' });
+    assert.equal(isTemplateInsertionBlocked(item), true);
+    await assert.rejects(prependTemplate(office, item, '<p>Duplicate</p>'), { code: 'TEMPLATE_INSERT_UNCERTAIN' });
 });

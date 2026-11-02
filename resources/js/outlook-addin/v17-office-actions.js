@@ -33,12 +33,83 @@ function opening(html, node, changes) {
     }
     return { start: node.start, end: node.openEnd, value };
 }
+const PAIR = 'rt-v17-action-pair', PHONE = 'rt-v17-phone-action';
+const groupCell = (width, content) => '<td width="' + width + '" valign="middle" style="width:' + width + 'px;padding:0;vertical-align:middle;">' + content + '</td>';
+function group(width, name, cells) {
+    return '<table class="' + name + '" role="presentation" width="' + width + '" border="0" cellspacing="0" cellpadding="0" style="width:' + width + 'px;border-collapse:collapse;table-layout:fixed;"><tbody><tr>' + cells.join('') + '</tr></tbody></table>';
+}
+function groupProjection(html, nodes, cells) {
+    const left = children(nodes, cells[0].index), phone = children(nodes, cells[1].index);
+    if (left.length !== 2 || left.some(value => value.node.tag !== 'a') || phone.length !== 1 || phone[0].node.tag !== 'a'
+        || left[1].node.attrs.href !== 'https://wa.me/491601881848' || !close(props(left[1].node).get('margin-left'), 14)) invalid();
+    const wa = opening(html, left[1].node, { style: (left[1].node.attrs.style || '').replace(/(^|;)(\s*margin-left\s*:\s*)14px(?=;|$)/i, '$1$20px') }).value
+        + html.slice(left[1].node.openEnd, left[1].node.end);
+    return [
+        { start: cells[0].node.openEnd, end: cells[0].node.close, value: group(56, PAIR, [groupCell(24, html.slice(left[0].node.start, left[0].node.end)), groupCell(8, '&nbsp;'), groupCell(24, wa)]) },
+        { start: cells[1].node.openEnd, end: cells[1].node.close, value: group(32, PHONE, [groupCell(2, '&nbsp;'), groupCell(24, html.slice(phone[0].node.start, phone[0].node.end)), groupCell(6, '&nbsp;')]) },
+    ];
+}
+function normalizeGroup(html, nodes, cell, name, widths, linkSlots) {
+    let container = cell, direct = children(nodes, cell.index);
+    if (direct.length === 1 && direct[0].node.tag === 'div') {
+        const host = direct[0], style = props(host.node), left = name === PAIR;
+        const allowed = ['direction','line-height','font-family','font-size','color', ...(left ? ['white-space'] : [])];
+        if (Object.keys(host.node.attrs).some(key => !['style','class'].includes(key))
+            || host.node.attrs.class !== undefined && host.node.attrs.class !== 'elementToProof'
+            || style.size !== allowed.length || [...style.keys()].some(key => !allowed.includes(key))
+            || style.get('direction') !== 'ltr' || !close(style.get('line-height'),19) || !close(style.get('font-size'),13)
+            || !['#ffffff','rgb(255,255,255)'].includes((style.get('color') || '').replace(/\s/g,''))
+            || style.get('font-family')?.replace(/["'\s]/g,'') !== 'trebuchetms,arial,sans-serif'
+            || left && style.get('white-space') !== 'nowrap') invalid();
+        if (html.slice(cell.node.openEnd,host.node.start).trim() || html.slice(host.node.end,cell.node.close).trim()) invalid();
+        container = host; direct = children(nodes,host.index);
+    }
+    const candidates = direct.filter(value => value.node.tag === 'table');
+    if (!candidates.length) return { html, present: false };
+    const table = one(candidates); if (direct.length !== 1) invalid();
+    const allowedAttrs = ['class','role','width','border','cellspacing','cellpadding','style'];
+    if (Object.keys(table.node.attrs).some(key => !allowedAttrs.includes(key))
+        || table.node.attrs.class !== undefined && ![name, 'x_' + name, 'MsoNormalTable'].includes(table.node.attrs.class)
+        || table.node.attrs.role !== undefined && table.node.attrs.role !== 'presentation'
+        || !close(table.node.attrs.width, widths.reduce((a,b) => a+b, 0))) invalid();
+    for (const key of ['border','cellspacing','cellpadding']) if (table.node.attrs[key] !== undefined && !close(table.node.attrs[key], 0)) invalid();
+    const style = props(table.node);
+    if ([...style.keys()].some(key => !['width','border-collapse','table-layout','mso-table-lspace','mso-table-rspace'].includes(key))
+        || !close(style.get('width'), widths.reduce((a,b) => a+b, 0)) || style.get('border-collapse') !== 'collapse' || style.get('table-layout') !== 'fixed'
+        || ['mso-table-lspace','mso-table-rspace'].some(key => style.has(key) && !close(style.get(key), 0))) invalid();
+    const body = only(nodes, table.index, 'tbody'), row = only(nodes, body.index, 'tr'), slots = children(nodes, row.index);
+    if (Object.keys(body.node.attrs).length || Object.keys(row.node.attrs).length || slots.length !== 3 || slots.some(value => value.node.tag !== 'td')) invalid();
+    const anchors = [];
+    for (const [position, slot] of slots.entries()) {
+        const paint = props(slot.node);
+        if (Object.keys(slot.node.attrs).some(key => !['width','valign','style'].includes(key))
+            || !close(slot.node.attrs.width, widths[position]) || slot.node.attrs.valign !== undefined && slot.node.attrs.valign !== 'middle'
+            || [...paint.keys()].some(key => !['width','padding','vertical-align'].includes(key)) || !close(paint.get('width'), widths[position])
+            || !/^(?:0(?:px|pt)?)(?:\s+0(?:px|pt)?){0,3}$/.test(paint.get('padding') || '') || paint.get('vertical-align') !== 'middle') invalid();
+        if (linkSlots.includes(position)) {
+            const anchor = only(nodes, slot.index, 'a'); anchors.push(anchor);
+            if (html.slice(slot.node.openEnd, anchor.node.start).trim() || html.slice(anchor.node.end, slot.node.close).trim()) invalid();
+        } else if (children(nodes, slot.index).length || !/^(?:\s|&nbsp;|&#160;|&#x0*a0;)*$/i.test(html.slice(slot.node.openEnd, slot.node.close))) invalid();
+    }
+    const gaps = owner => { let cursor = nodes[owner].openEnd; for (const value of children(nodes, owner)) { if (html.slice(cursor, value.node.start).trim()) invalid(); cursor = value.node.end; } if (html.slice(cursor, nodes[owner].close).trim()) invalid(); };
+    for (const owner of [cell.index, container.index, table.index, body.index, row.index]) gaps(owner);
+    if (name === PAIR && (!close(props(anchors[1].node).get('margin-left'), 0) || anchors[1].node.attrs.href !== 'https://wa.me/491601881848')) invalid();
+    if (name === PAIR) setStyle(anchors[1].node, { 'margin-left': '14px' });
+    // Keep the original indices/offsets. Only the proven wrapper bytes become
+    // virtual whitespace; exact original links/images remain opaque and owned.
+    let cursor = table.node.start;
+    for (const anchor of anchors) { html = html.slice(0, cursor) + ' '.repeat(anchor.node.start - cursor) + html.slice(anchor.node.start); cursor = anchor.node.end; nodes[anchor.index].parent = container.index; }
+    html = html.slice(0, cursor) + ' '.repeat(table.node.end - cursor) + html.slice(table.node.end);
+    nodes[table.index].parent = null;
+    return { html, present: true };
+}
 function shape(nodes, owner) {
     const scoped = nodes.map((node, index) => ({ node, index })).filter(value => value.node.tag === 'table' && within(nodes, value.index, owner));
     let candidates = scoped.filter(value => has(value.node, 'rt-v17-dispatch-actions'));
     if (!candidates.length) candidates = scoped.filter(value => {
         const body = children(nodes, value.index); if (body.length !== 1 || body[0].node.tag !== 'tbody') return false;
-        const rows = children(nodes, body[0].index); return rows.length === 1 && rows[0].node.tag === 'tr' && children(nodes, rows[0].index).length === 3;
+        const rows = children(nodes, body[0].index), cells = rows.length === 1 && rows[0].node.tag === 'tr' ? children(nodes, rows[0].index) : [];
+        return cells.length === 3 && nodes.some((node,index) => node.tag === 'a' && /^tel:/.test(node.attrs.href || '') && within(nodes,index,cells[2].index));
     });
     const action = one(candidates);
     const row = only(nodes, only(nodes, action.index, 'tbody').index, 'tr'), cells = children(nodes, row.index);
@@ -50,16 +121,18 @@ function shape(nodes, owner) {
 /** Only after the caller has proved the canonical fragment and its ownership. */
 export function v17OfficeActionProjection(html, nodes, owner, mobile = false) {
     const { action, cells, link } = shape(nodes, owner), span = only(nodes, link.index, 'span'), edits = [];
+    const defaultPhoneImage = link.node.attrs.href === 'tel:' + DEFAULT_PHONE;
     const append = (value, tail, attrs = {}) => { const style = value.node.attrs.style || ''; edits.push(opening(html, value.node, { ...attrs, style: style.endsWith(tail) ? style : style + tail })); };
     if (!mobile) {
         append(action, ';width:215px!important;max-width:100%;table-layout:auto!important;', { width: '215' });
-        cells.forEach((cell, position) => append(cell, ';width:' + [62, 32, 121][position] + 'px!important;'
+        const widths = defaultPhoneImage ? [75, 32, 108] : [62, 32, 121];
+        cells.forEach((cell, position) => append(cell, ';width:' + widths[position] + 'px!important;'
             + (position === 1 ? 'padding-right:0!important;' : 'white-space:nowrap!important;')
-            + (position === 2 ? 'word-break:normal!important;overflow-wrap:normal!important;' : ''), { width: String([62, 32, 121][position]), ...(position === 1 ? {} : { nowrap: '' }) }));
+            + (position === 2 ? 'padding-left:0!important;text-align:left!important;word-break:normal!important;overflow-wrap:normal!important;' : ''), { width: String(widths[position]), ...(position === 1 ? {} : { nowrap: '' }) }));
+        edits.push(...groupProjection(html, nodes, cells));
     }
     append(link, ';white-space:nowrap!important;word-break:normal!important;overflow-wrap:normal!important;');
     append(span, ';white-space:nowrap!important;word-break:normal!important;overflow-wrap:normal!important;');
-    const defaultPhoneImage = link.node.attrs.href === 'tel:' + DEFAULT_PHONE;
     if (defaultPhoneImage) {
         if (children(nodes, span.index).length || html.slice(span.node.openEnd, span.node.close).replace(/&nbsp;|&#160;/gi, ' ').replace(/\s/g, '') !== DEFAULT_PHONE) invalid();
         const phoneIcons = nodes.filter(node => node.tag === 'img' && within(nodes, nodes.indexOf(node), cells[1].index));
@@ -74,20 +147,27 @@ export function v17OfficeActionProjection(html, nodes, owner, mobile = false) {
 export function normalizeV17OfficeActions(html, nodes, owner, source) {
     if (source) return { html, officeActionsWire: false, defaultDispatchPhoneImage: false };
     const { action, cells, link } = shape(nodes, owner), style = props(action.node);
-    const officeActionsWire = close(style.get('width'), 215) || close(action.node.attrs.width, 215);
+    const officeGeometry = close(style.get('width'), 215) || close(action.node.attrs.width, 215);
+    const pair = normalizeGroup(html, nodes, cells[0], PAIR, [24,8,24], [0,2]); html = pair.html;
+    const phone = normalizeGroup(html, nodes, cells[1], PHONE, [2,24,6], [1]); html = phone.html;
+    if (pair.present !== phone.present || pair.present && !officeGeometry) invalid();
+    const officeActionsWire = officeGeometry && pair.present && phone.present;
     const images = nodes.map((node, index) => ({ node, index })).filter(value => value.node.tag === 'img' && within(nodes, value.index, link.index));
     const image = images.length === 1 ? images[0] : null;
-    if (!officeActionsWire && !image) return { html, officeActionsWire: false, defaultDispatchPhoneImage: false };
-    if (officeActionsWire) {
+    if (!officeGeometry && !image) return { html, officeActionsWire: false, defaultDispatchPhoneImage: false };
+    if (officeGeometry) {
         if (!close(style.get('width'), 215) || !close(action.node.attrs.width, 215) || style.get('table-layout') !== 'auto' || style.get('max-width') !== '100%') invalid();
+        const widths = officeActionsWire && link.node.attrs.href === 'tel:' + DEFAULT_PHONE ? [75,32,108] : [62,32,121];
         for (const [index, cell] of cells.entries()) {
-            const values = props(cell.node); if (!close(values.get('width'), [62, 32, 121][index]) || cell.node.attrs.width !== undefined && !close(cell.node.attrs.width, [62, 32, 121][index])
+            const values = props(cell.node); if (!close(values.get('width'), widths[index]) || cell.node.attrs.width !== undefined && !close(cell.node.attrs.width, widths[index])
                 || index !== 1 && (!Object.hasOwn(cell.node.attrs, 'nowrap') || values.get('white-space') !== 'nowrap')
                 || index === 1 && !close(values.get('padding-right'), 0)
-                || index === 2 && (values.get('word-break') !== 'normal' || values.get('overflow-wrap') !== 'normal')) invalid();
+                || index === 2 && (values.get('word-break') !== 'normal' || values.get('overflow-wrap') !== 'normal'
+                    || officeActionsWire && (!close(values.get('padding-left'), 0) || values.get('text-align') !== 'left'))) invalid();
             if (index !== 1) delete cell.node.attrs.nowrap;
             if (index === 2) delete cell.node.attrs.width; else cell.node.attrs.width = String(index === 0 ? '100%' : 32);
-            setStyle(cell.node, { width: index === 2 ? null : index === 0 ? '100%' : '32px', ...(index === 1 ? { 'padding-right': '8px' } : {}), 'word-break': null, 'overflow-wrap': null });
+            setStyle(cell.node, { width: index === 2 ? null : index === 0 ? '100%' : '32px', ...(index === 1 ? { 'padding-right': '8px' } : {}),
+                ...(index === 2 && officeActionsWire ? { 'padding-left': null, 'text-align': 'right' } : {}), 'word-break': null, 'overflow-wrap': null });
         }
         action.node.attrs.width = '100%'; setStyle(action.node, { width: '100%', 'max-width': null, 'table-layout': null });
     }
@@ -105,7 +185,7 @@ export function normalizeV17OfficeActions(html, nodes, owner, source) {
         const oldLength = image.node.end - image.node.start; if (oldLength < PHONE_LABEL.length) invalid();
         html = html.slice(0, image.node.start) + PHONE_LABEL.padEnd(oldLength, ' ') + html.slice(image.node.end); image.node.parent = null;
     }
-    if (officeActionsWire || image) {
+    if (officeGeometry || image) {
         const runs = nodes.map((node, index) => ({ node, index })).filter(value => value.index === link.index || value.node.tag === 'span' && within(nodes, value.index, link.index));
         for (const value of runs) {
             const paint = props(value.node); if (paint.get('white-space') !== 'nowrap' || paint.get('word-break') !== 'normal' || paint.get('overflow-wrap') !== 'normal') invalid();

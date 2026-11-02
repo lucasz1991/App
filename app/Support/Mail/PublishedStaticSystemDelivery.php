@@ -33,6 +33,7 @@ final class PublishedStaticSystemDelivery
             self::changed();
         }
         $projected = OutlookStaticLinkedTestProfiles::renderedPreview($html, $profile, (string) config('app.url'));
+        $projected = SystemMailDispatchActions::project($projected, $profile, (string) config('app.url'));
         if ($before !== self::fresh()) {
             self::changed();
         }

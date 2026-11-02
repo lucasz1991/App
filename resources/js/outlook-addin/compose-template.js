@@ -489,19 +489,37 @@ export function validateTemplateInsertionPayload(html, media = []) {
     return validatedInsertionHtml(html, media);
 }
 
-async function markTemplateApplied(item, operation) {
+async function markTemplateApplied(office, item, operation) {
+    try {
+        if (operation.sessionClaimed) {
+            await operation.beforeWrite();
+            operation.phase = 'finishing-session';
+            const owned = await readSession(office, item);
+            if (!owned.succeeded || owned.value !== operation.sessionToken) throw failure('TEMPLATE_INSERT_UNCERTAIN', {
+                phase: 'session-final-ownership', reason: owned.succeeded ? 'mismatch' : owned.reason, officeCode: owned.officeCode,
+            });
+            // Keep the event runtime alive through the bounded host callback
+            // and readback. Only this operation's exact pending claim may be
+            // completed; old/foreign claims are never repaired or overwritten.
+            await operation.beforeWrite();
+            const completed = await writeSession(office, item, '1');
+            if (!completed.succeeded) throw failure('TEMPLATE_INSERT_UNCERTAIN', {
+                phase: 'session-final-write', reason: completed.reason, officeCode: completed.officeCode,
+            });
+            await operation.beforeWrite();
+            const retained = await readSession(office, item);
+            if (!retained.succeeded || retained.value !== '1') throw failure('TEMPLATE_INSERT_UNCERTAIN', {
+                phase: 'session-final-readback', reason: retained.succeeded ? 'mismatch' : retained.reason, officeCode: retained.officeCode,
+            });
+        }
+    } catch (error) {
+        operation.phase = 'uncertain';
+        if (error?.code === 'TEMPLATE_INSERT_UNCERTAIN') throw error;
+        throw failure('TEMPLATE_INSERT_UNCERTAIN', { phase: 'session-final-target', reason: 'context-changed' });
+    }
     appliedItems.add(item);
     operation.phase = 'applied';
     if (insertionOperations.get(item) === operation) insertionOperations.delete(item);
-    try {
-        if (!operation.sessionClaimed) return;
-        await operation.beforeWrite();
-        // Best effort only: a missing session callback must never hold the UI.
-        // This stores neither mail text, identity data nor tokens.
-        item.sessionData?.setAsync?.(TEMPLATE_SESSION_KEY, '1', () => {});
-    } catch {
-        // The in-memory marker remains authoritative for this compose item.
-    }
 }
 
 function nativeTemplateWrite(office, item, html, operation, replace = false) {
@@ -529,14 +547,15 @@ function nativeTemplateWrite(office, item, html, operation, replace = false) {
                         return;
                     }
                     // A late success after timeout still establishes idempotency.
-                    await markTemplateApplied(item, operation);
+                    await markTemplateApplied(office, item, operation);
                     resolve();
                 } else if (operation.phase !== 'uncertain') {
                     const officeCode = safeOfficeCode(result?.error);
                     reject(failure(officeCode || 'SET_TEMPLATE_FAILED', { phase, reason: 'failed', officeCode }));
                 }
             } catch (error) {
-                uncertain({ reason: 'exception', officeCode: safeOfficeCode(error) });
+                if (error?.code === 'TEMPLATE_INSERT_UNCERTAIN' && operation.phase === 'uncertain') reject(error);
+                else uncertain({ reason: 'exception', officeCode: safeOfficeCode(error) });
             }
         };
         try {
@@ -1308,7 +1327,7 @@ async function restoreNativeLayout(office, item, layout, operation, original, op
         const material = verifyFluidLayoutMaterial(written.html, layout.family === 17 ? { ...owned, sourceLogoUrl: layout.sourceLogoUrl } : owned);
         if ([16, 17].includes(layout.family) && (typeof layout.singleDispatch !== 'boolean'
             || (material.singleDispatch === true) !== layout.singleDispatch) || layout.family === 17 && (typeof layout.raisedTrain !== 'boolean' || material.raisedTrain !== layout.raisedTrain || !v17OfficeWireMatches(material, layout))) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED');
-        options.beforeCommit?.(); await markTemplateApplied(item, operation); return;
+        options.beforeCommit?.(); await markTemplateApplied(office, item, operation); return;
     }
     layoutIdsContract(written.html, currentComposeBodyHtml(written.html, written.composeType), layout.ids);
     options.beforeCommit?.();
@@ -1327,7 +1346,7 @@ async function restoreNativeLayout(office, item, layout, operation, original, op
     const retained = layoutIdsContract(restored.html, currentComposeBodyHtml(restored.html, restored.composeType), layout.ids);
     if (nativeLayoutRestoreRetained(restored.html, retained, layout.ids) !== true) throw failure('TEMPLATE_LAYOUT_UNCONFIRMED', { phase: 'layout-retention-readback' });
     options.beforeCommit?.();
-    await markTemplateApplied(item, operation);
+    await markTemplateApplied(office, item, operation);
 }
 
 /** Explicit user replacement only; automatic/event insertion never calls this. */
@@ -1453,13 +1472,14 @@ function mobileNativeSignature(office, item, html, operation) {
                 if (result?.status === office?.AsyncResultStatus?.Succeeded) {
                     // Late success establishes ownership only: no subsequent
                     // template/signature/media write may be started by it.
-                    await markTemplateApplied(item, operation);
+                    await markTemplateApplied(office, item, operation);
                     resolve();
                 } else if (operation.phase !== 'uncertain') {
                     throw failure('OFFICE_WRITE_FAILED', { phase: 'mobile-combined-signature', reason: 'callback', officeCode: safeOfficeCode(result?.error) });
                 }
             } catch (error) {
-                if (error?.code === 'OFFICE_WRITE_FAILED' && operation.phase !== 'uncertain') reject(error);
+                if (error?.code === 'TEMPLATE_INSERT_UNCERTAIN' && operation.phase === 'uncertain') reject(error);
+                else if (error?.code === 'OFFICE_WRITE_FAILED' && operation.phase !== 'uncertain') reject(error);
                 else uncertain({ reason: 'exception', officeCode: safeOfficeCode(error) });
             }
         };

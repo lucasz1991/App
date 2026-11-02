@@ -120,7 +120,7 @@ test('V17 numeric readback rejects Math-CSS, changed geometry and invisible subs
             ['width:280px!important', 'width:min(280px,52%)!important'], ['width:210px!important', 'width:min(210px,48%)!important'],
             ['width:247px!important', 'width:clamp(247px,calc((500px - 100%)*1000),100%)!important'],
             ['padding-left:20px!important', 'padding-left:clamp(20px,3.846154%,40px)!important'],
-            ['margin-left:14px;', 'margin-left:0;'], ['white-space:nowrap!important;', 'white-space:normal!important;'],
+            ['margin-left:0px;', 'margin-left:8px;'], ['white-space:nowrap!important;', 'white-space:normal!important;'],
         ]) { assert.ok(received.includes(before)); failure(received.replace(before, after)); }
         const contract = fluidLayoutContract(received), material = verifyFluidLayoutMaterial(received, contract);
         failure(opening(received, material.trainImage, value => appendStyle(value, 'max-width:none;')));
@@ -387,8 +387,11 @@ function actualOfficeModel(html, reply = false) {
     const phoneSpan = nodes.find(node => node.parent === links[3].index && node.tag === 'span');
     const phone = html.slice(phoneSpan.openEnd, phoneSpan.close);
     const phoneLink = html.slice(links[3].node.start, links[3].node.openEnd) + '<b>' + phone + '</b></a>';
+    const retainedGroup = (cell, originals) => originals.reduce((value, link) => value.replace(html.slice(link.node.start,link.node.end),imgLinks(link)),html.slice(cell.node.openEnd,cell.node.close));
     for (const [position, cell] of cells.entries()) {
-        const inner = position === 0 ? imgLinks(links[0]) + imgLinks(links[1]) : position === 1 ? imgLinks(links[2]) : '<span style="line-height:24px;">' + phoneLink + '</span>';
+        // Word's known text-format host wraps the retained physical action
+        // cells; it does not remove the new source-bound spacing tables.
+        const inner = position < 2 ? retainedGroup(cell,position === 0 ? links.slice(0,2) : [links[2]]) : '<span style="line-height:24px;">' + phoneLink + '</span>';
         const begin = html.slice(cell.node.start, cell.node.openEnd).replace(/\swidth="[^"]*"/, '');
         edits.push({ start: cell.node.start, end: cell.node.end, value: begin + host(position, inner) + '</td>' });
     }
@@ -428,7 +431,9 @@ for (const profile of ['M', 'B']) for (const [kind, html] of Object.entries(curr
         const badUrl = opening(received, image, value => value.replace(registeredLogo, 'https://outside.invalid/logo.png'));
         assert.throws(() => registeredCheck(badUrl), error => error.code === 'NATIVE_LAYOUT_RESTORE_INVALID');
         const wa = scoped.elements.find(node => node.tag === 'a' && node.attrs.href === 'https://wa.me/491601881848');
-        const host = { node: scoped.elements[wa.parent] };
+        let hostIndex = wa.parent;
+        while (Number.isInteger(hostIndex) && scoped.elements[hostIndex].tag !== 'div') hostIndex = scoped.elements[hostIndex].parent;
+        const host = { node: scoped.elements[hostIndex] };
         assert.throws(() => registeredCheck(opening(received, host, value => value.replace('line-height:19px;', 'line-height:20px;'))), error => error.code === 'NATIVE_LAYOUT_RESTORE_INVALID');
         const legalBreak = scoped.elements.map((node, index) => ({ node, index })).find(value => value.node.tag === 'span' && value.node.attrs.style === 'font-size:9px;');
         assert.ok(legalBreak);
