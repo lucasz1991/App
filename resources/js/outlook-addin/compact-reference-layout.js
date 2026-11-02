@@ -90,16 +90,21 @@ function color(value, expected) {
 }
 
 function padding(node) {
-    const value = { top: 0, right: 0, bottom: 0, left: 0 };
+    const value = { top: 0, right: 0, bottom: 0, left: 0 }, priorities = {};
+    const assign = (side, number, important) => {
+        if (!priorities[side] || important) { value[side] = number; priorities[side] = important; }
+    };
     for (const declaration of (node.attrs.style || '').split(';')) {
         const colon = declaration.indexOf(':'); if (colon <= 0) continue;
         const name = declaration.slice(0, colon).trim().toLowerCase();
+        const important = /!important\s*$/i.test(declaration.slice(colon + 1).trim());
         const raw = declaration.slice(colon + 1).trim().replace(/\s*!important\s*$/i, '');
         if (name === 'padding') {
             const parts = raw.split(/\s+/).map(pixels);
             if (!parts.length || parts.length > 4 || parts.some(part => !Number.isFinite(part))) invalid();
-            [value.top, value.right, value.bottom, value.left] = [parts[0], parts[1] ?? parts[0], parts[2] ?? parts[0], parts[3] ?? parts[1] ?? parts[0]];
-        } else if (/^padding-(top|right|bottom|left)$/.test(name)) value[name.slice(8)] = pixels(raw);
+            const numbers = [parts[0], parts[1] ?? parts[0], parts[2] ?? parts[0], parts[3] ?? parts[1] ?? parts[0]];
+            ['top', 'right', 'bottom', 'left'].forEach((side, index) => assign(side, numbers[index], important));
+        } else if (/^padding-(top|right|bottom|left)$/.test(name)) assign(name.slice(8), pixels(raw), important);
     }
     return value;
 }
@@ -188,6 +193,8 @@ function normalizeFluid(html, actual, root, source, contract) {
     const block = only(nodes, cells[3].index, 'table'); expectExpression(block.node, 'max-width', '100%');
     setStyle(block.node, { 'max-width': '247px' });
     const gutter = value => {
+        const actual = padding(value.node);
+        if (Math.abs(actual.left - 20) >= 0.05 || Math.abs(actual.right - 20) >= 0.05) invalid();
         for (const side of ['left', 'right']) expectExpression(value.node, 'padding-' + side, '20px');
         setStyle(value.node, { 'padding-left': null, 'padding-right': null });
     };

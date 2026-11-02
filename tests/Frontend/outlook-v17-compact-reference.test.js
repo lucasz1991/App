@@ -259,3 +259,15 @@ for (const profile of ['M', 'B']) for (const path of ['standalone', 'prepend', '
     assert.equal(box.state.writes, 1); assert.equal(box.state.completed, 0);
     await assert.rejects(invoke()); assert.equal(box.state.writes, 1);
 });
+
+test('V17 rejects conflicting important padding even when a later ordinary shorthand looks canonical', () => {
+    const html = current.source.standalone, contract = sourceContract(html, 'standalone'), material = verifyFluidLayoutMaterial(html, contract, true);
+    const main = { node: contract.elements[material.columns[0].node.parent] };
+    const malicious = opening(html, main, value => appendStyle(value, 'padding:900px!important;padding:12px 40px 0 40px;'));
+    assert.throws(() => prepare(malicious, 'standalone', 'M'), error => error.code === 'NATIVE_LAYOUT_RESTORE_INVALID');
+    for (const profile of ['M', 'B']) {
+        const plan = prepare(html, 'standalone', profile), scoped = fluidLayoutContract(plan.html), proof = verifyFluidLayoutMaterial(plan.html, scoped);
+        const target = { node: scoped.elements[proof.columns[0].node.parent] };
+        failure(opening(plan.html, target, value => appendStyle(value, 'padding:900px!important;padding:12px 40px 0 40px;')));
+    }
+});
