@@ -126,6 +126,23 @@ final class OutlookUniversalDiagnosticsTest extends TestCase
         self::assertDoesNotMatchRegularExpression('/PRIVATE-BODY|PRIVATE-TOKEN|private@example/', json_encode($this->logger->records));
     }
 
+    public function test_failures_are_warnings_and_successful_admission_remains_notice(): void
+    {
+        $service = app(OutlookUniversalDiagnostics::class);
+        $user = User::findOrFail(5);
+        $service->recordAdmission($user, $this->admission());
+        $service->recordAdmission($user, array_replace($this->admission(), [
+            'reason' => 'outside_pilot', 'phase' => 'pilot', 'code' => 'U2E_OUTSIDE_PILOT',
+        ]));
+        $service->recordReadback($user, $this->readback(false));
+        $service->recordAdmission($user, $this->admission('admitted'));
+
+        self::assertSame(['warning', 'warning', 'warning', 'notice'], array_column($this->logger->records, 'level'));
+        self::assertSame(['admission', 'admission', 'readback', 'admission'], array_column(array_column($this->logger->records, 'context'), 'kind'));
+        self::assertSame('admitted', $service->statusFor($user)['admission']['status']);
+        self::assertSame('profile_identity_mismatch', $service->statusFor($user)['lastAdmissionFailure']['reason']);
+    }
+
     public function test_profile_mismatch_has_a_specific_safe_diagnostic_without_author_or_person_values(): void
     {
         $fixture = json_decode(file_get_contents(base_path('tests/Fixtures/mail/outlook-v17-office-actions/configured-default.json')), true, 512, JSON_THROW_ON_ERROR);

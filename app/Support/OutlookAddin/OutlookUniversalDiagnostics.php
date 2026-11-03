@@ -116,7 +116,8 @@ final class OutlookUniversalDiagnostics
         }
         $event['at'] = now()->toIso8601String();
         try {
-            Log::notice('RailTime Outlook U2e diagnostic.', ['mailbox' => $address, 'kind' => $kind] + $event);
+            $level = $kind === 'readback' || ($event['status'] ?? null) === 'fallback' ? 'warning' : 'notice';
+            Log::log($level, 'RailTime Outlook U2e diagnostic.', ['mailbox' => $address, 'kind' => $kind] + $event);
         } catch (Throwable) {
             // Preserve the original insertion/admission outcome.
         }
