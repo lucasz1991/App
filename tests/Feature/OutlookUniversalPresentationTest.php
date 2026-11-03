@@ -179,10 +179,12 @@ final class OutlookUniversalPresentationTest extends TestCase
         self::assertSame(['X-RailTime-Template' => $one['header']], $one['headers']);
         $xpath = $this->xpath($one['html']);
         $markers = $xpath->query('//*[@id="'.$one['marker'].'"]');
-        self::assertSame(2, $markers->length);
+        self::assertSame(1, $markers->length);
         self::assertSame('table', $markers->item(0)->nodeName);
-        self::assertSame('td', $markers->item(1)->nodeName);
-        self::assertSame('260', $markers->item(1)->getAttribute('width'));
+        $cells = $xpath->query('//*[@id="'.$one['marker'].'-cell"]');
+        self::assertSame(1, $cells->length);
+        self::assertSame('td', $cells->item(0)->nodeName);
+        self::assertSame('260', $cells->item(0)->getAttribute('width'));
     }
 
     public function test_associative_input_order_does_not_change_the_content_marker(): void

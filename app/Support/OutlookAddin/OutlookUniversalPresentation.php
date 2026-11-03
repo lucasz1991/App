@@ -44,6 +44,13 @@ final class OutlookUniversalPresentation
         self::validate($descriptor, $options);
         $root = $this->root();
         $template = self::template();
+        // Keep the pinned design file intact; give the ownership cell its own
+        // identifier before any opaque author/quote bytes are substituted.
+        $template = str_replace('<td class="rt-col rt-col-person" id="{{MARKER}}"',
+            '<td class="rt-col rt-col-person" id="{{MARKER}}-cell"', $template, $cellMarkers);
+        if ($cellMarkers !== 1) {
+            self::fail();
+        }
         $mode = $options['mode'] ?? 'editor';
         $wording = [
             'showGreeting' => $options['showGreeting'] ?? false,
