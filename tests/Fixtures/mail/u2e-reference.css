@@ -1,0 +1,58 @@
+
+@media only screen and (max-width:1039px) {
+  .rt-shell { display:block !important; width:100% !important; max-width:1039px !important; }
+  .rt-shell > tbody { display:flex !important; flex-wrap:wrap !important; align-items:flex-start !important; width:100% !important; }
+  .rt-shell > tbody > tr { display:contents !important; }
+  .rt-text { display:block !important; order:1; width:100% !important; box-sizing:border-box !important; border-bottom:2px solid #e4002b !important; padding-left:24px !important; padding-right:24px !important; }
+  .rt-col { display:block !important; border-top:0 !important; box-sizing:border-box !important; max-width:100% !important; }
+  .rt-col-person { order:2; width:33.33% !important; }
+  .rt-col-direct { order:3; width:33.33% !important; }
+  .rt-col-company { order:4; width:33.33% !important; }
+  .rt-train-cell { display:block !important; order:5; align-self:flex-end !important; width:64% !important; box-sizing:border-box !important; padding:4px 8px 0 16px !important; }
+  .rt-col-dispo { order:6; width:36% !important; text-align:right !important; }
+  .rt-dispo-head td { padding:0 0 5px !important; }
+  .rt-cta-dispo { font-size:16px !important; line-height:18px !important; }
+  .rt-cta-erreichbar { font-size:13px !important; line-height:16px !important; }
+  .rt-cta-time { font-size:30px !important; line-height:32px !important; }
+  .rt-cta-cell { padding-top:8px !important; padding-bottom:4px !important; }
+  .rt-legal { display:block !important; order:7; width:100% !important; box-sizing:border-box !important; padding-left:24px !important; padding-right:24px !important; }
+  .rt-col-person .rt-pad { padding:12px 16px 4px 24px !important; }
+  .rt-col-direct .rt-pad, .rt-col-company .rt-pad { padding:12px 12px 4px 0 !important; }
+  .rt-pad-dispo { padding:2px 20px 10px 4px !important; }
+  .rt-dispo { display:inline-table !important; text-align:left !important; }
+  .rt-train { width:100% !important; max-width:500px !important; height:auto !important; }
+}
+@media only screen and (max-width:600px) {
+  .rt-shell { max-width:100% !important; }
+  .rt-text { padding:24px 20px 24px !important; }
+  .rt-col-person { width:100% !important; }
+  .rt-col-direct { width:52% !important; }
+  .rt-col-company { width:48% !important; }
+  .rt-train-cell { width:100% !important; padding:14px 20px 0 0 !important; }
+  .rt-col-dispo { width:100% !important; text-align:left !important; }
+  .rt-legal { padding:12px 20px 16px !important; font-size:10px !important; }
+  .rt-col-person .rt-pad { padding:14px 20px 10px !important; }
+  .rt-col-direct .rt-pad { padding:0 4px 0 20px !important; }
+  .rt-col-company .rt-pad { padding:0 20px 0 4px !important; }
+  .rt-logo-link { float:right !important; }
+  .rt-logo { width:110px !important; height:auto !important; margin:6px 0 0 16px !important; }
+  .rt-contact { font-size:12px !important; line-height:18px !important; }
+  /* Dispo als roter Balken: Ecken weg, Kopf und Aktionen in einer Zeile */
+  .rt-pad-dispo { padding:0 !important; }
+  .rt-dispo { display:block !important; width:100% !important; background-color:#e4002b !important; }
+  .rt-dispo > tbody { display:flex !important; align-items:center !important; width:100% !important; }
+  .rt-dispo > tbody > tr { display:contents !important; }
+  .rt-dispo > tbody > tr.rt-dispo-corner, .rt-dispo > tbody > tr.rt-dispo-corner > td { display:none !important; }
+  .rt-dispo-head { display:block !important; padding:9px 0 9px 20px !important; white-space:nowrap !important; }
+  .rt-dispo-actions { display:block !important; flex:1 1 auto !important; padding:4px 20px 4px 0 !important; text-align:right !important; }
+  .rt-dispo-head td { padding:0 !important; font-size:14px !important; line-height:20px !important; vertical-align:middle !important; text-align:left !important; }
+  .rt-dispo-head table { width:auto !important; }
+  .rt-dispo-actions > table { display:inline-table !important; width:auto !important; }
+  .rt-cta-gap { display:none !important; }
+  .rt-cta-erreichbar, .rt-cta-br { display:none !important; }
+  .rt-cta-dispo { font-size:14px !important; line-height:20px !important; }
+  .rt-cta-time { font-size:14px !important; line-height:20px !important; font-style:italic !important; padding-left:5px !important; }
+  .rt-cta-cell { border-top:0 !important; padding:5px 0 5px 12px !important; width:auto !important; }
+  .rt-cta-icon { width:20px !important; height:20px !important; }
+  .rt-cta-number { font-size:13px !important; }
+}
