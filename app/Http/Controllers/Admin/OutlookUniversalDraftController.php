@@ -10,6 +10,7 @@ use App\Support\EmailTemplateBuilder;
 use App\Support\OutlookAddin\OutlookAddinUserSnapshotStore;
 use App\Support\OutlookAddin\OutlookClientPresentation;
 use App\Support\OutlookAddin\OutlookStaticLinkedTestProfiles;
+use App\Support\OutlookAddin\OutlookUniversalDiagnosticFixtureStore;
 use App\Support\OutlookAddin\OutlookUniversalDiagnostics;
 use App\Support\OutlookAddin\OutlookUniversalPayloadPresentation;
 use Illuminate\Http\Request;
@@ -19,7 +20,7 @@ use Throwable;
 /** Read-only review/download of the same admitted U2e projection as compose. */
 final class OutlookUniversalDraftController extends Controller
 {
-    public function __invoke(Request $request, OutlookAddinUserSnapshotStore $snapshots, OutlookUniversalPayloadPresentation $projection, OutlookUniversalDiagnostics $diagnostics): Response
+    public function __invoke(Request $request, OutlookAddinUserSnapshotStore $snapshots, OutlookUniversalPayloadPresentation $projection, OutlookUniversalDiagnostics $diagnostics, OutlookUniversalDiagnosticFixtureStore $fixtures): Response
     {
         $actor = $request->user();
         abort_unless($actor instanceof User && $actor->isAdmin(), 403);
@@ -54,6 +55,7 @@ final class OutlookUniversalDraftController extends Controller
                 'subject' => $subject, 'users' => User::query()->whereIn('role', ['admin', 'staff'])->orderBy('name')->get(['id', 'name', 'email']),
                 'admission' => $liveAdmission, 'reviewAdmission' => $review['admission'], 'history' => $diagnostics->statusFor($subject),
                 'mode' => $mode, 'templateId' => $input['template'] ?? null, 'previewAvailable' => $draft !== null,
+                'fixtures' => $fixtures->listingFor($subject),
             ], 200, ['Cache-Control' => 'private, no-store, max-age=0', 'Referrer-Policy' => 'no-referrer', 'X-Content-Type-Options' => 'nosniff']);
         }
         abort_if($draft === null, 422, 'Die ausgewaehlte Vorlage kann nicht eindeutig als U2e-Entwurf dargestellt werden.');

@@ -9,6 +9,7 @@ use App\Models\EmployeeIdentityAccount;
 use App\Models\User;
 use App\Services\DeviceManagement\EmployeeWorkplaceProvisioner;
 use App\Support\OutlookAddin\OutlookAddinPayloadService;
+use App\Support\OutlookAddin\OutlookUniversalDiagnosticFixtureStore;
 use App\Support\OutlookAddin\OutlookUniversalDiagnostics;
 use App\Support\OutlookAddin\OutlookUniversalPayloadPresentation;
 use App\Support\OutlookAddin\OutlookUniversalPresentation;
@@ -254,6 +255,64 @@ final class OutlookUniversalDiagnosticsTest extends TestCase
         self::assertSame($before, $this->businessRows());
     }
 
+    public function test_checkpoint_and_hashed_difference_are_logged_without_raw_values(): void
+    {
+        $payload = $this->readback() + ['checkpoint' => 'evidence.text', 'difference' => [
+            'key' => 'evidence.text.sha256', 'index' => null, 'expected' => 'sha256:'.str_repeat('a', 64).':13',
+            'actual' => 'sha256:'.str_repeat('b', 64).':14']];
+        $this->postJson(self::URL, $payload, $this->headers())->assertStatus(202);
+        $event = app(OutlookUniversalDiagnostics::class)->statusFor(User::findOrFail(5))['readbackErrors'][0];
+        self::assertSame($payload['checkpoint'], $event['checkpoint']);
+        self::assertSame($payload['difference'], $event['difference']);
+        self::assertSame('warning', $this->logger->records[0]['level']);
+        foreach ([['checkpoint' => 'PRIVATE-BODY'], ['difference' => ['key' => 'evidence.text', 'index' => null, 'expected' => 'PRIVATE-BODY', 'actual' => null]],
+            ['difference' => ['key' => 'evidence.text', 'index' => 4096, 'expected' => 1, 'actual' => 2]], ['body' => 'PRIVATE-BODY']] as $change) {
+            $this->postJson(self::URL, array_replace($payload, $change), $this->headers())->assertUnprocessable();
+        }
+        self::assertDoesNotMatchRegularExpression('/PRIVATE-BODY/', json_encode($this->logger->records));
+    }
+
+    public function test_fixture_upload_requires_the_server_resolved_pilot_and_keeps_html_out_of_logs(): void
+    {
+        $html = '<table id="rt-sig-u2-'.str_repeat('a', 24).'"><tr>'.str_repeat('<td>rt-redacted</td>', 4)
+            .'</tr><tr><td colspan="3"></td></tr><tr><td colspan="4">rt-redacted</td></tr></table>';
+        $fixture = ['schema' => 1, 'format' => 'u2e-redacted-html-v1', 'html' => $html, 'expectedHtml' => $html,
+            'sourceLength' => strlen($html), 'sha256' => hash('sha256', $html), 'expectedSha256' => hash('sha256', $html)];
+        $payload = $this->readback() + ['checkpoint' => 'images.src', 'fixture' => $fixture];
+        $this->postJson(self::URL, $payload, $this->headers())->assertForbidden();
+        self::assertSame([], app(OutlookUniversalDiagnosticFixtureStore::class)->listingFor(User::findOrFail(5)));
+
+        $headers = $this->headers(true);
+        $before = $this->businessRows();
+        $response = $this->postJson(self::URL, $payload, $headers)->assertStatus(202);
+        $id = $response->json('fixture.id');
+        self::assertMatchesRegularExpression('/\A[0-9a-f]{32}\z/', $id);
+        self::assertSame($fixture, app(OutlookUniversalDiagnosticFixtureStore::class)->get(User::findOrFail(5), $id)['fixture']);
+        self::assertSame($before, $this->businessRows());
+        self::assertSame($id, app(OutlookUniversalDiagnostics::class)->statusFor(User::findOrFail(5))['readbackErrors'][0]['fixtureId']);
+        self::assertDoesNotMatchRegularExpression('/<table|rt-redacted|expectedHtml/', json_encode($this->logger->records));
+
+        $unsafe = array_replace($fixture, ['html' => str_replace('rt-redacted', 'PRIVATE-BODY', $html)]);
+        $unsafe['sha256'] = hash('sha256', $unsafe['html']);
+        $this->postJson(self::URL, array_replace($payload, ['fixture' => $unsafe]), $headers)->assertUnprocessable();
+        $this->postJson(self::URL, array_replace($payload, ['fixture' => $fixture + ['body' => 'PRIVATE-BODY']]), $headers)->assertUnprocessable();
+        $this->postJson(self::URL, $this->readback() + ['fixture' => $fixture, 'padding' => str_repeat('x', 262145)], $headers)->assertUnprocessable();
+    }
+
+    public function test_valid_checkpoint_survives_an_invalid_fixture_without_storing_raw_html(): void
+    {
+        $headers = $this->headers(true);
+        $payload = $this->readback() + ['checkpoint' => 'images.src', 'difference' => ['key' => 'images.src', 'index' => 0, 'expected' => 13, 'actual' => 12],
+            'fixture' => ['schema' => 1, 'format' => 'u2e-redacted-html-v1', 'html' => '<p>PRIVATE-BODY</p>']];
+        $this->postJson(self::URL, $payload, $headers)->assertUnprocessable();
+        self::assertSame([], app(OutlookUniversalDiagnosticFixtureStore::class)->listingFor(User::findOrFail(5)));
+        $event = app(OutlookUniversalDiagnostics::class)->statusFor(User::findOrFail(5))['readbackErrors'][0];
+        self::assertSame('images.src', $event['checkpoint']);
+        self::assertSame($payload['difference'], $event['difference']);
+        self::assertSame('warning', $this->logger->records[0]['level']);
+        self::assertDoesNotMatchRegularExpression('/PRIVATE-BODY|<p>|fixture/', json_encode($this->logger->records));
+    }
+
     public function test_admin_status_displays_the_selected_account_reason_and_denies_other_actors(): void
     {
         $this->stubApplicationLayout();
@@ -306,7 +365,7 @@ final class OutlookUniversalDiagnosticsTest extends TestCase
         return $rows;
     }
 
-    private function headers(): array
+    private function headers(bool $pilot = false): array
     {
         if ($this->privateKey === null) {
             $key = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
@@ -319,12 +378,17 @@ final class OutlookUniversalDiagnosticsTest extends TestCase
                 'n' => $encode($details['rsa']['n']), 'e' => $encode($details['rsa']['e']),
             ]]])]);
         }
+        if ($pilot) {
+            User::findOrFail(5)->forceFill(['email' => 'it-technik@rail-time.de'])->saveQuietly();
+            EmployeeIdentityAccount::query()->where('user_id', 5)->update(['principal' => 'it-technik@rail-time.de', 'email' => 'it-technik@rail-time.de']);
+        }
+        $mailbox = $pilot ? 'it-technik@rail-time.de' : 'own@company.test';
         $token = JWT::encode(['aud' => self::CLIENT, 'azp' => self::CLIENT, 'iss' => 'https://login.microsoftonline.com/'.self::TENANT.'/v2.0',
             'iat' => time() - 5, 'nbf' => time() - 5, 'exp' => time() + 300, 'tid' => self::TENANT, 'oid' => self::OBJECT,
-            'scp' => 'Signature.Read', 'preferred_username' => 'own@company.test'], $this->privateKey, 'RS256', 'u2e-diagnostic-test');
+            'scp' => 'Signature.Read', 'preferred_username' => $mailbox], $this->privateKey, 'RS256', 'u2e-diagnostic-test');
 
-        return ['Authorization' => 'Bearer '.$token, 'X-RailTime-Outlook-Mailbox' => 'own@company.test',
-            'X-RailTime-Outlook-Sender' => 'alias@company.test', 'X-RailTime-Compose-Contract' => 'native-signature-v1',
+        return ['Authorization' => 'Bearer '.$token, 'X-RailTime-Outlook-Mailbox' => $mailbox,
+            'X-RailTime-Outlook-Sender' => $pilot ? $mailbox : 'alias@company.test', 'X-RailTime-Compose-Contract' => 'native-signature-v1',
             'X-RailTime-Outlook-Context' => 'event'];
     }
 }

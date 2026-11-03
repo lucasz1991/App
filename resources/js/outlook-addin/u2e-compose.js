@@ -3,6 +3,8 @@ import { currentComposeBodyHtml, isMobileComposeHost, isTemplateInsertionBlocked
 import { assertMailboxBinding } from './mailbox-guard.js';
 import { confirmedOfficeWrite, hasUncertainWrite } from './office-write.js';
 import { createNativeLayoutNonce } from './native-layout-restore.js';
+import { firstUniversalEvidenceDifference, u2eReadbackFailure,
+    universalRedactedReadbackFixture } from './u2e-readback-diagnostics.js';
 
 export const UNIVERSAL_COMPOSE_SESSION_KEY = 'railtime.u2e.compose.v1';
 const operations = new WeakMap();
@@ -18,6 +20,8 @@ const assetSizes = Object.freeze({
     '19125261c2.png': [24, 24], 'f9d88b899d.png': [24, 24], '1111670ac8.png': [24, 24], '14d7943c88.png': [500, 83],
 });
 const failure = (code, phase = 'u2e-compose-preflight') => Object.assign(new Error(code), { code, phase });
+const layoutFailure = (checkpoint, expected, actual, index = null, phase = 'u2e-compose-preflight') =>
+    Object.assign(failure('SIGNATURE_LAYOUT_UNCONFIRMED', phase), u2eReadbackFailure(checkpoint, expected, actual, index));
 const indexed = elements => elements.map((node, index) => ({ node, index }));
 function inside(elements, child, owner) {
     for (let at = child, count = 0; Number.isInteger(at) && count <= elements.length; count++, at = elements[at]?.parent) {
@@ -102,12 +106,12 @@ function color(value) {
 }
 
 function backgroundColor(node) {
-    if (property(node, 'background-image').some(value => value !== 'none')) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
+    if (property(node, 'background-image').some(value => value !== 'none')) throw layoutFailure('colors.background-image');
     const values = [...(node.attrs.bgcolor ? [node.attrs.bgcolor] : []), ...property(node, 'background-color'), ...property(node, 'background')].map(color);
     if (!values.length) return '';
     // Only equivalent finite color serializations are interchangeable. A
     // conflicting declaration, gradient or image is not a host normalization.
-    if (values.some(value => !/^#[0-9a-f]{6}$/.test(value) || value !== values[0])) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
+    if (values.some(value => !/^#[0-9a-f]{6}$/.test(value) || value !== values[0])) throw layoutFailure('colors.conflict');
     return values[0];
 }
 
@@ -167,35 +171,43 @@ function region(html, composeType) {
 }
 
 function material(html, expectedMarker = null, source = false) {
-    const tree = parseManagedHtml(html), elements = tree.elements;
+    let tree;
+    try { tree = parseManagedHtml(html); } catch { throw layoutFailure('html.parse'); }
+    const elements = tree.elements;
     const markers = indexed(elements).filter(value => idPattern.test(value.node.attrs.id || '') && !quoted(elements, value.index));
     if (!markers.length) return { present: false, tree };
-    if (markers.length > 2 || markers.some(value => !['table', 'td'].includes(value.node.tag))) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
+    if (markers.length > 2) throw layoutFailure('markers.count', 2, markers.length);
+    if (markers.some(value => !['table', 'td'].includes(value.node.tag))) throw layoutFailure('markers.tag');
     const versions = [...new Set(markers.map(value => idPattern.exec(value.node.attrs.id)[1]))];
     const roots = [...new Set(markers.map(value => value.node.tag === 'table' ? value.index : nearest(elements, value.index, 'table')))];
-    if (versions.length !== 1 || roots.length !== 1 || roots[0] === null) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
+    if (versions.length !== 1 || roots.length !== 1 || roots[0] === null) throw layoutFailure('markers.binding');
     const rootIndex = roots[0], root = elements[rootIndex], marker = 'rt-sig-u2-' + versions[0];
     if (expectedMarker && marker !== expectedMarker) return { present: true, version: versions[0], marker, kind: null, tree };
     const outer = tableRows(elements, rootIndex);
     const kind = outer.length === 4 ? 'combined' : outer.length === 3 ? 'signature' : null;
-    if (!kind || !dimension(root, 'width', 1040) || !centered(root) || hiddenAncestor(elements, rootIndex)) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
+    if (!kind) throw layoutFailure('shell.rows', [3, 4], outer.length);
+    if (!dimension(root, 'width', 1040)) throw layoutFailure('shell.width');
+    if (!centered(root)) throw layoutFailure('shell.align');
+    if (hiddenAncestor(elements, rootIndex)) throw layoutFailure('shell.hidden');
     const author = kind === 'combined' ? outer[0] : null, signatureRows = author ? outer.slice(1) : outer;
     const authorCells = author && rowCells(elements, author.index), grid = rowCells(elements, signatureRows[0].index), train = rowCells(elements, signatureRows[1].index), legal = rowCells(elements, signatureRows[2].index);
-    if (author && (authorCells.length !== 1 || span(authorCells[0].node, 'colspan') !== 4)
-        || grid.length !== 4 || grid.some((cell, index) => cell.node.tag !== 'td' || !dimension(cell.node, 'width', [260, 280, 213, 287][index]))
-        || span(grid[3].node, 'rowspan') !== 2 || train.length !== 1 || span(train[0].node, 'colspan') !== 3
-        || legal.length !== 1 || span(legal[0].node, 'colspan') !== 4) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
+    if (author && (authorCells.length !== 1 || span(authorCells[0].node, 'colspan') !== 4)) throw layoutFailure('grid.author');
+    if (grid.length !== 4 || grid.some((cell, index) => cell.node.tag !== 'td' || !dimension(cell.node, 'width', [260, 280, 213, 287][index]))) throw layoutFailure('grid.columns');
+    if (span(grid[3].node, 'rowspan') !== 2) throw layoutFailure('grid.rowspan', 2, span(grid[3].node, 'rowspan'));
+    if (train.length !== 1 || span(train[0].node, 'colspan') !== 3) throw layoutFailure('grid.train');
+    if (legal.length !== 1 || span(legal[0].node, 'colspan') !== 4) throw layoutFailure('grid.legal');
     const tableMarkers = markers.filter(value => value.node.tag === 'table'), cellMarkers = markers.filter(value => value.node.tag === 'td');
     if (tableMarkers.length > 1 || tableMarkers.some(value => idPattern.exec(value.node.attrs.id)[2])
         || cellMarkers.length > 1 || cellMarkers.some(value => value.index !== grid[0].index || source && !idPattern.exec(value.node.attrs.id)[2])
-        || source && (tableMarkers.length !== 1 || cellMarkers.length !== 1)) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
+        || source && (tableMarkers.length !== 1 || cellMarkers.length !== 1)) throw layoutFailure('markers.position');
     const shells = indexed(elements).filter(value => value.node.tag === 'table' && !quoted(elements, value.index)
         && !(author && inside(elements, value.index, author.index))
         && resemblesU2eShell(elements, value));
-    if (shells.length !== 1 || shells[0].index !== rootIndex) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
+    if (shells.length !== 1 || shells[0].index !== rootIndex) throw layoutFailure('shell.count', 1, shells.length);
     const own = indexed(elements).filter(value => inside(elements, value.index, rootIndex) && !(author && inside(elements, value.index, author.index)));
-    if (own.some(value => hidden(value.node) || property(value.node, 'float').some(candidate => candidate !== 'none')
-        || ['style', 'meta', 'script', 'iframe', 'object', 'embed', 'svg', 'input', 'form'].includes(value.node.tag))) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
+    if (own.some(value => hidden(value.node))) throw layoutFailure('material.hidden');
+    if (own.some(value => property(value.node, 'float').some(candidate => candidate !== 'none'))) throw layoutFailure('material.float');
+    if (own.some(value => ['style', 'meta', 'script', 'iframe', 'object', 'embed', 'svg', 'input', 'form'].includes(value.node.tag))) throw layoutFailure('material.content');
     const tables = own.filter(value => value.node.tag === 'table');
     const topology = tables.map(value => ({
         parent: tables.findIndex(parent => parent.index === nearest(elements, value.index, 'table')),
@@ -203,32 +215,36 @@ function material(html, expectedMarker = null, source = false) {
             .map(row => rowCells(elements, row.index).map(cell => [cell.node.tag, span(cell.node, 'rowspan'), span(cell.node, 'colspan')])),
     }));
     const dispatch = tables.filter(value => dimension(value.node, 'width', 247) && inside(elements, value.index, grid[3].index));
-    if (dispatch.length !== 1) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
+    if (dispatch.length !== 1) throw layoutFailure('dispatch.count', 1, dispatch.length);
     const imageFiles = [], imageOrigins = new Set();
     const images = own.filter(value => value.node.tag === 'img').map(value => {
         const src = value.node.attrs.src || '', match = /^(https:\/\/[A-Za-z0-9.-]+(?::[0-9]{1,5})?)\/m\/([0-9a-f]{10}\.png)$/.exec(src), size = match && assetSizes[match[2]];
-        if (!size || !dimension(value.node, 'width', size[0]) || !dimension(value.node, 'height', size[1])) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
+        if (!size) throw layoutFailure('images.src', undefined, undefined, imageFiles.length);
+        if (!dimension(value.node, 'width', size[0])) throw layoutFailure('images.width', undefined, undefined, imageFiles.length);
+        if (!dimension(value.node, 'height', size[1])) throw layoutFailure('images.height', undefined, undefined, imageFiles.length);
         imageFiles.push(match[2]); imageOrigins.add(match[1]);
         return { src, width: size[0], height: size[1] };
     });
-    if (images.length < 12 || images.length > 14 || images[0].width !== 184 || images[images.length - 1].width !== 500) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
+    if (images.length < 12 || images.length > 14 || images[0].width !== 184 || images[images.length - 1].width !== 500) throw layoutFailure('images.count');
     const expectedImages = ['b983af0049.png', '9dfa25b253.png', ...Array(images.length - 12).fill('d92bd192b6.png'),
         '1593d63cca.png', 'a38bc7d27c.png', '8a9ee1e161.png', '4b1a2aaba8.png', '19125261c2.png', 'f9d88b899d.png',
         '1111670ac8.png', 'b4b1fbea07.png', 'f1b083c20b.png', '14d7943c88.png'];
-    if (imageOrigins.size !== 1 || JSON.stringify(imageFiles) !== JSON.stringify(expectedImages)) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
+    if (imageOrigins.size !== 1) throw layoutFailure('images.origin', 1, imageOrigins.size);
+    if (JSON.stringify(imageFiles) !== JSON.stringify(expectedImages)) throw layoutFailure('images.order', expectedImages, imageFiles);
     const links = own.filter(value => value.node.tag === 'a').map(value => {
         if (text(html.slice(value.node.openEnd, value.node.close)) !== ''
-            || own.filter(image => image.node.tag === 'img' && inside(elements, image.index, value.index)).length !== 1
-            || !/^(?:https:\/\/|mailto:|tel:)/i.test(value.node.attrs.href || '')) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
+            || own.filter(image => image.node.tag === 'img' && inside(elements, image.index, value.index)).length !== 1) throw layoutFailure('links.content');
+        if (!/^(?:https:\/\/|mailto:|tel:)/i.test(value.node.attrs.href || '')) throw layoutFailure('links.scheme');
         return value.node.attrs.href;
     });
-    if (links.length !== 4) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
+    if (links.length !== 4) throw layoutFailure('links.count', 4, links.length);
     const colors = own.filter(value => value.node.tag === 'td').map(value => backgroundColor(value.node));
-    if (backgroundColor(legal[0].node) !== '#e4e8ec' || backgroundColor(dispatch[0].node) !== '#e4002b'
-        || own.filter(value => value.node.tag === 'td' && inside(elements, value.index, dispatch[0].index)).some(value => {
+    if (backgroundColor(legal[0].node) !== '#e4e8ec') throw layoutFailure('colors.legal', '#e4e8ec', backgroundColor(legal[0].node));
+    if (backgroundColor(dispatch[0].node) !== '#e4002b') throw layoutFailure('colors.dispatch', '#e4002b', backgroundColor(dispatch[0].node));
+    if (own.filter(value => value.node.tag === 'td' && inside(elements, value.index, dispatch[0].index)).some(value => {
             const corner = dimension(value.node, 'width', 8) && dimension(value.node, 'height', 8);
             return backgroundColor(value.node) !== (corner ? '#ffffff' : '#e4002b');
-        })) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
+        })) throw layoutFailure('colors.corners');
     let signatureHtml = html.slice(root.openEnd, root.close);
     if (author) signatureHtml = signatureHtml.slice(0, author.node.start - root.openEnd) + signatureHtml.slice(author.node.end - root.openEnd);
     return { present: true, tree, root, rootIndex, author, kind, version: versions[0], marker,
@@ -263,16 +279,22 @@ export function validateUniversalComposeDocument(document) {
 
 export function universalComposeStateFromBody(document, html, composeType) {
     const state = { readable: false, present: false, current: false, kind: null, version: null };
+    let checkpoint = 'source.invalid';
     try {
-        const source = validateUniversalComposeDocument(document), scoped = region(html, composeType);
-        if (!scoped) return state;
+        const source = validateUniversalComposeDocument(document);
+        checkpoint = 'html.parse';
+        const scoped = region(html, composeType);
+        if (!scoped) return { ...state, ...u2eReadbackFailure('scope.boundary') };
         const actual = material(scoped.currentHtml);
-        if (!actual.present) return { ...state, readable: true };
+        if (!actual.present) return { ...state, readable: true, ...u2eReadbackFailure('state.present', true, false) };
         const expected = plans.get(source);
         const compatible = source.kind === 'signature' || actual.kind === 'combined';
-        return { readable: true, present: true, kind: actual.kind, version: actual.version,
-            current: compatible && actual.version === source.version && JSON.stringify(actual.evidence) === JSON.stringify(expected.evidence) };
-    } catch { return state; }
+        const current = compatible && actual.version === source.version && JSON.stringify(actual.evidence) === JSON.stringify(expected.evidence);
+        const diagnostic = current ? {} : !compatible ? u2eReadbackFailure('state.kind', source.kind, actual.kind)
+            : actual.version !== source.version ? u2eReadbackFailure('state.version', source.version, actual.version)
+                : firstUniversalEvidenceDifference(expected.evidence, actual.evidence) || u2eReadbackFailure('readback.unknown');
+        return { readable: true, present: true, kind: actual.kind, version: actual.version, current, ...diagnostic };
+    } catch (error) { return { ...state, ...u2eReadbackFailure(error?.checkpoint || checkpoint), ...(error?.difference ? { difference: error.difference } : {}) }; }
 }
 
 export function universalComposeBlocked(item) {
@@ -284,6 +306,16 @@ export function universalComposeReport(item) {
     const operation = item && operations.get(item);
     const report = operation?.report ?? (item && lastReports.get(item));
     return report ? { ...report } : null;
+}
+
+/** Diagnostic extraction uses the same conservative reply boundary as the
+ * production reader. Never hand an entire conversation to the low-level
+ * signature redactor. An unknown boundary has no diagnostic fixture. */
+export function universalComposeDiagnosticFixture(document, html, composeType) {
+    try {
+        const source = validateUniversalComposeDocument(document), scoped = region(html, composeType);
+        return scoped ? universalRedactedReadbackFixture(source.html, scoped.currentHtml) : null;
+    } catch { return null; }
 }
 
 function readCall(office, invoke, code = 'U2E_CONTEXT_UNREADABLE') {
@@ -384,6 +416,7 @@ export async function insertUniversalComposeDocument(office, item, document, { b
     if (typeof item.body[method] !== 'function') throw failure('U2E_API_UNAVAILABLE');
     const operation = { claimed: false, report: { schema: 1, state: 'preflight', attempted: false, kind: source.kind, method, headerWritten: false,
         phase: 'preflight', sourceLength: source.html.length, bodyLength: null, mobileStandardSignatureIgnored: false } };
+    let lastSnapshot = null;
     operations.set(item, operation);
     const guard = async () => {
         await beforeWrite(); await assertMailboxBinding(office, item, binding);
@@ -402,6 +435,7 @@ export async function insertUniversalComposeDocument(office, item, document, { b
         const priorClaim = await session(office, item, UNIVERSAL_COMPOSE_SESSION_KEY);
         if (priorClaim && !/^applied:[0-9a-f]{24}:(?:combined|signature)$/.test(priorClaim)) throw failure('U2E_INSERT_UNCERTAIN');
         const original = await snapshot(office, item);
+        lastSnapshot = original;
         operation.report.bodyLength = original.html.length;
         await guard();
         const state = universalComposeStateFromBody(source, original.html, original.composeType);
@@ -410,7 +444,8 @@ export async function insertUniversalComposeDocument(office, item, document, { b
             operation.report = { ...operation.report, state: 'complete', current: true, phase: 'complete' };
             return { status: 'already-present', ...state };
         }
-        if (!state.readable || priorClaim && !state.present) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
+        if (!state.readable || priorClaim && !state.present) throw Object.assign(failure('SIGNATURE_LAYOUT_UNCONFIRMED'),
+            u2eReadbackFailure(state.checkpoint || 'state.unreadable'), { difference: state.difference || null });
         const standardSignature = source.kind === 'combined' && mobile && mobileStandardSignature(original.currentHtml, office);
         operation.report.mobileStandardSignatureIgnored = standardSignature;
         if (state.present || unmarkedU2eShell(original.currentHtml)
@@ -440,14 +475,21 @@ export async function insertUniversalComposeDocument(office, item, document, { b
         await guard();
         operation.report.phase = 'readback';
         const actual = await snapshot(office, item), verified = universalComposeStateFromBody(source, actual.html, actual.composeType);
+        lastSnapshot = actual;
         operation.report.bodyLength = actual.html.length;
-        if (actual.composeType !== original.composeType || !verified.current || actual.quote !== original.quote) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED', 'u2e-compose-readback');
+        if (actual.composeType !== original.composeType) throw layoutFailure('compose.type', original.composeType, actual.composeType, null, 'u2e-compose-readback');
+        if (!verified.current) throw Object.assign(failure('SIGNATURE_LAYOUT_UNCONFIRMED', 'u2e-compose-readback'),
+            u2eReadbackFailure(verified.checkpoint || 'state.unreadable'), { difference: verified.difference || null });
+        if (actual.quote !== original.quote) throw layoutFailure('quote.bytes', original.quote, actual.quote, null, 'u2e-compose-readback');
         const actualMaterial = material(actual.currentHtml);
-        if (source.kind === 'signature' && authorEvidence(actual.currentHtml, actualMaterial.root) !== ownAuthor) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED', 'u2e-compose-author');
+        if (source.kind === 'signature' && authorEvidence(actual.currentHtml, actualMaterial.root) !== ownAuthor) throw layoutFailure('author.signature', ownAuthor,
+            authorEvidence(actual.currentHtml, actualMaterial.root), null, 'u2e-compose-author');
         if (source.kind === 'combined') {
             const expected = plans.get(source);
             if (!actualMaterial.author || authorEvidence(source.html.slice(expected.author.node.start, expected.author.node.end))
-                !== authorEvidence(actual.currentHtml.slice(actualMaterial.author.node.start, actualMaterial.author.node.end))) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED', 'u2e-compose-author');
+                !== authorEvidence(actual.currentHtml.slice(actualMaterial.author.node.start, actualMaterial.author.node.end))) throw layoutFailure('author.combined',
+                authorEvidence(source.html.slice(expected.author.node.start, expected.author.node.end)), actualMaterial.author
+                    ? authorEvidence(actual.currentHtml.slice(actualMaterial.author.node.start, actualMaterial.author.node.end)) : null, null, 'u2e-compose-author');
         }
         if (await session(office, item, UNIVERSAL_COMPOSE_SESSION_KEY) !== token) throw failure('U2E_INSERT_UNCERTAIN');
         await guardClaim(token);
@@ -459,6 +501,15 @@ export async function insertUniversalComposeDocument(office, item, document, { b
     } catch (error) {
         const code = /^[A-Z][A-Z0-9_]{0,79}$/.test(error?.code || '') ? error.code : 'UNAVAILABLE';
         operation.report = { ...operation.report, code };
+        if (code === 'SIGNATURE_LAYOUT_UNCONFIRMED') {
+            Object.assign(operation.report, u2eReadbackFailure(error?.checkpoint || 'readback.unknown'), { difference: error?.difference || null });
+            if (String(binding?.mailboxAddress || '').toLowerCase() === 'it-technik@rail-time.de' && lastSnapshot) {
+                try {
+                    const fixture = universalComposeDiagnosticFixture(source, lastSnapshot.html, lastSnapshot.composeType);
+                    if (fixture) operation.report.fixture = fixture;
+                } catch { /* Redaction cannot replace or widen the original failure. */ }
+            }
+        }
         if (operation.claimed) {
             operation.report = { ...operation.report, state: 'uncertain' };
             if (error?.code === 'SIGNATURE_LAYOUT_UNCONFIRMED') throw error;

@@ -200,7 +200,8 @@ test('optional immutable private exports match the actual offline PHP source wit
 test('pure state ignores quoted U2e and recognizes a signature inside a matching combined block', () => {
     const combined = document(), signature = document('signature');
     const quoteOnly = '<html><body><p><br></p><hr><div id="divRplyFwdMsg">Old message</div><blockquote>' + combined.html + '</blockquote></body></html>';
-    assert.deepEqual(universalComposeStateFromBody(combined, quoteOnly, 'reply'), { readable: true, present: false, current: false, kind: null, version: null });
+    assert.deepEqual(universalComposeStateFromBody(combined, quoteOnly, 'reply'), { readable: true, present: false, current: false, kind: null, version: null,
+        checkpoint: 'state.present', difference: { key: 'state.present', index: null, expected: true, actual: false } });
     assert.equal(universalComposeStateFromBody(signature, combined.html, 'newMail').current, true);
     assert.equal(universalComposeStateFromBody(combined, signature.html, 'newMail').current, false);
     assert.equal(universalComposeStateFromBody(combined, '<p>Unknown reply boundary</p>', 'reply').readable, false);
@@ -426,6 +427,41 @@ test('material loss and quote damage after the callback keep the claim uncertain
         assert.equal((await errorOf(f.insert())).code, 'U2E_INSERT_UNCERTAIN');
         assert.equal(f.state.bodyWrites.length, 1);
     }
+});
+
+test('layout failures report finite checkpoints and only the bound IT pilot receives redacted signature pairs', async () => {
+    for (const pilot of [false, true]) {
+        const mailbox = pilot ? 'it-technik@rail-time.de' : 'employee@example.invalid';
+        const f = fixture({ state: { sender: mailbox }, bodyWrite({ html, callback, state }) {
+            state.html = html.replace(/(<img[^>]*class="rt-train"[^>]*height=")83"/, '$184"'); callback(success());
+        } });
+        f.binding.mailboxAddress = mailbox; f.binding.senderAddress = mailbox; f.binding.allowedSenderAddresses = [mailbox];
+        f.office.context.mailbox.userProfile.emailAddress = mailbox;
+        const error = await errorOf(f.insert());
+        assert.equal(error.code, 'SIGNATURE_LAYOUT_UNCONFIRMED');
+        const report = universalComposeReport(f.item);
+        assert.equal(report.checkpoint, 'images.height'); assert.equal(report.phase, 'readback');
+        assert.equal(Boolean(report.fixture), pilot); assert.equal(f.state.bodyWrites.length, 1);
+        if (pilot) {
+            assert.equal(report.fixture.format, 'u2e-redacted-html-v1');
+            assert.doesNotMatch(JSON.stringify(report.fixture), /hier steht|Guten Tag|mailto:|https:\/\/|data:image|blockquote/);
+        }
+    }
+});
+
+test('first raw evidence text mismatch is hashed before redaction and author loss has its own checkpoint', async () => {
+    const source = JSON.parse(fixtureFile('source.json'));
+    const textLoss = fixture({ bodyWrite({ html, callback, state }) { state.html = html.replace('Fixture legal', 'Fixture LegaL'); callback(success()); } });
+    assert.equal((await errorOf(textLoss.insert(source))).code, 'SIGNATURE_LAYOUT_UNCONFIRMED');
+    const textReport = universalComposeReport(textLoss.item);
+    assert.equal(textReport.checkpoint, 'evidence.text'); assert.equal(textReport.difference.key, 'evidence.text.sha256');
+    assert.match(textReport.difference.expected, /^sha256:[0-9a-f]{64}:\d+$/);
+    assert.notEqual(textReport.difference.expected, textReport.difference.actual);
+    assert.doesNotMatch(JSON.stringify(textReport), /Fixture legal|Fixture LegaL/);
+    const authorLoss = fixture({ bodyWrite({ html, callback, state }) { state.html = html.replace('Fixture author', 'PRIVATE-AUTHOR'); callback(success()); } });
+    assert.equal((await errorOf(authorLoss.insert(source))).code, 'SIGNATURE_LAYOUT_UNCONFIRMED');
+    const authorReport = universalComposeReport(authorLoss.item);
+    assert.equal(authorReport.checkpoint, 'author.combined'); assert.doesNotMatch(JSON.stringify(authorReport), /PRIVATE-AUTHOR|Fixture author/);
 });
 
 test('first combined-write acknowledgement requires all source author text, links and images to survive', async () => {

@@ -55,15 +55,38 @@
 
         <x-ui.surface.card class="space-y-4 p-5 sm:p-6">
             <h2 class="text-base font-semibold text-rt-text dark:text-rt-dark-text">Letzte Rücklesefehler</h2>
-            <p class="text-sm text-rt-muted dark:text-rt-dark-muted">Nur Codes, Host, Phase und Zeichenlängen. Ein erfolgreicher Vorschauaufruf löscht diese Ereignisse nicht.</p>
+            <p class="text-sm text-rt-muted dark:text-rt-dark-muted">Codes, Host, Phase, Prüfpunkt und sichere Vergleichswerte als Zahlen oder Hash mit Länge. Ein erfolgreicher Vorschauaufruf löscht diese Ereignisse nicht.</p>
             <ul class="space-y-3" data-u2e-readback-errors>
                 @forelse ($history['readbackErrors'] ?? [] as $failure)
                     <li class="break-words text-sm text-rt-text dark:text-rt-dark-text">
                         <span>{{ $failure['at'] }} · {{ $failure['host'] }}</span><br>
                         <code class="text-xs">{{ $failure['code'] }} · {{ $failure['phase'] }} · Quelle {{ $failure['sourceLength'] ?? '–' }} / Rücklesen {{ $failure['bodyLength'] ?? '–' }} UTF-16</code>
+                        @if (isset($failure['checkpoint']))
+                            <br><code class="text-xs">Prüfpunkt: {{ $failure['checkpoint'] }}</code>
+                        @endif
+                        @if (isset($failure['difference']))
+                            <br><code class="text-xs">{{ $failure['difference']['key'] }}{{ $failure['difference']['index'] === null ? '' : '['.$failure['difference']['index'].']' }} · erwartet {{ json_encode($failure['difference']['expected']) }} / gelesen {{ json_encode($failure['difference']['actual']) }}</code>
+                        @endif
+                        @if (isset($failure['fixtureId']))
+                            <br><a class="text-sm font-semibold text-rt-red underline underline-offset-4 dark:text-rt-dark-accent" href="{{ route('admin.mail-documents.u2e-fixture', ['user' => $subject->id, 'fixture' => $failure['fixtureId']]) }}">Redigiertes Vergleichspaar herunterladen</a>
+                        @endif
                     </li>
                 @empty
                     <li class="text-sm text-rt-muted dark:text-rt-dark-muted">Keine Rücklesefehler in den letzten sieben Tagen gespeichert. Das ersetzt keine Outlook-Probe.</li>
+                @endforelse
+            </ul>
+        </x-ui.surface.card>
+        <x-ui.surface.card class="space-y-4 p-5 sm:p-6">
+            <h2 class="text-base font-semibold text-rt-text dark:text-rt-dark-text">Redigierte Compose-Fixtures · nur Pilot</h2>
+            <p class="text-sm text-rt-muted dark:text-rt-dark-muted">Erwartete und während des Verfassens gelesene Signatur, ohne Nachrichtentext oder Zitat. Höchstens drei private Vergleichspaare, jeweils sieben Tage. Der Download wird als JSON-Anhang ausgegeben.</p>
+            <ul class="space-y-3">
+                @forelse ($fixtures ?? [] as $fixture)
+                    <li class="text-sm text-rt-text dark:text-rt-dark-text">
+                        <a class="font-semibold text-rt-red underline underline-offset-4 dark:text-rt-dark-accent" href="{{ route('admin.mail-documents.u2e-fixture', ['user' => $subject->id, 'fixture' => $fixture['id']]) }}">Vergleichspaar {{ $fixture['at'] }}</a>
+                        <span class="text-rt-muted dark:text-rt-dark-muted"> · {{ $fixture['bytes'] }} Byte · verfügbar bis {{ $fixture['expiresAt'] }}</span>
+                    </li>
+                @empty
+                    <li class="text-sm text-rt-muted dark:text-rt-dark-muted">Keine redigierte Compose-Fixture gespeichert. Empfangs-HTML ist kein Ersatz für die Rücklese-Fixture aus der Verfassen-Ansicht.</li>
                 @endforelse
             </ul>
         </x-ui.surface.card>

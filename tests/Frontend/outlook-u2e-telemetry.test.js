@@ -4,6 +4,8 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { universalComposeHost, universalFailurePayload, reportUniversalFailure } from '../../resources/js/outlook-addin/u2e-telemetry.js';
 import { automaticComposeDecision } from '../../resources/js/outlook-addin/automatic-compose-policy.js';
+import { u2eProbeDocument } from '../../resources/js/outlook-addin/u2e-editor-probe.js';
+import { universalRedactedReadbackFixture } from '../../resources/js/outlook-addin/u2e-readback-diagnostics.js';
 
 const codeError = code => Object.assign(new Error('PRIVATE-MAIL-BODY'), { code, token: 'PRIVATE-TOKEN' });
 const flush = async until => { for (let i = 0; i < 100 && !until(); i++) await Promise.resolve(); assert.equal(until(), true); };
@@ -86,6 +88,59 @@ test('a previous operation report cannot supply the current failure phase or bod
         code: 'SIGNATURE_LAYOUT_UNCONFIRMED', phase: 'readback', sourceLength: 999, bodyLength: 888,
     }, 123);
     assert.equal(current.phase, 'readback'); assert.equal(current.bodyLength, 888); assert.equal(current.sourceLength, 123);
+});
+
+test('checkpoint and difference are finite and stale or raw evidence never enters telemetry', t => {
+    environment(t);
+    const report = { code: 'SIGNATURE_LAYOUT_UNCONFIRMED', phase: 'readback', checkpoint: 'evidence.text',
+        difference: { key: 'evidence.text.sha256', index: null, expected: 'sha256:' + 'a'.repeat(64) + ':13', actual: 'sha256:' + 'b'.repeat(64) + ':14' } };
+    const payload = universalFailurePayload(codeError(report.code), report);
+    assert.equal(payload.checkpoint, report.checkpoint);
+    assert.deepEqual(payload.difference, report.difference);
+    for (const bad of [{ checkpoint: 'PRIVATE-BODY' }, { difference: { ...report.difference, actual: 'private@example.test' } },
+        { difference: { ...report.difference, index: 4096 } }, { difference: { ...report.difference, actual: 1.5 } }]) {
+        const safe = universalFailurePayload(codeError(report.code), { ...report, ...bad });
+        assert.doesNotMatch(JSON.stringify(safe), /PRIVATE-BODY|private@example/);
+        if (Object.hasOwn(bad, 'difference')) assert.equal(safe.difference, undefined);
+    }
+    const stale = universalFailurePayload(codeError('U2E_SOURCE_INVALID'), report);
+    assert.equal(stale.checkpoint, undefined); assert.equal(stale.difference, undefined);
+});
+
+test('only the pilot sends a validated signature pair and no raw fixture is forwarded', async t => {
+    const f = environment(t);
+    const source = u2eProbeDocument().html;
+    const fixture = universalRedactedReadbackFixture(source, '<p>PRIVATE-CURRENT</p>' + source);
+    assert.ok(fixture);
+    const report = { ...f.args.report, checkpoint: 'images.src', fixture };
+    assert.equal(await reportUniversalFailure({ ...f.args, report }), true);
+    assert.equal(JSON.parse(f.calls[0][1].body).fixture, undefined);
+    f.office.context.mailbox.userProfile.emailAddress = 'it-technik@rail-time.de';
+    const binding = { mailboxAddress: 'it-technik@rail-time.de', senderAddress: 'it-technik@rail-time.de' };
+    assert.equal(await reportUniversalFailure({ ...f.args, report, binding }), true);
+    assert.deepEqual(JSON.parse(f.calls[1][1].body).fixture, fixture);
+    assert.equal(f.calls[1][1].keepalive, true);
+    assert.doesNotMatch(f.calls[1][1].body, /PRIVATE-CURRENT|mailto:|https:\/\/|private@example/);
+    const unsafe = { ...fixture, html: '<p>PRIVATE-BODY</p>' };
+    assert.equal(await reportUniversalFailure({ ...f.args, report: { ...report, fixture: unsafe }, binding }), true);
+    assert.equal(JSON.parse(f.calls[2][1].body).fixture, undefined);
+    assert.equal(JSON.parse(f.calls[2][1].body).checkpoint, 'images.src');
+});
+
+test('a bounded large host-style fixture disables keepalive and retains its comparison pair', async t => {
+    const f = environment(t);
+    f.office.context.mailbox.userProfile.emailAddress = 'it-technik@rail-time.de';
+    const source = u2eProbeDocument().html;
+    const expanded = source.replace(/style="/g, 'style="' + 'margin:0;'.repeat(100));
+    const fixture = universalRedactedReadbackFixture(source, expanded);
+    assert.ok(fixture);
+    const report = { ...f.args.report, checkpoint: 'evidence.topology', fixture };
+    const binding = { mailboxAddress: 'it-technik@rail-time.de', senderAddress: 'it-technik@rail-time.de' };
+    assert.equal(await reportUniversalFailure({ ...f.args, report, binding }), true);
+    assert.ok(f.calls[0][1].body.length > 60000);
+    assert.ok(f.calls[0][1].body.length <= 252000);
+    assert.equal(f.calls[0][1].keepalive, false);
+    assert.deepEqual(JSON.parse(f.calls[0][1].body).fixture, fixture);
 });
 
 test('authenticated reporting posts one bounded body to the bootstrap origin with the existing binding', async t => {

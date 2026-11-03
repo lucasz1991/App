@@ -47,10 +47,12 @@ final class OutlookUniversalDiagnostics
 
     public function recordReadback(User $user, array $event, ?string $mailbox = null): void
     {
-        if (array_diff(array_keys($event), ['host', 'code', 'phase', 'sourceLength', 'bodyLength']) !== []
+        if (array_diff(array_keys($event), ['host', 'code', 'phase', 'sourceLength', 'bodyLength', 'checkpoint', 'difference', 'fixtureId']) !== []
             || ! $this->valid($event, 'bodyLength') || ! in_array($event['code'] ?? null, self::READBACK_CODES, true)
             || ! in_array($event['phase'] ?? null, ['preflight', 'claim', 'header', 'write', 'readback', 'complete'], true)
-            || ! in_array($event['host'] ?? null, self::HOSTS, true)) {
+            || ! in_array($event['host'] ?? null, self::HOSTS, true)
+            || ! OutlookUniversalDiagnosticDetails::valid(array_intersect_key($event, array_flip(['checkpoint', 'difference'])))
+            || isset($event['fixtureId']) && (! is_string($event['fixtureId']) || ! preg_match('/\A[0-9a-f]{32}\z/', $event['fixtureId']))) {
             return;
         }
         $this->store($user, $event, 'readback', $mailbox);

@@ -15,6 +15,7 @@ use App\Http\Controllers\Admin\MarketingFileController;
 use App\Http\Controllers\Admin\MarketingRenderController;
 use App\Http\Controllers\Admin\MarketingVariantController;
 use App\Http\Controllers\Admin\OutlookAddinDeploymentController;
+use App\Http\Controllers\Admin\OutlookUniversalDiagnosticFixtureController;
 use App\Http\Controllers\Admin\OutlookUniversalDraftController;
 use App\Http\Controllers\Admin\PageBuilderPreviewController;
 use App\Http\Controllers\Assistant\AssistantAudioInputTranscriptionController;
@@ -399,6 +400,9 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         Route::get('/mail-vorlagen/u2e-entwurf', OutlookUniversalDraftController::class)
             ->middleware('throttle:60,1')
             ->name('mail-documents.u2e-draft');
+        Route::get('/mail-vorlagen/u2e-fixture/{user}/{fixture}', OutlookUniversalDiagnosticFixtureController::class)
+            ->whereNumber('user')->where('fixture', '[0-9a-f]{32}')
+            ->middleware('throttle:60,1')->name('mail-documents.u2e-fixture');
         Route::get('/mail-vorlagen/import', [MailDocumentController::class, 'draftImportPage'])
             ->name('mail-documents.import-page');
         Route::get('/mail-vorlagen/outlook/manifest.xml', [OutlookAddinDeploymentController::class, 'manifest'])

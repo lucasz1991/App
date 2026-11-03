@@ -23,6 +23,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('operations:ai-intake-poll')->everyMinute()->withoutOverlapping();
         $schedule->command('operations:staffing-automation')->everyMinute()->withoutOverlapping();
         $schedule->command('routing:purge-cache')->everyMinute()->withoutOverlapping();
+        $schedule->command('outlook-addin:purge-diagnostic-fixtures')->everyMinute()->withoutOverlapping();
         $schedule->command('devices:purge-support-data')->hourly()->withoutOverlapping();
         $schedule->call(fn () => app(ChatLocationHistoryService::class)->purge())
             ->name('chat-location-history:purge')->hourly()->withoutOverlapping();

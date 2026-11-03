@@ -1,10 +1,13 @@
 // Authenticated operational metadata only. Never serialize Office HTML or errors.
+import { U2E_READBACK_CHECKPOINTS, U2E_READBACK_DIFFERENCE_KEYS, validateUniversalRedactedFixture } from './u2e-readback-diagnostics.js';
 const CODES = new Set(['SIGNATURE_LAYOUT_UNCONFIRMED', 'U2E_INSERT_UNCERTAIN', 'U2E_NEW_DRAFT_REQUIRED',
     'U2E_SOURCE_INVALID', 'U2E_CONTEXT_UNREADABLE', 'U2E_API_UNAVAILABLE', 'U2E_HEADER_UNAVAILABLE',
     'U2E_DOCUMENT_INVALID', 'U2E_INSERT_IN_PROGRESS', 'U2E_SESSION_UNAVAILABLE', 'U2E_HTML_REQUIRED',
     'U2E_CONTEXT_CHANGED', 'COMPOSE_ITEM_CHANGED', 'U2E_OPERATION_FAILED']);
 const PHASES = new Set(['preflight', 'claim', 'header', 'write', 'readback', 'complete']);
 const LIMIT = 1000000;
+const MAX_JSON_BYTES = 252000;
+const KEEPALIVE_BYTES = 60000;
 
 function length(value) {
     return Number.isSafeInteger(value) && value >= 0 && value <= LIMIT ? value : null;
@@ -19,21 +22,40 @@ export function universalComposeHost(office = globalThis.Office) {
     return host === 'Outlook' || host === 'OutlookIOS' || host === 'OutlookAndroid' ? host : 'unknown';
 }
 
-export function universalFailurePayload(error, report = {}, sourceLength = null) {
+function safeAtom(value) {
+    return value === null || typeof value === 'boolean' || Number.isSafeInteger(value) && Math.abs(value) <= LIMIT
+        || typeof value === 'string' && /^sha256:[0-9a-f]{64}:(0|[1-9][0-9]{0,6})$/.test(value) && Number(value.slice(72)) <= LIMIT;
+}
+
+export function universalFailurePayload(error, report = {}, sourceLength = null, allowFixture = false) {
     if (!error) return null;
     const code = CODES.has(error?.code) ? error.code : 'U2E_OPERATION_FAILED';
     // A report from an earlier operation cannot describe this failure.
     const current = report?.code === code;
-    return Object.freeze({ schema: 1, host: universalComposeHost(), code,
+    const payload = { schema: 1, host: universalComposeHost(), code,
         phase: current && PHASES.has(report?.phase) ? report.phase : 'preflight',
         sourceLength: length(sourceLength) ?? (current ? length(report?.sourceLength) : null),
-        bodyLength: current ? length(report?.bodyLength) : null });
+        bodyLength: current ? length(report?.bodyLength) : null };
+    if (current && U2E_READBACK_CHECKPOINTS.includes(report.checkpoint)) payload.checkpoint = report.checkpoint;
+    const difference = current ? report.difference : null;
+    if (difference && Object.keys(difference).length === 4 && ['key', 'index', 'expected', 'actual'].every(key => Object.hasOwn(difference, key))
+        && U2E_READBACK_DIFFERENCE_KEYS.includes(difference.key)
+        && (difference.index === null || Number.isSafeInteger(difference.index) && difference.index >= 0 && difference.index <= 4095)
+        && safeAtom(difference.expected) && safeAtom(difference.actual)) payload.difference = Object.freeze({ ...difference });
+    if (current && allowFixture && code === 'SIGNATURE_LAYOUT_UNCONFIRMED') {
+        const fixture = validateUniversalRedactedFixture(report.fixture);
+        if (fixture) payload.fixture = fixture;
+    }
+    // JSON escaping can make a valid HTML pair too large for this transport.
+    if (JSON.stringify(payload).length > MAX_JSON_BYTES) delete payload.fixture;
+    return Object.freeze(payload);
 }
 
 export async function reportUniversalFailure({ config, accessToken, item, binding, context, error, report, sourceLength, isCurrent } = {}) {
     let timer, controller;
     try {
-        const payload = universalFailurePayload(error, report, sourceLength);
+        const allowFixture = binding?.mailboxAddress?.toLowerCase() === 'it-technik@rail-time.de';
+        const payload = universalFailurePayload(error, report, sourceLength, allowFixture);
         const endpoint = new URL(config?.endpoints?.diagnostics);
         const bootstrap = new URL(config?.endpoints?.bootstrap);
         const office = globalThis.Office;
@@ -46,15 +68,16 @@ export async function reportUniversalFailure({ config, accessToken, item, bindin
             || endpoint.protocol !== 'https:' || endpoint.origin !== bootstrap.origin) return false;
         controller = typeof AbortController === 'function' ? new AbortController() : null;
         const timeout = new Promise(resolve => { timer = setTimeout(() => { controller?.abort(); resolve(false); }, 2000); });
+        const body = JSON.stringify(payload);
         const request = Promise.resolve().then(() => {
             if (!current()) return false;
             return fetch(endpoint.toString(), {
                 method: 'POST', cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer',
-                signal: controller?.signal, keepalive: true,
+                signal: controller?.signal, keepalive: body.length <= KEEPALIVE_BYTES,
                 headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}`,
                     'X-RailTime-Compose-Contract': 'native-signature-v1', 'X-RailTime-Outlook-Context': context,
                     'X-RailTime-Outlook-Mailbox': binding.mailboxAddress, 'X-RailTime-Outlook-Sender': binding.senderAddress },
-                body: JSON.stringify(payload),
+                body,
             }).then(response => response?.ok === true);
         }).catch(() => false);
         return await Promise.race([request, timeout]);
