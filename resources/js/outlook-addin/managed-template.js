@@ -90,6 +90,15 @@ function nodes(html) {
     return { elements, comments };
 }
 
+/** Bounded parse-only access for diagnostics. This does not grant ownership or
+ * weaken any managed-template/signature confirmation contract. */
+export function parseManagedHtml(html) {
+    if (typeof html !== 'string' || html.length > 500000) unavailable();
+    const parsed = nodes(html);
+    if (parsed.elements.length > 4096) unavailable();
+    return parsed;
+}
+
 function has(node, name) {
     return (node.attrs.class || '').split(/\s+/).some(value => value === name || value === `x_${name}`);
 }

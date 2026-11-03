@@ -29,7 +29,8 @@ import { automaticTemplate } from './compose-template.js';
 import { readComposeSender, assertMailboxBinding } from './mailbox-guard.js';
 import { diagnoseStep, recordDiagnostic, diagnosticReport } from './diagnostics.js';
 import { confirmedOfficeWrite, hasUncertainWrite } from './office-write.js';
-import { headProbeContextAvailable } from './head-transport-probe.js';
+import { headProbeContextAvailable, u2eProbeContextAvailable } from './head-transport-probe.js';
+import { insertU2eTransportProbe, u2eTransportProbeReport } from './u2e-transport-probe.js';
 import { bindAutomaticPreferencesView, createAccountPreferencesSession, normalizeAutomaticPreferences } from './automatic-preferences-view.js';
 import { bindWordingPreferencesView, bindTemplateChoiceView, createAccountOptionsSession,
     normalizeWordingPreferences, normalizeTemplateChoicePreferences } from './account-options-view.js';
@@ -671,7 +672,8 @@ async function assertWriteTarget(target, binding) {
 
 function insertionBlocked() {
     const item = globalThis.Office?.context?.mailbox?.item;
-    return Boolean(item && (isTemplateInsertionBlocked(item) || isStandaloneSignatureInsertionBlocked(item) || hasUncertainWrite(item)));
+    return Boolean(item && (isTemplateInsertionBlocked(item) || isStandaloneSignatureInsertionBlocked(item) || hasUncertainWrite(item)
+        || u2eTransportProbeReport(item)?.attempted === true));
 }
 
 function elements() {
@@ -719,7 +721,7 @@ export function setStatus(tone, title, detail = '', focus = false) {
     view.statusDetail.textContent = detail;
     view.statusDetail.hidden = tone === 'success';
     const diagnostics = document.querySelector('[data-outlook-diagnostics]');
-    if (diagnostics) diagnostics.hidden = tone !== 'error' && !headProbeAvailable();
+    if (diagnostics) diagnostics.hidden = tone !== 'error' && !headProbeAvailable() && !u2eProbeAvailable();
     if (view.feedback) {
         view.feedback.textContent = [title, detail].filter(Boolean).join('. ');
         view.feedback.dataset.tone = tone;
@@ -1123,6 +1125,11 @@ function headProbeAvailable(method = 'setSignatureAsync') {
         && headProbeContextAvailable(globalThis.Office, currentBootstrap?.binding, method);
 }
 
+function u2eProbeAvailable() {
+    return !taskpaneState.settingsMode && taskpaneState.authenticated && taskpaneState.bootstrapReady
+        && u2eProbeContextAvailable(globalThis.Office, currentBootstrap?.binding);
+}
+
 function syncHeadProbeButton() {
     let available = false;
     for (const button of document.querySelectorAll('[data-outlook-head-probe], [data-outlook-head-body-probe]')) {
@@ -1130,6 +1137,12 @@ function syncHeadProbeButton() {
         available ||= eligible; button.hidden = !eligible;
         button.disabled = !eligible || taskpaneState.busy || insertionBlocked()
             || headTransportProbeReport(globalThis.Office?.context?.mailbox?.item)?.attempted === true;
+    }
+    for (const button of document.querySelectorAll('[data-outlook-u2e-probe]')) {
+        const eligible = u2eProbeAvailable();
+        available ||= eligible;
+        button.hidden = !eligible;
+        button.disabled = !eligible || taskpaneState.busy || insertionBlocked();
     }
     const region = document.querySelector('[data-outlook-diagnostics]');
     if (available && region) region.hidden = false;
@@ -1260,6 +1273,12 @@ function authenticationWasLost(error) {
 
 function userMessage(error) {
     const code = safeErrorCode(error);
+    if (code === 'U2E_PROBE_UNCONFIRMED' || code === 'U2E_PROBE_ALREADY_ATTEMPTED') {
+        return 'Der U2e-Probeversuch bleibt gesperrt. Bitte den Entwurf und den Diagnosebericht prüfen.';
+    }
+    if (code.startsWith('U2E_PROBE_')) {
+        return 'Die U2e-Probe benötigt eine neue technische Nachricht mit dem freigegebenen Testbetreff, ausschließlich dem IT-Testpostfach als Empfänger und leerem Nachrichtenbereich ohne Anhänge oder Zitat.';
+    }
     if (code === 'HEAD_PROBE_UNCONFIRMED' || code === 'HEAD_PROBE_ALREADY_ATTEMPTED') {
         return 'Der technische Probeversuch ist gesperrt. Den Entwurf prüfen; es wird nichts erneut eingefügt oder zurückgesetzt.';
     }
@@ -1528,7 +1547,8 @@ async function withAuthenticatedBootstrap(button, callback) {
 
     try {
         const target = captureComposeTarget();
-        if (isTemplateInsertionBlocked(target.item) || isStandaloneSignatureInsertionBlocked(target.item) || hasUncertainWrite(target.item)) {
+        if (isTemplateInsertionBlocked(target.item) || isStandaloneSignatureInsertionBlocked(target.item) || hasUncertainWrite(target.item)
+            || u2eTransportProbeReport(target.item)?.attempted === true) {
             throw codedError('TEMPLATE_INSERT_UNCERTAIN');
         }
         const accessToken = await diagnoseStep('authentication', () => acquireAccessToken(currentConfig, true));
@@ -1729,6 +1749,8 @@ async function showDiagnosticReport({ readV15 = false } = {}) {
     });
     const headProbe = headTransportProbeReport(globalThis.Office?.context?.mailbox?.item);
     if (headProbe) report.headTransportProbe = headProbe;
+    const u2eProbe = u2eTransportProbeReport(globalThis.Office?.context?.mailbox?.item);
+    if (u2eProbe) report.u2eTransportProbe = u2eProbe;
     const uncertain = insertionBlocked() || ['TEMPLATE_LAYOUT_UNCONFIRMED', 'SIGNATURE_LAYOUT_UNCONFIRMED',
         'TEMPLATE_INSERT_UNCERTAIN', 'SIGNATURE_INSERT_UNCERTAIN', 'INLINE_ATTACHMENT_UNCERTAIN'].includes(safeErrorCode(lastActionError));
     if (readV15 && boundMailbox && uncertain && !taskpaneState.busy) {
@@ -1792,6 +1814,22 @@ async function runHeadTransportProbe(button, method = 'setSignatureAsync') {
     await showDiagnosticReport();
 }
 
+async function runU2eTransportProbe(button) {
+    if (!u2eProbeAvailable() || taskpaneState.busy || button.disabled) return;
+    await withAuthenticatedBootstrap(button, async (bootstrap, target) => {
+        const report = await insertU2eTransportProbe(Office, target.item, {
+            binding: bootstrap.binding, beforeWrite: () => assertWriteTarget(target, bootstrap.binding),
+        });
+        setStatus('neutral', 'U2e-Probe einmalig eingefügt',
+            'Die Struktur wurde zurückgelesen. Speichern, Export und Prüfung im tatsächlichen Mailclient stehen noch aus.');
+        const region = document.querySelector('[data-outlook-diagnostics]');
+        if (region) region.open = true;
+        await showDiagnosticReport();
+        return report;
+    });
+    await showDiagnosticReport();
+}
+
 export function bindOutlookDialogs(root = document) {
     if (boundDialogRoots.has(root)) return;
     boundDialogRoots.add(root);
@@ -1842,6 +1880,8 @@ function bindActions() {
     headProbeButton?.addEventListener('click', () => runHeadTransportProbe(headProbeButton));
     const headBodyProbeButton = document.querySelector('[data-outlook-head-body-probe]');
     headBodyProbeButton?.addEventListener('click', () => runHeadTransportProbe(headBodyProbeButton, 'setAsync'));
+    const u2eProbeButton = document.querySelector('[data-outlook-u2e-probe]');
+    u2eProbeButton?.addEventListener('click', () => runU2eTransportProbe(u2eProbeButton));
     document.querySelector('[data-outlook-diagnostics-copy]')?.addEventListener('click', async () => {
         const output = document.querySelector('[data-outlook-diagnostics-output]');
         await showDiagnosticReport({ readV15: true });

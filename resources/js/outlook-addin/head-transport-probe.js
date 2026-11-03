@@ -4,6 +4,10 @@ export const HEAD_PROBE_SUBJECT = '[TEST] RailTime – CSS-Transportprobe R783';
 export const HEAD_BODY_PROBE_SUBJECT = '[TEST] RailTime – CSS-Transportprobe Body R786';
 export const HEAD_PROBE_MAILBOX = 'it-technik@rail-time.de';
 export const HEAD_PROBE_SESSION_KEY = 'railtime.head-probe.v1';
+// Block A uses a separate fixed document and verifier. The existing CSS
+// experiments retain their original V17 source and retention contracts.
+export { U2E_PROBE_SUBJECT, U2E_PROBE_MAILBOX, U2E_PROBE_SESSION_KEY,
+    u2eProbeContextAvailable, u2eProbeDocument, inspectU2eProbe } from './u2e-editor-probe.js';
 const address = value => typeof value === 'string' ? value.trim().toLowerCase() : '';
 
 export function headProbeContextAvailable(office, binding, method = 'setSignatureAsync') {
