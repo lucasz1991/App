@@ -27,7 +27,7 @@ final class OutlookUniversalPayloadPresentationTest extends TestCase
         $wire = $canonical;
         $wire['binding'] = ['schema' => 1, 'mailboxAddress' => 'mara@example.test'];
         $before = $wire;
-        $output = $this->projection()->append($wire, $canonical, $this->profile());
+        $output = $this->projection()->append($wire, $canonical, $this->profile(), $this->pilot());
         self::assertArrayHasKey('universalSignature', $output);
         self::assertArrayHasKey('universalCompose', $output['templates'][0]);
         self::assertArrayHasKey('universalSignature', $output['templates'][0]);
@@ -57,12 +57,12 @@ final class OutlookUniversalPayloadPresentationTest extends TestCase
     public function test_mobile_wire_variants_get_the_same_host_free_new_editor_source(): void
     {
         $canonical = $this->payload();
-        $desktop = $this->projection()->append($canonical, $canonical, $this->profile());
+        $desktop = $this->projection()->append($canonical, $canonical, $this->profile(), $this->pilot());
         $mobile = $canonical;
         $fixture = $this->fixture();
         $mobile['signature']['html'] = $fixture['mobile']['standalone'];
         $mobile['templates'][0]['combinedComposeHtml'] = $fixture['mobile']['combined'];
-        $output = $this->projection()->append($mobile, $canonical, $this->profile());
+        $output = $this->projection()->append($mobile, $canonical, $this->profile(), $this->pilot());
         self::assertSame($desktop['universalSignature'], $output['universalSignature']);
         self::assertSame($desktop['templates'][0]['universalCompose'], $output['templates'][0]['universalCompose']);
         self::assertSame($fixture['mobile']['standalone'], $output['signature']['html']);
@@ -104,7 +104,7 @@ final class OutlookUniversalPayloadPresentationTest extends TestCase
         $canonical = $this->payload();
         $profile = $this->profile();
         $profile['VORNAME_NACHNAME'] = 'Another person';
-        self::assertSame($canonical, $this->projection()->append($canonical, $canonical, $profile));
+        self::assertSame($canonical, $this->projection()->append($canonical, $canonical, $profile, $this->pilot()));
         self::assertNull($this->projection()->draft($canonical, $profile));
     }
 
@@ -113,7 +113,7 @@ final class OutlookUniversalPayloadPresentationTest extends TestCase
         $canonical = $this->payload();
         $canonical['signature']['html'] = '<p>Custom signature</p>';
         $canonical['templates'][0]['combinedComposeHtml'] = '<p>Custom author and footer</p>';
-        self::assertSame($canonical, $this->projection()->append($canonical, $canonical, $this->profile()));
+        self::assertSame($canonical, $this->projection()->append($canonical, $canonical, $this->profile(), $this->pilot()));
         self::assertNull($this->projection()->draft($canonical, $this->profile()));
     }
 
@@ -134,6 +134,38 @@ final class OutlookUniversalPayloadPresentationTest extends TestCase
         foreach (['mode=unsafe', 'template=not-a-uuid', 'download=arbitrary'] as $query) {
             $this->actingAs($admin)->getJson('/administrator/mail-vorlagen/u2e-entwurf?'.$query)->assertUnprocessable();
         }
+    }
+
+    public function test_non_pilot_and_missing_identity_strip_all_u2e_fields_even_with_forged_profile_or_stale_wire(): void
+    {
+        $canonical = $this->payload();
+        $wire = $canonical;
+        $wire['universalSignature'] = ['stale' => true];
+        $wire['universalCompose'] = ['stale' => true];
+        $wire['template']['universalSignature'] = ['stale' => true];
+        $wire['template']['universalCompose'] = ['stale' => true];
+        $wire['templates'][0]['universalCompose'] = ['stale' => true];
+        $wire['templates'][0]['universalSignature'] = ['stale' => true];
+        $profile = $this->profile();
+        $profile['E_MAIL'] = 'it-technik@rail-time.de';
+        foreach ([null, '', 'employee@example.test', 'it-technik+pilot@rail-time.de', 'it-technik@rail-time.de.example.test'] as $email) {
+            $user = $email === null ? null : (new User)->forceFill(['email' => $email]);
+            self::assertSame($canonical, $this->projection()->append($wire, $canonical, $profile, $user));
+        }
+        Http::assertNothingSent();
+    }
+
+    public function test_pilot_address_is_case_insensitive_but_not_taken_from_profile(): void
+    {
+        $pilot = (new User)->forceFill(['email' => 'IT-TECHNIK@RAIL-TIME.DE']);
+        $output = $this->projection()->append($this->payload(), $this->payload(), $this->profile(), $pilot);
+        self::assertArrayHasKey('universalSignature', $output);
+        self::assertArrayHasKey('universalCompose', $output['templates'][0]);
+    }
+
+    private function pilot(): User
+    {
+        return (new User)->forceFill(['email' => 'it-technik@rail-time.de']);
     }
 
     private function projection(): OutlookUniversalPayloadPresentation

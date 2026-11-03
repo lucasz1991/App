@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Support\OutlookAddin;
 
+use App\Models\User;
 use RuntimeException;
 
 /** Request-time projection after legacy cache and transport adapters. */
@@ -14,11 +15,18 @@ final class OutlookUniversalPayloadPresentation
     /** Legacy fields stay intact for cached clients and older/custom sources.
      * Only the separately admitted U2e client consumes these additional fields.
      */
-    public function append(array $wire, array $canonical, array $profileValues): array
+    public function append(array $wire, array $canonical, array $profileValues, ?User $user = null): array
     {
-        unset($wire['universalSignature']);
+        unset($wire['universalSignature'], $wire['universalCompose']);
+        if (is_array($wire['template'] ?? null)) {
+            unset($wire['template']['universalSignature'], $wire['template']['universalCompose']);
+        }
         foreach ($wire['templates'] ?? [] as $index => $entry) {
             unset($wire['templates'][$index]['universalCompose'], $wire['templates'][$index]['universalSignature']);
+        }
+        // Only the server-resolved account can enter the unaccepted U2e pilot.
+        if (! self::isPilot($user)) {
+            return $wire;
         }
         $source = $this->desktopSource($canonical);
         if ($source === null) {
@@ -61,6 +69,11 @@ final class OutlookUniversalPayloadPresentation
         }
 
         return $wire;
+    }
+
+    public static function isPilot(?User $user): bool
+    {
+        return $user !== null && strtolower(trim((string) $user->email)) === 'it-technik@rail-time.de';
     }
 
     /** Same admitted source as compose, with a complete document for review. */
