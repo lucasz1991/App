@@ -1,0 +1,85 @@
+{
+  "schema": 1,
+  "purpose": "Redacted structure and serialization regression; private input text, addresses, links and origin are replaced before writing.",
+  "method": "generate-redacted.mjs reads immutable private exports and actual PHP-projected source in memory. It verifies the original pair current before redacting six semantic text slots, four icon links, image origins and markers. Table structure, colors, centering, geometry and media filenames remain.",
+  "sourceProjection": {
+    "inputSha256": "95124735d6302bc8a4e71e73f924ff626be91a16547082a43874f75f9089928d",
+    "sourceHtmlSha256": "dce2d1649f3998e00e5e2d5db97550e99c97e2f14020df24f49267a1f8560bd0",
+    "queryCount": 0,
+    "originalVersionMatch": true,
+    "originalCurrent": true,
+    "boot": "Laravel configuration hook sets isolated sqlite :memory:, array cache, null logger before kernel bootstrap; Http::preventStrayRequests and Mail::fake; actual OutlookUniversalPayloadPresentation::append."
+  },
+  "inputs": {
+    "outlook": {
+      "sha256": "058bbf1a2a12c540aba40b8330ceb1a3687caba3ca19dbd687ee92943ef54cf6",
+      "bytes": 15653
+    },
+    "word": {
+      "sha256": "0959d522976fda8f3bf1acc4e5fc89475af3c6322eaf2443593b90de4180b785",
+      "bytes": 75917
+    },
+    "ios": {
+      "sha256": "ff870dce44f40db62ea107d0ff440e16c4475bdac904a922c962f58146daef5f",
+      "bytes": 35
+    }
+  },
+  "presentation": {
+    "outlook": {
+      "schema": 1,
+      "readable": true,
+      "tables": 10,
+      "centeredTables": 1,
+      "colors": {
+        "#ffffff": 10,
+        "unset": 12,
+        "#e4002b": 11,
+        "#e4e8ec": 1
+      }
+    },
+    "word": {
+      "schema": 1,
+      "readable": true,
+      "tables": 20,
+      "centeredTables": 0,
+      "colors": {
+        "unset": 44,
+        "#e4002b": 22,
+        "#f3f5f7": 2
+      }
+    },
+    "ios": {
+      "schema": 1,
+      "readable": true,
+      "tables": 0,
+      "centeredTables": 0,
+      "colors": {}
+    }
+  },
+  "legacyWord": {
+    "current": false,
+    "incompatibilities": [
+      "marker is not the current 24-hex schema",
+      "no centered U2e shell",
+      "two material blocks with CID images",
+      "train 529x73 and colspan 4 instead of 500x83 and colspan 3",
+      "no dispatch rowspan 2",
+      "legal gray differs"
+    ]
+  },
+  "iosDiagnosis": "The supplied export contains no visible body content and no U2e marker. No causal diagnostic report was supplied; the default-signature cause remains unproven.",
+  "artifacts": {
+    "source.json": {
+      "sha256": "d18589a8c8f396ab9f9dd2a7467143959fdb413c193ecc7147afc028475897d9",
+      "bytes": 13807
+    },
+    "new-outlook-2237.redacted.html": {
+      "sha256": "664bc6ede80375dd2c93e3d2169e7b80bb1207312bc0162c5f243a9f53dcae90",
+      "bytes": 13827
+    },
+    "legacy-word.redacted.html": {
+      "sha256": "80a6891406e396976c5e32b7c216a0a98cc227084a64fa5df0eec0be5c03b99b",
+      "bytes": 22717
+    }
+  }
+}

@@ -1,15 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import crypto from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { parseHTML } from 'linkedom';
 import { parseManagedHtml } from '../../resources/js/outlook-addin/managed-template.js';
 import { currentComposeBodyHtml } from '../../resources/js/outlook-addin/compose-template.js';
 import { u2eProbeDocument } from '../../resources/js/outlook-addin/u2e-editor-probe.js';
 import { UNIVERSAL_COMPOSE_SESSION_KEY, validateUniversalComposeDocument, universalComposeStateFromBody,
-    insertUniversalComposeDocument, universalComposeBlocked, universalComposeReport } from '../../resources/js/outlook-addin/u2e-compose.js';
+    insertUniversalComposeDocument, universalComposeBlocked, universalComposeReport, universalComposePresentationEvidence } from '../../resources/js/outlook-addin/u2e-compose.js';
 
 const fixed = u2eProbeDocument();
 function document(kind = 'combined', extra = {}) {
-    let html = fixed.html;
+    let html = fixed.html.replace('id="' + fixed.id + '" width="260"', 'id="' + fixed.id + '-cell" width="260"');
     if (kind === 'signature') {
         const { elements } = parseManagedHtml(html);
         const table = elements.findIndex(node => node.tag === 'table' && node.attrs.id === fixed.id);
@@ -27,6 +30,9 @@ const success = value => ({ status: 'succeeded', value });
 const failed = code => ({ status: 'failed', error: { code, message: 'private host detail' } });
 const errorOf = promise => promise.then(() => null, error => error);
 const flush = async until => { for (let i = 0; i < 500 && !until(); i++) await Promise.resolve(); assert.equal(until(), true); };
+const readbackFixtures = new URL('../Fixtures/mail/u2e-readback/', import.meta.url);
+const fixtureFile = name => fs.readFileSync(new URL(name, readbackFixtures), 'utf8');
+const sha256 = value => crypto.createHash('sha256').update(value).digest('hex');
 
 function fixture(options = {}) {
     const state = { html: '<html><head><style>p {margin:0}</style></head><body><p><br></p></body></html>',
@@ -127,6 +133,70 @@ test('the source validates the approved geometry and excludes hidden or active b
     for (const change of mutations) assert.throws(() => validateUniversalComposeDocument(mutate(document(), change)), { code: 'U2E_SOURCE_INVALID' });
 });
 
+test('the redacted real 22:37 serialization is current against its independently projected source', async () => {
+    const manifest = JSON.parse(fixtureFile('manifest.json'));
+    for (const [name, evidence] of Object.entries(manifest.artifacts)) {
+        const content = fixtureFile(name);
+        assert.equal(sha256(content), evidence.sha256);
+        assert.equal(Buffer.byteLength(content), evidence.bytes);
+    }
+    const source = JSON.parse(fixtureFile('source.json')), actual = fixtureFile('new-outlook-2237.redacted.html');
+    validateUniversalComposeDocument(source);
+    assert.equal(universalComposeStateFromBody(source, actual, 'newMail').current, true);
+    assert.deepEqual(universalComposePresentationEvidence(actual), manifest.presentation.outlook);
+    assert.equal((actual.match(/\bbgcolor=/g) || []).length, 0, 'actual Outlook used CSS background colors');
+    assert.equal((actual.match(/<img\b/g) || []).length, 13);
+    const f = fixture({ bodyWrite({ callback, state }) { state.html = actual; callback(success()); } });
+    assert.equal((await f.insert(source)).status, 'applied');
+    assert.equal(f.state.bodyWrites.length, 1);
+    for (const change of [
+        dom => dom.querySelector('table[width="247"]').setAttribute('style', 'background-color:rgb(0,0,255)'),
+        dom => dom.querySelector('img[src$="14d7943c88.png"]').setAttribute('height', '84'),
+        dom => dom.querySelector('td[rowspan="2"]').removeAttribute('rowspan'),
+        dom => { const shell = dom.querySelector('table'); shell.removeAttribute('align'); shell.setAttribute('style', 'width:1040px'); },
+        dom => dom.querySelector('a').setAttribute('href', 'https://mail.example.test/changed'),
+    ]) assert.equal(universalComposeStateFromBody(source, mutate({ html: actual }, change).html, 'newMail').current, false);
+    assert.equal(universalComposeStateFromBody(source, actual.replace('Fixture legal', 'Changed legal'), 'newMail').current, false);
+});
+
+test('the actual older Word structure has finite color evidence and remains incompatible with current U2e', () => {
+    const manifest = JSON.parse(fixtureFile('manifest.json')), word = fixtureFile('legacy-word.redacted.html');
+    const evidence = universalComposePresentationEvidence(word);
+    assert.deepEqual(evidence, manifest.presentation.word);
+    assert.equal(evidence.readable, true); assert.equal(evidence.tables, 20); assert.equal(evidence.centeredTables, 0);
+    assert.deepEqual(evidence.colors, { unset: 44, '#e4002b': 22, '#f3f5f7': 2 });
+    const state = universalComposeStateFromBody(JSON.parse(fixtureFile('source.json')), word, 'newMail');
+    assert.equal(state.current, false); assert.equal(state.present, false);
+    assert.equal(manifest.legacyWord.current, false);
+    assert.equal(manifest.legacyWord.incompatibilities.length, 6);
+});
+
+test('optional immutable private exports match the actual offline PHP source without storing private content', {
+    skip: !process.env.U2E_PRIVATE_SOURCE_JSON || !process.env.U2E_PRIVATE_EXPORT_ROOT,
+}, () => {
+    const manifest = JSON.parse(fixtureFile('manifest.json'));
+    const paths = {
+        outlook: 'belege/umsetzung/C/pruefung-claude-2311/entwurf-neues-outlook-2237.html',
+        word: 'belege/tests-2026-11-03/u2/u2-antwort-word-umgeschrieben.html',
+        ios: 'belege/umsetzung/C/pruefung-claude-2311/entwurf-outlook-ios-2240.html',
+    };
+    const exports = {};
+    for (const [name, path] of Object.entries(paths)) {
+        const input = fs.readFileSync(process.env.U2E_PRIVATE_EXPORT_ROOT + '/' + path);
+        assert.equal(sha256(input), manifest.inputs[name].sha256);
+        exports[name] = input.toString('utf8');
+        assert.deepEqual(universalComposePresentationEvidence(exports[name]), manifest.presentation[name]);
+    }
+    const wire = JSON.parse(execFileSync(process.env.U2E_PHP_BINARY || 'C:/xampp/php/php.exe',
+        ['tests/Fixtures/mail/u2e-readback/project-private-source.php', process.env.U2E_PRIVATE_SOURCE_JSON], { encoding: 'utf8', maxBuffer: 1000000 }));
+    const source = validateUniversalComposeDocument(wire.document);
+    assert.equal(wire.queryCount, 0);
+    assert.equal(sha256(source.html), manifest.sourceProjection.sourceHtmlSha256);
+    assert.equal(universalComposeStateFromBody(source, exports.outlook, 'newMail').current, true);
+    assert.equal(universalComposeStateFromBody(source, exports.word, 'newMail').current, false);
+    assert.equal(universalComposeStateFromBody(source, exports.ios, 'newMail').present, false);
+});
+
 test('pure state ignores quoted U2e and recognizes a signature inside a matching combined block', () => {
     const combined = document(), signature = document('signature');
     const quoteOnly = '<html><body><p><br></p><hr><div id="divRplyFwdMsg">Old message</div><blockquote>' + combined.html + '</blockquote></body></html>';
@@ -149,6 +219,67 @@ test('pure state tolerates only known Word or Rooster serialization without losi
         dom => dom.querySelector('.rt-legal').setAttribute('bgcolor', '#ffffff'), dom => dom.querySelector('.rt-contact').textContent = 'Changed contact']) {
         assert.equal(universalComposeStateFromBody(doc, mutate(doc, change).html, 'newMail').current, false);
     }
+});
+
+test('equivalent Rooster colors and Word colors/centering use the same source and readback evidence', () => {
+    const doc = document();
+    const host = mutate(doc, dom => {
+        for (const node of dom.querySelectorAll('[bgcolor]')) {
+            const value = node.getAttribute('bgcolor');
+            const rgb = [1, 3, 5].map(start => Number.parseInt(value.slice(start, start + 2), 16));
+            node.setAttribute('style', (node.getAttribute('style') || '').replace(/background-color:[^;]+;?/gi, '') + ';background-color:rgb(' + rgb.join(', ') + ');');
+            node.removeAttribute('bgcolor');
+        }
+    });
+    assert.equal(universalComposeStateFromBody(doc, host.html, 'newMail').current, true);
+    const word = mutate(host, dom => {
+        const shell = dom.querySelector('.rt-shell'); shell.removeAttribute('align');
+        shell.setAttribute('style', 'width:780pt;margin-left:auto;margin-right:auto;');
+        for (const node of dom.querySelectorAll('[style]')) node.setAttribute('style', node.getAttribute('style').replaceAll('background-color:', 'background:'));
+    });
+    assert.equal(universalComposeStateFromBody(doc, word.html, 'newMail').current, true);
+    const styledSource = validateUniversalComposeDocument(word);
+    assert.equal(universalComposeStateFromBody(styledSource, doc.html, 'newMail').current, true, 'source and actual use identical color/centering derivation');
+});
+
+test('conflicting color declarations, gradients, images and false centering cannot acknowledge material', () => {
+    const doc = document();
+    const changes = [
+        dom => { const node = dom.querySelector('.rt-dispo-head'); node.setAttribute('style', node.getAttribute('style') + ';background-color:#0000ff;'); },
+        dom => { const node = dom.querySelector('.rt-dispo-head'); node.setAttribute('style', node.getAttribute('style') + ';background:linear-gradient(#e4002b,#e4002b);'); },
+        dom => { const node = dom.querySelector('.rt-dispo-head'); node.setAttribute('style', node.getAttribute('style') + ';background:#e4002b url(https://example.invalid/image.png);'); },
+        dom => { const node = dom.querySelector('.rt-dispo-head'); node.setAttribute('style', node.getAttribute('style') + ';background-image:url(https://example.invalid/image.png);'); },
+        dom => { const node = dom.querySelector('.rt-dispo-head'); node.setAttribute('style', node.getAttribute('style') + ';background-image:linear-gradient(#e4002b,#e4002b);'); },
+        dom => dom.querySelector('.rt-shell').setAttribute('style', 'width:1040px;margin:0 20px;'),
+        dom => dom.querySelector('.rt-shell').setAttribute('style', 'width:1040px;margin:0 auto;float:left;'),
+        dom => dom.querySelector('.rt-shell').setAttribute('align', 'left'),
+        dom => { const node = dom.querySelector('.rt-shell'); node.removeAttribute('align'); node.setAttribute('style', 'width:1040px;text-align:center;'); },
+    ];
+    for (const change of changes) {
+        const changed = mutate(doc, change);
+        assert.equal(universalComposeStateFromBody(doc, changed.html, 'newMail').current, false);
+        assert.throws(() => validateUniversalComposeDocument(changed), { code: 'U2E_SOURCE_INVALID' });
+    }
+});
+
+test('new cell suffixes are required for sources and legacy duplicate IDs remain read-only compatible', () => {
+    const doc = document();
+    assert.ok(doc.html.includes('id="' + doc.marker + '-cell"'));
+    const legacy = doc.html.replaceAll(doc.marker + '-cell', doc.marker);
+    assert.equal(universalComposeStateFromBody(doc, legacy, 'newMail').current, true);
+    assert.throws(() => validateUniversalComposeDocument({ ...doc, html: legacy }), { code: 'U2E_SOURCE_INVALID' });
+    for (const keep of ['table', 'cell']) {
+        const readback = mutate(doc, dom => {
+            const table = dom.querySelector('.rt-shell'), cell = dom.querySelector('.rt-col-person');
+            if (keep === 'table') { cell.removeAttribute('id'); table.setAttribute('id', 'x_' + doc.marker); }
+            else { table.removeAttribute('id'); cell.setAttribute('id', 'x_' + doc.marker + '-cell'); }
+        });
+        assert.equal(universalComposeStateFromBody(doc, readback.html, 'newMail').current, true);
+    }
+    const wrongPlace = mutate(doc, dom => { dom.querySelector('.rt-col-person').removeAttribute('id'); dom.querySelector('.rt-col-company').setAttribute('id', doc.marker + '-cell'); });
+    assert.equal(universalComposeStateFromBody(doc, wrongPlace.html, 'newMail').current, false);
+    const wrongTable = mutate(doc, dom => dom.querySelector('.rt-shell').setAttribute('id', doc.marker + '-cell'));
+    assert.equal(universalComposeStateFromBody(doc, wrongTable.html, 'newMail').current, false);
 });
 
 for (const [platform, kind, method] of [['PC', 'combined', 'prependAsync'], ['OfficeOnline', 'combined', 'prependAsync'],
@@ -174,6 +305,34 @@ test('a signature-only insertion preserves current user text, user images and li
     const f = fixture({ state: { html: '<html><body>' + author + '</body></html>' } });
     assert.equal((await f.insert(document('signature'))).status, 'applied');
     assert.ok(f.state.html.includes(author));
+});
+
+test('only exact matching mobile host signatures are treated as empty for combined insertion', async () => {
+    for (const [platform, label] of [['iOS', 'Gesendet von Outlook für iOS'], ['Android', 'Gesendet von Outlook für Android'], ['iOS', 'Get Outlook for iOS'], ['Android', 'Sent from Outlook for Android']]) {
+        const f = fixture({ platform, state: { html: '<html><body><div id="Signature"><p><a href="https://aka.ms/AAb9ysg">' + label + '</a></p></div></body></html>' } });
+        assert.equal((await f.insert()).status, 'applied');
+        assert.equal(f.state.bodyWrites.length, 1); assert.equal(f.state.bodyWrites[0].method, 'setSignatureAsync');
+        assert.equal(universalComposeReport(f.item).mobileStandardSignatureIgnored, true);
+        assert.deepEqual(f.state.forbidden, []);
+    }
+    const bad = [
+        ['PC', '<p>Gesendet von Outlook für iOS</p>'],
+        ['iOS', '<p>Gesendet von Outlook für Android</p>'],
+        ['iOS', '<p>Eigener Text</p><p>Gesendet von Outlook für iOS</p>'],
+        ['iOS', '<p>Gesendet von Outlook für iOS</p><img src="https://example.invalid/photo.png">'],
+        ['iOS', '<p><a href="https://other.example.invalid">Gesendet von Outlook für iOS</a></p>'],
+        ['iOS', '<blockquote>Gesendet von Outlook für iOS</blockquote>'],
+    ];
+    for (const [platform, html] of bad) {
+        const f = fixture({ platform, state: { html } });
+        assert.equal((await errorOf(f.insert())).code, 'U2E_NEW_DRAFT_REQUIRED');
+        assert.equal(f.state.bodyWrites.length, 0); assert.equal(f.state.sessionWrites.length, 0);
+        const report = universalComposeReport(f.item);
+        assert.equal(report.state, 'rejected'); assert.equal(report.phase, 'preflight');
+        assert.equal(report.code, 'U2E_NEW_DRAFT_REQUIRED'); assert.equal(report.bodyLength, html.length);
+        assert.equal(report.sourceLength, document().html.length); assert.equal(universalComposeBlocked(f.item), false);
+        for (const value of Object.values(report)) assert.equal(typeof value === 'string' && (value.includes('Gesendet') || value.includes('example.invalid')), false);
+    }
 });
 
 test('combined replies and forwards preserve the complete historical byte suffix including separators', async () => {
@@ -205,6 +364,10 @@ test('a different U2e version is not silently converted and a lost applied block
     const missing = fixture({ state: { sessions: new Map([[UNIVERSAL_COMPOSE_SESSION_KEY, 'applied:' + doc.version + ':combined']]) } });
     assert.equal((await errorOf(missing.insert())).code, 'SIGNATURE_LAYOUT_UNCONFIRMED');
     assert.equal(missing.state.bodyWrites.length, 0);
+    assert.equal(universalComposeReport(missing.item).phase, 'preflight');
+    assert.equal(universalComposeReport(missing.item).code, 'SIGNATURE_LAYOUT_UNCONFIRMED');
+    assert.equal(universalComposeReport(missing.item).sourceLength, doc.html.length);
+    assert.equal(universalComposeReport(missing.item).bodyLength, missing.state.html.length);
 });
 
 test('lost IDs and a fresh session cannot turn an existing U2e block into author content and append a duplicate', async () => {
@@ -257,6 +420,9 @@ test('material loss and quote damage after the callback keep the claim uncertain
         const f = fixture({ bodyWrite({ html, callback, state }) { state.html = damage(html); callback(success()); } });
         assert.equal((await errorOf(f.insert())).code, 'SIGNATURE_LAYOUT_UNCONFIRMED');
         assert.equal(f.state.bodyWrites.length, 1); assert.equal(universalComposeBlocked(f.item), true);
+        assert.equal(universalComposeReport(f.item).phase, 'readback');
+        assert.equal(universalComposeReport(f.item).code, 'SIGNATURE_LAYOUT_UNCONFIRMED');
+        assert.equal(universalComposeReport(f.item).bodyLength, f.state.html.length);
         assert.equal((await errorOf(f.insert())).code, 'U2E_INSERT_UNCERTAIN');
         assert.equal(f.state.bodyWrites.length, 1);
     }
@@ -280,6 +446,8 @@ test('header failure is retained conservatively and cannot fall through to a bod
     const f = fixture({ headerWrite({ callback }) { callback(failed(5001)); return false; } });
     assert.equal((await errorOf(f.insert())).code, 'U2E_INSERT_UNCERTAIN');
     assert.equal(f.state.bodyWrites.length, 0); assert.equal(universalComposeBlocked(f.item), true);
+    assert.equal(universalComposeReport(f.item).code, 'U2E_INSERT_UNCERTAIN');
+    assert.equal(universalComposeReport(f.item).phase, 'header');
 });
 
 test('changes to user content after claiming do not overwrite that content', async () => {

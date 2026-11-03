@@ -6,9 +6,10 @@ import { createNativeLayoutNonce } from './native-layout-restore.js';
 
 export const UNIVERSAL_COMPOSE_SESSION_KEY = 'railtime.u2e.compose.v1';
 const operations = new WeakMap();
+const lastReports = new WeakMap();
 const plans = new WeakMap();
 const oldKeys = ['railtime.template.inserted.v1', 'railtime.signature.layout.v1', 'railtime.head-probe.v1', 'railtime.u2e-probe.v1'];
-const idPattern = /^(?:x_)?rt-sig-u2-([0-9a-f]{24})$/;
+const idPattern = /^(?:x_)?rt-sig-u2-([0-9a-f]{24})(-cell)?$/;
 const documentKeys = ['schema', 'kind', 'html', 'version', 'marker', 'header', 'sourceHash', 'media'];
 const assetSizes = Object.freeze({
     'b983af0049.png': [184, 32], '9dfa25b253.png': [15, 15], 'd92bd192b6.png': [15, 15],
@@ -94,9 +95,57 @@ function decode(text) {
 const text = value => decode(value.replace(/<!--[\s\S]*?-->|<[^>]*>/g, ' ')).replace(/[\u200c\u200d\ufeff]/g, '').replace(/\s+/g, ' ').trim();
 function color(value) {
     const source = String(value || '').trim().toLowerCase();
+    if (source === 'white') return '#ffffff';
     if (/^#[0-9a-f]{3}$/.test(source)) return '#' + [...source.slice(1)].map(c => c + c).join('');
     const rgb = /^rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/.exec(source);
     return rgb && rgb.slice(1).every(c => Number(c) <= 255) ? '#' + rgb.slice(1).map(c => Number(c).toString(16).padStart(2, '0')).join('') : source;
+}
+
+function backgroundColor(node) {
+    if (property(node, 'background-image').some(value => value !== 'none')) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
+    const values = [...(node.attrs.bgcolor ? [node.attrs.bgcolor] : []), ...property(node, 'background-color'), ...property(node, 'background')].map(color);
+    if (!values.length) return '';
+    // Only equivalent finite color serializations are interchangeable. A
+    // conflicting declaration, gradient or image is not a host normalization.
+    if (values.some(value => !/^#[0-9a-f]{6}$/.test(value) || value !== values[0])) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
+    return values[0];
+}
+
+function centered(node) {
+    const align = node.attrs.align?.trim().toLowerCase();
+    if (align && align !== 'center') return false;
+    if (property(node, 'float').some(value => value !== 'none')) return false;
+    let left = null, right = null;
+    for (const declaration of (node.attrs.style || '').split(';')) {
+        const colon = declaration.indexOf(':');
+        if (colon < 0) continue;
+        const key = declaration.slice(0, colon).trim().toLowerCase();
+        const value = declaration.slice(colon + 1).trim().toLowerCase().replace(/\s*!important$/, '');
+        if (key === 'margin') {
+            const parts = value.split(/\s+/);
+            if (parts.length < 1 || parts.length > 4) return false;
+            right = parts[1] ?? parts[0]; left = parts[3] ?? parts[1] ?? parts[0];
+        } else if (key === 'margin-left') left = value;
+        else if (key === 'margin-right') right = value;
+    }
+    const auto = left === 'auto' && right === 'auto';
+    return auto || align === 'center' && left === null && right === null;
+}
+
+/** Datensparse read-only extraction, also useful for incompatible legacy
+ * fixtures. It never claims U2e ownership or a successful insertion. */
+export function universalComposePresentationEvidence(html) {
+    try {
+        const { elements } = parseManagedHtml(html);
+        const colors = {};
+        for (const node of elements.filter(value => value.tag === 'td')) {
+            let value;
+            try { value = backgroundColor(node) || 'unset'; } catch { value = 'invalid'; }
+            colors[value] = (colors[value] || 0) + 1;
+        }
+        const tables = elements.filter(node => node.tag === 'table');
+        return { schema: 1, readable: true, tables: tables.length, centeredTables: tables.filter(centered).length, colors };
+    } catch { return { schema: 1, readable: false, tables: 0, centeredTables: 0, colors: {} }; }
 }
 
 function region(html, composeType) {
@@ -129,7 +178,7 @@ function material(html, expectedMarker = null, source = false) {
     if (expectedMarker && marker !== expectedMarker) return { present: true, version: versions[0], marker, kind: null, tree };
     const outer = tableRows(elements, rootIndex);
     const kind = outer.length === 4 ? 'combined' : outer.length === 3 ? 'signature' : null;
-    if (!kind || !dimension(root, 'width', 1040) || root.attrs.align?.toLowerCase() !== 'center' || hiddenAncestor(elements, rootIndex)) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
+    if (!kind || !dimension(root, 'width', 1040) || !centered(root) || hiddenAncestor(elements, rootIndex)) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
     const author = kind === 'combined' ? outer[0] : null, signatureRows = author ? outer.slice(1) : outer;
     const authorCells = author && rowCells(elements, author.index), grid = rowCells(elements, signatureRows[0].index), train = rowCells(elements, signatureRows[1].index), legal = rowCells(elements, signatureRows[2].index);
     if (author && (authorCells.length !== 1 || span(authorCells[0].node, 'colspan') !== 4)
@@ -137,14 +186,16 @@ function material(html, expectedMarker = null, source = false) {
         || span(grid[3].node, 'rowspan') !== 2 || train.length !== 1 || span(train[0].node, 'colspan') !== 3
         || legal.length !== 1 || span(legal[0].node, 'colspan') !== 4) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
     const tableMarkers = markers.filter(value => value.node.tag === 'table'), cellMarkers = markers.filter(value => value.node.tag === 'td');
-    if (tableMarkers.length > 1 || cellMarkers.length > 1 || cellMarkers.some(value => value.index !== grid[0].index)
+    if (tableMarkers.length > 1 || tableMarkers.some(value => idPattern.exec(value.node.attrs.id)[2])
+        || cellMarkers.length > 1 || cellMarkers.some(value => value.index !== grid[0].index || source && !idPattern.exec(value.node.attrs.id)[2])
         || source && (tableMarkers.length !== 1 || cellMarkers.length !== 1)) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
     const shells = indexed(elements).filter(value => value.node.tag === 'table' && !quoted(elements, value.index)
         && !(author && inside(elements, value.index, author.index))
         && resemblesU2eShell(elements, value));
     if (shells.length !== 1 || shells[0].index !== rootIndex) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
     const own = indexed(elements).filter(value => inside(elements, value.index, rootIndex) && !(author && inside(elements, value.index, author.index)));
-    if (own.some(value => hidden(value.node) || ['style', 'meta', 'script', 'iframe', 'object', 'embed', 'svg', 'input', 'form'].includes(value.node.tag))) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
+    if (own.some(value => hidden(value.node) || property(value.node, 'float').some(candidate => candidate !== 'none')
+        || ['style', 'meta', 'script', 'iframe', 'object', 'embed', 'svg', 'input', 'form'].includes(value.node.tag))) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
     const tables = own.filter(value => value.node.tag === 'table');
     const topology = tables.map(value => ({
         parent: tables.findIndex(parent => parent.index === nearest(elements, value.index, 'table')),
@@ -172,16 +223,11 @@ function material(html, expectedMarker = null, source = false) {
         return value.node.attrs.href;
     });
     if (links.length !== 4) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
-    const colors = own.filter(value => value.node.tag === 'td').map(value => {
-        const valueColor = color(value.node.attrs.bgcolor);
-        const backgrounds = [...property(value.node, 'background-color'), ...property(value.node, 'background')];
-        if (['#e4002b', '#e4e8ec'].includes(valueColor) && backgrounds.some(candidate => color(candidate) !== valueColor)) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
-        return valueColor;
-    });
-    if (color(legal[0].node.attrs.bgcolor) !== '#e4e8ec' || color(dispatch[0].node.attrs.bgcolor) !== '#e4002b'
+    const colors = own.filter(value => value.node.tag === 'td').map(value => backgroundColor(value.node));
+    if (backgroundColor(legal[0].node) !== '#e4e8ec' || backgroundColor(dispatch[0].node) !== '#e4002b'
         || own.filter(value => value.node.tag === 'td' && inside(elements, value.index, dispatch[0].index)).some(value => {
             const corner = dimension(value.node, 'width', 8) && dimension(value.node, 'height', 8);
-            return color(value.node.attrs.bgcolor) !== (corner ? '#ffffff' : '#e4002b');
+            return backgroundColor(value.node) !== (corner ? '#ffffff' : '#e4002b');
         })) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
     let signatureHtml = html.slice(root.openEnd, root.close);
     if (author) signatureHtml = signatureHtml.slice(0, author.node.start - root.openEnd) + signatureHtml.slice(author.node.end - root.openEnd);
@@ -236,7 +282,8 @@ export function universalComposeBlocked(item) {
 
 export function universalComposeReport(item) {
     const operation = item && operations.get(item);
-    return operation ? { ...operation.report } : null;
+    const report = operation?.report ?? (item && lastReports.get(item));
+    return report ? { ...report } : null;
 }
 
 function readCall(office, invoke, code = 'U2E_CONTEXT_UNREADABLE') {
@@ -273,6 +320,26 @@ function blankCurrent(html) {
         let visible = html;
         for (const head of [...heads].sort((a, b) => b.start - a.start)) visible = visible.slice(0, head.start) + visible.slice(head.end);
         return text(visible) === '';
+    } catch { return false; }
+}
+
+function mobileStandardSignature(html, office) {
+    if (!isMobileComposeHost(office)) return false;
+    const platform = String(office?.context?.platform || '').toLowerCase();
+    const host = String(office?.context?.mailbox?.diagnostics?.hostName || '').toLowerCase();
+    const device = platform === 'ios' || host === 'outlookios' ? 'iOS' : platform === 'android' || host === 'outlookandroid' ? 'Android' : null;
+    if (!device) return false;
+    try {
+        const { elements, comments } = parseManagedHtml(html), heads = elements.filter(node => node.tag === 'head');
+        const inHead = node => heads.some(head => node.start >= head.start && node.end <= head.end);
+        if (heads.length > 1 || comments.some(comment => !inHead(comment))
+            || elements.some(node => ['script', 'iframe', 'object', 'embed', 'input', 'form'].includes(node.tag))
+            || elements.some(node => !inHead(node) && (!['html', 'body', 'div', 'p', 'span', 'font', 'br', 'o:p', 'a'].includes(node.tag) || hidden(node)))) return false;
+        const links = elements.filter(node => node.tag === 'a' && !inHead(node));
+        if (links.length > 1 || links.some(node => !/^https:\/\/aka\.ms\/[A-Za-z0-9]+$/.test(node.attrs.href || ''))) return false;
+        let visible = html;
+        for (const head of [...heads].sort((a, b) => b.start - a.start)) visible = visible.slice(0, head.start) + visible.slice(head.end);
+        return ['Gesendet von Outlook für ' + device, 'Sent from Outlook for ' + device, 'Get Outlook for ' + device].includes(text(visible));
     } catch { return false; }
 }
 
@@ -315,7 +382,8 @@ export async function insertUniversalComposeDocument(office, item, document, { b
         || typeof item?.getComposeTypeAsync !== 'function' || typeof item?.body?.getTypeAsync !== 'function' || typeof item?.body?.getAsync !== 'function') throw failure('U2E_API_UNAVAILABLE');
     const mobile = isMobileComposeHost(office), method = source.kind === 'combined' && !mobile ? 'prependAsync' : 'setSignatureAsync';
     if (typeof item.body[method] !== 'function') throw failure('U2E_API_UNAVAILABLE');
-    const operation = { claimed: false, report: { schema: 1, state: 'preflight', attempted: false, kind: source.kind, method, headerWritten: false } };
+    const operation = { claimed: false, report: { schema: 1, state: 'preflight', attempted: false, kind: source.kind, method, headerWritten: false,
+        phase: 'preflight', sourceLength: source.html.length, bodyLength: null, mobileStandardSignatureIgnored: false } };
     operations.set(item, operation);
     const guard = async () => {
         await beforeWrite(); await assertMailboxBinding(office, item, binding);
@@ -334,25 +402,30 @@ export async function insertUniversalComposeDocument(office, item, document, { b
         const priorClaim = await session(office, item, UNIVERSAL_COMPOSE_SESSION_KEY);
         if (priorClaim && !/^applied:[0-9a-f]{24}:(?:combined|signature)$/.test(priorClaim)) throw failure('U2E_INSERT_UNCERTAIN');
         const original = await snapshot(office, item);
+        operation.report.bodyLength = original.html.length;
         await guard();
         const state = universalComposeStateFromBody(source, original.html, original.composeType);
         if (state.current) {
             await guardClaim(priorClaim);
-            operation.report = { ...operation.report, state: 'complete', current: true };
+            operation.report = { ...operation.report, state: 'complete', current: true, phase: 'complete' };
             return { status: 'already-present', ...state };
         }
         if (!state.readable || priorClaim && !state.present) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED');
+        const standardSignature = source.kind === 'combined' && mobile && mobileStandardSignature(original.currentHtml, office);
+        operation.report.mobileStandardSignatureIgnored = standardSignature;
         if (state.present || unmarkedU2eShell(original.currentHtml)
-            || /RT-(?:FLUID-LAYOUT|TEMPLATE-MANAGED|SIGNATURE-MANAGED|COMPOSE-EDITABLE)|(?:id\s*=\s*["'](?:x_)?Signature["'])/i.test(original.current)
-            || source.kind === 'combined' && !blankCurrent(original.currentHtml)) throw failure('U2E_NEW_DRAFT_REQUIRED');
+            || /RT-(?:FLUID-LAYOUT|TEMPLATE-MANAGED|SIGNATURE-MANAGED|COMPOSE-EDITABLE)/i.test(original.current)
+            || !standardSignature && /id\s*=\s*["'](?:x_)?Signature["']/i.test(original.current)
+            || source.kind === 'combined' && !blankCurrent(original.currentHtml) && !standardSignature) throw failure('U2E_NEW_DRAFT_REQUIRED');
         const ownAuthor = authorEvidence(original.currentHtml);
         if (!mobile && (!office?.context?.requirements?.isSetSupported?.('Mailbox', '1.8') || typeof item.internetHeaders?.setAsync !== 'function')) throw failure('U2E_HEADER_UNAVAILABLE');
         const token = 'pending:' + source.version + ':' + createNativeLayoutNonce();
-        await guardClaim(priorClaim); operation.claimed = true; operation.report = { ...operation.report, attempted: true, state: 'pending' };
+        await guardClaim(priorClaim); operation.claimed = true; operation.report = { ...operation.report, attempted: true, state: 'pending', phase: 'claim' };
         await readCall(office, callback => item.sessionData.setAsync(UNIVERSAL_COMPOSE_SESSION_KEY, token, callback), 'U2E_INSERT_UNCERTAIN');
         if (await session(office, item, UNIVERSAL_COMPOSE_SESSION_KEY) !== token) throw failure('U2E_INSERT_UNCERTAIN');
         if (!mobile) {
             await guardClaim(token);
+            operation.report.phase = 'header';
             await confirmedOfficeWrite(office, item, 'u2e-header-write', 'U2E_INSERT_UNCERTAIN', callback => item.internetHeaders.setAsync({ 'X-RailTime-Template': source.header }, callback));
             operation.report.headerWritten = true;
         }
@@ -361,10 +434,13 @@ export async function insertUniversalComposeDocument(office, item, document, { b
         if (latest.html !== original.html || latest.composeType !== original.composeType) throw failure('U2E_CONTEXT_CHANGED');
         if (await session(office, item, UNIVERSAL_COMPOSE_SESSION_KEY) !== token) throw failure('U2E_INSERT_UNCERTAIN');
         await guardClaim(token);
+        operation.report.phase = 'write';
         await confirmedOfficeWrite(office, item, 'u2e-compose-write', 'U2E_INSERT_UNCERTAIN',
             callback => item.body[method](source.html, { coercionType: office.CoercionType.Html }, callback), { deferSignatureConfirmation: true });
         await guard();
+        operation.report.phase = 'readback';
         const actual = await snapshot(office, item), verified = universalComposeStateFromBody(source, actual.html, actual.composeType);
+        operation.report.bodyLength = actual.html.length;
         if (actual.composeType !== original.composeType || !verified.current || actual.quote !== original.quote) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED', 'u2e-compose-readback');
         const actualMaterial = material(actual.currentHtml);
         if (source.kind === 'signature' && authorEvidence(actual.currentHtml, actualMaterial.root) !== ownAuthor) throw failure('SIGNATURE_LAYOUT_UNCONFIRMED', 'u2e-compose-author');
@@ -378,14 +454,18 @@ export async function insertUniversalComposeDocument(office, item, document, { b
         const terminal = 'applied:' + source.version + ':' + source.kind;
         await readCall(office, callback => item.sessionData.setAsync(UNIVERSAL_COMPOSE_SESSION_KEY, terminal, callback), 'U2E_INSERT_UNCERTAIN');
         if (await session(office, item, UNIVERSAL_COMPOSE_SESSION_KEY) !== terminal) throw failure('U2E_INSERT_UNCERTAIN');
-        await guardClaim(terminal); operation.report = { ...operation.report, state: 'complete', current: true };
+        await guardClaim(terminal); operation.report = { ...operation.report, state: 'complete', current: true, phase: 'complete' };
         return { status: 'applied', ...verified };
     } catch (error) {
+        const code = /^[A-Z][A-Z0-9_]{0,79}$/.test(error?.code || '') ? error.code : 'UNAVAILABLE';
+        operation.report = { ...operation.report, code };
         if (operation.claimed) {
             operation.report = { ...operation.report, state: 'uncertain' };
             if (error?.code === 'SIGNATURE_LAYOUT_UNCONFIRMED') throw error;
+            operation.report.code = 'U2E_INSERT_UNCERTAIN';
             throw failure('U2E_INSERT_UNCERTAIN', error?.phase);
         }
+        lastReports.set(item, { ...operation.report, state: 'rejected' });
         operations.delete(item); throw error;
     }
 }
