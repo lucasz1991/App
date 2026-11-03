@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "derivation": "structural-redaction-v1",
+  "sourceHtmlSha256": "ad5a44eb84a5eb40d421c7d1ebb7fac2f4f088f9ef14a72d8e4c21e97c498b49",
+  "sourceHeadersSha256": "6cd3ebb72515e09d7a51ee2393b06706553989e8990cb5b02be205344f62fe1f",
+  "sourceHeaderValueSha256": "0eb5723cb049526f12bf8db016f4cf687657400068847bd2c7e93e271ffefb96",
+  "sourceHtmlBytes": 14781,
+  "sourceTableCount": 10,
+  "sourceImageCount": 13,
+  "sourceShellIdCount": 0,
+  "sourceCellIdCount": 1,
+  "fixtureHtmlSha256": "7b96ea1f71e0c3b7f31a2e556fa8ff5a6fefefaec0cb9d39852687fa266369e6",
+  "fixtureHeadersSha256": "eee0fd213f4482f22921757dab0a10be9e47fa885b6ae90731894742b354d540",
+  "allTextReplaced": true,
+  "allUrlsReplaced": true,
+  "headCommentsAndUnknownAttributesRemoved": true,
+  "pixelOrNativeClientProof": false
+}
