@@ -26,6 +26,7 @@ import { readComposeSender, assertMailboxBinding } from './mailbox-guard.js';
 import { diagnoseStep, recordDiagnostic } from './diagnostics.js';
 import { confirmedOfficeWrite, hasUncertainWrite, wasSignatureWriteConfirmed } from './office-write.js';
 import { automaticComposeDecision, automaticTemplateOnly, readAutomaticComposeType } from './automatic-compose-policy.js';
+import { validateUniversalComposeDocument, insertUniversalComposeDocument, universalComposeBlocked } from './u2e-compose.js';
 
 const CONFIG_META_NAME = 'railtime-outlook-config-url';
 const CONFIG_TIMEOUT_MS = 8000;
@@ -534,7 +535,23 @@ async function applyPublishedContent(item, isActive = () => true) {
     if (policy.mode !== 'both') pendingNativeSignatures.delete(item);
     reportRuntimePhase('compose-started');
 
-    if (isTemplateInsertionBlocked(item) || isStandaloneSignatureInsertionBlocked(item) || hasUncertainWrite(item)) return 'uncertain';
+    if (isTemplateInsertionBlocked(item) || isStandaloneSignatureInsertionBlocked(item) || hasUncertainWrite(item)
+        || universalComposeBlocked(item)) return 'uncertain';
+
+    // A newly admitted U2e projection owns its independent structural contract.
+    // Never run it through the V17 writer, CSS restore or mobile ledger.
+    const universalEntry = policy.mode === 'both' ? automaticTemplate(bootstrap) : null;
+    const hasUniversalCombined = universalEntry && Object.prototype.hasOwnProperty.call(universalEntry, 'universalCompose');
+    const hasUniversalSignature = policy.mode === 'signature' && Object.prototype.hasOwnProperty.call(bootstrap, 'universalSignature');
+    if (hasUniversalCombined || hasUniversalSignature) {
+        const universal = validateUniversalComposeDocument(hasUniversalCombined ? universalEntry.universalCompose : bootstrap.universalSignature);
+        if (universal.kind !== (hasUniversalCombined ? 'combined' : 'signature')) throw codedError('U2E_DOCUMENT_INVALID');
+        pendingNativeSignatures.delete(item);
+        const result = await diagnoseStep('u2e-compose', () => insertUniversalComposeDocument(Office, item, universal, {
+            binding, beforeWrite: assertTarget,
+        }));
+        return result.status;
+    }
 
     // Older templates contain an ordinary HTML signature. Never append a
     // second native signature or rewrite those drafts to convert them. Read

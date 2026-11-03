@@ -344,7 +344,8 @@ test('outlook taskpane keeps templates visible and hides resolved maintenance ac
     assert.doesNotMatch(taskpane, /window\.confirm/);
     assert.match(taskpane, /async function withAuthenticatedBootstrap\(button, callback\) \{\s*if \(taskpaneState\.settingsMode\) throw codedError\('ACCOUNT_SETTINGS_READ_ONLY'\);\s*if \(taskpaneState\.busy\) return;/);
     assert.match(taskpane, /acceptBootstrap\(bootstrap, \{ inspectBody: false \}\)/);
-    assert.equal(occurrences(taskpane, /await refreshSignatureCurrentState\(\);/g), 2);
+    // Two legacy refresh callsites plus the independent U2e signature branch.
+    assert.equal(occurrences(taskpane, /await refreshSignatureCurrentState\(\);/g), 3);
     assert.doesNotMatch(taskpane, /taskpaneState\.signatureCurrent = await signatureIsCurrent/);
 });
 
@@ -356,6 +357,7 @@ const composeLibrary = {
     ...await import('../../resources/js/outlook-addin/automatic-compose-policy.js'),
     ...await import('../../resources/js/outlook-addin/automatic-preferences-view.js'),
     ...await import('../../resources/js/outlook-addin/account-options-view.js'),
+    ...await import('../../resources/js/outlook-addin/u2e-compose.js'),
 };
 const testMailboxBinding = {
     schema: 1, mailboxAddress: 'employee@example.test', senderAddress: 'employee@example.test',

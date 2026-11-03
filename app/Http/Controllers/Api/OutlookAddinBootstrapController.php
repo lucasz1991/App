@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Support\EmailTemplateBuilder;
 use App\Services\DeviceManagement\MicrosoftDeviceSyncScheduler;
 use App\Support\OutlookAddin\EntraAccessTokenValidator;
 use App\Support\OutlookAddin\OutlookAddinAutomaticInsertionPolicy;
@@ -13,6 +14,7 @@ use App\Support\OutlookAddin\OutlookAddinUserSnapshotStore;
 use App\Support\OutlookAddin\OutlookClientPresentation;
 use App\Support\OutlookAddin\OutlookMobileSignature;
 use App\Support\OutlookAddin\OutlookStaticLinkedTestProfiles;
+use App\Support\OutlookAddin\OutlookUniversalPayloadPresentation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -111,6 +113,8 @@ final class OutlookAddinBootstrapController extends Controller
             }
             $signatureOnly = $v2 && $selection['signature'] && ! $selection['template'];
             $templateOnly = $v2 && ! $selection['signature'] && $selection['template'];
+            // Preserve canonical input before legacy mobile/client adapters.
+            $universalSource = $payload;
             if ($signatureOnly) {
                 $payload = [
                     'schema' => $payload['schema'], 'marker' => $payload['marker'],
@@ -127,6 +131,14 @@ final class OutlookAddinBootstrapController extends Controller
             $payload = OutlookStaticLinkedTestProfiles::payload($payload, $resolved['user']);
             if ($templateOnly) {
                 $payload = $this->templateOnlyPayload($payload, $request->header('X-RailTime-Outlook-Profile') === OutlookMobileSignature::PROFILE);
+            } else {
+                // Desktop wire has already passed the strict CID/media/source
+                // admission. Mobile needs that same desktop source separately.
+                $universalDesktop = $request->header('X-RailTime-Outlook-Profile') === OutlookMobileSignature::PROFILE
+                    ? OutlookStaticLinkedTestProfiles::payload(OutlookClientPresentation::payload($universalSource), $resolved['user'])
+                    : $payload;
+                $payload = app(OutlookUniversalPayloadPresentation::class)->append($payload, $universalDesktop,
+                    (new EmailTemplateBuilder($resolved['user']))->profileValues());
             }
 
             // Request-fresh preference, outside reusable canonical snapshots.

@@ -31,6 +31,8 @@ import { diagnoseStep, recordDiagnostic, diagnosticReport } from './diagnostics.
 import { confirmedOfficeWrite, hasUncertainWrite } from './office-write.js';
 import { headProbeContextAvailable, u2eProbeContextAvailable } from './head-transport-probe.js';
 import { insertU2eTransportProbe, u2eTransportProbeReport } from './u2e-transport-probe.js';
+import { validateUniversalComposeDocument, insertUniversalComposeDocument, universalComposeBlocked,
+    universalComposeReport, universalComposeStateFromBody } from './u2e-compose.js';
 import { bindAutomaticPreferencesView, createAccountPreferencesSession, normalizeAutomaticPreferences } from './automatic-preferences-view.js';
 import { bindWordingPreferencesView, bindTemplateChoiceView, createAccountOptionsSession,
     normalizeWordingPreferences, normalizeTemplateChoicePreferences } from './account-options-view.js';
@@ -167,7 +169,7 @@ export function normalizeTemplateChoices(payload) {
             label: firstNonEmptyString([entry.label, entry.name]) || name,
             active: entry.active === true,
             isDefault: entry.isDefault === true,
-            version: displayVersion(entry.version, entry.hash),
+            version: universalVersion(entry.universalCompose) || displayVersion(entry.version, entry.hash),
             hash: scalarString(entry.hash),
             document: entry,
         }));
@@ -207,7 +209,16 @@ export function hasCurrentSnapshot(payload) {
     const personalVersion = scalarString(payload.version?.personal);
     const signatureVersion = scalarString(payload.version?.signature);
 
-    return personalVersion !== '' && SIGNATURE_VERSION_PATTERN.test(signatureVersion);
+    return personalVersion !== '' && (Object.prototype.hasOwnProperty.call(payload, 'universalSignature')
+        ? universalVersion(payload.universalSignature) !== '' : SIGNATURE_VERSION_PATTERN.test(signatureVersion));
+}
+
+// Display metadata only. Structural/material admission remains in the U2e
+// coordinator before every body write or claim that the content is current.
+function universalVersion(document) {
+    const version = scalarString(document?.version).toLowerCase();
+    return document?.schema === 1 && /^[0-9a-f]{24}$/.test(version)
+        && document.marker === 'rt-sig-u2-' + version && document.header === 'u2e-' + version ? version : '';
 }
 
 function buildTimeConfigUrl() {
@@ -673,7 +684,7 @@ async function assertWriteTarget(target, binding) {
 function insertionBlocked() {
     const item = globalThis.Office?.context?.mailbox?.item;
     return Boolean(item && (isTemplateInsertionBlocked(item) || isStandaloneSignatureInsertionBlocked(item) || hasUncertainWrite(item)
-        || u2eTransportProbeReport(item)?.attempted === true));
+        || u2eTransportProbeReport(item)?.attempted === true || universalComposeBlocked(item)));
 }
 
 function elements() {
@@ -810,14 +821,17 @@ function renderSelectedTemplate() {
     view.templateActive.hidden = !template.isDefault;
     view.templateActive.textContent = 'Outlook-Standard';
     const replacing = taskpaneState.templatePresent;
-    const actionLabel = replacing ? 'Vorlage und Signatur ersetzen' : 'Vorlage einfügen';
+    const universal = Object.prototype.hasOwnProperty.call(template.document, 'universalCompose');
+    const actionLabel = replacing ? (universal ? 'Vorlage prüfen' : 'Vorlage und Signatur ersetzen') : 'Vorlage einfügen';
     const actionTitle = view.template.querySelector('strong');
     if (actionTitle) actionTitle.textContent = actionLabel;
     const actionIcon = view.template.querySelector('.action-icon');
     if (actionIcon) actionIcon.textContent = replacing ? '↻' : '＋';
-    view.templateActionDetail.textContent = replacing
-        ? 'Verwaltete Vorlage aktualisieren. Ihr Nachrichtentext und Zitate bleiben erhalten.'
-        : 'Wird oberhalb Ihres Textes eingefügt. Vorhandener Inhalt bleibt erhalten.';
+    view.templateActionDetail.textContent = universal
+        ? (replacing ? 'Aktuelle U2e-Vorlage prüfen. Für einen geänderten Stand einen neuen Entwurf verwenden.'
+            : 'U2e-Vorlage in einen neuen leeren Nachrichtenbereich einsetzen. Zitate bleiben erhalten.')
+        : replacing ? 'Verwaltete Vorlage aktualisieren. Ihr Nachrichtentext und Zitate bleiben erhalten.'
+            : 'Wird oberhalb Ihres Textes eingefügt. Vorhandener Inhalt bleibt erhalten.';
     view.template.setAttribute('aria-label', `${template.name}: ${actionLabel}`);
 }
 
@@ -869,6 +883,9 @@ function clearTemplateChoices(state) {
 }
 
 function snapshotSignatureVersion(payload) {
+    if (payload && Object.prototype.hasOwnProperty.call(payload, 'universalSignature')) {
+        return universalVersion(payload.universalSignature);
+    }
     const version = scalarString(payload?.version?.signature).toLowerCase();
 
     return SIGNATURE_VERSION_PATTERN.test(version) ? version : '';
@@ -962,6 +979,13 @@ function signatureIsCurrent(payload, bodyHtml, composeType) {
         return false;
     }
 
+    if (Object.prototype.hasOwnProperty.call(payload, 'universalSignature')) {
+        const selected = selectedTemplate()?.document;
+        const document = selected && Object.prototype.hasOwnProperty.call(selected, 'universalSignature')
+            ? selected.universalSignature : payload.universalSignature;
+        return universalComposeStateFromBody(document, bodyHtml, composeType).current === true;
+    }
+
     const currentBodyHtml = currentComposeBodyHtml(bodyHtml, composeType);
     if (typeof currentBodyHtml !== 'string') {
         // Fail open: Ohne lesbaren Compose-Body darf ein alter mailboxweiter
@@ -994,9 +1018,18 @@ async function refreshSignatureCurrentState() {
 
     try {
         const [bodyHtml, composeType] = await Promise.all([readBodyHtml(item), readComposeType(item)]);
-        const templateState = templateStateFromBody(bodyHtml, composeType);
-        isCurrent = !templateState.tooLarge && signatureIsCurrent(payload, bodyHtml, composeType);
-        templatePresent = templateState.present;
+        if (Object.prototype.hasOwnProperty.call(payload, 'universalSignature')) {
+            const selected = selectedTemplate()?.document;
+            const document = selected && Object.prototype.hasOwnProperty.call(selected, 'universalSignature')
+                ? selected.universalSignature : payload.universalSignature;
+            const state = universalComposeStateFromBody(document, bodyHtml, composeType);
+            isCurrent = state.current === true;
+            templatePresent = state.present === true && state.kind === 'combined';
+        } else {
+            const templateState = templateStateFromBody(bodyHtml, composeType);
+            isCurrent = !templateState.tooLarge && signatureIsCurrent(payload, bodyHtml, composeType);
+            templatePresent = templateState.present;
+        }
     } catch {
         // Fail open: Wenn Outlook den aktuellen Compose-Zustand nicht liefern
         // kann, muss die sichere Aktualisieren-Aktion sichtbar bleiben.
@@ -1073,7 +1106,8 @@ function syncActionState() {
     view.signature.dataset.available = authenticatedBootstrap ? 'true' : 'false';
     view.template.dataset.available = authenticatedBootstrap && currentTemplate ? 'true' : 'false';
     const item = globalThis.Office?.context?.mailbox?.item;
-    if (item && (isTemplateInsertionBlocked(item) || isStandaloneSignatureInsertionBlocked(item) || hasUncertainWrite(item))) {
+    if (item && (isTemplateInsertionBlocked(item) || isStandaloneSignatureInsertionBlocked(item) || hasUncertainWrite(item)
+        || universalComposeBlocked(item))) {
         view.template.dataset.available = 'false';
         view.signature.dataset.available = 'false';
         view.templateActionDetail.textContent = 'Outlook hat die letzte Einfügung noch nicht eindeutig bestätigt. Nachricht prüfen; nicht erneut einfügen.';
@@ -1273,6 +1307,21 @@ function authenticationWasLost(error) {
 
 function userMessage(error) {
     const code = safeErrorCode(error);
+    if (code === 'U2E_NEW_DRAFT_REQUIRED') {
+        return 'Diese Nachricht enthält bereits eine ältere oder bearbeitete RailTime-Fassung. Bitte für den neuen U2e-Entwurf eine neue Nachricht öffnen. Ihr Text und die Zitate bleiben erhalten.';
+    }
+    if (code === 'U2E_DOCUMENT_INVALID' || code === 'U2E_SOURCE_INVALID') {
+        return 'Der neue RailTime-Entwurf ist nicht vollständig freigegeben. Bitte die Verbindung erneut prüfen; es wurde nichts eingesetzt.';
+    }
+    if (code === 'U2E_HTML_REQUIRED') {
+        return 'Die Nachricht muss im HTML-Format geöffnet sein. RailTime ändert Ihr Nachrichtenformat nicht automatisch.';
+    }
+    if (code === 'U2E_API_UNAVAILABLE' || code === 'U2E_HEADER_UNAVAILABLE') {
+        return 'Diese Outlook-Ansicht unterstützt die sichere U2e-Einfügung nicht vollständig. Bitte eine aktuelle Outlook-Ansicht verwenden; es wurde nichts eingesetzt.';
+    }
+    if (code.startsWith('U2E_') && !code.startsWith('U2E_PROBE_')) {
+        return 'Die U2e-Einfügung ist nicht sicher bestätigt. Bitte den Entwurf und den Diagnosebericht prüfen; RailTime wiederholt den Schreibvorgang nicht automatisch.';
+    }
     if (code === 'U2E_PROBE_UNCONFIRMED' || code === 'U2E_PROBE_ALREADY_ATTEMPTED') {
         return 'Der U2e-Probeversuch bleibt gesperrt. Bitte den Entwurf und den Diagnosebericht prüfen.';
     }
@@ -1548,7 +1597,7 @@ async function withAuthenticatedBootstrap(button, callback) {
     try {
         const target = captureComposeTarget();
         if (isTemplateInsertionBlocked(target.item) || isStandaloneSignatureInsertionBlocked(target.item) || hasUncertainWrite(target.item)
-            || u2eTransportProbeReport(target.item)?.attempted === true) {
+            || u2eTransportProbeReport(target.item)?.attempted === true || universalComposeBlocked(target.item)) {
             throw codedError('TEMPLATE_INSERT_UNCERTAIN');
         }
         const accessToken = await diagnoseStep('authentication', () => acquireAccessToken(currentConfig, true));
@@ -1578,6 +1627,23 @@ async function updateSignature(button) {
 
     await withAuthenticatedBootstrap(button, async (bootstrap, target) => {
         const item = assertComposeTarget(target);
+        const selectedSignature = selectedTemplate()?.document;
+        const universalSignature = selectedSignature && Object.prototype.hasOwnProperty.call(selectedSignature, 'universalSignature')
+            ? selectedSignature.universalSignature : bootstrap.universalSignature;
+        if (Object.prototype.hasOwnProperty.call(bootstrap, 'universalSignature')
+            || selectedSignature && Object.prototype.hasOwnProperty.call(selectedSignature, 'universalSignature')) {
+            const document = validateUniversalComposeDocument(universalSignature);
+            if (document.kind !== 'signature') throw codedError('U2E_DOCUMENT_INVALID');
+            const applied = await diagnoseStep('u2e-signature', () => insertUniversalComposeDocument(Office, item, document, {
+                binding: bootstrap.binding, beforeWrite: () => assertWriteTarget(target, bootstrap.binding),
+            }));
+            assertComposeTarget(target);
+            if (applied.status === 'applied') rememberConfirmedInsertion(item, 'signature', bootstrap.binding);
+            await refreshSignatureCurrentState();
+            assertComposeTarget(target);
+            setStatus('success', 'Signatur ist aktuell', 'Der freigegebene U2e-Stand wurde sicher geprüft.');
+            return;
+        }
         const state = await diagnoseStep('compose-preflight', () => readTemplateState(Office, item, { forceBody: true }));
         assertComposeTarget(target);
         if (state.uncertain) throw codedError('TEMPLATE_INSERT_UNCERTAIN');
@@ -1638,6 +1704,39 @@ async function insertTemplate(button, { replaceOnly = false, expectedTarget = nu
 
         if (!templateChoice) {
             throw codedError('TEMPLATE_SELECTION_MISSING');
+        }
+
+        if (Object.prototype.hasOwnProperty.call(templateChoice.document, 'universalCompose')) {
+            const document = validateUniversalComposeDocument(templateChoice.document.universalCompose);
+            if (document.kind !== 'combined') throw codedError('U2E_DOCUMENT_INVALID');
+            if (replaceOnly) {
+                const [html, type] = await Promise.all([readBodyHtml(item), readComposeType(item)]);
+                assertComposeTarget(target);
+                const current = universalComposeStateFromBody(document, html, type);
+                if (!current.readable) throw codedError('COMPOSE_BODY_UNREADABLE');
+                if (!current.present) {
+                    result = { applied: false, reason: 'no-managed-template' };
+                    setStatus('ready', 'Anzeige gespeichert', 'Zum Anwenden den neuen U2e-Entwurf in einer neuen Nachricht einfügen.');
+                    return;
+                }
+            }
+            const applied = await diagnoseStep('u2e-template', () => insertUniversalComposeDocument(Office, item, document, {
+                binding: bootstrap.binding, beforeWrite: () => assertWriteTarget(target, bootstrap.binding),
+            }));
+            assertComposeTarget(target);
+            if (applied.status === 'applied') {
+                rememberConfirmedInsertion(item, 'template', bootstrap.binding);
+                rememberConfirmedInsertion(item, 'signature', bootstrap.binding);
+            }
+            signatureStateRevision += 1;
+            observedComposeItem = item;
+            taskpaneState.templatePresent = true;
+            taskpaneState.signatureCurrent = true;
+            taskpaneState.signatureVersion = document.version;
+            result = { applied: applied.status === 'applied', reason: applied.status };
+            renderSelectedTemplate();
+            setStatus('success', applied.status === 'already-present' ? 'Vorlage ist aktuell' : 'U2e-Vorlage eingefügt', templateChoice.name);
+            return;
         }
 
         const combinedDocument = combinedComposeDocument(templateChoice.document);
@@ -1751,9 +1850,11 @@ async function showDiagnosticReport({ readV15 = false } = {}) {
     if (headProbe) report.headTransportProbe = headProbe;
     const u2eProbe = u2eTransportProbeReport(globalThis.Office?.context?.mailbox?.item);
     if (u2eProbe) report.u2eTransportProbe = u2eProbe;
+    const universalReport = universalComposeReport(globalThis.Office?.context?.mailbox?.item);
+    if (universalReport) report.universalCompose = universalReport;
     const uncertain = insertionBlocked() || ['TEMPLATE_LAYOUT_UNCONFIRMED', 'SIGNATURE_LAYOUT_UNCONFIRMED',
         'TEMPLATE_INSERT_UNCERTAIN', 'SIGNATURE_INSERT_UNCERTAIN', 'INLINE_ATTACHMENT_UNCERTAIN'].includes(safeErrorCode(lastActionError));
-    if (readV15 && boundMailbox && uncertain && !taskpaneState.busy) {
+    if (readV15 && boundMailbox && uncertain && !taskpaneState.busy && !universalReport) {
         report.v15Readback = await diagnoseUncertainV15Readback(Office, diagnosticTarget.item, {
             requested: true, uncertain: true, beforeRead: () => assertWriteTarget(diagnosticTarget, diagnosticPayload.binding),
         });
