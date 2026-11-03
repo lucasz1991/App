@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import * as automaticPolicy from '../../resources/js/outlook-addin/automatic-compose-policy.js';
+import * as universal from '../../resources/js/outlook-addin/u2e-compose.js';
+import * as telemetry from '../../resources/js/outlook-addin/u2e-telemetry.js';
 import { isStandaloneSignatureInsertionBlocked } from '../../resources/js/outlook-addin/compose-template.js';
 
 // Exercise the real event coordinator with synthetic auth/Office boundaries.
@@ -26,7 +28,7 @@ function runtime({ enabled = false, composeType = 'newMail', mobile = false, bin
                 mailbox: { item, diagnostics: { hostName: mobile ? 'OutlookIOS' : 'OutlookWebApp', hostVersion: '5.2635.0' } } },
             onReady() {}, actions: { associate() {} },
         },
-        ...automaticPolicy,
+        ...automaticPolicy, ...universal, ...telemetry,
         isStandaloneSignatureInsertionBlocked,
         console, setTimeout, clearTimeout,
         __payload: { automaticInsertionEnabled: enabled,

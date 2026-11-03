@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
+import { reportUniversalFailure } from '../../resources/js/outlook-addin/u2e-telemetry.js';
 import { automaticComposeDecision } from '../../resources/js/outlook-addin/automatic-compose-policy.js';
 
 const runtime = await readFile(new URL('../../resources/js/outlook-addin/runtime.js', import.meta.url), 'utf8');
@@ -50,6 +51,8 @@ function automaticFixture(mode = 'both', extra = {}) {
         isStandaloneSignatureInsertionBlocked: () => false,
         hasUncertainWrite: () => false,
         universalComposeBlocked: () => false,
+        universalComposeReport: () => null,
+        reportUniversalFailure,
         validateUniversalComposeDocument: document => { calls.validate.push(document); if (!document || typeof document !== 'object') throw codeError('U2E_DOCUMENT_INVALID'); return document; },
         insertUniversalComposeDocument: async (office, target, document, options) => {
             calls.universal.push({ office, target, document, options });
@@ -148,7 +151,7 @@ function paneFixture(extra = {}) {
     const context = {
         taskpaneState: state,
         setStatus: (...args) => calls.states.push(args),
-        withAuthenticatedBootstrap: async (button, action) => action(bootstrap, target),
+        withAuthenticatedBootstrap: async (button, action) => action(bootstrap, target, (_source, operation) => operation()),
         assertComposeTarget: value => value.item,
         assertWriteTarget: async value => value.item,
         selectedTemplate: () => choice,

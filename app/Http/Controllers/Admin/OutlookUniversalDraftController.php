@@ -10,14 +10,16 @@ use App\Support\EmailTemplateBuilder;
 use App\Support\OutlookAddin\OutlookAddinUserSnapshotStore;
 use App\Support\OutlookAddin\OutlookClientPresentation;
 use App\Support\OutlookAddin\OutlookStaticLinkedTestProfiles;
+use App\Support\OutlookAddin\OutlookUniversalDiagnostics;
 use App\Support\OutlookAddin\OutlookUniversalPayloadPresentation;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Throwable;
 
 /** Read-only review/download of the same admitted U2e projection as compose. */
 final class OutlookUniversalDraftController extends Controller
 {
-    public function __invoke(Request $request, OutlookAddinUserSnapshotStore $snapshots, OutlookUniversalPayloadPresentation $projection): Response
+    public function __invoke(Request $request, OutlookAddinUserSnapshotStore $snapshots, OutlookUniversalPayloadPresentation $projection, OutlookUniversalDiagnostics $diagnostics): Response
     {
         $actor = $request->user();
         abort_unless($actor instanceof User && $actor->isAdmin(), 403);
@@ -25,12 +27,35 @@ final class OutlookUniversalDraftController extends Controller
             'mode' => ['sometimes', 'string', 'in:editor,send'],
             'template' => ['nullable', 'uuid'],
             'download' => ['sometimes', 'boolean'],
+            'status' => ['sometimes', 'boolean'],
+            'user' => ['sometimes', 'integer', 'min:1', 'exists:users,id'],
         ]);
         $mode = $input['mode'] ?? 'send';
-        $canonical = OutlookStaticLinkedTestProfiles::payload(
-            OutlookClientPresentation::payload($snapshots->currentForUser($actor)), $actor,
-        );
-        $draft = $projection->draft($canonical, (new EmailTemplateBuilder($actor))->profileValues(), $input['template'] ?? null, $mode);
+        $subject = isset($input['user']) ? User::query()->findOrFail($input['user']) : $actor;
+        try {
+            $canonical = OutlookStaticLinkedTestProfiles::payload(
+                OutlookClientPresentation::payload($snapshots->currentForUser($subject)), $subject,
+            );
+            $review = $projection->review($canonical, (new EmailTemplateBuilder($subject))->profileValues(), $input['template'] ?? null, $mode, $subject);
+        } catch (Throwable) {
+            $review = ['draft' => null, 'admission' => ['status' => 'fallback', 'reason' => 'desktop_unavailable',
+                'phase' => 'desktop', 'code' => 'U2E_DESKTOP_UNAVAILABLE', 'sourceLength' => null, 'outputLength' => null]];
+            $diagnostics->recordAdmission($subject, $review['admission']);
+        }
+        $draft = $review['draft'];
+        $liveAdmission = OutlookUniversalPayloadPresentation::isPilot($subject) ? $review['admission']
+            : ['status' => 'fallback', 'reason' => 'outside_pilot', 'phase' => 'pilot', 'code' => 'U2E_OUTSIDE_PILOT',
+                'sourceLength' => null, 'outputLength' => null];
+        if (! OutlookUniversalPayloadPresentation::isPilot($subject)) {
+            $diagnostics->recordAdmission($subject, $liveAdmission);
+        }
+        if ($request->boolean('status')) {
+            return response()->view('mail-documents.u2e-status', [
+                'subject' => $subject, 'users' => User::query()->whereIn('role', ['admin', 'staff'])->orderBy('name')->get(['id', 'name', 'email']),
+                'admission' => $liveAdmission, 'reviewAdmission' => $review['admission'], 'history' => $diagnostics->statusFor($subject),
+                'mode' => $mode, 'templateId' => $input['template'] ?? null, 'previewAvailable' => $draft !== null,
+            ], 200, ['Cache-Control' => 'private, no-store, max-age=0', 'Referrer-Policy' => 'no-referrer', 'X-Content-Type-Options' => 'nosniff']);
+        }
         abort_if($draft === null, 422, 'Die ausgewaehlte Vorlage kann nicht eindeutig als U2e-Entwurf dargestellt werden.');
 
         $html = $draft['html'];

@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Support\EmailTemplateBuilder;
 use App\Services\DeviceManagement\MicrosoftDeviceSyncScheduler;
+use App\Support\EmailTemplateBuilder;
 use App\Support\OutlookAddin\EntraAccessTokenValidator;
 use App\Support\OutlookAddin\OutlookAddinAutomaticInsertionPolicy;
 use App\Support\OutlookAddin\OutlookAddinException;
@@ -139,7 +139,10 @@ final class OutlookAddinBootstrapController extends Controller
                     ? OutlookStaticLinkedTestProfiles::payload(OutlookClientPresentation::payload($universalSource), $resolved['user'])
                     : $payload;
                 $payload = app(OutlookUniversalPayloadPresentation::class)->append($payload, $universalDesktop,
-                    (new EmailTemplateBuilder($resolved['user']))->profileValues(), $resolved['user']);
+                    (new EmailTemplateBuilder($resolved['user']))->profileValues(), $resolved['user'], [
+                        'host' => (string) $request->header('X-RailTime-Outlook-Host'),
+                        'mailbox' => $resolved['binding']['mailboxAddress'],
+                    ]);
             }
 
             // Request-fresh preference, outside reusable canonical snapshots.

@@ -33,6 +33,7 @@ import { headProbeContextAvailable, u2eProbeContextAvailable } from './head-tran
 import { insertU2eTransportProbe, u2eTransportProbeReport } from './u2e-transport-probe.js';
 import { validateUniversalComposeDocument, insertUniversalComposeDocument, universalComposeBlocked,
     universalComposeReport, universalComposeStateFromBody } from './u2e-compose.js';
+import { reportUniversalFailure, universalComposeHost } from './u2e-telemetry.js';
 import { bindAutomaticPreferencesView, createAccountPreferencesSession, normalizeAutomaticPreferences } from './automatic-preferences-view.js';
 import { bindWordingPreferencesView, bindTemplateChoiceView, createAccountOptionsSession,
     normalizeWordingPreferences, normalizeTemplateChoicePreferences } from './account-options-view.js';
@@ -317,6 +318,8 @@ function validateConfig(payload) {
         }),
         endpoints: Object.freeze({
             bootstrap: requiredHttpsUrl(payload.endpoints?.bootstrap, 'CONFIG_BOOTSTRAP_URL_INVALID'),
+            diagnostics: payload.endpoints?.diagnostics
+                ? requiredHttpsUrl(payload.endpoints.diagnostics, 'CONFIG_DIAGNOSTICS_URL_INVALID') : null,
             preferences: payload.endpoints?.preferences
                 ? requiredHttpsUrl(payload.endpoints.preferences, 'CONFIG_PREFERENCES_URL_INVALID') : null,
             accountPreferences: payload.endpoints?.accountPreferences
@@ -473,6 +476,7 @@ async function loadBootstrap(config, accessToken, item = null) {
             Accept: 'application/json',
             Authorization: `Bearer ${accessToken}`,
             'X-RailTime-Outlook-Context': 'taskpane',
+            'X-RailTime-Outlook-Host': universalComposeHost(),
             'X-RailTime-Outlook-Mailbox': mailboxAddress(),
             'X-RailTime-Outlook-Sender': sender,
             'X-RailTime-Compose-Contract': 'native-signature-v1',
@@ -1612,7 +1616,17 @@ async function withAuthenticatedBootstrap(button, callback) {
         signatureStateRevision += 1;
         await acceptBootstrap(bootstrap, { inspectBody: false });
         setBusy(true, button);
-        await callback(bootstrap, target);
+        await callback(bootstrap, target, async (source, operation) => {
+            try {
+                return await operation();
+            } catch (error) {
+                void reportUniversalFailure({ config: currentConfig, accessToken, item: target.item,
+                    binding: bootstrap.binding, context: 'taskpane', error, report: universalComposeReport(target.item),
+                    sourceLength: typeof source?.html === 'string' ? source.html.length : null,
+                    isCurrent: () => { try { return assertComposeTarget(target) === target.item; } catch { return false; } } });
+                throw error;
+            }
+        });
         lastActionError = null;
         setBusy(false);
         syncActionState();
@@ -1625,24 +1639,26 @@ async function updateSignature(button) {
     if (taskpaneState.busy) return;
     setStatus('working', 'Signatur wird aktualisiert …', 'Bilder werden sicher in die Nachricht eingebettet.');
 
-    await withAuthenticatedBootstrap(button, async (bootstrap, target) => {
+    await withAuthenticatedBootstrap(button, async (bootstrap, target, universalOperation) => {
         const item = assertComposeTarget(target);
         const selectedSignature = selectedTemplate()?.document;
         const universalSignature = selectedSignature && Object.prototype.hasOwnProperty.call(selectedSignature, 'universalSignature')
             ? selectedSignature.universalSignature : bootstrap.universalSignature;
         if (Object.prototype.hasOwnProperty.call(bootstrap, 'universalSignature')
             || selectedSignature && Object.prototype.hasOwnProperty.call(selectedSignature, 'universalSignature')) {
-            const document = validateUniversalComposeDocument(universalSignature);
-            if (document.kind !== 'signature') throw codedError('U2E_DOCUMENT_INVALID');
-            const applied = await diagnoseStep('u2e-signature', () => insertUniversalComposeDocument(Office, item, document, {
-                binding: bootstrap.binding, beforeWrite: () => assertWriteTarget(target, bootstrap.binding),
-            }));
-            assertComposeTarget(target);
-            if (applied.status === 'applied') rememberConfirmedInsertion(item, 'signature', bootstrap.binding);
-            await refreshSignatureCurrentState();
-            assertComposeTarget(target);
-            setStatus('success', 'Signatur ist aktuell', 'Der freigegebene U2e-Stand wurde sicher geprüft.');
-            return;
+            return universalOperation(universalSignature, async () => {
+                const document = validateUniversalComposeDocument(universalSignature);
+                if (document.kind !== 'signature') throw codedError('U2E_DOCUMENT_INVALID');
+                const applied = await diagnoseStep('u2e-signature', () => insertUniversalComposeDocument(Office, item, document, {
+                    binding: bootstrap.binding, beforeWrite: () => assertWriteTarget(target, bootstrap.binding),
+                }));
+                assertComposeTarget(target);
+                if (applied.status === 'applied') rememberConfirmedInsertion(item, 'signature', bootstrap.binding);
+                await refreshSignatureCurrentState();
+                assertComposeTarget(target);
+                setStatus('success', 'Signatur ist aktuell', 'Der freigegebene U2e-Stand wurde sicher geprüft.');
+                return;
+            });
         }
         const state = await diagnoseStep('compose-preflight', () => readTemplateState(Office, item, { forceBody: true }));
         assertComposeTarget(target);
@@ -1696,7 +1712,7 @@ async function insertTemplate(button, { replaceOnly = false, expectedTarget = nu
         selected ? `${selected.name} wird sicher geladen.` : 'Die aktuelle Veröffentlichung wird geladen.',
     );
 
-    await withAuthenticatedBootstrap(button, async (bootstrap, target) => {
+    await withAuthenticatedBootstrap(button, async (bootstrap, target, universalOperation) => {
         const item = assertComposeTarget(target);
         if (expectedTarget) assertComposeTarget(expectedTarget);
         if (expectedAccount && bootstrap.binding?.mailboxAddress !== expectedAccount) throw codedError('MAILBOX_MISMATCH');
@@ -1707,36 +1723,38 @@ async function insertTemplate(button, { replaceOnly = false, expectedTarget = nu
         }
 
         if (Object.prototype.hasOwnProperty.call(templateChoice.document, 'universalCompose')) {
-            const document = validateUniversalComposeDocument(templateChoice.document.universalCompose);
-            if (document.kind !== 'combined') throw codedError('U2E_DOCUMENT_INVALID');
-            if (replaceOnly) {
-                const [html, type] = await Promise.all([readBodyHtml(item), readComposeType(item)]);
-                assertComposeTarget(target);
-                const current = universalComposeStateFromBody(document, html, type);
-                if (!current.readable) throw codedError('COMPOSE_BODY_UNREADABLE');
-                if (!current.present) {
-                    result = { applied: false, reason: 'no-managed-template' };
-                    setStatus('ready', 'Anzeige gespeichert', 'Zum Anwenden den neuen U2e-Entwurf in einer neuen Nachricht einfügen.');
-                    return;
+            return universalOperation(templateChoice.document.universalCompose, async () => {
+                const document = validateUniversalComposeDocument(templateChoice.document.universalCompose);
+                if (document.kind !== 'combined') throw codedError('U2E_DOCUMENT_INVALID');
+                if (replaceOnly) {
+                    const [html, type] = await Promise.all([readBodyHtml(item), readComposeType(item)]);
+                    assertComposeTarget(target);
+                    const current = universalComposeStateFromBody(document, html, type);
+                    if (!current.readable) throw codedError('COMPOSE_BODY_UNREADABLE');
+                    if (!current.present) {
+                        result = { applied: false, reason: 'no-managed-template' };
+                        setStatus('ready', 'Anzeige gespeichert', 'Zum Anwenden den neuen U2e-Entwurf in einer neuen Nachricht einfügen.');
+                        return;
+                    }
                 }
-            }
-            const applied = await diagnoseStep('u2e-template', () => insertUniversalComposeDocument(Office, item, document, {
-                binding: bootstrap.binding, beforeWrite: () => assertWriteTarget(target, bootstrap.binding),
-            }));
-            assertComposeTarget(target);
-            if (applied.status === 'applied') {
-                rememberConfirmedInsertion(item, 'template', bootstrap.binding);
-                rememberConfirmedInsertion(item, 'signature', bootstrap.binding);
-            }
-            signatureStateRevision += 1;
-            observedComposeItem = item;
-            taskpaneState.templatePresent = true;
-            taskpaneState.signatureCurrent = true;
-            taskpaneState.signatureVersion = document.version;
-            result = { applied: applied.status === 'applied', reason: applied.status };
-            renderSelectedTemplate();
-            setStatus('success', applied.status === 'already-present' ? 'Vorlage ist aktuell' : 'U2e-Vorlage eingefügt', templateChoice.name);
-            return;
+                const applied = await diagnoseStep('u2e-template', () => insertUniversalComposeDocument(Office, item, document, {
+                    binding: bootstrap.binding, beforeWrite: () => assertWriteTarget(target, bootstrap.binding),
+                }));
+                assertComposeTarget(target);
+                if (applied.status === 'applied') {
+                    rememberConfirmedInsertion(item, 'template', bootstrap.binding);
+                    rememberConfirmedInsertion(item, 'signature', bootstrap.binding);
+                }
+                signatureStateRevision += 1;
+                observedComposeItem = item;
+                taskpaneState.templatePresent = true;
+                taskpaneState.signatureCurrent = true;
+                taskpaneState.signatureVersion = document.version;
+                result = { applied: applied.status === 'applied', reason: applied.status };
+                renderSelectedTemplate();
+                setStatus('success', applied.status === 'already-present' ? 'Vorlage ist aktuell' : 'U2e-Vorlage eingefügt', templateChoice.name);
+                return;
+            });
         }
 
         const combinedDocument = combinedComposeDocument(templateChoice.document);

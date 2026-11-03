@@ -129,6 +129,7 @@ final class OutlookAddinConfiguration
             ],
             'endpoints' => [
                 'bootstrap' => $baseUrl !== '' ? $baseUrl.'/api/outlook-addin/bootstrap' : '',
+                'diagnostics' => $baseUrl !== '' ? $baseUrl.'/api/outlook-addin/diagnostics' : '',
                 'preferences' => $baseUrl !== '' ? $baseUrl.'/api/outlook-addin/preferences' : '',
                 'accountPreferences' => $baseUrl !== '' ? $baseUrl.'/api/outlook-addin/account-preferences' : '',
                 'accountWording' => $baseUrl !== '' ? $baseUrl.'/api/outlook-addin/account-wording' : '',

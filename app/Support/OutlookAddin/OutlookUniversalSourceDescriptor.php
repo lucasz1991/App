@@ -21,29 +21,41 @@ final class OutlookUniversalSourceDescriptor
      */
     public static function projectFromCompiled(string $html, array $profileValues, string $sourceHash): ?array
     {
+        return self::inspectFromCompiled($html, $profileValues, $sourceHash)['projection'];
+    }
+
+    /** The diagnostic contains finite categories and counts only; no source/profile bytes. */
+    public static function inspectFromCompiled(string $html, array $profileValues, string $sourceHash): array
+    {
+        $sourceLength = mb_check_encoding($html, 'UTF-8') ? intdiv(strlen(mb_convert_encoding($html, 'UTF-16LE', 'UTF-8')), 2) : strlen($html);
+        $phase = 'source';
+        $reason = 'source_invalid';
         try {
             if (strlen($html) > 500000 || ! mb_check_encoding($html, 'UTF-8') || str_contains($html, "\0")
                 || ! preg_match('/\A[0-9a-f]{64}\z/', $sourceHash)) {
-                return null;
+                return self::rejection('source_invalid', $phase, $sourceLength);
             }
+            $phase = 'source_contract';
             $v17 = substr_count($html, 'data-rt-desktop-flow="'.OutlookCompactReferencePresentation::FLOW.'"');
             $v16 = substr_count($html, 'data-rt-desktop-flow="'.OutlookV30ReferencePresentation::FLOW.'"');
             if ($v17 + $v16 !== 1) {
-                return null;
+                return self::rejection('source_family_unsupported', $phase, $sourceLength);
             }
             $admitted = OutlookCompactReferencePresentation::document($html);
             if ($v17 === 1 && $admitted !== $html
                 || substr_count($admitted, 'data-rt-desktop-flow="'.OutlookCompactReferencePresentation::FLOW.'"') !== 1) {
-                return null;
+                return self::rejection('source_contract_invalid', $phase, $sourceLength);
             }
             $html = $admitted;
+            $phase = 'profile_values';
             foreach (['VORNAME_NACHNAME', 'POSITION', 'E_MAIL', 'DURCHWAHL', 'DURCHWAHL_TEL', 'MOBIL', 'MOBIL_TEL',
                 'FIRMENNAME', 'FIRMEN_WEBSITE_HREF', 'FIRMEN_WEBSITE_LABEL', 'FIRMENSTRASSE', 'FIRMEN_PLZ_ORT'] as $key) {
                 if (! is_string($profileValues[$key] ?? null) || ! mb_check_encoding($profileValues[$key], 'UTF-8')
                     || preg_match('/[\x00-\x1f\x7f]/', $profileValues[$key])) {
-                    return null;
+                    return self::rejection('profile_value_invalid', $phase, $sourceLength);
                 }
             }
+            $phase = 'source_parse';
             $dom = new DOMDocument('1.0', 'UTF-8');
             $previous = libxml_use_internal_errors(true);
             try {
@@ -53,9 +65,11 @@ final class OutlookUniversalSourceDescriptor
                 libxml_use_internal_errors($previous);
             }
             if (! $loaded) {
-                return null;
+                return self::rejection('source_parse_failed', $phase, $sourceLength);
             }
             $xpath = new DOMXPath($dom);
+            $phase = 'profile_identity';
+            $reason = 'source_structure_invalid';
             $directCell = self::one($xpath, 'rt-v17-direct');
             $company = self::one($xpath, 'rt-v17-company');
             foreach (['VORNAME_NACHNAME' => 'rt-personal-name', 'POSITION' => 'rt-personal-role'] as $key => $class) {
@@ -66,17 +80,20 @@ final class OutlookUniversalSourceDescriptor
                     }
                 }
                 if (self::normalize($valueNode->textContent) !== self::normalize($profileValues[$key])) {
-                    return null;
+                    return self::rejection('profile_identity_mismatch', $phase, $sourceLength);
                 }
             }
+            $phase = 'profile_company';
             $companyTexts = [];
             foreach ($xpath->query('.//*[contains(concat(" ",normalize-space(@class)," ")," rt-company-contact-text ")]', $company) as $contact) {
                 $companyTexts[] = self::normalize(self::textWithBreaks($contact));
             }
             if (! in_array(self::normalize($profileValues['FIRMEN_WEBSITE_LABEL']), $companyTexts, true)
                 || ! in_array(self::normalize($profileValues['FIRMENSTRASSE'].' '.$profileValues['FIRMEN_PLZ_ORT']), $companyTexts, true)) {
-                return null;
+                return self::rejection('profile_company_mismatch', $phase, $sourceLength);
             }
+            $phase = 'profile_contacts';
+            $reason = 'profile_contact_mismatch';
             self::contains($directCell, $profileValues['E_MAIL']);
             $direct = [['type' => 'email', 'value' => $profileValues['E_MAIL'], 'label' => $profileValues['E_MAIL']]];
             foreach ([['DURCHWAHL', 'DURCHWAHL_TEL'], ['MOBIL', 'MOBIL_TEL']] as [$label, $value]) {
@@ -94,19 +111,22 @@ final class OutlookUniversalSourceDescriptor
             sort($actualDirectLinks);
             sort($expectedDirectLinks);
             if ($actualDirectLinks !== $expectedDirectLinks) {
-                return null;
+                return self::rejection('profile_contact_links_mismatch', $phase, $sourceLength);
             }
+            $phase = 'profile_website';
             $webLinks = array_values(array_filter(iterator_to_array($xpath->query('.//a[@href]', $company)), static fn (DOMElement $node): bool => self::normalize($node->textContent) === self::normalize($profileValues['FIRMEN_WEBSITE_LABEL'])));
             if (count($webLinks) !== 1 || $webLinks[0]->getAttribute('href') !== $profileValues['FIRMEN_WEBSITE_HREF']) {
-                return null;
+                return self::rejection('profile_website_mismatch', $phase, $sourceLength);
             }
+            $phase = 'dispatch';
+            $reason = 'dispatch_links_invalid';
             $card = self::one($xpath, 'rt-v17-dispatch-block');
             $links = [];
             foreach ($xpath->query('.//a[@href]', $card) as $link) {
                 $links[$link->getAttribute('href')] = true;
             }
             if (count($links) !== 3) {
-                return null;
+                return self::rejection('dispatch_links_invalid', $phase, $sourceLength);
             }
             $select = static function (string $prefix) use ($links): string {
                 $found = array_values(array_filter(array_keys($links), static fn (string $url): bool => str_starts_with($url, $prefix)));
@@ -122,22 +142,26 @@ final class OutlookUniversalSourceDescriptor
                 $phoneLabel = $profileValues['NOTFALLNUMMER'];
                 if (preg_replace('/[^0-9]/', '', $phoneLabel) !== preg_replace('/[^0-9]/', '', $phone)
                     || (isset($profileValues['NOTFALLNUMMER_TEL']) && $profileValues['NOTFALLNUMMER_TEL'] !== $phone)) {
-                    return null;
+                    return self::rejection('profile_dispatch_mismatch', $phase, $sourceLength);
                 }
             }
+            $phase = 'legal';
+            $reason = 'legal_structure_invalid';
             $legal = self::one($xpath, 'rt-v17-legal-cell');
             $legalSpans = $xpath->query('./div/span', $legal);
             if ($legalSpans->length !== 2) {
-                return null;
+                return self::rejection('legal_structure_invalid', $phase, $sourceLength);
             }
             $registration = self::normalize($legalSpans->item(0)->textContent);
             $confidentiality = self::normalize($legalSpans->item(1)->textContent);
             if ($registration === '' || $confidentiality === '') {
-                return null;
+                return self::rejection('legal_text_missing', $phase, $sourceLength);
             }
+            $phase = 'author';
+            $reason = 'author_structure_invalid';
             [$author, $options] = self::author($html, $profileValues['VORNAME_NACHNAME']);
 
-            return ['descriptor' => [
+            $projection = ['descriptor' => [
                 'sourceHash' => $sourceHash, 'kind' => 'employee',
                 'identity' => ['name' => $profileValues['VORNAME_NACHNAME'], 'role' => $profileValues['POSITION']],
                 'direct' => $direct,
@@ -147,10 +171,19 @@ final class OutlookUniversalSourceDescriptor
                 'dispatch' => ['email' => substr($select('mailto:'), 7), 'whatsapp' => $select('https://wa.me/'), 'phone' => $phone, 'phoneLabel' => $phoneLabel],
             ], 'authorContent' => new HtmlString($author), 'options' => $options,
                 'sourceAuthorContentHash' => hash('sha256', $author)];
+
+            return ['projection' => $projection, 'diagnostic' => ['status' => 'admitted', 'reason' => 'admitted',
+                'phase' => 'source', 'code' => 'U2E_ADMITTED', 'sourceLength' => $sourceLength, 'outputLength' => null]];
         } catch (Throwable) {
             // An unknown authored source is not permission to approximate it.
-            return null;
+            return self::rejection($reason, $phase, $sourceLength);
         }
+    }
+
+    private static function rejection(string $reason, string $phase, int $sourceLength): array
+    {
+        return ['projection' => null, 'diagnostic' => ['status' => 'fallback', 'reason' => $reason,
+            'phase' => $phase, 'code' => 'U2E_SOURCE_REJECTED', 'sourceLength' => $sourceLength, 'outputLength' => null]];
     }
 
     private static function author(string $html, string $name): array

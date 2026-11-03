@@ -28,6 +28,7 @@
 >
     @unless ($editorRequested)
         <x-slot:overviewActions>
+            <a href="{{ route('admin.mail-documents.u2e-draft', ['status' => 1]) }}" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-rt-border px-3.5 text-sm font-semibold text-rt-text dark:border-rt-dark-border dark:text-rt-dark-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red" data-u2e-status-link>U2e-Status</a>
             <span
                 x-data="{ canCreate: @js($currentKind === \App\Enums\MailDocumentKind::Template->value && app(\App\Support\OutlookAddin\OutlookTemplateLibrary::class)->available()) }"
                 x-on:mail-library-toolbar-state.window="canCreate = Boolean($event.detail.canCreate)"

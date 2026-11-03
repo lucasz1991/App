@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\OutlookAddinAccountPreferencesController;
 use App\Http\Controllers\Api\OutlookAddinAccountTemplateChoicesController;
 use App\Http\Controllers\Api\OutlookAddinAccountWordingController;
 use App\Http\Controllers\Api\OutlookAddinBootstrapController;
+use App\Http\Controllers\Api\OutlookAddinDiagnosticsController;
 use App\Http\Controllers\Api\OutlookAddinPreferencesController;
 use App\Http\Controllers\Api\WorkTimeV2Controller;
 use App\Http\Controllers\WorkTimeTerminalController;
@@ -69,6 +70,10 @@ Route::prefix('v2/operations')->name('api.operations.v2.')->middleware([Operatio
 Route::get('/outlook-addin/bootstrap', OutlookAddinBootstrapController::class)
     ->middleware('throttle:outlook-addin')
     ->name('api.outlook-addin.bootstrap');
+
+Route::post('/outlook-addin/diagnostics', OutlookAddinDiagnosticsController::class)
+    ->middleware('throttle:outlook-addin')
+    ->name('api.outlook-addin.diagnostics');
 
 Route::patch('/outlook-addin/preferences', OutlookAddinPreferencesController::class)
     ->middleware('throttle:outlook-addin')

@@ -328,7 +328,8 @@ test('outlook taskpane keeps templates visible and hides resolved maintenance ac
     assert.match(taskpane, /function handleMailboxItemChanged\(\) \{[\s\S]*?invalidateBootstrap\('locked'\);/);
     assert.match(taskpane, /Office\.EventType\.ItemChanged,\s*handleMailboxItemChanged,\s*\(result\) =>/);
     assert.match(taskpane, /mailboxItemRevision \+= 1;[\s\S]*?taskpaneState\.templatePresent = false;\s*invalidateBootstrap\('locked'\);/);
-    assert.match(taskpane, /const target = captureComposeTarget\(\);[\s\S]*?await callback\(bootstrap, target\);/);
+    // The third argument reports U2e metadata using this authenticated operation's token and target.
+    assert.match(taskpane, /const target = captureComposeTarget\(\);[\s\S]*?await callback\(bootstrap, target, async \(source, operation\) =>/);
     assert.match(taskpane, /function assertComposeTarget\(target\) \{[\s\S]*?target\.revision !== mailboxItemRevision[\s\S]*?Office\.context\.mailbox\.item !== target\.item[\s\S]*?throw codedError\('ITEM_CHANGED'\);/);
     assert.match(taskpane, /await attachInlineMedia\(target, signature\.media, bootstrap\.binding\);\s*await assertWriteTarget\(target, bootstrap\.binding\);\s*await setSignature\(item, signature\.html\);/);
     assert.match(taskpane, /prependTemplate\(Office, item, template\.html, \(\) => assertWriteTarget\(target, bootstrap\.binding\), \{\s*media,\s*beforeInsert: async \(\) =>/);
@@ -358,6 +359,7 @@ const composeLibrary = {
     ...await import('../../resources/js/outlook-addin/automatic-preferences-view.js'),
     ...await import('../../resources/js/outlook-addin/account-options-view.js'),
     ...await import('../../resources/js/outlook-addin/u2e-compose.js'),
+    ...await import('../../resources/js/outlook-addin/u2e-telemetry.js'),
 };
 const testMailboxBinding = {
     schema: 1, mailboxAddress: 'employee@example.test', senderAddress: 'employee@example.test',

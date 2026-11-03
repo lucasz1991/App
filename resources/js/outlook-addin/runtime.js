@@ -26,7 +26,8 @@ import { readComposeSender, assertMailboxBinding } from './mailbox-guard.js';
 import { diagnoseStep, recordDiagnostic } from './diagnostics.js';
 import { confirmedOfficeWrite, hasUncertainWrite, wasSignatureWriteConfirmed } from './office-write.js';
 import { automaticComposeDecision, automaticTemplateOnly, readAutomaticComposeType } from './automatic-compose-policy.js';
-import { validateUniversalComposeDocument, insertUniversalComposeDocument, universalComposeBlocked } from './u2e-compose.js';
+import { validateUniversalComposeDocument, insertUniversalComposeDocument, universalComposeBlocked, universalComposeReport } from './u2e-compose.js';
+import { reportUniversalFailure, universalComposeHost } from './u2e-telemetry.js';
 
 const CONFIG_META_NAME = 'railtime-outlook-config-url';
 const CONFIG_TIMEOUT_MS = 8000;
@@ -207,6 +208,8 @@ function validateConfig(payload) {
         }),
         endpoints: Object.freeze({
             bootstrap: requiredHttpsUrl(payload.endpoints?.bootstrap, 'CONFIG_BOOTSTRAP_URL_INVALID'),
+            diagnostics: payload.endpoints?.diagnostics
+                ? requiredHttpsUrl(payload.endpoints.diagnostics, 'CONFIG_DIAGNOSTICS_URL_INVALID') : null,
         }),
         marker: requiredString(payload.marker, 'CONFIG_MARKER_MISSING'),
     });
@@ -327,6 +330,7 @@ async function loadBootstrap(config, accessToken, item, composeType = 'unknown')
             Accept: 'application/json',
             Authorization: `Bearer ${accessToken}`,
             'X-RailTime-Outlook-Context': 'event',
+            'X-RailTime-Outlook-Host': universalComposeHost(),
             'X-RailTime-Compose-Contract': 'native-signature-v1',
             'X-RailTime-Automatic-Policy': '3',
             'X-RailTime-Compose-Type': composeType,
@@ -544,13 +548,22 @@ async function applyPublishedContent(item, isActive = () => true) {
     const hasUniversalCombined = universalEntry && Object.prototype.hasOwnProperty.call(universalEntry, 'universalCompose');
     const hasUniversalSignature = policy.mode === 'signature' && Object.prototype.hasOwnProperty.call(bootstrap, 'universalSignature');
     if (hasUniversalCombined || hasUniversalSignature) {
-        const universal = validateUniversalComposeDocument(hasUniversalCombined ? universalEntry.universalCompose : bootstrap.universalSignature);
-        if (universal.kind !== (hasUniversalCombined ? 'combined' : 'signature')) throw codedError('U2E_DOCUMENT_INVALID');
-        pendingNativeSignatures.delete(item);
-        const result = await diagnoseStep('u2e-compose', () => insertUniversalComposeDocument(Office, item, universal, {
-            binding, beforeWrite: assertTarget,
-        }));
-        return result.status;
+        const source = hasUniversalCombined ? universalEntry.universalCompose : bootstrap.universalSignature;
+        try {
+            const universal = validateUniversalComposeDocument(source);
+            if (universal.kind !== (hasUniversalCombined ? 'combined' : 'signature')) throw codedError('U2E_DOCUMENT_INVALID');
+            pendingNativeSignatures.delete(item);
+            const result = await diagnoseStep('u2e-compose', () => insertUniversalComposeDocument(Office, item, universal, {
+                binding, beforeWrite: assertTarget,
+            }));
+            return result.status;
+        } catch (error) {
+            // Do not delay event completion or change the original fail-closed result.
+            void reportUniversalFailure({ config, accessToken, item, binding, context: 'event', error,
+                report: universalComposeReport(item), sourceLength: typeof source?.html === 'string' ? source.html.length : null,
+                isCurrent: isActive });
+            throw error;
+        }
     }
 
     // Older templates contain an ordinary HTML signature. Never append a
