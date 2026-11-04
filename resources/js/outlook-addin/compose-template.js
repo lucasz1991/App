@@ -80,12 +80,81 @@ function wordReplyHeaderStyle(style) {
     return reset >= 0 && top > reset;
 }
 
+function newOutlookReplyBoundary(html, elements, index, before) {
+    const anchor = elements[index], parent = elements[anchor.parent];
+    if (parent && !['div', 'body'].includes(parent.tag) || Object.keys(anchor.attrs).some(key => key !== 'name')
+        || !/^\s*$/.test(html.slice(anchor.openEnd, anchor.close))) return false;
+    const safeContext = at => {
+        for (let count = 0; Number.isInteger(at) && count <= elements.length; count++, at = elements[at]?.parent) {
+            const node = elements[at];
+            if (!node || ['head', 'table', 'td', 'th', 'blockquote', 'script', 'style', 'template', 'title'].includes(node.tag)
+                || Object.prototype.hasOwnProperty.call(node.attrs, 'hidden') || (node.attrs['aria-hidden'] || '').toLowerCase() === 'true'
+                || /^(?:x_){0,2}(?:divrplyfwdmsg|mail-editor-reference-message-container|stopspelling)$/i.test(node.attrs.id || '')
+                || /(?:^|\s)(?:gmail_quote|yahoo_quoted|moz-cite-prefix)(?:\s|$)/i.test(node.attrs.class || '')) return false;
+            const style = node.attrs.style || '';
+            if (/\\|\/\*|\*\//.test(style)
+                || /(?:^|;)\s*(?:display\s*:\s*none|visibility\s*:\s*(?:hidden|collapse)|mso-hide\s*:\s*all|opacity\s*:\s*[+-]?(?:0(?:\.0*)?|\.0+)%?)(?:\s*!important)?\s*(?:;|$)/i.test(style)) return false;
+        }
+        return true;
+    };
+    if (!safeContext(index)) return false;
+    const siblings = elements.map((node, at) => ({ node, index: at })).filter(value => value.node.parent === anchor.parent);
+    let next = siblings.findIndex(value => value.index === index) + 1, end = anchor.end, emptyCount = 0;
+    const adjacent = value => value && /^\s*$/.test(html.slice(end, value.node.start)) && safeContext(value.index);
+    const headerPresentation = node => Object.keys(node.attrs).every(key => key === 'style')
+        && (node.attrs.style || '').split(';').every(declaration => {
+            if (!declaration.trim()) return true;
+            const colon = declaration.indexOf(':');
+            return colon > 0 && declaration.slice(colon + 1).trim() !== ''
+                && ['font-family', 'font-size', 'color'].includes(declaration.slice(0, colon).trim().toLowerCase());
+        });
+    for (; next < siblings.length && siblings[next].node.tag === 'div'; next++) {
+        const value = siblings[next], children = elements.filter(node => node.parent === value.index);
+        if (!adjacent(value) || !headerPresentation(value.node)
+            || children.some(node => node.tag !== 'br' || Object.keys(node.attrs).length)
+            || !/^\s*$/.test(html.slice(value.node.openEnd, value.node.close).replace(/<br\s*\/?\s*>/gi, ''))) break;
+        if (++emptyCount > 8) return false;
+        end = value.node.end;
+    }
+    const separator = siblings[next++];
+    if (!emptyCount || !adjacent(separator) || separator.node.tag !== 'hr'
+        || Object.keys(separator.node.attrs).some(key => key !== 'style')) return false;
+    const separatorStyles = new Map();
+    for (const declaration of (separator.node.attrs.style || '').split(';')) {
+        if (!declaration.trim()) continue;
+        const parts = declaration.split(':').map(value => value.trim().toLowerCase());
+        if (parts.length !== 2 || separatorStyles.has(parts[0])) return false;
+        separatorStyles.set(parts[0], parts[1]);
+    }
+    if (separatorStyles.size !== 2 || separatorStyles.get('display') !== 'inline-block' || separatorStyles.get('width') !== '98%') return false;
+    end = separator.node.end;
+    const header = siblings[next];
+    if (!adjacent(header) || header.node.tag !== 'div' || header.node.end > before
+        || !headerPresentation(header.node)) return false;
+    const fields = elements.map((node, at) => ({ node, index: at })).filter(value => value.node.parent === header.index);
+    if (fields.length !== 7 || !/^\s*$/.test(html.slice(header.node.openEnd, fields[0].node.start))) return false;
+    const labels = ['Von:', 'Gesendet:', 'An:', 'Betreff:'];
+    for (let at = 0; at < fields.length; at++) {
+        const field = fields[at];
+        if (!safeContext(field.index) || Object.keys(field.node.attrs).length
+            || field.node.tag !== (at % 2 === 0 ? 'b' : 'br')
+            || elements.some(node => node.parent === field.index)) return false;
+        if (at % 2 === 0 && html.slice(field.node.openEnd, field.node.close).trim() !== labels[at / 2]) return false;
+        const following = fields[at + 1]?.node.start ?? header.node.close;
+        if (html.slice(field.node.end, following).includes('<')) return false;
+    }
+    // This exact empty bookmark / empty DIV / 98% HR / bold header sequence
+    // belongs to quoted history. Keep its original bytes from the bookmark on.
+    return anchor.start;
+}
+
 function wordOriginalMessageBoundary(html, elements, before = Infinity) {
     const anchors = elements.map((node, index) => ({ node, index }))
         .filter(value => value.node.tag === 'a' && value.node.attrs.name === '_MailOriginal' && value.node.start < before);
     if (anchors.length === 0) return null;
     if (anchors.length !== 1) return false;
     const { node, index } = anchors[0], paragraph = elements[node.parent];
+    if (paragraph === undefined || ['div', 'body'].includes(paragraph.tag)) return newOutlookReplyBoundary(html, elements, index, before);
     const headerIndex = paragraph?.parent, header = elements[headerIndex];
     if (Object.prototype.hasOwnProperty.call(node.attrs, 'href') || paragraph?.tag !== 'p' || header?.tag !== 'div'
         || !(paragraph.attrs.class || '').split(/\s+/).includes('MsoNormal') || !wordReplyHeaderStyle(header.attrs.style)) return false;

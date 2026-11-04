@@ -10,7 +10,7 @@ export const U2E_READBACK_CHECKPOINTS = Object.freeze([
     'grid.rowspan', 'grid.train', 'grid.legal', 'markers.position', 'shell.count',
     'material.hidden', 'material.float', 'material.content', 'dispatch.count',
     'images.src', 'images.width', 'images.height', 'images.count', 'images.order', 'images.origin',
-    'links.content', 'links.scheme', 'links.count', 'borders.structure', 'borders.invalid', 'borders.image', 'colors.background-image', 'colors.conflict',
+    'links.content', 'links.scheme', 'links.count', 'borders.structure', 'borders.invalid', 'borders.image', 'borders.cta', 'line.visibility', 'colors.line', 'colors.background-image', 'colors.conflict',
     'colors.legal', 'colors.dispatch', 'colors.corners', 'state.present', 'state.kind',
     'state.version', 'state.unreadable', 'source.invalid', 'evidence.topology', 'evidence.images',
     'evidence.links', 'evidence.colors', 'evidence.borderColors', 'evidence.text', 'compose.type', 'quote.bytes',
@@ -44,7 +44,7 @@ export const U2E_REDACTED_STYLE_PROPERTIES = Object.freeze([
     'mso-margin-top-alt', 'mso-margin-bottom-alt', 'mso-hide', 'mso-element',
 ]);
 export const U2E_REDACTED_CLASSES = Object.freeze(['rt-col', 'rt-col-company', 'rt-col-direct', 'rt-col-dispo', 'rt-col-person',
-    'rt-contact', 'rt-cta-br', 'rt-cta-cell', 'rt-cta-dispo', 'rt-cta-erreichbar', 'rt-cta-gap', 'rt-cta-icon',
+    'rt-contact', 'rt-cta-br', 'rt-cta-cell', 'rt-cta-dispo', 'rt-cta-erreichbar', 'rt-cta-gap', 'rt-cta-icon', 'rt-cta-line',
     'rt-cta-number', 'rt-cta-time', 'rt-dispo', 'rt-dispo-actions', 'rt-dispo-corner', 'rt-dispo-head',
     'rt-dispo-row', 'rt-legal', 'rt-logo', 'rt-logo-link', 'rt-pad', 'rt-pad-dispo', 'rt-shell',
     'rt-sig-row', 'rt-text', 'rt-train', 'rt-train-cell', 'MsoNormal', 'MsoTableGrid', 'ElementToProof', 'ContentPasted0']);

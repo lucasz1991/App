@@ -5,14 +5,14 @@ import { parseHTML } from 'linkedom';
 import { universalRedactedReadbackFixture, validateUniversalRedactedFixture, universalDiagnosticReplayHtml, u2eDiagnosticHash } from '../../resources/js/outlook-addin/u2e-readback-diagnostics.js';
 import { validateUniversalComposeDocument, universalComposeStateFromBody } from '../../resources/js/outlook-addin/u2e-compose.js';
 
-const source = JSON.parse(fs.readFileSync(new URL('../Fixtures/mail/u2e-readback/source.json', import.meta.url), 'utf8'));
+const source = JSON.parse(fs.readFileSync(new URL('../Fixtures/mail/u2e-readback-v2/source.json', import.meta.url), 'utf8'));
 function withoutOwnCenter(change = () => {}) {
     const { document } = parseHTML(source.html);
     const shell = document.querySelector('table[width="1040"]');
     shell.removeAttribute('align');
     shell.setAttribute('style', (shell.getAttribute('style') || '').split(';').filter(value => !/^\s*margin(?:-left|-right)?\s*:/i.test(value)).join(';'));
     change(shell, document);
-    return document.toString();
+    return shell.outerHTML;
 }
 const rehash = (fixture, html) => ({ ...fixture, html, sha256: u2eDiagnosticHash(html) });
 

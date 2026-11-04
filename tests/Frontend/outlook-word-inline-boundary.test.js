@@ -10,7 +10,7 @@ const directory = new URL('../Fixtures/mail/u2e-word-inline-boundary/', import.m
 const html = fs.readFileSync(new URL('word-inline.redacted.html', directory), 'utf8').replace(/\r\n/g, '\n');
 const hash = input => crypto.createHash('sha256').update(input).digest('hex');
 const start = html.indexOf('<div class="word-header"');
-const source = JSON.parse(fs.readFileSync(new URL('../Fixtures/mail/u2e-readback/source.json', import.meta.url), 'utf8'));
+const source = JSON.parse(fs.readFileSync(new URL('../Fixtures/mail/u2e-readback-v2/source.json', import.meta.url), 'utf8'));
 const replace = (before, after) => { assert.ok(html.includes(before)); return html.replace(before, after); };
 
 test('the minimal structural fixture is immutable, synthetic and separate from private original hashes', () => {

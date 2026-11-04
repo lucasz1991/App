@@ -71,7 +71,7 @@ final class OutlookUniversalPresentationTest extends TestCase
         // columns or a second top-level author table are a valid substitute.
         self::assertSame(['1040', '100%', '100%', '100%', '100%', '100%', '100%', '247', '100%', '100%'],
             array_map(fn (DOMElement $table): string => $table->getAttribute('width'), iterator_to_array($xpath->query('//table'))));
-        self::assertSame([4, 1, 1, 2, 1, 2, 1, 4, 1, 1],
+        self::assertSame([4, 1, 1, 2, 1, 2, 1, 4, 1, 2],
             array_map(fn (DOMElement $table): int => $xpath->query('./tr|./tbody/tr', $table)->length, iterator_to_array($xpath->query('//table'))));
         $images = $xpath->query('//img');
         self::assertSame(13, $images->length);
@@ -123,8 +123,9 @@ final class OutlookUniversalPresentationTest extends TestCase
         self::assertSame(7, $xpath->query('//head/meta')->length, 'The immutable U2e source has seven metas; no four-meta rewrite.');
         self::assertSame(0, $xpath->query('//body//style|//body//meta')->length);
         self::assertSame(2, substr_count($result['headCss'], '@media'));
-        self::assertSame(str_replace("\r\n", "\n", file_get_contents(base_path('tests/Fixtures/mail/u2e-reference.css'))), $result['headCss'],
-            'The approved U2e media rules are preserved, rather than approximated by two new rules.');
+        $referenceCss = str_replace("\r\n", "\n", file_get_contents(base_path('tests/Fixtures/mail/u2e-reference.css')));
+        self::assertSame($referenceCss, str_replace("  .rt-cta-line { display:none !important; }\n", '', $result['headCss']),
+            'C-K13 adds only the approved separator hiding rule; all original media rules remain exact.');
         self::assertStringContainsString('max-width:1039px', $result['headCss']);
         self::assertStringContainsString('max-width:600px', $result['headCss']);
         self::assertStringContainsString('width:52%', $result['headCss']);
@@ -143,6 +144,79 @@ final class OutlookUniversalPresentationTest extends TestCase
             self::assertGreaterThan(0, $xpath->query('./span', $link)->length);
         }
         self::assertDoesNotMatchRegularExpression('~table-layout|mso-|\[if~i', $result['html']);
+    }
+
+    #[DataProvider('modes')]
+    public function test_ck13_separator_replaces_only_the_five_cta_borders_and_preserves_their_padding(string $mode): void
+    {
+        $result = $this->render(['mode' => $mode]);
+        $xpath = $this->xpath($result['html']);
+        $lines = $xpath->query('//tr[@class="rt-cta-line"]');
+        self::assertSame(1, $lines->length);
+        $lineCells = $xpath->query('./td', $lines->item(0));
+        self::assertSame(1, $lineCells->length);
+        $line = $lineCells->item(0);
+        self::assertSame('5', $line->getAttribute('colspan'));
+        self::assertSame('1', $line->getAttribute('height'));
+        self::assertSame('#ffffff', $line->getAttribute('bgcolor'));
+        self::assertSame('height:1px;line-height:1px;font-size:1px;padding:0;background-color:#ffffff;', $line->getAttribute('style'));
+        self::assertSame("\u{a0}", $line->textContent);
+        $actionRows = $xpath->query('./tr|./tbody/tr', $lines->item(0)->parentNode);
+        self::assertSame(2, $actionRows->length);
+        self::assertSame($lines->item(0), $actionRows->item(0));
+        $actions = $xpath->query('./td', $actionRows->item(1));
+        self::assertSame(5, $actions->length);
+        foreach (['11px 0 5px', '11px 0 5px 14px', '11px 0 5px', '11px 8px 5px 0', '11px 0 5px'] as $index => $padding) {
+            self::assertStringContainsString('padding:'.$padding.';', $actions->item($index)->getAttribute('style'));
+            self::assertStringNotContainsString('border-top', $actions->item($index)->getAttribute('style'));
+        }
+        self::assertSame(4, $xpath->query('//td[contains(@style,"border-top:2px solid #e4002b")]')->length);
+        self::assertSame(0, $xpath->query('//td[contains(@style,"border-top:1px solid #ffffff")]')->length);
+        if ($mode === 'send') {
+            self::assertSame(1, substr_count($result['headCss'], '.rt-cta-line { display:none !important; }'));
+            self::assertGreaterThan(strpos($result['headCss'], 'max-width:600px'), strpos($result['headCss'], '.rt-cta-line'));
+        }
+    }
+
+    public function test_ck13_template_has_only_the_three_approved_changes_from_the_previous_pin(): void
+    {
+        $template = str_replace("\r\n", "\n", file_get_contents(resource_path('mail-templates/u2e-universal-v1.html')));
+        self::assertSame('9b8900e1c9640b445dcf309cbb823ca4195001d3cabdf61f927c59c5389b26c4', hash('sha256', $template));
+        $line = '<tr class="rt-cta-line"><td colspan="5" height="1" bgcolor="#ffffff" style="height:1px;line-height:1px;font-size:1px;padding:0;background-color:#ffffff;">&nbsp;</td></tr>';
+        $old = str_replace($line, '', $template, $lines);
+        $old = str_replace("  .rt-cta-line { display:none !important; }\n", '', $old, $rules);
+        self::assertSame(1, $lines);
+        self::assertSame(1, $rules);
+        $old = preg_replace_callback('~(<td class="rt-cta-cell\b[^>]*style=")([^"]*)(")~', static function (array $match): string {
+            $style = $match[2];
+            $border = 'border-top:1px solid #ffffff;';
+            if (str_contains($style, 'font-family:')) {
+                $style = str_replace('font-family:', $border.'font-family:', $style);
+            } elseif (str_contains($style, 'font-size:')) {
+                $style = str_replace('font-size:', $border.'font-size:', $style);
+            } else {
+                $style .= $border;
+            }
+
+            return $match[1].$style.$match[3];
+        }, $old, -1, $cells);
+        self::assertSame(5, $cells);
+        self::assertSame('571786a0e872c1c92fa09578a2e5333e7af34e268d8664d56dad2e478bb13ff3', hash('sha256', $old),
+            'Reversing exactly the approved separator, media rule and five border removals must recover the entire old template byte-for-byte.');
+    }
+
+    public function test_ck13_template_pin_automatically_invalidates_the_previous_same_profile_version(): void
+    {
+        // Recorded with this exact synthetic descriptor/default wording and the
+        // previous 571786... pinned template. Author and host were not inputs.
+        $legacyVersion = '97bfde8446893e251ac8b8bc';
+        $editor = $this->render();
+        $send = $this->render(['mode' => 'send']);
+        self::assertNotSame($legacyVersion, $editor['version']);
+        self::assertSame($editor['version'], $send['version']);
+        self::assertSame('rt-sig-u2-'.$editor['version'], $editor['marker']);
+        self::assertSame('u2e-'.$editor['version'], $editor['header']);
+        self::assertSame($editor['version'], $this->render()['version']);
     }
 
     public function test_signature_text_keeps_explicit_font_spans_and_red_and_grey_cells_keep_both_color_forms(): void

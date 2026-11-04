@@ -9,7 +9,7 @@ import { U2E_READBACK_CHECKPOINTS, U2E_READBACK_DIFFERENCE_KEYS, u2eDiagnosticHa
 import { validateUniversalComposeDocument, universalComposeStateFromBody,
     universalComposeDiagnosticFixture } from '../../resources/js/outlook-addin/u2e-compose.js';
 
-const source = JSON.parse(fs.readFileSync(new URL('../Fixtures/mail/u2e-readback/source.json', import.meta.url), 'utf8'));
+const source = JSON.parse(fs.readFileSync(new URL('../Fixtures/mail/u2e-readback-v2/source.json', import.meta.url), 'utf8'));
 const change = callback => { const { document } = parseHTML(source.html); callback(document); return document.toString(); };
 const hash = value => crypto.createHash('sha256').update(value).digest('hex');
 function replaySource(fixture) { return validateUniversalComposeDocument({ ...source, kind: 'signature', html: universalDiagnosticReplayHtml(fixture.expectedHtml) }); }

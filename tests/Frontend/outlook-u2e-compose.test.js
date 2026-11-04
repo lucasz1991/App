@@ -6,21 +6,14 @@ import { execFileSync } from 'node:child_process';
 import { parseHTML } from 'linkedom';
 import { parseManagedHtml } from '../../resources/js/outlook-addin/managed-template.js';
 import { currentComposeBodyHtml } from '../../resources/js/outlook-addin/compose-template.js';
-import { u2eProbeDocument } from '../../resources/js/outlook-addin/u2e-editor-probe.js';
 import { UNIVERSAL_COMPOSE_SESSION_KEY, validateUniversalComposeDocument, universalComposeStateFromBody,
     insertUniversalComposeDocument, universalComposeBlocked, universalComposeReport, universalComposePresentationEvidence } from '../../resources/js/outlook-addin/u2e-compose.js';
 
-const fixed = u2eProbeDocument();
+const currentFixture = name => JSON.parse(fs.readFileSync(new URL('../Fixtures/mail/u2e-readback-v2/' + name + '.json', import.meta.url), 'utf8'));
+const fixed = currentFixture('source');
+const fixedSignature = currentFixture('signature');
 function document(kind = 'combined', extra = {}) {
-    let html = fixed.html.replace('id="' + fixed.id + '" width="260"', 'id="' + fixed.id + '-cell" width="260"');
-    if (kind === 'signature') {
-        const { elements } = parseManagedHtml(html);
-        const table = elements.findIndex(node => node.tag === 'table' && node.attrs.id === fixed.id);
-        const first = elements.find(node => node.tag === 'tr' && node.parent === table);
-        html = html.slice(0, first.start) + html.slice(first.end);
-    }
-    const version = fixed.id.slice('rt-sig-u2-'.length);
-    return { schema: 1, kind, html, version, marker: fixed.id, header: 'u2e-' + version, sourceHash: 'a'.repeat(64), media: [], ...extra };
+    return { ...(kind === 'signature' ? fixedSignature : fixed), media: [], ...extra };
 }
 function mutate(doc, change) {
     const { document: dom } = parseHTML(doc.html); change(dom);
@@ -133,26 +126,25 @@ test('the source validates the approved geometry and excludes hidden or active b
     for (const change of mutations) assert.throws(() => validateUniversalComposeDocument(mutate(document(), change)), { code: 'U2E_SOURCE_INVALID' });
 });
 
-test('the redacted real 22:37 serialization with black CTA edges is rejected without a repair write', async () => {
+test('the historical 22:37 serialization remains legacy and cannot be current under the new template version', async () => {
     const manifest = JSON.parse(fixtureFile('manifest.json'));
     for (const [name, evidence] of Object.entries(manifest.artifacts)) {
         const content = fixtureFile(name);
         assert.equal(sha256(content), evidence.sha256);
         assert.equal(Buffer.byteLength(content), evidence.bytes);
     }
-    const source = JSON.parse(fixtureFile('source.json')), actual = fixtureFile('new-outlook-2237.redacted.html');
-    validateUniversalComposeDocument(source);
+    const legacy = JSON.parse(fixtureFile('source.json')), source = document(), actual = fixtureFile('new-outlook-2237.redacted.html');
+    assert.throws(() => validateUniversalComposeDocument(legacy), { code: 'U2E_SOURCE_INVALID' });
     const initial = universalComposeStateFromBody(source, actual, 'newMail');
     assert.equal(initial.current, false);
-    assert.equal(initial.checkpoint, 'evidence.borderColors');
-    assert.equal(initial.difference.index, 4);
+    assert.equal(initial.present, true);
+    assert.equal(initial.checkpoint, 'state.version');
     assert.deepEqual(universalComposePresentationEvidence(actual), manifest.presentation.outlook);
     assert.equal((actual.match(/\bbgcolor=/g) || []).length, 0, 'actual Outlook used CSS background colors');
     assert.equal((actual.match(/<img\b/g) || []).length, 13);
     const f = fixture({ bodyWrite({ callback, state }) { state.html = actual; callback(success()); } });
     assert.equal((await errorOf(f.insert(source))).code, 'SIGNATURE_LAYOUT_UNCONFIRMED');
-    assert.equal(universalComposeReport(f.item).checkpoint, 'evidence.borderColors');
-    assert.equal(universalComposeReport(f.item).difference.index, 4);
+    assert.equal(universalComposeReport(f.item).checkpoint, 'state.version');
     assert.equal(f.state.bodyWrites.length, 1);
     assert.equal(f.state.html, actual);
     assert.equal(universalComposeBlocked(f.item), true);
@@ -174,13 +166,13 @@ test('the actual older Word structure has finite color evidence and remains inco
     assert.deepEqual(evidence, manifest.presentation.word);
     assert.equal(evidence.readable, true); assert.equal(evidence.tables, 20); assert.equal(evidence.centeredTables, 0);
     assert.deepEqual(evidence.colors, { unset: 44, '#e4002b': 22, '#f3f5f7': 2 });
-    const state = universalComposeStateFromBody(JSON.parse(fixtureFile('source.json')), word, 'newMail');
+    const state = universalComposeStateFromBody(document(), word, 'newMail');
     assert.equal(state.current, false); assert.equal(state.present, false);
     assert.equal(manifest.legacyWord.current, false);
     assert.equal(manifest.legacyWord.incompatibilities.length, 6);
 });
 
-test('optional immutable private exports match the actual offline PHP source without storing private content', {
+test('optional immutable private exports remain legacy under the new offline PHP source without storing private content', {
     skip: !process.env.U2E_PRIVATE_SOURCE_JSON || !process.env.U2E_PRIVATE_EXPORT_ROOT,
 }, () => {
     const manifest = JSON.parse(fixtureFile('manifest.json'));
@@ -200,8 +192,11 @@ test('optional immutable private exports match the actual offline PHP source wit
         ['tests/Fixtures/mail/u2e-readback/project-private-source.php', process.env.U2E_PRIVATE_SOURCE_JSON], { encoding: 'utf8', maxBuffer: 1000000 }));
     const source = validateUniversalComposeDocument(wire.document);
     assert.equal(wire.queryCount, 0);
-    assert.equal(sha256(source.html), manifest.sourceProjection.sourceHtmlSha256);
-    assert.equal(universalComposeStateFromBody(source, exports.outlook, 'newMail').current, true);
+    assert.notEqual(sha256(source.html), manifest.sourceProjection.sourceHtmlSha256);
+    assert.match(source.html, /rt-cta-line/);
+    const previousOutlook = universalComposeStateFromBody(source, exports.outlook, 'newMail');
+    assert.equal(previousOutlook.present, true); assert.equal(previousOutlook.current, false);
+    assert.equal(previousOutlook.checkpoint, 'state.version');
     assert.equal(universalComposeStateFromBody(source, exports.word, 'newMail').current, false);
     assert.equal(universalComposeStateFromBody(source, exports.ios, 'newMail').present, false);
 });
@@ -251,6 +246,30 @@ test('recognizing a Word bookmark boundary never makes authored reply text a bla
     assert.equal(f.state.html, original);
     assert.equal(f.state.bodyWrites.length, 0); assert.equal(f.state.headerWrites.length, 0);
     assert.equal(f.state.sessionWrites.length, 0); assert.deepEqual(f.state.forbidden, []);
+});
+
+test('the new Outlook reply boundary inserts the new source once above an exact legacy x_x quote or a plain quote', async () => {
+    const old = JSON.parse(fixtureFile('source.json')).html.replaceAll('id="rt-sig-', 'id="x_x_rt-sig-');
+    for (const historical of [old, '<p>SYNTHETIC PLAIN QUOTE</p>']) {
+        const own = '<html><head></head><body><div><div><br></div>\r\n';
+        const quote = '<a name="_MailOriginal"></a>\r\n'
+            + '<div style="font-family:Arial;font-size:12pt;color:rgb(0,0,0)"><br></div>\r\n'
+            + '<hr style="display:inline-block;width:98%;">\r\n'
+            + '<div style="font-family:Arial;font-size:12pt;color:rgb(0,0,0)">'
+            + '<b>Von:</b> REDACTED SENDER<br><b>Gesendet:</b> REDACTED DATE<br>'
+            + '<b>An:</b> REDACTED RECIPIENT<br><b>Betreff:</b> REDACTED SUBJECT</div>\r\n'
+            + '<div>' + historical + '</div></div></body></html>';
+        const original = own + quote, doc = document();
+        assert.equal(currentComposeBodyHtml(original, 'reply'), own);
+        assert.equal(universalComposeStateFromBody(doc, original, 'reply').present, false);
+        const f = fixture({ state: { composeType: 'reply', html: original } });
+        assert.equal((await f.insert(doc)).status, 'applied');
+        assert.equal(f.state.bodyWrites.length, 1); assert.equal(f.state.bodyWrites[0].method, 'prependAsync');
+        assert.equal(f.state.html.slice(currentComposeBodyHtml(f.state.html, 'reply').length), quote);
+        assert.equal(universalComposeStateFromBody(doc, f.state.html, 'reply').current, true);
+        assert.equal((await f.insert(doc)).status, 'already-present');
+        assert.equal(f.state.bodyWrites.length, 1); assert.deepEqual(f.state.forbidden, []);
+    }
 });
 
 test('pure state tolerates only known Word or Rooster serialization without losing material', () => {
@@ -508,7 +527,7 @@ test('layout failures report finite checkpoints and only the bound IT pilot rece
 });
 
 test('first raw evidence text mismatch is hashed before redaction and author loss has its own checkpoint', async () => {
-    const source = JSON.parse(fixtureFile('source.json'));
+    const source = document();
     const textLoss = fixture({ bodyWrite({ html, callback, state }) { state.html = html.replace('Fixture legal', 'Fixture LegaL'); callback(success()); } });
     assert.equal((await errorOf(textLoss.insert(source))).code, 'SIGNATURE_LAYOUT_UNCONFIRMED');
     const textReport = universalComposeReport(textLoss.item);

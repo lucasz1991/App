@@ -7,7 +7,7 @@ import { universalRedactedReadbackFixture, universalDiagnosticReplayHtml, valida
 
 // The existing fixture contains synthetic names, text and example.test URLs.
 // No private Classic message or downloaded diagnostic pair is copied into Git.
-const source = JSON.parse(fs.readFileSync(new URL('../Fixtures/mail/u2e-readback/source.json', import.meta.url), 'utf8'));
+const source = JSON.parse(fs.readFileSync(new URL('../Fixtures/mail/u2e-readback-v2/source.json', import.meta.url), 'utf8'));
 const whiteCells = ['.rt-col-person', '.rt-col-direct', '.rt-col-company', '.rt-col-dispo', '.rt-train-cell'];
 function mutate(input, change) {
     const { document } = parseHTML(input);

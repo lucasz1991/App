@@ -1,4 +1,4 @@
-// Read-only, finite evidence for the nine fixed U2e top borders. Neither this
+// Read-only, finite evidence for U2e's four grid borders and borderless CTA cells. Neither this
 // parser nor its caller repairs HTML or substitutes a host-dependent color.
 const fail = checkpoint => { throw Object.assign(new Error('SIGNATURE_LAYOUT_UNCONFIRMED'), { code: 'SIGNATURE_LAYOUT_UNCONFIRMED', checkpoint }); };
 const styles = new Set(['none', 'hidden', 'solid', 'dashed', 'dotted', 'double', 'groove', 'ridge', 'inset', 'outset']);
@@ -59,8 +59,8 @@ function visible(result) {
 }
 
 /** CSS cascade per top-border component, retaining px/pt's actual dimensions. */
-export function u2eTopBorder(node) {
-    const style = node?.attrs?.style;
+function readTopBorder(node, absent = false) {
+    const style = node?.attrs?.style === undefined && absent ? '' : node?.attrs?.style;
     if (typeof style !== 'string' || /\/\*|\*\/|[{}\\]/.test(style)) fail('borders.invalid');
     const result = { width: null, style: null, color: null }, priority = { width: -1, style: -1, color: -1 };
     let alternate = null, alternatePriority = -1;
@@ -89,7 +89,7 @@ export function u2eTopBorder(node) {
         }
         if (!value || /[!]|(?:url|var|calc|env)\s*\(|(?:^|\s)(?:inherit|initial|unset|revert|revert-layer|currentcolor|transparent)(?:\s|$)/.test(value)) fail('borders.invalid');
         if (property === 'mso-border-top-alt') {
-            const parsed = visible(shorthand(value));
+            const parsed = absent ? shorthand(value) : visible(shorthand(value));
             if (important >= alternatePriority) { alternate = parsed; alternatePriority = important; }
         } else if (property === 'border' || property === 'border-top') assign(shorthand(value), important);
         else {
@@ -97,10 +97,17 @@ export function u2eTopBorder(node) {
             assign({ [kind]: component(value, kind, !property.startsWith('border-top-')) }, important);
         }
     }
+    if (absent) {
+        const invisible = value => value.width === 0 || value.style === 'none' || value.style === 'hidden' || value.style === null;
+        if (!invisible(result) || alternate && !invisible(alternate)) fail('borders.cta');
+        return null;
+    }
     const output = visible(result);
     if (alternate && alternate.color !== output.color) fail('borders.invalid');
     return output;
 }
+
+export const u2eTopBorder = node => readTopBorder(node);
 
 const nearestTable = (elements, index) => {
     for (let at = elements[index]?.parent, count = 0; Number.isInteger(at) && count <= elements.length; count++, at = elements[at]?.parent) {
@@ -115,8 +122,8 @@ const descendants = (elements, index, root) => {
 const rows = (elements, table) => elements.map((node, index) => ({ node, index })).filter(value => value.node.tag === 'tr' && nearestTable(elements, value.index) === table);
 const cells = (elements, row) => elements.map((node, index) => ({ node, index })).filter(value => value.node.parent === row && ['td', 'th'].includes(value.node.tag));
 
-/** Grid 0..3 then the five cells in the structural Dispo action row; no IDs/classes. */
-export function u2eTopBorderEvidence(elements, grid, dispatch) {
+/** Structural line and action cells; host classes/IDs are not required. */
+export function u2eCtaMaterial(elements, grid, dispatch) {
     if (!Array.isArray(elements) || !Array.isArray(grid) || grid.length !== 4 || !Array.isArray(dispatch) || dispatch.length !== 1
         || grid.some(value => value?.node?.tag !== 'td' || elements[value.index] !== value.node)
         || dispatch[0]?.node?.tag !== 'table' || elements[dispatch[0].index] !== dispatch[0].node) fail('borders.structure');
@@ -128,8 +135,18 @@ export function u2eTopBorderEvidence(elements, grid, dispatch) {
         && descendants(elements, value.index, actionContainer[0].index));
     if (actionTables.length !== 1) fail('borders.structure');
     const actionRows = rows(elements, actionTables[0].index);
-    if (actionRows.length !== 1) fail('borders.structure');
-    const actionCells = cells(elements, actionRows[0].index);
+    if (actionRows.length !== 2) fail('borders.structure');
+    const lineCells = cells(elements, actionRows[0].index);
+    if (lineCells.length !== 1 || lineCells[0].node.tag !== 'td' || lineCells[0].node.attrs.colspan !== '5'
+        || ![undefined, '1'].includes(lineCells[0].node.attrs.rowspan)) fail('borders.structure');
+    const actionCells = cells(elements, actionRows[1].index);
     if (actionCells.length !== 5 || actionCells.some(value => value.node.tag !== 'td')) fail('borders.structure');
-    return [...grid, ...actionCells].map(value => u2eTopBorder(value.node));
+    return { line: lineCells[0], lineRow: actionRows[0], actionCells };
+}
+
+/** Only the four grid colors remain evidence; CTA top borders must be absent. */
+export function u2eTopBorderEvidence(elements, grid, dispatch) {
+    const { actionCells } = u2eCtaMaterial(elements, grid, dispatch);
+    actionCells.forEach(value => readTopBorder(value.node, true));
+    return grid.map(value => u2eTopBorder(value.node));
 }

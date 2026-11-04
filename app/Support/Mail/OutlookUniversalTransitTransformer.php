@@ -19,7 +19,8 @@ final class OutlookUniversalTransitTransformer
 {
     private const PILOT_SENDER = 'it-technik@rail-time.de';
 
-    private const TEMPLATE_HASH = '571786a0e872c1c92fa09578a2e5333e7af34e268d8664d56dad2e478bb13ff3';
+    // Admit the C-K13 B1 send projection; older published template pins fail closed.
+    private const TEMPLATE_HASH = '9b8900e1c9640b445dcf309cbb823ca4195001d3cabdf61f927c59c5389b26c4';
 
     private const DESIGN_HASH = 'c7efab2c64890dc57386448be880122e1e284c6c35a2392fcad5ed5094f94b6b';
 

@@ -56,7 +56,7 @@ final class OutlookUniversalDiagnosticFixtureValidator
     private const CLASSES = [
         'rt-col', 'rt-col-company', 'rt-col-direct', 'rt-col-dispo', 'rt-col-person',
         'rt-contact', 'rt-cta-br', 'rt-cta-cell', 'rt-cta-dispo', 'rt-cta-erreichbar',
-        'rt-cta-gap', 'rt-cta-icon', 'rt-cta-number', 'rt-cta-time', 'rt-dispo',
+        'rt-cta-gap', 'rt-cta-icon', 'rt-cta-line', 'rt-cta-number', 'rt-cta-time', 'rt-dispo',
         'rt-dispo-actions', 'rt-dispo-corner', 'rt-dispo-head', 'rt-dispo-row', 'rt-legal',
         'rt-logo', 'rt-logo-link', 'rt-pad', 'rt-pad-dispo', 'rt-shell',
         'rt-sig-row', 'rt-text', 'rt-train', 'rt-train-cell', 'MsoNormal',

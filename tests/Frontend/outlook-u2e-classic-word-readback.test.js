@@ -7,9 +7,9 @@ import { universalComposeStateFromBody, validateUniversalComposeDocument } from 
 import { parseManagedHtml } from '../../resources/js/outlook-addin/managed-template.js';
 import { u2eCenteringContext } from '../../resources/js/outlook-addin/u2e-appearance.js';
 
-const source = JSON.parse(fs.readFileSync(new URL('../Fixtures/mail/u2e-readback/source.json', import.meta.url), 'utf8'));
+const source = JSON.parse(fs.readFileSync(new URL('../Fixtures/mail/u2e-readback-v2/source.json', import.meta.url), 'utf8'));
 const fixtureRoot = new URL('../Fixtures/mail/u2e-classic-word-2357/', import.meta.url);
-const change = callback => { const { document } = parseHTML(source.html); callback(document); return document.toString(); };
+const change = callback => { const { document } = parseHTML(source.html); callback(document); return document.querySelector('table').outerHTML; };
 function bareShell(dom) { const shell = dom.querySelector('table'); shell.removeAttribute('align'); shell.setAttribute('style', 'width:780pt;border-collapse:collapse;background:white'); }
 const bare = () => change(bareShell);
 function stripOwnColor(node) {
@@ -90,15 +90,15 @@ test('ancestor centering and inherited Dispo colors do not turn quoted material 
     assert.equal(state.present, false); assert.equal(state.current, false);
 });
 
-test('the redacted exact 23:57 fixture preserves Word material and the observed link mismatch', () => {
+test('the redacted exact 23:57 fixture remains historical and cannot admit a legacy source after the template revision', () => {
     const fixtureSource = JSON.parse(fs.readFileSync(new URL('source.json', fixtureRoot), 'utf8'));
     const actual = fs.readFileSync(new URL('actual.redacted.html', fixtureRoot), 'utf8');
     const manifest = JSON.parse(fs.readFileSync(new URL('manifest.json', fixtureRoot), 'utf8'));
     for (const [name, entry] of Object.entries(manifest.artifacts)) assert.equal(crypto.createHash('sha256').update(fs.readFileSync(new URL(name, fixtureRoot))).digest('hex'), entry.sha256);
-    validateUniversalComposeDocument(fixtureSource);
-    const state = universalComposeStateFromBody(fixtureSource, actual, 'newMail');
+    assert.throws(() => validateUniversalComposeDocument(fixtureSource), { code: 'U2E_SOURCE_INVALID' });
+    const state = universalComposeStateFromBody(source, actual, 'newMail');
     assert.equal(state.present, true); assert.equal(state.kind, 'combined'); assert.equal(state.current, false);
-    assert.equal(state.checkpoint, 'evidence.links'); assert.equal(state.difference.index, 0);
+    assert.equal(state.checkpoint, 'state.version');
     assert.equal(manifest.original.material.present, true); assert.equal(manifest.original.material.images, 13);
     assert.equal(manifest.original.material.links, 4); assert.equal(manifest.original.material.kind, 'combined');
     assert.equal(manifest.original.sha256, '6d6b0cbb3d8302e5c6df2f936332d07d2a075524d89cf31767d9be2bea62a7c2');

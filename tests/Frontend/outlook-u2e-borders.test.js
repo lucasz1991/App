@@ -8,7 +8,8 @@ import { universalComposeStateFromBody, validateUniversalComposeDocument } from 
 import { universalRedactedReadbackFixture, validateUniversalRedactedFixture, universalDiagnosticReplayHtml,
     firstUniversalEvidenceDifference, u2eDiagnosticHash } from '../../resources/js/outlook-addin/u2e-readback-diagnostics.js';
 
-const source = JSON.parse(fs.readFileSync(new URL('../Fixtures/mail/u2e-readback/source.json', import.meta.url), 'utf8'));
+const source = JSON.parse(fs.readFileSync(new URL('../Fixtures/mail/u2e-readback-v2/source.json', import.meta.url), 'utf8'));
+const signature = JSON.parse(fs.readFileSync(new URL('../Fixtures/mail/u2e-readback-v2/signature.json', import.meta.url), 'utf8'));
 const folder = new URL('../Fixtures/mail/u2e-cta-border-0746/', import.meta.url);
 const border = style => u2eTopBorder({ attrs: { style } });
 const mutate = change => { const { document } = parseHTML(source.html); change(document); return document.toString(); };
@@ -50,9 +51,6 @@ for (const declaration of ['', 'border-top:0 solid white', 'border-top:none', 'b
     'border-top:1px solid white;border:none', 'border-top:1px solid white;border-top-style:none']) {
     test('incomplete or invisible CTA border is rejected: ' + JSON.stringify(declaration), () => {
         assert.throws(() => border(declaration), error => error.checkpoint === 'borders.invalid');
-        const actual = mutate(document => setTop(document.querySelector('.rt-cta-cell'), declaration));
-        assert.equal(state(actual).current, false);
-        assert.equal(state(actual).checkpoint, 'borders.invalid');
     });
 }
 
@@ -72,12 +70,12 @@ test('border images and unproved logical edge or Word overrides cannot hide a to
     }
 });
 
-test('each of the four red grid edges and five white CTA edges is compared in structural order', () => {
+test('each of the four red grid edges is compared in structural order in the new template', () => {
     assert.equal(state(source.html).current, true);
-    for (let index = 0; index < 9; index++) {
+    for (let index = 0; index < 4; index++) {
         const actual = mutate(document => {
-            const cells = [...document.querySelectorAll('.rt-col'), ...document.querySelectorAll('.rt-cta-cell')];
-            assert.equal(cells.length, 9);
+            const cells = [...document.querySelectorAll('.rt-col')];
+            assert.equal(cells.length, 4);
             setTop(cells[index], 'border-top:1px solid #000000');
         });
         const result = state(actual);
@@ -89,25 +87,28 @@ test('each of the four red grid edges and five white CTA edges is compared in st
     }
 });
 
-test('CTA roles come from table structure after Word removes classes and may retain different positive pt widths', () => {
+test('the new line and borderless CTA roles survive synthetic Word class removal', () => {
     const actual = mutate(document => {
         for (const cell of document.querySelectorAll('.rt-col')) setTop(cell, 'border:none;border-top:solid #E4002B 2pt');
         for (const cell of document.querySelectorAll('.rt-cta-cell')) {
-            setTop(cell, 'border:none;border-top:solid white 1pt;mso-border-top-alt:solid white .75pt');
+            setTop(cell, 'border:none');
             cell.removeAttribute('class');
         }
+        const line = document.querySelector('.rt-cta-line td');
+        line.setAttribute('height', '.75pt');
+        line.setAttribute('style', line.getAttribute('style').replaceAll('height:1px', 'height:.75pt').replace('font-size:1px', 'font-size:1pt'));
     });
     assert.equal(state(actual).current, true);
-    const changedWidth = mutate(document => setTop(document.querySelector('.rt-cta-cell'), 'border-top:3px solid white'));
+    const changedWidth = mutate(document => setTop(document.querySelector('.rt-col'), 'border-top:3px solid #e4002b'));
     assert.equal(state(changedWidth).current, true, 'C-K10 compares color, with a separate positive-width guard');
     const missingOne = mutate(document => setTop(document.querySelectorAll('.rt-cta-cell')[4], ''));
-    assert.equal(state(missingOne).current, false);
+    assert.equal(state(missingOne).current, true, 'the CTA now intentionally has no top border');
     const missingCell = mutate(document => document.querySelectorAll('.rt-cta-cell')[4].remove());
     assert.equal(state(missingCell).current, false);
     assert.equal(state(missingCell).checkpoint, 'borders.structure');
 });
 
-test('the received black-border fixture stays private-safe and becomes a finite failure at CTA index four', () => {
+test('the original received black-border fixture stays intact and is rejected as a legacy template version', () => {
     const bytes = fs.readFileSync(new URL('received-0746.redacted.json', folder), 'utf8');
     const fixture = JSON.parse(bytes), manifest = JSON.parse(fs.readFileSync(new URL('manifest.json', folder), 'utf8'));
     assert.equal(crypto.createHash('sha256').update(bytes.replaceAll('\r\n', '\n')).digest('hex'), manifest.fixtureFileSha256);
@@ -115,22 +116,21 @@ test('the received black-border fixture stays private-safe and becomes a finite 
     assert.doesNotMatch(fixture.html + fixture.expectedHtml, /https?:\/\/|mailto:|tel:|@/);
     assert.equal(manifest.authorAndQuoteExcluded, true);
     const version = manifest.version;
-    const expected = { ...source, kind: 'signature', html: universalDiagnosticReplayHtml(fixture.expectedHtml),
+    const legacy = { ...source, kind: 'signature', html: universalDiagnosticReplayHtml(fixture.expectedHtml),
         version, marker: 'rt-sig-u2-' + version, header: 'u2e-' + version };
-    const result = universalComposeStateFromBody(expected, universalDiagnosticReplayHtml(fixture.html), 'newMail');
+    assert.throws(() => validateUniversalComposeDocument(legacy), { code: 'U2E_SOURCE_INVALID' });
+    const result = universalComposeStateFromBody(signature, universalDiagnosticReplayHtml(fixture.html), 'newMail');
     assert.equal(result.present, true); assert.equal(result.current, false);
-    assert.equal(result.checkpoint, 'evidence.borderColors');
-    assert.equal(result.difference.index, 4);
-    assert.equal(result.difference.expected, 'sha256:' + u2eDiagnosticHash('#ffffff') + ':7');
-    assert.equal(result.difference.actual, 'sha256:' + u2eDiagnosticHash('#000000') + ':7');
+    assert.equal(result.checkpoint, 'state.version');
+    assert.equal(result.version, version);
 });
 
 test('diagnostic replay retains top longhands, important cascade, image rejection and Word alternate color', () => {
     for (const [declaration, checkpoint] of [
-        ['border-top:1px solid white;border-top-color:black', 'evidence.borderColors'],
-        ['border-top:1px solid white;border-top-width:0px', 'borders.invalid'],
-        ['border-top:1px solid white;border-top-style:none', 'borders.invalid'],
-        ['border-top:1px solid white;mso-border-top-alt:solid black 1pt', 'borders.invalid'],
+        ['border-top:1px solid white;border-top-color:black', 'borders.cta'],
+        ['border-top:1px solid white;border-top-width:2px', 'borders.cta'],
+        ['border-top:1px solid white;border-top-style:solid', 'borders.cta'],
+        ['border-top:1px solid white;mso-border-top-alt:solid black 1pt', 'borders.cta'],
         ['border-top:1px solid white;border-image-source:url(https://private.invalid)', 'borders.image'],
     ]) {
         const actual = mutate(document => setTop(document.querySelector('.rt-cta-cell'), declaration));

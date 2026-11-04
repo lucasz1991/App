@@ -6,7 +6,7 @@ import { parseHTML } from 'linkedom';
 import { universalSignatureHrefEqual, firstUniversalEvidenceDifference } from '../../resources/js/outlook-addin/u2e-readback-diagnostics.js';
 import { universalComposeStateFromBody, validateUniversalComposeDocument } from '../../resources/js/outlook-addin/u2e-compose.js';
 
-const source = JSON.parse(fs.readFileSync(new URL('../Fixtures/mail/u2e-readback/source.json', import.meta.url), 'utf8'));
+const source = JSON.parse(fs.readFileSync(new URL('../Fixtures/mail/u2e-readback-v2/source.json', import.meta.url), 'utf8'));
 function withLink(doc, href) { const { document } = parseHTML(doc.html); document.querySelector('a').setAttribute('href', href); return { ...doc, html: document.toString() }; }
 const hash = value => crypto.createHash('sha256').update(value).digest('hex');
 const evidence = href => ({ topology: [], images: [], links: [href], colors: [], borderColors: [], text: 'Unchanged signature' });
@@ -89,24 +89,16 @@ test('approved link equality does not suppress subsequent color differences or n
     assert.equal(firstUniversalEvidenceDifference(expected, actual).difference.key, 'evidence.images.src');
 });
 
-test('the preserved redacted Word fixture accepts equivalent nearest-table colors but still rejects wrong colors after root-link equality', () => {
+test('the preserved legacy Word fixture remains noncurrent even when its root link is equivalent', () => {
     const directory = new URL('../Fixtures/mail/u2e-classic-word-2357/', import.meta.url);
     const originalSource = fs.readFileSync(new URL('source.json', directory), 'utf8');
     const originalActual = fs.readFileSync(new URL('actual.redacted.html', directory), 'utf8');
-    const before = withLink(JSON.parse(originalSource), 'https://root.example.test');
+    assert.throws(() => validateUniversalComposeDocument(JSON.parse(originalSource)), { code: 'U2E_SOURCE_INVALID' });
+    const before = withLink(source, 'https://root.example.test');
     const after = withLink({ html: originalActual }, 'https://root.example.test/');
     const state = universalComposeStateFromBody(before, after.html, 'newMail');
-    assert.equal(state.present, true); assert.equal(state.kind, 'combined'); assert.equal(state.current, true);
-    // C-K11 resolves the omitted white cell value, while an explicit wrong
-    // value must remain observable after the approved root-link equivalence.
-    const { document } = parseHTML(after.html), person = document.querySelector('td[width="260"]');
-    assert.ok(person);
-    person.removeAttribute('bgcolor');
-    person.setAttribute('style', (person.getAttribute('style') || '').split(';')
-        .filter(value => !/^\s*background(?:-color)?\s*:/i.test(value)).join(';') + ';background:#000000');
-    const wrongColor = universalComposeStateFromBody(before, document.toString(), 'newMail');
-    assert.equal(wrongColor.current, false);
-    assert.equal(wrongColor.checkpoint, 'evidence.colors'); assert.equal(wrongColor.difference.index, 0);
+    assert.equal(state.present, true); assert.equal(state.kind, 'combined'); assert.equal(state.current, false);
+    assert.equal(state.checkpoint, 'state.version');
     assert.equal(fs.readFileSync(new URL('source.json', directory), 'utf8'), originalSource);
     assert.equal(fs.readFileSync(new URL('actual.redacted.html', directory), 'utf8'), originalActual);
 });

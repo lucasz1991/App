@@ -33,13 +33,11 @@ final class OutlookUniversalDiagnosticFixturesTest extends TestCase
     public function test_real_javascript_redactor_output_is_accepted_without_author_quote_or_raw_urls(): void
     {
         $script = <<<'JS'
-import { u2eProbeDocument } from './resources/js/outlook-addin/u2e-editor-probe.js';
+import fs from 'node:fs';
 import { parseManagedHtml } from './resources/js/outlook-addin/managed-template.js';
 import { universalComposeDiagnosticFixture } from './resources/js/outlook-addin/u2e-compose.js';
-const probe = u2eProbeDocument();
-const html = probe.html.replace('id="'+probe.id+'" width="260"','id="'+probe.id+'-cell" width="260"');
-const version = probe.id.slice('rt-sig-u2-'.length);
-const source = {schema:1,kind:'combined',html,version,marker:probe.id,header:'u2e-'+version,sourceHash:'a'.repeat(64),media:[]};
+const source = JSON.parse(fs.readFileSync('./tests/Fixtures/mail/u2e-readback-v2/source.json','utf8'));
+const html = source.html;
 const { elements } = parseManagedHtml(html);
 const root = elements.findIndex(node => node.tag === 'table' && /^rt-sig-u2-/.test(node.attrs.id || ''));
 const author = elements.find(node => node.tag === 'tr' && node.parent === root);
@@ -51,6 +49,7 @@ JS;
         $process->mustRun();
         $fixture = json_decode($process->getOutput(), true, 512, JSON_THROW_ON_ERROR);
         self::assertIsArray($fixture);
+        self::assertStringContainsString('rt-cta-line', $fixture['expectedHtml']);
         self::assertTrue(OutlookUniversalDiagnosticFixtureValidator::valid($fixture));
         self::assertDoesNotMatchRegularExpression('/PRIVATE-|private@example|mailto:|https:\/\//', json_encode($fixture));
         $store = app(OutlookUniversalDiagnosticFixtureStore::class);
@@ -199,10 +198,9 @@ JS;
     {
         $script = <<<'JS'
 import {parseHTML} from 'linkedom';
-import {u2eProbeDocument} from './resources/js/outlook-addin/u2e-editor-probe.js';
+import fs from 'node:fs';
 import {universalComposeDiagnosticFixture} from './resources/js/outlook-addin/u2e-compose.js';
-const p=u2eProbeDocument(),html=p.html.replace('id="'+p.id+'" width="260"','id="'+p.id+'-cell" width="260"');
-const version=p.id.slice('rt-sig-u2-'.length),source={schema:1,kind:'combined',html,version,marker:p.id,header:'u2e-'+version,sourceHash:'a'.repeat(64),media:[]};
+const source=JSON.parse(fs.readFileSync('./tests/Fixtures/mail/u2e-readback-v2/source.json','utf8')),html=source.html;
 const {document}=parseHTML(html),shell=document.querySelector('table[width="1040"]');
 shell.removeAttribute('id');shell.removeAttribute('align');shell.setAttribute('style',(shell.getAttribute('style')||'').split(';').filter(d=>!/^\s*margin(?:-left|-right)?\s*:/i.test(d)).join(';'));
 const actual='<div align="center" data-private="PRIVATE-ATTRIBUTE"><p>PRIVATE-BEFORE</p>'+shell.outerHTML+'<p>PRIVATE-AFTER</p></div>';
@@ -212,6 +210,7 @@ JS;
         $process->mustRun();
         $fixture = json_decode($process->getOutput(), true, 512, JSON_THROW_ON_ERROR);
         self::assertIsArray($fixture);
+        self::assertStringContainsString('rt-cta-line', $fixture['expectedHtml']);
         self::assertStringStartsWith('<div align="center"><table ', $fixture['html']);
         self::assertTrue(OutlookUniversalDiagnosticFixtureValidator::valid($fixture));
         self::assertDoesNotMatchRegularExpression('/PRIVATE-|data-private/', json_encode($fixture));

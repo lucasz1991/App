@@ -14,7 +14,9 @@ final class OutlookUniversalPresentation
 
     public const DESIGN_SOURCE = 'c7efab2c64890dc57386448be880122e1e284c6c35a2392fcad5ed5094f94b6b';
 
-    private const TEMPLATE_SHA256 = '571786a0e872c1c92fa09578a2e5333e7af34e268d8664d56dad2e478bb13ff3';
+    // C-K13 approves only the CTA background separator and its mobile hiding
+    // rule. DESIGN_SOURCE still identifies the unchanged original reference.
+    private const TEMPLATE_SHA256 = '9b8900e1c9640b445dcf309cbb823ca4195001d3cabdf61f927c59c5389b26c4';
 
     private const ASSETS = [
         'logo' => ['/m/b983af0049.png', 'b983af0049926c128807d605a51a68ce90fea06c5c340f7728b105a96d7f021a', 400, 68],

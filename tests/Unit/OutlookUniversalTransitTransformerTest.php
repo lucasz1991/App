@@ -254,6 +254,45 @@ final class OutlookUniversalTransitTransformerTest extends TestCase
         self::assertSame(1, substr_count($result['html'], $previous['scopeId']));
     }
 
+    public function test_ck13_send_separator_is_scoped_and_an_old_border_quote_remains_byte_exact(): void
+    {
+        $projection = $this->projection();
+        $author = '<p data-test="raw-author">Raw &amp; unchanged author.</p>';
+        $editor = (new OutlookUniversalPresentation)->render($this->descriptor(), new HtmlString($author), $this->renderOptions('editor'));
+        $old = file_get_contents(dirname(__DIR__).'/Fixtures/mail/u2e-transit/received-classic-2333.redacted.html');
+        $quote = '<div id="divRplyFwdMsg">Historical header</div><blockquote>'.$this->body($old).'</blockquote></body></html>';
+        $input = '<html><head></head><body>'.$editor['html'].$quote;
+        $rawAuthor = $this->author($input, $projection);
+        $result = $this->transform($input, $projection);
+        self::assertTrue($result['changed'], $result['reason']);
+        self::assertStringEndsWith($quote, $result['html']);
+        self::assertSame($rawAuthor, $this->author($result['html'], $projection));
+        $xpath = $this->xpath($result['html']);
+        $own = $xpath->query('//*[contains(concat(" ",normalize-space(@class)," ")," '.$result['scopeId'].' ")]')->item(0);
+        self::assertSame(1, $xpath->query('.//tr[@class="rt-cta-line"]/td[@colspan="5" and @bgcolor="#ffffff"]', $own)->length);
+        self::assertSame(5, $xpath->query('.//td[contains(concat(" ",normalize-space(@class)," ")," rt-cta-cell ") and not(contains(@style,"border-top"))]', $own)->length);
+        self::assertStringContainsString('.'.$result['scopeId'].' .rt-cta-line { display:none !important; }', $result['headCss']);
+        self::assertStringNotContainsString('rt-cta-line', $quote, 'The historical quote fixture remains the original border-based layout.');
+    }
+
+    public function test_ck13_does_not_migrate_an_old_header_or_admit_the_old_template_pin(): void
+    {
+        $projection = $this->projection();
+        $oldVersion = str_repeat('1', 24);
+        $input = $this->word($oldVersion, '<p>Old published draft remains untouched.</p>');
+        $result = (new OutlookUniversalTransitTransformer)->transform($input, ['X-RailTime-Template' => 'u2e-'.$oldVersion], $projection, true, self::PILOT);
+        self::assertFalse($result['changed']);
+        self::assertSame('version_not_admitted', $result['reason']);
+        self::assertSame($input, $result['html']);
+
+        $oldPin = array_replace($projection, ['templateHash' => '571786a0e872c1c92fa09578a2e5333e7af34e268d8664d56dad2e478bb13ff3']);
+        $input = $this->word($projection['version'], '<p>Keep original on unadmitted projection.</p>');
+        $result = $this->transform($input, $oldPin);
+        self::assertFalse($result['changed']);
+        self::assertSame('projection_invalid', $result['reason']);
+        self::assertSame($input, $result['html']);
+    }
+
     private function transform(string $html, array $projection): array
     {
         return (new OutlookUniversalTransitTransformer)->transform($html, $this->headers($projection), $projection, true, self::PILOT);

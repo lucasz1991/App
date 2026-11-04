@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "kind": "synthetic-c-k13-host-serializations",
+  "nativeClientProof": false,
+  "privateInputUsed": false,
+  "version": "92eab6c45a583e103b6e62f5",
+  "templateSha256": "9b8900e1c9640b445dcf309cbb823ca4195001d3cabdf61f927c59c5389b26c4",
+  "description": "Actual B1 renderer with synthetic descriptor and author. Rooster/Word files are deliberately synthetic style/class transformations, not native captures.",
+  "artifacts": {
+    "source.json": {
+      "bytes": 13916,
+      "sha256": "c3a729fa720c8fa622e988e873451a76238017539fd457ff7b5d1ccaaf1f162e"
+    },
+    "signature.json": {
+      "bytes": 13577,
+      "sha256": "f92048745c22dbcf670a74c212ef363b82fce04a9e1456afddf9dc4926b5eba3"
+    },
+    "rooster.synthetic.html": {
+      "bytes": 12602,
+      "sha256": "7279710af6187201a07a9c25816e8e77b29946abf156c38bf28f956ba2ac1bff"
+    },
+    "word.synthetic.html": {
+      "bytes": 12386,
+      "sha256": "d23f62f89a6ea4073318e0887a8c42dbec528558ced1f52a2e8e02d552c8ceb1"
+    }
+  }
+}

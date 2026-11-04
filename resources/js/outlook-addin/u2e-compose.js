@@ -4,7 +4,7 @@ import { assertMailboxBinding } from './mailbox-guard.js';
 import { confirmedOfficeWrite, hasUncertainWrite } from './office-write.js';
 import { createNativeLayoutNonce } from './native-layout-restore.js';
 import { u2eCenteringState, u2eCenteringContext } from './u2e-appearance.js';
-import { u2eTopBorderEvidence } from './u2e-borders.js';
+import { u2eTopBorderEvidence, u2eCtaMaterial } from './u2e-borders.js';
 import { firstUniversalEvidenceDifference, u2eReadbackFailure,
     universalRedactedReadbackFixture } from './u2e-readback-diagnostics.js';
 
@@ -79,7 +79,8 @@ function unmarkedU2eShell(html) {
 }
 function hidden(node) {
     return Object.prototype.hasOwnProperty.call(node.attrs, 'hidden') || property(node, 'display').some(value => value === 'none')
-        || property(node, 'visibility').some(value => value === 'hidden') || property(node, 'opacity').some(value => Number(value) === 0)
+        || property(node, 'visibility').some(value => ['hidden', 'collapse'].includes(value))
+        || property(node, 'opacity').some(value => Number(value) === 0 || /^[+-]?(?:0+(?:\.0*)?|\.0+)%$/.test(value))
         || property(node, 'mso-hide').some(value => value === 'all');
 }
 function hiddenAncestor(elements, index) {
@@ -129,6 +130,24 @@ function materialBackgroundColor(elements, value) {
     return tableIndex !== null ? backgroundColor(elements[tableIndex]) : '';
 }
 
+// Host typography may use pt while the source uses px. Check positive finite
+// dimensions only, without equating their values or claiming pixel parity.
+function visibleCtaLine(line, row) {
+    const positive = (value, attribute = false) => {
+        const match = /^(\d+(?:\.\d+)?|\.\d+)(px|pt)?$/i.exec(String(value).trim());
+        return Boolean(match && (attribute || match[2]) && Number(match[1]) > 0 && Number(match[1]) <= 1000000);
+    };
+    const heights = [...(line.attrs.height === undefined ? [] : [{ value: line.attrs.height, attribute: true }]),
+        ...property(line, 'height').map(value => ({ value, attribute: false }))];
+    if (!heights.length || heights.some(value => !positive(value.value, value.attribute))) throw layoutFailure('line.visibility');
+    for (const node of [line, row]) {
+        if (hidden(node)) throw layoutFailure('line.visibility');
+        for (const name of ['height', 'line-height', 'font-size', 'max-height']) {
+            if (property(node, name).some(value => !positive(value))) throw layoutFailure('line.visibility');
+        }
+    }
+}
+
 /** Datensparse read-only extraction, also useful for incompatible legacy
  * fixtures. It never claims U2e ownership or a successful insertion. */
 export function universalComposePresentationEvidence(html) {
@@ -175,9 +194,11 @@ function material(html, expectedMarker = null, source = false) {
     const roots = [...new Set(markers.map(value => value.node.tag === 'table' ? value.index : nearest(elements, value.index, 'table')))];
     if (versions.length !== 1 || roots.length !== 1 || roots[0] === null) throw layoutFailure('markers.binding');
     const rootIndex = roots[0], root = elements[rootIndex], marker = 'rt-sig-u2-' + versions[0];
-    if (expectedMarker && marker !== expectedMarker) return { present: true, version: versions[0], marker, kind: null, tree };
     const outer = tableRows(elements, rootIndex);
     const kind = outer.length === 4 ? 'combined' : outer.length === 3 ? 'signature' : null;
+    // A previous version is still owned/present. Do not reinterpret its old
+    // topology under the new template, and never repair it in place.
+    if (expectedMarker && marker !== expectedMarker) return { present: true, version: versions[0], marker, kind, tree };
     if (!kind) throw layoutFailure('shell.rows', [3, 4], outer.length);
     if (!dimension(root, 'width', 1040)) throw layoutFailure('shell.width');
     if (!centered(root, elements, rootIndex)) throw layoutFailure('shell.align');
@@ -234,15 +255,17 @@ function material(html, expectedMarker = null, source = false) {
     const colors = own.filter(value => value.node.tag === 'td').map(value => materialBackgroundColor(elements, value));
     if (materialBackgroundColor(elements, legal[0]) !== '#e4e8ec') throw layoutFailure('colors.legal', '#e4e8ec', materialBackgroundColor(elements, legal[0]));
     if (backgroundColor(dispatch[0].node) !== '#e4002b') throw layoutFailure('colors.dispatch', '#e4002b', backgroundColor(dispatch[0].node));
-    if (own.filter(value => value.node.tag === 'td' && inside(elements, value.index, dispatch[0].index)).some(value => {
+    let borders, cta;
+    try { cta = u2eCtaMaterial(elements, grid, dispatch); borders = u2eTopBorderEvidence(elements, grid, dispatch); }
+    catch (error) { throw layoutFailure(['borders.structure', 'borders.invalid', 'borders.image', 'borders.cta'].includes(error?.checkpoint) ? error.checkpoint : 'borders.invalid'); }
+    visibleCtaLine(cta.line.node, cta.lineRow.node);
+    if (source && materialBackgroundColor(elements, cta.line) !== '#ffffff') throw layoutFailure('colors.line');
+    if (own.filter(value => value.node.tag === 'td' && value.index !== cta.line.index && inside(elements, value.index, dispatch[0].index)).some(value => {
             const corner = dimension(value.node, 'width', 8) && dimension(value.node, 'height', 8);
             return materialBackgroundColor(elements, value) !== (corner ? '#ffffff' : '#e4002b');
         })) throw layoutFailure('colors.corners');
-    let borders;
-    try { borders = u2eTopBorderEvidence(elements, grid, dispatch); }
-    catch (error) { throw layoutFailure(['borders.structure', 'borders.invalid', 'borders.image'].includes(error?.checkpoint) ? error.checkpoint : 'borders.invalid'); }
     const borderColors = borders.map(value => value.color);
-    if (source && JSON.stringify(borderColors) !== JSON.stringify([...Array(4).fill('#e4002b'), ...Array(5).fill('#ffffff')])) throw layoutFailure('borders.invalid');
+    if (source && JSON.stringify(borderColors) !== JSON.stringify(Array(4).fill('#e4002b'))) throw layoutFailure('borders.invalid');
     let signatureHtml = html.slice(root.openEnd, root.close);
     if (author) signatureHtml = signatureHtml.slice(0, author.node.start - root.openEnd) + signatureHtml.slice(author.node.end - root.openEnd);
     return { present: true, tree, root, rootIndex, author, kind, version: versions[0], marker,
@@ -283,7 +306,7 @@ export function universalComposeStateFromBody(document, html, composeType) {
         checkpoint = 'html.parse';
         const scoped = region(html, composeType);
         if (!scoped) return { ...state, ...u2eReadbackFailure('scope.boundary') };
-        const actual = material(scoped.currentHtml);
+        const actual = material(scoped.currentHtml, source.marker);
         if (!actual.present) return { ...state, readable: true, ...u2eReadbackFailure('state.present', true, false) };
         const expected = plans.get(source);
         const compatible = source.kind === 'signature' || actual.kind === 'combined';
