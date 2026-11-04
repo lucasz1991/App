@@ -94,6 +94,14 @@ final class OutlookUniversalDiagnosticFixtureValidator
         if ($html === '' || preg_match('/[^\x09\x0a\x0d\x20-\x7e]/', $html)) {
             return false;
         }
+        if (str_starts_with($html, '<div')) {
+            if (! str_starts_with($html, '<div align="center">') || ! str_ends_with($html, '</div>')) {
+                return false;
+            }
+            $inner = substr($html, strlen('<div align="center">'), -strlen('</div>'));
+
+            return preg_match('/\A<table(?: |>)/', $inner) && self::html($inner);
+        }
         preg_match_all('/<(\/?)([a-z][a-z0-9:]*)([^<>]*?)(\/?)>/', $html, $tokens, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
         if ($tokens === [] || count($tokens) > 3000) {
             return false;
@@ -141,7 +149,7 @@ final class OutlookUniversalDiagnosticFixtureValidator
                 return false;
             }
             $index = count($nodes);
-            $nodes[] = ['tag' => $tag, 'attrs' => $attributes, 'parent' => $parent];
+            $nodes[] = ['tag' => $tag, 'attrs' => $attributes, 'parent' => $parent, 'index' => $index];
             if (! in_array($tag, ['img', 'br', 'wbr'], true)) {
                 if ($token[4][0] !== '') {
                     return false;
@@ -150,7 +158,7 @@ final class OutlookUniversalDiagnosticFixtureValidator
             }
         }
         if (trim(substr($html, $offset)) !== '' || $stack !== [] || $textCount !== 5
-            || $nodes[0]['tag'] !== 'table' || ! preg_match('/\A(?:x_)?rt-sig-u2-[0-9a-f]{24}\z/', $nodes[0]['attrs']['id'] ?? '')) {
+            || $nodes[0]['tag'] !== 'table') {
             return false;
         }
         $rows = [];
@@ -167,8 +175,24 @@ final class OutlookUniversalDiagnosticFixtureValidator
             $cells[] = array_values(array_filter($nodes, static fn (array $node): bool => in_array($node['tag'], ['td', 'th'], true) && $node['parent'] === $row));
         }
 
-        return count($cells[0]) === 4 && count($cells[1]) === 1 && ($cells[1][0]['attrs']['colspan'] ?? null) === '3'
-            && count($cells[2]) === 1 && ($cells[2][0]['attrs']['colspan'] ?? null) === '4';
+        if (count($cells[0]) !== 4 || count($cells[1]) !== 1 || ($cells[1][0]['attrs']['colspan'] ?? null) !== '3'
+            || count($cells[2]) !== 1 || ($cells[2][0]['attrs']['colspan'] ?? null) !== '4') {
+            return false;
+        }
+        $versions = [];
+        foreach ($nodes as $node) {
+            if (! isset($node['attrs']['id'])) {
+                continue;
+            }
+            if (! in_array($node['index'], [0, $cells[0][0]['index']], true)
+                || ! preg_match('/\A(?:x_)?rt-sig-u2-([0-9a-f]{24})(-cell)?\z/', $node['attrs']['id'], $marker)
+                || $node['index'] === 0 && isset($marker[2])) {
+                return false;
+            }
+            $versions[] = $marker[1];
+        }
+
+        return $versions !== [] && count(array_unique($versions)) === 1;
     }
 
     private static function ancestor(array $nodes, int $index, string $tag): ?int

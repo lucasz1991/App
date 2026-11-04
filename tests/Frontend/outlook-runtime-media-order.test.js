@@ -5,6 +5,8 @@ import vm from 'node:vm';
 import { confirmedOfficeWrite, hasUncertainWrite, wasSignatureWriteConfirmed } from '../../resources/js/outlook-addin/office-write.js';
 import { hasMobileTemplateOwnership, isStandaloneSignatureInsertionBlocked, requiresStandaloneSignatureLayout, signatureOfficeWire } from '../../resources/js/outlook-addin/compose-template.js';
 import * as automaticPolicy from '../../resources/js/outlook-addin/automatic-compose-policy.js';
+import * as universal from '../../resources/js/outlook-addin/u2e-compose.js';
+import * as telemetry from '../../resources/js/outlook-addin/u2e-telemetry.js';
 
 const source = await readFile(new URL('../../resources/js/outlook-addin/runtime.js', import.meta.url), 'utf8');
 
@@ -73,6 +75,7 @@ function harness(options = {}) {
         confirmedInlineMedia: new WeakMap(), pendingNativeSignatures: new WeakMap(),
         confirmedOfficeWrite, hasUncertainWrite, wasSignatureWriteConfirmed, hasMobileTemplateOwnership, isStandaloneSignatureInsertionBlocked, requiresStandaloneSignatureLayout, signatureOfficeWire,
         ...automaticPolicy,
+        ...universal, ...telemetry,
         isMobileComposeHost: () => options.mobile === true,
         codedError: (code) => Object.assign(new Error(code), { code }),
         safeErrorCode: (error) => error?.code || 'UNAVAILABLE',

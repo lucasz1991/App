@@ -195,6 +195,48 @@ JS;
         }
     }
 
+    public function test_javascript_word_centering_context_and_cell_only_marker_cross_the_php_boundary(): void
+    {
+        $script = <<<'JS'
+import {parseHTML} from 'linkedom';
+import {u2eProbeDocument} from './resources/js/outlook-addin/u2e-editor-probe.js';
+import {universalComposeDiagnosticFixture} from './resources/js/outlook-addin/u2e-compose.js';
+const p=u2eProbeDocument(),html=p.html.replace('id="'+p.id+'" width="260"','id="'+p.id+'-cell" width="260"');
+const version=p.id.slice('rt-sig-u2-'.length),source={schema:1,kind:'combined',html,version,marker:p.id,header:'u2e-'+version,sourceHash:'a'.repeat(64),media:[]};
+const {document}=parseHTML(html),shell=document.querySelector('table[width="1040"]');
+shell.removeAttribute('id');shell.removeAttribute('align');shell.setAttribute('style',(shell.getAttribute('style')||'').split(';').filter(d=>!/^\s*margin(?:-left|-right)?\s*:/i.test(d)).join(';'));
+const actual='<div align="center" data-private="PRIVATE-ATTRIBUTE"><p>PRIVATE-BEFORE</p>'+shell.outerHTML+'<p>PRIVATE-AFTER</p></div>';
+process.stdout.write(JSON.stringify(universalComposeDiagnosticFixture(source,actual,'newMail')));
+JS;
+        $process = new Process(['node', '--input-type=module', '-e', $script], base_path());
+        $process->mustRun();
+        $fixture = json_decode($process->getOutput(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($fixture);
+        self::assertStringStartsWith('<div align="center"><table ', $fixture['html']);
+        self::assertTrue(OutlookUniversalDiagnosticFixtureValidator::valid($fixture));
+        self::assertDoesNotMatchRegularExpression('/PRIVATE-|data-private/', json_encode($fixture));
+    }
+
+    public function test_centering_wrapper_and_marker_mirror_reject_extra_context_or_conflicting_identity(): void
+    {
+        $fixture = $this->fixture();
+        $marker = 'rt-sig-u2-'.str_repeat('a', 24);
+        $cellOnly = str_replace(' id="'.$marker.'"', '', $fixture['html']);
+        $cellOnly = preg_replace('/<td>/', '<td id="'.$marker.'-cell">', $cellOnly, 1);
+        $wrapped = '<div align="center">'.$cellOnly.'</div>';
+        $pair = array_replace($fixture, ['html' => $wrapped, 'sha256' => hash('sha256', $wrapped)]);
+        self::assertTrue(OutlookUniversalDiagnosticFixtureValidator::valid($pair));
+        foreach (['<div align="center" title="rt-redacted">'.$cellOnly.'</div>', '<div align="left">'.$cellOnly.'</div>',
+            '<div align="center">rt-redacted'.$cellOnly.'</div>', '<div align="center"><div align="center">'.$cellOnly.'</div></div>',
+            '<div align="center">'.$cellOnly.'<p>rt-redacted</p></div>', $wrapped.'<p>rt-redacted</p>',
+            str_replace('<table ', '<table id="rt-sig-u2-'.str_repeat('b', 24).'" ', $wrapped),
+            str_replace($marker.'-cell', 'PRIVATE-ID', $wrapped),
+            preg_replace('/<td>/', '<td id="'.$marker.'-cell">', $wrapped, 1),
+            str_replace(' id="'.$marker.'-cell"', '', $wrapped)] as $html) {
+            self::assertFalse(OutlookUniversalDiagnosticFixtureValidator::valid(array_replace($pair, ['html' => $html, 'sha256' => hash('sha256', $html)])));
+        }
+    }
+
     private function metadata(): array
     {
         return ['host' => 'Outlook', 'code' => 'SIGNATURE_LAYOUT_UNCONFIRMED', 'phase' => 'readback', 'sourceLength' => 13822,

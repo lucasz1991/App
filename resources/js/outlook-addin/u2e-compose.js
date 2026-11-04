@@ -3,6 +3,7 @@ import { currentComposeBodyHtml, isMobileComposeHost, isTemplateInsertionBlocked
 import { assertMailboxBinding } from './mailbox-guard.js';
 import { confirmedOfficeWrite, hasUncertainWrite } from './office-write.js';
 import { createNativeLayoutNonce } from './native-layout-restore.js';
+import { u2eCenteringState, u2eCenteringContext } from './u2e-appearance.js';
 import { firstUniversalEvidenceDifference, u2eReadbackFailure,
     universalRedactedReadbackFixture } from './u2e-readback-diagnostics.js';
 
@@ -115,25 +116,16 @@ function backgroundColor(node) {
     return values[0];
 }
 
-function centered(node) {
-    const align = node.attrs.align?.trim().toLowerCase();
-    if (align && align !== 'center') return false;
-    if (property(node, 'float').some(value => value !== 'none')) return false;
-    let left = null, right = null;
-    for (const declaration of (node.attrs.style || '').split(';')) {
-        const colon = declaration.indexOf(':');
-        if (colon < 0) continue;
-        const key = declaration.slice(0, colon).trim().toLowerCase();
-        const value = declaration.slice(colon + 1).trim().toLowerCase().replace(/\s*!important$/, '');
-        if (key === 'margin') {
-            const parts = value.split(/\s+/);
-            if (parts.length < 1 || parts.length > 4) return false;
-            right = parts[1] ?? parts[0]; left = parts[3] ?? parts[1] ?? parts[0];
-        } else if (key === 'margin-left') left = value;
-        else if (key === 'margin-right') right = value;
-    }
-    const auto = left === 'auto' && right === 'auto';
-    return auto || align === 'center' && left === null && right === null;
+const centered = (node, elements = null, index = null) => elements && Number.isInteger(index)
+    ? u2eCenteringContext(elements, index).centered : u2eCenteringState(node) === 'center';
+
+function materialBackgroundColor(elements, value, dispatchIndex) {
+    const explicit = backgroundColor(value.node);
+    if (explicit || value.node.tag !== 'td' || !inside(elements, value.index, dispatchIndex)) return explicit;
+    const tableIndex = nearest(elements, value.index, 'table');
+    // Word can omit an equal cell color. Only that cell's closest table may
+    // supply it, and only while still inside the admitted Dispo table.
+    return tableIndex !== null && inside(elements, tableIndex, dispatchIndex) ? backgroundColor(elements[tableIndex]) : '';
 }
 
 /** Datensparse read-only extraction, also useful for incompatible legacy
@@ -147,8 +139,8 @@ export function universalComposePresentationEvidence(html) {
             try { value = backgroundColor(node) || 'unset'; } catch { value = 'invalid'; }
             colors[value] = (colors[value] || 0) + 1;
         }
-        const tables = elements.filter(node => node.tag === 'table');
-        return { schema: 1, readable: true, tables: tables.length, centeredTables: tables.filter(centered).length, colors };
+        const tables = indexed(elements).filter(value => value.node.tag === 'table');
+        return { schema: 1, readable: true, tables: tables.length, centeredTables: tables.filter(value => centered(value.node, elements, value.index)).length, colors };
     } catch { return { schema: 1, readable: false, tables: 0, centeredTables: 0, colors: {} }; }
 }
 
@@ -187,7 +179,7 @@ function material(html, expectedMarker = null, source = false) {
     const kind = outer.length === 4 ? 'combined' : outer.length === 3 ? 'signature' : null;
     if (!kind) throw layoutFailure('shell.rows', [3, 4], outer.length);
     if (!dimension(root, 'width', 1040)) throw layoutFailure('shell.width');
-    if (!centered(root)) throw layoutFailure('shell.align');
+    if (!centered(root, elements, rootIndex)) throw layoutFailure('shell.align');
     if (hiddenAncestor(elements, rootIndex)) throw layoutFailure('shell.hidden');
     const author = kind === 'combined' ? outer[0] : null, signatureRows = author ? outer.slice(1) : outer;
     const authorCells = author && rowCells(elements, author.index), grid = rowCells(elements, signatureRows[0].index), train = rowCells(elements, signatureRows[1].index), legal = rowCells(elements, signatureRows[2].index);
@@ -238,12 +230,12 @@ function material(html, expectedMarker = null, source = false) {
         return value.node.attrs.href;
     });
     if (links.length !== 4) throw layoutFailure('links.count', 4, links.length);
-    const colors = own.filter(value => value.node.tag === 'td').map(value => backgroundColor(value.node));
+    const colors = own.filter(value => value.node.tag === 'td').map(value => materialBackgroundColor(elements, value, dispatch[0].index));
     if (backgroundColor(legal[0].node) !== '#e4e8ec') throw layoutFailure('colors.legal', '#e4e8ec', backgroundColor(legal[0].node));
     if (backgroundColor(dispatch[0].node) !== '#e4002b') throw layoutFailure('colors.dispatch', '#e4002b', backgroundColor(dispatch[0].node));
     if (own.filter(value => value.node.tag === 'td' && inside(elements, value.index, dispatch[0].index)).some(value => {
             const corner = dimension(value.node, 'width', 8) && dimension(value.node, 'height', 8);
-            return backgroundColor(value.node) !== (corner ? '#ffffff' : '#e4002b');
+            return materialBackgroundColor(elements, value, dispatch[0].index) !== (corner ? '#ffffff' : '#e4002b');
         })) throw layoutFailure('colors.corners');
     let signatureHtml = html.slice(root.openEnd, root.close);
     if (author) signatureHtml = signatureHtml.slice(0, author.node.start - root.openEnd) + signatureHtml.slice(author.node.end - root.openEnd);
@@ -384,14 +376,18 @@ function authorEvidence(html, excludedRoot = null) {
         links: clean.filter(node => node.tag === 'a').map(node => node.attrs.href) });
 }
 
-async function snapshot(office, item) {
+async function snapshot(office, item, report = null, lengthOrigin = 'original') {
+    if (report) report.step = 'snapshot.type';
     const type = await readCall(office, callback => item.getComposeTypeAsync(callback));
     const composeType = type?.composeType;
     if (!['newMail', 'reply', 'forward'].includes(composeType)) throw failure('U2E_CONTEXT_UNREADABLE');
+    if (report) { report.composeType = composeType; report.step = 'snapshot.format'; }
     const format = await readCall(office, callback => item.body.getTypeAsync(callback));
     if (format !== office.CoercionType.Html) throw failure('U2E_HTML_REQUIRED');
+    if (report) report.step = 'snapshot.body';
     const html = await readCall(office, callback => item.body.getAsync(office.CoercionType.Html, callback));
     if (typeof html !== 'string' || html.length > 500000) throw failure('U2E_CONTEXT_UNREADABLE');
+    if (report) { report.bodyLength = html.length; report.bodyLengthOrigin = lengthOrigin; report.step = 'snapshot.region'; }
     const scoped = region(html, composeType);
     if (!scoped) throw failure('U2E_NEW_DRAFT_REQUIRED');
     return { html, composeType, ...scoped };
@@ -419,25 +415,30 @@ export async function insertUniversalComposeDocument(office, item, document, { b
     let lastSnapshot = null;
     operations.set(item, operation);
     const guard = async () => {
+        operation.report.step = 'binding';
         await beforeWrite(); await assertMailboxBinding(office, item, binding);
         if (office?.context?.mailbox?.item !== item) throw failure('COMPOSE_ITEM_CHANGED');
     };
     const guardClaim = async expected => {
         await guard();
+        operation.report.step = 'session.claim';
         if (await session(office, item, UNIVERSAL_COMPOSE_SESSION_KEY) !== expected) throw failure('U2E_INSERT_UNCERTAIN');
         // No caller hook follows the claim check. A late item/sender change in
         // that read must still fail before the adjacent mutation/acknowledgement.
+        operation.report.step = 'binding';
         await assertMailboxBinding(office, item, binding);
         if (office?.context?.mailbox?.item !== item) throw failure('COMPOSE_ITEM_CHANGED');
     };
     try {
-        await guard(); await settledLegacy(office, item);
+        await guard(); operation.report.step = 'legacy'; await settledLegacy(office, item);
+        operation.report.step = 'session.read';
         const priorClaim = await session(office, item, UNIVERSAL_COMPOSE_SESSION_KEY);
         if (priorClaim && !/^applied:[0-9a-f]{24}:(?:combined|signature)$/.test(priorClaim)) throw failure('U2E_INSERT_UNCERTAIN');
-        const original = await snapshot(office, item);
+        const original = await snapshot(office, item, operation.report);
         lastSnapshot = original;
         operation.report.bodyLength = original.html.length;
         await guard();
+        operation.report.step = 'source.state';
         const state = universalComposeStateFromBody(source, original.html, original.composeType);
         if (state.current) {
             await guardClaim(priorClaim);
@@ -456,32 +457,44 @@ export async function insertUniversalComposeDocument(office, item, document, { b
         if (!mobile && (!office?.context?.requirements?.isSetSupported?.('Mailbox', '1.8') || typeof item.internetHeaders?.setAsync !== 'function')) throw failure('U2E_HEADER_UNAVAILABLE');
         const token = 'pending:' + source.version + ':' + createNativeLayoutNonce();
         await guardClaim(priorClaim); operation.claimed = true; operation.report = { ...operation.report, attempted: true, state: 'pending', phase: 'claim' };
+        operation.report.step = 'session.claim';
         await readCall(office, callback => item.sessionData.setAsync(UNIVERSAL_COMPOSE_SESSION_KEY, token, callback), 'U2E_INSERT_UNCERTAIN');
         if (await session(office, item, UNIVERSAL_COMPOSE_SESSION_KEY) !== token) throw failure('U2E_INSERT_UNCERTAIN');
         if (!mobile) {
             await guardClaim(token);
             operation.report.phase = 'header';
+            operation.report.step = 'header.write';
             await confirmedOfficeWrite(office, item, 'u2e-header-write', 'U2E_INSERT_UNCERTAIN', callback => item.internetHeaders.setAsync({ 'X-RailTime-Template': source.header }, callback));
             operation.report.headerWritten = true;
         }
-        await guard(); await settledLegacy(office, item);
-        const latest = await snapshot(office, item);
+        await guard(); operation.report.step = 'legacy'; await settledLegacy(office, item);
+        const latest = await snapshot(office, item, operation.report);
+        operation.report.step = 'context.compare';
         if (latest.html !== original.html || latest.composeType !== original.composeType) throw failure('U2E_CONTEXT_CHANGED');
+        operation.report.step = 'session.claim';
         if (await session(office, item, UNIVERSAL_COMPOSE_SESSION_KEY) !== token) throw failure('U2E_INSERT_UNCERTAIN');
         await guardClaim(token);
         operation.report.phase = 'write';
+        operation.report.step = 'body.write';
         await confirmedOfficeWrite(office, item, 'u2e-compose-write', 'U2E_INSERT_UNCERTAIN',
             callback => item.body[method](source.html, { coercionType: office.CoercionType.Html }, callback), { deferSignatureConfirmation: true });
         await guard();
         operation.report.phase = 'readback';
-        const actual = await snapshot(office, item), verified = universalComposeStateFromBody(source, actual.html, actual.composeType);
+        const actual = await snapshot(office, item, operation.report, 'actual');
+        operation.report.step = 'readback.material';
+        const verified = universalComposeStateFromBody(source, actual.html, actual.composeType);
         lastSnapshot = actual;
         operation.report.bodyLength = actual.html.length;
-        if (actual.composeType !== original.composeType) throw layoutFailure('compose.type', original.composeType, actual.composeType, null, 'u2e-compose-readback');
+        if (actual.composeType !== original.composeType) {
+            operation.report.step = 'readback.compose_type';
+            throw layoutFailure('compose.type', original.composeType, actual.composeType, null, 'u2e-compose-readback');
+        }
         if (!verified.current) throw Object.assign(failure('SIGNATURE_LAYOUT_UNCONFIRMED', 'u2e-compose-readback'),
             u2eReadbackFailure(verified.checkpoint || 'state.unreadable'), { difference: verified.difference || null });
+        operation.report.step = 'readback.quote';
         if (actual.quote !== original.quote) throw layoutFailure('quote.bytes', original.quote, actual.quote, null, 'u2e-compose-readback');
         const actualMaterial = material(actual.currentHtml);
+        operation.report.step = 'readback.author';
         if (source.kind === 'signature' && authorEvidence(actual.currentHtml, actualMaterial.root) !== ownAuthor) throw layoutFailure('author.signature', ownAuthor,
             authorEvidence(actual.currentHtml, actualMaterial.root), null, 'u2e-compose-author');
         if (source.kind === 'combined') {
@@ -491,16 +504,19 @@ export async function insertUniversalComposeDocument(office, item, document, { b
                 authorEvidence(source.html.slice(expected.author.node.start, expected.author.node.end)), actualMaterial.author
                     ? authorEvidence(actual.currentHtml.slice(actualMaterial.author.node.start, actualMaterial.author.node.end)) : null, null, 'u2e-compose-author');
         }
+        operation.report.step = 'session.verify';
         if (await session(office, item, UNIVERSAL_COMPOSE_SESSION_KEY) !== token) throw failure('U2E_INSERT_UNCERTAIN');
         await guardClaim(token);
         const terminal = 'applied:' + source.version + ':' + source.kind;
+        operation.report.step = 'session.finalize';
         await readCall(office, callback => item.sessionData.setAsync(UNIVERSAL_COMPOSE_SESSION_KEY, terminal, callback), 'U2E_INSERT_UNCERTAIN');
+        operation.report.step = 'session.verify';
         if (await session(office, item, UNIVERSAL_COMPOSE_SESSION_KEY) !== terminal) throw failure('U2E_INSERT_UNCERTAIN');
         await guardClaim(terminal); operation.report = { ...operation.report, state: 'complete', current: true, phase: 'complete' };
         return { status: 'applied', ...verified };
     } catch (error) {
         const code = /^[A-Z][A-Z0-9_]{0,79}$/.test(error?.code || '') ? error.code : 'UNAVAILABLE';
-        operation.report = { ...operation.report, code };
+        operation.report = { ...operation.report, code, originalCode: code };
         if (code === 'SIGNATURE_LAYOUT_UNCONFIRMED') {
             Object.assign(operation.report, u2eReadbackFailure(error?.checkpoint || 'readback.unknown'), { difference: error?.difference || null });
             if (String(binding?.mailboxAddress || '').toLowerCase() === 'it-technik@rail-time.de' && lastSnapshot) {

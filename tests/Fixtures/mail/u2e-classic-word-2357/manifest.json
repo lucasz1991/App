@@ -1,0 +1,82 @@
+{
+  "schema": 1,
+  "original": {
+    "bytes": 57355,
+    "sha256": "6d6b0cbb3d8302e5c6df2f936332d07d2a075524d89cf31767d9be2bea62a7c2",
+    "material": {
+      "present": true,
+      "kind": "combined",
+      "images": 13,
+      "links": 4
+    },
+    "wholeBodyReader": {
+      "readable": true,
+      "present": true,
+      "kind": "combined",
+      "version": "544f042ce1c87edd08a60932",
+      "current": false,
+      "checkpoint": "evidence.links",
+      "difference": {
+        "key": "evidence.links.href",
+        "index": 0,
+        "expected": "sha256:fb1bfb9db67f4224bf27d717005b32a38c64dc8470ecaac777051569dd44598e:24",
+        "actual": "sha256:015949be01c227924e3e25dc2a003d1862732e62967c6052c2e683f1c771e5fe:25"
+      }
+    },
+    "replyReader": {
+      "readable": true,
+      "present": true,
+      "kind": "combined",
+      "version": "544f042ce1c87edd08a60932",
+      "current": false,
+      "checkpoint": "evidence.links",
+      "difference": {
+        "key": "evidence.links.href",
+        "index": 0,
+        "expected": "sha256:fb1bfb9db67f4224bf27d717005b32a38c64dc8470ecaac777051569dd44598e:24",
+        "actual": "sha256:015949be01c227924e3e25dc2a003d1862732e62967c6052c2e683f1c771e5fe:25"
+      }
+    }
+  },
+  "source": {
+    "privateInputSha256": "95124735d6302bc8a4e71e73f924ff626be91a16547082a43874f75f9089928d",
+    "htmlSha256": "dce2d1649f3998e00e5e2d5db97550e99c97e2f14020df24f49267a1f8560bd0",
+    "utf16Length": 13822,
+    "queryCount": 0
+  },
+  "method": "Production scoped redactor removes author/user/quote text, masks all URLs, and keeps Word geometry/background omissions plus accepted center DIV. Diagnostic URL surrogates restore hash-preserving comparisons. One neutral author row is added to each redacted signature to retain combined-kind tests. reply.redacted.html appends a neutral quote with the observed unquoted known boundary ID.",
+  "limitations": [
+    "No original business text, URLs or quote content are copied.",
+    "Fixed signature text tokens cannot reproduce raw text differences.",
+    "Original material recognition is not a native compose acknowledgement.",
+    "The original first link differs in raw length/hash; no production URL equivalence relaxation is applied."
+  ],
+  "redactedReader": {
+    "readable": true,
+    "present": true,
+    "kind": "combined",
+    "version": "544f042ce1c87edd08a60932",
+    "current": false,
+    "checkpoint": "evidence.links",
+    "difference": {
+      "key": "evidence.links.href",
+      "index": 0,
+      "expected": "sha256:bbbd343bf8c950d841f3c8021e6a88b0841e2287c09951772eb971f2d4ead393:89",
+      "actual": "sha256:915b45d0a76e1c5f8d99ebb77d5a3d078a7ea103e64f36ab5dadb93c626344e4:89"
+    }
+  },
+  "artifacts": {
+    "source.json": {
+      "sha256": "060e991eb69a90c1cab8e14669a14cbae3c85bd6ab661b5a800b12c871a0c945",
+      "bytes": 13753
+    },
+    "actual.redacted.html": {
+      "sha256": "338ff6d020d6a0b6e30bcab257bd93e19c0f8063492ff9f0db938287ca254af6",
+      "bytes": 12473
+    },
+    "reply.redacted.html": {
+      "sha256": "4ba2de1cf54e6c9e0ca32f2c54c2a248406292261a714fa9174164e944d048c7",
+      "bytes": 12534
+    }
+  }
+}

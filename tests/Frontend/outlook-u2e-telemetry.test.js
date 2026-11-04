@@ -8,6 +8,32 @@ import { u2eProbeDocument } from '../../resources/js/outlook-addin/u2e-editor-pr
 import { universalRedactedReadbackFixture } from '../../resources/js/outlook-addin/u2e-readback-diagnostics.js';
 
 const codeError = code => Object.assign(new Error('PRIVATE-MAIL-BODY'), { code, token: 'PRIVATE-TOKEN' });
+
+test('operation telemetry keeps original and replacement codes with finite execution facts', () => {
+    const report = { code: 'U2E_INSERT_UNCERTAIN', originalCode: 'U2E_NEW_DRAFT_REQUIRED', phase: 'readback',
+        step: 'snapshot.region', bodyLength: 57355, bodyLengthOrigin: 'actual', composeType: 'reply' };
+    const payload = universalFailurePayload(codeError(report.code), report);
+    for (const key of ['code', 'originalCode', 'phase', 'step', 'bodyLength', 'bodyLengthOrigin', 'composeType']) assert.equal(payload[key], report[key]);
+    const bad = universalFailurePayload(codeError(report.code), { ...report, originalCode: 'PRIVATE-ERROR',
+        step: 'PRIVATE-STEP', bodyLengthOrigin: 'PRIVATE-LENGTH', composeType: 'PRIVATE-TYPE', automaticReason: 'PRIVATE-REASON' });
+    assert.equal(bad.originalCode, 'UNAVAILABLE');
+    assert.doesNotMatch(JSON.stringify(bad), /PRIVATE/);
+    const stale = universalFailurePayload(codeError('U2E_SOURCE_INVALID'), report);
+    for (const key of ['originalCode', 'step', 'bodyLengthOrigin', 'composeType']) assert.equal(stale[key], undefined);
+});
+
+test('automatic skipped telemetry is pilot-only and needs a finite reason', async t => {
+    const f = environment(t);
+    const args = { ...f.args, error: codeError('U2E_AUTOMATIC_SKIPPED'),
+        report: { code: 'U2E_AUTOMATIC_SKIPPED', phase: 'preflight', automaticReason: 'compose_type_unknown', composeType: 'unknown' } };
+    assert.equal(await reportUniversalFailure(args), false); assert.equal(f.calls.length, 0);
+    const binding = { mailboxAddress: 'it-technik@rail-time.de', senderAddress: 'it-technik@rail-time.de' };
+    f.office.context.mailbox.userProfile.emailAddress = binding.mailboxAddress;
+    assert.equal(await reportUniversalFailure({ ...args, binding }), true);
+    assert.equal(JSON.parse(f.calls[0][1].body).automaticReason, 'compose_type_unknown');
+    assert.equal(await reportUniversalFailure({ ...args, binding, report: { ...args.report, automaticReason: 'private@example.test' } }), false);
+    assert.equal(f.calls.length, 1);
+});
 const flush = async until => { for (let i = 0; i < 100 && !until(); i++) await Promise.resolve(); assert.equal(until(), true); };
 const runtime = await readFile(new URL('../../resources/js/outlook-addin/runtime.js', import.meta.url), 'utf8');
 const pane = await readFile(new URL('../../resources/js/outlook-addin/taskpane.js', import.meta.url), 'utf8');

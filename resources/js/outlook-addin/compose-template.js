@@ -1,4 +1,4 @@
-import { fluidLayoutContract, hasUnquotedFluidLayoutMarker, hasUnquotedSignatureLayoutCarrier, managedTemplateContract, managedTemplateReplacement, standaloneSignatureContract, v15ReadbackParses, V15_READBACK_CONTRACT_STAGES, V17_READBACK_CONTRACT_STAGES } from './managed-template.js';
+import { fluidLayoutContract, hasUnquotedFluidLayoutMarker, hasUnquotedSignatureLayoutCarrier, managedTemplateContract, managedTemplateReplacement, parseManagedHtml, standaloneSignatureContract, v15ReadbackParses, V15_READBACK_CONTRACT_STAGES, V17_READBACK_CONTRACT_STAGES } from './managed-template.js';
 import { createNativeLayoutNonce, inferredNativeGridRow, isFluidLayoutSource, outlookSignatureDeliveryProfile, verifyFluidLayoutMaterial, nativeLayoutClearBarrier, nativeLayoutReadbackContract, nativeLayoutThreeCellTopology, nativeLayoutRestoreCarrierIsExternal, nativeLayoutRestoreCarrierPresent, nativeLayoutRestoreCellsAligned, nativeLayoutRestoreCss, nativeLayoutRestoreRetained, prepareNativeLayoutRestore, removeNativeLayoutRestoreCarrier } from './native-layout-restore.js';
 import { applyV17OfficeWireEdits, mobileV17OfficeWire, v17OfficeWireEdits } from './v17-office-wire.js';
 import { v17MsoColumnEdits } from './v17-mso-columns.js';
@@ -58,15 +58,24 @@ export function currentComposeBodyHtml(html, composeType) {
     if (composeType === 'newMail') return html;
     if (!['reply', 'forward'].includes(composeType)) return null;
 
+    let boundary = -1;
+    try {
+        // Word can serialize this existing Outlook reply marker without quotes.
+        // Read its real attribute: text, comments, titles and data-id are not a
+        // boundary. Preserve original offsets and never reserialize the body.
+        const { elements } = parseManagedHtml(html);
+        for (const node of elements) {
+            if (node.tag === 'div' && /^(?:x_)?divrplyfwdmsg$/i.test(node.attrs.id || '')
+                && (boundary === -1 || node.start < boundary)) boundary = node.start;
+        }
+    } catch { return null; }
     const boundaries = [
-        /<[^>]+\bid\s*=\s*["'](?:x_)?divrplyfwdmsg["'][^>]*>/ig,
         /<[^>]+\bid\s*=\s*["']mail-editor-reference-message-container["'][^>]*>/ig,
         /<[^>]+\bclass\s*=\s*["'][^"']*(?:gmail_quote|yahoo_quoted|moz-cite-prefix)[^"']*["'][^>]*>/ig,
         /<blockquote\b[^>]*(?:\btype\s*=\s*["']cite["']|\bcite\s*=)[^>]*>/ig,
         /<hr\b[^>]*\bid\s*=\s*["']stopspelling["'][^>]*>/ig,
         /<!--\s*(?:original message|urspruengliche nachricht)\s*-->/ig,
     ];
-    let boundary = -1;
     boundaries.forEach((pattern) => {
         const match = pattern.exec(html);
         if (match && (boundary === -1 || match.index < boundary)) boundary = match.index;

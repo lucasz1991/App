@@ -12,6 +12,7 @@ use App\Support\OutlookAddin\OutlookUniversalDiagnosticDetails;
 use App\Support\OutlookAddin\OutlookUniversalDiagnosticFixtureStore;
 use App\Support\OutlookAddin\OutlookUniversalDiagnosticFixtureValidator;
 use App\Support\OutlookAddin\OutlookUniversalDiagnostics;
+use App\Support\OutlookAddin\OutlookUniversalOperationDetails;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -42,7 +43,8 @@ final class OutlookAddinDiagnosticsController extends Controller
                 throw new OutlookAddinException('Der Outlook-Absender stimmt nicht überein.', 403, 'outlook_addin_sender_mismatch');
             }
             if (! $request->isJson() || strlen($request->getContent()) > OutlookUniversalDiagnosticFixtureStore::MAX_REQUEST_BYTES
-                || array_diff(array_keys($request->all()), ['schema', 'host', 'code', 'phase', 'sourceLength', 'bodyLength', 'checkpoint', 'difference', 'fixture']) !== []) {
+                || array_diff(array_keys($request->all()), ['schema', 'host', 'code', 'phase', 'sourceLength', 'bodyLength', 'checkpoint', 'difference', 'fixture',
+                    'originalCode', 'step', 'bodyLengthOrigin', 'composeType', 'automaticReason']) !== []) {
                 throw ValidationException::withMessages(['diagnostic' => 'Ungültige Diagnosefelder.']);
             }
             $data = $request->validate([
@@ -68,6 +70,17 @@ final class OutlookAddinDiagnosticsController extends Controller
                 throw ValidationException::withMessages(['diagnostic' => 'Ungültiger Prüfpunkt.']);
             }
             $data = array_replace($data, $details);
+            $operation = array_intersect_key($request->all(), array_flip(OutlookUniversalOperationDetails::KEYS));
+            // Context is taken only from the already validated authentication header.
+            $operation['context'] = $request->header('X-RailTime-Outlook-Context');
+            if (! OutlookUniversalOperationDetails::valid($operation, $data['code'])) {
+                throw ValidationException::withMessages(['diagnostic' => 'Ungültige Ablaufdiagnose.']);
+            }
+            if ($data['code'] === 'U2E_AUTOMATIC_SKIPPED'
+                && ! OutlookUniversalDiagnosticFixtureStore::allowed($resolved['user'], $resolved['binding']['mailboxAddress'])) {
+                throw new OutlookAddinException('Die Automatikdiagnose ist auf das Pilotpostfach begrenzt.', 403, 'outlook_addin_diagnostics_pilot_required');
+            }
+            $data = array_replace($data, $operation);
             $capture = null;
             if (array_key_exists('fixture', $request->all())) {
                 if (! OutlookUniversalDiagnosticFixtureStore::allowed($resolved['user'], $resolved['binding']['mailboxAddress'])) {

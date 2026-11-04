@@ -20,13 +20,13 @@ final class OutlookUniversalDiagnostics
 
     public const READBACK_CODES = ['SIGNATURE_LAYOUT_UNCONFIRMED', 'U2E_INSERT_UNCERTAIN', 'U2E_NEW_DRAFT_REQUIRED', 'U2E_SOURCE_INVALID',
         'U2E_CONTEXT_UNREADABLE', 'U2E_API_UNAVAILABLE', 'U2E_HEADER_UNAVAILABLE', 'U2E_DOCUMENT_INVALID', 'U2E_INSERT_IN_PROGRESS',
-        'U2E_SESSION_UNAVAILABLE', 'U2E_HTML_REQUIRED', 'U2E_CONTEXT_CHANGED', 'COMPOSE_ITEM_CHANGED', 'U2E_OPERATION_FAILED'];
+        'U2E_SESSION_UNAVAILABLE', 'U2E_HTML_REQUIRED', 'U2E_CONTEXT_CHANGED', 'COMPOSE_ITEM_CHANGED', 'U2E_OPERATION_FAILED', 'U2E_AUTOMATIC_SKIPPED'];
 
     public const CODES = ['SIGNATURE_LAYOUT_UNCONFIRMED', 'U2E_INSERT_UNCERTAIN', 'U2E_NEW_DRAFT_REQUIRED', 'U2E_SOURCE_INVALID',
         'U2E_CONTEXT_UNREADABLE', 'U2E_API_UNAVAILABLE', 'U2E_HEADER_UNAVAILABLE', 'U2E_DOCUMENT_INVALID', 'U2E_INSERT_IN_PROGRESS',
         'U2E_SOURCE_REJECTED', 'U2E_ADMITTED', 'U2E_OUTSIDE_PILOT', 'U2E_DESKTOP_UNAVAILABLE', 'U2E_TEMPLATE_UNAVAILABLE',
         'U2E_RENDER_UNAVAILABLE', 'U2E_BUDGET_EXCEEDED', 'U2E_SESSION_UNAVAILABLE', 'U2E_HTML_REQUIRED',
-        'U2E_CONTEXT_CHANGED', 'COMPOSE_ITEM_CHANGED', 'U2E_OPERATION_FAILED'];
+        'U2E_CONTEXT_CHANGED', 'COMPOSE_ITEM_CHANGED', 'U2E_OPERATION_FAILED', 'U2E_AUTOMATIC_SKIPPED'];
 
     private const REASONS = ['admitted', 'outside_pilot', 'source_invalid', 'source_family_unsupported', 'source_contract_invalid',
         'profile_value_invalid', 'source_parse_failed', 'source_structure_invalid', 'profile_identity_mismatch',
@@ -47,11 +47,13 @@ final class OutlookUniversalDiagnostics
 
     public function recordReadback(User $user, array $event, ?string $mailbox = null): void
     {
-        if (array_diff(array_keys($event), ['host', 'code', 'phase', 'sourceLength', 'bodyLength', 'checkpoint', 'difference', 'fixtureId']) !== []
+        if (array_diff(array_keys($event), ['host', 'code', 'phase', 'sourceLength', 'bodyLength', 'checkpoint', 'difference', 'fixtureId', ...OutlookUniversalOperationDetails::KEYS]) !== []
             || ! $this->valid($event, 'bodyLength') || ! in_array($event['code'] ?? null, self::READBACK_CODES, true)
             || ! in_array($event['phase'] ?? null, ['preflight', 'claim', 'header', 'write', 'readback', 'complete'], true)
             || ! in_array($event['host'] ?? null, self::HOSTS, true)
             || ! OutlookUniversalDiagnosticDetails::valid(array_intersect_key($event, array_flip(['checkpoint', 'difference'])))
+            || ! OutlookUniversalOperationDetails::valid(array_intersect_key($event, array_flip(OutlookUniversalOperationDetails::KEYS)), (string) ($event['code'] ?? ''))
+            || ($event['code'] ?? null) === 'U2E_AUTOMATIC_SKIPPED' && ! OutlookUniversalDiagnosticFixtureStore::allowed($user, $mailbox ?? (string) $user->email)
             || isset($event['fixtureId']) && (! is_string($event['fixtureId']) || ! preg_match('/\A[0-9a-f]{32}\z/', $event['fixtureId']))) {
             return;
         }

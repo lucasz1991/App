@@ -1,4 +1,5 @@
 import { parseManagedHtml } from './managed-template.js';
+import { u2eCenteringContext } from './u2e-appearance.js';
 
 // This module describes failures and redacts already-read HTML. It never grants
 // ownership, changes a compose body, or admits a different material layout.
@@ -55,7 +56,7 @@ export const U2E_REDACTED_CSS_WORDS = Object.freeze([
 ]);
 
 const checkpointSet = new Set(U2E_READBACK_CHECKPOINTS), differenceSet = new Set(U2E_READBACK_DIFFERENCE_KEYS);
-const markerPattern = /^(?:x_)?rt-sig-u2-[0-9a-f]{24}(?:-cell)?$/;
+const markerPattern = /^(?:x_)?rt-sig-u2-([0-9a-f]{24})(?:-cell)?$/;
 const knownAssets = new Set(['b983af0049.png', '9dfa25b253.png', 'd92bd192b6.png', '1593d63cca.png', 'a38bc7d27c.png',
     '8a9ee1e161.png', '4b1a2aaba8.png', 'b4b1fbea07.png', 'f1b083c20b.png', '19125261c2.png', 'f9d88b899d.png', '1111670ac8.png', '14d7943c88.png']);
 const cssWords = new Set(U2E_REDACTED_CSS_WORDS), classes = new Set(U2E_REDACTED_CLASSES);
@@ -228,7 +229,11 @@ export function redactUniversalSignatureHtml(html) {
             if (['img', 'br', 'wbr'].includes(node.tag)) return opening;
             return opening + (textSlots.has(index) ? 'rt-redacted' : '') + (childMap.get(index) || []).map(render).join('') + '</' + node.tag + '>';
         };
-        const output = render(rootIndex);
+        const shell = render(rootIndex);
+        // Preserve only the accepted centering fact, never an ancestor's text,
+        // attributes, siblings or other content outside the signature shell.
+        const output = u2eCenteringContext(elements, rootIndex).inherited
+            ? '<div align="center">' + shell + '</div>' : shell;
         return output.length <= 196608 && /^[\x20-\x7e]*$/.test(output) ? output : null;
     } catch { return null; }
 }
@@ -246,10 +251,22 @@ export function universalRedactedReadbackFixture(expectedHtml, actualHtml) {
 const fixtureKeys = ['schema', 'format', 'html', 'expectedHtml', 'sourceLength', 'sha256', 'expectedSha256'];
 function safeRedactedHtml(html) {
     if (typeof html !== 'string' || !html.length || html.length > 196608 || !/^[\x20-\x7e]*$/.test(html)) return false;
+    if (html.startsWith('<div')) {
+        if (!html.startsWith('<div align="center">') || !html.endsWith('</div>')) return false;
+        html = html.slice('<div align="center">'.length, -'</div>'.length);
+        if (!/^<table(?: |>)/.test(html)) return false;
+    }
     const { elements, comments } = parseManagedHtml(html);
     if (comments.length || elements[0]?.tag !== 'table' || elements[0].start !== 0 || elements[0].end !== html.length) return false;
     const outerRows = elements.filter((node, index) => node.tag === 'tr' && nearTable(elements, index) === 0);
     if (outerRows.length !== 3) return false;
+    const firstRowIndex = elements.indexOf(outerRows[0]);
+    const firstCells = elements.map((node, index) => ({ node, index })).filter(value => value.node.parent === firstRowIndex && ['td', 'th'].includes(value.node.tag));
+    if (firstCells.length !== 4) return false;
+    const identifiers = elements.map((node, index) => ({ node, index })).filter(value => Object.hasOwn(value.node.attrs, 'id'));
+    if (!identifiers.length || identifiers.some(value => ![0, firstCells[0].index].includes(value.index)
+        || !markerPattern.test(value.node.attrs.id) || value.index === 0 && value.node.attrs.id.endsWith('-cell'))
+        || new Set(identifiers.map(value => markerPattern.exec(value.node.attrs.id)[1])).size !== 1) return false;
     const content = html.replace(/<[^>]*>/g, '');
     if (content !== 'rt-redacted'.repeat(5)) return false;
     for (const node of elements) {

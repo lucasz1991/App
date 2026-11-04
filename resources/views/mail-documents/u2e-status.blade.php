@@ -54,13 +54,25 @@
         </x-ui.surface.card>
 
         <x-ui.surface.card class="space-y-4 p-5 sm:p-6">
-            <h2 class="text-base font-semibold text-rt-text dark:text-rt-dark-text">Letzte Rücklesefehler</h2>
+            <h2 class="text-base font-semibold text-rt-text dark:text-rt-dark-text">Letzte Rücklese- und Automatikdiagnosen</h2>
             <p class="text-sm text-rt-muted dark:text-rt-dark-muted">Codes, Host, Phase, Prüfpunkt und sichere Vergleichswerte als Zahlen oder Hash mit Länge. Ein erfolgreicher Vorschauaufruf löscht diese Ereignisse nicht.</p>
             <ul class="space-y-3" data-u2e-readback-errors>
                 @forelse ($history['readbackErrors'] ?? [] as $failure)
                     <li class="break-words text-sm text-rt-text dark:text-rt-dark-text">
                         <span>{{ $failure['at'] }} · {{ $failure['host'] }}</span><br>
                         <code class="text-xs">{{ $failure['code'] }} · {{ $failure['phase'] }} · Quelle {{ $failure['sourceLength'] ?? '–' }} / Rücklesen {{ $failure['bodyLength'] ?? '–' }} UTF-16</code>
+                        @if (isset($failure['originalCode']))
+                            <br><code class="text-xs">Originalcode: {{ $failure['originalCode'] }} · gemeldet: {{ $failure['code'] }}</code>
+                        @endif
+                        @if (isset($failure['context']) || isset($failure['composeType']) || isset($failure['step']))
+                            <br><code class="text-xs">Kontext: {{ $failure['context'] ?? '–' }} · Verfassen: {{ $failure['composeType'] ?? '–' }} · Schritt: {{ $failure['step'] ?? '–' }}</code>
+                        @endif
+                        @if (isset($failure['bodyLengthOrigin']))
+                            <br><code class="text-xs">Länge aus: {{ $failure['bodyLengthOrigin'] === 'actual' ? 'Rücklesen nach Schreiben' : 'Lesung vor Schreiben' }}</code>
+                        @endif
+                        @if (isset($failure['automaticReason']))
+                            <br><code class="text-xs">U2e-Automatik übersprungen: {{ $failure['automaticReason'] }}</code>
+                        @endif
                         @if (isset($failure['checkpoint']))
                             <br><code class="text-xs">Prüfpunkt: {{ $failure['checkpoint'] }}</code>
                         @endif

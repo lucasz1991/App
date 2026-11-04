@@ -328,6 +328,53 @@ final class OutlookUniversalDiagnosticsTest extends TestCase
             ->assertDontSee('profile_identity_mismatch')->assertDontSee('SIGNATURE_LAYOUT_UNCONFIRMED');
     }
 
+    public function test_operation_metadata_preserves_original_code_and_validated_context_without_business_writes(): void
+    {
+        $headers = $this->headers();
+        $before = $this->businessRows();
+        $payload = array_replace($this->readback(), ['code' => 'U2E_INSERT_UNCERTAIN', 'originalCode' => 'U2E_NEW_DRAFT_REQUIRED',
+            'step' => 'snapshot.region', 'bodyLengthOrigin' => 'actual', 'composeType' => 'reply']);
+        $this->postJson(self::URL, $payload, $headers)->assertStatus(202);
+        $event = app(OutlookUniversalDiagnostics::class)->statusFor(User::findOrFail(5))['readbackErrors'][0];
+        self::assertSame('U2E_INSERT_UNCERTAIN', $event['code']);
+        self::assertSame('U2E_NEW_DRAFT_REQUIRED', $event['originalCode']);
+        self::assertSame('snapshot.region', $event['step']);
+        self::assertSame('actual', $event['bodyLengthOrigin']);
+        self::assertSame('reply', $event['composeType']);
+        self::assertSame('event', $event['context']);
+        self::assertSame($before, $this->businessRows());
+        foreach (['originalCode', 'step', 'bodyLengthOrigin', 'composeType', 'automaticReason', 'context'] as $key) {
+            $this->postJson(self::URL, array_replace($payload, [$key => 'PRIVATE-VALUE']), $headers)->assertUnprocessable();
+        }
+        self::assertCount(1, app(OutlookUniversalDiagnostics::class)->statusFor(User::findOrFail(5))['readbackErrors']);
+        self::assertDoesNotMatchRegularExpression('/PRIVATE-VALUE/', json_encode($this->logger->records));
+        $this->stubApplicationLayout();
+        $this->actingAs(User::findOrFail(6))->get('/administrator/mail-vorlagen/u2e-entwurf?status=1&user=5')
+            ->assertOk()->assertSee('Originalcode: U2E_NEW_DRAFT_REQUIRED')->assertSee('snapshot.region')
+            ->assertSee('Rücklesen nach Schreiben')->assertSee('Verfassen: reply');
+        Mail::assertNothingOutgoing();
+    }
+
+    public function test_automatic_skip_requires_a_reason_and_the_server_resolved_pilot(): void
+    {
+        $payload = array_replace($this->readback(), ['code' => 'U2E_AUTOMATIC_SKIPPED', 'phase' => 'preflight',
+            'automaticReason' => 'compose_type_unknown', 'composeType' => 'unknown']);
+        $this->postJson(self::URL, $payload, $this->headers())->assertForbidden();
+        $headers = $this->headers(true);
+        $before = $this->businessRows();
+        $this->postJson(self::URL, $payload, $headers)->assertStatus(202);
+        $event = app(OutlookUniversalDiagnostics::class)->statusFor(User::findOrFail(5))['readbackErrors'][0];
+        self::assertSame('compose_type_unknown', $event['automaticReason']);
+        self::assertSame('event', $event['context']);
+        unset($payload['automaticReason']);
+        $this->postJson(self::URL, $payload, $headers)->assertUnprocessable();
+        self::assertSame($before, $this->businessRows());
+        $service = app(OutlookUniversalDiagnostics::class);
+        $service->recordReadback(User::findOrFail(6), array_replace($this->readback(false), ['code' => 'U2E_AUTOMATIC_SKIPPED', 'automaticReason' => 'automatic_disabled']));
+        self::assertSame([], $service->statusFor(User::findOrFail(6))['readbackErrors']);
+        Mail::assertNothingOutgoing();
+    }
+
     private function stubApplicationLayout(): void
     {
         $directory = sys_get_temp_dir().'/u2e-diagnostics-layout-'.bin2hex(random_bytes(8));

@@ -559,6 +559,46 @@ test('a caller cannot change captured source bytes while preparation is asynchro
     assert.equal(f.state.bodyWrites[0].html, original);
 });
 
+test('post-write read failure retains its original code, step and pre-write length without retry', async () => {
+    const f = fixture({ bodyRead({ state, callback }) {
+        if (state.bodyReads === 3) { callback(failed('PRIVATE-HOST-CODE')); return false; }
+    } });
+    const originalLength = f.state.html.length;
+    assert.equal((await errorOf(f.insert())).code, 'U2E_INSERT_UNCERTAIN');
+    const report = universalComposeReport(f.item);
+    assert.equal(report.originalCode, 'U2E_CONTEXT_UNREADABLE');
+    assert.equal(report.code, 'U2E_INSERT_UNCERTAIN');
+    assert.equal(report.phase, 'readback'); assert.equal(report.step, 'snapshot.body');
+    assert.equal(report.bodyLengthOrigin, 'original'); assert.equal(report.bodyLength, originalLength);
+    assert.equal(report.composeType, 'newMail');
+    assert.equal((await errorOf(f.insert())).code, 'U2E_INSERT_UNCERTAIN');
+    assert.equal(f.state.bodyWrites.length, 1);
+    assert.doesNotMatch(JSON.stringify(report), /PRIVATE-HOST-CODE|private host detail/);
+});
+
+test('unrecognized reply boundary after write reports the actual read length and original boundary error', async () => {
+    const f = fixture({ state: { composeType: 'reply', html: '<p><br></p><div id="divRplyFwdMsg">Quote</div>' },
+        bodyWrite({ html, callback, state }) { state.html = html + '<p>Unknown quote boundary</p>'; callback(success()); } });
+    assert.equal((await errorOf(f.insert())).code, 'U2E_INSERT_UNCERTAIN');
+    const report = universalComposeReport(f.item);
+    assert.equal(report.originalCode, 'U2E_NEW_DRAFT_REQUIRED');
+    assert.equal(report.step, 'snapshot.region'); assert.equal(report.composeType, 'reply');
+    assert.equal(report.bodyLengthOrigin, 'actual'); assert.equal(report.bodyLength, f.state.html.length);
+    assert.equal(f.state.bodyWrites.length, 1); assert.equal(universalComposeBlocked(f.item), true);
+    assert.equal(report.fixture, undefined);
+});
+
+test('failed final session persistence is distinguished from material readback', async () => {
+    const f = fixture({ sessionWrite({ value, callback }) {
+        if (value.startsWith('applied:')) { callback(failed('PRIVATE-SESSION-CODE')); return false; }
+    } });
+    assert.equal((await errorOf(f.insert())).code, 'U2E_INSERT_UNCERTAIN');
+    const report = universalComposeReport(f.item);
+    assert.equal(report.originalCode, 'U2E_INSERT_UNCERTAIN');
+    assert.equal(report.step, 'session.finalize'); assert.equal(report.bodyLengthOrigin, 'actual');
+    assert.equal(f.state.bodyWrites.length, 1); assert.equal(universalComposeBlocked(f.item), true);
+});
+
 test('an unconfirmed write times out once and a late callback never permits a second body write', async context => {
     context.mock.timers.enable({ apis: ['setTimeout'] });
     let late;

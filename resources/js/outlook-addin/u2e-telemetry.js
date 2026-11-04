@@ -3,8 +3,19 @@ import { U2E_READBACK_CHECKPOINTS, U2E_READBACK_DIFFERENCE_KEYS, validateUnivers
 const CODES = new Set(['SIGNATURE_LAYOUT_UNCONFIRMED', 'U2E_INSERT_UNCERTAIN', 'U2E_NEW_DRAFT_REQUIRED',
     'U2E_SOURCE_INVALID', 'U2E_CONTEXT_UNREADABLE', 'U2E_API_UNAVAILABLE', 'U2E_HEADER_UNAVAILABLE',
     'U2E_DOCUMENT_INVALID', 'U2E_INSERT_IN_PROGRESS', 'U2E_SESSION_UNAVAILABLE', 'U2E_HTML_REQUIRED',
-    'U2E_CONTEXT_CHANGED', 'COMPOSE_ITEM_CHANGED', 'U2E_OPERATION_FAILED']);
+    'U2E_CONTEXT_CHANGED', 'COMPOSE_ITEM_CHANGED', 'U2E_OPERATION_FAILED', 'U2E_AUTOMATIC_SKIPPED']);
 const PHASES = new Set(['preflight', 'claim', 'header', 'write', 'readback', 'complete']);
+const OPERATION_FIELDS = Object.freeze({
+    originalCode: new Set([...CODES, 'UNAVAILABLE', 'OFFICE_WRITE_FAILED', 'MAILBOX_BINDING_INVALID',
+        'SENDER_API_UNAVAILABLE', 'SENDER_READ_FAILED', 'MAILBOX_MISMATCH', 'SENDER_MISMATCH']),
+    step: new Set(['binding', 'legacy', 'session.read', 'session.claim', 'session.finalize', 'session.verify',
+        'snapshot.type', 'snapshot.format', 'snapshot.body', 'snapshot.region', 'source.state', 'header.write',
+        'body.write', 'context.compare', 'readback.material', 'readback.compose_type', 'readback.quote', 'readback.author']),
+    bodyLengthOrigin: new Set(['original', 'actual']),
+    composeType: new Set(['newMail', 'reply', 'forward', 'unknown']),
+    automaticReason: new Set(['compose_type_unknown', 'automatic_disabled', 'automatic_policy_unconfirmed',
+        'prior_write_uncertain', 'universal_source_unavailable', 'template_only_policy']),
+});
 const LIMIT = 1000000;
 const MAX_JSON_BYTES = 252000;
 const KEEPALIVE_BYTES = 60000;
@@ -36,6 +47,12 @@ export function universalFailurePayload(error, report = {}, sourceLength = null,
         phase: current && PHASES.has(report?.phase) ? report.phase : 'preflight',
         sourceLength: length(sourceLength) ?? (current ? length(report?.sourceLength) : null),
         bodyLength: current ? length(report?.bodyLength) : null };
+    if (current) {
+        for (const [key, values] of Object.entries(OPERATION_FIELDS)) {
+            if (values.has(report[key]) && (key !== 'automaticReason' || code === 'U2E_AUTOMATIC_SKIPPED')) payload[key] = report[key];
+        }
+        if (Object.hasOwn(report, 'originalCode') && !Object.hasOwn(payload, 'originalCode')) payload.originalCode = 'UNAVAILABLE';
+    }
     if (current && U2E_READBACK_CHECKPOINTS.includes(report.checkpoint)) payload.checkpoint = report.checkpoint;
     const difference = current ? report.difference : null;
     if (difference && Object.keys(difference).length === 4 && ['key', 'index', 'expected', 'actual'].every(key => Object.hasOwn(difference, key))
@@ -56,6 +73,7 @@ export async function reportUniversalFailure({ config, accessToken, item, bindin
     try {
         const allowFixture = binding?.mailboxAddress?.toLowerCase() === 'it-technik@rail-time.de';
         const payload = universalFailurePayload(error, report, sourceLength, allowFixture);
+        if (payload?.code === 'U2E_AUTOMATIC_SKIPPED' && (!allowFixture || !payload.automaticReason)) return false;
         const endpoint = new URL(config?.endpoints?.diagnostics);
         const bootstrap = new URL(config?.endpoints?.bootstrap);
         const office = globalThis.Office;

@@ -522,25 +522,44 @@ async function applyPublishedContent(item, isActive = () => true) {
     binding = bootstrap.binding;
     await assertTarget();
 
+    // Only a fresh authenticated pilot binding may report an automatic gate.
+    // An event that never starts, or fails before binding, cannot report here.
+    // Give its already bounded request a chance to finish before event.completed
+    // destroys the Classic runtime. It never authorizes or retries a body write.
+    const reportAutomaticSkip = async automaticReason => {
+        if (String(binding?.mailboxAddress || '').trim().toLowerCase() !== 'it-technik@rail-time.de') return;
+        const code = 'U2E_AUTOMATIC_SKIPPED';
+        await reportUniversalFailure({ config, accessToken, item, binding, context: 'event',
+            error: codedError(code), report: { code, phase: 'preflight', automaticReason,
+                composeType: ['newMail', 'reply', 'forward'].includes(composeType) ? composeType : 'unknown',
+                sourceLength: null, bodyLength: null }, isCurrent: isActive });
+    };
+
     // This fresh, authenticated account policy applies only to event-based
     // insertion. Keep the taskpane's explicit manual actions available and
     // stop before reading the body, attaching media or changing any content.
     if (bootstrap.automaticInsertionEnabled === false) {
         pendingNativeSignatures.delete(item);
         recordDiagnostic('automatic-insertion', 'skipped', { code: 'AUTOMATIC_INSERTION_DISABLED' });
+        await reportAutomaticSkip(composeType === 'unknown' ? 'compose_type_unknown' : 'automatic_disabled');
         return 'disabled';
     }
     const policy = automaticComposeDecision(bootstrap, composeType, { requireTemplateChoice: true });
     if (policy.mode === 'none') {
         pendingNativeSignatures.delete(item);
         recordDiagnostic('automatic-insertion', 'skipped', { code: policy.reason });
+        await reportAutomaticSkip(composeType === 'unknown' ? 'compose_type_unknown'
+            : policy.reason === 'AUTOMATIC_POLICY_UNCONFIRMED' ? 'automatic_policy_unconfirmed' : 'automatic_disabled');
         return 'skipped';
     }
     if (policy.mode !== 'both') pendingNativeSignatures.delete(item);
     reportRuntimePhase('compose-started');
 
     if (isTemplateInsertionBlocked(item) || isStandaloneSignatureInsertionBlocked(item) || hasUncertainWrite(item)
-        || universalComposeBlocked(item)) return 'uncertain';
+        || universalComposeBlocked(item)) {
+        await reportAutomaticSkip('prior_write_uncertain');
+        return 'uncertain';
+    }
 
     // A newly admitted U2e projection owns its independent structural contract.
     // Never run it through the V17 writer, CSS restore or mobile ledger.
@@ -558,13 +577,21 @@ async function applyPublishedContent(item, isActive = () => true) {
             }));
             return result.status;
         } catch (error) {
-            // Do not delay event completion or change the original fail-closed result.
-            void reportUniversalFailure({ config, accessToken, item, binding, context: 'event', error,
-                report: universalComposeReport(item), sourceLength: typeof source?.html === 'string' ? source.html.length : null,
+            // Only the pilot waits for the bounded diagnostic before Classic
+            // destroys this event runtime. Preserve the original failure.
+            const report = universalComposeReport(item);
+            const reporting = reportUniversalFailure({ config, accessToken, item, binding, context: 'event', error,
+                report: { ...report, composeType: report?.composeType || composeType },
+                sourceLength: typeof source?.html === 'string' ? source.html.length : null,
                 isCurrent: isActive });
+            if (String(binding?.mailboxAddress || '').trim().toLowerCase() === 'it-technik@rail-time.de') await reporting;
             throw error;
         }
     }
+
+    // Preserve the existing legacy route while explaining why this pilot event
+    // did not enter U2e. Template-only policy intentionally excludes a signature.
+    await reportAutomaticSkip(policy.mode === 'template' ? 'template_only_policy' : 'universal_source_unavailable');
 
     // Older templates contain an ordinary HTML signature. Never append a
     // second native signature or rewrite those drafts to convert them. Read
