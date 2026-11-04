@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Support\Mail;
 
+use App\Support\EmailTemplateBuilder;
 use App\Support\OutlookAddin\OutlookCompactReferencePresentation;
 use App\Support\OutlookAddin\OutlookUniversalPresentation;
 use DOMDocument;
@@ -231,7 +232,7 @@ final class OutlookUniversalSystemMailPresentation
         $direct = [['type' => 'email', 'value' => $values['E_MAIL'], 'label' => $values['E_MAIL']]];
         foreach ([['DURCHWAHL', 'DURCHWAHL_TEL'], ['MOBIL', 'MOBIL_TEL']] as [$label, $value]) {
             if ($values[$label] !== '') {
-                $direct[] = ['type' => 'phone', 'value' => $values[$value], 'label' => $values[$label]];
+                $direct[] = ['type' => 'phone', 'value' => $values[$value], 'label' => self::phoneLabel($values[$value], $values[$label])];
             }
         }
         $phase = 'company_contacts';
@@ -322,11 +323,28 @@ final class OutlookUniversalSystemMailPresentation
                 'websiteLabel' => $values['FIRMEN_WEBSITE_LABEL'], 'street' => $values['FIRMENSTRASSE'], 'postalCity' => $values['FIRMEN_PLZ_ORT'],
                 'registration' => $registration, 'confidentiality' => $confidentiality],
             'dispatch' => ['email' => substr($select('mailto:'), 7), 'whatsapp' => $select('https://wa.me/'),
-                'phone' => $values['NOTFALLNUMMER_TEL'], 'phoneLabel' => ($values['NOTFALLNUMMER'] ?? '') ?: $values['NOTFALLNUMMER_TEL']]];
+                'phone' => $values['NOTFALLNUMMER_TEL'], 'phoneLabel' => self::phoneLabel($values['NOTFALLNUMMER_TEL'], ($values['NOTFALLNUMMER'] ?? '') ?: $values['NOTFALLNUMMER_TEL'])]];
         // All rendered signature values and the admitted source family participate; author/scopes do not.
         $sourceHash = hash('sha256', OutlookUniversalPresentation::REVISION."\0system\0".OutlookCompactReferencePresentation::FLOW."\0".json_encode($descriptor, JSON_THROW_ON_ERROR));
 
         return ['sourceHash' => $sourceHash] + $descriptor;
+    }
+
+    /** Preserve already compatible labels; admit national/trunk formatting only for the same canonical number. */
+    private static function phoneLabel(string $value, string $label): string
+    {
+        if (! mb_check_encoding($label, 'UTF-8') || mb_strlen($label, 'UTF-8') > 32
+            || ! preg_match('/\A[+0-9()\p{Zs}.\/-]+\z/u', $label)) {
+            throw new RuntimeException('U2E_SYSTEM_SOURCE_INVALID');
+        }
+        if (preg_replace('/[()\p{Zs}.\/-]/u', '', $label) === $value) {
+            return $label;
+        }
+        if (EmailTemplateBuilder::telHref($label) !== $value) {
+            throw new RuntimeException('U2E_SYSTEM_SOURCE_INVALID');
+        }
+
+        return $value;
     }
 
     private static function one(DOMXPath $xpath, string $class): DOMElement

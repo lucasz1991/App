@@ -195,6 +195,57 @@ final class OutlookUniversalSystemMailPresentationTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_national_company_phone_labels_use_only_the_same_canonical_tel_target_for_direct_and_dispatch(): void
+    {
+        $author = '<p>National company phone fixture.</p>';
+        $source = $this->legacy($author);
+        foreach ([
+            ['030 5550000', '0170 5550202', '+49305550000', '+491705550202'],
+            ['0049 30 5550000', '0049 170 5550202', '+49305550000', '+491705550202'],
+            ['+49 (0)30 5550000', '+49 (0)170 5550202', '+49305550000', '+491705550202'],
+            ['+49 30 5550000', '+49 170 5550202', '+49 30 5550000', '+49 170 5550202'],
+        ] as [$landline, $emergency, $expectedLandlineLabel, $expectedEmergencyLabel]) {
+            $values = $this->values();
+            $values['FIRMEN_TELEFON'] = $values['DURCHWAHL'] = $landline;
+            $values['MOBIL'] = $values['NOTFALLNUMMER'] = $emergency;
+            $rendered = (new OutlookUniversalSystemMailPresentation)->project($source, $values, new HtmlString($author));
+            self::assertNotNull($rendered);
+            $xpath = $this->xpath($rendered['html']);
+            $landlineLinks = $xpath->query('//a[@href="tel:+49305550000"]');
+            self::assertSame(1, $landlineLinks->length);
+            self::assertSame($expectedLandlineLabel, $landlineLinks->item(0)->textContent);
+            $emergencyLinks = $xpath->query('//a[@href="tel:+491705550202"]');
+            self::assertSame(3, $emergencyLinks->length);
+            $labelledLinks = array_filter(iterator_to_array($emergencyLinks), static fn ($link): bool => trim($link->textContent) !== '');
+            self::assertCount(2, $labelledLinks);
+            foreach ($labelledLinks as $link) {
+                self::assertSame($expectedEmergencyLabel, str_replace("\u{00a0}", ' ', $link->textContent));
+            }
+            self::assertSame(14, $xpath->query('//img')->length);
+            self::assertCount(13, $rendered['media']);
+            $mail = (new Email)->from('system@example.test')->to('synthetic@example.test')->subject('Not sent')->html($rendered['html']);
+            self::assertSame(13, (new SystemMailInlineImageEmbedder)->embed($mail));
+        }
+        Http::assertNothingSent();
+    }
+
+    public function test_a_different_or_non_phone_label_cannot_be_silently_replaced_with_an_unrelated_canonical_target(): void
+    {
+        $author = '<p>Unrelated company phone fixture.</p>';
+        $source = $this->legacy($author);
+        foreach (['030 9990000', 'Not a number 030 5550000', '030 5550000 ext 1', "+49 30 5550000\n"] as $label) {
+            $values = $this->values();
+            $values['FIRMEN_TELEFON'] = $values['DURCHWAHL'] = $label;
+            self::assertNull((new OutlookUniversalSystemMailPresentation)->project($source, $values, new HtmlString($author)));
+        }
+        foreach (['0170 9990202', 'Not a number 0170 5550202'] as $label) {
+            $values = $this->values();
+            $values['NOTFALLNUMMER'] = $label;
+            self::assertNull((new OutlookUniversalSystemMailPresentation)->project($source, $values, new HtmlString($author)));
+        }
+        Http::assertNothingSent();
+    }
+
     private function legacy(string $author): string
     {
         app()->instance(OutlookUniversalSystemMailPresentation::class, new class
