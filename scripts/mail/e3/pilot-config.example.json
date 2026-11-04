@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "tenantId": "",
+  "pilotSender": "it-technik@rail-time.de",
+  "recipientAllowList": [
+    "it-technik@rail-time.de"
+  ],
+  "smartHost": "plesk.follow-flow.de",
+  "returnMx": "railtime-de01b.mail.protection.outlook.com",
+  "returnTlsCertificateDomain": "plesk.follow-flow.de",
+  "templateSha256": "2ad0c5a96b3b03a0e4a633ec87fa4aa79eba30f4d3b4a979937a5f5c7871dd12",
+  "approvedTemplateHeader": "u2e-b3da940a44bcfa9d2169b4e2",
+  "templateMetadataObservedAtUtc": "",
+  "templateHeaderProvenance": "C-K15 local handoff; must be re-confirmed from approved B1 v2 metadata before StageDisabled",
+  "outboundConnectorName": "RailTime C-K17 E3 Out",
+  "inboundConnectorName": "RailTime C-K17 E3 Return",
+  "ruleName": "RailTime C-K17 E3 Pilot",
+  "state": "EXAMPLE-INACTIVE-NOT-APPROVED",
+  "activation": "Not implemented: admission and reinjection service evidence plus separate user approval required"
+}
