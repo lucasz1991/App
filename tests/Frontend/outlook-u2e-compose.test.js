@@ -308,6 +308,16 @@ test('a signature-only insertion preserves current user text, user images and li
     assert.ok(f.state.html.includes(author));
 });
 
+test('the signature root-URL comparison exception never weakens authored-link preservation', async () => {
+    const original = '<p><a href="https://author.example.test">Authored text</a></p>';
+    const f = fixture({ state: { html: original }, bodyWrite({ html, callback, state }) {
+        state.html = original.replace('https://author.example.test', 'https://author.example.test/') + html; callback(success());
+    } });
+    assert.equal((await errorOf(f.insert(document('signature')))).code, 'SIGNATURE_LAYOUT_UNCONFIRMED');
+    assert.equal(universalComposeReport(f.item).checkpoint, 'author.signature');
+    assert.equal(f.state.bodyWrites.length, 1);
+});
+
 test('only exact matching mobile host signatures are treated as empty for combined insertion', async () => {
     for (const [platform, label] of [['iOS', 'Gesendet von Outlook für iOS'], ['Android', 'Gesendet von Outlook für Android'], ['iOS', 'Get Outlook for iOS'], ['Android', 'Sent from Outlook for Android']]) {
         const f = fixture({ platform, state: { html: '<html><body><div id="Signature"><p><a href="https://aka.ms/AAb9ysg">' + label + '</a></p></div></body></html>' } });

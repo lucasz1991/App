@@ -124,6 +124,22 @@ export function u2eReadbackFailure(checkpoint, expected = undefined, actual = un
         difference: expected === undefined && actual === undefined ? null : u2eSafeDifference(checkpoint, expected, actual, index) };
 }
 
+/** Comparison only: Word may append the root-path slash to an unchanged HTTPS
+ * authority. Do not parse, rewrite, case-fold, decode or otherwise canonicalize
+ * any URL, and never apply this exception to images or authored content. */
+export function universalSignatureHrefEqual(expected, actual) {
+    if (expected === actual) return true;
+    if (typeof expected !== 'string' || typeof actual !== 'string') return false;
+    const root = /^https:\/\/([A-Za-z0-9.-]+(?::[0-9]{1,5})?)(\/?)(?![\s\S])/;
+    const before = root.exec(expected), after = root.exec(actual);
+    if (before === null || after === null || before[1] !== after[1] || before[2] === after[2]) return false;
+    const [host, port] = before[1].split(':');
+    const labels = host.split('.');
+    return host.length <= 253 && labels.every(label => /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/.test(label))
+        && (port === undefined || Number(port) <= 65535)
+        && (!/^\d+(?:\.\d+){3}$/.test(host) || labels.every(label => Number(label) <= 255));
+}
+
 export function firstUniversalEvidenceDifference(expected, actual) {
     const unequal = (a, b) => JSON.stringify(a) !== JSON.stringify(b);
     if (unequal(expected.topology, actual.topology)) return { checkpoint: 'evidence.topology', difference: u2eSafeDifference('evidence.topology', expected.topology, actual.topology) };
@@ -134,7 +150,7 @@ export function firstUniversalEvidenceDifference(expected, actual) {
             if (fields) {
                 for (const field of fields) if (unequal(expected[collection][at][field], actual[collection][at][field])) return {
                     checkpoint: 'evidence.' + collection, difference: u2eSafeDifference('evidence.' + collection + '.' + field, expected[collection][at][field], actual[collection][at][field], at) };
-            } else if (unequal(expected[collection][at], actual[collection][at])) return { checkpoint: 'evidence.' + collection,
+            } else if (collection === 'links' ? !universalSignatureHrefEqual(expected[collection][at], actual[collection][at]) : unequal(expected[collection][at], actual[collection][at])) return { checkpoint: 'evidence.' + collection,
                 difference: u2eSafeDifference('evidence.' + collection + (collection === 'links' ? '.href' : '.value'), expected[collection][at], actual[collection][at], at) };
         }
     }

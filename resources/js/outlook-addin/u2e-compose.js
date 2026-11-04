@@ -281,10 +281,12 @@ export function universalComposeStateFromBody(document, html, composeType) {
         if (!actual.present) return { ...state, readable: true, ...u2eReadbackFailure('state.present', true, false) };
         const expected = plans.get(source);
         const compatible = source.kind === 'signature' || actual.kind === 'combined';
-        const current = compatible && actual.version === source.version && JSON.stringify(actual.evidence) === JSON.stringify(expected.evidence);
+        const evidenceDifference = compatible && actual.version === source.version
+            ? firstUniversalEvidenceDifference(expected.evidence, actual.evidence) : null;
+        const current = compatible && actual.version === source.version && evidenceDifference === null;
         const diagnostic = current ? {} : !compatible ? u2eReadbackFailure('state.kind', source.kind, actual.kind)
             : actual.version !== source.version ? u2eReadbackFailure('state.version', source.version, actual.version)
-                : firstUniversalEvidenceDifference(expected.evidence, actual.evidence) || u2eReadbackFailure('readback.unknown');
+                : evidenceDifference || u2eReadbackFailure('readback.unknown');
         return { readable: true, present: true, kind: actual.kind, version: actual.version, current, ...diagnostic };
     } catch (error) { return { ...state, ...u2eReadbackFailure(error?.checkpoint || checkpoint), ...(error?.difference ? { difference: error.difference } : {}) }; }
 }
