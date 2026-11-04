@@ -108,7 +108,7 @@ function color(value) {
 
 function backgroundColor(node) {
     if (property(node, 'background-image').some(value => value !== 'none')) throw layoutFailure('colors.background-image');
-    const values = [...(node.attrs.bgcolor ? [node.attrs.bgcolor] : []), ...property(node, 'background-color'), ...property(node, 'background')].map(color);
+    const values = [...(Object.prototype.hasOwnProperty.call(node.attrs, 'bgcolor') ? [node.attrs.bgcolor] : []), ...property(node, 'background-color'), ...property(node, 'background')].map(color);
     if (!values.length) return '';
     // Only equivalent finite color serializations are interchangeable. A
     // conflicting declaration, gradient or image is not a host normalization.
@@ -119,13 +119,13 @@ function backgroundColor(node) {
 const centered = (node, elements = null, index = null) => elements && Number.isInteger(index)
     ? u2eCenteringContext(elements, index).centered : u2eCenteringState(node) === 'center';
 
-function materialBackgroundColor(elements, value, dispatchIndex) {
+function materialBackgroundColor(elements, value) {
     const explicit = backgroundColor(value.node);
-    if (explicit || value.node.tag !== 'td' || !inside(elements, value.index, dispatchIndex)) return explicit;
+    if (explicit || value.node.tag !== 'td') return explicit;
     const tableIndex = nearest(elements, value.index, 'table');
     // Word can omit an equal cell color. Only that cell's closest table may
-    // supply it, and only while still inside the admitted Dispo table.
-    return tableIndex !== null && inside(elements, tableIndex, dispatchIndex) ? backgroundColor(elements[tableIndex]) : '';
+    // supply it. An empty table is never skipped in search of another parent.
+    return tableIndex !== null ? backgroundColor(elements[tableIndex]) : '';
 }
 
 /** Datensparse read-only extraction, also useful for incompatible legacy
@@ -230,12 +230,12 @@ function material(html, expectedMarker = null, source = false) {
         return value.node.attrs.href;
     });
     if (links.length !== 4) throw layoutFailure('links.count', 4, links.length);
-    const colors = own.filter(value => value.node.tag === 'td').map(value => materialBackgroundColor(elements, value, dispatch[0].index));
-    if (backgroundColor(legal[0].node) !== '#e4e8ec') throw layoutFailure('colors.legal', '#e4e8ec', backgroundColor(legal[0].node));
+    const colors = own.filter(value => value.node.tag === 'td').map(value => materialBackgroundColor(elements, value));
+    if (materialBackgroundColor(elements, legal[0]) !== '#e4e8ec') throw layoutFailure('colors.legal', '#e4e8ec', materialBackgroundColor(elements, legal[0]));
     if (backgroundColor(dispatch[0].node) !== '#e4002b') throw layoutFailure('colors.dispatch', '#e4002b', backgroundColor(dispatch[0].node));
     if (own.filter(value => value.node.tag === 'td' && inside(elements, value.index, dispatch[0].index)).some(value => {
             const corner = dimension(value.node, 'width', 8) && dimension(value.node, 'height', 8);
-            return materialBackgroundColor(elements, value, dispatch[0].index) !== (corner ? '#ffffff' : '#e4002b');
+            return materialBackgroundColor(elements, value) !== (corner ? '#ffffff' : '#e4002b');
         })) throw layoutFailure('colors.corners');
     let signatureHtml = html.slice(root.openEnd, root.close);
     if (author) signatureHtml = signatureHtml.slice(0, author.node.start - root.openEnd) + signatureHtml.slice(author.node.end - root.openEnd);
