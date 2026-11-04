@@ -24,6 +24,7 @@ use App\Support\Mail\MailDocumentDeletion;
 use App\Support\Mail\MailDocumentDelivery;
 use App\Support\Mail\MailDocumentSignatureResolver;
 use App\Support\Mail\MailDocumentVersionStore;
+use App\Support\Mail\OutlookUniversalSystemMailPresentation;
 use App\Support\Mail\PortableMediaCatalog;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\Mail\SignatureArtifactVersion;
@@ -1970,14 +1971,18 @@ final class MailDocumentController extends Controller
         $guard = array_intersect_key($published->getRawOriginal(), array_fill_keys([
             'id', 'kind', 'content_hash', 'published_at', 'published_html', 'published_css',
         ], true));
-        try {
-            $projected = OutlookStaticLinkedTestProfiles::renderedPreview(
-                $finalHtml,
-                OutlookStaticLinkedTestProfiles::signatureProfile(['html' => $candidateHtml]),
-                (string) config('app.url'),
-            );
-        } catch (\RuntimeException) {
-            throw ValidationException::withMessages(['preview' => 'Die veröffentlichte statische Testsignatur ist nicht eindeutig freigegeben.']);
+        $universal = OutlookUniversalSystemMailPresentation::isAdmittedHtml($finalHtml);
+        $projected = $finalHtml;
+        if (! $universal) {
+            try {
+                $projected = OutlookStaticLinkedTestProfiles::renderedPreview(
+                    $finalHtml,
+                    OutlookStaticLinkedTestProfiles::signatureProfile(['html' => $candidateHtml]),
+                    (string) config('app.url'),
+                );
+            } catch (\RuntimeException) {
+                throw ValidationException::withMessages(['preview' => 'Die veröffentlichte statische Testsignatur ist nicht eindeutig freigegeben.']);
+            }
         }
         $fresh = MailDocument::query()->whereKey($published->getKey())->first();
         foreach ($guard as $field => $value) {
@@ -1986,7 +1991,7 @@ final class MailDocumentController extends Controller
             }
         }
 
-        return $requirePublished && OutlookStaticLinkedTestProfiles::signatureProfile(['html' => $candidateHtml]) === OutlookLinkedAnimatedDelivery::PROFILE
+        return ! $universal && $requirePublished && OutlookStaticLinkedTestProfiles::signatureProfile(['html' => $candidateHtml]) === OutlookLinkedAnimatedDelivery::PROFILE
             ? OutlookLinkedAnimatedDelivery::withoutRuntimeMarker($projected) : $projected;
     }
 

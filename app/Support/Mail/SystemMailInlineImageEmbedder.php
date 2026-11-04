@@ -64,6 +64,10 @@ final class SystemMailInlineImageEmbedder
      */
     public function embed(Email $message): int
     {
+        $universal = OutlookUniversalSystemMailPresentation::embed($message);
+        if ($universal !== null) {
+            return $universal;
+        }
         $html = $message->getHtmlBody();
 
         if (! is_string($html) || ! $this->isRailTimeSystemMail($html)) {

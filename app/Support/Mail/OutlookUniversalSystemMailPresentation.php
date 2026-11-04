@@ -1,0 +1,418 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Support\Mail;
+
+use App\Support\OutlookAddin\OutlookCompactReferencePresentation;
+use App\Support\OutlookAddin\OutlookUniversalPresentation;
+use DOMDocument;
+use DOMElement;
+use DOMXPath;
+use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Support\HtmlString;
+use RuntimeException;
+use Symfony\Component\Mime\Email;
+use Symfony\Component\Mime\Part\DataPart;
+use Throwable;
+use TijsVerkoyen\CssToInlineStyles\CssToInlineStyles;
+
+/** A render-only bridge for the already compiled canonical company system source. */
+final class OutlookUniversalSystemMailPresentation
+{
+    /** The existing canonical template's three author-only rules; custom published CSS is not discarded. */
+    private const WORDING_CSS = '.design-salutation{margin-top:0px;margin-right:0px;margin-bottom:20px;margin-left:0px;font-family:Arial, Helvetica, sans-serif;font-size:26px;line-height:34px;font-weight:bold;color:rgb(20, 34, 49);}.design-spacer{margin-top:0px;margin-right:0px;margin-bottom:20px;margin-left:0px;font-family:Arial, Helvetica, sans-serif;font-size:16px;line-height:26px;color:rgb(20, 34, 49);}.design-greeting{margin-top:0px;margin-right:0px;margin-bottom:0px;margin-left:0px;font-family:Arial, Helvetica, sans-serif;font-size:16px;line-height:26px;color:rgb(20, 34, 49);}';
+
+    /** No HTML or company/profile values survive rendering in this bounded worker-local registry. */
+    private static array $outputs = [];
+
+    public function project(string $legacyHtml, array $companyValues, Htmlable $applicationContent): ?array
+    {
+        return $this->review($legacyHtml, $companyValues, $applicationContent)['projection'];
+    }
+
+    /** Finite admission diagnostics, without source HTML, application text or company values. */
+    public function review(string $legacyHtml, array $companyValues, Htmlable $applicationContent): array
+    {
+        // The caller has already read this opaque application slot. Never derive it from mail text.
+        $author = $applicationContent->toHtml();
+        $phase = 'source';
+        try {
+            $descriptor = $this->descriptor($legacyHtml, $companyValues, $author, $phase);
+            if ($descriptor === null) {
+                return ['projection' => null, 'reason' => $phase];
+            }
+            $phase = 'render';
+            // A unique placeholder obtains exact byte offsets before opaque content is inserted.
+            $slot = '__RT_U2E_SYSTEM_'.bin2hex(random_bytes(24)).'__';
+            $rendered = (new OutlookUniversalPresentation)->render($descriptor, new HtmlString($slot), ['mode' => 'send']);
+            $start = strpos($rendered['html'], $slot);
+            if ($start === false || substr_count($rendered['html'], $slot) !== 1) {
+                throw new RuntimeException('U2E_SYSTEM_SOURCE_INVALID');
+            }
+            foreach (['html', 'bodyHtml'] as $field) {
+                $rendered[$field] = str_replace($slot, $author, $rendered[$field], $count);
+                if ($count !== 1) {
+                    throw new RuntimeException('U2E_SYSTEM_SOURCE_INVALID');
+                }
+            }
+            $rendered['authorContentHash'] = hash('sha256', $author);
+            $rendered['utf16Length'] = intdiv(strlen(mb_convert_encoding($rendered['html'], 'UTF-16LE', 'UTF-8')), 2);
+            self::remember($rendered['html'], ['authorStart' => $start, 'authorLength' => strlen($author),
+                'version' => $rendered['version'], 'media' => $rendered['media']]);
+
+            return ['projection' => $rendered, 'reason' => 'admitted'];
+        } catch (Throwable) {
+            // Custom or ambiguous published layouts retain their existing compiler output.
+            return ['projection' => null, 'reason' => $phase];
+        }
+    }
+
+    /** Format only the trusted application slot; the fixed send shell bypasses legacy projections. */
+    public static function inline(string $html, ?string $css): ?string
+    {
+        $metadata = self::metadata($html);
+        if ($metadata === null) {
+            return null;
+        }
+        self::forget($html);
+        $author = substr($html, $metadata['authorStart'], $metadata['authorLength']);
+        // Match the previous final inliner's long signed-URL wrap, without parsing the U2e shell.
+        $author = self::wrapLongLinks($author);
+        $formatted = (new CssToInlineStyles)->convert('<!DOCTYPE html><html><body>'.$author.'</body></html>', ($css ?? '')."\n".self::WORDING_CSS);
+        if (! preg_match('~<body\b[^>]*>(.*)</body\s*>~is', $formatted, $body)) {
+            throw new RuntimeException('U2E_SYSTEM_CONTENT_INVALID');
+        }
+        $html = substr_replace($html, $body[1], $metadata['authorStart'], $metadata['authorLength']);
+        $metadata['authorLength'] = strlen($body[1]);
+        self::remember($html, $metadata);
+
+        return $html;
+    }
+
+    /** Only exact locally generated bytes can enter the CID path; no marker grants admission. */
+    public static function embed(Email $message): ?int
+    {
+        $html = $message->getHtmlBody();
+        if (! is_string($html) || ($metadata = self::metadata($html)) === null) {
+            return null;
+        }
+        $author = substr($html, $metadata['authorStart'], $metadata['authorLength']);
+        $prefix = substr($html, 0, $metadata['authorStart']);
+        $suffix = substr($html, $metadata['authorStart'] + $metadata['authorLength']);
+        $existing = [];
+        foreach ($message->getAttachments() as $attachment) {
+            if ($attachment->hasContentId()) {
+                $existing[$attachment->getContentId()] = true;
+            }
+        }
+        $assets = [];
+        foreach ($metadata['media'] as $media) {
+            $path = parse_url($media['url'], PHP_URL_PATH);
+            if (! is_string($path) || ! preg_match('~\A/m/[0-9a-f]{10}\.png\z~', $path)) {
+                throw new RuntimeException('U2E_SYSTEM_ASSET_INVALID');
+            }
+            $file = public_path(ltrim($path, '/'));
+            $bytes = is_file($file) && ! is_link($file) ? file_get_contents($file) : false;
+            if (! is_string($bytes) || ! hash_equals($media['sha256'], hash('sha256', $bytes))) {
+                throw new RuntimeException('U2E_SYSTEM_ASSET_INVALID');
+            }
+            $cid = 'railtime-u2e-'.$media['sha256'].'@railtime.invalid';
+            // A foreign existing Content-ID must never silently replace our pinned bytes.
+            if (isset($existing[$cid])) {
+                throw new RuntimeException('U2E_SYSTEM_CID_CONFLICT');
+            }
+            $needle = 'src="'.htmlspecialchars($media['url'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'"';
+            $replacement = 'src="cid:'.$cid.'"';
+            $prefix = str_replace($needle, $replacement, $prefix, $before);
+            $suffix = str_replace($needle, $replacement, $suffix, $after);
+            if ($before + $after < 1) {
+                throw new RuntimeException('U2E_SYSTEM_ASSET_INVALID');
+            }
+            $assets[] = ['cid' => $cid, 'filename' => basename($path), 'mime' => 'image/png', 'path' => $file];
+        }
+        // Validate every local asset before mutating the message or its attachment collection.
+        $message->html($prefix.$author.$suffix, $message->getHtmlCharset() ?? 'utf-8');
+        foreach ($assets as $asset) {
+            $message->addPart(DataPart::fromPath($asset['path'], $asset['filename'], $asset['mime'])->asInline()->setContentId($asset['cid']));
+        }
+        $message->getHeaders()->remove('X-RailTime-Template');
+        $message->getHeaders()->addTextHeader('X-RailTime-Template', 'u2e-'.$metadata['version']);
+        self::forget($html);
+
+        return count($assets);
+    }
+
+    /** Used only after the caller's publication/revision guards; a copied marker is insufficient. */
+    public static function isAdmittedHtml(string $html): bool
+    {
+        return self::metadata($html) !== null;
+    }
+
+    /** Exact hash admission is deliberately process-local, bounded, and contains no raw message. */
+    private static function remember(string $html, array $metadata): void
+    {
+        $key = hash('sha256', $html);
+        unset(self::$outputs[$key]);
+        self::$outputs[$key] = $metadata;
+        while (count(self::$outputs) > 32) {
+            array_shift(self::$outputs);
+        }
+    }
+
+    private static function metadata(string $html): ?array
+    {
+        if (isset(self::$outputs[hash('sha256', $html)])) {
+            return self::$outputs[hash('sha256', $html)];
+        }
+        // The existing Blade layout appends one line ending after its raw HTML echo.
+        $unwrapped = str_ends_with($html, "\r\n") ? substr($html, 0, -2)
+            : (str_ends_with($html, "\n") ? substr($html, 0, -1) : $html);
+
+        return self::$outputs[hash('sha256', $unwrapped)] ?? null;
+    }
+
+    private static function forget(string $html): void
+    {
+        unset(self::$outputs[hash('sha256', $html)]);
+        $unwrapped = str_ends_with($html, "\r\n") ? substr($html, 0, -2)
+            : (str_ends_with($html, "\n") ? substr($html, 0, -1) : $html);
+        unset(self::$outputs[hash('sha256', $unwrapped)]);
+    }
+
+    private function descriptor(string $html, array $values, string $author, string &$phase): ?array
+    {
+        if (strlen($html) > 1000000 || strlen($author) > 262144 || ! mb_check_encoding($html, 'UTF-8')
+            || ! mb_check_encoding($author, 'UTF-8') || str_contains($html, "\0") || str_contains($author, "\0")
+            || ($values['VORNAME_NACHNAME'] ?? null) !== ''
+            || substr_count($html, 'data-rt-desktop-flow="'.OutlookCompactReferencePresentation::FLOW.'"') !== 1
+            || OutlookCompactReferencePresentation::document($html) !== $html) {
+            return null;
+        }
+        $phase = 'company_values';
+        foreach (['FIRMENNAME', 'POSITION', 'E_MAIL', 'DURCHWAHL', 'DURCHWAHL_TEL', 'MOBIL', 'MOBIL_TEL',
+            'FIRMEN_WEBSITE_HREF', 'FIRMEN_WEBSITE_LABEL', 'FIRMENSTRASSE', 'FIRMEN_PLZ_ORT', 'NOTFALLNUMMER_TEL'] as $key) {
+            if (! is_string($values[$key] ?? null) || ! mb_check_encoding($values[$key], 'UTF-8')
+                || preg_match('/[\x00-\x1f\x7f]/', $values[$key])) {
+                return null;
+            }
+        }
+        // Remove opaque application bytes before inspecting the independent company signature.
+        $phase = 'application_slot';
+        $slot = 'rt-u2e-source-slot';
+        if ($author === '' || substr_count($html, $author) !== 1) {
+            return null;
+        }
+        $source = str_replace($author, $slot, $html);
+        $dom = self::dom($source);
+        $phase = 'source_structure';
+        $xpath = new DOMXPath($dom);
+        $flow = $xpath->query('//table[@data-rt-system-flow="v1" and @data-rt-desktop-flow="'.OutlookCompactReferencePresentation::FLOW.'"]');
+        if ($flow->length !== 1 || $xpath->query('//script|//iframe|//object')->length !== 0) {
+            return null;
+        }
+        foreach ($xpath->query('//style[@data-rt-mail-document-css]') as $sheet) {
+            if ($sheet->getAttribute('data-rt-mail-document-css') !== 'template'
+                || ! hash_equals(hash('sha256', self::WORDING_CSS), hash('sha256', trim($sheet->textContent)))) {
+                return null;
+            }
+        }
+        $phase = 'company_identity';
+        $identity = self::one($xpath, 'rt-v17-identity');
+        $logo = self::one($xpath, 'rt-v9-logo');
+        $name = self::one($xpath, 'rt-sign-name');
+        if (self::text($identity->textContent) !== self::text($values['POSITION'])
+            || self::text($name->textContent) !== '' || $logo->getAttribute('alt') !== $values['FIRMENNAME']
+            || self::links($xpath, $identity) !== []
+            || ($values['E_MAIL'] ?? null) !== ($values['FIRMEN_EMAIL'] ?? null)
+            || ($values['DURCHWAHL'] ?? null) !== ($values['FIRMEN_TELEFON'] ?? null)) {
+            return null;
+        }
+        $direct = [['type' => 'email', 'value' => $values['E_MAIL'], 'label' => $values['E_MAIL']]];
+        foreach ([['DURCHWAHL', 'DURCHWAHL_TEL'], ['MOBIL', 'MOBIL_TEL']] as [$label, $value]) {
+            if ($values[$label] !== '') {
+                $direct[] = ['type' => 'phone', 'value' => $values[$value], 'label' => $values[$label]];
+            }
+        }
+        $phase = 'company_contacts';
+        $company = self::one($xpath, 'rt-v17-company');
+        $contactNodes = $xpath->query('.//*[contains(concat(" ",normalize-space(@class)," ")," rt-company-contact-text ")]', $company);
+        $expectedContacts = [$values['FIRMEN_WEBSITE_LABEL'], $values['FIRMENSTRASSE'].' '.$values['FIRMEN_PLZ_ORT']];
+        if ($contactNodes->length !== 2) {
+            return null;
+        }
+        foreach ($contactNodes as $index => $contact) {
+            if (self::text(self::textWithBreaks($contact)) !== self::text($expectedContacts[$index])) {
+                return null;
+            }
+        }
+        $companyCopy = $company->cloneNode(true);
+        foreach ($xpath->query('.//*[contains(concat(" ",normalize-space(@class)," ")," rt-company-contact-text ")]', $companyCopy) as $contact) {
+            $contact->parentNode?->removeChild($contact);
+        }
+        if (self::text($companyCopy->textContent) !== '' || self::links($xpath, $company) !== [$values['FIRMEN_WEBSITE_HREF']]) {
+            return null;
+        }
+        $web = array_filter(iterator_to_array($xpath->query('.//a[@href]', $company)),
+            static fn (DOMElement $node): bool => $node->getAttribute('href') === $values['FIRMEN_WEBSITE_HREF']);
+        if (count($web) !== 1) {
+            return null;
+        }
+        $phase = 'dispatch';
+        $dispatch = self::one($xpath, 'rt-v17-dispatch-block');
+        if ($xpath->query('.//img', $identity)->length !== 1 || $xpath->query('.//img', $company)->length !== 2
+            || $xpath->query('.//img', $dispatch)->length !== 4 || $xpath->query('.//img', $flow->item(0))->length !== 8) {
+            return null;
+        }
+        $allRoutes = self::links($xpath, $dispatch);
+        $routes = array_values(array_unique($allRoutes));
+        if (count($allRoutes) !== 4 || count($routes) !== 3
+            || (array_count_values($allRoutes)['tel:'.$values['NOTFALLNUMMER_TEL']] ?? 0) !== 2) {
+            return null;
+        }
+        $select = static function (string $prefix) use ($routes): string {
+            $found = array_values(array_filter($routes, static fn (string $href): bool => str_starts_with($href, $prefix)));
+            if (count($found) !== 1) {
+                throw new RuntimeException('U2E_SYSTEM_SOURCE_INVALID');
+            }
+
+            return $found[0];
+        };
+        $phase = 'legal';
+        $legal = self::one($xpath, 'rt-v17-legal-cell');
+        $legalTexts = $xpath->query('./div/span', $legal);
+        if ($legalTexts->length !== 2) {
+            return null;
+        }
+        $registration = self::text($legalTexts->item(0)->textContent);
+        $confidentiality = self::text($legalTexts->item(1)->textContent);
+        if (self::text($legal->textContent) !== $registration.' '.$confidentiality
+            || self::text($dispatch->textContent) !== self::text($values['NOTFALLNUMMER_TEL'])) {
+            return null;
+        }
+        // Known child text must account for the complete signature, including all nested containers.
+        $phase = 'source_content';
+        foreach ([$identity, $company, $dispatch] as $known) {
+            $known->parentNode?->removeChild($known);
+        }
+        if (self::text($flow->item(0)->textContent) !== '') {
+            return null;
+        }
+        // Reject an unrelated authored header/footer instead of silently replacing it.
+        $phase = 'outside_content';
+        $flow->item(0)->parentNode?->removeChild($flow->item(0));
+        $legal->parentNode?->removeChild($legal);
+        $body = $dom->getElementsByTagName('body')->item(0);
+        foreach ($xpath->query('//body/div[@style="display:none;max-height:0;max-width:0;overflow:hidden;opacity:0;color:transparent;mso-hide:all;"]') as $preheader) {
+            if (in_array($preheader->textContent, ['Ihre Nachricht von '.$values['FIRMENNAME'].'.',
+                'Ihre Nachricht von '.$values['FIRMENNAME'].' · sicher, flexibel und deutschlandweit im Einsatz.'], true)
+                && $preheader->childNodes->length === 1 && $preheader->firstChild instanceof \DOMText) {
+                $preheader->parentNode?->removeChild($preheader);
+            }
+        }
+        foreach (iterator_to_array($xpath->query('//style|//comment()')) as $ignored) {
+            $ignored->parentNode?->removeChild($ignored);
+        }
+        if (! $body || self::text(str_replace($slot, '', $body->textContent)) !== '' || $xpath->query('//body//img')->length !== 0) {
+            return null;
+        }
+        $descriptor = ['kind' => 'system',
+            'identity' => ['name' => $values['FIRMENNAME'], 'role' => $values['POSITION']], 'direct' => $direct,
+            'company' => ['name' => $values['FIRMENNAME'], 'website' => $values['FIRMEN_WEBSITE_HREF'],
+                'websiteLabel' => $values['FIRMEN_WEBSITE_LABEL'], 'street' => $values['FIRMENSTRASSE'], 'postalCity' => $values['FIRMEN_PLZ_ORT'],
+                'registration' => $registration, 'confidentiality' => $confidentiality],
+            'dispatch' => ['email' => substr($select('mailto:'), 7), 'whatsapp' => $select('https://wa.me/'),
+                'phone' => $values['NOTFALLNUMMER_TEL'], 'phoneLabel' => ($values['NOTFALLNUMMER'] ?? '') ?: $values['NOTFALLNUMMER_TEL']]];
+        // All rendered signature values and the admitted source family participate; author/scopes do not.
+        $sourceHash = hash('sha256', OutlookUniversalPresentation::REVISION."\0system\0".OutlookCompactReferencePresentation::FLOW."\0".json_encode($descriptor, JSON_THROW_ON_ERROR));
+
+        return ['sourceHash' => $sourceHash] + $descriptor;
+    }
+
+    private static function one(DOMXPath $xpath, string $class): DOMElement
+    {
+        $nodes = $xpath->query('//*[contains(concat(" ",normalize-space(@class)," ")," '.$class.' ")]');
+        if ($nodes->length !== 1 || ! $nodes->item(0) instanceof DOMElement) {
+            throw new RuntimeException('U2E_SYSTEM_SOURCE_INVALID');
+        }
+
+        return $nodes->item(0);
+    }
+
+    private static function links(DOMXPath $xpath, DOMElement $node): array
+    {
+        $links = [];
+        foreach ($xpath->query('.//a[@href]', $node) as $link) {
+            $links[] = $link->getAttribute('href');
+        }
+        sort($links);
+
+        return $links;
+    }
+
+    private static function dom(string $html): DOMDocument
+    {
+        $dom = new DOMDocument('1.0', 'UTF-8');
+        $previous = libxml_use_internal_errors(true);
+        try {
+            $loaded = $dom->loadHTML('<?xml encoding="UTF-8">'.$html, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
+        if (! $loaded) {
+            throw new RuntimeException('U2E_SYSTEM_SOURCE_INVALID');
+        }
+
+        return $dom;
+    }
+
+    private static function text(string $value): string
+    {
+        return trim((string) preg_replace('/\s+/u', ' ', str_replace("\u{00a0}", ' ', $value)));
+    }
+
+    private static function textWithBreaks(\DOMNode $node): string
+    {
+        if ($node->nodeName === 'br') {
+            return ' ';
+        }
+        if ($node instanceof \DOMText) {
+            return $node->textContent;
+        }
+        $text = '';
+        foreach ($node->childNodes as $child) {
+            $text .= self::textWithBreaks($child);
+        }
+
+        return $text;
+    }
+
+    private static function wrapLongLinks(string $html): string
+    {
+        $dom = self::dom('<html><body>'.$html.'</body></html>');
+        foreach ((new DOMXPath($dom))->query('//a') as $link) {
+            if (preg_match('~\Ahttps?://\S+\z~u', trim($link->textContent)) !== 1) {
+                continue;
+            }
+            $wrap = 'word-break:break-all;overflow-wrap:anywhere;';
+            $link->setAttribute('style', rtrim($link->getAttribute('style'), ';').';'.$wrap);
+            for ($parent = $link->parentNode; $parent instanceof DOMElement; $parent = $parent->parentNode) {
+                if (strtolower($parent->tagName) === 'p') {
+                    $parent->setAttribute('style', rtrim($parent->getAttribute('style'), ';').';'.$wrap);
+                    break;
+                }
+                if (strtolower($parent->tagName) === 'td') {
+                    break;
+                }
+            }
+        }
+        $body = $dom->getElementsByTagName('body')->item(0);
+        $output = '';
+        foreach ($body->childNodes as $child) {
+            $output .= $dom->saveHTML($child);
+        }
+
+        return $output;
+    }
+}

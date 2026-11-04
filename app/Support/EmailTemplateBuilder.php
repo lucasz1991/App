@@ -8,6 +8,7 @@ use App\Support\Mail\CssSemantic;
 use App\Support\Mail\OutlookOptionalTemplateWording;
 use App\Support\Mail\OutlookSignatureInlineStyle;
 use App\Support\Mail\OutlookTemplateWording;
+use App\Support\Mail\OutlookUniversalSystemMailPresentation;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\Mail\SignatureArtifactVersion;
 use App\Support\Mail\SignatureBackgroundContract;
@@ -34,6 +35,7 @@ use App\Support\OutlookAddin\OutlookV30ReferencePresentation;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use RuntimeException;
 use Throwable;
@@ -757,13 +759,22 @@ class EmailTemplateBuilder
         $html = OutlookV30ReferencePresentation::document(OutlookAnimatedSignaturePresentation::document(OutlookDispatchCardPresentation::document(OutlookReferenceCardPresentation::document(OutlookContentFramePresentation::document(OutlookFluidSignaturePresentation::document(OutlookThreeCellPresentation::document(OutlookThreeColumnPresentation::systemDocument($html, rtrim((string) config('app.url'), '/'), $signature->publishedCss()))))))));
         $html = OutlookCompactReferencePresentation::document($html);
 
-        return SystemMailInlineImageEmbedder::mark(
-            self::embedPublishedCss(
-                $html,
-                $signature->publishedCss(),
-                MailDocumentKind::Signature,
-            ),
+        $html = self::embedPublishedCss(
+            $html,
+            $signature->publishedCss(),
+            MailDocumentKind::Signature,
         );
+
+        $universal = app(OutlookUniversalSystemMailPresentation::class)->project(
+            $html,
+            $values,
+            new HtmlString($trusted),
+        );
+        if ($universal !== null) {
+            return $universal['html'];
+        }
+
+        return SystemMailInlineImageEmbedder::mark($html);
     }
 
     /** Only copy a bounded literal family list, never arbitrary body CSS into the content cell. */

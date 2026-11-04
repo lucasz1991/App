@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\MailPreviewImages;
+use App\Support\OutlookAddin\OutlookUniversalPersonalExport;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -21,8 +22,8 @@ class ProfileEmailTemplateController extends Controller
 
         // Die Dampflok ist die einzige oeffentliche Variante. Ein historischer
         // motiv-Queryparameter wird bewusst ignoriert.
-        $file = (new EmailTemplateBuilder($request->user()))
-            ->build($template);
+        $file = app(OutlookUniversalPersonalExport::class)->project($request->user(), $template,
+            (new EmailTemplateBuilder($request->user()))->build($template));
 
         return response($file['content'], 200, [
             'Content-Type' => $file['mime'],
@@ -41,6 +42,7 @@ class ProfileEmailTemplateController extends Controller
     {
         $html = (new EmailTemplateBuilder($request->user()))
             ->buildSignatureCopyHtml('light');
+        $html = app(OutlookUniversalPersonalExport::class)->signatureCopy($request->user(), $html);
 
         return response()->json(['html' => $html], 200, [
             'Cache-Control' => 'private, no-store, max-age=0',
@@ -64,6 +66,7 @@ class ProfileEmailTemplateController extends Controller
         $file = $request->boolean('animate')
             ? $builder->buildPreview($template, bin2hex(random_bytes(12)))
             : $builder->buildStaticPreview($template);
+        $file = app(OutlookUniversalPersonalExport::class)->project($request->user(), $template, $file);
 
         return response(MailPreviewImages::embed($file['content']), 200, [
             'Content-Type' => 'text/html; charset=UTF-8',

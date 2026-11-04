@@ -371,3 +371,7 @@ auth.json
 # Disposable shared-component QA views must never enter a release.
 /storage/framework/views-shared-select-final-20261023/
 /storage/framework/views-table-frame-20261023/
+
+# Current universal mail output boundaries.
+!/tests/Feature/OutlookUniversalPersonalExportTest.php
+!/tests/Feature/OutlookUniversalSystemMailPresentationTest.php

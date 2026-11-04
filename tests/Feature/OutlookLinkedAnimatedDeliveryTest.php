@@ -102,7 +102,20 @@ final class OutlookLinkedAnimatedDeliveryTest extends TestCase
         $template->forceFill(['html' => $templateHtml, 'published_html' => $templateHtml, 'published_signature_document_id' => $signature->id])->saveQuietly();
         app()->forgetScopedInstances();
         $before = MailDocument::query()->orderBy('id')->get()->toArray();
-        $compiled = EmailTemplateBuilder::buildSystemMailHtml(new HtmlString('<p>Bounded linked animation. Literal RT-SIGNATURE-VERSION:0123456789abcdef must stay unchanged.</p>'));
+        // Keep this historical GIF/V17 adapter fixture on its original renderer.
+        // OutlookUniversalSystemMailPresentationTest covers the current global default.
+        app()->instance(\App\Support\Mail\OutlookUniversalSystemMailPresentation::class, new class
+        {
+            public function project(...$arguments): ?array
+            {
+                return null;
+            }
+        });
+        try {
+            $compiled = EmailTemplateBuilder::buildSystemMailHtml(new HtmlString('<p>Bounded linked animation. Literal RT-SIGNATURE-VERSION:0123456789abcdef must stay unchanged.</p>'));
+        } finally {
+            app()->forgetInstance(\App\Support\Mail\OutlookUniversalSystemMailPresentation::class);
+        }
         $normal = (new SystemMailCssInliner)->convert($compiled);
         $previewHtml = (new CssToInlineStyles)->convert($compiled);
         $testmail = (new ReflectionMethod(MailDocumentController::class, 'staticLinkedSystemPreview'))->invoke(

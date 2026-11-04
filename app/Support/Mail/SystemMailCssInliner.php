@@ -17,6 +17,10 @@ final class SystemMailCssInliner extends CssToInlineStyles
 
     public function convert($html, $css = null)
     {
+        $universal = OutlookUniversalSystemMailPresentation::inline($html, $css);
+        if ($universal !== null) {
+            return $universal;
+        }
         $this->systemMail = substr_count($html, SystemMailInlineImageEmbedder::RUNTIME_ATTRIBUTE) === 1
             && str_contains($html, '<!-- RT_TEMPLATE_MARK_START -->')
             && str_contains($html, '<!-- RT_TEMPLATE_MARK_END -->')

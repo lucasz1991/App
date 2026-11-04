@@ -176,7 +176,20 @@ final class SystemMailDispatchActionsTest extends TestCase
         Setting::setValue('company', 'profile', array_replace(CompanyData::all(), ['emergency_phone' => $phone]));
         app()->forgetScopedInstances();
         $before = MailDocument::query()->orderBy('id')->get()->toArray();
-        $compiled = EmailTemplateBuilder::buildSystemMailHtml(new HtmlString('<p>Untouched application content &amp; links.</p>'));
+        // This fixture exercises the historical V17 adapter. The current U2e
+        // default and real Markdown/CID delivery have their own integration suite.
+        app()->instance(\App\Support\Mail\OutlookUniversalSystemMailPresentation::class, new class
+        {
+            public function project(...$arguments): ?array
+            {
+                return null;
+            }
+        });
+        try {
+            $compiled = EmailTemplateBuilder::buildSystemMailHtml(new HtmlString('<p>Untouched application content &amp; links.</p>'));
+        } finally {
+            app()->forgetInstance(\App\Support\Mail\OutlookUniversalSystemMailPresentation::class);
+        }
         $source = OutlookStaticLinkedTestProfiles::renderedPreview((new CssToInlineStyles)->convert($compiled), OutlookLinkedAnimatedDelivery::PROFILE, 'https://mail.example.test');
         $actual = (new SystemMailCssInliner)->convert($compiled);
         Http::assertNothingSent();
