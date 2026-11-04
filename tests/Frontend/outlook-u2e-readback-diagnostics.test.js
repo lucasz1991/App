@@ -33,13 +33,14 @@ test('difference metadata hashes every string and never exposes private keys, te
 
 test('first differing evidence key and values follow the original material comparison order', () => {
     const baseline = { topology: [{ parent: -1, rows: [['td', 1, 4]] }], images: [{ src: 'https://private.invalid/asset', width: 8, height: 8 }],
-        links: ['mailto:private@example.invalid'], colors: ['#fff'], text: 'Private signature' };
+        links: ['mailto:private@example.invalid'], colors: ['#fff'], borderColors: ['#ffffff'], text: 'Private signature' };
     assert.equal(firstUniversalEvidenceDifference(baseline, structuredClone(baseline)), null);
     for (const [mutate, expectedKey] of [
         [actual => { actual.topology[0].parent = 0; }, 'evidence.topology'],
         [actual => { actual.images[0].src += 'changed'; actual.text = 'Other'; }, 'evidence.images.src'],
         [actual => { actual.links[0] += 'changed'; }, 'evidence.links.href'],
         [actual => { actual.colors[0] = '#000'; }, 'evidence.colors.value'],
+        [actual => { actual.borderColors[0] = '#000000'; }, 'evidence.borderColors.value'],
         [actual => { actual.text += '!'; }, 'evidence.text.length'],
         [actual => { actual.text = 'Private signaturX'; }, 'evidence.text.sha256'],
     ]) {

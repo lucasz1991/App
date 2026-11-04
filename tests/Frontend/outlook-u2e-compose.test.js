@@ -133,7 +133,7 @@ test('the source validates the approved geometry and excludes hidden or active b
     for (const change of mutations) assert.throws(() => validateUniversalComposeDocument(mutate(document(), change)), { code: 'U2E_SOURCE_INVALID' });
 });
 
-test('the redacted real 22:37 serialization is current against its independently projected source', async () => {
+test('the redacted real 22:37 serialization with black CTA edges is rejected without a repair write', async () => {
     const manifest = JSON.parse(fixtureFile('manifest.json'));
     for (const [name, evidence] of Object.entries(manifest.artifacts)) {
         const content = fixtureFile(name);
@@ -142,12 +142,21 @@ test('the redacted real 22:37 serialization is current against its independently
     }
     const source = JSON.parse(fixtureFile('source.json')), actual = fixtureFile('new-outlook-2237.redacted.html');
     validateUniversalComposeDocument(source);
-    assert.equal(universalComposeStateFromBody(source, actual, 'newMail').current, true);
+    const initial = universalComposeStateFromBody(source, actual, 'newMail');
+    assert.equal(initial.current, false);
+    assert.equal(initial.checkpoint, 'evidence.borderColors');
+    assert.equal(initial.difference.index, 4);
     assert.deepEqual(universalComposePresentationEvidence(actual), manifest.presentation.outlook);
     assert.equal((actual.match(/\bbgcolor=/g) || []).length, 0, 'actual Outlook used CSS background colors');
     assert.equal((actual.match(/<img\b/g) || []).length, 13);
     const f = fixture({ bodyWrite({ callback, state }) { state.html = actual; callback(success()); } });
-    assert.equal((await f.insert(source)).status, 'applied');
+    assert.equal((await errorOf(f.insert(source))).code, 'SIGNATURE_LAYOUT_UNCONFIRMED');
+    assert.equal(universalComposeReport(f.item).checkpoint, 'evidence.borderColors');
+    assert.equal(universalComposeReport(f.item).difference.index, 4);
+    assert.equal(f.state.bodyWrites.length, 1);
+    assert.equal(f.state.html, actual);
+    assert.equal(universalComposeBlocked(f.item), true);
+    assert.equal((await errorOf(f.insert(source))).code, 'U2E_INSERT_UNCERTAIN');
     assert.equal(f.state.bodyWrites.length, 1);
     for (const change of [
         dom => dom.querySelector('table[width="247"]').setAttribute('style', 'background-color:rgb(0,0,255)'),
@@ -250,7 +259,9 @@ test('pure state tolerates only known Word or Rooster serialization without losi
     word = word.replace('<table role="presentation"', '<table class="MsoNormalTable" role="presentation"').replace(' class="rt-shell"', '');
     assert.equal(universalComposeStateFromBody(doc, word, 'newMail').current, true);
     const rooster = mutate(doc, dom => { for (const node of dom.querySelectorAll('[style],[class]')) { node.removeAttribute('style'); node.removeAttribute('class'); } }).html;
-    assert.equal(universalComposeStateFromBody(doc, rooster, 'newMail').current, true);
+    const missingBorders = universalComposeStateFromBody(doc, rooster, 'newMail');
+    assert.equal(missingBorders.current, false);
+    assert.equal(missingBorders.checkpoint, 'borders.invalid');
     const entities = doc.html.replaceAll('Geschäftsführung', 'Gesch&auml;ftsf&uuml;hrung').replaceAll('löschen', 'l&ouml;schen');
     assert.equal(universalComposeStateFromBody(doc, entities, 'newMail').current, true, 'equivalent German named entities retain the same signature text');
     for (const change of [dom => dom.querySelector('.rt-train').remove(), dom => dom.querySelector('.rt-col-company').remove(),

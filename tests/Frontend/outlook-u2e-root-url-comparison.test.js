@@ -9,7 +9,7 @@ import { universalComposeStateFromBody, validateUniversalComposeDocument } from 
 const source = JSON.parse(fs.readFileSync(new URL('../Fixtures/mail/u2e-readback/source.json', import.meta.url), 'utf8'));
 function withLink(doc, href) { const { document } = parseHTML(doc.html); document.querySelector('a').setAttribute('href', href); return { ...doc, html: document.toString() }; }
 const hash = value => crypto.createHash('sha256').update(value).digest('hex');
-const evidence = href => ({ topology: [], images: [], links: [href], colors: [], text: 'Unchanged signature' });
+const evidence = href => ({ topology: [], images: [], links: [href], colors: [], borderColors: [], text: 'Unchanged signature' });
 
 test('only a literal HTTPS root-path slash with identical authority bytes is equivalent in either direction', () => {
     for (const authority of ['www.example.test', 'EXAMPLE.test', 'example.test:443', 'example.test:0443', '127.0.0.1:8443']) {

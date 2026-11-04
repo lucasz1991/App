@@ -1,5 +1,6 @@
 import { parseManagedHtml } from './managed-template.js';
 import { u2eCenteringContext } from './u2e-appearance.js';
+import { U2E_BORDER_IMAGE_PROPERTIES, U2E_AMBIGUOUS_TOP_BORDER_PROPERTIES } from './u2e-borders.js';
 
 // This module describes failures and redacts already-read HTML. It never grants
 // ownership, changes a compose body, or admits a different material layout.
@@ -9,16 +10,17 @@ export const U2E_READBACK_CHECKPOINTS = Object.freeze([
     'grid.rowspan', 'grid.train', 'grid.legal', 'markers.position', 'shell.count',
     'material.hidden', 'material.float', 'material.content', 'dispatch.count',
     'images.src', 'images.width', 'images.height', 'images.count', 'images.order', 'images.origin',
-    'links.content', 'links.scheme', 'links.count', 'colors.background-image', 'colors.conflict',
+    'links.content', 'links.scheme', 'links.count', 'borders.structure', 'borders.invalid', 'borders.image', 'colors.background-image', 'colors.conflict',
     'colors.legal', 'colors.dispatch', 'colors.corners', 'state.present', 'state.kind',
     'state.version', 'state.unreadable', 'source.invalid', 'evidence.topology', 'evidence.images',
-    'evidence.links', 'evidence.colors', 'evidence.text', 'compose.type', 'quote.bytes',
+    'evidence.links', 'evidence.colors', 'evidence.borderColors', 'evidence.text', 'compose.type', 'quote.bytes',
     'author.signature', 'author.combined', 'readback.unknown',
 ]);
 export const U2E_READBACK_DIFFERENCE_KEYS = Object.freeze([
     ...U2E_READBACK_CHECKPOINTS,
     'evidence.images.count', 'evidence.images.src', 'evidence.images.width', 'evidence.images.height',
     'evidence.links.count', 'evidence.links.href', 'evidence.colors.count', 'evidence.colors.value',
+    'evidence.borderColors.count', 'evidence.borderColors.value',
     'evidence.text.length', 'evidence.text.sha256',
 ]);
 export const U2E_REDACTED_TAGS = Object.freeze(['table', 'tbody', 'thead', 'tfoot', 'tr', 'td', 'th',
@@ -32,6 +34,8 @@ export const U2E_REDACTED_STYLE_PROPERTIES = Object.freeze([
     'margin', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
     'border', 'border-top', 'border-right', 'border-bottom', 'border-left',
     'border-width', 'border-color', 'border-style', 'border-collapse', 'border-spacing',
+    'border-top-width', 'border-top-color', 'border-top-style', 'mso-border-top-alt',
+    ...U2E_BORDER_IMAGE_PROPERTIES, ...U2E_AMBIGUOUS_TOP_BORDER_PROPERTIES,
     'background', 'background-color', 'background-image', 'color', 'text-align', 'text-indent', 'line-height',
     'display', 'visibility', 'opacity', 'float', 'clear', 'vertical-align', 'table-layout',
     'font-size', 'font-family', 'font-weight', 'font-style', 'text-decoration',
@@ -143,7 +147,10 @@ export function universalSignatureHrefEqual(expected, actual) {
 export function firstUniversalEvidenceDifference(expected, actual) {
     const unequal = (a, b) => JSON.stringify(a) !== JSON.stringify(b);
     if (unequal(expected.topology, actual.topology)) return { checkpoint: 'evidence.topology', difference: u2eSafeDifference('evidence.topology', expected.topology, actual.topology) };
-    for (const [collection, fields] of [['images', ['src', 'width', 'height']], ['links', null], ['colors', null]]) {
+    for (const [collection, fields] of [['images', ['src', 'width', 'height']], ['links', null], ['colors', null], ['borderColors', null]]) {
+        if (!Array.isArray(expected[collection]) || !Array.isArray(actual[collection])) return { checkpoint: 'evidence.' + collection,
+            difference: u2eSafeDifference('evidence.' + collection + '.count', Array.isArray(expected[collection]) ? expected[collection].length : null,
+                Array.isArray(actual[collection]) ? actual[collection].length : null) };
         if (expected[collection].length !== actual[collection].length) return { checkpoint: 'evidence.' + collection,
             difference: u2eSafeDifference('evidence.' + collection + '.count', expected[collection].length, actual[collection].length) };
         for (let at = 0; at < expected[collection].length; at++) {

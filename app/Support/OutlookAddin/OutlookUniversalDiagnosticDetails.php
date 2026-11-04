@@ -15,10 +15,10 @@ final class OutlookUniversalDiagnosticDetails
         'material.hidden', 'material.float', 'material.content', 'dispatch.count',
         'images.src', 'images.width', 'images.height', 'images.count',
         'images.order', 'images.origin', 'links.content', 'links.scheme',
-        'links.count', 'colors.background-image', 'colors.conflict', 'colors.legal',
+        'links.count', 'borders.structure', 'borders.invalid', 'borders.image', 'colors.background-image', 'colors.conflict', 'colors.legal',
         'colors.dispatch', 'colors.corners', 'state.present', 'state.kind',
         'state.version', 'state.unreadable', 'source.invalid', 'evidence.topology',
-        'evidence.images', 'evidence.links', 'evidence.colors', 'evidence.text',
+        'evidence.images', 'evidence.links', 'evidence.colors', 'evidence.borderColors', 'evidence.text',
         'compose.type', 'quote.bytes', 'author.signature', 'author.combined',
         'readback.unknown',
     ];
@@ -31,14 +31,14 @@ final class OutlookUniversalDiagnosticDetails
         'material.hidden', 'material.float', 'material.content', 'dispatch.count',
         'images.src', 'images.width', 'images.height', 'images.count',
         'images.order', 'images.origin', 'links.content', 'links.scheme',
-        'links.count', 'colors.background-image', 'colors.conflict', 'colors.legal',
+        'links.count', 'borders.structure', 'borders.invalid', 'borders.image', 'colors.background-image', 'colors.conflict', 'colors.legal',
         'colors.dispatch', 'colors.corners', 'state.present', 'state.kind',
         'state.version', 'state.unreadable', 'source.invalid', 'evidence.topology',
-        'evidence.images', 'evidence.links', 'evidence.colors', 'evidence.text',
+        'evidence.images', 'evidence.links', 'evidence.colors', 'evidence.borderColors', 'evidence.text',
         'compose.type', 'quote.bytes', 'author.signature', 'author.combined',
         'readback.unknown', 'evidence.images.count', 'evidence.images.src', 'evidence.images.width',
         'evidence.images.height', 'evidence.links.count', 'evidence.links.href', 'evidence.colors.count',
-        'evidence.colors.value', 'evidence.text.length', 'evidence.text.sha256',
+        'evidence.colors.value', 'evidence.borderColors.count', 'evidence.borderColors.value', 'evidence.text.length', 'evidence.text.sha256',
     ];
 
     public static function valid(array $input): bool

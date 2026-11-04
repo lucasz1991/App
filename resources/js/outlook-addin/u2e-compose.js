@@ -4,6 +4,7 @@ import { assertMailboxBinding } from './mailbox-guard.js';
 import { confirmedOfficeWrite, hasUncertainWrite } from './office-write.js';
 import { createNativeLayoutNonce } from './native-layout-restore.js';
 import { u2eCenteringState, u2eCenteringContext } from './u2e-appearance.js';
+import { u2eTopBorderEvidence } from './u2e-borders.js';
 import { firstUniversalEvidenceDifference, u2eReadbackFailure,
     universalRedactedReadbackFixture } from './u2e-readback-diagnostics.js';
 
@@ -237,10 +238,15 @@ function material(html, expectedMarker = null, source = false) {
             const corner = dimension(value.node, 'width', 8) && dimension(value.node, 'height', 8);
             return materialBackgroundColor(elements, value) !== (corner ? '#ffffff' : '#e4002b');
         })) throw layoutFailure('colors.corners');
+    let borders;
+    try { borders = u2eTopBorderEvidence(elements, grid, dispatch); }
+    catch (error) { throw layoutFailure(['borders.structure', 'borders.invalid', 'borders.image'].includes(error?.checkpoint) ? error.checkpoint : 'borders.invalid'); }
+    const borderColors = borders.map(value => value.color);
+    if (source && JSON.stringify(borderColors) !== JSON.stringify([...Array(4).fill('#e4002b'), ...Array(5).fill('#ffffff')])) throw layoutFailure('borders.invalid');
     let signatureHtml = html.slice(root.openEnd, root.close);
     if (author) signatureHtml = signatureHtml.slice(0, author.node.start - root.openEnd) + signatureHtml.slice(author.node.end - root.openEnd);
     return { present: true, tree, root, rootIndex, author, kind, version: versions[0], marker,
-        evidence: { topology, images, links, colors, text: text(signatureHtml) } };
+        evidence: { topology, images, links, colors, borderColors, text: text(signatureHtml) } };
 }
 
 export function validateUniversalComposeDocument(document) {
