@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "derivation": "production-signature-only-redactor-v1",
+  "sourceHtmlSha256": "9e55d67cc67f282efc27ee140fa9010de6aa7d69c21c449b3403e0755feb50c9",
+  "sourceHtmlBytes": 15655,
+  "fixtureFileSha256": "00cd5f384c46c82cf5bbba3712af9a4fa8e5cc3f85dcf8a4fe5b099f87427ece",
+  "version": "544f042ce1c87edd08a60932",
+  "allTextReplaced": true,
+  "allUrlsReplaced": true,
+  "authorAndQuoteExcluded": true,
+  "pixelOrNativeClientAcceptance": false,
+  "sourceMeaning": "Existing received new-Outlook dark-mode HTML; five black CTA borders are a known failing input, not an accepted layout"
+}
