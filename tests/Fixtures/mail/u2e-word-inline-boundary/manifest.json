@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "kind": "minimal-redacted-word-inline-boundary",
+  "hashNormalization": "CRLF to LF for the versioned synthetic fixture only; private originals are never normalized or copied",
+  "description": "Synthetic structural reconstruction of named A / P / bordered DIV; private original hashes are recorded only in the separate Documents report. No original business content or full original HTML is included.",
+  "fixture": {
+    "file": "word-inline.redacted.html",
+    "bytes": 504,
+    "sha256": "d5bd5bc6ec44e233f824fb12227d1241428be07acc96d7b75c2753a821a4c648",
+    "boundaryUtf16": 192
+  },
+  "nativeClientAcceptance": false
+}

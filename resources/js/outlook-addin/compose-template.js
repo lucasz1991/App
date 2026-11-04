@@ -53,17 +53,70 @@ function failedOfficeResult(reason, error = null) {
     return { succeeded: false, reason, officeCode: safeOfficeCode(error) };
 }
 
+function wordReplyHeaderStyle(style) {
+    if (typeof style !== 'string' || style.length > 2048 || /["'\\(){}@!<>]|\/\*|\*\//.test(style)) return false;
+    const seen = new Set();
+    let reset = -1, top = -1;
+    for (const [index, declaration] of style.split(';').entries()) {
+        if (!declaration.trim()) continue;
+        const colon = declaration.indexOf(':');
+        if (colon < 0 || declaration.indexOf(':', colon + 1) !== -1) return false;
+        const name = declaration.slice(0, colon).trim().toLowerCase();
+        const value = declaration.slice(colon + 1).trim().toLowerCase();
+        if (!['border', 'border-top', 'padding'].includes(name) || seen.has(name)) return false;
+        seen.add(name);
+        if (name === 'border') {
+            if (value !== 'none') return false;
+            reset = index;
+        } else if (name === 'border-top') {
+            const parts = value.split(/\s+/);
+            if (parts.length !== 3 || !parts.includes('solid') || !parts.includes('#e1e1e1')
+                || parts.filter(part => /^1(?:\.0+)?pt$/.test(part)).length !== 1) return false;
+            top = index;
+        } else if (!/^(?:0|(?:\d+(?:\.\d+)?|\.\d+)(?:pt|cm|px|in))(?:\s+(?:0|(?:\d+(?:\.\d+)?|\.\d+)(?:pt|cm|px|in))){0,3}$/.test(value)) return false;
+    }
+    // A later border:none resets the top edge too. Duplicate declarations,
+    // overrides and unproved style forms never create a new quote boundary.
+    return reset >= 0 && top > reset;
+}
+
+function wordOriginalMessageBoundary(html, elements, before = Infinity) {
+    const anchors = elements.map((node, index) => ({ node, index }))
+        .filter(value => value.node.tag === 'a' && value.node.attrs.name === '_MailOriginal' && value.node.start < before);
+    if (anchors.length === 0) return null;
+    if (anchors.length !== 1) return false;
+    const { node, index } = anchors[0], paragraph = elements[node.parent];
+    const headerIndex = paragraph?.parent, header = elements[headerIndex];
+    if (Object.prototype.hasOwnProperty.call(node.attrs, 'href') || paragraph?.tag !== 'p' || header?.tag !== 'div'
+        || !(paragraph.attrs.class || '').split(/\s+/).includes('MsoNormal') || !wordReplyHeaderStyle(header.attrs.style)) return false;
+    const headerChildren = elements.filter(child => child.parent === headerIndex);
+    if (headerChildren.length !== 1 || headerChildren[0] !== paragraph
+        || !/^\s*$/.test(html.slice(header.openEnd, paragraph.start))
+        || !/^\s*$/.test(html.slice(paragraph.openEnd, node.start))
+        || !/^\s*$/.test(html.slice(paragraph.end, header.close))) return false;
+    for (let at = index, count = 0; Number.isInteger(at) && count <= elements.length; count++, at = elements[at]?.parent) {
+        const ancestor = elements[at];
+        if (!ancestor || ['head', 'table', 'td', 'th', 'blockquote', 'script', 'style', 'template', 'title'].includes(ancestor.tag)
+            || Object.prototype.hasOwnProperty.call(ancestor.attrs, 'hidden')) return false;
+        const style = ancestor.attrs.style || '';
+        if (/\\|\/\*|\*\//.test(style)
+            || /(?:^|;)\s*(?:display\s*:\s*none|visibility\s*:\s*hidden|mso-hide\s*:\s*all|opacity\s*:\s*0(?:\.0*)?)(?:\s*!important)?\s*(?:;|$)/i.test(style)) return false;
+        if (at !== headerIndex && ancestor.tag === 'div' && wordReplyHeaderStyle(style)) return false;
+    }
+    return header.start;
+}
+
 export function currentComposeBodyHtml(html, composeType) {
     if (typeof html !== 'string') return null;
     if (composeType === 'newMail') return html;
     if (!['reply', 'forward'].includes(composeType)) return null;
 
-    let boundary = -1;
+    let boundary = -1, elements;
     try {
         // Word can serialize this existing Outlook reply marker without quotes.
         // Read its real attribute: text, comments, titles and data-id are not a
         // boundary. Preserve original offsets and never reserialize the body.
-        const { elements } = parseManagedHtml(html);
+        ({ elements } = parseManagedHtml(html));
         for (const node of elements) {
             if (node.tag === 'div' && /^(?:x_)?divrplyfwdmsg$/i.test(node.attrs.id || '')
                 && (boundary === -1 || node.start < boundary)) boundary = node.start;
@@ -80,6 +133,11 @@ export function currentComposeBodyHtml(html, composeType) {
         const match = pattern.exec(html);
         if (match && (boundary === -1 || match.index < boundary)) boundary = match.index;
     });
+    // A strictly validated Word header can precede older quote IDs inside its
+    // history. Later Word bookmarks cannot move an earlier known boundary.
+    const wordBoundary = wordOriginalMessageBoundary(html, elements, boundary === -1 ? Infinity : boundary);
+    if (wordBoundary === false) return null;
+    if (wordBoundary !== null && (boundary === -1 || wordBoundary < boundary)) boundary = wordBoundary;
     return boundary === -1 ? null : html.slice(0, boundary);
 }
 

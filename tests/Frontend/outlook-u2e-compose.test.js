@@ -207,6 +207,43 @@ test('pure state ignores quoted U2e and recognizes a signature inside a matching
     assert.equal(universalComposeStateFromBody(combined, '<p>Unknown reply boundary</p>', 'reply').readable, false);
 });
 
+test('a Word bookmark reply inserts once and preserves the complete quoted suffix including sibling U2e', async () => {
+    const doc = document();
+    const own = '<html><head><style>.MsoNormal{margin:0}</style></head><body><div><p class=MsoNormal><o:p>&nbsp;</o:p></p>';
+    const quote = "<div style='border:none;border-top:solid #E1E1E1 1.0pt;padding:3.0pt 0cm 0cm 0cm'>"
+        + '<p class=MsoNormal><a name="_MailOriginal"><b><span>Von:</span></b></a>'
+        + '<span style="mso-bookmark:_MailOriginal"> Synthetic sender</span></p></div>'
+        + '<p>Quoted text &amp; image <img src="cid:quoted-image"></p>' + doc.html
+        + '<div id=divRplyFwdMsg>Still older quoted header</div><p>Older history</p></div></body></html>';
+    const original = own + quote;
+    assert.equal(currentComposeBodyHtml(original, 'reply'), own);
+    const before = universalComposeStateFromBody(doc, original, 'reply');
+    assert.equal(before.readable, true); assert.equal(before.present, false);
+    const f = fixture({ state: { composeType: 'reply', html: original } });
+    assert.equal((await f.insert(doc)).status, 'applied');
+    assert.equal(f.state.bodyWrites.length, 1);
+    assert.equal(f.state.headerWrites.length, 1);
+    assert.equal(f.state.html.slice(currentComposeBodyHtml(f.state.html, 'reply').length), quote);
+    assert.equal(universalComposeStateFromBody(doc, f.state.html, 'reply').current, true);
+    assert.equal((await f.insert(doc)).status, 'already-present');
+    assert.equal(f.state.bodyWrites.length, 1);
+    assert.deepEqual(f.state.forbidden, []);
+});
+
+test('recognizing a Word bookmark boundary never makes authored reply text a blank combined draft', async () => {
+    const own = '<html><body><div><p>Keep this authored text unchanged.</p>';
+    const quote = "<div style='border:none;border-top:solid #E1E1E1 1.0pt'>"
+        + '<p class=MsoNormal><a name="_MailOriginal"><b>Von:</b></a> Synthetic sender</p></div>'
+        + '<p>Quoted sibling content</p></div></body></html>';
+    const original = own + quote;
+    assert.equal(currentComposeBodyHtml(original, 'reply'), own);
+    const f = fixture({ state: { composeType: 'reply', html: original } });
+    assert.equal((await errorOf(f.insert())).code, 'U2E_NEW_DRAFT_REQUIRED');
+    assert.equal(f.state.html, original);
+    assert.equal(f.state.bodyWrites.length, 0); assert.equal(f.state.headerWrites.length, 0);
+    assert.equal(f.state.sessionWrites.length, 0); assert.deepEqual(f.state.forbidden, []);
+});
+
 test('pure state tolerates only known Word or Rooster serialization without losing material', () => {
     const doc = document();
     let word = doc.html.replaceAll('id="' + doc.marker + '"', 'id="x_' + doc.marker + '"').replaceAll('width:260px', 'width:195pt');
