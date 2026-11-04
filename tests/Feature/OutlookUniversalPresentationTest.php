@@ -56,6 +56,7 @@ final class OutlookUniversalPresentationTest extends TestCase
         self::assertSame(['260', '280', '213', '287'], array_map(fn (DOMElement $cell): string => $cell->getAttribute('width'), iterator_to_array($columns)));
         foreach ($columns as $index => $column) {
             self::assertStringContainsString('width:'.[260, 280, 213, 287][$index].'px', $column->getAttribute('style'));
+            self::assertStringContainsString('display:inline-block;max-width:100%;box-sizing:border-box;', $column->getAttribute('style'));
             self::assertSame('top', $column->getAttribute('valign'));
         }
         self::assertSame('2', $columns->item(3)->getAttribute('rowspan'));
@@ -101,8 +102,9 @@ final class OutlookUniversalPresentationTest extends TestCase
         self::assertSame('', $result['headCss']);
         self::assertLessThanOrEqual(27000, $result['utf16Length']);
         self::assertGreaterThanOrEqual(3000, 30000 - $result['utf16Length']);
-        self::assertDoesNotMatchRegularExpression('~<\s*(?:head|meta|style)\b|@media|table-layout|mso-|\[if|dir\s*=\s*["\x27]rtl~i', $result['html']);
-        self::assertDoesNotMatchRegularExpression('~display\s*:\s*(?:none|inline-block)|RT-(?:FLUID|TEMPLATE|SIGNATURE-MANAGED)~i', $result['html']);
+        $withoutCk15 = $this->withoutCk15Additions($result['html'], false);
+        self::assertDoesNotMatchRegularExpression('~<\s*(?:head|meta|style)\b|@media|table-layout|mso-|\[if|dir\s*=\s*["\x27]rtl~i', $withoutCk15);
+        self::assertDoesNotMatchRegularExpression('~display\s*:\s*(?:none|inline-block)|RT-(?:FLUID|TEMPLATE|SIGNATURE-MANAGED)~i', $withoutCk15);
         $xpath = $this->xpath($result['html']);
         $anchors = $xpath->query('//a');
         self::assertSame(4, $anchors->length);
@@ -122,10 +124,12 @@ final class OutlookUniversalPresentationTest extends TestCase
         self::assertSame(1, $xpath->query('//head/style')->length);
         self::assertSame(7, $xpath->query('//head/meta')->length, 'The immutable U2e source has seven metas; no four-meta rewrite.');
         self::assertSame(0, $xpath->query('//body//style|//body//meta')->length);
-        self::assertSame(2, substr_count($result['headCss'], '@media'));
+        self::assertSame(3, substr_count($result['headCss'], '@media'));
         $referenceCss = str_replace("\r\n", "\n", file_get_contents(base_path('tests/Fixtures/mail/u2e-reference.css')));
-        self::assertSame($referenceCss, str_replace("  .rt-cta-line { display:none !important; }\n", '', $result['headCss']),
-            'C-K13 adds only the approved separator hiding rule; all original media rules remain exact.');
+        $originalCss = str_replace(["  .rt-cta-line { display:none !important; }\n", $this->desktopReset()], '', $result['headCss']);
+        self::assertSame($referenceCss, $originalCss,
+            'Only C-K13 separator hiding and the exact C-K15 desktop reset augment the immutable original media rules.');
+        self::assertSame(1, substr_count($result['headCss'], $this->desktopReset()));
         self::assertStringContainsString('max-width:1039px', $result['headCss']);
         self::assertStringContainsString('max-width:600px', $result['headCss']);
         self::assertStringContainsString('width:52%', $result['headCss']);
@@ -143,7 +147,7 @@ final class OutlookUniversalPresentationTest extends TestCase
             self::assertStringContainsString('color:', $link->getAttribute('style'));
             self::assertGreaterThan(0, $xpath->query('./span', $link)->length);
         }
-        self::assertDoesNotMatchRegularExpression('~table-layout|mso-|\[if~i', $result['html']);
+        self::assertDoesNotMatchRegularExpression('~table-layout|mso-|\[if~i', $this->withoutCk15Additions($result['html'], true));
     }
 
     #[DataProvider('modes')]
@@ -159,7 +163,7 @@ final class OutlookUniversalPresentationTest extends TestCase
         self::assertSame('5', $line->getAttribute('colspan'));
         self::assertSame('1', $line->getAttribute('height'));
         self::assertSame('#ffffff', $line->getAttribute('bgcolor'));
-        self::assertSame('height:1px;line-height:1px;font-size:1px;padding:0;background-color:#ffffff;', $line->getAttribute('style'));
+        self::assertSame('height:1px;line-height:1px;font-size:1px;mso-line-height-rule:exactly;padding:0;background-color:#ffffff;', $line->getAttribute('style'));
         self::assertSame("\u{a0}", $line->textContent);
         $actionRows = $xpath->query('./tr|./tbody/tr', $lines->item(0)->parentNode);
         self::assertSame(2, $actionRows->length);
@@ -181,6 +185,7 @@ final class OutlookUniversalPresentationTest extends TestCase
     public function test_ck13_template_has_only_the_three_approved_changes_from_the_previous_pin(): void
     {
         $template = str_replace("\r\n", "\n", file_get_contents(resource_path('mail-templates/u2e-universal-v1.html')));
+        $template = $this->withoutCk15Additions($template, true);
         self::assertSame('9b8900e1c9640b445dcf309cbb823ca4195001d3cabdf61f927c59c5389b26c4', hash('sha256', $template));
         $line = '<tr class="rt-cta-line"><td colspan="5" height="1" bgcolor="#ffffff" style="height:1px;line-height:1px;font-size:1px;padding:0;background-color:#ffffff;">&nbsp;</td></tr>';
         $old = str_replace($line, '', $template, $lines);
@@ -217,6 +222,34 @@ final class OutlookUniversalPresentationTest extends TestCase
         self::assertSame('rt-sig-u2-'.$editor['version'], $editor['marker']);
         self::assertSame('u2e-'.$editor['version'], $editor['header']);
         self::assertSame($editor['version'], $this->render()['version']);
+    }
+
+    public function test_ck15_is_exactly_the_approved_555_bytes_and_changes_the_prior_same_profile_version(): void
+    {
+        $template = str_replace("\r\n", "\n", file_get_contents(resource_path('mail-templates/u2e-universal-v1.html')));
+        $previous = $this->withoutCk15Additions($template, true);
+        self::assertSame('9b8900e1c9640b445dcf309cbb823ca4195001d3cabdf61f927c59c5389b26c4', hash('sha256', $previous));
+        self::assertSame(555, strlen($template) - strlen($previous));
+        self::assertSame('2ad0c5a96b3b03a0e4a633ec87fa4aa79eba30f4d3b4a979937a5f5c7871dd12', hash('sha256', $template));
+        $editor = $this->render();
+        self::assertNotSame('227841d4f4100bc828804a73', $editor['version'], 'C-K13 version for this exact synthetic descriptor/default wording.');
+        self::assertSame($editor['version'], $this->render(['mode' => 'send'])['version']);
+        self::assertSame('u2e-'.$editor['version'], $editor['header']);
+    }
+
+    #[DataProvider('modes')]
+    public function test_ck15_exact_height_rule_is_only_on_the_eight_approved_material_cells(string $mode): void
+    {
+        $result = $this->render(['mode' => $mode]);
+        $xpath = $this->xpath($result['html']);
+        $cells = $xpath->query('//td[contains(@style,"mso-line-height-rule:exactly;")]');
+        self::assertSame(8, $cells->length);
+        self::assertSame(4, $xpath->query('//td[@width="8" and @height="8" and img[@width="8"] and contains(@style,"mso-line-height-rule:exactly;")]')->length);
+        self::assertSame(2, $xpath->query('//td[@width="231" and @height="8" and contains(@style,"mso-line-height-rule:exactly;")]')->length);
+        self::assertSame(1, $xpath->query('//tr[@class="rt-cta-line"]/td[@colspan="5" and contains(@style,"mso-line-height-rule:exactly;")]')->length);
+        self::assertSame(1, $xpath->query('//td[contains(concat(" ",normalize-space(@class)," ")," rt-cta-gap ") and contains(@style,"mso-line-height-rule:exactly;")]')->length);
+        self::assertSame(4, $xpath->query('//td[contains(@style,"display:inline-block;max-width:100%;box-sizing:border-box;")]')->length);
+        self::assertStringNotContainsString('mso-line-height-alt', $result['html']);
     }
 
     public function test_signature_text_keeps_explicit_font_spans_and_red_and_grey_cells_keep_both_color_forms(): void
@@ -484,6 +517,25 @@ final class OutlookUniversalPresentationTest extends TestCase
     private function render(array $options = []): array
     {
         return (new OutlookUniversalPresentation)->render($this->descriptor(), new HtmlString('<p>Synthetic author content.</p>'), $options);
+    }
+
+    private function desktopReset(): string
+    {
+        return "@media only screen and (min-width:1040px) {\n  .rt-col { display:table-cell !important; }\n}\n";
+    }
+
+    private function withoutCk15Additions(string $html, bool $hasHead): string
+    {
+        $html = str_replace('display:inline-block;max-width:100%;box-sizing:border-box;', '', $html, $columns);
+        $html = str_replace('mso-line-height-rule:exactly;', '', $html, $cells);
+        self::assertSame(4, $columns);
+        self::assertSame(8, $cells);
+        if ($hasHead) {
+            $html = str_replace($this->desktopReset(), '', $html, $rules);
+            self::assertSame(1, $rules);
+        }
+
+        return $html;
     }
 
     private function descriptor(): array

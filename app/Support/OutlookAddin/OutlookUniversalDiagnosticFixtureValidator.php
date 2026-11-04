@@ -48,7 +48,7 @@ final class OutlookUniversalDiagnosticFixtureValidator
         'text-align', 'text-indent', 'line-height', 'display', 'visibility',
         'opacity', 'float', 'clear', 'vertical-align', 'table-layout',
         'font-size', 'font-family', 'font-weight', 'font-style', 'text-decoration',
-        'white-space', 'word-break', 'overflow-wrap', 'mso-line-height-rule', 'mso-table-lspace',
+        'white-space', 'word-break', 'overflow-wrap', 'box-sizing', 'mso-line-height-rule', 'mso-table-lspace',
         'mso-table-rspace', 'mso-padding-alt', 'mso-margin-top-alt', 'mso-margin-bottom-alt', 'mso-hide',
         'mso-element',
     ];
@@ -76,7 +76,7 @@ final class OutlookUniversalDiagnosticFixtureValidator
         'italic', 'oblique', 'underline', 'line-through', 'nowrap',
         'pre', 'pre-wrap', 'pre-line', 'break-word', 'break-all',
         'keep-all', 'anywhere', 'exactly', 'at-least', 'all',
-        'para-border-div', 'arial', 'calibri', 'aptos', 'sans-serif',
+        'para-border-div', 'border-box', 'arial', 'calibri', 'aptos', 'sans-serif',
         'serif', 'tahoma', 'verdana', 'times', 'new',
         'roman', 'segoe', 'ui', 'helvetica', 'courier',
         'cambria', 'rt-redacted',

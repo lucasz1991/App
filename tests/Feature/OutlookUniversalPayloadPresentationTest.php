@@ -78,7 +78,7 @@ final class OutlookUniversalPayloadPresentationTest extends TestCase
         self::assertNotNull($editor);
         self::assertSame('send', $send['mode']);
         self::assertStringStartsWith('<!doctype html>', $send['html']);
-        self::assertSame(2, substr_count($send['headCss'], '@media'));
+        self::assertSame(3, substr_count($send['headCss'], '@media'));
         self::assertSame(7, substr_count($send['html'], '<meta'));
         self::assertStringNotContainsString('<head', $editor['html']);
         self::assertSame('', $editor['headCss']);

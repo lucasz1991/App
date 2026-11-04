@@ -39,7 +39,7 @@ export const U2E_REDACTED_STYLE_PROPERTIES = Object.freeze([
     'background', 'background-color', 'background-image', 'color', 'text-align', 'text-indent', 'line-height',
     'display', 'visibility', 'opacity', 'float', 'clear', 'vertical-align', 'table-layout',
     'font-size', 'font-family', 'font-weight', 'font-style', 'text-decoration',
-    'white-space', 'word-break', 'overflow-wrap',
+    'white-space', 'word-break', 'overflow-wrap', 'box-sizing',
     'mso-line-height-rule', 'mso-table-lspace', 'mso-table-rspace', 'mso-padding-alt',
     'mso-margin-top-alt', 'mso-margin-bottom-alt', 'mso-hide', 'mso-element',
 ]);
@@ -54,7 +54,7 @@ export const U2E_REDACTED_CSS_WORDS = Object.freeze([
     'left', 'right', 'center', 'justify', 'start', 'end', 'top', 'bottom', 'middle', 'baseline', 'text-top', 'text-bottom',
     'block', 'inline', 'inline-block', 'table', 'table-cell', 'hidden', 'visible', 'both', 'fixed',
     'bold', 'bolder', 'lighter', 'italic', 'oblique', 'underline', 'line-through', 'nowrap', 'pre', 'pre-wrap', 'pre-line',
-    'break-word', 'break-all', 'keep-all', 'anywhere', 'exactly', 'at-least', 'all', 'para-border-div',
+    'break-word', 'break-all', 'keep-all', 'anywhere', 'exactly', 'at-least', 'all', 'para-border-div', 'border-box',
     'arial', 'calibri', 'aptos', 'sans-serif', 'serif', 'tahoma', 'verdana', 'times', 'new', 'roman',
     'segoe', 'ui', 'helvetica', 'courier', 'cambria', 'rt-redacted',
 ]);

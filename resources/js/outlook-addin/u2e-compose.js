@@ -273,6 +273,34 @@ function material(html, expectedMarker = null, source = false) {
         evidence: { topology, images, links, colors, borderColors, text: text(signatureHtml) } };
 }
 
+// Source-only admission for the C-K15 additions. Received/compose HTML still
+// uses the unchanged material reader and its existing comparison evidence.
+function validateUniversalSourceStyles(plan) {
+    const elements = plan.tree.elements, outer = tableRows(elements, plan.rootIndex);
+    const grid = rowCells(elements, outer[plan.kind === 'combined' ? 1 : 0].index);
+    const dispatch = indexed(elements).filter(value => value.node.tag === 'table'
+        && dimension(value.node, 'width', 247) && inside(elements, value.index, grid[3].index));
+    if (dispatch.length !== 1) throw failure('U2E_SOURCE_INVALID');
+    const rows = tableRows(elements, dispatch[0].index), cta = u2eCtaMaterial(elements, grid, dispatch);
+    if (rows.length !== 4) throw failure('U2E_SOURCE_INVALID');
+    const top = rowCells(elements, rows[0].index), bottom = rowCells(elements, rows[3].index);
+    if ([top, bottom].some(cells => cells.length !== 3 || cells.some((cell, index) => cell.node.tag !== 'td'
+        || !dimension(cell.node, 'width', [8, 231, 8][index]) || !dimension(cell.node, 'height', 8)))) throw failure('U2E_SOURCE_INVALID');
+    const gridIds = new Set(grid.map(cell => cell.index));
+    const exactIds = new Set([...top, ...bottom, cta.line, cta.actionCells[2]].map(cell => cell.index));
+    if (gridIds.size !== 4 || exactIds.size !== 8) throw failure('U2E_SOURCE_INVALID');
+    for (const { node, index } of indexed(elements)) {
+        const isGrid = gridIds.has(index), isExact = exactIds.has(index);
+        if (isGrid && [['display', 'inline-block'], ['max-width', '100%'], ['box-sizing', 'border-box']]
+            .some(([name, value]) => JSON.stringify(property(node, name)) !== JSON.stringify([value]))) throw failure('U2E_SOURCE_INVALID');
+        if (isExact && JSON.stringify(property(node, 'mso-line-height-rule')) !== JSON.stringify(['exactly'])) throw failure('U2E_SOURCE_INVALID');
+        const remaining = String(node.attrs.style || '').split(';').filter(declaration =>
+            !(isGrid && /^\s*display\s*:\s*inline-block\s*$/i.test(declaration))
+            && !(isExact && /^\s*mso-line-height-rule\s*:\s*exactly\s*$/i.test(declaration))).join(';');
+        if (/(?:mso-|table-layout\s*:|display\s*:\s*inline-block)/i.test(remaining)) throw failure('U2E_SOURCE_INVALID');
+    }
+}
+
 export function validateUniversalComposeDocument(document) {
     if (document && plans.has(document)) return document;
     if (!document || typeof document !== 'object' || Array.isArray(document)
@@ -286,10 +314,11 @@ export function validateUniversalComposeDocument(document) {
         const parsed = parseManagedHtml(document.html);
         if (parsed.elements.some(node => ['html', 'head', 'body', 'meta', 'style', 'script', 'iframe', 'object', 'embed', 'form', 'input', 'svg'].includes(node.tag)
             || Object.keys(node.attrs).some(key => /^on/i.test(key)) || hidden(node)
-            || /(?:mso-|table-layout\s*:|display\s*:\s*inline-block)/i.test(node.attrs.style || '') || node.attrs.dir?.toLowerCase() === 'rtl')
+            || node.attrs.dir?.toLowerCase() === 'rtl')
             || /\[if\b|RT-(?:FLUID-LAYOUT|TEMPLATE-MANAGED|SIGNATURE-MANAGED|COMPOSE-EDITABLE)/i.test(document.html)) throw failure('U2E_SOURCE_INVALID');
         const plan = material(document.html, document.marker, true);
         if (!plan.present || !plan.evidence || plan.kind !== document.kind) throw failure('U2E_SOURCE_INVALID');
+        validateUniversalSourceStyles(plan);
         const outside = document.html.slice(0, plan.root.start) + document.html.slice(plan.root.end);
         if (text(outside) || parsed.elements.some(node => (node.end <= plan.root.start || node.start >= plan.root.end)
             && !['div', 'p', 'span', 'br', 'font'].includes(node.tag))) throw failure('U2E_SOURCE_INVALID');

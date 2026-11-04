@@ -19,8 +19,8 @@ final class OutlookUniversalTransitTransformer
 {
     private const PILOT_SENDER = 'it-technik@rail-time.de';
 
-    // Admit the C-K13 B1 send projection; older published template pins fail closed.
-    private const TEMPLATE_HASH = '9b8900e1c9640b445dcf309cbb823ca4195001d3cabdf61f927c59c5389b26c4';
+    // Admit the C-K15 B1 send projection; older published template pins fail closed.
+    private const TEMPLATE_HASH = '2ad0c5a96b3b03a0e4a633ec87fa4aa79eba30f4d3b4a979937a5f5c7871dd12';
 
     private const DESIGN_HASH = 'c7efab2c64890dc57386448be880122e1e284c6c35a2392fcad5ed5094f94b6b';
 
@@ -227,7 +227,7 @@ final class OutlookUniversalTransitTransformer
         throw new RuntimeException('html_invalid');
     }
 
-    /** Pinned CSS has only two media blocks and flat, class-led rule groups. */
+    /** Pinned CSS has three media blocks and flat, class-led rule groups. */
     private static function scopedCss(string $css, string $scope): string
     {
         return (string) preg_replace_callback('~(?<=[{}])([\s]*(?:/\*.*?\*/\s*)?)(\.[^{}]+)(?=\{)~s', static function (array $match) use ($scope): string {

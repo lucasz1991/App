@@ -49,7 +49,7 @@ final class OutlookUniversalTransitTransformerTest extends TestCase
         self::assertSame(hash('sha256', substr($input, $candidate['end'])), $result['preservation']['suffixSha256']);
         $this->assertPrefixPreservedApartFromTheHeadInsertion($input, $result['html'], $candidate);
         self::assertStringEndsWith(substr($input, $candidate['end']), $result['html']);
-        self::assertSame(2, substr_count($result['headCss'], '@media'));
+        self::assertSame(3, substr_count($result['headCss'], '@media'));
         self::assertStringContainsString('max-width:600px', $result['headCss']);
         Http::assertNothingSent();
     }
@@ -272,6 +272,7 @@ final class OutlookUniversalTransitTransformerTest extends TestCase
         self::assertSame(1, $xpath->query('.//tr[@class="rt-cta-line"]/td[@colspan="5" and @bgcolor="#ffffff"]', $own)->length);
         self::assertSame(5, $xpath->query('.//td[contains(concat(" ",normalize-space(@class)," ")," rt-cta-cell ") and not(contains(@style,"border-top"))]', $own)->length);
         self::assertStringContainsString('.'.$result['scopeId'].' .rt-cta-line { display:none !important; }', $result['headCss']);
+        self::assertStringContainsString("@media only screen and (min-width:1040px) {\n  .".$result['scopeId'].' .rt-col { display:table-cell !important; }', $result['headCss']);
         self::assertStringNotContainsString('rt-cta-line', $quote, 'The historical quote fixture remains the original border-based layout.');
     }
 
@@ -285,12 +286,14 @@ final class OutlookUniversalTransitTransformerTest extends TestCase
         self::assertSame('version_not_admitted', $result['reason']);
         self::assertSame($input, $result['html']);
 
-        $oldPin = array_replace($projection, ['templateHash' => '571786a0e872c1c92fa09578a2e5333e7af34e268d8664d56dad2e478bb13ff3']);
         $input = $this->word($projection['version'], '<p>Keep original on unadmitted projection.</p>');
-        $result = $this->transform($input, $oldPin);
-        self::assertFalse($result['changed']);
-        self::assertSame('projection_invalid', $result['reason']);
-        self::assertSame($input, $result['html']);
+        foreach (['571786a0e872c1c92fa09578a2e5333e7af34e268d8664d56dad2e478bb13ff3',
+            '9b8900e1c9640b445dcf309cbb823ca4195001d3cabdf61f927c59c5389b26c4'] as $hash) {
+            $result = $this->transform($input, array_replace($projection, ['templateHash' => $hash]));
+            self::assertFalse($result['changed']);
+            self::assertSame('projection_invalid', $result['reason']);
+            self::assertSame($input, $result['html']);
+        }
     }
 
     private function transform(string $html, array $projection): array
