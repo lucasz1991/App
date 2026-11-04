@@ -377,4 +377,8 @@ auth.json
 !/tests/Feature/OutlookUniversalSystemMailPresentationTest.php
 !/tests/Feature/OutlookAddinBuildRevisionTest.php
 !/tests/Feature/OutlookUniversalTransitSnapshotProviderTest.php
+
+# Local Python bytecode from offline mail transport checks.
+__pycache__/
+*.py[cod]
 !/tests/Frontend/outlook-u2e-bundle-version.test.js

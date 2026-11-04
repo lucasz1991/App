@@ -1,9 +1,11 @@
 # E3 Plesk admission and queue contract
 
-Status: **INACTIVE / NOT INSTALLABLE**, 04.11.2026. This document and
-`postfix-review.conf` are a concrete configuration review, not an installer.
-The admission daemon, local ticket store/consumer and production queue caller
-are missing. Existing E2 offline files do not implement these components.
+Status: **LOCALLY IMPLEMENTED / DISABLED / NOT INSTALLED**, 04.11.2026.
+`railtime_e3.py`, `railtime_e3_protocol.py` and `railtime_e3_cli.py` implement
+the admission, ticket and queue contracts. `postfix-master.cf.review` and the
+fresh-baseline generator supersede the historical `postfix-review.conf`.
+The current executable local contract is documented in `LOCAL-READY.md`.
+Windows offline/protocol tests do not prove native Postfix/POSIX behavior.
 No mail-flow change, service activation or mail send is authorized by these files.
 
 ## Fixed pilot scope

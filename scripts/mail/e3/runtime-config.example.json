@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "enabled": false,
+  "tenantId": "bc4d2441-c79f-4057-a72f-6494c9b66a66",
+  "userId": 0,
+  "approvedTemplateHeader": "u2e-b3da940a44bcfa9d2169b4e2",
+  "microsoftNetworks": [
+    "104.47.0.0/17",
+    "40.107.0.0/16",
+    "40.92.0.0/15",
+    "52.100.0.0/14",
+    "2a01:111:f400::/48",
+    "2a01:111:f403::/48"
+  ],
+  "networkObservedAtUtc": "2026-11-04T11:08:50Z",
+  "networkProvenance": "Microsoft endpoint id10 Exchange tcp25; recheck after seven days; infrastructure is not tenant identity",
+  "spoolRoot": "/var/lib/railtime-e3",
+  "ticketKeyPath": "/etc/railtime-e3/ticket-key.hex",
+  "ingressSecretPath": "/etc/railtime-e3/ingress-secret.hex",
+  "resolverCommand": [
+    "/usr/bin/sudo",
+    "-n",
+    "-u",
+    "REPLACE_APP_OS_USER",
+    "/usr/bin/php",
+    "/ABSOLUTE_APP_ROOT/scripts/mail/e3/resolve-b1.php"
+  ],
+  "transformCommand": [
+    "/usr/bin/php",
+    "/ABSOLUTE_APP_ROOT/scripts/mail/e3/transform-b1.php"
+  ],
+  "returnHost": "127.0.0.1",
+  "returnPort": 10027,
+  "returnMx": "railtime-de01b.mail.protection.outlook.com",
+  "sockets": {
+    "policy": "/var/spool/postfix/railtime-e3/policy.sock",
+    "milter": "/var/spool/postfix/railtime-e3/ingress.sock",
+    "return-milter": "/var/spool/postfix/railtime-e3/return.sock"
+  },
+  "readiness": "DISABLED; immutable user ID, OS identities, absolute paths, private secrets, accepted certificate domain, fresh effective Postfix baseline and separate E3 approval still required"
+}

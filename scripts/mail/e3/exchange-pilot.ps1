@@ -8,8 +8,10 @@ Inspect is Get-only. StageDisabled creates new disabled objects, never enables
 them, and refuses name collisions. Rollback disables only our marked pilot rule;
 connectors remain for queue drain. There is deliberately no Enable operation.
 
-The sample tenantId and template observation time are empty. Populate a private
-configuration after fresh read-only verification; a handoff header is not fresh
+The sample tenantId is populated from verified public metadata; it still needs
+confirmation against the authenticated Get-only tenant state. The template
+observation time remains empty. Populate private configuration after fresh
+read-only verification; a handoff header is not fresh
 production proof. Keep the ingress secret outside JSON/Git/transcripts. Supply
 it as SecureString. Do not run with PowerShell transcription, verbose/debug
 logging or module parameter tracing: the Exchange cmdlet necessarily receives

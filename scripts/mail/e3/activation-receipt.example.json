@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "scope": "IT-only",
+  "approvedConfigSha256": "",
+  "approvalId": "",
+  "created": null,
+  "admissionUntil": null,
+  "drainUntil": null,
+  "note": "NOT AN ACTIVATION. Root-owned mode0640 receipt only after separate E3 approval; admission<=24h, drain>=admissionUntil+7d. No receipt is created by this package."
+}

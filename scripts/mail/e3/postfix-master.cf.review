@@ -1,0 +1,56 @@
+# REVIEW ONLY. No file is installed, service started, or mail submitted.
+# Replace @APP_ROOT@/@TRANSIT_USER@ after exact OS/path review and explicit E3 approval.
+# Existing smtp/25, global content_filter, relayhost and all Plesk transports stay baseline.
+
+railtime-filter unix - n n - 2 pipe
+  eol=\r\n null_sender= user=@TRANSIT_USER@
+  argv=/usr/bin/python3 -B @APP_ROOT@/scripts/mail/e3/railtime_e3_cli.py
+    pipe --queue-id ${queue_id} --client-address ${client_address}
+    --sender ${sender} -- ${recipient}
+# No B/D/F/O/R flags: no Return-Path, Delivered-To, From_ or extra blank line.
+# Queue caller reads argv envelope; never sendmail -t or MIME To/Cc/Bcc.
+
+127.0.0.1:10027 inet n - n - 2 smtpd
+  -o syslog_name=postfix/railtime-reinject
+  -o content_filter=railtime-return:[railtime-de01b.mail.protection.outlook.com]:25
+  -o receive_override_options=no_unknown_recipient_checks,no_header_body_checks,no_address_mappings
+  -o smtpd_milters=unix:railtime-e3/return.sock
+  -o milter_default_action=tempfail
+  -o milter_protocol=6
+  -o milter_connect_macros=j,{client_addr}
+  -o milter_end_of_data_macros=i
+  -o milter_header_checks=
+  -o smtpd_client_restrictions=permit_mynetworks,reject
+  -o smtpd_helo_restrictions=
+  -o smtpd_sender_restrictions=
+  -o smtpd_relay_restrictions=permit_mynetworks,reject
+  -o smtpd_recipient_restrictions=permit_mynetworks,reject
+  -o mynetworks=127.0.0.1/32
+  -o smtpd_sasl_auth_enable=no
+# IMPORTANT: NO receive_override_options=no_milters here. The return Milter
+# proves a one-use private prepared-output ticket + exact sender/all RCPT/body
+# before SMTP250 and removes its local context header. Loopback alone is not trust.
+# SMTP listener is never Internet-bound; normal Plesk filters remain on smtp/25.
+# no_address_mappings applies ONLY here: no second canonical/virtualalias/BCC
+# expansion may add a recipient after the private return-ticket envelope check.
+
+railtime-return unix - - n - 2 smtp
+  -o syslog_name=postfix/railtime-return
+  -o smtp_tls_security_level=secure
+  -o smtp_tls_secure_cert_match=nexthop
+  -o smtp_tls_CAfile=/etc/ssl/certs/ca-certificates.crt
+  -o smtp_tls_cert_file=@REVIEWED_RETURN_CERTIFICATE_FILE@
+  -o smtp_tls_key_file=@REVIEWED_RETURN_PRIVATE_KEY_FILE@
+  -o disable_mime_output_conversion=yes
+# Exact tenant attribution and customer-unique certificate Accepted Domain
+# still require separate review. The current plesk.follow-flow.de certificate
+# is NOT assumed sufficient and no IP/Partner/wildcard bypass is substituted.
+
+# Public smtp/25 Milter macro additions must MERGE the fresh current macros,
+# retaining existing Plesk fields. Required actual values:
+# milter_connect_macros: j,{client_addr}
+# milter_helo_macros: {tls_version},{cipher},{cipher_bits}
+# milter_mail_macros: {tls_version},{cipher},{cipher_bits},{mail_addr}
+# milter_end_of_data_macros: i
+# Queue ID i is deliberately not required at MAIL; it arrives at EOM.
+# Do not turn these comments into global replacement postconf commands.

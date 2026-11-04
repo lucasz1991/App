@@ -5,7 +5,15 @@ Stand 04.11.2026. Diese Fassung ergänzt den älteren
 alten Graph-Kopierweg, globale Postfix-Skizzen und die unbewiesene Zusage einer
 sofortigen Originalzustellung bei Dienstausfall.
 
-**E3 ist noch nicht zur Aktivierung freigabereif.** Ausführbar sind die lesende
+**Aktueller lokaler Implementierungsstand:** Admission, Ticketspeicher,
+Queue-/Pipe-Aufrufer und privater Rücklauf-Milter sind jetzt implementiert und
+lokal testbar, weiterhin deaktiviert und nicht installiert. Maßgeblich ist
+[LOCAL-READY.md](LOCAL-READY.md) mit konkretem Freigabevertrag, fehlenden echten
+POSIX-/Postfix-/MIME-Belegen und dem weiterhin offenen Zertifikatsweg.
+Die untenstehenden früheren Fehlstellen-/Reviewabschnitte bleiben als Verlauf
+erhalten; sie stellen keine aktuelle Aktivierung dar.
+
+**E3 ist noch nicht aktiviert.** Ausführbar sind die lesende
 Exchange-Vorprüfung und - nach gesonderter Freigabe und erfüllten Prüfungen -
 die Anlage ausschließlich deaktivierter Exchange-Objekte. Es gibt keinen
 Enable-Befehl und keinen ausführbaren Postfix-Installer. Die notwendigen noch
@@ -109,12 +117,27 @@ Mailversand. Ursache (z. B. ausgehende Port-25-Sperre) nicht bewiesen. Die
 lokale Zertifikatsabfrage ersetzt daher nicht die externe STARTTLS-Prüfung
 vom tatsächlichen Exchange-Hop und die echte Connectorprüfung.
 
+### Frischer Exchange-Readback
+
+Das angemeldete Exchange Admin Center von **RT Rail Time GmbH** zeigt am
+04.11.2026 in der vollständig geladenen Liste genau zwei akzeptierte Domänen:
+`rail-time.de` (Standard, Authoritative) und
+`RTRailTimeGmbH.onmicrosoft.com` (Authoritative). **plesk.follow-flow.de ist
+nicht vorhanden.** Es wurde kein Formular zum Hinzufügen einer Domäne oder
+eines Connectors abgesendet. Die numerische Tenant-ID wurde in diesem
+UI-Readback nicht ermittelt; das PowerShell-Beispiel bleibt dort absichtlich leer.
+Die ebenfalls vollständig geladenen Ansichten zeigen **keine Connectoren und
+keine Transportregeln**. Als einzige Remote Domain ist `Default (*)`
+vorhanden; Rich-Text-Format steht auf **Benutzereinstellungen verwenden**.
+Diese Einstellung wurde lediglich gelesen, nicht als Beweis des tatsächlichen
+MIME-Formats am späteren Transit-Hop ausgegeben und nicht geändert.
+
 ## Vor einer Aktivierungsfreigabe noch offen
 
 | Voraussetzung | Aktueller Status / nächster Nachweis |
 |---|---|
-| Exchange-Tenant und Accepted Domains | Noch kein authentifizierter aktueller Exchange-Readback. `Inspect` bereitet ihn vor. |
-| Zertifikats-Rückweg | Die Microsoft-Add-on-Anleitung verlangt eine tenant-eindeutige verifizierte Accepted Domain als Zertifikatsname. Das vorhandene LE-Zertifikat allein reicht als Beleg nicht. |
+| Exchange-Tenant und Accepted Domains | EAC bestätigt RT Rail Time GmbH und zwei Domänen. Exakte Tenant-ID und kompletter PowerShell-Readback bleiben vor StageDisabled erforderlich. |
+| Zertifikats-Rückweg | EAC bestätigt: plesk.follow-flow.de ist keine Accepted Domain. Verifikation dieser bestehenden Domäne oder separat genehmigter passender Zertifikatsweg nötig; das vorhandene LE-Zertifikat allein reicht nicht. |
 | Admission-Dienst | SMTP-EOD-Zulassung mit Token, echtem Peer/TLS und lokalem Kontext ist noch nicht gebaut/installiert. Postfix-Review ist deshalb keine installierbare Fassung. |
 | Produktiver Resolver | Veröffentlichung, IT-Benutzer-/Tenantbindung, Versionssnapshot und private Queueintegration fehlen. Lokale Fixture-Zulassung ist keine Produktionsidentität. |
 | Original-SMTP je Host | Erst nach freigegebenem Eingang: eine echte Nachricht aus Classic und aus neuem Outlook am Plesk-Hop. MSG/HTML-Export ist kein Original-MIME. |
@@ -122,9 +145,9 @@ vom tatsächlichen Exchange-Hop und die echte Connectorprüfung.
 | E4 | Noch keine Transitmail oder neue native iPhone-Abnahme. |
 
 Der vorhandene Smarthostname muss dafür nicht automatisch geändert werden.
-Zuerst prüfen, ob `plesk.follow-flow.de` bereits verifiziert im richtigen
-Tenant vorhanden ist. Falls nicht, bedarf ein Verifikations-/Zertifikatsweg
-einer konkreten Entscheidung; das Paket legt keine neue Subdomain an.
+Die lesende Prüfung hat bereits ergeben, dass `plesk.follow-flow.de` noch
+fehlt. Deshalb bedarf der Verifikations-/Zertifikatsweg einer konkreten
+Entscheidung; das Paket legt keine neue Subdomain an und ändert kein DNS.
 Ein IP-basierter Connector wird nicht als ungeprüfter Ersatz verwendet.
 
 ## TNEF: keine scheinbar zielgenaue Änderung

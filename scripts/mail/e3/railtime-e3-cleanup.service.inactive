@@ -1,0 +1,15 @@
+# Disabled review artifact; no service installation/start is performed.
+[Unit]
+Description=Delete only expired completed RailTime E3 private spool records
+
+[Service]
+Type=oneshot
+User=@TRANSIT_USER@
+Group=@TRANSIT_GROUP@
+UMask=0077
+ExecStart=@PYTHON@ -B @APP_ROOT@/scripts/mail/e3/railtime_e3_cli.py cleanup
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/railtime-e3

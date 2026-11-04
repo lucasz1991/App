@@ -1,0 +1,8 @@
+# Disabled review artifact. No [Install] and no enable/start command.
+[Unit]
+Description=Review schedule for expired completed E3 spool cleanup
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+Unit=railtime-e3-cleanup.service

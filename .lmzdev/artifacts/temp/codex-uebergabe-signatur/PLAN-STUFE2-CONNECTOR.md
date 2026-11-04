@@ -1,5 +1,14 @@
 # Stufe 2: Signatur über Exchange-Connector, nur für it-technik@rail-time.de
 
+> **Maßgeblicher Stand C-K17, 04.11.2026:** Das lokale deaktivierte E3-Paket
+> unter `scripts/mail/e3/LOCAL-READY.md` ersetzt die unten weiterhin als Verlauf
+> erhaltene Transport-/Graph-/Fail-open-Skizze vom02.11. Der C-K7-Lesevertrag
+> bleibt bestehen. E1: Editor-Kopie bleibt, kein Graph. B1-send/v2, echte CID,
+> Admission vor250, private Tickets, unprivilegierte Pipe, fester geprüfter
+> Tenant-Rücklauf und getrennte Queue-Drainfreigabe sind verbindlich. Die alten
+> globalen Postfix-/header_checks-/direkterOriginalfallback-/Graph-Anweisungen
+> sind **historisch, nicht auszuführen**. Keine Aktivierung durch diesen Plan.
+
 Stand 03.11.2026, C-K7 nach dem Auftrag von 23:45. Dieser Plan beschreibt Stufe 2 von `PLAN-EDITORWEG.md`; Outlooks eigener „Senden“-Knopf, sichtbare Editorfassung und unveränderte Zitate bleiben verbindlich. C-K7 ergänzt ausschließlich einen inaktiven strukturellen Leser und redigierte Tests. Kein Transitdienst, Connector, Routing, Grant oder Mailversand wird dadurch eingerichtet. Die untenstehenden Serverdaten und Konfigurationsskizzen stammen weiterhin vom 02.11.; vor einer später freigegebenen Umsetzung sind sie erneut zu prüfen. Für Erkennung und Inhaltsgrenzen gilt der folgende C-K7-Vertrag.
 
 ## C-K7: Verbindlicher Erkennungsvertrag
@@ -148,3 +157,64 @@ Abnahmekriterium: Tests 1 bis 13 bestanden. Browser-Prüfungen zählen nicht als
 
 ## Nächster Schritt
 C-K7 zunächst als Plan- und isolierten Testnachweis prüfen. Danach stehen die tatsächliche Compose-Rücklesefixture und die offenen nativen A/C-Abnahmen an. Erst im später ausdrücklich freigegebenen Block E folgen ein abgesicherter Transportentwurf und der separate Sent-Items-Machbarkeitsnachweis. Keine der hier aufgeführten Connector-, Postfix-, DNS- oder Graph-Skizzen wird durch C-K7 ausgeführt.
+
+
+## 2026-11-04T10:06:10+00:00 | C-K17 E3-Pruefpaket und neue CID-/Ruecklaufpruefung
+
+Aktuelle Ergänzung: App/scripts/mail/e3/README.md und C:/Users/L. Zacharias/Documents/RailTime/.lmzdev/artifacts/reports/u2e-ck17-e3-20261104/C-K17-E3-PRUEFSTAND.md.
+Die früheren Graph-Sent-Items-Kopier-/Löschschritte, globalen Postfix-Skizzen und automatischen Durchreichzusagen gelten nicht für C-K17. E1 belässt die Editor-Kopie. Exchange-Inspect und deaktiviertes Staging sind ausführbar; Postfix-Admission und produktiver Aufrufer fehlen, deshalb noch keine Aktivierungsfreigabe. EAC bestätigt: plesk.follow-flow.de fehlt als akzeptierte Zertifikatsdomäne. Zertifikatsweg vor weiterer E3-Freigabe klären; keine neue Subdomain/Domain/DNS oder Mailflussänderung aus diesem Prüfstand.
+
+## C-K17 lokaler Implementierungsnachweis – E3 zur gesonderten Prüfung
+
+Die vorstehende Ergänzung von10:06UTC bleibt unverändert als Verlauf erhalten.
+Ihre dort noch fehlenden Programmbausteine sind nun lokal gebaut:
+
+- `scripts/mail/e3/railtime_e3.py`: vor-250-Admission mit echtem Peer/TLS,
+  zufälligem privatem Ingresssecret, IT-Envelope/allenRCPTs und einer exakten
+  Vorlagenkennung. Unveränderliches HMAC-Ticket/Capture/Snapshot, privates
+  atomisches Journal mit Leaseowner-CAS, Wiederholungen und kontrolliertem Drain.
+- `railtime_e3_protocol.py`/`railtime_e3_cli.py`: lokale Policy-/Milter-/Pipe-
+  Implementierung. RCPT-Policy ausschließlich für IT vor der Relay-Sperre;
+  bestehende Plesk-Milter bleiben. Zusätzlicher Return-Milter beweist einen
+  einmaligen privaten Rücklaufticket/Payload/Envelope vor250 und entfernt den
+  lokalen Kontext. Queue-Route ausschließlich zum bestätigten Tenant-MX.
+- Privater read-only App-Resolver `OutlookUniversalTransitSnapshotProvider`
+  über `resolve-b1.php`: Tenant, immutable IT-Benutzer und aktive M365-Identität
+  vor Veröffentlichung/Version/B1-send und lokal gepinnten Medien. Keine
+  öffentlichen Profildaten-/Mailinput-Endpunkte. Fester lokaler Caller unter
+  eng freizugebendem App-OS-User, keine .env-/DB-Rechte an den Filteruser.
+- Vorlage bleibt Produktions-v2, SHA256
+  `2ad0c5a96b3b03a0e4a633ec87fa4aa79eba30f4d3b4a979937a5f5c7871dd12`.
+  E2/CID-Transformation erhält Autoren-/Zitatbytes im dekodierten HTML und
+  unbeteiligte MIME-Payloads. Jeder kontrollierte Rücklauf entfernt Version/
+  Ingress/Pending/Local-Header; unbekannter/geschützter/TNEF-Inhalt wird nicht
+  als responsiver Erfolg ausgegeben. Infrastrukturfehler bedeuten Defer.
+- Die öffentliche Tenant-ID ist jetzt unabhängig belegt:
+  `bc4d2441-c79f-4057-a72f-6494c9b66a66`. MicrosoftSMTP-Peernetze sind frisch
+  aus der offiziellen Endpoint10/tcp25-API dokumentiert; sie allein beweisen
+  weiterhin keinen Tenant. Zertifikat/AcceptedDomain und effektive native
+  Postfix-/UID-/Socket-/Alias-/BCC-/Milter-Integration bleiben reale Freigabegates.
+
+`runtime-config.example.json` ist deaktiviert; es gibt kein ausgefülltes Secret
+oder Aktivierungsreceipt. Die getrennte Zustimmung muss die konkrete Quell-
+und Konfigurationsfassung, OS-/sudoers-/Service-/Postfix-Diffs, Zertifikatsweg,
+maximal24h neue IT→IT-Zulassung und mindestens sieben weitere Tage Drain
+umfassen. Daemon-Ausfall kann beim Shared-Port-Weg auch andere Plesk-Mails
+aus den sechs Microsoft-Netzen451 geben; kein default-accept als Ausweg.
+Nur abgelaufene bestätigte eigene Artefakte werden bereinigt; unklare/aktive
+Queues bleiben erhalten und alarmieren. Keine Exactly-once-/sofortige-
+Originalzustellung-Zusage bei SMTP-/Dienst-/Serverausfall.
+
+Nach gesonderter E3-Freigabe zunächst echter privater SMTP-Eingang aus Classic
+und neuem Outlook; TNEF/protected wird unverändert mit Headerabschluss
+zurückgegeben, ohne globale Rich-Text-Änderung oder TNEF-Dekodierung. Erst
+anschließend tatsächliches B1-send/CID/MIME-/Autoren-/Zitat-Ergebnis und E4
+(iPhone sowie848/1040/1280px) prüfen. Lokale Windows-/Protokoll-/Pakettests
+sind kein nativer Postfix-/SMTP- oder Geräteerfolg. Diese lokale Umsetzung
+führt keine Installation, Aktivierung, Mailflussänderung oder Testmail aus.
+Die spätere Versionierung des weiterhin deaktivierten Pakets ist davon
+getrennt und erteilt keine E3-Aktivierungsfreigabe.
+
+Vollständiger lokaler Freigabevertrag und Befehle ohne Netz:
+`scripts/mail/e3/LOCAL-READY.md`; Belege:
+`Documents/RailTime/.lmzdev/artifacts/reports/u2e-ck17-e3-ready-20261104`.

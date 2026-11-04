@@ -1,0 +1,10 @@
+# REVIEW ONLY: replace exact OS users/path after inventory and visudo -c review.
+# No installation command is included. Never grant shell, wildcard, SETENV,
+# arbitrary PHP arguments, app .env access, database access or deployment rights.
+Defaults:@TRANSIT_USER@ !requiretty
+@TRANSIT_USER@ ALL=(@APP_OS_USER@) NOPASSWD: NOSETENV: /usr/bin/php @APP_ROOT@/scripts/mail/e3/resolve-b1.php
+# The command receives only bounded schema1 identity/version JSON on stdin.
+# The target PHP CLI independently enforces actual tenant, immutable user ID,
+# active M365 identity, IT sender, publication, exact version and pinned media.
+# App/PHP files and this rule must not be writable by the transit OS account.
+# Configure no TTY/input/output recording of this command's private snapshot.

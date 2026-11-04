@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "observedAtUtc": "",
+  "mail_version": "",
+  "smtpd_milters": "",
+  "smtpd_milter_maps": "",
+  "milter_header_checks": "",
+  "smtpd_relay_restrictions": "",
+  "milter_connect_macros": "",
+  "milter_helo_macros": "",
+  "milter_mail_macros": "",
+  "milter_end_of_data_macros": "",
+  "queue_directory": "/var/spool/postfix",
+  "maximal_queue_lifetime_seconds": 0,
+  "pilotAliasAndBccMappingAbsent": false,
+  "state": "EXAMPLE; populate only from a fresh private effective Plesk snapshot; never substitute guessed defaults"
+}
