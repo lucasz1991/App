@@ -6,6 +6,7 @@ import { universalComposeHost, universalFailurePayload, reportUniversalFailure }
 import { automaticComposeDecision } from '../../resources/js/outlook-addin/automatic-compose-policy.js';
 import { u2eProbeDocument } from '../../resources/js/outlook-addin/u2e-editor-probe.js';
 import { universalRedactedReadbackFixture } from '../../resources/js/outlook-addin/u2e-readback-diagnostics.js';
+import { universalTaskpaneStatus } from '../../resources/js/outlook-addin/u2e-taskpane-status.js';
 
 const codeError = code => Object.assign(new Error('PRIVATE-MAIL-BODY'), { code, token: 'PRIVATE-TOKEN' });
 
@@ -143,12 +144,16 @@ test('only the pilot sends a validated signature pair and no raw fixture is forw
     assert.equal(JSON.parse(f.calls[0][1].body).fixture, undefined);
     f.office.context.mailbox.userProfile.emailAddress = 'it-technik@rail-time.de';
     const binding = { mailboxAddress: 'it-technik@rail-time.de', senderAddress: 'it-technik@rail-time.de' };
-    assert.equal(await reportUniversalFailure({ ...f.args, report, binding }), true);
+    const pilotItem = { ...f.args.item };
+    f.office.context.mailbox.item = pilotItem;
+    assert.equal(await reportUniversalFailure({ ...f.args, item: pilotItem, report, binding }), true);
     assert.deepEqual(JSON.parse(f.calls[1][1].body).fixture, fixture);
     assert.equal(f.calls[1][1].keepalive, true);
     assert.doesNotMatch(f.calls[1][1].body, /PRIVATE-CURRENT|mailto:|https:\/\/|private@example/);
     const unsafe = { ...fixture, html: '<p>PRIVATE-BODY</p>' };
-    assert.equal(await reportUniversalFailure({ ...f.args, report: { ...report, fixture: unsafe }, binding }), true);
+    const anotherItem = { ...f.args.item };
+    f.office.context.mailbox.item = anotherItem;
+    assert.equal(await reportUniversalFailure({ ...f.args, item: anotherItem, report: { ...report, fixture: unsafe }, binding }), true);
     assert.equal(JSON.parse(f.calls[2][1].body).fixture, undefined);
     assert.equal(JSON.parse(f.calls[2][1].body).checkpoint, 'images.src');
 });
@@ -207,7 +212,7 @@ test('a compose switch between admission and the scheduled fetch prevents stale 
     assert.equal(f.calls.length, 0);
 });
 
-test('network rejection and unsuccessful responses never replace the original compose error', async t => {
+test('an unconfirmed network outcome never replaces the compose error or retries the same diagnostic', async t => {
     let response = () => Promise.reject(new Error('PRIVATE-NETWORK-DETAIL'));
     const f = environment(t, (...args) => response(...args));
     assert.equal(await reportUniversalFailure(f.args), false);
@@ -216,7 +221,35 @@ test('network rejection and unsuccessful responses never replace the original co
     response = () => { throw new Error('PRIVATE-NETWORK-DETAIL'); };
     assert.equal(await reportUniversalFailure(f.args), false);
     assert.equal(f.args.error.code, 'SIGNATURE_LAYOUT_UNCONFIRMED');
-    assert.equal(f.calls.length, 3);
+    assert.equal(f.calls.length, 1);
+});
+
+test('new drafts still isolate HTTP refusal and a synchronous network error from compose failure', async t => {
+    let response = async () => ({ ok: false, status: 403 });
+    const f = environment(t, (...args) => response(...args));
+    assert.equal(await reportUniversalFailure(f.args), false);
+    const next = { ...f.args.item };
+    f.office.context.mailbox.item = next;
+    response = () => { throw new Error('PRIVATE-NETWORK-DETAIL'); };
+    assert.equal(await reportUniversalFailure({ ...f.args, item: next }), false);
+    assert.equal(f.args.error.code, 'SIGNATURE_LAYOUT_UNCONFIRMED');
+    assert.equal(f.calls.length, 2);
+});
+
+test('a pending draft sends only a hashed diagnostic identity and repeated clicks send once', async t => {
+    const f = environment(t), claim = 'pending:' + 'a'.repeat(24) + ':' + 'b'.repeat(32);
+    const values = new Map([['railtime.u2e.compose.v1', claim]]);
+    f.office.AsyncResultStatus = { Succeeded: 'ok' };
+    f.args.item.sessionData = {
+        getAsync: (key, cb) => cb({ status: 'ok', value: values.get(key) }),
+        setAsync: (key, value, cb) => { values.set(key, value); cb({ status: 'ok' }); },
+    };
+    assert.equal(await reportUniversalFailure(f.args), true);
+    assert.match(JSON.parse(f.calls[0][1].body).diagnosticId, /^[0-9a-f]{64}$/);
+    assert.doesNotMatch(f.calls[0][1].body, /pending:|bbbbbbbb|own@company|synthetic-auth/);
+    for (let attempt = 0; attempt < 4; attempt++) assert.equal(await reportUniversalFailure(f.args), false);
+    assert.equal(f.calls.length, 1);
+    assert.equal(values.get('railtime.u2e.compose.v1'), claim);
 });
 
 test('a hanging request stops after two seconds and a late response never starts a retry', async t => {
@@ -276,12 +309,13 @@ test('the event lifecycle completes once while actual failure telemetry remains 
 test('manual lifecycle reuses its existing token and releases failure handling without awaiting telemetry', async t => {
     t.mock.timers.enable({ apis: ['setTimeout'] });
     const f = environment(t, () => new Promise(() => {}));
-    const target = { item: f.item };
+    const target = { item: f.item, revision: 0 };
     const state = { settingsMode: false, busy: false };
     const calls = { auth: 0, failure: null, attempts: 0 };
     let telemetry;
     const context = {
-        Office: f.office, taskpaneState: state, bootstrapStateRevision: 0, signatureStateRevision: 0,
+        Office: f.office, taskpaneState: state, bootstrapStateRevision: 0, signatureStateRevision: 0, mailboxItemRevision: 0,
+        universalStatusByItem: new WeakMap(), universalTaskpaneStatus, safeErrorCode: error => error?.code,
         currentConfig: f.args.config, lastActionError: null, codedError: codeError,
         setBusy: busy => { state.busy = busy; }, captureComposeTarget: () => target,
         isTemplateInsertionBlocked: () => false, isStandaloneSignatureInsertionBlocked: () => false,
@@ -298,6 +332,7 @@ test('manual lifecycle reuses its existing token and releases failure handling w
         calls.attempts++; throw f.args.error;
     }));
     assert.equal(calls.auth, 1); assert.equal(calls.failure, f.args.error); assert.equal(state.busy, false);
+    await flush(() => f.calls.length === 1);
     assert.equal(calls.attempts, 1); assert.equal(f.calls.length, 1);
     assert.equal(f.calls[0][1].headers['X-RailTime-Outlook-Context'], 'taskpane');
     t.mock.timers.tick(2001); assert.equal(await telemetry, false);

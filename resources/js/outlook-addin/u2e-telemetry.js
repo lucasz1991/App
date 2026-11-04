@@ -1,5 +1,6 @@
 // Authenticated operational metadata only. Never serialize Office HTML or errors.
 import { U2E_READBACK_CHECKPOINTS, U2E_READBACK_DIFFERENCE_KEYS, validateUniversalRedactedFixture } from './u2e-readback-diagnostics.js';
+import { claimUniversalDiagnostic, universalDiagnosticId } from './u2e-session-report.js';
 const CODES = new Set(['SIGNATURE_LAYOUT_UNCONFIRMED', 'U2E_INSERT_UNCERTAIN', 'U2E_NEW_DRAFT_REQUIRED',
     'U2E_SOURCE_INVALID', 'U2E_CONTEXT_UNREADABLE', 'U2E_API_UNAVAILABLE', 'U2E_HEADER_UNAVAILABLE',
     'U2E_DOCUMENT_INVALID', 'U2E_INSERT_IN_PROGRESS', 'U2E_SESSION_UNAVAILABLE', 'U2E_HTML_REQUIRED',
@@ -84,9 +85,12 @@ export async function reportUniversalFailure({ config, accessToken, item, bindin
         if (!payload || !current() || !['event', 'taskpane'].includes(context)
             || typeof accessToken !== 'string' || accessToken === '' || accessToken.length > 32768
             || endpoint.protocol !== 'https:' || endpoint.origin !== bootstrap.origin) return false;
+        if (!await claimUniversalDiagnostic(office, item, payload.code, payload.checkpoint, payload.step) || !current()) return false;
+        const diagnosticId = await universalDiagnosticId(office, item, payload.code, payload.checkpoint, payload.step);
+        if (!current()) return false;
         controller = typeof AbortController === 'function' ? new AbortController() : null;
         const timeout = new Promise(resolve => { timer = setTimeout(() => { controller?.abort(); resolve(false); }, 2000); });
-        const body = JSON.stringify(payload);
+        const body = JSON.stringify(diagnosticId ? { ...payload, diagnosticId } : payload);
         const request = Promise.resolve().then(() => {
             if (!current()) return false;
             return fetch(endpoint.toString(), {

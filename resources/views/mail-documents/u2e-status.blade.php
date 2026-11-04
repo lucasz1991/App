@@ -65,7 +65,7 @@
                             <br><code class="text-xs">Originalcode: {{ $failure['originalCode'] }} · gemeldet: {{ $failure['code'] }}</code>
                         @endif
                         @if (isset($failure['context']) || isset($failure['composeType']) || isset($failure['step']))
-                            <br><code class="text-xs">Kontext: {{ $failure['context'] ?? '–' }} · Verfassen: {{ $failure['composeType'] ?? '–' }} · Schritt: {{ $failure['step'] ?? '–' }}</code>
+                            <br><code class="text-xs">Kontext: {{ $failure['context'] ?? '–' }} · Verfassen: {{ $failure['composeType'] ?? '–' }} · Schritt: {{ is_string($failure['step'] ?? null) && array_key_exists($failure['step'], \App\Support\OutlookAddin\OutlookUniversalStatusLabels::STEP_LABELS) ? $failure['step'] : '–' }}</code>
                         @endif
                         @if (isset($failure['bodyLengthOrigin']))
                             <br><code class="text-xs">Länge aus: {{ $failure['bodyLengthOrigin'] === 'actual' ? 'Rücklesen nach Schreiben' : 'Lesung vor Schreiben' }}</code>
@@ -73,7 +73,10 @@
                         @if (isset($failure['automaticReason']))
                             <br><code class="text-xs">U2e-Automatik übersprungen: {{ $failure['automaticReason'] }}</code>
                         @endif
-                        @if (isset($failure['checkpoint']))
+                        @if (isset($failure['checkpoint']) || isset($failure['step']))
+                            <br><span data-u2e-checkpoint-label>Prüfschritt: {{ \App\Support\OutlookAddin\OutlookUniversalStatusLabels::checkpointLabel($failure['checkpoint'] ?? null, $failure['step'] ?? null) }}</span>
+                        @endif
+                        @if (is_string($failure['checkpoint'] ?? null) && array_key_exists($failure['checkpoint'], \App\Support\OutlookAddin\OutlookUniversalStatusLabels::CHECKPOINT_LABELS))
                             <br><code class="text-xs">Prüfpunkt: {{ $failure['checkpoint'] }}</code>
                         @endif
                         @if (isset($failure['difference']))

@@ -8,6 +8,7 @@ import { parseManagedHtml } from '../../resources/js/outlook-addin/managed-templ
 import { currentComposeBodyHtml } from '../../resources/js/outlook-addin/compose-template.js';
 import { UNIVERSAL_COMPOSE_SESSION_KEY, validateUniversalComposeDocument, universalComposeStateFromBody,
     insertUniversalComposeDocument, universalComposeBlocked, universalComposeReport, universalComposePresentationEvidence } from '../../resources/js/outlook-addin/u2e-compose.js';
+import { readUniversalSessionReport } from '../../resources/js/outlook-addin/u2e-session-report.js';
 
 const currentFixture = name => JSON.parse(fs.readFileSync(new URL('../Fixtures/mail/u2e-readback-v2/' + name + '.json', import.meta.url), 'utf8'));
 const fixed = currentFixture('source');
@@ -96,6 +97,57 @@ function fixture(options = {}) {
     const insert = (doc = document(), extra = {}) => insertUniversalComposeDocument(office, item, doc, { binding, beforeWrite, ...extra });
     return { office, item, state, binding, beforeWrite, insert };
 }
+
+test('C-K14 acknowledged but unconfirmed insertion retains its cause across runtime and blocks every second write', async () => {
+    const f = fixture({ bodyWrite({ html, callback, state }) {
+        state.html = html.replace('height="83"', 'height="82"'); callback(success());
+    } });
+    assert.equal((await errorOf(f.insert())).code, 'SIGNATURE_LAYOUT_UNCONFIRMED');
+    const initial = universalComposeReport(f.item);
+    assert.equal(initial.bodyWriteStarted, true);
+    assert.equal(initial.bodyWriteSucceeded, true);
+    const saved = await readUniversalSessionReport(f.office, f.item);
+    assert.equal(saved.checkpoint, initial.checkpoint);
+    assert.equal(saved.at, initial.at);
+    assert.equal(saved.originalCode, 'SIGNATURE_LAYOUT_UNCONFIRMED');
+    const reloaded = await import('../../resources/js/outlook-addin/u2e-compose.js?ck14-runtime-reload');
+    assert.equal((await errorOf(reloaded.insertUniversalComposeDocument(f.office, f.item, document(), { binding: f.binding }))).code, 'U2E_INSERT_UNCERTAIN');
+    const retry = reloaded.universalComposeReport(f.item);
+    assert.equal(retry.bodyWriteSucceeded, true);
+    assert.equal(retry.checkpoint, initial.checkpoint);
+    assert.equal(retry.originalCode, initial.originalCode);
+    assert.equal(retry.code, 'U2E_INSERT_UNCERTAIN');
+    assert.equal(reloaded.universalComposeBlocked(f.item), true);
+    assert.equal(f.state.bodyWrites.length, 1);
+    assert.match(f.state.sessions.get(UNIVERSAL_COMPOSE_SESSION_KEY), /^pending:/);
+});
+
+test('C-K14 old pending is unknown and a header failure is explicitly before body write', async () => {
+    const old = fixture();
+    old.state.sessions.set(UNIVERSAL_COMPOSE_SESSION_KEY, 'pending:' + document().version + ':' + 'a'.repeat(32));
+    assert.equal((await errorOf(old.insert())).code, 'U2E_INSERT_UNCERTAIN');
+    assert.equal(universalComposeReport(old.item).bodyWriteStarted, null);
+    assert.equal(universalComposeReport(old.item).bodyWriteSucceeded, null);
+    assert.equal(old.state.bodyWrites.length, 0);
+    const header = fixture({ headerWrite({ callback }) { callback(failed('host-failure')); return false; } });
+    assert.equal((await errorOf(header.insert())).code, 'U2E_INSERT_UNCERTAIN');
+    const report = await readUniversalSessionReport(header.office, header.item);
+    assert.equal(report.bodyWriteStarted, false);
+    assert.equal(report.bodyWriteSucceeded, false);
+    assert.equal(report.step, 'header.write');
+    assert.equal(header.state.bodyWrites.length, 0);
+});
+
+test('C-K14 synchronous bridge failure never claims insertion success or releases its lock', async () => {
+    const f = fixture({ bodyWrite() { throw new Error('PRIVATE-HOST-DETAIL'); } });
+    assert.equal((await errorOf(f.insert())).code, 'U2E_INSERT_UNCERTAIN');
+    const report = await readUniversalSessionReport(f.office, f.item);
+    assert.equal(report.bodyWriteStarted, true);
+    assert.equal(report.bodyWriteSucceeded, false);
+    assert.equal((await errorOf(f.insert())).code, 'U2E_INSERT_UNCERTAIN');
+    assert.equal(f.state.bodyWrites.length, 1);
+    assert.doesNotMatch(JSON.stringify(report), /PRIVATE/);
+});
 
 test('trusted source envelopes are immutable and do not accept arbitrary delivery or media metadata', () => {
     const original = document(), valid = validateUniversalComposeDocument(original);

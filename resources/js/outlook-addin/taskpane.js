@@ -34,6 +34,8 @@ import { insertU2eTransportProbe, u2eTransportProbeReport } from './u2e-transpor
 import { validateUniversalComposeDocument, insertUniversalComposeDocument, universalComposeBlocked,
     universalComposeReport, universalComposeStateFromBody } from './u2e-compose.js';
 import { reportUniversalFailure, universalComposeHost } from './u2e-telemetry.js';
+import { readUniversalSessionReport } from './u2e-session-report.js';
+import { universalTaskpaneStatus } from './u2e-taskpane-status.js';
 import { bindAutomaticPreferencesView, createAccountPreferencesSession, normalizeAutomaticPreferences } from './automatic-preferences-view.js';
 import { bindWordingPreferencesView, bindTemplateChoiceView, createAccountOptionsSession,
     normalizeWordingPreferences, normalizeTemplateChoicePreferences } from './account-options-view.js';
@@ -72,6 +74,7 @@ let wordingReady = false;
 let templateChoicesReady = false;
 // Display evidence only, never cached authorization for another Office write.
 const confirmedInsertions = new WeakMap();
+const universalStatusByItem = new WeakMap();
 const boundDialogRoots = new WeakSet();
 const startedTaskpaneRoots = new WeakSet();
 const taskpaneState = {
@@ -688,7 +691,18 @@ async function assertWriteTarget(target, binding) {
 function insertionBlocked() {
     const item = globalThis.Office?.context?.mailbox?.item;
     return Boolean(item && (isTemplateInsertionBlocked(item) || isStandaloneSignatureInsertionBlocked(item) || hasUncertainWrite(item)
-        || u2eTransportProbeReport(item)?.attempted === true || universalComposeBlocked(item)));
+        || u2eTransportProbeReport(item)?.attempted === true || universalComposeBlocked(item)
+        || universalStatusByItem.get(item)?.blocked === true));
+}
+
+function showUniversalStatus(item, focus = false) {
+    if (item !== globalThis.Office?.context?.mailbox?.item) return false;
+    const status = universalStatusByItem.get(item);
+    if (!status) return false;
+    setStatus(status.tone, status.title, status.detail, focus);
+    const help = document.querySelector('[data-outlook-new-message-help]');
+    if (help) help.hidden = !status.newMessageRequired;
+    return true;
 }
 
 function elements() {
@@ -726,6 +740,7 @@ export function setStatus(tone, title, detail = '', focus = false) {
         neutral: 'i',
         success: '✓',
         working: '…',
+        warning: '!',
     };
 
     view.status.dataset.tone = tone;
@@ -736,7 +751,9 @@ export function setStatus(tone, title, detail = '', focus = false) {
     view.statusDetail.textContent = detail;
     view.statusDetail.hidden = tone === 'success';
     const diagnostics = document.querySelector('[data-outlook-diagnostics]');
-    if (diagnostics) diagnostics.hidden = tone !== 'error' && !headProbeAvailable() && !u2eProbeAvailable();
+    if (diagnostics) diagnostics.hidden = !['error', 'warning'].includes(tone) && !headProbeAvailable() && !u2eProbeAvailable();
+    const newMessageHelp = document.querySelector('[data-outlook-new-message-help]');
+    if (newMessageHelp) newMessageHelp.hidden = true;
     if (view.feedback) {
         view.feedback.textContent = [title, detail].filter(Boolean).join('. ');
         view.feedback.dataset.tone = tone;
@@ -1019,6 +1036,13 @@ async function refreshSignatureCurrentState() {
     const itemRevision = mailboxItemRevision;
     let isCurrent = false;
     let templatePresent = false;
+    // Read-only recovery is independent of body readability. A failed body read
+    // cannot erase an earlier, matching pending-operation report.
+    const sessionReport = Object.prototype.hasOwnProperty.call(payload, 'universalSignature')
+        ? await readUniversalSessionReport(Office, item) : null;
+    if (revision !== signatureStateRevision || item !== Office.context.mailbox.item
+        || itemRevision !== mailboxItemRevision || payload !== currentBootstrap
+        || !taskpaneState.authenticated || !taskpaneState.bootstrapReady) return;
 
     try {
         const [bodyHtml, composeType] = await Promise.all([readBodyHtml(item), readComposeType(item)]);
@@ -1050,10 +1074,13 @@ async function refreshSignatureCurrentState() {
     }
 
     observedComposeItem = item;
+    const recoveredStatus = universalTaskpaneStatus(sessionReport);
+    if (recoveredStatus) universalStatusByItem.set(item, recoveredStatus);
     taskpaneState.signatureCurrent = isCurrent;
     taskpaneState.templatePresent = templatePresent;
     renderSelectedTemplate();
     syncActionState();
+    showUniversalStatus(item);
 }
 
 function requestSignatureCurrentStateRefresh() {
@@ -1111,7 +1138,7 @@ function syncActionState() {
     view.template.dataset.available = authenticatedBootstrap && currentTemplate ? 'true' : 'false';
     const item = globalThis.Office?.context?.mailbox?.item;
     if (item && (isTemplateInsertionBlocked(item) || isStandaloneSignatureInsertionBlocked(item) || hasUncertainWrite(item)
-        || universalComposeBlocked(item))) {
+        || universalComposeBlocked(item) || universalStatusByItem.get(item)?.blocked === true)) {
         view.template.dataset.available = 'false';
         view.signature.dataset.available = 'false';
         view.templateActionDetail.textContent = 'Outlook hat die letzte Einfügung noch nicht eindeutig bestätigt. Nachricht prüfen; nicht erneut einfügen.';
@@ -1496,6 +1523,9 @@ function handleFailure(error, bootstrapWasLoaded = false) {
 
     setBusy(false);
     syncActionState();
+    const item = globalThis.Office?.context?.mailbox?.item;
+    if (!authLost && !/MAILBOX|SENDER/.test(safeErrorCode(error))
+        && universalStatusByItem.get(item)?.code === safeErrorCode(error) && showUniversalStatus(item, true)) return;
     const layoutUnconfirmed = ['TEMPLATE_LAYOUT_UNCONFIRMED', 'SIGNATURE_LAYOUT_UNCONFIRMED'].includes(safeErrorCode(error));
     setStatus('error', layoutUnconfirmed ? 'Darstellung nicht bestätigt' : 'Aktion nicht abgeschlossen', userMessage(error), true);
 }
@@ -1593,6 +1623,16 @@ async function authenticateInteractively(button) {
 async function withAuthenticatedBootstrap(button, callback) {
     if (taskpaneState.settingsMode) throw codedError('ACCOUNT_SETTINGS_READ_ONLY');
     if (taskpaneState.busy) return;
+    const item = globalThis.Office?.context?.mailbox?.item;
+    if (item && universalComposeBlocked(item) && !universalStatusByItem.has(item)) {
+        universalStatusByItem.set(item, universalTaskpaneStatus(universalComposeReport(item))
+            || universalTaskpaneStatus(null, 'U2E_INSERT_UNCERTAIN'));
+    }
+    if (item && universalStatusByItem.get(item)?.blocked === true) {
+        showUniversalStatus(item, true);
+        return;
+    }
+    if (item) universalStatusByItem.delete(item);
     let bootstrapWasLoaded = false;
 
     bootstrapStateRevision += 1;
@@ -1618,8 +1658,13 @@ async function withAuthenticatedBootstrap(button, callback) {
         setBusy(true, button);
         await callback(bootstrap, target, async (source, operation) => {
             try {
-                return await operation();
+                const result = await operation();
+                universalStatusByItem.delete(target.item);
+                return result;
             } catch (error) {
+                const status = universalTaskpaneStatus(universalComposeReport(target.item), safeErrorCode(error));
+                if (status && target.item === globalThis.Office?.context?.mailbox?.item
+                    && target.revision === mailboxItemRevision) universalStatusByItem.set(target.item, status);
                 void reportUniversalFailure({ config: currentConfig, accessToken, item: target.item,
                     binding: bootstrap.binding, context: 'taskpane', error, report: universalComposeReport(target.item),
                     sourceLength: typeof source?.html === 'string' ? source.html.length : null,

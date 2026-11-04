@@ -15,6 +15,7 @@ use App\Support\OutlookAddin\OutlookUniversalPayloadPresentation;
 use App\Support\OutlookAddin\OutlookUniversalPresentation;
 use App\Support\OutlookAddin\OutlookUniversalSourceDescriptor;
 use Firebase\JWT\JWT;
+use Illuminate\Cache\ArrayStore;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -373,6 +374,145 @@ final class OutlookUniversalDiagnosticsTest extends TestCase
         $service->recordReadback(User::findOrFail(6), array_replace($this->readback(false), ['code' => 'U2E_AUTOMATIC_SKIPPED', 'automaticReason' => 'automatic_disabled']));
         self::assertSame([], $service->statusFor(User::findOrFail(6))['readbackErrors']);
         Mail::assertNothingOutgoing();
+    }
+
+    public function test_diagnostic_receipt_suppresses_repeated_endpoint_side_effects_without_logging_the_identifier(): void
+    {
+        $headers = $this->headers();
+        $id = str_repeat('a', 64);
+        $payload = $this->readback() + ['checkpoint' => 'colors.line', 'diagnosticId' => $id];
+        $before = $this->businessRows();
+        $first = $this->postJson(self::URL, $payload, $headers)->assertStatus(202);
+        self::assertNull($first->json('duplicate'));
+        $this->postJson(self::URL, $payload, $headers)->assertStatus(202)->assertJson(['accepted' => true, 'duplicate' => true]);
+        $events = app(OutlookUniversalDiagnostics::class)->statusFor(User::findOrFail(5))['readbackErrors'];
+        self::assertCount(1, $events);
+        self::assertCount(1, $this->logger->records);
+        self::assertArrayNotHasKey('diagnosticId', $events[0]);
+        self::assertStringNotContainsString($id, json_encode($this->logger->records));
+        self::assertSame($before, $this->businessRows());
+        $this->postJson(self::URL, array_replace($payload, ['diagnosticId' => str_repeat('b', 64)]), $headers)->assertStatus(202);
+        self::assertCount(2, $this->logger->records);
+        Mail::assertNothingOutgoing();
+    }
+
+    public function test_the_same_diagnostic_identifier_is_independent_for_different_authenticated_users(): void
+    {
+        $headers = $this->headers();
+        $otherObject = '44444444-4444-4444-8444-444444444444';
+        EmployeeIdentityAccount::create(['user_id' => 6, 'provider' => AccountProvider::Microsoft365,
+            'tenant_id' => self::TENANT, 'external_id' => $otherObject, 'principal' => 'admin@example.test',
+            'email' => 'admin@example.test', 'lifecycle_status' => 'active']);
+        $other = $headers;
+        $other['Authorization'] = 'Bearer '.JWT::encode(['aud' => self::CLIENT, 'azp' => self::CLIENT,
+            'iss' => 'https://login.microsoftonline.com/'.self::TENANT.'/v2.0', 'iat' => time() - 5,
+            'nbf' => time() - 5, 'exp' => time() + 300, 'tid' => self::TENANT, 'oid' => $otherObject,
+            'scp' => 'Signature.Read', 'preferred_username' => 'admin@example.test'], $this->privateKey, 'RS256', 'u2e-diagnostic-test');
+        $other['X-RailTime-Outlook-Mailbox'] = $other['X-RailTime-Outlook-Sender'] = 'admin@example.test';
+        $payload = $this->readback() + ['diagnosticId' => str_repeat('a', 64)];
+        $this->postJson(self::URL, $payload, $headers)->assertStatus(202);
+        $response = $this->postJson(self::URL, $payload, $other)->assertStatus(202);
+        self::assertNull($response->json('duplicate'));
+        foreach ([5, 6] as $id) {
+            self::assertCount(1, app(OutlookUniversalDiagnostics::class)->statusFor(User::findOrFail($id))['readbackErrors']);
+        }
+        self::assertCount(2, $this->logger->records);
+    }
+
+    public function test_invalid_identifiers_schema_and_failed_authentication_cannot_reserve_a_receipt(): void
+    {
+        $headers = $this->headers();
+        $valid = $this->readback() + ['diagnosticId' => str_repeat('a', 64)];
+        $this->postJson(self::URL, $valid)->assertUnauthorized();
+        $this->postJson(self::URL, $valid, array_replace($headers, ['X-RailTime-Outlook-Sender' => 'foreign@example.test']))->assertForbidden();
+        foreach ([null, true, 123, [], str_repeat('a', 63), str_repeat('a', 65), str_repeat('A', 64),
+            str_repeat('a', 64)."\n", str_repeat('a', 64)."\r\n", 'pending:PRIVATE-TOKEN'] as $id) {
+            $this->postJson(self::URL, array_replace($valid, ['diagnosticId' => $id]), $headers)->assertUnprocessable();
+        }
+        $this->postJson(self::URL, array_replace($valid, ['code' => 'PRIVATE-CODE']), $headers)->assertUnprocessable();
+        self::assertSame([], $this->logger->records);
+        $response = $this->postJson(self::URL, $valid, $headers)->assertStatus(202);
+        self::assertNull($response->json('duplicate'));
+        self::assertCount(1, $this->logger->records);
+    }
+
+    public function test_a_duplicate_does_not_store_another_different_valid_fixture_or_extend_the_receipt_ttl(): void
+    {
+        $headers = $this->headers(true);
+        $html = '<table id="rt-sig-u2-'.str_repeat('a', 24).'" width="1040"><tr>'.str_repeat('<td>rt-redacted</td>', 4)
+            .'</tr><tr><td colspan="3"></td></tr><tr><td colspan="4">rt-redacted</td></tr></table>';
+        $fixture = ['schema' => 1, 'format' => 'u2e-redacted-html-v1', 'html' => $html, 'expectedHtml' => $html,
+            'sourceLength' => strlen($html), 'sha256' => hash('sha256', $html), 'expectedSha256' => hash('sha256', $html)];
+        $payload = $this->readback() + ['checkpoint' => 'images.src', 'fixture' => $fixture, 'diagnosticId' => str_repeat('a', 64)];
+        $first = $this->postJson(self::URL, $payload, $headers)->assertStatus(202);
+        $capture = $first->json('fixture');
+        $receipts = array_filter(Cache::getStore()->all(), static fn (string $key): bool => str_starts_with($key, 'outlook:u2e:diagnostic-receipts:v1:'), ARRAY_FILTER_USE_KEY);
+        self::assertCount(1, $receipts);
+        $receiptKey = array_key_first($receipts);
+        $expires = $receipts[$receiptKey]['expiresAt'];
+        $changed = str_replace('width="1040"', 'width="1041"', $html);
+        $other = array_replace($fixture, ['html' => $changed, 'sha256' => hash('sha256', $changed)]);
+        $this->travel(6)->days();
+        $this->postJson(self::URL, array_replace($payload, ['fixture' => $other]), $headers)->assertStatus(202)->assertJson(['duplicate' => true]);
+        self::assertSame($expires, Cache::getStore()->all()[$receiptKey]['expiresAt']);
+        $store = app(OutlookUniversalDiagnosticFixtureStore::class);
+        self::assertSame([$capture], $store->listingFor(User::findOrFail(5)));
+        self::assertSame($fixture, $store->get(User::findOrFail(5), $capture['id'])['fixture']);
+        self::assertCount(1, $this->logger->records);
+        $this->travel(2)->days();
+        self::assertNull(Cache::get($receiptKey));
+        $response = $this->postJson(self::URL, $payload, $headers)->assertStatus(202);
+        self::assertNull($response->json('duplicate'));
+        self::assertCount(2, $this->logger->records);
+    }
+
+    public function test_an_invalid_fixture_does_not_consume_the_identifier_for_a_corrected_diagnostic(): void
+    {
+        $headers = $this->headers(true);
+        $payload = $this->readback() + ['checkpoint' => 'images.src', 'diagnosticId' => str_repeat('a', 64)];
+        $this->postJson(self::URL, $payload + ['fixture' => ['html' => 'PRIVATE-BODY']], $headers)->assertUnprocessable();
+        self::assertCount(1, $this->logger->records, 'Existing safe metadata remains recorded when the HTML pair is rejected.');
+        self::assertStringNotContainsString('PRIVATE-BODY', json_encode($this->logger->records));
+        $response = $this->postJson(self::URL, $payload, $headers)->assertStatus(202);
+        self::assertNull($response->json('duplicate'));
+        self::assertCount(2, $this->logger->records);
+    }
+
+    public function test_unavailable_atomic_receipt_storage_returns_503_without_claiming_a_duplicate_or_recording(): void
+    {
+        $headers = $this->headers();
+        foreach ([false, true] as $throws) {
+            $driver = $throws ? 'receipt-throws-test' : 'receipt-false-test';
+            Cache::extend($driver, fn () => Cache::repository(new class($throws) extends ArrayStore
+            {
+                public function __construct(private readonly bool $throws)
+                {
+                    parent::__construct();
+                }
+
+                public function add($key, $value, $seconds = 0): bool
+                {
+                    if ($this->throws) {
+                        throw new \RuntimeException('Synthetic unavailable cache.');
+                    }
+
+                    return false;
+                }
+            }));
+            config(['cache.default' => $driver, 'cache.stores.'.$driver => ['driver' => $driver]]);
+            $payload = $this->readback() + ['diagnosticId' => str_repeat('a', 64)];
+            $this->postJson(self::URL, $payload, $headers)->assertStatus(503)->assertJson(['error' => 'outlook_addin_diagnostics_storage_unavailable']);
+            self::assertSame([], $this->logger->records);
+            self::assertSame([], app(OutlookUniversalDiagnostics::class)->statusFor(User::findOrFail(5))['readbackErrors']);
+        }
+    }
+
+    public function test_legacy_diagnostics_without_an_identifier_keep_the_existing_endpoint_behavior(): void
+    {
+        $headers = $this->headers();
+        $this->postJson(self::URL, $this->readback(), $headers)->assertStatus(202);
+        $this->postJson(self::URL, $this->readback(), $headers)->assertStatus(202);
+        self::assertCount(2, $this->logger->records);
     }
 
     private function stubApplicationLayout(): void

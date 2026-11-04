@@ -7,6 +7,7 @@ import { u2eCenteringState, u2eCenteringContext } from './u2e-appearance.js';
 import { u2eTopBorderEvidence, u2eCtaMaterial } from './u2e-borders.js';
 import { firstUniversalEvidenceDifference, u2eReadbackFailure,
     universalRedactedReadbackFixture } from './u2e-readback-diagnostics.js';
+import { persistUniversalSessionReport, readUniversalSessionReport } from './u2e-session-report.js';
 
 export const UNIVERSAL_COMPOSE_SESSION_KEY = 'railtime.u2e.compose.v1';
 const operations = new WeakMap();
@@ -436,13 +437,17 @@ async function settledLegacy(office, item) {
 /** A source-bound single write. No body replacement, clearing, repair or send. */
 export async function insertUniversalComposeDocument(office, item, document, { binding, beforeWrite = () => {} } = {}) {
     const source = validateUniversalComposeDocument(document), prior = operations.get(item);
-    if (prior && prior.report.state !== 'complete') throw failure('U2E_INSERT_UNCERTAIN');
+    if (prior && prior.report.state !== 'complete') {
+        prior.report = { ...prior.report, code: 'U2E_INSERT_UNCERTAIN' };
+        throw failure('U2E_INSERT_UNCERTAIN');
+    }
     if (!item || typeof item?.sessionData?.getAsync !== 'function' || typeof item?.sessionData?.setAsync !== 'function'
         || typeof item?.getComposeTypeAsync !== 'function' || typeof item?.body?.getTypeAsync !== 'function' || typeof item?.body?.getAsync !== 'function') throw failure('U2E_API_UNAVAILABLE');
     const mobile = isMobileComposeHost(office), method = source.kind === 'combined' && !mobile ? 'prependAsync' : 'setSignatureAsync';
     if (typeof item.body[method] !== 'function') throw failure('U2E_API_UNAVAILABLE');
     const operation = { claimed: false, report: { schema: 1, state: 'preflight', attempted: false, kind: source.kind, method, headerWritten: false,
-        phase: 'preflight', sourceLength: source.html.length, bodyLength: null, mobileStandardSignatureIgnored: false } };
+        phase: 'preflight', sourceLength: source.html.length, bodyLength: null, mobileStandardSignatureIgnored: false,
+        bodyWriteStarted: false, bodyWriteSucceeded: false, at: new Date().toISOString() } };
     let lastSnapshot = null;
     operations.set(item, operation);
     const guard = async () => {
@@ -464,7 +469,13 @@ export async function insertUniversalComposeDocument(office, item, document, { b
         await guard(); operation.report.step = 'legacy'; await settledLegacy(office, item);
         operation.report.step = 'session.read';
         const priorClaim = await session(office, item, UNIVERSAL_COMPOSE_SESSION_KEY);
-        if (priorClaim && !/^applied:[0-9a-f]{24}:(?:combined|signature)$/.test(priorClaim)) throw failure('U2E_INSERT_UNCERTAIN');
+        if (priorClaim && !/^applied:[0-9a-f]{24}:(?:combined|signature)$/.test(priorClaim)) {
+            const previous = await readUniversalSessionReport(office, item);
+            operation.report = { ...operation.report, ...(previous || { bodyWriteStarted: null, bodyWriteSucceeded: null, at: null }),
+                state: 'uncertain', code: 'U2E_INSERT_UNCERTAIN' };
+            operation.recovered = true;
+            throw failure('U2E_INSERT_UNCERTAIN');
+        }
         const original = await snapshot(office, item, operation.report);
         lastSnapshot = original;
         operation.report.bodyLength = original.html.length;
@@ -487,6 +498,7 @@ export async function insertUniversalComposeDocument(office, item, document, { b
         const ownAuthor = authorEvidence(original.currentHtml);
         if (!mobile && (!office?.context?.requirements?.isSetSupported?.('Mailbox', '1.8') || typeof item.internetHeaders?.setAsync !== 'function')) throw failure('U2E_HEADER_UNAVAILABLE');
         const token = 'pending:' + source.version + ':' + createNativeLayoutNonce();
+        operation.claim = token;
         await guardClaim(priorClaim); operation.claimed = true; operation.report = { ...operation.report, attempted: true, state: 'pending', phase: 'claim' };
         operation.report.step = 'session.claim';
         await readCall(office, callback => item.sessionData.setAsync(UNIVERSAL_COMPOSE_SESSION_KEY, token, callback), 'U2E_INSERT_UNCERTAIN');
@@ -507,8 +519,11 @@ export async function insertUniversalComposeDocument(office, item, document, { b
         await guardClaim(token);
         operation.report.phase = 'write';
         operation.report.step = 'body.write';
+        operation.report.bodyWriteStarted = true;
         await confirmedOfficeWrite(office, item, 'u2e-compose-write', 'U2E_INSERT_UNCERTAIN',
             callback => item.body[method](source.html, { coercionType: office.CoercionType.Html }, callback), { deferSignatureConfirmation: true });
+        operation.report.bodyWriteSucceeded = true;
+        operation.report.at = new Date().toISOString();
         await guard();
         operation.report.phase = 'readback';
         const actual = await snapshot(office, item, operation.report, 'actual');
@@ -547,6 +562,7 @@ export async function insertUniversalComposeDocument(office, item, document, { b
         return { status: 'applied', ...verified };
     } catch (error) {
         const code = /^[A-Z][A-Z0-9_]{0,79}$/.test(error?.code || '') ? error.code : 'UNAVAILABLE';
+        if (operation.recovered) throw error;
         operation.report = { ...operation.report, code, originalCode: code };
         if (code === 'SIGNATURE_LAYOUT_UNCONFIRMED') {
             Object.assign(operation.report, u2eReadbackFailure(error?.checkpoint || 'readback.unknown'), { difference: error?.difference || null });
@@ -559,8 +575,9 @@ export async function insertUniversalComposeDocument(office, item, document, { b
         }
         if (operation.claimed) {
             operation.report = { ...operation.report, state: 'uncertain' };
+            if (error?.code !== 'SIGNATURE_LAYOUT_UNCONFIRMED') operation.report.code = 'U2E_INSERT_UNCERTAIN';
+            await persistUniversalSessionReport(office, item, operation.claim, operation.report);
             if (error?.code === 'SIGNATURE_LAYOUT_UNCONFIRMED') throw error;
-            operation.report.code = 'U2E_INSERT_UNCERTAIN';
             throw failure('U2E_INSERT_UNCERTAIN', error?.phase);
         }
         lastReports.set(item, { ...operation.report, state: 'rejected' });

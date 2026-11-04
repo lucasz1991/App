@@ -15,6 +15,7 @@ use App\Support\OutlookAddin\OutlookUniversalDiagnostics;
 use App\Support\OutlookAddin\OutlookUniversalOperationDetails;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Throwable;
@@ -44,7 +45,7 @@ final class OutlookAddinDiagnosticsController extends Controller
             }
             if (! $request->isJson() || strlen($request->getContent()) > OutlookUniversalDiagnosticFixtureStore::MAX_REQUEST_BYTES
                 || array_diff(array_keys($request->all()), ['schema', 'host', 'code', 'phase', 'sourceLength', 'bodyLength', 'checkpoint', 'difference', 'fixture',
-                    'originalCode', 'step', 'bodyLengthOrigin', 'composeType', 'automaticReason']) !== []) {
+                    'originalCode', 'step', 'bodyLengthOrigin', 'composeType', 'automaticReason', 'diagnosticId']) !== []) {
                 throw ValidationException::withMessages(['diagnostic' => 'Ungültige Diagnosefelder.']);
             }
             $data = $request->validate([
@@ -54,11 +55,14 @@ final class OutlookAddinDiagnosticsController extends Controller
                 'phase' => ['required', 'string', Rule::in(['preflight', 'claim', 'header', 'write', 'readback', 'complete'])],
                 'sourceLength' => ['present', 'nullable', 'integer', 'between:0,1000000'],
                 'bodyLength' => ['present', 'nullable', 'integer', 'between:0,1000000'],
+                'diagnosticId' => ['sometimes', 'string', 'regex:/\A[0-9a-f]{64}\z/'],
             ]);
             if ($data['schema'] !== 1) {
                 throw ValidationException::withMessages(['diagnostic' => 'Ungültige Diagnoseversion.']);
             }
-            unset($data['schema']);
+            $diagnosticId = $data['diagnosticId'] ?? null;
+            // The opaque receipt identifier never becomes log/admin/fixture metadata.
+            unset($data['schema'], $data['diagnosticId']);
             // Laravel integer validation accepts numeric strings; wire metadata is typed.
             foreach (['sourceLength', 'bodyLength'] as $key) {
                 if ($data[$key] !== null && ! is_int($data[$key])) {
@@ -82,7 +86,9 @@ final class OutlookAddinDiagnosticsController extends Controller
             }
             $data = array_replace($data, $operation);
             $capture = null;
-            if (array_key_exists('fixture', $request->all())) {
+            $fixture = null;
+            $hasFixture = array_key_exists('fixture', $request->all());
+            if ($hasFixture) {
                 if (! OutlookUniversalDiagnosticFixtureStore::allowed($resolved['user'], $resolved['binding']['mailboxAddress'])) {
                     throw new OutlookAddinException('Die Fixture-Erfassung ist auf das Pilotpostfach begrenzt.', 403, 'outlook_addin_diagnostics_pilot_required');
                 }
@@ -94,6 +100,24 @@ final class OutlookAddinDiagnosticsController extends Controller
                     $diagnostics->recordReadback($resolved['user'], $data, $resolved['binding']['mailboxAddress']);
                     throw ValidationException::withMessages(['diagnostic' => 'Ungültige redigierte Signatur-Fixture.']);
                 }
+            }
+            if ($diagnosticId !== null) {
+                // An atomic cache receipt closes the race between independent
+                // Office runtimes, after all authentication and payload checks.
+                $key = 'outlook:u2e:diagnostic-receipts:v1:'.hash('sha256', (string) $resolved['user']->getKey()."\0".$diagnosticId);
+                try {
+                    if (! Cache::add($key, true, now()->addDays(7))) {
+                        if (Cache::get($key) !== true) {
+                            throw new \RuntimeException('Diagnostic receipt unavailable.');
+                        }
+
+                        return $this->respond(['accepted' => true, 'duplicate' => true], 202);
+                    }
+                } catch (Throwable) {
+                    throw new OutlookAddinException('Die Diagnose konnte nicht reserviert werden.', 503, 'outlook_addin_diagnostics_storage_unavailable');
+                }
+            }
+            if ($hasFixture) {
                 $capture = $fixtures->put($resolved['user'], $fixture, $data, $resolved['binding']['mailboxAddress']);
                 if ($capture !== null) {
                     $data['fixtureId'] = $capture['id'];

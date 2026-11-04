@@ -355,11 +355,15 @@ const composeLibrary = {
     ...await import('../../resources/js/outlook-addin/mailbox-guard.js'),
     ...await import('../../resources/js/outlook-addin/diagnostics.js'),
     ...await import('../../resources/js/outlook-addin/office-write.js'),
+    ...await import('../../resources/js/outlook-addin/head-transport-probe.js'),
+    ...await import('../../resources/js/outlook-addin/u2e-transport-probe.js'),
     ...await import('../../resources/js/outlook-addin/automatic-compose-policy.js'),
     ...await import('../../resources/js/outlook-addin/automatic-preferences-view.js'),
     ...await import('../../resources/js/outlook-addin/account-options-view.js'),
     ...await import('../../resources/js/outlook-addin/u2e-compose.js'),
     ...await import('../../resources/js/outlook-addin/u2e-telemetry.js'),
+    ...await import('../../resources/js/outlook-addin/u2e-session-report.js'),
+    ...await import('../../resources/js/outlook-addin/u2e-taskpane-status.js'),
 };
 const testMailboxBinding = {
     schema: 1, mailboxAddress: 'employee@example.test', senderAddress: 'employee@example.test',

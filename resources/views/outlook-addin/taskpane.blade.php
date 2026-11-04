@@ -94,6 +94,7 @@
         .content { padding: 16px; }
         .pane-feedback { margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--rt-line); border-radius: 10px; background: var(--rt-subtle); font-size: 12px; overflow-wrap: anywhere; }
         .pane-feedback[data-tone="error"] { border-color: var(--rt-error); background: var(--rt-error-soft); color: var(--rt-error); }
+        .pane-feedback[data-tone="warning"] { border-color: var(--rt-warning); background: var(--rt-warning-soft); }
 
         .status {
             display: grid;
@@ -124,12 +125,12 @@
             font-weight: 800;
         }
 
-        .status[data-tone="working"] {
+        .status[data-tone="working"], .status[data-tone="warning"] {
             border-color: #f0d7ae;
             background: var(--rt-warning-soft);
         }
 
-        .status[data-tone="working"] .status-symbol {
+        .status[data-tone="working"] .status-symbol, .status[data-tone="warning"] .status-symbol {
             background: #ffe5b8;
             color: var(--rt-warning);
         }
@@ -551,7 +552,7 @@
         }
         .glass-button:hover { border-color: var(--rt-red); }
         .glass-button[data-tone="error"] { border-color: var(--rt-error); background: var(--rt-error-soft); color: var(--rt-error); }
-        .glass-button[data-tone="working"] { border-color: var(--rt-warning); background: var(--rt-warning-soft); }
+        .glass-button[data-tone="working"], .glass-button[data-tone="warning"] { border-color: var(--rt-warning); background: var(--rt-warning-soft); }
         .glass-button:focus-visible, .app-link:focus-visible { outline: 3px solid var(--rt-focus); outline-offset: 3px; }
         .glass-button svg { width: 16px; height: 16px; flex: 0 0 16px; }
         .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
@@ -598,6 +599,7 @@
         .dialog-body .maintenance-actions { margin: 0; }
         .dialog-feedback { padding: 10px 12px; border: 1px solid var(--rt-line); border-radius: 10px; background: var(--rt-subtle); font-size: 12px; }
         .dialog-feedback[data-tone="error"] { border-color: var(--rt-error); background: var(--rt-error-soft); }
+        .dialog-feedback[data-tone="warning"] { border-color: var(--rt-warning); background: var(--rt-warning-soft); }
         .content .template-card { margin-top: 0; }
         @media (max-width: 360px) {
             .glass-button { padding-inline: 8px; }
@@ -705,6 +707,10 @@
                 <a class="app-link" data-outlook-profile-settings href="{{ route('profile.show', ['tab' => 'outlook']) }}" target="_blank" rel="noopener noreferrer" hidden>Im RailTime-Profil öffnen ↗</a>
                 @else
                 <p class="pane-feedback" data-outlook-pane-feedback role="status" aria-live="polite" tabindex="-1" hidden></p>
+                <details class="pane-feedback" data-outlook-new-message-help hidden>
+                    <summary>Neue Nachricht in Outlook öffnen</summary>
+                    <p>Verwenden Sie in Outlook „Neue Nachricht“. Übernehmen Sie Ihren eigenen Nachrichtentext bei Bedarf manuell. Dieser Entwurf bleibt für eine weitere Einfügung gesperrt.</p>
+                </details>
                 <section
                     class="template-card"
                     data-outlook-template-region
