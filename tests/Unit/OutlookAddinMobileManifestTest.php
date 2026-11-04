@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use App\Support\OutlookAddin\OutlookAddinBuild;
 use App\Support\OutlookAddin\OutlookAddinManifest;
 use DOMDocument;
 use DOMXPath;
@@ -33,9 +34,9 @@ final class OutlookAddinMobileManifestTest extends TestCase
         $this->assertSame(1, $mobile->length);
         $this->assertSame('OnNewMessageCompose', $mobile->item(0)->getAttribute('Type'));
         $this->assertSame('onNewMessageComposeHandler', $mobile->item(0)->getAttribute('FunctionName'));
-        $this->assertSame('https://example.test/outlook-addin/runtime?revision='.OutlookAddinManifest::ADDIN_VERSION, $manifest->urls()['runtime']);
-        // The Windows JS-only allow-list continues to use its exact stable URL.
-        $this->assertSame('https://example.test/outlook-addin/runtime.js', $manifest->urls()['runtime_js']);
+        $build = (new OutlookAddinBuild)->metadata();
+        $this->assertSame('https://example.test/outlook-addin/runtime?revision='.$build['revision'], $manifest->urls()['runtime']);
+        $this->assertSame('https://example.test/outlook-addin/runtime.js?v='.$build['bundles']['runtime'], $manifest->urls()['runtime_js']);
         $this->assertSame(['Signature.Read'], $manifest->metadata()['scope']);
         $xpath->registerNamespace('xsi', 'http://www.w3.org/2001/XMLSchema-instance');
         $read = $xpath->query('//*[local-name()="MobileFormFactor"]/*[local-name()="ExtensionPoint" and @xsi:type="MobileMessageReadCommandSurface"]');
@@ -49,7 +50,7 @@ final class OutlookAddinMobileManifestTest extends TestCase
         }
         self::assertCount(2, $xpath->query('//*[local-name()="DesktopFormFactor"]/*[local-name()="ExtensionPoint" and @xsi:type="MessageReadCommandSurface"]'));
         self::assertCount(2, $xpath->query('//*[local-name()="DesktopFormFactor"]/*[local-name()="ExtensionPoint" and @xsi:type="MessageComposeCommandSurface"]'));
-        self::assertCount(2, $xpath->query('//*[local-name()="Url" and @id="Settings.Url" and @DefaultValue="https://example.test/outlook-addin/taskpane?context=settings"]'));
-        self::assertSame('1.0.3.0', OutlookAddinManifest::ADDIN_VERSION);
+        self::assertCount(2, $xpath->query('//*[local-name()="Url" and @id="Settings.Url" and @DefaultValue="'.$manifest->urls()['settings'].'"]'));
+        self::assertSame('1.0.4.0', OutlookAddinManifest::ADDIN_VERSION);
     }
 }

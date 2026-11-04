@@ -18,11 +18,11 @@ final class OutlookUniversalDiagnostics
         'profile_contacts', 'profile_website', 'dispatch', 'legal', 'author', 'pilot', 'desktop', 'template', 'render', 'budget',
         'preflight', 'claim', 'header', 'write', 'readback', 'complete'];
 
-    public const READBACK_CODES = ['SIGNATURE_LAYOUT_UNCONFIRMED', 'U2E_INSERT_UNCERTAIN', 'U2E_NEW_DRAFT_REQUIRED', 'U2E_SOURCE_INVALID',
+    public const READBACK_CODES = ['U2E_BUNDLE_STALE', 'SIGNATURE_LAYOUT_UNCONFIRMED', 'U2E_INSERT_UNCERTAIN', 'U2E_NEW_DRAFT_REQUIRED', 'U2E_SOURCE_INVALID',
         'U2E_CONTEXT_UNREADABLE', 'U2E_API_UNAVAILABLE', 'U2E_HEADER_UNAVAILABLE', 'U2E_DOCUMENT_INVALID', 'U2E_INSERT_IN_PROGRESS',
         'U2E_SESSION_UNAVAILABLE', 'U2E_HTML_REQUIRED', 'U2E_CONTEXT_CHANGED', 'COMPOSE_ITEM_CHANGED', 'U2E_OPERATION_FAILED', 'U2E_AUTOMATIC_SKIPPED'];
 
-    public const CODES = ['SIGNATURE_LAYOUT_UNCONFIRMED', 'U2E_INSERT_UNCERTAIN', 'U2E_NEW_DRAFT_REQUIRED', 'U2E_SOURCE_INVALID',
+    public const CODES = ['U2E_BUNDLE_STALE', 'SIGNATURE_LAYOUT_UNCONFIRMED', 'U2E_INSERT_UNCERTAIN', 'U2E_NEW_DRAFT_REQUIRED', 'U2E_SOURCE_INVALID',
         'U2E_CONTEXT_UNREADABLE', 'U2E_API_UNAVAILABLE', 'U2E_HEADER_UNAVAILABLE', 'U2E_DOCUMENT_INVALID', 'U2E_INSERT_IN_PROGRESS',
         'U2E_SOURCE_REJECTED', 'U2E_ADMITTED', 'U2E_OUTSIDE_PILOT', 'U2E_DESKTOP_UNAVAILABLE', 'U2E_TEMPLATE_UNAVAILABLE',
         'U2E_RENDER_UNAVAILABLE', 'U2E_BUDGET_EXCEEDED', 'U2E_SESSION_UNAVAILABLE', 'U2E_HTML_REQUIRED',
@@ -56,6 +56,9 @@ final class OutlookUniversalDiagnostics
             || ($event['code'] ?? null) === 'U2E_AUTOMATIC_SKIPPED' && ! OutlookUniversalDiagnosticFixtureStore::allowed($user, $mailbox ?? (string) $user->email)
             || isset($event['fixtureId']) && (! is_string($event['fixtureId']) || ! preg_match('/\A[0-9a-f]{32}\z/', $event['fixtureId']))) {
             return;
+        }
+        if (($event['code'] ?? null) === 'U2E_BUNDLE_STALE') {
+            $event['serverBuildRevision'] = app(OutlookAddinBuild::class)->metadata()['revision'] ?? null;
         }
         $this->store($user, $event, 'readback', $mailbox);
     }

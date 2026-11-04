@@ -1,4 +1,5 @@
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { build } from 'vite';
@@ -37,6 +38,13 @@ function assertAbsoluteHttpsUrl(value) {
 }
 
 const resolvedConfigUrl = assertAbsoluteHttpsUrl(configUrl);
+const contracts = JSON.parse(await readFile(path.join(projectRoot, 'resources/outlook-addin/contracts.json'), 'utf8'));
+const sourceTemplate = createHash('sha256').update((await readFile(path.join(projectRoot, 'resources/mail-templates/u2e-universal-v1.html'), 'utf8')).replaceAll('\r\n', '\n')).digest('hex');
+if (contracts.schema !== 1 || !Number.isSafeInteger(contracts.sourceContract) || contracts.sourceContract < 1
+    || contracts.sourceTemplate !== sourceTemplate
+    || !Array.isArray(contracts.readerContracts) || !contracts.readerContracts.includes(contracts.sourceContract)) {
+    throw new Error('Invalid Outlook source/reader contract.');
+}
 const entries = ['runtime', 'taskpane'];
 
 await mkdir(outputDirectory, { recursive: true });
@@ -49,6 +57,8 @@ for (let index = 0; index < entries.length; index += 1) {
         publicDir: false,
         define: {
             __RAILTIME_OUTLOOK_CONFIG_URL__: JSON.stringify(resolvedConfigUrl),
+            __RAILTIME_OUTLOOK_READER_CONTRACTS__: JSON.stringify(contracts.readerContracts),
+            __RAILTIME_OUTLOOK_SOURCE_TEMPLATE__: JSON.stringify(contracts.sourceTemplate),
         },
         build: {
             target: 'es2016',
@@ -76,5 +86,12 @@ for (let index = 0; index < entries.length; index += 1) {
         logLevel: 'info',
     });
 }
+
+const digest = value => createHash('sha256').update(value).digest('hex');
+const bundles = Object.fromEntries(await Promise.all(entries.map(async name =>
+    [name, digest(await readFile(path.join(outputDirectory, name + '.js')))])));
+const revision = digest('railtime-outlook-build-v1\0' + bundles.runtime + '\0' + bundles.taskpane + '\0' + contracts.sourceContract);
+await writeFile(path.join(outputDirectory, 'build.json'), JSON.stringify({ schema: 1, revision,
+    sourceContract: contracts.sourceContract, sourceTemplate: contracts.sourceTemplate, bundles }, null, 2) + '\n');
 
 console.log(`Outlook add-in bundles written to ${outputDirectory}`);

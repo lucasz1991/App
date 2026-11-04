@@ -62,7 +62,13 @@
                         <span>{{ $failure['at'] }} · {{ $failure['host'] }}</span><br>
                         <code class="text-xs">{{ $failure['code'] }} · {{ $failure['phase'] }} · Quelle {{ $failure['sourceLength'] ?? '–' }} / Rücklesen {{ $failure['bodyLength'] ?? '–' }} UTF-16</code>
                         @if (isset($failure['originalCode']))
+                            @if (($failure['code'] ?? null) === 'U2E_BUNDLE_STALE')
+                                <br><strong>Outlook vollständig neu starten. Falls der Hinweis bleibt, Add-in-Bereitstellung aktualisieren.</strong>
+                            @endif
                             <br><code class="text-xs">Originalcode: {{ $failure['originalCode'] }} · gemeldet: {{ $failure['code'] }}</code>
+                            @if (isset($failure['serverBuildRevision']))
+                                <br><code class="text-xs">Server-Build: {{ $failure['serverBuildRevision'] }}</code>
+                            @endif
                         @endif
                         @if (isset($failure['context']) || isset($failure['composeType']) || isset($failure['step']))
                             <br><code class="text-xs">Kontext: {{ $failure['context'] ?? '–' }} · Verfassen: {{ $failure['composeType'] ?? '–' }} · Schritt: {{ is_string($failure['step'] ?? null) && array_key_exists($failure['step'], \App\Support\OutlookAddin\OutlookUniversalStatusLabels::STEP_LABELS) ? $failure['step'] : '–' }}</code>

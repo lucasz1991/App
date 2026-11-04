@@ -27,6 +27,8 @@ import { diagnoseStep, recordDiagnostic } from './diagnostics.js';
 import { confirmedOfficeWrite, hasUncertainWrite, wasSignatureWriteConfirmed } from './office-write.js';
 import { automaticComposeDecision, automaticTemplateOnly, readAutomaticComposeType } from './automatic-compose-policy.js';
 import { validateUniversalComposeDocument, insertUniversalComposeDocument, universalComposeBlocked, universalComposeReport } from './u2e-compose.js';
+import { assertUniversalBundleCompatibility, universalBundleFailureReport, persistUniversalBundleFailure,
+    clearUniversalBundleFailure } from './u2e-bundle-version.js';
 import { reportUniversalFailure, universalComposeHost } from './u2e-telemetry.js';
 
 const CONFIG_META_NAME = 'railtime-outlook-config-url';
@@ -569,8 +571,11 @@ async function applyPublishedContent(item, isActive = () => true) {
     if (hasUniversalCombined || hasUniversalSignature) {
         const source = hasUniversalCombined ? universalEntry.universalCompose : bootstrap.universalSignature;
         try {
+            assertUniversalBundleCompatibility(bootstrap);
+            if (bootstrap.addinBuild) await clearUniversalBundleFailure(Office, item);
             const universal = validateUniversalComposeDocument(source);
             if (universal.kind !== (hasUniversalCombined ? 'combined' : 'signature')) throw codedError('U2E_DOCUMENT_INVALID');
+            if (!bootstrap.addinBuild) await clearUniversalBundleFailure(Office, item);
             pendingNativeSignatures.delete(item);
             const result = await diagnoseStep('u2e-compose', () => insertUniversalComposeDocument(Office, item, universal, {
                 binding, beforeWrite: assertTarget,
@@ -579,7 +584,8 @@ async function applyPublishedContent(item, isActive = () => true) {
         } catch (error) {
             // Only the pilot waits for the bounded diagnostic before Classic
             // destroys this event runtime. Preserve the original failure.
-            const report = universalComposeReport(item);
+            if (universalBundleFailureReport(error)) await persistUniversalBundleFailure(Office, item, error);
+            const report = universalBundleFailureReport(error) || universalComposeReport(item);
             const reporting = reportUniversalFailure({ config, accessToken, item, binding, context: 'event', error,
                 report: { ...report, composeType: report?.composeType || composeType },
                 sourceLength: typeof source?.html === 'string' ? source.html.length : null,

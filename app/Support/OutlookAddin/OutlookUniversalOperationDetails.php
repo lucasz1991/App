@@ -12,7 +12,7 @@ final class OutlookUniversalOperationDetails
     public const REASONS = ['compose_type_unknown', 'automatic_disabled', 'automatic_policy_unconfirmed',
         'prior_write_uncertain', 'universal_source_unavailable', 'template_only_policy'];
 
-    private const STEPS = ['binding', 'legacy', 'session.read', 'session.claim', 'session.finalize', 'session.verify',
+    private const STEPS = ['bundle.contract', 'binding', 'legacy', 'session.read', 'session.claim', 'session.finalize', 'session.verify',
         'snapshot.type', 'snapshot.format', 'snapshot.body', 'snapshot.region', 'source.state', 'header.write',
         'body.write', 'context.compare', 'readback.material', 'readback.compose_type', 'readback.quote', 'readback.author'];
 

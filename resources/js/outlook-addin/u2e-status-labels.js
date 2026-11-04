@@ -2,6 +2,7 @@
 // turn a pending write into a confirmed insertion.
 export const U2E_STATUS_FALLBACK_LABEL = 'Prüfschritt nicht verfügbar';
 export const U2E_CHECKPOINT_LABELS = Object.freeze({
+    'bundle.contract': 'Outlook-Add-in und Vorlagenformat abgleichen',
     'html.parse': 'HTML-Struktur der Vorlage',
     'scope.boundary': 'Eigener Nachrichtenteil und Zitatgrenze',
     'markers.count': 'Anzahl der Vorlagenkennungen',
@@ -60,6 +61,7 @@ export const U2E_CHECKPOINT_LABELS = Object.freeze({
     'readback.unknown': 'Prüfung nach dem Einfügen',
 });
 export const U2E_STEP_LABELS = Object.freeze({
+    'bundle.contract': 'Outlook-Add-in und Vorlagenformat abgleichen',
     'binding': 'Postfach und Absender prüfen',
     'legacy': 'Frühere Einfügungen prüfen',
     'session.read': 'Frühere Einfügung dieser Nachricht prüfen',

@@ -307,6 +307,11 @@ Sicherer Ablauf
 ---------------
 1. ZIP vollstaendig entpacken und die SHA-256-Werte pruefen.
 2. manifest.xml im Microsoft 365 Admin Center als integrierte App pruefen und bereitstellen.
+   Bei bestehender Installation die neue Manifestversion aktualisieren. Der Download
+   oder eine neue Serverdatei aktualisiert die Tenant-Registrierung nicht automatisch.
+   Nach jeder Veroeffentlichung Classic Outlook vollstaendig beenden und neu starten;
+   danach eine neue Nachricht verwenden. Revisions-URLs ersetzen bereits laufenden
+   JavaScript-Code oder ein im Office-Cache gehaltenes Manifest nicht garantiert.
 3. Zuerst eine kleine Pilotgruppe verwenden. Ein Download beweist keine erfolgreiche Tenant-Bereitstellung.
 4. signature.html in Browser, Outlook Windows, Outlook Web, Outlook Mac und Outlook Mobile pruefen.
 5. Den Exchange-Fallback nur verwenden, wenn er wirklich benoetigt wird.

@@ -10,6 +10,7 @@ use App\Models\EmployeeIdentityAccount;
 use App\Models\Setting;
 use App\Models\User;
 use App\Support\OutlookAddin\OutlookAddinAutomaticInsertionPolicy;
+use App\Support\OutlookAddin\OutlookAddinBuild;
 use App\Support\OutlookAddin\OutlookAddinException;
 use App\Support\OutlookAddin\OutlookAddinUserSnapshotStore;
 use Firebase\JWT\JWT;
@@ -235,6 +236,7 @@ final class OutlookAddinAutomaticInsertionPolicyTest extends TestCase
                 'marker' => 'RT-SIGNATURE-MANAGED-V1',
                 'automaticInsertionEnabled' => false,
                 'automaticInsertionPreferences' => app(OutlookAddinAutomaticInsertionPolicy::class)->preferencesForUser(User::findOrFail(5)),
+                'addinBuild' => app(OutlookAddinBuild::class)->metadata(),
                 'binding' => ['schema' => 1, 'mailboxAddress' => self::MAILBOX, 'senderAddress' => self::MAILBOX, 'allowedSenderAddresses' => [self::MAILBOX]],
             ])->assertHeader('Cache-Control', 'max-age=0, no-store, private');
             self::assertStringContainsString('X-RailTime-Outlook-Context', $response->headers->get('Vary'));

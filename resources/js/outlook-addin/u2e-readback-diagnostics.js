@@ -5,6 +5,7 @@ import { U2E_BORDER_IMAGE_PROPERTIES, U2E_AMBIGUOUS_TOP_BORDER_PROPERTIES } from
 // This module describes failures and redacts already-read HTML. It never grants
 // ownership, changes a compose body, or admits a different material layout.
 export const U2E_READBACK_CHECKPOINTS = Object.freeze([
+    'bundle.contract',
     'html.parse', 'scope.boundary', 'markers.count', 'markers.tag', 'markers.binding',
     'shell.rows', 'shell.width', 'shell.align', 'shell.hidden', 'grid.author', 'grid.columns',
     'grid.rowspan', 'grid.train', 'grid.legal', 'markers.position', 'shell.count',
@@ -17,6 +18,7 @@ export const U2E_READBACK_CHECKPOINTS = Object.freeze([
     'author.signature', 'author.combined', 'readback.unknown',
 ]);
 export const U2E_READBACK_DIFFERENCE_KEYS = Object.freeze([
+    'bundle.template',
     ...U2E_READBACK_CHECKPOINTS,
     'evidence.images.count', 'evidence.images.src', 'evidence.images.width', 'evidence.images.height',
     'evidence.links.count', 'evidence.links.href', 'evidence.colors.count', 'evidence.colors.value',

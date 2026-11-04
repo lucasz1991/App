@@ -10,6 +10,7 @@ final class OutlookUniversalStatusLabels
     public const FALLBACK_LABEL = 'Prüfschritt nicht verfügbar';
 
     public const CHECKPOINT_LABELS = [
+        'bundle.contract' => 'Outlook-Add-in und Vorlagenformat abgleichen',
         'html.parse' => 'HTML-Struktur der Vorlage',
         'scope.boundary' => 'Eigener Nachrichtenteil und Zitatgrenze',
         'markers.count' => 'Anzahl der Vorlagenkennungen',
@@ -69,6 +70,7 @@ final class OutlookUniversalStatusLabels
     ];
 
     public const STEP_LABELS = [
+        'bundle.contract' => 'Outlook-Add-in und Vorlagenformat abgleichen',
         'binding' => 'Postfach und Absender prüfen',
         'legacy' => 'Frühere Einfügungen prüfen',
         'session.read' => 'Frühere Einfügung dieser Nachricht prüfen',

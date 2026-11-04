@@ -6,6 +6,9 @@ export function universalTaskpaneStatus(report, errorCode = null) {
     const code = U2E_REPORT_CODES.includes(errorCode) ? errorCode
         : errorCode === null && U2E_REPORT_CODES.includes(report?.code) ? report.code : null;
     if (!code || report?.state === 'complete' && errorCode === null) return null;
+    if (code === 'U2E_BUNDLE_STALE') return Object.freeze({ code, tone: 'error', title: 'Outlook neu starten',
+        detail: 'Diese Outlook-Sitzung verwendet eine ältere Add-in-Fassung für ein anderes Vorlagenformat. Outlook vollständig beenden und neu starten, danach eine neue Nachricht öffnen. Falls der Hinweis bleibt, muss die IT die Add-in-Bereitstellung aktualisieren. Es wurde durch diese Prüfung nichts eingefügt.',
+        blocked: true, newMessageRequired: false });
     // A report from an earlier attempt must not explain a different failure.
     const evidence = report?.code === code ? report : null;
     const written = evidence?.bodyWriteSucceeded === true;

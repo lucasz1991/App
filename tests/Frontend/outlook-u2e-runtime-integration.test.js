@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { reportUniversalFailure } from '../../resources/js/outlook-addin/u2e-telemetry.js';
 import { automaticComposeDecision } from '../../resources/js/outlook-addin/automatic-compose-policy.js';
+import * as bundleVersion from '../../resources/js/outlook-addin/u2e-bundle-version.js';
 
 const runtime = await readFile(new URL('../../resources/js/outlook-addin/runtime.js', import.meta.url), 'utf8');
 const pane = await readFile(new URL('../../resources/js/outlook-addin/taskpane.js', import.meta.url), 'utf8');
@@ -33,6 +34,7 @@ function automaticFixture(mode = 'both', extra = {}) {
     };
     const calls = { universal: [], validate: [], legacy: 0, binding: 0, deleted: 0 };
     const context = {
+        ...bundleVersion,
         Office: { context: { mailbox: { item } } },
         codedError: codeError,
         reportRuntimePhase() {},
@@ -116,6 +118,39 @@ test('a malformed new envelope cannot fall back to an old writer', async () => {
     assert.equal(f.calls.legacy, 0);
 });
 
+test('a proven incompatible bundle stops the actual automatic lifecycle before validation and every writer', async () => {
+    const f = automaticFixture('both');
+    const store = new Map([['railtime.u2e.compose.v1', 'original-ledger']]);
+    f.context.Office.AsyncResultStatus = { Succeeded: 'succeeded' };
+    f.item.sessionData = {
+        getAsync(key, callback) { callback({ status: 'succeeded', value: store.get(key) || '' }); },
+        setAsync(key, value, callback) { store.set(key, value); callback({ status: 'succeeded' }); },
+    };
+    f.payload.addinBuild = { schema: 1, revision: 'a'.repeat(64), sourceContract: 2,
+        sourceTemplate: bundleVersion.U2E_SOURCE_TEMPLATE, bundles: { runtime: 'b'.repeat(64), taskpane: 'c'.repeat(64) } };
+    await assert.rejects(f.apply(f.item), { code: 'U2E_BUNDLE_STALE' });
+    assert.equal(f.calls.universal.length, 0); assert.equal(f.calls.validate.length, 0); assert.equal(f.calls.legacy, 0);
+    assert.equal(JSON.parse(store.get(bundleVersion.U2E_BUNDLE_SESSION_KEY)).code, 'U2E_BUNDLE_STALE');
+    assert.equal(store.get('railtime.u2e.compose.v1'), 'original-ledger');
+});
+
+test('a compatible fresh event clears only the bundle diagnostic while a real source failure retains its original code', async () => {
+    const f = automaticFixture('both', { validateUniversalComposeDocument() { throw codeError('U2E_SOURCE_INVALID'); } });
+    const store = new Map([[bundleVersion.U2E_BUNDLE_SESSION_KEY, JSON.stringify({ schema: 1, code: 'U2E_BUNDLE_STALE',
+        at: '2026-11-04T08:54:09.000Z', sourceContract: 2, readerContract: 1 })], ['railtime.u2e.compose.v1', 'original-ledger']]);
+    f.context.Office.AsyncResultStatus = { Succeeded: 'succeeded' };
+    f.item.sessionData = {
+        getAsync(key, callback) { callback({ status: 'succeeded', value: store.get(key) || '' }); },
+        setAsync(key, value, callback) { store.set(key, value); callback({ status: 'succeeded' }); },
+    };
+    f.payload.addinBuild = { schema: 1, revision: 'a'.repeat(64), sourceContract: 1,
+        sourceTemplate: bundleVersion.U2E_SOURCE_TEMPLATE, bundles: { runtime: 'b'.repeat(64), taskpane: 'c'.repeat(64) } };
+    await assert.rejects(f.apply(f.item), { code: 'U2E_SOURCE_INVALID' });
+    assert.equal(store.get(bundleVersion.U2E_BUNDLE_SESSION_KEY), '');
+    assert.equal(store.get('railtime.u2e.compose.v1'), 'original-ledger');
+    assert.equal(f.calls.universal.length, 0); assert.equal(f.calls.legacy, 0);
+});
+
 test('a kind mismatch cannot activate the combined or signature-only operation', async () => {
     for (const mode of ['both', 'signature']) {
         const f = automaticFixture(mode);
@@ -149,6 +184,7 @@ function paneFixture(extra = {}) {
     const calls = { universal: [], remembered: [], legacy: 0, states: [], refresh: 0 };
     const state = { busy: false, templatePresent: false, signatureCurrent: false, signatureVersion: '' };
     const context = {
+        ...bundleVersion,
         taskpaneState: state,
         setStatus: (...args) => calls.states.push(args),
         withAuthenticatedBootstrap: async (button, action) => action(bootstrap, target, (_source, operation) => operation()),

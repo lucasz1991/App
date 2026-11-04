@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { parseHTML } from 'linkedom';
 import { universalTaskpaneStatus } from '../../resources/js/outlook-addin/u2e-taskpane-status.js';
+import * as bundleVersion from '../../resources/js/outlook-addin/u2e-bundle-version.js';
 
 const pane = await readFile(new URL('../../resources/js/outlook-addin/taskpane.js', import.meta.url), 'utf8');
 const markup = await readFile(new URL('../../resources/views/outlook-addin/taskpane.blade.php', import.meta.url), 'utf8');
@@ -29,8 +30,9 @@ function fixture() {
     const payload = { universalSignature: { kind: 'signature' }, binding: {} };
     const reports = new WeakMap();
     const blocked = new WeakSet();
-    const context = vm.createContext({ Office: { context: { mailbox: { item } } }, document,
+    const context = vm.createContext({ ...bundleVersion, Office: { context: { mailbox: { item } } }, document,
         taskpaneState: state, currentBootstrap: payload, currentConfig: {}, lastActionError: null,
+        currentTokenResult: null,
         signatureStateRevision: 0, mailboxItemRevision: 0, bootstrapStateRevision: 0, observedComposeItem: null,
         universalStatusByItem: new WeakMap(), universalTaskpaneStatus,
         universalComposeReport: target => reports.get(target) || null,
@@ -40,6 +42,7 @@ function fixture() {
         headProbeAvailable: () => false, u2eProbeAvailable: () => false,
         selectedTemplate: () => ({}), supportsTemplatePrepend: () => true,
         syncAutomaticPreferences() {}, syncHeadProbeButton() {}, renderSelectedTemplate() {},
+        renderTemplateChoices() {}, refreshAccountOptions: async () => {}, snapshotSignatureVersion: () => '',
         safeErrorCode: error => error?.code || 'UNAVAILABLE', codedError: failure,
         authenticationWasLost: error => error?.code === 'HTTP_401', userMessage: error => `Aktueller Fehler: ${error.code}`,
         invalidateBootstrap: () => { calls.invalidation++; },
@@ -174,4 +177,68 @@ test('new-message affordance uses native instructions and never creates or sends
     assert.equal(help.querySelector('button,a'), null);
     assert.doesNotMatch(pane, /displayNewMessageForm|\.sendAsync\(/);
     assert.match(markup, /\.pane-feedback\[data-tone="warning"\]/);
+});
+
+test('incompatible bootstrap shows the actual restart hint and disables writing before any body read', async () => {
+    const f = fixture();
+    const accept = load('acceptBootstrap', f.context);
+    const payload = { universalSignature: {}, binding: {}, addinBuild: { schema: 1, revision: 'a'.repeat(64),
+        sourceTemplate: bundleVersion.U2E_SOURCE_TEMPLATE, sourceContract: 2,
+        bundles: { runtime: 'b'.repeat(64), taskpane: 'c'.repeat(64) } } };
+    let cause;
+    try { await accept(payload); } catch (error) { cause = error; }
+    assert.equal(cause.code, 'U2E_BUNDLE_STALE');
+    f.context.handleFailure(cause, true);
+    assert.equal(f.calls.bodyReads, 0); assert.equal(f.calls.writes, 0);
+    assert.equal(f.document.querySelector('[data-outlook-status-title]').textContent, 'Outlook neu starten');
+    assert.match(f.document.querySelector('[data-outlook-status-detail]').textContent, /vollständig beenden/);
+    assert.equal(f.button.disabled, true);
+    assert.equal(f.document.querySelector('[data-outlook-action="signature"]').disabled, true);
+    assert.equal(f.document.querySelector('[data-outlook-new-message-help]').hidden, true);
+    assert.equal(f.calls.telemetry, 1);
+});
+
+test('a stale event marker is visible in a fresh compatible taskpane without any body write or ledger change', async () => {
+    const f = fixture(), store = new Map([['railtime.u2e.compose.v1', 'pending:must-remain-unchanged']]);
+    f.context.Office.AsyncResultStatus = { Succeeded: 'succeeded' };
+    f.item.sessionData = {
+        getAsync(key, callback) { callback({ status: 'succeeded', value: store.get(key) || '' }); },
+        setAsync(key, value, callback) { store.set(key, value); callback({ status: 'succeeded' }); },
+    };
+    const current = { universalSignature: {}, binding: {}, addinBuild: { schema: 1, revision: 'a'.repeat(64),
+        sourceTemplate: bundleVersion.U2E_SOURCE_TEMPLATE, sourceContract: 1,
+        bundles: { runtime: 'b'.repeat(64), taskpane: 'c'.repeat(64) } } };
+    let cause;
+    try { bundleVersion.assertUniversalBundleCompatibility({ ...current, addinBuild: { ...current.addinBuild, sourceContract: 2 } }); }
+    catch (error) { cause = error; }
+    assert.equal(await bundleVersion.persistUniversalBundleFailure(f.context.Office, f.item, cause), true);
+    // The new pane uses compatible code. It must still show the event's own
+    // per-item diagnostic rather than claim that the event context was reloaded.
+    const accept = load('acceptBootstrap', f.context);
+    await accept(current);
+    assert.equal(f.document.querySelector('[data-outlook-status-title]').textContent, 'Outlook neu starten');
+    assert.equal(f.button.disabled, true); assert.equal(f.calls.writes, 0);
+    await f.context.refreshSignatureCurrentState();
+    f.context.syncActionState();
+    assert.equal(f.document.querySelector('[data-outlook-status-title]').textContent, 'Outlook neu starten');
+    assert.equal(store.get('railtime.u2e.compose.v1'), 'pending:must-remain-unchanged');
+    assert.equal(await bundleVersion.clearUniversalBundleFailure(f.context.Office, f.item), true);
+    await accept(current);
+    assert.equal(f.button.disabled, false);
+    assert.equal(store.get('railtime.u2e.compose.v1'), 'pending:must-remain-unchanged');
+});
+
+test('a stale event discovered during manual authentication blocks its already-started callback', async () => {
+    const f = fixture();
+    const saved = JSON.stringify({ schema: 1, code: 'U2E_BUNDLE_STALE', at: '2026-11-04T08:54:09.000Z', sourceContract: 2, readerContract: 1 });
+    f.context.Office.AsyncResultStatus = { Succeeded: 'succeeded' };
+    f.item.sessionData = { getAsync(key, callback) {
+        assert.equal(key, bundleVersion.U2E_BUNDLE_SESSION_KEY);
+        callback({ status: 'succeeded', value: saved });
+    } };
+    f.context.acceptBootstrap = load('acceptBootstrap', f.context);
+    await f.context.withAuthenticatedBootstrap(f.button, async () => { f.calls.writes++; });
+    assert.equal(f.calls.writes, 0); assert.equal(f.calls.telemetry, 0);
+    assert.equal(f.document.querySelector('[data-outlook-status-title]').textContent, 'Outlook neu starten');
+    assert.equal(f.button.disabled, true); assert.equal(f.state.busy, false);
 });

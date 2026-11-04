@@ -9,6 +9,7 @@ import * as diagnostics from '../../resources/js/outlook-addin/diagnostics.js';
 import * as policy from '../../resources/js/outlook-addin/automatic-compose-policy.js';
 import * as universal from '../../resources/js/outlook-addin/u2e-compose.js';
 import * as telemetry from '../../resources/js/outlook-addin/u2e-telemetry.js';
+import * as bundleVersion from '../../resources/js/outlook-addin/u2e-bundle-version.js';
 import { nativeOfficeHtml, officeCarrier, standaloneHtml } from './outlook-standalone-fixture.js';
 
 const source = (await readFile(new URL('../../resources/js/outlook-addin/runtime.js', import.meta.url), 'utf8'))
@@ -99,7 +100,7 @@ function harness({ mode = 'both', composeType = 'newMail', mobile = false, holdN
     const config = { marker: MARKER, ready: true, auth: { clientId: 'synthetic', authority: 'https://login.example.test/tenant', scopes: ['api://test/read'] },
         endpoints: { bootstrap: 'https://company.example/bootstrap' } };
     const context = vm.createContext({
-        ...compose, ...guard, ...writes, ...diagnostics, ...policy, ...universal, ...telemetry, Office: office,
+        ...compose, ...guard, ...writes, ...diagnostics, ...policy, ...universal, ...telemetry, ...bundleVersion, Office: office,
         URL, AbortController, setTimeout, clearTimeout, console: { info() {} },
         RAILTIME_OUTLOOK_CONFIG_URL: 'https://company.example/config',
         InteractionRequiredAuthError: class extends Error {},

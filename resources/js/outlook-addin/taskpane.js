@@ -36,6 +36,7 @@ import { validateUniversalComposeDocument, insertUniversalComposeDocument, unive
 import { reportUniversalFailure, universalComposeHost } from './u2e-telemetry.js';
 import { readUniversalSessionReport } from './u2e-session-report.js';
 import { universalTaskpaneStatus } from './u2e-taskpane-status.js';
+import { assertUniversalBundleCompatibility, universalBundleFailureReport, readUniversalBundleFailure } from './u2e-bundle-version.js';
 import { bindAutomaticPreferencesView, createAccountPreferencesSession, normalizeAutomaticPreferences } from './automatic-preferences-view.js';
 import { bindWordingPreferencesView, bindTemplateChoiceView, createAccountOptionsSession,
     normalizeWordingPreferences, normalizeTemplateChoicePreferences } from './account-options-view.js';
@@ -1292,6 +1293,12 @@ function clearAccount() {
 async function acceptBootstrap(payload, { inspectBody = true } = {}) {
     bootstrapStateRevision += 1;
     currentBootstrap = payload;
+    assertUniversalBundleCompatibility(payload);
+    const bundleItem = Office.context.mailbox.item, bundleItemRevision = mailboxItemRevision;
+    const bundleState = await readUniversalBundleFailure(Office, bundleItem);
+    if (bundleItem !== Office.context.mailbox.item || bundleItemRevision !== mailboxItemRevision || currentBootstrap !== payload) throw codedError('COMPOSE_ITEM_CHANGED');
+    if (bundleState.report) universalStatusByItem.set(bundleItem, universalTaskpaneStatus(bundleState.report, 'U2E_BUNDLE_STALE'));
+    else if (bundleState.readable && universalStatusByItem.get(bundleItem)?.code === 'U2E_BUNDLE_STALE') universalStatusByItem.delete(bundleItem);
     lastBootstrapRefreshAt = Date.now();
     taskpaneState.bootstrapReady = true;
     taskpaneState.signatureVersion = snapshotSignatureVersion(payload);
@@ -1299,6 +1306,7 @@ async function acceptBootstrap(payload, { inspectBody = true } = {}) {
     if (inspectBody) await refreshSignatureCurrentState();
     syncActionState();
     await refreshAccountOptions();
+    showUniversalStatus(bundleItem);
 }
 
 function invalidateBootstrap(templateState, authenticationLost = false) {
@@ -1338,6 +1346,7 @@ function authenticationWasLost(error) {
 
 function userMessage(error) {
     const code = safeErrorCode(error);
+    if (code === 'U2E_BUNDLE_STALE') return 'Outlook verwendet eine ältere Add-in-Fassung, die dieses Vorlagenformat nicht lesen kann. Outlook vollständig beenden und neu starten, danach eine neue Nachricht öffnen. Falls der Hinweis bleibt, muss die IT die Add-in-Bereitstellung aktualisieren.';
     if (code === 'U2E_NEW_DRAFT_REQUIRED') {
         return 'Diese Nachricht enthält bereits eine ältere oder bearbeitete RailTime-Fassung. Bitte für den neuen U2e-Entwurf eine neue Nachricht öffnen. Ihr Text und die Zitate bleiben erhalten.';
     }
@@ -1516,6 +1525,14 @@ function handleFailure(error, bootstrapWasLoaded = false) {
         return;
     }
     const authLost = authenticationWasLost(error);
+    const bundleReport = universalBundleFailureReport(error);
+    if (bundleReport) {
+        const item = globalThis.Office?.context?.mailbox?.item;
+        if (item) universalStatusByItem.set(item, universalTaskpaneStatus(bundleReport, 'U2E_BUNDLE_STALE'));
+        void reportUniversalFailure({ config: currentConfig, accessToken: currentTokenResult?.accessToken,
+            item, binding: currentBootstrap?.binding, context: 'taskpane', error, report: bundleReport,
+            isCurrent: () => globalThis.Office?.context?.mailbox?.item === item });
+    }
 
     if (!bootstrapWasLoaded || authLost || /MAILBOX|SENDER/.test(safeErrorCode(error))) {
         invalidateBootstrap(authLost ? 'locked' : 'error', authLost);
@@ -1655,18 +1672,26 @@ async function withAuthenticatedBootstrap(button, callback) {
         // complete Outlook conversation during the same button action.
         signatureStateRevision += 1;
         await acceptBootstrap(bootstrap, { inspectBody: false });
+        if (universalStatusByItem.get(target.item)?.blocked === true) {
+            setBusy(false);
+            syncActionState();
+            showUniversalStatus(target.item, true);
+            return;
+        }
         setBusy(true, button);
         await callback(bootstrap, target, async (source, operation) => {
             try {
+                assertUniversalBundleCompatibility(bootstrap);
                 const result = await operation();
                 universalStatusByItem.delete(target.item);
                 return result;
             } catch (error) {
-                const status = universalTaskpaneStatus(universalComposeReport(target.item), safeErrorCode(error));
+                const report = universalBundleFailureReport(error) || universalComposeReport(target.item);
+                const status = universalTaskpaneStatus(report, safeErrorCode(error));
                 if (status && target.item === globalThis.Office?.context?.mailbox?.item
                     && target.revision === mailboxItemRevision) universalStatusByItem.set(target.item, status);
-                void reportUniversalFailure({ config: currentConfig, accessToken, item: target.item,
-                    binding: bootstrap.binding, context: 'taskpane', error, report: universalComposeReport(target.item),
+                if (safeErrorCode(error) !== 'U2E_BUNDLE_STALE') void reportUniversalFailure({ config: currentConfig, accessToken, item: target.item,
+                    binding: bootstrap.binding, context: 'taskpane', error, report,
                     sourceLength: typeof source?.html === 'string' ? source.html.length : null,
                     isCurrent: () => { try { return assertComposeTarget(target) === target.item; } catch { return false; } } });
                 throw error;

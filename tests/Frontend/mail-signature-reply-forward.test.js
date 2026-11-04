@@ -364,6 +364,7 @@ const composeLibrary = {
     ...await import('../../resources/js/outlook-addin/u2e-telemetry.js'),
     ...await import('../../resources/js/outlook-addin/u2e-session-report.js'),
     ...await import('../../resources/js/outlook-addin/u2e-taskpane-status.js'),
+    ...await import('../../resources/js/outlook-addin/u2e-bundle-version.js'),
 };
 const testMailboxBinding = {
     schema: 1, mailboxAddress: 'employee@example.test', senderAddress: 'employee@example.test',

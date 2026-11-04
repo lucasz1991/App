@@ -7,6 +7,7 @@ use App\Services\DeviceManagement\MicrosoftDeviceSyncScheduler;
 use App\Support\EmailTemplateBuilder;
 use App\Support\OutlookAddin\EntraAccessTokenValidator;
 use App\Support\OutlookAddin\OutlookAddinAutomaticInsertionPolicy;
+use App\Support\OutlookAddin\OutlookAddinBuild;
 use App\Support\OutlookAddin\OutlookAddinException;
 use App\Support\OutlookAddin\OutlookAddinIdentityResolver;
 use App\Support\OutlookAddin\OutlookAddinTemplateChoicesPolicy;
@@ -79,6 +80,7 @@ final class OutlookAddinBootstrapController extends Controller
                 'automaticInsertionEnabled' => $automaticInsertionEnabled,
                 'automaticInsertionPreferences' => $preferences,
                 'binding' => $resolved['binding'],
+                'addinBuild' => app(OutlookAddinBuild::class)->metadata(),
             ];
             if ($v2) {
                 $metadata['automaticInsertion'] = $selection;

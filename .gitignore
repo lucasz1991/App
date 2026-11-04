@@ -375,3 +375,6 @@ auth.json
 # Current universal mail output boundaries.
 !/tests/Feature/OutlookUniversalPersonalExportTest.php
 !/tests/Feature/OutlookUniversalSystemMailPresentationTest.php
+!/tests/Feature/OutlookAddinBuildRevisionTest.php
+!/tests/Feature/OutlookUniversalTransitSnapshotProviderTest.php
+!/tests/Frontend/outlook-u2e-bundle-version.test.js

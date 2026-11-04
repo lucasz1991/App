@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\OutlookAddin;
 
 use App\Http\Controllers\Controller;
+use App\Support\OutlookAddin\OutlookAddinBuild;
 use App\Support\OutlookAddin\OutlookAddinConfiguration;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
@@ -40,11 +41,11 @@ final class OutlookAddinController extends Controller
         $javascript = file_get_contents($path);
         abort_unless(is_string($javascript), 503, 'Das Outlook-Add-in konnte nicht geladen werden.');
 
-        // Classic's JavaScript-only manifest entry has no bundle fingerprint.
-        // Keep that URL fresh; only the matching content hash may be cached.
+        // Old manifests still receive current code, but only an exact content
+        // revision may be cached. The same rule applies to both bundles.
         $version = request()->query('v');
-        $cacheable = $bundle !== 'runtime' || (is_string($version)
-            && hash_equals(substr(hash('sha256', $javascript), 0, 16), $version));
+        $cacheable = is_string($version) && preg_match('/\A[0-9a-f]{64}\z/', $version)
+            && hash_equals(hash('sha256', $javascript), $version);
 
         return response($javascript, 200, [
             'Cache-Control' => $cacheable ? 'public, max-age=3600' : 'no-store, no-cache, max-age=0, must-revalidate',
@@ -59,10 +60,10 @@ final class OutlookAddinController extends Controller
 
         return response()->json([
             'allowed' => $baseUrl !== ''
-                ? [$baseUrl.'/outlook-addin/runtime.js']
+                ? array_values(array_unique([app(OutlookAddinBuild::class)->bundleUrl($baseUrl, 'runtime'), $baseUrl.'/outlook-addin/runtime.js']))
                 : [],
         ], 200, [
-            'Cache-Control' => 'public, max-age=3600',
+            'Cache-Control' => 'public, no-store, max-age=0',
             'X-Content-Type-Options' => 'nosniff',
         ]);
     }
@@ -113,17 +114,6 @@ final class OutlookAddinController extends Controller
 
     private function versionedBundleUrl(string $baseUrl, string $bundle): string
     {
-        $url = $baseUrl."/outlook-addin/{$bundle}.js";
-        $path = public_path("outlook-addin/{$bundle}.js");
-
-        if (! is_file($path) || ! is_readable($path)) {
-            return $url;
-        }
-
-        $hash = hash_file('sha256', $path);
-
-        return is_string($hash) && $hash !== ''
-            ? $url.'?v='.substr($hash, 0, 16)
-            : $url;
+        return app(OutlookAddinBuild::class)->bundleUrl($baseUrl, $bundle);
     }
 }

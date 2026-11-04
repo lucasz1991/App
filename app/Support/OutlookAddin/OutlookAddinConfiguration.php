@@ -137,6 +137,7 @@ final class OutlookAddinConfiguration
             ],
             'urls' => ['profileSettings' => $baseUrl !== '' ? $baseUrl.'/user/profile?tab=outlook' : ''],
             'marker' => (string) config('outlook_addin.marker', 'RT-SIGNATURE-MANAGED-V1'),
+            'addinBuild' => app(OutlookAddinBuild::class)->metadata(),
         ];
     }
 }

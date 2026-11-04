@@ -86,6 +86,26 @@ final class OutlookUniversalDiagnosticsTest extends TestCase
         $this->app->bind(OutlookAddinPayloadService::class, static fn () => throw new \LogicException('Diagnostics must never compile or send mail.'));
     }
 
+    public function test_bundle_contract_failure_has_finite_diagnostics_without_reclassifying_source_errors(): void
+    {
+        $payload = array_replace($this->readback(), ['code' => 'U2E_BUNDLE_STALE', 'phase' => 'preflight',
+            'step' => 'bundle.contract', 'checkpoint' => 'bundle.contract',
+            'difference' => ['key' => 'bundle.contract', 'index' => null, 'expected' => 2, 'actual' => 1]]);
+        $this->postJson(self::URL, $payload, $this->headers())->assertStatus(202);
+        $service = app(OutlookUniversalDiagnostics::class);
+        $user = User::findOrFail(5);
+        $event = $service->statusFor($user)['readbackErrors'][0];
+        self::assertSame('U2E_BUNDLE_STALE', $event['code']);
+        self::assertSame('bundle.contract', $event['checkpoint']);
+        self::assertMatchesRegularExpression('/\A[0-9a-f]{64}\z/', $event['serverBuildRevision']);
+        $this->postJson(self::URL, array_replace($this->readback(), ['code' => 'U2E_SOURCE_INVALID']), $this->headers())->assertStatus(202);
+        $original = $service->statusFor($user)['readbackErrors'][0];
+        self::assertSame('U2E_SOURCE_INVALID', $original['code']);
+        self::assertArrayNotHasKey('serverBuildRevision', $original);
+        $this->postJson(self::URL, $payload + ['sourceHash' => str_repeat('a', 64)], $this->headers())->assertUnprocessable();
+        Mail::assertNothingSent();
+    }
+
     public function test_admission_and_readback_are_user_scoped_and_preserve_the_latest_failure(): void
     {
         $service = app(OutlookUniversalDiagnostics::class);

@@ -8,6 +8,7 @@ namespace App\Support\OutlookAddin;
 final class OutlookUniversalDiagnosticDetails
 {
     public const CHECKPOINTS = [
+        'bundle.contract',
         'html.parse', 'scope.boundary', 'markers.count', 'markers.tag',
         'markers.binding', 'shell.rows', 'shell.width', 'shell.align',
         'shell.hidden', 'grid.author', 'grid.columns', 'grid.rowspan',
@@ -24,6 +25,8 @@ final class OutlookUniversalDiagnosticDetails
     ];
 
     public const KEYS = [
+        'bundle.template',
+        'bundle.contract',
         'html.parse', 'scope.boundary', 'markers.count', 'markers.tag',
         'markers.binding', 'shell.rows', 'shell.width', 'shell.align',
         'shell.hidden', 'grid.author', 'grid.columns', 'grid.rowspan',

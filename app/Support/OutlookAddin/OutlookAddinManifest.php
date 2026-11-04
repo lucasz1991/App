@@ -3,6 +3,7 @@
 namespace App\Support\OutlookAddin;
 
 use DOMDocument;
+use Illuminate\Container\Container;
 
 /**
  * Builds the centrally deployable Outlook add-in-only XML manifest.
@@ -12,7 +13,7 @@ use DOMDocument;
  */
 final class OutlookAddinManifest
 {
-    public const ADDIN_VERSION = '1.0.3.0';
+    public const ADDIN_VERSION = '1.0.4.0';
 
     public const MANIFEST_SCHEMA = '1.1';
 
@@ -139,12 +140,15 @@ final class OutlookAddinManifest
     public function urls(): array
     {
         $baseUrl = $this->baseUrl();
+        $build = Container::getInstance()->bound(OutlookAddinBuild::class)
+            ? app(OutlookAddinBuild::class) : new OutlookAddinBuild;
+        $revision = $build->metadata()['revision'] ?? self::ADDIN_VERSION;
 
         return [
-            'taskpane' => $baseUrl.'/outlook-addin/taskpane',
-            'settings' => $baseUrl.'/outlook-addin/taskpane?context=settings',
-            'runtime' => $baseUrl.'/outlook-addin/runtime?revision='.self::ADDIN_VERSION,
-            'runtime_js' => $baseUrl.'/outlook-addin/runtime.js',
+            'taskpane' => $baseUrl.'/outlook-addin/taskpane?revision='.$revision,
+            'settings' => $baseUrl.'/outlook-addin/taskpane?context=settings&revision='.$revision,
+            'runtime' => $baseUrl.'/outlook-addin/runtime?revision='.$revision,
+            'runtime_js' => $build->bundleUrl($baseUrl, 'runtime'),
             'icon_16' => $baseUrl.'/outlook-addin/assets/icon-16.png',
             'icon_25' => $baseUrl.'/outlook-addin/assets/icon-25.png',
             'icon_32' => $baseUrl.'/outlook-addin/assets/icon-32.png',

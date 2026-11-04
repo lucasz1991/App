@@ -7,6 +7,7 @@ import { automaticComposeDecision } from '../../resources/js/outlook-addin/autom
 import { u2eProbeDocument } from '../../resources/js/outlook-addin/u2e-editor-probe.js';
 import { universalRedactedReadbackFixture } from '../../resources/js/outlook-addin/u2e-readback-diagnostics.js';
 import { universalTaskpaneStatus } from '../../resources/js/outlook-addin/u2e-taskpane-status.js';
+import * as bundleVersion from '../../resources/js/outlook-addin/u2e-bundle-version.js';
 
 const codeError = code => Object.assign(new Error('PRIVATE-MAIL-BODY'), { code, token: 'PRIVATE-TOKEN' });
 
@@ -278,6 +279,7 @@ test('the event lifecycle completes once while actual failure telemetry remains 
     const calls = { completed: 0, writes: 0, failure: null };
     let telemetry;
     const context = {
+        ...bundleVersion,
         Office: f.office, Date, console: { info() {} }, LOG_PREFIX: 'synthetic',
         composeOperations: new WeakMap(), pendingNativeSignatures: new WeakMap(),
         codedError: codeError, safeErrorCode: value => value.code, reportRuntimePhase() {}, recordDiagnostic() {},
@@ -314,6 +316,7 @@ test('manual lifecycle reuses its existing token and releases failure handling w
     const calls = { auth: 0, failure: null, attempts: 0 };
     let telemetry;
     const context = {
+        ...bundleVersion,
         Office: f.office, taskpaneState: state, bootstrapStateRevision: 0, signatureStateRevision: 0, mailboxItemRevision: 0,
         universalStatusByItem: new WeakMap(), universalTaskpaneStatus, safeErrorCode: error => error?.code,
         currentConfig: f.args.config, lastActionError: null, codedError: codeError,

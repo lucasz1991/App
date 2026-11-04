@@ -6,11 +6,11 @@ const composeKey = 'railtime.u2e.compose.v1';
 const dedupeKey = 'railtime.u2e.diagnostics.v1';
 const pending = /^pending:([0-9a-f]{24}):[0-9a-f]{32}$/;
 const validPending = value => typeof value === 'string' && value.length === 65 && pending.test(value);
-export const U2E_REPORT_CODES = Object.freeze(['SIGNATURE_LAYOUT_UNCONFIRMED', 'U2E_INSERT_UNCERTAIN', 'U2E_NEW_DRAFT_REQUIRED',
+export const U2E_REPORT_CODES = Object.freeze(['U2E_BUNDLE_STALE', 'SIGNATURE_LAYOUT_UNCONFIRMED', 'U2E_INSERT_UNCERTAIN', 'U2E_NEW_DRAFT_REQUIRED',
     'U2E_SOURCE_INVALID', 'U2E_CONTEXT_UNREADABLE', 'U2E_API_UNAVAILABLE', 'U2E_HEADER_UNAVAILABLE',
     'U2E_DOCUMENT_INVALID', 'U2E_INSERT_IN_PROGRESS', 'U2E_SESSION_UNAVAILABLE', 'U2E_HTML_REQUIRED',
     'U2E_CONTEXT_CHANGED', 'COMPOSE_ITEM_CHANGED', 'U2E_OPERATION_FAILED', 'U2E_AUTOMATIC_SKIPPED']);
-export const U2E_REPORT_STEPS = Object.freeze(['binding', 'legacy', 'session.read', 'session.claim', 'session.finalize', 'session.verify',
+export const U2E_REPORT_STEPS = Object.freeze(['bundle.contract', 'binding', 'legacy', 'session.read', 'session.claim', 'session.finalize', 'session.verify',
     'snapshot.type', 'snapshot.format', 'snapshot.body', 'snapshot.region', 'source.state', 'header.write',
     'body.write', 'context.compare', 'readback.material', 'readback.compose_type', 'readback.quote', 'readback.author']);
 const originalCodes = [...U2E_REPORT_CODES, 'UNAVAILABLE', 'OFFICE_WRITE_FAILED', 'MAILBOX_BINDING_INVALID',

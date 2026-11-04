@@ -1,7 +1,7 @@
 // Authenticated operational metadata only. Never serialize Office HTML or errors.
 import { U2E_READBACK_CHECKPOINTS, U2E_READBACK_DIFFERENCE_KEYS, validateUniversalRedactedFixture } from './u2e-readback-diagnostics.js';
 import { claimUniversalDiagnostic, universalDiagnosticId } from './u2e-session-report.js';
-const CODES = new Set(['SIGNATURE_LAYOUT_UNCONFIRMED', 'U2E_INSERT_UNCERTAIN', 'U2E_NEW_DRAFT_REQUIRED',
+const CODES = new Set(['U2E_BUNDLE_STALE', 'SIGNATURE_LAYOUT_UNCONFIRMED', 'U2E_INSERT_UNCERTAIN', 'U2E_NEW_DRAFT_REQUIRED',
     'U2E_SOURCE_INVALID', 'U2E_CONTEXT_UNREADABLE', 'U2E_API_UNAVAILABLE', 'U2E_HEADER_UNAVAILABLE',
     'U2E_DOCUMENT_INVALID', 'U2E_INSERT_IN_PROGRESS', 'U2E_SESSION_UNAVAILABLE', 'U2E_HTML_REQUIRED',
     'U2E_CONTEXT_CHANGED', 'COMPOSE_ITEM_CHANGED', 'U2E_OPERATION_FAILED', 'U2E_AUTOMATIC_SKIPPED']);
@@ -9,7 +9,7 @@ const PHASES = new Set(['preflight', 'claim', 'header', 'write', 'readback', 'co
 const OPERATION_FIELDS = Object.freeze({
     originalCode: new Set([...CODES, 'UNAVAILABLE', 'OFFICE_WRITE_FAILED', 'MAILBOX_BINDING_INVALID',
         'SENDER_API_UNAVAILABLE', 'SENDER_READ_FAILED', 'MAILBOX_MISMATCH', 'SENDER_MISMATCH']),
-    step: new Set(['binding', 'legacy', 'session.read', 'session.claim', 'session.finalize', 'session.verify',
+    step: new Set(['bundle.contract', 'binding', 'legacy', 'session.read', 'session.claim', 'session.finalize', 'session.verify',
         'snapshot.type', 'snapshot.format', 'snapshot.body', 'snapshot.region', 'source.state', 'header.write',
         'body.write', 'context.compare', 'readback.material', 'readback.compose_type', 'readback.quote', 'readback.author']),
     bodyLengthOrigin: new Set(['original', 'actual']),
