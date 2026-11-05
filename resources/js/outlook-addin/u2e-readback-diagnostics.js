@@ -173,12 +173,15 @@ export function firstUniversalEvidenceDifference(expected, actual) {
 }
 
 function safeCssValue(input) {
-    const value = input.trim().toLowerCase().replace(/["']/g, '').replace(/\s+/g, ' ');
+    const value = input.trim().toLowerCase().replace(/["']/g, '').replace(/\s+/g, ' ')
+        // Word's zero-cm padding is exactly zero. Retain that fact without
+        // admitting nonzero lengths in additional units into diagnostic HTML.
+        .replace(/(^|[\s,/])0(?:\.0+)?(?:cm|mm|in|pc)(?=$|[\s,/)])/g, (_match, prefix) => prefix + '0');
     if (value.length > 256 || !/^[a-z0-9#.,%()!\s\/-]+$/.test(value)) return 'rt-redacted';
     let residual = value.replace(/\s*!important$/, '').replace(/#[0-9a-f]{3,8}\b/g, '');
     residual = residual.replace(/rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/g, (match, ...parts) => parts.slice(0, 3).every(part => Number(part) <= 255) ? '' : 'invalid');
     let bounded = true;
-    residual = residual.replace(/-?\d+(?:\.\d+)?(?:px|pt|%|em|rem)?/g, number => { if (Math.abs(parseFloat(number)) > 1000000) bounded = false; return ''; });
+    residual = residual.replace(/-?(?:\d+(?:\.\d+)?|\.\d+)(?:px|pt|%|em|rem)?/g, number => { if (Math.abs(parseFloat(number)) > 1000000) bounded = false; return ''; });
     const words = residual.trim().split(/[\s,/]+/).filter(Boolean);
     return bounded && words.every(word => cssWords.has(word)) ? value : 'rt-redacted';
 }
@@ -213,8 +216,12 @@ function safeAttributes(node) {
             const colon = declaration.indexOf(':'), key = declaration.slice(0, colon).trim().toLowerCase();
             return colon >= 0 && cssProperties.has(key) ? [key + ':' + safeCssValue(declaration.slice(colon + 1))] : [];
         }).join(';');
-        else if (['width', 'height', 'border', 'cellpadding', 'cellspacing', 'rowspan', 'colspan'].includes(name)) value =
-            original.length <= 32 && /^\d+(?:\.\d+)?(?:px|pt|%)?$/i.test(original) ? original : '0';
+        else if (['width', 'height', 'border', 'cellpadding', 'cellspacing', 'rowspan', 'colspan'].includes(name)) {
+            // Keep Word's .75pt as the equivalent finite 0.75pt, rather than
+            // changing a visible line to zero in the diagnostic replay.
+            const normalized = original.replace(/^\.(?=\d)/, '0.');
+            value = normalized.length <= 32 && /^\d+(?:\.\d+)?(?:px|pt|%)?$/i.test(normalized) ? normalized : '0';
+        }
         else if (['align', 'valign'].includes(name)) value = /^(left|right|center|justify|top|bottom|middle|baseline)$/i.test(original) ? original.toLowerCase() : 'left';
         else if (['bgcolor', 'color'].includes(name)) value = /^(?:#[0-9a-f]{3,8}|rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\))$/i.test(original) ? original.toLowerCase().replace(/\s+/g, ' ') : '#000000';
         else if (name === 'src') value = redactedUrl(original, true);

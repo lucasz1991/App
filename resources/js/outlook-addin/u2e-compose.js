@@ -168,16 +168,24 @@ function visibleDispatchCaps(html, elements, dispatch) {
     const rows = tableRows(elements, dispatch.index);
     const caps = [rows[0], rows[3]].map(row => ({ row, cell: rowCells(elements, row.index)[0] }));
     for (const { row, cell } of caps) {
+        const descendants = cell ? indexed(elements).filter(value => value.index !== cell.index && inside(elements, value.index, cell.index)) : [];
+        const paragraphs = descendants.filter(value => value.node.tag === 'p');
         if (!cell || text(html.slice(cell.node.openEnd, cell.node.close)) !== ''
-            || indexed(elements).some(value => value.index !== cell.index && inside(elements, value.index, cell.index)
-                && ['img', 'a', 'table', 'tr', 'td', 'th'].includes(value.node.tag))) throw layoutFailure('caps.structure');
-        if (!dimension(cell.node, 'height', 8) || !dimension(cell.node, 'line-height', 8)) throw layoutFailure('caps.visibility');
+            || paragraphs.length > 1 || descendants.some(value => !['p', 'span', 'font', 'o:p'].includes(value.node.tag)
+                || Object.hasOwn(value.node.attrs, 'data-rt-redacted'))) throw layoutFailure('caps.structure');
+        // Word can move the exact line box from the cell to its single empty
+        // paragraph. Height remains on the cell; extra lines are not allowed.
+        const line = property(cell.node, 'line-height').length ? cell.node : paragraphs.length === 1 ? paragraphs[0].node : null;
+        if (!dimension(cell.node, 'height', 8) || !line || !dimension(line, 'line-height', 8)) throw layoutFailure('caps.visibility');
         try { visibleCtaLine(cell.node, row.node); } catch { throw layoutFailure('caps.visibility'); }
         // Word may serialize zero as 0cm. Nonzero padding would enlarge an
         // otherwise nominally 8px table cell and is never a cap normalization.
         const zero = value => value.trim().split(/\s+/).every(token => /^0(?:\.0+)?(?:px|pt|cm|mm|in|pc|em|rem|%)?$/.test(token));
-        if (['padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left']
-            .some(name => property(cell.node, name).some(value => !zero(value)))) throw layoutFailure('caps.visibility');
+        if ([cell, ...descendants].some(value => ['padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+            'margin', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left']
+            .some(name => property(value.node, name).some(candidate => !zero(candidate)))
+            || value !== cell && ['height', 'min-height', 'max-height'].some(name => property(value.node, name).length
+                && !dimension(value.node, name, 8)))) throw layoutFailure('caps.visibility');
     }
 }
 
@@ -303,7 +311,7 @@ function validateUniversalSourceStyles(plan) {
     if (rows.length !== 4) throw failure('U2E_SOURCE_INVALID');
     const top = rowCells(elements, rows[0].index), bottom = rowCells(elements, rows[3].index);
     if ([top, bottom].some(cells => cells.length !== 1 || cells[0].node.tag !== 'td'
-        || !dimension(cells[0].node, 'height', 8))) throw failure('U2E_SOURCE_INVALID');
+        || !dimension(cells[0].node, 'height', 8) || !dimension(cells[0].node, 'line-height', 8))) throw failure('U2E_SOURCE_INVALID');
     if (JSON.stringify(property(dispatch[0].node, 'border-collapse')) !== JSON.stringify(['separate'])
         || JSON.stringify(property(dispatch[0].node, 'border-spacing')) !== JSON.stringify(['0'])
         || JSON.stringify(property(dispatch[0].node, 'border-radius')) !== JSON.stringify(['8px'])

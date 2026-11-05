@@ -55,7 +55,7 @@ final class OutlookUniversalTransitSnapshotProviderTest extends TestCase
         $result = $service->resolve(self::TENANT, $user->id, $user->email, $service->draft['header']);
         self::assertTrue($result['ok']);
         self::assertSame($service->draft, $result['projection']);
-        self::assertCount(13, $result['media']);
+        self::assertCount(9, $result['media']);
         foreach ($result['media'] as $entry) {
             $bytes = base64_decode($entry['dataBase64'], true);
             self::assertSame($entry['sha256'], hash('sha256', $bytes));

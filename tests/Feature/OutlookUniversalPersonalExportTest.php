@@ -32,7 +32,7 @@ final class OutlookUniversalPersonalExportTest extends TestCase
         Mail::fake();
     }
 
-    public function test_html_download_embeds_thirteen_images_and_preserves_the_author_and_complete_head(): void
+    public function test_html_download_embeds_nine_images_and_preserves_the_author_and_complete_head(): void
     {
         $service = $this->service();
         $draft = $this->draft($service);
@@ -41,10 +41,10 @@ final class OutlookUniversalPersonalExportTest extends TestCase
         self::assertSame($legacy['filename'], $result['filename']);
         self::assertSame($legacy['mime'], $result['mime']);
         self::assertStringContainsString($draft['marker'], $result['content']);
-        self::assertSame(13, substr_count($result['content'], '<img '));
-        self::assertSame(13, substr_count($result['content'], 'src="data:image/png;base64,'));
+        self::assertSame(9, substr_count($result['content'], '<img '));
+        self::assertSame(9, substr_count($result['content'], 'src="data:image/png;base64,'));
         self::assertSame(3, substr_count($result['content'], '@media'));
-        self::assertSame(8, substr_count($result['content'], 'mso-line-height-rule:exactly'));
+        self::assertSame(4, substr_count($result['content'], 'mso-line-height-rule:exactly'));
         preg_match('~<head>.*?</head>~s', $draft['html'], $head);
         self::assertStringContainsString($head[0], $result['content']);
         self::assertTrue(str_contains($result['content'], $this->author($service)));
@@ -64,16 +64,16 @@ final class OutlookUniversalPersonalExportTest extends TestCase
         foreach ([$result['content'], $copy] as $html) {
             self::assertStringContainsString($draft['marker'], $html);
             self::assertSame(1, substr_count($html, 'class="rt-shell"'));
-            self::assertSame(13, substr_count($html, '<img '));
+            self::assertSame(9, substr_count($html, '<img '));
             self::assertFalse(str_contains($html, $this->author($service)));
             self::assertSame(3, substr_count($html, '@media'));
         }
-        self::assertSame(13, substr_count($result['content'], 'src="data:image/png;base64,'));
-        self::assertSame(13, substr_count($copy, 'src="https://mail.example.test/m/'));
+        self::assertSame(9, substr_count($result['content'], 'src="data:image/png;base64,'));
+        self::assertSame(9, substr_count($copy, 'src="https://mail.example.test/m/'));
         self::assertStringNotContainsString('data:image', $copy);
     }
 
-    public function test_eml_is_a_download_only_draft_with_original_headers_and_thirteen_hash_valid_cid_parts(): void
+    public function test_eml_is_a_download_only_draft_with_original_headers_and_nine_hash_valid_cid_parts(): void
     {
         $service = $this->service();
         $draft = $this->draft($service);
@@ -90,12 +90,12 @@ final class OutlookUniversalPersonalExportTest extends TestCase
         preg_match('~Content-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n([A-Za-z0-9+/=\r\n]+)\r\n--~', $mime, $htmlPart);
         $html = base64_decode($htmlPart[1], true);
         self::assertIsString($html);
-        self::assertSame(13, substr_count($html, '<img '));
-        self::assertSame(13, substr_count($html, 'src="cid:railtime-u2e-'));
+        self::assertSame(9, substr_count($html, '<img '));
+        self::assertSame(9, substr_count($html, 'src="cid:railtime-u2e-'));
         self::assertSame(3, substr_count($html, '@media'));
         self::assertTrue(str_contains($html, $this->author($service)));
         preg_match_all('~Content-Type: image/png; name="([0-9a-f]{10}\.png)"\r\nContent-Transfer-Encoding: base64\r\nContent-ID: <([^>]+)>\r\nContent-Disposition: inline; filename="\1"\r\n\r\n([A-Za-z0-9+/=\r\n]+)\r\n--~', $mime, $parts, PREG_SET_ORDER);
-        self::assertCount(13, $parts);
+        self::assertCount(9, $parts);
         foreach ($parts as $part) {
             $bytes = base64_decode($part[3], true);
             self::assertSame(hash_file('sha256', public_path('m/'.$part[1])), hash('sha256', $bytes));
@@ -161,7 +161,7 @@ final class OutlookUniversalPersonalExportTest extends TestCase
         }
         $result = $service->project($this->pilot(), 'vorlage-html', $this->legacy('text/html; charset=UTF-8'));
         self::assertStringContainsString($author, $result['content']);
-        self::assertSame(13, substr_count($result['content'], '<img '));
+        self::assertSame(9, substr_count($result['content'], '<img '));
     }
 
     public function test_a_nonportable_author_image_keeps_the_whole_existing_export_instead_of_rewriting_author_bytes(): void
@@ -197,7 +197,7 @@ final class OutlookUniversalPersonalExportTest extends TestCase
         $download = $this->actingAs($pilot)->get('/email-templates/vorlage-html/download?user='.$foreign->id);
         $download->assertOk()->assertHeader('Content-Type', 'text/html; charset=UTF-8');
         self::assertStringContainsString('rt-sig-u2-', $download->getContent());
-        self::assertSame(13, substr_count($download->getContent(), 'src="data:image/png;base64,'));
+        self::assertSame(9, substr_count($download->getContent(), 'src="data:image/png;base64,'));
         $preview = $this->get('/email-templates/vorlage-html/preview?user='.$foreign->id);
         $preview->assertOk();
         self::assertStringContainsString('rt-sig-u2-', $preview->getContent());

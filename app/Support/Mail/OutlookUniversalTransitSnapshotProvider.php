@@ -121,7 +121,7 @@ class OutlookUniversalTransitSnapshotProvider
             }
             $result[] = ['source' => $url, 'mime' => 'image/png', 'sha256' => $entry['sha256'], 'dataBase64' => base64_encode($bytes)];
         }
-        if (count($result) < 12 || count($result) > 13) {
+        if (count($result) < 8 || count($result) > 9) {
             throw new RuntimeException('U2E_TRANSIT_ASSET_INVALID');
         }
 
