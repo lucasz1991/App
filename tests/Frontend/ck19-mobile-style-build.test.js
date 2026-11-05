@@ -26,8 +26,8 @@ test('the actual template CSS and versioned mapping reproduce the exact approved
     assert.equal(generated.payload.length, CK19_APPROVED_V11_CHARACTERS);
     assert.equal(generated.payload.length, 4999);
     assert.equal(sha(generated.payload), CK19_APPROVED_V11_SHA256);
-    assert.equal(generated.derivedDeclarations, 95);
-    assert.equal(generated.transportOverrides, 20);
+    assert.equal(generated.derivedDeclarations, 89);
+    assert.equal(generated.transportOverrides, 26);
     assert.equal(mapping.rules.length, 42);
     assert.doesNotMatch(generated.payload, /\[class\s*\$\s*=|:not\s*\(|<meta/i);
     assert.equal(postcss.parse(generated.payload.match(/<style[^>]*>([\s\S]*)<\/style>/)[1]).nodes[0].name, 'media');
@@ -48,7 +48,7 @@ test('manifest pins the actual template constant, CSS, generator, mapping and pa
 });
 
 test('checked-in generated files match deterministic generation, including the current template version', async () => {
-    const result = await buildCk19MobileStyle({ check: true });
+    const result = await buildCk19MobileStyle({ check: true, release: 'v11' });
     assert.equal(result.sourceTemplateSha256, generated.templateHash);
 });
 
@@ -58,7 +58,7 @@ test('a changed source CSS or a stale TEMPLATE_SHA256 stops generation', () => {
 });
 
 test('changing the HTML body and PHP pin together still needs explicit template mapping approval', () => {
-    assert.equal(mapping.approvedTemplateSha256, '5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204');
+    assert.equal(mapping.approvedTemplateSha256, 'ecb6bbe92fbf50b5ecc9f0145894cf524d03545d776df3ff1ff4046a5db38ecf');
     const changed = templateHtml.replace('width="247"', 'width="246"');
     assert.notEqual(changed, templateHtml);
     const changedPhp = presentationPhp.replace(generated.templateHash, sha(changed));
@@ -113,9 +113,10 @@ test('v10 mapping and generated history remain unchanged and are still reproduci
     for (const [name, digest] of Object.entries(suppliedV11.v10HistoryNormalizedSha256)) assert.equal(sha(await read(name)), digest);
     const historyMapping = JSON.parse(await read('resources/mail-templates/ck19-mobile-style-v10.mapping.json'));
     // Historical v10 remains bound to its explicitly approved v2.2 input.
-    // Reversing only C-K22's exact three inline additions recovers that input.
+    // The immutable v2.3 test fixture records the real prior LIVE source;
+    // reversing only its three C-K22 nowrap additions recovers v2.2.
     assert.equal((templateHtml.match(/white-space:nowrap;/g) || []).length, 3);
-    const historyTemplate = templateHtml.replaceAll('white-space:nowrap;', '');
+    const historyTemplate = (await read('tests/Fixtures/mail/ck19-mobile-style-v16/template-v23-approved.html')).replaceAll('white-space:nowrap;', '');
     assert.equal(sha(historyTemplate), historyMapping.approvedTemplateSha256);
     const historyPhp = presentationPhp.replace(generated.templateHash, historyMapping.approvedTemplateSha256);
     const history = generate({ templateHtml: historyTemplate, presentationPhp: historyPhp, mapping: historyMapping });

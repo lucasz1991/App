@@ -312,13 +312,11 @@ function material(html, expectedMarker = null, source = false, host = null) {
     const colors = own.filter(value => value.node.tag === 'td').map(value => materialBackgroundColor(elements, value));
     if (materialBackgroundColor(elements, legal[0]) !== '#e4e8ec') throw layoutFailure('colors.legal', '#e4e8ec', materialBackgroundColor(elements, legal[0]));
     if (backgroundColor(dispatch[0].node) !== '#e4002b') throw layoutFailure('colors.dispatch', '#e4002b', backgroundColor(dispatch[0].node));
-    let borders, cta;
-    try { cta = u2eCtaMaterial(elements, grid, dispatch); borders = u2eTopBorderEvidence(elements, grid, dispatch); }
+    let borders;
+    try { borders = u2eTopBorderEvidence(elements, grid, dispatch); }
     catch (error) { throw layoutFailure(['borders.structure', 'borders.invalid', 'borders.image', 'borders.cta'].includes(error?.checkpoint) ? error.checkpoint : 'borders.invalid'); }
     visibleDispatchCaps(html, elements, dispatch[0], !source && host === 'OutlookIOS');
-    visibleCtaLine(cta.line.node, cta.lineRow.node);
-    if (source && materialBackgroundColor(elements, cta.line) !== '#ffffff') throw layoutFailure('colors.line');
-    if (own.filter(value => value.node.tag === 'td' && value.index !== cta.line.index && inside(elements, value.index, dispatch[0].index)).some(value => {
+    if (own.filter(value => value.node.tag === 'td' && inside(elements, value.index, dispatch[0].index)).some(value => {
             // C-K21 v2.2 caps and panel share red. A missing equal cell
             // color still uses only its nearest table.
             return materialBackgroundColor(elements, value) !== '#e4002b';
@@ -350,8 +348,8 @@ function validateUniversalSourceStyles(plan) {
         || JSON.stringify(property(top[0].node, 'border-radius')) !== JSON.stringify(['8px 8px 0 0'])
         || JSON.stringify(property(bottom[0].node, 'border-radius')) !== JSON.stringify(['0 0 8px 8px'])) throw failure('U2E_SOURCE_INVALID');
     const gridIds = new Set(grid.map(cell => cell.index));
-    const exactIds = new Set([...top, ...bottom, cta.line, cta.actionCells[2]].map(cell => cell.index));
-    if (gridIds.size !== 4 || exactIds.size !== 4) throw failure('U2E_SOURCE_INVALID');
+    const exactIds = new Set([...top, ...bottom, cta.actionCells[2]].map(cell => cell.index));
+    if (gridIds.size !== 4 || exactIds.size !== 3) throw failure('U2E_SOURCE_INVALID');
     for (const { node, index } of indexed(elements)) {
         const isGrid = gridIds.has(index), isExact = exactIds.has(index);
         if (isGrid && [['display', 'inline-block'], ['max-width', '100%'], ['box-sizing', 'border-box']]

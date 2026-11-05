@@ -245,7 +245,7 @@ test('optional immutable private exports remain legacy under the new offline PHP
     const source = validateUniversalComposeDocument(wire.document);
     assert.equal(wire.queryCount, 0);
     assert.notEqual(sha256(source.html), manifest.sourceProjection.sourceHtmlSha256);
-    assert.match(source.html, /rt-cta-line/);
+    assert.doesNotMatch(source.html, /rt-cta-line|colspan="5"/);
     const previousOutlook = universalComposeStateFromBody(source, exports.outlook, 'newMail');
     assert.equal(previousOutlook.present, true); assert.equal(previousOutlook.current, false);
     assert.equal(previousOutlook.checkpoint, 'state.version');

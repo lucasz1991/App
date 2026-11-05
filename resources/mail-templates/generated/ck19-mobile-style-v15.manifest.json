@@ -3,21 +3,52 @@
   "kind": "ck19-approved-v15-generated-mobile-style",
   "revision": "ck19-approved-v15-20261105",
   "sourceTemplate": "resources/mail-templates/u2e-universal-v1.html",
-  "sourceTemplateSha256": "5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204",
-  "sourceCssSha256": "502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1",
+  "sourceTemplateSha256": "ecb6bbe92fbf50b5ecc9f0145894cf524d03545d776df3ff1ff4046a5db38ecf",
+  "sourceCssSha256": "cf15bb89e9425c30f3db73b20b5263763e5c2b0d3d32d9a4e67625a5c2ed0006",
   "templateConstant": "OutlookUniversalPresentation::TEMPLATE_SHA256",
   "mapping": "resources/mail-templates/ck19-mobile-style-v15.mapping.json",
-  "mappingSha256": "c48d443375f7f44740e62c7782749ee197459717cdd9c642800ae956131ce125",
+  "mappingSha256": "2a69e842b638cfee1a70475af69d6950172a2fb8b26545ae8766bed82241cc8e",
   "generator": "scripts/build-ck19-mobile-style.mjs",
-  "generatorSha256": "7e1af0965110a11bd011bb7d03e9b939d016a86d89434ef424e064efdc5205f2",
+  "generatorSha256": "aa78337f8253802f120de64d4d2935762fe2c72220f723e274d3d551ab4f423b",
   "payload": "ck19-mobile-style-v15.html",
   "payloadSha256": "f5e928a2f517887f7379646bada05223fe7efbb26880be228d368e08774e2595",
   "payloadCharacters": 3803,
   "maximumCharactersExclusive": 5000,
   "media": "only screen and (max-width:1039px)",
   "rules": 34,
-  "derivedDeclarations": 81,
-  "explicitTransportOverrides": 22,
+  "derivedDeclarations": 78,
+  "explicitTransportOverrides": 25,
+  "historicalPaddingOverrides": 2,
+  "historicalPaddingSources": [
+    {
+      "approval": "C-K26-user-approved-retain-existing-v11-v15-payloads",
+      "templateSha256": "5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204",
+      "cssSha256": "502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1",
+      "media": "only screen and (max-width:600px)",
+      "selector": ".rt-dispo-actions",
+      "property": "padding",
+      "value": "4px 20px 4px 0"
+    },
+    {
+      "approval": "C-K26-user-approved-retain-existing-v11-v15-payloads",
+      "templateSha256": "5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204",
+      "cssSha256": "502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1",
+      "media": "only screen and (max-width:600px)",
+      "selector": ".rt-cta-cell",
+      "property": "padding",
+      "value": "5px 0 5px 12px"
+    }
+  ],
+  "historicalLineOverrides": 1,
+  "historicalLineSource": {
+    "approval": "C-K25-user-approved-retain-existing-v11-v15-payloads",
+    "templateSha256": "5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204",
+    "cssSha256": "502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1",
+    "media": "only screen and (max-width:600px)",
+    "selector": ".rt-cta-line",
+    "property": "display",
+    "value": "none"
+  },
   "nativeClientProof": false,
   "exchangeRuleUpdatedByBuild": false,
   "sourceFileNormalization": {
@@ -28,6 +59,6 @@
     "ruleTextSha256": "f5e928a2f517887f7379646bada05223fe7efbb26880be228d368e08774e2595",
     "approval": "user-approved-rule-text-count-excludes-terminal-LF"
   },
-  "scope": "Approved v15 class/tag scope follows v13 and includes selectors outside table.rt-shell; unrelated-content compatibility is not asserted.",
+  "scope": "Approved v15/v17 class/tag scope follows v13 and includes selectors outside table.rt-shell; unrelated-content compatibility is not asserted.",
   "historicalCtaGuard": "Only rt-dispo-cap, rt-cta-line and rt-cta-gap descendants of table.rt-dispo are hidden by the cap/line/gap guard; CTA cells are not hidden."
 }

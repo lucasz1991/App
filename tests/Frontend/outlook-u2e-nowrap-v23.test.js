@@ -7,11 +7,13 @@ import { universalComposeStateFromBody, validateUniversalComposeDocument } from 
 const folder = new URL('../Fixtures/mail/u2e-readback-v2/', import.meta.url);
 const source = JSON.parse(fs.readFileSync(new URL('source.json', folder)));
 const old = JSON.parse(fs.readFileSync(new URL('legacy-v22/source.json', folder)));
+const v23 = JSON.parse(fs.readFileSync(new URL('legacy-v23/source.json', folder)));
 
 test('v2.3 changes exactly three inline nowrap declarations and its personal version', () => {
-    assert.notEqual(source.version, old.version);
+    assert.notEqual(v23.version, old.version);
     assert.equal((source.html.match(/white-space:nowrap;/g) || []).length, 3);
-    assert.equal(source.html.replaceAll(source.version, old.version).replaceAll('white-space:nowrap;', ''), old.html);
+    assert.equal(v23.html.replaceAll(v23.version, old.version).replaceAll('white-space:nowrap;', ''), old.html);
+    assert.equal((v23.html.match(/white-space:nowrap;/g) || []).length, 3);
     validateUniversalComposeDocument(source);
 });
 

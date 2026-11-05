@@ -3,8 +3,8 @@
   "revision": "ck19-approved-v15-20261105",
   "sourceTemplate": "resources/mail-templates/u2e-universal-v1.html",
   "sourcePhp": "app/Support/OutlookAddin/OutlookUniversalPresentation.php",
-  "approvedTemplateSha256": "5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204",
-  "sourceCssSha256": "502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1",
+  "approvedTemplateSha256": "ecb6bbe92fbf50b5ecc9f0145894cf524d03545d776df3ff1ff4046a5db38ecf",
+  "sourceCssSha256": "cf15bb89e9425c30f3db73b20b5263763e5c2b0d3d32d9a4e67625a5c2ed0006",
   "approvedPayloadSha256": "f5e928a2f517887f7379646bada05223fe7efbb26880be228d368e08774e2595",
   "approvedPayloadCharacters": 3803,
   "outputMedia": "only screen and (max-width:1039px)",
@@ -856,22 +856,23 @@
     },
     {
       "selector": "table.rt-dispo .rt-dispo-cap,table.rt-dispo .rt-cta-line,table.rt-dispo .rt-cta-gap",
-      "sourceSelectors": [
-        {
-          "media": "only screen and (max-width:600px)",
-          "selector": ".rt-cta-line"
-        }
-      ],
+      "sourceSelectors": [],
       "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
       "declarations": [
         {
           "property": "display",
-          "from": {
+          "important": true,
+          "override": "none",
+          "reason": "C-K25 retains this exact approved historical transport declaration after v2.4 removes the separator and its CSS rule; it is not derived from current CSS.",
+          "historicalSource": {
+            "approval": "C-K25-user-approved-retain-existing-v11-v15-payloads",
+            "templateSha256": "5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204",
+            "cssSha256": "502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1",
             "media": "only screen and (max-width:600px)",
             "selector": ".rt-cta-line",
-            "property": "display"
-          },
-          "important": true
+            "property": "display",
+            "value": "none"
+          }
         },
         {
           "property": "height",
@@ -971,12 +972,18 @@
         },
         {
           "property": "padding",
-          "from": {
+          "important": true,
+          "override": "4px 20px 4px 0",
+          "reason": "C-K26 preserves this exact historically approved transport padding from the v2.3 CSS; it is not a current v2.5 CSS derivation.",
+          "historicalSource": {
+            "approval": "C-K26-user-approved-retain-existing-v11-v15-payloads",
+            "templateSha256": "5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204",
+            "cssSha256": "502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1",
             "media": "only screen and (max-width:600px)",
             "selector": ".rt-dispo-actions",
-            "property": "padding"
-          },
-          "important": true
+            "property": "padding",
+            "value": "4px 20px 4px 0"
+          }
         },
         {
           "property": "text-align",
@@ -1219,12 +1226,18 @@
         },
         {
           "property": "padding",
-          "from": {
+          "important": true,
+          "override": "5px 0 5px 12px",
+          "reason": "C-K26 preserves this exact historically approved transport padding from the v2.3 CSS; it is not a current v2.5 CSS derivation.",
+          "historicalSource": {
+            "approval": "C-K26-user-approved-retain-existing-v11-v15-payloads",
+            "templateSha256": "5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204",
+            "cssSha256": "502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1",
             "media": "only screen and (max-width:600px)",
             "selector": ".rt-cta-cell",
-            "property": "padding"
-          },
-          "important": true
+            "property": "padding",
+            "value": "5px 0 5px 12px"
+          }
         },
         {
           "property": "width",

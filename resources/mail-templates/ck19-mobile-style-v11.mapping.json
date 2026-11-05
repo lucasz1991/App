@@ -3,8 +3,8 @@
   "revision": "ck19-approved-v11-20261105",
   "sourceTemplate": "resources/mail-templates/u2e-universal-v1.html",
   "sourcePhp": "app/Support/OutlookAddin/OutlookUniversalPresentation.php",
-  "approvedTemplateSha256": "5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204",
-  "sourceCssSha256": "502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1",
+  "approvedTemplateSha256": "ecb6bbe92fbf50b5ecc9f0145894cf524d03545d776df3ff1ff4046a5db38ecf",
+  "sourceCssSha256": "cf15bb89e9425c30f3db73b20b5263763e5c2b0d3d32d9a4e67625a5c2ed0006",
   "approvedPayloadSha256": "532dab7e0ebf5734736d49f427bb61f49c9cec9e9aad09165a0bbc8248e63f5a",
   "approvedPayloadCharacters": 4999,
   "outputMedia": "only screen and (max-width:1039px)",
@@ -537,12 +537,18 @@
         },
         {
           "property": "padding",
-          "from": {
+          "important": true,
+          "override": "5px 0 5px 12px",
+          "reason": "C-K26 preserves this exact historically approved transport padding from the v2.3 CSS; it is not a current v2.5 CSS derivation.",
+          "historicalSource": {
+            "approval": "C-K26-user-approved-retain-existing-v11-v15-payloads",
+            "templateSha256": "5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204",
+            "cssSha256": "502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1",
             "media": "only screen and (max-width:600px)",
             "selector": ".rt-cta-cell",
-            "property": "padding"
-          },
-          "important": true
+            "property": "padding",
+            "value": "5px 0 5px 12px"
+          }
         },
         {
           "property": "width",
@@ -1014,12 +1020,18 @@
         },
         {
           "property": "padding",
-          "from": {
+          "important": true,
+          "override": "9px 0 9px 20px",
+          "reason": "C-K26 preserves this exact historically approved transport padding from the v2.3 CSS; it is not a current v2.5 CSS derivation.",
+          "historicalSource": {
+            "approval": "C-K26-user-approved-retain-existing-v11-v15-payloads",
+            "templateSha256": "5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204",
+            "cssSha256": "502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1",
             "media": "only screen and (max-width:600px)",
             "selector": ".rt-dispo-head",
-            "property": "padding"
-          },
-          "important": true
+            "property": "padding",
+            "value": "9px 0 9px 20px"
+          }
         },
         {
           "property": "white-space",
@@ -1062,12 +1074,18 @@
         },
         {
           "property": "padding",
-          "from": {
+          "important": true,
+          "override": "4px 20px 4px 0",
+          "reason": "C-K26 preserves this exact historically approved transport padding from the v2.3 CSS; it is not a current v2.5 CSS derivation.",
+          "historicalSource": {
+            "approval": "C-K26-user-approved-retain-existing-v11-v15-payloads",
+            "templateSha256": "5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204",
+            "cssSha256": "502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1",
             "media": "only screen and (max-width:600px)",
             "selector": ".rt-dispo-actions",
-            "property": "padding"
-          },
-          "important": true
+            "property": "padding",
+            "value": "4px 20px 4px 0"
+          }
         },
         {
           "property": "text-align",
@@ -1133,22 +1151,23 @@
     },
     {
       "selector": "[width=\"247\"]>tbody>tr:nth-child(3) table>tbody>tr:first-child>td[colspan=\"5\"]",
-      "sourceSelectors": [
-        {
-          "media": "only screen and (max-width:600px)",
-          "selector": ".rt-cta-line"
-        }
-      ],
+      "sourceSelectors": [],
       "reason": "Select only the separate five-column line cell; preserve old single action rows.",
       "declarations": [
         {
           "property": "display",
-          "from": {
+          "important": true,
+          "override": "none",
+          "reason": "C-K25 retains this exact approved historical transport declaration after v2.4 removes the separator and its CSS rule; it is not derived from current CSS.",
+          "historicalSource": {
+            "approval": "C-K25-user-approved-retain-existing-v11-v15-payloads",
+            "templateSha256": "5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204",
+            "cssSha256": "502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1",
             "media": "only screen and (max-width:600px)",
             "selector": ".rt-cta-line",
-            "property": "display"
-          },
-          "important": true
+            "property": "display",
+            "value": "none"
+          }
         }
       ]
     },
@@ -1325,22 +1344,23 @@
     },
     {
       "selector": "td[colspan=\"5\"]",
-      "sourceSelectors": [
-        {
-          "media": "only screen and (max-width:600px)",
-          "selector": ".rt-cta-line"
-        }
-      ],
+      "sourceSelectors": [],
       "reason": "Approved global colspan=5 suppression. Known unrelated-table side effect is deliberately unchanged.",
       "declarations": [
         {
           "property": "display",
-          "from": {
+          "important": true,
+          "override": "none",
+          "reason": "C-K25 retains this exact approved historical transport declaration after v2.4 removes the separator and its CSS rule; it is not derived from current CSS.",
+          "historicalSource": {
+            "approval": "C-K25-user-approved-retain-existing-v11-v15-payloads",
+            "templateSha256": "5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204",
+            "cssSha256": "502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1",
             "media": "only screen and (max-width:600px)",
             "selector": ".rt-cta-line",
-            "property": "display"
-          },
-          "important": true
+            "property": "display",
+            "value": "none"
+          }
         },
         {
           "property": "height",
@@ -1370,22 +1390,23 @@
     },
     {
       "selector": "[class=\"x_rt-cta-line\"]",
-      "sourceSelectors": [
-        {
-          "media": "only screen and (max-width:600px)",
-          "selector": ".rt-cta-line"
-        }
-      ],
+      "sourceSelectors": [],
       "reason": "Rooster x_ prefix line suppression.",
       "declarations": [
         {
           "property": "display",
-          "from": {
+          "important": true,
+          "override": "none",
+          "reason": "C-K25 retains this exact approved historical transport declaration after v2.4 removes the separator and its CSS rule; it is not derived from current CSS.",
+          "historicalSource": {
+            "approval": "C-K25-user-approved-retain-existing-v11-v15-payloads",
+            "templateSha256": "5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204",
+            "cssSha256": "502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1",
             "media": "only screen and (max-width:600px)",
             "selector": ".rt-cta-line",
-            "property": "display"
-          },
-          "important": true
+            "property": "display",
+            "value": "none"
+          }
         },
         {
           "property": "height",

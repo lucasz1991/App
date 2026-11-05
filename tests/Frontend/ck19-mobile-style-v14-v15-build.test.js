@@ -17,8 +17,8 @@ const templateHtml = await read('resources/mail-templates/u2e-universal-v1.html'
 const presentationPhp = await read('app/Support/OutlookAddin/OutlookUniversalPresentation.php');
 const generatorBytes = await read('scripts/build-ck19-mobile-style.mjs');
 const cases = await Promise.all([
-    ['v14', 4950, CK19_APPROVED_V14_SHA256, CK19_V14_SOURCE_FILE_SHA256, ck19V14RuleTextFromSourceFile, 90, 22],
-    ['v15', 3803, CK19_APPROVED_V15_SHA256, CK19_V15_SOURCE_FILE_SHA256, ck19V15RuleTextFromSourceFile, 81, 22],
+    ['v14', 4950, CK19_APPROVED_V14_SHA256, CK19_V14_SOURCE_FILE_SHA256, ck19V14RuleTextFromSourceFile, 85, 27],
+    ['v15', 3803, CK19_APPROVED_V15_SHA256, CK19_V15_SOURCE_FILE_SHA256, ck19V15RuleTextFromSourceFile, 78, 25],
 ].map(async ([tag, size, digest, sourceDigest, fromSource, derived, overrides]) => {
     const mappingBytes = await read('resources/mail-templates/ck19-mobile-style-' + tag + '.mapping.json');
     const mapping = JSON.parse(mappingBytes);
@@ -36,9 +36,10 @@ for (const current of cases) {
         assert.equal(supplied.sourceFileHtml, generated.payload + '\n');
         assert.equal(generated.payload.length, size); assert.equal(Buffer.byteLength(generated.payload), size);
         assert.equal(sha(generated.payload), digest);
-        assert.equal(generated.templateHash, supplied.sourceTemplateSha256);
-        assert.equal(generated.templateHash, '5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204');
-        assert.equal(generated.cssHash, supplied.sourceCssSha256);
+        assert.equal(supplied.sourceTemplateSha256, '5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204', 'Original approval metadata stays historical.');
+        assert.equal(generated.templateHash, 'ecb6bbe92fbf50b5ecc9f0145894cf524d03545d776df3ff1ff4046a5db38ecf');
+        assert.equal(generated.cssHash, 'cf15bb89e9425c30f3db73b20b5263763e5c2b0d3d32d9a4e67625a5c2ed0006');
+        assert.equal(supplied.sourceCssSha256, '502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1');
         assert.equal(generated.derivedDeclarations, current.derived);
         assert.equal(generated.transportOverrides, current.overrides);
         assert.equal(supplied.nativeClientProof, false);
@@ -80,7 +81,7 @@ test('v15 differs from v13 only by the approved head padding', async () => {
     assert.equal(cases[1].supplied.derivedFrom, 'v13');
 });
 
-test('the existing CLI artifact set can verify all five releases while the old API default stays compatible', async () => {
+test('all historical releases remain explicitly checkable while the default selects two active releases', async () => {
     const all = await buildCk19MobileStyles({ check: true, releases: ['v11', 'v12', 'v13', 'v14', 'v15'] });
     assert.deepEqual(all.map(x => x.payloadSha256), [CK19_APPROVED_V11_SHA256, CK19_APPROVED_V12_SHA256, CK19_APPROVED_V13_SHA256, CK19_APPROVED_V14_SHA256, CK19_APPROVED_V15_SHA256]);
     assert.equal((await buildCk19MobileStyles({ check: true })).length, 2);

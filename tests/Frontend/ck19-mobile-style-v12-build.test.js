@@ -20,15 +20,15 @@ const generate = extra => generateCk19MobileStyle({ templateHtml, presentationPh
 const generated = generate();
 const outputRules = postcss.parse(generated.payload.match(/<style[^>]*>([\s\S]*)<\/style>/)[1]);
 
-test('C-K23 derives the exact approved v12 payload from the v2.3 source and explicit class mapping', () => {
+test('C-K23 derives the exact approved v12 payload from the v2.5 source and explicit class mapping', () => {
     assert.equal(generated.payload.length, CK19_APPROVED_V12_CHARACTERS);
     assert.equal(generated.payload.length, 4262);
     assert.equal(Buffer.byteLength(generated.payload), 4262);
     assert.equal(sha(generated.payload), CK19_APPROVED_V12_SHA256);
-    assert.equal(generated.templateHash, '5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204');
+    assert.equal(generated.templateHash, 'ecb6bbe92fbf50b5ecc9f0145894cf524d03545d776df3ff1ff4046a5db38ecf');
     assert.equal(generated.rules, 36);
-    assert.equal(generated.derivedDeclarations, 84);
-    assert.equal(generated.transportOverrides, 17);
+    assert.equal(generated.derivedDeclarations, 80);
+    assert.equal(generated.transportOverrides, 21);
     assert.doesNotMatch(generated.payload, /\[class\s*\$\s*=|:not\s*\(|<meta/i);
     assert.equal(outputRules.nodes.length, 1);
     assert.equal(outputRules.nodes[0].params, 'only screen and (max-width:1039px)');
@@ -58,7 +58,7 @@ test('C-K23 manifest deterministically binds template, CSS, mapping, generator a
     assert.equal(manifest.rules, 36);
     assert.equal(manifest.nativeClientProof, false);
     assert.equal(manifest.exchangeRuleUpdatedByBuild, false);
-    const both = await buildCk19MobileStyles({ check: true });
+    const both = await buildCk19MobileStyles({ check: true, releases: ['v11', 'v12'] });
     assert.deepEqual(both.map(value => value.payloadSha256), [CK19_APPROVED_V11_SHA256, CK19_APPROVED_V12_SHA256]);
     assert.equal(sha(await read('resources/mail-templates/generated/ck19-mobile-style-v11.html')), CK19_APPROVED_V11_SHA256);
 });
@@ -114,8 +114,8 @@ function hiddenByOutput(document) {
     return node => { for (let at = node; at; at = at.parentElement) if (hidden.has(at)) return true; return false; };
 }
 
-test('C-K23 selectors work without table/cell width attributes or span classes in a synthetic mobile serialization', async () => {
-    const source = JSON.parse(await read('tests/Fixtures/mail/u2e-readback-v2/source.json')).html;
+test('historical C-K23 selectors work without width attributes or span classes in the preserved v2.3 serialization', async () => {
+    const source = JSON.parse(await read('tests/Fixtures/mail/u2e-readback-v2/legacy-v23/source.json')).html;
     const document = browserTableStructure(source);
     for (const node of document.querySelectorAll('table,td')) { node.removeAttribute('width'); node.removeAttribute('bgcolor'); }
     for (const node of document.querySelectorAll('span')) node.removeAttribute('class');

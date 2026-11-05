@@ -21,11 +21,60 @@ export const CK19_V14_SOURCE_FILE_SHA256 = 'f3aaa167d1f059a6f3fde1226dab0724507b
 export const CK19_APPROVED_V15_SHA256 = 'f5e928a2f517887f7379646bada05223fe7efbb26880be228d368e08774e2595';
 export const CK19_APPROVED_V15_CHARACTERS = 3803;
 export const CK19_V15_SOURCE_FILE_SHA256 = '80ede788b578b6efa40c92ddeaef096eb94c53966711d63b8442705779fe0687';
+export const CK19_APPROVED_V16_SHA256 = 'c5532f4ac2805996973d7c001fbcadaf34ab988b752f4a23bd368635b6801b62';
+export const CK19_APPROVED_V16_CHARACTERS = 4948;
+export const CK19_V16_SOURCE_FILE_SHA256 = '600e526b11d27f4a44f672d64c7c1d7fd78aa3ee087c51dfb6143a029c0a6e5e';
+export const CK19_APPROVED_V17_SHA256 = '36bfdadfced47555ea12e092902652db5efa6f91a04b7cd704f80cf82a145d24';
+export const CK19_APPROVED_V17_CHARACTERS = 3801;
+export const CK19_V17_SOURCE_FILE_SHA256 = '00dc74efd5d4c6e628eb16569449de8a57738647c4293187809c45993a90aacf';
 export const CK19_GENERATED_DIRECTORY = 'resources/mail-templates/generated';
 const projectRoot = fileURLToPath(new URL('..', import.meta.url));
 const sha256 = value => createHash('sha256').update(value).digest('hex');
 const normalize = value => String(value).replaceAll('\r\n', '\n');
 const fail = code => { throw new Error('CK19_' + code); };
+// C-K25 preserves approved transport bytes, while the removed line rule is no
+// longer claimed as a derivation from the current v2.5 CSS.
+const ck26TemplateHash = 'ecb6bbe92fbf50b5ecc9f0145894cf524d03545d776df3ff1ff4046a5db38ecf';
+const historicalLineSource = Object.freeze({
+    "approval": "C-K25-user-approved-retain-existing-v11-v15-payloads",
+    "templateSha256": "5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204",
+    "cssSha256": "502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1",
+    "media": "only screen and (max-width:600px)",
+    "selector": ".rt-cta-line",
+    "property": "display",
+    "value": "none"
+});
+const historicalLineCounts = Object.freeze({ v11: 3, v12: 1, v13: 1, v14: 3, v15: 1, v16: 3, v17: 1 });
+const historicalPaddingCounts = Object.freeze({ v11: 3, v12: 3, v13: 3, v14: 2, v15: 2, v16: 0, v17: 0 });
+const historicalPaddingSources = Object.freeze([
+    {
+        "approval": "C-K26-user-approved-retain-existing-v11-v15-payloads",
+        "templateSha256": "5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204",
+        "cssSha256": "502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1",
+        "media": "only screen and (max-width:600px)",
+        "selector": ".rt-dispo-head",
+        "property": "padding",
+        "value": "9px 0 9px 20px"
+    },
+    {
+        "approval": "C-K26-user-approved-retain-existing-v11-v15-payloads",
+        "templateSha256": "5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204",
+        "cssSha256": "502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1",
+        "media": "only screen and (max-width:600px)",
+        "selector": ".rt-dispo-actions",
+        "property": "padding",
+        "value": "4px 20px 4px 0"
+    },
+    {
+        "approval": "C-K26-user-approved-retain-existing-v11-v15-payloads",
+        "templateSha256": "5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204",
+        "cssSha256": "502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1",
+        "media": "only screen and (max-width:600px)",
+        "selector": ".rt-cta-cell",
+        "property": "padding",
+        "value": "5px 0 5px 12px"
+    }
+]);
 const releases = Object.freeze({
     'ck19-approved-v10-20261105': Object.freeze({ tag: 'v10', sha256: CK19_APPROVED_V10_SHA256,
         characters: CK19_APPROVED_V10_CHARACTERS, suffix: '</style>\n', rules: 42 }),
@@ -39,6 +88,10 @@ const releases = Object.freeze({
         characters: CK19_APPROVED_V14_CHARACTERS, suffix: '</style>', rules: 42 }),
     'ck19-approved-v15-20261105': Object.freeze({ tag: 'v15', sha256: CK19_APPROVED_V15_SHA256,
         characters: CK19_APPROVED_V15_CHARACTERS, suffix: '</style>', rules: 34 }),
+    'ck19-approved-v16-20261106': Object.freeze({ tag: 'v16', sha256: CK19_APPROVED_V16_SHA256,
+        characters: CK19_APPROVED_V16_CHARACTERS, suffix: '</style>', rules: 42 }),
+    'ck19-approved-v17-20261106': Object.freeze({ tag: 'v17', sha256: CK19_APPROVED_V17_SHA256,
+        characters: CK19_APPROVED_V17_CHARACTERS, suffix: '</style>', rules: 34 }),
 });
 
 /** The source-file EOF is explicitly not part of the approved v11 rule text.
@@ -85,6 +138,22 @@ export function ck19V15RuleTextFromSourceFile(source) {
     return ruleText;
 }
 
+export function ck19V16RuleTextFromSourceFile(source) {
+    if (typeof source !== 'string' || source.length !== 4949 || Buffer.byteLength(source) !== 4949
+        || sha256(source) !== CK19_V16_SOURCE_FILE_SHA256 || !source.endsWith('\n') || source.endsWith('\n\n')) fail('V16_SOURCE_FILE_INVALID');
+    const ruleText = source.slice(0, -1);
+    if (ruleText.length !== CK19_APPROVED_V16_CHARACTERS || sha256(ruleText) !== CK19_APPROVED_V16_SHA256) fail('V16_RULE_TEXT_INVALID');
+    return ruleText;
+}
+
+export function ck19V17RuleTextFromSourceFile(source) {
+    if (typeof source !== 'string' || source.length !== 3802 || Buffer.byteLength(source) !== 3802
+        || sha256(source) !== CK19_V17_SOURCE_FILE_SHA256 || !source.endsWith('\n') || source.endsWith('\n\n')) fail('V17_SOURCE_FILE_INVALID');
+    const ruleText = source.slice(0, -1);
+    if (ruleText.length !== CK19_APPROVED_V17_CHARACTERS || sha256(ruleText) !== CK19_APPROVED_V17_SHA256) fail('V17_RULE_TEXT_INVALID');
+    return ruleText;
+}
+
 /** Pure generation: no application boot, mailbox, network, rule or mail action. */
 export function generateCk19MobileStyle({ templateHtml, presentationPhp, mapping }) {
     const template = normalize(templateHtml);
@@ -128,6 +197,18 @@ export function generateCk19MobileStyle({ templateHtml, presentationPhp, mapping
         || mapping.sourceFileNormalization.ruleTextCharacters !== CK19_APPROVED_V15_CHARACTERS
         || mapping.sourceFileNormalization.ruleTextSha256 !== CK19_APPROVED_V15_SHA256
         || mapping.sourceFileNormalization.approval !== 'user-approved-rule-text-count-excludes-terminal-LF')) fail('V15_NORMALIZATION_CONTRACT_INVALID');
+    if (release.tag === 'v16' && (mapping.sourceFileNormalization?.operation !== 'omit-exactly-one-terminal-LF'
+        || mapping.sourceFileNormalization.sourceFileCharacters !== 4949
+        || mapping.sourceFileNormalization.sourceFileSha256 !== CK19_V16_SOURCE_FILE_SHA256
+        || mapping.sourceFileNormalization.ruleTextCharacters !== CK19_APPROVED_V16_CHARACTERS
+        || mapping.sourceFileNormalization.ruleTextSha256 !== CK19_APPROVED_V16_SHA256
+        || mapping.sourceFileNormalization.approval !== 'user-approved-rule-text-count-excludes-terminal-LF')) fail('V16_NORMALIZATION_CONTRACT_INVALID');
+    if (release.tag === 'v17' && (mapping.sourceFileNormalization?.operation !== 'omit-exactly-one-terminal-LF'
+        || mapping.sourceFileNormalization.sourceFileCharacters !== 3802
+        || mapping.sourceFileNormalization.sourceFileSha256 !== CK19_V17_SOURCE_FILE_SHA256
+        || mapping.sourceFileNormalization.ruleTextCharacters !== CK19_APPROVED_V17_CHARACTERS
+        || mapping.sourceFileNormalization.ruleTextSha256 !== CK19_APPROVED_V17_SHA256
+        || mapping.sourceFileNormalization.approval !== 'user-approved-rule-text-count-excludes-terminal-LF')) fail('V17_NORMALIZATION_CONTRACT_INVALID');
     const css = styles[0][1];
     if (sha256(css) !== mapping.sourceCssSha256) fail('SOURCE_CSS_CHANGED_REVIEW_MAPPING');
     const pins = [...String(presentationPhp).matchAll(/private const TEMPLATE_SHA256\s*=\s*'([0-9a-f]{64})';/g)];
@@ -138,6 +219,9 @@ export function generateCk19MobileStyle({ templateHtml, presentationPhp, mapping
     const tree = postcss.parse(css);
     let derivedDeclarations = 0;
     let transportOverrides = 0;
+    let historicalLineOverrides = 0;
+    let historicalPaddingOverrides = 0;
+    const usedHistoricalPaddingSources = [];
     const rendered = mapping.rules.map(rule => {
         if (typeof rule.selector !== 'string' || !rule.selector.trim()
             || /[{}<]|\[class\s*\$\s*=|:not\s*\(/i.test(rule.selector)
@@ -145,6 +229,17 @@ export function generateCk19MobileStyle({ templateHtml, presentationPhp, mapping
             || !rule.declarations.length || typeof rule.reason !== 'string' || !rule.reason) fail('RULE_INVALID');
         const declarations = rule.declarations.map(declaration => {
             if (!/^[a-z-]+$/.test(declaration.property) || typeof declaration.important !== 'boolean') fail('DECLARATION_INVALID');
+            if (Object.hasOwn(declaration, 'historicalSource')) {
+                if (templateHash !== ck26TemplateHash || declaration.from || declaration.important !== true) fail('HISTORICAL_OVERRIDE_PROVENANCE_INVALID');
+                if (declaration.property === 'display' && declaration.override === 'none'
+                    && JSON.stringify(declaration.historicalSource) === JSON.stringify(historicalLineSource)) historicalLineOverrides++;
+                else if (declaration.property === 'padding' && historicalPaddingSources.some(source => declaration.override === source.value
+                    && JSON.stringify(declaration.historicalSource) === JSON.stringify(source))) {
+                    historicalPaddingOverrides++;
+                    if (!usedHistoricalPaddingSources.some(source => source.selector === declaration.historicalSource.selector)) usedHistoricalPaddingSources.push(declaration.historicalSource);
+                }
+                else fail('HISTORICAL_OVERRIDE_PROVENANCE_INVALID');
+            }
             let value;
             if (declaration.from && !Object.hasOwn(declaration, 'override')) {
                 const from = declaration.from;
@@ -172,6 +267,8 @@ export function generateCk19MobileStyle({ templateHtml, presentationPhp, mapping
         });
         return rule.selector + '{' + declarations.join(';') + '}';
     }).join('');
+    if (templateHash === ck26TemplateHash && (historicalLineOverrides !== historicalLineCounts[release.tag]
+        || historicalPaddingOverrides !== historicalPaddingCounts[release.tag])) fail('HISTORICAL_OVERRIDE_PROVENANCE_INVALID');
     const payload = mapping.payloadPrefix + '@media ' + mapping.outputMedia + '{' + rendered + '}' + mapping.payloadSuffix;
     // Exchange's limit is strict and independent of the approved digest. Never
     // truncate, broaden selectors or silently minify a different candidate.
@@ -182,7 +279,7 @@ export function generateCk19MobileStyle({ templateHtml, presentationPhp, mapping
     if (output.nodes.length !== 1 || output.nodes[0].type !== 'atrule'
         || output.nodes[0].name !== 'media' || output.nodes[0].params !== mapping.outputMedia) fail('GENERATED_CSS_INVALID');
     return Object.freeze({ payload, templateHash, cssHash: sha256(css), derivedDeclarations, transportOverrides,
-        revision: mapping.revision, release: release.tag, rules: release.rules, sourceFileNormalization: mapping.sourceFileNormalization || null });
+        historicalLineOverrides, historicalPaddingOverrides, historicalPaddingSources: usedHistoricalPaddingSources, revision: mapping.revision, release: release.tag, rules: release.rules, sourceFileNormalization: mapping.sourceFileNormalization || null });
 }
 
 /** Stable provenance: no timestamp or private input is placed in the build. */
@@ -207,19 +304,23 @@ export function ck19Manifest({ generated, mappingBytes, generatorBytes }) {
         rules: generated.rules,
         derivedDeclarations: generated.derivedDeclarations,
         explicitTransportOverrides: generated.transportOverrides,
+        historicalPaddingOverrides: generated.historicalPaddingOverrides,
+        historicalPaddingSources: generated.historicalPaddingSources,
+        historicalLineOverrides: generated.historicalLineOverrides,
+        historicalLineSource: generated.historicalLineOverrides ? historicalLineSource : null,
         nativeClientProof: false,
         exchangeRuleUpdatedByBuild: false,
         sourceFileNormalization: generated.sourceFileNormalization,
-        scope: generated.release === 'v14'
-            ? 'Approved v14 global attribute-selector scope follows v11 and additionally targets Word head paragraphs; unrelated-content compatibility is not asserted.'
-            : generated.release === 'v15'
-            ? 'Approved v15 class/tag scope follows v13 and includes selectors outside table.rt-shell; unrelated-content compatibility is not asserted.'
+        scope: ['v14', 'v16'].includes(generated.release)
+            ? 'Approved v14/v16 global attribute-selector scope follows v11 and additionally targets Word head paragraphs; unrelated-content compatibility is not asserted.'
+            : ['v15', 'v17'].includes(generated.release)
+            ? 'Approved v15/v17 class/tag scope follows v13 and includes selectors outside table.rt-shell; unrelated-content compatibility is not asserted.'
             : generated.release === 'v13'
             ? 'Approved v13 class/tag scope includes selectors outside table.rt-shell; unrelated-content compatibility is not asserted.'
             : generated.release === 'v12'
             ? 'Approved v12 class/structure scope includes unrooted td.rt-col-* and table.rt-dispo selectors; unrelated-content compatibility is not asserted.'
             : 'Approved v10/v11 global selector scope is unchanged; unrelated-content compatibility is not asserted.',
-        historicalCtaGuard: ['v13', 'v15'].includes(generated.release)
+        historicalCtaGuard: ['v13', 'v15', 'v17'].includes(generated.release)
             ? 'Only rt-dispo-cap, rt-cta-line and rt-cta-gap descendants of table.rt-dispo are hidden by the cap/line/gap guard; CTA cells are not hidden.'
             : generated.release === 'v12'
             ? 'Only colspan=5 or rt-cta-line descendants of table.rt-shell are hidden; an old single action row is not selected by that guard.'
@@ -227,8 +328,8 @@ export function ck19Manifest({ generated, mappingBytes, generatorBytes }) {
     };
 }
 
-export async function buildCk19MobileStyle({ check = false, root = projectRoot, release = 'v11' } = {}) {
-    if (!['v11', 'v12', 'v13', 'v14', 'v15'].includes(release)) fail('BUILD_RELEASE_INVALID');
+export async function buildCk19MobileStyle({ check = false, root = projectRoot, release = 'v16' } = {}) {
+    if (!['v11', 'v12', 'v13', 'v14', 'v15', 'v16', 'v17'].includes(release)) fail('BUILD_RELEASE_INVALID');
     const mappingPath = 'resources/mail-templates/ck19-mobile-style-' + release + '.mapping.json';
     const payloadName = 'ck19-mobile-style-' + release + '.html';
     const manifestName = 'ck19-mobile-style-' + release + '.manifest.json';
@@ -255,10 +356,10 @@ export async function buildCk19MobileStyle({ check = false, root = projectRoot, 
     return manifest;
 }
 
-/** Existing two-payload callers remain compatible; the CLI checks all releases. */
-export async function buildCk19MobileStyles({ releases: requested = ['v11', 'v12'], ...options } = {}) {
+/** The active CLI/default set is v16/v17; explicit historical release checks remain available. */
+export async function buildCk19MobileStyles({ releases: requested = ['v16', 'v17'], ...options } = {}) {
     if (!Array.isArray(requested) || requested.length === 0 || new Set(requested).size !== requested.length
-        || requested.some(release => !['v11', 'v12', 'v13', 'v14', 'v15'].includes(release))) fail('BUILD_RELEASE_INVALID');
+        || requested.some(release => !['v11', 'v12', 'v13', 'v14', 'v15', 'v16', 'v17'].includes(release))) fail('BUILD_RELEASE_INVALID');
     const manifests = [];
     for (const release of requested) manifests.push(await buildCk19MobileStyle({ ...options, release }));
     return manifests;
@@ -266,6 +367,6 @@ export async function buildCk19MobileStyles({ releases: requested = ['v11', 'v12
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
     if (process.argv.slice(2).some(argument => argument !== '--check')) fail('ARGUMENT_INVALID');
-    const manifests = await buildCk19MobileStyles({ check: process.argv.includes('--check'), releases: ['v11', 'v12', 'v13', 'v14', 'v15'] });
+    const manifests = await buildCk19MobileStyles({ check: process.argv.includes('--check'), releases: ['v16', 'v17'] });
     for (const manifest of manifests) console.log(`CK19 ${manifest.revision.split('-')[2]} ${process.argv.includes('--check') ? 'verified' : 'generated'}: ${manifest.payloadCharacters} characters, sha256:${manifest.payloadSha256}, template:${manifest.sourceTemplateSha256}`);
 }

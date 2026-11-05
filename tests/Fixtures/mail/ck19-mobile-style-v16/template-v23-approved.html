@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="de" dir="ltr" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="x-ua-compatible" content="IE=edge">
+<meta name="x-apple-disable-message-reformatting">
+<meta name="format-detection" content="telephone=no,date=no,address=no,email=no">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>{{DOCUMENT_TITLE}}</title>
+<style type="text/css">
+@media only screen and (max-width:1039px) {
+  .rt-shell { display:block !important; width:100% !important; max-width:1039px !important; }
+  .rt-shell > tbody { display:flex !important; flex-wrap:wrap !important; align-items:flex-start !important; width:100% !important; }
+  .rt-shell > tbody > tr { display:contents !important; }
+  .rt-text { display:block !important; order:1; width:100% !important; box-sizing:border-box !important; border-bottom:2px solid #e4002b !important; padding-left:24px !important; padding-right:24px !important; }
+  .rt-col { display:block !important; border-top:0 !important; box-sizing:border-box !important; max-width:100% !important; }
+  .rt-col-person { order:2; width:33.33% !important; }
+  .rt-col-direct { order:3; width:33.33% !important; }
+  .rt-col-company { order:4; width:33.33% !important; }
+  .rt-train-cell { display:block !important; order:5; align-self:flex-end !important; width:64% !important; box-sizing:border-box !important; padding:4px 8px 0 16px !important; }
+  .rt-col-dispo { order:6; width:36% !important; text-align:right !important; }
+  .rt-dispo-head td { padding:0 0 5px !important; }
+  .rt-cta-dispo { font-size:16px !important; line-height:18px !important; }
+  .rt-cta-erreichbar { font-size:13px !important; line-height:16px !important; }
+  .rt-cta-time { font-size:30px !important; line-height:32px !important; }
+  .rt-cta-cell { padding-top:8px !important; padding-bottom:4px !important; }
+  .rt-legal { display:block !important; order:7; width:100% !important; box-sizing:border-box !important; padding-left:24px !important; padding-right:24px !important; }
+  .rt-col-person .rt-pad { padding:12px 16px 4px 24px !important; }
+  .rt-col-direct .rt-pad, .rt-col-company .rt-pad { padding:12px 12px 4px 0 !important; }
+  .rt-pad-dispo { padding:2px 20px 10px 4px !important; }
+  .rt-dispo { display:inline-table !important; text-align:left !important; }
+  .rt-train { width:100% !important; max-width:500px !important; height:auto !important; }
+}
+@media only screen and (max-width:600px) {
+  .rt-shell { max-width:100% !important; }
+  .rt-text { padding:24px 20px 24px !important; }
+  .rt-col-person { width:100% !important; }
+  .rt-col-direct { width:52% !important; }
+  .rt-col-company { width:48% !important; }
+  .rt-train-cell { width:100% !important; padding:14px 20px 0 0 !important; }
+  .rt-col-dispo { width:100% !important; text-align:left !important; }
+  .rt-legal { padding:12px 20px 16px !important; font-size:10px !important; }
+  .rt-col-person .rt-pad { padding:14px 20px 10px !important; }
+  .rt-col-direct .rt-pad { padding:0 4px 0 20px !important; }
+  .rt-col-company .rt-pad { padding:0 20px 0 4px !important; }
+  .rt-logo-link { float:right !important; }
+  .rt-logo { width:110px !important; height:auto !important; margin:6px 0 0 16px !important; }
+  .rt-contact { font-size:12px !important; line-height:18px !important; }
+  /* Dispo als roter Balken: Ecken weg, Kopf und Aktionen in einer Zeile */
+  .rt-pad-dispo { padding:0 !important; }
+  .rt-dispo { display:block !important; width:100% !important; background-color:#e4002b !important; }
+  .rt-dispo > tbody { display:flex !important; align-items:center !important; width:100% !important; }
+  .rt-dispo > tbody > tr { display:contents !important; }
+  .rt-dispo > tbody > tr.rt-dispo-corner, .rt-dispo > tbody > tr.rt-dispo-corner > td { display:none !important; }
+  .rt-dispo-head { display:block !important; padding:9px 0 9px 20px !important; white-space:nowrap !important; }
+  .rt-dispo-actions { display:block !important; flex:1 1 auto !important; padding:4px 20px 4px 0 !important; text-align:right !important; }
+  .rt-dispo-head td { padding:0 !important; font-size:14px !important; line-height:20px !important; vertical-align:middle !important; text-align:left !important; }
+  .rt-dispo-head table { width:auto !important; }
+  .rt-dispo-actions > table { display:inline-table !important; width:auto !important; }
+  .rt-cta-gap { display:none !important; }
+  .rt-cta-erreichbar, .rt-cta-br { display:none !important; }
+  .rt-cta-dispo { font-size:14px !important; line-height:20px !important; }
+  .rt-cta-time { font-size:14px !important; line-height:20px !important; font-style:italic !important; padding-left:5px !important; }
+  .rt-cta-cell { border-top:0 !important; padding:5px 0 5px 12px !important; width:auto !important; }
+  .rt-cta-line { display:none !important; }
+  .rt-cta-icon { width:20px !important; height:20px !important; }
+  .rt-cta-number { font-size:13px !important; }
+}
+@media only screen and (min-width:1040px) {
+  .rt-col { display:table-cell !important; }
+}
+</style>
+</head>
+<body style="margin:0;padding:0;background-color:#ffffff;color:#142231;font-family:Arial, sans-serif;">
+<div dir="ltr" lang="de" style="margin:0;padding:0;background-color:#ffffff;">
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" class="rt-shell" align="center" width="1040" bgcolor="#ffffff" id="{{MARKER}}" style="width:1040px;max-width:100%;margin:0 auto;border-collapse:collapse;background-color:#ffffff;color:#142231;font-family:Arial, sans-serif;"><tr><td class="rt-text" colspan="4" bgcolor="#ffffff" style="padding:32px 40px 30px;background-color:#ffffff;color:#33414f;font-family:Arial, sans-serif;font-size:16px;line-height:26px;">{{GREETING_HTML}}{{AUTHOR_CONTENT}}{{FAREWELL_HTML}}</td></tr><tr class="rt-sig-row"><td class="rt-col rt-col-person" id="{{MARKER}}" width="260" valign="top" bgcolor="#ffffff" style="vertical-align:top;padding:0;border-top:2px solid #e4002b;background-color:#ffffff;width:260px;display:inline-block;max-width:100%;box-sizing:border-box;"><table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;border-collapse:collapse;"><tr><td class="rt-pad" style="padding:12px 24px 6px 40px;"><a class="rt-logo-link" href="{{COMPANY_WEBSITE}}" style="color:#142231;text-decoration:none;"><img class="rt-logo" src="{{ASSET_logo}}" width="184" height="32" alt="{{COMPANY_NAME}}" border="0" style="display:block;border:0;outline:none;text-decoration:none;width:184px;height:32px;max-width:100%;margin:0 0 13px;"></a><p style="margin:0 0 3px;font-family:'Trebuchet MS', Arial, sans-serif;font-size:22px;line-height:27px;font-weight:bold;color:#142231;"><span style="font-family:'Trebuchet MS', Arial, sans-serif;font-size:22px;line-height:27px;font-weight:bold;color:#142231;">{{IDENTITY_NAME}}</span></p><p style="margin:0;font-family:'Trebuchet MS', Arial, sans-serif;font-size:10px;line-height:15px;font-weight:bold;letter-spacing:1.6px;color:#e4002b;"><span style="font-family:'Trebuchet MS', Arial, sans-serif;font-size:10px;line-height:15px;font-weight:bold;letter-spacing:1.6px;color:#e4002b;">{{IDENTITY_ROLE}}</span></p></td></tr></table></td><td class="rt-col rt-col-direct" width="280" valign="top" bgcolor="#ffffff" style="vertical-align:top;padding:0;border-top:2px solid #e4002b;background-color:#ffffff;width:280px;display:inline-block;max-width:100%;box-sizing:border-box;"><table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;border-collapse:collapse;"><tr><td class="rt-pad" style="padding:12px 24px 6px 0;"><table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;border-collapse:collapse;">{{DIRECT_ROWS}}</table></td></tr></table></td><td class="rt-col rt-col-company" width="213" valign="top" bgcolor="#ffffff" style="vertical-align:top;padding:0;border-top:2px solid #e4002b;background-color:#ffffff;width:213px;display:inline-block;max-width:100%;box-sizing:border-box;"><table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;border-collapse:collapse;"><tr><td class="rt-pad" style="padding:12px 16px 6px 0;"><table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;border-collapse:collapse;"><tr><td width="26" valign="top" style="width:26px;padding:2px 0 0 0;vertical-align:top;"><img src="{{ASSET_web}}" width="15" height="15" alt="" border="0" style="display:block;border:0;outline:none;text-decoration:none;width:15px;height:15px;max-width:100%;"></td><td valign="top" style="padding:0 0 5px;vertical-align:top;font-family:'Trebuchet MS', Arial, sans-serif;font-size:13px;line-height:19px;color:#142231;"><span class="rt-contact" style="font-family:'Trebuchet MS', Arial, sans-serif;font-size:13px;line-height:19px;color:#142231;"><a href="{{COMPANY_WEBSITE}}" style="color:#142231;text-decoration:none;"><span style="color:#142231;text-decoration:none;">{{COMPANY_WEBSITE_LABEL}}</span></a></span></td></tr><tr><td width="26" valign="top" style="width:26px;padding:2px 0 0 0;vertical-align:top;"><img src="{{ASSET_location}}" width="15" height="15" alt="" border="0" style="display:block;border:0;outline:none;text-decoration:none;width:15px;height:15px;max-width:100%;"></td><td valign="top" style="padding:0;vertical-align:top;font-family:'Trebuchet MS', Arial, sans-serif;font-size:13px;line-height:19px;color:#142231;"><span class="rt-contact" style="font-family:'Trebuchet MS', Arial, sans-serif;font-size:13px;line-height:19px;color:#142231;"><a href="{{COMPANY_MAP_URL}}" style="color:#142231;text-decoration:none;"><span style="color:#142231;text-decoration:none;">{{COMPANY_STREET}}<br>{{COMPANY_POSTAL_CITY}}</span></a></span></td></tr></table></td></tr></table></td><td class="rt-col rt-col-dispo" width="287" valign="top" bgcolor="#ffffff" rowspan="2" style="vertical-align:top;padding:0;border-top:2px solid #e4002b;background-color:#ffffff;width:287px;display:inline-block;max-width:100%;box-sizing:border-box;"><table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;border-collapse:collapse;"><tr><td class="rt-pad rt-pad-dispo" style="padding:12px 40px 18px 0;"><table role="presentation" border="0" cellpadding="0" cellspacing="0" class="rt-dispo" width="247" bgcolor="#e4002b" style="width:247px;border-collapse:separate;border-spacing:0;border-radius:8px;background-color:#e4002b;"><tr class="rt-dispo-corner"><td class="rt-dispo-cap" height="8" bgcolor="#e4002b" style="background-color:#e4002b;height:8px;padding:0;font-size:1px;line-height:8px;mso-line-height-rule:exactly;border-radius:8px 8px 0 0;">&nbsp;</td></tr><tr class="rt-dispo-row"><td class="rt-dispo-head" bgcolor="#e4002b" style="background-color:#e4002b;padding:0 16px;"><table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;border-collapse:collapse;"><tr><td valign="middle" bgcolor="#e4002b" style="background-color:#e4002b;padding:0 0 9px;vertical-align:middle;font-family:Arial, sans-serif;color:#ffffff;"><span class="rt-cta-dispo" style="font-family:Arial, sans-serif;font-size:19px;line-height:21px;font-weight:bold;color:#ffffff;">Dispo</span><br class="rt-cta-br"><span class="rt-cta-erreichbar" style="font-family:Arial, sans-serif;font-size:15px;line-height:19px;color:#ffffff;">erreichbar</span></td><td align="right" valign="middle" bgcolor="#e4002b" style="background-color:#e4002b;padding:0 0 9px;text-align:right;vertical-align:middle;white-space:nowrap;font-family:Arial, sans-serif;font-size:38px;line-height:40px;font-weight:bold;font-style:italic;color:#ffffff;"><span class="rt-cta-time" style="font-family:Arial, sans-serif;font-size:38px;line-height:40px;font-weight:bold;font-style:italic;color:#ffffff;">24/&zwnj;7</span></td></tr></table></td></tr><tr class="rt-dispo-row"><td class="rt-dispo-actions" bgcolor="#e4002b" style="background-color:#e4002b;padding:0 16px;"><table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;border-collapse:collapse;"><tr class="rt-cta-line"><td colspan="5" height="1" bgcolor="#ffffff" style="height:1px;line-height:1px;font-size:1px;mso-line-height-rule:exactly;padding:0;background-color:#ffffff;">&nbsp;</td></tr><tr><td class="rt-cta-cell" width="24" valign="middle" bgcolor="#e4002b" style="background-color:#e4002b;width:24px;padding:11px 0 5px;vertical-align:middle;"><a href="mailto:{{DISPATCH_EMAIL}}" style="color:#ffffff;text-decoration:none;"><img class="rt-cta-icon" src="{{ASSET_dispatchMail}}" width="24" height="24" alt="E-Mail an die Disposition" border="0" style="display:block;border:0;outline:none;text-decoration:none;width:24px;height:24px;max-width:100%;"></a></td><td class="rt-cta-cell" width="38" valign="middle" bgcolor="#e4002b" style="background-color:#e4002b;width:38px;padding:11px 0 5px 14px;vertical-align:middle;"><a href="{{DISPATCH_WHATSAPP}}" style="color:#ffffff;text-decoration:none;"><img class="rt-cta-icon" src="{{ASSET_whatsapp}}" width="24" height="24" alt="WhatsApp" border="0" style="display:block;border:0;outline:none;text-decoration:none;width:24px;height:24px;max-width:100%;"></a></td><td class="rt-cta-cell rt-cta-gap" bgcolor="#e4002b" style="background-color:#e4002b;padding:11px 0 5px;font-size:1px;line-height:1px;mso-line-height-rule:exactly;">&nbsp;</td><td class="rt-cta-cell" width="32" align="right" valign="middle" bgcolor="#e4002b" style="background-color:#e4002b;width:32px;padding:11px 8px 5px 0;vertical-align:middle;"><a href="tel:{{DISPATCH_PHONE}}" style="color:#ffffff;text-decoration:none;"><img class="rt-cta-icon" src="{{ASSET_dispatchPhone}}" width="24" height="24" alt="Telefon" border="0" style="display:block;border:0;outline:none;text-decoration:none;width:24px;height:24px;max-width:100%;"></a></td><td class="rt-cta-cell" width="1" align="right" valign="middle" bgcolor="#e4002b" style="background-color:#e4002b;padding:11px 0 5px;text-align:right;vertical-align:middle;white-space:nowrap;font-family:Arial, sans-serif;font-size:13px;line-height:24px;font-weight:bold;color:#ffffff;"><a href="tel:{{DISPATCH_PHONE}}" style="color:#ffffff;text-decoration:none;"><span style="color:#ffffff;text-decoration:none;"><span class="rt-cta-number" style="font-family:Arial, sans-serif;font-size:13px;line-height:24px;font-weight:bold;color:#ffffff;white-space:nowrap;">{{DISPATCH_PHONE_LABEL}}</span></span></a></td></tr></table></td></tr><tr class="rt-dispo-corner"><td class="rt-dispo-cap" height="8" bgcolor="#e4002b" style="background-color:#e4002b;height:8px;padding:0;font-size:1px;line-height:8px;mso-line-height-rule:exactly;border-radius:0 0 8px 8px;">&nbsp;</td></tr></table></td></tr></table></td></tr><tr class="rt-sig-row"><td class="rt-train-cell" colspan="3" valign="bottom" bgcolor="#ffffff" style="padding:8px 0 0 40px;vertical-align:bottom;background-color:#ffffff;"><img class="rt-train" src="{{ASSET_train}}" width="500" height="83" alt="RailTime Zug" border="0" style="display:block;border:0;outline:none;text-decoration:none;width:500px;height:83px;max-width:100%;"></td></tr><tr><td class="rt-legal" colspan="4" bgcolor="#e4e8ec" style="padding:12px 40px 16px;background-color:#e4e8ec;color:#4f5b68;font-family:'Trebuchet MS', Arial, sans-serif;font-size:10.5px;line-height:16px;"><span style="font-family:'Trebuchet MS', Arial, sans-serif;font-size:10.5px;line-height:16px;color:#4f5b68;">{{LEGAL_REGISTRATION}}<br><span style="font-family:'Trebuchet MS', Arial, sans-serif;font-size:10.5px;line-height:16px;color:#6f7a86;">{{LEGAL_CONFIDENTIALITY}}</span></span></td></tr></table>
+</div>
+</body>
+</html>

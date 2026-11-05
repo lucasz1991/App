@@ -71,7 +71,7 @@ final class OutlookUniversalPresentationTest extends TestCase
         // columns or a second top-level author table are a valid substitute.
         self::assertSame(['1040', '100%', '100%', '100%', '100%', '100%', '100%', '247', '100%', '100%'],
             array_map(fn (DOMElement $table): string => $table->getAttribute('width'), iterator_to_array($xpath->query('//table'))));
-        self::assertSame([4, 1, 1, 2, 1, 2, 1, 4, 1, 2],
+        self::assertSame([4, 1, 1, 2, 1, 2, 1, 4, 1, 1],
             array_map(fn (DOMElement $table): int => $xpath->query('./tr|./tbody/tr', $table)->length, iterator_to_array($xpath->query('//table'))));
         $images = $xpath->query('//img');
         self::assertSame(9, $images->length);
@@ -135,9 +135,9 @@ final class OutlookUniversalPresentationTest extends TestCase
         self::assertSame(0, $xpath->query('//body//style|//body//meta')->length);
         self::assertSame(3, substr_count($result['headCss'], '@media'));
         $referenceCss = str_replace("\r\n", "\n", file_get_contents(base_path('tests/Fixtures/mail/u2e-reference.css')));
-        $originalCss = str_replace(["  .rt-cta-line { display:none !important; }\n", $this->desktopReset()], '', $result['headCss']);
+        $originalCss = str_replace($this->desktopReset(), '', $this->withoutCk26MobileSpacing($result['headCss']));
         self::assertSame($referenceCss, $originalCss,
-            'Only C-K13 separator hiding and the exact C-K15 desktop reset augment the immutable original media rules.');
+            'Reversing only the three approved C-K26 padding values and the C-K15 reset recovers the immutable original media rules.');
         self::assertSame(1, substr_count($result['headCss'], $this->desktopReset()));
         self::assertStringContainsString('max-width:1039px', $result['headCss']);
         self::assertStringContainsString('max-width:600px', $result['headCss']);
@@ -160,41 +160,66 @@ final class OutlookUniversalPresentationTest extends TestCase
     }
 
     #[DataProvider('modes')]
-    public function test_ck13_separator_replaces_only_the_five_cta_borders_and_preserves_their_padding(string $mode): void
+    public function test_ck25_has_one_action_row_without_separator_or_cta_borders_and_preserves_padding(string $mode): void
     {
         $result = $this->render(['mode' => $mode]);
         $xpath = $this->xpath($result['html']);
-        $lines = $xpath->query('//tr[@class="rt-cta-line"]');
-        self::assertSame(1, $lines->length);
-        $lineCells = $xpath->query('./td', $lines->item(0));
-        self::assertSame(1, $lineCells->length);
-        $line = $lineCells->item(0);
-        self::assertSame('5', $line->getAttribute('colspan'));
-        self::assertSame('1', $line->getAttribute('height'));
-        self::assertSame('#ffffff', $line->getAttribute('bgcolor'));
-        self::assertSame('height:1px;line-height:1px;font-size:1px;mso-line-height-rule:exactly;padding:0;background-color:#ffffff;', $line->getAttribute('style'));
-        self::assertSame("\u{a0}", $line->textContent);
-        $actionRows = $xpath->query('./tr|./tbody/tr', $lines->item(0)->parentNode);
-        self::assertSame(2, $actionRows->length);
-        self::assertSame($lines->item(0), $actionRows->item(0));
-        $actions = $xpath->query('./td', $actionRows->item(1));
+        self::assertSame(0, $xpath->query('//tr[@class="rt-cta-line"]|//td[@colspan="5"]')->length);
+        $actionRows = $xpath->query('//td[@class="rt-dispo-actions"]/table/tr|//td[@class="rt-dispo-actions"]/table/tbody/tr');
+        self::assertSame(1, $actionRows->length);
+        $actions = $xpath->query('./td', $actionRows->item(0));
         self::assertSame(5, $actions->length);
-        foreach (['11px 0 5px', '11px 0 5px 14px', '11px 0 5px', '11px 8px 5px 0', '11px 0 5px'] as $index => $padding) {
+        foreach (['6px 0 4px', '6px 0 4px 14px', '6px 0 4px', '6px 8px 4px 0', '6px 0 4px'] as $index => $padding) {
             self::assertStringContainsString('padding:'.$padding.';', $actions->item($index)->getAttribute('style'));
             self::assertStringNotContainsString('border-top', $actions->item($index)->getAttribute('style'));
         }
         self::assertSame(4, $xpath->query('//td[contains(@style,"border-top:2px solid #e4002b")]')->length);
         self::assertSame(0, $xpath->query('//td[contains(@style,"border-top:1px solid #ffffff")]')->length);
+        self::assertStringNotContainsString('rt-cta-line', $result['headCss']);
+    }
+
+    public function test_ck25_ck26_change_only_the_separator_and_approved_sizing_from_v23(): void
+    {
+        $template = str_replace("\r\n", "\n", file_get_contents(resource_path('mail-templates/u2e-universal-v1.html')));
+        self::assertSame('ecb6bbe92fbf50b5ecc9f0145894cf524d03545d776df3ff1ff4046a5db38ecf', hash('sha256', $template));
+        self::assertSame(15604, strlen($template));
+        self::assertStringNotContainsString('rt-cta-line', $template);
+        self::assertSame('e71922554f82861cab15ddf4cccd30717deb48a42034990ce675535367848bcd', hash('sha256', $this->withoutCk26Sizing($template)));
+        $previous = $this->withCk25Separator($template);
+        self::assertSame('5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204', hash('sha256', $previous));
+        self::assertSame(248, strlen($previous) - strlen($template));
+        self::assertSame($this->render()['version'], $this->render(['mode' => 'send'])['version']);
+    }
+
+    #[DataProvider('modes')]
+    public function test_ck26_projects_the_compact_head_and_mobile_spacing_in_both_modes(string $mode): void
+    {
+        $result = $this->render(['mode' => $mode]);
+        $xpath = $this->xpath($result['html']);
+        foreach (['rt-cta-dispo' => 'font-size:19px;line-height:20px;',
+            'rt-cta-erreichbar' => 'font-size:15px;line-height:18px;',
+            'rt-cta-time' => 'font-size:34px;line-height:36px;'] as $class => $style) {
+            $nodes = $xpath->query('//span[@class="'.$class.'"]');
+            self::assertSame(1, $nodes->length);
+            self::assertStringContainsString($style, $nodes->item(0)->getAttribute('style'));
+        }
+        $heads = $xpath->query('//td[@class="rt-dispo-head"]/table//tr/td');
+        self::assertSame(2, $heads->length);
+        foreach ($heads as $cell) {
+            self::assertStringContainsString('padding:0 0 4px;', $cell->getAttribute('style'));
+        }
         if ($mode === 'send') {
-            self::assertSame(1, substr_count($result['headCss'], '.rt-cta-line { display:none !important; }'));
-            self::assertGreaterThan(strpos($result['headCss'], 'max-width:600px'), strpos($result['headCss'], '.rt-cta-line'));
+            foreach (['padding:8px 0 8px 20px !important;', 'padding:2px 20px 2px 0 !important;',
+                'padding:4px 0 4px 12px !important;'] as $style) {
+                self::assertSame(1, substr_count($result['headCss'], $style));
+            }
         }
     }
 
     public function test_ck13_template_has_only_the_three_approved_changes_from_the_previous_pin(): void
     {
         $template = str_replace("\r\n", "\n", file_get_contents(resource_path('mail-templates/u2e-universal-v1.html')));
-        $template = $this->withoutCk22NoWrap($template);
+        $template = $this->withoutCk22NoWrap($this->withCk25Separator($template));
         $template = $this->withoutCk21Changes($template);
         $template = $this->withoutCk15Additions($template, true, 8);
         self::assertSame('9b8900e1c9640b445dcf309cbb823ca4195001d3cabdf61f927c59c5389b26c4', hash('sha256', $template));
@@ -238,7 +263,7 @@ final class OutlookUniversalPresentationTest extends TestCase
     public function test_ck15_is_exactly_the_approved_555_bytes_and_changes_the_prior_same_profile_version(): void
     {
         $template = str_replace("\r\n", "\n", file_get_contents(resource_path('mail-templates/u2e-universal-v1.html')));
-        $template = $this->withoutCk22NoWrap($template);
+        $template = $this->withoutCk22NoWrap($this->withCk25Separator($template));
         $template = $this->withoutCk21Changes($template);
         $previous = $this->withoutCk15Additions($template, true, 8);
         self::assertSame('9b8900e1c9640b445dcf309cbb823ca4195001d3cabdf61f927c59c5389b26c4', hash('sha256', $previous));
@@ -253,7 +278,7 @@ final class OutlookUniversalPresentationTest extends TestCase
     public function test_ck21_changes_only_the_dispo_caps_and_no_longer_delivers_corner_images(): void
     {
         $template = str_replace("\r\n", "\n", file_get_contents(resource_path('mail-templates/u2e-universal-v1.html')));
-        $beforeCk22 = $this->withoutCk22NoWrap($template);
+        $beforeCk22 = $this->withoutCk22NoWrap($this->withCk25Separator($template));
         self::assertSame('f297c0bb222061eb3b78c85889e139274067d5744707d7807d5b6e8545e676b2', hash('sha256', $beforeCk22));
         self::assertSame('2ad0c5a96b3b03a0e4a633ec87fa4aa79eba30f4d3b4a979937a5f5c7871dd12', hash('sha256', $this->withoutCk21Changes($beforeCk22)),
             'Reversing only the cap rows, two colspans and dispatch table styles must recover the complete C-K15 template.');
@@ -276,8 +301,8 @@ final class OutlookUniversalPresentationTest extends TestCase
     public function test_ck22_prevents_number_and_time_wrapping_without_changing_the_previous_template_structure(string $mode): void
     {
         $template = str_replace("\r\n", "\n", file_get_contents(resource_path('mail-templates/u2e-universal-v1.html')));
-        self::assertSame('5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204', hash('sha256', $template));
-        self::assertSame('f297c0bb222061eb3b78c85889e139274067d5744707d7807d5b6e8545e676b2', hash('sha256', $this->withoutCk22NoWrap($template)),
+        self::assertSame('ecb6bbe92fbf50b5ecc9f0145894cf524d03545d776df3ff1ff4046a5db38ecf', hash('sha256', $template));
+        self::assertSame('f297c0bb222061eb3b78c85889e139274067d5744707d7807d5b6e8545e676b2', hash('sha256', $this->withoutCk22NoWrap($this->withCk25Separator($template))),
             'Removing exactly three nowrap declarations must recover the entire v2.2 template.');
         $rendered = $this->render(['mode' => $mode]);
         self::assertSame(hash('sha256', $template), $rendered['templateHash']);
@@ -292,14 +317,14 @@ final class OutlookUniversalPresentationTest extends TestCase
     }
 
     #[DataProvider('modes')]
-    public function test_exact_height_rule_remains_only_on_caps_separator_and_gap(string $mode): void
+    public function test_exact_height_rule_remains_only_on_caps_and_gap(string $mode): void
     {
         $result = $this->render(['mode' => $mode]);
         $xpath = $this->xpath($result['html']);
         $cells = $xpath->query('//td[contains(@style,"mso-line-height-rule:exactly;")]');
-        self::assertSame(4, $cells->length);
+        self::assertSame(3, $cells->length);
         self::assertSame(2, $xpath->query('//td[@class="rt-dispo-cap" and @height="8" and contains(@style,"mso-line-height-rule:exactly;")]')->length);
-        self::assertSame(1, $xpath->query('//tr[@class="rt-cta-line"]/td[@colspan="5" and contains(@style,"mso-line-height-rule:exactly;")]')->length);
+        self::assertSame(0, $xpath->query('//tr[@class="rt-cta-line"]')->length);
         self::assertSame(1, $xpath->query('//td[contains(concat(" ",normalize-space(@class)," ")," rt-cta-gap ") and contains(@style,"mso-line-height-rule:exactly;")]')->length);
         self::assertSame(4, $xpath->query('//td[contains(@style,"display:inline-block;max-width:100%;box-sizing:border-box;")]')->length);
         self::assertStringNotContainsString('mso-line-height-alt', $result['html']);
@@ -572,12 +597,60 @@ final class OutlookUniversalPresentationTest extends TestCase
         return (new OutlookUniversalPresentation)->render($this->descriptor(), new HtmlString('<p>Synthetic author content.</p>'), $options);
     }
 
+    /** Historical proof only: recover the complete prior v2.3 source, never runtime output. */
+    private function withCk25Separator(string $html): string
+    {
+        $html = $this->withoutCk26Sizing($html);
+        self::assertStringNotContainsString('rt-cta-line', $html);
+        $html = str_replace('<tr><td class="rt-cta-cell"', '<tr class="rt-cta-line"><td colspan="5" height="1" bgcolor="#ffffff" style="height:1px;line-height:1px;font-size:1px;mso-line-height-rule:exactly;padding:0;background-color:#ffffff;">&nbsp;</td></tr><tr><td class="rt-cta-cell"', $html, $rows);
+        $html = str_replace('  .rt-cta-icon { width:20px !important;', "  .rt-cta-line { display:none !important; }\n  .rt-cta-icon { width:20px !important;", $html, $rules);
+        self::assertSame(1, $rows);
+        self::assertSame(1, $rules);
+
+        return $html;
+    }
+
+    /** Test-only reversal of precisely the approved v2.5 media spacing. */
+    private function withoutCk26MobileSpacing(string $html): string
+    {
+        foreach ([
+            'padding:8px 0 8px 20px !important;' => 'padding:9px 0 9px 20px !important;',
+            'padding:2px 20px 2px 0 !important;' => 'padding:4px 20px 4px 0 !important;',
+            'padding:4px 0 4px 12px !important;' => 'padding:5px 0 5px 12px !important;',
+        ] as $current => $previous) {
+            $html = str_replace($current, $previous, $html, $count);
+            self::assertSame(1, $count, $current);
+        }
+
+        return $html;
+    }
+
+    /** Historical source proof; never transforms a delivered message. */
+    private function withoutCk26Sizing(string $html): string
+    {
+        $html = $this->withoutCk26MobileSpacing($html);
+        foreach ([
+            ['padding:0 0 4px;', 'padding:0 0 9px;', 2],
+            ['font-size:19px;line-height:20px;', 'font-size:19px;line-height:21px;', 1],
+            ['font-size:15px;line-height:18px;', 'font-size:15px;line-height:19px;', 1],
+            ['font-size:34px;line-height:36px;', 'font-size:38px;line-height:40px;', 2],
+            ['padding:6px 0 4px;', 'padding:11px 0 5px;', 3],
+            ['padding:6px 0 4px 14px;', 'padding:11px 0 5px 14px;', 1],
+            ['padding:6px 8px 4px 0;', 'padding:11px 8px 5px 0;', 1],
+        ] as [$current, $previous, $expected]) {
+            $html = str_replace($current, $previous, $html, $count);
+            self::assertSame($expected, $count, $current);
+        }
+
+        return $html;
+    }
+
     private function desktopReset(): string
     {
         return "@media only screen and (min-width:1040px) {\n  .rt-col { display:table-cell !important; }\n}\n";
     }
 
-    private function withoutCk15Additions(string $html, bool $hasHead, int $expectedHeightCells = 4): string
+    private function withoutCk15Additions(string $html, bool $hasHead, int $expectedHeightCells = 3): string
     {
         $html = str_replace('display:inline-block;max-width:100%;box-sizing:border-box;', '', $html, $columns);
         $html = str_replace('mso-line-height-rule:exactly;', '', $html, $cells);

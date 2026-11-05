@@ -18,7 +18,7 @@ function targets(document) {
     const shell = document.querySelector('table'), grid = cells(rows(shell)[1]);
     const dispatch = grid[3].querySelector('table[width="247"]'), dispatchRows = rows(dispatch);
     const actions = cells(dispatchRows[2])[0].querySelector('table'), actionRows = rows(actions);
-    return { grid, exact: [...cells(dispatchRows[0]), ...cells(dispatchRows[3]), cells(actionRows[0])[0], cells(actionRows[1])[2]],
+    return { grid, exact: [...cells(dispatchRows[0]), ...cells(dispatchRows[3]), cells(actionRows[0])[2]],
         author: cells(rows(shell)[0])[0], inner: grid[0].querySelector('td') };
 }
 function declarations(node, name) {
@@ -32,19 +32,19 @@ function mutate(change) { const { document } = parseHTML(source.html); change(ta
 const current = (html, type = 'newMail') => universalComposeStateFromBody(source, html, type);
 
 test('C21 manifest pins the actual B1 output while preserving the exact historical C13 source', () => {
-    assert.equal(manifest.kind, 'synthetic-c-k22-v23-host-serializations');
+    assert.equal(manifest.kind, 'synthetic-c-k26-v25-host-serializations');
     assert.equal(manifest.nativeClientProof, false); assert.equal(manifest.privateInputUsed, false);
-    assert.equal(manifest.templateSha256, '5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204');
+    assert.equal(manifest.templateSha256, 'ecb6bbe92fbf50b5ecc9f0145894cf524d03545d776df3ff1ff4046a5db38ecf');
     assert.equal(source.version, manifest.version); assert.equal(signature.version, source.version);
     assert.equal(c13.version, manifest.previousVersion); assert.notEqual(source.version, c13.version);
     assert.equal(sha256(fs.readFileSync(new URL('source.c13-legacy.json', folder), 'utf8').replaceAll('\r\n', '\n')), 'c3a729fa720c8fa622e988e873451a76238017539fd457ff7b5d1ccaaf1f162e');
     const { document } = parseHTML(source.html), { grid, exact } = targets(document);
-    assert.equal(grid.length, 4); assert.equal(exact.length, 4);
+    assert.equal(grid.length, 4); assert.equal(exact.length, 3);
     for (const cell of grid) for (const [name, value] of [['display', 'inline-block'], ['max-width', '100%'], ['box-sizing', 'border-box']]) {
         assert.deepEqual(declarations(cell, name).map(item => item.split(':').slice(1).join(':').trim()), [value]);
     }
     for (const cell of exact) assert.deepEqual(declarations(cell, 'mso-line-height-rule').map(item => item.split(':')[1].trim()), ['exactly']);
-    assert.equal((source.html.match(/mso-line-height-rule:exactly/g) || []).length, 4);
+    assert.equal((source.html.match(/mso-line-height-rule:exactly/g) || []).length, 3);
     validateUniversalComposeDocument(source); validateUniversalComposeDocument(signature);
 });
 
@@ -75,9 +75,9 @@ for (const [name, change] of [
     ['missing exact-height target', ({ exact }) => remove(exact[0], 'mso-line-height-rule')],
     ['duplicate exact-height target', ({ exact }) => append(exact[1], 'mso-line-height-rule:exactly')],
     ['conflicting exact-height value', ({ exact }) => append(exact[2], 'mso-line-height-rule:at-least')],
-    ['nonliteral exact-height value', ({ exact }) => { remove(exact[3], 'mso-line-height-rule'); append(exact[3], 'mso-line-height-rule:exactly!important'); }],
-    ['same four counts but exact-height moved to author', ({ exact, author }) => { remove(exact[0], 'mso-line-height-rule'); append(author, 'mso-line-height-rule:exactly'); }],
-    ['same four counts but exact-height moved to inner cell', ({ exact, inner }) => { remove(exact[3], 'mso-line-height-rule'); append(inner, 'mso-line-height-rule:exactly'); }],
+    ['nonliteral exact-height value', ({ exact }) => { remove(exact[2], 'mso-line-height-rule'); append(exact[2], 'mso-line-height-rule:exactly!important'); }],
+    ['same three counts but exact-height moved to author', ({ exact, author }) => { remove(exact[0], 'mso-line-height-rule'); append(author, 'mso-line-height-rule:exactly'); }],
+    ['same three counts but exact-height moved to inner cell', ({ exact, inner }) => { remove(exact[2], 'mso-line-height-rule'); append(inner, 'mso-line-height-rule:exactly'); }],
     ['foreign MSO property', ({ grid }) => append(grid[0], 'mso-padding-alt:0')],
     ['table-layout remains forbidden', ({ grid }) => append(grid[0], 'table-layout:fixed')],
     ['wrong exact-height corner position', ({ exact }) => exact[0].setAttribute('height', '9')],

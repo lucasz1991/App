@@ -28,7 +28,7 @@ function removeStyle(node, property) {
 function style(node, property, value) { removeStyle(node, property); node.setAttribute('style', node.getAttribute('style') + ';' + property + ':' + value); }
 
 test('v2.2 B1 and two synthetic hosts are current with two single-cell red caps and four fewer images', () => {
-    assert.equal(manifest.templateSha256, '5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204');
+    assert.equal(manifest.templateSha256, 'ecb6bbe92fbf50b5ecc9f0145894cf524d03545d776df3ff1ff4046a5db38ecf');
     assert.equal(manifest.previousCornerVersion, previous.version);
     assert.equal(manifest.nativeClientProof, false);
     for (const name of ['source.json', 'rooster.synthetic.html', 'word.synthetic.html']) {
@@ -50,12 +50,12 @@ test('v2.2 B1 and two synthetic hosts are current with two single-cell red caps 
     assert.equal(old.querySelectorAll('img').length, 13);
 });
 
-test('current source retains exact separate/zero-spacing/radius and four exact-height targets', () => {
+test('current source retains exact separate/zero-spacing/radius and three exact-height targets', () => {
     const { document } = parseHTML(source.html), { panel, caps } = targets(document);
     assert.match(panel.getAttribute('style'), /border-collapse:separate;border-spacing:0;border-radius:8px/);
     assert.match(caps[0].getAttribute('style'), /border-radius:8px 8px 0 0/);
     assert.match(caps[1].getAttribute('style'), /border-radius:0 0 8px 8px/);
-    assert.equal((source.html.match(/mso-line-height-rule:exactly/g) || []).length, 4);
+    assert.equal((source.html.match(/mso-line-height-rule:exactly/g) || []).length, 3);
     for (const [node, property, value] of [[panel, 'border-collapse', 'collapse'], [panel, 'border-spacing', '1px'], [panel, 'border-radius', '0'], [caps[0], 'border-radius', '0']]) {
         const copy = parseHTML(source.html).document, target = node === panel ? targets(copy).panel : targets(copy).caps[0];
         style(target, property, value);
@@ -86,7 +86,7 @@ test('Word may move the exact cap line box only into a single empty paragraph', 
     assert.equal(current(serialized()).current, true);
     assert.throws(() => validateUniversalComposeDocument({ ...source, html: serialized() }), { code: 'U2E_SOURCE_INVALID' });
     for (const content of ['<p style="line-height:7px">&nbsp;</p>', '<p style="line-height:8px">&nbsp;</p><p style="line-height:8px">&nbsp;</p>',
-        '<p style="line-height:8px">&nbsp;<br></p>', '<p style="line-height:8px">�</p>']) {
+        '<p style="line-height:8px">&nbsp;<br></p>', '<p style="line-height:8px">ï¿½</p>']) {
         const actual = change(({ caps }) => { removeStyle(caps[0], 'line-height'); caps[0].innerHTML = content; });
         assert.equal(current(actual).current, false, content);
     }

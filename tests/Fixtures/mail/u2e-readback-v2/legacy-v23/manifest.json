@@ -1,0 +1,84 @@
+{
+  "schema": 1,
+  "kind": "synthetic-c-k22-v23-host-serializations",
+  "nativeClientProof": false,
+  "privateInputUsed": false,
+  "version": "1400065e4d4c095018a5e00c",
+  "previousVersion": "92eab6c45a583e103b6e62f5",
+  "previousCornerVersion": "da9b8f7e66f6cd549ecd8203",
+  "previousCornerSource": "source.c21-legacy.json",
+  "templateSha256": "5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204",
+  "description": "C-K22 v2.3 actual B1 renderer; only three inline nowrap declarations. Synthetic Rooster/Word hosts inherit unchanged v2.2 structure; historical v2.2 retained. No native-client proof.",
+  "artifacts": {
+    "source.json": {
+      "bytes": 12778,
+      "sha256": "709262b6d471043dc24945a91ab93ff8c88fdb9dc6e6d5402faf9b96f110229e"
+    },
+    "signature.json": {
+      "bytes": 12439,
+      "sha256": "4478a669e72e29704caa6eca4f4649254b8013b3430a74bd5d7c4f859b3ed87a"
+    },
+    "rooster.synthetic.html": {
+      "bytes": 11613,
+      "sha256": "f0992f7294a4da259288b25cd1883c64282151487bfca0710884a9ff82866979"
+    },
+    "word.synthetic.html": {
+      "bytes": 11118,
+      "sha256": "6c3eaeba1ddb9a0da961f1b66529bc1d5f19eb5bb0c822253e86d57b6cd52328"
+    },
+    "source.c13-legacy.json": {
+      "bytes": 13916,
+      "sha256": "c3a729fa720c8fa622e988e873451a76238017539fd457ff7b5d1ccaaf1f162e"
+    },
+    "source.c21-legacy.json": {
+      "bytes": 14364,
+      "sha256": "c5f67411f0109a1d6ad67630bfc78dcd58a0c188596cc9ea63b527c15aa3bbf5"
+    },
+    "legacy-c15/source.json": {
+      "bytes": 14364,
+      "sha256": "de30847eb40ebbfe3be5dd87d823afa041eb4dfe9c311667e4d8e8ffc4b12dd9"
+    },
+    "legacy-c15/signature.json": {
+      "bytes": 14025,
+      "sha256": "48699718a1cb05839ada2bdbc66679dca6c1e1e06b0a1ebda7a7e4d7d5e343cd"
+    },
+    "legacy-c15/rooster.synthetic.html": {
+      "bytes": 13078,
+      "sha256": "e9adcad95655892b25bab2325efcdee7cc82823778da9773542adccc5d2088a5"
+    },
+    "legacy-c15/word.synthetic.html": {
+      "bytes": 12626,
+      "sha256": "901649ee54690dd1ce28dc1445c1eb869b36730bd76a07db023b61badc76eb3a"
+    },
+    "legacy-c15/source.c13-legacy.json": {
+      "bytes": 13916,
+      "sha256": "c3a729fa720c8fa622e988e873451a76238017539fd457ff7b5d1ccaaf1f162e"
+    },
+    "legacy-c15/manifest.json": {
+      "bytes": 1282,
+      "sha256": "f6856afb14cd1c7d0c17f0addc24ae46d848920a517f8f1fdaa9c28bca02465d"
+    },
+    "legacy-v22/source.json": {
+      "bytes": 12721,
+      "sha256": "e03987df08bd5bb74b3da647bb216eb0400b519314f5cc9ca2b923a80e1d21f1"
+    },
+    "legacy-v22/signature.json": {
+      "bytes": 12382,
+      "sha256": "fc8ec902f8f99fee0fdd6c4211fa4453e33d29d2108d3768449995da59b1a29b"
+    },
+    "legacy-v22/rooster.synthetic.html": {
+      "bytes": 11553,
+      "sha256": "66692d5b87341374a8153e229bee806d0f2186f941076fe545c1a8d2097a5d23"
+    },
+    "legacy-v22/word.synthetic.html": {
+      "bytes": 11058,
+      "sha256": "509927ea0e3f8820837effa023cccbe4548671b3a1def4d9869011389e41d39d"
+    },
+    "legacy-v22/manifest.json": {
+      "bytes": 2511,
+      "sha256": "1c9c0c3f97408f95de0684f61c864368f22ec51d775a125f0a41e6c4e9322bbd"
+    }
+  },
+  "previousNoWrapVersion": "50297557b7e43f1ce2409647",
+  "previousNoWrapSource": "legacy-v22/source.json"
+}

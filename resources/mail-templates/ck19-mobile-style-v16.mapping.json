@@ -1,0 +1,1507 @@
+{
+  "schema": 1,
+  "revision": "ck19-approved-v16-20261106",
+  "sourceTemplate": "resources/mail-templates/u2e-universal-v1.html",
+  "sourcePhp": "app/Support/OutlookAddin/OutlookUniversalPresentation.php",
+  "approvedTemplateSha256": "ecb6bbe92fbf50b5ecc9f0145894cf524d03545d776df3ff1ff4046a5db38ecf",
+  "sourceCssSha256": "cf15bb89e9425c30f3db73b20b5263763e5c2b0d3d32d9a4e67625a5c2ed0006",
+  "approvedPayloadSha256": "c5532f4ac2805996973d7c001fbcadaf34ab988b752f4a23bd368635b6801b62",
+  "approvedPayloadCharacters": 4948,
+  "outputMedia": "only screen and (max-width:1039px)",
+  "payloadPrefix": "<style type=\"text/css\">",
+  "payloadSuffix": "</style>",
+  "policy": {
+    "maximumCharactersExclusive": 5000,
+    "promoteMobileToLayoutViewport": true,
+    "important": "Explicit for every output declaration; preserves approved transport precedence.",
+    "scope": "Existing v10 global selectors unchanged. Does not grant unrelated-content compatibility.",
+    "historicalCta": "Hide line cell colspan=5, never the only legacy action row."
+  },
+  "rules": [
+    {
+      "selector": "[width=\"1040\"]",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:1039px)",
+          "selector": ".rt-shell"
+        }
+      ],
+      "reason": "Explicit class-to-attribute host mapping; mobile rules are promoted to the iOS layout viewport.",
+      "declarations": [
+        {
+          "property": "display",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-shell",
+            "property": "display"
+          },
+          "important": true
+        },
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-shell",
+            "property": "width"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "[width=\"1040\"]>tbody",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:1039px)",
+          "selector": ".rt-shell > tbody"
+        }
+      ],
+      "reason": "Explicit class-to-attribute host mapping; mobile rules are promoted to the iOS layout viewport.",
+      "declarations": [
+        {
+          "property": "display",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-shell > tbody",
+            "property": "display"
+          },
+          "important": true
+        },
+        {
+          "property": "flex-wrap",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-shell > tbody",
+            "property": "flex-wrap"
+          },
+          "important": true
+        },
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-shell > tbody",
+            "property": "width"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "[width=\"1040\"]>tbody>tr",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:1039px)",
+          "selector": ".rt-shell > tbody > tr"
+        }
+      ],
+      "reason": "Explicit class-to-attribute host mapping; mobile rules are promoted to the iOS layout viewport.",
+      "declarations": [
+        {
+          "property": "display",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-shell > tbody > tr",
+            "property": "display"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "[width=\"1040\"]>tbody>tr:first-child>td[colspan=\"4\"]",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:1039px)",
+          "selector": ".rt-text"
+        },
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-text"
+        }
+      ],
+      "reason": "Explicit class-to-attribute host mapping; mobile rules are promoted to the iOS layout viewport.",
+      "declarations": [
+        {
+          "property": "display",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-text",
+            "property": "display"
+          },
+          "important": true
+        },
+        {
+          "property": "order",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-text",
+            "property": "order"
+          },
+          "important": false
+        },
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-text",
+            "property": "width"
+          },
+          "important": true
+        },
+        {
+          "property": "box-sizing",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-text",
+            "property": "box-sizing"
+          },
+          "important": true
+        },
+        {
+          "property": "border-bottom",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-text",
+            "property": "border-bottom"
+          },
+          "important": true
+        },
+        {
+          "property": "padding",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-text",
+            "property": "padding"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "td[width=\"260\"],td[width=\"280\"],td[width=\"213\"],td[width=\"287\"]",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:1039px)",
+          "selector": ".rt-col"
+        }
+      ],
+      "reason": "Explicit class-to-attribute host mapping; mobile rules are promoted to the iOS layout viewport.",
+      "declarations": [
+        {
+          "property": "display",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-col",
+            "property": "display"
+          },
+          "important": true
+        },
+        {
+          "property": "border-top",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-col",
+            "property": "border-top"
+          },
+          "important": true
+        },
+        {
+          "property": "box-sizing",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-col",
+            "property": "box-sizing"
+          },
+          "important": true
+        },
+        {
+          "property": "max-width",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-col",
+            "property": "max-width"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "td[width=\"260\"]",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:1039px)",
+          "selector": ".rt-col-person"
+        },
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-col-person"
+        }
+      ],
+      "reason": "Explicit class-to-attribute host mapping; mobile rules are promoted to the iOS layout viewport.",
+      "declarations": [
+        {
+          "property": "order",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-col-person",
+            "property": "order"
+          },
+          "important": false
+        },
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-col-person",
+            "property": "width"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "td[width=\"280\"]",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:1039px)",
+          "selector": ".rt-col-direct"
+        },
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-col-direct"
+        }
+      ],
+      "reason": "Explicit class-to-attribute host mapping; mobile rules are promoted to the iOS layout viewport.",
+      "declarations": [
+        {
+          "property": "order",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-col-direct",
+            "property": "order"
+          },
+          "important": false
+        },
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-col-direct",
+            "property": "width"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "td[width=\"213\"]",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:1039px)",
+          "selector": ".rt-col-company"
+        },
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-col-company"
+        }
+      ],
+      "reason": "Explicit class-to-attribute host mapping; mobile rules are promoted to the iOS layout viewport.",
+      "declarations": [
+        {
+          "property": "order",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-col-company",
+            "property": "order"
+          },
+          "important": false
+        },
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-col-company",
+            "property": "width"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "[width=\"1040\"]>tbody>tr>td[colspan=\"3\"]",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:1039px)",
+          "selector": ".rt-train-cell"
+        },
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-train-cell"
+        }
+      ],
+      "reason": "Explicit class-to-attribute host mapping; mobile rules are promoted to the iOS layout viewport.",
+      "declarations": [
+        {
+          "property": "display",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-train-cell",
+            "property": "display"
+          },
+          "important": true
+        },
+        {
+          "property": "order",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-train-cell",
+            "property": "order"
+          },
+          "important": false
+        },
+        {
+          "property": "align-self",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-train-cell",
+            "property": "align-self"
+          },
+          "important": true
+        },
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-train-cell",
+            "property": "width"
+          },
+          "important": true
+        },
+        {
+          "property": "box-sizing",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-train-cell",
+            "property": "box-sizing"
+          },
+          "important": true
+        },
+        {
+          "property": "padding",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-train-cell",
+            "property": "padding"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "td[width=\"287\"]",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:1039px)",
+          "selector": ".rt-col-dispo"
+        },
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-col-dispo"
+        }
+      ],
+      "reason": "Explicit class-to-attribute host mapping; mobile rules are promoted to the iOS layout viewport.",
+      "declarations": [
+        {
+          "property": "order",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-col-dispo",
+            "property": "order"
+          },
+          "important": false
+        },
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-col-dispo",
+            "property": "width"
+          },
+          "important": true
+        },
+        {
+          "property": "text-align",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-col-dispo",
+            "property": "text-align"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "[width=\"247\"]>tbody>tr:nth-child(2) td td,[width=\"247\"]>tbody>tr:nth-child(2) td td p",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-dispo-head td"
+        }
+      ],
+      "reason": "Explicit class-to-attribute host mapping; mobile rules are promoted to the iOS layout viewport.",
+      "declarations": [
+        {
+          "property": "margin",
+          "override": "0",
+          "important": true,
+          "reason": "User-approved v14 neutralizes Word paragraph margins in the dispatch head; the source head CSS does not declare this margin."
+        },
+        {
+          "property": "padding",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo-head td",
+            "property": "padding"
+          },
+          "important": true
+        },
+        {
+          "property": "font-size",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo-head td",
+            "property": "font-size"
+          },
+          "important": true
+        },
+        {
+          "property": "line-height",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo-head td",
+            "property": "line-height"
+          },
+          "important": true
+        },
+        {
+          "property": "vertical-align",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo-head td",
+            "property": "vertical-align"
+          },
+          "important": true
+        },
+        {
+          "property": "text-align",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo-head td",
+            "property": "text-align"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "[width=\"247\"]>tbody>tr:nth-child(3) table>tbody>tr:last-child>td",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-cta-cell"
+        }
+      ],
+      "reason": "Explicit class-to-attribute host mapping; mobile rules are promoted to the iOS layout viewport.",
+      "declarations": [
+        {
+          "property": "border-top",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-cta-cell",
+            "property": "border-top"
+          },
+          "important": true
+        },
+        {
+          "property": "padding",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-cta-cell",
+            "property": "padding"
+          },
+          "important": true
+        },
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-cta-cell",
+            "property": "width"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "[width=\"1040\"]>tbody>tr:last-child>td[colspan=\"4\"]",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:1039px)",
+          "selector": ".rt-legal"
+        },
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-legal"
+        }
+      ],
+      "reason": "Explicit class-to-attribute host mapping; mobile rules are promoted to the iOS layout viewport.",
+      "declarations": [
+        {
+          "property": "display",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-legal",
+            "property": "display"
+          },
+          "important": true
+        },
+        {
+          "property": "order",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-legal",
+            "property": "order"
+          },
+          "important": false
+        },
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-legal",
+            "property": "width"
+          },
+          "important": true
+        },
+        {
+          "property": "box-sizing",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-legal",
+            "property": "box-sizing"
+          },
+          "important": true
+        },
+        {
+          "property": "padding",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-legal",
+            "property": "padding"
+          },
+          "important": true
+        },
+        {
+          "property": "font-size",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-legal",
+            "property": "font-size"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "td[width=\"260\"]>table>tbody>tr>td",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-col-person .rt-pad"
+        }
+      ],
+      "reason": "Explicit class-to-attribute host mapping; mobile rules are promoted to the iOS layout viewport.",
+      "declarations": [
+        {
+          "property": "padding",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-col-person .rt-pad",
+            "property": "padding"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "td[width=\"280\"]>table>tbody>tr>td,td[width=\"213\"]>table>tbody>tr>td",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:1039px)",
+          "selector": ".rt-col-direct .rt-pad, .rt-col-company .rt-pad"
+        }
+      ],
+      "reason": "Explicit class-to-attribute host mapping; mobile rules are promoted to the iOS layout viewport.",
+      "declarations": [
+        {
+          "property": "padding",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-col-direct .rt-pad, .rt-col-company .rt-pad",
+            "property": "padding"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "td[width=\"287\"]>table>tbody>tr>td",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-pad-dispo"
+        }
+      ],
+      "reason": "Explicit class-to-attribute host mapping; mobile rules are promoted to the iOS layout viewport.",
+      "declarations": [
+        {
+          "property": "padding",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-pad-dispo",
+            "property": "padding"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "[width=\"247\"]",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:1039px)",
+          "selector": ".rt-dispo"
+        },
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-dispo"
+        }
+      ],
+      "reason": "Approved v11 preserves v10 containment/wrap and explicitly clears the panel background shorthand and radius inside the actual max-width:1039px query.",
+      "declarations": [
+        {
+          "property": "display",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo",
+            "property": "display"
+          },
+          "important": true
+        },
+        {
+          "property": "text-align",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-dispo",
+            "property": "text-align"
+          },
+          "important": true
+        },
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo",
+            "property": "width"
+          },
+          "important": true
+        },
+        {
+          "property": "max-width",
+          "override": "100%",
+          "important": true,
+          "reason": "Approved v10 old-quote containment: max-width plus clipping; native validation must also prove content visible."
+        },
+        {
+          "property": "overflow",
+          "override": "hidden",
+          "important": true,
+          "reason": "Approved v10 old-quote containment: max-width plus clipping; native validation must also prove content visible."
+        },
+        {
+          "property": "background",
+          "override": "#e4002b",
+          "important": true,
+          "reason": "Approved v11 shorthand clears the editor background shorthand in the mobile panel; source CSS background-color remains unchanged."
+        },
+        {
+          "property": "border-radius",
+          "override": "0",
+          "important": true,
+          "reason": "Approved v11 mobile panel is square; desktop v22 inline 8px radius is outside this 1039px media query."
+        }
+      ]
+    },
+    {
+      "selector": "img[width=\"500\"]",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:1039px)",
+          "selector": ".rt-train"
+        }
+      ],
+      "reason": "Explicit class-to-attribute host mapping; mobile rules are promoted to the iOS layout viewport.",
+      "declarations": [
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-train",
+            "property": "width"
+          },
+          "important": true
+        },
+        {
+          "property": "max-width",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-train",
+            "property": "max-width"
+          },
+          "important": true
+        },
+        {
+          "property": "height",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-train",
+            "property": "height"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "td[width=\"280\"]>table>tbody>tr>td",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-col-direct .rt-pad"
+        }
+      ],
+      "reason": "Explicit class-to-attribute host mapping; mobile rules are promoted to the iOS layout viewport.",
+      "declarations": [
+        {
+          "property": "padding",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-col-direct .rt-pad",
+            "property": "padding"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "td[width=\"213\"]>table>tbody>tr>td",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-col-company .rt-pad"
+        }
+      ],
+      "reason": "Explicit class-to-attribute host mapping; mobile rules are promoted to the iOS layout viewport.",
+      "declarations": [
+        {
+          "property": "padding",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-col-company .rt-pad",
+            "property": "padding"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "img[width=\"184\"]",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-logo-link"
+        },
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-logo"
+        }
+      ],
+      "reason": "Explicit class-to-attribute host mapping; mobile rules are promoted to the iOS layout viewport.",
+      "declarations": [
+        {
+          "property": "float",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-logo-link",
+            "property": "float"
+          },
+          "important": true
+        },
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-logo",
+            "property": "width"
+          },
+          "important": true
+        },
+        {
+          "property": "height",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-logo",
+            "property": "height"
+          },
+          "important": true
+        },
+        {
+          "property": "margin",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-logo",
+            "property": "margin"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "[width=\"247\"]>tbody",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-dispo > tbody"
+        }
+      ],
+      "reason": "Approved v10 old-quote wrap/centering in the 247px panel.",
+      "declarations": [
+        {
+          "property": "display",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo > tbody",
+            "property": "display"
+          },
+          "important": true
+        },
+        {
+          "property": "flex-wrap",
+          "override": "wrap",
+          "important": true,
+          "reason": "Approved v10 old-quote wrap/centering in the 247px panel."
+        },
+        {
+          "property": "align-items",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo > tbody",
+            "property": "align-items"
+          },
+          "important": true
+        },
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo > tbody",
+            "property": "width"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "[width=\"247\"]>tbody>tr",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-dispo > tbody > tr"
+        }
+      ],
+      "reason": "Explicit class-to-attribute host mapping; mobile rules are promoted to the iOS layout viewport.",
+      "declarations": [
+        {
+          "property": "display",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo > tbody > tr",
+            "property": "display"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "[width=\"247\"]>tbody>tr:first-child,[width=\"247\"]>tbody>tr:first-child>td,[width=\"247\"]>tbody>tr:last-child,[width=\"247\"]>tbody>tr:last-child>td",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-dispo > tbody > tr.rt-dispo-corner, .rt-dispo > tbody > tr.rt-dispo-corner > td"
+        }
+      ],
+      "reason": "Explicit class-to-attribute host mapping; mobile rules are promoted to the iOS layout viewport.",
+      "declarations": [
+        {
+          "property": "display",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo > tbody > tr.rt-dispo-corner, .rt-dispo > tbody > tr.rt-dispo-corner > td",
+            "property": "display"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "[width=\"247\"]>tbody>tr:nth-child(2)>td",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-dispo-head"
+        }
+      ],
+      "reason": "Explicit class-to-attribute host mapping; mobile rules are promoted to the iOS layout viewport.",
+      "declarations": [
+        {
+          "property": "display",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo-head",
+            "property": "display"
+          },
+          "important": true
+        },
+        {
+          "property": "padding",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo-head",
+            "property": "padding"
+          },
+          "important": true
+        },
+        {
+          "property": "white-space",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo-head",
+            "property": "white-space"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "[width=\"247\"]>tbody>tr:nth-child(3)>td",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-dispo-actions"
+        }
+      ],
+      "reason": "Explicit class-to-attribute host mapping; mobile rules are promoted to the iOS layout viewport.",
+      "declarations": [
+        {
+          "property": "display",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo-actions",
+            "property": "display"
+          },
+          "important": true
+        },
+        {
+          "property": "flex",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo-actions",
+            "property": "flex"
+          },
+          "important": true
+        },
+        {
+          "property": "padding",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo-actions",
+            "property": "padding"
+          },
+          "important": true
+        },
+        {
+          "property": "text-align",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo-actions",
+            "property": "text-align"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "[width=\"247\"]>tbody>tr:nth-child(2) table",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-dispo-head table"
+        }
+      ],
+      "reason": "Explicit class-to-attribute host mapping; mobile rules are promoted to the iOS layout viewport.",
+      "declarations": [
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo-head table",
+            "property": "width"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "[width=\"247\"]>tbody>tr:nth-child(3)>td>table",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-dispo-actions > table"
+        }
+      ],
+      "reason": "Explicit class-to-attribute host mapping; mobile rules are promoted to the iOS layout viewport.",
+      "declarations": [
+        {
+          "property": "display",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo-actions > table",
+            "property": "display"
+          },
+          "important": true
+        },
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo-actions > table",
+            "property": "width"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "[width=\"247\"]>tbody>tr:nth-child(3) table>tbody>tr:first-child>td[colspan=\"5\"]",
+      "sourceSelectors": [],
+      "reason": "Select only the separate five-column line cell; preserve old single action rows.",
+      "declarations": [
+        {
+          "property": "display",
+          "important": true,
+          "override": "none",
+          "reason": "C-K25 retains this exact approved historical transport declaration after v2.4 removes the separator and its CSS rule; it is not derived from current CSS.",
+          "historicalSource": {
+            "approval": "C-K25-user-approved-retain-existing-v11-v15-payloads",
+            "templateSha256": "5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204",
+            "cssSha256": "502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1",
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-cta-line",
+            "property": "display",
+            "value": "none"
+          }
+        }
+      ]
+    },
+    {
+      "selector": "[width=\"247\"]>tbody>tr:nth-child(3) table>tbody>tr:last-child>td:nth-child(3)",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-cta-gap"
+        }
+      ],
+      "reason": "Historical single action rows retain icons; hide only gap column three.",
+      "declarations": [
+        {
+          "property": "display",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-cta-gap",
+            "property": "display"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "[width=\"247\"]>tbody>tr:nth-child(2) td td br,[class=\"rt-cta-erreichbar\"],[class=\"x_rt-cta-erreichbar\"],[class=\"rt-cta-erreichbar\"] span",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-cta-erreichbar, .rt-cta-br"
+        }
+      ],
+      "reason": "Explicit class-to-attribute host mapping; mobile rules are promoted to the iOS layout viewport.",
+      "declarations": [
+        {
+          "property": "display",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-cta-erreichbar, .rt-cta-br",
+            "property": "display"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "[class=\"rt-cta-dispo\"],[class=\"x_rt-cta-dispo\"],[class=\"rt-cta-dispo\"] span",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-cta-dispo"
+        }
+      ],
+      "reason": "Explicit class-to-attribute host mapping; mobile rules are promoted to the iOS layout viewport.",
+      "declarations": [
+        {
+          "property": "font-size",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-cta-dispo",
+            "property": "font-size"
+          },
+          "important": true
+        },
+        {
+          "property": "line-height",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-cta-dispo",
+            "property": "line-height"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "[class=\"rt-cta-time\"],[class=\"x_rt-cta-time\"],[class=\"rt-cta-time\"] span",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-cta-time"
+        }
+      ],
+      "reason": "Explicit class-to-attribute host mapping; mobile rules are promoted to the iOS layout viewport.",
+      "declarations": [
+        {
+          "property": "font-size",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-cta-time",
+            "property": "font-size"
+          },
+          "important": true
+        },
+        {
+          "property": "line-height",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-cta-time",
+            "property": "line-height"
+          },
+          "important": true
+        },
+        {
+          "property": "font-style",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-cta-time",
+            "property": "font-style"
+          },
+          "important": true
+        },
+        {
+          "property": "padding-left",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-cta-time",
+            "property": "padding-left"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "[class=\"rt-cta-number\"],[class=\"x_rt-cta-number\"],[class=\"rt-cta-number\"] span",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-cta-number"
+        }
+      ],
+      "reason": "Explicit class-to-attribute host mapping; mobile rules are promoted to the iOS layout viewport.",
+      "declarations": [
+        {
+          "property": "font-size",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-cta-number",
+            "property": "font-size"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "[class=\"rt-contact\"],[class=\"x_rt-contact\"],[class=\"rt-contact\"] span",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-contact"
+        }
+      ],
+      "reason": "Explicit class-to-attribute host mapping; mobile rules are promoted to the iOS layout viewport.",
+      "declarations": [
+        {
+          "property": "font-size",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-contact",
+            "property": "font-size"
+          },
+          "important": true
+        },
+        {
+          "property": "line-height",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-contact",
+            "property": "line-height"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "td[colspan=\"5\"]",
+      "sourceSelectors": [],
+      "reason": "Approved global colspan=5 suppression. Known unrelated-table side effect is deliberately unchanged.",
+      "declarations": [
+        {
+          "property": "display",
+          "important": true,
+          "override": "none",
+          "reason": "C-K25 retains this exact approved historical transport declaration after v2.4 removes the separator and its CSS rule; it is not derived from current CSS.",
+          "historicalSource": {
+            "approval": "C-K25-user-approved-retain-existing-v11-v15-payloads",
+            "templateSha256": "5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204",
+            "cssSha256": "502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1",
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-cta-line",
+            "property": "display",
+            "value": "none"
+          }
+        },
+        {
+          "property": "height",
+          "override": "0",
+          "important": true,
+          "reason": "Approved global colspan=5 suppression. Known unrelated-table side effect is deliberately unchanged."
+        },
+        {
+          "property": "line-height",
+          "override": "0",
+          "important": true,
+          "reason": "Approved global colspan=5 suppression. Known unrelated-table side effect is deliberately unchanged."
+        },
+        {
+          "property": "font-size",
+          "override": "0",
+          "important": true,
+          "reason": "Approved global colspan=5 suppression. Known unrelated-table side effect is deliberately unchanged."
+        },
+        {
+          "property": "padding",
+          "override": "0",
+          "important": true,
+          "reason": "Approved global colspan=5 suppression. Known unrelated-table side effect is deliberately unchanged."
+        }
+      ]
+    },
+    {
+      "selector": "[class=\"x_rt-cta-line\"]",
+      "sourceSelectors": [],
+      "reason": "Rooster x_ prefix line suppression.",
+      "declarations": [
+        {
+          "property": "display",
+          "important": true,
+          "override": "none",
+          "reason": "C-K25 retains this exact approved historical transport declaration after v2.4 removes the separator and its CSS rule; it is not derived from current CSS.",
+          "historicalSource": {
+            "approval": "C-K25-user-approved-retain-existing-v11-v15-payloads",
+            "templateSha256": "5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204",
+            "cssSha256": "502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1",
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-cta-line",
+            "property": "display",
+            "value": "none"
+          }
+        },
+        {
+          "property": "height",
+          "override": "0",
+          "important": true,
+          "reason": "Rooster x_ prefix line suppression."
+        }
+      ]
+    },
+    {
+      "selector": "[width=\"247\"]>tbody>tr:nth-child(2) td td:first-child,[width=\"247\"]>tbody>tr:nth-child(2) td td:first-child p",
+      "sourceSelectors": [],
+      "reason": "Word nested-font workaround: zero the heading cell then restore recognized spans.",
+      "declarations": [
+        {
+          "property": "font-size",
+          "override": "0",
+          "important": true,
+          "reason": "Word nested-font workaround: zero the heading cell then restore recognized spans."
+        },
+        {
+          "property": "line-height",
+          "override": "0",
+          "important": true,
+          "reason": "Word nested-font workaround: zero the heading cell then restore recognized spans."
+        }
+      ]
+    },
+    {
+      "selector": "[class=\"rt-cta-erreichbar\"],[class=\"x_rt-cta-erreichbar\"],[class=\"rt-cta-erreichbar\"] span,[class=\"x_rt-cta-br\"]",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-cta-erreichbar, .rt-cta-br"
+        }
+      ],
+      "reason": "Approved Word/Rooster hidden label overrides.",
+      "declarations": [
+        {
+          "property": "display",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-cta-erreichbar, .rt-cta-br",
+            "property": "display"
+          },
+          "important": true
+        },
+        {
+          "property": "font-size",
+          "override": "0",
+          "important": true,
+          "reason": "Approved Word/Rooster hidden label overrides."
+        },
+        {
+          "property": "line-height",
+          "override": "0",
+          "important": true,
+          "reason": "Approved Word/Rooster hidden label overrides."
+        }
+      ]
+    },
+    {
+      "selector": "[width=\"1040\"] a,[width=\"1040\"] a span",
+      "sourceSelectors": [],
+      "reason": "Approved global link color normalization inside matching 1040 shells; affects quotes too.",
+      "declarations": [
+        {
+          "property": "color",
+          "override": "#142231",
+          "important": true,
+          "reason": "Approved global link color normalization inside matching 1040 shells; affects quotes too."
+        },
+        {
+          "property": "text-decoration",
+          "override": "none",
+          "important": true,
+          "reason": "Approved global link color normalization inside matching 1040 shells; affects quotes too."
+        }
+      ]
+    },
+    {
+      "selector": "[width=\"1040\"] [width=\"247\"] a,[width=\"1040\"] [width=\"247\"] a span",
+      "sourceSelectors": [],
+      "reason": "Approved panel link color normalization.",
+      "declarations": [
+        {
+          "property": "color",
+          "override": "#fff",
+          "important": true,
+          "reason": "Approved panel link color normalization."
+        },
+        {
+          "property": "text-decoration",
+          "override": "none",
+          "important": true,
+          "reason": "Approved panel link color normalization."
+        }
+      ]
+    },
+    {
+      "selector": "[class=\"rt-cta-dispo\"],[class=\"x_rt-cta-dispo\"],[class=\"rt-cta-time\"],[class=\"x_rt-cta-time\"]",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-cta-dispo"
+        },
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-cta-time"
+        }
+      ],
+      "reason": "Approved inline heading/time alignment.",
+      "declarations": [
+        {
+          "property": "display",
+          "override": "inline-block",
+          "important": true,
+          "reason": "Approved inline heading/time alignment."
+        },
+        {
+          "property": "vertical-align",
+          "override": "middle",
+          "important": true,
+          "reason": "Approved inline heading/time alignment."
+        },
+        {
+          "property": "line-height",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-cta-time",
+            "property": "line-height"
+          },
+          "important": true
+        }
+      ]
+    }
+  ],
+  "sourceFileNormalization": {
+    "operation": "omit-exactly-one-terminal-LF",
+    "sourceFileCharacters": 4949,
+    "sourceFileSha256": "600e526b11d27f4a44f672d64c7c1d7fd78aa3ee087c51dfb6143a029c0a6e5e",
+    "ruleTextCharacters": 4948,
+    "ruleTextSha256": "c5532f4ac2805996973d7c001fbcadaf34ab988b752f4a23bd368635b6801b62",
+    "approval": "user-approved-rule-text-count-excludes-terminal-LF"
+  }
+}

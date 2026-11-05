@@ -254,7 +254,7 @@ final class OutlookUniversalTransitTransformerTest extends TestCase
         self::assertSame(1, substr_count($result['html'], $previous['scopeId']));
     }
 
-    public function test_ck13_send_separator_is_scoped_and_an_old_border_quote_remains_byte_exact(): void
+    public function test_ck25_send_has_no_separator_and_an_old_border_quote_remains_byte_exact(): void
     {
         $projection = $this->projection();
         $author = '<p data-test="raw-author">Raw &amp; unchanged author.</p>';
@@ -269,9 +269,9 @@ final class OutlookUniversalTransitTransformerTest extends TestCase
         self::assertSame($rawAuthor, $this->author($result['html'], $projection));
         $xpath = $this->xpath($result['html']);
         $own = $xpath->query('//*[contains(concat(" ",normalize-space(@class)," ")," '.$result['scopeId'].' ")]')->item(0);
-        self::assertSame(1, $xpath->query('.//tr[@class="rt-cta-line"]/td[@colspan="5" and @bgcolor="#ffffff"]', $own)->length);
+        self::assertSame(0, $xpath->query('.//tr[@class="rt-cta-line"]|.//td[@colspan="5"]', $own)->length);
         self::assertSame(5, $xpath->query('.//td[contains(concat(" ",normalize-space(@class)," ")," rt-cta-cell ") and not(contains(@style,"border-top"))]', $own)->length);
-        self::assertStringContainsString('.'.$result['scopeId'].' .rt-cta-line { display:none !important; }', $result['headCss']);
+        self::assertStringNotContainsString('rt-cta-line', $result['headCss']);
         self::assertStringContainsString("@media only screen and (min-width:1040px) {\n  .".$result['scopeId'].' .rt-col { display:table-cell !important; }', $result['headCss']);
         self::assertStringNotContainsString('rt-cta-line', $quote, 'The historical quote fixture remains the original border-based layout.');
     }

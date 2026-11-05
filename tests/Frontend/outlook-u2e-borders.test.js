@@ -87,16 +87,13 @@ test('each of the four red grid edges is compared in structural order in the new
     }
 });
 
-test('the new line and borderless CTA roles survive synthetic Word class removal', () => {
+test('line-free and borderless CTA roles survive synthetic Word class removal', () => {
     const actual = mutate(document => {
         for (const cell of document.querySelectorAll('.rt-col')) setTop(cell, 'border:none;border-top:solid #E4002B 2pt');
         for (const cell of document.querySelectorAll('.rt-cta-cell')) {
             setTop(cell, 'border:none');
             cell.removeAttribute('class');
         }
-        const line = document.querySelector('.rt-cta-line td');
-        line.setAttribute('height', '.75pt');
-        line.setAttribute('style', line.getAttribute('style').replaceAll('height:1px', 'height:.75pt').replace('font-size:1px', 'font-size:1pt'));
     });
     assert.equal(state(actual).current, true);
     const changedWidth = mutate(document => setTop(document.querySelector('.rt-col'), 'border-top:3px solid #e4002b'));

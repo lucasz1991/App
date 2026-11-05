@@ -44,7 +44,8 @@ final class OutlookUniversalPersonalExportTest extends TestCase
         self::assertSame(9, substr_count($result['content'], '<img '));
         self::assertSame(9, substr_count($result['content'], 'src="data:image/png;base64,'));
         self::assertSame(3, substr_count($result['content'], '@media'));
-        self::assertSame(4, substr_count($result['content'], 'mso-line-height-rule:exactly'));
+        self::assertSame(3, substr_count($result['content'], 'mso-line-height-rule:exactly'));
+        self::assertStringNotContainsString('rt-cta-line', $result['content']);
         preg_match('~<head>.*?</head>~s', $draft['html'], $head);
         self::assertStringContainsString($head[0], $result['content']);
         self::assertTrue(str_contains($result['content'], $this->author($service)));

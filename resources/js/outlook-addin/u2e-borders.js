@@ -142,13 +142,14 @@ export function u2eCtaMaterial(elements, grid, dispatch) {
         && descendants(elements, value.index, actionContainer[0].index));
     if (actionTables.length !== 1) fail('borders.structure');
     const actionRows = rows(elements, actionTables[0].index);
-    if (actionRows.length !== 2) fail('borders.structure');
-    const lineCells = cells(elements, actionRows[0].index);
-    if (lineCells.length !== 1 || lineCells[0].node.tag !== 'td' || lineCells[0].node.attrs.colspan !== '5'
-        || ![undefined, '1'].includes(lineCells[0].node.attrs.rowspan)) fail('borders.structure');
-    const actionCells = cells(elements, actionRows[1].index);
-    if (actionCells.length !== 5 || actionCells.some(value => value.node.tag !== 'td')) fail('borders.structure');
-    return { line: lineCells[0], lineRow: actionRows[0], actionCells };
+    // C-K25 v2.4 removes the separator row. Earlier versions are recognized
+    // before material validation; the current version has no optional line.
+    if (actionRows.length !== 1) fail('borders.structure');
+    const actionCells = cells(elements, actionRows[0].index);
+    if (actionCells.length !== 5 || actionCells.some(value => value.node.tag !== 'td'
+        || ![undefined, '1'].includes(value.node.attrs.colspan)
+        || ![undefined, '1'].includes(value.node.attrs.rowspan))) fail('borders.structure');
+    return { actionRow: actionRows[0], actionCells };
 }
 
 /** Only the four grid colors remain evidence; CTA top borders must be absent. */

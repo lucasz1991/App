@@ -10,7 +10,7 @@ import { universalDiagnosticReplayHtml, validateUniversalRedactedFixture } from 
 const read = name => JSON.parse(fs.readFileSync(new URL('../Fixtures/mail/u2e-readback-v2/' + name, import.meta.url), 'utf8'));
 const base = read('source.json'), manifests = read('ios.ck24.manifest.json');
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
-function pair(name = 'ios.ck24-210443.redacted.json') {
+function pair(name = 'ios.synthetic.redacted.json') {
     const fixture = read(name); assert.ok(validateUniversalRedactedFixture(fixture));
     const expected = universalDiagnosticReplayHtml(fixture.expectedHtml), actual = universalDiagnosticReplayHtml(fixture.html);
     const version = /rt-sig-u2-([0-9a-f]{24})/.exec(expected)[1];
@@ -25,17 +25,23 @@ function mutate(change) {
     return { ...p, actual: document.toString() };
 }
 
-test('C-K24 both authenticated native iOS readback pairs become current only with canonical iOS context', () => {
+test('C-K24 authenticated native inputs remain immutable history rather than new v2.5 acceptance', () => {
     for (const meta of manifests.pairs) {
-        const p = pair(meta.file);
-        assert.equal(sha(p.fixture.html), meta.actualSha256); assert.equal(sha(p.fixture.expectedHtml), meta.expectedSha256);
+        const fixture = read(meta.file); assert.ok(validateUniversalRedactedFixture(fixture));
+        assert.equal(sha(fixture.html), meta.actualSha256); assert.equal(sha(fixture.expectedHtml), meta.expectedSha256);
         assert.equal(meta.host, 'OutlookIOS'); assert.equal(meta.checkpoint, 'caps.structure');
-        assert.equal(state(p.actual, p.source).current, true);
-        for (const host of [null, 'Outlook', 'OutlookWebApp', 'OutlookAndroid', 'unknown', 'ios', 'outlookios']) {
-            assert.equal(state(p.actual, p.source, host).checkpoint, 'caps.structure', String(host));
-        }
-        assert.equal(universalComposeStateFromBody(p.source, p.actual, 'newMail').checkpoint, 'caps.structure');
+        const own = state(universalDiagnosticReplayHtml(fixture.html), read('signature.json'));
+        assert.equal(own.present, true); assert.equal(own.current, false); assert.equal(own.checkpoint, 'state.version');
+        assert.throws(() => pair(meta.file), { code: 'U2E_SOURCE_INVALID' });
     }
+});
+
+test('synthetic v2.5 iOS projection remains current only with canonical iOS context', () => {
+    const p = pair(); assert.equal(state(p.actual, p.source).current, true);
+    for (const host of [null, 'Outlook', 'OutlookWebApp', 'OutlookAndroid', 'unknown', 'ios', 'outlookios']) {
+        assert.equal(state(p.actual, p.source, host).checkpoint, 'caps.structure', String(host));
+    }
+    assert.equal(universalComposeStateFromBody(p.source, p.actual, 'newMail').checkpoint, 'caps.structure');
 });
 
 test('C-K24 accepts the exact empty/NBSP mobile wrapper while keeping source admission strict', () => {
