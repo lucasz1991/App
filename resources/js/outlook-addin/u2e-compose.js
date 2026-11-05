@@ -164,15 +164,43 @@ export function universalComposePresentationEvidence(html) {
     } catch { return { schema: 1, readable: false, tables: 0, centeredTables: 0, colors: {} }; }
 }
 
-function visibleDispatchCaps(html, elements, dispatch) {
+// Only the captured Outlook iOS cap serialization is interchangeable with an
+// empty source cap. This is not a general DIV/host/material normalization.
+function iosCapDiv(html, elements, cell, descendants) {
+    if (descendants.length !== 1) return false;
+    const { node } = descendants[0];
+    if (node.tag !== 'div' || node.parent !== cell.index || cell.node.attrs.class !== 'rt-dispo-cap'
+        || node.attrs.class !== 'rt-dispo-cap' || node.attrs.dir !== undefined && node.attrs.dir !== 'ltr'
+        || Object.keys(node.attrs).some(name => !['class', 'dir', 'style'].includes(name))
+        || !dimension(node, 'line-height', 8) || !dimension(node, 'font-size', 1)) return false;
+    const content = html.slice(node.openEnd, node.close).replace(/[ \t\r\n]/g, '');
+    // The diagnostic redactor removes NBSP; the real SDK may use an entity or
+    // the literal character. Authored text, comments and extra nodes stay out.
+    if (!/^(?:&nbsp;|&#160;|&#xa0;|\u00a0)?$/i.test(content)
+        || !/^[ \t\r\n]*$/.test(html.slice(cell.node.openEnd, node.start) + html.slice(node.end, cell.node.close))
+        || /<!--|-->/.test(html.slice(cell.node.openEnd, cell.node.close))) return false;
+    const seen = new Set();
+    for (const declaration of (node.attrs.style || '').split(';')) {
+        if (!declaration.trim()) continue;
+        const colon = declaration.indexOf(':'), name = declaration.slice(0, colon).trim().toLowerCase();
+        const value = declaration.slice(colon + 1).trim().toLowerCase();
+        if (colon < 1 || seen.has(name) || !['line-height', 'font-size', 'font-family', 'color'].includes(name)) return false;
+        seen.add(name);
+        if (name === 'font-family' && value !== 'arial, sans-serif' || name === 'color' && color(value) !== '#142231') return false;
+    }
+    return true;
+}
+
+function visibleDispatchCaps(html, elements, dispatch, iosReadback = false) {
     const rows = tableRows(elements, dispatch.index);
     const caps = [rows[0], rows[3]].map(row => ({ row, cell: rowCells(elements, row.index)[0] }));
     for (const { row, cell } of caps) {
         const descendants = cell ? indexed(elements).filter(value => value.index !== cell.index && inside(elements, value.index, cell.index)) : [];
         const paragraphs = descendants.filter(value => value.node.tag === 'p');
+        const mobileDiv = iosReadback && cell && iosCapDiv(html, elements, cell, descendants);
         if (!cell || text(html.slice(cell.node.openEnd, cell.node.close)) !== ''
-            || paragraphs.length > 1 || descendants.some(value => !['p', 'span', 'font', 'o:p'].includes(value.node.tag)
-                || Object.hasOwn(value.node.attrs, 'data-rt-redacted'))) throw layoutFailure('caps.structure');
+            || !mobileDiv && (paragraphs.length > 1 || descendants.some(value => !['p', 'span', 'font', 'o:p'].includes(value.node.tag)
+                || Object.hasOwn(value.node.attrs, 'data-rt-redacted')))) throw layoutFailure('caps.structure');
         // Word can move the exact line box from the cell to its single empty
         // paragraph. Height remains on the cell; extra lines are not allowed.
         const line = property(cell.node, 'line-height').length ? cell.node : paragraphs.length === 1 ? paragraphs[0].node : null;
@@ -207,7 +235,7 @@ function region(html, composeType) {
     return { current: prefix, currentHtml: prefix + closers, quote: composeType === 'newMail' ? '' : html.slice(boundary) };
 }
 
-function material(html, expectedMarker = null, source = false) {
+function material(html, expectedMarker = null, source = false, host = null) {
     let tree;
     try { tree = parseManagedHtml(html); } catch { throw layoutFailure('html.parse'); }
     const elements = tree.elements;
@@ -283,7 +311,7 @@ function material(html, expectedMarker = null, source = false) {
     let borders, cta;
     try { cta = u2eCtaMaterial(elements, grid, dispatch); borders = u2eTopBorderEvidence(elements, grid, dispatch); }
     catch (error) { throw layoutFailure(['borders.structure', 'borders.invalid', 'borders.image', 'borders.cta'].includes(error?.checkpoint) ? error.checkpoint : 'borders.invalid'); }
-    visibleDispatchCaps(html, elements, dispatch[0]);
+    visibleDispatchCaps(html, elements, dispatch[0], !source && host === 'OutlookIOS');
     visibleCtaLine(cta.line.node, cta.lineRow.node);
     if (source && materialBackgroundColor(elements, cta.line) !== '#ffffff') throw layoutFailure('colors.line');
     if (own.filter(value => value.node.tag === 'td' && value.index !== cta.line.index && inside(elements, value.index, dispatch[0].index)).some(value => {
@@ -359,7 +387,7 @@ export function validateUniversalComposeDocument(document) {
     } catch { throw failure('U2E_SOURCE_INVALID'); }
 }
 
-export function universalComposeStateFromBody(document, html, composeType) {
+export function universalComposeStateFromBody(document, html, composeType, { host = null } = {}) {
     const state = { readable: false, present: false, current: false, kind: null, version: null };
     let checkpoint = 'source.invalid';
     try {
@@ -367,7 +395,7 @@ export function universalComposeStateFromBody(document, html, composeType) {
         checkpoint = 'html.parse';
         const scoped = region(html, composeType);
         if (!scoped) return { ...state, ...u2eReadbackFailure('scope.boundary') };
-        const actual = material(scoped.currentHtml, source.marker);
+        const actual = material(scoped.currentHtml, source.marker, false, host);
         if (!actual.present) return { ...state, readable: true, ...u2eReadbackFailure('state.present', true, false) };
         const expected = plans.get(source);
         const compatible = source.kind === 'signature' || actual.kind === 'combined';
@@ -504,6 +532,7 @@ export async function insertUniversalComposeDocument(office, item, document, { b
     if (!item || typeof item?.sessionData?.getAsync !== 'function' || typeof item?.sessionData?.setAsync !== 'function'
         || typeof item?.getComposeTypeAsync !== 'function' || typeof item?.body?.getTypeAsync !== 'function' || typeof item?.body?.getAsync !== 'function') throw failure('U2E_API_UNAVAILABLE');
     const mobile = isMobileComposeHost(office), method = source.kind === 'combined' && !mobile ? 'prependAsync' : 'setSignatureAsync';
+    const materialHost = office?.context?.mailbox?.diagnostics?.hostName === 'OutlookIOS' ? 'OutlookIOS' : null;
     if (typeof item.body[method] !== 'function') throw failure('U2E_API_UNAVAILABLE');
     const operation = { claimed: false, report: { schema: 1, state: 'preflight', attempted: false, kind: source.kind, method, headerWritten: false,
         phase: 'preflight', sourceLength: source.html.length, bodyLength: null, mobileStandardSignatureIgnored: false,
@@ -541,7 +570,7 @@ export async function insertUniversalComposeDocument(office, item, document, { b
         operation.report.bodyLength = original.html.length;
         await guard();
         operation.report.step = 'source.state';
-        const state = universalComposeStateFromBody(source, original.html, original.composeType);
+        const state = universalComposeStateFromBody(source, original.html, original.composeType, { host: materialHost });
         if (state.current) {
             await guardClaim(priorClaim);
             operation.report = { ...operation.report, state: 'complete', current: true, phase: 'complete' };
@@ -588,7 +617,7 @@ export async function insertUniversalComposeDocument(office, item, document, { b
         operation.report.phase = 'readback';
         const actual = await snapshot(office, item, operation.report, 'actual');
         operation.report.step = 'readback.material';
-        const verified = universalComposeStateFromBody(source, actual.html, actual.composeType);
+        const verified = universalComposeStateFromBody(source, actual.html, actual.composeType, { host: materialHost });
         lastSnapshot = actual;
         operation.report.bodyLength = actual.html.length;
         if (actual.composeType !== original.composeType) {
@@ -599,7 +628,7 @@ export async function insertUniversalComposeDocument(office, item, document, { b
             u2eReadbackFailure(verified.checkpoint || 'state.unreadable'), { difference: verified.difference || null });
         operation.report.step = 'readback.quote';
         if (actual.quote !== original.quote) throw layoutFailure('quote.bytes', original.quote, actual.quote, null, 'u2e-compose-readback');
-        const actualMaterial = material(actual.currentHtml);
+        const actualMaterial = material(actual.currentHtml, null, false, materialHost);
         operation.report.step = 'readback.author';
         if (source.kind === 'signature' && authorEvidence(actual.currentHtml, actualMaterial.root) !== ownAuthor) throw layoutFailure('author.signature', ownAuthor,
             authorEvidence(actual.currentHtml, actualMaterial.root), null, 'u2e-compose-author');

@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "kind": "native-redacted-compose-pairs",
+  "normalization": "none; copied validated seven-field fixture only; authored text and URLs already redacted",
+  "pairs": [
+    {
+      "file": "ios.ck24-210443.redacted.json",
+      "origin": "authenticated admin download of saved native compose readback pair",
+      "host": "OutlookIOS",
+      "code": "SIGNATURE_LAYOUT_UNCONFIRMED",
+      "phase": "readback",
+      "checkpoint": "caps.structure",
+      "capturedAt": "2026-11-05T21:04:43+01:00",
+      "actualSha256": "1279c3432be4c583d8440df100cb19d2f0b148f3fb2dbc405263d1a252940833",
+      "expectedSha256": "a349a901ff5c1858c2152bdbc0ac44c53fabb2f88d79c6bc427953eb76beff23"
+    },
+    {
+      "file": "ios.ck24-200050.redacted.json",
+      "origin": "authenticated admin download of saved native compose readback pair",
+      "host": "OutlookIOS",
+      "code": "SIGNATURE_LAYOUT_UNCONFIRMED",
+      "phase": "readback",
+      "checkpoint": "caps.structure",
+      "capturedAt": "2026-11-05T20:00:50+01:00",
+      "actualSha256": "16ddf988aa7c681980d1518051d74d3f6baf79963c77eef82430ede924fc54f8",
+      "expectedSha256": "2de1a17572b8a49f887474c7307123b886b97a72ba38e0a74f07df55483d5cae"
+    }
+  ]
+}
