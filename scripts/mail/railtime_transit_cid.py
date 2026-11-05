@@ -37,20 +37,20 @@ from railtime_transit import (
 )
 
 APP_ORIGIN = "https://app.rail-time.de"
-# Same immutable media identities as OutlookUniversalPresentation (C-K15/v2).
+# Same immutable media identities as OutlookUniversalPresentation (C-K21/v2.1).
 PINNED_MEDIA = {
     "b983af0049.png": "b983af0049926c128807d605a51a68ce90fea06c5c340f7728b105a96d7f021a",
     "9dfa25b253.png": "9dfa25b253b065c73173b884939db2a032453c44eb2ba6e9e65434a95a072675",
     "d92bd192b6.png": "d92bd192b664c536fe29b1c927023bca44041de90bc9bfe34e6df03be5006d32",
     "1593d63cca.png": "1593d63ccacf8c884b71870fe1478f218ea0f541e918d84115978bc2b75c64ff",
     "a38bc7d27c.png": "a38bc7d27c9c8c04c2a20815ad9576c76aebfe0bd651f9c5e90909b83bdf6925",
-    "8a9ee1e161.png": "8a9ee1e1614f8e48fc374fb99ccd088ea33b4f3f156a63ed5294d23ab840e50d",
-    "4b1a2aaba8.png": "4b1a2aaba8a4720445c7b80d1599765da5b728776eb876ea2e31facd8866db1c",
+    "c01c48d975.png": "c01c48d9751490afb57f4a01622603922557cab4d46dd68f4b92867e57ef7454",
+    "8a5901e027.png": "8a5901e0273611b36d763a352dd9ee7df02e4c155fa5e4ad6812ba74a09204a6",
     "19125261c2.png": "19125261c2bc8274933b7a1c9efd1c5db23cd751c65fc1f88d2dcae22e4481b1",
     "f9d88b899d.png": "f9d88b899d574851c64d02c9835a5b5fcf8d7c68e05d6c9b3f5618d3ac38bbd9",
     "1111670ac8.png": "1111670ac86e12aff6ad7809e11959b7af3c1275d4c5f2832b60934992f8f19a",
-    "b4b1fbea07.png": "b4b1fbea07044c782344b98404fc91c41b5a9e844ef5535f150d7649d62f3160",
-    "f1b083c20b.png": "f1b083c20b84f813007ca8d1b08c01ef77e08a819f12dc701a1ed94a2d7fd3fc",
+    "033a29c0b7.png": "033a29c0b747373ddc306dafc4abf81d8d21dc4505e9e83931fbaab4a6aec9a6",
+    "097c3bb121.png": "097c3bb121f8b1b14e36de2cabdffb0606254fd8d69532061012a12c8a60fb09",
     "14d7943c88.png": "14d7943c888b83659542baaa26172dde70e51df8fc893a4c0cc48b14e47f6351",
 }
 CID = re.compile(r"[A-Za-z0-9._+\-]+@[A-Za-z0-9.\-]+\Z")

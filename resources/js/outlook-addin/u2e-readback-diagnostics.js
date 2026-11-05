@@ -64,7 +64,9 @@ export const U2E_REDACTED_CSS_WORDS = Object.freeze([
 const checkpointSet = new Set(U2E_READBACK_CHECKPOINTS), differenceSet = new Set(U2E_READBACK_DIFFERENCE_KEYS);
 const markerPattern = /^(?:x_)?rt-sig-u2-([0-9a-f]{24})(?:-cell)?$/;
 const knownAssets = new Set(['b983af0049.png', '9dfa25b253.png', 'd92bd192b6.png', '1593d63cca.png', 'a38bc7d27c.png',
-    '8a9ee1e161.png', '4b1a2aaba8.png', 'b4b1fbea07.png', 'f1b083c20b.png', '19125261c2.png', 'f9d88b899d.png', '1111670ac8.png', '14d7943c88.png']);
+    '8a9ee1e161.png', '4b1a2aaba8.png', 'b4b1fbea07.png', 'f1b083c20b.png',
+    'c01c48d975.png', '8a5901e027.png', '033a29c0b7.png', '097c3bb121.png',
+    '19125261c2.png', 'f9d88b899d.png', '1111670ac8.png', '14d7943c88.png']);
 const cssWords = new Set(U2E_REDACTED_CSS_WORDS), classes = new Set(U2E_REDACTED_CLASSES);
 const cssProperties = new Set(U2E_REDACTED_STYLE_PROPERTIES), allowedTags = new Set(U2E_REDACTED_TAGS);
 const rotate = (word, bits) => word >>> bits | word << 32 - bits;

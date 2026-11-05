@@ -23,9 +23,9 @@ final class OutlookUniversalPresentationTest extends TestCase
     private const IMAGES = [
         ['b983af0049.png', 184, 32], ['9dfa25b253.png', 15, 15], ['d92bd192b6.png', 15, 15],
         ['1593d63cca.png', 15, 15], ['a38bc7d27c.png', 15, 15],
-        ['8a9ee1e161.png', 8, 8], ['4b1a2aaba8.png', 8, 8],
+        ['c01c48d975.png', 8, 8], ['8a5901e027.png', 8, 8],
         ['19125261c2.png', 24, 24], ['f9d88b899d.png', 24, 24], ['1111670ac8.png', 24, 24],
-        ['b4b1fbea07.png', 8, 8], ['f1b083c20b.png', 8, 8], ['14d7943c88.png', 500, 83],
+        ['033a29c0b7.png', 8, 8], ['097c3bb121.png', 8, 8], ['14d7943c88.png', 500, 83],
     ];
 
     protected function setUp(): void
@@ -86,6 +86,8 @@ final class OutlookUniversalPresentationTest extends TestCase
         }
         self::assertSame(4, $xpath->query('//td[img[@width="8" and @height="8"]]')->length);
         foreach ($xpath->query('//td[img[@width="8" and @height="8"]]') as $corner) {
+            self::assertSame('#e4002b', $corner->getAttribute('bgcolor'));
+            self::assertStringContainsString('background-color:#e4002b;', $corner->getAttribute('style'));
             self::assertStringContainsString('font-size:1px', $corner->getAttribute('style'));
             self::assertStringContainsString('line-height:8px', $corner->getAttribute('style'));
         }
@@ -185,6 +187,7 @@ final class OutlookUniversalPresentationTest extends TestCase
     public function test_ck13_template_has_only_the_three_approved_changes_from_the_previous_pin(): void
     {
         $template = str_replace("\r\n", "\n", file_get_contents(resource_path('mail-templates/u2e-universal-v1.html')));
+        $template = $this->withoutCk21CornerColors($template);
         $template = $this->withoutCk15Additions($template, true);
         self::assertSame('9b8900e1c9640b445dcf309cbb823ca4195001d3cabdf61f927c59c5389b26c4', hash('sha256', $template));
         $line = '<tr class="rt-cta-line"><td colspan="5" height="1" bgcolor="#ffffff" style="height:1px;line-height:1px;font-size:1px;padding:0;background-color:#ffffff;">&nbsp;</td></tr>';
@@ -227,6 +230,7 @@ final class OutlookUniversalPresentationTest extends TestCase
     public function test_ck15_is_exactly_the_approved_555_bytes_and_changes_the_prior_same_profile_version(): void
     {
         $template = str_replace("\r\n", "\n", file_get_contents(resource_path('mail-templates/u2e-universal-v1.html')));
+        $template = $this->withoutCk21CornerColors($template);
         $previous = $this->withoutCk15Additions($template, true);
         self::assertSame('9b8900e1c9640b445dcf309cbb823ca4195001d3cabdf61f927c59c5389b26c4', hash('sha256', $previous));
         self::assertSame(555, strlen($template) - strlen($previous));
@@ -235,6 +239,29 @@ final class OutlookUniversalPresentationTest extends TestCase
         self::assertNotSame('227841d4f4100bc828804a73', $editor['version'], 'C-K13 version for this exact synthetic descriptor/default wording.');
         self::assertSame($editor['version'], $this->render(['mode' => 'send'])['version']);
         self::assertSame('u2e-'.$editor['version'], $editor['header']);
+    }
+
+    public function test_ck21_changes_only_four_corner_cell_colors_and_delivers_opaque_24px_assets_at_8px(): void
+    {
+        $template = str_replace("\r\n", "\n", file_get_contents(resource_path('mail-templates/u2e-universal-v1.html')));
+        self::assertSame('942f8bf2e36712fb616d5acd3096d642baf3731c7952f72cadd1a474796600ba', hash('sha256', $template));
+        self::assertSame('2ad0c5a96b3b03a0e4a633ec87fa4aa79eba30f4d3b4a979937a5f5c7871dd12', hash('sha256', $this->withoutCk21CornerColors($template)),
+            'Reversing only the four corner backgrounds must recover the complete C-K15 template.');
+        $result = $this->render(['mode' => 'send']);
+        self::assertSame(hash('sha256', $template), $result['templateHash']);
+        $corners = array_values(array_filter($result['media'], static fn (array $entry): bool => str_starts_with($entry['name'], 'corner')));
+        self::assertSame(['cornerTopLeft', 'cornerTopRight', 'cornerBottomLeft', 'cornerBottomRight'], array_column($corners, 'name'));
+        foreach ($corners as $entry) {
+            $bytes = file_get_contents(public_path(parse_url($entry['url'], PHP_URL_PATH)));
+            self::assertSame([24, 24], [$entry['width'], $entry['height']]);
+            self::assertSame($entry['sha256'], hash('sha256', $bytes));
+            self::assertSame(2, ord($bytes[25]), 'PNG IHDR truecolour RGB has no alpha channel.');
+            self::assertSame([24, 24], array_slice(getimagesizefromstring($bytes), 0, 2));
+        }
+        foreach (['8a9ee1e161', '4b1a2aaba8', 'b4b1fbea07', 'f1b083c20b'] as $oldAsset) {
+            self::assertStringNotContainsString('/m/'.$oldAsset.'.png', $result['html']);
+            self::assertFileExists(public_path('m/'.$oldAsset.'.png'), 'Historical quoted mail assets must remain available.');
+        }
     }
 
     #[DataProvider('modes')]
@@ -534,6 +561,19 @@ final class OutlookUniversalPresentationTest extends TestCase
             $html = str_replace($this->desktopReset(), '', $html, $rules);
             self::assertSame(1, $rules);
         }
+
+        return $html;
+    }
+
+    private function withoutCk21CornerColors(string $html): string
+    {
+        $html = preg_replace_callback('~<td\b(?=[^>]*\bwidth="8")[^>]*>~', static function (array $match): string {
+            self::assertSame(1, substr_count($match[0], 'bgcolor="#e4002b"'));
+            self::assertSame(1, substr_count($match[0], 'background-color:#e4002b;'));
+
+            return str_replace(['bgcolor="#e4002b"', 'background-color:#e4002b;'], ['bgcolor="#ffffff"', 'background-color:#ffffff;'], $match[0]);
+        }, $html, -1, $corners);
+        self::assertSame(4, $corners);
 
         return $html;
     }

@@ -19,7 +19,7 @@ const documentKeys = ['schema', 'kind', 'html', 'version', 'marker', 'header', '
 const assetSizes = Object.freeze({
     'b983af0049.png': [184, 32], '9dfa25b253.png': [15, 15], 'd92bd192b6.png': [15, 15],
     '1593d63cca.png': [15, 15], 'a38bc7d27c.png': [15, 15],
-    '8a9ee1e161.png': [8, 8], '4b1a2aaba8.png': [8, 8], 'b4b1fbea07.png': [8, 8], 'f1b083c20b.png': [8, 8],
+    'c01c48d975.png': [8, 8], '8a5901e027.png': [8, 8], '033a29c0b7.png': [8, 8], '097c3bb121.png': [8, 8],
     '19125261c2.png': [24, 24], 'f9d88b899d.png': [24, 24], '1111670ac8.png': [24, 24], '14d7943c88.png': [500, 83],
 });
 const failure = (code, phase = 'u2e-compose-preflight') => Object.assign(new Error(code), { code, phase });
@@ -242,8 +242,8 @@ function material(html, expectedMarker = null, source = false) {
     });
     if (images.length < 12 || images.length > 14 || images[0].width !== 184 || images[images.length - 1].width !== 500) throw layoutFailure('images.count');
     const expectedImages = ['b983af0049.png', '9dfa25b253.png', ...Array(images.length - 12).fill('d92bd192b6.png'),
-        '1593d63cca.png', 'a38bc7d27c.png', '8a9ee1e161.png', '4b1a2aaba8.png', '19125261c2.png', 'f9d88b899d.png',
-        '1111670ac8.png', 'b4b1fbea07.png', 'f1b083c20b.png', '14d7943c88.png'];
+        '1593d63cca.png', 'a38bc7d27c.png', 'c01c48d975.png', '8a5901e027.png', '19125261c2.png', 'f9d88b899d.png',
+        '1111670ac8.png', '033a29c0b7.png', '097c3bb121.png', '14d7943c88.png'];
     if (imageOrigins.size !== 1) throw layoutFailure('images.origin', 1, imageOrigins.size);
     if (JSON.stringify(imageFiles) !== JSON.stringify(expectedImages)) throw layoutFailure('images.order', expectedImages, imageFiles);
     const links = own.filter(value => value.node.tag === 'a').map(value => {
@@ -262,8 +262,9 @@ function material(html, expectedMarker = null, source = false) {
     visibleCtaLine(cta.line.node, cta.lineRow.node);
     if (source && materialBackgroundColor(elements, cta.line) !== '#ffffff') throw layoutFailure('colors.line');
     if (own.filter(value => value.node.tag === 'td' && value.index !== cta.line.index && inside(elements, value.index, dispatch[0].index)).some(value => {
-            const corner = dimension(value.node, 'width', 8) && dimension(value.node, 'height', 8);
-            return materialBackgroundColor(elements, value) !== (corner ? '#ffffff' : '#e4002b');
+            // C-K21 makes the four corner cells the same red as the panel.
+            // A missing equal cell color still uses only its nearest table.
+            return materialBackgroundColor(elements, value) !== '#e4002b';
         })) throw layoutFailure('colors.corners');
     const borderColors = borders.map(value => value.color);
     if (source && JSON.stringify(borderColors) !== JSON.stringify(Array(4).fill('#e4002b'))) throw layoutFailure('borders.invalid');

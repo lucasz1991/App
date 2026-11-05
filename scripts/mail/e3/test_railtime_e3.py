@@ -373,7 +373,7 @@ class E3Tests(unittest.TestCase):
         source = APP_ORIGIN+'/m/'+name
         content = (root/'public/m'/name).read_bytes()
         self.snapshot = {'schema': 1, 'ok': True, 'projection': {'mode': 'send', 'header': HEADER,
-                         'templateHash': '2ad0c5a96b3b03a0e4a633ec87fa4aa79eba30f4d3b4a979937a5f5c7871dd12', 'media': [{'url': source}]},
+                         'templateHash': '942f8bf2e36712fb616d5acd3096d642baf3731c7952f72cadd1a474796600ba', 'media': [{'url': source}]},
                          'media': [{'source': source, 'mime': 'image/png', 'sha256': sha, 'dataBase64': base64.b64encode(content).decode()}]}
         for media, expected in [(b'application/ms-tnef', 'tnef_requires_ingress_proof'), (b'application/pkcs7-mime', 'protected_message')]:
             message = mime().replace(b'text/html; charset=utf-8', media)

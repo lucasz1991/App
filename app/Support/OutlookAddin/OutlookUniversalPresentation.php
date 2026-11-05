@@ -14,9 +14,9 @@ final class OutlookUniversalPresentation
 
     public const DESIGN_SOURCE = 'c7efab2c64890dc57386448be880122e1e284c6c35a2392fcad5ed5094f94b6b';
 
-    // C-K13's separator plus the exact C-K15 fallback/exact-height additions.
+    // C-K13 separator, C-K15 fallback/exact heights and C-K21 red corner cells.
     // DESIGN_SOURCE still identifies the unchanged original U2e reference.
-    private const TEMPLATE_SHA256 = '2ad0c5a96b3b03a0e4a633ec87fa4aa79eba30f4d3b4a979937a5f5c7871dd12';
+    private const TEMPLATE_SHA256 = '942f8bf2e36712fb616d5acd3096d642baf3731c7952f72cadd1a474796600ba';
 
     private const ASSETS = [
         'logo' => ['/m/b983af0049.png', 'b983af0049926c128807d605a51a68ce90fea06c5c340f7728b105a96d7f021a', 400, 68],
@@ -24,13 +24,13 @@ final class OutlookUniversalPresentation
         'mobile' => ['/m/d92bd192b6.png', 'd92bd192b664c536fe29b1c927023bca44041de90bc9bfe34e6df03be5006d32', 44, 44],
         'web' => ['/m/1593d63cca.png', '1593d63ccacf8c884b71870fe1478f218ea0f541e918d84115978bc2b75c64ff', 44, 44],
         'location' => ['/m/a38bc7d27c.png', 'a38bc7d27c9c8c04c2a20815ad9576c76aebfe0bd651f9c5e90909b83bdf6925', 44, 44],
-        'cornerTopLeft' => ['/m/8a9ee1e161.png', '8a9ee1e1614f8e48fc374fb99ccd088ea33b4f3f156a63ed5294d23ab840e50d', 16, 16],
-        'cornerTopRight' => ['/m/4b1a2aaba8.png', '4b1a2aaba8a4720445c7b80d1599765da5b728776eb876ea2e31facd8866db1c', 16, 16],
+        'cornerTopLeft' => ['/m/c01c48d975.png', 'c01c48d9751490afb57f4a01622603922557cab4d46dd68f4b92867e57ef7454', 24, 24],
+        'cornerTopRight' => ['/m/8a5901e027.png', '8a5901e0273611b36d763a352dd9ee7df02e4c155fa5e4ad6812ba74a09204a6', 24, 24],
         'dispatchMail' => ['/m/19125261c2.png', '19125261c2bc8274933b7a1c9efd1c5db23cd751c65fc1f88d2dcae22e4481b1', 72, 72],
         'whatsapp' => ['/m/f9d88b899d.png', 'f9d88b899d574851c64d02c9835a5b5fcf8d7c68e05d6c9b3f5618d3ac38bbd9', 72, 72],
         'dispatchPhone' => ['/m/1111670ac8.png', '1111670ac86e12aff6ad7809e11959b7af3c1275d4c5f2832b60934992f8f19a', 72, 72],
-        'cornerBottomLeft' => ['/m/b4b1fbea07.png', 'b4b1fbea07044c782344b98404fc91c41b5a9e844ef5535f150d7649d62f3160', 16, 16],
-        'cornerBottomRight' => ['/m/f1b083c20b.png', 'f1b083c20b84f813007ca8d1b08c01ef77e08a819f12dc701a1ed94a2d7fd3fc', 16, 16],
+        'cornerBottomLeft' => ['/m/033a29c0b7.png', '033a29c0b747373ddc306dafc4abf81d8d21dc4505e9e83931fbaab4a6aec9a6', 24, 24],
+        'cornerBottomRight' => ['/m/097c3bb121.png', '097c3bb121f8b1b14e36de2cabdffb0606254fd8d69532061012a12c8a60fb09', 24, 24],
         'train' => ['/m/14d7943c88.png', '14d7943c888b83659542baaa26172dde70e51df8fc893a4c0cc48b14e47f6351', 1139, 190],
     ];
 

@@ -57,7 +57,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $OwnedMarker = 'RailTime-C-K17-E3-20261104; disabled-staging-only'
 $ExpectedPilot = 'it-technik@rail-time.de'
-$ExpectedTemplateHash = '2ad0c5a96b3b03a0e4a633ec87fa4aa79eba30f4d3b4a979937a5f5c7871dd12'
+$ExpectedTemplateHash = '942f8bf2e36712fb616d5acd3096d642baf3731c7952f72cadd1a474796600ba'
 $ExpectedNames = @{
     outboundConnectorName = 'RailTime C-K17 E3 Out'
     inboundConnectorName = 'RailTime C-K17 E3 Return'

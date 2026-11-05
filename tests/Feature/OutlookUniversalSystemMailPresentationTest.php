@@ -50,7 +50,7 @@ final class OutlookUniversalSystemMailPresentationTest extends TestCase
         $result = (new OutlookUniversalSystemMailPresentation)->project($legacy, $this->values(), new HtmlString($author));
         self::assertNotNull($result, (new OutlookUniversalSystemMailPresentation)->review($legacy, $this->values(), new HtmlString($author))['reason']);
         self::assertSame('send', $result['mode']);
-        self::assertSame('2ad0c5a96b3b03a0e4a633ec87fa4aa79eba30f4d3b4a979937a5f5c7871dd12', $result['templateHash']);
+        self::assertSame('942f8bf2e36712fb616d5acd3096d642baf3731c7952f72cadd1a474796600ba', $result['templateHash']);
         self::assertSame(1, substr_count($result['html'], $author));
         self::assertStringContainsString('Synthetic Rail GmbH', $result['html']);
         self::assertStringNotContainsString('rt-v17-', $result['html']);

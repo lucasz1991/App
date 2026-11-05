@@ -70,16 +70,18 @@ test('explicit colors, transparent values, gradients and background images never
     assert.equal(universalComposeStateFromBody(source, conflict, 'newMail').checkpoint, 'colors.conflict');
 });
 
-test('the fallback never crosses another table or repairs missing white corners or a missing Dispo table color', () => {
+test('the fallback never crosses another table or repairs a missing Dispo table color', () => {
     const cases = [
         dom => { const { dispatch } = wordDispo(dom); stripOwnColor([...dispatch.querySelectorAll('td')].find(cell => cell.closest('table') !== dispatch)); },
-        dom => { const { dispatch } = wordDispo(dom); stripOwnColor(dispatch.querySelector('td[width="8"]')); },
         dom => { const { dispatch } = wordDispo(dom); stripOwnColor(dispatch); dom.querySelector('table').setAttribute('bgcolor', '#e4002b'); },
     ];
     for (const mutate of cases) assert.equal(universalComposeStateFromBody(source, change(mutate), 'newMail').current, false);
     // C-K11 extends the same nearest-table rule to material cells outside Dispo.
     const whiteCompany = change(dom => { wordDispo(dom); stripOwnColor(dom.querySelector('td[width="213"]')); });
     assert.equal(universalComposeStateFromBody(source, whiteCompany, 'newMail').current, true);
+    // C-K21 corners now equal their red nearest table, so Word may omit them too.
+    const redCorner = change(dom => { const { dispatch } = wordDispo(dom); stripOwnColor(dispatch.querySelector('td[width="8"]')); });
+    assert.equal(universalComposeStateFromBody(source, redCorner, 'newMail').current, true);
 });
 
 test('ancestor centering and inherited Dispo colors do not turn quoted material into the current signature', () => {

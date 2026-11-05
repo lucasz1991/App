@@ -83,7 +83,8 @@ final class OutlookUniversalDiagnosticFixtureValidator
     ];
 
     private const ASSETS = ['b983af0049.png', '9dfa25b253.png', 'd92bd192b6.png', '1593d63cca.png', 'a38bc7d27c.png',
-        '8a9ee1e161.png', '4b1a2aaba8.png', '19125261c2.png', 'f9d88b899d.png', '1111670ac8.png', 'b4b1fbea07.png', 'f1b083c20b.png', '14d7943c88.png'];
+        '8a9ee1e161.png', '4b1a2aaba8.png', '19125261c2.png', 'f9d88b899d.png', '1111670ac8.png', 'b4b1fbea07.png', 'f1b083c20b.png', '14d7943c88.png',
+        'c01c48d975.png', '8a5901e027.png', '033a29c0b7.png', '097c3bb121.png'];
 
     public static function valid(array $fixture): bool
     {

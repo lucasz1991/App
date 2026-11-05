@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "kind": "synthetic-c-k15-host-serializations",
+  "nativeClientProof": false,
+  "privateInputUsed": false,
+  "version": "494c11d6ceab48d58f14ecbd",
+  "previousVersion": "92eab6c45a583e103b6e62f5",
+  "templateSha256": "2ad0c5a96b3b03a0e4a633ec87fa4aa79eba30f4d3b4a979937a5f5c7871dd12",
+  "description": "Actual B1 renderer, identical synthetic C13 descriptor/author. Synthetic Rooster preserves four inline fallback cells; synthetic Word omits those CSS properties and retains exact-height declarations. Historical native artifacts unchanged.",
+  "artifacts": {
+    "source.json": {
+      "bytes": 14364,
+      "sha256": "de30847eb40ebbfe3be5dd87d823afa041eb4dfe9c311667e4d8e8ffc4b12dd9"
+    },
+    "signature.json": {
+      "bytes": 14025,
+      "sha256": "48699718a1cb05839ada2bdbc66679dca6c1e1e06b0a1ebda7a7e4d7d5e343cd"
+    },
+    "rooster.synthetic.html": {
+      "bytes": 13078,
+      "sha256": "e9adcad95655892b25bab2325efcdee7cc82823778da9773542adccc5d2088a5"
+    },
+    "word.synthetic.html": {
+      "bytes": 12626,
+      "sha256": "901649ee54690dd1ce28dc1445c1eb869b36730bd76a07db023b61badc76eb3a"
+    },
+    "source.c13-legacy.json": {
+      "bytes": 13916,
+      "sha256": "c3a729fa720c8fa622e988e873451a76238017539fd457ff7b5d1ccaaf1f162e"
+    }
+  }
+}

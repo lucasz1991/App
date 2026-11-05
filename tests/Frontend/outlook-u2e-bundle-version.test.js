@@ -14,16 +14,16 @@ const build = extra => ({ schema: 1, revision: 'a'.repeat(64), sourceContract: 1
 const payload = extra => ({ universalSignature: source, addinBuild: build(), ...extra });
 const error = action => { try { action(); assert.fail('Expected rejection'); } catch (cause) { return cause; } };
 
-test('the reader capability is pinned to the current approved C15 template, independently of personal hashes', () => {
+test('the reader capability is pinned to the current approved C21 template, independently of personal hashes', () => {
     const contracts = JSON.parse(fs.readFileSync(new URL('../../resources/outlook-addin/contracts.json', import.meta.url), 'utf8'));
     const bytes = fs.readFileSync(new URL('../../resources/mail-templates/u2e-universal-v1.html', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
     assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'), contracts.sourceTemplate);
     assert.equal(U2E_SOURCE_TEMPLATE, contracts.sourceTemplate);
     assert.deepEqual(U2E_READER_CONTRACTS, contracts.readerContracts);
-    // Contract identifiers are immutable. A different source needs an explicit
-    // new contract/pin review, never a reused identifier under a passing test.
+    // The envelope contract stays at 1. C-K21 explicitly changes the reviewed
+    // template pin; an old bundle detects that pin mismatch before writing.
     assert.equal(contracts.sourceContract, 1);
-    assert.equal(contracts.sourceTemplate, '2ad0c5a96b3b03a0e4a633ec87fa4aa79eba30f4d3b4a979937a5f5c7871dd12');
+    assert.equal(contracts.sourceTemplate, '942f8bf2e36712fb616d5acd3096d642baf3731c7952f72cadd1a474796600ba');
 });
 
 test('different compatible bundle revisions and personal source hashes never cause stale classification', () => {

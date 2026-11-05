@@ -1,32 +1,58 @@
 {
   "schema": 1,
-  "kind": "synthetic-c-k15-host-serializations",
+  "kind": "synthetic-c-k21-host-serializations",
   "nativeClientProof": false,
   "privateInputUsed": false,
-  "version": "494c11d6ceab48d58f14ecbd",
+  "version": "da9b8f7e66f6cd549ecd8203",
   "previousVersion": "92eab6c45a583e103b6e62f5",
-  "templateSha256": "2ad0c5a96b3b03a0e4a633ec87fa4aa79eba30f4d3b4a979937a5f5c7871dd12",
-  "description": "Actual B1 renderer, identical synthetic C13 descriptor/author. Synthetic Rooster preserves four inline fallback cells; synthetic Word omits those CSS properties and retains exact-height declarations. Historical native artifacts unchanged.",
+  "previousCornerVersion": "494c11d6ceab48d58f14ecbd",
+  "previousCornerSource": "legacy-c15/source.json",
+  "templateSha256": "942f8bf2e36712fb616d5acd3096d642baf3731c7952f72cadd1a474796600ba",
+  "description": "Actual C-K21 B1 renderer, unchanged synthetic descriptor/author. Only corner image URLs, four red corner colors and version change in prior synthetic host serializations. C15 sources/hosts/manifest preserved under legacy-c15; historical native artifacts unchanged. Synthetic proof only.",
   "artifacts": {
     "source.json": {
       "bytes": 14364,
-      "sha256": "de30847eb40ebbfe3be5dd87d823afa041eb4dfe9c311667e4d8e8ffc4b12dd9"
+      "sha256": "c5f67411f0109a1d6ad67630bfc78dcd58a0c188596cc9ea63b527c15aa3bbf5"
     },
     "signature.json": {
       "bytes": 14025,
-      "sha256": "48699718a1cb05839ada2bdbc66679dca6c1e1e06b0a1ebda7a7e4d7d5e343cd"
+      "sha256": "1a5b5e3a231414aea42fca5cba325d22723f4f0c7dc1a9df49c1a9eaa1a99320"
     },
     "rooster.synthetic.html": {
-      "bytes": 13078,
-      "sha256": "e9adcad95655892b25bab2325efcdee7cc82823778da9773542adccc5d2088a5"
+      "bytes": 13066,
+      "sha256": "27ae484bb617d30b5a51f545e3cee2839fc51b14434adf2bb40dcf99324815f3"
     },
     "word.synthetic.html": {
       "bytes": 12626,
-      "sha256": "901649ee54690dd1ce28dc1445c1eb869b36730bd76a07db023b61badc76eb3a"
+      "sha256": "64e4bd91502df68069b10221ae234c0ba71f991a3d5eb98a4e4e26c1c28939eb"
     },
     "source.c13-legacy.json": {
       "bytes": 13916,
       "sha256": "c3a729fa720c8fa622e988e873451a76238017539fd457ff7b5d1ccaaf1f162e"
+    },
+    "legacy-c15/source.json": {
+      "bytes": 14364,
+      "sha256": "de30847eb40ebbfe3be5dd87d823afa041eb4dfe9c311667e4d8e8ffc4b12dd9"
+    },
+    "legacy-c15/signature.json": {
+      "bytes": 14025,
+      "sha256": "48699718a1cb05839ada2bdbc66679dca6c1e1e06b0a1ebda7a7e4d7d5e343cd"
+    },
+    "legacy-c15/rooster.synthetic.html": {
+      "bytes": 13078,
+      "sha256": "e9adcad95655892b25bab2325efcdee7cc82823778da9773542adccc5d2088a5"
+    },
+    "legacy-c15/word.synthetic.html": {
+      "bytes": 12626,
+      "sha256": "901649ee54690dd1ce28dc1445c1eb869b36730bd76a07db023b61badc76eb3a"
+    },
+    "legacy-c15/source.c13-legacy.json": {
+      "bytes": 13916,
+      "sha256": "c3a729fa720c8fa622e988e873451a76238017539fd457ff7b5d1ccaaf1f162e"
+    },
+    "legacy-c15/manifest.json": {
+      "bytes": 1282,
+      "sha256": "f6856afb14cd1c7d0c17f0addc24ae46d848920a517f8f1fdaa9c28bca02465d"
     }
   }
 }

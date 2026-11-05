@@ -132,13 +132,18 @@ test('an invalid nearest table is consulted only when the cell actually needs it
     assert.equal(state(absent, expected).checkpoint, 'colors.conflict');
 });
 
-test('omitting white does not normalize the required legal gray, red panel or white corners', () => {
+test('omitting white does not normalize the required legal gray or red panel', () => {
     for (const change of [
         document => clearBackground(document.querySelector('.rt-legal')),
         document => background(document.querySelector('.rt-legal'), '#ffffff'),
         document => background(document.querySelector('.rt-dispo'), '#ffffff'),
-        document => clearBackground(document.querySelector('.rt-dispo-corner td[width="8"]')),
     ]) assert.equal(state(mutate(normalizedWhite(), change)).current, false);
+});
+
+test('C21 red corners may inherit only their nearest red Dispo table background', () => {
+    const corner = '.rt-dispo-corner td[width="8"]';
+    assert.equal(state(mutate(normalizedWhite(), document => clearBackground(document.querySelector(corner)))).current, true);
+    assert.equal(state(mutate(normalizedWhite(), document => background(document.querySelector(corner), '#ffffff'))).current, false);
 });
 
 test('redaction and diagnostic replay preserve the accepted nearest-table white evidence', () => {
