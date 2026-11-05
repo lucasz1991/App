@@ -93,12 +93,19 @@ final class OutlookAddinDiagnosticsController extends Controller
                     throw new OutlookAddinException('Die Fixture-Erfassung ist auf das Pilotpostfach begrenzt.', 403, 'outlook_addin_diagnostics_pilot_required');
                 }
                 $fixture = $request->input('fixture');
-                if ($data['code'] !== 'SIGNATURE_LAYOUT_UNCONFIRMED' || ! is_array($fixture)
+                $boundary = is_array($fixture) && ($fixture['format'] ?? null) === OutlookUniversalDiagnosticFixtureValidator::BOUNDARY_FORMAT;
+                $allowedFixture = $boundary
+                    ? $data['code'] === 'U2E_NEW_DRAFT_REQUIRED' && $data['phase'] === 'preflight'
+                        && ($data['step'] ?? null) === 'snapshot.region'
+                        && in_array($data['composeType'] ?? null, ['reply', 'forward'], true)
+                        && in_array($data['host'], ['OutlookIOS', 'OutlookAndroid', 'OutlookWebApp'], true)
+                    : $data['code'] === 'SIGNATURE_LAYOUT_UNCONFIRMED';
+                if (! $allowedFixture || ! is_array($fixture)
                     || ! OutlookUniversalDiagnosticFixtureValidator::valid($fixture)) {
                     // Keep the independently validated checkpoint even if a host
                     // serialization cannot pass the stricter fixture boundary.
                     $diagnostics->recordReadback($resolved['user'], $data, $resolved['binding']['mailboxAddress']);
-                    throw ValidationException::withMessages(['diagnostic' => 'Ungültige redigierte Signatur-Fixture.']);
+                    throw ValidationException::withMessages(['diagnostic' => 'Ungültige redigierte Compose-Fixture.']);
                 }
             }
             if ($diagnosticId !== null) {

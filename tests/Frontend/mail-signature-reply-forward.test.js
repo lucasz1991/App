@@ -361,6 +361,7 @@ const composeLibrary = {
     ...await import('../../resources/js/outlook-addin/automatic-preferences-view.js'),
     ...await import('../../resources/js/outlook-addin/account-options-view.js'),
     ...await import('../../resources/js/outlook-addin/u2e-compose.js'),
+    ...await import('../../resources/js/outlook-addin/u2e-compose-help.js'),
     ...await import('../../resources/js/outlook-addin/u2e-telemetry.js'),
     ...await import('../../resources/js/outlook-addin/u2e-session-report.js'),
     ...await import('../../resources/js/outlook-addin/u2e-taskpane-status.js'),

@@ -13,7 +13,7 @@ use Illuminate\Container\Container;
  */
 final class OutlookAddinManifest
 {
-    public const ADDIN_VERSION = '1.0.5.0';
+    public const ADDIN_VERSION = '1.0.6.0';
 
     public const MANIFEST_SCHEMA = '1.1';
 

@@ -3,6 +3,9 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { diagnoseUncertainV15Readback, prependTemplate } from '../../resources/js/outlook-addin/compose-template.js';
 import { diagnosticReport } from '../../resources/js/outlook-addin/diagnostics.js';
+import { universalComposeBoundaryHelp } from '../../resources/js/outlook-addin/u2e-compose-help.js';
+import { universalComposeReport } from '../../resources/js/outlook-addin/u2e-compose.js';
+import { universalBundleFailureReport } from '../../resources/js/outlook-addin/u2e-bundle-version.js';
 import { fluidLayoutContract, managedTemplateContract, standaloneSignatureContract, V17_READBACK_CONTRACT_STAGES } from '../../resources/js/outlook-addin/managed-template.js';
 import { prepareNativeLayoutRestore } from '../../resources/js/outlook-addin/native-layout-restore.js';
 
@@ -145,8 +148,9 @@ function taskpaneFunction(name, next) {
 }
 
 test('the actual taskpane distinguishes an accepted but unconfirmed layout from a proven write timeout', () => {
-    const userMessage = new Function('safeErrorCode', 'isInteractionRequired', 'return (' + taskpaneFunction('userMessage', 'readyStatusDetail') + ');')(
-        error => error.code, () => false);
+    const userMessage = new Function('safeErrorCode', 'isInteractionRequired', 'universalComposeBoundaryHelp', 'universalComposeReport',
+        'return (' + taskpaneFunction('userMessage', 'readyStatusDetail') + ');')(
+        error => error.code, () => false, universalComposeBoundaryHelp, universalComposeReport);
     const layout = userMessage({ code: 'TEMPLATE_LAYOUT_UNCONFIRMED', phase: 'template-replace-preflight', reason: 'unconfirmed' });
     assert.match(layout, /Einfügeaufruf.*angenommen/); assert.match(layout, /Darstellung/);
     assert.doesNotMatch(layout, /rechtzeitig|ersetzt|erneut versuchen/);
@@ -158,7 +162,7 @@ test('the actual taskpane distinguishes an accepted but unconfirmed layout from 
 test('the actual failure renderer keeps the exact original phase and reason without changing locks or claiming success', () => {
     const error = Object.freeze({ code: 'TEMPLATE_LAYOUT_UNCONFIRMED', phase: 'template-replace-preflight', reason: 'unconfirmed' });
     const records = [], statuses = [];
-    const execute = new Function('error', 'recordDiagnostic', 'setStatus', `
+    const execute = new Function('error', 'recordDiagnostic', 'setStatus', 'universalBundleFailureReport', 'universalStatusByItem', `
         let lastActionError = null;
         const safeErrorCode = value => value.code;
         const authenticationWasLost = () => false;
@@ -168,7 +172,7 @@ test('the actual failure renderer keeps the exact original phase and reason with
         (${taskpaneFunction('handleFailure', 'requestSilentBootstrapRefresh')})(error, true);
         return lastActionError;
     `);
-    const retained = execute(error, (...values) => records.push(values), (...values) => statuses.push(values));
+    const retained = execute(error, (...values) => records.push(values), (...values) => statuses.push(values), universalBundleFailureReport, new WeakMap());
     assert.equal(retained, error); assert.deepEqual(records, [['template-replace-preflight', 'failed', error]]);
     assert.equal(statuses[0][1], 'Darstellung nicht bestätigt'); assert.equal(statuses[0][0], 'error');
     assert.equal(diagnosticReport({}, {}).diagnosticRevision, 'v17-contract-checkpoints-v1');

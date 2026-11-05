@@ -108,11 +108,15 @@ test('redaction discards author text, external user content, quotes, raw URL/dat
     assert.match(fixture.html, /data-rt-redacted="active"/);
 });
 
-test('flat sibling quotes and unknown Word reply headers never become a diagnostic own signature', () => {
-    for (const body of [
-        '<html><body><p><br></p><hr><div id="divRplyFwdMsg">Old header</div>' + source.html + '</body></html>',
-        '<div style="border-top:solid #ddd 1px"><b>From:</b> private@example.invalid<br><b>Sent:</b> yesterday</div>' + source.html,
-    ]) assert.equal(universalComposeDiagnosticFixture(source, body, 'reply'), null);
+test('quoted signatures remain excluded while an unknown header permits only text-free boundary topology', () => {
+    const known = '<html><body><p><br></p><hr><div id="divRplyFwdMsg">Old header</div>' + source.html + '</body></html>';
+    assert.equal(universalComposeDiagnosticFixture(source, known, 'reply'), null);
+    const unknown = '<div style="border-top:solid #ddd 1px"><b>From:</b> private@example.invalid<br><b>Sent:</b> yesterday</div>' + source.html;
+    const fixture = universalComposeDiagnosticFixture(source, unknown, 'reply');
+    assert.ok(fixture); assert.equal(fixture.format, 'u2e-redacted-compose-boundary-v1');
+    assert.ok(validateUniversalRedactedFixture(fixture));
+    assert.equal(fixture.html.replace(/<[^>]*>/g, ''), '');
+    assert.doesNotMatch(fixture.html, /private|example|From:|Sent:|yesterday|@|style=|class=|href=|src=/i);
 });
 
 test('bounded 56KB host-style expansion remains capturable and larger fixtures fail closed', () => {

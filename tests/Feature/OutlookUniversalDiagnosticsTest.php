@@ -535,6 +535,36 @@ final class OutlookUniversalDiagnosticsTest extends TestCase
         self::assertCount(2, $this->logger->records);
     }
 
+    public function test_boundary_fixtures_are_private_pilot_only_and_accept_only_mobile_or_web_quote_preflight(): void
+    {
+        $signature = '<table id="rt-sig-u2-'.str_repeat('a', 24).'"><tr>'.str_repeat('<td>rt-redacted</td>', 4)
+            .'</tr><tr><td colspan="3"></td></tr><tr><td colspan="4">rt-redacted</td></tr></table>';
+        $html = '<div data-rt-boundary="1"><div id="ms-outlook-mobile-signature"></div><hr><div id="divrplyfwdmsg"><p></p></div></div>';
+        $fixture = ['schema' => 1, 'format' => 'u2e-redacted-compose-boundary-v1', 'html' => $html,
+            'expectedHtml' => $signature, 'sourceLength' => 1234, 'sha256' => hash('sha256', $html), 'expectedSha256' => hash('sha256', $signature)];
+        $payload = array_replace($this->readback(), ['code' => 'U2E_NEW_DRAFT_REQUIRED', 'phase' => 'preflight',
+            'step' => 'snapshot.region', 'composeType' => 'forward', 'fixture' => $fixture]);
+        $this->postJson(self::URL, $payload, $this->headers())->assertForbidden();
+        $headers = $this->headers(true);
+        $business = $this->businessRows();
+        foreach (['OutlookIOS', 'OutlookAndroid', 'OutlookWebApp'] as $host) {
+            foreach (['reply', 'forward'] as $composeType) {
+                $response = $this->postJson(self::URL, array_replace($payload, compact('host', 'composeType')), $headers)->assertStatus(202);
+                $capture = app(OutlookUniversalDiagnosticFixtureStore::class)->get(User::findOrFail(5), $response->json('fixture.id'));
+                self::assertSame($fixture, $capture['fixture']);
+            }
+        }
+        foreach ([['host' => 'Outlook'], ['composeType' => 'newMail'], ['step' => 'source.state'],
+            ['phase' => 'readback'], ['code' => 'SIGNATURE_LAYOUT_UNCONFIRMED']] as $change) {
+            $this->postJson(self::URL, array_replace($payload, $change), $headers)->assertUnprocessable();
+        }
+        $unsafe = str_replace('<p></p>', '<p>PRIVATE-BODY</p>', $html);
+        $this->postJson(self::URL, array_replace($payload, ['fixture' => array_replace($fixture,
+            ['html' => $unsafe, 'sha256' => hash('sha256', $unsafe)])]), $headers)->assertUnprocessable();
+        self::assertSame($business, $this->businessRows());
+        self::assertDoesNotMatchRegularExpression('/PRIVATE-BODY|data-rt-boundary|<hr>/', json_encode($this->logger->records));
+    }
+
     private function stubApplicationLayout(): void
     {
         $directory = sys_get_temp_dir().'/u2e-diagnostics-layout-'.bin2hex(random_bytes(8));

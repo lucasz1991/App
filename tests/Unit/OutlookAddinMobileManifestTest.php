@@ -51,6 +51,6 @@ final class OutlookAddinMobileManifestTest extends TestCase
         self::assertCount(2, $xpath->query('//*[local-name()="DesktopFormFactor"]/*[local-name()="ExtensionPoint" and @xsi:type="MessageReadCommandSurface"]'));
         self::assertCount(2, $xpath->query('//*[local-name()="DesktopFormFactor"]/*[local-name()="ExtensionPoint" and @xsi:type="MessageComposeCommandSurface"]'));
         self::assertCount(2, $xpath->query('//*[local-name()="Url" and @id="Settings.Url" and @DefaultValue="'.$manifest->urls()['settings'].'"]'));
-        self::assertSame('1.0.5.0', OutlookAddinManifest::ADDIN_VERSION);
+        self::assertSame('1.0.6.0', OutlookAddinManifest::ADDIN_VERSION);
     }
 }

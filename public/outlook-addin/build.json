@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "revision": "a6d1c06cbc0fe3d7898ea23a3ce6eec944ba082f2b12c87fb2b552aefd1c9676",
+  "revision": "5856fba9fb47d1eb22f61222798a2278074d73aa68d4558fd2faf608b60d1d5e",
   "sourceContract": 1,
   "sourceTemplate": "5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204",
   "bundles": {
-    "runtime": "6937acb962f76e82bda9d2e011aa70306e6b4eb2b9c8d441537aacc30b8d5317",
-    "taskpane": "3529ae32a6437a99d5297cb3e7b588eac9f94169aa64ade17709e8abfb634d56"
+    "runtime": "9a31502a160a2463deaa3e384f7c49425f059e19510be244ef355f5c48462f52",
+    "taskpane": "67de251e9da9072790552929f7a1504f00311bb048b599c60961ec5ce0dc309d"
   }
 }

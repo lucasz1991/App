@@ -30,6 +30,7 @@ import { validateUniversalComposeDocument, insertUniversalComposeDocument, unive
 import { assertUniversalBundleCompatibility, universalBundleFailureReport, persistUniversalBundleFailure,
     clearUniversalBundleFailure } from './u2e-bundle-version.js';
 import { reportUniversalFailure, universalComposeHost } from './u2e-telemetry.js';
+import { universalComposeBoundaryHelp } from './u2e-compose-help.js';
 
 const CONFIG_META_NAME = 'railtime-outlook-config-url';
 const CONFIG_TIMEOUT_MS = 8000;
@@ -819,6 +820,7 @@ async function notifyMobileFailure(item, error = null) {
         || typeof item?.notificationMessages?.replaceAsync !== 'function') return;
 
     const code = safeErrorCode(error);
+    const boundaryHelp = universalComposeBoundaryHelp(code, universalComposeReport(item));
     const reason = code === 'AUTH_INTERACTION_REQUIRED'
         ? 'Microsoft-Anmeldung erforderlich (RT-AUTH).'
         : code === 'NAA_NOT_SUPPORTED'
@@ -835,7 +837,7 @@ async function notifyMobileFailure(item, error = null) {
         try {
             item.notificationMessages.replaceAsync('railtime-signature-status', {
                 type: 'informationalMessage', icon: 'none', persistent: false,
-                message: `RailTime: ${reason} Signatur vor dem Senden prüfen.`,
+                message: boundaryHelp?.mobile || `RailTime: ${reason} Signatur vor dem Senden prüfen.`,
             }, done);
         } catch { done(); }
     });
