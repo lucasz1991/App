@@ -15,6 +15,12 @@ export const CK19_V12_SOURCE_FILE_SHA256 = '0860693acf1b7a78dd379a1381b70332b0d5
 export const CK19_APPROVED_V13_SHA256 = 'ae784b17a110b6578362b4f567c76d7b1389705a8bf36bbcd6758f168fd8b2c5';
 export const CK19_APPROVED_V13_CHARACTERS = 3801;
 export const CK19_V13_SOURCE_FILE_SHA256 = 'f203fd9db56e30485bc3ef2d348a538847bb6f7d159dd3bb93e8dfdcae5619de';
+export const CK19_APPROVED_V14_SHA256 = '796c465c64703cfd8804a96797c41364cbf1dfcdee7874b2ae379dc18c07d2d1';
+export const CK19_APPROVED_V14_CHARACTERS = 4950;
+export const CK19_V14_SOURCE_FILE_SHA256 = 'f3aaa167d1f059a6f3fde1226dab0724507b96b0a021490564b02267ed08c227';
+export const CK19_APPROVED_V15_SHA256 = 'f5e928a2f517887f7379646bada05223fe7efbb26880be228d368e08774e2595';
+export const CK19_APPROVED_V15_CHARACTERS = 3803;
+export const CK19_V15_SOURCE_FILE_SHA256 = '80ede788b578b6efa40c92ddeaef096eb94c53966711d63b8442705779fe0687';
 export const CK19_GENERATED_DIRECTORY = 'resources/mail-templates/generated';
 const projectRoot = fileURLToPath(new URL('..', import.meta.url));
 const sha256 = value => createHash('sha256').update(value).digest('hex');
@@ -29,6 +35,10 @@ const releases = Object.freeze({
         characters: CK19_APPROVED_V12_CHARACTERS, suffix: '</style>', rules: 36 }),
     'ck19-approved-v13-20261105': Object.freeze({ tag: 'v13', sha256: CK19_APPROVED_V13_SHA256,
         characters: CK19_APPROVED_V13_CHARACTERS, suffix: '</style>', rules: 34 }),
+    'ck19-approved-v14-20261105': Object.freeze({ tag: 'v14', sha256: CK19_APPROVED_V14_SHA256,
+        characters: CK19_APPROVED_V14_CHARACTERS, suffix: '</style>', rules: 42 }),
+    'ck19-approved-v15-20261105': Object.freeze({ tag: 'v15', sha256: CK19_APPROVED_V15_SHA256,
+        characters: CK19_APPROVED_V15_CHARACTERS, suffix: '</style>', rules: 34 }),
 });
 
 /** The source-file EOF is explicitly not part of the approved v11 rule text.
@@ -56,6 +66,22 @@ export function ck19V13RuleTextFromSourceFile(source) {
         || sha256(source) !== CK19_V13_SOURCE_FILE_SHA256 || !source.endsWith('\n') || source.endsWith('\n\n')) fail('V13_SOURCE_FILE_INVALID');
     const ruleText = source.slice(0, -1);
     if (ruleText.length !== CK19_APPROVED_V13_CHARACTERS || sha256(ruleText) !== CK19_APPROVED_V13_SHA256) fail('V13_RULE_TEXT_INVALID');
+    return ruleText;
+}
+
+export function ck19V14RuleTextFromSourceFile(source) {
+    if (typeof source !== 'string' || source.length !== 4951 || Buffer.byteLength(source) !== 4951
+        || sha256(source) !== CK19_V14_SOURCE_FILE_SHA256 || !source.endsWith('\n') || source.endsWith('\n\n')) fail('V14_SOURCE_FILE_INVALID');
+    const ruleText = source.slice(0, -1);
+    if (ruleText.length !== CK19_APPROVED_V14_CHARACTERS || sha256(ruleText) !== CK19_APPROVED_V14_SHA256) fail('V14_RULE_TEXT_INVALID');
+    return ruleText;
+}
+
+export function ck19V15RuleTextFromSourceFile(source) {
+    if (typeof source !== 'string' || source.length !== 3804 || Buffer.byteLength(source) !== 3804
+        || sha256(source) !== CK19_V15_SOURCE_FILE_SHA256 || !source.endsWith('\n') || source.endsWith('\n\n')) fail('V15_SOURCE_FILE_INVALID');
+    const ruleText = source.slice(0, -1);
+    if (ruleText.length !== CK19_APPROVED_V15_CHARACTERS || sha256(ruleText) !== CK19_APPROVED_V15_SHA256) fail('V15_RULE_TEXT_INVALID');
     return ruleText;
 }
 
@@ -90,6 +116,18 @@ export function generateCk19MobileStyle({ templateHtml, presentationPhp, mapping
         || mapping.sourceFileNormalization.ruleTextCharacters !== CK19_APPROVED_V13_CHARACTERS
         || mapping.sourceFileNormalization.ruleTextSha256 !== CK19_APPROVED_V13_SHA256
         || mapping.sourceFileNormalization.approval !== 'user-approved-rule-text-count-excludes-terminal-LF')) fail('V13_NORMALIZATION_CONTRACT_INVALID');
+    if (release.tag === 'v14' && (mapping.sourceFileNormalization?.operation !== 'omit-exactly-one-terminal-LF'
+        || mapping.sourceFileNormalization.sourceFileCharacters !== 4951
+        || mapping.sourceFileNormalization.sourceFileSha256 !== CK19_V14_SOURCE_FILE_SHA256
+        || mapping.sourceFileNormalization.ruleTextCharacters !== CK19_APPROVED_V14_CHARACTERS
+        || mapping.sourceFileNormalization.ruleTextSha256 !== CK19_APPROVED_V14_SHA256
+        || mapping.sourceFileNormalization.approval !== 'user-approved-rule-text-count-excludes-terminal-LF')) fail('V14_NORMALIZATION_CONTRACT_INVALID');
+    if (release.tag === 'v15' && (mapping.sourceFileNormalization?.operation !== 'omit-exactly-one-terminal-LF'
+        || mapping.sourceFileNormalization.sourceFileCharacters !== 3804
+        || mapping.sourceFileNormalization.sourceFileSha256 !== CK19_V15_SOURCE_FILE_SHA256
+        || mapping.sourceFileNormalization.ruleTextCharacters !== CK19_APPROVED_V15_CHARACTERS
+        || mapping.sourceFileNormalization.ruleTextSha256 !== CK19_APPROVED_V15_SHA256
+        || mapping.sourceFileNormalization.approval !== 'user-approved-rule-text-count-excludes-terminal-LF')) fail('V15_NORMALIZATION_CONTRACT_INVALID');
     const css = styles[0][1];
     if (sha256(css) !== mapping.sourceCssSha256) fail('SOURCE_CSS_CHANGED_REVIEW_MAPPING');
     const pins = [...String(presentationPhp).matchAll(/private const TEMPLATE_SHA256\s*=\s*'([0-9a-f]{64})';/g)];
@@ -172,12 +210,16 @@ export function ck19Manifest({ generated, mappingBytes, generatorBytes }) {
         nativeClientProof: false,
         exchangeRuleUpdatedByBuild: false,
         sourceFileNormalization: generated.sourceFileNormalization,
-        scope: generated.release === 'v13'
+        scope: generated.release === 'v14'
+            ? 'Approved v14 global attribute-selector scope follows v11 and additionally targets Word head paragraphs; unrelated-content compatibility is not asserted.'
+            : generated.release === 'v15'
+            ? 'Approved v15 class/tag scope follows v13 and includes selectors outside table.rt-shell; unrelated-content compatibility is not asserted.'
+            : generated.release === 'v13'
             ? 'Approved v13 class/tag scope includes selectors outside table.rt-shell; unrelated-content compatibility is not asserted.'
             : generated.release === 'v12'
             ? 'Approved v12 class/structure scope includes unrooted td.rt-col-* and table.rt-dispo selectors; unrelated-content compatibility is not asserted.'
             : 'Approved v10/v11 global selector scope is unchanged; unrelated-content compatibility is not asserted.',
-        historicalCtaGuard: generated.release === 'v13'
+        historicalCtaGuard: ['v13', 'v15'].includes(generated.release)
             ? 'Only rt-dispo-cap, rt-cta-line and rt-cta-gap descendants of table.rt-dispo are hidden by the cap/line/gap guard; CTA cells are not hidden.'
             : generated.release === 'v12'
             ? 'Only colspan=5 or rt-cta-line descendants of table.rt-shell are hidden; an old single action row is not selected by that guard.'
@@ -186,7 +228,7 @@ export function ck19Manifest({ generated, mappingBytes, generatorBytes }) {
 }
 
 export async function buildCk19MobileStyle({ check = false, root = projectRoot, release = 'v11' } = {}) {
-    if (!['v11', 'v12', 'v13'].includes(release)) fail('BUILD_RELEASE_INVALID');
+    if (!['v11', 'v12', 'v13', 'v14', 'v15'].includes(release)) fail('BUILD_RELEASE_INVALID');
     const mappingPath = 'resources/mail-templates/ck19-mobile-style-' + release + '.mapping.json';
     const payloadName = 'ck19-mobile-style-' + release + '.html';
     const manifestName = 'ck19-mobile-style-' + release + '.manifest.json';
@@ -213,10 +255,10 @@ export async function buildCk19MobileStyle({ check = false, root = projectRoot, 
     return manifest;
 }
 
-/** Existing two-payload callers remain compatible; the CLI also includes v13. */
+/** Existing two-payload callers remain compatible; the CLI checks all releases. */
 export async function buildCk19MobileStyles({ releases: requested = ['v11', 'v12'], ...options } = {}) {
     if (!Array.isArray(requested) || requested.length === 0 || new Set(requested).size !== requested.length
-        || requested.some(release => !['v11', 'v12', 'v13'].includes(release))) fail('BUILD_RELEASE_INVALID');
+        || requested.some(release => !['v11', 'v12', 'v13', 'v14', 'v15'].includes(release))) fail('BUILD_RELEASE_INVALID');
     const manifests = [];
     for (const release of requested) manifests.push(await buildCk19MobileStyle({ ...options, release }));
     return manifests;
@@ -224,6 +266,6 @@ export async function buildCk19MobileStyles({ releases: requested = ['v11', 'v12
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
     if (process.argv.slice(2).some(argument => argument !== '--check')) fail('ARGUMENT_INVALID');
-    const manifests = await buildCk19MobileStyles({ check: process.argv.includes('--check'), releases: ['v11', 'v12', 'v13'] });
+    const manifests = await buildCk19MobileStyles({ check: process.argv.includes('--check'), releases: ['v11', 'v12', 'v13', 'v14', 'v15'] });
     for (const manifest of manifests) console.log(`CK19 ${manifest.revision.split('-')[2]} ${process.argv.includes('--check') ? 'verified' : 'generated'}: ${manifest.payloadCharacters} characters, sha256:${manifest.payloadSha256}, template:${manifest.sourceTemplateSha256}`);
 }

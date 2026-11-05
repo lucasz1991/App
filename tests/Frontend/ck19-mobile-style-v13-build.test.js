@@ -59,7 +59,7 @@ test('v13 provenance is deterministic and the expanded hook verifies all three i
     assert.equal(manifest.exchangeRuleUpdatedByBuild, false);
     const all = await buildCk19MobileStyles({ check: true, releases: ['v11', 'v12', 'v13'] });
     assert.deepEqual(all.map(value => value.payloadSha256), [CK19_APPROVED_V11_SHA256, CK19_APPROVED_V12_SHA256, CK19_APPROVED_V13_SHA256]);
-    for (const releases of [[], ['v13', 'v13'], ['v14']]) {
+    for (const releases of [[], ['v13', 'v13'], ['v99']]) {
         await assert.rejects(buildCk19MobileStyles({ check: true, releases }), /CK19_BUILD_RELEASE_INVALID/);
     }
 });

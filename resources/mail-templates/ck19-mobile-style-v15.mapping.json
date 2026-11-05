@@ -1,0 +1,1334 @@
+{
+  "schema": 1,
+  "revision": "ck19-approved-v15-20261105",
+  "sourceTemplate": "resources/mail-templates/u2e-universal-v1.html",
+  "sourcePhp": "app/Support/OutlookAddin/OutlookUniversalPresentation.php",
+  "approvedTemplateSha256": "5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204",
+  "sourceCssSha256": "502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1",
+  "approvedPayloadSha256": "f5e928a2f517887f7379646bada05223fe7efbb26880be228d368e08774e2595",
+  "approvedPayloadCharacters": 3803,
+  "outputMedia": "only screen and (max-width:1039px)",
+  "payloadPrefix": "<style type=\"text/css\">",
+  "payloadSuffix": "</style>",
+  "policy": {
+    "maximumCharactersExclusive": 5000,
+    "scope": "Exact approved v13 class/tag scope includes selectors outside table.rt-shell (td.rt-col-*, table.rt-dispo-head/actions, div.rt-dispo-head and td.rt-cta-cell). Unrelated-content compatibility is not asserted."
+  },
+  "sourceFileNormalization": {
+    "operation": "omit-exactly-one-terminal-LF",
+    "sourceFileCharacters": 3804,
+    "sourceFileSha256": "80ede788b578b6efa40c92ddeaef096eb94c53966711d63b8442705779fe0687",
+    "ruleTextCharacters": 3803,
+    "ruleTextSha256": "f5e928a2f517887f7379646bada05223fe7efbb26880be228d368e08774e2595",
+    "approval": "user-approved-rule-text-count-excludes-terminal-LF"
+  },
+  "rules": [
+    {
+      "selector": "table.rt-shell",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:1039px)",
+          "selector": ".rt-shell"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "display",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-shell",
+            "property": "display"
+          },
+          "important": true
+        },
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-shell",
+            "property": "width"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "table.rt-shell>tbody",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:1039px)",
+          "selector": ".rt-shell > tbody"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "display",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-shell > tbody",
+            "property": "display"
+          },
+          "important": true
+        },
+        {
+          "property": "flex-wrap",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-shell > tbody",
+            "property": "flex-wrap"
+          },
+          "important": true
+        },
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-shell > tbody",
+            "property": "width"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "table.rt-shell>tbody>tr",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:1039px)",
+          "selector": ".rt-shell > tbody > tr"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "display",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-shell > tbody > tr",
+            "property": "display"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "table.rt-shell>tbody>tr:first-child>td[colspan=\"4\"]",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:1039px)",
+          "selector": ".rt-text"
+        },
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-text"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "display",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-text",
+            "property": "display"
+          },
+          "important": true
+        },
+        {
+          "property": "order",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-text",
+            "property": "order"
+          },
+          "important": false
+        },
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-text",
+            "property": "width"
+          },
+          "important": true
+        },
+        {
+          "property": "box-sizing",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-text",
+            "property": "box-sizing"
+          },
+          "important": true
+        },
+        {
+          "property": "border-bottom",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-text",
+            "property": "border-bottom"
+          },
+          "important": true
+        },
+        {
+          "property": "padding",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-text",
+            "property": "padding"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "td.rt-col-person,td.rt-col-direct,td.rt-col-company,td.rt-col-dispo",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:1039px)",
+          "selector": ".rt-col"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "display",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-col",
+            "property": "display"
+          },
+          "important": true
+        },
+        {
+          "property": "border-top",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-col",
+            "property": "border-top"
+          },
+          "important": true
+        },
+        {
+          "property": "box-sizing",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-col",
+            "property": "box-sizing"
+          },
+          "important": true
+        },
+        {
+          "property": "max-width",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-col",
+            "property": "max-width"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "td.rt-col-person",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:1039px)",
+          "selector": ".rt-col-person"
+        },
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-col-person"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "order",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-col-person",
+            "property": "order"
+          },
+          "important": false
+        },
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-col-person",
+            "property": "width"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "td.rt-col-direct",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:1039px)",
+          "selector": ".rt-col-direct"
+        },
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-col-direct"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "order",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-col-direct",
+            "property": "order"
+          },
+          "important": false
+        },
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-col-direct",
+            "property": "width"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "td.rt-col-company",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:1039px)",
+          "selector": ".rt-col-company"
+        },
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-col-company"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "order",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-col-company",
+            "property": "order"
+          },
+          "important": false
+        },
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-col-company",
+            "property": "width"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "table.rt-shell>tbody>tr>td[colspan=\"3\"]",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:1039px)",
+          "selector": ".rt-train-cell"
+        },
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-train-cell"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "display",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-train-cell",
+            "property": "display"
+          },
+          "important": true
+        },
+        {
+          "property": "order",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-train-cell",
+            "property": "order"
+          },
+          "important": false
+        },
+        {
+          "property": "align-self",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-train-cell",
+            "property": "align-self"
+          },
+          "important": true
+        },
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-train-cell",
+            "property": "width"
+          },
+          "important": true
+        },
+        {
+          "property": "box-sizing",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-train-cell",
+            "property": "box-sizing"
+          },
+          "important": true
+        },
+        {
+          "property": "padding",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-train-cell",
+            "property": "padding"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "td.rt-col-dispo",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:1039px)",
+          "selector": ".rt-col-dispo"
+        },
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-col-dispo"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "order",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-col-dispo",
+            "property": "order"
+          },
+          "important": false
+        },
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-col-dispo",
+            "property": "width"
+          },
+          "important": true
+        },
+        {
+          "property": "text-align",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-col-dispo",
+            "property": "text-align"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "table.rt-shell>tbody>tr:last-child>td[colspan=\"4\"]",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:1039px)",
+          "selector": ".rt-legal"
+        },
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-legal"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "display",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-legal",
+            "property": "display"
+          },
+          "important": true
+        },
+        {
+          "property": "order",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-legal",
+            "property": "order"
+          },
+          "important": false
+        },
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-legal",
+            "property": "width"
+          },
+          "important": true
+        },
+        {
+          "property": "box-sizing",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-legal",
+            "property": "box-sizing"
+          },
+          "important": true
+        },
+        {
+          "property": "padding",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-legal",
+            "property": "padding"
+          },
+          "important": true
+        },
+        {
+          "property": "font-size",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-legal",
+            "property": "font-size"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "td.rt-col-person>table>tbody>tr>td",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-col-person .rt-pad"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "padding",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-col-person .rt-pad",
+            "property": "padding"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "td.rt-col-direct>table>tbody>tr>td",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-col-direct .rt-pad"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "padding",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-col-direct .rt-pad",
+            "property": "padding"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "td.rt-col-company>table>tbody>tr>td",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-col-company .rt-pad"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "padding",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-col-company .rt-pad",
+            "property": "padding"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "td.rt-col-dispo>table>tbody>tr>td",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-pad-dispo"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "padding",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-pad-dispo",
+            "property": "padding"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "td.rt-col-direct td td span,td.rt-col-company td td span",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-contact"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "font-size",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-contact",
+            "property": "font-size"
+          },
+          "important": true
+        },
+        {
+          "property": "line-height",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-contact",
+            "property": "line-height"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "table.rt-shell img[width=\"500\"]",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:1039px)",
+          "selector": ".rt-train"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-train",
+            "property": "width"
+          },
+          "important": true
+        },
+        {
+          "property": "max-width",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-train",
+            "property": "max-width"
+          },
+          "important": true
+        },
+        {
+          "property": "height",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-train",
+            "property": "height"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "table.rt-shell img[width=\"184\"]",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-logo-link"
+        },
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-logo"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "float",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-logo-link",
+            "property": "float"
+          },
+          "important": true
+        },
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-logo",
+            "property": "width"
+          },
+          "important": true
+        },
+        {
+          "property": "height",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-logo",
+            "property": "height"
+          },
+          "important": true
+        },
+        {
+          "property": "margin",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-logo",
+            "property": "margin"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "table.rt-dispo",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-dispo"
+        },
+        {
+          "media": "only screen and (max-width:1039px)",
+          "selector": ".rt-dispo"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "display",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo",
+            "property": "display"
+          },
+          "important": true
+        },
+        {
+          "property": "text-align",
+          "from": {
+            "media": "only screen and (max-width:1039px)",
+            "selector": ".rt-dispo",
+            "property": "text-align"
+          },
+          "important": true
+        },
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo",
+            "property": "width"
+          },
+          "important": true
+        },
+        {
+          "property": "max-width",
+          "override": "100%",
+          "important": true,
+          "reason": "Approved v10 old-quote containment: max-width plus clipping; native validation must also prove content visible."
+        },
+        {
+          "property": "overflow",
+          "override": "hidden",
+          "important": true,
+          "reason": "Approved v10 old-quote containment: max-width plus clipping; native validation must also prove content visible."
+        },
+        {
+          "property": "background",
+          "override": "#e4002b",
+          "important": true,
+          "reason": "Approved v11 shorthand clears the editor background shorthand in the mobile panel; source CSS background-color remains unchanged."
+        },
+        {
+          "property": "border-radius",
+          "override": "0",
+          "important": true,
+          "reason": "Approved v11 mobile panel is square; desktop v22 inline 8px radius is outside this 1039px media query."
+        }
+      ]
+    },
+    {
+      "selector": "table.rt-dispo>tbody",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-dispo > tbody"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "display",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo > tbody",
+            "property": "display"
+          },
+          "important": true
+        },
+        {
+          "property": "flex-wrap",
+          "override": "wrap",
+          "important": true,
+          "reason": "Approved v10 old-quote wrap/centering in the 247px panel."
+        },
+        {
+          "property": "align-items",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo > tbody",
+            "property": "align-items"
+          },
+          "important": true
+        },
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo > tbody",
+            "property": "width"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "table.rt-dispo>tbody>tr",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-dispo > tbody > tr"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "display",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo > tbody > tr",
+            "property": "display"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "table.rt-dispo .rt-dispo-cap,table.rt-dispo .rt-cta-line,table.rt-dispo .rt-cta-gap",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-cta-line"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "display",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-cta-line",
+            "property": "display"
+          },
+          "important": true
+        },
+        {
+          "property": "height",
+          "override": "0",
+          "important": true,
+          "reason": "Approved global colspan=5 suppression. Known unrelated-table side effect is deliberately unchanged."
+        },
+        {
+          "property": "width",
+          "override": "0",
+          "important": true,
+          "reason": "User-approved v13 zero-width mobile cap, separator and gap after hiding those class-bound elements."
+        },
+        {
+          "property": "line-height",
+          "override": "0",
+          "important": true,
+          "reason": "Approved global colspan=5 suppression. Known unrelated-table side effect is deliberately unchanged."
+        },
+        {
+          "property": "font-size",
+          "override": "0",
+          "important": true,
+          "reason": "Approved global colspan=5 suppression. Known unrelated-table side effect is deliberately unchanged."
+        },
+        {
+          "property": "padding",
+          "override": "0",
+          "important": true,
+          "reason": "Approved global colspan=5 suppression. Known unrelated-table side effect is deliberately unchanged."
+        }
+      ]
+    },
+    {
+      "selector": "table.rt-dispo>tbody>tr>td.rt-dispo-head",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-dispo-head"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "display",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo-head",
+            "property": "display"
+          },
+          "important": true
+        },
+        {
+          "property": "padding",
+          "override": "11px 0 11px 20px",
+          "important": true,
+          "reason": "User-approved v15 balances the dispatch head with the 42px mobile action box; original template head CSS remains at 9px."
+        },
+        {
+          "property": "white-space",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo-head",
+            "property": "white-space"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "table.rt-dispo>tbody>tr>td.rt-dispo-actions",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-dispo-actions"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "display",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo-actions",
+            "property": "display"
+          },
+          "important": true
+        },
+        {
+          "property": "flex",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo-actions",
+            "property": "flex"
+          },
+          "important": true
+        },
+        {
+          "property": "padding",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo-actions",
+            "property": "padding"
+          },
+          "important": true
+        },
+        {
+          "property": "text-align",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo-actions",
+            "property": "text-align"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "table.rt-dispo-head",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-dispo-head table"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo-head table",
+            "property": "width"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "table.rt-dispo-head td",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-dispo-head td"
+        },
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-dispo-head"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "padding",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo-head td",
+            "property": "padding"
+          },
+          "important": true
+        },
+        {
+          "property": "vertical-align",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo-head td",
+            "property": "vertical-align"
+          },
+          "important": true
+        },
+        {
+          "property": "text-align",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo-head td",
+            "property": "text-align"
+          },
+          "important": true
+        },
+        {
+          "property": "white-space",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo-head",
+            "property": "white-space"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "div.rt-dispo-head,div.rt-dispo-head span",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-dispo-head"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "font-size",
+          "override": "0",
+          "important": true,
+          "reason": "Approved Word/Rooster hidden label overrides."
+        },
+        {
+          "property": "line-height",
+          "override": "0",
+          "important": true,
+          "reason": "Approved Word/Rooster hidden label overrides."
+        },
+        {
+          "property": "white-space",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo-head",
+            "property": "white-space"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "div.rt-dispo-head b,div.rt-dispo-head i",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-cta-dispo"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "font-size",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-cta-dispo",
+            "property": "font-size"
+          },
+          "important": true
+        },
+        {
+          "property": "line-height",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-cta-dispo",
+            "property": "line-height"
+          },
+          "important": true
+        },
+        {
+          "property": "display",
+          "override": "inline-block",
+          "important": true,
+          "reason": "Approved inline heading/time alignment."
+        },
+        {
+          "property": "vertical-align",
+          "override": "middle",
+          "important": true,
+          "reason": "Approved inline heading/time alignment."
+        },
+        {
+          "property": "color",
+          "override": "#fff",
+          "important": true,
+          "reason": "Approved panel link color normalization."
+        }
+      ]
+    },
+    {
+      "selector": "div.rt-dispo-head i",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-cta-time"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "padding-left",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-cta-time",
+            "property": "padding-left"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "table.rt-dispo-actions",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-dispo-actions > table"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "display",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo-actions > table",
+            "property": "display"
+          },
+          "important": true
+        },
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo-actions > table",
+            "property": "width"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "table.rt-dispo-actions td",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-cta-cell"
+        },
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-dispo-head td"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "border-top",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-cta-cell",
+            "property": "border-top"
+          },
+          "important": true
+        },
+        {
+          "property": "padding",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-cta-cell",
+            "property": "padding"
+          },
+          "important": true
+        },
+        {
+          "property": "width",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-cta-cell",
+            "property": "width"
+          },
+          "important": true
+        },
+        {
+          "property": "vertical-align",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo-head td",
+            "property": "vertical-align"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "td.rt-cta-cell span,td.rt-cta-cell b",
+      "sourceSelectors": [
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-cta-number"
+        },
+        {
+          "media": "only screen and (max-width:600px)",
+          "selector": ".rt-dispo-head"
+        }
+      ],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "font-size",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-cta-number",
+            "property": "font-size"
+          },
+          "important": true
+        },
+        {
+          "property": "line-height",
+          "override": "24px",
+          "important": true,
+          "reason": "User-approved v13 mobile CTA text line height; the source template carries this as inline styling, not a head-CSS declaration."
+        },
+        {
+          "property": "color",
+          "override": "#fff",
+          "important": true,
+          "reason": "Approved panel link color normalization."
+        },
+        {
+          "property": "white-space",
+          "from": {
+            "media": "only screen and (max-width:600px)",
+            "selector": ".rt-dispo-head",
+            "property": "white-space"
+          },
+          "important": true
+        }
+      ]
+    },
+    {
+      "selector": "table.rt-shell a,table.rt-shell a span",
+      "sourceSelectors": [],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "color",
+          "override": "#142231",
+          "important": true,
+          "reason": "Approved global link color normalization inside matching 1040 shells; affects quotes too."
+        },
+        {
+          "property": "text-decoration",
+          "override": "none",
+          "important": true,
+          "reason": "Approved global link color normalization inside matching 1040 shells; affects quotes too."
+        }
+      ]
+    },
+    {
+      "selector": "table.rt-shell table.rt-dispo a,table.rt-shell table.rt-dispo a span,table.rt-shell table.rt-dispo span",
+      "sourceSelectors": [],
+      "reason": "Approved C-K23 v13 class/tag selector for mobile send serialization; declarations retain CSS provenance or explicit reviewed transport overrides.",
+      "declarations": [
+        {
+          "property": "color",
+          "override": "#fff",
+          "important": true,
+          "reason": "Approved panel link color normalization."
+        },
+        {
+          "property": "text-decoration",
+          "override": "none",
+          "important": true,
+          "reason": "Approved panel link color normalization."
+        }
+      ]
+    }
+  ]
+}
