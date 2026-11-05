@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "kind": "redacted-native-host-structures",
+  "nativeV10Proof": false,
+  "entries": {
+    "received-word-1623.redacted.json": {
+      "source": "empfang-1623-CK19-20261105--Classic.html",
+      "sourceSha256": "363a93610449bc29bdfcf7872358af1d014109d27548183a8f638efa1e7138dd",
+      "sha256": "d13fb0526d2cbd7d0896bbdd168d0da01d2e626824468dae88c638b3ebecfc5d",
+      "nativeTransportVersion": "c157 v1 original, not a native v10 proof",
+      "privacy": "Existing strict diagnostic redactor removes author row and all text/URLs; structural selector fixture only."
+    },
+    "received-rooster-1625.redacted.json": {
+      "source": "empfang-1625-CK19-20261105--Neues-Outlook.html",
+      "sourceSha256": "75ffdb6ce347dd750934eed63784dc508a2a8ae228af0a28c47980e220720205",
+      "sha256": "8ca15e392d5dd354242d5a06b050ab2c8d3538e4295f034afa437648142bbd6d",
+      "nativeTransportVersion": "c157 v1 original, not a native v10 proof",
+      "privacy": "Existing strict diagnostic redactor removes author row and all text/URLs; structural selector fixture only."
+    }
+  }
+}
