@@ -328,6 +328,17 @@ const fixtureKeys = ['schema', 'format', 'html', 'expectedHtml', 'sourceLength',
 function safeBoundaryHtml(html) {
     if (typeof html !== 'string' || html.length > 98304 || !/^[\x20-\x7e]*$/.test(html)
         || !html.startsWith('<div data-rt-boundary="1">') || !html.endsWith('</div>') || html.replace(/<[^>]*>/g, '') !== '') return false;
+    // Validate the producer's literal token grammar before the general parser
+    // can lowercase tags or decode/accept other attribute spellings. No gap,
+    // entity, self-closing form or noncanonical identifier syntax is admitted.
+    const inner = html.slice('<div data-rt-boundary="1">'.length, -'</div>'.length);
+    const tokens = /<(?:div|p|span|br|hr|blockquote|table|tbody|tr|td)(?: (?:id="[a-z-]+"|type="cite"))*>|<\/(?:div|p|span|blockquote|table|tbody|tr|td)>/g;
+    let offset = 0;
+    for (const token of inner.matchAll(tokens)) {
+        if (token.index !== offset) return false;
+        offset += token[0].length;
+    }
+    if (offset !== inner.length) return false;
     const { elements, comments } = parseManagedHtml(html);
     if (comments.length || !elements.length || elements.length > 4096 || elements[0].start !== 0 || elements[0].end !== html.length
         || elements[0].tag !== 'div' || Object.keys(elements[0].attrs).length !== 1 || elements[0].attrs['data-rt-boundary'] !== '1') return false;

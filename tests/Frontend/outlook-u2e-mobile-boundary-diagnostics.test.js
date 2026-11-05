@@ -78,6 +78,23 @@ test('C-K22 untrusted boundary fixture rejects text, attributes, comments, malfo
     assert.equal(universalComposeBoundaryFixture(source.html, '<br>'.repeat(4096)), null);
 });
 
+test('C-K22 boundary validators require canonical tokens without gaps, alternate spellings or self-closing forms', () => {
+    const original = universalComposeBoundaryFixture(source.html, '<p></p><br>');
+    const wrap = inner => '<div data-rt-boundary="1">' + inner + '</div>';
+    for (const inner of ['<p></p><br>', '<blockquote id="divrplyfwdmsg" type="cite"></blockquote>',
+        '<blockquote type="cite" id="divrplyfwdmsg"><hr></blockquote>']) {
+        const html = wrap(inner);
+        assert.ok(validateUniversalRedactedFixture({ ...original, html, sha256: u2eDiagnosticHash(html) }));
+    }
+    for (const inner of ['<p></p> <br>', '<p></p>\n<br>', '<p></p>\t<br>', '<p></p> ', '<P></P>',
+        '<div id=divrplyfwdmsg></div>', "<div id='divrplyfwdmsg'></div>", '<div id="div&#114;plyfwdmsg"></div>',
+        '<blockquote type="c&#105;te"></blockquote>', '<br/>', '<hr />', '<p/>', '<span />',
+        '<p></p id="divrplyfwdmsg">', '<br></br>', '<div id="divrplyfwdmsg" id="stopspelling"></div>']) {
+        const html = wrap(inner);
+        assert.equal(validateUniversalRedactedFixture({ ...original, html, sha256: u2eDiagnosticHash(html) }), null, inner);
+    }
+});
+
 test('C-K22 unknown mobile/OWA reply boundaries capture topology before any session, header or body mutation', async () => {
     for (const host of ['OutlookIOS', 'OutlookAndroid', 'OutlookWebApp']) for (const type of ['reply', 'forward']) {
         const f = fixture({ host, version: '', type, html: '<div id="ms-outlook-mobile-body-separator-line"><br></div><div>PRIVATE-USER@private.invalid</div>' });

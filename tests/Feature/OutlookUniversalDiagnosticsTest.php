@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\DeviceManagement\EmployeeWorkplaceProvisioner;
 use App\Support\OutlookAddin\OutlookAddinPayloadService;
 use App\Support\OutlookAddin\OutlookUniversalDiagnosticFixtureStore;
+use App\Support\OutlookAddin\OutlookUniversalDiagnosticFixtureValidator;
 use App\Support\OutlookAddin\OutlookUniversalDiagnostics;
 use App\Support\OutlookAddin\OutlookUniversalPayloadPresentation;
 use App\Support\OutlookAddin\OutlookUniversalPresentation;
@@ -563,6 +564,28 @@ final class OutlookUniversalDiagnosticsTest extends TestCase
             ['html' => $unsafe, 'sha256' => hash('sha256', $unsafe)])]), $headers)->assertUnprocessable();
         self::assertSame($business, $this->businessRows());
         self::assertDoesNotMatchRegularExpression('/PRIVATE-BODY|data-rt-boundary|<hr>/', json_encode($this->logger->records));
+    }
+
+    public function test_boundary_validation_rejects_every_noncanonical_token_spelling_and_gap(): void
+    {
+        $signature = '<table id="rt-sig-u2-'.str_repeat('a', 24).'"><tr>'.str_repeat('<td>rt-redacted</td>', 4)
+            .'</tr><tr><td colspan="3"></td></tr><tr><td colspan="4">rt-redacted</td></tr></table>';
+        $fixture = static function (string $inner) use ($signature): array {
+            $html = '<div data-rt-boundary="1">'.$inner.'</div>';
+
+            return ['schema' => 1, 'format' => 'u2e-redacted-compose-boundary-v1', 'html' => $html,
+                'expectedHtml' => $signature, 'sourceLength' => 1234, 'sha256' => hash('sha256', $html), 'expectedSha256' => hash('sha256', $signature)];
+        };
+        foreach (['<p></p><br>', '<blockquote id="divrplyfwdmsg" type="cite"></blockquote>',
+            '<blockquote type="cite" id="divrplyfwdmsg"><hr></blockquote>'] as $inner) {
+            self::assertTrue(OutlookUniversalDiagnosticFixtureValidator::valid($fixture($inner)), $inner);
+        }
+        foreach (['<p></p> <br>', "<p></p>\n<br>", "<p></p>\t<br>", '<p></p> ', '<P></P>',
+            '<div id=divrplyfwdmsg></div>', "<div id='divrplyfwdmsg'></div>", '<div id="div&#114;plyfwdmsg"></div>',
+            '<blockquote type="c&#105;te"></blockquote>', '<br/>', '<hr />', '<p/>', '<span />',
+            '<p></p id="divrplyfwdmsg">', '<br></br>', '<div id="divrplyfwdmsg" id="stopspelling"></div>'] as $inner) {
+            self::assertFalse(OutlookUniversalDiagnosticFixtureValidator::valid($fixture($inner)), $inner);
+        }
     }
 
     private function stubApplicationLayout(): void

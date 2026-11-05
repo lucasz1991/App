@@ -130,7 +130,7 @@ final class OutlookUniversalDiagnosticFixtureValidator
         $ids = ['ms-outlook-mobile-body-separator-line', 'ms-outlook-mobile-signature', 'divrplyfwdmsg',
             'mail-editor-reference-message-container', 'stopspelling'];
         foreach ($tokens as $token) {
-            if (trim(substr($inner, $offset, $token[0][1] - $offset)) !== '') {
+            if (substr($inner, $offset, $token[0][1] - $offset) !== '') {
                 return false;
             }
             $offset = $token[0][1] + strlen($token[0][0]);
@@ -166,7 +166,7 @@ final class OutlookUniversalDiagnosticFixtureValidator
             }
         }
 
-        return $stack === [] && trim(substr($inner, $offset)) === '';
+        return $stack === [] && substr($inner, $offset) === '';
     }
 
     private static function html(string $html): bool
