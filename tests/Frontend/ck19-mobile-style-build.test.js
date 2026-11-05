@@ -5,14 +5,16 @@ import { createHash } from 'node:crypto';
 import { parseHTML } from 'linkedom';
 import postcss from 'postcss';
 import { generateCk19MobileStyle, ck19Manifest, buildCk19MobileStyle,
-    CK19_APPROVED_V10_SHA256, CK19_APPROVED_V10_CHARACTERS } from '../../scripts/build-ck19-mobile-style.mjs';
+    ck19V11RuleTextFromSourceFile, CK19_V11_SOURCE_FILE_SHA256,
+    CK19_APPROVED_V10_SHA256, CK19_APPROVED_V10_CHARACTERS,
+    CK19_APPROVED_V11_SHA256, CK19_APPROVED_V11_CHARACTERS } from '../../scripts/build-ck19-mobile-style.mjs';
 import { validateUniversalRedactedFixture } from '../../resources/js/outlook-addin/u2e-readback-diagnostics.js';
 
 const root = new URL('../../', import.meta.url);
 const read = async name => (await fs.readFile(new URL(name, root), 'utf8')).replaceAll('\r\n', '\n');
 const templateHtml = await read('resources/mail-templates/u2e-universal-v1.html');
 const presentationPhp = await read('app/Support/OutlookAddin/OutlookUniversalPresentation.php');
-const mappingBytes = await read('resources/mail-templates/ck19-mobile-style-v10.mapping.json');
+const mappingBytes = await read('resources/mail-templates/ck19-mobile-style-v11.mapping.json');
 const generatorBytes = await read('scripts/build-ck19-mobile-style.mjs');
 const mapping = JSON.parse(mappingBytes);
 const generate = extra => generateCk19MobileStyle({ templateHtml, presentationPhp, mapping, ...extra });
@@ -20,12 +22,12 @@ const sha = value => createHash('sha256').update(value).digest('hex');
 const clone = () => structuredClone(mapping);
 const generated = generate();
 
-test('the actual template CSS and versioned mapping reproduce the exact approved v10 bytes', () => {
-    assert.equal(generated.payload.length, CK19_APPROVED_V10_CHARACTERS);
-    assert.equal(generated.payload.length, 4980);
-    assert.equal(sha(generated.payload), CK19_APPROVED_V10_SHA256);
-    assert.equal(generated.derivedDeclarations, 96);
-    assert.equal(generated.transportOverrides, 18);
+test('the actual template CSS and versioned mapping reproduce the exact approved v11 rule text', () => {
+    assert.equal(generated.payload.length, CK19_APPROVED_V11_CHARACTERS);
+    assert.equal(generated.payload.length, 4999);
+    assert.equal(sha(generated.payload), CK19_APPROVED_V11_SHA256);
+    assert.equal(generated.derivedDeclarations, 95);
+    assert.equal(generated.transportOverrides, 20);
     assert.equal(mapping.rules.length, 42);
     assert.doesNotMatch(generated.payload, /\[class\s*\$\s*=|:not\s*\(|<meta/i);
     assert.equal(postcss.parse(generated.payload.match(/<style[^>]*>([\s\S]*)<\/style>/)[1]).nodes[0].name, 'media');
@@ -39,7 +41,8 @@ test('manifest pins the actual template constant, CSS, generator, mapping and pa
     assert.equal(first.sourceCssSha256, mapping.sourceCssSha256);
     assert.equal(first.mappingSha256, sha(mappingBytes));
     assert.equal(first.generatorSha256, sha(generatorBytes));
-    assert.equal(first.payloadSha256, CK19_APPROVED_V10_SHA256);
+    assert.equal(first.payloadSha256, CK19_APPROVED_V11_SHA256);
+    assert.deepEqual(first.sourceFileNormalization, mapping.sourceFileNormalization);
     assert.equal(first.nativeClientProof, false);
     assert.equal(first.exchangeRuleUpdatedByBuild, false);
 });
@@ -69,10 +72,10 @@ test('missing or ambiguous mapped source declarations stop generation rather tha
     assert.throws(() => generate({ mapping: changed }), /CK19_SOURCE_REFERENCE_AMBIGUOUS/);
 });
 
-test('mapping edits cannot self-approve another v10 output or restore the hidden legacy action row', () => {
+test('mapping edits cannot self-approve another v11 output or restore the hidden legacy action row', () => {
     const changed = clone();
     changed.rules[28].selector = '[width="247"]>tbody>tr:nth-child(3) table>tbody>tr:first-child';
-    assert.throws(() => generate({ mapping: changed }), /CK19_APPROVED_V10_DRIFT/);
+    assert.throws(() => generate({ mapping: changed }), /CK19_APPROVED_V11_DRIFT/);
     changed.approvedPayloadSha256 = '0'.repeat(64);
     assert.throws(() => generate({ mapping: changed }), /CK19_MAPPING_INVALID/);
 });
@@ -82,9 +85,53 @@ test('forbidden selectors and payloads at or over 5000 characters fail before an
         const changed = clone(); changed.rules[0].selector = selector;
         assert.throws(() => generate({ mapping: changed }), /CK19_RULE_INVALID/);
     }
-    const changed = clone();
-    changed.rules[0].declarations[0] = { property: 'display', override: 'x'.repeat(100), important: true, reason: 'Length rejection fixture' };
-    assert.throws(() => generate({ mapping: changed }), /CK19_PAYLOAD_LENGTH/);
+    for (const length of [6, 7]) {
+        const changed = clone();
+        // Replacing five-byte "block" adds one/two bytes: exactly5000/5001.
+        changed.rules[0].declarations[0] = { property: 'display', override: 'x'.repeat(length), important: true, reason: 'Length rejection fixture' };
+        assert.throws(() => generate({ mapping: changed }), /CK19_PAYLOAD_LENGTH/);
+    }
+});
+
+const suppliedV11 = JSON.parse(await read('tests/Fixtures/mail/ck19-mobile-style-v11/approved-source-file.json'));
+test('the 5000-byte source file is retained and only its explicitly excluded final LF is omitted', () => {
+    const raw = suppliedV11.sourceFileHtml;
+    assert.equal(raw.length, 5000);
+    assert.equal(sha(raw), CK19_V11_SOURCE_FILE_SHA256);
+    assert.equal(raw.endsWith('\n'), true);
+    assert.equal(raw.endsWith('\n\n'), false);
+    assert.equal(ck19V11RuleTextFromSourceFile(raw), generated.payload);
+    assert.equal(raw.slice(0, -1), generated.payload);
+    for (const changed of [raw + '\n', raw.slice(0, -1), raw.replace(/\n$/, '\r\n'), raw.replace('#e4002b', '#e4002c')]) {
+        assert.throws(() => ck19V11RuleTextFromSourceFile(changed), /CK19_V11_SOURCE_FILE_INVALID/);
+    }
+    const changed = clone(); changed.payloadSuffix = '</style>\n';
+    assert.throws(() => generate({ mapping: changed }), /CK19_MAPPING_INVALID/);
+});
+
+test('v10 mapping and generated history remain unchanged and are still reproducible', async () => {
+    for (const [name, digest] of Object.entries(suppliedV11.v10HistoryNormalizedSha256)) assert.equal(sha(await read(name)), digest);
+    const historyMapping = JSON.parse(await read('resources/mail-templates/ck19-mobile-style-v10.mapping.json'));
+    const history = generate({ mapping: historyMapping });
+    assert.equal(history.payload, await read('resources/mail-templates/generated/ck19-mobile-style-v10.html'));
+    assert.equal(history.payload.length, CK19_APPROVED_V10_CHARACTERS);
+    assert.equal(sha(history.payload), CK19_APPROVED_V10_SHA256);
+});
+
+test('the only v10-to-v11 CSS changes are panel background shorthand and zero radius inside1039px', async () => {
+    const old = await read('resources/mail-templates/generated/ck19-mobile-style-v10.html');
+    const expected = old.replace('[width="247"]{display:block!important;text-align:left!important;width:100%!important;max-width:100%!important;overflow:hidden!important;background-color:#e4002b!important}',
+        '[width="247"]{display:block!important;text-align:left!important;width:100%!important;max-width:100%!important;overflow:hidden!important;background:#e4002b!important;border-radius:0!important}').slice(0, -1);
+    assert.notEqual(expected, old.slice(0, -1));
+    assert.equal(expected, generated.payload);
+    const ast = postcss.parse(generated.payload.match(/<style[^>]*>([\s\S]*)<\/style>/)[1]);
+    assert.equal(ast.nodes.length, 1);
+    assert.equal(ast.nodes[0].params, 'only screen and (max-width:1039px)');
+    assert.equal(suppliedV11.actualMedia, ast.nodes[0].params);
+    const panels = []; ast.walkRules(rule => { if (rule.selector === '[width="247"]') panels.push(rule); });
+    assert.equal(panels.length, 1);
+    assert.deepEqual(panels[0].nodes.filter(node => ['background', 'background-color', 'border-radius'].includes(node.prop)).map(node => [node.prop, node.value, node.important]),
+        [['background', '#e4002b', true], ['border-radius', '0', true]]);
 });
 
 // Linkedom deliberately does not insert implicit TBODY. Normalize only direct
@@ -121,7 +168,7 @@ function assertCtaVisibility(html, expected) {
 }
 
 for (const name of ['word.synthetic.html', 'rooster.synthetic.html']) {
-    test('current synthetic host retains all CTA images under generated v10: ' + name, async () => {
+    test('current synthetic host retains all CTA images under generated v11: ' + name, async () => {
         const html = await read('tests/Fixtures/mail/u2e-readback-v2/' + name);
         const before = sha(html);
         assertCtaVisibility(html, 3);
