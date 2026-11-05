@@ -5,7 +5,6 @@ import { v17MsoColumnEdits } from './v17-mso-columns.js';
 import { confirmedOfficeWrite, markSignatureWriteConfirmed, hasUncertainWrite } from './office-write.js';
 import { assertMailboxBinding } from './mailbox-guard.js';
 import { HEAD_PROBE_MAILBOX, HEAD_PROBE_SUBJECT, HEAD_BODY_PROBE_SUBJECT, HEAD_PROBE_SESSION_KEY, headProbeContextAvailable, headProbeDocument, headBodyProbeDocument, inspectHeadProbe } from './head-transport-probe.js';
-import { canonicalOutlookBoundaryId, safeOutlookBoundaryContext, mobileComposeQuoteBoundary } from './mobile-compose-boundary.js';
 
 // Automatic insertion only prepends. Explicit taskpane replacement below owns
 // one verified current-message shell and preserves every outside/quoted byte.
@@ -187,24 +186,22 @@ export function currentComposeBodyHtml(html, composeType) {
         // Read its real attribute: text, comments, titles and data-id are not a
         // boundary. Preserve original offsets and never reserialize the body.
         ({ elements } = parseManagedHtml(html));
-        for (const [index, node] of elements.entries()) {
-            if ((node.tag === 'div' && ['divrplyfwdmsg', 'mail-editor-reference-message-container'].includes(canonicalOutlookBoundaryId(node.attrs.id))
-                || node.tag === 'hr' && canonicalOutlookBoundaryId(node.attrs.id) === 'stopspelling')
-                && safeOutlookBoundaryContext(elements, index)
+        for (const node of elements) {
+            if (node.tag === 'div' && /^(?:x_)?divrplyfwdmsg$/i.test(node.attrs.id || '')
                 && (boundary === -1 || node.start < boundary)) boundary = node.start;
         }
     } catch { return null; }
     const boundaries = [
+        /<[^>]+\bid\s*=\s*["']mail-editor-reference-message-container["'][^>]*>/ig,
         /<[^>]+\bclass\s*=\s*["'][^"']*(?:gmail_quote|yahoo_quoted|moz-cite-prefix)[^"']*["'][^>]*>/ig,
         /<blockquote\b[^>]*(?:\btype\s*=\s*["']cite["']|\bcite\s*=)[^>]*>/ig,
+        /<hr\b[^>]*\bid\s*=\s*["']stopspelling["'][^>]*>/ig,
         /<!--\s*(?:original message|urspruengliche nachricht)\s*-->/ig,
     ];
     boundaries.forEach((pattern) => {
         const match = pattern.exec(html);
         if (match && (boundary === -1 || match.index < boundary)) boundary = match.index;
     });
-    const mobileBoundary = mobileComposeQuoteBoundary(html, elements, boundary === -1 ? Infinity : boundary + 1);
-    if (mobileBoundary !== null && (boundary === -1 || mobileBoundary < boundary)) boundary = mobileBoundary;
     // A strictly validated Word header can precede older quote IDs inside its
     // history. Later Word bookmarks cannot move an earlier known boundary.
     const wordBoundary = wordOriginalMessageBoundary(html, elements, boundary === -1 ? Infinity : boundary);
@@ -234,12 +231,6 @@ function mobileReplyBodyMode(office) {
     // BodyMode is numeric: FullBody=0, HostConfig=1. An unknown enum value
     // must not be treated as evidence that the quoted conversation is absent.
     return mode === 1 ? mode : null;
-}
-
-// Microsoft documents HostConfig's mobile current-message guarantee only for
-// replies (4.2538.0+), not forwards. Never infer scope from an ignored option.
-export function mobileCurrentReplyBodyMode(office, composeType) {
-    return composeType === 'reply' ? mobileReplyBodyMode(office) : null;
 }
 
 export function supportsTemplatePrepend(office, item) {

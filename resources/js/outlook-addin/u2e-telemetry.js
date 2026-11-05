@@ -60,13 +60,9 @@ export function universalFailurePayload(error, report = {}, sourceLength = null,
         && U2E_READBACK_DIFFERENCE_KEYS.includes(difference.key)
         && (difference.index === null || Number.isSafeInteger(difference.index) && difference.index >= 0 && difference.index <= 4095)
         && safeAtom(difference.expected) && safeAtom(difference.actual)) payload.difference = Object.freeze({ ...difference });
-    const boundaryFixture = code === 'U2E_NEW_DRAFT_REQUIRED' && report?.phase === 'preflight'
-        && report?.step === 'snapshot.region' && ['reply', 'forward'].includes(report?.composeType)
-        && ['OutlookIOS', 'OutlookAndroid', 'OutlookWebApp'].includes(payload.host);
-    if (current && allowFixture && (code === 'SIGNATURE_LAYOUT_UNCONFIRMED' || boundaryFixture)) {
+    if (current && allowFixture && code === 'SIGNATURE_LAYOUT_UNCONFIRMED') {
         const fixture = validateUniversalRedactedFixture(report.fixture);
-        if (fixture && (boundaryFixture ? fixture.format === 'u2e-redacted-compose-boundary-v1'
-            : fixture.format === 'u2e-redacted-html-v1')) payload.fixture = fixture;
+        if (fixture) payload.fixture = fixture;
     }
     // JSON escaping can make a valid HTML pair too large for this transport.
     if (JSON.stringify(payload).length > MAX_JSON_BYTES) delete payload.fixture;

@@ -1,0 +1,2 @@
+# Historical diagnostic artifact digests bind literal LF bytes on every OS.
+* text eol=lf

@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace App\Support\OutlookAddin;
 
-/** Reject rather than repair a redacted signature pair or text-free boundary topology. */
+/** Reject rather than repair an already redacted, signature-only diagnostic pair. */
 final class OutlookUniversalDiagnosticFixtureValidator
 {
-    public const BOUNDARY_FORMAT = 'u2e-redacted-compose-boundary-v1';
-
     private const TAGS = [
         'table', 'tbody', 'thead', 'tfoot', 'tr',
         'td', 'th', 'div', 'p', 'span',
@@ -92,7 +90,7 @@ final class OutlookUniversalDiagnosticFixtureValidator
     public static function valid(array $fixture): bool
     {
         if (count($fixture) !== 7 || array_diff(array_keys($fixture), ['schema', 'format', 'html', 'expectedHtml', 'sourceLength', 'sha256', 'expectedSha256']) !== []
-            || ($fixture['schema'] ?? null) !== 1 || ! in_array($fixture['format'] ?? null, ['u2e-redacted-html-v1', self::BOUNDARY_FORMAT], true)
+            || ($fixture['schema'] ?? null) !== 1 || ($fixture['format'] ?? null) !== 'u2e-redacted-html-v1'
             || ! is_int($fixture['sourceLength'] ?? null) || $fixture['sourceLength'] < 0 || $fixture['sourceLength'] > 500000
             || ! is_string($fixture['html'] ?? null) || ! is_string($fixture['expectedHtml'] ?? null)
             || strlen($fixture['html']) + strlen($fixture['expectedHtml']) > OutlookUniversalDiagnosticFixtureStore::MAX_HTML_BYTES) {
@@ -100,73 +98,12 @@ final class OutlookUniversalDiagnosticFixtureValidator
         }
         foreach (['html' => 'sha256', 'expectedHtml' => 'expectedSha256'] as $field => $digest) {
             if (! is_string($fixture[$digest] ?? null) || ! preg_match('/\A[0-9a-f]{64}\z/', $fixture[$digest])
-                || ! hash_equals(hash('sha256', $fixture[$field]), $fixture[$digest])
-                || ! ($field === 'html' && $fixture['format'] === self::BOUNDARY_FORMAT
-                    ? self::boundaryHtml($fixture[$field]) : self::html($fixture[$field]))) {
+                || ! hash_equals(hash('sha256', $fixture[$field]), $fixture[$digest]) || ! self::html($fixture[$field])) {
                 return false;
             }
         }
 
         return true;
-    }
-
-    /** Only inert tree shape and five fixed Outlook marker names. No authored
-     * text, links, CSS, arbitrary identifiers or attributes can cross this gate. */
-    private static function boundaryHtml(string $html): bool
-    {
-        $prefix = '<div data-rt-boundary="1">';
-        if (strlen($html) > 98304 || ! str_starts_with($html, $prefix) || ! str_ends_with($html, '</div>')
-            || preg_match('/[^\x09\x0a\x0d\x20-\x7e]/', $html)) {
-            return false;
-        }
-        $inner = substr($html, strlen($prefix), -6);
-        preg_match_all('/<(\/?)(div|p|span|br|hr|blockquote|table|tbody|tr|td)((?: [^<>]*)?)>/', $inner, $tokens, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
-        if (count($tokens) > 8192) {
-            return false;
-        }
-        $offset = 0;
-        $stack = [];
-        $elements = 1;
-        $ids = ['ms-outlook-mobile-body-separator-line', 'ms-outlook-mobile-signature', 'divrplyfwdmsg',
-            'mail-editor-reference-message-container', 'stopspelling'];
-        foreach ($tokens as $token) {
-            if (trim(substr($inner, $offset, $token[0][1] - $offset)) !== '') {
-                return false;
-            }
-            $offset = $token[0][1] + strlen($token[0][0]);
-            $tag = $token[2][0];
-            $attributes = $token[3][0];
-            if ($token[1][0] === '/') {
-                if ($attributes !== '' || $stack === [] || array_pop($stack) !== $tag) {
-                    return false;
-                }
-
-                continue;
-            }
-            if (++$elements > 4096 || count($stack) + 2 > 64) {
-                return false;
-            }
-            $seen = [];
-            while ($attributes !== '') {
-                if (! preg_match('/\A ([a-z]+)="([a-z-]+)"/', $attributes, $attribute)
-                    || isset($seen[$attribute[1]])) {
-                    return false;
-                }
-                $name = $attribute[1];
-                $value = $attribute[2];
-                if (! ($name === 'id' && in_array($value, $ids, true))
-                    && ! ($tag === 'blockquote' && $name === 'type' && $value === 'cite')) {
-                    return false;
-                }
-                $seen[$name] = true;
-                $attributes = substr($attributes, strlen($attribute[0]));
-            }
-            if (! in_array($tag, ['br', 'hr'], true)) {
-                $stack[] = $tag;
-            }
-        }
-
-        return $stack === [] && trim(substr($inner, $offset)) === '';
     }
 
     private static function html(string $html): bool

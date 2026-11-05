@@ -2,8 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
-import * as composeHelp from '../../resources/js/outlook-addin/u2e-compose-help.js';
-import { universalComposeReport } from '../../resources/js/outlook-addin/u2e-compose.js';
 import * as compose from '../../resources/js/outlook-addin/compose-template.js';
 import * as mailboxGuard from '../../resources/js/outlook-addin/mailbox-guard.js';
 import * as officeWrites from '../../resources/js/outlook-addin/office-write.js';
@@ -48,7 +46,7 @@ async function runtimeHarness(document, { signatureOnly = false, composeType = '
         automaticTemplateChoice: { schema: 1, composeType, selection: signatureOnly ? 'none' : 'default', templateId: signatureOnly ? null : document.id },
         templates: signatureOnly ? [] : [document], signature: document.signature };
     const config = { ready: true, marker: MARKER, auth: { clientId: 'test-client', authority: 'https://login.example.test/tenant', scopes: ['api://test/read'] }, endpoints: { bootstrap: 'https://company.example/outlook-addin/bootstrap' } };
-    const context = vm.createContext({ ...composeHelp, universalComposeReport, ...compose, ...mailboxGuard, ...officeWrites, ...diagnostics, ...automaticPolicy, Office: office,
+    const context = vm.createContext({ ...compose, ...mailboxGuard, ...officeWrites, ...diagnostics, ...automaticPolicy, Office: office,
         URL, AbortController, setTimeout, clearTimeout, console: { info() {} }, RAILTIME_OUTLOOK_CONFIG_URL: 'https://company.example/outlook-addin/config.json',
         InteractionRequiredAuthError: class extends Error {}, createNestablePublicClientApplication: async () => ({ getAllAccounts: () => [{ username: ADDRESS }], acquireTokenSilent: async () => ({ accessToken: 'test-only-token' }) }),
         fetch: async url => ({ ok: true, json: async () => String(url).includes('bootstrap') ? bootstrap : config }) });

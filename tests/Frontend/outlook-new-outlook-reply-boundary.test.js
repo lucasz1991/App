@@ -103,16 +103,12 @@ test('table, quote, head and hidden contexts never grant ownership around this b
         '<div hidden>' + sequence + '</div>', '<div aria-hidden="true">' + sequence + '</div>', '<div aria-hidden="TRUE">' + sequence + '</div>',
         '<div style="display:none">' + sequence + '</div>', '<div style="visibility:hidden">' + sequence + '</div>',
         '<div style="opacity:.0">' + sequence + '</div>', '<div style="opacity:0%">' + sequence + '</div>',
-        '<div style="opacity:+0.0%">' + sequence + '</div>', '<div style="opacity:-.0%">' + sequence + '</div>']) {
+        '<div style="opacity:+0.0%">' + sequence + '</div>', '<div style="opacity:-.0%">' + sequence + '</div>',
+        '<div id="x_x_divRplyFwdMsg">' + sequence + '</div>']) {
         const input = prefix + replacement + quote + suffix;
         assert.equal(currentComposeBodyHtml(input, 'reply'), null, replacement);
     }
     assert.equal(currentComposeBodyHtml('<html><head>' + sequence + '</head><body>OWN</body></html>', 'reply'), null);
-});
-
-test('C-K22 recognizes a prefixed Outlook quote before any nested historical bookmark', () => {
-    const input = prefix + '<div id="x_x_divRplyFwdMsg">' + anchor + blank + separator + header + '</div>' + quote + suffix;
-    for (const composeType of ['reply', 'forward']) assert.equal(currentComposeBodyHtml(input, composeType), prefix);
 });
 
 test('duplicate anchors, duplicate attributes and malformed HTML fail closed', () => {

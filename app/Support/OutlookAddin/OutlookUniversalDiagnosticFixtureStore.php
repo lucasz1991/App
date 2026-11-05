@@ -29,17 +29,9 @@ final class OutlookUniversalDiagnosticFixtureStore
             return null;
         }
         // Retain only safe diagnostic metadata, never the HTTP request/binding.
-        $boundary = $fixture['format'] === OutlookUniversalDiagnosticFixtureValidator::BOUNDARY_FORMAT;
-        $metadata = array_intersect_key($metadata, array_flip(['host', 'code', 'phase', 'sourceLength', 'bodyLength', 'checkpoint', 'difference',
-            ...($boundary ? ['step', 'composeType'] : [])]));
-        $allowedCode = $boundary
-            ? ($metadata['code'] ?? null) === 'U2E_NEW_DRAFT_REQUIRED' && ($metadata['phase'] ?? null) === 'preflight'
-                && ($metadata['step'] ?? null) === 'snapshot.region'
-                && in_array($metadata['composeType'] ?? null, ['reply', 'forward'], true)
-                && in_array($metadata['host'] ?? null, ['OutlookIOS', 'OutlookAndroid', 'OutlookWebApp'], true)
-            : ($metadata['code'] ?? null) === 'SIGNATURE_LAYOUT_UNCONFIRMED';
+        $metadata = array_intersect_key($metadata, array_flip(['host', 'code', 'phase', 'sourceLength', 'bodyLength', 'checkpoint', 'difference']));
         if (! in_array($metadata['host'] ?? null, OutlookUniversalDiagnostics::HOSTS, true)
-            || ! $allowedCode
+            || ($metadata['code'] ?? null) !== 'SIGNATURE_LAYOUT_UNCONFIRMED'
             || ! in_array($metadata['phase'] ?? null, ['preflight', 'claim', 'header', 'write', 'readback', 'complete'], true)
             || ! OutlookUniversalDiagnosticDetails::valid(array_intersect_key($metadata, array_flip(['checkpoint', 'difference'])))) {
             return null;

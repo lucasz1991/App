@@ -2,8 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
-import * as composeHelp from '../../resources/js/outlook-addin/u2e-compose-help.js';
-import { universalComposeReport } from '../../resources/js/outlook-addin/u2e-compose.js';
 import { reportUniversalFailure } from '../../resources/js/outlook-addin/u2e-telemetry.js';
 import { automaticComposeDecision } from '../../resources/js/outlook-addin/automatic-compose-policy.js';
 import * as bundleVersion from '../../resources/js/outlook-addin/u2e-bundle-version.js';
@@ -17,7 +15,7 @@ const functionSource = (source, name) => {
     const next = /\r?\n(?:export )?(?:async )?function [A-Za-z_$]/.exec(tail);
     return next ? tail.slice(0, next.index) : tail;
 };
-const load = (source, name, context) => vm.runInNewContext(`(${functionSource(source, name)}\n)`, { ...composeHelp, universalComposeReport, ...context });
+const load = (source, name, context) => vm.runInNewContext(`(${functionSource(source, name)}\n)`, context);
 const codeError = code => Object.assign(new Error(code), { code });
 const id = '11111111-1111-4111-8111-111111111111';
 const signature = { kind: 'signature', version: 'a'.repeat(24), html: 'signature-source' };
@@ -36,7 +34,6 @@ function automaticFixture(mode = 'both', extra = {}) {
     };
     const calls = { universal: [], validate: [], legacy: 0, binding: 0, deleted: 0 };
     const context = {
-        ...composeHelp,
         ...bundleVersion,
         Office: { context: { mailbox: { item } } },
         codedError: codeError,

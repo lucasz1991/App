@@ -2,8 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
-import * as composeHelp from '../../resources/js/outlook-addin/u2e-compose-help.js';
-import { universalComposeReport } from '../../resources/js/outlook-addin/u2e-compose.js';
 import * as compose from '../../resources/js/outlook-addin/compose-template.js';
 import * as guard from '../../resources/js/outlook-addin/mailbox-guard.js';
 import * as writes from '../../resources/js/outlook-addin/office-write.js';
@@ -128,8 +126,6 @@ async function runtimeHarness(options = {}, mutate = () => {}) {
             selection: enabled ? 'default' : 'none', templateId: enabled ? fixture.bootstrap.automaticTemplateId : null };
     }
     const context = vm.createContext({
-        ...composeHelp,
-        universalComposeReport,
         ...compose, ...guard, ...writes, ...diagnostics, ...automaticPolicy, Office: fixture.office,
         URL, AbortController, setTimeout, clearTimeout,
         console: { info(value) { logs.push(value); } },
@@ -156,8 +152,6 @@ async function manualHarness(options = {}) {
     const document = documentContract();
     const state = { statuses: [] };
     const context = vm.createContext({
-        ...composeHelp,
-        universalComposeReport,
         ...compose, ...guard, ...writes, ...diagnostics, Office: fixture.office,
         scopedComposeBodyHtml: compose.currentComposeBodyHtml, setTimeout, clearTimeout,
         console, URL, AbortController,

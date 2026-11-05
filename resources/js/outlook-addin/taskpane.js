@@ -35,7 +35,6 @@ import { validateUniversalComposeDocument, insertUniversalComposeDocument, unive
     universalComposeReport, universalComposeStateFromBody } from './u2e-compose.js';
 import { reportUniversalFailure, universalComposeHost } from './u2e-telemetry.js';
 import { readUniversalSessionReport } from './u2e-session-report.js';
-import { universalComposeBoundaryHelp } from './u2e-compose-help.js';
 import { universalTaskpaneStatus } from './u2e-taskpane-status.js';
 import { assertUniversalBundleCompatibility, universalBundleFailureReport, readUniversalBundleFailure } from './u2e-bundle-version.js';
 import { bindAutomaticPreferencesView, createAccountPreferencesSession, normalizeAutomaticPreferences } from './automatic-preferences-view.js';
@@ -1347,8 +1346,6 @@ function authenticationWasLost(error) {
 
 function userMessage(error) {
     const code = safeErrorCode(error);
-    const boundaryHelp = universalComposeBoundaryHelp(code, universalComposeReport(globalThis.Office?.context?.mailbox?.item));
-    if (boundaryHelp) return boundaryHelp.taskpane;
     if (code === 'U2E_BUNDLE_STALE') return 'Outlook verwendet eine ältere Add-in-Fassung, die dieses Vorlagenformat nicht lesen kann. Outlook vollständig beenden und neu starten, danach eine neue Nachricht öffnen. Falls der Hinweis bleibt, muss die IT die Add-in-Bereitstellung aktualisieren.';
     if (code === 'U2E_NEW_DRAFT_REQUIRED') {
         return 'Diese Nachricht enthält bereits eine ältere oder bearbeitete RailTime-Fassung. Bitte für den neuen U2e-Entwurf eine neue Nachricht öffnen. Ihr Text und die Zitate bleiben erhalten.';

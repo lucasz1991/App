@@ -9,19 +9,21 @@ export const CK19_APPROVED_V10_CHARACTERS = 4980;
 export const CK19_APPROVED_V11_SHA256 = '532dab7e0ebf5734736d49f427bb61f49c9cec9e9aad09165a0bbc8248e63f5a';
 export const CK19_APPROVED_V11_CHARACTERS = 4999;
 export const CK19_V11_SOURCE_FILE_SHA256 = 'ab4d5c8bbaf9adabb1128810cba672df11b12bdf6a474d4b2d4845059eebaeda';
+export const CK19_APPROVED_V12_SHA256 = '12b7b1ea14005334f19716ac459fa45de2dd96e29ff43f4ce383bdd034d6fc92';
+export const CK19_APPROVED_V12_CHARACTERS = 4262;
+export const CK19_V12_SOURCE_FILE_SHA256 = '0860693acf1b7a78dd379a1381b70332b0d54d1a6e9dc5b960baa9bad7b0a72c';
 export const CK19_GENERATED_DIRECTORY = 'resources/mail-templates/generated';
-const mappingPath = 'resources/mail-templates/ck19-mobile-style-v11.mapping.json';
-const payloadName = 'ck19-mobile-style-v11.html';
-const manifestName = 'ck19-mobile-style-v11.manifest.json';
 const projectRoot = fileURLToPath(new URL('..', import.meta.url));
 const sha256 = value => createHash('sha256').update(value).digest('hex');
 const normalize = value => String(value).replaceAll('\r\n', '\n');
 const fail = code => { throw new Error('CK19_' + code); };
 const releases = Object.freeze({
     'ck19-approved-v10-20261105': Object.freeze({ tag: 'v10', sha256: CK19_APPROVED_V10_SHA256,
-        characters: CK19_APPROVED_V10_CHARACTERS, suffix: '</style>\n' }),
+        characters: CK19_APPROVED_V10_CHARACTERS, suffix: '</style>\n', rules: 42 }),
     'ck19-approved-v11-20261105': Object.freeze({ tag: 'v11', sha256: CK19_APPROVED_V11_SHA256,
-        characters: CK19_APPROVED_V11_CHARACTERS, suffix: '</style>' }),
+        characters: CK19_APPROVED_V11_CHARACTERS, suffix: '</style>', rules: 42 }),
+    'ck19-approved-v12-20261105': Object.freeze({ tag: 'v12', sha256: CK19_APPROVED_V12_SHA256,
+        characters: CK19_APPROVED_V12_CHARACTERS, suffix: '</style>', rules: 36 }),
 });
 
 /** The source-file EOF is explicitly not part of the approved v11 rule text.
@@ -31,6 +33,15 @@ export function ck19V11RuleTextFromSourceFile(source) {
         || sha256(source) !== CK19_V11_SOURCE_FILE_SHA256 || !source.endsWith('\n') || source.endsWith('\n\n')) fail('V11_SOURCE_FILE_INVALID');
     const ruleText = source.slice(0, -1);
     if (ruleText.length !== CK19_APPROVED_V11_CHARACTERS || sha256(ruleText) !== CK19_APPROVED_V11_SHA256) fail('V11_RULE_TEXT_INVALID');
+    return ruleText;
+}
+
+/** v12's handoff counts the rule text without its single file-ending LF. */
+export function ck19V12RuleTextFromSourceFile(source) {
+    if (typeof source !== 'string' || source.length !== 4263 || Buffer.byteLength(source) !== 4263
+        || sha256(source) !== CK19_V12_SOURCE_FILE_SHA256 || !source.endsWith('\n') || source.endsWith('\n\n')) fail('V12_SOURCE_FILE_INVALID');
+    const ruleText = source.slice(0, -1);
+    if (ruleText.length !== CK19_APPROVED_V12_CHARACTERS || sha256(ruleText) !== CK19_APPROVED_V12_SHA256) fail('V12_RULE_TEXT_INVALID');
     return ruleText;
 }
 
@@ -46,13 +57,19 @@ export function generateCk19MobileStyle({ templateHtml, presentationPhp, mapping
         || mapping.payloadPrefix !== '<style type="text/css">'
         || mapping.payloadSuffix !== release.suffix
         || mapping.policy?.maximumCharactersExclusive !== 5000
-        || !Array.isArray(mapping.rules) || mapping.rules.length !== 42) fail('MAPPING_INVALID');
+        || !Array.isArray(mapping.rules) || mapping.rules.length !== release.rules) fail('MAPPING_INVALID');
     if (release.tag === 'v11' && (mapping.sourceFileNormalization?.operation !== 'omit-exactly-one-terminal-LF'
         || mapping.sourceFileNormalization.sourceFileCharacters !== 5000
         || mapping.sourceFileNormalization.sourceFileSha256 !== CK19_V11_SOURCE_FILE_SHA256
         || mapping.sourceFileNormalization.ruleTextCharacters !== CK19_APPROVED_V11_CHARACTERS
         || mapping.sourceFileNormalization.ruleTextSha256 !== CK19_APPROVED_V11_SHA256
         || mapping.sourceFileNormalization.approval !== 'user-explicitly-approved-EOF-is-not-rule-text')) fail('V11_NORMALIZATION_CONTRACT_INVALID');
+    if (release.tag === 'v12' && (mapping.sourceFileNormalization?.operation !== 'omit-exactly-one-terminal-LF'
+        || mapping.sourceFileNormalization.sourceFileCharacters !== 4263
+        || mapping.sourceFileNormalization.sourceFileSha256 !== CK19_V12_SOURCE_FILE_SHA256
+        || mapping.sourceFileNormalization.ruleTextCharacters !== CK19_APPROVED_V12_CHARACTERS
+        || mapping.sourceFileNormalization.ruleTextSha256 !== CK19_APPROVED_V12_SHA256
+        || mapping.sourceFileNormalization.approval !== 'user-approved-rule-text-count-excludes-terminal-LF')) fail('V12_NORMALIZATION_CONTRACT_INVALID');
     const css = styles[0][1];
     if (sha256(css) !== mapping.sourceCssSha256) fail('SOURCE_CSS_CHANGED_REVIEW_MAPPING');
     const pins = [...String(presentationPhp).matchAll(/private const TEMPLATE_SHA256\s*=\s*'([0-9a-f]{64})';/g)];
@@ -107,7 +124,7 @@ export function generateCk19MobileStyle({ templateHtml, presentationPhp, mapping
     if (output.nodes.length !== 1 || output.nodes[0].type !== 'atrule'
         || output.nodes[0].name !== 'media' || output.nodes[0].params !== mapping.outputMedia) fail('GENERATED_CSS_INVALID');
     return Object.freeze({ payload, templateHash, cssHash: sha256(css), derivedDeclarations, transportOverrides,
-        revision: mapping.revision, release: release.tag, sourceFileNormalization: mapping.sourceFileNormalization || null });
+        revision: mapping.revision, release: release.tag, rules: release.rules, sourceFileNormalization: mapping.sourceFileNormalization || null });
 }
 
 /** Stable provenance: no timestamp or private input is placed in the build. */
@@ -129,18 +146,26 @@ export function ck19Manifest({ generated, mappingBytes, generatorBytes }) {
         payloadCharacters: generated.payload.length,
         maximumCharactersExclusive: 5000,
         media: 'only screen and (max-width:1039px)',
-        rules: 42,
+        rules: generated.rules,
         derivedDeclarations: generated.derivedDeclarations,
         explicitTransportOverrides: generated.transportOverrides,
         nativeClientProof: false,
         exchangeRuleUpdatedByBuild: false,
         sourceFileNormalization: generated.sourceFileNormalization,
-        scope: 'Approved v10/v11 global selector scope is unchanged; unrelated-content compatibility is not asserted.',
-        historicalCtaGuard: 'Separate colspan=5 line cell only; old single action row remains visible.',
+        scope: generated.release === 'v12'
+            ? 'Approved v12 class/structure scope includes unrooted td.rt-col-* and table.rt-dispo selectors; unrelated-content compatibility is not asserted.'
+            : 'Approved v10/v11 global selector scope is unchanged; unrelated-content compatibility is not asserted.',
+        historicalCtaGuard: generated.release === 'v12'
+            ? 'Only colspan=5 or rt-cta-line descendants of table.rt-shell are hidden; an old single action row is not selected by that guard.'
+            : 'Separate colspan=5 line cell only; old single action row remains visible.',
     };
 }
 
-export async function buildCk19MobileStyle({ check = false, root = projectRoot } = {}) {
+export async function buildCk19MobileStyle({ check = false, root = projectRoot, release = 'v11' } = {}) {
+    if (!['v11', 'v12'].includes(release)) fail('BUILD_RELEASE_INVALID');
+    const mappingPath = 'resources/mail-templates/ck19-mobile-style-' + release + '.mapping.json';
+    const payloadName = 'ck19-mobile-style-' + release + '.html';
+    const manifestName = 'ck19-mobile-style-' + release + '.manifest.json';
     const [templateHtml, presentationPhp, mappingBytes, generatorBytes] = await Promise.all([
         readFile(path.join(root, 'resources/mail-templates/u2e-universal-v1.html'), 'utf8'),
         readFile(path.join(root, 'app/Support/OutlookAddin/OutlookUniversalPresentation.php'), 'utf8'),
@@ -164,8 +189,15 @@ export async function buildCk19MobileStyle({ check = false, root = projectRoot }
     return manifest;
 }
 
+/** Both independent pilot payloads are generated/checked by the existing hook. */
+export async function buildCk19MobileStyles(options = {}) {
+    const manifests = [];
+    for (const release of ['v11', 'v12']) manifests.push(await buildCk19MobileStyle({ ...options, release }));
+    return manifests;
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
     if (process.argv.slice(2).some(argument => argument !== '--check')) fail('ARGUMENT_INVALID');
-    const manifest = await buildCk19MobileStyle({ check: process.argv.includes('--check') });
-    console.log(`CK19 v11 ${process.argv.includes('--check') ? 'verified' : 'generated'}: ${manifest.payloadCharacters} characters, sha256:${manifest.payloadSha256}, template:${manifest.sourceTemplateSha256}`);
+    const manifests = await buildCk19MobileStyles({ check: process.argv.includes('--check') });
+    for (const manifest of manifests) console.log(`CK19 ${manifest.revision.split('-')[2]} ${process.argv.includes('--check') ? 'verified' : 'generated'}: ${manifest.payloadCharacters} characters, sha256:${manifest.payloadSha256}, template:${manifest.sourceTemplateSha256}`);
 }

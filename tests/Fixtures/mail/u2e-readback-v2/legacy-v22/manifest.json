@@ -1,0 +1,62 @@
+{
+  "schema": 1,
+  "kind": "synthetic-c-k21-v22-host-serializations",
+  "nativeClientProof": false,
+  "privateInputUsed": false,
+  "version": "50297557b7e43f1ce2409647",
+  "previousVersion": "92eab6c45a583e103b6e62f5",
+  "previousCornerVersion": "da9b8f7e66f6cd549ecd8203",
+  "previousCornerSource": "source.c21-legacy.json",
+  "templateSha256": "f297c0bb222061eb3b78c85889e139274067d5744707d7807d5b6e8545e676b2",
+  "description": "Actual C-K21 v2.2 B1 renderer, unchanged synthetic descriptor/author. Two empty single-cell red 8px caps replace the four corner images; head/actions colspan removed. Rooster keeps radius, synthetic Word omits it and serializes cap 6pt/zero-cm padding. C21 source and C15 bundle remain historical; no native proof.",
+  "artifacts": {
+    "source.json": {
+      "bytes": 12721,
+      "sha256": "e03987df08bd5bb74b3da647bb216eb0400b519314f5cc9ca2b923a80e1d21f1"
+    },
+    "signature.json": {
+      "bytes": 12382,
+      "sha256": "fc8ec902f8f99fee0fdd6c4211fa4453e33d29d2108d3768449995da59b1a29b"
+    },
+    "rooster.synthetic.html": {
+      "bytes": 11553,
+      "sha256": "66692d5b87341374a8153e229bee806d0f2186f941076fe545c1a8d2097a5d23"
+    },
+    "word.synthetic.html": {
+      "bytes": 11058,
+      "sha256": "509927ea0e3f8820837effa023cccbe4548671b3a1def4d9869011389e41d39d"
+    },
+    "source.c13-legacy.json": {
+      "bytes": 13916,
+      "sha256": "c3a729fa720c8fa622e988e873451a76238017539fd457ff7b5d1ccaaf1f162e"
+    },
+    "source.c21-legacy.json": {
+      "bytes": 14364,
+      "sha256": "c5f67411f0109a1d6ad67630bfc78dcd58a0c188596cc9ea63b527c15aa3bbf5"
+    },
+    "legacy-c15/source.json": {
+      "bytes": 14364,
+      "sha256": "de30847eb40ebbfe3be5dd87d823afa041eb4dfe9c311667e4d8e8ffc4b12dd9"
+    },
+    "legacy-c15/signature.json": {
+      "bytes": 14025,
+      "sha256": "48699718a1cb05839ada2bdbc66679dca6c1e1e06b0a1ebda7a7e4d7d5e343cd"
+    },
+    "legacy-c15/rooster.synthetic.html": {
+      "bytes": 13078,
+      "sha256": "e9adcad95655892b25bab2325efcdee7cc82823778da9773542adccc5d2088a5"
+    },
+    "legacy-c15/word.synthetic.html": {
+      "bytes": 12626,
+      "sha256": "901649ee54690dd1ce28dc1445c1eb869b36730bd76a07db023b61badc76eb3a"
+    },
+    "legacy-c15/source.c13-legacy.json": {
+      "bytes": 13916,
+      "sha256": "c3a729fa720c8fa622e988e873451a76238017539fd457ff7b5d1ccaaf1f162e"
+    },
+    "legacy-c15/manifest.json": {
+      "bytes": 1282,
+      "sha256": "f6856afb14cd1c7d0c17f0addc24ae46d848920a517f8f1fdaa9c28bca02465d"
+    }
+  }
+}

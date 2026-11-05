@@ -1,22 +1,18 @@
 import { parseManagedHtml } from './managed-template.js';
-import { currentComposeBodyHtml, isMobileComposeHost, mobileCurrentReplyBodyMode, isTemplateInsertionBlocked, isStandaloneSignatureInsertionBlocked } from './compose-template.js';
+import { currentComposeBodyHtml, isMobileComposeHost, isTemplateInsertionBlocked, isStandaloneSignatureInsertionBlocked } from './compose-template.js';
 import { assertMailboxBinding } from './mailbox-guard.js';
 import { confirmedOfficeWrite, hasUncertainWrite } from './office-write.js';
 import { createNativeLayoutNonce } from './native-layout-restore.js';
 import { u2eCenteringState, u2eCenteringContext } from './u2e-appearance.js';
 import { u2eTopBorderEvidence, u2eCtaMaterial } from './u2e-borders.js';
 import { firstUniversalEvidenceDifference, u2eReadbackFailure,
-    universalRedactedReadbackFixture, universalComposeBoundaryFixture } from './u2e-readback-diagnostics.js';
+    universalRedactedReadbackFixture } from './u2e-readback-diagnostics.js';
 import { persistUniversalSessionReport, readUniversalSessionReport } from './u2e-session-report.js';
-import { compareClassicQuoteReadback } from './u2e-quote-readback.js';
 
 export const UNIVERSAL_COMPOSE_SESSION_KEY = 'railtime.u2e.compose.v1';
 const operations = new WeakMap();
 const lastReports = new WeakMap();
 const plans = new WeakMap();
-// Failed snapshot HTML stays private in this module. Errors/reports never carry
-// authored text; only the finite, validated topology fixture may leave it.
-const failedSnapshots = new WeakMap();
 const oldKeys = ['railtime.template.inserted.v1', 'railtime.signature.layout.v1', 'railtime.head-probe.v1', 'railtime.u2e-probe.v1'];
 const idPattern = /^(?:x_)?rt-sig-u2-([0-9a-f]{24})(-cell)?$/;
 const documentKeys = ['schema', 'kind', 'html', 'version', 'marker', 'header', 'sourceHash', 'media'];
@@ -193,10 +189,7 @@ function visibleDispatchCaps(html, elements, dispatch) {
     }
 }
 
-function region(html, composeType, { office = null, currentMessageOnly = false } = {}) {
-    if (currentMessageOnly && mobileCurrentReplyBodyMode(office, composeType) !== null) {
-        return { current: html, currentHtml: html, quote: '' };
-    }
+function region(html, composeType) {
     const current = currentComposeBodyHtml(html, composeType);
     if (current === null) return null;
     let boundary = current.length;
@@ -366,13 +359,13 @@ export function validateUniversalComposeDocument(document) {
     } catch { throw failure('U2E_SOURCE_INVALID'); }
 }
 
-export function universalComposeStateFromBody(document, html, composeType, scope = {}) {
+export function universalComposeStateFromBody(document, html, composeType) {
     const state = { readable: false, present: false, current: false, kind: null, version: null };
     let checkpoint = 'source.invalid';
     try {
         const source = validateUniversalComposeDocument(document);
         checkpoint = 'html.parse';
-        const scoped = region(html, composeType, scope);
+        const scoped = region(html, composeType);
         if (!scoped) return { ...state, ...u2eReadbackFailure('scope.boundary') };
         const actual = material(scoped.currentHtml, source.marker);
         if (!actual.present) return { ...state, readable: true, ...u2eReadbackFailure('state.present', true, false) };
@@ -401,11 +394,10 @@ export function universalComposeReport(item) {
 
 /** Diagnostic extraction uses the same conservative reply boundary as the
  * production reader. Never hand an entire conversation to the low-level
- * signature redactor. Unknown boundaries cannot produce a signature fixture;
- * snapshot.region failures use the separate text-free boundary format. */
-export function universalComposeDiagnosticFixture(document, html, composeType, scope = {}) {
+ * signature redactor. An unknown boundary has no diagnostic fixture. */
+export function universalComposeDiagnosticFixture(document, html, composeType) {
     try {
-        const source = validateUniversalComposeDocument(document), scoped = region(html, composeType, scope);
+        const source = validateUniversalComposeDocument(document), scoped = region(html, composeType);
         return scoped ? universalRedactedReadbackFixture(source.html, scoped.currentHtml) : null;
     } catch { return null; }
 }
@@ -485,36 +477,12 @@ async function snapshot(office, item, report = null, lengthOrigin = 'original') 
     const format = await readCall(office, callback => item.body.getTypeAsync(callback));
     if (format !== office.CoercionType.Html) throw failure('U2E_HTML_REQUIRED');
     if (report) report.step = 'snapshot.body';
-    const bodyMode = mobileCurrentReplyBodyMode(office, composeType), currentMessageOnly = bodyMode !== null;
-    // The SDK guarantees current-reply scope only on versioned mobile hosts.
-    // All three snapshots use the same option; a failed scoped read never
-    // retries FullBody and never turns an unknown forward into a new message.
-    const html = await readCall(office, callback => currentMessageOnly
-        ? item.body.getAsync(office.CoercionType.Html, { bodyMode }, callback)
-        : item.body.getAsync(office.CoercionType.Html, callback));
+    const html = await readCall(office, callback => item.body.getAsync(office.CoercionType.Html, callback));
     if (typeof html !== 'string' || html.length > 500000) throw failure('U2E_CONTEXT_UNREADABLE');
     if (report) { report.bodyLength = html.length; report.bodyLengthOrigin = lengthOrigin; report.step = 'snapshot.region'; }
-    const scoped = region(html, composeType, { office, currentMessageOnly });
-    if (!scoped) {
-        const error = failure('U2E_NEW_DRAFT_REQUIRED');
-        failedSnapshots.set(error, { html, composeType });
-        throw error;
-    }
-    return { html, composeType, currentMessageOnly, ...scoped };
-}
-
-/** InternetHeaders is a documented mobile Mailbox-1.8 exception: mobile still
- * reports Mailbox 1.5. Require the concrete method and a canonical app version,
- * rather than granting capability from a server/unknown version or platform. */
-export function supportsUniversalVersionHeader(office, item) {
-    if (typeof item?.internetHeaders?.setAsync !== 'function') return false;
-    if (!isMobileComposeHost(office)) return office?.context?.requirements?.isSetSupported?.('Mailbox', '1.8') === true;
-    const diagnostics = office?.context?.mailbox?.diagnostics;
-    if (!['OutlookIOS', 'OutlookAndroid'].includes(diagnostics?.hostName)) return false;
-    const match = /^(\d+)\.(\d+)\.(\d+)(?:\.\d+)?$/.exec(String(diagnostics?.hostVersion || ''));
-    if (!match || !match.slice(1).every(value => Number.isSafeInteger(Number(value)))) return false;
-    const [major, minor] = match.slice(1).map(Number);
-    return major > 4 || major === 4 && minor >= 2405;
+    const scoped = region(html, composeType);
+    if (!scoped) throw failure('U2E_NEW_DRAFT_REQUIRED');
+    return { html, composeType, ...scoped };
 }
 
 async function settledLegacy(office, item) {
@@ -573,7 +541,7 @@ export async function insertUniversalComposeDocument(office, item, document, { b
         operation.report.bodyLength = original.html.length;
         await guard();
         operation.report.step = 'source.state';
-        const state = universalComposeStateFromBody(source, original.html, original.composeType, { office, currentMessageOnly: original.currentMessageOnly });
+        const state = universalComposeStateFromBody(source, original.html, original.composeType);
         if (state.current) {
             await guardClaim(priorClaim);
             operation.report = { ...operation.report, state: 'complete', current: true, phase: 'complete' };
@@ -588,22 +556,24 @@ export async function insertUniversalComposeDocument(office, item, document, { b
             || !standardSignature && /id\s*=\s*["'](?:x_)?Signature["']/i.test(original.current)
             || source.kind === 'combined' && !blankCurrent(original.currentHtml) && !standardSignature) throw failure('U2E_NEW_DRAFT_REQUIRED');
         const ownAuthor = authorEvidence(original.currentHtml);
-        if (!supportsUniversalVersionHeader(office, item)) throw failure('U2E_HEADER_UNAVAILABLE');
+        if (!mobile && (!office?.context?.requirements?.isSetSupported?.('Mailbox', '1.8') || typeof item.internetHeaders?.setAsync !== 'function')) throw failure('U2E_HEADER_UNAVAILABLE');
         const token = 'pending:' + source.version + ':' + createNativeLayoutNonce();
         operation.claim = token;
         await guardClaim(priorClaim); operation.claimed = true; operation.report = { ...operation.report, attempted: true, state: 'pending', phase: 'claim' };
         operation.report.step = 'session.claim';
         await readCall(office, callback => item.sessionData.setAsync(UNIVERSAL_COMPOSE_SESSION_KEY, token, callback), 'U2E_INSERT_UNCERTAIN');
         if (await session(office, item, UNIVERSAL_COMPOSE_SESSION_KEY) !== token) throw failure('U2E_INSERT_UNCERTAIN');
-        await guardClaim(token);
-        operation.report.phase = 'header';
-        operation.report.step = 'header.write';
-        await confirmedOfficeWrite(office, item, 'u2e-header-write', 'U2E_INSERT_UNCERTAIN', callback => item.internetHeaders.setAsync({ 'X-RailTime-Template': source.header }, callback));
-        operation.report.headerWritten = true;
+        if (!mobile) {
+            await guardClaim(token);
+            operation.report.phase = 'header';
+            operation.report.step = 'header.write';
+            await confirmedOfficeWrite(office, item, 'u2e-header-write', 'U2E_INSERT_UNCERTAIN', callback => item.internetHeaders.setAsync({ 'X-RailTime-Template': source.header }, callback));
+            operation.report.headerWritten = true;
+        }
         await guard(); operation.report.step = 'legacy'; await settledLegacy(office, item);
         const latest = await snapshot(office, item, operation.report);
         operation.report.step = 'context.compare';
-        if (latest.html !== original.html || latest.composeType !== original.composeType || latest.currentMessageOnly !== original.currentMessageOnly) throw failure('U2E_CONTEXT_CHANGED');
+        if (latest.html !== original.html || latest.composeType !== original.composeType) throw failure('U2E_CONTEXT_CHANGED');
         operation.report.step = 'session.claim';
         if (await session(office, item, UNIVERSAL_COMPOSE_SESSION_KEY) !== token) throw failure('U2E_INSERT_UNCERTAIN');
         await guardClaim(token);
@@ -618,22 +588,17 @@ export async function insertUniversalComposeDocument(office, item, document, { b
         operation.report.phase = 'readback';
         const actual = await snapshot(office, item, operation.report, 'actual');
         operation.report.step = 'readback.material';
-        const verified = universalComposeStateFromBody(source, actual.html, actual.composeType, { office, currentMessageOnly: actual.currentMessageOnly });
+        const verified = universalComposeStateFromBody(source, actual.html, actual.composeType);
         lastSnapshot = actual;
         operation.report.bodyLength = actual.html.length;
-        if (actual.composeType !== original.composeType || actual.currentMessageOnly !== original.currentMessageOnly) {
+        if (actual.composeType !== original.composeType) {
             operation.report.step = 'readback.compose_type';
             throw layoutFailure('compose.type', original.composeType, actual.composeType, null, 'u2e-compose-readback');
         }
         if (!verified.current) throw Object.assign(failure('SIGNATURE_LAYOUT_UNCONFIRMED', 'u2e-compose-readback'),
             u2eReadbackFailure(verified.checkpoint || 'state.unreadable'), { difference: verified.difference || null });
         operation.report.step = 'readback.quote';
-        const quoteReadback = compareClassicQuoteReadback(original.quote, actual.quote, {
-            host: office?.context?.mailbox?.diagnostics?.hostName, phase: operation.report.phase,
-            step: operation.report.step, composeType: actual.composeType,
-            bodyWriteStarted: operation.report.bodyWriteStarted, bodyWriteSucceeded: operation.report.bodyWriteSucceeded,
-        });
-        if (!quoteReadback.equal) throw layoutFailure('quote.bytes', original.quote, actual.quote, null, 'u2e-compose-readback');
+        if (actual.quote !== original.quote) throw layoutFailure('quote.bytes', original.quote, actual.quote, null, 'u2e-compose-readback');
         const actualMaterial = material(actual.currentHtml);
         operation.report.step = 'readback.author';
         if (source.kind === 'signature' && authorEvidence(actual.currentHtml, actualMaterial.root) !== ownAuthor) throw layoutFailure('author.signature', ownAuthor,
@@ -663,20 +628,10 @@ export async function insertUniversalComposeDocument(office, item, document, { b
             Object.assign(operation.report, u2eReadbackFailure(error?.checkpoint || 'readback.unknown'), { difference: error?.difference || null });
             if (String(binding?.mailboxAddress || '').toLowerCase() === 'it-technik@rail-time.de' && lastSnapshot) {
                 try {
-                    const fixture = universalComposeDiagnosticFixture(source, lastSnapshot.html, lastSnapshot.composeType, { office, currentMessageOnly: lastSnapshot.currentMessageOnly });
+                    const fixture = universalComposeDiagnosticFixture(source, lastSnapshot.html, lastSnapshot.composeType);
                     if (fixture) operation.report.fixture = fixture;
                 } catch { /* Redaction cannot replace or widen the original failure. */ }
             }
-        }
-        const failedSnapshot = failedSnapshots.get(error);
-        failedSnapshots.delete(error);
-        const diagnosticsHost = String(office?.context?.mailbox?.diagnostics?.hostName || '');
-        if (code === 'U2E_NEW_DRAFT_REQUIRED' && operation.report.phase === 'preflight' && operation.report.step === 'snapshot.region'
-            && ['OutlookIOS', 'OutlookAndroid', 'OutlookWebApp'].includes(diagnosticsHost)
-            && String(binding?.mailboxAddress || '').toLowerCase() === 'it-technik@rail-time.de' && failedSnapshot) {
-            Object.assign(operation.report, u2eReadbackFailure('scope.boundary'));
-            const fixture = universalComposeBoundaryFixture(source.html, failedSnapshot.html);
-            if (fixture) operation.report.fixture = fixture;
         }
         if (operation.claimed) {
             operation.report = { ...operation.report, state: 'uncertain' };
