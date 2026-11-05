@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "kind": "ck19-approved-v13-generated-mobile-style",
+  "revision": "ck19-approved-v13-20261105",
+  "sourceTemplate": "resources/mail-templates/u2e-universal-v1.html",
+  "sourceTemplateSha256": "5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204",
+  "sourceCssSha256": "502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1",
+  "templateConstant": "OutlookUniversalPresentation::TEMPLATE_SHA256",
+  "mapping": "resources/mail-templates/ck19-mobile-style-v13.mapping.json",
+  "mappingSha256": "8a2de407d11c3fc716dd4b97d6619bc3cdddb0c1b650e3e11a1635a4c5ea24f0",
+  "generator": "scripts/build-ck19-mobile-style.mjs",
+  "generatorSha256": "31cd024eaed7fe7edf536867c98809e63554b346ba9666d3e8d148f13c1f0973",
+  "payload": "ck19-mobile-style-v13.html",
+  "payloadSha256": "ae784b17a110b6578362b4f567c76d7b1389705a8bf36bbcd6758f168fd8b2c5",
+  "payloadCharacters": 3801,
+  "maximumCharactersExclusive": 5000,
+  "media": "only screen and (max-width:1039px)",
+  "rules": 34,
+  "derivedDeclarations": 82,
+  "explicitTransportOverrides": 21,
+  "nativeClientProof": false,
+  "exchangeRuleUpdatedByBuild": false,
+  "sourceFileNormalization": {
+    "operation": "omit-exactly-one-terminal-LF",
+    "sourceFileCharacters": 3802,
+    "sourceFileSha256": "f203fd9db56e30485bc3ef2d348a538847bb6f7d159dd3bb93e8dfdcae5619de",
+    "ruleTextCharacters": 3801,
+    "ruleTextSha256": "ae784b17a110b6578362b4f567c76d7b1389705a8bf36bbcd6758f168fd8b2c5",
+    "approval": "user-approved-rule-text-count-excludes-terminal-LF"
+  },
+  "scope": "Approved v13 class/tag scope includes selectors outside table.rt-shell; unrelated-content compatibility is not asserted.",
+  "historicalCtaGuard": "Only rt-dispo-cap, rt-cta-line and rt-cta-gap descendants of table.rt-dispo are hidden by the cap/line/gap guard; CTA cells are not hidden."
+}
