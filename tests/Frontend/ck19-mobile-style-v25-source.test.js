@@ -9,13 +9,13 @@ const read = async name => (await fs.readFile(new URL(name, root), 'utf8')).repl
 const sha = value => createHash('sha256').update(value).digest('hex');
 const templateHtml = await read('resources/mail-templates/u2e-universal-v1.html');
 const presentationPhp = await read('app/Support/OutlookAddin/OutlookUniversalPresentation.php');
-const currentTemplate = 'ecb6bbe92fbf50b5ecc9f0145894cf524d03545d776df3ff1ff4046a5db38ecf';
+const currentTemplate = 'aed4ce9baade0a1a4411c6b72da36b893bdf6134262f2367a55f44097ffe5e09';
 const previousTemplate = '5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204';
-const currentCss = 'cf15bb89e9425c30f3db73b20b5263763e5c2b0d3d32d9a4e67625a5c2ed0006';
+const currentCss = '44320e37dbd5376595ecbd11938fcc96b5be372088dea343fed9a187d18f746f';
 const previousCss = '502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1';
 const line = '<tr class="rt-cta-line"><td colspan="5" height="1" bgcolor="#ffffff" style="height:1px;line-height:1px;font-size:1px;mso-line-height-rule:exactly;padding:0;background-color:#ffffff;">&nbsp;</td></tr>';
 
-test('the v2.5 source is pinned and v2.3 is retained as immutable historical test input', async () => {
+test('the v2.6 source is pinned and v2.3 is retained as immutable historical test input', async () => {
     assert.equal(sha(templateHtml), currentTemplate); assert.equal(templateHtml.length, 15604);
     assert.doesNotMatch(templateHtml, /rt-cta-line|colspan="5"/);
     const prior = await read('tests/Fixtures/mail/ck19-mobile-style-v16/template-v23-approved.html');
@@ -56,7 +56,7 @@ for (const [tag, expected] of [['v11', 3], ['v12', 1], ['v13', 1], ['v14', 3], [
     });
 }
 
-test('all five checked-in manifests bind current v2.5 while original source-file fixtures remain historical', async () => {
+test('all five checked-in manifests bind current v2.6 while original source-file fixtures remain historical', async () => {
     const all = await buildCk19MobileStyles({ check: true, releases: ['v11', 'v12', 'v13', 'v14', 'v15'] });
     for (const manifest of all) {
         assert.equal(manifest.sourceTemplateSha256, currentTemplate);

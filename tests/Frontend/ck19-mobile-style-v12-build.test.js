@@ -20,15 +20,15 @@ const generate = extra => generateCk19MobileStyle({ templateHtml, presentationPh
 const generated = generate();
 const outputRules = postcss.parse(generated.payload.match(/<style[^>]*>([\s\S]*)<\/style>/)[1]);
 
-test('C-K23 derives the exact approved v12 payload from the v2.5 source and explicit class mapping', () => {
+test('C-K23 derives the exact approved v12 payload from the v2.6 source and explicit class mapping', () => {
     assert.equal(generated.payload.length, CK19_APPROVED_V12_CHARACTERS);
     assert.equal(generated.payload.length, 4262);
     assert.equal(Buffer.byteLength(generated.payload), 4262);
     assert.equal(sha(generated.payload), CK19_APPROVED_V12_SHA256);
-    assert.equal(generated.templateHash, 'ecb6bbe92fbf50b5ecc9f0145894cf524d03545d776df3ff1ff4046a5db38ecf');
+    assert.equal(generated.templateHash, 'aed4ce9baade0a1a4411c6b72da36b893bdf6134262f2367a55f44097ffe5e09');
     assert.equal(generated.rules, 36);
-    assert.equal(generated.derivedDeclarations, 80);
-    assert.equal(generated.transportOverrides, 21);
+    assert.equal(generated.derivedDeclarations, 79);
+    assert.equal(generated.transportOverrides, 22);
     assert.doesNotMatch(generated.payload, /\[class\s*\$\s*=|:not\s*\(|<meta/i);
     assert.equal(outputRules.nodes.length, 1);
     assert.equal(outputRules.nodes[0].params, 'only screen and (max-width:1039px)');

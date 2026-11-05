@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit;
 
 use App\Support\OutlookAddin\OutlookCompactReferencePresentation;
+use App\Support\OutlookAddin\OutlookUniversalPresentation;
 use App\Support\OutlookAddin\OutlookUniversalSourceDescriptor;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -63,6 +64,9 @@ final class OutlookUniversalSourceDescriptorTest extends TestCase
         self::assertSame(['showGreeting' => true, 'showFarewell' => true, 'greeting' => 'Hallo & zusammen', 'farewell' => 'Beste Grüße', 'farewellName' => true], $output['options']);
         self::assertStringNotContainsString('Hallo &amp;', $output['authorContent']->toHtml());
         self::assertStringNotContainsString('Beste Grüße', $output['authorContent']->toHtml());
+        $rendered = (new OutlookUniversalPresentation)->render($output['descriptor'], $output['authorContent'], $output['options']);
+        self::assertSame(1, substr_count($rendered['html'], 'Mara Muster'), 'Legacy name suffix is recognized and removed, while the current renderer never appends it.');
+        self::assertStringContainsString('Beste Grüße', $rendered['html']);
         $plain = OutlookUniversalSourceDescriptor::projectFromCompiled($this->source('combined'), $this->profile(), str_repeat('a', 64));
         self::assertSame(['showGreeting' => false, 'showFarewell' => false], $plain['options']);
     }

@@ -33,8 +33,8 @@ const sha256 = value => createHash('sha256').update(value).digest('hex');
 const normalize = value => String(value).replaceAll('\r\n', '\n');
 const fail = code => { throw new Error('CK19_' + code); };
 // C-K25 preserves approved transport bytes, while the removed line rule is no
-// longer claimed as a derivation from the current v2.5 CSS.
-const ck26TemplateHash = 'ecb6bbe92fbf50b5ecc9f0145894cf524d03545d776df3ff1ff4046a5db38ecf';
+// longer claimed as a derivation from the current v2.6 CSS.
+const ck27TemplateHash = 'aed4ce9baade0a1a4411c6b72da36b893bdf6134262f2367a55f44097ffe5e09';
 const historicalLineSource = Object.freeze({
     "approval": "C-K25-user-approved-retain-existing-v11-v15-payloads",
     "templateSha256": "5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204",
@@ -45,7 +45,7 @@ const historicalLineSource = Object.freeze({
     "value": "none"
 });
 const historicalLineCounts = Object.freeze({ v11: 3, v12: 1, v13: 1, v14: 3, v15: 1, v16: 3, v17: 1 });
-const historicalPaddingCounts = Object.freeze({ v11: 3, v12: 3, v13: 3, v14: 2, v15: 2, v16: 0, v17: 0 });
+const historicalPaddingCounts = Object.freeze({ v11: 4, v12: 4, v13: 4, v14: 3, v15: 3, v16: 1, v17: 1 });
 const historicalPaddingSources = Object.freeze([
     {
         "approval": "C-K26-user-approved-retain-existing-v11-v15-payloads",
@@ -73,6 +73,15 @@ const historicalPaddingSources = Object.freeze([
         "selector": ".rt-cta-cell",
         "property": "padding",
         "value": "5px 0 5px 12px"
+    },
+    {
+        "approval": "C-K27-user-approved-retain-existing-v11-v17-payloads",
+        "templateSha256": "ecb6bbe92fbf50b5ecc9f0145894cf524d03545d776df3ff1ff4046a5db38ecf",
+        "cssSha256": "cf15bb89e9425c30f3db73b20b5263763e5c2b0d3d32d9a4e67625a5c2ed0006",
+        "media": "only screen and (max-width:600px)",
+        "selector": ".rt-text",
+        "property": "padding",
+        "value": "24px 20px 24px"
     }
 ]);
 const releases = Object.freeze({
@@ -230,7 +239,7 @@ export function generateCk19MobileStyle({ templateHtml, presentationPhp, mapping
         const declarations = rule.declarations.map(declaration => {
             if (!/^[a-z-]+$/.test(declaration.property) || typeof declaration.important !== 'boolean') fail('DECLARATION_INVALID');
             if (Object.hasOwn(declaration, 'historicalSource')) {
-                if (templateHash !== ck26TemplateHash || declaration.from || declaration.important !== true) fail('HISTORICAL_OVERRIDE_PROVENANCE_INVALID');
+                if (templateHash !== ck27TemplateHash || declaration.from || declaration.important !== true) fail('HISTORICAL_OVERRIDE_PROVENANCE_INVALID');
                 if (declaration.property === 'display' && declaration.override === 'none'
                     && JSON.stringify(declaration.historicalSource) === JSON.stringify(historicalLineSource)) historicalLineOverrides++;
                 else if (declaration.property === 'padding' && historicalPaddingSources.some(source => declaration.override === source.value
@@ -267,7 +276,7 @@ export function generateCk19MobileStyle({ templateHtml, presentationPhp, mapping
         });
         return rule.selector + '{' + declarations.join(';') + '}';
     }).join('');
-    if (templateHash === ck26TemplateHash && (historicalLineOverrides !== historicalLineCounts[release.tag]
+    if (templateHash === ck27TemplateHash && (historicalLineOverrides !== historicalLineCounts[release.tag]
         || historicalPaddingOverrides !== historicalPaddingCounts[release.tag])) fail('HISTORICAL_OVERRIDE_PROVENANCE_INVALID');
     const payload = mapping.payloadPrefix + '@media ' + mapping.outputMedia + '{' + rendered + '}' + mapping.payloadSuffix;
     // Exchange's limit is strict and independent of the approved digest. Never

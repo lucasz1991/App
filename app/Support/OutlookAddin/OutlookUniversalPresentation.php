@@ -16,7 +16,7 @@ final class OutlookUniversalPresentation
 
     // C-K25 removes the separator; C-K26 reduces panel spacing and type height.
     // DESIGN_SOURCE still identifies the unchanged original U2e reference.
-    private const TEMPLATE_SHA256 = 'ecb6bbe92fbf50b5ecc9f0145894cf524d03545d776df3ff1ff4046a5db38ecf';
+    private const TEMPLATE_SHA256 = 'aed4ce9baade0a1a4411c6b72da36b893bdf6134262f2367a55f44097ffe5e09';
 
     private const ASSETS = [
         'logo' => ['/m/b983af0049.png', 'b983af0049926c128807d605a51a68ce90fea06c5c340f7728b105a96d7f021a', 400, 68],
@@ -55,7 +55,8 @@ final class OutlookUniversalPresentation
             'greeting' => ($options['showGreeting'] ?? false) ? $options['greeting'] : '',
             'showFarewell' => $options['showFarewell'] ?? false,
             'farewell' => ($options['showFarewell'] ?? false) ? $options['farewell'] : '',
-            'farewellName' => ($options['showFarewell'] ?? false) && ($options['farewellName'] ?? true),
+            // C-K27: legacy name options remain accepted, but never append a name.
+            'farewellName' => false,
         ];
         // Author text and delivery mode must not change signature ownership.
         $version = substr(hash('sha256', self::REVISION."\0".self::TEMPLATE_SHA256."\0".json_encode(
@@ -95,7 +96,7 @@ final class OutlookUniversalPresentation
         $tokens['{{DISPATCH_PHONE_LABEL}}'] = str_replace(' ', '&nbsp;', self::escape($descriptor['dispatch']['phoneLabel']));
         $tokens['{{DIRECT_ROWS}}'] = self::directRows($descriptor['direct'], $assets, $mode);
         $tokens['{{GREETING_HTML}}'] = $wording['showGreeting'] ? self::greeting($wording['greeting']) : '';
-        $tokens['{{FAREWELL_HTML}}'] = $wording['showFarewell'] ? self::farewell($wording['farewell'], $wording['farewellName'] ? $descriptor['identity']['name'] : null) : '';
+        $tokens['{{FAREWELL_HTML}}'] = $wording['showFarewell'] ? self::farewell($wording['farewell']) : '';
         $tokens['{{AUTHOR_CONTENT}}'] = $author;
 
         $body = self::body($template);
@@ -179,9 +180,9 @@ final class OutlookUniversalPresentation
         return '<p style="margin:0 0 28px;font-family:\'Trebuchet MS\', Arial, sans-serif;font-size:27px;line-height:35px;font-weight:bold;color:#142231;"><span style="font-family:\'Trebuchet MS\', Arial, sans-serif;font-size:27px;line-height:35px;font-weight:bold;color:#142231;">'.self::escape($text).'</span></p>';
     }
 
-    private static function farewell(string $text, ?string $name): string
+    private static function farewell(string $text): string
     {
-        return '<p style="margin:0;font-family:Arial, sans-serif;font-size:16px;line-height:26px;color:#33414f;"><span style="font-family:Arial, sans-serif;font-size:16px;line-height:26px;color:#33414f;">'.self::escape($text).($name === null ? '' : '<br>'.self::escape($name)).'</span></p>';
+        return '<p style="margin:0;font-family:Arial, sans-serif;font-size:16px;line-height:26px;color:#33414f;"><span style="font-family:Arial, sans-serif;font-size:16px;line-height:26px;color:#33414f;">'.self::escape($text).'</span></p>';
     }
 
     private static function withoutTextLinks(string $html): string

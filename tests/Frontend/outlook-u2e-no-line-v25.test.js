@@ -9,6 +9,7 @@ import { universalDiagnosticReplayHtml, validateUniversalRedactedFixture } from 
 const folder = new URL('../Fixtures/mail/u2e-readback-v2/', import.meta.url);
 const read = file => fs.readFileSync(new URL(file, folder), 'utf8').replaceAll('\r\n', '\n');
 const source = JSON.parse(read('source.json')), previous = JSON.parse(read('legacy-v23/source.json'));
+const v25 = JSON.parse(read('legacy-v25/source.json'));
 const signature = JSON.parse(read('signature.json')), manifest = JSON.parse(read('manifest.json'));
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 const ownRows = table => [...table.querySelectorAll('tr')].filter(row => row.closest('table') === table);
@@ -21,24 +22,25 @@ const current = html => universalComposeStateFromBody(source, html, 'newMail');
 test('C-K25+C-K26 renderer output applies exactly the approved flat no-line changes', () => {
     const line = /<tr class="rt-cta-line"><td\b[^>]*>[\s\S]*?<\/td><\/tr>/g;
     assert.equal([...previous.html.matchAll(line)].length, 1);
-    const projected = previous.html.replace(line, '').replaceAll(previous.version, source.version)
+    const projected = previous.html.replace(line, '').replaceAll(previous.version, v25.version)
         .replaceAll('padding:0 0 9px', 'padding:0 0 4px')
         .replaceAll('font-size:19px;line-height:21px', 'font-size:19px;line-height:20px')
         .replaceAll('font-size:15px;line-height:19px', 'font-size:15px;line-height:18px')
         .replaceAll('font-size:38px;line-height:40px', 'font-size:34px;line-height:36px')
         .replaceAll('padding:11px 0 5px', 'padding:6px 0 4px')
         .replaceAll('padding:11px 8px 5px 0', 'padding:6px 8px 4px 0');
-    assert.equal(projected, source.html);
+    assert.equal(projected, v25.html);
     assert.equal(manifest.previousLineVersion, previous.version);
     assert.equal(manifest.previousLineSource, 'legacy-v23/source.json');
-    assert.equal(manifest.templateSha256, 'ecb6bbe92fbf50b5ecc9f0145894cf524d03545d776df3ff1ff4046a5db38ecf');
+    assert.equal(manifest.templateSha256, 'aed4ce9baade0a1a4411c6b72da36b893bdf6134262f2367a55f44097ffe5e09');
     assert.equal(manifest.iosProjection.nativeClientProof, false);
-    assert.equal(manifest.iosProjection.basis, 'ios.ck24-210443.redacted.json');
+    assert.equal(manifest.iosProjection.basis, 'legacy-v25/ios.synthetic.redacted.json');
+    assert.equal(manifest.iosProjection.nativeAncestor, 'ios.ck24-210443.redacted.json');
 });
 
 test('synthetic Word and Rooster projections apply only the no-line and flat dispatch deltas', () => {
     for (const file of ['word.synthetic.html', 'rooster.synthetic.html']) {
-        const old = parseHTML(read('legacy-v23/' + file).replaceAll(previous.version, source.version)).document;
+        const old = parseHTML(read('legacy-v23/' + file).replaceAll(previous.version, v25.version)).document;
         const candidates = [...old.querySelectorAll('td[colspan="5"]')];
         assert.equal(candidates.length, 1); candidates[0].parentNode.remove();
         const panel = old.querySelector('table[width="247"]'), panelRows = ownRows(panel);
@@ -48,7 +50,7 @@ test('synthetic Word and Rooster projections apply only the no-line and flat dis
             .replaceAll('font-size:38px', 'font-size:34px').replaceAll('line-height:40px', 'line-height:36px');
         const actionsAfter = actionsBefore.replaceAll('padding:11px 0 5px', 'padding:6px 0 4px')
             .replaceAll('padding:11px 8px 5px 0', 'padding:6px 8px 4px 0');
-        assert.equal(old.toString().replace(head, headAfter).replace(actionsBefore, actionsAfter).trimEnd(), read(file).trimEnd());
+        assert.equal(old.toString().replace(head, headAfter).replace(actionsBefore, actionsAfter).trimEnd(), read('legacy-v25/' + file).trimEnd());
         const actual = parseHTML(read(file)).document, actions = actionTable(actual);
         assert.equal(ownRows(actions).length, 1); assert.equal(ownRows(actions)[0].children.length, 5);
         assert.equal(actual.querySelectorAll('td[colspan="5"],.rt-cta-line').length, 0);

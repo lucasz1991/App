@@ -30,14 +30,14 @@ test('v13 exactly reproduces its tracked original source with only the excluded 
     assert.equal(generated.payload.length, 3801);
     assert.equal(Buffer.byteLength(generated.payload), 3801);
     assert.equal(sha(generated.payload), CK19_APPROVED_V13_SHA256);
-    assert.equal(generated.templateHash, 'ecb6bbe92fbf50b5ecc9f0145894cf524d03545d776df3ff1ff4046a5db38ecf');
+    assert.equal(generated.templateHash, 'aed4ce9baade0a1a4411c6b72da36b893bdf6134262f2367a55f44097ffe5e09');
     assert.equal(supplied.sourceTemplateSha256, '5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204', 'Original approved source metadata remains historical.');
-    assert.equal(generated.cssHash, 'cf15bb89e9425c30f3db73b20b5263763e5c2b0d3d32d9a4e67625a5c2ed0006');
+    assert.equal(generated.cssHash, '44320e37dbd5376595ecbd11938fcc96b5be372088dea343fed9a187d18f746f');
     assert.equal(supplied.sourceCssSha256, '502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1');
     assert.equal(supplied.nativeV13Proof, false);
     assert.equal(generated.rules, 34);
-    assert.equal(generated.derivedDeclarations, 78);
-    assert.equal(generated.transportOverrides, 25);
+    assert.equal(generated.derivedDeclarations, 77);
+    assert.equal(generated.transportOverrides, 26);
 });
 
 test('v13 source normalization is exact rather than trim or line-ending repair', () => {

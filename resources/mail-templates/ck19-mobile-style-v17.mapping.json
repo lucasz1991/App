@@ -3,8 +3,8 @@
   "revision": "ck19-approved-v17-20261106",
   "sourceTemplate": "resources/mail-templates/u2e-universal-v1.html",
   "sourcePhp": "app/Support/OutlookAddin/OutlookUniversalPresentation.php",
-  "approvedTemplateSha256": "ecb6bbe92fbf50b5ecc9f0145894cf524d03545d776df3ff1ff4046a5db38ecf",
-  "sourceCssSha256": "cf15bb89e9425c30f3db73b20b5263763e5c2b0d3d32d9a4e67625a5c2ed0006",
+  "approvedTemplateSha256": "aed4ce9baade0a1a4411c6b72da36b893bdf6134262f2367a55f44097ffe5e09",
+  "sourceCssSha256": "44320e37dbd5376595ecbd11938fcc96b5be372088dea343fed9a187d18f746f",
   "approvedPayloadSha256": "36bfdadfced47555ea12e092902652db5efa6f91a04b7cd704f80cf82a145d24",
   "approvedPayloadCharacters": 3801,
   "outputMedia": "only screen and (max-width:1039px)",
@@ -174,12 +174,18 @@
         },
         {
           "property": "padding",
-          "from": {
+          "important": true,
+          "override": "24px 20px 24px",
+          "reason": "C-K27 v2.6 source uses 32px bottom spacing; this exact approved transport block intentionally retains the prior v2.5 24px spacing. No v18/v19 change is approved.",
+          "historicalSource": {
+            "approval": "C-K27-user-approved-retain-existing-v11-v17-payloads",
+            "templateSha256": "ecb6bbe92fbf50b5ecc9f0145894cf524d03545d776df3ff1ff4046a5db38ecf",
+            "cssSha256": "cf15bb89e9425c30f3db73b20b5263763e5c2b0d3d32d9a4e67625a5c2ed0006",
             "media": "only screen and (max-width:600px)",
             "selector": ".rt-text",
-            "property": "padding"
-          },
-          "important": true
+            "property": "padding",
+            "value": "24px 20px 24px"
+          }
         }
       ]
     },

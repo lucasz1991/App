@@ -1,0 +1,121 @@
+{
+  "schema": 1,
+  "kind": "synthetic-c-k26-v25-host-serializations",
+  "nativeClientProof": false,
+  "privateInputUsed": false,
+  "version": "d4d55682822fd4c0fcb8c4de",
+  "previousVersion": "92eab6c45a583e103b6e62f5",
+  "previousCornerVersion": "da9b8f7e66f6cd549ecd8203",
+  "previousCornerSource": "source.c21-legacy.json",
+  "templateSha256": "ecb6bbe92fbf50b5ecc9f0145894cf524d03545d776df3ff1ff4046a5db38ecf",
+  "description": "C-K25+C-K26 v2.5 actual synthetic B1 output; separator removed and approved flatter typography/paddings projected. Word/Rooster are offline structural projections. iOS is a synthetic projection of the previously redacted C-K24 structure; not a native v2.5 acceptance. Historical v2.3 and native C-K24 pairs remain unchanged.",
+  "artifacts": {
+    "source.json": {
+      "bytes": 12564,
+      "sha256": "0c73493ef284f94cbc1e1c62ec30453d798f220c9c1aea834e95a77d5312b527"
+    },
+    "signature.json": {
+      "bytes": 12225,
+      "sha256": "fabb9721a85ba0efb6a30c3be606d04d2f9d921aec1d9207f0a0fc2ec96d4dd7"
+    },
+    "rooster.synthetic.html": {
+      "bytes": 11435,
+      "sha256": "676494313403c01ba8cfbfe1de6193b89b51abb75e25750a24adce7bded592ee"
+    },
+    "word.synthetic.html": {
+      "bytes": 10923,
+      "sha256": "70d24f7f2f38db4a9d3e2dd21fa1393de36d17d31728e1a602c6d126d1c51ef5"
+    },
+    "source.c13-legacy.json": {
+      "bytes": 13916,
+      "sha256": "c3a729fa720c8fa622e988e873451a76238017539fd457ff7b5d1ccaaf1f162e"
+    },
+    "source.c21-legacy.json": {
+      "bytes": 14364,
+      "sha256": "c5f67411f0109a1d6ad67630bfc78dcd58a0c188596cc9ea63b527c15aa3bbf5"
+    },
+    "legacy-c15/source.json": {
+      "bytes": 14364,
+      "sha256": "de30847eb40ebbfe3be5dd87d823afa041eb4dfe9c311667e4d8e8ffc4b12dd9"
+    },
+    "legacy-c15/signature.json": {
+      "bytes": 14025,
+      "sha256": "48699718a1cb05839ada2bdbc66679dca6c1e1e06b0a1ebda7a7e4d7d5e343cd"
+    },
+    "legacy-c15/rooster.synthetic.html": {
+      "bytes": 13078,
+      "sha256": "e9adcad95655892b25bab2325efcdee7cc82823778da9773542adccc5d2088a5"
+    },
+    "legacy-c15/word.synthetic.html": {
+      "bytes": 12626,
+      "sha256": "901649ee54690dd1ce28dc1445c1eb869b36730bd76a07db023b61badc76eb3a"
+    },
+    "legacy-c15/source.c13-legacy.json": {
+      "bytes": 13916,
+      "sha256": "c3a729fa720c8fa622e988e873451a76238017539fd457ff7b5d1ccaaf1f162e"
+    },
+    "legacy-c15/manifest.json": {
+      "bytes": 1282,
+      "sha256": "f6856afb14cd1c7d0c17f0addc24ae46d848920a517f8f1fdaa9c28bca02465d"
+    },
+    "legacy-v22/source.json": {
+      "bytes": 12721,
+      "sha256": "e03987df08bd5bb74b3da647bb216eb0400b519314f5cc9ca2b923a80e1d21f1"
+    },
+    "legacy-v22/signature.json": {
+      "bytes": 12382,
+      "sha256": "fc8ec902f8f99fee0fdd6c4211fa4453e33d29d2108d3768449995da59b1a29b"
+    },
+    "legacy-v22/rooster.synthetic.html": {
+      "bytes": 11553,
+      "sha256": "66692d5b87341374a8153e229bee806d0f2186f941076fe545c1a8d2097a5d23"
+    },
+    "legacy-v22/word.synthetic.html": {
+      "bytes": 11058,
+      "sha256": "509927ea0e3f8820837effa023cccbe4548671b3a1def4d9869011389e41d39d"
+    },
+    "legacy-v22/manifest.json": {
+      "bytes": 2511,
+      "sha256": "1c9c0c3f97408f95de0684f61c864368f22ec51d775a125f0a41e6c4e9322bbd"
+    },
+    "legacy-v23/source.json": {
+      "bytes": 12778,
+      "sha256": "709262b6d471043dc24945a91ab93ff8c88fdb9dc6e6d5402faf9b96f110229e"
+    },
+    "legacy-v23/signature.json": {
+      "bytes": 12439,
+      "sha256": "4478a669e72e29704caa6eca4f4649254b8013b3430a74bd5d7c4f859b3ed87a"
+    },
+    "legacy-v23/rooster.synthetic.html": {
+      "bytes": 11613,
+      "sha256": "f0992f7294a4da259288b25cd1883c64282151487bfca0710884a9ff82866979"
+    },
+    "legacy-v23/word.synthetic.html": {
+      "bytes": 11118,
+      "sha256": "6c3eaeba1ddb9a0da961f1b66529bc1d5f19eb5bb0c822253e86d57b6cd52328"
+    },
+    "legacy-v23/manifest.json": {
+      "bytes": 3229,
+      "sha256": "3c4149d0b7732792cdb0e8010acd4be2336f7cd903ebcd139b9c964e56838a98"
+    },
+    "ios.synthetic.redacted.json": {
+      "bytes": 24921,
+      "sha256": "97183cf840c3a4b93785033c619196a4c27cc05a21ba0ac752a06ef2396f0a8a"
+    }
+  },
+  "previousNoWrapVersion": "50297557b7e43f1ce2409647",
+  "previousNoWrapSource": "legacy-v22/source.json",
+  "previousLineVersion": "1400065e4d4c095018a5e00c",
+  "previousLineSource": "legacy-v23/source.json",
+  "iosProjection": {
+    "file": "ios.synthetic.redacted.json",
+    "nativeClientProof": false,
+    "basis": "ios.ck24-210443.redacted.json",
+    "changes": [
+      "current synthetic marker",
+      "separator row removed",
+      "approved v2.5 typography and paddings",
+      "synthetic material URLs"
+    ]
+  }
+}

@@ -135,9 +135,9 @@ final class OutlookUniversalPresentationTest extends TestCase
         self::assertSame(0, $xpath->query('//body//style|//body//meta')->length);
         self::assertSame(3, substr_count($result['headCss'], '@media'));
         $referenceCss = str_replace("\r\n", "\n", file_get_contents(base_path('tests/Fixtures/mail/u2e-reference.css')));
-        $originalCss = str_replace($this->desktopReset(), '', $this->withoutCk26MobileSpacing($result['headCss']));
+        $originalCss = str_replace($this->desktopReset(), '', $this->withoutCk26MobileSpacing($this->withoutCk27Spacing($result['headCss'], false)));
         self::assertSame($referenceCss, $originalCss,
-            'Reversing only the three approved C-K26 padding values and the C-K15 reset recovers the immutable original media rules.');
+            'Reversing the approved C-K27 text spacing, C-K26 padding values and C-K15 reset recovers the immutable original media rules.');
         self::assertSame(1, substr_count($result['headCss'], $this->desktopReset()));
         self::assertStringContainsString('max-width:1039px', $result['headCss']);
         self::assertStringContainsString('max-width:600px', $result['headCss']);
@@ -181,7 +181,7 @@ final class OutlookUniversalPresentationTest extends TestCase
     public function test_ck25_ck26_change_only_the_separator_and_approved_sizing_from_v23(): void
     {
         $template = str_replace("\r\n", "\n", file_get_contents(resource_path('mail-templates/u2e-universal-v1.html')));
-        self::assertSame('ecb6bbe92fbf50b5ecc9f0145894cf524d03545d776df3ff1ff4046a5db38ecf', hash('sha256', $template));
+        self::assertSame('aed4ce9baade0a1a4411c6b72da36b893bdf6134262f2367a55f44097ffe5e09', hash('sha256', $template));
         self::assertSame(15604, strlen($template));
         self::assertStringNotContainsString('rt-cta-line', $template);
         self::assertSame('e71922554f82861cab15ddf4cccd30717deb48a42034990ce675535367848bcd', hash('sha256', $this->withoutCk26Sizing($template)));
@@ -301,7 +301,7 @@ final class OutlookUniversalPresentationTest extends TestCase
     public function test_ck22_prevents_number_and_time_wrapping_without_changing_the_previous_template_structure(string $mode): void
     {
         $template = str_replace("\r\n", "\n", file_get_contents(resource_path('mail-templates/u2e-universal-v1.html')));
-        self::assertSame('ecb6bbe92fbf50b5ecc9f0145894cf524d03545d776df3ff1ff4046a5db38ecf', hash('sha256', $template));
+        self::assertSame('aed4ce9baade0a1a4411c6b72da36b893bdf6134262f2367a55f44097ffe5e09', hash('sha256', $template));
         self::assertSame('f297c0bb222061eb3b78c85889e139274067d5744707d7807d5b6e8545e676b2', hash('sha256', $this->withoutCk22NoWrap($this->withCk25Separator($template))),
             'Removing exactly three nowrap declarations must recover the entire v2.2 template.');
         $rendered = $this->render(['mode' => $mode]);
@@ -441,7 +441,7 @@ final class OutlookUniversalPresentationTest extends TestCase
         self::assertSame(0, substr_count($result['signatureHtml'], $quote));
     }
 
-    public function test_greeting_farewell_and_personal_name_are_explicit_options_without_reference_fixture_leaks(): void
+    public function test_greeting_and_farewell_remain_explicit_but_legacy_name_option_never_appends_a_name(): void
     {
         $default = $this->render();
         foreach (['Guten Tag,', 'Mit freundlichen Grüßen,', 'Lucas Zacharias', 'it-technik@rail-time.de'] as $fixtureText) {
@@ -450,9 +450,33 @@ final class OutlookUniversalPresentationTest extends TestCase
         $with = $this->render(['showGreeting' => true, 'greeting' => 'Hallo Testteam', 'showFarewell' => true, 'farewell' => 'Beste Testgrüße', 'farewellName' => true]);
         self::assertStringContainsString('Hallo Testteam', $with['html']);
         self::assertStringContainsString('Beste Testgrüße', $with['html']);
-        self::assertSame(2, substr_count($with['html'], 'Alex Beispiel'));
+        self::assertSame(1, substr_count($with['html'], 'Alex Beispiel'));
         $withoutName = $this->render(['showFarewell' => true, 'farewell' => 'Beste Testgrüße', 'farewellName' => false]);
         self::assertSame(1, substr_count($withoutName['html'], 'Alex Beispiel'));
+    }
+
+    #[DataProvider('modes')]
+    public function test_ck27_spacing_and_text_only_farewell_preserve_authored_names_and_canonicalize_the_legacy_option(string $mode): void
+    {
+        $template = str_replace("\r\n", "\n", file_get_contents(resource_path('mail-templates/u2e-universal-v1.html')));
+        self::assertSame('ecb6bbe92fbf50b5ecc9f0145894cf524d03545d776df3ff1ff4046a5db38ecf', hash('sha256', $this->withoutCk27Spacing($template)), 'Only the two approved padding values differ from complete v2.5.');
+        $author = '<p data-authored="1">Alex Beispiel<br>Opaque author content.</p>';
+        $options = ['mode' => $mode, 'showFarewell' => true, 'farewell' => 'Beste Testgrüße', 'farewellName' => true];
+        $with = (new OutlookUniversalPresentation)->render($this->descriptor(), new HtmlString($author), $options);
+        $without = (new OutlookUniversalPresentation)->render($this->descriptor(), new HtmlString($author), array_replace($options, ['farewellName' => false]));
+        self::assertSame($with['version'], $without['version']);
+        self::assertSame($with['html'], $without['html']);
+        self::assertSame(1, substr_count($with['html'], $author));
+        self::assertSame(2, substr_count($with['html'], 'Alex Beispiel'), 'One authored name and one signature identity; no farewell suffix.');
+        $xpath = $this->xpath($with['html']);
+        $cell = $xpath->query('//td[@class="rt-text"]')->item(0);
+        self::assertStringContainsString('padding:32px 40px 48px;', $cell->getAttribute('style'));
+        $farewell = $xpath->query('./p[last()]', $cell)->item(0);
+        self::assertSame('Beste Testgrüße', $farewell->textContent);
+        self::assertSame(0, $xpath->query('.//br', $farewell)->length);
+        if ($mode === 'send') {
+            self::assertStringContainsString('.rt-text { padding:24px 20px 32px !important; }', $with['headCss']);
+        }
     }
 
     public function test_personal_and_company_text_is_escaped_without_mutating_trusted_author_bytes(): void
@@ -628,6 +652,7 @@ final class OutlookUniversalPresentationTest extends TestCase
     /** Historical source proof; never transforms a delivered message. */
     private function withoutCk26Sizing(string $html): string
     {
+        $html = $this->withoutCk27Spacing($html);
         $html = $this->withoutCk26MobileSpacing($html);
         foreach ([
             ['padding:0 0 4px;', 'padding:0 0 9px;', 2],
@@ -640,6 +665,19 @@ final class OutlookUniversalPresentationTest extends TestCase
         ] as [$current, $previous, $expected]) {
             $html = str_replace($current, $previous, $html, $count);
             self::assertSame($expected, $count, $current);
+        }
+
+        return $html;
+    }
+
+    /** Test-only exact source reversal; runtime author data is never rewritten. */
+    private function withoutCk27Spacing(string $html, bool $hasBody = true): string
+    {
+        $html = str_replace('.rt-text { padding:24px 20px 32px !important; }', '.rt-text { padding:24px 20px 24px !important; }', $html, $mobile);
+        self::assertSame(1, $mobile);
+        if ($hasBody) {
+            $html = str_replace('padding:32px 40px 48px;', 'padding:32px 40px 30px;', $html, $desktop);
+            self::assertSame(1, $desktop);
         }
 
         return $html;

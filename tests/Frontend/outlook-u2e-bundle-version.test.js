@@ -23,7 +23,7 @@ test('the reader capability is pinned to the current approved C21 template, inde
     // The envelope contract stays at 1. C-K21 explicitly changes the reviewed
     // template pin; an old bundle detects that pin mismatch before writing.
     assert.equal(contracts.sourceContract, 1);
-    assert.equal(contracts.sourceTemplate, 'ecb6bbe92fbf50b5ecc9f0145894cf524d03545d776df3ff1ff4046a5db38ecf');
+    assert.equal(contracts.sourceTemplate, 'aed4ce9baade0a1a4411c6b72da36b893bdf6134262f2367a55f44097ffe5e09');
 });
 
 test('different compatible bundle revisions and personal source hashes never cause stale classification', () => {

@@ -50,7 +50,7 @@ final class OutlookUniversalSystemMailPresentationTest extends TestCase
         $result = (new OutlookUniversalSystemMailPresentation)->project($legacy, $this->values(), new HtmlString($author));
         self::assertNotNull($result, (new OutlookUniversalSystemMailPresentation)->review($legacy, $this->values(), new HtmlString($author))['reason']);
         self::assertSame('send', $result['mode']);
-        self::assertSame('ecb6bbe92fbf50b5ecc9f0145894cf524d03545d776df3ff1ff4046a5db38ecf', $result['templateHash']);
+        self::assertSame('aed4ce9baade0a1a4411c6b72da36b893bdf6134262f2367a55f44097ffe5e09', $result['templateHash']);
         self::assertStringContainsString('font-size:34px;line-height:36px;', $result['html']);
         self::assertStringContainsString('padding:6px 0 4px;', $result['html']);
         self::assertSame(1, substr_count($result['html'], $author));
@@ -64,6 +64,20 @@ final class OutlookUniversalSystemMailPresentationTest extends TestCase
         self::assertSame(5, $xpath->query('//td[@class="rt-dispo-actions"]/table//td[contains(concat(" ", normalize-space(@class), " "), " rt-cta-cell ")]')->length);
         self::assertTrue(OutlookUniversalSystemMailPresentation::isAdmittedHtml($result['html']));
         self::assertFalse(OutlookUniversalSystemMailPresentation::isAdmittedHtml($result['html'].' '));
+        Http::assertNothingSent();
+    }
+
+    public function test_ck27_system_projection_uses_new_spacing_and_preserves_explicitly_authored_farewell_names(): void
+    {
+        $author = '<p data-authored="1">Beste Grüße<br>Authored System Name</p>';
+        $result = (new OutlookUniversalSystemMailPresentation)->project($this->legacy($author), $this->values(), new HtmlString($author));
+        self::assertNotNull($result);
+        self::assertSame(1, substr_count($result['html'], $author));
+        $xpath = $this->xpath($result['html']);
+        $cell = $xpath->query('//td[@class="rt-text"]')->item(0);
+        self::assertSame('Beste GrüßeAuthored System Name', $cell->textContent);
+        self::assertStringContainsString('padding:32px 40px 48px;', $cell->getAttribute('style'));
+        self::assertStringContainsString('.rt-text { padding:24px 20px 32px !important; }', $result['headCss']);
         Http::assertNothingSent();
     }
 

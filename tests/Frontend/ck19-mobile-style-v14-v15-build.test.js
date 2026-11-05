@@ -17,8 +17,8 @@ const templateHtml = await read('resources/mail-templates/u2e-universal-v1.html'
 const presentationPhp = await read('app/Support/OutlookAddin/OutlookUniversalPresentation.php');
 const generatorBytes = await read('scripts/build-ck19-mobile-style.mjs');
 const cases = await Promise.all([
-    ['v14', 4950, CK19_APPROVED_V14_SHA256, CK19_V14_SOURCE_FILE_SHA256, ck19V14RuleTextFromSourceFile, 85, 27],
-    ['v15', 3803, CK19_APPROVED_V15_SHA256, CK19_V15_SOURCE_FILE_SHA256, ck19V15RuleTextFromSourceFile, 78, 25],
+    ['v14', 4950, CK19_APPROVED_V14_SHA256, CK19_V14_SOURCE_FILE_SHA256, ck19V14RuleTextFromSourceFile, 84, 28],
+    ['v15', 3803, CK19_APPROVED_V15_SHA256, CK19_V15_SOURCE_FILE_SHA256, ck19V15RuleTextFromSourceFile, 77, 26],
 ].map(async ([tag, size, digest, sourceDigest, fromSource, derived, overrides]) => {
     const mappingBytes = await read('resources/mail-templates/ck19-mobile-style-' + tag + '.mapping.json');
     const mapping = JSON.parse(mappingBytes);
@@ -37,8 +37,8 @@ for (const current of cases) {
         assert.equal(generated.payload.length, size); assert.equal(Buffer.byteLength(generated.payload), size);
         assert.equal(sha(generated.payload), digest);
         assert.equal(supplied.sourceTemplateSha256, '5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204', 'Original approval metadata stays historical.');
-        assert.equal(generated.templateHash, 'ecb6bbe92fbf50b5ecc9f0145894cf524d03545d776df3ff1ff4046a5db38ecf');
-        assert.equal(generated.cssHash, 'cf15bb89e9425c30f3db73b20b5263763e5c2b0d3d32d9a4e67625a5c2ed0006');
+        assert.equal(generated.templateHash, 'aed4ce9baade0a1a4411c6b72da36b893bdf6134262f2367a55f44097ffe5e09');
+        assert.equal(generated.cssHash, '44320e37dbd5376595ecbd11938fcc96b5be372088dea343fed9a187d18f746f');
         assert.equal(supplied.sourceCssSha256, '502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1');
         assert.equal(generated.derivedDeclarations, current.derived);
         assert.equal(generated.transportOverrides, current.overrides);
