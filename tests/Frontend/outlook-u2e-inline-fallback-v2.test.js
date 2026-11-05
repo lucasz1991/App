@@ -32,19 +32,19 @@ function mutate(change) { const { document } = parseHTML(source.html); change(ta
 const current = (html, type = 'newMail') => universalComposeStateFromBody(source, html, type);
 
 test('C21 manifest pins the actual B1 output while preserving the exact historical C13 source', () => {
-    assert.equal(manifest.kind, 'synthetic-c-k21-host-serializations');
+    assert.equal(manifest.kind, 'synthetic-c-k21-v22-host-serializations');
     assert.equal(manifest.nativeClientProof, false); assert.equal(manifest.privateInputUsed, false);
-    assert.equal(manifest.templateSha256, '942f8bf2e36712fb616d5acd3096d642baf3731c7952f72cadd1a474796600ba');
+    assert.equal(manifest.templateSha256, 'f297c0bb222061eb3b78c85889e139274067d5744707d7807d5b6e8545e676b2');
     assert.equal(source.version, manifest.version); assert.equal(signature.version, source.version);
     assert.equal(c13.version, manifest.previousVersion); assert.notEqual(source.version, c13.version);
     assert.equal(sha256(fs.readFileSync(new URL('source.c13-legacy.json', folder), 'utf8').replaceAll('\r\n', '\n')), 'c3a729fa720c8fa622e988e873451a76238017539fd457ff7b5d1ccaaf1f162e');
     const { document } = parseHTML(source.html), { grid, exact } = targets(document);
-    assert.equal(grid.length, 4); assert.equal(exact.length, 8);
+    assert.equal(grid.length, 4); assert.equal(exact.length, 4);
     for (const cell of grid) for (const [name, value] of [['display', 'inline-block'], ['max-width', '100%'], ['box-sizing', 'border-box']]) {
         assert.deepEqual(declarations(cell, name).map(item => item.split(':').slice(1).join(':').trim()), [value]);
     }
     for (const cell of exact) assert.deepEqual(declarations(cell, 'mso-line-height-rule').map(item => item.split(':')[1].trim()), ['exactly']);
-    assert.equal((source.html.match(/mso-line-height-rule:exactly/g) || []).length, 8);
+    assert.equal((source.html.match(/mso-line-height-rule:exactly/g) || []).length, 4);
     validateUniversalComposeDocument(source); validateUniversalComposeDocument(signature);
 });
 
@@ -76,11 +76,11 @@ for (const [name, change] of [
     ['duplicate exact-height target', ({ exact }) => append(exact[1], 'mso-line-height-rule:exactly')],
     ['conflicting exact-height value', ({ exact }) => append(exact[2], 'mso-line-height-rule:at-least')],
     ['nonliteral exact-height value', ({ exact }) => { remove(exact[3], 'mso-line-height-rule'); append(exact[3], 'mso-line-height-rule:exactly!important'); }],
-    ['same eight counts but exact-height moved to author', ({ exact, author }) => { remove(exact[0], 'mso-line-height-rule'); append(author, 'mso-line-height-rule:exactly'); }],
-    ['same eight counts but exact-height moved to inner cell', ({ exact, inner }) => { remove(exact[7], 'mso-line-height-rule'); append(inner, 'mso-line-height-rule:exactly'); }],
+    ['same four counts but exact-height moved to author', ({ exact, author }) => { remove(exact[0], 'mso-line-height-rule'); append(author, 'mso-line-height-rule:exactly'); }],
+    ['same four counts but exact-height moved to inner cell', ({ exact, inner }) => { remove(exact[3], 'mso-line-height-rule'); append(inner, 'mso-line-height-rule:exactly'); }],
     ['foreign MSO property', ({ grid }) => append(grid[0], 'mso-padding-alt:0')],
     ['table-layout remains forbidden', ({ grid }) => append(grid[0], 'table-layout:fixed')],
-    ['wrong exact-height corner position', ({ exact }) => exact[0].setAttribute('width', '9')],
+    ['wrong exact-height corner position', ({ exact }) => exact[0].setAttribute('height', '9')],
 ]) {
     test('source-only admission rejects ' + name, () => {
         assert.throws(() => validateUniversalComposeDocument(mutate(change)), { code: 'U2E_SOURCE_INVALID' });

@@ -373,7 +373,7 @@ class E3Tests(unittest.TestCase):
         source = APP_ORIGIN+'/m/'+name
         content = (root/'public/m'/name).read_bytes()
         self.snapshot = {'schema': 1, 'ok': True, 'projection': {'mode': 'send', 'header': HEADER,
-                         'templateHash': '942f8bf2e36712fb616d5acd3096d642baf3731c7952f72cadd1a474796600ba', 'media': [{'url': source}]},
+                         'templateHash': 'f297c0bb222061eb3b78c85889e139274067d5744707d7807d5b6e8545e676b2', 'media': [{'url': source}]},
                          'media': [{'source': source, 'mime': 'image/png', 'sha256': sha, 'dataBase64': base64.b64encode(content).decode()}]}
         for media, expected in [(b'application/ms-tnef', 'tnef_requires_ingress_proof'), (b'application/pkcs7-mime', 'protected_message')]:
             message = mime().replace(b'text/html; charset=utf-8', media)
@@ -489,7 +489,7 @@ echo json_encode(['send'=>$send,'editor'=>$editor['html'],'author'=>$author],JSO
         output_html = next(p.get_content() for p in parsed.walk() if p.get_content_type() == 'text/html')
         self.assertIn(values['author'], output_html)
         self.assertIn(quote, output_html)
-        self.assertEqual(13, sum(p['Content-ID'] is not None for p in parsed.walk()))
+        self.assertEqual(9, sum(p['Content-ID'] is not None for p in parsed.walk()))
         self.assertIn(b'X-RailTime-Transit-Result: v1; transformed', output)
         self.assertNotIn(SECRET, output)
 

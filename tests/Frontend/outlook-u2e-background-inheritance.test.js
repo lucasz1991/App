@@ -140,8 +140,8 @@ test('omitting white does not normalize the required legal gray or red panel', (
     ]) assert.equal(state(mutate(normalizedWhite(), change)).current, false);
 });
 
-test('C21 red corners may inherit only their nearest red Dispo table background', () => {
-    const corner = '.rt-dispo-corner td[width="8"]';
+test('C21 v2.2 red caps may inherit only their nearest red Dispo table background', () => {
+    const corner = '.rt-dispo-cap';
     assert.equal(state(mutate(normalizedWhite(), document => clearBackground(document.querySelector(corner)))).current, true);
     assert.equal(state(mutate(normalizedWhite(), document => background(document.querySelector(corner), '#ffffff'))).current, false);
 });

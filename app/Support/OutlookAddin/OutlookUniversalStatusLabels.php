@@ -50,6 +50,8 @@ final class OutlookUniversalStatusLabels
         'colors.conflict' => 'Widersprüchliche Hintergrundfarben',
         'colors.legal' => 'Hintergrund der Pflichtangaben',
         'colors.dispatch' => 'Roter Hintergrund des Dispo-Feldes',
+        'caps.structure' => 'Aufbau der bildlosen Dispo-Abschlusszellen',
+        'caps.visibility' => 'Sichtbarkeit und Höhe der Dispo-Abschlusszellen',
         'colors.corners' => 'Hintergrundfarben von Dispo-Fläche und Ecken',
         'state.present' => 'Vorhandensein der eingefügten Vorlage',
         'state.kind' => 'Art des Vorlagenblocks',

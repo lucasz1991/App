@@ -11,7 +11,7 @@ export const U2E_READBACK_CHECKPOINTS = Object.freeze([
     'grid.rowspan', 'grid.train', 'grid.legal', 'markers.position', 'shell.count',
     'material.hidden', 'material.float', 'material.content', 'dispatch.count',
     'images.src', 'images.width', 'images.height', 'images.count', 'images.order', 'images.origin',
-    'links.content', 'links.scheme', 'links.count', 'borders.structure', 'borders.invalid', 'borders.image', 'borders.cta', 'line.visibility', 'colors.line', 'colors.background-image', 'colors.conflict',
+    'links.content', 'links.scheme', 'links.count', 'borders.structure', 'borders.invalid', 'borders.image', 'borders.cta', 'line.visibility', 'caps.structure', 'caps.visibility', 'colors.line', 'colors.background-image', 'colors.conflict',
     'colors.legal', 'colors.dispatch', 'colors.corners', 'state.present', 'state.kind',
     'state.version', 'state.unreadable', 'source.invalid', 'evidence.topology', 'evidence.images',
     'evidence.links', 'evidence.colors', 'evidence.borderColors', 'evidence.text', 'compose.type', 'quote.bytes',
@@ -37,6 +37,7 @@ export const U2E_REDACTED_STYLE_PROPERTIES = Object.freeze([
     'border', 'border-top', 'border-right', 'border-bottom', 'border-left',
     'border-width', 'border-color', 'border-style', 'border-collapse', 'border-spacing',
     'border-top-width', 'border-top-color', 'border-top-style', 'mso-border-top-alt',
+    'border-radius', 'border-top-left-radius', 'border-top-right-radius', 'border-bottom-left-radius', 'border-bottom-right-radius',
     ...U2E_BORDER_IMAGE_PROPERTIES, ...U2E_AMBIGUOUS_TOP_BORDER_PROPERTIES,
     'background', 'background-color', 'background-image', 'color', 'text-align', 'text-indent', 'line-height',
     'display', 'visibility', 'opacity', 'float', 'clear', 'vertical-align', 'table-layout',
@@ -47,7 +48,7 @@ export const U2E_REDACTED_STYLE_PROPERTIES = Object.freeze([
 ]);
 export const U2E_REDACTED_CLASSES = Object.freeze(['rt-col', 'rt-col-company', 'rt-col-direct', 'rt-col-dispo', 'rt-col-person',
     'rt-contact', 'rt-cta-br', 'rt-cta-cell', 'rt-cta-dispo', 'rt-cta-erreichbar', 'rt-cta-gap', 'rt-cta-icon', 'rt-cta-line',
-    'rt-cta-number', 'rt-cta-time', 'rt-dispo', 'rt-dispo-actions', 'rt-dispo-corner', 'rt-dispo-head',
+    'rt-cta-number', 'rt-cta-time', 'rt-dispo', 'rt-dispo-actions', 'rt-dispo-cap', 'rt-dispo-corner', 'rt-dispo-head',
     'rt-dispo-row', 'rt-legal', 'rt-logo', 'rt-logo-link', 'rt-pad', 'rt-pad-dispo', 'rt-shell',
     'rt-sig-row', 'rt-text', 'rt-train', 'rt-train-cell', 'MsoNormal', 'MsoTableGrid', 'ElementToProof', 'ContentPasted0']);
 export const U2E_REDACTED_CSS_WORDS = Object.freeze([

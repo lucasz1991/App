@@ -129,8 +129,15 @@ export function u2eCtaMaterial(elements, grid, dispatch) {
         || dispatch[0]?.node?.tag !== 'table' || elements[dispatch[0].index] !== dispatch[0].node) fail('borders.structure');
     const dispatchRows = rows(elements, dispatch[0].index);
     if (dispatchRows.length !== 4) fail('borders.structure');
+    // v2.2 has one full-width cell in each panel row. Old three-cell
+    // corner rows and colspan=3 head/actions belong to historical versions.
+    if (dispatchRows.some(row => {
+        const values = cells(elements, row.index);
+        return values.length !== 1 || values[0].node.tag !== 'td'
+            || ![undefined, '1'].includes(values[0].node.attrs.colspan)
+            || ![undefined, '1'].includes(values[0].node.attrs.rowspan);
+    })) fail('borders.structure');
     const actionContainer = cells(elements, dispatchRows[2].index);
-    if (actionContainer.length !== 1 || actionContainer[0].node.tag !== 'td' || actionContainer[0].node.attrs.colspan !== '3') fail('borders.structure');
     const actionTables = elements.map((node, index) => ({ node, index })).filter(value => value.node.tag === 'table'
         && descendants(elements, value.index, actionContainer[0].index));
     if (actionTables.length !== 1) fail('borders.structure');

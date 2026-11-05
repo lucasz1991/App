@@ -137,7 +137,7 @@ final class OutlookUniversalTransitCandidate
                 }
             }
         }
-        if ($dispatch !== 1 || $images < 12 || $images > 14 || $trainImages !== 1) {
+        if ($dispatch !== 1 || ! (($images >= 8 && $images <= 10) || ($images >= 12 && $images <= 14)) || $trainImages !== 1) {
             return null;
         }
 

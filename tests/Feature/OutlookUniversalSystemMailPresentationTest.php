@@ -50,7 +50,7 @@ final class OutlookUniversalSystemMailPresentationTest extends TestCase
         $result = (new OutlookUniversalSystemMailPresentation)->project($legacy, $this->values(), new HtmlString($author));
         self::assertNotNull($result, (new OutlookUniversalSystemMailPresentation)->review($legacy, $this->values(), new HtmlString($author))['reason']);
         self::assertSame('send', $result['mode']);
-        self::assertSame('942f8bf2e36712fb616d5acd3096d642baf3731c7952f72cadd1a474796600ba', $result['templateHash']);
+        self::assertSame('f297c0bb222061eb3b78c85889e139274067d5744707d7807d5b6e8545e676b2', $result['templateHash']);
         self::assertSame(1, substr_count($result['html'], $author));
         self::assertStringContainsString('Synthetic Rail GmbH', $result['html']);
         self::assertStringNotContainsString('rt-v17-', $result['html']);
@@ -91,15 +91,15 @@ final class OutlookUniversalSystemMailPresentationTest extends TestCase
         self::assertNotNull($result);
         $email = (new Email)->from('system@example.test')->to('it-technik@rail-time.de')->subject('Local only')
             ->text('Original text part.')->html($result['html'])->attach('original attachment', 'original.txt', 'text/plain');
-        self::assertSame(13, (new SystemMailInlineImageEmbedder)->embed($email));
+        self::assertSame(9, (new SystemMailInlineImageEmbedder)->embed($email));
         self::assertSame(0, (new SystemMailInlineImageEmbedder)->embed($email));
         self::assertSame('Original text part.', $email->getTextBody());
-        self::assertSame(14, count($email->getAttachments()));
+        self::assertSame(10, count($email->getAttachments()));
         self::assertSame('u2e-'.$result['version'], $email->getHeaders()->get('X-RailTime-Template')->getBodyAsString());
         self::assertStringContainsString($author, $email->getHtmlBody());
         self::assertStringNotContainsString('src="https://mail.example.test/m/', $email->getHtmlBody());
         $wire = $email->toString();
-        self::assertSame(13, substr_count($wire, 'Content-ID:'));
+        self::assertSame(9, substr_count($wire, 'Content-ID:'));
         self::assertStringContainsString('multipart/related', $wire);
         self::assertStringContainsString('original.txt', $wire);
         Http::assertNothingSent();
@@ -221,10 +221,10 @@ final class OutlookUniversalSystemMailPresentationTest extends TestCase
             foreach ($labelledLinks as $link) {
                 self::assertSame($expectedEmergencyLabel, str_replace("\u{00a0}", ' ', $link->textContent));
             }
-            self::assertSame(14, $xpath->query('//img')->length);
-            self::assertCount(13, $rendered['media']);
+            self::assertSame(10, $xpath->query('//img')->length);
+            self::assertCount(9, $rendered['media']);
             $mail = (new Email)->from('system@example.test')->to('synthetic@example.test')->subject('Not sent')->html($rendered['html']);
-            self::assertSame(13, (new SystemMailInlineImageEmbedder)->embed($mail));
+            self::assertSame(9, (new SystemMailInlineImageEmbedder)->embed($mail));
         }
         Http::assertNothingSent();
     }

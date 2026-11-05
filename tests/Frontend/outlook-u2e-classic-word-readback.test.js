@@ -18,7 +18,7 @@ function stripOwnColor(node) {
 function wordDispo(dom) {
     const dispatch = dom.querySelector('table[width="247"]');
     stripOwnColor(dispatch); dispatch.setAttribute('style', dispatch.getAttribute('style') + ';background:#E4002B');
-    const omitted = [...dispatch.querySelectorAll('td')].filter(cell => cell.closest('table') === dispatch && (cell.getAttribute('width') === '231' || cell.getAttribute('colspan') === '3'));
+    const omitted = [...dispatch.querySelectorAll('td')].filter(cell => cell.closest('table') === dispatch);
     assert.equal(omitted.length, 4); omitted.forEach(stripOwnColor); return { dispatch, omitted };
 }
 
@@ -79,8 +79,8 @@ test('the fallback never crosses another table or repairs a missing Dispo table 
     // C-K11 extends the same nearest-table rule to material cells outside Dispo.
     const whiteCompany = change(dom => { wordDispo(dom); stripOwnColor(dom.querySelector('td[width="213"]')); });
     assert.equal(universalComposeStateFromBody(source, whiteCompany, 'newMail').current, true);
-    // C-K21 corners now equal their red nearest table, so Word may omit them too.
-    const redCorner = change(dom => { const { dispatch } = wordDispo(dom); stripOwnColor(dispatch.querySelector('td[width="8"]')); });
+    // C-K21 v2.2 caps equal their red nearest table, so Word may omit their color.
+    const redCorner = change(dom => { const { dispatch } = wordDispo(dom); stripOwnColor(dispatch.querySelector('.rt-dispo-cap')); });
     assert.equal(universalComposeStateFromBody(source, redCorner, 'newMail').current, true);
 });
 

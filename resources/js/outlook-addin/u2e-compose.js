@@ -19,7 +19,6 @@ const documentKeys = ['schema', 'kind', 'html', 'version', 'marker', 'header', '
 const assetSizes = Object.freeze({
     'b983af0049.png': [184, 32], '9dfa25b253.png': [15, 15], 'd92bd192b6.png': [15, 15],
     '1593d63cca.png': [15, 15], 'a38bc7d27c.png': [15, 15],
-    'c01c48d975.png': [8, 8], '8a5901e027.png': [8, 8], '033a29c0b7.png': [8, 8], '097c3bb121.png': [8, 8],
     '19125261c2.png': [24, 24], 'f9d88b899d.png': [24, 24], '1111670ac8.png': [24, 24], '14d7943c88.png': [500, 83],
 });
 const failure = (code, phase = 'u2e-compose-preflight') => Object.assign(new Error(code), { code, phase });
@@ -165,6 +164,23 @@ export function universalComposePresentationEvidence(html) {
     } catch { return { schema: 1, readable: false, tables: 0, centeredTables: 0, colors: {} }; }
 }
 
+function visibleDispatchCaps(html, elements, dispatch) {
+    const rows = tableRows(elements, dispatch.index);
+    const caps = [rows[0], rows[3]].map(row => ({ row, cell: rowCells(elements, row.index)[0] }));
+    for (const { row, cell } of caps) {
+        if (!cell || text(html.slice(cell.node.openEnd, cell.node.close)) !== ''
+            || indexed(elements).some(value => value.index !== cell.index && inside(elements, value.index, cell.index)
+                && ['img', 'a', 'table', 'tr', 'td', 'th'].includes(value.node.tag))) throw layoutFailure('caps.structure');
+        if (!dimension(cell.node, 'height', 8) || !dimension(cell.node, 'line-height', 8)) throw layoutFailure('caps.visibility');
+        try { visibleCtaLine(cell.node, row.node); } catch { throw layoutFailure('caps.visibility'); }
+        // Word may serialize zero as 0cm. Nonzero padding would enlarge an
+        // otherwise nominally 8px table cell and is never a cap normalization.
+        const zero = value => value.trim().split(/\s+/).every(token => /^0(?:\.0+)?(?:px|pt|cm|mm|in|pc|em|rem|%)?$/.test(token));
+        if (['padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left']
+            .some(name => property(cell.node, name).some(value => !zero(value)))) throw layoutFailure('caps.visibility');
+    }
+}
+
 function region(html, composeType) {
     const current = currentComposeBodyHtml(html, composeType);
     if (current === null) return null;
@@ -240,10 +256,10 @@ function material(html, expectedMarker = null, source = false) {
         imageFiles.push(match[2]); imageOrigins.add(match[1]);
         return { src, width: size[0], height: size[1] };
     });
-    if (images.length < 12 || images.length > 14 || images[0].width !== 184 || images[images.length - 1].width !== 500) throw layoutFailure('images.count');
-    const expectedImages = ['b983af0049.png', '9dfa25b253.png', ...Array(images.length - 12).fill('d92bd192b6.png'),
-        '1593d63cca.png', 'a38bc7d27c.png', 'c01c48d975.png', '8a5901e027.png', '19125261c2.png', 'f9d88b899d.png',
-        '1111670ac8.png', '033a29c0b7.png', '097c3bb121.png', '14d7943c88.png'];
+    if (images.length < 8 || images.length > 10 || images[0].width !== 184 || images[images.length - 1].width !== 500) throw layoutFailure('images.count');
+    const expectedImages = ['b983af0049.png', '9dfa25b253.png', ...Array(images.length - 8).fill('d92bd192b6.png'),
+        '1593d63cca.png', 'a38bc7d27c.png', '19125261c2.png', 'f9d88b899d.png',
+        '1111670ac8.png', '14d7943c88.png'];
     if (imageOrigins.size !== 1) throw layoutFailure('images.origin', 1, imageOrigins.size);
     if (JSON.stringify(imageFiles) !== JSON.stringify(expectedImages)) throw layoutFailure('images.order', expectedImages, imageFiles);
     const links = own.filter(value => value.node.tag === 'a').map(value => {
@@ -259,11 +275,12 @@ function material(html, expectedMarker = null, source = false) {
     let borders, cta;
     try { cta = u2eCtaMaterial(elements, grid, dispatch); borders = u2eTopBorderEvidence(elements, grid, dispatch); }
     catch (error) { throw layoutFailure(['borders.structure', 'borders.invalid', 'borders.image', 'borders.cta'].includes(error?.checkpoint) ? error.checkpoint : 'borders.invalid'); }
+    visibleDispatchCaps(html, elements, dispatch[0]);
     visibleCtaLine(cta.line.node, cta.lineRow.node);
     if (source && materialBackgroundColor(elements, cta.line) !== '#ffffff') throw layoutFailure('colors.line');
     if (own.filter(value => value.node.tag === 'td' && value.index !== cta.line.index && inside(elements, value.index, dispatch[0].index)).some(value => {
-            // C-K21 makes the four corner cells the same red as the panel.
-            // A missing equal cell color still uses only its nearest table.
+            // C-K21 v2.2 caps and panel share red. A missing equal cell
+            // color still uses only its nearest table.
             return materialBackgroundColor(elements, value) !== '#e4002b';
         })) throw layoutFailure('colors.corners');
     const borderColors = borders.map(value => value.color);
@@ -285,11 +302,16 @@ function validateUniversalSourceStyles(plan) {
     const rows = tableRows(elements, dispatch[0].index), cta = u2eCtaMaterial(elements, grid, dispatch);
     if (rows.length !== 4) throw failure('U2E_SOURCE_INVALID');
     const top = rowCells(elements, rows[0].index), bottom = rowCells(elements, rows[3].index);
-    if ([top, bottom].some(cells => cells.length !== 3 || cells.some((cell, index) => cell.node.tag !== 'td'
-        || !dimension(cell.node, 'width', [8, 231, 8][index]) || !dimension(cell.node, 'height', 8)))) throw failure('U2E_SOURCE_INVALID');
+    if ([top, bottom].some(cells => cells.length !== 1 || cells[0].node.tag !== 'td'
+        || !dimension(cells[0].node, 'height', 8))) throw failure('U2E_SOURCE_INVALID');
+    if (JSON.stringify(property(dispatch[0].node, 'border-collapse')) !== JSON.stringify(['separate'])
+        || JSON.stringify(property(dispatch[0].node, 'border-spacing')) !== JSON.stringify(['0'])
+        || JSON.stringify(property(dispatch[0].node, 'border-radius')) !== JSON.stringify(['8px'])
+        || JSON.stringify(property(top[0].node, 'border-radius')) !== JSON.stringify(['8px 8px 0 0'])
+        || JSON.stringify(property(bottom[0].node, 'border-radius')) !== JSON.stringify(['0 0 8px 8px'])) throw failure('U2E_SOURCE_INVALID');
     const gridIds = new Set(grid.map(cell => cell.index));
     const exactIds = new Set([...top, ...bottom, cta.line, cta.actionCells[2]].map(cell => cell.index));
-    if (gridIds.size !== 4 || exactIds.size !== 8) throw failure('U2E_SOURCE_INVALID');
+    if (gridIds.size !== 4 || exactIds.size !== 4) throw failure('U2E_SOURCE_INVALID');
     for (const { node, index } of indexed(elements)) {
         const isGrid = gridIds.has(index), isExact = exactIds.has(index);
         if (isGrid && [['display', 'inline-block'], ['max-width', '100%'], ['box-sizing', 'border-box']]
