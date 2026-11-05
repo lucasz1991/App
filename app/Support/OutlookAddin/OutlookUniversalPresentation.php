@@ -14,9 +14,9 @@ final class OutlookUniversalPresentation
 
     public const DESIGN_SOURCE = 'c7efab2c64890dc57386448be880122e1e284c6c35a2392fcad5ed5094f94b6b';
 
-    // C-K13 separator, C-K15 fallback/exact heights and C-K21 image-free caps.
+    // C-K13 separator, C-K15 exact heights, C-K21 caps and C-K22 nowrap.
     // DESIGN_SOURCE still identifies the unchanged original U2e reference.
-    private const TEMPLATE_SHA256 = 'f297c0bb222061eb3b78c85889e139274067d5744707d7807d5b6e8545e676b2';
+    private const TEMPLATE_SHA256 = '5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204';
 
     private const ASSETS = [
         'logo' => ['/m/b983af0049.png', 'b983af0049926c128807d605a51a68ce90fea06c5c340f7728b105a96d7f021a', 400, 68],

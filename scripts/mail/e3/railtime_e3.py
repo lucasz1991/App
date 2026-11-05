@@ -141,7 +141,7 @@ def _strict_snapshot(value: dict, policy: PilotPolicy) -> dict:
     projection, media = value.get('projection'), value.get('media')
     if (not isinstance(projection, dict) or projection.get('mode') != 'send'
             or projection.get('header') != policy.approved_header
-            or projection.get('templateHash') != 'f297c0bb222061eb3b78c85889e139274067d5744707d7807d5b6e8545e676b2'
+            or projection.get('templateHash') != '5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204'
             or not isinstance(media, list) or not 1 <= len(media) <= 13):
         raise Deferred('resolver_snapshot_invalid')
     seen = set()

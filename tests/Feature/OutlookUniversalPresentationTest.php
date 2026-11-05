@@ -194,6 +194,7 @@ final class OutlookUniversalPresentationTest extends TestCase
     public function test_ck13_template_has_only_the_three_approved_changes_from_the_previous_pin(): void
     {
         $template = str_replace("\r\n", "\n", file_get_contents(resource_path('mail-templates/u2e-universal-v1.html')));
+        $template = $this->withoutCk22NoWrap($template);
         $template = $this->withoutCk21Changes($template);
         $template = $this->withoutCk15Additions($template, true, 8);
         self::assertSame('9b8900e1c9640b445dcf309cbb823ca4195001d3cabdf61f927c59c5389b26c4', hash('sha256', $template));
@@ -237,6 +238,7 @@ final class OutlookUniversalPresentationTest extends TestCase
     public function test_ck15_is_exactly_the_approved_555_bytes_and_changes_the_prior_same_profile_version(): void
     {
         $template = str_replace("\r\n", "\n", file_get_contents(resource_path('mail-templates/u2e-universal-v1.html')));
+        $template = $this->withoutCk22NoWrap($template);
         $template = $this->withoutCk21Changes($template);
         $previous = $this->withoutCk15Additions($template, true, 8);
         self::assertSame('9b8900e1c9640b445dcf309cbb823ca4195001d3cabdf61f927c59c5389b26c4', hash('sha256', $previous));
@@ -251,8 +253,9 @@ final class OutlookUniversalPresentationTest extends TestCase
     public function test_ck21_changes_only_the_dispo_caps_and_no_longer_delivers_corner_images(): void
     {
         $template = str_replace("\r\n", "\n", file_get_contents(resource_path('mail-templates/u2e-universal-v1.html')));
-        self::assertSame('f297c0bb222061eb3b78c85889e139274067d5744707d7807d5b6e8545e676b2', hash('sha256', $template));
-        self::assertSame('2ad0c5a96b3b03a0e4a633ec87fa4aa79eba30f4d3b4a979937a5f5c7871dd12', hash('sha256', $this->withoutCk21Changes($template)),
+        $beforeCk22 = $this->withoutCk22NoWrap($template);
+        self::assertSame('f297c0bb222061eb3b78c85889e139274067d5744707d7807d5b6e8545e676b2', hash('sha256', $beforeCk22));
+        self::assertSame('2ad0c5a96b3b03a0e4a633ec87fa4aa79eba30f4d3b4a979937a5f5c7871dd12', hash('sha256', $this->withoutCk21Changes($beforeCk22)),
             'Reversing only the cap rows, two colspans and dispatch table styles must recover the complete C-K15 template.');
         $result = $this->render(['mode' => 'send']);
         self::assertSame(hash('sha256', $template), $result['templateHash']);
@@ -266,6 +269,25 @@ final class OutlookUniversalPresentationTest extends TestCase
         foreach (['8a9ee1e161', '4b1a2aaba8', 'b4b1fbea07', 'f1b083c20b'] as $oldAsset) {
             self::assertStringNotContainsString('/m/'.$oldAsset.'.png', $result['html']);
             self::assertFileExists(public_path('m/'.$oldAsset.'.png'), 'Historical quoted mail assets must remain available.');
+        }
+    }
+
+    #[DataProvider('modes')]
+    public function test_ck22_prevents_number_and_time_wrapping_without_changing_the_previous_template_structure(string $mode): void
+    {
+        $template = str_replace("\r\n", "\n", file_get_contents(resource_path('mail-templates/u2e-universal-v1.html')));
+        self::assertSame('5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204', hash('sha256', $template));
+        self::assertSame('f297c0bb222061eb3b78c85889e139274067d5744707d7807d5b6e8545e676b2', hash('sha256', $this->withoutCk22NoWrap($template)),
+            'Removing exactly three nowrap declarations must recover the entire v2.2 template.');
+        $rendered = $this->render(['mode' => $mode]);
+        self::assertSame(hash('sha256', $template), $rendered['templateHash']);
+        $xpath = $this->xpath($rendered['html']);
+        self::assertSame(3, $xpath->query('//*[@style and contains(@style,"white-space:nowrap;")]')->length);
+        foreach (['//td[@width="1" and contains(concat(" ",normalize-space(@class)," ")," rt-cta-cell ")]',
+            '//span[@class="rt-cta-number"]', '//td[span[@class="rt-cta-time"]]'] as $selector) {
+            $matches = $xpath->query($selector);
+            self::assertSame(1, $matches->length);
+            self::assertStringContainsString('white-space:nowrap;', $matches->item(0)->getAttribute('style'));
         }
     }
 
@@ -585,6 +607,14 @@ final class OutlookUniversalPresentationTest extends TestCase
         }
         $html = str_replace('width:247px;border-collapse:separate;border-spacing:0;border-radius:8px;background-color:#e4002b;', 'width:247px;border-collapse:collapse;background-color:#e4002b;', $html, $table);
         self::assertSame(1, $table);
+
+        return $html;
+    }
+
+    private function withoutCk22NoWrap(string $html): string
+    {
+        $html = str_replace('white-space:nowrap;', '', $html, $declarations);
+        self::assertSame(3, $declarations);
 
         return $html;
     }

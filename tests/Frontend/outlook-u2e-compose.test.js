@@ -90,7 +90,8 @@ function fixture(options = {}) {
     item.body.setSignatureAsync = bodyWrite('setSignatureAsync');
     office = { AsyncResultStatus: { Succeeded: 'succeeded' }, CoercionType: { Html: 'html' }, context: {
         platform: options.platform ?? 'PC', requirements: { isSetSupported: (set, version) => set === 'Mailbox' && version === '1.8' },
-        mailbox: { item, userProfile: { emailAddress: 'employee@example.invalid' } },
+        mailbox: { item, userProfile: { emailAddress: 'employee@example.invalid' },
+            ...(['iOS', 'Android'].includes(options.platform) ? { diagnostics: { hostName: options.platform === 'iOS' ? 'OutlookIOS' : 'OutlookAndroid', hostVersion: '4.2538.0' } } : {}) },
     } };
     const binding = { schema: 1, mailboxAddress: 'employee@example.invalid', senderAddress: 'employee@example.invalid', allowedSenderAddresses: ['employee@example.invalid'] };
     const beforeWrite = () => { state.guardCalls++; options.guard?.({ state, item, office, binding }); };
@@ -413,7 +414,7 @@ for (const [platform, kind, method] of [['PC', 'combined', 'prependAsync'], ['Of
         assert.equal(f.state.sessions.get(UNIVERSAL_COMPOSE_SESSION_KEY), 'applied:' + doc.version + ':' + kind);
         assert.equal(universalComposeBlocked(f.item), false);
         assert.equal(universalComposeReport(f.item).state, 'complete');
-        assert.equal(f.state.headerWrites.length, ['iOS', 'Android'].includes(platform) ? 0 : 1);
+        assert.equal(f.state.headerWrites.length, 1);
         if (f.state.headerWrites.length) assert.deepEqual(f.state.headerWrites[0], { 'X-RailTime-Template': doc.header });
         assert.equal((await f.insert(doc)).status, 'already-present');
         assert.equal(f.state.bodyWrites.length, 1);
@@ -537,12 +538,13 @@ test('mailbox and sender binding is required without restricting ordinary employ
     assert.equal((await errorOf(plain.insert())).code, 'U2E_HTML_REQUIRED');
 });
 
-test('desktop without supported header API refuses the operation; mobile never calls the header API', async () => {
+test('desktop and mobile without the required version-header API refuse before any claim or body write', async () => {
     const desktop = fixture(); delete desktop.item.internetHeaders;
     assert.equal((await errorOf(desktop.insert())).code, 'U2E_HEADER_UNAVAILABLE');
     assert.equal(desktop.state.bodyWrites.length, 0); assert.equal(desktop.state.sessionWrites.length, 0);
     const mobile = fixture({ platform: 'iOS' }); delete mobile.item.internetHeaders;
-    assert.equal((await mobile.insert()).status, 'applied');
+    assert.equal((await errorOf(mobile.insert())).code, 'U2E_HEADER_UNAVAILABLE');
+    assert.equal(mobile.state.bodyWrites.length, 0); assert.equal(mobile.state.sessionWrites.length, 0);
 });
 
 test('material loss and quote damage after the callback keep the claim uncertain without a repair write', async () => {
@@ -727,6 +729,24 @@ test('failed final session persistence is distinguished from material readback',
     assert.equal(report.step, 'session.finalize'); assert.equal(report.bodyLengthOrigin, 'actual');
     assert.equal(f.state.bodyWrites.length, 1); assert.equal(universalComposeBlocked(f.item), true);
 });
+
+for (const [host, changedText, applied] of [['Outlook', false, true], ['OutlookWebApp', false, false], ['Outlook', true, false]]) {
+    test('Classic quote lexical equivalence is scoped and content changes stay blocked: ' + host + '/' + changedText, async () => {
+        const quote = '<hr><div id="divRplyFwdMsg"><p class=MsoNormal style="color:#123456">Quoted &amp; text</p></div>';
+        const f = fixture({ state: { composeType: 'reply', html: '<div><br></div>' + quote }, bodyWrite({ html, state, callback }) {
+            let actualQuote = quote.replace('<p class=MsoNormal style="color:#123456">', '<P STYLE="color: #123456;" CLASS="MsoNormal">').replace('</p>', '</P>');
+            if (changedText) actualQuote = actualQuote.replace('Quoted', 'Edited');
+            state.html = html + actualQuote; callback(success());
+        } });
+        f.office.context.mailbox.diagnostics = { hostName: host };
+        if (applied) assert.equal((await f.insert()).status, 'applied');
+        else {
+            assert.equal((await errorOf(f.insert())).code, 'SIGNATURE_LAYOUT_UNCONFIRMED');
+            assert.equal(universalComposeReport(f.item).checkpoint, 'quote.bytes');
+        }
+        assert.equal(f.state.bodyWrites.length, 1);
+    });
+}
 
 test('an unconfirmed write times out once and a late callback never permits a second body write', async context => {
     context.mock.timers.enable({ apis: ['setTimeout'] });

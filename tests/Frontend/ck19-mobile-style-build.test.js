@@ -58,7 +58,7 @@ test('a changed source CSS or a stale TEMPLATE_SHA256 stops generation', () => {
 });
 
 test('changing the HTML body and PHP pin together still needs explicit template mapping approval', () => {
-    assert.equal(mapping.approvedTemplateSha256, 'f297c0bb222061eb3b78c85889e139274067d5744707d7807d5b6e8545e676b2');
+    assert.equal(mapping.approvedTemplateSha256, '5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204');
     const changed = templateHtml.replace('width="247"', 'width="246"');
     assert.notEqual(changed, templateHtml);
     const changedPhp = presentationPhp.replace(generated.templateHash, sha(changed));
@@ -112,7 +112,13 @@ test('the 5000-byte source file is retained and only its explicitly excluded fin
 test('v10 mapping and generated history remain unchanged and are still reproducible', async () => {
     for (const [name, digest] of Object.entries(suppliedV11.v10HistoryNormalizedSha256)) assert.equal(sha(await read(name)), digest);
     const historyMapping = JSON.parse(await read('resources/mail-templates/ck19-mobile-style-v10.mapping.json'));
-    const history = generate({ mapping: historyMapping });
+    // Historical v10 remains bound to its explicitly approved v2.2 input.
+    // Reversing only C-K22's exact three inline additions recovers that input.
+    assert.equal((templateHtml.match(/white-space:nowrap;/g) || []).length, 3);
+    const historyTemplate = templateHtml.replaceAll('white-space:nowrap;', '');
+    assert.equal(sha(historyTemplate), historyMapping.approvedTemplateSha256);
+    const historyPhp = presentationPhp.replace(generated.templateHash, historyMapping.approvedTemplateSha256);
+    const history = generate({ templateHtml: historyTemplate, presentationPhp: historyPhp, mapping: historyMapping });
     assert.equal(history.payload, await read('resources/mail-templates/generated/ck19-mobile-style-v10.html'));
     assert.equal(history.payload.length, CK19_APPROVED_V10_CHARACTERS);
     assert.equal(sha(history.payload), CK19_APPROVED_V10_SHA256);

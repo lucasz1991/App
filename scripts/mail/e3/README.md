@@ -21,8 +21,8 @@ fehlenden Betriebsbausteine werden unten ausdrücklich benannt.
 
 ## Verbindlicher Umfang
 
-- Produktionsvorlage v2.2/C-K21 gilt, normalisierter SHA-256
-  `f297c0bb222061eb3b78c85889e139274067d5744707d7807d5b6e8545e676b2`.
+- Produktionsvorlage v2.3/C-K22 gilt, normalisierter SHA-256
+  `5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204`.
   U2g/v3 wird nicht übernommen.
 - B1-`send` ist die einzige Versandprojektion: vollständiger HEAD mit
   Viewport-Metas und den gepinnten Medienregeln; eingebettete Bilder als echte

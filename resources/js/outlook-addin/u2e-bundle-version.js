@@ -3,7 +3,7 @@ import { u2eDiagnosticHash } from './u2e-readback-diagnostics.js';
 export const U2E_READER_CONTRACTS = Object.freeze(typeof __RAILTIME_OUTLOOK_READER_CONTRACTS__ !== 'undefined'
     ? __RAILTIME_OUTLOOK_READER_CONTRACTS__ : [1]);
 export const U2E_SOURCE_TEMPLATE = typeof __RAILTIME_OUTLOOK_SOURCE_TEMPLATE__ !== 'undefined'
-    ? __RAILTIME_OUTLOOK_SOURCE_TEMPLATE__ : 'f297c0bb222061eb3b78c85889e139274067d5744707d7807d5b6e8545e676b2';
+    ? __RAILTIME_OUTLOOK_SOURCE_TEMPLATE__ : '5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204';
 const failures = new WeakMap();
 const hash = value => typeof value === 'string' && value.length === 64 && /^[0-9a-f]{64}$/.test(value);
 export const U2E_BUNDLE_SESSION_KEY = 'railtime.u2e.bundle.v1';

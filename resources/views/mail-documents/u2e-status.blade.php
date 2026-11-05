@@ -99,7 +99,7 @@
         </x-ui.surface.card>
         <x-ui.surface.card class="space-y-4 p-5 sm:p-6">
             <h2 class="text-base font-semibold text-rt-text dark:text-rt-dark-text">Redigierte Compose-Fixtures · nur Pilot</h2>
-            <p class="text-sm text-rt-muted dark:text-rt-dark-muted">Erwartete und während des Verfassens gelesene Signatur, ohne Nachrichtentext oder Zitat. Höchstens drei private Vergleichspaare, jeweils sieben Tage. Der Download wird als JSON-Anhang ausgegeben.</p>
+            <p class="text-sm text-rt-muted dark:text-rt-dark-muted">Signatur-Vergleich oder Struktur einer nicht erkannten Zitatgrenze, ohne Nachrichten- und Zitattext. Höchstens drei private Vergleichspaare, jeweils sieben Tage. Der Download wird als JSON-Anhang ausgegeben.</p>
             <ul class="space-y-3">
                 @forelse ($fixtures ?? [] as $fixture)
                     <li class="text-sm text-rt-text dark:text-rt-dark-text">

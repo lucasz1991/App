@@ -304,7 +304,9 @@ final class OutlookAddinTemplateChoicesTest extends TestCase
         $signature = str_replace('design-train-logo', 'design-train-logo design-personal-columns', $family->getConstant('SOURCE'));
         MailDocument::query()->where('kind', 'signature')->update(['html' => $signature, 'published_html' => $signature]);
         $this->a = MailDocument::query()->where('kind', 'template')->sole();
-        $source = preg_replace('~</td>~', '<span>CHOICE-A-VISIBLE</span></td>', $family->getConstant('TEMPLATE'), 1);
+        // Reuse its canonical fragments across LF/CRLF checkouts, too.
+        $template = (new ReflectionMethod(V27PersonalLayoutTest::class, 'templateSource'))->invoke(null);
+        $source = preg_replace('~</td>~', '<span>CHOICE-A-VISIBLE</span></td>', $template, 1);
         TemplateDocumentContract::assertValid($source);
         $this->a->forceFill(['name' => 'Synthetic A', 'html' => $source, 'published_html' => $source,
             'css' => $family->getConstant('TEMPLATE_CSS'), 'published_css' => $family->getConstant('TEMPLATE_CSS')])->saveQuietly();

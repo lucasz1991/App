@@ -1,6 +1,7 @@
 import { parseManagedHtml } from './managed-template.js';
 import { u2eCenteringContext } from './u2e-appearance.js';
 import { U2E_BORDER_IMAGE_PROPERTIES, U2E_AMBIGUOUS_TOP_BORDER_PROPERTIES } from './u2e-borders.js';
+import { canonicalOutlookBoundaryId, OUTLOOK_COMPOSE_BOUNDARY_IDS, outlookBoundaryNodeHidden } from './mobile-compose-boundary.js';
 
 // This module describes failures and redacts already-read HTML. It never grants
 // ownership, changes a compose body, or admits a different material layout.
@@ -283,7 +284,66 @@ export function universalRedactedReadbackFixture(expectedHtml, actualHtml) {
     return validateUniversalRedactedFixture(fixture);
 }
 
+export const U2E_BOUNDARY_TAGS = Object.freeze(['div', 'p', 'span', 'br', 'hr', 'blockquote', 'table', 'tbody', 'tr', 'td']);
+const boundaryTags = new Set(U2E_BOUNDARY_TAGS), boundaryIds = new Set(OUTLOOK_COMPOSE_BOUNDARY_IDS);
+
+/** Unknown-scope diagnostics retain only a bounded shape and finite Outlook
+ * marker IDs. No authored/quoted text, URL, class, style or other attribute is
+ * ever serialized. It is not a material fixture or an insertion authority. */
+function redactedComposeBoundaryHtml(html) {
+    if (typeof html !== 'string' || html.length > 500000) return null;
+    try {
+        const { elements } = parseManagedHtml(html);
+        if (elements.length > 4095) return null;
+        const children = new Map();
+        elements.forEach((node, index) => {
+            const parent = Number.isInteger(node.parent) ? node.parent : null;
+            const group = children.get(parent) || []; group.push(index); children.set(parent, group);
+        });
+        const render = (index, depth) => {
+            if (depth > 64) throw new Error('BOUNDARY_DEPTH');
+            const node = elements[index];
+            if (['head', 'script', 'style', 'template', 'title'].includes(node.tag) || outlookBoundaryNodeHidden(node)) return '';
+            const allowed = boundaryTags.has(node.tag);
+            const inner = () => (children.get(index) || []).map(child => render(child, depth + (allowed ? 1 : 0))).join('');
+            if (!allowed) return inner();
+            const id = canonicalOutlookBoundaryId(node.attrs.id);
+            const attributes = (id ? ' id="' + id + '"' : '')
+                + (node.tag === 'blockquote' && (node.attrs.type === 'cite' || Object.hasOwn(node.attrs, 'cite')) ? ' type="cite"' : '');
+            return '<' + node.tag + attributes + '>' + (['br', 'hr'].includes(node.tag) ? '' : inner() + '</' + node.tag + '>');
+        };
+        const result = '<div data-rt-boundary="1">' + (children.get(null) || []).map(index => render(index, 2)).join('') + '</div>';
+        return result.length <= 98304 ? result : null;
+    } catch { return null; }
+}
+
+export function universalComposeBoundaryFixture(expectedHtml, actualHtml) {
+    const expected = redactUniversalSignatureHtml(expectedHtml), html = redactedComposeBoundaryHtml(actualHtml);
+    if (expected === null || html === null || expected.length + html.length > 196608) return null;
+    return validateUniversalRedactedFixture({ schema: 1, format: 'u2e-redacted-compose-boundary-v1', html, expectedHtml: expected,
+        sourceLength: actualHtml.length, sha256: u2eDiagnosticHash(html), expectedSha256: u2eDiagnosticHash(expected) });
+}
+
 const fixtureKeys = ['schema', 'format', 'html', 'expectedHtml', 'sourceLength', 'sha256', 'expectedSha256'];
+function safeBoundaryHtml(html) {
+    if (typeof html !== 'string' || html.length > 98304 || !/^[\x20-\x7e]*$/.test(html)
+        || !html.startsWith('<div data-rt-boundary="1">') || !html.endsWith('</div>') || html.replace(/<[^>]*>/g, '') !== '') return false;
+    const { elements, comments } = parseManagedHtml(html);
+    if (comments.length || !elements.length || elements.length > 4096 || elements[0].start !== 0 || elements[0].end !== html.length
+        || elements[0].tag !== 'div' || Object.keys(elements[0].attrs).length !== 1 || elements[0].attrs['data-rt-boundary'] !== '1') return false;
+    for (const [index, node] of elements.entries()) {
+        if (!boundaryTags.has(node.tag)) return false;
+        let depth = 0;
+        for (let at = index; Number.isInteger(at); at = elements[at]?.parent) if (++depth > 64) return false;
+        if (index === 0) continue;
+        for (const [name, value] of Object.entries(node.attrs)) {
+            if (name === 'id' && boundaryIds.has(value)) continue;
+            if (name === 'type' && node.tag === 'blockquote' && value === 'cite') continue;
+            return false;
+        }
+    }
+    return true;
+}
 function safeRedactedHtml(html) {
     if (typeof html !== 'string' || !html.length || html.length > 196608 || !/^[\x20-\x7e]*$/.test(html)) return false;
     if (html.startsWith('<div')) {
@@ -338,11 +398,12 @@ export function validateUniversalRedactedFixture(fixture) {
     try {
         if (!fixture || typeof fixture !== 'object' || Array.isArray(fixture)
             || Object.keys(fixture).length !== fixtureKeys.length || fixtureKeys.some(key => !Object.prototype.hasOwnProperty.call(fixture, key))
-            || fixture.schema !== 1 || fixture.format !== 'u2e-redacted-html-v1'
+            || fixture.schema !== 1 || !['u2e-redacted-html-v1', 'u2e-redacted-compose-boundary-v1'].includes(fixture.format)
             || !Number.isInteger(fixture.sourceLength) || fixture.sourceLength < 0 || fixture.sourceLength > 500000
             || typeof fixture.html !== 'string' || typeof fixture.expectedHtml !== 'string'
             || fixture.html.length + fixture.expectedHtml.length > 196608
-            || !safeRedactedHtml(fixture.html) || !safeRedactedHtml(fixture.expectedHtml)
+            || !(fixture.format === 'u2e-redacted-html-v1' ? safeRedactedHtml(fixture.html) : safeBoundaryHtml(fixture.html))
+            || !safeRedactedHtml(fixture.expectedHtml)
             || fixture.sha256 !== u2eDiagnosticHash(fixture.html) || fixture.expectedSha256 !== u2eDiagnosticHash(fixture.expectedHtml)) return null;
         const copy = Object.fromEntries(fixtureKeys.map(key => [key, fixture[key]]));
         return JSON.stringify(copy).length <= 252000 ? Object.freeze(copy) : null;
@@ -353,6 +414,7 @@ export function validateUniversalRedactedFixture(fixture) {
  * the unchanged material reader. Text hashes/lengths in difference remain the
  * authoritative text-loss evidence; fixed text tokens cannot replay wording. */
 export function universalDiagnosticReplayHtml(html) {
+    if (safeBoundaryHtml(html)) return html;
     if (!safeRedactedHtml(html)) return null;
     return html.replace(/src="\/m\/([0-9a-f]{10}\.png)#rt-redacted-([0-9a-f]{64})"/g, 'src="https://$2.invalid/m/$1"')
         .replace(/href="#rt-redacted-([0-9a-f]{64})"/g, 'href="https://redacted.invalid/$1"')

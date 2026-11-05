@@ -3,7 +3,7 @@
   "revision": "ck19-approved-v11-20261105",
   "sourceTemplate": "resources/mail-templates/u2e-universal-v1.html",
   "sourcePhp": "app/Support/OutlookAddin/OutlookUniversalPresentation.php",
-  "approvedTemplateSha256": "f297c0bb222061eb3b78c85889e139274067d5744707d7807d5b6e8545e676b2",
+  "approvedTemplateSha256": "5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204",
   "sourceCssSha256": "502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1",
   "approvedPayloadSha256": "532dab7e0ebf5734736d49f427bb61f49c9cec9e9aad09165a0bbc8248e63f5a",
   "approvedPayloadCharacters": 4999,

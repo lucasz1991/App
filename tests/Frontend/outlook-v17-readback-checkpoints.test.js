@@ -3,6 +3,8 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { diagnoseUncertainV15Readback, prependTemplate } from '../../resources/js/outlook-addin/compose-template.js';
 import { diagnosticReport } from '../../resources/js/outlook-addin/diagnostics.js';
+import { universalComposeBoundaryHelp } from '../../resources/js/outlook-addin/u2e-compose-help.js';
+import { universalComposeReport } from '../../resources/js/outlook-addin/u2e-compose.js';
 import { fluidLayoutContract, managedTemplateContract, standaloneSignatureContract, V17_READBACK_CONTRACT_STAGES } from '../../resources/js/outlook-addin/managed-template.js';
 import { prepareNativeLayoutRestore } from '../../resources/js/outlook-addin/native-layout-restore.js';
 
@@ -145,8 +147,9 @@ function taskpaneFunction(name, next) {
 }
 
 test('the actual taskpane distinguishes an accepted but unconfirmed layout from a proven write timeout', () => {
-    const userMessage = new Function('safeErrorCode', 'isInteractionRequired', 'return (' + taskpaneFunction('userMessage', 'readyStatusDetail') + ');')(
-        error => error.code, () => false);
+    const userMessage = new Function('safeErrorCode', 'isInteractionRequired', 'universalComposeBoundaryHelp', 'universalComposeReport',
+        'return (' + taskpaneFunction('userMessage', 'readyStatusDetail') + ');')(
+        error => error.code, () => false, universalComposeBoundaryHelp, universalComposeReport);
     const layout = userMessage({ code: 'TEMPLATE_LAYOUT_UNCONFIRMED', phase: 'template-replace-preflight', reason: 'unconfirmed' });
     assert.match(layout, /Einfügeaufruf.*angenommen/); assert.match(layout, /Darstellung/);
     assert.doesNotMatch(layout, /rechtzeitig|ersetzt|erneut versuchen/);
