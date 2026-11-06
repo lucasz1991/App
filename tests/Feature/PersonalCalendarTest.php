@@ -216,7 +216,7 @@ class PersonalCalendarTest extends TestCase
         $ui = Livewire::actingAs($this->employee)->test(MyWork::class)->call('showTab', 'schedule')->call('openCalendarEvent', 'shift-'.$assignment->id)
             ->assertSeeHtml('data-personal-request-dialog')->assertSeeHtml('data-personal-request-map')->assertSeeHtml('data-request-calendar')
             ->assertSeeHtml('wire:key="personal-calendar-shift-dialog-')->assertDontSeeHtml('wire:key="personal-calendar-other-dialog-')
-            ->assertSeeHtml('data-has-activity="false"')->assertSee('Dein Dienst')->assertSee('Dienst bestätigen')->assertDontSeeHtml('wire:click="respondToRequest(true)"');
+            ->assertSeeHtml('data-has-activity="false"')->assertSeeHtml('data-personal-request-heading')->assertSee('Dienst bestätigen')->assertDontSeeHtml('wire:click="respondToRequest(true)"');
         $this->assertStringContainsString(".entangle('calendarEventOpen').live", html_entity_decode($ui->html(), ENT_QUOTES));
         $selected = $ui->viewData('selectedCalendarRequest');
         $this->assertFalse($selected['can_respond']);

@@ -1,5 +1,11 @@
 @props(['days', 'axis', 'view' => 'week'])
-@php($isWeek = $view === 'week')
+@php
+    $isWeek = $view === 'week';
+    $focusDay = $days->firstWhere('selected', true) ?? $days->first();
+    $focusParts = collect($focusDay['segments'] ?? [])->reject(fn ($segment) => $segment['all_day'])->flatMap(fn ($segment) => $segment['time_segments']);
+    $hourPercent = 6000 / max(60, $axis['end'] - $axis['start']);
+    $initialScroll = max(0, ($focusParts->min('top') ?? 0) - $hourPercent);
+@endphp
 <div class="rt-pcal-schedule" data-calendar-time-grid="{{ $view }}" style="--pcal-days:{{ $days->count() }};--pcal-hours:{{ ($axis['end'] - $axis['start']) / 60 }}">
     <div class="rt-pcal-grid-heading">
         <span class="rt-pcal-grid-corner" aria-hidden="true"><i class="far fa-clock"></i></span>
@@ -21,6 +27,9 @@
             @endforeach
         </div>
     @endif
+    <div class="rt-pcal-time-viewport" tabindex="0" role="region" aria-label="Zeitraster · vertikal scrollen für weitere Uhrzeiten" data-no-sidebar-swipe
+        wire:key="personal-time-grid-{{ $view }}-{{ $focusDay['date']->toDateString() }}-{{ $axis['start'] }}-{{ $axis['end'] }}" x-data="{}"
+        x-init="$nextTick(() => { $el.scrollTop = $el.querySelector('.rt-pcal-grid-body').offsetHeight * {{ $initialScroll }} / 100 })">
     <div class="rt-pcal-grid-body">
         <div class="rt-pcal-time-axis" aria-hidden="true">
             @foreach($axis['ticks'] as $tick)<span style="top:{{ $tick['percent'] }}%">{{ $tick['label'] }}</span>@endforeach
@@ -46,5 +55,6 @@
                 @endforeach
             </div>
         @endforeach
+    </div>
     </div>
 </div>

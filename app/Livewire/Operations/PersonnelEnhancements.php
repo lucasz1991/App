@@ -29,6 +29,7 @@ use App\Services\Operations\PersonnelWorkflowService;
 use App\Support\Operations\OperationsAccess;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -175,10 +176,13 @@ class PersonnelEnhancements extends Component
         $this->access();
         $this->authorizeProfileAction($kind);
         abort_unless(app(PersonnelEnhancementService::class)->ready(), 503);
-        $allowed = ['workflow_template', 'workflow_run', 'report', 'document_template', 'signature_request', 'signature_result', 'emergency_edit', 'emergency_read', 'approval_policy', 'approval_retire', 'absence_review', 'calendar', 'calendar_apply', 'applicant', 'applicant_stage', 'applicant_convert', 'development', 'feedback', 'survey', 'survey_response', 'sickness', 'sickness_update'];
+        $allowed = ['workflow_template', 'workflow_run', 'report', 'document_template', 'signature_request', 'signature_result', 'emergency_edit', 'emergency_read', 'approval_policy', 'approval_retire', 'absence_review', 'calendar', 'calendar_apply', 'applicant', 'applicant_stage', 'applicant_convert', 'development', 'feedback', 'survey', 'survey_response', 'sickness', 'sickness_update', 'sickness_report'];
         abort_unless(in_array($kind, $allowed, true), 404);
-        $personalKinds = ['signature_result', 'emergency_edit', 'feedback', 'survey_response', 'sickness_update'];
+        $personalKinds = ['signature_result', 'emergency_edit', 'feedback', 'survey_response', 'sickness_update', 'sickness_report'];
         abort_if($this->personal && ! in_array($kind, $personalKinds, true), 403);
+        if ($kind === 'sickness_report') {
+            abort_unless($this->personal && $this->tab === 'sickness' && $id === null, 403);
+        }
         if (! $this->personal) {
             if (in_array($kind, ['workflow_template', 'document_template', 'survey'], true)) {
                 app(PersonnelScopeService::class)->authorizeGlobal(auth()->user(), 'employees.master-data.edit');
@@ -246,6 +250,10 @@ class PersonnelEnhancements extends Component
                 $this->form['action'] = 'approve';
             }
         }
+        if ($kind === 'sickness_report') {
+            $this->form = ['starts_at' => '', 'ends_at' => '', 'timezone' => config('operations.display_timezone', 'Europe/Berlin')];
+        }
+        $this->resetValidation();
         $this->formOpen = true;
     }
 
@@ -372,6 +380,14 @@ class PersonnelEnhancements extends Component
                 break;
             case 'survey_response': $service->surveyResponse($this->authorizedRecord('survey_response', $this->recordId), $this->revision, $data['action'], isset($data['score']) ? (int) $data['score'] : null, $actor);
                 break;
+            case 'sickness_report':
+                abort_unless($this->personal && $this->tab === 'sickness' && $this->formUserId === $actor->id, 403);
+                try {
+                    app(PersonnelWorkflowService::class)->reportSickness($actor, $data);
+                } catch (ValidationException $exception) {
+                    throw ValidationException::withMessages(collect($exception->errors())->mapWithKeys(fn ($messages, $key) => [array_key_exists($key, $data) ? 'form.'.$key : $key => $messages])->all());
+                }
+                break;
             case 'sickness':
                 $absence = AbsenceRequest::where('user_id', $employee?->id)->findOrFail($data['absence_request_id'] ?? 0);
                 $service->openSicknessEvidence($absence, $data['due_on'], $actor);
@@ -381,6 +397,7 @@ class PersonnelEnhancements extends Component
             default: abort(403);
         }
         $this->reset('form', 'display', 'upload');
+        $this->resetValidation();
         $this->formOpen = false;
         session()->flash('operations.saved', 'Gespeichert.');
     }
@@ -653,6 +670,6 @@ class PersonnelEnhancements extends Component
         $canEdit = ! $this->personal && $employee && app(PersonnelScopeService::class)->allows(auth()->user(), $employee, 'employees.master-data.edit');
         $canGlobal = $this->profileUserId === null && ! $this->personal && Gate::forUser(auth()->user())->allows('employees.master-data.edit') && app(PersonnelScopeService::class)->visibleUserIds(auth()->user(), 'employees.master-data.edit') === null;
 
-        return view('livewire.operations.personnel-enhancements', ['ready' => $ready, 'records' => $ready ? $this->recordRows() : collect(), 'employees' => $employees, 'employee' => $employee, 'canEdit' => $canEdit, 'canGlobal' => $canGlobal, 'teams' => ! $this->personal && $this->formOpen && $this->formKind === 'approval_policy' ? Team::where('personal_team', false)->orderBy('name')->get(['id', 'name']) : collect(), 'assignees' => $this->personal || ! $this->formOpen ? collect() : User::where('status', true)->orderBy('name')->get(['id', 'name']), 'versions' => $ready && $this->formOpen && $this->formKind === 'signature_request' ? EmployeeDocumentVersion::whereHas('requirement', fn ($q) => $q->where('user_id', $this->formUserId))->with('requirement')->orderByDesc('id')->get() : collect(), 'sicknesses' => $ready && $this->formOpen && $this->formKind === 'sickness' ? AbsenceRequest::where('user_id', $this->formUserId)->where('kind', 'sick')->where('status', 'reported')->latest()->get() : collect()]);
+        return view('livewire.operations.personnel-enhancements', ['ownSicknesses' => $ready && $this->personal && $this->tab === 'sickness' ? AbsenceRequest::where('user_id', auth()->id())->where('kind', 'sick')->latest('starts_at')->limit(30)->get() : collect(), 'ready' => $ready, 'records' => $ready ? $this->recordRows() : collect(), 'employees' => $employees, 'employee' => $employee, 'canEdit' => $canEdit, 'canGlobal' => $canGlobal, 'teams' => ! $this->personal && $this->formOpen && $this->formKind === 'approval_policy' ? Team::where('personal_team', false)->orderBy('name')->get(['id', 'name']) : collect(), 'assignees' => $this->personal || ! $this->formOpen ? collect() : User::where('status', true)->orderBy('name')->get(['id', 'name']), 'versions' => $ready && $this->formOpen && $this->formKind === 'signature_request' ? EmployeeDocumentVersion::whereHas('requirement', fn ($q) => $q->where('user_id', $this->formUserId))->with('requirement')->orderByDesc('id')->get() : collect(), 'sicknesses' => $ready && $this->formOpen && $this->formKind === 'sickness' ? AbsenceRequest::where('user_id', $this->formUserId)->where('kind', 'sick')->where('status', 'reported')->latest()->get() : collect()]);
     }
 }

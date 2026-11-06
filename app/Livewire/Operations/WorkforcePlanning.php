@@ -16,6 +16,7 @@ use App\Services\Operations\WorkforcePlanningService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\WorkforcePlanningSchema;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -158,7 +159,11 @@ class WorkforcePlanning extends Component
         if ($this->personal) {
             if ($this->modal === 'wish') {
                 $data['weekdays'] = array_map('intval', $data['weekdays']);
-                $service->saveWish($this->recordId, $this->revision, $data, auth()->user());
+                try {
+                    $service->saveWish($this->recordId, $this->revision, $data, auth()->user());
+                } catch (ValidationException $exception) {
+                    throw ValidationException::withMessages(collect($exception->errors())->mapWithKeys(fn ($messages, $key) => [array_key_exists(explode('.', $key)[0], $data) ? 'form.'.$key : $key => $messages])->all());
+                }
             } elseif ($this->modal === 'transfer') {
                 $source = ShiftAssignment::where('user_id', auth()->id())->findOrFail((int) ($data['source_id'] ?? 0));
                 abort_unless($this->planRevision !== null, 422);
@@ -176,6 +181,7 @@ class WorkforcePlanning extends Component
                 default => abort(422),
             };
         }
+        $this->resetValidation();
         $this->formOpen = false;
         $this->dispatch('operations-plan-changed');
     }
@@ -230,6 +236,13 @@ class WorkforcePlanning extends Component
         $items->getCollection()->each(fn ($item) => $item->setAttribute('personal_view', $this->personal));
         $people = User::where('role', 'staff')->where('status', true)->orderBy('name')->get();
         $periods = AvailabilityPeriod::where('until', '>=', now()->subYear()->toDateString())->orderByDesc('from')->limit(24)->get();
+        $wishPeriodId = filter_var($this->form['availability_period_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $wishPeriod = $this->personal && $this->modal === 'wish' && $this->formOpen && $wishPeriodId
+            ? AvailabilityPeriod::find($wishPeriodId) : null;
+        if ($wishPeriod && ! $periods->contains('id', $wishPeriod->id)) {
+            $periods->push($wishPeriod);
+        }
+        $wishLate = $wishPeriod !== null && ! $wishPeriod->due_at->isFuture();
         $periods->each(fn ($period) => $period->setAttribute('submission_state', app(WorkforcePlanningService::class)->periodStatus($period, auth()->user()))->setAttribute('personal_view', $this->personal));
         $shifts = $this->personal ? collect() : Shift::notCancelled()->where('ends_at', '>', now()->utc())->orderBy('starts_at')->limit(200)->get();
         $ownAssignments = $this->personal ? ShiftAssignment::where('user_id', $employeeId)->where('status', 'confirmed')->whereHas('shift', fn ($q) => $q->notCancelled()->whereColumn('revision', 'published_revision')->where('published_revision', '>', 0)->where('starts_at', '>', now()->utc()))->with('shift')->orderBy('id')->get() : collect();
@@ -247,6 +260,6 @@ class WorkforcePlanning extends Component
             $submissions = $people->map(fn ($person) => (object) ['id' => $person->id, 'name' => $person->name, 'status_label' => $submitted->contains($person->id) ? 'Eingereicht' : ($period->due_at->isPast() ? 'Überfällig' : 'Offen')]);
         }
 
-        return view('livewire.operations.workforce-planning', ['items' => $items, 'people' => $people, 'periods' => $periods, 'shifts' => $shifts, 'ownAssignments' => $ownAssignments, 'candidateIssues' => $candidateIssues, 'candidateWishes' => $candidateWishes, 'submissions' => $submissions, 'pools' => WorkforcePool::where('is_active', true)->orderBy('name')->get(), 'managers' => User::where('status', true)->get()->filter(fn ($user) => Gate::forUser($user)->allows('operations.manage'))]);
+        return view('livewire.operations.workforce-planning', ['wishLate' => $wishLate, 'items' => $items, 'people' => $people, 'periods' => $periods, 'shifts' => $shifts, 'ownAssignments' => $ownAssignments, 'candidateIssues' => $candidateIssues, 'candidateWishes' => $candidateWishes, 'submissions' => $submissions, 'pools' => WorkforcePool::where('is_active', true)->orderBy('name')->get(), 'managers' => User::where('status', true)->get()->filter(fn ($user) => Gate::forUser($user)->allows('operations.manage'))]);
     }
 }

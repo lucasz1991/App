@@ -12,6 +12,33 @@ const build = (config = {}) => {
     return picker;
 };
 
+test('inline form range commits partial selection so submitting cannot retain an earlier range', () => {
+    const picker = build({ inline: true });
+    assert.deepEqual(picker.months, ['2026-09-01']);
+    picker.select('2026-11-16');
+    assert.equal(picker.from, '2026-11-16');
+    assert.equal(picker.until, '');
+    assert.equal(picker.selectingEnd, true);
+    assert.equal(picker.canApply, false);
+    picker.shiftMonth(0, 1);
+    picker.select('2026-11-20');
+    assert.equal(picker.until, '2026-11-20');
+    assert.equal(picker.summary, '5 Kalendertage ausgewählt');
+    assert.equal(picker.events.length, 0, 'field editing does not submit or dispatch an apply action');
+});
+
+test('inline invalid typed dates clear the committed value and cross-month typing keeps one calendar', () => {
+    const picker = build({ inline: true });
+    picker.updateTyped(1, '02.11.2026');
+    assert.deepEqual(picker.months, ['2026-11-01']);
+    assert.equal(picker.until, '2026-11-02');
+    picker.updateTyped(0, '31.02.2026');
+    assert.equal(picker.from, '');
+    assert.equal(picker.canApply, false);
+    picker.clear();
+    assert.equal(picker.until, '');
+});
+
 test('displays the current range across two months without changing committed dates', () => {
     const picker = build();
     assert.deepEqual(picker.months, ['2026-09-01', '2026-10-01']);

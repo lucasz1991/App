@@ -1,0 +1,38 @@
+.rt-time-review { display:grid; gap:16px; min-width:0; }
+.rt-time-review .rt-personal-clock-block { gap:0; }
+.rt-time-review .rt-clock-label-full { display:none; }
+.rt-time-review .rt-clock-label-short { display:inline; }
+.rt-personal-work .rt-time-review .rt-multi-toggle__button.rt-ui-button[aria-pressed="true"] { background:var(--personal-signal) !important; color:var(--personal-sheet) !important; }
+.rt-personal-work .rt-time-review .rt-multi-toggle__button.rt-ui-button>i { display:none; }
+.rt-time-review__heading,.rt-time-review__filters,.rt-time-review__missing>header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.rt-time-review__heading h2 { font-size:20px; font-weight:700; }
+.rt-time-review__heading p { margin-top:4px; font-size:12px; }
+.rt-time-review__export,.rt-time-review__period { position:relative; min-width:0; }
+.rt-time-review summary { cursor:pointer; min-height:44px; display:flex; align-items:center; gap:8px; color:var(--personal-muted); font-size:12px; }
+.rt-time-review summary:focus-visible { outline:2px solid var(--personal-signal); outline-offset:3px; border-radius:8px; }
+.rt-time-review__export>div { position:absolute; z-index:15; right:0; display:grid; gap:8px; min-width:190px; padding:12px; border:1px solid var(--personal-line); border-radius:12px; background:var(--personal-sheet); }
+.rt-time-review__records { border:1px solid var(--personal-line); border-radius:18px; background:var(--personal-sheet); padding:16px; min-width:0; }
+.rt-time-review__filters { flex-wrap:wrap; margin-bottom:12px; }
+.rt-time-review__period>div { display:grid; grid-template-columns:1fr 1fr; gap:12px; padding:12px 0; }
+.rt-time-review__missing { border-radius:12px; padding:12px; margin-bottom:12px; background:var(--personal-signal-soft); }
+.rt-time-review__missing h3 { font-size:13px; font-weight:650; }
+.rt-time-review__missing-row { display:flex; gap:10px; align-items:center; padding-top:12px; }
+.rt-time-review__missing-row>div { flex:1; min-width:0; }
+.rt-time-review__missing-row strong { font-size:13px; }
+.rt-time-review__missing-row p { margin-top:3px; color:var(--personal-muted); font-size:11px; line-height:1.5; }
+.rt-time-review__missing-row .rt-ui-button { min-height:44px; padding-inline:10px; font-size:12px; }
+.rt-time-review__dot { width:6px; height:6px; border-radius:50%; background:var(--personal-signal); flex:none; }
+.rt-time-review__item+.rt-time-review__item { border-top:1px solid var(--personal-line); }
+.rt-time-review__empty { text-align:center; padding:28px 16px; color:var(--personal-muted); }
+.rt-time-review__empty h3 { margin:12px 0 6px; color:var(--personal-ink); font-size:14px; }
+.rt-time-review__empty p { font-size:12px; line-height:1.6; }
+.rt-time-review__legacy { justify-self:start; }
+.rt-time-entry { padding:14px 0; display:grid; gap:10px; }
+.rt-time-entry__main { display:flex; justify-content:space-between; gap:12px; align-items:start; }
+.rt-time-entry__main h3 { font-size:14px; font-weight:650; }
+.rt-time-entry__meta { color:var(--personal-muted); font-size:12px; line-height:1.6; margin-top:4px; }
+.rt-time-entry__duration { color:var(--personal-ink); white-space:nowrap; font-size:16px; font-weight:700; font-variant-numeric:tabular-nums; }
+.rt-time-entry .ops-actions { gap:8px; }
+.rt-time-entry .ops-actions .rt-ui-button { min-height:44px; font-size:12px; }
+@media(min-width:900px) { .rt-time-review__heading h2{font-size:24px}.rt-time-review__records{padding:20px 24px}.rt-time-review__missing-row strong{font-size:14px}.rt-time-review__missing-row p{font-size:12px}.rt-time-review .rt-personal-work-clock--action .rt-personal-clock-idle{margin-left:auto} }
+@media(max-width:420px) { .rt-time-review__records{padding:12px}.rt-time-review__filters{gap:4px}.rt-time-review__filters>.rt-multi-toggle{width:100%}.rt-time-review__filters>.rt-multi-toggle button{flex:1}.rt-time-review__period{width:100%}.rt-time-entry .ops-actions{flex-wrap:wrap}.rt-time-review__missing-row{gap:8px} }

@@ -24,6 +24,7 @@ use App\Support\Operations\OperationsAccess;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -281,10 +282,15 @@ class WorkforceAccounts extends Component
             }
             $workflow->requestAbsence($actor, ['kind' => 'vacation', 'starts_at' => $data['starts_on'].'T'.($partial ? $data['starts_time'] : '00:00'), 'ends_at' => $partial ? $data['ends_on'].'T'.$data['ends_time'] : CarbonImmutable::parse($data['ends_on'])->addDay()->format('Y-m-d\T00:00'), 'timezone' => $timezone, 'vacation_fraction' => $data['vacation_fraction'] === 'window' ? '1' : $data['vacation_fraction'], 'note' => $data['note'] ?? '']);
         } elseif ($this->formKind === 'sick') {
-            $workflow->reportSickness($actor, $data);
+            try {
+                $workflow->reportSickness($actor, $data);
+            } catch (ValidationException $exception) {
+                throw ValidationException::withMessages(collect($exception->errors())->mapWithKeys(fn ($messages, $key) => [array_key_exists($key, $data) ? 'form.'.$key : $key => $messages])->all());
+            }
         } else {
             abort(403);
         }
+        $this->resetValidation();
         $this->formOpen = false;
         session()->flash('operations.saved', 'Gespeichert.');
     }

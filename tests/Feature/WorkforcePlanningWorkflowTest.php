@@ -8,7 +8,6 @@ use App\Livewire\Operations\PersonnelReview;
 use App\Livewire\Operations\PlanVariants;
 use App\Livewire\Operations\StaffTimeline;
 use App\Livewire\Operations\WorkforcePlanning;
-use App\Livewire\Operations\Workspace;
 use App\Models\AbsenceRequest;
 use App\Models\Customer;
 use App\Models\EmployeeAvailability;
@@ -34,6 +33,7 @@ use App\Services\Operations\ShiftAssignmentService;
 use App\Services\Operations\ShiftSchedulingService;
 use App\Services\Operations\StaffEligibilityService;
 use App\Services\Operations\WorkforcePlanningService;
+use App\Support\Operations\OperationsPages;
 use App\Support\Operations\WorkforcePlanningSchema;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -169,6 +169,33 @@ class WorkforcePlanningWorkflowTest extends TestCase
         $this->invalid(fn () => $service->saveWish($wish->id, 1, $this->wish(['late_reason' => 'Geändert wegen Termin']), $this->anna), 'nicht entfernt');
         $this->expectException(ModelNotFoundException::class);
         Livewire::actingAs($this->ben)->test(WorkforcePlanning::class, ['personal' => true])->call('edit', 'wish', $wish->id);
+    }
+
+    public function test_personal_wish_shows_late_reason_only_for_an_expired_selected_period(): void
+    {
+        $service = app(WorkforcePlanningService::class);
+        $future = $service->savePeriod(null, null, ['name' => 'Noch offen', 'from' => '2027-05-13', 'until' => '2027-05-31', 'due_at' => '2027-05-13T12:00', 'timezone' => 'Europe/Berlin'], $this->manager);
+        $past = $service->savePeriod(null, null, ['name' => 'Frist abgelaufen', 'from' => '2027-05-13', 'until' => '2027-05-31', 'due_at' => '2027-05-11T12:00', 'timezone' => 'Europe/Berlin'], $this->manager);
+
+        Livewire::actingAs($this->anna)->test(WorkforcePlanning::class, ['personal' => true])
+            ->call('edit', 'wish')->assertDontSee('Begründung nach Abgabefrist')
+            ->set('form.availability_period_id', $future->id)->assertDontSee('Begründung nach Abgabefrist')
+            ->set('form.availability_period_id', $past->id)->assertSee('Begründung nach Abgabefrist')
+            ->set('form.from', '2027-05-13')->set('form.until', '2027-05-14')
+            ->call('save')->assertHasErrors()->assertSet('formOpen', true)
+            ->set('form.late_reason', 'Termin wurde erst heute bekannt')
+            ->call('save')->assertHasNoErrors()->assertSet('formOpen', false);
+
+        $this->assertSame($past->id, EmployeeAvailability::where('user_id', $this->anna->id)->sole()->availability_period_id);
+        $this->assertSame(0, AbsenceRequest::count());
+    }
+
+    public function test_personal_wish_validation_stays_attached_to_its_fields(): void
+    {
+        Livewire::actingAs($this->anna)->test(WorkforcePlanning::class, ['personal' => true])
+            ->call('edit', 'wish')->set('form.weekdays', [])->set('form.from', '')
+            ->call('save')->assertHasErrors(['form.weekdays', 'form.from'])->assertSet('formOpen', true);
+        $this->assertSame(0, EmployeeAvailability::count());
     }
 
     public function test_invalid_dst_wish_and_empty_weekday_occurrence_are_rejected(): void
@@ -392,8 +419,8 @@ class WorkforcePlanningWorkflowTest extends TestCase
         $this->actingAs($this->manager);
         $this->get(route('operations.workspace', 'workforce-planning'))->assertStatus(503);
         $this->get(route('operations.workspace', 'plan-variants'))->assertStatus(503);
-        $this->get(route('operations.workspace', 'orders'))->assertRedirect(\App\Support\Operations\OperationsPages::moduleUrl('orders'));
-        $this->get(\App\Support\Operations\OperationsPages::moduleUrl('orders'))->assertOk();
+        $this->get(route('operations.workspace', 'orders'))->assertRedirect(OperationsPages::moduleUrl('orders'));
+        $this->get(OperationsPages::moduleUrl('orders'))->assertOk();
     }
 
     public function test_safe_copy_approval_applies_only_drafts_and_stale_baselines_block(): void

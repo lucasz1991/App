@@ -26,6 +26,7 @@ export const dateRangePicker = (config = {}) => ({
     max: parse(config.max) ? config.max : null,
     maxDays: Number(config.maxDays) > 0 ? Number(config.maxDays) : null,
     selectionMode: config.selectionMode === 'single' ? 'single' : 'range',
+    inline: config.inline === true,
     draftFrom: '',
     draftUntil: '',
     fromText: '',
@@ -44,7 +45,10 @@ export const dateRangePicker = (config = {}) => ({
         this.resetDraft();
         if (config.resetOnOpen) this.$watch('open', (open) => { if (open) this.resetDraft(); });
         for (const key of ['from', 'until']) {
-            this.$watch(key, () => { if (!this.busy) this.resetDraft(); });
+            this.$watch(key, () => {
+                if (this.inline && this.from === this.draftFrom && this.until === this.draftUntil) return;
+                if (!this.busy) this.resetDraft();
+            });
         }
     },
 
@@ -87,7 +91,7 @@ export const dateRangePicker = (config = {}) => ({
 
     showRange() {
         const left = monthStart(this.draftFrom || this.today);
-        if (this.isSingle) {
+        if (this.isSingle || this.inline) {
             this.months = [left];
             this.focused = [this.draftFrom || left];
             return;
@@ -159,6 +163,7 @@ export const dateRangePicker = (config = {}) => ({
         }
         this.hover = null;
         this.syncText();
+        this.commitInline();
     },
 
     updateTyped(side, value) {
@@ -176,15 +181,18 @@ export const dateRangePicker = (config = {}) => ({
                 this.focused = [parsed];
                 this.untilText = this.format(this.draftUntil);
             } else this.untilText = '';
+            this.commitInline();
             return;
         }
         this[side === 0 ? 'fromText' : 'untilText'] = value;
         this[side === 0 ? 'draftFrom' : 'draftUntil'] = parsed || '';
         this.selectingEnd = false;
         if (parsed) {
-            this.months[side] = monthStart(parsed);
-            this.focused[side] = parsed;
+            const visibleSide = this.inline ? 0 : side;
+            this.months[visibleSide] = monthStart(parsed);
+            this.focused[visibleSide] = parsed;
         }
+        this.commitInline();
     },
 
     shiftMonth(side, delta) {
@@ -240,6 +248,7 @@ export const dateRangePicker = (config = {}) => ({
         this.hover = null;
         this.touched = true;
         this.failure = '';
+        this.commitInline();
     },
 
     clear() {
@@ -248,6 +257,15 @@ export const dateRangePicker = (config = {}) => ({
         this.hover = null;
         this.failure = '';
         this.touched = false;
+        this.commitInline();
+    },
+
+    // Inline form fields commit each edit, including incomplete/invalid dates.
+    // Otherwise a new half-selected range could submit the old, complete range.
+    commitInline() {
+        if (!this.inline) return;
+        this.from = this.draftFrom;
+        this.until = this.draftUntil;
     },
 
     get validationMessage() {
@@ -272,6 +290,7 @@ export const dateRangePicker = (config = {}) => ({
         if (this.validationMessage) return this.validationMessage;
         if (this.isSingle) return this.format(this.draftFrom);
         const days = (parse(this.draftUntil) - parse(this.draftFrom)) / DAY + 1;
+        if (this.inline) return this.text(`${days} ${days === 1 ? 'Kalendertag' : 'Kalendertage'} ausgewählt`, `${days} calendar ${days === 1 ? 'day' : 'days'} selected`);
         return this.text(`${days} ${days === 1 ? 'Tag' : 'Tage'} ausgewählt`, `${days} ${days === 1 ? 'day' : 'days'} selected`);
     },
 

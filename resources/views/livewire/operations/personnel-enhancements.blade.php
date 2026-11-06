@@ -37,11 +37,37 @@
             @if($tab === 'recruiting' && !$personal)<x-ui.buttons.button-basic type="button" mode="primary" wire:click="open('applicant')">Bewerbung erfassen</x-ui.buttons.button-basic>@endif
             @if($tab === 'development' && $canEdit)<x-ui.buttons.button-basic type="button" mode="primary" wire:click="open('development')">Entwicklungsziel</x-ui.buttons.button-basic>@endif
             @if($tab === 'surveys' && $canGlobal)<x-ui.buttons.button-basic type="button" mode="primary" wire:click="open('survey')">Umfrage</x-ui.buttons.button-basic>@endif
+            @if($tab === 'sickness' && $personal)<x-ui.buttons.button-basic type="button" mode="primary" wire:click="open('sickness_report')" wire:loading.attr="disabled">Krankmeldung erfassen</x-ui.buttons.button-basic>@endif
             @if($tab === 'sickness' && $canEdit)<x-ui.buttons.button-basic type="button" mode="primary" wire:click="open('sickness')">Nachweisprüfung</x-ui.buttons.button-basic>@endif
         </div>
-        <x-tables.table :columns="[['label'=>'Eintrag','key'=>'label'],['label'=>'Frist / Stand','key'=>'detail'],['label'=>'Status','key'=>'status'],['label'=>'Aktionen','key'=>'actions']]" :items="$records" row-view="components.tables.rows.operations.personnel-enhancement" empty="Keine Einträge." />
+        @if($personal && $tab === 'sickness')
+            <section class="ops-panel ops-stack" aria-label="Meine Krankmeldungen">
+                <header class="ops-toolbar"><h3>Meine Krankmeldungen</h3><span class="ops-muted">Letzte 30 Meldungen</span></header>
+                @forelse($ownSicknesses as $sickness)
+                    <div class="ops-toolbar" wire:key="own-sickness-{{ $sickness->id }}">
+                        <div><strong>{{ $sickness->starts_at->setTimezone($sickness->timezone)->format('d.m.Y · H:i') }} – {{ $sickness->ends_at->setTimezone($sickness->timezone)->format('d.m.Y · H:i') }}</strong><p class="ops-muted">{{ $sickness->timezone }} · Gemeldeter Zeitraum</p></div>
+                        <x-operations.status :value="$sickness->status" />
+                    </div>
+                @empty
+                    <p class="ops-muted">Noch keine Krankmeldung erfasst.</p>
+                @endforelse
+            </section>
+            <h3>Nachweise & Rückmeldungen</h3>
+        @endif
+        <x-tables.table :columns="[['label'=>'Eintrag','key'=>'label'],['label'=>'Frist / Stand','key'=>'detail'],['label'=>'Status','key'=>'status'],['label'=>'Aktionen','key'=>'actions']]" :items="$records" row-view="components.tables.rows.operations.personnel-enhancement" :empty="$personal && $tab === 'sickness' ? 'Keine Nachweisprüfungen oder Rückfragen vorhanden.' : 'Keine Einträge.'" />
     @endif
-    <x-operations.modal wire:model="formOpen" title="Personal" max-width="4xl">
+    @php($formTitle = match($formKind) {
+        'sickness_report' => 'Krankmelden', 'sickness' => 'Nachweisprüfung anlegen', 'sickness_update' => 'Nachweisstatus aktualisieren',
+        'emergency_edit' => 'Notfallkontakt pflegen', 'emergency_read' => 'Notfallkontakt öffnen',
+        'signature_result' => 'Unterzeichnetes Dokument einreichen', 'signature_request' => 'Unterzeichnung anfragen',
+        'feedback' => 'Rückmeldung zum Entwicklungsziel', 'survey_response' => 'An Umfrage teilnehmen',
+        'workflow_template' => 'Prozessvorlage anlegen', 'workflow_run' => 'Prozess starten', 'report' => 'Bericht speichern', 'report_result' => 'Bericht ansehen',
+        'document_template' => 'Dokumentvorlage anlegen', 'approval_policy' => 'Freigabekette anlegen', 'approval_retire' => 'Freigabekette beenden', 'absence_review' => 'Abwesenheit prüfen',
+        'calendar' => 'Kalenderstand anlegen', 'calendar_apply' => 'Kalenderstand anwenden', 'applicant' => 'Bewerbung erfassen', 'applicant_stage' => 'Bewerbungsstand aktualisieren', 'applicant_convert' => 'Bewerbung übernehmen',
+        'development' => 'Entwicklungsziel anlegen', 'survey' => 'Umfrage anlegen', 'survey_result' => 'Umfrageergebnis', default => 'Personal'
+    })
+    @php($personnelFormId = 'personnel-form-'.$this->getId())
+    <x-operations.modal wire:model="formOpen" :title="$formTitle" max-width="4xl">
         @if($formOpen)
         @if($formKind === 'report_result')
             <p class="text-sm text-rt-muted">{{ $display['from'] ?? '' }} – {{ $display['until'] ?? '' }}</p>
@@ -50,16 +76,24 @@
         @elseif($formKind === 'survey_result')
             <div class="ops-form"><div><p class="ops-muted">Antworten</p><p class="text-xl font-semibold tabular-nums">{{ $display['count'] ?? 0 }}</p></div><div><p class="ops-muted">Mittelwert</p><p class="text-xl font-semibold tabular-nums">{{ $display['average'] ?? '—' }} / 5</p></div></div>
         @else
-            <form wire:submit="save" class="ops-form">
+            <form id="{{ $personnelFormId }}" wire:submit="save" class="ops-form rt-personal-form rt-employee-form" data-employee-form>
+                @if($formKind === 'sickness_report')@include('livewire.operations.partials.employee-sickness-form')@endif
                 @if(in_array($formKind,['workflow_template','report','document_template','signature_request','approval_policy','calendar','development','survey']))<x-operations.field label="Bezeichnung" model="form.title" required :wide="true"/>@endif
                 @include('livewire.operations.partials.personnel-workflow-form')
                 @include('livewire.operations.partials.personnel-document-form')
                 @include('livewire.operations.partials.personnel-approval-form')
                 @include('livewire.operations.partials.personnel-development-form')
                 @include('livewire.operations.partials.personnel-survey-form')
-                <div class="ops-full ops-actions">@if($formKind !== 'emergency_read' || $display === [])<x-ui.buttons.button-basic type="submit" mode="primary" wire:loading.attr="disabled">{{ $formKind === 'emergency_read' ? 'Notfallzugriff protokollieren' : 'Speichern' }}</x-ui.buttons.button-basic>@endif<x-ui.buttons.button-basic type="button" wire:click="$set('formOpen',false)">Schließen</x-ui.buttons.button-basic></div>
             </form>
         @endif
         @endif
+        <x-slot:footer>
+            <div class="rt-employee-form__actions">
+                <x-ui.buttons.button-basic type="button" wire:click="$set('formOpen',false)">{{ in_array($formKind, ['report_result', 'survey_result', 'emergency_read']) ? 'Schließen' : 'Abbrechen' }}</x-ui.buttons.button-basic>
+                @if($formOpen && !in_array($formKind, ['report_result', 'survey_result']) && ($formKind !== 'emergency_read' || $display === []))
+                    <x-ui.buttons.button-basic type="submit" :form="$personnelFormId" mode="primary" wire:loading.attr="disabled" wire:target="save,upload">{{ match($formKind) {'sickness_report' => 'Krankmeldung senden', 'emergency_read' => 'Notfallzugriff protokollieren', 'signature_result' => 'Dokument einreichen', default => 'Speichern'} }}</x-ui.buttons.button-basic>
+                @endif
+            </div>
+        </x-slot:footer>
     </x-operations.modal>
 </div>

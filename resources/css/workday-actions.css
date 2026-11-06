@@ -29,6 +29,7 @@
 .rt-workday-actions__duty-controls:empty { display: none; }
 .rt-workday-actions__duty-controls .ops-badge { white-space: normal; }
 .rt-workday-actions__clock { min-width: 0; }
+.rt-workday-actions .rt-personal-clock-block { gap: 0; }
 .rt-workday-actions__duty + .rt-workday-actions__clock { padding-inline-start: 20px; border-inline-start: 1px solid var(--personal-line); }
 
 .rt-personal-work .rt-workday-actions .rt-personal-clock-block > section {
@@ -75,7 +76,8 @@
 }
 
 @media (max-width: 479px) {
-    .rt-workday-actions { padding: 10px 12px; gap: 10px; }
+    .rt-workday-actions { padding: 8px 12px; gap: 8px; }
+    .rt-workday-actions__duty + .rt-workday-actions__clock { padding: 0; border: 0; }
     .rt-workday-actions__summary p { font-size: 11px; }
     .rt-workday-actions__summary strong { font-size: 13px; }
     .rt-workday-actions .rt-ui-button { padding-inline: 10px; }

@@ -39,13 +39,25 @@
             </div>
         </div>
     </template>
+    @php($startFormId = 'employee-clock-start-'.(isset($__livewire) ? $__livewire->getId() : 'preview'))
     <x-operations.modal wire:model="generalStartOpen" show-expression="startDialogOpen" :show-offline="false" title="Arbeit starten">
-        <form class="ops-form rt-personal-form" x-on:submit.prevent="await startGeneral(); if(!error) startDialogOpen = false">
-            <div><x-ui.forms.label value="Arbeitskontext" /><x-ui.forms.select x-model="context" aria-label="Arbeitskontext"><option value="internal">Interne Arbeit</option><option value="training">Schulung</option><option value="unplanned">Ungeplante Arbeit</option></x-ui.forms.select></div>
-            <div><x-ui.forms.label value="Tätigkeit" /><x-ui.forms.input x-model="title" maxlength="180" aria-label="Tätigkeit" /></div>
-            <div x-show="context === 'training'"><x-ui.forms.label value="Schulung" /><x-ui.forms.select x-model="trainingId" aria-label="Schulung"><option value="">Auswählen</option>@foreach($clockTrainings as $training)<option value="{{ $training->id }}">{{ $training->title }} · {{ $training->starts_at->format('d.m. H:i') }}</option>@endforeach</x-ui.forms.select></div>
-            <div class="ops-full"><x-ui.buttons.button-basic type="submit" mode="primary" x-bind:disabled="busy || !ready || conflicts > 0">Starten</x-ui.buttons.button-basic></div>
+        <form id="{{ $startFormId }}" class="ops-form rt-personal-form rt-employee-form" data-employee-form x-on:submit.prevent="await startGeneral(); if(!error) startDialogOpen = false">
+            <p class="ops-errors ops-full" role="alert" x-show="error" x-text="error" x-cloak></p>
+            <fieldset class="rt-employee-form__section ops-full"><legend>Arbeitskontext</legend>
+                <div class="rt-employee-form__choices">
+                    @foreach(['internal' => 'Interne Arbeit', 'training' => 'Schulung', 'unplanned' => 'Ungeplant'] as $contextValue => $contextLabel)
+                        <label><input type="radio" name="{{ $startFormId }}-context" value="{{ $contextValue }}" x-model="context"><span>{{ $contextLabel }}</span></label>
+                    @endforeach
+                </div>
+            </fieldset>
+            <div class="ops-full"><x-ui.forms.label :for="$startFormId.'-title'" value="Tätigkeit" /><x-ui.forms.input :id="$startFormId.'-title'" x-model="title" maxlength="180" aria-label="Tätigkeit" /></div>
+            <div class="ops-full" x-show="context === 'training'" x-cloak><x-ui.forms.label :for="$startFormId.'-training'" value="Schulung" /><x-ui.forms.select :id="$startFormId.'-training'" x-model="trainingId" aria-label="Schulung"><option value="">Schulung auswählen</option>@foreach($clockTrainings as $training)<option value="{{ $training->id }}">{{ $training->title }} · {{ $training->starts_at->format('d.m. H:i') }}</option>@endforeach</x-ui.forms.select></div>
+            <p class="rt-employee-form__hint ops-full">Die Erfassung beginnt beim Starten. Einen geplanten Dienst startest du direkt in deinem Dienstplan.</p>
         </form>
+        <x-slot:footer><div class="rt-employee-form__actions">
+            <x-ui.buttons.button-basic type="button" x-on:click="startDialogOpen = false" x-bind:disabled="busy">Abbrechen</x-ui.buttons.button-basic>
+            <x-ui.buttons.button-basic type="submit" form="{{ $startFormId }}" mode="primary" x-bind:disabled="busy || !ready || conflicts > 0">Arbeit starten</x-ui.buttons.button-basic>
+        </div></x-slot:footer>
     </x-operations.modal>
     <x-ui.buttons.button-basic x-show.important="pending && !offline" x-bind:disabled="syncing || !ready" x-on:click="sync()">Synchronisieren</x-ui.buttons.button-basic>
 </section>

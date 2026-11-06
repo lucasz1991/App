@@ -55,9 +55,8 @@
                 <x-ui.accordion.tabs :tabs="$requestTabs" :default="$scopedId.'-assignment'" :persist="false" :reset-on-open="true" :persist-key="$stateKey.'-tabs'" :aria-label="$context === 'shift' ? 'Dienst ansehen' : 'Anfrage prüfen'" content-class="rt-request-dialog__panels" class="rt-request-dialog__tabs" data-anim="none">
                     <x-ui.accordion.tab-panel :for="$scopedId.'-assignment'" :order="0" content-class="rt-request-dialog__panel">
                         <div class="rt-request-dialog__schedule">
-                            <p class="rt-request-dialog__eyebrow">{{ $context === 'shift' ? 'Dein Dienst' : ($isCapacity ? 'Angefragte Verfügbarkeit' : 'Angefragter Dienst') }}</p>
                             <p class="rt-request-dialog__period"><span>{{ $start->locale('de')->isoFormat('dddd, D. MMM YYYY') }}</span><strong>{{ $start->format('H:i') }} <span aria-hidden="true">–</span><span class="sr-only">bis</span> {{ $end->format($start->isSameDay($end) ? 'H:i' : 'd.m. H:i') }}</strong></p>
-                            <p class="rt-request-dialog__duration">{{ $durationLabel }} Zeitraum <span aria-hidden="true">·</span> {{ $row['break_minutes'] }} Min. geplante Pause</p>
+                            <p class="rt-request-dialog__duration">{{ $durationLabel }} Zeitraum <span aria-hidden="true">·</span> {{ $row['break_minutes'] > 0 ? $row['break_minutes'].' Min. geplante Pause' : 'Keine geplante Pause' }}</p>
                         </div>
                         <dl class="rt-request-dialog__facts rt-request-dialog__facts--assignment">
                             <div><dt><i class="fal fa-user-hard-hat" aria-hidden="true"></i>Deine Funktion</dt><dd>{{ $row['role'] ?: 'Noch nicht hinterlegt' }}</dd></div>
@@ -67,6 +66,7 @@
                             <div class="rt-request-dialog__mini-calendar"><x-operations.timeline-mini-calendar :start="$start" :end="$end" /></div>
                             <x-operations.personal-request-map :preview="$row['location_preview'] ?? null" :location="$row['location'] ?? null" :id="$scopedId.'-map'" />
                         </div>
+                        @if(filled($row['location'] ?? null))<p class="rt-request-dialog__place"><i class="far fa-location-dot" aria-hidden="true"></i><span>{{ $row['location'] }}</span></p>@endif
                     </x-ui.accordion.tab-panel>
                     <x-ui.accordion.tab-panel :for="$scopedId.'-details'" :order="1" content-class="rt-request-dialog__panel">
                         <section class="rt-request-dialog__section" aria-label="Einsatzdetails">

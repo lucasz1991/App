@@ -1,4 +1,4 @@
-@props(['overview', 'timezone' => 'Europe/Berlin', 'sicknessUrl' => null, 'preview' => false])
+@props(['overview', 'timezone' => 'Europe/Berlin', 'sicknessUrl' => null, 'vacationUrl' => null, 'requestCount' => 0, 'preview' => false])
 @php
     $selected = $overview['selected_date'];
     $duties = $overview['assignments'];
@@ -7,22 +7,31 @@
 <section class="rt-workday-plan" aria-label="Dein Dienstplan" x-data="rtWorkdayOverview({ preview: @js($preview) })" data-selected-date="{{ $selected->toDateString() }}" data-no-sidebar-swipe>
     <header class="rt-workday-plan__header">
         <h2>Dein Dienstplan</h2>
-        <div class="rt-workday-plan__tools">
-            @if($sicknessUrl)
-                @if($preview)<span class="rt-workday-plan__sickness">Krankmeldung</span>
-                @else<a class="rt-workday-plan__sickness" href="{{ $sicknessUrl }}" wire:navigate>Krankmeldung <i class="fal fa-chevron-right" aria-hidden="true"></i></a>@endif
-            @endif
-            <button type="button" class="rt-workday-plan__icon" aria-label="Vollständigen Kalender öffnen" @if($preview) disabled @else wire:click="showTab('schedule')" @endif><i class="fal fa-calendar-alt" aria-hidden="true"></i></button>
-        </div>
-    </header>
-    <div class="rt-workday-plan__date">
+        <div class="rt-workday-plan__date">
         <button type="button" class="rt-workday-plan__icon" aria-label="Vorherige Woche" @if($preview) x-on:click="previewMove(-7)" @else wire:click="moveOverviewDays(-1)" wire:loading.attr="disabled" wire:target="moveOverviewDays" @endif><i class="fal fa-chevron-left" aria-hidden="true"></i></button>
         <div>
             <h3 @if($preview) x-text="previewLabel || @js($overview['label'])" @endif>{{ $overview['label'] }}</h3>
             <p>{{ $selected->locale('de')->isoFormat('MMMM YYYY') }}<span aria-hidden="true"> · </span><button type="button" @if($preview) x-on:click="previewSelect($el.closest('[data-selected-date]').dataset.selectedDate)" @else x-on:click="queueAlign()" wire:click="resetOverviewDay" @endif>Heute</button></p>
         </div>
         <button type="button" class="rt-workday-plan__icon" aria-label="Nächste Woche" @if($preview) x-on:click="previewMove(7)" @else wire:click="moveOverviewDays(1)" wire:loading.attr="disabled" wire:target="moveOverviewDays" @endif><i class="fal fa-chevron-right" aria-hidden="true"></i></button>
-    </div>
+        </div>
+        <div class="rt-workday-plan__tools">
+            @if($vacationUrl)
+                <a class="rt-workday-plan__shortcut" href="{{ $preview ? '#' : $vacationUrl }}" @if($preview) aria-disabled="true" x-on:click.prevent @else wire:navigate @endif><i class="fal fa-calendar-plus" aria-hidden="true"></i>Urlaub beantragen</a>
+            @endif
+            @if($sicknessUrl)
+                <a class="rt-workday-plan__shortcut" href="{{ $preview ? '#' : $sicknessUrl }}" @if($preview) aria-disabled="true" x-on:click.prevent @else wire:navigate @endif><i class="fal fa-notes-medical" aria-hidden="true"></i>Krankmelden</a>
+            @endif
+            <details class="rt-workday-plan__menu" x-on:keydown.escape.prevent.stop="$el.open = false; $el.querySelector('summary').focus()" x-on:click.outside="$el.open = false">
+                <summary class="rt-workday-plan__icon" aria-label="Kalender und Abwesenheit öffnen"><i class="fal fa-calendar-alt" aria-hidden="true"></i></summary>
+                <div class="rt-workday-plan__menu-items">
+                    <button type="button" @if($preview) disabled @else wire:click="showTab('schedule')" @endif>Kalender öffnen</button>
+                    @if($vacationUrl)<a href="{{ $preview ? '#' : $vacationUrl }}" @if($preview) aria-disabled="true" x-on:click.prevent @else wire:navigate @endif>Urlaub beantragen</a>@endif
+                    @if($sicknessUrl)<a href="{{ $preview ? '#' : $sicknessUrl }}" @if($preview) aria-disabled="true" x-on:click.prevent @else wire:navigate @endif>Krankmelden</a>@endif
+                </div>
+            </details>
+        </div>
+    </header>
     <div class="rt-workday-plan__days" x-ref="days" data-workday-days role="group" aria-label="Tag auswählen" x-on:keydown="dayKeydown($event)">
         @foreach($overview['days'] as $day)
             <button type="button" class="rt-workday-plan__day" wire:key="overview-day-{{ $day['key'] }}" data-date="{{ $day['key'] }}" data-selected="{{ $day['is_selected'] ? 'true' : 'false' }}" @if($day['is_today']) data-today @endif aria-pressed="{{ $day['is_selected'] ? 'true' : 'false' }}" aria-label="{{ $day['date']->locale('de')->isoFormat('dddd, D. MMMM') }}{{ $day['is_today'] ? ', heute' : '' }}, {{ $day['duties'] }} {{ $day['duties'] === 1 ? 'Dienst' : 'Dienste' }}{{ $day['open'] ? ', Antwort offen' : '' }}" tabindex="{{ $day['is_selected'] ? '0' : '-1' }}" @if($preview) x-on:click="previewSelect(@js($day['key']))" @else wire:click="selectOverviewDay('{{ $day['key'] }}')" @endif>
@@ -57,7 +66,7 @@
                         <li wire:key="overview-shift-{{ $assignment->id }}">
                             <button type="button" class="rt-workday-plan__service" @if($next) data-next @endif aria-label="{{ $start->isoFormat('dddd, D. MMMM') }}, {{ $time }}, {{ $shift->title }}, {{ $place }}{{ $next ? ', nächster Dienst' : '' }}{{ $assignment->status->value === 'requested' ? ', Antwort offen' : '' }}" title="{{ $shift->title }} · {{ $place }}" @if($preview) aria-disabled="true" @else wire:click="openCalendarEvent('{{ $rowKey }}')" @endif x-on:mouseenter="mapHover(@js($rowKey), @js($keys))" x-on:mouseleave="mapUnhover(@js($rowKey))" x-on:focus="mapFocus(@js($rowKey), @js($keys))" x-on:blur="mapBlur(@js($rowKey))">
                                 <span class="rt-workday-plan__service-date"><span>{{ $start->isToday() ? 'Heute' : $start->isoFormat('dd, D. MMM') }}</span><strong>{{ $time }}</strong></span>
-                                <span class="rt-workday-plan__service-main"><strong>{{ $place }}</strong><span>{{ $shift->title }}</span><small>{{ $shift->role_name }}@if($shift->role_name && $shift->order?->customer?->company_name) · @endif{{ $shift->order?->customer?->company_name }}</small></span>
+                                <span class="rt-workday-plan__service-main"><strong>{{ $shift->title }}</strong><span>{{ $place }}</span><small>{{ $shift->role_name }}@if($shift->role_name && $shift->order?->customer?->company_name) · @endif{{ $shift->order?->customer?->company_name }}</small></span>
                                 <span class="rt-workday-plan__service-state">@if($next)<em>Nächster</em>@endif @if($assignment->plan_is_stale)<small>Plan geändert</small>@elseif($assignment->status->value === 'requested')<small>Antwort offen</small>@endif</span>
                                 <i class="fal fa-chevron-right rt-workday-plan__chevron" aria-hidden="true"></i>
                             </button>
@@ -68,4 +77,9 @@
             @endif
         </div>
     </div>
+    @if($requestCount > 0)
+        <button type="button" class="rt-workday-plan__requests" @if($preview) disabled @else wire:click="showTab('requests')" wire:loading.attr="disabled" wire:target="showTab" @endif>
+            <i class="fal fa-inbox" aria-hidden="true"></i><strong>{{ $requestCount }} {{ $requestCount === 1 ? 'offene Anfrage' : 'offene Anfragen' }}</strong><span>Prüfen</span><i class="fal fa-chevron-right" aria-hidden="true"></i>
+        </button>
+    @endif
 </section>

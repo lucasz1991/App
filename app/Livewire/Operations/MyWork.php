@@ -39,6 +39,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -77,6 +78,20 @@ class MyWork extends Component
     public bool $qualificationOpen = false;
 
     public bool $absenceOpen = false;
+
+    public bool $absenceWholeDays = true;
+
+    public string $absenceFirstDay = '';
+
+    public string $absenceLastDay = '';
+
+    public string $requestFilter = 'all';
+
+    public string $timeFilter = 'all';
+
+    private ?Collection $capacityInboxRecords = null;
+
+    private ?Collection $firstRequestRevisions = null;
 
     public bool $generalManualOpen = false;
 
@@ -129,14 +144,27 @@ class MyWork extends Component
         $this->resetValidation();
     }
 
+    public function openTrainingManual(int $id): void
+    {
+        $this->access();
+        WorkTimeSchema::requireReady();
+        $training = PersonnelTraining::where('status', 'scheduled')
+            ->whereHas('participants', fn ($query) => $query->where('user_id', auth()->id())->whereIn('status', ['confirmed', 'attended']))->find($id);
+        abort_unless($training, 404);
+        $this->openGeneralManual();
+        $this->reset('generalManual');
+        $this->generalManual = array_replace($this->generalManual, ['work_context' => 'training', 'training_session_id' => $training->id, 'title' => $training->title, 'timezone' => $training->timezone]);
+    }
+
     public function saveGeneralManual(WorkTimeService $service): void
     {
         $this->access();
+        $this->resetValidation();
         $data = $this->generalManual;
-        if (empty($data['training_session_id'])) {
+        if (($data['work_context'] ?? '') !== 'training' || empty($data['training_session_id'])) {
             unset($data['training_session_id']);
         }
-        $service->manualContext($data, $this->eventKey, auth()->user());
+        $this->withFormErrors('generalManual', fn () => $service->manualContext($data, $this->eventKey, auth()->user()));
         $this->eventKey = (string) Str::uuid();
         $this->reset(['generalManual', 'generalManualOpen']);
         session()->flash('operations.saved', 'Arbeitszeit gespeichert.');
@@ -170,6 +198,22 @@ class MyWork extends Component
     public function updatedTimeUntil(): void
     {
         $this->resetPage('timesPage');
+    }
+
+    public function showTimeFilter(string $filter): void
+    {
+        $this->access();
+        abort_unless(in_array($filter, ['all', 'open', 'submitted'], true), 404);
+        $this->timeFilter = $filter;
+        $this->resetPage('timesPage');
+    }
+
+    public function showRequestFilter(string $filter): void
+    {
+        $this->access();
+        abort_unless(in_array($filter, ['all', 'open', 'answered'], true), 404);
+        $this->requestFilter = $filter;
+        $this->resetPage('requestHistoryPage');
     }
 
     public function exportOwnTimes(OperationsReportService $service)
@@ -222,13 +266,33 @@ class MyWork extends Component
     public function saveManual(WorkTimeService $service): void
     {
         $this->access();
+        $this->resetValidation();
         $this->validate(['manualAssignmentId' => 'required|integer']);
         $assignment = ShiftAssignment::where('user_id', auth()->id())->findOrFail($this->manualAssignmentId);
-        $service->manual($assignment->id, $assignment->plan_revision, $this->manualTime, $this->eventKey, auth()->user());
+        $this->withFormErrors('manualTime', fn () => $service->manual($assignment->id, $assignment->plan_revision, $this->manualTime, $this->eventKey, auth()->user()));
         $this->eventKey = (string) Str::uuid();
         $this->reset(['manualTime', 'manualAssignmentId']);
         $this->manualOpen = false;
         session()->flash('operations.saved', 'Zeit nachgetragen.');
+    }
+
+    public function openManualAssignment(int $id): void
+    {
+        $this->access();
+        $assignment = $this->manualAssignments()->firstWhere('id', $id);
+        abort_unless($assignment, 404);
+        $this->openForm('manual');
+        $this->manualAssignmentId = $assignment->id;
+        $this->reset('manualTime');
+    }
+
+    private function manualAssignments(): Collection
+    {
+        return ShiftAssignment::where('user_id', auth()->id())->where('status', 'confirmed')->whereDoesntHave('timeEntry')
+            ->whereHas('shift', fn ($q) => $q->where('published_revision', '>', 0)->whereColumn('published_revision', 'revision')
+                ->whereColumn('shift_assignments.plan_revision', 'shifts.published_revision')->where('starts_at', '<=', now()->utc())
+                ->where('ends_at', '>=', now()->subDays(90)->utc())->where('status', '!=', 'cancelled'))
+            ->with('shift')->orderByDesc('id')->limit(50)->get();
     }
 
     public function mount(string $focus = '', string $initialTab = '', array $initialRequest = []): void
@@ -237,6 +301,8 @@ class MyWork extends Component
         $this->eventKey = (string) Str::uuid();
         $this->today();
         $this->overviewDate = CarbonImmutable::now($this->displayTimezone())->toDateString();
+        $this->timeFrom = CarbonImmutable::now($this->displayTimezone())->startOfMonth()->toDateString();
+        $this->timeUntil = CarbonImmutable::now($this->displayTimezone())->toDateString();
         $this->focus = in_array($focus, ['absences', 'records'], true) ? $focus : '';
         $queryTab = request()->query('tab', '');
         $initialTab = $initialTab ?: (is_string($queryTab) ? $queryTab : '');
@@ -266,7 +332,7 @@ class MyWork extends Component
         $this->tab = $tab;
         $this->closeCalendarEvent();
         $this->closeConsentRequest();
-        $this->reset(['manualOpen', 'correctionOpen', 'qualificationOpen', 'absenceOpen', 'tasksOpen']);
+        $this->reset(['manualOpen', 'correctionOpen', 'qualificationOpen', 'absenceOpen', 'tasksOpen', 'generalManualOpen', 'generalStartOpen']);
         $this->resetValidation();
     }
 
@@ -390,7 +456,15 @@ class MyWork extends Component
             $owned = ShiftAssignment::where('user_id', $actor->id)->find($id);
             abort_unless($owned, 404);
             if ($owned->status->value !== 'requested') {
-                return array_replace($unavailable, ['notice' => 'Diese Anfrage wurde bereits beantwortet oder zurückgenommen.']);
+                $answered = app(PersonalSchedule::class)->answeredRequests($actor, CarbonImmutable::now($this->displayTimezone())->subDays(90))->firstWhere('id', $id);
+                if (! $answered) {
+                    return array_replace($unavailable, ['notice' => 'Diese Anfrage wurde bereits beantwortet oder zurückgenommen.']);
+                }
+                $row = $this->shiftRequestRow($answered, $this->firstPublishedRevisions(collect([$answered])));
+                $snapshot = $answered->shift->getAttribute('location_snapshot');
+                $row['location_preview'] = $this->requestLocationPreview($row, $snapshot);
+
+                return ['can_respond' => false, 'notice' => 'Deine Rückmeldung: '.($owned->status->value === 'confirmed' ? 'Dienst bestätigt.' : 'Dienst abgelehnt.'), 'row' => $row, 'changes' => []];
             }
             try {
                 $assignment = app(PersonalSchedule::class)->assignment($actor, $id);
@@ -426,7 +500,8 @@ class MyWork extends Component
             default => '',
         };
 
-        $row = $record->status === 'requested' ? $this->capacityRequestRows(collect([$record]))->first() : null;
+        $row = in_array($record->status, ['requested', 'consented', 'declined', 'approved'], true)
+            ? $this->capacityRequestRows(collect([$record]))->first() : null;
         if ($row) {
             $row['location_preview'] = $this->requestLocationPreview($row);
         }
@@ -456,8 +531,14 @@ class MyWork extends Component
 
     private function firstPublishedRevisions(Collection $assignments): Collection
     {
-        return $assignments->isEmpty() ? collect() : OperationAudit::where('subject_type', 'Shift')->where('action', 'shift.published')
-            ->whereIn('subject_id', $assignments->pluck('shift_id'))->selectRaw('subject_id, MIN(revision) AS first_revision')->groupBy('subject_id')->pluck('first_revision', 'subject_id');
+        if ($assignments->isEmpty()) {
+            return collect();
+        }
+
+        // Open requests and answered history share one owner-scoped revision read.
+        return $this->firstRequestRevisions ??= OperationAudit::where('subject_type', 'Shift')->where('action', 'shift.published')
+            ->whereIn('subject_id', ShiftAssignment::where('user_id', auth()->id())->select('shift_id'))
+            ->selectRaw('subject_id, MIN(revision) AS first_revision')->groupBy('subject_id')->pluck('first_revision', 'subject_id');
     }
 
     private function shiftRequestRow(ShiftAssignment $assignment, Collection $firstRevisions): array
@@ -496,18 +577,61 @@ class MyWork extends Component
 
     private function pendingRequests(Collection $assignments): LengthAwarePaginator
     {
+        $requests = $this->pendingRequestItems($assignments);
+        $page = min(max(1, $this->getPage('requestsPage')), max(1, (int) ceil($requests->count() / 6)));
+
+        return new LengthAwarePaginator($requests->forPage($page, 6)->values(), $requests->count(), 6, $page, ['pageName' => 'requestsPage']);
+    }
+
+    private function pendingRequestItems(Collection $assignments): Collection
+    {
         $actor = $this->requestActor();
         $pending = $assignments->filter(fn ($assignment) => $assignment->status->value === 'requested' && ! $assignment->plan_is_stale && $assignment->shift->ends_at->isFuture());
         $firstRevisions = $this->firstPublishedRevisions($pending);
         $requests = $pending->map(fn ($assignment) => $this->shiftRequestRow($assignment, $firstRevisions));
         if (CustomerPortalIntakeSchema::ready()) {
-            $capacity = CustomerCapacityCommitment::where('user_id', $actor->id)->where('status', 'requested')->where('starts_at', '>', now()->utc())->get();
+            $capacity = $this->capacityInboxRecords()->filter(fn ($record) => $record->status === 'requested' && $record->starts_at->isFuture());
             $requests = $requests->concat($this->capacityRequestRows($capacity));
         }
-        $requests = $requests->sortBy(fn ($row) => sprintf('%020d-%s-%020d', $row['starts_at']->getTimestamp(), $row['type'], $row['id']))->values();
-        $page = min(max(1, $this->getPage('requestsPage')), max(1, (int) ceil($requests->count() / 6)));
 
-        return new LengthAwarePaginator($requests->forPage($page, 6)->values(), $requests->count(), 6, $page, ['pageName' => 'requestsPage']);
+        return $requests->sortBy(fn ($row) => sprintf('%020d-%s-%020d', $row['starts_at']->getTimestamp(), $row['type'], $row['id']))
+            ->map(fn ($row) => $row + ['can_respond' => true])->values();
+    }
+
+    private function requestHistory(Collection $assignments): array
+    {
+        abort_unless(in_array($this->requestFilter, ['all', 'open', 'answered'], true), 404);
+        $actor = $this->requestActor();
+        $from = CarbonImmutable::now($this->displayTimezone())->subDays(90);
+        $open = $this->pendingRequestItems($assignments);
+        $answeredAssignments = app(PersonalSchedule::class)->answeredRequests($actor, $from);
+        $firstRevisions = $this->firstPublishedRevisions($answeredAssignments);
+        $answered = $answeredAssignments->map(fn ($assignment) => $this->shiftRequestRow($assignment, $firstRevisions));
+        if (CustomerPortalIntakeSchema::ready()) {
+            $answered = $answered->concat($this->capacityRequestRows($this->capacityInboxRecords()
+                ->filter(fn ($record) => in_array($record->status, ['consented', 'declined', 'approved'], true) && $record->ends_at->gt($from))));
+        }
+        $answered = $answered->map(fn ($row) => $row + ['can_respond' => false]);
+        $items = match ($this->requestFilter) {
+            'open' => $open,
+            'answered' => $answered,
+            default => $open->concat($answered),
+        };
+        $items = $items->sortBy(fn ($row) => sprintf('%d-%020d-%s-%020d', $row['can_respond'] ? 0 : 1, $row['starts_at']->getTimestamp(), $row['type'], $row['id']))->values();
+        $page = min(max(1, $this->getPage('requestHistoryPage')), max(1, (int) ceil($items->count() / 8)));
+
+        return [
+            'rows' => new LengthAwarePaginator($items->forPage($page, 8)->values(), $items->count(), 8, $page, ['pageName' => 'requestHistoryPage']),
+            'counts' => ['all' => $open->count() + $answered->count(), 'open' => $open->count(), 'answered' => $answered->count()],
+        ];
+    }
+
+    private function capacityInboxRecords(): Collection
+    {
+        return $this->capacityInboxRecords ??= CustomerCapacityCommitment::where('user_id', $this->requestActor()->id)
+            ->when($this->tab === 'requests', fn ($query) => $query->whereIn('status', ['requested', 'consented', 'declined', 'approved'])
+                ->where('ends_at', '>', now()->subDays(90)->utc()),
+                fn ($query) => $query->where('status', 'requested')->where('starts_at', '>', now()->utc()))->get();
     }
 
     public function start(int $id, int $revision, WorkTimeService $service): void
@@ -539,7 +663,8 @@ class MyWork extends Component
     public function correct(WorkTimeService $service): void
     {
         $this->access();
-        $service->correct($this->correctingId, $this->correctingRevision, $this->correction, auth()->user());
+        $this->resetValidation();
+        $this->withFormErrors('correction', fn () => $service->correct($this->correctingId, $this->correctingRevision, $this->correction, auth()->user()));
         $this->correctingId = null;
         $this->correctionOpen = false;
     }
@@ -554,8 +679,26 @@ class MyWork extends Component
     public function requestAbsence(PersonnelWorkflowService $service): void
     {
         $this->access();
-        $service->requestAbsence(auth()->user(), $this->absence);
-        $this->reset('absence');
+        $this->resetValidation();
+        $data = $this->absence;
+        if ($this->absenceWholeDays) {
+            $this->validate([
+                'absenceFirstDay' => 'required|date_format:Y-m-d',
+                'absenceLastDay' => 'required|date_format:Y-m-d|after_or_equal:absenceFirstDay',
+                'absence.timezone' => 'required|timezone',
+            ]);
+            $firstDay = CarbonImmutable::parse($this->absenceFirstDay, $data['timezone'])->startOfDay();
+            $lastDay = CarbonImmutable::parse($this->absenceLastDay, $data['timezone'])->startOfDay();
+            foreach (['absenceFirstDay' => $firstDay, 'absenceLastDay' => $lastDay] as $field => $day) {
+                if ($day->format('Y-m-d') !== $this->{$field}) {
+                    throw ValidationException::withMessages([$field => 'Dieser Tag existiert in der gewählten Zeitzone nicht.']);
+                }
+            }
+            $data['starts_at'] = $firstDay->format('Y-m-d\TH:i');
+            $data['ends_at'] = $lastDay->addDay()->startOfDay()->format('Y-m-d\TH:i');
+        }
+        $this->withFormErrors('absence', fn () => $service->requestAbsence(auth()->user(), $data));
+        $this->reset(['absence', 'absenceWholeDays', 'absenceFirstDay', 'absenceLastDay']);
         $this->absenceOpen = false;
         session()->flash('operations.saved', 'Antrag eingereicht.');
     }
@@ -569,8 +712,9 @@ class MyWork extends Component
     public function upload(PersonnelWorkflowService $service): void
     {
         $this->access();
+        $this->resetValidation();
         $this->validate(['evidence' => 'required|file|mimes:pdf,jpg,jpeg,png|max:'.config('operations.evidence_max_kilobytes')]);
-        $service->submitQualification(auth()->user(), $this->qualification, $this->evidence);
+        $this->withFormErrors('qualification', fn () => $service->submitQualification(auth()->user(), $this->qualification, $this->evidence));
         $this->reset(['evidence', 'qualification']);
         $this->qualificationOpen = false;
         session()->flash('operations.saved', 'Nachweis eingereicht.');
@@ -579,6 +723,26 @@ class MyWork extends Component
     private function displayTimezone(): string
     {
         return (string) config('operations.display_timezone', 'Europe/Berlin');
+    }
+
+    /** Domain validators use bare keys; bind errors to the visible form field. */
+    private function withFormErrors(string $prefix, callable $action): mixed
+    {
+        try {
+            return $action();
+        } catch (ValidationException $exception) {
+            $messages = [];
+            foreach ($exception->errors() as $key => $errors) {
+                $key = ['startsAt' => 'starts_at', 'endsAt' => 'ends_at'][$key] ?? $key;
+                $field = $key === 'file' && $prefix === 'qualification' ? 'evidence'
+                    : (array_key_exists($key, $this->{$prefix}) ? $prefix.'.'.$key : $key);
+                if ($prefix === 'absence' && $this->absenceWholeDays && in_array($key, ['starts_at', 'ends_at'], true)) {
+                    $field = $key === 'starts_at' ? 'absenceFirstDay' : 'absenceLastDay';
+                }
+                $messages[$field] = $errors;
+            }
+            throw ValidationException::withMessages($messages);
+        }
     }
 
     public function selectOverviewDay(string $date): void
@@ -792,13 +956,15 @@ class MyWork extends Component
      * Kurzstatus der ausgelagerten Bereiche, damit auf dem Arbeitstag sichtbar
      * bleibt, was ansteht – ohne deren Listen hier erneut zu führen.
      */
-    private function glance(): array
+    private function glance(?array $completeness = null): array
     {
         $userId = auth()->id();
         $now = now();
         $nextAbsence = AbsenceRequest::where('user_id', $userId)->where('status', 'approved')->where('ends_at', '>', $now->utc())->orderBy('starts_at')->first(['id', 'kind', 'starts_at', 'ends_at']);
 
         return [
+            'time_complete' => $completeness['complete'] ?? null,
+            'time_issue_count' => $completeness ? count($completeness['missing_shift_times']) + count($completeness['missing_training_times'] ?? []) + count($completeness['unfinished_times']) : null,
             'open_times' => WorkTimeSchema::ready() ? WorkTimeEntry::where('user_id', $userId)->whereIn('status', ['completed', 'returned'])->count() : 0,
             'pending_absences' => AbsenceRequest::where('user_id', $userId)->where('status', 'pending')->count(),
             'next_absence' => $nextAbsence?->starts_at->setTimezone($this->displayTimezone()),
@@ -883,10 +1049,18 @@ class MyWork extends Component
     public function render()
     {
         $this->access();
+        $this->capacityInboxRecords = null;
+        $this->firstRequestRevisions = null;
         abort_unless(array_key_exists($this->tab, $this->tabs()), 404);
+        abort_unless(in_array($this->timeFilter, ['all', 'open', 'submitted'], true), 404);
         $timeQuery = WorkTimeEntry::where('user_id', auth()->id());
         if ($this->tab === 'time' && $this->timeFrom && $this->timeUntil) {
             ReportingPeriod::apply($timeQuery, $this->timeFrom, $this->timeUntil);
+        }
+        if ($this->timeFilter === 'open') {
+            $timeQuery->whereIn('status', ['completed', 'returned', 'running', 'paused']);
+        } elseif ($this->timeFilter === 'submitted') {
+            $timeQuery->whereIn('status', ['submitted', 'approved', 'exported']);
         }
         abort_unless(in_array($this->viewMode, ['day', 'week', 'month', 'list'], true), 404);
         $anchor = $this->anchor();
@@ -980,8 +1154,16 @@ class MyWork extends Component
             }
         }
 
+        $timeCompleteness = in_array($this->tab, ['today', 'time'], true) && WorkTimeSchema::ready()
+            ? app(WorkTimeExtensionService::class)->completeness(auth()->user(),
+                $this->tab === 'time' && $this->timeFrom ? $this->timeFrom : now($this->displayTimezone())->startOfMonth()->toDateString(),
+                $this->tab === 'time' && $this->timeUntil ? $this->timeUntil : now($this->displayTimezone())->toDateString(), auth()->user(), $this->displayTimezone()) : null;
+        $requestHistory = $this->tab === 'requests' ? $this->requestHistory($loaded) : null;
+
         return view('livewire.operations.my-work', [
-            'timeCompleteness' => $this->tab === 'time' && WorkTimeSchema::ready() ? app(WorkTimeExtensionService::class)->completeness(auth()->user(), $this->timeFrom ?: now($this->displayTimezone())->startOfMonth()->toDateString(), $this->timeUntil ?: now($this->displayTimezone())->toDateString(), auth()->user()) : null,
+            'timeCompleteness' => $timeCompleteness,
+            'requestRows' => $requestHistory['rows'] ?? null,
+            'requestCounts' => $requestHistory['counts'] ?? null,
             'personalTabs' => $this->tabs(),
             'workTimeReady' => WorkTimeSchema::ready(),
             'clockTrainings' => Schema::hasTable('personnel_trainings') && Schema::hasTable('personnel_training_participants') ? PersonnelTraining::where('status', 'scheduled')->whereHas('participants', fn ($q) => $q->where('user_id', auth()->id())->whereIn('status', ['confirmed', 'attended']))->orderBy('starts_at')->limit(100)->get() : collect(),
@@ -1005,14 +1187,14 @@ class MyWork extends Component
             'activeTime' => $activeTime,
             'workdayOverview' => $workdayOverview,
             'taskCount' => $this->tab === 'today' ? $this->taskCount() : null,
-            'glance' => $this->tab === 'today' ? $this->glance() : [],
+            'glance' => $this->tab === 'today' ? $this->glance($timeCompleteness) : [],
             'miniCalendar' => $miniMonth ? $this->miniCalendar($miniMonth, $loaded) : null,
             'dutyMap' => $this->tab === 'today' ? GermanyMap::personal($visible, $this->displayTimezone()) : null,
             'times' => $this->tab === 'time' ? $timeQuery->latest('starts_at')->paginate(20, ['*'], 'timesPage') : collect(),
             'qualifications' => $this->tab === 'records' ? EmployeeQualification::where('user_id', auth()->id())->with('type')->latest()->paginate(20, ['*'], 'qualificationsPage') : collect(),
             'absences' => $this->tab === 'absences' ? AbsenceRequest::where('user_id', auth()->id())->latest()->paginate(20, ['*'], 'absencesPage') : collect(),
             'types' => $this->tab === 'records' ? QualificationType::where('is_active', true)->orderBy('name')->get() : collect(),
-            'manualAssignments' => $this->tab === 'time' ? ShiftAssignment::where('user_id', auth()->id())->where('status', 'confirmed')->whereDoesntHave('timeEntry')->whereHas('shift', fn ($q) => $q->where('published_revision', '>', 0)->whereColumn('published_revision', 'revision')->where('starts_at', '<=', now()->utc())->where('ends_at', '>=', now()->subDays(90)->utc())->where('status', '!=', 'cancelled'))->with('shift')->limit(50)->get() : collect(),
+            'manualAssignments' => $this->tab === 'time' ? $this->manualAssignments() : collect(),
         ]);
     }
 }

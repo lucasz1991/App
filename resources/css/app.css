@@ -50,6 +50,8 @@
 @import './workday-overview.css';
 @import './workday-actions.css';
 @import './personal-calendar.css';
+@import './employee-forms.css';
+@import './personal-time-review.css';
 @import './page-header.css';
 
 @tailwind base;

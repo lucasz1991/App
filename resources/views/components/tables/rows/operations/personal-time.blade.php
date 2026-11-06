@@ -2,9 +2,9 @@
     $entry = $item;
     $submitClockAction = '$dispatch(\'work-clock\', '.\Illuminate\Support\Js::from(['action'=>'submit','entry_capture_id'=>$entry->capture_id,'revision'=>$entry->revision,'timezone'=>$entry->timezone]).')';
 @endphp
-<div class="min-w-0 px-3 py-2 space-y-3">
-    <header class="ops-toolbar"><div><p class="ops-kicker">{{ $entry->starts_at->format('d.m.Y') }} · Revision {{ $entry->revision }} · {{ $entry->contextLabel() }}</p><h3>{{ $entry->plan_snapshot['title'] }}</h3></div><x-operations.status :value="$entry->status" /></header>
-    <div class="ops-toolbar"><p>{{ $entry->starts_at->format('H:i') }} – {{ $entry->ends_at?->format('H:i') ?? 'Läuft' }} · {{ intdiv($entry->pause_seconds,60) }} min Pause</p><strong>{{ \App\Support\Operations\OperationsDateTime::duration($entry->netSeconds()) }}</strong></div>
+<div class="rt-time-entry">
+    <header class="rt-time-entry__main"><div><h3>{{ $entry->plan_snapshot['title'] ?? $entry->contextLabel() }}</h3><p class="rt-time-entry__meta">{{ $entry->starts_at->format('d.m.Y') }} · {{ $entry->contextLabel() }}</p></div><x-operations.status :value="$entry->status" /></header>
+    <div class="rt-time-entry__main"><p class="rt-time-entry__meta">{{ $entry->starts_at->format('H:i') }} – {{ $entry->ends_at?->format($entry->ends_at?->isSameDay($entry->starts_at) ? 'H:i' : 'd.m. H:i') ?? 'Läuft' }} · {{ intdiv($entry->pause_seconds,60) }} min Pause</p><strong class="rt-time-entry__duration">{{ \App\Support\Operations\OperationsDateTime::duration($entry->netSeconds()) }}</strong></div>
     @if($entry->review_note)<p class="ops-errors">{{ $entry->review_note }}</p>@endif
     <div class="ops-actions">
         @if(in_array($entry->status,['completed','returned']))

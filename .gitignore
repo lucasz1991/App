@@ -27,6 +27,8 @@ Homestead.json
 /tests/*
 !/tests/Feature/
 /tests/Feature/*
+!/tests/Feature/EmployeeUiWorkflowTest.php
+!/tests/Feature/PersonalRequestDashboardTest.php
 !/tests/Feature/OperationsPageNavigationTest.php
 !/tests/Feature/AiAssistResponseDataTest.php
 !/tests/Feature/AiAssistResponseRenderingTest.php

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Livewire\Operations\PersonnelEnhancements;
 use App\Models\AbsenceApprovalStep;
+use App\Models\AbsenceRequest;
 use App\Models\EmployeeDocumentRequirement;
 use App\Models\EmployeeDocumentVersion;
 use App\Models\EmployeeEmergencyContact;
@@ -475,6 +476,35 @@ class PersonnelEnhancementsTest extends TestCase
         $this->assertStringContainsString('<x-tables.table', $view);
         $this->assertStringContainsString('<x-operations.modal', $view);
         $this->assertStringContainsString('<x-ui.buttons.multi-toggle', $view);
+    }
+
+    public function test_personal_sickness_entry_uses_existing_workflow_and_shows_only_own_reports(): void
+    {
+        $other = User::factory()->create(['role' => 'staff', 'status' => true]);
+        app(PersonnelWorkflowService::class)->reportSickness($other, ['starts_at' => '2027-05-19T08:00', 'ends_at' => '2027-05-20T18:00', 'timezone' => 'Europe/Berlin']);
+
+        Livewire::actingAs($this->employee)->test(PersonnelEnhancements::class, ['personal' => true, 'tab' => 'sickness', 'embedded' => true])
+            ->assertSee('Krankmeldung erfassen')->assertDontSee('19.05.2027')
+            ->call('open', 'sickness_report')->assertSet('formOpen', true)
+            ->assertSee('Voraussichtliches Ende')->assertSee('Krankmeldung senden')
+            ->call('save')->assertHasErrors(['form.starts_at', 'form.ends_at'])
+            ->set('form.starts_at', '2027-05-10T08:00')->set('form.ends_at', '2027-05-11T18:00')
+            ->call('save')->assertHasNoErrors()->assertSet('formOpen', false)
+            ->assertSee('10.05.2027')->assertDontSee('19.05.2027');
+
+        $this->assertSame('reported', AbsenceRequest::where('user_id', $this->employee->id)->sole()->status);
+        $this->assertSame('sick', AbsenceRequest::where('user_id', $this->employee->id)->sole()->kind);
+    }
+
+    public function test_sickness_report_entry_is_personal_and_cannot_change_subject_or_access_review(): void
+    {
+        Livewire::actingAs($this->author)->test(PersonnelEnhancements::class, ['tab' => 'sickness'])
+            ->call('open', 'sickness_report')->assertForbidden();
+        Livewire::actingAs($this->employee)->test(PersonnelEnhancements::class, ['personal' => true, 'tab' => 'sickness'])
+            ->call('open', 'sickness')->assertForbidden();
+        Livewire::actingAs($this->employee)->test(PersonnelEnhancements::class, ['personal' => true, 'tab' => 'sickness'])
+            ->set('userId', $this->author->id)->assertForbidden();
+        $this->assertSame(0, AbsenceRequest::count());
     }
 
     public function test_duplicate_main_reviewer_and_delegate_consuming_the_only_later_reviewer_are_rejected(): void

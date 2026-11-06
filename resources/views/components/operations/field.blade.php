@@ -1,6 +1,12 @@
 @props(['label', 'model', 'type' => 'text', 'wide' => false, 'searchModel' => null, 'scope' => null])
 @php
     $fieldId = ($scope ? 'intake-'.$scope.'-' : 'ops-').str_replace('.', '-', $model);
+    if ($errors->has($model)) {
+        $attributes = $attributes->merge([
+            'aria-invalid' => 'true',
+            'aria-describedby' => trim($attributes->get('aria-describedby', '').' '.\Illuminate\Support\Str::slug($model).'-error'),
+        ]);
+    }
 @endphp
 <div @class(['min-w-0 space-y-1.5', 'ops-full' => $wide])>
     <x-ui.forms.label :for="$fieldId" :value="$label" />

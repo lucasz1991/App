@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
+use App\Services\Operations\SiteSnapshotService;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use DateTimeImmutable;
@@ -54,6 +55,18 @@ final class PersonalSchedule
         return $this->loadPublishedOrders(collect([$projected]))->first();
     }
 
+    /** Read-only request history, using the same published snapshot and owner checks. */
+    public function answeredRequests(User $user, CarbonImmutable $from): Collection
+    {
+        $this->authorize($user);
+        $items = $this->query($user, ['confirmed', 'declined'])->get()
+            ->map(fn (ShiftAssignment $assignment) => $this->project($assignment))
+            ->filter(fn (?ShiftAssignment $assignment) => $assignment !== null
+                && $assignment->shift->ends_at->utc()->gt($from->utc()))->values();
+
+        return $this->loadPublishedOrders($items);
+    }
+
     /** Pure projection of an already authorized and loaded record; no query or personnel data. */
     public function publishedWindow(ShiftAssignment $assignment): ?array
     {
@@ -77,12 +90,12 @@ final class PersonalSchedule
         OperationsAccess::requireReady();
     }
 
-    private function query(User $user): Builder
+    private function query(User $user, array $statuses = ['requested', 'confirmed']): Builder
     {
         return ShiftAssignment::query()
             ->select(['id', 'shift_id', 'user_id', 'status', 'plan_revision', 'responded_at'])
             ->where('user_id', $user->id)
-            ->whereIn('status', ['requested', 'confirmed'])
+            ->whereIn('status', $statuses)
             ->whereHas('shift', fn (Builder $query) => $query
                 ->where('published_revision', '>', 0)
                 ->where('status', '!=', 'cancelled')
@@ -91,7 +104,7 @@ final class PersonalSchedule
                 'shift' => fn ($query) => $query->select(array_merge(
                     ['id', 'status', 'revision', 'published_revision', 'published_snapshot'],
                     self::PUBLISHED_FIELDS,
-                    \App\Services\Operations\SiteSnapshotService::ready() ? ['customer_location_id', 'location_snapshot'] : [],
+                    SiteSnapshotService::ready() ? ['customer_location_id', 'location_snapshot'] : [],
                 )),
                 'timeEntry' => fn ($query) => $query->where('user_id', $user->id),
             ])
@@ -110,7 +123,7 @@ final class PersonalSchedule
         try {
             $source = $stale ? $shift->published_snapshot : $shift->only(array_merge(self::PUBLISHED_FIELDS, ['customer_location_id', 'location_snapshot']));
             $values = $this->validatedValues($source);
-            if ($values !== null && \App\Services\Operations\SiteSnapshotService::confirmed($source['location_snapshot'] ?? null)) {
+            if ($values !== null && SiteSnapshotService::confirmed($source['location_snapshot'] ?? null)) {
                 $values['location_snapshot'] = $source['location_snapshot'];
                 $values['customer_location_id'] = $source['customer_location_id'] ?? null;
             }
