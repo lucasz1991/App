@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Support\OutlookAddin;
 
+use App\Support\EmailTemplateBuilder;
 use Illuminate\Contracts\Support\Htmlable;
 use RuntimeException;
 
@@ -353,7 +354,8 @@ final class OutlookUniversalPresentation
         self::text($value, 16);
         self::text($label, 32);
         if (! preg_match('/\A\+?[0-9]{3,15}\z/', $value) || ! preg_match('/\A[+0-9()\p{Zs}.\/-]+\z/u', $label)
-            || preg_replace('/[()\p{Zs}.\/-]/u', '', $label) !== $value) {
+            || (preg_replace('/[()\p{Zs}.\/-]/u', '', $label) !== $value
+                && EmailTemplateBuilder::telHref($label) !== $value)) {
             self::fail();
         }
     }

@@ -167,15 +167,17 @@ final class OutlookUniversalPayloadPresentationTest extends TestCase
     public function test_four_explicit_accounts_receive_their_own_current_source_on_desktop_and_mobile(): void
     {
         $addresses = ['it-technik@rail-time.de', 'r.ott@rail-time.de', 'm.moslehe@rail-time.de', 'd.morina@rail-time.de'];
+        $phoneLabels = ['+49 30 5550101', '030 5550101', '0049 30 5550101', '+49 (0)30 5550101'];
         self::assertSame($addresses, config('outlook_addin.universal_source.allowed_accounts'));
         $versions = [];
         foreach ($addresses as $index => $address) {
             $canonical = $this->payload();
             $profile = $this->profile();
             $name = 'Synthetic Person '.($index + 1);
-            $personalize = static function (&$value) use ($name, $address): void {
+            $phoneLabel = $phoneLabels[$index];
+            $personalize = static function (&$value) use ($name, $address, $phoneLabel): void {
                 if (is_string($value)) {
-                    $value = str_replace(['Mara Muster', 'mara@example.test'], [$name, $address], $value);
+                    $value = str_replace(['Mara Muster', 'mara@example.test', '+49 30 5550101'], [$name, $address, $phoneLabel], $value);
                 }
             };
             array_walk_recursive($canonical, $personalize);
@@ -186,6 +188,7 @@ final class OutlookUniversalPayloadPresentationTest extends TestCase
             $document = $desktop['templates'][0]['universalCompose'];
             self::assertStringContainsString($name, $document['html'], $address);
             self::assertStringContainsString('>'.$address.'</span>', $document['html'], $address);
+            self::assertStringContainsString('>'.$phoneLabel.'</span>', $document['html'], $address);
             self::assertStringNotContainsString('Mara Muster', $document['html'], $address);
             self::assertStringNotContainsString('mara@example.test', $document['html'], $address);
             $versions[] = $document['version'];

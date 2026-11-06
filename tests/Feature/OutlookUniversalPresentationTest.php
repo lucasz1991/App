@@ -527,6 +527,58 @@ final class OutlookUniversalPresentationTest extends TestCase
         self::assertStringContainsString('+49 30 5550102', $three['html']);
     }
 
+    #[DataProvider('canonicalPhoneLabels')]
+    public function test_existing_phone_normalization_preserves_the_display_label_and_international_link(string $value, string $label): void
+    {
+        $data = $this->descriptor();
+        $data['direct'][1] = ['type' => 'phone', 'value' => $value, 'label' => $label];
+        $before = $data;
+        foreach (['editor', 'send'] as $mode) {
+            $result = (new OutlookUniversalPresentation)->render($data, new HtmlString('<p>Trusted.</p>'), ['mode' => $mode]);
+            self::assertStringContainsString('>'.$label.'</span>', $result['html']);
+            if ($mode === 'send') {
+                self::assertStringContainsString('href="tel:'.$value.'"', $result['html']);
+            }
+            self::assertSame($before, $data);
+        }
+    }
+
+    #[DataProvider('invalidCanonicalPhoneLabels')]
+    public function test_phone_normalization_does_not_admit_different_numbers_or_invalid_syntax(mixed $value, mixed $label): void
+    {
+        $data = $this->descriptor();
+        $data['direct'][1] = ['type' => 'phone', 'value' => $value, 'label' => $label];
+        $this->expectException(RuntimeException::class);
+        (new OutlookUniversalPresentation)->render($data, new HtmlString('<p>Trusted.</p>'));
+    }
+
+    public function test_phone_validation_change_keeps_existing_international_profile_bytes_and_version(): void
+    {
+        $expected = ['editor' => '78b9cd363baa354d9d9e87feee43a4f59f8e9641ea5d76979ca00da86641e1b6',
+            'send' => '52af138a70eaae550c138cd340c393cb4f4a06ae44b6bef832fcbf8890243a5c'];
+        foreach ($expected as $mode => $hash) {
+            $rendered = $this->render(['mode' => $mode]);
+            self::assertSame('f38e7dcd51fc2b61cd8fac97', $rendered['version']);
+            self::assertSame($hash, hash('sha256', $rendered['html']));
+        }
+    }
+
+    public static function canonicalPhoneLabels(): array
+    {
+        return [['+491705550101', '+49 170 5550101'], ['+491705550101', '0170 5550101'],
+            ['+491705550101', '0049 170 5550101'], ['+491705550101', '+49 (0)170 5550101'],
+            ['01705550101', '0170 5550101']];
+    }
+
+    public static function invalidCanonicalPhoneLabels(): array
+    {
+        return [['+491705550101', '0170 5550102'], ['+441705550101', '0170 5550101'],
+            ['+491705550101', 'phone 0170 5550101'], ['+491705550101', '01705550101;ext=5'],
+            ['+491705550101', "0170\n5550101"], ['+491705550101', str_repeat(' ', 33).'01705550101'],
+            ['+49+1705550101', '+49+1705550101'], ['+491705550101', '++491705550101'],
+            ['+491705550101', null], ['+4917055501010123', '+4917055501010123']];
+    }
+
     #[DataProvider('invalidAuthorContent')]
     public function test_invalid_utf8_control_or_unbounded_author_bytes_are_rejected(string $author): void
     {
