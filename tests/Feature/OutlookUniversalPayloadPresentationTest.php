@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Support\OutlookAddin\OutlookUniversalDiagnosticFixtureStore;
 use App\Support\OutlookAddin\OutlookUniversalPayloadPresentation;
 use App\Support\OutlookAddin\OutlookUniversalPresentation;
 use Illuminate\Support\Facades\Http;
@@ -161,6 +162,81 @@ final class OutlookUniversalPayloadPresentationTest extends TestCase
         $output = $this->projection()->append($this->payload(), $this->payload(), $this->profile(), $pilot);
         self::assertArrayHasKey('universalSignature', $output);
         self::assertArrayHasKey('universalCompose', $output['templates'][0]);
+    }
+
+    public function test_four_explicit_accounts_receive_their_own_current_source_on_desktop_and_mobile(): void
+    {
+        $addresses = ['it-technik@rail-time.de', 'r.ott@rail-time.de', 'm.moslehe@rail-time.de', 'd.morina@rail-time.de'];
+        self::assertSame($addresses, config('outlook_addin.universal_source.allowed_accounts'));
+        $versions = [];
+        foreach ($addresses as $index => $address) {
+            $canonical = $this->payload();
+            $profile = $this->profile();
+            $name = 'Synthetic Person '.($index + 1);
+            $personalize = static function (&$value) use ($name, $address): void {
+                if (is_string($value)) {
+                    $value = str_replace(['Mara Muster', 'mara@example.test'], [$name, $address], $value);
+                }
+            };
+            array_walk_recursive($canonical, $personalize);
+            array_walk_recursive($profile, $personalize);
+            $user = (new User)->forceFill(['email' => strtoupper($address)]);
+            $desktop = $this->projection()->append($canonical, $canonical, $profile, $user);
+            self::assertArrayHasKey('universalSignature', $desktop, $address);
+            $document = $desktop['templates'][0]['universalCompose'];
+            self::assertStringContainsString($name, $document['html'], $address);
+            self::assertStringContainsString('>'.$address.'</span>', $document['html'], $address);
+            self::assertStringNotContainsString('Mara Muster', $document['html'], $address);
+            self::assertStringNotContainsString('mara@example.test', $document['html'], $address);
+            $versions[] = $document['version'];
+
+            $mobile = $canonical;
+            $mobile['signature']['html'] = $this->fixture()['mobile']['standalone'];
+            $mobile['templates'][0]['combinedComposeHtml'] = $this->fixture()['mobile']['combined'];
+            $projectedMobile = $this->projection()->append($mobile, $canonical, $profile, $user);
+            self::assertSame($desktop['universalSignature'], $projectedMobile['universalSignature'], $address);
+            self::assertSame($document, $projectedMobile['templates'][0]['universalCompose'], $address);
+
+            $profile['VORNAME_NACHNAME'] = 'Unrelated person';
+            self::assertSame($canonical, $this->projection()->append($canonical, $canonical, $profile, $user), $address);
+        }
+        self::assertCount(4, array_unique($versions));
+        Http::assertNothingSent();
+    }
+
+    public function test_source_allowlist_is_explicit_and_never_uses_profile_or_mailbox_hints(): void
+    {
+        foreach (['r.ott+alias@rail-time.de', 'm.moslehe@rail-time.de.example.test', 'other@rail-time.de', ''] as $address) {
+            $user = (new User)->forceFill(['email' => $address]);
+            $profile = $this->profile();
+            $profile['E_MAIL'] = 'r.ott@rail-time.de';
+            self::assertFalse(OutlookUniversalPayloadPresentation::isSourceAllowed($user));
+            self::assertSame($this->payload(), $this->projection()->append($this->payload(), $this->payload(), $profile, $user,
+                ['mailbox' => 'r.ott@rail-time.de']));
+        }
+        foreach ([[], null, '*', ['*@rail-time.de'], [true, 1, null]] as $allowed) {
+            config(['outlook_addin.universal_source.allowed_accounts' => $allowed]);
+            self::assertFalse(OutlookUniversalPayloadPresentation::isSourceAllowed($this->pilot()));
+        }
+        config(['outlook_addin.universal_source.allowed_accounts' => [' R.OTT@RAIL-TIME.DE ']]);
+        self::assertFalse(OutlookUniversalPayloadPresentation::isSourceAllowed($this->pilot()));
+        self::assertTrue(OutlookUniversalPayloadPresentation::isSourceAllowed((new User)->forceFill(['email' => 'r.ott@rail-time.de'])));
+        self::assertFalse(OutlookUniversalPayloadPresentation::isSourceAllowed(null));
+        Http::assertNothingSent();
+    }
+
+    public function test_source_rollout_does_not_expand_the_it_export_transit_or_fixture_pilot(): void
+    {
+        foreach (['r.ott@rail-time.de', 'm.moslehe@rail-time.de', 'd.morina@rail-time.de'] as $address) {
+            $user = (new User)->forceFill(['email' => $address]);
+            self::assertTrue(OutlookUniversalPayloadPresentation::isSourceAllowed($user));
+            self::assertFalse(OutlookUniversalPayloadPresentation::isPilot($user));
+            self::assertFalse(OutlookUniversalDiagnosticFixtureStore::allowed($user, $address));
+            self::assertFalse(OutlookUniversalDiagnosticFixtureStore::allowed($user, 'it-technik@rail-time.de'));
+        }
+        self::assertTrue(OutlookUniversalPayloadPresentation::isPilot($this->pilot()));
+        self::assertTrue(OutlookUniversalDiagnosticFixtureStore::allowed($this->pilot(), 'it-technik@rail-time.de'));
+        self::assertFalse(OutlookUniversalDiagnosticFixtureStore::allowed($this->pilot(), 'r.ott@rail-time.de'));
     }
 
     private function pilot(): User

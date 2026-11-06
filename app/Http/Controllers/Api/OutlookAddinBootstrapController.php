@@ -136,7 +136,7 @@ final class OutlookAddinBootstrapController extends Controller
             } else {
                 // Desktop wire has already passed the strict CID/media/source
                 // admission. Mobile needs that same desktop source separately.
-                $universalDesktop = OutlookUniversalPayloadPresentation::isPilot($resolved['user'])
+                $universalDesktop = OutlookUniversalPayloadPresentation::isSourceAllowed($resolved['user'])
                     && $request->header('X-RailTime-Outlook-Profile') === OutlookMobileSignature::PROFILE
                     ? OutlookStaticLinkedTestProfiles::payload(OutlookClientPresentation::payload($universalSource), $resolved['user'])
                     : $payload;

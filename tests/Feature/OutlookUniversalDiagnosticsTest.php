@@ -350,6 +350,21 @@ final class OutlookUniversalDiagnosticsTest extends TestCase
             ->assertDontSee('profile_identity_mismatch')->assertDontSee('SIGNATURE_LAYOUT_UNCONFIRMED');
     }
 
+    public function test_admin_status_uses_the_source_allowlist_without_expanding_fixture_capture(): void
+    {
+        $this->stubApplicationLayout();
+        foreach (['r.ott@rail-time.de', 'm.moslehe@rail-time.de', 'd.morina@rail-time.de'] as $address) {
+            DB::table('users')->where('id', 5)->update(['email' => $address]);
+            $before = $this->businessRows();
+            $this->actingAs(User::findOrFail(6))->get('/administrator/mail-vorlagen/u2e-entwurf?status=1&user=5')
+                ->assertOk()->assertSee('desktop_unavailable')->assertDontSee('outside_pilot');
+            self::assertSame($before, $this->businessRows());
+            self::assertFalse(OutlookUniversalDiagnosticFixtureStore::allowed(User::findOrFail(5), $address));
+        }
+        Mail::assertNothingOutgoing();
+        Http::assertNothingSent();
+    }
+
     public function test_operation_metadata_preserves_original_code_and_validated_context_without_business_writes(): void
     {
         $headers = $this->headers();

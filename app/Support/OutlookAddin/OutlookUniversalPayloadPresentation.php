@@ -24,8 +24,9 @@ final class OutlookUniversalPayloadPresentation
         foreach ($wire['templates'] ?? [] as $index => $entry) {
             unset($wire['templates'][$index]['universalCompose'], $wire['templates'][$index]['universalSignature']);
         }
-        // Only the server-resolved account can enter the unaccepted U2e pilot.
-        if (! self::isPilot($user)) {
+        // Source admission only: identity/activation has already been resolved.
+        // The separate IT-only export, transit and fixture scope stays intact.
+        if (! self::isSourceAllowed($user)) {
             $this->record($user, $this->event('outside_pilot', 'pilot', 'U2E_OUTSIDE_PILOT'), $context);
 
             return $wire;
@@ -86,6 +87,26 @@ final class OutlookUniversalPayloadPresentation
     public static function isPilot(?User $user): bool
     {
         return $user !== null && strtolower(trim((string) $user->email)) === 'it-technik@rail-time.de';
+    }
+
+    /** Explicit source rollout; profile fields and client mailbox hints grant no access. */
+    public static function isSourceAllowed(?User $user): bool
+    {
+        $accounts = config('outlook_addin.universal_source.allowed_accounts', []);
+        if ($user === null || ! is_array($accounts)) {
+            return false;
+        }
+        $address = strtolower(trim((string) $user->email));
+        if (filter_var($address, FILTER_VALIDATE_EMAIL) === false) {
+            return false;
+        }
+        foreach ($accounts as $allowed) {
+            if (is_string($allowed) && $address === strtolower(trim($allowed))) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** Same admitted data source and opaque author bytes, for administrative review. */

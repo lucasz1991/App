@@ -26,6 +26,25 @@ return [
     'base_url' => $baseUrl,
     'marker' => 'RT-SIGNATURE-MANAGED-V1',
 
+    // Temporary source admission mirrors the four direct members of the
+    // centrally managed Outlook/Exchange group. This is an explicit list,
+    // not a live Graph membership check; group changes require reconciliation.
+    // It does not change add-in identity/activation rules, exports or transit.
+    'universal_source' => [
+        'group_reference' => [
+            'name' => 'RailTime-Signatur',
+            'email' => 'railtime-signatur@rail-time.de',
+            // EAC GroupDetails identity; not asserted to be the Entra object ID.
+            'exchange_id' => '6e54f139-67b4-4ed1-a6ce-211194090371',
+        ],
+        'allowed_accounts' => [
+            'it-technik@rail-time.de',
+            'r.ott@rail-time.de',
+            'm.moslehe@rail-time.de',
+            'd.morina@rail-time.de',
+        ],
+    ],
+
     'entra' => [
         'tenant_id' => $tenantId,
         'client_id' => $clientId,

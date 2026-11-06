@@ -44,10 +44,10 @@ final class OutlookUniversalDraftController extends Controller
             $diagnostics->recordAdmission($subject, $review['admission']);
         }
         $draft = $review['draft'];
-        $liveAdmission = OutlookUniversalPayloadPresentation::isPilot($subject) ? $review['admission']
+        $liveAdmission = OutlookUniversalPayloadPresentation::isSourceAllowed($subject) ? $review['admission']
             : ['status' => 'fallback', 'reason' => 'outside_pilot', 'phase' => 'pilot', 'code' => 'U2E_OUTSIDE_PILOT',
                 'sourceLength' => null, 'outputLength' => null];
-        if (! OutlookUniversalPayloadPresentation::isPilot($subject)) {
+        if (! OutlookUniversalPayloadPresentation::isSourceAllowed($subject)) {
             $diagnostics->recordAdmission($subject, $liveAdmission);
         }
         if ($request->boolean('status')) {
