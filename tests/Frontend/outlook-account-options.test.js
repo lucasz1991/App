@@ -179,6 +179,7 @@ test('the next actual manual action fetches fresh compiled wording and never sub
     const target = { item: new Proxy({}, { get() { throw Error('No message body access for loading settings'); } }) };
     const context = vm.createContext({ taskpaneState: state, bootstrapStateRevision: 0, signatureStateRevision: 0,
         currentConfig: {}, currentBootstrap: oldPayload, lastActionError: null,
+        universalStatusByItem: new WeakMap(), universalComposeBlocked: () => false, u2eTransportProbeReport: () => null,
         captureComposeTarget: () => target, isTemplateInsertionBlocked: () => false, isStandaloneSignatureInsertionBlocked: () => false,
         hasUncertainWrite: () => false, diagnoseStep: (_step, fn) => fn(), acquireAccessToken: async () => 'fresh-token', displayAccount() {},
         loadBootstrap: async () => { loads++; return freshPayload; }, assertWriteTarget: async () => {},

@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import { parseHTML } from 'linkedom';
 import { universalTaskpaneStatus } from '../../resources/js/outlook-addin/u2e-taskpane-status.js';
 import * as bundleVersion from '../../resources/js/outlook-addin/u2e-bundle-version.js';
+import { compactComposeMessage, isUnwrittenPreflight } from '../../resources/js/outlook-addin/taskpane-insert-view.js';
 
 const pane = await readFile(new URL('../../resources/js/outlook-addin/taskpane.js', import.meta.url), 'utf8');
 const markup = await readFile(new URL('../../resources/views/outlook-addin/taskpane.blade.php', import.meta.url), 'utf8');
@@ -21,8 +22,9 @@ function load(name, context) {
     return vm.runInContext(`(${end ? tail.slice(0, end.index) : tail}\n)`, context);
 }
 
-function fixture() {
+function fixture({ minimal = false } = {}) {
     const { document } = parseHTML(markup);
+    if (!minimal) document.querySelector('[data-outlook-template-picker]')?.removeAttribute('data-outlook-template-picker');
     const item = {};
     const calls = { auth: 0, telemetry: 0, bodyReads: 0, diagnostics: 0, invalidation: 0, writes: 0 };
     const state = { settingsMode: false, busy: false, authenticated: true, bootstrapReady: true, configReady: true,
@@ -32,15 +34,18 @@ function fixture() {
     const blocked = new WeakSet();
     const context = vm.createContext({ ...bundleVersion, Office: { context: { mailbox: { item } } }, document,
         taskpaneState: state, currentBootstrap: payload, currentConfig: {}, lastActionError: null,
-        currentTokenResult: null,
+        currentTokenResult: null, insertView: null, insertFeedbackTimer: null,
+        setTimeout, clearTimeout, compactComposeMessage, isUnwrittenPreflight,
+        requestSilentBootstrapRefresh() {}, lastBootstrapRefreshAt: 0,
         signatureStateRevision: 0, mailboxItemRevision: 0, bootstrapStateRevision: 0, observedComposeItem: null,
+        pendingItemBootstrapRevision: null,
         universalStatusByItem: new WeakMap(), universalTaskpaneStatus,
         universalComposeReport: target => reports.get(target) || null,
         universalComposeBlocked: target => blocked.has(target),
         isTemplateInsertionBlocked: () => false, isStandaloneSignatureInsertionBlocked: () => false,
         hasUncertainWrite: () => false, u2eTransportProbeReport: () => null,
         headProbeAvailable: () => false, u2eProbeAvailable: () => false,
-        selectedTemplate: () => ({}), supportsTemplatePrepend: () => true,
+        selectedTemplate: () => ({}), supportsTemplatePrepend: () => true, isMobileComposeHost: () => false,
         syncAutomaticPreferences() {}, syncHeadProbeButton() {}, renderSelectedTemplate() {},
         renderTemplateChoices() {}, refreshAccountOptions: async () => {}, snapshotSignatureVersion: () => '',
         safeErrorCode: error => error?.code || 'UNAVAILABLE', codedError: failure,
@@ -57,7 +62,7 @@ function fixture() {
         readBodyHtml: async () => { calls.bodyReads++; return 'synthetic-body'; }, readComposeType: async () => 'newMail',
         universalComposeStateFromBody: () => ({ current: true, present: true, kind: 'combined' }),
     });
-    for (const name of ['elements', 'setStatus', 'insertionBlocked', 'showUniversalStatus', 'updateDisabledStates',
+    for (const name of ['elements', 'minimalInsertMode', 'statusBlocksManual', 'setStatus', 'insertionBlocked', 'showUniversalStatus', 'updateDisabledStates',
         'syncActionState', 'handleFailure', 'withAuthenticatedBootstrap', 'refreshSignatureCurrentState', 'handleMailboxItemChanged']) {
         context[name] = load(name, context);
     }
@@ -173,7 +178,7 @@ test('new-message affordance uses native instructions and never creates or sends
     const f = fixture();
     const help = f.document.querySelector('[data-outlook-new-message-help]');
     assert.match(help.querySelector('summary').textContent, /Neue Nachricht in Outlook öffnen/);
-    assert.match(help.textContent, /Verwenden Sie in Outlook „Neue Nachricht“/);
+    assert.match(help.textContent, /in Outlook „Neue Nachricht“/);
     assert.equal(help.querySelector('button,a'), null);
     assert.doesNotMatch(pane, /displayNewMessageForm|\.sendAsync\(/);
     assert.match(markup, /\.pane-feedback\[data-tone="warning"\]/);
@@ -241,4 +246,88 @@ test('a stale event discovered during manual authentication blocks its already-s
     assert.equal(f.calls.writes, 0); assert.equal(f.calls.telemetry, 0);
     assert.equal(f.document.querySelector('[data-outlook-status-title]').textContent, 'Outlook neu starten');
     assert.equal(f.button.disabled, true); assert.equal(f.state.busy, false);
+});
+
+test('minimal pane exposes one compact preflight message and allows only explicit manual retry before any mutation', async () => {
+    const f = fixture({ minimal: true });
+    const before = report({ state: 'rejected', code: 'U2E_NEW_DRAFT_REQUIRED', phase: 'preflight',
+        step: 'snapshot.region', attempted: false, headerWritten: false, bodyWriteStarted: false, bodyWriteSucceeded: false });
+    f.reports.set(f.item, before);
+    f.context.universalStatusByItem.set(f.item, universalTaskpaneStatus(before));
+    f.context.showUniversalStatus(f.item); f.context.syncActionState();
+    const feedback = f.document.querySelector('[data-outlook-pane-feedback]');
+    assert.match(feedback.textContent, /nicht ersetzt/);
+    assert.doesNotMatch(feedback.textContent, /nicht bestätigt|Zeitpunkt|Prüfschritt/);
+    assert.equal(f.document.querySelector('[data-outlook-status]').hidden, true);
+    assert.equal(f.document.querySelector('[data-outlook-status]').getAttribute('aria-live'), 'off');
+    assert.equal(f.button.disabled, false);
+    await f.context.withAuthenticatedBootstrap(f.button, () => { f.calls.writes++; });
+    assert.equal(f.calls.writes, 0, 'automatic/old entry cannot use the manual retry permission');
+    await f.context.withAuthenticatedBootstrap(f.button, () => { f.calls.writes++; }, { manualReplace: true });
+    assert.equal(f.calls.writes, 1);
+});
+
+test('minimal manual entry cannot clear uncertain state or write through a pending operation', async () => {
+    const f = fixture({ minimal: true });
+    f.reports.set(f.item, report()); f.blocked.add(f.item);
+    f.context.universalStatusByItem.set(f.item, universalTaskpaneStatus(report()));
+    f.context.syncActionState();
+    await f.context.withAuthenticatedBootstrap(f.button, () => { f.calls.writes++; }, { manualReplace: true });
+    assert.equal(f.calls.writes, 0); assert.equal(f.calls.auth, 0); assert.equal(f.button.disabled, true);
+    assert.match(f.document.querySelector('[data-outlook-pane-feedback]').textContent, /Einfügung konnte nicht bestätigt werden/);
+});
+
+function manualSelectionFixture() {
+    const f = fixture({ minimal: true }), document = { kind: 'combined', version: 'a'.repeat(24) };
+    f.state.templates = [{ id: 'chosen', name: 'Auswahl', document: { universalCompose: document } }];
+    f.context.selectedTemplate = () => f.state.templates[0];
+    f.context.validateUniversalComposeDocument = value => value;
+    f.context.rememberConfirmedInsertion = () => {};
+    f.context.replaceUniversalComposeDocument = async (_office, item, source, options) => {
+        assert.equal(item, f.item); assert.equal(source, document);
+        await options.beforeWrite(); f.calls.writes++;
+        return { status: 'applied' };
+    };
+    f.context.insertUniversalComposeDocument = async () => assert.fail('explicit selection must use replacement');
+    f.insert = load('insertTemplate', f.context);
+    f.options = { manualReplace: true, expectedTemplateId: 'chosen', expectedTarget: f.context.captureComposeTarget() };
+    return f;
+}
+
+test('manual taskpane selection calls the replacement API again after a confirmed success', async () => {
+    const f = manualSelectionFixture();
+    for (let attempt = 0; attempt < 2; attempt++) {
+        const result = await f.insert(f.button, f.options);
+        assert.equal(result.applied, true);
+        assert.equal(f.document.querySelector('[data-outlook-pane-feedback]').textContent, 'Neu eingefügt');
+        clearTimeout(f.context.insertFeedbackTimer);
+    }
+    assert.equal(f.calls.writes, 2);
+    assert.equal(f.calls.auth, 2, 'each selection refreshes authenticated source data');
+});
+
+test('manual selection never falls back to a different template after bootstrap removes its ID', async () => {
+    const f = manualSelectionFixture();
+    f.context.acceptBootstrap = async () => {
+        f.state.templates = [{ ...f.state.templates[0], id: 'other' }];
+    };
+    const result = await f.insert(f.button, f.options);
+    assert.equal(result.applied, false); assert.equal(f.calls.writes, 0);
+    assert.equal(f.context.lastActionError.code, 'TEMPLATE_SELECTION_MISSING');
+});
+
+test('selection captured for a different compose item never replaces the current item', async () => {
+    const f = manualSelectionFixture();
+    f.options.expectedTarget = { item: {}, revision: 0 };
+    const result = await f.insert(f.button, f.options);
+    assert.equal(result.applied, false); assert.equal(f.calls.writes, 0);
+    assert.equal(f.context.lastActionError.code, 'COMPOSE_ITEM_CHANGED');
+});
+
+test('a failed replacement never returns applied or exposes the success toast', async () => {
+    const f = manualSelectionFixture();
+    f.context.replaceUniversalComposeDocument = async () => { throw failure('U2E_NEW_DRAFT_REQUIRED'); };
+    const result = await f.insert(f.button, f.options);
+    assert.equal(result.applied, false); assert.equal(f.calls.writes, 0);
+    assert.doesNotMatch(f.document.querySelector('[data-outlook-pane-feedback]').textContent, /Neu eingefügt/);
 });

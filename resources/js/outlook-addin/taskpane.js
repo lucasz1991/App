@@ -31,12 +31,13 @@ import { diagnoseStep, recordDiagnostic, diagnosticReport } from './diagnostics.
 import { confirmedOfficeWrite, hasUncertainWrite } from './office-write.js';
 import { headProbeContextAvailable, u2eProbeContextAvailable } from './head-transport-probe.js';
 import { insertU2eTransportProbe, u2eTransportProbeReport } from './u2e-transport-probe.js';
-import { validateUniversalComposeDocument, insertUniversalComposeDocument, universalComposeBlocked,
+import { validateUniversalComposeDocument, insertUniversalComposeDocument, replaceUniversalComposeDocument, universalComposeBlocked,
     universalComposeReport, universalComposeStateFromBody } from './u2e-compose.js';
 import { reportUniversalFailure, universalComposeHost } from './u2e-telemetry.js';
 import { readUniversalSessionReport } from './u2e-session-report.js';
 import { universalComposeBoundaryHelp } from './u2e-compose-help.js';
 import { universalTaskpaneStatus } from './u2e-taskpane-status.js';
+import { bindInsertView, compactComposeMessage, isUnwrittenPreflight } from './taskpane-insert-view.js';
 import { assertUniversalBundleCompatibility, universalBundleFailureReport, readUniversalBundleFailure } from './u2e-bundle-version.js';
 import { bindAutomaticPreferencesView, createAccountPreferencesSession, normalizeAutomaticPreferences } from './automatic-preferences-view.js';
 import { bindWordingPreferencesView, bindTemplateChoiceView, createAccountOptionsSession,
@@ -59,6 +60,7 @@ let mailboxItemRevision = 0;
 let bootstrapStateRevision = 0;
 let lastBootstrapRefreshAt = 0;
 let silentBootstrapRefreshPromise;
+let pendingItemBootstrapRevision = null;
 let signatureStateRefreshPromise;
 let lastActionError = null;
 let observedComposeItem = null;
@@ -74,6 +76,8 @@ let templateChoicesView;
 let accountOptionsBusy = false;
 let wordingReady = false;
 let templateChoicesReady = false;
+let insertView;
+let insertFeedbackTimer;
 // Display evidence only, never cached authorization for another Office write.
 const confirmedInsertions = new WeakMap();
 const universalStatusByItem = new WeakMap();
@@ -697,13 +701,23 @@ function insertionBlocked() {
         || universalStatusByItem.get(item)?.blocked === true));
 }
 
+function minimalInsertMode() {
+    return !taskpaneState.settingsMode && Boolean(document.querySelector('[data-outlook-template-picker]'));
+}
+
+function statusBlocksManual(item) {
+    const status = universalStatusByItem.get(item);
+    return status?.blocked === true && !(status.code === 'U2E_NEW_DRAFT_REQUIRED'
+        && isUnwrittenPreflight(universalComposeReport(item)));
+}
+
 function showUniversalStatus(item, focus = false) {
     if (item !== globalThis.Office?.context?.mailbox?.item) return false;
     const status = universalStatusByItem.get(item);
     if (!status) return false;
     setStatus(status.tone, status.title, status.detail, focus);
     const help = document.querySelector('[data-outlook-new-message-help]');
-    if (help) help.hidden = !status.newMessageRequired;
+    if (help) help.hidden = minimalInsertMode() || !status.newMessageRequired;
     return true;
 }
 
@@ -737,6 +751,35 @@ function elements() {
 
 export function setStatus(tone, title, detail = '', focus = false) {
     const view = elements();
+    if (minimalInsertMode()) {
+        clearTimeout(insertFeedbackTimer);
+        // Preserve diagnostic hooks, but expose exactly one compact live status.
+        view.statusTitle.textContent = title;
+        view.statusDetail.textContent = detail;
+        view.statusDetail.hidden = tone === 'success';
+        view.status.dataset.tone = tone;
+        view.status.hidden = true;
+        view.status.removeAttribute('role');
+        view.status.setAttribute('aria-live', 'off');
+        const feedback = view.feedback;
+        if (!feedback) return;
+        const report = universalComposeReport(globalThis.Office?.context?.mailbox?.item);
+        const item = globalThis.Office?.context?.mailbox?.item;
+        const code = lastActionError ? safeErrorCode(lastActionError) : universalStatusByItem.get(item)?.code || report?.code;
+        const message = ['error', 'warning'].includes(tone)
+            ? compactComposeMessage(code, report, detail || title)
+            : tone === 'success' && title === 'Neu eingefügt' ? title
+                : tone === 'success' ? '' : title === 'Einmalig verbinden'
+                    ? 'Zum Start unter „Automatik“ mit Microsoft verbinden.' : title;
+        feedback.textContent = message;
+        feedback.dataset.tone = tone;
+        feedback.hidden = !message;
+        feedback.setAttribute('role', tone === 'error' ? 'alert' : 'status');
+        feedback.setAttribute('aria-live', tone === 'error' ? 'assertive' : 'polite');
+        if (tone === 'success' && message) insertFeedbackTimer = setTimeout(() => { feedback.hidden = true; }, 4000);
+        if (focus && !feedback.hidden && !document.querySelector('[data-outlook-template-picker]')?.open) feedback.focus({ preventScroll: true });
+        return;
+    }
     const symbolByTone = {
         error: '!',
         neutral: 'i',
@@ -845,17 +888,24 @@ function renderSelectedTemplate() {
     view.templateActive.textContent = 'Outlook-Standard';
     const replacing = taskpaneState.templatePresent;
     const universal = Object.prototype.hasOwnProperty.call(template.document, 'universalCompose');
-    const actionLabel = replacing ? (universal ? 'Vorlage prüfen' : 'Vorlage und Signatur ersetzen') : 'Vorlage einfügen';
+    const actionLabel = minimalInsertMode() ? 'Signatur & Vorlage einfügen'
+        : replacing ? (universal ? 'Vorlage prüfen' : 'Vorlage und Signatur ersetzen') : 'Vorlage einfügen';
     const actionTitle = view.template.querySelector('strong');
     if (actionTitle) actionTitle.textContent = actionLabel;
     const actionIcon = view.template.querySelector('.action-icon');
-    if (actionIcon) actionIcon.textContent = replacing ? '↻' : '＋';
+    if (actionIcon) actionIcon.textContent = minimalInsertMode() ? '＋' : replacing ? '↻' : '＋';
     view.templateActionDetail.textContent = universal
         ? (replacing ? 'Aktuelle U2e-Vorlage prüfen. Für einen geänderten Stand einen neuen Entwurf verwenden.'
             : 'U2e-Vorlage in einen neuen leeren Nachrichtenbereich einsetzen. Zitate bleiben erhalten.')
         : replacing ? 'Verwaltete Vorlage aktualisieren. Ihr Nachrichtentext und Zitate bleiben erhalten.'
             : 'Wird oberhalb Ihres Textes eingefügt. Vorhandener Inhalt bleibt erhalten.';
     view.template.setAttribute('aria-label', `${template.name}: ${actionLabel}`);
+    if (minimalInsertMode()) {
+        view.template.setAttribute('aria-label', actionLabel);
+        view.templateActionDetail.textContent = universal ? 'Ersetzt deinen Text. Zitat bleibt.' : 'Fügt Vorlage und Signatur ein. Vorhandener Text bleibt erhalten.';
+        const hint = document.getElementById('outlook-insert-hint');
+        if (hint) hint.textContent = view.templateActionDetail.textContent;
+    }
 }
 
 function renderTemplateChoices(payload) {
@@ -893,6 +943,7 @@ function renderTemplateChoices(payload) {
         : `${templates.length} Vorlagen`;
     setTemplateRegionState('ready');
     renderSelectedTemplate();
+    insertView?.refresh();
 }
 
 function clearTemplateChoices(state) {
@@ -1115,8 +1166,12 @@ function handleMailboxItemChanged() {
     mailboxItemRevision += 1;
     lastActionError = null;
     taskpaneState.templatePresent = false;
+    insertView?.reset();
     invalidateBootstrap('locked');
-    setStatus('neutral', 'Postfach erneut prüfen', 'Für diese Nachricht muss der aktuelle Absender neu mit RailTime abgeglichen werden.');
+    lastBootstrapRefreshAt = 0;
+    pendingItemBootstrapRevision = mailboxItemRevision;
+    setStatus('neutral', 'Aktuelle Nachricht wird geladen …', 'Für diese Nachricht wird das Postfach neu abgeglichen.');
+    requestSilentBootstrapRefresh();
 }
 
 function updateDisabledStates() {
@@ -1140,24 +1195,26 @@ function syncActionState() {
     view.template.dataset.available = authenticatedBootstrap && currentTemplate ? 'true' : 'false';
     const item = globalThis.Office?.context?.mailbox?.item;
     if (item && (isTemplateInsertionBlocked(item) || isStandaloneSignatureInsertionBlocked(item) || hasUncertainWrite(item)
-        || universalComposeBlocked(item) || universalStatusByItem.get(item)?.blocked === true)) {
+        || universalComposeBlocked(item) || (minimalInsertMode() ? statusBlocksManual(item) : universalStatusByItem.get(item)?.blocked === true))) {
         view.template.dataset.available = 'false';
         view.signature.dataset.available = 'false';
-        view.templateActionDetail.textContent = 'Outlook hat die letzte Einfügung noch nicht eindeutig bestätigt. Nachricht prüfen; nicht erneut einfügen.';
+        if (!minimalInsertMode()) view.templateActionDetail.textContent = universalStatusByItem.get(item)?.detail || 'Einfügung konnte nicht bestätigt werden.';
     }
-    if (!supportsTemplatePrepend(globalThis.Office, globalThis.Office?.context?.mailbox?.item)) {
+    const universalReplacement = minimalInsertMode() && currentTemplate?.document?.universalCompose
+        && !isMobileComposeHost(globalThis.Office) && typeof item?.body?.setAsync === 'function';
+    if (!universalReplacement && !supportsTemplatePrepend(globalThis.Office, globalThis.Office?.context?.mailbox?.item)) {
         view.template.dataset.available = 'false';
         view.templateActionDetail.textContent = 'Vollständige Vorlagen benötigen Outlook im Browser oder am Desktop. Mobil bleibt die automatische Signatur verfügbar.';
     }
 
     view.login.hidden = authenticatedBootstrap;
-    view.signature.hidden = authenticatedBootstrap
+    view.signature.hidden = minimalInsertMode() || authenticatedBootstrap
         && taskpaneState.itemChangedMonitoringReady
         && taskpaneState.signatureCurrent;
     view.maintenanceActions.hidden = view.login.hidden && view.signature.hidden;
 
     view.loginTitle.textContent = taskpaneState.authenticated
-        ? 'Verbindung prüfen'
+        ? 'Erneut verbinden'
         : 'Mit Microsoft verbinden';
     view.loginDetail.textContent = taskpaneState.authenticated
         ? 'RailTime-Inhalte erneut sicher laden'
@@ -1185,6 +1242,10 @@ function setBusy(busy, activeButton = null) {
     syncAutomaticPreferences();
     syncAccountOptions();
     syncHeadProbeButton();
+    if (!busy && pendingItemBootstrapRevision !== null) {
+        if (taskpaneState.bootstrapReady) pendingItemBootstrapRevision = null;
+        else requestSilentBootstrapRefresh();
+    }
 }
 
 function headProbeAvailable(method = 'setSignatureAsync') {
@@ -1551,9 +1612,10 @@ function handleFailure(error, bootstrapWasLoaded = false) {
 }
 
 function requestSilentBootstrapRefresh() {
+    const changedItem = pendingItemBootstrapRevision === mailboxItemRevision;
     if (!currentConfig
         || !taskpaneState.authenticated
-        || !taskpaneState.bootstrapReady
+        || (!taskpaneState.bootstrapReady && !changedItem)
         || taskpaneState.busy) {
         requestSignatureCurrentStateRefresh();
         return;
@@ -1563,7 +1625,7 @@ function requestSilentBootstrapRefresh() {
         return;
     }
 
-    if (Date.now() - lastBootstrapRefreshAt < SILENT_BOOTSTRAP_REFRESH_INTERVAL_MS) {
+    if (!changedItem && Date.now() - lastBootstrapRefreshAt < SILENT_BOOTSTRAP_REFRESH_INTERVAL_MS) {
         requestSignatureCurrentStateRefresh();
         return;
     }
@@ -1571,13 +1633,19 @@ function requestSilentBootstrapRefresh() {
     // Bis der Server den aktuellen Snapshot bestaetigt hat, darf die
     // Aktualisieren-Aktion nicht aufgrund eines veralteten Stands fehlen.
     failOpenSignatureCurrentState();
+    // Consume only this item's request. A newer ItemChanged event can queue
+    // its own revision while this read-only bootstrap is still in flight.
+    if (changedItem) pendingItemBootstrapRevision = null;
 
     silentBootstrapRefreshPromise = (async () => {
         const expectedRevision = bootstrapStateRevision;
+        let acceptingBootstrap = false;
 
         try {
+            const target = captureComposeTarget();
             const accessToken = await acquireAccessToken(currentConfig, false);
-            const bootstrap = await loadBootstrap(currentConfig, accessToken);
+            assertComposeTarget(target);
+            const bootstrap = await loadBootstrap(currentConfig, accessToken, target.item);
 
             if (expectedRevision !== bootstrapStateRevision
                 || taskpaneState.busy
@@ -1585,15 +1653,22 @@ function requestSilentBootstrapRefresh() {
                 return;
             }
 
+            assertComposeTarget(target);
+            acceptingBootstrap = true;
             await acceptBootstrap(bootstrap);
 
             if (bootstrapStateRevision !== expectedRevision + 1 || taskpaneState.busy) {
                 return;
             }
 
-            if (!lastActionError && !insertionBlocked()) setStatus('success', 'Mit RailTime verbunden', readyStatusDetail());
+            if (!lastActionError && !insertionBlocked() && !universalStatusByItem.has(target.item)) {
+                setStatus('success', 'Mit RailTime verbunden', readyStatusDetail());
+            }
         } catch (error) {
-            if (expectedRevision !== bootstrapStateRevision || taskpaneState.busy) {
+            // acceptBootstrap owns one immediate revision increment, including
+            // when source/bundle validation then rejects its payload. Do not
+            // confuse that increment with a newer item's invalidation.
+            if (bootstrapStateRevision !== expectedRevision + (acceptingBootstrap ? 1 : 0) || taskpaneState.busy) {
                 return;
             }
 
@@ -1603,7 +1678,7 @@ function requestSilentBootstrapRefresh() {
                 return;
             }
 
-            if (/MAILBOX|SENDER/.test(safeErrorCode(error)) || safeErrorCode(error) === 'HTTP_403') {
+            if (changedItem || /MAILBOX|SENDER/.test(safeErrorCode(error)) || safeErrorCode(error) === 'HTTP_403') {
                 handleFailure(error);
                 return;
             }
@@ -1614,6 +1689,9 @@ function requestSilentBootstrapRefresh() {
             console.warn('RailTime bootstrap refresh failed.', error);
         } finally {
             silentBootstrapRefreshPromise = null;
+            // Never retry a failed request by itself. Only an explicit newer
+            // ItemChanged event may schedule one subsequent target-bound read.
+            if (pendingItemBootstrapRevision !== null && !taskpaneState.busy) requestSilentBootstrapRefresh();
         }
     })();
 }
@@ -1640,7 +1718,7 @@ async function authenticateInteractively(button) {
     }
 }
 
-async function withAuthenticatedBootstrap(button, callback) {
+async function withAuthenticatedBootstrap(button, callback, { manualReplace = false } = {}) {
     if (taskpaneState.settingsMode) throw codedError('ACCOUNT_SETTINGS_READ_ONLY');
     if (taskpaneState.busy) return;
     const item = globalThis.Office?.context?.mailbox?.item;
@@ -1648,7 +1726,7 @@ async function withAuthenticatedBootstrap(button, callback) {
         universalStatusByItem.set(item, universalTaskpaneStatus(universalComposeReport(item))
             || universalTaskpaneStatus(null, 'U2E_INSERT_UNCERTAIN'));
     }
-    if (item && universalStatusByItem.get(item)?.blocked === true) {
+    if (item && (manualReplace ? statusBlocksManual(item) : universalStatusByItem.get(item)?.blocked === true)) {
         showUniversalStatus(item, true);
         return;
     }
@@ -1675,7 +1753,7 @@ async function withAuthenticatedBootstrap(button, callback) {
         // complete Outlook conversation during the same button action.
         signatureStateRevision += 1;
         await acceptBootstrap(bootstrap, { inspectBody: false });
-        if (universalStatusByItem.get(target.item)?.blocked === true) {
+        if (manualReplace ? statusBlocksManual(target.item) : universalStatusByItem.get(target.item)?.blocked === true) {
             setBusy(false);
             syncActionState();
             showUniversalStatus(target.item, true);
@@ -1774,7 +1852,7 @@ async function updateSignature(button) {
     });
 }
 
-async function insertTemplate(button, { replaceOnly = false, expectedTarget = null, expectedAccount = null } = {}) {
+async function insertTemplate(button, { replaceOnly = false, manualReplace = false, expectedTemplateId = null, expectedTarget = null, expectedAccount = null } = {}) {
     if (taskpaneState.busy) return { applied: false, reason: 'busy' };
     let result = { applied: false, reason: 'unconfirmed' };
     const selected = selectedTemplate();
@@ -1789,7 +1867,7 @@ async function insertTemplate(button, { replaceOnly = false, expectedTarget = nu
         const item = assertComposeTarget(target);
         if (expectedTarget) assertComposeTarget(expectedTarget);
         if (expectedAccount && bootstrap.binding?.mailboxAddress !== expectedAccount) throw codedError('MAILBOX_MISMATCH');
-        const templateChoice = selectedTemplate();
+        const templateChoice = expectedTemplateId ? taskpaneState.templates.find(choice => choice.id === expectedTemplateId) : selectedTemplate();
 
         if (!templateChoice) {
             throw codedError('TEMPLATE_SELECTION_MISSING');
@@ -1810,7 +1888,8 @@ async function insertTemplate(button, { replaceOnly = false, expectedTarget = nu
                         return;
                     }
                 }
-                const applied = await diagnoseStep('u2e-template', () => insertUniversalComposeDocument(Office, item, document, {
+                const applyDocument = manualReplace ? replaceUniversalComposeDocument : insertUniversalComposeDocument;
+                const applied = await diagnoseStep(manualReplace ? 'u2e-template-replace' : 'u2e-template', () => applyDocument(Office, item, document, {
                     binding: bootstrap.binding, beforeWrite: () => assertWriteTarget(target, bootstrap.binding),
                 }));
                 assertComposeTarget(target);
@@ -1825,7 +1904,7 @@ async function insertTemplate(button, { replaceOnly = false, expectedTarget = nu
                 taskpaneState.signatureVersion = document.version;
                 result = { applied: applied.status === 'applied', reason: applied.status };
                 renderSelectedTemplate();
-                setStatus('success', applied.status === 'already-present' ? 'Vorlage ist aktuell' : 'U2e-Vorlage eingefügt', templateChoice.name);
+                setStatus('success', manualReplace ? 'Neu eingefügt' : applied.status === 'already-present' ? 'Vorlage ist aktuell' : 'U2e-Vorlage eingefügt', templateChoice.name);
                 return;
             });
         }
@@ -1906,7 +1985,7 @@ async function insertTemplate(button, { replaceOnly = false, expectedTarget = nu
                 ? `${templateChoice.name} · Version ${templateChoice.version}`
                 : templateChoice.name,
         );
-    });
+    }, { manualReplace });
     return result;
 }
 
@@ -2065,7 +2144,23 @@ function bindActions() {
 
     view.login.addEventListener('click', () => authenticateInteractively(view.login));
     view.signature.addEventListener('click', () => updateSignature(view.signature));
-    view.template.addEventListener('click', () => insertTemplate(view.template));
+    insertView = bindInsertView(view.root, {
+        templates: () => taskpaneState.templates,
+        available: () => !taskpaneState.busy && view.template.dataset.available === 'true',
+        capture: () => ({ target: captureComposeTarget(), account: currentBootstrap?.binding?.mailboxAddress }),
+        failure: error => { handleFailure(error, true); return view.feedback?.textContent || ''; },
+        choose: async (id, context) => {
+            assertComposeTarget(context.target);
+            if (!taskpaneState.templates.some(template => template.id === id)) throw codedError('TEMPLATE_SELECTION_MISSING');
+            taskpaneState.selectedTemplateId = id;
+            view.templateSelect.value = id;
+            renderSelectedTemplate();
+            const result = await insertTemplate(view.template, { manualReplace: true, expectedTemplateId: id,
+                expectedTarget: context.target, expectedAccount: context.account });
+            return { ...result, message: view.feedback?.textContent || '' };
+        },
+    });
+    if (!insertView) view.template.addEventListener('click', () => insertTemplate(view.template));
     const diagnosticButton = document.querySelector('[data-outlook-diagnostics-run]');
     diagnosticButton?.addEventListener('click', () => runDiagnostics(diagnosticButton));
     const headProbeButton = document.querySelector('[data-outlook-head-probe]');
@@ -2135,6 +2230,7 @@ function bindAccountOptionViews() {
             try { return captureComposeTarget(); } catch { return null; }
         },
         afterSaved: async context => {
+            if (minimalInsertMode()) return 'Gespeichert. Gilt beim nächsten Einfügen.';
             if (taskpaneState.settingsMode || !context?.target) return 'Gespeichert. Gilt beim nächsten Einfügen der Standardvorlage.';
             try {
                 if (mailboxAddress().toLowerCase() !== context.account) throw codedError('MAILBOX_MISMATCH');
@@ -2322,7 +2418,9 @@ async function initialize() {
             await acceptBootstrap(bootstrap);
             setBusy(false);
             syncActionState();
-            setStatus('success', 'Mit RailTime verbunden', readyStatusDetail());
+            if (!lastActionError && !insertionBlocked() && !universalStatusByItem.has(Office.context.mailbox.item)) {
+                setStatus('success', 'Mit RailTime verbunden', readyStatusDetail());
+            }
         } catch (error) {
             if (!isInteractionRequired(error)) {
                 throw error;

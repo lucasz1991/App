@@ -1685,7 +1685,7 @@ test('Outlook dialogs open only on explicit clicks and restore opener focus afte
     }
 });
 
-test('hosted taskpane stays usable without modal footer actions outside Outlook or during a delayed handshake', async () => {
+test('hosted taskpane keeps its picker closed outside Outlook or during a delayed handshake', async () => {
     const { parseHTML } = await import('linkedom');
     const { startOutlookTaskpane } = await import('../../resources/js/outlook-addin/taskpane.js');
     const markup = await source('../../resources/views/outlook-addin/taskpane.blade.php');
@@ -1704,7 +1704,8 @@ test('hosted taskpane stays usable without modal footer actions outside Outlook 
             startOutlookTaskpane(scenario.office);
             await Promise.resolve();
             assert.equal(document.querySelector('[data-outlook-dialog-open]'), null);
-            assert.equal(document.querySelector('dialog'), null);
+            assert.equal(document.querySelectorAll('dialog').length, 1);
+            assert.equal(Boolean(document.querySelector('[data-outlook-template-picker]').open), false);
             if (scenario.unavailable) {
                 assert.equal(document.querySelector('[data-outlook-status-title]').textContent, 'In Outlook öffnen');
                 assert.equal(document.querySelector('[data-outlook-action="template"]').disabled, true);
@@ -1730,7 +1731,7 @@ test('inline connection errors stay escaped and requested focus goes to visible 
         assert.match(feedback.textContent, /<img src="test">/);
         assert.equal(feedback.querySelector('img'), null);
         assert.equal(focused, 1);
-        assert.equal(document.querySelector('[data-outlook-diagnostics]').hidden, false);
+        assert.equal(document.querySelector('[data-outlook-diagnostics]').hidden, true);
         setStatus('success', 'RailTime ist bereit');
         assert.equal(feedback.hidden, true);
         assert.equal(document.querySelector('[data-outlook-diagnostics]').hidden, true);
@@ -1740,7 +1741,7 @@ test('inline connection errors stay escaped and requested focus goes to visible 
         assert.match(detail.textContent, /Hintergrundstatus/);
         for (const tone of ['working', 'error', 'neutral']) {
             setStatus(tone, 'Verbindung prüfen', 'Nötige Rückmeldung bleibt sichtbar.');
-            assert.equal(detail.hidden, false);
+            assert.equal(document.querySelector('[data-outlook-status]').hidden, true, 'technical detail stays internal in the hidden status container');
             assert.match(detail.textContent, /sichtbar/);
         }
         const metadata = document.querySelector('[data-outlook-template-meta]');

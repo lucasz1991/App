@@ -269,10 +269,16 @@ class EmailTemplatesPageTest extends TestCase
                     escape: false,
                 );
             if ($bundle === 'taskpane') {
-                $response->assertSee('RailTime öffnen')
-                    ->assertSee('RailTime als App installieren')
-                    ->assertSee(route('home'), escape: false)
-                    ->assertSee(route('help'), escape: false)
+                $response->assertSee('data-outlook-pane-tab="insert"', escape: false)
+                    ->assertSee('data-outlook-pane-tab="automatic"', escape: false)
+                    ->assertSee('data-outlook-pane-panel="insert"', escape: false)
+                    ->assertSee('data-outlook-pane-panel="automatic"', escape: false)
+                    ->assertSee('data-outlook-template-picker', escape: false)
+                    ->assertSee('data-outlook-template-options', escape: false)
+                    ->assertSee('Signatur &amp; Vorlage einfügen', escape: false)
+                    ->assertSee('Vorlage wählen')
+                    ->assertDontSee('RailTime öffnen')
+                    ->assertDontSee('RailTime als App installieren')
                     ->assertDontSee('https://outlook.office.com/mail/', escape: false);
             }
 

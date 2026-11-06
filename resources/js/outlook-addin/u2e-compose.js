@@ -499,7 +499,7 @@ function authorEvidence(html, excludedRoot = null) {
         links: clean.filter(node => node.tag === 'a').map(node => node.attrs.href) });
 }
 
-async function snapshot(office, item, report = null, lengthOrigin = 'original') {
+async function snapshot(office, item, report = null, lengthOrigin = 'original', fullBody = false) {
     if (report) report.step = 'snapshot.type';
     const type = await readCall(office, callback => item.getComposeTypeAsync(callback));
     const composeType = type?.composeType;
@@ -508,7 +508,7 @@ async function snapshot(office, item, report = null, lengthOrigin = 'original') 
     const format = await readCall(office, callback => item.body.getTypeAsync(callback));
     if (format !== office.CoercionType.Html) throw failure('U2E_HTML_REQUIRED');
     if (report) report.step = 'snapshot.body';
-    const bodyMode = mobileCurrentReplyBodyMode(office, composeType), currentMessageOnly = bodyMode !== null;
+    const bodyMode = fullBody ? null : mobileCurrentReplyBodyMode(office, composeType), currentMessageOnly = bodyMode !== null;
     const html = await readCall(office, callback => currentMessageOnly
         ? item.body.getAsync(office.CoercionType.Html, { bodyMode }, callback)
         : item.body.getAsync(office.CoercionType.Html, callback));
@@ -528,16 +528,76 @@ async function settledLegacy(office, item) {
     }
 }
 
-/** A source-bound single write. No body replacement, clearing, repair or send. */
-export async function insertUniversalComposeDocument(office, item, document, { binding, beforeWrite = () => {} } = {}) {
+/** Automatic, source-bound single insertion. Never replaces authored content. */
+export async function insertUniversalComposeDocument(office, item, document, options = {}) {
+    return writeUniversalComposeDocument(office, item, document, options, false);
+}
+
+/** Explicit manual selection replaces the own compose region, never the quote.
+ * A completed selection may be repeated. Unknown prior writes remain blocked.
+ * This is deliberately not an option accepted by the automatic entry point. */
+export async function replaceUniversalComposeDocument(office, item, document, options = {}) {
+    return writeUniversalComposeDocument(office, item, document, options, true);
+}
+
+function manualReplacementBody(source, original, office, host) {
+    if (original.currentMessageOnly) throw failure('U2E_CONTEXT_UNREADABLE');
+    let html = source.html;
+    if (original.composeType !== 'newMail') {
+        // FullBody reads are mandatory here. Never borrow the automatic
+        // mobile reply's HostConfig snapshot for a full replacement.
+        if (!original.quote) throw failure('U2E_NEW_DRAFT_REQUIRED');
+        const { elements } = parseManagedHtml(original.html), boundary = original.current.length;
+        const ancestors = elements.filter(node => node.openEnd <= boundary && node.close >= boundary && node.end > boundary)
+            .sort((left, right) => left.start - right.start);
+        if (ancestors.some(node => !['html', 'body', 'div', 'span', 'font'].includes(node.tag))
+            || elements.filter(node => node.tag === 'body').length > 1
+            || elements.filter(node => node.tag === 'html').length > 1) throw failure('U2E_NEW_DRAFT_REQUIRED');
+        const bodyIndex = ancestors.findIndex(node => node.tag === 'body');
+        if (bodyIndex < 0 && ancestors.some(node => node.tag === 'html')) throw failure('U2E_NEW_DRAFT_REQUIRED');
+        // Preserve document HEAD/body context required by a Word quote. Inner
+        // ancestor openings belong around the unchanged quote, not around the
+        // fresh source. No old authored node is copied into the new own region.
+        const envelope = bodyIndex < 0 ? '' : original.html.slice(0, ancestors[bodyIndex].openEnd);
+        const quoteContext = ancestors.slice(bodyIndex + 1).map(node => original.html.slice(node.start, node.openEnd)).join('');
+        html = envelope + source.html + quoteContext + original.quote;
+    }
+    if (html.length > 500000) throw failure('U2E_CONTEXT_UNREADABLE');
+    const scoped = region(html, original.composeType, { office });
+    if (!scoped || scoped.quote !== original.quote) throw failure('U2E_NEW_DRAFT_REQUIRED');
+    const verified = universalComposeStateFromBody(source, html, original.composeType, { office, host });
+    if (!verified.current || verified.kind !== 'combined') throw failure('U2E_DOCUMENT_INVALID');
+    assertManualOwnRegion(source, scoped.currentHtml, host);
+    return html;
+}
+
+function assertManualOwnRegion(source, currentHtml, host) {
+    const actual = material(currentHtml, source.marker, false, host), expected = plans.get(source);
+    const outside = currentHtml.slice(0, actual.root?.start) + currentHtml.slice(actual.root?.end);
+    // Material evidence checks the source exactly once. This separate check
+    // rejects leftovers outside that shell (including old unmarked content).
+    if (!actual.root || actual.kind !== 'combined' || !blankCurrent(outside)) throw layoutFailure('author.combined',
+        'fresh-own-region', 'outside-material', null, 'u2e-compose-author');
+    if (!actual.author || authorEvidence(source.html.slice(expected.author.node.start, expected.author.node.end))
+        !== authorEvidence(currentHtml.slice(actual.author.node.start, actual.author.node.end))) throw layoutFailure('author.combined',
+        'source-author', 'different-author', null, 'u2e-compose-author');
+}
+
+async function writeUniversalComposeDocument(office, item, document, { binding, beforeWrite = () => {} } = {}, manualReplacement = false) {
     const source = validateUniversalComposeDocument(document), prior = operations.get(item);
+    if (manualReplacement && source.kind !== 'combined') throw failure('U2E_DOCUMENT_INVALID');
+    // Office.Body.setAsync is not supported for mobile Message Compose even
+    // when the bridge exposes a function. Mobile automatic setSignatureAsync
+    // remains independent; there is no replacement fallback to that method.
+    if (manualReplacement && isMobileComposeHost(office)) throw failure('U2E_API_UNAVAILABLE');
     if (prior && prior.report.state !== 'complete') {
         prior.report = { ...prior.report, code: 'U2E_INSERT_UNCERTAIN' };
         throw failure('U2E_INSERT_UNCERTAIN');
     }
     if (!item || typeof item?.sessionData?.getAsync !== 'function' || typeof item?.sessionData?.setAsync !== 'function'
         || typeof item?.getComposeTypeAsync !== 'function' || typeof item?.body?.getTypeAsync !== 'function' || typeof item?.body?.getAsync !== 'function') throw failure('U2E_API_UNAVAILABLE');
-    const mobile = isMobileComposeHost(office), method = source.kind === 'combined' && !mobile ? 'prependAsync' : 'setSignatureAsync';
+    const mobile = isMobileComposeHost(office), method = manualReplacement ? 'setAsync'
+        : source.kind === 'combined' && !mobile ? 'prependAsync' : 'setSignatureAsync';
     const materialHost = office?.context?.mailbox?.diagnostics?.hostName === 'OutlookIOS' ? 'OutlookIOS' : null;
     if (typeof item.body[method] !== 'function') throw failure('U2E_API_UNAVAILABLE');
     const operation = { claimed: false, report: { schema: 1, state: 'preflight', attempted: false, kind: source.kind, method, headerWritten: false,
@@ -571,26 +631,28 @@ export async function insertUniversalComposeDocument(office, item, document, { b
             operation.recovered = true;
             throw failure('U2E_INSERT_UNCERTAIN');
         }
-        const original = await snapshot(office, item, operation.report);
+        const original = await snapshot(office, item, operation.report, 'original', manualReplacement);
         lastSnapshot = original;
         operation.report.bodyLength = original.html.length;
         await guard();
         operation.report.step = 'source.state';
-        const state = universalComposeStateFromBody(source, original.html, original.composeType, { host: materialHost, office, currentMessageOnly: original.currentMessageOnly });
-        if (state.current) {
+        const replacementHtml = manualReplacement ? manualReplacementBody(source, original, office, materialHost) : null;
+        const state = manualReplacement ? null
+            : universalComposeStateFromBody(source, original.html, original.composeType, { host: materialHost, office, currentMessageOnly: original.currentMessageOnly });
+        if (state?.current) {
             await guardClaim(priorClaim);
             operation.report = { ...operation.report, state: 'complete', current: true, phase: 'complete' };
             return { status: 'already-present', ...state };
         }
-        if (!state.readable || priorClaim && !state.present) throw Object.assign(failure('SIGNATURE_LAYOUT_UNCONFIRMED'),
+        if (!manualReplacement && (!state.readable || priorClaim && !state.present)) throw Object.assign(failure('SIGNATURE_LAYOUT_UNCONFIRMED'),
             u2eReadbackFailure(state.checkpoint || 'state.unreadable'), { difference: state.difference || null });
-        const standardSignature = source.kind === 'combined' && mobile && mobileStandardSignature(original.currentHtml, office);
+        const standardSignature = !manualReplacement && source.kind === 'combined' && mobile && mobileStandardSignature(original.currentHtml, office);
         operation.report.mobileStandardSignatureIgnored = standardSignature;
-        if (state.present || unmarkedU2eShell(original.currentHtml)
+        if (!manualReplacement && (state.present || unmarkedU2eShell(original.currentHtml)
             || /RT-(?:FLUID-LAYOUT|TEMPLATE-MANAGED|SIGNATURE-MANAGED|COMPOSE-EDITABLE)/i.test(original.current)
             || !standardSignature && /id\s*=\s*["'](?:x_)?Signature["']/i.test(original.current)
-            || source.kind === 'combined' && !blankCurrent(original.currentHtml) && !standardSignature) throw failure('U2E_NEW_DRAFT_REQUIRED');
-        const ownAuthor = authorEvidence(original.currentHtml);
+            || source.kind === 'combined' && !blankCurrent(original.currentHtml) && !standardSignature)) throw failure('U2E_NEW_DRAFT_REQUIRED');
+        const ownAuthor = manualReplacement ? null : authorEvidence(original.currentHtml);
         if (!mobile && (!office?.context?.requirements?.isSetSupported?.('Mailbox', '1.8') || typeof item.internetHeaders?.setAsync !== 'function')) throw failure('U2E_HEADER_UNAVAILABLE');
         const token = 'pending:' + source.version + ':' + createNativeLayoutNonce();
         operation.claim = token;
@@ -606,22 +668,32 @@ export async function insertUniversalComposeDocument(office, item, document, { b
             operation.report.headerWritten = true;
         }
         await guard(); operation.report.step = 'legacy'; await settledLegacy(office, item);
-        const latest = await snapshot(office, item, operation.report);
+        const latest = await snapshot(office, item, operation.report, 'original', manualReplacement);
         operation.report.step = 'context.compare';
         if (latest.html !== original.html || latest.composeType !== original.composeType || latest.currentMessageOnly !== original.currentMessageOnly) throw failure('U2E_CONTEXT_CHANGED');
         operation.report.step = 'session.claim';
         if (await session(office, item, UNIVERSAL_COMPOSE_SESSION_KEY) !== token) throw failure('U2E_INSERT_UNCERTAIN');
         await guardClaim(token);
+        if (manualReplacement) {
+            // The asynchronous binding/claim guards can give the user time to
+            // type. Read the entire target again after those guards; no further
+            // caller hook or awaited SDK read sits before the single SET.
+            const final = await snapshot(office, item, operation.report, 'original', true);
+            operation.report.step = 'context.compare';
+            if (office?.context?.mailbox?.item !== item) throw failure('COMPOSE_ITEM_CHANGED');
+            if (final.html !== original.html || final.composeType !== original.composeType
+                || final.currentMessageOnly !== original.currentMessageOnly) throw failure('U2E_CONTEXT_CHANGED');
+        }
         operation.report.phase = 'write';
         operation.report.step = 'body.write';
         operation.report.bodyWriteStarted = true;
         await confirmedOfficeWrite(office, item, 'u2e-compose-write', 'U2E_INSERT_UNCERTAIN',
-            callback => item.body[method](source.html, { coercionType: office.CoercionType.Html }, callback), { deferSignatureConfirmation: true });
+            callback => item.body[method](manualReplacement ? replacementHtml : source.html, { coercionType: office.CoercionType.Html }, callback), { deferSignatureConfirmation: true });
         operation.report.bodyWriteSucceeded = true;
         operation.report.at = new Date().toISOString();
         await guard();
         operation.report.phase = 'readback';
-        const actual = await snapshot(office, item, operation.report, 'actual');
+        const actual = await snapshot(office, item, operation.report, 'actual', manualReplacement);
         operation.report.step = 'readback.material';
         const verified = universalComposeStateFromBody(source, actual.html, actual.composeType, { host: materialHost, office, currentMessageOnly: actual.currentMessageOnly });
         lastSnapshot = actual;
@@ -640,6 +712,7 @@ export async function insertUniversalComposeDocument(office, item, document, { b
         }
         const actualMaterial = material(actual.currentHtml, null, false, materialHost);
         operation.report.step = 'readback.author';
+        if (manualReplacement) assertManualOwnRegion(source, actual.currentHtml, materialHost);
         if (source.kind === 'signature' && authorEvidence(actual.currentHtml, actualMaterial.root) !== ownAuthor) throw layoutFailure('author.signature', ownAuthor,
             authorEvidence(actual.currentHtml, actualMaterial.root), null, 'u2e-compose-author');
         if (source.kind === 'combined') {

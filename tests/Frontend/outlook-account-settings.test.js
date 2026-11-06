@@ -224,8 +224,10 @@ test('Blade has signature switches, context template selectors and wording field
     assert.doesNotMatch(blade, /data-outlook-dialog-open|RailTime installieren|RailTime öffnen/);
     assert.match(blade, /data-wording-save/);
     assert.doesNotMatch(blade, /data-outlook-dialog(?:-open)?="automatic"/);
-    const settings = blade.slice(blade.indexOf('@if ($accountSettingsMode)', blade.indexOf('<main')), blade.indexOf('@else', blade.indexOf('<main')));
+    const settingsStart = blade.indexOf('<p class="settings-feedback" data-outlook-settings-status');
+    const settings = blade.slice(settingsStart, blade.indexOf('@else', settingsStart));
     assert.match(settings, /data-outlook-settings-connect/);
     assert.doesNotMatch(settings, /data-outlook-action|data-outlook-template-region|data-outlook-diagnostics/);
-    assert.match(blade, /16px\/1.4/);
+    assert.match(blade, /\.pane-tab/);
+    assert.match(blade, /data-outlook-template-picker/);
 });

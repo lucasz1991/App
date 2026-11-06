@@ -86,7 +86,7 @@ final class OutlookRedesignPresentationTest extends TestCase
         self::assertSame($settings ? 'settings' : 'compose', $root->getAttribute('data-outlook-context'));
         self::assertSame('true', $root->getAttribute('aria-busy'));
         $heading = $this->one($xpath, '//header[contains(concat(" ",normalize-space(@class)," ")," pane-heading ")]//h1[@id="outlook-addin-heading"]');
-        self::assertSame($settings ? 'Outlook-Einstellungen' : 'RailTime für Outlook', trim($heading->textContent));
+        self::assertSame($settings ? 'Outlook-Einstellungen' : 'RailTime', trim($heading->textContent));
         $this->one($xpath, '//section[@aria-labelledby="outlook-addin-heading"]');
         $this->one($xpath, '//h2[@id="outlook-settings-heading"]');
         self::assertSame(1, $xpath->query('//*[@data-outlook-automatic-region]')->length);
@@ -111,13 +111,14 @@ final class OutlookRedesignPresentationTest extends TestCase
             self::assertSame('status', $feedback->getAttribute('role'));
             self::assertSame('polite', $feedback->getAttribute('aria-live'));
         }
-        $wording = $this->one($xpath, '//details[@data-outlook-wording-region]');
-        self::assertSame($settings, $wording->hasAttribute('open'));
-        $summary = $this->one($xpath, '//details[@data-outlook-wording-region]/summary[@id="outlook-wording-heading"]');
-        self::assertSame('Anrede & Gruß', trim($summary->textContent));
+        $wording = $this->one($xpath, '//section[@data-outlook-wording-region]');
+        $wordingDetails = $this->one($xpath, '//section[@data-outlook-wording-region]/details');
+        self::assertFalse($wordingDetails->hasAttribute('open'), 'Personal texts start collapsed in both entry points.');
+        $summary = $this->one($xpath, '//section[@data-outlook-wording-region]/details/summary[@id="outlook-wording-heading"]');
+        self::assertSame('Persönliche Texte', trim($summary->textContent));
         self::assertSame($summary->getAttribute('id'), $wording->getAttribute('aria-labelledby'));
         foreach (['greeting', 'farewell'] as $field) {
-            $input = $this->one($xpath, '//details[@data-outlook-wording-region]//input[@data-wording-field="'.$field.'"]');
+            $input = $this->one($xpath, '//section[@data-outlook-wording-region]//input[@data-wording-field="'.$field.'"]');
             self::assertSame('text', $input->getAttribute('type'));
             self::assertSame('120', $input->getAttribute('maxlength'));
             self::assertTrue($input->hasAttribute('disabled'));
@@ -146,6 +147,8 @@ final class OutlookRedesignPresentationTest extends TestCase
             'data-outlook-login-title', 'data-outlook-login-detail', 'data-outlook-signature-detail',
             'data-outlook-diagnostics', 'data-outlook-diagnostics-run', 'data-outlook-diagnostics-copy',
             'data-outlook-diagnostics-output', 'data-outlook-diagnostics-feedback',
+            'data-outlook-insert-template', 'data-outlook-template-picker', 'data-outlook-template-picker-close',
+            'data-outlook-template-options', 'data-outlook-template-picker-status', 'data-outlook-developer-controls',
         ] as $hook) {
             self::assertSame($settings ? 0 : 1, $xpath->query('//*[@'.$hook.']')->length, $hook);
         }
@@ -153,6 +156,57 @@ final class OutlookRedesignPresentationTest extends TestCase
             self::assertSame($settings ? 1 : 0, $xpath->query('//*[@'.$hook.']')->length, $hook);
         }
         self::assertSame(0, $xpath->query('//*[@data-outlook-dialog-open]')->length);
+        self::assertSame($settings ? 0 : 1, $xpath->query('//*[@role="tablist"]')->length);
+        self::assertSame($settings ? 0 : 2, $xpath->query('//button[@role="tab" and @data-outlook-pane-tab]')->length);
+        self::assertSame($settings ? 0 : 2, $xpath->query('//*[@role="tabpanel" and @data-outlook-pane-panel]')->length);
+        self::assertSame($settings ? 0 : 1, $xpath->query('//dialog')->length);
+        if ($settings) {
+            $settingsSection = $this->one($xpath, '//section[@aria-labelledby="outlook-settings-heading"]');
+            self::assertFalse($settingsSection->hasAttribute('hidden'), 'Account settings remain usable without compose tabs.');
+            self::assertSame(0, $xpath->query('ancestor::*[@hidden or @inert]', $settingsSection)->length);
+        } else {
+            foreach (['insert', 'automatic'] as $pane) {
+                $tab = $this->one($xpath, '//button[@role="tab" and @data-outlook-pane-tab="'.$pane.'"]');
+                $panel = $this->one($xpath, '//*[@role="tabpanel" and @data-outlook-pane-panel="'.$pane.'"]');
+                self::assertSame($panel->getAttribute('id'), $tab->getAttribute('aria-controls'));
+                self::assertSame($tab->getAttribute('id'), $panel->getAttribute('aria-labelledby'));
+                self::assertSame($pane === 'insert' ? 'true' : 'false', $tab->getAttribute('aria-selected'));
+                self::assertSame($pane === 'insert' ? '0' : '-1', $tab->getAttribute('tabindex'));
+                self::assertSame($pane === 'automatic', $panel->hasAttribute('hidden'));
+            }
+            $action = $this->one($xpath, '//button[@data-outlook-insert-template and @data-outlook-action="template"]');
+            self::assertStringContainsString('Signatur & Vorlage einfügen', $action->textContent);
+            self::assertSame('dialog', $action->getAttribute('aria-haspopup'));
+            $picker = $this->one($xpath, '//dialog[@data-outlook-template-picker]');
+            self::assertSame($picker->getAttribute('id'), $action->getAttribute('aria-controls'));
+            self::assertFalse($picker->hasAttribute('open'), 'Loading the task pane must not open a selection or imply insertion.');
+            foreach (['aria-labelledby', 'aria-describedby'] as $reference) {
+                $this->one($xpath, '//*[@id="'.$picker->getAttribute($reference).'"]');
+            }
+            $close = $this->one($xpath, '//dialog[@data-outlook-template-picker]//button[@data-outlook-template-picker-close]');
+            self::assertNotSame('', $close->getAttribute('aria-label'));
+            self::assertSame(1, $xpath->query('//dialog[@data-outlook-template-picker]//button')->length, 'The sheet has no second confirmation action.');
+            $this->one($xpath, '//dialog[@data-outlook-template-picker]//*[@data-outlook-template-options]');
+            $feedback = $this->one($xpath, '//*[@data-outlook-pane-feedback]');
+            self::assertSame(0, $xpath->query('ancestor::*[@data-outlook-pane-panel]', $feedback)->length, 'Authentication and action feedback must remain reachable on both tabs.');
+            self::assertTrue($feedback->hasAttribute('hidden'));
+            self::assertSame('status', $feedback->getAttribute('role'));
+            self::assertSame('polite', $feedback->getAttribute('aria-live'));
+            self::assertSame('', trim($feedback->textContent), 'No successful insertion may be claimed before an action.');
+            $status = $this->one($xpath, '//*[@data-outlook-status]');
+            self::assertTrue($status->hasAttribute('hidden'));
+            self::assertTrue($status->hasAttribute('inert'));
+            self::assertSame('true', $status->getAttribute('aria-hidden'));
+            self::assertFalse($status->hasAttribute('aria-live'), 'Technical status must not duplicate the compact feedback announcement.');
+            foreach (['data-outlook-template-select', 'data-outlook-template-meta', 'data-outlook-diagnostics-run', 'data-outlook-diagnostics-copy'] as $hook) {
+                $control = $this->one($xpath, '//*[@'.$hook.']');
+                self::assertGreaterThanOrEqual(1, $xpath->query('ancestor::*[@hidden and @inert and @aria-hidden="true"]', $control)->length, $hook.' must stay outside the everyday UI.');
+            }
+            $signature = $this->one($xpath, '//button[@data-outlook-action="signature"]');
+            self::assertSame(1, $xpath->query('ancestor::*[@data-outlook-developer-controls and @hidden and @inert]', $signature)->length);
+            $login = $this->one($xpath, '//button[@data-outlook-action="login"]');
+            self::assertSame(1, $xpath->query('ancestor::*[@data-outlook-pane-panel="automatic"]', $login)->length);
+        }
         $ids = [];
         foreach ($xpath->query('//*[@id]') as $element) {
             self::assertArrayNotHasKey($element->getAttribute('id'), $ids, 'Responsive layouts must not duplicate controls.');
