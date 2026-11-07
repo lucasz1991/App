@@ -67,10 +67,10 @@ for (const [tag, prior, size, digest, fromFile, derived, overrides, lineCount] o
     });
 }
 
-test('active defaults select v16/v17 while all five historical artifacts stay explicitly verifiable', async () => {
+test('active defaults select v18/v19 while all seven historical artifacts stay explicitly verifiable', async () => {
     const active = await buildCk19MobileStyles({ check: true });
-    assert.deepEqual(active.map(x => x.revision), ['ck19-approved-v16-20261106', 'ck19-approved-v17-20261106']);
-    assert.equal((await buildCk19MobileStyle({ check: true })).kind, 'ck19-approved-v16-generated-mobile-style');
+    assert.deepEqual(active.map(x => x.revision), ['ck19-approved-v18-20261107', 'ck19-approved-v19-20261107']);
+    assert.equal((await buildCk19MobileStyle({ check: true })).kind, 'ck19-approved-v18-generated-mobile-style');
     const all = await buildCk19MobileStyles({ check: true, releases: ['v11', 'v12', 'v13', 'v14', 'v15', 'v16', 'v17'] });
     assert.equal(all.length, 7);
 });

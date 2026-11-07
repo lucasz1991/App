@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "kind": "ck19-approved-v19-generated-mobile-style",
+  "revision": "ck19-approved-v19-20261107",
+  "sourceTemplate": "resources/mail-templates/u2e-universal-v1.html",
+  "sourceTemplateSha256": "aed4ce9baade0a1a4411c6b72da36b893bdf6134262f2367a55f44097ffe5e09",
+  "sourceCssSha256": "44320e37dbd5376595ecbd11938fcc96b5be372088dea343fed9a187d18f746f",
+  "templateConstant": "OutlookUniversalPresentation::TEMPLATE_SHA256",
+  "mapping": "resources/mail-templates/ck19-mobile-style-v19.mapping.json",
+  "mappingSha256": "ee294a16609c72a2300682dcd3866a3cbf20743a4c3331fdc6de693135eb9843",
+  "generator": "scripts/build-ck19-mobile-style.mjs",
+  "generatorSha256": "7141547a4c84cebe1cd3e0903e20f897e15b18a2b2391be31472baa94ef1c0a9",
+  "payload": "ck19-mobile-style-v19.html",
+  "payloadSha256": "814833bd39e097eacfffe9285361756b6cede18bea41ef87068143ec6c8cefab",
+  "payloadCharacters": 3801,
+  "maximumCharactersExclusive": 5000,
+  "media": "only screen and (max-width:1039px)",
+  "rules": 34,
+  "derivedDeclarations": 80,
+  "explicitTransportOverrides": 23,
+  "historicalPaddingOverrides": 1,
+  "historicalPaddingSources": [
+    {
+      "approval": "C-K27-user-approved-retain-existing-v11-v17-payloads",
+      "templateSha256": "ecb6bbe92fbf50b5ecc9f0145894cf524d03545d776df3ff1ff4046a5db38ecf",
+      "cssSha256": "cf15bb89e9425c30f3db73b20b5263763e5c2b0d3d32d9a4e67625a5c2ed0006",
+      "media": "only screen and (max-width:600px)",
+      "selector": ".rt-text",
+      "property": "padding",
+      "value": "24px 20px 24px"
+    }
+  ],
+  "historicalLineOverrides": 1,
+  "historicalLineSource": {
+    "approval": "C-K25-user-approved-retain-existing-v11-v15-payloads",
+    "templateSha256": "5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204",
+    "cssSha256": "502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1",
+    "media": "only screen and (max-width:600px)",
+    "selector": ".rt-cta-line",
+    "property": "display",
+    "value": "none"
+  },
+  "nativeClientProof": false,
+  "exchangeRuleUpdatedByBuild": false,
+  "sourceFileNormalization": null,
+  "derivation": {
+    "predecessor": "v17",
+    "predecessorSha256": "36bfdadfced47555ea12e092902652db5efa6f91a04b7cd704f80cf82a145d24",
+    "selector": "table.rt-shell a,table.rt-shell a span",
+    "property": "color",
+    "previousValue": "#142231",
+    "value": "inherit",
+    "important": true,
+    "approval": "user-approved-20261107-link-color-inheritance-only"
+  },
+  "scope": "Approved v19 retains the v17 class/tag scope including selectors outside table.rt-shell; only general link color inherits from its parent. Unrelated-content compatibility is not asserted.",
+  "historicalCtaGuard": "Only rt-dispo-cap, rt-cta-line and rt-cta-gap descendants of table.rt-dispo are hidden by the cap/line/gap guard; CTA cells are not hidden."
+}

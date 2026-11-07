@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "kind": "ck19-approved-v18-generated-mobile-style",
+  "revision": "ck19-approved-v18-20261107",
+  "sourceTemplate": "resources/mail-templates/u2e-universal-v1.html",
+  "sourceTemplateSha256": "aed4ce9baade0a1a4411c6b72da36b893bdf6134262f2367a55f44097ffe5e09",
+  "sourceCssSha256": "44320e37dbd5376595ecbd11938fcc96b5be372088dea343fed9a187d18f746f",
+  "templateConstant": "OutlookUniversalPresentation::TEMPLATE_SHA256",
+  "mapping": "resources/mail-templates/ck19-mobile-style-v18.mapping.json",
+  "mappingSha256": "40d5b8804b5afa0b221a94cb6a0f7a6256e52f5686723a6037d13f4d1969d71a",
+  "generator": "scripts/build-ck19-mobile-style.mjs",
+  "generatorSha256": "7141547a4c84cebe1cd3e0903e20f897e15b18a2b2391be31472baa94ef1c0a9",
+  "payload": "ck19-mobile-style-v18.html",
+  "payloadSha256": "f3c94895db8ce4053d148779e7a0230636341f778a4ff70a2768e2237eb1502c",
+  "payloadCharacters": 4948,
+  "maximumCharactersExclusive": 5000,
+  "media": "only screen and (max-width:1039px)",
+  "rules": 42,
+  "derivedDeclarations": 87,
+  "explicitTransportOverrides": 25,
+  "historicalPaddingOverrides": 1,
+  "historicalPaddingSources": [
+    {
+      "approval": "C-K27-user-approved-retain-existing-v11-v17-payloads",
+      "templateSha256": "ecb6bbe92fbf50b5ecc9f0145894cf524d03545d776df3ff1ff4046a5db38ecf",
+      "cssSha256": "cf15bb89e9425c30f3db73b20b5263763e5c2b0d3d32d9a4e67625a5c2ed0006",
+      "media": "only screen and (max-width:600px)",
+      "selector": ".rt-text",
+      "property": "padding",
+      "value": "24px 20px 24px"
+    }
+  ],
+  "historicalLineOverrides": 3,
+  "historicalLineSource": {
+    "approval": "C-K25-user-approved-retain-existing-v11-v15-payloads",
+    "templateSha256": "5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204",
+    "cssSha256": "502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1",
+    "media": "only screen and (max-width:600px)",
+    "selector": ".rt-cta-line",
+    "property": "display",
+    "value": "none"
+  },
+  "nativeClientProof": false,
+  "exchangeRuleUpdatedByBuild": false,
+  "sourceFileNormalization": null,
+  "derivation": {
+    "predecessor": "v16",
+    "predecessorSha256": "c5532f4ac2805996973d7c001fbcadaf34ab988b752f4a23bd368635b6801b62",
+    "selector": "[width=\"1040\"] a,[width=\"1040\"] a span",
+    "property": "color",
+    "previousValue": "#142231",
+    "value": "inherit",
+    "important": true,
+    "approval": "user-approved-20261107-link-color-inheritance-only"
+  },
+  "scope": "Approved v18 retains the v16 global attribute-selector scope and Word head paragraphs; only general link color inherits from its parent. Unrelated-content compatibility is not asserted.",
+  "historicalCtaGuard": "Separate colspan=5 line cell only; old single action row remains visible."
+}

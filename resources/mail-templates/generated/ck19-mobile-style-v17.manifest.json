@@ -9,7 +9,7 @@
   "mapping": "resources/mail-templates/ck19-mobile-style-v17.mapping.json",
   "mappingSha256": "3300682fca3206a20fb64e76ee1c9601b67bacd07719d82d6062cddb60032160",
   "generator": "scripts/build-ck19-mobile-style.mjs",
-  "generatorSha256": "981f0a2a481d687b97ca3513932a64d45652cac8462c63029c9536884a4ba684",
+  "generatorSha256": "7141547a4c84cebe1cd3e0903e20f897e15b18a2b2391be31472baa94ef1c0a9",
   "payload": "ck19-mobile-style-v17.html",
   "payloadSha256": "36bfdadfced47555ea12e092902652db5efa6f91a04b7cd704f80cf82a145d24",
   "payloadCharacters": 3801,
