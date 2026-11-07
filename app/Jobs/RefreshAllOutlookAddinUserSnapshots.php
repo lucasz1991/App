@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\User;
+use App\Support\OutlookAddin\OutlookAddinEmployeeEligibility;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -34,13 +35,14 @@ final class RefreshAllOutlookAddinUserSnapshots implements ShouldQueue
     public function handle(): void
     {
         User::query()
-            ->where('status', true)
             ->whereIn('role', ['admin', 'staff'])
             ->select('id')
             ->orderBy('id')
             ->chunkById(100, static function ($users): void {
                 foreach ($users as $user) {
-                    RefreshOutlookAddinUserSnapshot::dispatch((int) $user->getKey());
+                    if (app(OutlookAddinEmployeeEligibility::class)->canPrepareSnapshot($user)) {
+                        RefreshOutlookAddinUserSnapshot::dispatch((int) $user->getKey());
+                    }
                 }
             });
     }

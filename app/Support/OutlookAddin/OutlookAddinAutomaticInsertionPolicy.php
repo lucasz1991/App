@@ -129,8 +129,8 @@ final class OutlookAddinAutomaticInsertionPolicy
                 throw ValidationException::withMessages(['mailbox' => 'Die Microsoft-Zuordnung wurde inzwischen geändert. Bitte erneut prüfen.']);
             }
             $employee = $users->get($expectedUserId);
-            if (! $employee instanceof User || ! $employee->isActive() || ! in_array($employee->role, ['admin', 'staff'], true)) {
-                throw ValidationException::withMessages(['mailbox' => 'Das verknüpfte Mitarbeiterkonto ist nicht aktiv.']);
+            if (! app(OutlookAddinEmployeeEligibility::class)->permits($employee)) {
+                throw ValidationException::withMessages(['mailbox' => 'Die Microsoft-Mitarbeiterzuordnung ist nicht eindeutig freigegeben.']);
             }
             $setting = Setting::query()->where('type', self::GROUP)->where('key', $this->key($employee))->lockForUpdate()->first();
             $preferences = $this->preferencesValue($employee, $setting?->value);
@@ -267,8 +267,7 @@ final class OutlookAddinAutomaticInsertionPolicy
             || ! Str::isUuid((string) $identity->tenant_id)
             || ! hash_equals($tenant, strtolower((string) $identity->tenant_id))
             || ! $identity->user instanceof User
-            || ! $identity->user->isActive()
-            || ! in_array($identity->user->role, ['admin', 'staff'], true)) {
+            || (int) app(OutlookAddinEmployeeEligibility::class)->accountForUser($identity->user, $lock)?->getKey() !== (int) $identity->getKey()) {
             throw ValidationException::withMessages(['mailbox' => 'Für diesen Microsoft-Anmeldenamen fehlt eine eindeutige aktive Mitarbeiterzuordnung im konfigurierten Mandanten.']);
         }
 

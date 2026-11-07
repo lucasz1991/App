@@ -24,7 +24,7 @@ final class OutlookUniversalPayloadPresentation
         foreach ($wire['templates'] ?? [] as $index => $entry) {
             unset($wire['templates'][$index]['universalCompose'], $wire['templates'][$index]['universalSignature']);
         }
-        // Source admission only: identity/activation has already been resolved.
+        // Source admission only: Microsoft identity has already been resolved.
         // The separate IT-only export, transit and fixture scope stays intact.
         if (! self::isSourceAllowed($user)) {
             $this->record($user, $this->event('outside_pilot', 'pilot', 'U2E_OUTSIDE_PILOT'), $context);
@@ -89,9 +89,16 @@ final class OutlookUniversalPayloadPresentation
         return $user !== null && strtolower(trim((string) $user->email)) === 'it-technik@rail-time.de';
     }
 
-    /** Explicit source rollout; profile fields and client mailbox hints grant no access. */
+    /** Source rollout is separate from the IT-only transit/export/fixture pilot. */
     public static function isSourceAllowed(?User $user): bool
     {
+        $mode = config('outlook_addin.universal_source.mode');
+        if ($mode === 'eligible_linked_employees') {
+            return app(OutlookAddinEmployeeEligibility::class)->permits($user);
+        }
+        if ($mode !== 'explicit_accounts') {
+            return false;
+        }
         $accounts = config('outlook_addin.universal_source.allowed_accounts', []);
         if ($user === null || ! is_array($accounts)) {
             return false;

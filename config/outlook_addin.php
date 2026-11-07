@@ -26,11 +26,12 @@ return [
     'base_url' => $baseUrl,
     'marker' => 'RT-SIGNATURE-MANAGED-V1',
 
-    // Temporary source admission mirrors the four direct members of the
-    // centrally managed Outlook/Exchange group. This is an explicit list,
-    // not a live Graph membership check; group changes require reconciliation.
-    // It does not change add-in identity/activation rules, exports or transit.
+    // Registered employee records with a unique active Microsoft binding may
+    // use the source without completing RailTime registration. Microsoft 365
+    // deployment/Exchange membership stays separate; this never activates users.
+    // The old explicit list remains available as an intentional rollback mode.
     'universal_source' => [
+        'mode' => 'eligible_linked_employees',
         'group_reference' => [
             'name' => 'RailTime-Signatur',
             'email' => 'railtime-signatur@rail-time.de',

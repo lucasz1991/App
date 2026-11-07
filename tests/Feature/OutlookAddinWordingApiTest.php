@@ -196,10 +196,21 @@ final class OutlookAddinWordingApiTest extends TestCase
         self::assertSame($before, $this->rows());
     }
 
+    public function test_unregistered_linked_employee_can_read_and_save_wording_without_changing_registration(): void
+    {
+        User::whereKey(5)->update(['status' => false, 'email_verified_at' => null]);
+        $before = $this->rows();
+        $revision = $this->getJson(self::URL, $this->headers())->assertOk()->json('wordingPreferences.revision');
+        self::assertSame($before, $this->rows());
+        $this->patchJson(self::URL, ['greeting' => 'Hallo,', 'farewell' => 'Viele Grüße,', 'revision' => $revision], $this->headers())
+            ->assertOk()->assertJsonPath('wordingPreferences.greeting', 'Hallo,');
+        self::assertSame($before['users'], $this->rows()['users']);
+        self::assertSame($before['identities'], $this->rows()['identities']);
+    }
+
     public static function unavailableAccounts(): array
     {
         return [
-            'inactive' => ['user', ['status' => false]], 'unverified' => ['user', ['email_verified_at' => null]],
             'guest' => ['user', ['role' => 'guest']], 'revoked link' => ['identity', ['lifecycle_status' => 'inactive']],
             'unlinked' => ['identity', ['user_id' => null]], 'foreign tenant' => ['identity', ['tenant_id' => '44444444-4444-4444-8444-444444444444']],
         ];

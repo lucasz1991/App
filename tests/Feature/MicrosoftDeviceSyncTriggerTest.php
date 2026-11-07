@@ -294,12 +294,19 @@ final class MicrosoftDeviceSyncTriggerTest extends TestCase
         $this->assertDatabaseCount('jobs', 0);
     }
 
-    public function test_outlook_resolver_accepts_legacy_and_matching_tenant_but_rejects_a_foreign_tenant(): void
+    public function test_outlook_resolver_requires_explicit_matching_tenant_without_binding_legacy_identity(): void
     {
         [$user, $account] = $this->identityAccount(null);
+        $user->update(['role' => 'staff']);
         $resolver = app(OutlookAddinIdentityResolver::class);
         $identity = $this->verifiedIdentity();
-        $this->assertSame($user->getKey(), $resolver->resolve($identity, $identity->principal, $identity->principal)['user']->getKey());
+        try {
+            $resolver->resolve($identity, $identity->principal, $identity->principal);
+            $this->fail('A legacy identity without an explicit tenant must not be admitted or rebound.');
+        } catch (OutlookAddinException $exception) {
+            $this->assertSame('outlook_addin_identity_not_linked', $exception->errorCode);
+        }
+        $this->assertNull($account->fresh()->tenant_id);
 
         $account->forceFill(['tenant_id' => self::TENANT])->save();
         $this->assertSame($user->getKey(), $resolver->resolve($identity, $identity->principal, $identity->principal)['user']->getKey());

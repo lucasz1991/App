@@ -2,12 +2,8 @@
 
 namespace App\Support\OutlookAddin;
 
-use App\Enums\AccountProvider;
 use App\Models\EmployeeIdentityAccount;
 use App\Models\User;
-use App\Services\DeviceManagement\EmployeeWorkplaceProvisioner;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
 
 final class OutlookAddinIdentityResolver
 {
@@ -15,25 +11,13 @@ final class OutlookAddinIdentityResolver
     public function resolveOwnAccount(VerifiedEntraIdentity $identity, string $mailboxAddress): array
     {
         $mailboxAddress = strtolower(trim($mailboxAddress));
-        $tenant = strtolower(trim((string) config('outlook_addin.entra.tenant_id')));
-        if (! Str::isUuid($tenant) || ! Str::isUuid($identity->objectId)
-            || ! hash_equals($tenant, strtolower($identity->tenantId))
-            || ! Schema::hasTable('employee_identity_accounts')) {
-            throw $this->notLinked();
-        }
-        $accounts = EmployeeIdentityAccount::query()->forProvider(AccountProvider::Microsoft365)->active()
-            ->whereRaw('LOWER(external_id) = ?', [strtolower($identity->objectId)])->with('user')->get();
-        $account = $accounts->count() === 1 ? $accounts->first() : null;
+        $eligibility = app(OutlookAddinEmployeeEligibility::class);
+        $account = $eligibility->accountForIdentity($identity);
         $user = $account?->user;
-        if (! $account instanceof EmployeeIdentityAccount || ! $user instanceof User
-            || ! hash_equals($tenant, strtolower((string) $account->tenant_id))
-            || ! $user->isActive() || $user->email_verified_at === null
-            || ! in_array($user->role, ['admin', 'staff'], true)) {
+        if (! $account instanceof EmployeeIdentityAccount || ! $user instanceof User) {
             throw $this->notLinked();
         }
-        $trusted = array_values(array_unique(array_filter(array_map(
-            static fn (mixed $value): string => strtolower(trim((string) $value)), [$account->principal, $account->email],
-        ), static fn (string $value): bool => filter_var($value, FILTER_VALIDATE_EMAIL) !== false)));
+        $trusted = $eligibility->trustedAddresses($account);
         if (filter_var($mailboxAddress, FILTER_VALIDATE_EMAIL) === false
             || ! in_array(strtolower($identity->principal), $trusted, true)
             || ! in_array($mailboxAddress, $trusted, true)) {
@@ -66,24 +50,18 @@ final class OutlookAddinIdentityResolver
             );
         }
 
-        $account = $this->identityAccount($identity);
+        $eligibility = app(OutlookAddinEmployeeEligibility::class);
+        $account = $eligibility->accountForIdentity($identity);
         $user = $account?->user;
 
         if (! $account instanceof EmployeeIdentityAccount
-            || ! $user instanceof User
-            || ($account->tenant_id !== null
-                && ! hash_equals(strtolower($identity->tenantId), strtolower((string) $account->tenant_id)))) {
+            || ! $user instanceof User) {
             throw $this->notLinked();
         }
 
-        $trustedAddresses = array_values(array_unique(array_filter(array_map(
-            static fn (mixed $value): string => strtolower(trim((string) $value)),
-            // Nur ausdruecklich diesem Microsoft-Konto zugeordnete Adressen.
-            // Die Profil-E-Mail kann privat sein und ist kein Postfach-Alias.
-            [$account->principal, $account->email],
-        ), static fn (string $value): bool => filter_var($value, FILTER_VALIDATE_EMAIL) !== false)));
+        $trustedAddresses = $eligibility->trustedAddresses($account);
 
-        if (! in_array($identity->principal, $trustedAddresses, true)
+        if (! in_array(strtolower($identity->principal), $trustedAddresses, true)
             || ! in_array($mailboxAddress, $trustedAddresses, true)) {
             throw new OutlookAddinException(
                 'Die Microsoft-Anmeldung gehört nicht zum geöffneten Outlook-Postfach.',
@@ -99,14 +77,7 @@ final class OutlookAddinIdentityResolver
             );
         }
 
-        // Only a validated token and a matching mailbox/sender reach activation.
-        // Legacy inactive accounts without an explicit workplace approval remain blocked.
-        app(EmployeeWorkplaceProvisioner::class)->activate($identity);
-        $user = $user->fresh();
-        if (! $user->isActive() || $user->email_verified_at === null) {
-            throw $this->notLinked();
-        }
-
+        // Outlook access never completes registration or activates the RailTime account.
         return [
             'user' => $user,
             'binding' => [
@@ -118,25 +89,10 @@ final class OutlookAddinIdentityResolver
         ];
     }
 
-    private function identityAccount(VerifiedEntraIdentity $identity): ?EmployeeIdentityAccount
-    {
-        if (! Schema::hasTable('employee_identity_accounts')) {
-            return null;
-        }
-
-        return EmployeeIdentityAccount::query()
-            ->forProvider(AccountProvider::Microsoft365)
-            ->active()
-            ->where('external_id', $identity->objectId)
-            ->whereNotNull('user_id')
-            ->with('user')
-            ->first();
-    }
-
     private function notLinked(): OutlookAddinException
     {
         return new OutlookAddinException(
-            'Für diese Microsoft-Identität ist kein aktiver RailTime-Mitarbeiter freigeschaltet.',
+            'Für diese Microsoft-Identität fehlt eine eindeutige RailTime-Mitarbeiterzuordnung.',
             403,
             'outlook_addin_identity_not_linked',
         );

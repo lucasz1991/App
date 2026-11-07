@@ -275,8 +275,16 @@ final class EmployeeOutlookPreferencesTest extends TestCase
     public static function revokedStates(): array
     {
         return ['actor inactive' => ['actor', ['status' => false]], 'actor unverified' => ['actor', ['email_verified_at' => null]],
-            'target inactive' => ['target', ['status' => false]], 'target unverified' => ['target', ['email_verified_at' => null]],
             'target nonemployee' => ['target', ['role' => 'user']]];
+    }
+
+    public function test_active_verified_manager_can_manage_unregistered_linked_target_without_activating_it(): void
+    {
+        $this->target->update(['status' => false, 'email_verified_at' => null]);
+        $before = DB::table('users')->where('id', $this->target->id)->first();
+        $this->preferencesComponent()->assertSet('available', true)->assertSet('wordingAvailable', true)
+            ->set('greeting', 'Guten Morgen,')->call('saveWording')->assertHasNoErrors();
+        self::assertEquals($before, DB::table('users')->where('id', $this->target->id)->first());
     }
 
     public function test_conflicting_revisions_do_not_overwrite_and_wording_draft_requires_explicit_reload(): void

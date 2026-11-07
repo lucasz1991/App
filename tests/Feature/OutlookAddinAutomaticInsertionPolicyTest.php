@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\OutlookAddinBootstrapController;
 use App\Models\EmployeeIdentityAccount;
 use App\Models\Setting;
 use App\Models\User;
+use App\Services\DeviceManagement\EmployeeWorkplaceProvisioner;
 use App\Support\OutlookAddin\OutlookAddinAutomaticInsertionPolicy;
 use App\Support\OutlookAddin\OutlookAddinBuild;
 use App\Support\OutlookAddin\OutlookAddinException;
@@ -338,8 +339,8 @@ final class OutlookAddinAutomaticInsertionPolicyTest extends TestCase
             'identity ownership' => ['identity', ['user_id' => 6]],
             'identity tenant' => ['identity', ['tenant_id' => '55555555-5555-4555-8555-555555555555']],
             'identity alias' => ['identity', ['email' => 'new-alias@company.test']],
-            'inactive employee' => ['user', ['status' => false]],
-            'unverified employee' => ['user', ['email_verified_at' => null]],
+            'revoked identity' => ['identity', ['lifecycle_status' => 'inactive']],
+            'employee role' => ['user', ['role' => 'guest']],
         ];
     }
 
@@ -488,6 +489,24 @@ final class OutlookAddinAutomaticInsertionPolicyTest extends TestCase
         self::assertSame(['signature' => true, 'template' => true], $preferences['newMessages']);
         self::assertSame($preferences['newMessages'], $preferences['replies']);
         self::assertSame('metadata', Setting::getValueUncached('outlook_addin', 'automatic_insertion_user_5')['keep']);
+    }
+
+    public function test_unregistered_linked_employee_can_bootstrap_cache_and_use_own_settings_without_activation(): void
+    {
+        $this->publishedLibrary();
+        User::whereKey(5)->update(['status' => false, 'email_verified_at' => null]);
+        $this->app->bind(EmployeeWorkplaceProvisioner::class, static fn () => throw new \LogicException('Outlook may not complete registration.'));
+        $before = $this->employeeRows();
+        $headers = $this->headers(EmployeeIdentityAccount::findOrFail(1));
+        $response = $this->getJson('/api/outlook-addin/bootstrap', $headers)->assertOk();
+        self::assertNotEmpty($response->json('signature.html'));
+        $response->assertJsonPath('binding.mailboxAddress', self::MAILBOX);
+        self::assertTrue(app(OutlookAddinUserSnapshotStore::class)->isCurrentForUser(User::findOrFail(5)));
+        foreach (['account-preferences', 'account-wording', 'account-template-choices'] as $endpoint) {
+            $this->getJson('/api/outlook-addin/'.$endpoint, array_replace($headers, ['X-RailTime-Outlook-Context' => 'account-settings']))->assertOk();
+        }
+        self::assertSame($before, $this->employeeRows());
+        self::assertSame(0, DB::table('activity_log')->count());
     }
 
     private function publishedLibrary(): void

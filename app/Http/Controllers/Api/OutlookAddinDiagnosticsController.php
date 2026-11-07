@@ -37,7 +37,7 @@ final class OutlookAddinDiagnosticsController extends Controller
             if (! in_array($request->header('X-RailTime-Outlook-Context'), ['taskpane', 'event'], true)) {
                 throw new OutlookAddinException('Der Outlook-Kontext fehlt.', 403, 'outlook_addin_diagnostics_context_required');
             }
-            // Unlike compose bootstrap, telemetry must never activate an account.
+            // Telemetry, like compose bootstrap, never activates a RailTime account.
             $resolved = $resolver->resolveOwnAccount($identity, (string) $request->header('X-RailTime-Outlook-Mailbox'));
             $sender = strtolower(trim((string) $request->header('X-RailTime-Outlook-Sender')));
             if (! in_array($sender, $resolved['binding']['allowedSenderAddresses'], true)) {

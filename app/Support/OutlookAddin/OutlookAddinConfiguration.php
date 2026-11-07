@@ -2,10 +2,7 @@
 
 namespace App\Support\OutlookAddin;
 
-use App\Enums\AccountProvider;
-use App\Models\EmployeeIdentityAccount;
 use App\Models\User;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 final class OutlookAddinConfiguration
@@ -57,19 +54,7 @@ final class OutlookAddinConfiguration
 
     public function availableTo(?User $user): bool
     {
-        if (! $this->deployed()
-            || ! $user instanceof User
-            || ! Schema::hasTable('employee_identity_accounts')) {
-            return false;
-        }
-
-        return EmployeeIdentityAccount::query()
-            ->forProvider(AccountProvider::Microsoft365)
-            ->active()
-            ->where('user_id', $user->getKey())
-            ->whereNotNull('external_id')
-            ->where('external_id', '!=', '')
-            ->exists();
+        return $this->deployed() && app(OutlookAddinEmployeeEligibility::class)->permits($user);
     }
 
     public function assertReady(): void

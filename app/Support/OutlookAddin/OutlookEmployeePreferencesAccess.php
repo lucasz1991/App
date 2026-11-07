@@ -54,8 +54,9 @@ final class OutlookEmployeePreferencesAccess
 
     public function requireEligibleTarget(User $target): void
     {
-        if (! $target->isActive() || $target->email_verified_at === null) {
-            throw new OutlookAddinException('Die Outlook-Einstellungen benötigen ein aktives, bestätigtes Mitarbeiterkonto.', 403, 'outlook_addin_employee_not_eligible');
+        if (! ($target->isActive() && $target->email_verified_at !== null)
+            && ! app(OutlookAddinEmployeeEligibility::class)->permits($target)) {
+            throw new OutlookAddinException('Die Outlook-Einstellungen benötigen eine eindeutige aktive Microsoft-Mitarbeiterzuordnung.', 403, 'outlook_addin_employee_not_eligible');
         }
     }
 }

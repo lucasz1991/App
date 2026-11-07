@@ -17,7 +17,9 @@ final class OutlookUniversalPayloadPresentationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        config(['app.url' => 'https://mail.example.test']);
+        // This suite retains the explicit rollback rollout. Linked-employee
+        // admission is exercised against persisted identities in its own suite.
+        config(['app.url' => 'https://mail.example.test', 'outlook_addin.universal_source.mode' => 'explicit_accounts']);
         Http::preventStrayRequests();
     }
 

@@ -105,11 +105,24 @@ final class OutlookAccountPreferencesTest extends TestCase
     public static function unavailableAccounts(): array
     {
         return [
-            'inactive user' => ['user', ['status' => false]], 'unverified user' => ['user', ['email_verified_at' => null]],
             'guest role' => ['user', ['role' => 'guest']], 'revoked identity' => ['identity', ['lifecycle_status' => 'inactive']],
             'foreign tenant' => ['identity', ['tenant_id' => '44444444-4444-4444-8444-444444444444']],
             'unlinked' => ['identity', ['user_id' => null]], 'wrong provider' => ['identity', ['provider' => AccountProvider::GoogleWorkspace]],
         ];
+    }
+
+    public function test_unregistered_linked_employee_reads_and_updates_own_preferences_without_activation(): void
+    {
+        User::whereKey(5)->update(['status' => false, 'email_verified_at' => null]);
+        $before = $this->rows();
+        $headers = $this->headers();
+        $response = $this->getJson('/api/outlook-addin/account-preferences', $headers)->assertOk();
+        self::assertSame($before, $this->rows());
+        $this->patchJson('/api/outlook-addin/account-preferences', ['group' => 'newMessages', 'field' => 'signature',
+            'enabled' => false, 'revision' => $response->json('automaticInsertionPreferences.revision')], $headers)
+            ->assertOk()->assertJsonPath('automaticInsertionPreferences.newMessages.signature', false);
+        self::assertSame($before['users'], $this->rows()['users']);
+        self::assertSame($before['identities'], $this->rows()['identities']);
     }
 
     #[DataProvider('unavailableAccounts')]

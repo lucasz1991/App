@@ -370,6 +370,7 @@ class EmailTemplatesPageTest extends TestCase
             'user_id' => $user->id,
             'provider' => AccountProvider::Microsoft365,
             'external_id' => $objectId,
+            'tenant_id' => $tenantId,
             'principal' => 'mara@example.com',
             'email' => 'mara.alias@example.com',
             'lifecycle_status' => 'active',
@@ -451,9 +452,11 @@ class EmailTemplatesPageTest extends TestCase
 
     public function test_outlook_addin_requires_a_preprovisioned_identity_and_matching_mailbox(): void
     {
+        config(['outlook_addin.entra.tenant_id' => '11111111-1111-4111-8111-111111111111']);
         $this->createOutlookIdentityAccountsTable();
         $user = User::factory()->create([
             'email' => 'mara.private@example.net',
+            'role' => 'staff',
             'email_verified_at' => now(),
         ]);
         $identity = new VerifiedEntraIdentity(
@@ -475,6 +478,7 @@ class EmailTemplatesPageTest extends TestCase
             'user_id' => $user->id,
             'provider' => AccountProvider::Microsoft365,
             'external_id' => $identity->objectId,
+            'tenant_id' => $identity->tenantId,
             'principal' => $identity->principal,
             'email' => 'mara.alias@example.com',
             'lifecycle_status' => 'active',
@@ -1524,6 +1528,7 @@ class EmailTemplatesPageTest extends TestCase
             'user_id' => $employee->id,
             'provider' => AccountProvider::Microsoft365,
             'external_id' => '44444444-4444-4444-8444-444444444444',
+            'tenant_id' => config('outlook_addin.entra.tenant_id'),
             'principal' => $employee->email,
             'email' => $employee->email,
             'lifecycle_status' => 'active',
@@ -3529,6 +3534,7 @@ class EmailTemplatesPageTest extends TestCase
             $table->unsignedBigInteger('user_id')->nullable();
             $table->string('provider', 64);
             $table->string('external_id', 191)->nullable();
+            $table->string('tenant_id', 191)->nullable();
             $table->string('principal', 191)->nullable();
             $table->string('email', 191)->nullable();
             $table->string('lifecycle_status', 32)->default('active');

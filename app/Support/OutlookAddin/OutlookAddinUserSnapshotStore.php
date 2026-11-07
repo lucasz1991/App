@@ -60,9 +60,7 @@ final class OutlookAddinUserSnapshotStore
             $currentUser = User::query()
                 ->with('profile')
                 ->find($userId);
-            if (! $currentUser instanceof User
-                || ! $currentUser->isActive()
-                || ! in_array($currentUser->role, ['admin', 'staff'], true)) {
+            if (! app(OutlookAddinEmployeeEligibility::class)->canPrepareSnapshot($currentUser)) {
                 return false;
             }
 
@@ -106,11 +104,13 @@ final class OutlookAddinUserSnapshotStore
         $result = ['processed' => 0, 'refreshed' => 0, 'failed' => 0];
 
         User::query()
-            ->where('status', true)
             ->whereIn('role', ['admin', 'staff'])
             ->orderBy('id')
             ->chunkById(25, function ($users) use (&$result): void {
                 foreach ($users as $user) {
+                    if (! app(OutlookAddinEmployeeEligibility::class)->canPrepareSnapshot($user)) {
+                        continue;
+                    }
                     $result['processed']++;
 
                     try {
@@ -199,15 +199,13 @@ final class OutlookAddinUserSnapshotStore
     private function freshActiveUser(int $userId): User
     {
         $user = User::query()->find($userId);
-        if (! $user instanceof User
-            || ! $user->isActive()
-            || ! in_array($user->role, ['admin', 'staff'], true)) {
+        if (! app(OutlookAddinEmployeeEligibility::class)->canPrepareSnapshot($user)) {
             // currentLocked() haelt bereits die Benutzersperre. Deshalb hier
             // direkt entfernen, statt dieselbe Sperre rekursiv anzufordern.
             $this->deleteSnapshotFile($userId);
 
             throw new OutlookAddinException(
-                'Das Konto ist kein aktiver Outlook-Mitarbeiter.',
+                'Für dieses Mitarbeiterkonto kann kein persönlicher Outlook-Abzug bereitgestellt werden.',
                 403,
                 'outlook_addin_user_inactive',
             );

@@ -268,10 +268,10 @@ final class OutlookUniversalDiagnosticsTest extends TestCase
         self::assertDoesNotMatchRegularExpression('/PRIVATE-BODY|PRIVATE-TOKEN|private@example/', json_encode($this->logger->records));
     }
 
-    public function test_inactive_identity_cannot_be_activated_by_a_diagnostic_post(): void
+    public function test_revoked_identity_cannot_be_activated_by_a_diagnostic_post(): void
     {
         $headers = $this->headers();
-        User::findOrFail(5)->forceFill(['status' => false])->saveQuietly();
+        EmployeeIdentityAccount::query()->update(['lifecycle_status' => 'disabled']);
         $before = $this->businessRows();
         $this->postJson(self::URL, $this->readback(), $headers)->assertForbidden();
         self::assertSame($before, $this->businessRows());
@@ -345,7 +345,7 @@ final class OutlookUniversalDiagnosticsTest extends TestCase
         $this->get($url)->assertForbidden();
         $this->actingAs(User::findOrFail(5))->get($url)->assertForbidden();
         $this->actingAs(User::findOrFail(6))->get($url)->assertOk()
-            ->assertSee('Rückfall V17')->assertSee('outside_pilot')->assertSee('SIGNATURE_LAYOUT_UNCONFIRMED');
+            ->assertSee('Rückfall V17')->assertSee('desktop_unavailable')->assertSee('SIGNATURE_LAYOUT_UNCONFIRMED');
         $this->get('/administrator/mail-vorlagen/u2e-entwurf?status=1&user=6')->assertOk()
             ->assertDontSee('profile_identity_mismatch')->assertDontSee('SIGNATURE_LAYOUT_UNCONFIRMED');
     }
