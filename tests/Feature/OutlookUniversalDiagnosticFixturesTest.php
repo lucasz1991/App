@@ -200,12 +200,12 @@ JS;
         $script = <<<'JS'
 import {parseHTML} from 'linkedom';
 import fs from 'node:fs';
-import {universalComposeDiagnosticFixture} from './resources/js/outlook-addin/u2e-compose.js';
-const source=JSON.parse(fs.readFileSync('./tests/Fixtures/mail/u2e-readback-v2/source.json','utf8')),html=source.html;
+import {universalRedactedReadbackFixture} from './resources/js/outlook-addin/u2e-readback-diagnostics.js';
+const source=JSON.parse(fs.readFileSync('./tests/Fixtures/mail/u2e-readback-v2/legacy-v26/source.json','utf8')),html=source.html;
 const {document}=parseHTML(html),shell=document.querySelector('table[width="1040"]');
 shell.removeAttribute('id');shell.removeAttribute('align');shell.setAttribute('style',(shell.getAttribute('style')||'').split(';').filter(d=>!/^\s*margin(?:-left|-right)?\s*:/i.test(d)).join(';'));
 const actual='<div align="center" data-private="PRIVATE-ATTRIBUTE"><p>PRIVATE-BEFORE</p>'+shell.outerHTML+'<p>PRIVATE-AFTER</p></div>';
-process.stdout.write(JSON.stringify(universalComposeDiagnosticFixture(source,actual,'newMail')));
+process.stdout.write(JSON.stringify(universalRedactedReadbackFixture(source.html,actual)));
 JS;
         $process = new Process(['node', '--input-type=module', '-e', $script], base_path());
         $process->mustRun();

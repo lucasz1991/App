@@ -3,7 +3,7 @@ import { currentComposeBodyHtml, isMobileComposeHost, mobileCurrentReplyBodyMode
 import { assertMailboxBinding } from './mailbox-guard.js';
 import { confirmedOfficeWrite, hasUncertainWrite } from './office-write.js';
 import { createNativeLayoutNonce } from './native-layout-restore.js';
-import { u2eCenteringState, u2eCenteringContext } from './u2e-appearance.js';
+import { u2eCenteringState, u2eCenteringContext, u2eLeftAlignmentContext } from './u2e-appearance.js';
 import { u2eTopBorderEvidence, u2eCtaMaterial } from './u2e-borders.js';
 import { firstUniversalEvidenceDifference, u2eReadbackFailure,
     universalRedactedReadbackFixture, universalComposeBoundaryFixture } from './u2e-readback-diagnostics.js';
@@ -258,7 +258,7 @@ function material(html, expectedMarker = null, source = false, host = null) {
     if (expectedMarker && marker !== expectedMarker) return { present: true, version: versions[0], marker, kind, tree };
     if (!kind) throw layoutFailure('shell.rows', [3, 4], outer.length);
     if (!dimension(root, 'width', 1040)) throw layoutFailure('shell.width');
-    if (!centered(root, elements, rootIndex)) throw layoutFailure('shell.align');
+    if (!u2eLeftAlignmentContext(elements, rootIndex)) throw layoutFailure('shell.align');
     if (hiddenAncestor(elements, rootIndex)) throw layoutFailure('shell.hidden');
     const author = kind === 'combined' ? outer[0] : null, signatureRows = author ? outer.slice(1) : outer;
     const authorCells = author && rowCells(elements, author.index), grid = rowCells(elements, signatureRows[0].index), train = rowCells(elements, signatureRows[1].index), legal = rowCells(elements, signatureRows[2].index);

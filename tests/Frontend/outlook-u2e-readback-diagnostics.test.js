@@ -55,7 +55,7 @@ test('first differing evidence key and values follow the original material compa
 test('material failures identify the exact finite guard without admitting any damaged material', () => {
     const cases = [
         [dom => dom.querySelector('table').setAttribute('width', '900'), 'shell.width'],
-        [dom => dom.querySelector('table').setAttribute('align', 'left'), 'shell.align'],
+        [dom => dom.querySelector('table').setAttribute('align', 'center'), 'shell.align'],
         [dom => dom.querySelector('table').setAttribute('style', 'display:none'), 'shell.hidden'],
         [dom => dom.querySelector('table').setAttribute('style', 'width:1040px;display:none'), 'shell.hidden'],
         [dom => dom.querySelector('td[width="280"]').setAttribute('width', '281'), 'grid.columns'],
@@ -77,7 +77,7 @@ test('material failures identify the exact finite guard without admitting any da
 
 test('redacted actual and expected signatures preserve structure/styles and deterministic URL equality', () => {
     const actual = change(dom => {
-        const shell = dom.querySelector('table'); shell.setAttribute('style', 'width:780pt;margin:0 auto;mso-table-lspace:0pt');
+        const shell = dom.querySelector('table'); shell.setAttribute('style', 'width:780pt;margin:0;mso-table-lspace:0pt');
         const span = dom.querySelector('.rt-col-person span'); if (span) span.insertAdjacentHTML('beforeend', '<span></span>');
     });
     const fixture = universalComposeDiagnosticFixture(source, actual, 'newMail');

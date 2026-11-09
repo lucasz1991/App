@@ -25,7 +25,7 @@ test('C-K23 derives the exact approved v12 payload from the v2.6 source and expl
     assert.equal(generated.payload.length, 4262);
     assert.equal(Buffer.byteLength(generated.payload), 4262);
     assert.equal(sha(generated.payload), CK19_APPROVED_V12_SHA256);
-    assert.equal(generated.templateHash, 'aed4ce9baade0a1a4411c6b72da36b893bdf6134262f2367a55f44097ffe5e09');
+    assert.equal(generated.templateHash, '1bfd6e33fbc15a5e278ce29cf039721cedd9b4f0a2a5506c4012df3d5483207d');
     assert.equal(generated.rules, 36);
     assert.equal(generated.derivedDeclarations, 79);
     assert.equal(generated.transportOverrides, 22);

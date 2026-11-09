@@ -9,18 +9,18 @@ const read = async name => (await fs.readFile(new URL(name, root), 'utf8')).repl
 const sha = value => createHash('sha256').update(value).digest('hex');
 const templateHtml = await read('resources/mail-templates/u2e-universal-v1.html');
 const presentationPhp = await read('app/Support/OutlookAddin/OutlookUniversalPresentation.php');
-const currentPin = 'aed4ce9baade0a1a4411c6b72da36b893bdf6134262f2367a55f44097ffe5e09';
+const currentPin = '1bfd6e33fbc15a5e278ce29cf039721cedd9b4f0a2a5506c4012df3d5483207d';
 const currentCss = '44320e37dbd5376595ecbd11938fcc96b5be372088dea343fed9a187d18f746f';
 const v25Pin = 'ecb6bbe92fbf50b5ecc9f0145894cf524d03545d776df3ff1ff4046a5db38ecf';
 const v25Css = 'cf15bb89e9425c30f3db73b20b5263763e5c2b0d3d32d9a4e67625a5c2ed0006';
 
 test('v2.6 changes exactly the desktop and source-mobile text-cell spacing from v2.5', () => {
     assert.equal(sha(templateHtml), currentPin);
-    assert.equal(templateHtml.length, 15604);
+    assert.equal(templateHtml.length, 15633);
     for (const value of ['padding:32px 40px 48px;', '.rt-text { padding:24px 20px 32px !important; }']) {
         assert.equal(templateHtml.split(value).length - 1, 1);
     }
-    const prior = templateHtml.replace('padding:32px 40px 48px;', 'padding:32px 40px 30px;')
+    const prior = templateHtml.replace('class="rt-shell" align="left"', 'class="rt-shell" align="center"').replace('margin:0 auto 0 0;float:none;text-align:left;', 'margin:0 auto;').replace('padding:32px 40px 48px;', 'padding:32px 40px 30px;')
         .replace('.rt-text { padding:24px 20px 32px !important; }', '.rt-text { padding:24px 20px 24px !important; }');
     assert.equal(sha(prior), v25Pin);
     assert.equal(sha(prior.match(/<style type="text\/css">([\s\S]*?)<\/style>/)[1]), v25Css);

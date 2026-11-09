@@ -5,7 +5,6 @@ import crypto from 'node:crypto';
 import { parseHTML } from 'linkedom';
 import { universalComposeStateFromBody, validateUniversalComposeDocument } from '../../resources/js/outlook-addin/u2e-compose.js';
 import { parseManagedHtml } from '../../resources/js/outlook-addin/managed-template.js';
-import { u2eCenteringContext } from '../../resources/js/outlook-addin/u2e-appearance.js';
 
 const source = JSON.parse(fs.readFileSync(new URL('../Fixtures/mail/u2e-readback-v2/source.json', import.meta.url), 'utf8'));
 const fixtureRoot = new URL('../Fixtures/mail/u2e-classic-word-2357/', import.meta.url);
@@ -22,26 +21,23 @@ function wordDispo(dom) {
     assert.equal(omitted.length, 4); omitted.forEach(stripOwnColor); return { dispatch, omitted };
 }
 
-test('Word may move only the shell centering to its own ancestor DIV before any table or cell boundary', () => {
-    const html = '<div><div align="center"><div>' + bare() + '</div></div></div>';
-    assert.equal(universalComposeStateFromBody(source, html, 'newMail').current, true);
-    const { elements } = parseManagedHtml(html), index = elements.findIndex(node => node.tag === 'table');
-    assert.deepEqual(u2eCenteringContext(elements, index), { centered: true, inherited: true });
+test('Word may omit the left shell alignment and margins without introducing centering', () => {
+    for (const html of [bare(), '<div><div align="left"><div>' + bare() + '</div></div></div>']) {
+        assert.equal(universalComposeStateFromBody(source, html, 'newMail').current, true);
+    }
+    const { elements } = parseManagedHtml(bare()), index = elements.findIndex(node => node.tag === 'table');
     const root = elements[index]; assert.equal(root.attrs.align, undefined); assert.doesNotMatch(root.attrs.style, /margin/);
 });
 
-test('an unrelated or contradicted center container never supplies shell ownership or alignment', () => {
+test('centered or right-aligned Word serializations are rejected for the current left template', () => {
     const denied = [
-        '<div align="center"></div>' + bare(),
-        '<div align="center"><table><tr><td>' + bare() + '</td></tr></table></div>',
-        '<div align="center"><table>' + bare() + '</table></div>',
-        '<div align="center"><div align="left">' + bare() + '</div></div>',
-        '<div align="center" style="float:left">' + bare() + '</div>',
-        '<div align="center" style="margin:0 20px">' + bare() + '</div>',
-        '<div align="center" style="text-align:left">' + bare() + '</div>',
-        '<div align="center" style="position:absolute">' + bare() + '</div>',
-        '<div align="center">' + change(dom => { bareShell(dom); dom.querySelector('table').setAttribute('align', 'left'); }) + '</div>',
-        '<div align="center">' + change(dom => { bareShell(dom); dom.querySelector('table').setAttribute('style', 'width:1040px;margin:0'); }) + '</div>',
+        '<div align="center">' + bare() + '</div>',
+        '<div align="right">' + bare() + '</div>',
+        '<div style="text-align:center">' + bare() + '</div>',
+        change(dom => dom.querySelector('table').setAttribute('align', 'center')),
+        change(dom => dom.querySelector('table').setAttribute('align', 'right')),
+        change(dom => dom.querySelector('table').setAttribute('style', 'width:1040px;margin:0 auto;')),
+        change(dom => dom.querySelector('table').setAttribute('style', 'width:1040px;margin-left:20px;')),
     ];
     for (const html of denied) {
         const state = universalComposeStateFromBody(source, html, 'newMail');
@@ -53,7 +49,7 @@ test('an unrelated or contradicted center container never supplies shell ownersh
 
 test('only empty Dispo cell colors inherit the closest table background inside that same Dispo', () => {
     const actual = change(dom => { wordDispo(dom); bareShell(dom); });
-    assert.equal(universalComposeStateFromBody(source, '<div align="center">' + actual + '</div>', 'newMail').current, true);
+    assert.equal(universalComposeStateFromBody(source, '<div align="left">' + actual + '</div>', 'newMail').current, true);
     const onlyColor = change(dom => wordDispo(dom));
     assert.equal(universalComposeStateFromBody(source, onlyColor, 'newMail').current, true);
 });

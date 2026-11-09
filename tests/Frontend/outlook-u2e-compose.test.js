@@ -169,7 +169,7 @@ test('the source validates the approved geometry and excludes hidden or active b
         dom => dom.querySelector('.rt-train').setAttribute('src', 'https://evil.example/other.png'),
         dom => dom.querySelector('.rt-dispo').remove(),
         dom => dom.querySelector('.rt-col-person').removeAttribute('id'),
-        dom => dom.querySelector('.rt-shell').setAttribute('align', 'left'),
+        dom => dom.querySelector('.rt-shell').setAttribute('align', 'center'),
         dom => dom.querySelector('.rt-shell').setAttribute('style', 'width:1040px;display:none'),
         dom => dom.querySelector('.rt-shell').setAttribute('onclick', 'unsafe()'),
         dom => dom.querySelector('.rt-shell').insertAdjacentHTML('afterbegin', '<style>body{display:none}</style>'),
@@ -341,7 +341,7 @@ test('pure state tolerates only known Word or Rooster serialization without losi
     }
 });
 
-test('equivalent Rooster colors and Word colors/centering use the same source and readback evidence', () => {
+test('equivalent Rooster colors and Word colors/left alignment use the same source and readback evidence', () => {
     const doc = document();
     const host = mutate(doc, dom => {
         for (const node of dom.querySelectorAll('[bgcolor]')) {
@@ -354,7 +354,7 @@ test('equivalent Rooster colors and Word colors/centering use the same source an
     assert.equal(universalComposeStateFromBody(doc, host.html, 'newMail').current, true);
     const word = mutate(host, dom => {
         const shell = dom.querySelector('.rt-shell'); shell.removeAttribute('align');
-        shell.setAttribute('style', 'width:780pt;margin-left:auto;margin-right:auto;');
+        shell.setAttribute('style', 'width:780pt;margin-left:0;margin-right:0;');
         for (const node of dom.querySelectorAll('[style]')) node.setAttribute('style', node.getAttribute('style').replaceAll('background-color:', 'background:'));
     });
     assert.equal(universalComposeStateFromBody(doc, word.html, 'newMail').current, true);
@@ -362,7 +362,7 @@ test('equivalent Rooster colors and Word colors/centering use the same source an
     assert.equal(universalComposeStateFromBody(styledSource, doc.html, 'newMail').current, true, 'source and actual use identical color/centering derivation');
 });
 
-test('conflicting color declarations, gradients, images and false centering cannot acknowledge material', () => {
+test('conflicting color declarations, gradients, images and false alignment cannot acknowledge material', () => {
     const doc = document();
     const changes = [
         dom => { const node = dom.querySelector('.rt-dispo-head'); node.setAttribute('style', node.getAttribute('style') + ';background-color:#0000ff;'); },
@@ -372,7 +372,7 @@ test('conflicting color declarations, gradients, images and false centering cann
         dom => { const node = dom.querySelector('.rt-dispo-head'); node.setAttribute('style', node.getAttribute('style') + ';background-image:linear-gradient(#e4002b,#e4002b);'); },
         dom => dom.querySelector('.rt-shell').setAttribute('style', 'width:1040px;margin:0 20px;'),
         dom => dom.querySelector('.rt-shell').setAttribute('style', 'width:1040px;margin:0 auto;float:left;'),
-        dom => dom.querySelector('.rt-shell').setAttribute('align', 'left'),
+        dom => dom.querySelector('.rt-shell').setAttribute('align', 'center'),
         dom => { const node = dom.querySelector('.rt-shell'); node.removeAttribute('align'); node.setAttribute('style', 'width:1040px;text-align:center;'); },
     ];
     for (const change of changes) {

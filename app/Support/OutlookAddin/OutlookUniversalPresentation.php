@@ -17,7 +17,7 @@ final class OutlookUniversalPresentation
 
     // C-K25 removes the separator; C-K26 reduces panel spacing and type height.
     // DESIGN_SOURCE still identifies the unchanged original U2e reference.
-    private const TEMPLATE_SHA256 = 'aed4ce9baade0a1a4411c6b72da36b893bdf6134262f2367a55f44097ffe5e09';
+    private const TEMPLATE_SHA256 = '1bfd6e33fbc15a5e278ce29cf039721cedd9b4f0a2a5506c4012df3d5483207d';
 
     private const ASSETS = [
         'logo' => ['/m/b983af0049.png', 'b983af0049926c128807d605a51a68ce90fea06c5c340f7728b105a96d7f021a', 400, 68],

@@ -18,7 +18,7 @@ final class OutlookUniversalStatusLabels
         'markers.binding' => 'Zusammengehörigkeit der Vorlagenkennungen',
         'shell.rows' => 'Zeilenaufbau der Vorlage',
         'shell.width' => 'Gesamtbreite der Vorlage',
-        'shell.align' => 'Zentrierung der Vorlage',
+        'shell.align' => 'Linksbündige Ausrichtung der Vorlage',
         'shell.hidden' => 'Sichtbarkeit der gesamten Vorlage',
         'grid.author' => 'Nachrichtentextzeile der Vorlage',
         'grid.columns' => 'Vier Signaturspalten und ihre Breiten',

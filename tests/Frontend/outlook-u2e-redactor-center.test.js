@@ -5,7 +5,7 @@ import { parseHTML } from 'linkedom';
 import { universalRedactedReadbackFixture, validateUniversalRedactedFixture, universalDiagnosticReplayHtml, u2eDiagnosticHash } from '../../resources/js/outlook-addin/u2e-readback-diagnostics.js';
 import { validateUniversalComposeDocument, universalComposeStateFromBody } from '../../resources/js/outlook-addin/u2e-compose.js';
 
-const source = JSON.parse(fs.readFileSync(new URL('../Fixtures/mail/u2e-readback-v2/source.json', import.meta.url), 'utf8'));
+const source = JSON.parse(fs.readFileSync(new URL('../Fixtures/mail/u2e-readback-v2/legacy-v26/source.json', import.meta.url), 'utf8'));
 function withoutOwnCenter(change = () => {}) {
     const { document } = parseHTML(source.html);
     const shell = document.querySelector('table[width="1040"]');
@@ -23,8 +23,8 @@ test('accepted ancestor centering becomes one canonical wrapper without outside 
     assert.match(fixture.html, /^<div align="center"><table/);
     assert.equal((fixture.html.match(/<div align="center">/g) || []).length, 1);
     assert.doesNotMatch(JSON.stringify(fixture), /PRIVATE|private@example|data-private/);
-    const expected = validateUniversalComposeDocument({ ...source, kind: 'signature', html: universalDiagnosticReplayHtml(fixture.expectedHtml) });
-    assert.equal(universalComposeStateFromBody(expected, universalDiagnosticReplayHtml(fixture.html), 'newMail').current, true);
+    assert.ok(validateUniversalRedactedFixture(fixture), 'historical centered diagnostic remains safe to inspect');
+    assert.throws(() => validateUniversalComposeDocument({ ...source, kind: 'signature', html: universalDiagnosticReplayHtml(fixture.expectedHtml) }), { code: 'U2E_SOURCE_INVALID' }, 'historical centering cannot become a current insertion source');
 });
 
 test('table and cell barriers or explicit centering disagreements never gain a wrapper', () => {

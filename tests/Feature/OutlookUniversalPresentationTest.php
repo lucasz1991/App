@@ -41,11 +41,11 @@ final class OutlookUniversalPresentationTest extends TestCase
         $shells = $xpath->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-shell ")]');
         self::assertSame(1, $shells->length);
         $shell = $shells->item(0);
-        self::assertSame('center', $shell->getAttribute('align'));
+        self::assertSame('left', $shell->getAttribute('align'));
         self::assertSame('1040', $shell->getAttribute('width'));
         self::assertSame('0', $shell->getAttribute('cellpadding'));
         self::assertSame('0', $shell->getAttribute('cellspacing'));
-        foreach (['width:1040px', 'max-width:100%', 'margin:0 auto'] as $rule) {
+        foreach (['width:1040px', 'max-width:100%', 'margin:0 auto 0 0', 'float:none', 'text-align:left'] as $rule) {
             self::assertStringContainsString($rule, $shell->getAttribute('style'));
         }
         $rows = $xpath->query('./tr|./tbody/tr', $shell);
@@ -181,13 +181,13 @@ final class OutlookUniversalPresentationTest extends TestCase
     public function test_ck25_ck26_change_only_the_separator_and_approved_sizing_from_v23(): void
     {
         $template = str_replace("\r\n", "\n", file_get_contents(resource_path('mail-templates/u2e-universal-v1.html')));
-        self::assertSame('aed4ce9baade0a1a4411c6b72da36b893bdf6134262f2367a55f44097ffe5e09', hash('sha256', $template));
-        self::assertSame(15604, strlen($template));
+        self::assertSame('1bfd6e33fbc15a5e278ce29cf039721cedd9b4f0a2a5506c4012df3d5483207d', hash('sha256', $template));
+        self::assertSame(15633, strlen($template));
         self::assertStringNotContainsString('rt-cta-line', $template);
         self::assertSame('e71922554f82861cab15ddf4cccd30717deb48a42034990ce675535367848bcd', hash('sha256', $this->withoutCk26Sizing($template)));
         $previous = $this->withCk25Separator($template);
         self::assertSame('5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204', hash('sha256', $previous));
-        self::assertSame(248, strlen($previous) - strlen($template));
+        self::assertSame(248, strlen($previous) - strlen($this->withoutLeftAlignment($template)));
         self::assertSame($this->render()['version'], $this->render(['mode' => 'send'])['version']);
     }
 
@@ -301,7 +301,7 @@ final class OutlookUniversalPresentationTest extends TestCase
     public function test_ck22_prevents_number_and_time_wrapping_without_changing_the_previous_template_structure(string $mode): void
     {
         $template = str_replace("\r\n", "\n", file_get_contents(resource_path('mail-templates/u2e-universal-v1.html')));
-        self::assertSame('aed4ce9baade0a1a4411c6b72da36b893bdf6134262f2367a55f44097ffe5e09', hash('sha256', $template));
+        self::assertSame('1bfd6e33fbc15a5e278ce29cf039721cedd9b4f0a2a5506c4012df3d5483207d', hash('sha256', $template));
         self::assertSame('f297c0bb222061eb3b78c85889e139274067d5744707d7807d5b6e8545e676b2', hash('sha256', $this->withoutCk22NoWrap($this->withCk25Separator($template))),
             'Removing exactly three nowrap declarations must recover the entire v2.2 template.');
         $rendered = $this->render(['mode' => $mode]);
@@ -558,8 +558,11 @@ final class OutlookUniversalPresentationTest extends TestCase
             'send' => '52af138a70eaae550c138cd340c393cb4f4a06ae44b6bef832fcbf8890243a5c'];
         foreach ($expected as $mode => $hash) {
             $rendered = $this->render(['mode' => $mode]);
-            self::assertSame('f38e7dcd51fc2b61cd8fac97', $rendered['version']);
-            self::assertSame($hash, hash('sha256', $rendered['html']));
+            self::assertSame('ab461e5e63305438540845f5', $rendered['version']);
+            // Reverse only this release's outer alignment and derived marker;
+            // the earlier phone-normalization byte contract remains unchanged.
+            $historical = $this->withoutLeftAlignment(str_replace($rendered['version'], 'f38e7dcd51fc2b61cd8fac97', $rendered['html']));
+            self::assertSame($hash, hash('sha256', $historical));
         }
     }
 
@@ -725,6 +728,7 @@ final class OutlookUniversalPresentationTest extends TestCase
     /** Test-only exact source reversal; runtime author data is never rewritten. */
     private function withoutCk27Spacing(string $html, bool $hasBody = true): string
     {
+        $html = $this->withoutLeftAlignment($html);
         $html = str_replace('.rt-text { padding:24px 20px 32px !important; }', '.rt-text { padding:24px 20px 24px !important; }', $html, $mobile);
         self::assertSame(1, $mobile);
         if ($hasBody) {
@@ -733,6 +737,13 @@ final class OutlookUniversalPresentationTest extends TestCase
         }
 
         return $html;
+    }
+
+    /** Historical source proof only: reverse the new outer alignment before older exact deltas. */
+    private function withoutLeftAlignment(string $html): string
+    {
+        return str_replace(['class="rt-shell" align="left"', 'margin:0 auto 0 0;float:none;text-align:left;'],
+            ['class="rt-shell" align="center"', 'margin:0 auto;'], $html);
     }
 
     private function desktopReset(): string

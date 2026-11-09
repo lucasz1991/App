@@ -47,3 +47,63 @@ export function u2eCenteringContext(elements, index) {
     }
     return { centered: false, inherited: false };
 }
+
+const zero = value => /^0(?:\.0+)?(?:px|pt)?$/.test(value);
+const leftMarginOverride = node => {
+    let left = null, right = null;
+    for (const declaration of (node?.attrs?.style || '').split(';')) {
+        const colon = declaration.indexOf(':');
+        if (colon < 0) continue;
+        const key = declaration.slice(0, colon).trim().toLowerCase();
+        const value = declaration.slice(colon + 1).trim().toLowerCase().replace(/\s*!important$/, '');
+        if (key === 'margin') {
+            const parts = value.split(/\s+/);
+            right = parts[1] ?? parts[0]; left = parts[3] ?? parts[1] ?? parts[0];
+        } else if (key === 'margin-left') left = value;
+        else if (key === 'margin-right') right = value;
+    }
+    return left !== null && zero(left) && right === 'auto';
+};
+
+/** A left shell never floats: quoted messages must start beneath it. Word can
+ * omit the source align/margins when serializing its default left position. */
+export function u2eLeftAlignmentState(node) {
+    const align = node?.attrs?.align?.trim().toLowerCase();
+    if (align && align !== 'left' || properties(node, 'float').some(value => value !== 'none')
+        || properties(node, 'position').some(value => value !== 'static')) return 'conflict';
+    let left = null, right = null;
+    for (const declaration of (node?.attrs?.style || '').split(';')) {
+        const colon = declaration.indexOf(':');
+        if (colon < 0) continue;
+        const key = declaration.slice(0, colon).trim().toLowerCase();
+        const value = declaration.slice(colon + 1).trim().toLowerCase().replace(/\s*!important$/, '');
+        if (key === 'margin') {
+            const parts = value.split(/\s+/);
+            if (parts.length < 1 || parts.length > 4) return 'conflict';
+            right = parts[1] ?? parts[0]; left = parts[3] ?? parts[1] ?? parts[0];
+        } else if (key === 'margin-left') left = value;
+        else if (key === 'margin-right') right = value;
+    }
+    if (left !== null && !zero(left) || right !== null && !zero(right) && right !== 'auto') return 'conflict';
+    return align === 'left' || left !== null || right !== null ? 'left' : 'unspecified';
+}
+
+export function u2eLeftAlignmentContext(elements, index) {
+    const node = elements?.[index], state = u2eLeftAlignmentState(node);
+    if (!node || state === 'conflict' || properties(node, 'text-align').some(value => !['left', 'start'].includes(value))) return false;
+    // align=left plus float:none does not defeat a DIV align=center in WebKit.
+    // Explicit zero-left/auto-right margins position the table; its own text
+    // alignment separately prevents the host centering the table contents.
+    if (leftMarginOverride(node) && properties(node, 'text-align').some(value => ['left', 'start'].includes(value))) return true;
+    for (let at = node.parent, count = 0; Number.isInteger(at) && count <= elements.length; count++, at = elements[at]?.parent) {
+        const ancestor = elements[at];
+        if (!ancestor || ['table', 'td', 'th'].includes(ancestor.tag)) break;
+        const inherited = u2eLeftAlignmentState(ancestor);
+        if (inherited === 'conflict' || properties(ancestor, 'text-align').some(value => !['left', 'start'].includes(value))) return false;
+        // A neutral wrapper's zero margins do not establish table alignment;
+        // continue until Word's explicit alignment or the outer host boundary.
+        if (ancestor.attrs.align?.trim().toLowerCase() === 'left'
+            || properties(ancestor, 'text-align').some(value => ['left', 'start'].includes(value))) return true;
+    }
+    return true;
+}
