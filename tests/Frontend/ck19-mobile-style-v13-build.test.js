@@ -30,7 +30,7 @@ test('v13 exactly reproduces its tracked original source with only the excluded 
     assert.equal(generated.payload.length, 3801);
     assert.equal(Buffer.byteLength(generated.payload), 3801);
     assert.equal(sha(generated.payload), CK19_APPROVED_V13_SHA256);
-    assert.equal(generated.templateHash, '1bfd6e33fbc15a5e278ce29cf039721cedd9b4f0a2a5506c4012df3d5483207d');
+    assert.equal(generated.templateHash, '0201650e3985cf95b7ef84d112fede5d8338017f6d725a764906da1a99e1c5dc');
     assert.equal(supplied.sourceTemplateSha256, '5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204', 'Original approved source metadata remains historical.');
     assert.equal(generated.cssHash, '44320e37dbd5376595ecbd11938fcc96b5be372088dea343fed9a187d18f746f');
     assert.equal(supplied.sourceCssSha256, '502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1');

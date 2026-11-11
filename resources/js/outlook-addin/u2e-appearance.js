@@ -69,7 +69,9 @@ const leftMarginOverride = node => {
  * omit the source align/margins when serializing its default left position. */
 export function u2eLeftAlignmentState(node) {
     const align = node?.attrs?.align?.trim().toLowerCase();
-    if (align && align !== 'left' || properties(node, 'float').some(value => value !== 'none')
+    // TABLE align=left is a legacy text-wrapping instruction. Word may retain
+    // it even when float:none is present; only non-table ancestors may use it.
+    if (align && (align !== 'left' || node?.tag === 'table') || properties(node, 'float').some(value => value !== 'none')
         || properties(node, 'position').some(value => value !== 'static')) return 'conflict';
     let left = null, right = null;
     for (const declaration of (node?.attrs?.style || '').split(';')) {

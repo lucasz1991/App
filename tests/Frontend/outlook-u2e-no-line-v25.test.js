@@ -32,9 +32,9 @@ test('C-K25+C-K26 renderer output applies exactly the approved flat no-line chan
     assert.equal(projected, v25.html);
     assert.equal(manifest.previousLineVersion, previous.version);
     assert.equal(manifest.previousLineSource, 'legacy-v23/source.json');
-    assert.equal(manifest.templateSha256, '1bfd6e33fbc15a5e278ce29cf039721cedd9b4f0a2a5506c4012df3d5483207d');
+    assert.equal(manifest.templateSha256, '0201650e3985cf95b7ef84d112fede5d8338017f6d725a764906da1a99e1c5dc');
     assert.equal(manifest.iosProjection.nativeClientProof, false);
-    assert.equal(manifest.iosProjection.basis, 'legacy-v26/ios.synthetic.redacted.json');
+    assert.equal(manifest.iosProjection.basis, 'legacy-v27/ios.synthetic.redacted.json');
     assert.equal(manifest.iosProjection.nativeAncestor, 'ios.ck24-210443.redacted.json');
 });
 

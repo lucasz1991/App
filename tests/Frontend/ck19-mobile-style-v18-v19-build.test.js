@@ -36,7 +36,7 @@ for (const [tag, prior, size, digest, selector, whiteSelector] of [
         assert.equal(generated.payload, previous.replace('color:#142231!important', 'color:inherit!important'));
         assert.equal(generated.payload.length, size); assert.equal(Buffer.byteLength(generated.payload), size);
         assert.equal(sha(generated.payload), digest); assert.ok(size < 5000);
-        assert.equal(generated.templateHash, '1bfd6e33fbc15a5e278ce29cf039721cedd9b4f0a2a5506c4012df3d5483207d');
+        assert.equal(generated.templateHash, '0201650e3985cf95b7ef84d112fede5d8338017f6d725a764906da1a99e1c5dc');
         assert.equal(generated.cssHash, '44320e37dbd5376595ecbd11938fcc96b5be372088dea343fed9a187d18f746f');
         const oldAst = ast(parseRules(previous)), newAst = ast(rules);
         const target = oldAst.filter(rule => rule.selector === selector);

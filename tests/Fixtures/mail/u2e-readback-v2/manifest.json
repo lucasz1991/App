@@ -1,30 +1,30 @@
 {
   "schema": 1,
-  "kind": "synthetic-v27-left-host-serializations",
+  "kind": "synthetic-v28-in-flow-host-serializations",
   "nativeClientProof": false,
   "privateInputUsed": false,
-  "version": "f188a728ebf9aec73d38a9bc",
+  "version": "3031b182b5dbfe2bc6cfbe24",
   "previousVersion": "92eab6c45a583e103b6e62f5",
   "previousCornerVersion": "da9b8f7e66f6cd549ecd8203",
   "previousCornerSource": "source.c21-legacy.json",
-  "templateSha256": "1bfd6e33fbc15a5e278ce29cf039721cedd9b4f0a2a5506c4012df3d5483207d",
-  "description": "Current synthetic renderer output with left aligned nonfloating outer shell. Word/Rooster/iOS fixtures are explicit offline left-alignment projections of archived v2.6 inputs; native clients have not been proved. Historical native and synthetic inputs remain immutable.",
+  "templateSha256": "0201650e3985cf95b7ef84d112fede5d8338017f6d725a764906da1a99e1c5dc",
+  "description": "Current synthetic renderer output removes only the outer legacy TABLE align attribute that can enable Word text wrapping. Word/Rooster/iOS fixtures remove that attribute and change current ownership markers from exact archived v27 inputs. No native client or affected-message HTML proof is claimed. Historical inputs remain immutable.",
   "artifacts": {
     "source.json": {
-      "bytes": 13040,
-      "sha256": "b541afe4f65044184bfb247143ade0875b60a4c5466e980ae2afff93dd9b46bb"
+      "bytes": 13025,
+      "sha256": "fb2647162f7b426298c552bf65710923e46c838174702e1a5e77be429e73d954"
     },
     "signature.json": {
-      "bytes": 12254,
-      "sha256": "694c4a5faea23becab722b50dfb355626cf0e546fa0e329268beed4f050a554d"
+      "bytes": 12239,
+      "sha256": "b61797b953795102c6b750624aca7ed3ab8766717ae1d0cbec8a02cfcba3ba1a"
     },
     "rooster.synthetic.html": {
-      "bytes": 11902,
-      "sha256": "a9feafb1f130a8a07fb6e00567c8f2f09a3b4893feb7e517134067228bd883e7"
+      "bytes": 11889,
+      "sha256": "bd855d7b2fcc9d35c686149e9576f0648565c14d82f5ac296954d066fd7cc727"
     },
     "word.synthetic.html": {
-      "bytes": 11419,
-      "sha256": "49fbf806a5a13cfa29dc22c220329e08953986f3cdb30d92e6f0ddbe689f01ba"
+      "bytes": 11406,
+      "sha256": "5dc5f342a9bc8313985cd52fc27852ccacedd7b0bc61a1ff573005d2a3644157"
     },
     "source.c13-legacy.json": {
       "bytes": 13916,
@@ -99,8 +99,8 @@
       "sha256": "3c4149d0b7732792cdb0e8010acd4be2336f7cd903ebcd139b9c964e56838a98"
     },
     "ios.synthetic.redacted.json": {
-      "bytes": 24977,
-      "sha256": "e181ca97ce6f0becff4d00bb5737cbe198bdb1f7ce695ce80c545ace620641dc"
+      "bytes": 24947,
+      "sha256": "32cdb0d547f05b891591582bb62211a41fa499e1448d8f2f44e2985e910f29b7"
     },
     "legacy-v25/source.json": {
       "bytes": 12564,
@@ -149,6 +149,30 @@
     "legacy-v26/manifest.json": {
       "bytes": 5950,
       "sha256": "71c662cd47f2e12d14535157ddc8924a582c49ad5baeba7c3a053af88493a02b"
+    },
+    "legacy-v27/source.json": {
+      "bytes": 13040,
+      "sha256": "b541afe4f65044184bfb247143ade0875b60a4c5466e980ae2afff93dd9b46bb"
+    },
+    "legacy-v27/signature.json": {
+      "bytes": 12254,
+      "sha256": "694c4a5faea23becab722b50dfb355626cf0e546fa0e329268beed4f050a554d"
+    },
+    "legacy-v27/rooster.synthetic.html": {
+      "bytes": 11902,
+      "sha256": "a9feafb1f130a8a07fb6e00567c8f2f09a3b4893feb7e517134067228bd883e7"
+    },
+    "legacy-v27/word.synthetic.html": {
+      "bytes": 11419,
+      "sha256": "49fbf806a5a13cfa29dc22c220329e08953986f3cdb30d92e6f0ddbe689f01ba"
+    },
+    "legacy-v27/ios.synthetic.redacted.json": {
+      "bytes": 24977,
+      "sha256": "e181ca97ce6f0becff4d00bb5737cbe198bdb1f7ce695ce80c545ace620641dc"
+    },
+    "legacy-v27/manifest.json": {
+      "bytes": 7101,
+      "sha256": "319d2653d8785da88029c1b396085f14e8373ba4705455b4a653b89e4b65bfdd"
     }
   },
   "previousNoWrapVersion": "50297557b7e43f1ce2409647",
@@ -158,10 +182,10 @@
   "iosProjection": {
     "file": "ios.synthetic.redacted.json",
     "nativeClientProof": false,
-    "basis": "legacy-v26/ios.synthetic.redacted.json",
+    "basis": "legacy-v27/ios.synthetic.redacted.json",
     "nativeAncestor": "ios.ck24-210443.redacted.json",
     "changes": [
-      "outer shell alignment and current marker"
+      "remove outer TABLE align attribute and change current marker"
     ]
   },
   "previousSpacingVersion": "d4d55682822fd4c0fcb8c4de",
@@ -177,13 +201,15 @@
   "previousAlignmentVersion": "43149c93fad1a37867b20413",
   "previousAlignmentSource": "legacy-v26/source.json",
   "alignmentProjection": {
-    "align": "left",
+    "align": null,
     "margin": "0 auto 0 0",
     "float": "none",
     "textAlign": "left",
     "changes": [
-      "outer shell alignment and current marker"
+      "remove outer TABLE align attribute and change current marker"
     ],
     "nativeClientProof": false
-  }
+  },
+  "previousInFlowVersion": "f188a728ebf9aec73d38a9bc",
+  "previousInFlowSource": "legacy-v27/source.json"
 }

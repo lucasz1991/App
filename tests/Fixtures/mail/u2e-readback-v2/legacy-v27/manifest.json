@@ -1,0 +1,189 @@
+{
+  "schema": 1,
+  "kind": "synthetic-v27-left-host-serializations",
+  "nativeClientProof": false,
+  "privateInputUsed": false,
+  "version": "f188a728ebf9aec73d38a9bc",
+  "previousVersion": "92eab6c45a583e103b6e62f5",
+  "previousCornerVersion": "da9b8f7e66f6cd549ecd8203",
+  "previousCornerSource": "source.c21-legacy.json",
+  "templateSha256": "1bfd6e33fbc15a5e278ce29cf039721cedd9b4f0a2a5506c4012df3d5483207d",
+  "description": "Current synthetic renderer output with left aligned nonfloating outer shell. Word/Rooster/iOS fixtures are explicit offline left-alignment projections of archived v2.6 inputs; native clients have not been proved. Historical native and synthetic inputs remain immutable.",
+  "artifacts": {
+    "source.json": {
+      "bytes": 13040,
+      "sha256": "b541afe4f65044184bfb247143ade0875b60a4c5466e980ae2afff93dd9b46bb"
+    },
+    "signature.json": {
+      "bytes": 12254,
+      "sha256": "694c4a5faea23becab722b50dfb355626cf0e546fa0e329268beed4f050a554d"
+    },
+    "rooster.synthetic.html": {
+      "bytes": 11902,
+      "sha256": "a9feafb1f130a8a07fb6e00567c8f2f09a3b4893feb7e517134067228bd883e7"
+    },
+    "word.synthetic.html": {
+      "bytes": 11419,
+      "sha256": "49fbf806a5a13cfa29dc22c220329e08953986f3cdb30d92e6f0ddbe689f01ba"
+    },
+    "source.c13-legacy.json": {
+      "bytes": 13916,
+      "sha256": "c3a729fa720c8fa622e988e873451a76238017539fd457ff7b5d1ccaaf1f162e"
+    },
+    "source.c21-legacy.json": {
+      "bytes": 14364,
+      "sha256": "c5f67411f0109a1d6ad67630bfc78dcd58a0c188596cc9ea63b527c15aa3bbf5"
+    },
+    "legacy-c15/source.json": {
+      "bytes": 14364,
+      "sha256": "de30847eb40ebbfe3be5dd87d823afa041eb4dfe9c311667e4d8e8ffc4b12dd9"
+    },
+    "legacy-c15/signature.json": {
+      "bytes": 14025,
+      "sha256": "48699718a1cb05839ada2bdbc66679dca6c1e1e06b0a1ebda7a7e4d7d5e343cd"
+    },
+    "legacy-c15/rooster.synthetic.html": {
+      "bytes": 13078,
+      "sha256": "e9adcad95655892b25bab2325efcdee7cc82823778da9773542adccc5d2088a5"
+    },
+    "legacy-c15/word.synthetic.html": {
+      "bytes": 12626,
+      "sha256": "901649ee54690dd1ce28dc1445c1eb869b36730bd76a07db023b61badc76eb3a"
+    },
+    "legacy-c15/source.c13-legacy.json": {
+      "bytes": 13916,
+      "sha256": "c3a729fa720c8fa622e988e873451a76238017539fd457ff7b5d1ccaaf1f162e"
+    },
+    "legacy-c15/manifest.json": {
+      "bytes": 1282,
+      "sha256": "f6856afb14cd1c7d0c17f0addc24ae46d848920a517f8f1fdaa9c28bca02465d"
+    },
+    "legacy-v22/source.json": {
+      "bytes": 12721,
+      "sha256": "e03987df08bd5bb74b3da647bb216eb0400b519314f5cc9ca2b923a80e1d21f1"
+    },
+    "legacy-v22/signature.json": {
+      "bytes": 12382,
+      "sha256": "fc8ec902f8f99fee0fdd6c4211fa4453e33d29d2108d3768449995da59b1a29b"
+    },
+    "legacy-v22/rooster.synthetic.html": {
+      "bytes": 11553,
+      "sha256": "66692d5b87341374a8153e229bee806d0f2186f941076fe545c1a8d2097a5d23"
+    },
+    "legacy-v22/word.synthetic.html": {
+      "bytes": 11058,
+      "sha256": "509927ea0e3f8820837effa023cccbe4548671b3a1def4d9869011389e41d39d"
+    },
+    "legacy-v22/manifest.json": {
+      "bytes": 2511,
+      "sha256": "1c9c0c3f97408f95de0684f61c864368f22ec51d775a125f0a41e6c4e9322bbd"
+    },
+    "legacy-v23/source.json": {
+      "bytes": 12778,
+      "sha256": "709262b6d471043dc24945a91ab93ff8c88fdb9dc6e6d5402faf9b96f110229e"
+    },
+    "legacy-v23/signature.json": {
+      "bytes": 12439,
+      "sha256": "4478a669e72e29704caa6eca4f4649254b8013b3430a74bd5d7c4f859b3ed87a"
+    },
+    "legacy-v23/rooster.synthetic.html": {
+      "bytes": 11613,
+      "sha256": "f0992f7294a4da259288b25cd1883c64282151487bfca0710884a9ff82866979"
+    },
+    "legacy-v23/word.synthetic.html": {
+      "bytes": 11118,
+      "sha256": "6c3eaeba1ddb9a0da961f1b66529bc1d5f19eb5bb0c822253e86d57b6cd52328"
+    },
+    "legacy-v23/manifest.json": {
+      "bytes": 3229,
+      "sha256": "3c4149d0b7732792cdb0e8010acd4be2336f7cd903ebcd139b9c964e56838a98"
+    },
+    "ios.synthetic.redacted.json": {
+      "bytes": 24977,
+      "sha256": "e181ca97ce6f0becff4d00bb5737cbe198bdb1f7ce695ce80c545ace620641dc"
+    },
+    "legacy-v25/source.json": {
+      "bytes": 12564,
+      "sha256": "0c73493ef284f94cbc1e1c62ec30453d798f220c9c1aea834e95a77d5312b527"
+    },
+    "legacy-v25/signature.json": {
+      "bytes": 12225,
+      "sha256": "fabb9721a85ba0efb6a30c3be606d04d2f9d921aec1d9207f0a0fc2ec96d4dd7"
+    },
+    "legacy-v25/rooster.synthetic.html": {
+      "bytes": 11435,
+      "sha256": "676494313403c01ba8cfbfe1de6193b89b51abb75e25750a24adce7bded592ee"
+    },
+    "legacy-v25/word.synthetic.html": {
+      "bytes": 10923,
+      "sha256": "70d24f7f2f38db4a9d3e2dd21fa1393de36d17d31728e1a602c6d126d1c51ef5"
+    },
+    "legacy-v25/ios.synthetic.redacted.json": {
+      "bytes": 24921,
+      "sha256": "97183cf840c3a4b93785033c619196a4c27cc05a21ba0ac752a06ef2396f0a8a"
+    },
+    "legacy-v25/manifest.json": {
+      "bytes": 4680,
+      "sha256": "9edc5c3479dec4057ab8e47d6a32668f0dbdf79b93417df2730ad03b183c9499"
+    },
+    "legacy-v26/source.json": {
+      "bytes": 13011,
+      "sha256": "93ac8e4602408be6becdecc6adede4e587dd1929955c170c03e606e10adc5dd2"
+    },
+    "legacy-v26/signature.json": {
+      "bytes": 12225,
+      "sha256": "390dafc08d0051129a003948235baaffb692efac4feab41a73065086cb97c605"
+    },
+    "legacy-v26/rooster.synthetic.html": {
+      "bytes": 11874,
+      "sha256": "cbb227ea124e05ccb14036aa89cfb0c632b2fc6defa06c8a8c20f58dcdd990ed"
+    },
+    "legacy-v26/word.synthetic.html": {
+      "bytes": 11362,
+      "sha256": "90496e399edd0ebd4874b2c0a54f9402855c4661c3445d225ddcb1477f83f5e8"
+    },
+    "legacy-v26/ios.synthetic.redacted.json": {
+      "bytes": 24921,
+      "sha256": "be348e410459e08b56e2fdff33e82d7bf4d1a35bb71a86316b327080216ac0a8"
+    },
+    "legacy-v26/manifest.json": {
+      "bytes": 5950,
+      "sha256": "71c662cd47f2e12d14535157ddc8924a582c49ad5baeba7c3a053af88493a02b"
+    }
+  },
+  "previousNoWrapVersion": "50297557b7e43f1ce2409647",
+  "previousNoWrapSource": "legacy-v22/source.json",
+  "previousLineVersion": "1400065e4d4c095018a5e00c",
+  "previousLineSource": "legacy-v23/source.json",
+  "iosProjection": {
+    "file": "ios.synthetic.redacted.json",
+    "nativeClientProof": false,
+    "basis": "legacy-v26/ios.synthetic.redacted.json",
+    "nativeAncestor": "ios.ck24-210443.redacted.json",
+    "changes": [
+      "outer shell alignment and current marker"
+    ]
+  },
+  "previousSpacingVersion": "d4d55682822fd4c0fcb8c4de",
+  "previousSpacingSource": "legacy-v25/source.json",
+  "wordingProjection": {
+    "generatedBy": "OutlookUniversalPresentation::render",
+    "showGreeting": true,
+    "showFarewell": true,
+    "requestedFarewellName": true,
+    "appliedFarewellName": false,
+    "authoredNameBytesPreserved": true
+  },
+  "previousAlignmentVersion": "43149c93fad1a37867b20413",
+  "previousAlignmentSource": "legacy-v26/source.json",
+  "alignmentProjection": {
+    "align": "left",
+    "margin": "0 auto 0 0",
+    "float": "none",
+    "textAlign": "left",
+    "changes": [
+      "outer shell alignment and current marker"
+    ],
+    "nativeClientProof": false
+  }
+}

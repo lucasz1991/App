@@ -28,7 +28,7 @@ function removeStyle(node, property) {
 function style(node, property, value) { removeStyle(node, property); node.setAttribute('style', node.getAttribute('style') + ';' + property + ':' + value); }
 
 test('v2.2 B1 and two synthetic hosts are current with two single-cell red caps and four fewer images', () => {
-    assert.equal(manifest.templateSha256, '1bfd6e33fbc15a5e278ce29cf039721cedd9b4f0a2a5506c4012df3d5483207d');
+    assert.equal(manifest.templateSha256, '0201650e3985cf95b7ef84d112fede5d8338017f6d725a764906da1a99e1c5dc');
     assert.equal(manifest.previousCornerVersion, previous.version);
     assert.equal(manifest.nativeClientProof, false);
     for (const name of ['source.json', 'rooster.synthetic.html', 'word.synthetic.html']) {

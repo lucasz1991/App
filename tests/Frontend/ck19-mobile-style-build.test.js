@@ -58,7 +58,7 @@ test('a changed source CSS or a stale TEMPLATE_SHA256 stops generation', () => {
 });
 
 test('changing the HTML body and PHP pin together still needs explicit template mapping approval', () => {
-    assert.equal(mapping.approvedTemplateSha256, '1bfd6e33fbc15a5e278ce29cf039721cedd9b4f0a2a5506c4012df3d5483207d');
+    assert.equal(mapping.approvedTemplateSha256, '0201650e3985cf95b7ef84d112fede5d8338017f6d725a764906da1a99e1c5dc');
     const changed = templateHtml.replace('width="247"', 'width="246"');
     assert.notEqual(changed, templateHtml);
     const changedPhp = presentationPhp.replace(generated.templateHash, sha(changed));

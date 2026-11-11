@@ -9,7 +9,7 @@ import { universalDiagnosticReplayHtml } from '../../resources/js/outlook-addin/
 const folder = new URL('../Fixtures/mail/u2e-readback-v2/', import.meta.url);
 const read = file => fs.readFileSync(new URL(file, folder), 'utf8');
 const source = JSON.parse(read('source.json')), signature = JSON.parse(read('signature.json'));
-const prior = JSON.parse(read('legacy-v26/source.json'));
+const prior = JSON.parse(read('legacy-v27/source.json'));
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 function changed(callback) {
     const { document } = parseHTML(source.html); callback(document.querySelector('table'), document);
@@ -20,18 +20,17 @@ test('both current insertion kinds are left aligned without changing the former 
     for (const doc of [source, signature]) {
         validateUniversalComposeDocument(doc);
         const shell = parseHTML(doc.html).document.querySelector('table');
-        assert.equal(shell.getAttribute('align'), 'left');
+        assert.equal(shell.hasAttribute('align'), false, 'outer align is a legacy wrapping instruction, not positional-only alignment');
         assert.match(shell.getAttribute('style'), /(?:^|;)margin:0 auto 0 0;/);
         assert.match(shell.getAttribute('style'), /(?:^|;)float:none;/);
         assert.match(shell.getAttribute('style'), /(?:^|;)text-align:left;/);
         assert.doesNotMatch(shell.getAttribute('style'), /margin:0 auto;/);
     }
     for (const file of ['source.json', 'signature.json']) {
-        const oldDocument = JSON.parse(read('legacy-v26/' + file)), currentDocument = JSON.parse(read(file));
+        const oldDocument = JSON.parse(read('legacy-v27/' + file)), currentDocument = JSON.parse(read(file));
         const projected = oldDocument.html.replaceAll(prior.version, source.version)
-            .replace('class="rt-shell" align="center"', 'class="rt-shell" align="left"')
-            .replace('margin:0 auto;', 'margin:0 auto 0 0;float:none;text-align:left;');
-        assert.equal(currentDocument.html, projected, file + ': only root alignment and derived marker change');
+            .replace('class="rt-shell" align="left"', 'class="rt-shell"');
+        assert.equal(currentDocument.html, projected, file + ': only wrapping attribute removal and derived marker change');
     }
 });
 
@@ -62,16 +61,16 @@ test('explicit local left wins over host center while an implicit table cannot i
     for (const alignment of ['center', 'right']) {
         assert.equal(universalComposeStateFromBody(source, '<div align="' + alignment + '">' + source.html + '</div>', 'newMail').current, true);
         const weak = changed(shell => shell.setAttribute('style', 'width:1040px;margin:0;float:none;'));
-        assert.equal(universalComposeStateFromBody(source, '<div align="' + alignment + '">' + weak + '</div>', 'newMail').current, false, 'align=left with zero right margin cannot override host centering');
+        assert.equal(universalComposeStateFromBody(source, '<div align="' + alignment + '">' + weak + '</div>', 'newMail').current, false, 'zero right margin cannot override host centering');
         const implicit = changed(shell => { shell.removeAttribute('align'); shell.setAttribute('style', 'width:1040px;'); });
         const state = universalComposeStateFromBody(source, '<div align="' + alignment + '">' + implicit + '</div>', 'newMail');
         assert.equal(state.current, false); assert.equal(state.checkpoint, 'shell.align');
     }
 });
 
-test('previous centered own drafts remain present noncurrent and quoted centered material remains opaque', () => {
-    for (const file of ['source.json', 'word.synthetic.html', 'rooster.synthetic.html']) {
-        const bytes = read('legacy-v26/' + file), html = file.endsWith('.json') ? JSON.parse(bytes).html : bytes;
+test('prior centered and wrapping own drafts remain present noncurrent while quoted material stays opaque', () => {
+    for (const version of ['legacy-v26', 'legacy-v27']) for (const file of ['source.json', 'word.synthetic.html', 'rooster.synthetic.html']) {
+        const bytes = read(version + '/' + file), html = file.endsWith('.json') ? JSON.parse(bytes).html : bytes;
         const before = sha(html), state = universalComposeStateFromBody(source, html, 'newMail');
         assert.equal(state.present, true); assert.equal(state.current, false); assert.equal(state.checkpoint, 'state.version');
         const quote = '<div id="divRplyFwdMsg">Historical header</div><blockquote>' + html + '</blockquote>';
@@ -79,4 +78,16 @@ test('previous centered own drafts remain present noncurrent and quoted centered
         assert.equal(universalComposeStateFromBody(source, source.html + quote, 'reply').current, true);
         assert.equal(sha(html), before);
     }
+});
+
+test('legacy table align attributes are rejected in new source and actual readback despite float:none', () => {
+    for (const alignment of ['left', 'center', 'right']) {
+        const html = changed(shell => shell.setAttribute('align', alignment));
+        assert.throws(() => validateUniversalComposeDocument({ ...source, html }), { code: 'U2E_SOURCE_INVALID' }, alignment);
+        const actual = universalComposeStateFromBody(source, html, 'newMail');
+        assert.equal(actual.current, false, alignment); assert.equal(actual.checkpoint, 'shell.align');
+        assert.match(parseHTML(html).document.querySelector('table').getAttribute('style'), /float:none/);
+    }
+    const empty = changed(shell => shell.setAttribute('align', ''));
+    assert.throws(() => validateUniversalComposeDocument({ ...source, html: empty }), { code: 'U2E_SOURCE_INVALID' });
 });

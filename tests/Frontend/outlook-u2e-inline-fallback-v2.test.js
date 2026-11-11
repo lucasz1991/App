@@ -32,9 +32,9 @@ function mutate(change) { const { document } = parseHTML(source.html); change(ta
 const current = (html, type = 'newMail') => universalComposeStateFromBody(source, html, type);
 
 test('C21 manifest pins the actual B1 output while preserving the exact historical C13 source', () => {
-    assert.equal(manifest.kind, 'synthetic-v27-left-host-serializations');
+    assert.equal(manifest.kind, 'synthetic-v28-in-flow-host-serializations');
     assert.equal(manifest.nativeClientProof, false); assert.equal(manifest.privateInputUsed, false);
-    assert.equal(manifest.templateSha256, '1bfd6e33fbc15a5e278ce29cf039721cedd9b4f0a2a5506c4012df3d5483207d');
+    assert.equal(manifest.templateSha256, '0201650e3985cf95b7ef84d112fede5d8338017f6d725a764906da1a99e1c5dc');
     assert.equal(source.version, manifest.version); assert.equal(signature.version, source.version);
     assert.equal(c13.version, manifest.previousVersion); assert.notEqual(source.version, c13.version);
     assert.equal(sha256(fs.readFileSync(new URL('source.c13-legacy.json', folder), 'utf8').replaceAll('\r\n', '\n')), 'c3a729fa720c8fa622e988e873451a76238017539fd457ff7b5d1ccaaf1f162e');

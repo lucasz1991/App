@@ -29,11 +29,12 @@ test('Word may omit the left shell alignment and margins without introducing cen
     const root = elements[index]; assert.equal(root.attrs.align, undefined); assert.doesNotMatch(root.attrs.style, /margin/);
 });
 
-test('centered or right-aligned Word serializations are rejected for the current left template', () => {
+test('wrapping, centered or right-aligned Word serializations are rejected for the current in-flow template', () => {
     const denied = [
         '<div align="center">' + bare() + '</div>',
         '<div align="right">' + bare() + '</div>',
         '<div style="text-align:center">' + bare() + '</div>',
+        change(dom => dom.querySelector('table').setAttribute('align', 'left')),
         change(dom => dom.querySelector('table').setAttribute('align', 'center')),
         change(dom => dom.querySelector('table').setAttribute('align', 'right')),
         change(dom => dom.querySelector('table').setAttribute('style', 'width:1040px;margin:0 auto;')),

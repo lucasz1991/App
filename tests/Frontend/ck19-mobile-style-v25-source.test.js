@@ -9,14 +9,14 @@ const read = async name => (await fs.readFile(new URL(name, root), 'utf8')).repl
 const sha = value => createHash('sha256').update(value).digest('hex');
 const templateHtml = await read('resources/mail-templates/u2e-universal-v1.html');
 const presentationPhp = await read('app/Support/OutlookAddin/OutlookUniversalPresentation.php');
-const currentTemplate = '1bfd6e33fbc15a5e278ce29cf039721cedd9b4f0a2a5506c4012df3d5483207d';
+const currentTemplate = '0201650e3985cf95b7ef84d112fede5d8338017f6d725a764906da1a99e1c5dc';
 const previousTemplate = '5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204';
 const currentCss = '44320e37dbd5376595ecbd11938fcc96b5be372088dea343fed9a187d18f746f';
 const previousCss = '502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1';
 const line = '<tr class="rt-cta-line"><td colspan="5" height="1" bgcolor="#ffffff" style="height:1px;line-height:1px;font-size:1px;mso-line-height-rule:exactly;padding:0;background-color:#ffffff;">&nbsp;</td></tr>';
 
 test('the v2.6 source is pinned and v2.3 is retained as immutable historical test input', async () => {
-    assert.equal(sha(templateHtml), currentTemplate); assert.equal(templateHtml.length, 15633);
+    assert.equal(sha(templateHtml), currentTemplate); assert.equal(templateHtml.length, 15620);
     assert.doesNotMatch(templateHtml, /rt-cta-line|colspan="5"/);
     const prior = await read('tests/Fixtures/mail/ck19-mobile-style-v16/template-v23-approved.html');
     assert.equal(sha(prior), previousTemplate); assert.match(prior, /rt-cta-line/);

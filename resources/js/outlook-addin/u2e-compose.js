@@ -379,6 +379,9 @@ export function validateUniversalComposeDocument(document) {
             || /\[if\b|RT-(?:FLUID-LAYOUT|TEMPLATE-MANAGED|SIGNATURE-MANAGED|COMPOSE-EDITABLE)/i.test(document.html)) throw failure('U2E_SOURCE_INVALID');
         const plan = material(document.html, document.marker, true);
         if (!plan.present || !plan.evidence || plan.kind !== document.kind) throw failure('U2E_SOURCE_INVALID');
+        // The canonical shell is an in-flow table. A legacy align attribute
+        // can enable Word text wrapping and must not re-enter a source bundle.
+        if (Object.prototype.hasOwnProperty.call(plan.root.attrs, 'align')) throw failure('U2E_SOURCE_INVALID');
         validateUniversalSourceStyles(plan);
         const outside = document.html.slice(0, plan.root.start) + document.html.slice(plan.root.end);
         if (text(outside) || parsed.elements.some(node => (node.end <= plan.root.start || node.start >= plan.root.end)

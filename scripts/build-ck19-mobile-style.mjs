@@ -38,7 +38,7 @@ const normalize = value => String(value).replaceAll('\r\n', '\n');
 const fail = code => { throw new Error('CK19_' + code); };
 // C-K25 preserves approved transport bytes, while the removed line rule is no
 // longer claimed as a derivation from the current v2.6 CSS.
-const ck27TemplateHash = '1bfd6e33fbc15a5e278ce29cf039721cedd9b4f0a2a5506c4012df3d5483207d';
+const ck27TemplateHash = '0201650e3985cf95b7ef84d112fede5d8338017f6d725a764906da1a99e1c5dc';
 const historicalLineSource = Object.freeze({
     "approval": "C-K25-user-approved-retain-existing-v11-v15-payloads",
     "templateSha256": "5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204",

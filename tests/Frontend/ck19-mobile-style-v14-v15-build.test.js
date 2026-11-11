@@ -37,7 +37,7 @@ for (const current of cases) {
         assert.equal(generated.payload.length, size); assert.equal(Buffer.byteLength(generated.payload), size);
         assert.equal(sha(generated.payload), digest);
         assert.equal(supplied.sourceTemplateSha256, '5d612a3a4a5b48f63660774599fb7bc9405e3856517832f1cccd50bf9a064204', 'Original approval metadata stays historical.');
-        assert.equal(generated.templateHash, '1bfd6e33fbc15a5e278ce29cf039721cedd9b4f0a2a5506c4012df3d5483207d');
+        assert.equal(generated.templateHash, '0201650e3985cf95b7ef84d112fede5d8338017f6d725a764906da1a99e1c5dc');
         assert.equal(generated.cssHash, '44320e37dbd5376595ecbd11938fcc96b5be372088dea343fed9a187d18f746f');
         assert.equal(supplied.sourceCssSha256, '502931bbbfc2452dcfea30bb451782f75b9ec9e0059fe1f7477b7ae9044cfdc1');
         assert.equal(generated.derivedDeclarations, current.derived);

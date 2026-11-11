@@ -50,7 +50,7 @@ final class OutlookUniversalSystemMailPresentationTest extends TestCase
         $result = (new OutlookUniversalSystemMailPresentation)->project($legacy, $this->values(), new HtmlString($author));
         self::assertNotNull($result, (new OutlookUniversalSystemMailPresentation)->review($legacy, $this->values(), new HtmlString($author))['reason']);
         self::assertSame('send', $result['mode']);
-        self::assertSame('1bfd6e33fbc15a5e278ce29cf039721cedd9b4f0a2a5506c4012df3d5483207d', $result['templateHash']);
+        self::assertSame('0201650e3985cf95b7ef84d112fede5d8338017f6d725a764906da1a99e1c5dc', $result['templateHash']);
         self::assertStringContainsString('font-size:34px;line-height:36px;', $result['html']);
         self::assertStringContainsString('padding:6px 0 4px;', $result['html']);
         self::assertSame(1, substr_count($result['html'], $author));
