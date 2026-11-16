@@ -14,6 +14,10 @@
     'nullable' => true,
     // Schritt-Tasten. In dichten Tabellenrastern auf false setzen.
     'stepper' => true,
+    // Pfeil hoch/runter veraendert den Wert. In Tabellen mit eigener
+    // Zeilennavigation auf false setzen, sonst verstellt die Pfeiltaste
+    // den Wert, statt in die Nachbarzeile zu springen.
+    'keyboardStep' => true,
     'disabled' => false,
     'readonly' => false,
 ])
@@ -46,9 +50,12 @@
         '@paste' => 'acceptDecimalSeparator($event)',
         '@input' => 'syncAria()',
         '@blur' => 'normalize()',
-        '@keydown.up.prevent' => 'nudge(1)',
-        '@keydown.down.prevent' => 'nudge(-1)',
     ];
+
+    if ($keyboardStep) {
+        $handlers['@keydown.up.prevent'] = 'nudge(1)';
+        $handlers['@keydown.down.prevent'] = 'nudge(-1)';
+    }
 
     $sharedInputClasses = 'tabular-nums';
     $wireModel = $attributes->wire('model')->value();

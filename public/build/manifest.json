@@ -3,8 +3,8 @@
     "file": "assets/installSVGRenderer-BPfOPR9k.js",
     "name": "installSVGRenderer"
   },
-  "_leaflet-src-Cf1NrFsh.js": {
-    "file": "assets/leaflet-src-Cf1NrFsh.js",
+  "_leaflet-src-BCfn2gqP.js": {
+    "file": "assets/leaflet-src-BCfn2gqP.js",
     "name": "leaflet-src",
     "isDynamicEntry": true,
     "imports": [
@@ -54,7 +54,7 @@
     "isDynamicEntry": true
   },
   "resources/css/app.css": {
-    "file": "assets/app-C69Dn-3L.css",
+    "file": "assets/app-HSB5cOU_.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
@@ -87,7 +87,7 @@
     ]
   },
   "resources/js/admin-dashboard-motion.js": {
-    "file": "assets/admin-dashboard-motion-Bj8IZP2g.js",
+    "file": "assets/admin-dashboard-motion-DRlfLOOI.js",
     "name": "admin-dashboard-motion",
     "src": "resources/js/admin-dashboard-motion.js",
     "isDynamicEntry": true,
@@ -97,7 +97,7 @@
     ]
   },
   "resources/js/app.js": {
-    "file": "assets/app-BXS-xyRP.js",
+    "file": "assets/app-D1x6xdUF.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
@@ -105,8 +105,9 @@
       "_modal-body-Ci50NkBd.js"
     ],
     "dynamicImports": [
+      "resources/js/wagon-era-codes.js",
       "node_modules/swiper/swiper.mjs",
-      "_leaflet-src-Cf1NrFsh.js",
+      "_leaflet-src-BCfn2gqP.js",
       "resources/js/admin-dashboard-echarts.js",
       "resources/js/admin-dashboard-motion.js",
       "resources/js/operations-charts.js"
@@ -141,5 +142,11 @@
     "imports": [
       "_installSVGRenderer-BPfOPR9k.js"
     ]
+  },
+  "resources/js/wagon-era-codes.js": {
+    "file": "assets/wagon-era-codes-BnslvHb8.js",
+    "name": "wagon-era-codes",
+    "src": "resources/js/wagon-era-codes.js",
+    "isDynamicEntry": true
   }
 }

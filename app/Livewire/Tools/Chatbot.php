@@ -489,20 +489,24 @@ class Chatbot extends Component
             return;
         }
 
+        // Feldlisten wie in resources/js/wagon-list-prototype.js und
+        // AssistantApplicationTools::wagonFields() (Excel-Liste v16_5).
         $metaFields = [
             'meta.trainNumber', 'meta.date', 'meta.origin', 'meta.destination', 'meta.reference',
+            'meta.customer', 'meta.track',
         ];
         $wagonFields = [
-            'wagon.number', 'wagon.category', 'wagon.axlesEmpty', 'wagon.axlesLoaded',
+            'wagon.number', 'wagon.category', 'wagon.axles',
             'wagon.length', 'wagon.wagonWeight', 'wagon.loadWeight', 'wagon.brakeG',
             'wagon.brakeP', 'wagon.shippingStation', 'wagon.destinationStation',
-            'wagon.brakeType', 'wagon.discBrake', 'wagon.parkingBrake',
-            'wagon.maxSpeed', 'wagon.remark',
+            'wagon.brakeType', 'wagon.parkingBrake', 'wagon.maxSpeed',
+            'wagon.unNumber', 'wagon.hazardLabel', 'wagon.remark',
         ];
         $brakeSheetFields = [
             'brakeSheet.tractionWeight', 'brakeSheet.tractionBrakeWeight',
-            'brakeSheet.tractionAxles', 'brakeSheet.minimumBrakePercentage',
-            'brakeSheet.brakedAxles', 'brakeSheet.lowerVehicleSpeed',
+            'brakeSheet.tractionAxles', 'brakeSheet.tractionLength',
+            'brakeSheet.minimumBrakePercentage', 'brakeSheet.brakePosition',
+            'brakeSheet.timetableLoad', 'brakeSheet.timetableLength', 'brakeSheet.timetableSpeed',
             'brakeSheet.nbuepBrake', 'brakeSheet.emergencyBrakeBridge',
             'brakeSheet.passengerFeatureHzee', 'brakeSheet.passengerFeatureNOe',
             'brakeSheet.passengerFeatureTb0', 'brakeSheet.passengerFeatureOZub',

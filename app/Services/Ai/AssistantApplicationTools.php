@@ -591,10 +591,11 @@ final class AssistantApplicationTools
             'meta.origin' => ['group' => 'meta', 'type' => 'text', 'max' => 120],
             'meta.destination' => ['group' => 'meta', 'type' => 'text', 'max' => 120],
             'meta.reference' => ['group' => 'meta', 'type' => 'text', 'max' => 160],
+            'meta.customer' => ['group' => 'meta', 'type' => 'text', 'max' => 120],
+            'meta.track' => ['group' => 'meta', 'type' => 'text', 'max' => 40],
             'wagon.number' => ['group' => 'wagon', 'type' => 'wagon_number'],
             'wagon.category' => ['group' => 'wagon', 'type' => 'text', 'max' => 80],
-            'wagon.axlesEmpty' => ['group' => 'wagon', 'type' => 'number'],
-            'wagon.axlesLoaded' => ['group' => 'wagon', 'type' => 'number'],
+            'wagon.axles' => ['group' => 'wagon', 'type' => 'number'],
             'wagon.length' => ['group' => 'wagon', 'type' => 'number'],
             'wagon.wagonWeight' => ['group' => 'wagon', 'type' => 'number'],
             'wagon.loadWeight' => ['group' => 'wagon', 'type' => 'number'],
@@ -602,17 +603,22 @@ final class AssistantApplicationTools
             'wagon.brakeP' => ['group' => 'wagon', 'type' => 'number'],
             'wagon.shippingStation' => ['group' => 'wagon', 'type' => 'text', 'max' => 120],
             'wagon.destinationStation' => ['group' => 'wagon', 'type' => 'text', 'max' => 120],
-            'wagon.brakeType' => ['group' => 'wagon', 'type' => 'enum', 'values' => ['', 'K', 'L', 'LL']],
-            'wagon.discBrake' => ['group' => 'wagon', 'type' => 'boolean'],
+            // Bremssohlenart der Excel-Liste v16_5: K, L, LL, D = Scheibenbremse, F = Grauguss.
+            'wagon.brakeType' => ['group' => 'wagon', 'type' => 'enum', 'values' => ['', 'K', 'L', 'LL', 'D', 'F']],
             'wagon.parkingBrake' => ['group' => 'wagon', 'type' => 'number'],
             'wagon.maxSpeed' => ['group' => 'wagon', 'type' => 'number'],
+            'wagon.unNumber' => ['group' => 'wagon', 'type' => 'un_number'],
+            'wagon.hazardLabel' => ['group' => 'wagon', 'type' => 'text', 'max' => 20],
             'wagon.remark' => ['group' => 'wagon', 'type' => 'text', 'max' => 255],
             'brakeSheet.tractionWeight' => ['group' => 'brake_sheet', 'type' => 'number'],
             'brakeSheet.tractionBrakeWeight' => ['group' => 'brake_sheet', 'type' => 'number'],
             'brakeSheet.tractionAxles' => ['group' => 'brake_sheet', 'type' => 'number'],
+            'brakeSheet.tractionLength' => ['group' => 'brake_sheet', 'type' => 'number'],
             'brakeSheet.minimumBrakePercentage' => ['group' => 'brake_sheet', 'type' => 'number'],
-            'brakeSheet.brakedAxles' => ['group' => 'brake_sheet', 'type' => 'number'],
-            'brakeSheet.lowerVehicleSpeed' => ['group' => 'brake_sheet', 'type' => 'number'],
+            'brakeSheet.brakePosition' => ['group' => 'brake_sheet', 'type' => 'enum', 'values' => ['', 'R/P', 'G']],
+            'brakeSheet.timetableLoad' => ['group' => 'brake_sheet', 'type' => 'number'],
+            'brakeSheet.timetableLength' => ['group' => 'brake_sheet', 'type' => 'number'],
+            'brakeSheet.timetableSpeed' => ['group' => 'brake_sheet', 'type' => 'number'],
             'brakeSheet.nbuepBrake' => ['group' => 'brake_sheet', 'type' => 'yes_no'],
             'brakeSheet.emergencyBrakeBridge' => ['group' => 'brake_sheet', 'type' => 'yes_no'],
             'brakeSheet.passengerFeatureHzee' => ['group' => 'brake_sheet', 'type' => 'yes_no'],
@@ -633,6 +639,7 @@ final class AssistantApplicationTools
             'text' => $this->boundedText($value, (int) ($definition['max'] ?? 120)),
             'date' => $this->dateValue($value),
             'wagon_number' => $this->wagonNumberValue($value),
+            'un_number' => $this->unNumberValue($value),
             'number' => $this->numberValue($value),
             'boolean' => $this->booleanValue($value),
             'enum' => $this->enumValue($value, $definition['values'] ?? []),
@@ -699,6 +706,25 @@ final class AssistantApplicationTools
         $digits = preg_replace('/\D+/', '', $source);
 
         return strlen((string) $digits) === 12 ? $digits : null;
+    }
+
+    /** UN-Nummern: vierstellig, mehrere mit + verbunden (wie in der Excel-Liste). */
+    private function unNumberValue(mixed $value): ?string
+    {
+        if (! is_string($value) && ! is_int($value)) {
+            return null;
+        }
+
+        $source = (string) preg_replace('/\s+/', '', (string) $value);
+        if ($source === '') {
+            return '';
+        }
+
+        if (is_int($value)) {
+            $source = str_pad($source, 4, '0', STR_PAD_LEFT);
+        }
+
+        return preg_match('/\A\d{4}(?:\+\d{4}){0,7}\z/', $source) === 1 ? $source : null;
     }
 
     private function numberValue(mixed $value): string|float|null

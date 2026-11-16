@@ -23,6 +23,20 @@
         'clearWagonTitle' => __('app.wagon_clear_title'),
         'clearWagonText' => __('app.wagon_clear_text'),
         'clearWagonConfirm' => __('app.clear_wagon'),
+        'removeWagonTitle' => __('app.wagon_remove_title'),
+        'removeWagonText' => __('app.wagon_remove_text'),
+        'removeWagonConfirm' => __('app.wagon_remove'),
+        'wagonLimitReached' => __('app.wagon_limit_reached'),
+        'checkLabels' => __('app.wagon_checks'),
+        'missingLabels' => __('app.wagon_missing_fields'),
+        'checksEmpty' => __('app.wagon_checks_empty'),
+        'checksOk' => __('app.wagon_checks_ok'),
+        'checksErrors' => __('app.wagon_checks_errors'),
+        'checksWarnings' => __('app.wagon_checks_warnings'),
+        'gaugeMissingData' => __('app.wagon_gauge_missing_data'),
+        'gaugeNoMinimum' => __('app.wagon_gauge_no_minimum'),
+        'gaugeOk' => __('app.wagon_gauge_ok'),
+        'gaugeMissing' => __('app.wagon_gauge_missing'),
         'mobileSteps' => [
             ['id' => 'train', 'label' => __('app.train_data')],
             ['id' => 'identity', 'label' => __('app.identification')],
@@ -41,12 +55,6 @@
     x-on:railtime-wagon-assistant-command.window="handleAssistantCommand($event.detail)"
     x-on:railtime-wagon-context-request.window="dispatchAssistantContext('requested', editorOpen, assistantContextNonce)"
 >
-    @php
-        $inputClass = 'rt-ui-control rt-wagon-input mt-1 block min-h-11 w-full rounded-lg border border-rt-border bg-rt-control px-3 py-2 text-base text-rt-text shadow-rt-xs outline-none transition focus:border-rt-accent focus:ring-2 focus:ring-rt-accent/20 sm:text-sm';
-        $labelClass = 'text-xs font-semibold text-rt-muted dark:text-rt-dark-muted';
-        $sheetInput = 'rt-wagon-sheet-input h-10 w-full min-w-0 border-0 bg-transparent px-2 text-sm tabular-nums text-rt-text outline-none focus:bg-sky-50 focus:ring-2 focus:ring-inset focus:ring-sky-400/55 dark:text-rt-dark-text dark:focus:bg-sky-500/10';
-    @endphp
-
     <x-ui.page
         :title="__('app.wagon_list')"
         :eyebrow="__('app.operational_control')"
@@ -132,6 +140,7 @@
                                 >
                                     <span class="block truncate text-base font-semibold text-rt-text transition group-hover:text-rt-red dark:text-rt-dark-text dark:group-hover:text-rt-dark-accent" x-text="draftTitle(draft)"></span>
                                     <span class="mt-1 block truncate text-sm text-rt-muted dark:text-rt-dark-muted" x-text="draftRoute(draft)"></span>
+                                    <span class="mt-0.5 block truncate text-xs text-rt-soft dark:text-rt-dark-soft" x-show="draft.meta.customer" x-text="draft.meta.customer"></span>
                                 </button>
                             </div>
                             <span class="shrink-0 rounded-md bg-rt-surface-muted px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted">
@@ -263,16 +272,9 @@
             </x-slot:actions>
 
             <main class="h-full min-h-0">
-                @include('livewire.operations.partials.wagon-desktop-workspace', [
-                    'sheetInput' => $sheetInput,
-                    'inputClass' => $inputClass,
-                    'labelClass' => $labelClass,
-                ])
+                @include('livewire.operations.partials.wagon-desktop-workspace')
 
-                @include('livewire.operations.partials.wagon-mobile-wizard', [
-                    'inputClass' => $inputClass,
-                    'labelClass' => $labelClass,
-                ])
+                @include('livewire.operations.partials.wagon-mobile-wizard')
 
                 @include('livewire.operations.partials.wagon-video-capture', [
                     'mediaUploadUrl' => auth()->user()->usesAdminLayout()

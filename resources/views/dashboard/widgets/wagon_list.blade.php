@@ -1,7 +1,8 @@
 {{--
     Wagenlisten-Entwuerfe leben ausschliesslich lokal im Browser
-    (localStorage-Key "rt-wagon-list-prototype:v1", siehe
-    resources/js/wagon-list-prototype.js) - es gibt dafuer keine
+    (localStorage-Key "rt-wagon-list-prototype:v1:<Benutzer-ID>", siehe
+    resources/js/wagon-list-prototype.js und WagonListPrototype::render) -
+    es gibt dafuer keine
     Server-Tabelle. Dieses Widget liest denselben Schluessel deshalb
     direkt per Alpine, statt eine Zahl vorzutaeuschen, die der Server
     gar nicht kennen kann. Ein Wagen gilt als erfasst, sobald ein Teil
@@ -11,7 +12,7 @@
         drafts: [],
         init() {
             try {
-                const stored = JSON.parse(localStorage.getItem('rt-wagon-list-prototype:v1') || 'null');
+                const stored = JSON.parse(localStorage.getItem(@js(sprintf('rt-wagon-list-prototype:v1:%d', auth()->id()))) || 'null');
                 const drafts = Array.isArray(stored?.drafts) ? stored.drafts : [];
                 this.drafts = drafts
                     .map((draft) => ({

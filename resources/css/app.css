@@ -4477,7 +4477,8 @@ body[data-mode='dark'] .rt-wagon-modal-footer {
 /* --- Wagennummer -------------------------------------------------- */
 .rt-wagon-uic {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    /* Fünf Teile der Wagennummer in einer Zeile, Breite nach Stellenzahl. */
+    grid-template-columns: 2fr 2fr 3fr 2.5fr 1.5fr;
     gap: 0.4rem;
 }
 
@@ -4494,8 +4495,7 @@ body[data-mode='dark'] .rt-wagon-modal-footer {
 }
 
 .rt-wagon-uic-part--check {
-    grid-column: span 4;
-    max-width: 8rem;
+    min-width: 0;
 }
 
 .rt-wagon-validation-state {
@@ -9124,4 +9124,1262 @@ body[data-mode="dark"] [data-autosave-scope] [data-autosave-visual][data-autosav
         animation: none !important;
         transition-duration: 0.01ms !important;
     }
+}
+
+/* -----------------------------------------------------------------
+   Wagenliste v16_5 — Arbeitsfläche (rt-wl-*)
+
+   Desktop ab 1024 px: Reiterleiste, darunter ein Raster aus Arbeitsbereich
+   und Seitenleiste (Summen, Bremsrechnung, Prüfung). Die Wagentabelle nimmt
+   die gesamte Resthöhe ein und scrollt allein; nichts anderes auf der Seite
+   scrollt mit. Höhenkette: Modalkörper -> main -> Arbeitsfläche (flex-1)
+   -> .rt-wl-layout (height:100%) -> .rt-wl-panel (flex, min-height:0)
+   -> .rt-wl-sheet (flex-1, overflow:auto).
+   ----------------------------------------------------------------- */
+.rt-wl-tabbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border-bottom: 1px solid #dbe3ee;
+    background: #fff;
+    padding: 0.45rem 0.75rem;
+}
+
+.rt-wl-tabs {
+    display: inline-flex;
+    gap: 0.15rem;
+    border: 1px solid #dbe3ee;
+    border-radius: 0.75rem;
+    background: #f1f5f9;
+    padding: 0.2rem;
+}
+
+.rt-wl-tab {
+    display: inline-flex;
+    min-height: 2.1rem;
+    align-items: center;
+    gap: 0.45rem;
+    border-radius: 0.55rem;
+    padding: 0 0.85rem;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+.rt-wl-tab:focus-visible,
+.rt-wl-status:focus-visible,
+.rt-wl-ghost:focus-visible,
+.rt-wl-row-action:focus-visible,
+.rt-wl-chip:focus-visible {
+    outline: 2px solid rgb(228 0 43 / 0.45);
+    outline-offset: 2px;
+}
+
+.rt-wl-status {
+    display: inline-flex;
+    min-height: 2.1rem;
+    align-items: center;
+    gap: 0.5rem;
+    border: 1px solid #dbe3ee;
+    border-radius: 999px;
+    background: #fff;
+    padding: 0 0.85rem 0 0.7rem;
+    color: #475569;
+    font-size: 0.75rem;
+    font-weight: 700;
+    transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.rt-wl-status:hover {
+    border-color: #c3cedb;
+    background: #f8fafc;
+}
+
+.rt-wl-status-dot {
+    width: 0.55rem;
+    height: 0.55rem;
+    flex: none;
+    border-radius: 999px;
+    background: #94a3b8;
+}
+
+.rt-wl-status[data-tone='ok'] {
+    border-color: #a7e3c4;
+    background: #effbf5;
+    color: #0b6b43;
+}
+
+.rt-wl-status[data-tone='ok'] .rt-wl-status-dot {
+    background: #16a34a;
+}
+
+.rt-wl-status[data-tone='warning'] {
+    border-color: #f2d28b;
+    background: #fff9e9;
+    color: #8a5a00;
+}
+
+.rt-wl-status[data-tone='warning'] .rt-wl-status-dot {
+    background: #f59e0b;
+}
+
+.rt-wl-status[data-tone='error'] {
+    border-color: #f6b8c2;
+    background: #fff1f3;
+    color: #b00020;
+}
+
+.rt-wl-status[data-tone='error'] .rt-wl-status-dot {
+    background: #e4002b;
+}
+
+.rt-wl-stage {
+    background: #e9eef5;
+}
+
+.rt-wl-layout {
+    display: grid;
+    height: 100%;
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.75rem;
+    padding: 0.75rem;
+}
+
+.rt-wl-layout[data-summary='true'] {
+    grid-template-columns: minmax(0, 1fr) 18rem;
+}
+
+@media (min-width: 1536px) {
+    .rt-wl-layout[data-summary='true'] {
+        grid-template-columns: minmax(0, 1fr) 20rem;
+    }
+}
+
+.rt-wl-panels {
+    min-width: 0;
+    min-height: 0;
+}
+
+.rt-wl-panel {
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.rt-wl-panel--scroll {
+    display: block;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-right: 0.15rem;
+}
+
+.rt-wl-panel--scroll > * + * {
+    margin-top: 0.75rem;
+}
+
+.rt-wl-box {
+    border: 1px solid #dbe3ee;
+    border-radius: 0.85rem;
+    background: #fff;
+    color: #0c1421;
+}
+
+.rt-wl-aside {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border: 1px solid #dbe3ee;
+    border-radius: 0.85rem;
+    background: #fff;
+    color: #0c1421;
+}
+
+/* Zugdaten: eine Zeile, damit die Tabelle die Höhe bekommt. */
+.rt-wl-trainbar {
+    display: grid;
+    flex: none;
+    grid-template-columns: 7.5rem 11.5rem repeat(4, minmax(0, 1fr));
+    gap: 0.6rem;
+    padding: 0.55rem 0.75rem 0.7rem;
+}
+
+.rt-wl-aside-card {
+    padding: 0.75rem;
+}
+
+.rt-wl-label {
+    display: flex;
+    min-height: 1rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    color: #64748b;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    line-height: 1rem;
+}
+
+.rt-wl-link {
+    color: #c40025;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    line-height: 1rem;
+}
+
+.rt-wl-link:hover {
+    text-decoration: underline;
+}
+
+.rt-wl-input {
+    display: block;
+    width: 100%;
+    min-height: 2.25rem;
+    margin-top: 0.2rem;
+    border: 1px solid #cfd8e3;
+    border-radius: 0.55rem;
+    background: #fff;
+    padding: 0.3rem 0.6rem;
+    color: #0c1421;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    outline: none;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.rt-wl-input:focus {
+    border-color: #e4002b;
+    box-shadow: 0 0 0 3px rgb(228 0 43 / 0.13);
+}
+
+.rt-wl-input--center {
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+textarea.rt-wl-input {
+    min-height: 4.5rem;
+    resize: vertical;
+}
+
+.rt-wl-trainbar .rt-ui-date-field {
+    margin-top: 0.2rem;
+}
+
+.rt-wl-trainbar .rt-ui-date-field__shell {
+    min-height: 2.25rem;
+}
+
+/* Kopf der Wagentabelle */
+.rt-wl-toolbar {
+    display: flex;
+    flex: none;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 0.5rem 0.75rem;
+}
+
+.rt-wl-toolbar h2 {
+    font-size: 0.875rem;
+    font-weight: 700;
+}
+
+.rt-wl-count {
+    border-radius: 999px;
+    background: #f1f5f9;
+    padding: 0.1rem 0.55rem;
+    color: #475569;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.rt-wl-ghost {
+    display: inline-flex;
+    min-height: 2.1rem;
+    align-items: center;
+    gap: 0.45rem;
+    border: 1px solid #dbe3ee;
+    border-radius: 0.6rem;
+    background: #fff;
+    padding: 0 0.75rem;
+    color: #334155;
+    font-size: 0.75rem;
+    font-weight: 700;
+    transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.rt-wl-ghost:hover:not(:disabled) {
+    border-color: #c3cedb;
+    background: #f8fafc;
+    color: #0c1421;
+}
+
+.rt-wl-ghost:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.rt-wl-primary {
+    display: inline-flex;
+    min-height: 2.1rem;
+    align-items: center;
+    gap: 0.45rem;
+    border-radius: 0.6rem;
+    background: #e4002b;
+    padding: 0 0.85rem;
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 700;
+    transition: background-color 150ms ease, transform 150ms ease;
+}
+
+.rt-wl-primary:hover:not(:disabled) {
+    background: #c40025;
+}
+
+.rt-wl-primary:active:not(:disabled) {
+    transform: scale(0.98);
+}
+
+.rt-wl-primary:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+/* Wagentabelle: Spaltenfolge der Excel-Liste */
+.rt-wl-sheet-shell {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 0%;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.rt-wl-sheet {
+    min-height: 0;
+    flex: 1 1 0%;
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+}
+
+.rt-wl-grid {
+    display: grid;
+    min-width: max-content;
+    grid-template-columns:
+        2.75rem
+        2.75rem 2.75rem 3.75rem 3.25rem 2.25rem
+        6.25rem 3.5rem 4.5rem
+        4.5rem 4.5rem 4.5rem
+        4.25rem 4.25rem
+        8rem 8rem
+        3.5rem 4.75rem 4rem
+        5.25rem 5.25rem
+        minmax(11rem, 1fr)
+        5.75rem;
+}
+
+.rt-wl-head {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+}
+
+.rt-wl-th {
+    display: flex;
+    min-height: 1.9rem;
+    align-items: center;
+    justify-content: center;
+    border-right: 1px solid #d5deea;
+    border-bottom: 1px solid #d5deea;
+    background: #eaf0f6;
+    padding: 0 0.35rem;
+    color: #55627a;
+    font-size: 0.65625rem;
+    font-weight: 700;
+    line-height: 1.1;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.rt-wl-th--group {
+    min-height: 1.6rem;
+    background: #dfe7f0;
+    color: #334155;
+    letter-spacing: 0.02em;
+}
+
+.rt-wl-th--left {
+    justify-content: flex-start;
+    padding-left: 0.55rem;
+}
+
+.rt-wl-td {
+    position: relative;
+    display: flex;
+    min-width: 0;
+    min-height: 2.25rem;
+    align-items: center;
+    border-right: 1px solid #e2e8f0;
+    border-bottom: 1px solid #e2e8f0;
+    background: #fff;
+}
+
+.rt-wl-row:nth-child(even) .rt-wl-td {
+    background: #fafbfd;
+}
+
+.rt-wl-row:hover .rt-wl-td,
+.rt-wl-row:focus-within .rt-wl-td {
+    background: #f3f8fd;
+}
+
+.rt-wl-td--edge,
+.rt-wl-th--edge {
+    border-right-color: #b9c6d6;
+}
+
+.rt-wl-td--calc {
+    justify-content: center;
+    background: #f6f8fb;
+    color: #334155;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.rt-wl-row:nth-child(even) .rt-wl-td--calc,
+.rt-wl-row:hover .rt-wl-td--calc,
+.rt-wl-row:focus-within .rt-wl-td--calc {
+    background: #eef3f8;
+}
+
+/* Laufende Nummer und Wagennummer bleiben beim seitlichen Scrollen stehen. */
+.rt-wl-stick {
+    position: sticky;
+    z-index: 10;
+}
+
+.rt-wl-head .rt-wl-stick {
+    z-index: 25;
+}
+
+.rt-wl-stick-0 { left: 0; }
+.rt-wl-stick-1 { left: 2.75rem; }
+.rt-wl-stick-2 { left: 5.5rem; }
+.rt-wl-stick-3 { left: 8.25rem; }
+.rt-wl-stick-4 { left: 12rem; }
+.rt-wl-stick-5 { left: 15.25rem; }
+
+.rt-wl-index {
+    justify-content: center;
+    gap: 0.3rem;
+    background: #f1f5f9 !important;
+    color: #475569;
+    font-size: 0.75rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.rt-wl-dot {
+    width: 0.4rem;
+    height: 0.4rem;
+    flex: none;
+    border-radius: 999px;
+    background: #cbd5e1;
+}
+
+.rt-wl-dot[data-state='complete'] { background: #16a34a; }
+.rt-wl-dot[data-state='partial'] { background: #f59e0b; }
+.rt-wl-dot[data-state='invalid'] { background: #e4002b; }
+
+.rt-wl-cell {
+    width: 100%;
+    min-width: 0;
+    height: 2.25rem;
+    border: 0;
+    background: transparent;
+    padding: 0 0.45rem;
+    color: #0c1421;
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+    outline: none;
+}
+
+.rt-wl-cell--center {
+    padding: 0 0.2rem;
+    text-align: center;
+}
+
+.rt-wl-cell::placeholder {
+    color: #b3bfce;
+}
+
+.rt-wl-cell:focus {
+    background: #fff;
+    box-shadow: inset 0 0 0 2px #e4002b;
+}
+
+.rt-wl-cell[data-invalid='true'] {
+    background: #fff1f3;
+    color: #b00020;
+    font-weight: 700;
+}
+
+.rt-wl-cell[data-auto='true'] {
+    color: #475569;
+    font-style: italic;
+}
+
+.rt-wl-row-actions {
+    justify-content: center;
+    gap: 0.05rem;
+}
+
+/* Dezent wie die Pfeile der Excel-Liste: sichtbar erst an der Zeile. */
+.rt-wl-row-action {
+    display: inline-flex;
+    width: 1.6rem;
+    height: 1.6rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.4rem;
+    color: #a6b2c2;
+    font-size: 0.6875rem;
+    opacity: 0.55;
+    transition: background-color 150ms ease, color 150ms ease, opacity 150ms ease;
+}
+
+.rt-wl-row:hover .rt-wl-row-action,
+.rt-wl-row:focus-within .rt-wl-row-action {
+    opacity: 1;
+    color: #55627a;
+}
+
+.rt-wl-row-action:hover:not(:disabled) {
+    background: #e2e8f0;
+    color: #0c1421;
+}
+
+.rt-wl-row-action--danger:hover:not(:disabled) {
+    background: #ffe5ea;
+    color: #b00020;
+}
+
+.rt-wl-row-action:disabled {
+    cursor: default;
+    opacity: 0.2 !important;
+}
+
+.rt-wl-foot .rt-wl-td {
+    min-height: 2.1rem;
+    justify-content: center;
+    border-top: 2px solid #b9c6d6;
+    background: #eef3f8 !important;
+    color: #0c1421;
+    font-size: 0.8125rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.rt-wl-foot {
+    position: sticky;
+    bottom: 0;
+    z-index: 15;
+}
+
+.rt-wl-foot .rt-wl-stick {
+    z-index: 18;
+}
+
+/* Seitenleiste: Summen, Bremsrechnung, Prüfung */
+.rt-wl-aside-section {
+    border-bottom: 1px solid #e2e8f0;
+    padding: 0.75rem 0.85rem;
+}
+
+.rt-wl-aside-section:last-child {
+    border-bottom: 0;
+}
+
+.rt-wl-aside-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    color: #64748b;
+    font-size: 0.6875rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.rt-wl-kpis {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem;
+    margin-top: 0.55rem;
+}
+
+.rt-wl-kpi {
+    min-width: 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.65rem;
+    background: #f8fafc;
+    padding: 0.45rem 0.6rem;
+}
+
+.rt-wl-kpi dt {
+    overflow: hidden;
+    color: #7c899c;
+    font-size: 0.65625rem;
+    font-weight: 600;
+    line-height: 1rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rt-wl-kpi dd {
+    margin-top: 0.05rem;
+    font-size: 1rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.3;
+}
+
+.rt-wl-kpi dd small {
+    color: #7c899c;
+    font-size: 0.6875rem;
+    font-weight: 600;
+}
+
+.rt-wl-lines {
+    margin-top: 0.5rem;
+    font-size: 0.8125rem;
+}
+
+.rt-wl-lines > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.22rem 0;
+}
+
+.rt-wl-lines dt {
+    color: #55627a;
+}
+
+.rt-wl-lines dd {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.rt-wl-lines > div[data-kind='minus'] dd {
+    color: #b45309;
+}
+
+.rt-wl-lines > div[data-kind='total'] {
+    margin-top: 0.25rem;
+    border-top: 1px solid #dbe3ee;
+    padding-top: 0.45rem;
+}
+
+.rt-wl-lines > div[data-kind='total'] dt {
+    color: #0c1421;
+    font-weight: 700;
+}
+
+.rt-wl-lines > div[data-kind='total'] dd {
+    font-size: 0.9375rem;
+    font-weight: 800;
+}
+
+/* Bremshundertstel: vorhanden gegen mindestens */
+.rt-wl-gauge {
+    margin-top: 0.6rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    background: #f8fafc;
+    padding: 0.6rem 0.7rem 0.7rem;
+}
+
+.rt-wl-gauge[data-tone='ok'] {
+    border-color: #a7e3c4;
+    background: #effbf5;
+}
+
+.rt-wl-gauge[data-tone='error'] {
+    border-color: #f6b8c2;
+    background: #fff1f3;
+}
+
+.rt-wl-gauge-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.rt-wl-gauge-value {
+    font-size: 1.5rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+}
+
+.rt-wl-gauge-note {
+    color: #55627a;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-align: right;
+}
+
+.rt-wl-gauge[data-tone='ok'] .rt-wl-gauge-note { color: #0b6b43; }
+.rt-wl-gauge[data-tone='error'] .rt-wl-gauge-note { color: #b00020; }
+
+.rt-wl-gauge-track {
+    position: relative;
+    height: 0.4rem;
+    margin-top: 0.55rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #dbe3ee;
+}
+
+.rt-wl-gauge-bar {
+    position: absolute;
+    inset: 0;
+    transform-origin: left center;
+    border-radius: inherit;
+    background: #64748b;
+    transition: transform 240ms ease;
+}
+
+.rt-wl-gauge[data-tone='ok'] .rt-wl-gauge-bar { background: #16a34a; }
+.rt-wl-gauge[data-tone='error'] .rt-wl-gauge-bar { background: #e4002b; }
+
+/* Prüfhinweise */
+.rt-wl-checks {
+    display: grid;
+    gap: 0.35rem;
+    margin-top: 0.55rem;
+}
+
+.rt-wl-check {
+    display: grid;
+    grid-template-columns: 1.1rem minmax(0, 1fr);
+    gap: 0.45rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.65rem;
+    background: #f8fafc;
+    padding: 0.45rem 0.55rem;
+    color: #334155;
+    font-size: 0.75rem;
+    line-height: 1.35;
+}
+
+.rt-wl-check i {
+    margin-top: 0.12rem;
+    color: #64748b;
+    font-size: 0.75rem;
+}
+
+.rt-wl-check[data-tone='error'] {
+    border-color: #f6b8c2;
+    background: #fff1f3;
+    color: #7a0016;
+}
+
+.rt-wl-check[data-tone='error'] i { color: #e4002b; }
+
+.rt-wl-check[data-tone='warning'] {
+    border-color: #f2d28b;
+    background: #fff9e9;
+    color: #6e4a08;
+}
+
+.rt-wl-check[data-tone='warning'] i { color: #d97706; }
+
+.rt-wl-checks-empty {
+    margin-top: 0.55rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #55627a;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.rt-wl-checks-empty[data-tone='ok'] {
+    color: #0b6b43;
+}
+
+.rt-wl-footnote {
+    margin-top: 0.6rem;
+    color: #91a0b4;
+    font-size: 0.6875rem;
+    line-height: 1.35;
+}
+
+/* Formularkarten (Bremszettel, Meldezettel, Einzelansicht) */
+.rt-wl-form-grid {
+    display: grid;
+    gap: 0.75rem;
+}
+
+@media (min-width: 1280px) {
+    .rt-wl-form-grid--2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.rt-wl-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
+}
+
+.rt-wl-fields--3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.rt-wl-fields--4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (min-width: 640px) {
+    .rt-wl-fields--4 {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+.rt-wl-span-2 {
+    grid-column: span 2 / span 2;
+}
+
+.rt-wl-span-all {
+    grid-column: 1 / -1;
+}
+
+.rt-wl-field {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+.rt-wl-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-top: 0.25rem;
+}
+
+.rt-wl-chip {
+    display: inline-flex;
+    min-width: 2.4rem;
+    min-height: 2.1rem;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #cfd8e3;
+    border-radius: 0.55rem;
+    background: #fff;
+    padding: 0 0.65rem;
+    color: #475569;
+    font-size: 0.75rem;
+    font-weight: 700;
+    transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.rt-wl-chip:hover {
+    border-color: #b9c6d6;
+    color: #0c1421;
+}
+
+.rt-wl-chip[data-active='true'] {
+    border-color: #e4002b;
+    background: #fff1f3;
+    color: #b00020;
+}
+
+.rt-wl-hint {
+    margin-top: 0.3rem;
+    color: #7c899c;
+    font-size: 0.6875rem;
+    line-height: 1.35;
+}
+
+.rt-wl-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-left: auto;
+    border-radius: 999px;
+    background: #f1f5f9;
+    padding: 0.15rem 0.55rem;
+    color: #55627a;
+    font-size: 0.6875rem;
+    font-weight: 700;
+}
+
+.rt-wl-state[data-state='valid'] {
+    background: #e3f8ed;
+    color: #0b6b43;
+}
+
+.rt-wl-state[data-state='invalid'] {
+    background: #ffe5ea;
+    color: #b00020;
+}
+
+/* Bremszettel als Tabelle: Wagenzug, Triebfahrzeuge, Gesamtzug */
+.rt-wl-brake-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+}
+
+.rt-wl-brake-table th,
+.rt-wl-brake-table td {
+    border-bottom: 1px solid #e2e8f0;
+    padding: 0.4rem 0.5rem;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.rt-wl-brake-table thead th {
+    color: #64748b;
+    font-size: 0.6875rem;
+    font-weight: 700;
+}
+
+.rt-wl-brake-table th:first-child,
+.rt-wl-brake-table td:first-child {
+    width: 1.9rem;
+    padding-left: 0.2rem;
+    padding-right: 0;
+    color: #91a0b4;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-align: left;
+}
+
+.rt-wl-brake-table th:nth-child(2),
+.rt-wl-brake-table td:nth-child(2) {
+    color: #334155;
+    font-weight: 500;
+    text-align: left;
+}
+
+.rt-wl-brake-table td {
+    font-weight: 700;
+}
+
+.rt-wl-brake-table tr:last-child td {
+    border-bottom: 0;
+}
+
+.rt-wl-brake-table tr[data-tone='error'] td {
+    color: #b00020;
+}
+
+.rt-wl-brake-table tr[data-tone='ok'] td:last-child {
+    color: #0b6b43;
+}
+
+.rt-wl-brake-table td[data-empty='true'] {
+    color: #b3bfce;
+    font-weight: 500;
+}
+
+.rt-wl-check-row {
+    display: flex;
+    min-height: 2.4rem;
+    align-items: center;
+    gap: 0.6rem;
+    border-radius: 0.6rem;
+    padding: 0.3rem 0.45rem;
+    color: #0c1421;
+    font-size: 0.8125rem;
+    transition: background-color 150ms ease;
+}
+
+.rt-wl-check-row:hover {
+    background: #f8fafc;
+}
+
+.rt-wl-check-row input[type='checkbox'] {
+    width: 1.15rem;
+    height: 1.15rem;
+    flex: none;
+    border-radius: 0.3rem;
+    border-color: #b9c6d6;
+    color: #e4002b;
+}
+
+.rt-wl-extra-row {
+    display: grid;
+    grid-template-columns: 1.6rem minmax(0, 1fr);
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.rt-wl-extra-row > span {
+    color: #91a0b4;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-align: center;
+}
+
+.rt-wl-extra-row .rt-wl-input {
+    margin-top: 0;
+}
+
+/* Entwurfsübersicht */
+.rt-wl-draft-facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem 1rem;
+}
+
+@media (min-width: 640px) {
+    .rt-wl-draft-facts {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+/* Mobil: gleiche Bausteine, größere Tippflächen */
+@media (max-width: 1023.98px) {
+    .rt-wl-input {
+        min-height: 2.75rem;
+        font-size: 1rem;
+    }
+
+    .rt-wl-chip {
+        min-height: 2.5rem;
+    }
+}
+
+html.dark .rt-wl-tabbar,
+body[data-mode='dark'] .rt-wl-tabbar,
+html.dark .rt-wl-box,
+body[data-mode='dark'] .rt-wl-box,
+html.dark .rt-wl-aside,
+body[data-mode='dark'] .rt-wl-aside {
+    border-color: #2a394d;
+    background: #111a27;
+    color: #e6edf7;
+}
+
+html.dark .rt-wl-stage,
+body[data-mode='dark'] .rt-wl-stage {
+    background: #0a111b;
+}
+
+html.dark .rt-wl-tabs,
+body[data-mode='dark'] .rt-wl-tabs,
+html.dark .rt-wl-status,
+body[data-mode='dark'] .rt-wl-status,
+html.dark .rt-wl-ghost,
+body[data-mode='dark'] .rt-wl-ghost,
+html.dark .rt-wl-chip,
+body[data-mode='dark'] .rt-wl-chip,
+html.dark .rt-wl-kpi,
+body[data-mode='dark'] .rt-wl-kpi,
+html.dark .rt-wl-gauge,
+body[data-mode='dark'] .rt-wl-gauge,
+html.dark .rt-wl-check,
+body[data-mode='dark'] .rt-wl-check {
+    border-color: #2a394d;
+    background: #182435;
+    color: #cbd5e1;
+}
+
+html.dark .rt-wl-status[data-tone='ok'],
+body[data-mode='dark'] .rt-wl-status[data-tone='ok'],
+html.dark .rt-wl-gauge[data-tone='ok'],
+body[data-mode='dark'] .rt-wl-gauge[data-tone='ok'] {
+    border-color: rgb(34 197 94 / 0.4);
+    background: rgb(34 197 94 / 0.12);
+    color: #86efac;
+}
+
+html.dark .rt-wl-status[data-tone='warning'],
+body[data-mode='dark'] .rt-wl-status[data-tone='warning'],
+html.dark .rt-wl-check[data-tone='warning'],
+body[data-mode='dark'] .rt-wl-check[data-tone='warning'] {
+    border-color: rgb(245 158 11 / 0.4);
+    background: rgb(245 158 11 / 0.12);
+    color: #fcd34d;
+}
+
+html.dark .rt-wl-status[data-tone='error'],
+body[data-mode='dark'] .rt-wl-status[data-tone='error'],
+html.dark .rt-wl-gauge[data-tone='error'],
+body[data-mode='dark'] .rt-wl-gauge[data-tone='error'],
+html.dark .rt-wl-check[data-tone='error'],
+body[data-mode='dark'] .rt-wl-check[data-tone='error'],
+html.dark .rt-wl-chip[data-active='true'],
+body[data-mode='dark'] .rt-wl-chip[data-active='true'] {
+    border-color: rgb(255 113 137 / 0.45);
+    background: rgb(255 113 137 / 0.14);
+    color: #ffb3c0;
+}
+
+html.dark .rt-wl-input,
+body[data-mode='dark'] .rt-wl-input {
+    border-color: #2a394d;
+    background: #223249;
+    color: #e6edf7;
+}
+
+html.dark .rt-wl-input:focus,
+body[data-mode='dark'] .rt-wl-input:focus {
+    border-color: #ff7189;
+    box-shadow: 0 0 0 3px rgb(255 113 137 / 0.2);
+}
+
+html.dark .rt-wl-label,
+body[data-mode='dark'] .rt-wl-label,
+html.dark .rt-wl-aside-title,
+body[data-mode='dark'] .rt-wl-aside-title,
+html.dark .rt-wl-kpi dt,
+body[data-mode='dark'] .rt-wl-kpi dt,
+html.dark .rt-wl-lines dt,
+body[data-mode='dark'] .rt-wl-lines dt,
+html.dark .rt-wl-hint,
+body[data-mode='dark'] .rt-wl-hint,
+html.dark .rt-wl-gauge-note,
+body[data-mode='dark'] .rt-wl-gauge-note {
+    color: #aeb9c9;
+}
+
+html.dark .rt-wl-link,
+body[data-mode='dark'] .rt-wl-link {
+    color: #ff7189;
+}
+
+html.dark .rt-wl-toolbar,
+body[data-mode='dark'] .rt-wl-toolbar,
+html.dark .rt-wl-aside-section,
+body[data-mode='dark'] .rt-wl-aside-section,
+html.dark .rt-wl-lines > div[data-kind='total'],
+body[data-mode='dark'] .rt-wl-lines > div[data-kind='total'],
+html.dark .rt-wl-brake-table th,
+body[data-mode='dark'] .rt-wl-brake-table th,
+html.dark .rt-wl-brake-table td,
+body[data-mode='dark'] .rt-wl-brake-table td {
+    border-color: #2a394d;
+}
+
+html.dark .rt-wl-lines > div[data-kind='total'] dt,
+body[data-mode='dark'] .rt-wl-lines > div[data-kind='total'] dt,
+html.dark .rt-wl-brake-table th:nth-child(2),
+body[data-mode='dark'] .rt-wl-brake-table th:nth-child(2),
+html.dark .rt-wl-brake-table td:nth-child(2),
+body[data-mode='dark'] .rt-wl-brake-table td:nth-child(2),
+html.dark .rt-wl-check-row,
+body[data-mode='dark'] .rt-wl-check-row {
+    color: #e6edf7;
+}
+
+html.dark .rt-wl-check-row:hover,
+body[data-mode='dark'] .rt-wl-check-row:hover {
+    background: #182435;
+}
+
+html.dark .rt-wl-count,
+body[data-mode='dark'] .rt-wl-count,
+html.dark .rt-wl-state,
+body[data-mode='dark'] .rt-wl-state {
+    background: #223249;
+    color: #cbd5e1;
+}
+
+html.dark .rt-wl-th,
+body[data-mode='dark'] .rt-wl-th {
+    border-color: #2a394d;
+    background: #1c2a3d;
+    color: #aeb9c9;
+}
+
+html.dark .rt-wl-th--group,
+body[data-mode='dark'] .rt-wl-th--group {
+    background: #223249;
+    color: #e6edf7;
+}
+
+html.dark .rt-wl-td,
+body[data-mode='dark'] .rt-wl-td,
+html.dark .rt-wl-row:nth-child(even) .rt-wl-td,
+body[data-mode='dark'] .rt-wl-row:nth-child(even) .rt-wl-td {
+    border-color: #223249;
+    background: #111a27;
+}
+
+html.dark .rt-wl-row:hover .rt-wl-td,
+body[data-mode='dark'] .rt-wl-row:hover .rt-wl-td,
+html.dark .rt-wl-row:focus-within .rt-wl-td,
+body[data-mode='dark'] .rt-wl-row:focus-within .rt-wl-td {
+    background: #162233;
+}
+
+html.dark .rt-wl-td--calc,
+body[data-mode='dark'] .rt-wl-td--calc,
+html.dark .rt-wl-index,
+body[data-mode='dark'] .rt-wl-index,
+html.dark .rt-wl-foot .rt-wl-td,
+body[data-mode='dark'] .rt-wl-foot .rt-wl-td {
+    background: #182435 !important;
+    color: #cbd5e1;
+}
+
+html.dark .rt-wl-foot .rt-wl-td,
+body[data-mode='dark'] .rt-wl-foot .rt-wl-td {
+    border-top-color: #3a4c66;
+    color: #e6edf7;
+}
+
+html.dark .rt-wl-cell,
+body[data-mode='dark'] .rt-wl-cell {
+    color: #e6edf7;
+}
+
+html.dark .rt-wl-cell:focus,
+body[data-mode='dark'] .rt-wl-cell:focus {
+    background: #0c1421;
+    box-shadow: inset 0 0 0 2px #ff7189;
+}
+
+html.dark .rt-wl-cell[data-invalid='true'],
+body[data-mode='dark'] .rt-wl-cell[data-invalid='true'] {
+    background: rgb(255 113 137 / 0.16);
+    color: #ffb3c0;
+}
+
+html.dark .rt-wl-cell[data-auto='true'],
+body[data-mode='dark'] .rt-wl-cell[data-auto='true'] {
+    color: #aeb9c9;
+}
+
+html.dark .rt-wl-row-action:hover:not(:disabled),
+body[data-mode='dark'] .rt-wl-row-action:hover:not(:disabled) {
+    background: #223249;
+    color: #e6edf7;
+}
+
+html.dark .rt-wl-gauge-track,
+body[data-mode='dark'] .rt-wl-gauge-track {
+    background: #2a394d;
 }
