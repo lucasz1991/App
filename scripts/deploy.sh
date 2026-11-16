@@ -196,7 +196,11 @@ step "Abschluss"
 restore_ownership
 ok "Dateieigentuemer geprueft"
 
-WRONG=$(find . -path ./vendor -prune -o -path ./node_modules -prune -o ! -user "${APP_OWNER%%:*}" -print 2>/dev/null | wc -l)
+# find endet mit Code 1, sobald es einen fremden Ordner nicht lesen darf (etwa
+# root-eigene Verzeichnisse unter storage/). Unter `set -o pipefail` brach diese
+# reine Zaehlung das bereits fertige Deployment ab ("Code 1" am 17.11.2026).
+# Der Ordner selbst wird weiterhin gezaehlt, nur sein Inhalt bleibt unsichtbar.
+WRONG=$( { find . -path ./vendor -prune -o -path ./node_modules -prune -o ! -user "${APP_OWNER%%:*}" -print 2>/dev/null || true; } | wc -l)
 if [ "$WRONG" -gt 0 ]; then
     warn "$WRONG Datei(en) mit abweichendem Eigentuemer – bitte pruefen"
 else
