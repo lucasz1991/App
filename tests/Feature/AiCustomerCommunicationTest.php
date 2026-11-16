@@ -507,8 +507,16 @@ class AiCustomerCommunicationTest extends TestCase
         app(AiIntakeMailService::class)->enqueueReceipt($intake);
         $component = Livewire::actingAs($this->admin)->test(AiIntakeInbox::class)->call('select', $intake->id);
         $component->assertSee('Kundennachrichten und Verarbeitung')->assertSee('Eingangsbestätigung')->assertSee('Persönliche Nachrichtenfreigabe ausstehend')->assertSee('Kundennachrichten im AI-Assistenten prüfen');
-        $this->assertStringContainsString('operations-assistant-action', $component->html());
-        $this->assertStringContainsString("action: 'outbox'", $component->html());
+        $document = new \DOMDocument;
+        @$document->loadHTML('<meta charset="utf-8">'.$component->html(), LIBXML_NONET);
+        $buttons = (new \DOMXPath($document))->query('//button[@*[name()="wire:click"]="openOutbox"]');
+        $this->assertSame(1, $buttons->length);
+        $this->assertFalse($buttons->item(0)->hasAttribute('disabled'));
+        $before = AiIntakeDelivery::sole()->getRawOriginal();
+        $component->call('openOutbox')->assertSet('detailOpen', false)
+            ->assertDispatched('railtime-assistant-open')->assertDispatched('operations-assistant-action', action: 'outbox');
+        $this->assertSame($before, AiIntakeDelivery::sole()->getRawOriginal());
+        Mail::assertNothingSent();
         Queue::assertNothingPushed();
     }
 }

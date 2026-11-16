@@ -48,7 +48,8 @@
             @include('livewire.operations.partials.ai-intake-composer', ['composerMode' => 'capture', 'maxCharacters' => 20000, 'maxAttachmentCount' => $limits['max_attachment_count'], 'maxAudioKilobytes' => $limits['max_audio_kilobytes']])
         </x-operations.modal>
         <x-operations.modal wire:model.live="detailOpen" title="Eingang bearbeiten" max-width="4xl" variant="drawer">
-            @include('livewire.operations.partials.ai-intake-detail')
+            @include('livewire.operations.partials.ai-intake-drawer')
+            <x-slot:footer>@include('livewire.operations.partials.ai-intake-drawer-footer')</x-slot:footer>
         </x-operations.modal>
     @endif
     @if($customerDraftOpen && $selectedId)<livewire:admin.operations.customers :embedded="true" :modal-only="true" :start-creating="true" :workspace-revision="$selectedRevision" :draft-intake-id="$selectedId" :key="'ai-customer-draft-'.$selectedId.'-'.$selectedRevision" />@endif

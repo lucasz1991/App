@@ -1,4 +1,4 @@
-<form wire:submit="{{ $manualEditorOpen ? 'saveManualPosition' : 'saveProposal' }}" class="ops-stack mt-3" data-intake-position-form>
+<form wire:submit="{{ $manualEditorOpen ? 'saveManualPosition' : 'saveProposal' }}" class="ops-stack mt-3" @unless($embedded) id="intake-drawer-position-form-{{ $this->getId() }}" @endunless data-intake-position-form>
     <div class="ops-form">
         @foreach(['title' => 'Bezeichnung', 'role_name' => 'Tätigkeit', 'location_name' => 'Einsatzort', 'timezone' => 'Zeitzone'] as $key => $label)
             <x-operations.field :scope="$this->getId()" :label="$label" :model="'proposalForm.demand.'.$key" />
@@ -35,8 +35,8 @@
     @endforeach
     <div class="ops-actions">
         <x-ui.buttons.button-basic type="button" wire:click="addSegment">Abschnitt hinzufügen</x-ui.buttons.button-basic>
-        <x-ui.buttons.button-basic type="button" wire:click="cancelPositionEdit">Abbrechen</x-ui.buttons.button-basic>
-        <x-ui.buttons.button-basic type="submit" mode="primary" wire:loading.attr="disabled">{{ $embedded ? 'Korrektur speichern' : 'Position speichern' }}</x-ui.buttons.button-basic>
+        @if($embedded)<x-ui.buttons.button-basic type="button" wire:click="cancelPositionEdit">Abbrechen</x-ui.buttons.button-basic>
+        <x-ui.buttons.button-basic type="submit" mode="primary" wire:loading.attr="disabled">Korrektur speichern</x-ui.buttons.button-basic>@endif
     </div>
     @unless($embedded)<p class="ops-muted">Speichern erhält den Entwurf. Beim anschließenden Bestätigen werden Anfragen übernommen oder die gewählten Direktaufträge angenommen.</p>@endunless
 </form>

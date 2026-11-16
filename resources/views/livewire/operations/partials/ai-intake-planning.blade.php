@@ -33,8 +33,8 @@
                 @endforeach
                 <div class="ops-actions">
                     <x-ui.buttons.button-basic type="button" wire:click="addPlanningSegment" wire:loading.attr="disabled" :disabled="count($planningSegments) >= 50 ? true : null">Schicht hinzufügen</x-ui.buttons.button-basic>
-                    <x-ui.buttons.button-basic type="button" wire:click="closePlanning" wire:loading.attr="disabled">Abbrechen</x-ui.buttons.button-basic>
-                    <x-ui.buttons.button-basic type="submit" mode="primary" wire:loading.attr="disabled">Schichtentwürfe erstellen</x-ui.buttons.button-basic>
+                    @if($embedded)<x-ui.buttons.button-basic type="button" wire:click="closePlanning" wire:loading.attr="disabled">Abbrechen</x-ui.buttons.button-basic>
+                    <x-ui.buttons.button-basic type="submit" mode="primary" wire:loading.attr="disabled">Schichtentwürfe erstellen</x-ui.buttons.button-basic>@endif
                 </div>
             </form>
         @elseif($canPlan)
