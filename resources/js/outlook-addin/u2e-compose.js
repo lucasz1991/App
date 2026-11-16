@@ -187,9 +187,13 @@ function iosCapDiv(html, elements, cell, descendants) {
         if (!declaration.trim()) continue;
         const colon = declaration.indexOf(':'), name = declaration.slice(0, colon).trim().toLowerCase();
         const value = declaration.slice(colon + 1).trim().toLowerCase();
-        if (colon < 1 || seen.has(name) || !['line-height', 'font-size', 'font-family', 'color'].includes(name)) return false;
+        if (colon < 1 || seen.has(name) || !['text-align', 'line-height', 'font-size', 'font-family', 'color'].includes(name)) return false;
         seen.add(name);
-        if (name === 'font-family' && value !== 'arial, sans-serif' || name === 'color' && color(value) !== '#142231') return false;
+        // The left-aligned shell declares text-align:left. Outlook iOS copies
+        // that inherited block format onto every cell and its wrapper DIV
+        // (native log 2026-11-09/16). No other alignment is a host projection.
+        if (name === 'text-align' && value !== 'left'
+            || name === 'font-family' && value !== 'arial, sans-serif' || name === 'color' && color(value) !== '#142231') return false;
     }
     return true;
 }

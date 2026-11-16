@@ -93,9 +93,43 @@ test('C-K24 preserves exact cap geometry, red material and every other evidence 
     ]) { const p = mutate(change); assert.equal(state(p.actual, p.source).current, false); }
 });
 
+// Native log 2026-11-09 18:57 and 2026-11-16 23:48 (caps.structure): since the
+// left-aligned shell declares text-align:left, Outlook iOS writes that inherited
+// block format on every cell and wrapper DIV, exactly as the 2026-11-05 capture
+// already shows for the declared text-align:right cells.
+function inheritedLeft(html) {
+    const { document } = parseHTML(html);
+    for (const node of document.querySelectorAll('td, td > div')) {
+        const style = node.getAttribute('style') || '';
+        if (!/(?:^|;)\s*text-align\s*:/i.test(style)) node.setAttribute('style', 'text-align:left' + (style ? ';' + style : ''));
+    }
+    return document.toString();
+}
+
+test('iOS inheritance of the left-aligned shell on cap cells and wrapper DIVs remains current', () => {
+    const p = pair(), actual = inheritedLeft(p.actual);
+    assert.match(actual, /<div[^>]*class="rt-dispo-cap"[^>]*style="text-align:left;line-height:8px;/);
+    assert.equal(state(actual, p.source).current, true);
+    for (const host of [null, 'Outlook', 'OutlookWebApp', 'OutlookAndroid']) {
+        assert.equal(state(actual, p.source, host).checkpoint, 'caps.structure', String(host));
+    }
+});
+
+test('iOS cap wrapper accepts only the inherited left alignment, exactly once', () => {
+    for (const value of ['right', 'center', 'justify', 'start', 'end', 'initial', 'inherit', 'left !important', '-webkit-left']) {
+        const p = mutate((_td, div) => div.setAttribute('style', 'text-align:' + value + ';' + div.getAttribute('style')));
+        assert.equal(state(p.actual, p.source).checkpoint, 'caps.structure', value);
+    }
+    const twice = mutate((_td, div) => div.setAttribute('style', 'text-align:left;text-align:left;' + div.getAttribute('style')));
+    assert.equal(state(twice.actual, twice.source).checkpoint, 'caps.structure');
+    const once = mutate((_td, div) => div.setAttribute('style', 'text-align:left;' + div.getAttribute('style')));
+    assert.equal(state(once.actual, once.source).current, true);
+});
+
 const success = value => ({ status: 'succeeded', value });
-function nativeWriter(hostName = 'OutlookIOS', platform = 'iOS') {
+function nativeWriter(hostName = 'OutlookIOS', platform = 'iOS', project = html => html) {
     const p = pair(), data = { html: '<p><br></p>', sessions: new Map(), bodyWrites: 0, headerWrites: 0, forbidden: [] };
+    p.actual = project(p.actual);
     const item = { from: { getAsync: cb => cb(success({ emailAddress: 'employee@example.invalid' })) },
         getComposeTypeAsync: cb => cb(success({ composeType: 'newMail' })),
         sessionData: { getAsync: (key, cb) => cb(success(data.sessions.get(key) || '')),
@@ -117,6 +151,10 @@ test('C-K24 native writer derives canonical host, confirms material once and kee
     assert.equal(universalComposeReport(f.item).state, 'complete'); assert.equal(universalComposeReport(f.item).code, undefined);
     assert.equal(f.data.sessions.get(UNIVERSAL_COMPOSE_SESSION_KEY), 'applied:' + f.source.version + ':signature');
     assert.equal((await f.insert()).status, 'already-present'); assert.equal(f.data.bodyWrites, 1);
+    const inherited = nativeWriter('OutlookIOS', 'iOS', inheritedLeft);
+    assert.equal((await inherited.insert()).status, 'applied');
+    assert.equal(universalComposeReport(inherited.item).state, 'complete'); assert.equal(inherited.data.bodyWrites, 1);
+    assert.equal(inherited.data.sessions.get(UNIVERSAL_COMPOSE_SESSION_KEY), 'applied:' + inherited.source.version + ':signature');
     for (const host of ['unknown', 'Outlook', 'OutlookAndroid']) {
         const unknown = nativeWriter(host);
         await assert.rejects(unknown.insert(), { code: 'SIGNATURE_LAYOUT_UNCONFIRMED' });
