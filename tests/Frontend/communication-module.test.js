@@ -7,7 +7,11 @@ import { parseHTML } from 'linkedom';
 
 const source = await readFile(new URL('../../resources/js/communication-module.js', import.meta.url), 'utf8');
 const view = await readFile(new URL('../../resources/views/livewire/communication.blade.php', import.meta.url), 'utf8');
-const listView = await readFile(new URL('../../resources/views/livewire/chat/partials/chat-list.blade.php', import.meta.url), 'utf8');
+const chatView = await readFile(new URL('../../resources/views/livewire/chat-box.blade.php', import.meta.url), 'utf8');
+const listStart = chatView.indexOf('{{-- chat-section:chat-list:start --}}');
+const listEnd = chatView.indexOf('{{-- chat-section:chat-list:end --}}');
+assert.ok(listStart >= 0 && listEnd > listStart, 'Chat list section must be present');
+const listView = chatView.slice(listStart, listEnd);
 const styles = await readFile(new URL('../../resources/css/communication-module.css', import.meta.url), 'utf8');
 const chatbotStyles = await readFile(new URL('../../resources/css/chatbot.css', import.meta.url), 'utf8');
 const aiAssistStyles = await readFile(new URL('../../resources/css/ai-assist.css', import.meta.url), 'utf8');

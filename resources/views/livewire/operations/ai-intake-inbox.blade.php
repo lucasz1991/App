@@ -48,8 +48,208 @@
             @include('livewire.operations.partials.ai-intake-composer', ['composerMode' => 'capture', 'maxCharacters' => 20000, 'maxAttachmentCount' => $limits['max_attachment_count'], 'maxAudioKilobytes' => $limits['max_audio_kilobytes']])
         </x-operations.modal>
         <x-operations.modal wire:model.live="detailOpen" title="Eingang bearbeiten" max-width="4xl" variant="drawer">
-            @include('livewire.operations.partials.ai-intake-drawer')
-            <x-slot:footer>@include('livewire.operations.partials.ai-intake-drawer-footer')</x-slot:footer>
+            @if($selected)
+                @php
+                    $currentProposals = $selected->proposals->where('source_revision', $selected->source_revision)->where('status', '!=', 'stale');
+                    $customerMailSuppressed = $selected->processing_mode === 'manual' || $selected->proposals->contains(fn ($record) => ($record->payload['review_confirmation']['customer_communication'] ?? null) === 'off');
+                @endphp
+                <div class="rt-intake-drawer" data-intake-drawer data-active-tab="{{ $detailTab }}"
+                    x-data="{ editorFocusKey: null }"
+                    x-effect="const key = $wire.manualEditorOpen ? 'new-' + $wire.selectedId : ($wire.editingProposalId !== null ? 'position-' + $wire.editingProposalId : ($wire.customerEditorOpen ? 'customer-' + $wire.selectedId : ($wire.planningProposalId !== null ? 'planning-' + $wire.planningProposalId : null))); const changed = key !== editorFocusKey; editorFocusKey = key; if (changed &amp;&amp; key &amp;&amp; $wire.detailTab === 'review') $nextTick(() => { const region = key.startsWith('customer-') ? $el.querySelector('.rt-intake-drawer__customer-form') : (key.startsWith('planning-') ? $el.querySelector('[data-ai-intake-planning-editor]') : $el.querySelector('[data-intake-position-form]')); const target = region?.querySelector('input:not([type=hidden]):not([disabled]),select:not([disabled]),textarea:not([disabled]),[role=combobox]:not([disabled]),button:not([disabled])'); target?.focus({ preventScroll: true }); target?.scrollIntoView({ block: 'nearest', behavior: 'auto' }); });">
+                    <header class="rt-intake-drawer__context">
+                        <p class="rt-intake-drawer__meta">AI-{{ str_pad((string) $selected->id, 6, '0', STR_PAD_LEFT) }} · {{ ['email' => 'E-Mail', 'manual' => 'Formular', 'text' => 'Text', 'file' => 'Datei', 'audio' => 'Sprachaufnahme'][$selected->source_type] ?? 'Eingang' }}@if($selected->created_at) · {{ $selected->created_at->timezone('Europe/Berlin')->format('d.m.Y, H:i') }}@endif</p>
+                        <div class="rt-intake-drawer__heading">
+                            <h2 class="rt-intake-drawer__title" tabindex="-1" data-intake-drawer-heading>{{ $selected->title ?: 'Eingang prüfen' }}</h2>
+                            @if($selected->status !== 'not_inquiry')<x-ui.buttons.button-basic type="button" mode="link" class="rt-intake-drawer__assist" wire:click="openAssist" wire:loading.attr="disabled" title="Mit AI-Assist öffnen" aria-label="Mit AI-Assist öffnen"><i class="far fa-sparkles" aria-hidden="true"></i>AI-Assist</x-ui.buttons.button-basic>@endif
+                        </div>
+                        <section class="rt-intake-drawer__customer" data-intake-customer-assignment>
+                            @if($selected->customer)
+                                <div class="rt-intake-drawer__customer-summary"><i class="far fa-building" aria-hidden="true"></i><strong>{{ $selected->customer->company_name }}</strong><span class="rt-intake-drawer__meta">{{ $selected->match_method === 'source_context' ? 'Automatisch zugeordnet · bitte prüfen' : 'Kunde zugeordnet' }}@if($selected->contact) · {{ $selected->contact->name }}@endif</span>@if($selected->status !== 'not_inquiry')<x-ui.buttons.button-basic type="button" size="sm" mode="link" wire:click="editCustomerAssignment" aria-label="Kundenzuordnung ändern" title="Kundenzuordnung ändern"><i class="far fa-pen" aria-hidden="true"></i></x-ui.buttons.button-basic>@endif</div>
+                            @elseif($selected->status !== 'not_inquiry')<x-ui.buttons.button-basic type="button" mode="link" wire:click="editCustomerAssignment"><i class="far fa-building" aria-hidden="true"></i>Kunde zuordnen</x-ui.buttons.button-basic>@endif
+                            @if($selected->status !== 'not_inquiry' && ($customerEditorOpen || !$selected->customer))
+                                <form wire:submit="assignCustomer" class="ops-form rt-intake-drawer__customer-form" id="intake-drawer-customer-{{ $this->getId() }}">
+                                    <div class="ops-full"><x-ui.forms.label :for="'drawer-customer-'.$this->getId()" value="Kunde" /><x-ui.forms.select :id="'drawer-customer-'.$this->getId()" wire:model.live="assignCustomerId"><option value="">Bitte prüfen und zuordnen</option>@foreach($customers as $customer)<option value="{{ $customer->id }}">{{ $customer->company_name }}</option>@endforeach</x-ui.forms.select><x-ui.forms.input-error for="assignCustomerId" /></div>
+                                    <div class="ops-full"><x-ui.forms.label :for="'drawer-contact-'.$this->getId()" value="Kontakt" /><x-ui.forms.select :id="'drawer-contact-'.$this->getId()" wire:model="assignContactId"><option value="">Hauptkontakt des Kunden</option>@foreach($contacts as $contact)<option value="{{ $contact->id }}">{{ $contact->name }}{{ $contact->email ? ' · '.$contact->email : '' }}</option>@endforeach</x-ui.forms.select><x-ui.forms.input-error for="assignContactId" /></div>
+                                    <div class="rt-intake-drawer__actions ops-full"><x-ui.buttons.button-basic type="submit" wire:loading.attr="disabled">{{ $selected->customer ? 'Zuordnung speichern' : 'Zuordnung bestätigen' }}</x-ui.buttons.button-basic>@if($selected->customer)<x-ui.buttons.button-basic type="button" wire:click="cancelCustomerAssignment">Abbrechen</x-ui.buttons.button-basic>@endif</div>
+                                    @if($customerSuggestions)<div class="ops-full"><p class="ops-muted">Mögliche Kunden anhand von Absender, CC, Inhalt und Signatur. Die Zuordnung bitte bestätigen.</p><ul>@foreach($customerSuggestions as $suggestion)@if($suggestedCustomer = $customers->firstWhere('id', $suggestion['customer_id']))<li>{{ $suggestedCustomer->company_name }} · {{ implode(', ', array_map(fn ($reason) => \App\Services\Operations\AiIntakeCustomerContextService::REASON_LABELS[$reason] ?? 'Zuordnung prüfen', $suggestion['reasons'])) }}</li>@endif @endforeach</ul></div>@endif
+                                    @if(!$selected->customer_id && $canApprove && !$customerId)<div class="ops-full">@if($selected->analysis['customer_draft'] ?? null)<p class="ops-muted">Vorbereiteter Kunde: {{ $selected->analysis['customer_draft']['company_name'] ?? 'Firmenname prüfen' }}{{ !empty($selected->analysis['customer_draft']['contact_name']) ? ' · '.$selected->analysis['customer_draft']['contact_name'] : '' }}</p>@endif<x-ui.buttons.button-basic type="button" wire:click="prepareCustomer">Neuen Kunden prüfen und anlegen</x-ui.buttons.button-basic></div>@endif
+                                </form>
+                            @endif
+                        </section>
+                    </header>
+
+                    <x-operations.panel.tabs class="rt-intake-drawer__tabs" label="Eingang bearbeiten" :id-prefix="'intake-drawer-'.$this->getId()" action="setDetailTab" model="detailTab" :active="$detailTab" :tabs="['review' => ['label' => 'Bearbeiten'], 'sources' => ['label' => 'Original & Anlagen'], 'communication' => ['label' => 'Verlauf']]" />
+
+                    @if($drawerState['stale'])<div class="rt-intake-drawer__notice" role="status">Dieser Eingang oder seine Einstellungen wurden inzwischen geändert. Vor einer Änderung den aktuellen Stand laden.</div>@endif
+
+                    <section class="rt-intake-drawer__body" id="intake-drawer-{{ $this->getId() }}-panel-review" role="tabpanel" aria-labelledby="intake-drawer-{{ $this->getId() }}-tab-review" @if($detailTab !== 'review') hidden @endif>
+                        @if($selected->status === 'not_inquiry')
+                            <p class="ops-muted" role="status">Als „Keine Anfrage“ abgeschlossen. Zum erneuten Prüfen die Markierung im Postfach zurücksetzen.</p>
+                        @else
+                            @if($manualEditorOpen)
+                                <section class="rt-intake-drawer__position rt-intake-drawer__form" aria-label="Neue Position erfassen" data-intake-manual-editor>
+                                    <h3>Position erfassen</h3>
+                                    @include('livewire.operations.partials.ai-intake-position-form', ['payload' => []])
+                                </section>
+                            @endif
+
+                            <section class="rt-intake-drawer__positions" aria-label="Positionen und Planungsvorschläge">
+                                @foreach($currentProposals as $proposal)
+                                    @php
+                                        $payload = $proposal->payload ?? [];
+                                        $currentProposal = $proposal->source_revision === $selected->source_revision && $selected->revision === $selectedRevision;
+                                        $canCorrect = $currentProposal && !in_array($proposal->status, ['applied', 'stale'], true) && (!$proposal->inquiry || in_array($proposal->inquiry->status, ['new', 'verified'], true));
+                                        $positionConfirmed = !empty($payload['review_confirmation']['actor_id']) && ($payload['review_confirmation']['source_revision'] ?? null) === $selected->source_revision;
+                                        $directPath = ($payload['business_path'] ?? 'inquiry') === 'direct_order';
+                                    @endphp
+                                    <article class="rt-intake-drawer__position" wire:key="drawer-position-{{ $proposal->id }}-{{ $proposal->revision }}" data-intake-drawer-position="{{ $proposal->id }}">
+                                        <div class="rt-intake-drawer__position-header"><h3>Position {{ $proposal->position_index + 1 }}</h3>@if($canCorrect && $manualReady && $editingProposalId !== $proposal->id)<x-ui.buttons.button-basic type="button" mode="link" wire:click="editProposal({{ $proposal->id }})" wire:loading.attr="disabled" aria-label="Position {{ $proposal->position_index + 1 }} im Formular bearbeiten"><i class="far fa-pen" aria-hidden="true"></i>Bearbeiten</x-ui.buttons.button-basic>@endif</div>
+                                        <h4>{{ $payload['demand']['title'] ?? 'Leistung prüfen' }}</h4>
+                                        <p class="rt-intake-drawer__meta">{{ ($payload['provenance']['kind'] ?? '') === 'manual' ? 'Im Formular erfasst' : (($payload['provenance']['kind'] ?? '') === 'native_inquiry' ? 'Aus bestehender Anfrage' : 'AI-Vorschlag') }} · {{ $positionConfirmed ? ($proposal->inquiry?->order_id ? 'Auftrag angelegt' : 'Als Anfrage übernommen') : 'noch nicht übernommen' }}</p>
+
+                                        @if($editingProposalId === $proposal->id && $canCorrect)
+                                            <div class="rt-intake-drawer__form">@include('livewire.operations.partials.ai-intake-position-form')</div>
+                                        @else
+                                            <x-operations.intake.facts class="rt-intake-drawer__facts" :demand="$payload['demand'] ?? []" variant="drawer" :assumptions="$payload['assumptions'] ?? []" :confirmed="$positionConfirmed" />
+                                            <div class="rt-intake-drawer__business-path" data-business-path="{{ $directPath ? 'direct_order' : 'inquiry' }}"><span class="rt-intake-drawer__meta">Übernahme als</span><div>
+                                                @if($canCorrect && $manualReady)<x-ui.buttons.button-basic type="button" wire:click="editProposal({{ $proposal->id }})" wire:loading.attr="disabled" :aria-label="'Übernahmeweg für Position '.($proposal->position_index + 1).' im Formular ändern'">{{ $directPath ? 'Direktauftrag' : 'Anfrage' }}<i class="far fa-chevron-down" aria-hidden="true"></i></x-ui.buttons.button-basic>@else<strong>{{ $directPath ? 'Direktauftrag' : 'Anfrage' }}</strong>@endif
+                                                <p class="rt-intake-drawer__meta">{{ $directPath ? 'Ohne Angebot und gesonderte Kundenzusage' : 'Angebot und Kundenzusage folgen' }}</p>
+                                            </div></div>
+                                        @endif
+
+                                        <details class="rt-intake-drawer__disclosure"><summary>Qualifikationen & Schichtabschnitte</summary><div class="rt-intake-drawer__disclosure-content">
+                                            @if($payload['raw_requirements'] ?? [])<p><strong>Erkannte Anforderungen:</strong> {{ implode(', ', $payload['raw_requirements']) }}</p>@endif
+                                            @if($payload['unmapped_requirements'] ?? [])<p class="ops-muted" role="status">Noch zu prüfen: {{ implode(', ', $payload['unmapped_requirements']) }}. Passende Qualifikationen auswählen und die Prüfung bestätigen.</p>@endif
+                                            @if($payload['demand']['qualification_ids'] ?? [])<p><strong>Qualifikationen:</strong> {{ $qualifications->whereIn('id', $payload['demand']['qualification_ids'])->pluck('name')->implode(', ') }}</p>@else<p class="ops-muted">Keine Qualifikationen zugeordnet. Anforderungen im Original prüfen.</p>@endif
+                                            @if($payload['segments'] ?? [])
+                                                <p class="ops-muted">{{ count($payload['segments']) }} ausdrücklich erfasste Schichtabschnitte.</p>
+                                                <ul>
+                                                    @foreach($payload['segments'] as $segment)
+                                                        <li>{{ $segment['starts_at'] ?? 'Beginn offen' }} bis {{ $segment['ends_at'] ?? 'Ende offen' }} · {{ $segment['timezone'] ?? 'Zeitzone offen' }}
+                                                            @if(isset($segment['planned_break_minutes']))
+                                                                · {{ $segment['planned_break_minutes'] }} Min. Pause
+                                                            @endif
+                                                        </li>
+                                                    @endforeach
+                                                </ul>
+                                            @else
+                                                <p class="ops-muted">Noch keine einzelnen Schichtabschnitte hinterlegt.</p>
+                                            @endif
+                                        </div></details>
+
+                                        <details class="rt-intake-drawer__disclosure"><summary>Belege zu dieser Position</summary><div class="rt-intake-drawer__disclosure-content">
+                                            @if(($payload['assumptions']['required_staff']['basis'] ?? '') === 'default')<p class="ops-muted" role="status">Die Personalanzahl ist im Original nicht genannt. Standardvorschlag: {{ $payload['demand']['required_staff'] ?? 'offen' }} Person(en) · {{ $positionConfirmed ? 'Persönlich bestätigt.' : 'Bitte bestätigen oder anpassen.' }}</p>@endif
+                                            @if(!empty($payload['assumptions']['history_review']))<p class="ops-muted">Historische Vergleichsdaten verwendet. Diese sind keine Belege für die aktuelle Quelle.</p>@endif
+                                            <dl>@forelse(($payload['evidence'] ?? []) as $field => $evidence)<div><dt>{{ is_array($evidence) ? ($evidence['field'] ?? $field) : $field }}</dt><dd>{{ is_array($evidence) ? ($evidence['quote'] ?? 'Quelle im Originaleingang prüfen.') : $evidence }}@if(is_array($evidence) && ($evidence['message_id'] ?? null))<span class="rt-intake-drawer__meta"> · Nachricht {{ $evidence['message_id'] }}</span>@endif</dd></div>@empty<p class="ops-muted">Originalnachrichten und Anlagen stehen unter „Original & Anlagen“ zur Prüfung bereit.</p>@endforelse</dl>
+                                        </div></details>
+
+                                        @if(!$currentProposal)<p class="rt-intake-drawer__notice" role="status">Ein neuerer Eingang liegt vor. Den aktuellen Vorschlag prüfen.</p>
+                                        @elseif($proposal->error_code === 'reply_position_review')<p class="ops-muted">Diese Antwort muss zuerst einer vorhandenen Position zugeordnet werden.</p>
+                                        @elseif($proposal->error_code === 'native_workflow_active')<p class="ops-muted">Diesen Vorgang in der bestehenden Anfrage prüfen; Angebot oder Beauftragung sind bereits angelaufen.</p>@endif
+                                        @if($currentProposal && $proposal->error_code === 'reply_position_review')
+                                            <form wire:submit="mapProposal({{ $proposal->id }},{{ $proposal->revision }})" class="ops-stack rt-intake-drawer__mapping"><x-ui.forms.label :for="'drawer-map-'.$this->getId().'-'.$proposal->id" value="Vorhandene Anfrage für diese Antwort" /><x-ui.forms.select :id="'drawer-map-'.$this->getId().'-'.$proposal->id" :wire:model="'mappingInquiryIds.'.$proposal->id"><option value="">Position ausdrücklich zuordnen</option>@foreach(($payload['candidate_inquiry_ids'] ?? []) as $candidateId)@if($candidate = $mappingInquiries->get($candidateId))<option value="{{ $candidate->id }}">{{ $candidate->number }} · {{ $candidate->title }} · {{ $candidate->location_name }}</option>@endif @endforeach</x-ui.forms.select><x-ui.forms.input-error :for="'mappingInquiryIds.'.$proposal->id" /><x-ui.buttons.button-basic type="submit" wire:loading.attr="disabled">Positionszuordnung bestätigen</x-ui.buttons.button-basic></form>
+                                        @endif
+                                        @if($proposal->inquiry)@include('livewire.operations.partials.ai-intake-planning')@endif
+                                        @if($currentProposal && $canApprove && $selected->processing_mode !== 'manual' && in_array($proposal->status, ['approved', 'failed'], true))
+                                            <details class="rt-intake-drawer__disclosure"><summary>Freigegebene Vorbereitung prüfen</summary><div class="rt-intake-drawer__disclosure-content"><x-ui.buttons.button-basic type="button" wire:click="retryPreparation({{ $proposal->id }},{{ $proposal->revision }})" wire:loading.attr="disabled">Vorbereitung erneut prüfen</x-ui.buttons.button-basic></div></details>
+                                        @endif
+                                    </article>
+                                @endforeach
+                                @if($currentProposals->isEmpty() && !$manualEditorOpen)
+                                    @if($selected->processed_source_revision === $selected->source_revision && is_array($selected->analysis['positions'] ?? null) && !empty($selected->analysis['positions']))
+                                        @foreach($selected->analysis['positions'] as $index => $position)
+                                            @continue(!is_array($position))
+                                            <article class="rt-intake-drawer__position" data-ai-intake-analysis-preview wire:key="drawer-analysis-{{ $selected->id }}-{{ $selected->source_revision }}-{{ $index }}">
+                                                <div class="rt-intake-drawer__position-header"><h3>Position {{ $index + 1 }}</h3><span class="rt-intake-drawer__meta">Erkannte Angaben</span></div>
+                                                <h4>{{ $position['title'] ?? 'Leistung prüfen' }}</h4>
+                                                <x-operations.intake.facts class="rt-intake-drawer__facts" :demand="$position" variant="drawer" :assumptions="$position['assumptions'] ?? []" />
+                                            </article>
+                                        @endforeach
+                                    @else
+                                        <div class="rt-intake-drawer__empty"><h3>Noch keine Positionen</h3><p class="ops-muted">Angaben direkt per Formular erfassen. AI-Assist kann bei Bedarf unterstützen.</p></div>
+                                    @endif
+                                @endif
+                            </section>
+
+                            @if($manualReady)
+                                <x-ui.buttons.button-basic type="button" mode="link" class="rt-intake-drawer__add" wire:click="addManualPosition" wire:loading.attr="disabled" :disabled="!$drawerState['canAdd'] ? true : null"><i class="far fa-plus" aria-hidden="true"></i>Position per Formular erfassen</x-ui.buttons.button-basic>
+                            @endif
+
+                            <details class="rt-intake-drawer__disclosure">
+                                <summary>Prüfhinweise und Quellen @if(count($selected->missing_fields ?? []) > 0)<span class="rt-intake-drawer__meta">{{ count($selected->missing_fields) }} offene Angaben</span>@endif</summary>
+                                <div class="rt-intake-drawer__disclosure-content">
+                                    @if($selected->summary)<p>{{ $selected->summary }}</p>@endif
+                                    @if($selected->missing_fields)<ul>@foreach($selected->missing_fields as $field)@php($fieldKey = is_array($field) ? ($field['field'] ?? '') : $field)<li>{{ is_array($field) && isset($field['question']) ? $field['question'] : ($fieldLabels[$fieldKey] ?? 'Angabe prüfen') }}</li>@endforeach</ul>@endif
+                                    @if($selected->error_code)<p class="ops-muted" role="status">Die Verarbeitung benötigt eine Prüfung. Quellen und erkannte Angaben bleiben erhalten.</p>@endif
+                                    @if($selected->proposals->contains(fn ($record) => $record->source_revision !== $selected->source_revision || $record->status === 'stale'))<p class="ops-muted">Ein neuerer Eingang liegt vor. Frühere Angaben erst nach Prüfung der aktuellen Quelle übernehmen.</p>@endif
+                                    @if(!$enabled && $selected->source_type !== 'email')<p class="ops-muted">Die automatische Auswertung ist aus. Eingang und Anlagen bleiben erhalten.</p>@endif
+                                    <x-ui.buttons.button-basic type="button" mode="link" wire:click="setDetailTab('sources')">Original und Anlagen öffnen <i class="far fa-arrow-right" aria-hidden="true"></i></x-ui.buttons.button-basic>
+                                    @include('livewire.operations.partials.ai-intake-context-hints', ['showCandidateHints' => false])
+                                </div>
+                            </details>
+
+                            @php($historicalReferences = $selected->proposals->filter(fn ($proposal) => ($proposal->source_revision !== $selected->source_revision || $proposal->status === 'stale') && $proposal->inquiry)->unique('inquiry_id'))
+                            @if($historicalReferences->isNotEmpty())<details class="rt-intake-drawer__disclosure"><summary>Frühere Anfragen</summary><div class="rt-intake-drawer__disclosure-content"><p class="ops-muted">Verknüpfungen aus früheren Prüfständen.</p>@foreach($historicalReferences as $reference)<x-ui.buttons.button-basic mode="link" :href="\App\Support\Operations\OperationsPages::url('cases',['view'=>'inbox','inquiry'=>$reference->inquiry_id])" data-no-navigate>Native Anfrage {{ $reference->inquiry->number }} öffnen</x-ui.buttons.button-basic>@endforeach</div></details>@endif
+                            <details class="rt-intake-drawer__disclosure"><summary>Weitere Aktionen <span class="rt-intake-drawer__meta">{{ $labels[$selected->status] ?? 'Prüfung nötig' }}</span></summary><div class="rt-intake-drawer__disclosure-content">
+                                @if($selected->processing_mode === 'manual')<p class="ops-muted" role="status">Formularbearbeitung · Automatische Übernahme und Kundenkommunikation bleiben ausgeschaltet. AI-Assist bleibt optional.</p>@endif
+                                @if(!$manualReady)<p class="ops-muted">Die Formularbearbeitung benötigt noch die Datenbankerweiterung. Der bestehende AI-Assist ist weiterhin verfügbar.</p>@endif
+                                <div class="rt-intake-drawer__actions">
+                                    <x-ui.buttons.button-basic type="button" wire:click="pause" wire:loading.attr="disabled" :disabled="in_array($selected->status, ['paused', 'completed', 'not_inquiry'], true) ? true : null">Pausieren</x-ui.buttons.button-basic>
+                                    <x-ui.buttons.button-basic type="button" wire:click="reanalyze" wire:loading.attr="disabled" :disabled="($selected->processing_mode === 'manual' || (!$enabled && $selected->source_type !== 'email') || in_array($selected->status, ['paused', 'completed', 'analyzing', 'not_inquiry'], true)) ? true : null">Erneut prüfen</x-ui.buttons.button-basic>
+                                </div>
+                            </div></details>
+                        @endif
+                    </section>
+
+                    <section class="rt-intake-drawer__body" id="intake-drawer-{{ $this->getId() }}-panel-sources" role="tabpanel" aria-labelledby="intake-drawer-{{ $this->getId() }}-tab-sources" @if($detailTab !== 'sources') hidden @endif>
+                        <h3>Nachrichten und Anlagen</h3>
+                        @forelse($selected->messages as $message)
+                            <details class="rt-intake-drawer__disclosure" @if($loop->first) open @endif wire:key="drawer-message-{{ $message->id }}">
+                                <summary>{{ $message->metadata['subject'] ?? 'Originaleingang' }} <span class="rt-intake-drawer__meta">{{ $message->created_at->timezone('Europe/Berlin')->format('d.m.Y H:i') }}</span></summary>
+                                <div class="rt-intake-drawer__disclosure-content">
+                                    <p class="rt-intake-drawer__original">{{ $message->body }}</p>
+                                    @if(($message->metadata['raw_archive_complete'] ?? true) === false || ($message->metadata['text_archive_complete'] ?? true) === false)<p class="ops-muted" role="alert">Dieser Eingang überschreitet die Verarbeitungsgrenzen. Das vollständige Original im Postfach manuell prüfen; hier ist ein begrenzter Ausschnitt archiviert.</p>@endif
+                                    @if($message->raw_path)<x-ui.buttons.button-basic mode="link" :href="route('operations.ai-intake.original', $message->id)" data-no-navigate>{{ ($message->metadata['raw_archive_complete'] ?? true) ? 'Original herunterladen' : 'Archivierten Ausschnitt herunterladen' }}</x-ui.buttons.button-basic>@endif
+                                </div>
+                            </details>
+                        @empty<p class="ops-muted">Keine Nachrichten hinterlegt.</p>@endforelse
+                        @foreach($selected->attachments as $attachment)<div class="rt-intake-drawer__attachment" wire:key="drawer-attachment-{{ $attachment->id }}"><x-ui.buttons.button-basic mode="link" :href="route('operations.ai-intake.attachment', $attachment->id)" data-no-navigate><i class="far fa-paperclip" aria-hidden="true"></i>{{ $attachment->file_name }}</x-ui.buttons.button-basic><span class="rt-intake-drawer__meta">{{ number_format($attachment->file_size / 1024, 0, ',', '.') }} KB</span></div>@endforeach
+                    </section>
+
+                    <section class="rt-intake-drawer__body" id="intake-drawer-{{ $this->getId() }}-panel-communication" role="tabpanel" aria-labelledby="intake-drawer-{{ $this->getId() }}-tab-communication" @if($detailTab !== 'communication') hidden @endif>
+                        <h3>Kundennachrichten und Verarbeitung</h3><p class="ops-muted">{{ $selected->question_round }} Rückfragerunden.</p>
+                        @if($customerMailSuppressed)<p class="rt-intake-drawer__notice" role="status">Kundenkommunikation ist für diesen manuell übernommenen Vorgang ausgeschaltet. Vorhandene Nachrichten bleiben im Verlauf erhalten.</p>@endif
+                        @forelse($selected->deliveries as $delivery)
+                            <details class="rt-intake-drawer__disclosure" wire:key="drawer-delivery-{{ $delivery->id }}"><summary>{{ \App\Models\AiIntakeDelivery::TYPE_LABELS[$delivery->message_type ?? 'clarification'] ?? 'Kundennachricht' }} <span class="rt-intake-drawer__meta">{{ ($delivery->metadata['manual_mailbox_test'] ?? false) ? 'Testentwurf · ohne Versand' : (\App\Models\AiIntakeDelivery::STATUS_LABELS[$delivery->status] ?? 'Versand prüfen') }}</span></summary><div class="rt-intake-drawer__disclosure-content">
+                                <p class="rt-intake-drawer__original">{{ $delivery->body }}</p>
+                                @if($customerMailSuppressed && in_array($delivery->status, ['draft', 'pending'], true))<p class="ops-muted">Der Versand ist für diesen Vorgang gesperrt.</p>
+                                @elseif($delivery->status === 'draft' && !($delivery->metadata['manual_mailbox_test'] ?? false))<p class="ops-muted">Empfänger und Vorlage vor dem Versand im AI-Assistenten persönlich freigeben oder verwerfen.</p><x-ui.buttons.button-basic type="button" mode="link" wire:click="openOutbox" wire:loading.attr="disabled">Kundennachrichten im AI-Assistenten prüfen</x-ui.buttons.button-basic>
+                                @elseif($delivery->metadata['manual_mailbox_test'] ?? false)<p class="ops-muted">Dieser Testentwurf bleibt ohne Versand.</p>
+                                @elseif($delivery->status === 'unknown')<p class="ops-muted">Der Versand wird nicht automatisch wiederholt. Bitte im Dispositionspostfach prüfen, ob die Nachricht gesendet wurde.</p>@endif
+                            </div></details>
+                        @empty<p class="ops-muted">Keine ausgehenden Kundennachrichten hinterlegt.</p>@endforelse
+                        <h4 class="rt-intake-drawer__section-title">Verarbeitung</h4>
+                        @forelse($selected->runs as $run)<p class="rt-intake-drawer__run">{{ $run->started_at?->timezone('Europe/Berlin')->format('d.m.Y H:i') }} · {{ ['running'=>'Analyse läuft','completed'=>'Analyse abgeschlossen','succeeded'=>'Verarbeitung abgeschlossen','failed'=>'Analyse prüfen','stale'=>'Stand inzwischen geändert'][$run->status] ?? 'Verarbeitung protokolliert' }}</p>@empty<p class="ops-muted">Noch keine Verarbeitung protokolliert.</p>@endforelse
+                    </section>
+                </div>
+            @endif
+            <x-slot:footer>
+                @if($selected)
+                    <div class="rt-intake-drawer__footer" data-intake-drawer-footer>
+                        <div class="rt-intake-drawer__footer-status"><strong>{{ $drawerState['status'] }}</strong>@if($drawerState['reason'])<span class="ops-muted" id="intake-drawer-footer-reason-{{ $this->getId() }}">{{ $drawerState['reason'] }}</span>@endif</div>
+                        <div class="rt-intake-drawer__footer-actions">
+                            @if($drawerState['editing'])<x-ui.buttons.button-basic type="button" wire:click="cancelPositionEdit" wire:loading.attr="disabled">Abbrechen</x-ui.buttons.button-basic>
+                            @elseif($planningProposalId !== null)<x-ui.buttons.button-basic type="button" wire:click="closePlanning" wire:loading.attr="disabled">Abbrechen</x-ui.buttons.button-basic>
+                            @else<x-ui.buttons.button-basic type="button" wire:click="closeDetail">Schließen</x-ui.buttons.button-basic>@endif
+                            @if($drawerState['action'] === 'save-position')
+                                <x-ui.buttons.button-basic type="submit" :form="'intake-drawer-position-form-'.$this->getId()" mode="primary" wire:loading.attr="disabled">Position speichern</x-ui.buttons.button-basic>
+                            @elseif($drawerState['action'])
+                                <x-ui.buttons.button-basic type="button" mode="primary" wire:click="{{ $drawerState['action'] }}" wire:loading.attr="disabled" :disabled="$drawerState['disabled'] ? true : null" :aria-describedby="$drawerState['reason'] ? 'intake-drawer-footer-reason-'.$this->getId() : null">{{ $drawerState['label'] }}</x-ui.buttons.button-basic>
+                            @endif
+                        </div>
+                    </div>
+                @endif
+            </x-slot:footer>
         </x-operations.modal>
     @endif
     @if($customerDraftOpen && $selectedId)<livewire:admin.operations.customers :embedded="true" :modal-only="true" :start-creating="true" :workspace-revision="$selectedRevision" :draft-intake-id="$selectedId" :key="'ai-customer-draft-'.$selectedId.'-'.$selectedRevision" />@endif

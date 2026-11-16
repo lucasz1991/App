@@ -8,6 +8,16 @@ import {
     shouldCancelChatLongPress,
 } from '../../resources/js/chat-message-actions.js';
 
+async function readChatSection(name) {
+    const view = await readFile(new URL('../../resources/views/livewire/chat-box.blade.php', import.meta.url), 'utf8');
+    const startMarker = `{{-- chat-section:${name}:start --}}`;
+    const endMarker = `{{-- chat-section:${name}:end --}}`;
+    const start = view.indexOf(startMarker);
+    const end = view.indexOf(endMarker);
+    assert.ok(start >= 0 && end >= start, `Missing chat section: ${name}`);
+    return view.slice(start + startMarker.length, end);
+}
+
 function installInteractionEnvironment() {
     const originalWindow = globalThis.window;
     const originalDocument = globalThis.document;
@@ -163,7 +173,7 @@ test('message long press uses the locked 500ms and 10px contract', () => {
 
 test('chat and call transcripts use the same anchored dropdown components', async () => {
     const [transcript, callChat] = await Promise.all([
-        readFile(new URL('../../resources/views/livewire/chat/partials/transcript.blade.php', import.meta.url), 'utf8'),
+        readChatSection('transcript'),
         readFile(new URL('../../resources/views/livewire/calls/call-chat.blade.php', import.meta.url), 'utf8'),
     ]);
 
@@ -254,9 +264,9 @@ test('rendered reaction emojis stay transparent while the rail overlaps the bubb
 test('premium chat hierarchy keeps real presence, group identity, and external message metadata', async () => {
     const [chatBox, list, header, transcript] = await Promise.all([
         readFile(new URL('../../app/Livewire/ChatBox.php', import.meta.url), 'utf8'),
-        readFile(new URL('../../resources/views/livewire/chat/partials/chat-list.blade.php', import.meta.url), 'utf8'),
-        readFile(new URL('../../resources/views/livewire/chat/partials/conversation-header.blade.php', import.meta.url), 'utf8'),
-        readFile(new URL('../../resources/views/livewire/chat/partials/transcript.blade.php', import.meta.url), 'utf8'),
+        readChatSection('chat-list'),
+        readChatSection('conversation-header'),
+        readChatSection('transcript'),
     ]);
 
     assert.match(chatBox, /withMax\('activities as last_activity_at', 'created_at'\)/);
@@ -274,8 +284,8 @@ test('premium chat hierarchy keeps real presence, group identity, and external m
 
 test('typing feedback has one live region, preserves scroll position, and renders decorative dots', async () => {
     const [header, transcript] = await Promise.all([
-        readFile(new URL('../../resources/views/livewire/chat/partials/conversation-header.blade.php', import.meta.url), 'utf8'),
-        readFile(new URL('../../resources/views/livewire/chat/partials/transcript.blade.php', import.meta.url), 'utf8'),
+        readChatSection('conversation-header'),
+        readChatSection('transcript'),
     ]);
 
     assert.match(transcript, /data-chat-typing-indicator/);
@@ -288,10 +298,7 @@ test('typing feedback has one live region, preserves scroll position, and render
 });
 
 test('composer preserves every input path in the detached premium control layout', async () => {
-    const composer = await readFile(
-        new URL('../../resources/views/livewire/chat/partials/composer.blade.php', import.meta.url),
-        'utf8',
-    );
+    const composer = await readChatSection('composer');
 
     assert.match(composer, /data-chat-composer-attachment/);
     assert.match(composer, /x-ref="attachmentInput"/);
@@ -343,7 +350,7 @@ test('premium stacked lists are shared by the topbar, chat sidebar, and creation
     const [component, inbox, list, picker, publicInfo, styles, headerInbox, chatBox] = await Promise.all([
         readFile(new URL('../../resources/views/components/chat/stacked-list-item.blade.php', import.meta.url), 'utf8'),
         readFile(new URL('../../resources/views/livewire/tools/header-inbox.blade.php', import.meta.url), 'utf8'),
-        readFile(new URL('../../resources/views/livewire/chat/partials/chat-list.blade.php', import.meta.url), 'utf8'),
+        readChatSection('chat-list'),
         readFile(new URL('../../resources/views/livewire/chat/partials/member-picker.blade.php', import.meta.url), 'utf8'),
         readFile(new URL('../../resources/views/components/user/public-info.blade.php', import.meta.url), 'utf8'),
         readFile(new URL('../../resources/css/chat-redesign.css', import.meta.url), 'utf8'),

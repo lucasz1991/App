@@ -10,7 +10,7 @@ document.addEventListener('click', event => {
     const intent = communicationLink(link.href, window.location.href);
     if (!intent) return;
     event.preventDefault(); event.stopImmediatePropagation();
-    window.dispatchEvent(new CustomEvent('communication:open', { detail: { ...intent, mode: 'fullscreen' } }));
+    window.dispatchEvent(new CustomEvent('communication:open', { detail: { ...intent, mode: 'fullscreen', returnFocus: link } }));
 }, true);
 
 export function cornerForPoint(x, y, width, height, top = 70) {
@@ -35,7 +35,7 @@ export function communicationModule() {
     let clickGuard = null, layoutFrame = null;
     let main = null, mainWasInert = false, mainAria = null, observer = null;
     const cleanups = [];
-    let releaseCallLock = null, requestedRoom = null;
+    let releaseCallLock = null, requestedRoom = null, returnFocus = null;
     const listen = (target, name, fn, options) => {
         target?.addEventListener(name, fn, options);
         cleanups.push(() => target?.removeEventListener(name, fn, options));
@@ -121,6 +121,7 @@ export function communicationModule() {
             this.syncVisibility();
         },
         openIntent(intent, size = null) {
+            if (intent.returnFocus) returnFocus = intent.returnFocus;
             if (TABS.includes(intent.tab)) this.tab = intent.tab;
             this.showCall = !intent.list && this.tab === 'calls' && this.activeCall;
             this.showHistory = false;
@@ -161,8 +162,17 @@ export function communicationModule() {
             });
         },
         close(restoreFocus = true) {
+            const target = returnFocus;
+            returnFocus = null;
             this.transition(false, this.mode);
-            if (restoreFocus) this.$nextTick(() => { if (!this.open) this.$refs.launcher.focus({ preventScroll: true }); });
+            if (restoreFocus) this.$nextTick(() => {
+                if (this.open) return;
+                const visible = target?.isConnected && typeof target.focus === 'function'
+                    && target.getClientRects().length > 0
+                    && !target.closest('[inert], [aria-hidden="true"]')
+                    && getComputedStyle(target).visibility !== 'hidden';
+                (visible ? target : this.$refs.launcher)?.focus({ preventScroll: true });
+            });
         },
         resize() {
             if (!this.wide) { this.show('fullscreen'); return; }
@@ -211,6 +221,7 @@ export function communicationModule() {
         },
         transition(open, mode) {
             const newlyOpen = open && !this.open;
+            const enteringFullscreen = open && mode === 'fullscreen' && this.mode !== 'fullscreen';
             this.mode = this.wide ? mode : 'fullscreen';
             this.open = open;
             this.syncVisibility(); this.queueLayout();
@@ -218,6 +229,8 @@ export function communicationModule() {
                 const detail = { surface: 'communication', corner: this.corner, mobile: window.innerWidth <= 760 };
                 window.dispatchEvent(new CustomEvent('railtime-assistant-close', { detail }));
                 window.dispatchEvent(new CustomEvent('rt-floating-surface-opened', { detail }));
+            }
+            if (newlyOpen || enteringFullscreen) {
                 this.$nextTick(() => this.$root.querySelector('[data-comm-tab="'+this.tab+'"]')?.focus({ preventScroll: true }));
             }
         },
@@ -238,6 +251,7 @@ export function communicationModule() {
             const inset = Math.max(top, bar?.bottom || 70);
             const page = document.querySelector('.rt-app-page-frame')?.getBoundingClientRect();
             this.$root.style.setProperty('--comm-top', `${inset}px`);
+            this.$root.style.setProperty('--comm-viewport-top', `${top}px`);
             this.$root.style.setProperty('--comm-bottom', `${Math.max(0, window.innerHeight - top - height)}px`);
             this.$root.style.setProperty('--comm-left', `${Math.max(0, page?.left || 0)}px`);
             window.dispatchEvent(new CustomEvent('rt-floating-launcher-layout'));

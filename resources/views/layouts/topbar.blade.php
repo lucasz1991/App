@@ -56,14 +56,27 @@
         </div>
         <div class="rt-shell-topbar-actions flex min-w-0 flex-1 items-center justify-end gap-2 border-b border-rt-border/60 px-2 dark:border-rt-dark-border/60 sm:px-4 lg:px-6">
             {{-- Reihenfolge der Topbar-Kontrollen: Suche (expandiert nach links,
-                 weil die Nachbarn rechts verankert bleiben), dann Posteingang,
+                 weil die Nachbarn rechts verankert bleiben), dann Chat und Posteingang,
                  dann Einstellungen, aussen das Profil. --}}
             <div class="rt-shell-topbar-controls flex min-w-0 items-center gap-1.5 sm:gap-3">
                     @auth
                         <div class="rt-topbar-search-slot" data-topbar-page-search></div>
                         <div data-topbar-global-search><livewire:tools.global-search /></div>
 
-                        {{-- Posteingang (Chats + Nachrichten in einem Dropdown) --}}
+                        <a
+                            href="{{ route('chat') }}"
+                            wire:navigate
+                            class="rt-ui-button rt-ui-button-secondary rt-topbar-control flex h-10 w-10 min-w-10 shrink-0 items-center justify-center rounded-xl border border-rt-border bg-rt-surface px-0 text-rt-text shadow-rt-xs transition hover:bg-rt-surface-muted hover:text-rt-accent focus:outline-none focus:ring-2 focus:ring-rt-accent/40 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white dark:hover:bg-rt-dark-surface-muted dark:hover:text-white"
+                            data-rt-topbar-control
+                            data-topbar-chat
+                            aria-controls="railtime-communication"
+                            aria-label="Chat im Vollbild öffnen"
+                            title="Chat im Vollbild öffnen"
+                        >
+                            <i class="far fa-comments text-[18px]" aria-hidden="true"></i>
+                        </a>
+
+                        {{-- Posteingang fuer normale Nachrichten --}}
                         <livewire:tools.header-inbox />
                     @endauth
 
