@@ -18,6 +18,7 @@ use App\Support\Operations\AiDispositionSettings;
 use App\Support\Operations\AiIntakeSchema;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsPages;
+use App\Support\Operations\OperationsTransaction;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
@@ -56,6 +57,9 @@ class AiIntakeInbox extends Component
 
     #[Locked]
     public ?int $editingProposalId = null;
+
+    #[Locked]
+    public ?int $drawerProposalId = null;
 
     #[Locked]
     public int $proposalRevision = 0;
@@ -160,7 +164,10 @@ class AiIntakeInbox extends Component
     public function select(int $id): void
     {
         $record = $this->scope()->findOrFail($id);
+        $previousProposalId = $this->selectedId === $id ? $this->drawerProposalId : null;
         $this->selectedId = $id;
+        $currentProposals = $record->proposals->where('source_revision', $record->source_revision)->where('status', '!=', 'stale')->sortBy('position_index');
+        $this->drawerProposalId = $currentProposals->firstWhere('id', $previousProposalId)?->id ?? $currentProposals->first()?->id;
         $this->selectedRevision = $record->revision;
         $this->selectedSettingsRevision = (int) AiDispositionSettings::all(true)['revision'];
         $this->selectedSourceRevision = $record->source_revision;
@@ -210,6 +217,7 @@ class AiIntakeInbox extends Component
         $this->actor();
         $this->detailOpen = false;
         $this->selectedId = $this->editingProposalId = null;
+        $this->drawerProposalId = null;
         $this->selectedRevision = $this->selectedSettingsRevision = $this->proposalRevision = 0;
         $this->selectedSourceRevision = 0;
         $this->confirmationProposalRevisions = [];
@@ -238,6 +246,67 @@ class AiIntakeInbox extends Component
         if ($tab === 'assistant' && $this->embedded) {
             $this->dispatch('ai-intake-discussion-open', componentId: $this->getId());
         }
+    }
+
+    /** Change the footer's position context without discarding another editor. */
+    public function selectDrawerPosition(int $id): void
+    {
+        $this->perform(function () use ($id): void {
+            $record = $this->selected();
+            $this->assertDrawerReady($record);
+            $proposal = $record->proposals()->findOrFail($id);
+            abort_unless($proposal->source_revision === $record->source_revision && $proposal->status !== 'stale'
+                && ($this->confirmationProposalRevisions[$id] ?? null) === $proposal->revision, 409, 'Die Leistung wurde geändert. Bitte neu laden.');
+            $this->drawerProposalId = $id;
+            $this->detailTab = 'review';
+        }, false);
+    }
+
+    private function assertDrawerReady(AiIntake $record): void
+    {
+        abort_if($this->embedded, 409);
+        abort_if($this->manualEditorOpen || $this->editingProposalId !== null || $this->planningProposalId !== null
+            || $this->customerEditorOpen || $this->hasUnsavedAssignment($record), 409, 'Die offenen Angaben zuerst speichern oder verwerfen.');
+        abort_unless($record->revision === $this->selectedRevision && $record->source_revision === $this->selectedSourceRevision
+            && $this->selectedSettingsRevision === (int) AiDispositionSettings::all(true)['revision'], 409, 'Der Eingang wurde inzwischen geändert. Bitte neu laden.');
+    }
+
+    /** Explicitly accept only the displayed position; other positions keep their own path. */
+    public function confirmDrawerPosition(string $businessPath): void
+    {
+        abort_unless(in_array($businessPath, ['inquiry', 'direct_order'], true), 422);
+        $actor = $this->actor();
+        if ($businessPath === 'direct_order') {
+            OperationsAccess::authorize($actor, 'operations.manage');
+        }
+        $this->perform(function () use ($businessPath, $actor): void {
+            OperationsTransaction::run(function () use ($businessPath, $actor): void {
+                $record = $this->selected();
+                $this->assertDrawerReady($record);
+                $proposals = $record->proposals()->where('source_revision', $record->source_revision)->get();
+                abort_unless($proposals->pluck('revision', 'id')->all() == $this->confirmationProposalRevisions, 409, 'Die Leistungen wurden geändert. Bitte neu laden.');
+                $proposal = $proposals->firstWhere('id', $this->drawerProposalId);
+                abort_unless($proposal && ! in_array($proposal->status, ['applied', 'stale', 'failed'], true), 409, 'Die aktuelle Leistung zuerst prüfen.');
+                abort_if($this->proposalNeedsCorrection($proposal->payload ?? []), 422, 'Die Angaben dieser Leistung zuerst ergänzen.');
+                abort_if($proposal->inquiry && ! in_array($proposal->inquiry->status, ['new', 'verified'], true), 409, 'Den bestehenden Angebots- oder Auftragsvorgang öffnen.');
+                $claimed = app(AiIntakeManualService::class)->claimManual($record, $actor, $this->selectedRevision);
+                $proposal = $proposal->fresh();
+                if (($proposal->payload['business_path'] ?? 'inquiry') !== $businessPath) {
+                    $payload = array_intersect_key($proposal->payload, array_flip(['demand', 'segments']));
+                    $payload['business_path'] = $businessPath;
+                    app(AiIntakeManualService::class)->savePosition($claimed, $actor, $claimed->revision,
+                        $this->selectedSourceRevision, $payload, $proposal->id, $proposal->revision);
+                    $claimed = $claimed->fresh();
+                }
+                $expectedRevisions = $claimed->proposals()->where('source_revision', $claimed->source_revision)->pluck('revision', 'id')->all();
+                $confirmed = app(AiIntakeManualService::class)->confirm($claimed, $actor, $claimed->revision,
+                    $this->selectedSourceRevision, $expectedRevisions, $proposal->id);
+                if ($businessPath === 'direct_order') {
+                    $inquiry = $confirmed->proposals()->findOrFail($proposal->id)->inquiry;
+                    app(InquiryWorkflowService::class)->takeDirectOrder($inquiry, $inquiry->revision, $actor);
+                }
+            });
+        });
     }
 
     public function discuss(int $id): void
@@ -430,6 +499,9 @@ class AiIntakeInbox extends Component
     {
         $this->perform(function (): void {
             $intake = $this->selected();
+            if (! $this->embedded) {
+                $this->assertDrawerReady($intake);
+            }
             if ($intake->source_type === 'email') {
                 app(AiIntakeService::class)->analyzeManually($intake, $this->actor(), $this->selectedRevision, $this->selectedSettingsRevision);
             } else {
@@ -440,7 +512,13 @@ class AiIntakeInbox extends Component
 
     public function pause(): void
     {
-        $this->perform(fn () => app(AiIntakeService::class)->pause($this->selected(), $this->actor(), $this->selectedRevision));
+        $this->perform(function (): void {
+            $intake = $this->selected();
+            if (! $this->embedded) {
+                $this->assertDrawerReady($intake);
+            }
+            app(AiIntakeService::class)->pause($intake, $this->actor(), $this->selectedRevision);
+        });
     }
 
     public function createInquiries(): void
@@ -476,6 +554,7 @@ class AiIntakeInbox extends Component
                 $this->claimManual();
                 $this->select($this->selectedId);
                 $this->fillProposalForm($id);
+                $this->drawerProposalId = $id;
             }, false);
 
             return;
@@ -530,8 +609,9 @@ class AiIntakeInbox extends Component
         $this->perform(function (): void {
             abort_unless($this->manualEditorOpen || $this->editingProposalId, 409);
             $this->claimManual();
-            app(AiIntakeManualService::class)->savePosition($this->selected(), $this->actor(), $this->selectedRevision, $this->selectedSourceRevision,
+            $proposal = app(AiIntakeManualService::class)->savePosition($this->selected(), $this->actor(), $this->selectedRevision, $this->selectedSourceRevision,
                 $this->proposalForm, $this->editingProposalId, $this->editingProposalId ? $this->proposalRevision : null);
+            $this->drawerProposalId = $proposal->id;
         });
     }
 
@@ -557,6 +637,9 @@ class AiIntakeInbox extends Component
     {
         $this->perform(function () use ($id, $revision, $inquiryRevision): void {
             $intake = $this->selected();
+            if (! $this->embedded) {
+                $this->assertDrawerReady($intake);
+            }
             abort_unless($intake->revision === $this->selectedRevision && $intake->source_revision === $this->selectedSourceRevision, 409, 'Der Eingang wurde inzwischen geändert.');
             $proposal = $intake->proposals()->with('inquiry')->findOrFail($id);
             abort_unless($proposal->revision === $revision && $proposal->source_revision === $intake->source_revision && $proposal->inquiry, 409, 'Die Position wurde inzwischen geändert.');
@@ -638,6 +721,9 @@ class AiIntakeInbox extends Component
             abort_if($this->editingProposalId !== null || $this->manualEditorOpen || $this->planningProposalId !== null || $this->customerEditorOpen
                 || $this->hasUnsavedAssignment($this->selected()), 409, 'Die offenen Angaben zuerst speichern oder verwerfen.');
             $this->planningProposalId = $id;
+            if (! $this->embedded) {
+                $this->drawerProposalId = $id;
+            }
             $this->planningProposalRevision = $revision;
             $inquiry = $proposal->inquiry;
             $this->planningSegments = $proposal->payload['segments'] ?? [];
@@ -652,6 +738,9 @@ class AiIntakeInbox extends Component
     public function continueInquiry(int $id, int $revision): void
     {
         $this->perform(function () use ($id, $revision): void {
+            if (! $this->embedded) {
+                $this->assertDrawerReady($this->selected());
+            }
             $proposal = $this->selected()->proposals()->findOrFail($id);
             $inquiryId = app(AiIntakeService::class)->continueProposalManually($proposal, $this->actor(), $revision);
             $this->redirect(OperationsPages::url('cases', ['view' => 'inbox', 'inquiry' => $inquiryId]), navigate: true);
@@ -695,6 +784,9 @@ class AiIntakeInbox extends Component
     public function publishPlanning(int $id, int $revision): void
     {
         $this->perform(function () use ($id, $revision): void {
+            if (! $this->embedded) {
+                $this->assertDrawerReady($this->selected());
+            }
             $proposal = $this->selected()->proposals()->findOrFail($id);
             app(AiIntakeService::class)->publishProposalShifts($proposal, $this->actor(), $revision, $this->planningShiftRevisions[$id] ?? []);
             $this->dispatch('operations-plan-changed');
@@ -705,13 +797,23 @@ class AiIntakeInbox extends Component
     public function retryPreparation(int $id, int $revision): void
     {
         OperationsAccess::authorize($this->actor(), 'operations.manage');
-        $this->perform(fn () => app(AiIntakeService::class)->retryApprovedProposal($this->selected()->proposals()->findOrFail($id), $this->actor(), $revision));
+        $this->perform(function () use ($id, $revision): void {
+            if (! $this->embedded) {
+                $this->assertDrawerReady($this->selected());
+            }
+            app(AiIntakeService::class)->retryApprovedProposal($this->selected()->proposals()->findOrFail($id), $this->actor(), $revision);
+        });
     }
 
     public function mapProposal(int $id, int $revision): void
     {
         $this->validate(['mappingInquiryIds.'.$id => ['required', 'integer', 'min:1']]);
-        $this->perform(fn () => app(AiIntakeService::class)->mapProposalInquiry($this->selected()->proposals()->findOrFail($id), $this->actor(), (int) $this->mappingInquiryIds[$id], $revision));
+        $this->perform(function () use ($id, $revision): void {
+            if (! $this->embedded) {
+                $this->assertDrawerReady($this->selected());
+            }
+            app(AiIntakeService::class)->mapProposalInquiry($this->selected()->proposals()->findOrFail($id), $this->actor(), (int) $this->mappingInquiryIds[$id], $revision);
+        });
     }
 
     public function prepareCustomer(): void
@@ -796,7 +898,7 @@ class AiIntakeInbox extends Component
                 && empty($payload['review_confirmation']['actor_id']));
     }
 
-    private function drawerState(?AiIntake $record, bool $canApprove): array
+    private function legacyDrawerState(?AiIntake $record, bool $canApprove): array
     {
         $state = ['action' => '', 'label' => '', 'status' => 'Noch nicht übernommen', 'reason' => '',
             'disabled' => false, 'editing' => false, 'customerDirty' => false, 'stale' => false,
@@ -863,7 +965,170 @@ class AiIntakeInbox extends Component
                 'reason' => 'Kunde, Positionen und Original persönlich prüfen.', 'disabled' => $state['hasDirectOrders'] && ! $canApprove]);
         }
 
-        return array_replace($state, ['status' => 'Positionen übernommen', 'reason' => 'Der nächste Schritt steht an der jeweiligen Position.']);
+        return array_replace($state, ['status' => 'Positionen übernommen', 'reason' => '']);
+    }
+
+    /** Native footer actions always belong to the explicitly displayed position. */
+    private function drawerState(?AiIntake $record, bool $canApprove): array
+    {
+        $state = $this->legacyDrawerState($record, $canApprove) + [
+            'activeProposalId' => null, 'primary' => null, 'secondary' => null, 'more' => [], 'cancelAction' => null,
+        ];
+        if (! $record) {
+            return $state;
+        }
+        $proposals = $record->proposals->where('source_revision', $record->source_revision)->where('status', '!=', 'stale')->sortBy('position_index');
+        $proposal = $proposals->firstWhere('id', $this->drawerProposalId) ?? $proposals->first();
+        $state['activeProposalId'] = $proposal?->id;
+        $editing = $state['editing'] || $this->planningProposalId !== null || $this->customerEditorOpen || $state['customerDirty'];
+        $blocked = (bool) $record->paused_at || in_array($record->status, ['paused', 'not_inquiry', 'completed'], true);
+        $disabled = $editing || $state['stale'];
+        $action = fn (string $key, string $label, ?string $command = null, ?string $href = null, bool $disable = false, ?string $confirm = null): array => [
+            'key' => $key, 'label' => $label, 'action' => $command, 'href' => $href, 'disabled' => $disable, 'confirm' => $confirm,
+        ];
+        if ($record->status !== 'not_inquiry') {
+            $state['more'][] = $action('assist', 'Mit AI-Assist öffnen', 'openAssist', disable: $disabled);
+        }
+        if ($record->deliveries->contains(fn ($delivery) => $delivery->status === 'draft' && ! ($delivery->metadata['manual_mailbox_test'] ?? false))) {
+            $state['more'][] = $action('outbox', 'Kundennachrichten im AI-Assistenten prüfen', 'openOutbox', disable: $disabled);
+        }
+        if (! $blocked) {
+            $state['more'][] = $action('customer', 'Kundenzuordnung ändern', 'editCustomerAssignment', disable: $disabled);
+            if (AiIntakeSchema::manualReady()) {
+                $state['more'][] = $action('add', 'Position per Formular erfassen', 'addManualPosition', disable: $disabled);
+            }
+            if (AiIntakeSchema::manualReady() && $proposal && ! in_array($proposal->status, ['applied', 'stale'], true)
+                && (! $proposal->inquiry || in_array($proposal->inquiry->status, ['new', 'verified'], true))) {
+                $state['more'][] = $action('edit', 'Leistung bearbeiten', 'editProposal('.$proposal->id.')', disable: $disabled);
+            }
+            if ($proposals->count() > 1 && $state['workPending']) {
+                $state['more'][] = $action('confirm-all', $state['hasDirectOrders'] ? 'Alle Positionen gemäß Übernahmeweg bestätigen' : 'Alle Positionen als Anfragen übernehmen', 'confirmManual',
+                    disable: $disabled || ($state['hasDirectOrders'] && ! $canApprove),
+                    confirm: $state['hasDirectOrders'] ? 'Alle aktuellen Positionen übernehmen und die als Direktauftrag markierten Leistungen als Auftrag annehmen?' : 'Alle aktuellen Positionen als Anfragen übernehmen?');
+            }
+            $state['more'][] = $action('pause', 'Pausieren', 'pause', disable: $disabled);
+            $state['more'][] = $action('reanalyze', 'Erneut prüfen', 'reanalyze', disable: $disabled || $record->processing_mode === 'manual'
+                || (! AiDispositionSettings::enabled() && $record->source_type !== 'email') || $record->status === 'analyzing');
+        }
+        if (! $record->customer_id && $canApprove && ! $this->customerId && ! $blocked) {
+            $state['more'][] = $action('new-customer', 'Neuen Kunden prüfen und anlegen', 'prepareCustomer', disable: $state['stale'] || $state['editing'] || $this->planningProposalId !== null);
+        }
+        if ($proposal && $canApprove && $record->processing_mode !== 'manual' && in_array($proposal->status, ['approved', 'failed'], true)) {
+            $state['more'][] = $action('retry', 'Vorbereitung erneut prüfen', 'retryPreparation('.$proposal->id.','.$proposal->revision.')', disable: $disabled || $blocked);
+        }
+        $state['more'][] = $action('refresh', 'Aktuellen Stand laden', 'select('.$record->id.')', disable: $editing);
+
+        if ($state['stale']) {
+            $state['primary'] = $action('refresh', 'Aktuellen Stand laden', 'select('.$record->id.')', disable: $editing);
+
+            return $state;
+        }
+        if ($this->detailTab !== 'review') {
+            $state['primary'] = $action('review', 'Zur Bearbeitung', "setDetailTab('review')");
+
+            return $state;
+        }
+        if ($state['editing']) {
+            $state['primary'] = $action('save-position', 'Position speichern', 'save-position');
+            $state['cancelAction'] = 'cancelPositionEdit';
+
+            return $state;
+        }
+        if ($this->planningProposalId !== null) {
+            $state['primary'] = $action('prepare', 'Schichtentwürfe erstellen', 'preparePlanning');
+            $state['cancelAction'] = 'closePlanning';
+
+            return $state;
+        }
+        if ($this->customerEditorOpen || $state['customerDirty']) {
+            $state['primary'] = $action('save-customer', 'Zuordnung speichern', 'assignCustomer');
+            $state['cancelAction'] = 'cancelCustomerAssignment';
+
+            return $state;
+        }
+        if ($blocked && ! ($record->status === 'completed' && $proposal?->inquiry?->order_id)) {
+            if ($proposal?->inquiry) {
+                $inquiry = $proposal->inquiry;
+                $state['primary'] = $inquiry->order_id && $canApprove
+                    ? $action('order', 'Auftragsplanung öffnen', href: OperationsPages::url('cases', ['view' => 'orders', 'section' => 'planning', 'order' => $inquiry->order_id]))
+                    : $action('inquiry', 'Anfrage / Angebot öffnen', href: OperationsPages::url('cases', ['view' => 'inbox', 'inquiry' => $inquiry->id]));
+                foreach (Shift::whereIn('id', $proposal->applied_shift_ids ?? [])->orderBy('starts_at')->get() as $shift) {
+                    $state['more'][] = $action('shift-'.$shift->id, 'Schicht öffnen · '.$shift->starts_at->setTimezone($shift->timezone)->format('d.m. H:i'),
+                        href: OperationsPages::url('cases', ['view' => 'shifts', 'section' => 'plan', 'shift' => $shift->id,
+                            'from' => $shift->starts_at->setTimezone($shift->timezone)->format('Y-m-d'),
+                            'until' => $shift->starts_at->setTimezone($shift->timezone)->addDays(6)->format('Y-m-d'), 'distribution' => 'true']));
+                }
+            }
+
+            return $state;
+        }
+        if ((! AiIntakeSchema::manualReady() && ! $proposal?->inquiry) || ! $record->customer_id || ! $proposal) {
+            $state['primary'] = $action('next', $state['label'], $state['action'] ?: null, disable: $state['disabled']);
+
+            return $state;
+        }
+        $args = $proposal->id.','.$proposal->revision;
+        if ($proposal->error_code === 'reply_position_review') {
+            $state['primary'] = $action('mapping', 'Positionszuordnung bestätigen', 'mapProposal('.$args.')');
+
+            return $state;
+        }
+        $inquiry = $proposal->inquiry;
+        if (! $inquiry || in_array($inquiry->status, ['new', 'verified'], true)) {
+            if ($proposal->status === 'failed' || $this->proposalNeedsCorrection($proposal->payload ?? [])) {
+                $state['primary'] = $action('correct', 'Angaben ergänzen', 'editProposal('.$proposal->id.')');
+            } elseif (! $inquiry || empty($proposal->payload['review_confirmation']['actor_id'])
+                || ($proposal->payload['review_confirmation']['source_revision'] ?? null) !== $record->source_revision
+                || $proposal->inquiry_revision !== $inquiry->revision || $inquiry->customer_id !== $record->customer_id) {
+                $state['primary'] = $action('confirm-inquiry', 'Als Anfrage übernehmen', "confirmDrawerPosition('inquiry')");
+                $state['secondary'] = $action('confirm-direct', 'Direktauftrag annehmen', "confirmDrawerPosition('direct_order')", disable: ! $canApprove);
+            } else {
+                $state['primary'] = $action('inquiry', 'Anfrage / Angebot öffnen', 'continueInquiry('.$args.')');
+                $state['secondary'] = $action('direct', 'Direktauftrag annehmen', 'takeDirectOrder('.$args.','.$inquiry->revision.')', disable: ! $canApprove);
+            }
+
+            return $state;
+        }
+        if (! $inquiry->order_id) {
+            $state['primary'] = $action('inquiry', $inquiry->status === 'accepted' ? 'Auftrag anlegen' : 'Anfrage / Angebot öffnen', 'continueInquiry('.$args.')');
+            $state['secondary'] = $action('direct', 'Direktauftrag annehmen', 'takeDirectOrder('.$args.','.$inquiry->revision.')', disable: ! $canApprove);
+
+            return $state;
+        }
+        $orderUrl = OperationsPages::url('cases', ['view' => 'orders', 'section' => 'planning', 'order' => $inquiry->order_id]);
+        if ($canApprove) {
+            $state['secondary'] = $action('order', 'Auftragsplanung öffnen', href: $orderUrl);
+        }
+        if ($proposal->status !== 'applied') {
+            if ($canApprove) {
+                $state['primary'] = $action('plan', 'Schichten vorbereiten', 'openPlanning('.$args.')');
+            }
+
+            return $state;
+        }
+        $shifts = Shift::whereIn('id', $proposal->applied_shift_ids ?? [])->orderBy('starts_at')->get();
+        $allPublished = $shifts->isNotEmpty() && $shifts->every(fn ($shift) => $shift->published_revision === $shift->revision
+            && ! in_array($shift->status->value, ['draft', 'cancelled', 'completed'], true));
+        $shiftActions = $shifts->map(fn ($shift) => $action('shift-'.$shift->id,
+            ($allPublished ? 'Besetzung öffnen' : 'Einsatzort und Entwurf prüfen').' · '.$shift->starts_at->setTimezone($shift->timezone)->format('d.m. H:i'),
+            href: OperationsPages::url('cases', ['view' => 'shifts', 'section' => 'plan', 'shift' => $shift->id,
+                'from' => $shift->starts_at->setTimezone($shift->timezone)->format('Y-m-d'),
+                'until' => $shift->starts_at->setTimezone($shift->timezone)->addDays(6)->format('Y-m-d'), 'distribution' => 'true'])))->all();
+        if ($allPublished) {
+            $state['primary'] = $shiftActions[0] ?? null;
+            if ($state['primary']) {
+                $state['primary']['label'] = 'Besetzung öffnen';
+            }
+        } elseif ($shifts->isNotEmpty() && $canApprove) {
+            $state['primary'] = $action('publish', 'Zur Besetzung freigeben', 'publishPlanning('.$args.')',
+                confirm: 'Diese Schichten nach Prüfung von Zeiten, Pausen und Einsatzort zur Besetzung freigeben?');
+            $state['secondary'] = $shiftActions[0];
+            $state['secondary']['label'] = 'Schichtentwürfe prüfen';
+            $state['more'][] = $action('order', 'Auftragsplanung öffnen', href: $orderUrl);
+        }
+        $state['more'] = array_merge($state['more'], $shiftActions);
+
+        return $state;
     }
 
     public function render()

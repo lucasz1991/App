@@ -143,19 +143,21 @@ class AiIntakeManualService
         });
     }
 
-    public function confirm(AiIntake $intake, User $actor, int $expectedRevision, int $expectedSourceRevision, array $expectedProposalRevisions): AiIntake
+    public function confirm(AiIntake $intake, User $actor, int $expectedRevision, int $expectedSourceRevision, array $expectedProposalRevisions, ?int $proposalId = null): AiIntake
     {
         $this->access($actor);
 
-        return OperationsTransaction::run(function () use ($intake, $actor, $expectedRevision, $expectedSourceRevision, $expectedProposalRevisions): AiIntake {
+        return OperationsTransaction::run(function () use ($intake, $actor, $expectedRevision, $expectedSourceRevision, $expectedProposalRevisions, $proposalId): AiIntake {
             $this->access($actor);
             $current = $this->current($intake, $expectedRevision, $expectedSourceRevision);
             abort_unless($current->processing_mode === 'manual', 409, 'Den Eingang zuerst zur Formularbearbeitung übernehmen.');
             $proposals = $current->proposals()->where('source_revision', $current->source_revision)->lockForUpdate()->get();
             abort_unless($proposals->isNotEmpty() && $proposals->pluck('revision', 'id')->all() == $expectedProposalRevisions, 409, 'Die Leistungen wurden geändert. Bitte neu laden.');
+            $targets = $proposalId === null ? $proposals : $proposals->where('id', $proposalId);
+            abort_unless($targets->isNotEmpty(), 409, 'Die ausgewählte Leistung gehört nicht zum aktuellen Eingang.');
             abort_unless(Customer::active()->whereKey($current->customer_id)->lockForUpdate()->first(), 422, 'Bitte einen aktiven Kunden zuordnen.');
             $changed = false;
-            foreach ($proposals as $proposal) {
+            foreach ($targets as $proposal) {
                 if ($proposal->status === 'applied') {
                     app(AiIntakeService::class)->assertManualOrderCurrent($proposal, $actor, $proposal->revision);
 
@@ -195,9 +197,16 @@ class AiIntakeManualService
                 $changed = true;
             }
             if ($changed) {
-                $current->update(['revision' => $current->revision + 1, 'status' => 'ready', 'missing_fields' => [], 'error_code' => null,
-                    'inquiry_ids' => $proposals->pluck('inquiry_id')->unique()->values()->all()]);
-                app(OperationsAuditService::class)->record($current, $actor, 'intake.manual_confirmed', ['source_revision' => $current->source_revision, 'inquiry_ids' => $current->inquiry_ids]);
+                $pending = $proposalId !== null && $proposals->contains(fn ($proposal) => $proposal->status !== 'applied'
+                    && (! $proposal->inquiry_id || empty($proposal->payload['review_confirmation']['actor_id'])
+                        || ($proposal->payload['review_confirmation']['source_revision'] ?? null) !== $current->source_revision
+                        || $proposal->inquiry_revision !== $proposal->inquiry?->revision || $proposal->inquiry?->customer_id !== $current->customer_id));
+                $current->update(['revision' => $current->revision + 1, 'status' => $pending ? 'review' : 'ready',
+                    'missing_fields' => $pending ? ['native_review'] : [], 'error_code' => null,
+                    'inquiry_ids' => $proposals->pluck('inquiry_id')->filter()->unique()->values()->all()]);
+                app(OperationsAuditService::class)->record($current, $actor, 'intake.manual_confirmed',
+                    ['source_revision' => $current->source_revision, 'inquiry_ids' => $current->inquiry_ids]
+                    + ($proposalId !== null ? ['proposal_id' => $proposalId] : []));
             }
 
             return $current;

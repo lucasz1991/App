@@ -91,8 +91,8 @@ class IndependentIntakeFormUiTest extends TestCase
             ->call('addManualPosition')->assertSet('manualEditorOpen', true)
             ->set('proposalForm.demand', $this->demand())->call('saveManualPosition')->assertHasNoErrors()
             ->assertSee('Synthetic service');
-        $this->assertUsableButton($component->html(), 'confirmManual');
-        $component->call('confirmManual')->assertHasNoErrors();
+        $this->assertUsableButton($component->html(), "confirmDrawerPosition('inquiry')");
+        $component->call('confirmDrawerPosition', 'inquiry')->assertHasNoErrors();
         $source->refresh();
         $this->assertSame('manual', $source->processing_mode);
         $this->assertNull($source->processed_source_revision);
@@ -112,7 +112,7 @@ class IndependentIntakeFormUiTest extends TestCase
         $component = Livewire::test(AiIntakeInbox::class, ['initialIntakeId' => $source->id, 'modalOnly' => true])
             ->call('addManualPosition')->set('proposalForm.demand', $this->demand())
             ->set('proposalForm.business_path', 'direct_order')->call('saveManualPosition')->assertHasNoErrors()
-            ->assertSee('Bestätigen und Direktaufträge annehmen')->call('confirmManual')->assertHasNoErrors();
+            ->assertSee('Direktauftrag annehmen')->call('confirmDrawerPosition', 'direct_order')->assertHasNoErrors();
         $inquiry = OperationInquiry::firstOrFail();
         $this->assertSame('converted', $inquiry->status);
         $this->assertNotNull($inquiry->order_id);

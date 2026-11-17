@@ -50,7 +50,7 @@
             <x-ui.buttons.button-basic type="button" mode="primary" wire:click="publishPlanning({{ $proposal->id }},{{ $proposal->revision }})" wire:loading.attr="disabled" wire:confirm="Diese Schichten nach Prüfung von Zeiten, Pausen und Einsatzort zur Besetzung freigeben?">Zur Besetzung freigeben</x-ui.buttons.button-basic>
         @endif
     @endif
-    @if($inquiry->order_id && $canApprove)
+    @if($embedded && $inquiry->order_id && $canApprove)
         <x-ui.buttons.button-basic mode="link" :href="\App\Support\Operations\OperationsPages::url('cases',['view'=>'orders','section'=>'planning','order'=>$inquiry->order_id])" data-no-navigate>Auftragsplanung öffnen</x-ui.buttons.button-basic>
     @endif
 </section>

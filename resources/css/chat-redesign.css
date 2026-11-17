@@ -18,9 +18,8 @@
     --chat-on-accent: theme('colors.white');
     --chat-online: #16a34a;
     --chat-online-text: #15803d;
-    --chat-bubble-own-start: #e4002b;
-    --chat-bubble-own-end: #9f1239;
-    --chat-bubble-own-edge: #c91535;
+    --chat-bubble-own: #eaf2ed;
+    --chat-bubble-own-edge: #cedfd4;
     --chat-bubble-other: #ffffff;
     --chat-bubble-other-edge: #e4e8ef;
     --chat-shadow: color-mix(in srgb, theme('colors.rt-ink') 14%, transparent);
@@ -47,9 +46,8 @@ body[data-mode='dark'] .rt-chat-page {
     --chat-shadow: color-mix(in srgb, theme('colors.black') 36%, transparent);
     --chat-shadow-strong: color-mix(in srgb, theme('colors.black') 62%, transparent);
     --chat-glint: color-mix(in srgb, theme('colors.white') 8%, transparent);
-    --chat-bubble-own-start: #d5274f;
-    --chat-bubble-own-end: #b91c45;
-    --chat-bubble-own-edge: #d92b50;
+    --chat-bubble-own: #253c35;
+    --chat-bubble-own-edge: #3b574b;
     --chat-bubble-other: #202a35;
     --chat-bubble-other-edge: #303b47;
 }
@@ -1144,6 +1142,52 @@ body[data-mode='dark'] .rt-chat-transcript {
     border: 0;
     background: transparent;
     box-shadow: none;
+    color: var(--chat-muted);
+    font-size: 0.6875rem;
+}
+
+/* Call events belong to the transcript, with the same compact scale as messages. */
+.rt-chat-page .rt-chat-call-event {
+    width: min(100%, 24rem);
+    margin: 1rem auto;
+    gap: 0.625rem;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid var(--chat-line);
+    border-radius: 0.875rem;
+    color: var(--chat-ink);
+    background: var(--chat-panel);
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--chat-shadow) 20%, transparent);
+}
+
+.rt-chat-page .rt-chat-call-event > span:first-child {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 0.75rem;
+    color: var(--chat-muted);
+    background: var(--chat-panel-muted);
+}
+
+.rt-chat-call-event > div > p:first-child {
+    font-size: 0.8125rem;
+    font-weight: 650;
+}
+
+.rt-chat-call-event > div > p + p {
+    margin-top: 0.125rem;
+    color: var(--chat-muted);
+    font-size: 0.6875rem;
+    line-height: 1.45;
+}
+
+.rt-chat-call-event > :is(a, button) {
+    display: inline-flex;
+    min-height: 2.75rem;
+    align-items: center;
+    justify-content: center;
+}
+
+.rt-chat-call-event > :is(a, button):not(.rt-chat-icon-button) {
+    color: var(--chat-accent);
 }
 
 .rt-chat-message,
@@ -1156,12 +1200,10 @@ body[data-mode='dark'] .rt-chat-message {
     min-width: 4.25rem;
     padding: 0.68rem 0.88rem;
     border: 1px solid var(--chat-bubble-edge);
-    border-radius: 1.2rem;
+    border-radius: 1rem;
     color: var(--chat-ink);
     background: var(--chat-bubble-surface);
-    box-shadow:
-        0 1px 0 color-mix(in srgb, var(--chat-glint) 74%, transparent) inset,
-        0 9px 24px -18px var(--chat-shadow-strong);
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--chat-shadow) 24%, transparent);
     isolation: isolate;
 }
 
@@ -1170,8 +1212,8 @@ html.dark .rt-chat-message--own,
 body[data-mode='dark'] .rt-chat-message--own {
     --chat-bubble-edge: var(--chat-bubble-own-edge);
 
-    color: var(--chat-on-accent);
-    background: linear-gradient(135deg, var(--chat-bubble-own-start), var(--chat-bubble-own-end));
+    color: var(--chat-ink);
+    background: var(--chat-bubble-own);
     border-bottom-right-radius: 0.32rem;
 }
 
@@ -1188,7 +1230,7 @@ body[data-mode='dark'] .rt-chat-message--other {
     /* 100 % meint hier die 85-%-Zeile, nicht das Fenster — der Player bleibt
        damit innerhalb derselben Grenze wie jede andere Blase. */
     width: min(21rem, 100%);
-    padding: 0.42rem 0.48rem 0.36rem;
+    padding: 0.55rem 0.7rem 0.45rem;
 }
 
 .rt-chat-message--attachment {
@@ -1218,9 +1260,9 @@ body[data-mode='dark'] .rt-chat-message--other {
 
 .rt-chat-message-copy {
     max-width: 58ch;
-    font-size: 0.8125rem;
-    font-weight: 520;
-    line-height: 1.48;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.55;
     letter-spacing: -0.006em;
     text-wrap: pretty;
 }
@@ -1245,9 +1287,9 @@ body[data-mode='dark'] .rt-chat-message-meta {
 .rt-chat-message-meta {
     margin-top: 0.34rem;
     padding-inline: 0.22rem;
-    font-size: 0.5625rem;
-    font-weight: 650;
-    letter-spacing: 0.025em;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0;
     user-select: none;
 }
 
@@ -1264,13 +1306,13 @@ body[data-mode='dark'] .rt-chat-message-meta {
 }
 
 .rt-chat-message--own .rt-chat-reply-quote {
-    border-left-color: color-mix(in srgb, var(--chat-on-accent) 78%, transparent);
-    color: color-mix(in srgb, var(--chat-on-accent) 86%, transparent);
-    background: color-mix(in srgb, theme('colors.black') 12%, transparent);
+    border-left-color: var(--chat-accent);
+    color: var(--chat-ink);
+    background: color-mix(in srgb, var(--chat-ink) 5%, transparent);
 }
 
 .rt-chat-message--own .rt-chat-reply-quote > span:first-child {
-    color: var(--chat-on-accent);
+    color: var(--chat-accent);
 }
 
 [data-chat-message-action-trigger][aria-expanded='true'] {
@@ -1488,18 +1530,18 @@ button.rt-chat-reaction-chip:focus-visible {
 .rt-voice-play {
     position: relative;
     overflow: visible;
+    width: 2.75rem;
+    height: 2.75rem;
     border: 1px solid color-mix(in srgb, var(--chat-accent) 74%, var(--chat-bubble-edge));
     color: var(--chat-on-accent);
-    background: var(--chat-accent);
-    box-shadow:
-        0 0 0 0.25rem color-mix(in srgb, var(--chat-accent) 10%, transparent),
-        0 0.65rem 1.25rem -0.75rem color-mix(in srgb, var(--chat-accent) 64%, transparent);
+    background: theme('colors.rt-red.DEFAULT');
+    box-shadow: none;
 }
 
 .rt-voice-play:hover,
 .rt-voice-play:focus-visible {
     color: var(--chat-on-accent);
-    background: var(--chat-accent-strong);
+    background: theme('colors.rt-red.dark');
     transform: translateY(-1px) scale(1.025);
 }
 
@@ -1519,10 +1561,8 @@ button.rt-chat-reaction-chip:focus-visible {
 
 .rt-voice-message[data-playing='true'] .rt-voice-play,
 .rt-voice-message[data-loading='true'] .rt-voice-play {
-    background: var(--chat-accent-strong);
-    box-shadow:
-        0 0 0 0.28rem color-mix(in srgb, var(--chat-accent) 13%, transparent),
-        0 0.75rem 1.4rem -0.72rem color-mix(in srgb, var(--chat-accent) 72%, transparent);
+    background: theme('colors.rt-red.dark');
+    box-shadow: 0 0 0 0.18rem color-mix(in srgb, var(--chat-accent) 12%, transparent);
 }
 
 .rt-voice-message[data-playing='true'] .rt-voice-play::after,
@@ -1537,13 +1577,13 @@ button.rt-chat-reaction-chip:focus-visible {
 
 .rt-voice-heading {
     min-height: 1.35rem;
-    color: var(--chat-muted);
+    color: var(--chat-ink);
 }
 
 .rt-voice-title {
-    font-size: 0.625rem;
-    font-weight: 780;
-    letter-spacing: 0.025em;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0;
 }
 
 .rt-voice-title > i {
@@ -1556,8 +1596,9 @@ button.rt-chat-reaction-chip:focus-visible {
     border-radius: 0.48rem;
     color: var(--chat-ink);
     background: color-mix(in srgb, var(--chat-ink) 6%, transparent);
-    font-size: 0.65rem;
-    font-weight: 760;
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
     line-height: 1;
     text-align: center;
 }
@@ -1578,7 +1619,7 @@ button.rt-chat-reaction-chip:focus-visible {
     max-width: none;
     flex: 1 1 0%;
     min-height: 0.3rem;
-    opacity: 0.24;
+    opacity: 0.85;
     transform: scaleY(0.84);
     transform-origin: center;
 }

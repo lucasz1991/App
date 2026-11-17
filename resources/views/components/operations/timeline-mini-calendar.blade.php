@@ -1,8 +1,8 @@
-@props(['start', 'end'])
+@props(['start', 'end', 'variant' => 'default', 'timeLabel' => null, 'timeTitle' => null])
 
 @php($calendar = \App\Support\Operations\TimelineMiniCalendar::forInterval($start, $end))
 
-<figure {{ $attributes->class(['rt-event-mini-calendar']) }} role="img" aria-label="{{ $calendar['accessible_label'] }}">
+<figure {{ $attributes->class(['rt-event-mini-calendar', 'rt-event-mini-calendar--intake' => $variant === 'intake']) }} role="img" aria-label="{{ $calendar['accessible_label'] }}{{ $timeTitle ? ' '.$timeTitle : '' }}">
     <div class="rt-event-mini-calendar__header" aria-hidden="true">
         <span class="rt-event-mini-calendar__month">{{ $calendar['month_label'] }}</span>
     </div>
@@ -20,5 +20,9 @@
             ]) data-date="{{ $day['date'] }}">{{ $day['number'] }}</span>
         @endforeach
     </div>
-    <figcaption class="rt-event-mini-calendar__range" aria-hidden="true">{{ $calendar['range_label'] }}</figcaption>
+    @if($variant === 'intake' && $timeLabel)
+        <figcaption class="rt-intake-visuals__time" title="{{ $timeTitle }}" aria-hidden="true"><i class="far fa-clock" aria-hidden="true"></i><span>{{ $timeLabel }}</span></figcaption>
+    @else
+        <figcaption class="rt-event-mini-calendar__range" aria-hidden="true">{{ $calendar['range_label'] }}</figcaption>
+    @endif
 </figure>

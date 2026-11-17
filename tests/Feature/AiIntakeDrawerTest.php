@@ -15,6 +15,7 @@ use App\Support\Operations\AiDispositionSettings;
 use DOMDocument;
 use DOMElement;
 use DOMXPath;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
@@ -389,6 +390,218 @@ class AiIntakeDrawerTest extends TestCase
         $component->call('setDetailTab', 'assistant')->assertSet('detailTab', 'assistant')
             ->assertDispatched('ai-intake-discussion-open');
         $this->assertSame('assisted', $source->fresh()->processing_mode);
+        $this->assertNoExternalEffects();
+    }
+
+    private function twoPositionSource(array $changes = []): AiIntake
+    {
+        $source = $this->source(array_replace(['processing_mode' => 'manual', 'status' => 'review'], $changes));
+        foreach (['inquiry', 'direct_order'] as $index => $path) {
+            $source->proposals()->create(['source_revision' => 1, 'position_index' => $index, 'revision' => 1,
+                'status' => 'proposed', 'payload' => ['demand' => array_replace($this->demand(), ['title' => 'Synthetic service '.($index + 1)]),
+                    'segments' => [], 'business_path' => $path]]);
+        }
+
+        return $source->fresh();
+    }
+
+    public function test_position_selection_is_read_only_and_footer_actions_have_an_explicit_scope(): void
+    {
+        $source = $this->twoPositionSource();
+        $proposals = $source->proposals()->orderBy('position_index')->get();
+        $before = $source->getRawOriginal();
+        $component = $this->drawer($source)->assertSet('drawerProposalId', $proposals[0]->id);
+        $component->assertViewHas('drawerState', fn ($state) => $state['activeProposalId'] === $proposals[0]->id
+            && $state['primary']['action'] === "confirmDrawerPosition('inquiry')"
+            && $state['secondary']['action'] === "confirmDrawerPosition('direct_order')");
+        $dom = $this->dom($component->html());
+        foreach ($dom->query('//*[@data-intake-drawer]//button') as $button) {
+            $command = $button->getAttribute('wire:click');
+            $this->assertFalse((bool) preg_match('/^(confirm|takeDirectOrder|publishPlanning|openPlanning|openAssist|editCustomerAssignment|pause|reanalyze)/', $command), 'Workflow controls belong in the footer.');
+        }
+        $footer = $dom->query('//*[@data-intake-drawer-footer]')->item(0);
+        $this->assertInstanceOf(DOMElement::class, $footer);
+        $commands = array_map(fn ($button) => $button->getAttribute('wire:click'), iterator_to_array($dom->query('.//button', $footer)));
+        $this->assertContains("confirmDrawerPosition('inquiry')", $commands);
+        $this->assertContains("confirmDrawerPosition('direct_order')", $commands);
+        $this->assertContains('openAssist', $commands);
+        $component->call('selectDrawerPosition', $proposals[1]->id)->assertHasNoErrors()
+            ->assertSet('drawerProposalId', $proposals[1]->id)
+            ->assertViewHas('drawerState', fn ($state) => $state['activeProposalId'] === $proposals[1]->id);
+        $this->assertSame($before, $source->fresh()->getRawOriginal());
+        $this->assertDatabaseCount('operation_inquiries', 0);
+        $this->assertDatabaseCount('operation_audits', 0);
+        $this->assertNoExternalEffects();
+    }
+
+    public function test_saving_a_new_position_moves_the_display_and_acceptance_to_that_position(): void
+    {
+        $source = $this->source();
+        $component = $this->drawer($source)->call('addManualPosition')->set('proposalForm.demand', $this->demand())
+            ->call('saveManualPosition')->assertHasNoErrors();
+        $first = $source->proposals()->sole();
+        $component->assertSet('drawerProposalId', $first->id)->call('addManualPosition')
+            ->set('proposalForm.demand', array_replace($this->demand(), ['title' => 'Newly saved second service']))
+            ->call('saveManualPosition')->assertHasNoErrors();
+        $second = $source->proposals()->where('id', '!=', $first->id)->sole();
+        $component->assertSet('drawerProposalId', $second->id)->assertSee('Newly saved second service')
+            ->assertViewHas('drawerState', fn ($state) => $state['activeProposalId'] === $second->id)
+            ->call('confirmDrawerPosition', 'inquiry')->assertHasNoErrors();
+        $this->assertNull($first->fresh()->inquiry_id);
+        $this->assertNotNull($second->fresh()->inquiry_id);
+        $this->assertDatabaseCount('operation_inquiries', 1);
+        $this->assertDatabaseCount('orders', 0);
+        $this->assertNoExternalEffects();
+    }
+
+    public function test_accepting_one_inquiry_does_not_accept_the_other_direct_order_position(): void
+    {
+        $source = $this->twoPositionSource();
+        [$first, $second] = $source->proposals()->orderBy('position_index')->get()->all();
+        $secondBefore = $second->getRawOriginal();
+        $this->drawer($source)->call('confirmDrawerPosition', 'inquiry')->assertHasNoErrors()
+            ->assertViewHas('drawerState', fn ($state) => $state['primary']['key'] === 'inquiry' && $state['secondary']['key'] === 'direct');
+        $this->assertDatabaseCount('operation_inquiries', 1);
+        $this->assertDatabaseCount('orders', 0);
+        $this->assertNotNull($first->fresh()->inquiry_id);
+        $this->assertSame($secondBefore, $second->fresh()->getRawOriginal());
+        $this->assertSame('review', $source->fresh()->status);
+        $this->assertNoExternalEffects();
+    }
+
+    public function test_accepting_the_selected_direct_order_leaves_the_other_position_unconfirmed(): void
+    {
+        $source = $this->twoPositionSource();
+        [$first, $second] = $source->proposals()->orderBy('position_index')->get()->all();
+        $firstBefore = $first->getRawOriginal();
+        $this->drawer($source)->call('selectDrawerPosition', $second->id)
+            ->call('confirmDrawerPosition', 'direct_order')->assertHasNoErrors()
+            ->assertSet('drawerProposalId', $second->id)
+            ->assertViewHas('drawerState', fn ($state) => $state['primary']['action'] === 'openPlanning('.$second->id.','.$second->fresh()->revision.')'
+                && $state['secondary']['key'] === 'order');
+        $this->assertDatabaseCount('operation_inquiries', 1);
+        $this->assertDatabaseCount('orders', 1);
+        $this->assertNotNull($second->fresh()->inquiry->order_id);
+        $this->assertNull($second->fresh()->inquiry->offer);
+        $this->assertSame($firstBefore, $first->fresh()->getRawOriginal());
+        $this->assertSame(0, OperationAudit::whereIn('action', ['inquiry.offer', 'inquiry.accept'])->count());
+        $this->assertNoExternalEffects();
+    }
+
+    public function test_inquiry_choice_overrides_the_selected_direct_draft_without_accepting_an_order(): void
+    {
+        $source = $this->twoPositionSource();
+        $second = $source->proposals()->orderBy('position_index')->get()[1];
+        $this->drawer($source)->call('selectDrawerPosition', $second->id)
+            ->call('confirmDrawerPosition', 'inquiry')->assertHasNoErrors();
+        $this->assertSame('inquiry', $second->fresh()->payload['business_path']);
+        $this->assertSame('verified', $second->fresh()->inquiry->status);
+        $this->assertDatabaseCount('operation_inquiries', 1);
+        $this->assertDatabaseCount('orders', 0);
+        $this->assertNoExternalEffects();
+    }
+
+    public function test_direct_choice_is_explicit_even_when_the_original_proposal_was_an_inquiry(): void
+    {
+        $source = $this->twoPositionSource(['processing_mode' => 'assisted']);
+        [$first, $second] = $source->proposals()->orderBy('position_index')->get()->all();
+        $this->drawer($source)->call('confirmDrawerPosition', 'direct_order')->assertHasNoErrors();
+        $this->assertSame('manual', $source->fresh()->processing_mode);
+        $this->assertSame('direct_order', $first->fresh()->payload['business_path']);
+        $this->assertNotNull($first->fresh()->inquiry->order_id);
+        $this->assertNull($second->fresh()->inquiry_id);
+        $this->assertDatabaseCount('operation_inquiries', 1);
+        $this->assertDatabaseCount('orders', 1);
+        $this->assertNoExternalEffects();
+    }
+
+    public function test_direct_choice_rechecks_permission_before_claiming_or_saving_any_source(): void
+    {
+        $source = $this->twoPositionSource(['processing_mode' => 'assisted']);
+        $before = $source->getRawOriginal();
+        $proposalsBefore = $source->proposals()->get()->map->getRawOriginal()->all();
+        $limited = User::factory()->create(['role' => 'staff', 'status' => true]);
+        Gate::define('operations.inquiries.manage', fn () => true);
+        Gate::define('operations.manage', fn () => false);
+        $this->actingAs($limited);
+        $this->drawer($source)->call('confirmDrawerPosition', 'direct_order')->assertStatus(403);
+        $this->assertSame($before, $source->fresh()->getRawOriginal());
+        $this->assertSame($proposalsBefore, $source->proposals()->get()->map->getRawOriginal()->all());
+        $this->assertDatabaseCount('operation_inquiries', 0);
+        $this->assertDatabaseCount('operation_audits', 0);
+        $this->assertNoExternalEffects();
+    }
+
+    public function test_selected_confirmation_rejects_a_changed_sibling_before_manual_takeover(): void
+    {
+        $source = $this->twoPositionSource(['processing_mode' => 'assisted']);
+        $component = $this->drawer($source);
+        $source->proposals()->orderByDesc('position_index')->first()->increment('revision');
+        $before = $source->fresh()->getRawOriginal();
+        $component->call('confirmDrawerPosition', 'inquiry')->assertHasErrors('intake');
+        $this->assertSame($before, $source->fresh()->getRawOriginal());
+        $this->assertDatabaseCount('operation_inquiries', 0);
+        $this->assertDatabaseCount('operation_audits', 0);
+        $this->assertNoExternalEffects();
+    }
+
+    public function test_rejected_selected_confirmation_rolls_back_takeover_without_staling_the_drawer_snapshot(): void
+    {
+        $source = $this->twoPositionSource(['processing_mode' => 'assisted']);
+        $proposal = $source->proposals()->orderBy('position_index')->first();
+        $payload = $proposal->payload;
+        $payload['demand']['ends_at'] = '2027-05-12T16:00';
+        $proposal->update(['payload' => $payload]);
+        $before = $source->getRawOriginal();
+        $proposalsBefore = $source->proposals()->get()->map->getRawOriginal()->all();
+        $this->drawer($source)->call('confirmDrawerPosition', 'direct_order')->assertHasErrors('intake')
+            ->assertSet('selectedRevision', $source->revision)
+            ->assertViewHas('drawerState', fn ($state) => $state['stale'] === false);
+        $this->assertSame($before, $source->fresh()->getRawOriginal());
+        $this->assertSame($proposalsBefore, $source->proposals()->get()->map->getRawOriginal()->all());
+        $this->assertDatabaseCount('operation_inquiries', 0);
+        $this->assertDatabaseCount('orders', 0);
+        $this->assertDatabaseCount('operation_audits', 0);
+        $this->assertNoExternalEffects();
+    }
+
+    public function test_new_footer_actions_and_position_switch_preserve_an_unsaved_form(): void
+    {
+        $source = $this->twoPositionSource();
+        [$first, $second] = $source->proposals()->orderBy('position_index')->get()->all();
+        $component = $this->drawer($source)->call('editProposal', $first->id)
+            ->set('proposalForm.demand.title', 'Unsaved selected position');
+        $before = $source->fresh()->getRawOriginal();
+        $component->call('selectDrawerPosition', $second->id)->assertHasErrors('intake')
+            ->assertSet('drawerProposalId', $first->id)->assertSet('proposalForm.demand.title', 'Unsaved selected position');
+        $component->call('confirmDrawerPosition', 'direct_order')->assertHasErrors('intake')
+            ->call('pause')->assertHasErrors('intake')
+            ->assertSet('proposalForm.demand.title', 'Unsaved selected position');
+        $this->assertSame($before, $source->fresh()->getRawOriginal());
+        $this->assertDatabaseCount('operation_inquiries', 0);
+        $this->assertDatabaseCount('orders', 0);
+        $this->assertNoExternalEffects();
+    }
+
+    public function test_paused_source_cannot_be_accepted_through_a_new_footer_action(): void
+    {
+        $source = $this->twoPositionSource(['status' => 'paused', 'paused_at' => now()]);
+        $before = $source->getRawOriginal();
+        $this->drawer($source)->assertViewHas('drawerState', fn ($state) => $state['primary'] === null && $state['secondary'] === null)
+            ->call('confirmDrawerPosition', 'direct_order')->assertHasErrors('intake');
+        $this->assertSame($before, $source->fresh()->getRawOriginal());
+        $this->assertDatabaseCount('operation_inquiries', 0);
+        $this->assertDatabaseCount('orders', 0);
+        $this->assertNoExternalEffects();
+    }
+
+    public function test_existing_bulk_confirmation_still_uses_each_positions_saved_path(): void
+    {
+        $source = $this->twoPositionSource();
+        $this->drawer($source)->call('confirmManual')->assertHasNoErrors();
+        $this->assertDatabaseCount('operation_inquiries', 2);
+        $this->assertDatabaseCount('orders', 1);
+        $this->assertSame('ready', $source->fresh()->status);
         $this->assertNoExternalEffects();
     }
 }

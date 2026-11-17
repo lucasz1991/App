@@ -92,6 +92,7 @@ import { filePoolDropzone, filePoolExternalDrop } from './filepool-upload';
 import { registerRailtimeLiveLocation } from './live-location';
 import { createEmployeeLastLocation } from './employee-last-location';
 import { registerRoutingMap } from './routing-map';
+import { registerIntakeLocationMap } from './intake-location-map';
 import {
     MAIL_SIGNATURE_SCHEMA,
     createMailBuilder,
@@ -666,6 +667,7 @@ setupRailtimePwa();
 const rtLiveLocation = registerRailtimeLiveLocation(Alpine);
 createEmployeeLastLocation().start();
 registerRoutingMap(Alpine);
+registerIntakeLocationMap(Alpine);
 
 Alpine.data('wagonListPrototype', wagonListPrototype);
 Alpine.data('wagonVideoCapture', wagonVideoCapture);

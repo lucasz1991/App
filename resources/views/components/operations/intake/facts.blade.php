@@ -10,6 +10,7 @@
     };
     $reviewRows = $variant === 'review';
     $drawerRows = $variant === 'drawer';
+    if ($drawerRows) $fields = ['role_name' => ['Tätigkeit', 'fa-user-hard-hat'], 'required_staff' => ['Personalbedarf', 'fa-users']];
     $isConfirmed = filter_var($confirmed, FILTER_VALIDATE_BOOL);
     $starts = $parseLocal($demand['starts_at'] ?? null);
     $ends = $parseLocal($demand['ends_at'] ?? null);
@@ -36,7 +37,6 @@
             <dt><i class="far {{ $icon }}" aria-hidden="true"></i>{{ $label }}</dt>
             <dd @class(['rt-intake-facts__missing' => $value === null || $value === '' || $drawerStaffOpen])>
                 <span>{{ $drawerStaffOpen ? 'Bitte ergänzen' : ($value === null || $value === '' ? 'Noch offen' : $value) }}</span>
-                @if($drawerStaffOpen)<small class="rt-intake-facts__staff-note">{{ $defaultStaff ? 'Im Original nicht genannt.' : 'Vor der Übernahme prüfen.' }}</small>@endif
                 @if($reviewRows && $key === 'required_staff' && $defaultStaff)
                     <span class="rt-intake-facts__assumption">{{ $isConfirmed ? 'Bestätigt' : 'Vorschlag' }}</span>
                     <small class="rt-intake-facts__staff-note" title="In der Mail fehlt eine Personalanzahl." role="status">Standardvorschlag: {{ $value === null || $value === '' ? 'Bitte prüfen' : $value }} · {{ $isConfirmed ? 'Bestätigt.' : 'Bitte bestätigen oder anpassen.' }}</small>

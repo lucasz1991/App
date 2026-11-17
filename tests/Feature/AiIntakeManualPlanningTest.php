@@ -429,9 +429,10 @@ class AiIntakeManualPlanningTest extends TestCase
         $order = Order::findOrFail($inquiry->order_id);
 
         $component = Livewire::actingAs($this->actor)->test(AiIntakeInbox::class, ['initialIntakeId' => $intake->id])
-            ->assertSee('Schichten prüfen und vorbereiten')
+            ->assertViewHas('drawerState', fn ($state) => $state['primary']['action'] === 'openPlanning('.$proposal->id.','.$proposal->revision.')')
             ->call('openPlanning', $proposal->id, $proposal->revision)
             ->assertSet('planningProposalId', $proposal->id)
+            ->assertViewHas('drawerState', fn ($state) => $state['primary']['action'] === 'preparePlanning' && $state['cancelAction'] === 'closePlanning')
             ->assertSet('planningSegments.0.starts_at', '2027-05-13T08:00')
             ->set('planningSegments.0.planned_break_minutes', '')
             ->call('preparePlanning')
@@ -441,6 +442,7 @@ class AiIntakeManualPlanningTest extends TestCase
             ->set('planningSegments.0.planned_break_minutes', 30)
             ->call('preparePlanning')
             ->assertHasNoErrors()
+            ->assertViewHas('drawerState', fn ($state) => $state['primary']['key'] === 'publish' && $state['secondary']['key'] === 'shift-'.$proposal->fresh()->applied_shift_ids[0])
             ->assertDispatched('operations-plan-changed');
 
         $proposal->refresh();
@@ -478,6 +480,8 @@ class AiIntakeManualPlanningTest extends TestCase
             ->call('select', $intake->id)
             ->call('publishPlanning', $proposal->id, $proposal->fresh()->revision)
             ->assertHasNoErrors()
+            ->assertViewHas('drawerState', fn ($state) => $state['primary']['key'] === 'shift-'.$shift->id
+                && $state['primary']['label'] === 'Besetzung öffnen' && $state['secondary']['key'] === 'order')
             ->assertDispatched('operations-plan-changed');
 
         $shift->refresh();

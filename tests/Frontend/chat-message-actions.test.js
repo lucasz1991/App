@@ -332,12 +332,13 @@ test('reference motion and geometry stay compact, branded, and reduced-motion sa
 
     assert.match(lineRule, /max-width:\s*78%/);
     assert.match(styles, /\.rt-chat-message-line--group\s*\{[\s\S]*?align-items:\s*flex-start/);
-    assert.match(ownRule, /linear-gradient\(135deg, var\(--chat-bubble-own-start\), var\(--chat-bubble-own-end\)\)/);
+    assert.match(ownRule, /background:\s*var\(--chat-bubble-own\)/);
+    assert.match(ownRule, /color:\s*var\(--chat-ink\)/);
     assert.match(transcriptRule, /background-image:\s*none/);
     assert.match(styles, /@keyframes rt-chat-typing-dot/);
     assert.match(styles, /prefers-reduced-motion:[\s\S]*?\.rt-chat-typing-bubble > span/);
     assert.match(styles, /--chat-online-text:\s*#15803d/);
-    assert.match(styles, /--chat-bubble-own-start:\s*#d5274f/);
+    assert.match(styles, /--chat-bubble-own:\s*#253c35/);
     assert.match(styles, /\.rt-chat-header-action\s*\{[\s\S]*?border-radius:\s*9999px/);
     assert.match(styles, /\.rt-chat-options-trigger\s*\{[\s\S]*?border-radius:\s*9999px !important/);
     assert.match(styles, /\.rt-chat-options-trigger\s*\{[\s\S]*?width:\s*2\.75rem !important[\s\S]*?height:\s*2\.75rem !important/);
