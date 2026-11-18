@@ -32,7 +32,7 @@ function fixture({ width = 1440, height = 1000, reduced = false, animate = true 
         <header data-rt-shell-topbar></header><main id="main-content"><div class="rt-app-page-frame"></div></main>
         <div data-communication-host data-app-badge-count="3"><section id="panel">
         <header id="head"><div role="tablist">${['chats', 'calls', 'meetings'].map(tab => `<button role="tab" data-comm-tab="${tab}">${tab}</button>`).join('')}</div><div id="handle" aria-label="Fensterposition"></div></header>
-        <div data-communication-chat="true" data-mobile-pane="list"><textarea id="draft"></textarea></div>
+        <div data-communication-chat="true" data-active-chat-id="0" data-mobile-pane="list"><textarea id="draft"></textarea></div>
         <div id="persistent-call"></div></section></div>
         <div data-rt-floating-launcher-group><div data-rt-floating-launcher-item="communication"><button id="launcher" data-rt-floating-launcher></button></div></div>
     </body></html>`);
@@ -304,11 +304,50 @@ test('workspace accessibility restores existing inert and aria state after mini 
 
 test('chat read visibility is false when closed another tab or hidden and tracks the actual chat pane', () => {
     const f = fixture(); const chat = f.root.querySelector('[data-communication-chat]');
-    chat.dataset.mobilePane = 'chat'; f.component.show(); f.flush();
+    chat.dataset.activeChatId = '17'; chat.dataset.mobilePane = 'chat'; f.component.show(); f.flush();
     assert.equal(f.dispatches.at(-1).name, 'communication:visibility'); assert.equal(f.dispatches.at(-1).payload.visible, true);
     f.component.selectTab('meetings'); f.flush(); assert.equal(f.dispatches.at(-1).payload.visible, false);
     f.component.selectTab('chats'); f.flush(); f.visibility('hidden'); assert.equal(f.dispatches.at(-1).payload.visible, false);
     f.visibility('visible'); f.component.close(); f.flush(); assert.equal(f.dispatches.at(-1).payload.visible, false); f.component.destroy();
+});
+
+test('fullscreen reads the selected conversation beside the list only at desktop widths', () => {
+    const f = fixture({ width: 961 });
+    const chat = f.root.querySelector('[data-communication-chat]');
+    const assertVisibleChat = expected => {
+        assert.equal(f.dispatches.at(-1).payload.visible, expected > 0);
+        assert.equal(activeVisibleChatId({ documentLike: f.document, windowLike: f.window }), expected);
+    };
+    f.component.show('fullscreen'); f.flush();
+    assertVisibleChat(0);
+    chat.dataset.activeChatId = '17';
+    f.emit('communication:chat-pane'); f.flush();
+    assertVisibleChat(17);
+
+    f.window.innerWidth = 760; f.emit('resize'); f.flush();
+    assertVisibleChat(0);
+    f.window.innerWidth = 761; f.emit('resize'); f.flush();
+    assertVisibleChat(17);
+    f.component.resize(); f.flush();
+    assertVisibleChat(0);
+    f.component.destroy();
+});
+
+test('Escape leaves desktop split view and returns from a compact conversation to its list', () => {
+    const f = fixture();
+    const chat = f.root.querySelector('[data-communication-chat]');
+    chat.dataset.activeChatId = '17'; chat.dataset.mobilePane = 'chat';
+    let listEvents = 0;
+    f.window.addEventListener('chat:pane-list', () => listEvents++);
+    f.component.show('fullscreen'); f.flush();
+    const escape = () => f.event(f.document.querySelector('#draft'), 'keydown', { key: 'Escape' });
+    assert.ok(escape().defaultPrevented); f.flush();
+    assert.equal(listEvents, 0);
+    assert.equal(f.component.mode, 'mini');
+    assert.ok(escape().defaultPrevented); f.flush();
+    assert.equal(listEvents, 1);
+    assert.equal(f.component.open, true);
+    f.component.destroy();
 });
 
 test('history intent uses native authorization entry while preserving an ongoing call', () => {

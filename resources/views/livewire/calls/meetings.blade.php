@@ -22,33 +22,33 @@
                 @endif
             </x-slot:actions>
         </x-ui.floating.toolbar>
-        <div class="rt-comm-meeting-list scroll-container min-h-0 flex-1 space-y-3 overflow-y-auto bg-[#e4e8ee] p-3 dark:bg-rt-dark-surface-muted">
-            @unless ($planningReady)<p role="status" class="rounded-2xl bg-white p-4 text-sm dark:bg-rt-dark-surface">Die Terminplanung ist noch nicht verfügbar. Sofortmeetings bleiben verfügbar.</p>@endunless
+        <div class="rt-comm-meeting-list scroll-container min-h-0 flex-1 overflow-y-auto">
+            @unless ($planningReady)<p role="status" class="rounded-2xl p-4 text-sm">Die Terminplanung ist noch nicht verfügbar. Sofortmeetings bleiben verfügbar.</p>@endunless
             @foreach ($live as $room)
-                <article class="rt-comm-meeting-card rt-comm-meeting-card--live flex items-center gap-3 rounded-2xl bg-white p-4 dark:bg-rt-dark-surface" wire:key="meeting-live-{{ $room->id }}">
-                    <i class="far fa-signal-stream text-emerald-600" aria-hidden="true"></i><div class="min-w-0 flex-1"><p class="truncate text-sm font-bold">{{ $room->name }}</p><p class="text-xs">Läuft jetzt · {{ $room->owner?->name }}</p></div>
+                <article class="rt-comm-meeting-card rt-comm-meeting-card--live flex items-center" wire:key="meeting-live-{{ $room->id }}">
+                    <i class="far fa-signal-stream" aria-hidden="true"></i><div class="min-w-0 flex-1"><p class="truncate text-sm font-bold">{{ $room->name }}</p><p class="text-xs">Läuft jetzt · {{ $room->owner?->name }}</p></div>
                     <button type="button" wire:click="join({{ $room->id }})" wire:loading.attr="disabled" class="rt-comm-meeting-join min-h-11 shrink-0 rounded-lg px-3 text-sm font-semibold">Beitreten</button>
                 </article>
             @endforeach
             @forelse ($plans ?? [] as $meeting)
-                <button type="button" wire:click="openMeeting({{ $meeting->id }})" class="rt-comm-meeting-card flex w-full items-center gap-3 rounded-2xl bg-white p-4 text-left dark:bg-rt-dark-surface" wire:key="meeting-plan-{{ $meeting->id }}">
+                <button type="button" wire:click="openMeeting({{ $meeting->id }})" class="rt-comm-meeting-card flex w-full items-center text-left" wire:key="meeting-plan-{{ $meeting->id }}">
                     <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-surface-muted text-rt-red dark:bg-rt-dark-surface-muted"><i class="far fa-calendar" aria-hidden="true"></i></span>
                     <span class="min-w-0 flex-1"><span class="block truncate text-sm font-bold">{{ $meeting->title }}</span><span class="block text-xs text-rt-muted dark:text-rt-dark-muted">{{ $meeting->starts_at->setTimezone($meeting->timezone)->format('d.m.Y H:i') }} · {{ $meeting->timezone }}</span><span class="block text-xs text-rt-muted dark:text-rt-dark-muted">{{ $meeting->status === 'cancelled' ? 'Abgesagt' : $meeting->owner?->name }} · {{ $meeting->participants->where('response', 'accepted')->count() }}/{{ $meeting->participants->count() }} zugesagt</span></span><i class="far fa-chevron-right text-xs text-rt-muted" aria-hidden="true"></i>
                 </button>
             @empty
-                @if ($planningReady)<p class="rt-comm-meeting-empty py-10 text-center text-sm text-rt-muted dark:text-rt-dark-muted">Keine passenden Termine.</p>@endif
+                @if ($planningReady)<p class="rt-comm-meeting-empty text-center text-sm">Keine passenden Termine.</p>@endif
             @endforelse
             @if ($plans?->hasPages()){{ $plans->links() }}@endif
         </div>
     @elseif ($pane === 'form')
-        <div class="rt-comm-meeting-heading flex shrink-0 items-center gap-2 border-b border-rt-border/60 p-2 dark:border-rt-dark-border/60"><button type="button" wire:click="showList" class="h-11 w-11 rounded-xl" aria-label="Zurück zur Meetingliste"><i class="far fa-arrow-left" aria-hidden="true"></i></button><p class="text-sm font-bold">{{ $formMode === 'instant' ? 'Jetzt starten' : 'Meeting planen' }}</p></div>
-        <form wire:submit="{{ $formMode === 'instant' ? 'createMeeting' : 'savePlan' }}" class="rt-comm-meeting-form scroll-container min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
-            <label class="block text-xs font-semibold">Titel<x-ui.forms.input wire:model="name" class="mt-1 w-full" maxlength="120" required /></label><x-input-error for="name" /><x-input-error for="title" />
+        <div class="rt-comm-meeting-heading flex shrink-0 items-center gap-2 border-b border-rt-border/60 p-2 dark:border-rt-dark-border/60"><button type="button" wire:click="showList" class="h-11 w-11 rounded-xl" aria-label="Zurück zur Meetingliste"><i class="far fa-arrow-left" aria-hidden="true"></i></button><p class="font-bold">{{ $formMode === 'instant' ? 'Jetzt starten' : 'Meeting planen' }}</p></div>
+        <form wire:submit="{{ $formMode === 'instant' ? 'createMeeting' : 'savePlan' }}" class="rt-comm-meeting-form scroll-container min-h-0 flex-1 space-y-4 overflow-y-auto">
+            <label class="block font-semibold">Titel<x-ui.forms.input wire:model="name" maxlength="120" required /></label><x-input-error for="name" /><x-input-error for="title" />
             @if ($formMode !== 'instant')
-                <label class="block text-xs font-semibold">Zeitzone<x-ui.forms.input wire:model="timezone" class="mt-1 w-full" required /></label><x-input-error for="timezone" />
-                <label class="block text-xs font-semibold">Beginn<x-ui.forms.input type="datetime-local" wire:model="startsAt" class="mt-1 w-full" required /></label><x-input-error for="starts_at" />
-                <label class="block text-xs font-semibold">Ende<x-ui.forms.input type="datetime-local" wire:model="endsAt" class="mt-1 w-full" required /></label><x-input-error for="ends_at" />
-                @if ($formMode === 'plan')<fieldset class="space-y-2"><legend class="mb-2 text-xs font-semibold">Teilnehmer · {{ count($participantIds) }} ausgewählt</legend><label class="block"><span class="sr-only">Teilnehmer suchen</span><x-ui.forms.input type="search" wire:model.live.debounce.300ms="participantSearch" class="w-full" placeholder="Name suchen" /></label>
+                <label class="block font-semibold">Zeitzone<x-ui.forms.input wire:model="timezone" required /></label><x-input-error for="timezone" />
+                <label class="block font-semibold">Beginn<x-ui.forms.input type="datetime-local" wire:model="startsAt" required /></label><x-input-error for="starts_at" />
+                <label class="block font-semibold">Ende<x-ui.forms.input type="datetime-local" wire:model="endsAt" required /></label><x-input-error for="ends_at" />
+                @if ($formMode === 'plan')<fieldset><legend class="mb-2 font-semibold">Teilnehmer · {{ count($participantIds) }} ausgewählt</legend><label class="block"><span class="sr-only">Teilnehmer suchen</span><x-ui.forms.input type="search" wire:model.live.debounce.300ms="participantSearch" class="w-full" placeholder="Name suchen" /></label>
                     @foreach ($candidates as $candidate)<label class="flex min-h-11 items-center gap-3 p-3" wire:key="meeting-person-{{ $candidate->id }}"><x-ui.forms.checkbox wire:model="participantIds" value="{{ $candidate->id }}" /><span class="text-sm">{{ $candidate->name }}</span></label>@endforeach
                 </fieldset><x-input-error for="participant_ids" />@endif
             @endif
@@ -57,9 +57,9 @@
         </form>
     @elseif ($selectedMeeting)
         @php $myResponse = $selectedMeeting->participants->firstWhere('user_id', auth()->id())?->response; $activeSession = $selectedMeeting->sessions->first(fn ($room) => $room->isActive()); $isOwner = (int) $selectedMeeting->owner_id === (int) auth()->id(); @endphp
-        <div class="rt-comm-meeting-heading flex shrink-0 items-center gap-2 border-b border-rt-border/60 p-2 dark:border-rt-dark-border/60"><button type="button" wire:click="showList" class="h-11 w-11 rounded-xl" aria-label="Zurück zur Meetingliste"><i class="far fa-arrow-left" aria-hidden="true"></i></button><p class="min-w-0 truncate text-sm font-bold">{{ $selectedMeeting->title }}</p></div>
-        <div class="rt-comm-meeting-details scroll-container min-h-0 flex-1 space-y-4 overflow-y-auto bg-[#e4e8ee] p-4 dark:bg-rt-dark-surface-muted">
-            <section class="space-y-3 rounded-2xl bg-white p-4 dark:bg-rt-dark-surface"><p class="text-sm font-semibold">{{ $selectedMeeting->starts_at->setTimezone($selectedMeeting->timezone)->format('d.m.Y H:i') }} – {{ $selectedMeeting->ends_at->setTimezone($selectedMeeting->timezone)->format('d.m.Y H:i') }}</p><p class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ $selectedMeeting->timezone }} · {{ $selectedMeeting->owner?->name }}</p>
+        <div class="rt-comm-meeting-heading flex shrink-0 items-center gap-2 border-b border-rt-border/60 p-2 dark:border-rt-dark-border/60"><button type="button" wire:click="showList" class="h-11 w-11 rounded-xl" aria-label="Zurück zur Meetingliste"><i class="far fa-arrow-left" aria-hidden="true"></i></button><p class="min-w-0 truncate font-bold">{{ $selectedMeeting->title }}</p></div>
+        <div class="rt-comm-meeting-details scroll-container min-h-0 flex-1 space-y-4 overflow-y-auto">
+            <section class="space-y-3 p-4"><p class="text-sm font-semibold">{{ $selectedMeeting->starts_at->setTimezone($selectedMeeting->timezone)->format('d.m.Y H:i') }} – {{ $selectedMeeting->ends_at->setTimezone($selectedMeeting->timezone)->format('d.m.Y H:i') }}</p><p class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ $selectedMeeting->timezone }} · {{ $selectedMeeting->owner?->name }}</p>
                 @if ($selectedMeeting->status === 'cancelled')<p role="status" class="text-sm font-bold text-rt-red">Meeting abgesagt</p>
                 @else
                     @unless ($isOwner)<div class="flex flex-wrap gap-2" aria-label="Termin-Zusage"><button type="button" wire:click="respond({{ $selectedMeeting->id }}, 'accepted')" aria-pressed="{{ $myResponse === 'accepted' ? 'true' : 'false' }}" class="min-h-11 rounded-xl border border-rt-border px-3 text-xs font-semibold">Zusagen</button><button type="button" wire:click="respond({{ $selectedMeeting->id }}, 'declined')" aria-pressed="{{ $myResponse === 'declined' ? 'true' : 'false' }}" class="min-h-11 rounded-xl border border-rt-border px-3 text-xs font-semibold">Ablehnen</button></div>@endunless
@@ -68,7 +68,7 @@
                     @if ($isOwner && ! $activeSession)<div class="flex flex-wrap gap-2"><button type="button" wire:click="editMeeting({{ $selectedMeeting->id }})" class="min-h-11 rounded-xl px-3 text-xs font-semibold">Termin ändern</button><button type="button" wire:click="cancelMeeting({{ $selectedMeeting->id }})" wire:confirm="Meeting wirklich absagen?" wire:loading.attr="disabled" class="min-h-11 rounded-xl px-3 text-xs font-semibold text-rt-red">Termin absagen</button></div>@endif
                 @endif
             </section>
-            <section class="rounded-2xl bg-white p-4 dark:bg-rt-dark-surface"><h3 class="mb-2 text-sm font-bold">Teilnehmer</h3>@foreach ($selectedMeeting->participants as $participant)<p class="flex min-h-11 items-center justify-between gap-3 text-sm"><span class="min-w-0 truncate">{{ $participant->user?->name }}</span><span class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ match ($participant->response) { 'accepted' => 'Zugesagt', 'declined' => 'Abgelehnt', default => 'Offen' } }}</span></p>@endforeach</section>
+            <section class="p-4"><h3 class="mb-2 text-sm font-bold">Teilnehmer</h3>@foreach ($selectedMeeting->participants as $participant)<p class="flex min-h-11 items-center justify-between gap-3 text-sm"><span class="min-w-0 truncate">{{ $participant->user?->name }}</span><span class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ match ($participant->response) { 'accepted' => 'Zugesagt', 'declined' => 'Abgelehnt', default => 'Offen' } }}</span></p>@endforeach</section>
         </div>
     @endif
 </div>

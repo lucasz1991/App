@@ -1164,14 +1164,19 @@ body[data-mode='dark'] .rt-chat-transcript {
 
 /* Call events belong to the transcript, with the same compact scale as messages. */
 .rt-chat-page .rt-chat-call-event {
-    width: min(100%, 22rem);
-    margin: 1rem auto;
+    width: min(22rem, calc(100% - 1.5rem));
+    margin-block: 1rem;
+    margin-inline: 0 auto;
     gap: 0.625rem;
     padding: 0.625rem 0.75rem;
     border: 1px solid var(--chat-line);
     border-radius: 0.875rem;
     color: var(--chat-ink);
     background: var(--chat-panel-muted);
+}
+
+.rt-chat-page .rt-chat-call-event[data-call-direction='outgoing'] {
+    margin-inline: auto 0;
 }
 
 .rt-chat-page .rt-chat-call-event > span:first-child {

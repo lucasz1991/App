@@ -197,10 +197,13 @@ class CommunicationModuleTest extends TestCase
         $this->chatMessage($chat, $recipient);
         $component = Livewire::actingAs($recipient)->test(ChatBox::class, ['embedded' => true])
             ->call('openChat', $chat->id)->assertOk()
-            ->assertSeeHtml('data-chat-call-event')->assertSee('Videoanruf')->assertSee('Sprachnachricht');
+            ->assertSeeHtml('data-call-direction="incoming"')->assertSee('Videoanruf')->assertSee('Sprachnachricht');
         $html = $component->html();
         $this->assertSame(substr_count($html, '<!--[if BLOCK]><![endif]-->'), substr_count($html, '<!--[if ENDBLOCK]><![endif]-->'));
-        $component->call('pollTick')->assertOk()->assertSeeHtml('data-chat-call-event');
+        $component->call('pollTick')->assertOk()->assertSeeHtml('data-call-direction="incoming"');
+
+        Livewire::actingAs($sender)->test(ChatBox::class, ['embedded' => true])
+            ->call('openChat', $chat->id)->assertOk()->assertSeeHtml('data-call-direction="outgoing"');
     }
 
     public function test_host_allows_pending_invitation_then_native_call_window_accepts_once(): void

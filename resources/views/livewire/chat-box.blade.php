@@ -575,6 +575,7 @@
                                 @if($message->isCall())
                                     @php
                                         $call = $message->callRoom ? app(\App\Services\Calls\CallTimelineService::class)->projectionFor($message, $me) : null;
+                                        $callDirection = $call['direction'] ?? ((int) $message->user_id === (int) $me->id ? 'outgoing' : 'incoming');
                                         $callStatus = $call ? ([
                                             'ringing' => 'Klingelt', 'active' => 'Läuft', 'ended' => 'Beendet',
                                             'missed' => 'Verpasst', 'declined' => 'Abgelehnt', 'cancelled' => 'Abgebrochen',
@@ -586,7 +587,7 @@
                                     @if(!$previous || !$previous->created_at->isSameDay($message->created_at))
                                         <div class="flex justify-center py-3"><span class="rt-chat-date-chip rounded-full px-3 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-rt-muted dark:text-rt-dark-muted">{{ $message->created_at->isToday() ? __('app.today') : ($message->created_at->isYesterday() ? __('app.yesterday') : $message->created_at->format('d.m.Y')) }}</span></div>
                                     @endif
-                                    <div wire:key="chat-call-{{ $message->id }}" data-chat-call-event="{{ $message->id }}" class="rt-chat-call-event my-3 flex items-center gap-3 rounded-xl border border-rt-border bg-rt-surface p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface">
+                                    <div wire:key="chat-call-{{ $message->id }}" data-chat-call-event="{{ $message->id }}" data-call-direction="{{ $callDirection }}" class="rt-chat-call-event flex items-center">
                                         <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rt-surface-muted text-rt-muted dark:bg-rt-dark-surface-muted">
                                             <i class="far {{ ($call['medium'] ?? 'audio') === 'audio' ? 'fa-phone' : 'fa-video' }}" aria-hidden="true"></i>
                                         </span>

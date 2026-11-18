@@ -8,10 +8,12 @@ const settle = () => new Promise(resolve => setTimeout(resolve, 25));
 const appSource = await readFile(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
 const blade = await readFile(new URL('../../resources/views/livewire/chat-box.blade.php', import.meta.url), 'utf8');
 const nativeDataExpression = blade.match(/x-data="([^"]+)"/)[1];
+const listInert = blade.match(/class="rt-chat-list-pane[^"]*"[\s\S]*?x-bind:inert="([^"]+)"/)[1];
+const chatInert = blade.match(/class="rt-chat-conversation-pane[^"]*"[\s\S]*?x-bind:inert="([^"]+)"/)[1];
 const start = appSource.indexOf("Alpine.data('chatPaneNavigation'");
 const end = appSource.indexOf("Alpine.data('adminDashboardCharts'", start);
 
-async function fixture({ changingExpression = false, selected = false } = {}) {
+async function fixture({ changingExpression = false, selected = false, split = false } = {}) {
     const { window, document } = parseHTML('<html><head></head><body></body></html>');
     delete window.Livewire;
     delete window.Alpine;
@@ -66,23 +68,28 @@ async function fixture({ changingExpression = false, selected = false } = {}) {
             data-active-chat-id="${hasSelection ? chatId : 0}"
             data-mobile-pane="${hasSelection ? 'chat' : 'list'}" x-bind:data-mobile-pane="mobilePane"
             x-on:chat:pane-open.window="showChat()" x-on:chat:pane-list.window="showList()">
-            <div id="list" x-bind:inert="mobilePane !== 'list'">
+            <div id="list" x-bind:inert="${listInert}">
                 <button id="chat-17" x-on:click="showChat()">Alex</button>
                 <button id="chat-28" x-on:click="showChat()">Sam</button>
             </div>
-            <div id="conversation" x-bind:inert="mobilePane !== 'chat'">
+            <div id="conversation" x-bind:inert="${chatInert}">
                 <button id="back" x-on:click="showList()">Back</button>
                 <span id="selected-chat">${hasSelection ? chatId : ''}</span>
             </div>
         </div>`;
     };
-    document.body.innerHTML = html(selected);
-    const root = document.body.firstElementChild;
+    document.body.innerHTML = `<section x-data="{ splitChat: ${split} }">${html(selected)}</section>`;
+    const host = document.body.firstElementChild;
+    const root = host.firstElementChild;
     Alpine.start();
     await settle();
     const component = { id: 'chat-fixture', snapshotEncoded: '{}', effects: {} };
     return {
         root, document, lifecycle,
+        async setSplit(value) {
+            Alpine.$data(host).splitChat = value;
+            await settle();
+        },
         click(id) { document.getElementById(id).dispatchEvent(new window.Event('click', { bubbles: true })); },
         async opened(chatId = 17) {
             await settle();
@@ -141,6 +148,33 @@ test('native initial chat selection still starts in the conversation pane', asyn
     try {
         assert.equal(sample.root.dataset.mobilePane, 'chat');
         assert.equal(sample.document.getElementById('conversation').hasAttribute('inert'), false);
+    } finally {
+        sample.cleanup();
+    }
+});
+
+test('fullscreen sidebar and conversation stay interactive across selections and mode changes', async () => {
+    const sample = await fixture({ split: true });
+    const list = sample.document.getElementById('list');
+    const conversation = sample.document.getElementById('conversation');
+    try {
+        assert.equal(conversation.hasAttribute('inert'), false, 'empty conversation pane is accessible');
+        for (const chatId of [17, 28]) {
+            assert.equal(list.hasAttribute('inert'), false);
+            sample.click(`chat-${chatId}`);
+            await sample.opened(chatId);
+            await sample.visibilityResponse(chatId);
+            assert.equal(conversation.hasAttribute('inert'), false);
+            assert.equal(sample.document.getElementById('selected-chat').textContent, String(chatId));
+        }
+        assert.equal(list.hasAttribute('inert'), false);
+        await sample.setSplit(false);
+        assert.equal(list.hasAttribute('inert'), true);
+        assert.equal(conversation.hasAttribute('inert'), false);
+        await sample.setSplit(true);
+        assert.equal(list.hasAttribute('inert'), false);
+        assert.equal(sample.root.dataset.activeChatId, '28');
+        assert.deepEqual(sample.lifecycle, { initialized: 1, destroyed: 0 });
     } finally {
         sample.cleanup();
     }
