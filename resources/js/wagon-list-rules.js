@@ -611,3 +611,38 @@ export const computeChecks = (wagons, meta = {}, brakeSheet = {}) => {
 
     return checks;
 };
+
+/**
+ * Grundform eines Wagens für die Zugzeile, abgeleitet aus dem ersten
+ * Gattungsbuchstaben: Kessel- und Silowagen rund, offene Wagen niedriger,
+ * Flach- und Tragwagen flach, alles andere als Kasten.
+ */
+export const wagonShape = (category) => {
+    const letter = String(category ?? '').trim().charAt(0).toUpperCase();
+
+    if (letter === 'Z' || letter === 'U') return 'tank';
+    if (letter === 'E' || letter === 'F') return 'open';
+    if (['K', 'L', 'O', 'R', 'S'].includes(letter)) return 'flat';
+
+    return 'box';
+};
+
+/**
+ * Wagen der Zugzeile: nur ausgefüllte Zeilen, in der Reihenfolge der Liste.
+ * state wie wagonStatus; brake: G, P, off (Bremsgewicht 0 eingetragen) oder leer.
+ */
+export const trainStrip = (wagons) => wagons
+    .map((wagon, index) => ({ wagon, index }))
+    .filter(({ wagon }) => isWagonFilled(wagon))
+    .map(({ wagon, index }) => {
+        const brakeEntered = hasValue(wagon.brakeG) || hasValue(wagon.brakeP);
+
+        return {
+            index,
+            length: numeric(wagon.length),
+            shape: wagonShape(wagon.category),
+            state: wagonStatus(wagon),
+            hazard: hasValue(wagon.unNumber) || hasValue(wagon.hazardLabel),
+            brake: numeric(wagon.brakeG) > 0 ? 'G' : (numeric(wagon.brakeP) > 0 ? 'P' : (brakeEntered ? 'off' : '')),
+        };
+    });

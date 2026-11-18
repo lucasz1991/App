@@ -89,14 +89,7 @@
 
     <ul class="rt-wl-checks" x-show="checks.length > 0" aria-live="polite">
         <template x-for="check in checks" :key="check.id">
-            <li class="rt-wl-check" :data-tone="check.tone">
-                <i
-                    class="far"
-                    :class="check.tone === 'error' ? 'fa-exclamation-circle' : (check.tone === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle')"
-                    aria-hidden="true"
-                ></i>
-                <span x-text="check.text"></span>
-            </li>
+            <li class="rt-wl-check" :data-tone="check.tone" x-text="check.text"></li>
         </template>
     </ul>
 

@@ -26,35 +26,29 @@
     ];
 @endphp
 
-<section class="rt-wagon-sheet-shell rt-wl-box rt-wl-sheet-shell" aria-labelledby="wagon-sheet-title">
+<section class="rt-wagon-sheet-shell rt-wl-card rt-wl-card--table rt-wl-sheet-shell" aria-labelledby="wagon-sheet-title">
     <div class="rt-wl-toolbar">
-        <div class="flex min-w-0 items-center gap-2.5">
+        <div class="rt-wl-toolbar-title">
             <h2 id="wagon-sheet-title">{{ __('app.wagons') }}</h2>
             <span class="rt-wl-count" title="{{ __('app.wagons_filled') }}"><span x-text="completionCount"></span> / <span x-text="visibleCount"></span></span>
         </div>
 
-        <div class="flex flex-wrap items-center gap-2">
-            <div class="rt-wl-tabs" role="group" aria-label="{{ __('app.spreadsheet_view') }}">
+        <div class="rt-wl-tools">
+            <div class="rt-wl-seg" role="group" aria-label="{{ __('app.spreadsheet_view') }}">
                 <button
                     type="button"
                     @click="desktopTableMode = 'quick'"
                     :aria-pressed="desktopTableMode === 'quick'"
                     :data-active="desktopTableMode === 'quick' ? 'true' : 'false'"
-                    class="rt-wagon-section-tab rt-wl-tab"
-                >
-                    <i class="far fa-table" aria-hidden="true"></i>
-                    {{ __('app.wagon_table_view') }}
-                </button>
+                    class="rt-wl-seg-item"
+                >{{ __('app.wagon_table_view') }}</button>
                 <button
                     type="button"
                     @click="desktopTableMode = 'overview'"
                     :aria-pressed="desktopTableMode === 'overview'"
                     :data-active="desktopTableMode === 'overview' ? 'true' : 'false'"
-                    class="rt-wagon-section-tab rt-wl-tab"
-                >
-                    <i class="far fa-list" aria-hidden="true"></i>
-                    {{ __('app.wagon_single_view') }}
-                </button>
+                    class="rt-wl-seg-item"
+                >{{ __('app.wagon_single_view') }}</button>
             </div>
 
             <button type="button" class="rt-wl-ghost" @click="reverseWagons()" :disabled="completionCount < 2">
@@ -64,12 +58,26 @@
 
             <button
                 type="button"
-                class="rt-wl-primary"
+                class="rt-wl-ghost"
                 @click="addWagon(); desktopWagon = visibleCount - 1"
                 :disabled="visibleCount >= 40"
             >
                 <i class="far fa-plus" aria-hidden="true"></i>
                 {{ __('app.add_wagon') }}
+            </button>
+
+            {{-- Rechte Spalte aus- und einblenden, wenn die Tabelle die volle Breite braucht. --}}
+            <button
+                type="button"
+                class="rt-wl-ghost rt-wl-ghost--icon"
+                :aria-expanded="desktopSummaryOpen ? 'true' : 'false'"
+                aria-controls="wagon-summary-aside"
+                title="{{ __('app.wagon_toggle_summary') }}"
+                aria-label="{{ __('app.wagon_toggle_summary') }}"
+                @click="desktopSummaryOpen = !desktopSummaryOpen"
+            >
+                <span class="rt-wl-status-dot" :data-tone="checkSummary.tone" aria-hidden="true"></span>
+                <i class="far" :class="desktopSummaryOpen ? 'fa-chevron-right' : 'fa-chevron-left'" aria-hidden="true"></i>
             </button>
         </div>
     </div>
@@ -125,7 +133,7 @@
 
         <div role="rowgroup">
             <template x-for="(wagon, index) in visibleWagons" :key="index">
-                <div class="rt-wl-grid rt-wl-row" role="row" data-wagon-row>
+                <div class="rt-wl-grid rt-wl-row" role="row" data-wagon-row :data-current="desktopWagon === index ? 'true' : 'false'" @focusin="desktopWagon = index">
                     <div role="rowheader" class="rt-wl-td rt-wl-index rt-wl-stick rt-wl-stick-0" :title="missingFieldsText(wagon)">
                         <span class="rt-wl-dot" :data-state="wagonStatus(wagon)" aria-hidden="true"></span>
                         <span x-text="index + 1"></span>

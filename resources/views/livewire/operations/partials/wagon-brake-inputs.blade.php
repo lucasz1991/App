@@ -3,6 +3,10 @@
     Fahrplan und Bremsbauarten. Gemeinsam für Desktop und Telefon.
     Felder und Auswahllisten entsprechen der Excel-Liste v16_5
     (Bremszettel Spalte 5, Wagenliste Zeilen 55 bis 62).
+
+    Auswahlen stehen als ruhige Zeilen: links die Bezeichnung, rechts die
+    Wahl. Zwei bis drei Möglichkeiten sind Umschalter, die Streckenklasse
+    mit ihren zwölf Werten ist eine Auswahlliste.
 --}}
 @php
     $scope = $scope ?? 'desktop';
@@ -59,28 +63,29 @@
             </label>
         </div>
 
-        <div class="rt-wl-fields mt-3">
-            <div class="rt-wl-field">
-                <span class="rt-wl-label" id="wagon-position-label-{{ $scope }}">{{ __('app.brake_position') }}</span>
-                <div class="rt-wl-chips" role="group" aria-labelledby="wagon-position-label-{{ $scope }}">
-                    @foreach (['' => '—', 'R/P' => 'R/P', 'G' => 'G'] as $value => $optionLabel)
+        <div class="rt-wl-opts">
+            <div class="rt-wl-opt">
+                <span class="rt-wl-opt-label" id="wagon-position-label-{{ $scope }}">{{ __('app.brake_position') }}</span>
+                {{-- Erneutes Antippen der gewählten Stellung nimmt die Angabe zurück. --}}
+                <div class="rt-wl-seg" role="group" aria-labelledby="wagon-position-label-{{ $scope }}">
+                    @foreach (['R/P', 'G'] as $value)
                         <button
                             type="button"
-                            class="rt-wl-chip"
-                            @click="brakeSheet.brakePosition = @js((string) $value)"
-                            :aria-pressed="brakeSheet.brakePosition === @js((string) $value)"
-                            :data-active="brakeSheet.brakePosition === @js((string) $value) ? 'true' : 'false'"
-                        >{{ $optionLabel }}</button>
+                            class="rt-wl-seg-item"
+                            @click="brakeSheet.brakePosition = brakeSheet.brakePosition === @js($value) ? '' : @js($value)"
+                            :aria-pressed="brakeSheet.brakePosition === @js($value)"
+                            :data-active="brakeSheet.brakePosition === @js($value) ? 'true' : 'false'"
+                        >{{ $value }}</button>
                     @endforeach
                 </div>
             </div>
-            <div class="rt-wl-field">
-                <span class="rt-wl-label" id="wagon-order-label-{{ $scope }}">{{ __('app.list_order') }}</span>
-                <div class="rt-wl-chips" role="group" aria-labelledby="wagon-order-label-{{ $scope }}">
+            <div class="rt-wl-opt">
+                <span class="rt-wl-opt-label" id="wagon-order-label-{{ $scope }}">{{ __('app.list_order') }}</span>
+                <div class="rt-wl-seg" role="group" aria-labelledby="wagon-order-label-{{ $scope }}">
                     @foreach (['head' => __('app.list_order_head'), 'tail' => __('app.list_order_tail')] as $value => $optionLabel)
                         <button
                             type="button"
-                            class="rt-wl-chip"
+                            class="rt-wl-seg-item"
                             @click="brakeSheet.listOrder = @js($value)"
                             :aria-pressed="brakeSheet.listOrder === @js($value)"
                             :data-active="brakeSheet.listOrder === @js($value) ? 'true' : 'false'"
@@ -88,13 +93,13 @@
                     @endforeach
                 </div>
             </div>
-            <div class="rt-wl-field">
-                <span class="rt-wl-label" id="wagon-ninety-label-{{ $scope }}">{{ __('app.ninety_percent_rule') }}</span>
-                <div class="rt-wl-chips" role="group" aria-labelledby="wagon-ninety-label-{{ $scope }}">
+            <div class="rt-wl-opt">
+                <span class="rt-wl-opt-label" id="wagon-ninety-label-{{ $scope }}">{{ __('app.ninety_percent_rule') }}</span>
+                <div class="rt-wl-seg" role="group" aria-labelledby="wagon-ninety-label-{{ $scope }}">
                     @foreach (['no' => __('app.no'), 'yes' => __('app.yes'), 'yes800' => __('app.ninety_percent_yes800')] as $value => $optionLabel)
                         <button
                             type="button"
-                            class="rt-wl-chip"
+                            class="rt-wl-seg-item"
                             @click="brakeSheet.ninetyPercentRule = @js($value)"
                             :aria-pressed="brakeSheet.ninetyPercentRule === @js($value)"
                             :data-active="brakeSheet.ninetyPercentRule === @js($value) ? 'true' : 'false'"
@@ -102,19 +107,14 @@
                     @endforeach
                 </div>
             </div>
-            <div class="rt-wl-field">
-                <span class="rt-wl-label" id="wagon-class-label-{{ $scope }}">{{ __('app.route_class') }}</span>
-                <div class="rt-wl-chips" role="group" aria-labelledby="wagon-class-label-{{ $scope }}">
-                    @foreach (['', 'A', 'B1', 'B2', 'C2', 'C3', 'C4', 'CE', 'D2', 'D3', 'D4', 'E4', 'E5'] as $value)
-                        <button
-                            type="button"
-                            class="rt-wl-chip"
-                            @click="brakeSheet.routeClass = @js($value)"
-                            :aria-pressed="brakeSheet.routeClass === @js($value)"
-                            :data-active="brakeSheet.routeClass === @js($value) ? 'true' : 'false'"
-                        >{{ $value === '' ? '—' : $value }}</button>
+            <div class="rt-wl-opt">
+                <label class="rt-wl-opt-label" for="wagon-route-class-{{ $scope }}">{{ __('app.route_class') }}</label>
+                <select id="wagon-route-class-{{ $scope }}" x-model="brakeSheet.routeClass" class="rt-wl-select">
+                    <option value="">—</option>
+                    @foreach (['A', 'B1', 'B2', 'C2', 'C3', 'C4', 'CE', 'D2', 'D3', 'D4', 'E4', 'E5'] as $value)
+                        <option value="{{ $value }}">{{ $value }}</option>
                     @endforeach
-                </div>
+                </select>
             </div>
         </div>
     </div>

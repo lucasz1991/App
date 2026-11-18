@@ -29,7 +29,9 @@
         ],
     ];
 
-    $choices = ['' => '—', 'no' => __('app.no'), 'yes' => __('app.yes')];
+    // Zwei Antworten je Frage; erneutes Antippen der gewählten Antwort nimmt
+    // sie zurück (unbeantwortet bleibt möglich, wie in der Excel-Liste).
+    $choices = ['no' => __('app.no'), 'yes' => __('app.yes')];
     $scope = $scope ?? 'mobile';
     $gridClass = ($columns ?? 1) > 1 ? 'rt-wl-form-grid rt-wl-form-grid--2' : 'rt-wl-form-grid';
 @endphp
@@ -42,18 +44,18 @@
                 <h4 id="wagon-special-{{ $group['id'] }}-{{ $scope }}">{{ $group['title'] }}</h4>
             </header>
 
-            <div class="rt-wagon-card-body rt-wagon-answer-list">
+            <div class="rt-wagon-card-body rt-wl-opts rt-wl-opts--flush">
                 @foreach ($group['fields'] as $field => $label)
-                    <div class="rt-wagon-answer-row" :data-answered="brakeSheet.{{ $field }} ? 'true' : 'false'">
-                        <span class="rt-wagon-answer-label" id="wagon-special-label-{{ $field }}-{{ $scope }}">{{ $label }}</span>
-                        <div class="rt-wagon-segment" role="group" aria-labelledby="wagon-special-label-{{ $field }}-{{ $scope }}">
+                    <div class="rt-wl-opt" :data-answered="brakeSheet.{{ $field }} ? 'true' : 'false'">
+                        <span class="rt-wl-opt-label" id="wagon-special-label-{{ $field }}-{{ $scope }}">{{ $label }}</span>
+                        <div class="rt-wl-seg" role="group" aria-labelledby="wagon-special-label-{{ $field }}-{{ $scope }}">
                             @foreach ($choices as $value => $optionLabel)
                                 <button
                                     type="button"
-                                    @click="brakeSheet.{{ $field }} = @js($value)"
+                                    @click="brakeSheet.{{ $field }} = brakeSheet.{{ $field }} === @js($value) ? '' : @js($value)"
                                     :aria-pressed="brakeSheet.{{ $field }} === @js($value)"
                                     :data-active="brakeSheet.{{ $field }} === @js($value) ? 'true' : 'false'"
-                                    class="rt-wagon-choice"
+                                    class="rt-wl-seg-item"
                                 >{{ $optionLabel }}</button>
                             @endforeach
                         </div>
@@ -69,35 +71,38 @@
             <h4 id="wagon-special-issuer-{{ $scope }}">{{ __('app.wagon_group_issuer') }}</h4>
         </header>
 
-        <div class="rt-wagon-card-body rt-wl-fields">
-            <div class="rt-wl-field">
-                <span class="rt-wl-label" id="wagon-special-label-dangerousGoods-{{ $scope }}">
-                    {{ __('app.dangerous_goods') }}
-                </span>
-                <div class="rt-wagon-segment mt-1" role="group" aria-labelledby="wagon-special-label-dangerousGoods-{{ $scope }}">
-                    <button
-                        type="button"
-                        @click="brakeSheet.dangerousGoods = ''"
-                        :aria-pressed="brakeSheet.dangerousGoods === ''"
-                        :data-active="brakeSheet.dangerousGoods === '' ? 'true' : 'false'"
-                        class="rt-wagon-choice"
-                    >{{ __('app.automatic') }}</button>
-                    @foreach (['no' => __('app.no'), 'yes' => __('app.yes')] as $value => $optionLabel)
+        <div class="rt-wagon-card-body">
+            <div class="rt-wl-opts rt-wl-opts--flush">
+                <div class="rt-wl-opt">
+                    <span class="rt-wl-opt-label" id="wagon-special-label-dangerousGoods-{{ $scope }}">
+                        {{ __('app.dangerous_goods') }}
+                    </span>
+                    <div class="rt-wl-seg" role="group" aria-labelledby="wagon-special-label-dangerousGoods-{{ $scope }}">
                         <button
                             type="button"
-                            @click="brakeSheet.dangerousGoods = @js($value)"
-                            :aria-pressed="brakeSheet.dangerousGoods === @js($value)"
-                            :data-active="brakeSheet.dangerousGoods === @js($value) ? 'true' : 'false'"
-                            class="rt-wagon-choice"
-                        >{{ $optionLabel }}</button>
-                    @endforeach
+                            @click="brakeSheet.dangerousGoods = ''"
+                            :aria-pressed="brakeSheet.dangerousGoods === ''"
+                            :data-active="brakeSheet.dangerousGoods === '' ? 'true' : 'false'"
+                            class="rt-wl-seg-item"
+                        >{{ __('app.automatic') }}</button>
+                        @foreach (['no' => __('app.no'), 'yes' => __('app.yes')] as $value => $optionLabel)
+                            <button
+                                type="button"
+                                @click="brakeSheet.dangerousGoods = @js($value)"
+                                :aria-pressed="brakeSheet.dangerousGoods === @js($value)"
+                                :data-active="brakeSheet.dangerousGoods === @js($value) ? 'true' : 'false'"
+                                class="rt-wl-seg-item"
+                            >{{ $optionLabel }}</button>
+                        @endforeach
+                    </div>
                 </div>
-                <p class="rt-wl-hint" x-show="brakeSheet.dangerousGoods === '' && totals.wagons > 0">
-                    {{ __('app.wagon_dangerous_goods_auto') }}:
-                    <strong x-text="totals.dangerousGoodsWagons > 0 ? @js(__('app.yes')) : @js(__('app.no'))"></strong>
-                </p>
             </div>
-            <label class="rt-wl-field">
+            <p class="rt-wl-hint" x-show="brakeSheet.dangerousGoods === '' && totals.wagons > 0">
+                {{ __('app.wagon_dangerous_goods_auto') }}:
+                <strong x-text="totals.dangerousGoodsWagons > 0 ? @js(__('app.yes')) : @js(__('app.no'))"></strong>
+            </p>
+
+            <label class="rt-wl-field rt-wl-field--spaced">
                 <span class="rt-wl-label">{{ __('app.issued_by_name') }}</span>
                 <input x-model="brakeSheet.issuerName" class="rt-wl-input" autocomplete="off">
             </label>

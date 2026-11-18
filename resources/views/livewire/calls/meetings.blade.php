@@ -17,8 +17,8 @@
                     </x-slot:content>
                 </x-ui.dropdown.anchor-dropdown>
                 @if ($canStart)
-                    <button type="button" wire:click="showCreate('instant')" class="rt-floating-toolbar__button" aria-label="Meeting jetzt starten" title="Jetzt starten"><i class="far fa-video" aria-hidden="true"></i></button>
-                    <button type="button" wire:click="showCreate('plan')" @disabled(! $planningReady) class="rt-floating-toolbar__button" aria-label="Meeting planen" title="Termin planen"><i class="far fa-plus" aria-hidden="true"></i></button>
+                    <button type="button" wire:click="showCreate('instant')" class="rt-floating-toolbar__button rt-comm-meeting-start" aria-label="Meeting jetzt starten" title="Jetzt starten"><i class="far fa-video" aria-hidden="true"></i></button>
+                    <button type="button" wire:click="showCreate('plan')" @disabled(! $planningReady) class="rt-floating-toolbar__button rt-comm-meeting-plan" aria-label="Meeting planen" title="Termin planen"><i class="far fa-plus" aria-hidden="true"></i></button>
                 @endif
             </x-slot:actions>
         </x-ui.floating.toolbar>
@@ -26,8 +26,8 @@
             @unless ($planningReady)<p role="status" class="rounded-2xl bg-white p-4 text-sm dark:bg-rt-dark-surface">Die Terminplanung ist noch nicht verfügbar. Sofortmeetings bleiben verfügbar.</p>@endunless
             @foreach ($live as $room)
                 <article class="rt-comm-meeting-card rt-comm-meeting-card--live flex items-center gap-3 rounded-2xl bg-white p-4 dark:bg-rt-dark-surface" wire:key="meeting-live-{{ $room->id }}">
-                    <i class="far fa-signal-stream text-emerald-600" aria-hidden="true"></i><div class="min-w-0 flex-1"><p class="truncate text-sm font-bold">{{ $room->name }}</p><p class="text-xs text-rt-muted dark:text-rt-dark-muted">Läuft jetzt · {{ $room->owner?->name }}</p></div>
-                    <button type="button" wire:click="join({{ $room->id }})" wire:loading.attr="disabled" class="min-h-11 rounded-xl px-3 text-xs font-semibold text-emerald-700">Beitreten</button>
+                    <i class="far fa-signal-stream text-emerald-600" aria-hidden="true"></i><div class="min-w-0 flex-1"><p class="truncate text-sm font-bold">{{ $room->name }}</p><p class="text-xs">Läuft jetzt · {{ $room->owner?->name }}</p></div>
+                    <button type="button" wire:click="join({{ $room->id }})" wire:loading.attr="disabled" class="rt-comm-meeting-join min-h-11 shrink-0 rounded-lg px-3 text-sm font-semibold">Beitreten</button>
                 </article>
             @endforeach
             @forelse ($plans ?? [] as $meeting)
@@ -49,11 +49,11 @@
                 <label class="block text-xs font-semibold">Beginn<x-ui.forms.input type="datetime-local" wire:model="startsAt" class="mt-1 w-full" required /></label><x-input-error for="starts_at" />
                 <label class="block text-xs font-semibold">Ende<x-ui.forms.input type="datetime-local" wire:model="endsAt" class="mt-1 w-full" required /></label><x-input-error for="ends_at" />
                 @if ($formMode === 'plan')<fieldset class="space-y-2"><legend class="mb-2 text-xs font-semibold">Teilnehmer · {{ count($participantIds) }} ausgewählt</legend><label class="block"><span class="sr-only">Teilnehmer suchen</span><x-ui.forms.input type="search" wire:model.live.debounce.300ms="participantSearch" class="w-full" placeholder="Name suchen" /></label>
-                    @foreach ($candidates as $candidate)<label class="flex min-h-11 items-center gap-3 rounded-xl bg-rt-surface-muted p-3 dark:bg-rt-dark-surface-muted" wire:key="meeting-person-{{ $candidate->id }}"><x-ui.forms.checkbox wire:model="participantIds" value="{{ $candidate->id }}" /><span class="text-sm">{{ $candidate->name }}</span></label>@endforeach
+                    @foreach ($candidates as $candidate)<label class="flex min-h-11 items-center gap-3 p-3" wire:key="meeting-person-{{ $candidate->id }}"><x-ui.forms.checkbox wire:model="participantIds" value="{{ $candidate->id }}" /><span class="text-sm">{{ $candidate->name }}</span></label>@endforeach
                 </fieldset><x-input-error for="participant_ids" />@endif
             @endif
             <label class="flex min-h-11 items-center gap-2 text-sm"><x-ui.forms.checkbox wire:model="video" />Mit Video starten</label>
-            <x-ui.buttons.button-basic type="submit" class="w-full justify-center" wire:loading.attr="disabled">{{ $formMode === 'instant' ? 'Gespräch starten' : 'Termin speichern' }}</x-ui.buttons.button-basic>
+            <x-ui.buttons.button-basic mode="primary" type="submit" class="w-full justify-center" wire:loading.attr="disabled">{{ $formMode === 'instant' ? 'Gespräch starten' : 'Termin speichern' }}</x-ui.buttons.button-basic>
         </form>
     @elseif ($selectedMeeting)
         @php $myResponse = $selectedMeeting->participants->firstWhere('user_id', auth()->id())?->response; $activeSession = $selectedMeeting->sessions->first(fn ($room) => $room->isActive()); $isOwner = (int) $selectedMeeting->owner_id === (int) auth()->id(); @endphp
@@ -63,8 +63,8 @@
                 @if ($selectedMeeting->status === 'cancelled')<p role="status" class="text-sm font-bold text-rt-red">Meeting abgesagt</p>
                 @else
                     @unless ($isOwner)<div class="flex flex-wrap gap-2" aria-label="Termin-Zusage"><button type="button" wire:click="respond({{ $selectedMeeting->id }}, 'accepted')" aria-pressed="{{ $myResponse === 'accepted' ? 'true' : 'false' }}" class="min-h-11 rounded-xl border border-rt-border px-3 text-xs font-semibold">Zusagen</button><button type="button" wire:click="respond({{ $selectedMeeting->id }}, 'declined')" aria-pressed="{{ $myResponse === 'declined' ? 'true' : 'false' }}" class="min-h-11 rounded-xl border border-rt-border px-3 text-xs font-semibold">Ablehnen</button></div>@endunless
-                    @if ($activeSession)<x-ui.buttons.button-basic wire:click="joinMeeting({{ $selectedMeeting->id }})" wire:loading.attr="disabled">Beitreten</x-ui.buttons.button-basic>
-                    @elseif ($isOwner && $canStart)<x-ui.buttons.button-basic wire:click="startMeeting({{ $selectedMeeting->id }})" wire:loading.attr="disabled">Meeting starten</x-ui.buttons.button-basic>@endif
+                    @if ($activeSession)<x-ui.buttons.button-basic mode="primary" wire:click="joinMeeting({{ $selectedMeeting->id }})" wire:loading.attr="disabled">Beitreten</x-ui.buttons.button-basic>
+                    @elseif ($isOwner && $canStart)<x-ui.buttons.button-basic mode="primary" wire:click="startMeeting({{ $selectedMeeting->id }})" wire:loading.attr="disabled">Meeting starten</x-ui.buttons.button-basic>@endif
                     @if ($isOwner && ! $activeSession)<div class="flex flex-wrap gap-2"><button type="button" wire:click="editMeeting({{ $selectedMeeting->id }})" class="min-h-11 rounded-xl px-3 text-xs font-semibold">Termin ändern</button><button type="button" wire:click="cancelMeeting({{ $selectedMeeting->id }})" wire:confirm="Meeting wirklich absagen?" wire:loading.attr="disabled" class="min-h-11 rounded-xl px-3 text-xs font-semibold text-rt-red">Termin absagen</button></div>@endif
                 @endif
             </section>

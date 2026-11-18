@@ -20,6 +20,7 @@ import {
     numeric,
     splitWagonNumber,
     trainEnds,
+    trainStrip,
     wagonDigits as ruleWagonDigits,
     wagonNumber as ruleWagonNumber,
     wagonStatus as ruleWagonStatus,
@@ -1767,6 +1768,89 @@ export function wagonListPrototype(config = {}) {
                 .split(':missing').join(String(Math.max(0, minimum - available)));
 
             return { tone: satisfied ? 'ok' : 'error', ratio: Math.min(1, available / minimum), note };
+        },
+
+        /** Wagen der Zugzeile über der Arbeitsfläche: Position, Form, Zustand und Breitenanteil. */
+        get trainCars() {
+            return trainStrip(this.visibleWagons).map((car) => ({
+                ...car,
+                grow: car.length > 0 ? car.length : 15,
+            }));
+        },
+
+        /** Wagen in der Zugzeile anklicken: zur Wagenliste wechseln und die Zeile aufsuchen. */
+        selectTrainCar(index) {
+            this.desktopSection = 'wagons';
+            this.showDesktopWagon(index);
+
+            if (typeof this.$nextTick !== 'function') return;
+            this.$nextTick(() => {
+                const rows = this.$refs?.editorDialog?.querySelectorAll?.('[data-wagon-row]');
+                rows?.[this.desktopWagon]?.querySelector?.('[data-wagon-cell]')?.focus?.();
+            });
+        },
+
+        /** Erledigte Aufträge des Meldezettels. */
+        get reportProgress() {
+            const tasks = Object.values(this.report?.tasks || {});
+            const done = tasks.filter(Boolean).length;
+
+            return { done, total: tasks.length, ratio: tasks.length ? done / tasks.length : 0 };
+        },
+
+        get reportProgressLabel() {
+            const { done, total } = this.reportProgress;
+            const template = String(config.tasksProgress || '');
+
+            return template
+                ? template.split(':done').join(String(done)).split(':total').join(String(total))
+                : `${done} / ${total}`;
+        },
+
+        /** Kurzstand je Blatt für die Reiter und die Ausgabe: Ton (empty, ok, warning, error) und Text. */
+        get sheetStatus() {
+            const summary = this.checkSummary;
+            const available = this.brakeTotals.availablePercentage;
+            const gauge = this.brakeGauge;
+            const progress = this.reportProgress;
+            const wagonsText = summary.tone === 'error'
+                ? `${summary.errors} ${config.checksErrors || ''}`
+                : (summary.tone === 'warning'
+                    ? `${summary.warnings} ${config.checksWarnings || ''}`
+                    : (summary.tone === 'ok' ? `${this.completionCount} ${config.wagonsLabel || ''}` : ''));
+
+            return {
+                wagons: { tone: summary.tone, text: wagonsText.trim() },
+                brakeSheet: {
+                    tone: available === null || gauge.tone === 'neutral' ? 'empty' : gauge.tone,
+                    text: available === null ? '' : `${available} %`,
+                },
+                report: {
+                    tone: progress.done === 0 ? 'empty' : (progress.done >= progress.total ? 'ok' : 'warning'),
+                    text: progress.done === 0 ? '' : `${progress.done} / ${progress.total}`,
+                },
+            };
+        },
+
+        /**
+         * Balken der Bremshundertstel in Prozent der Skala: Anteil bis zum
+         * Mindestwert, Überschuss darüber und Fehlbetrag darunter.
+         */
+        get brakeBar() {
+            const available = this.brakeTotals.availablePercentage;
+            const minimum = this.brakeTotals.minimumPercentage;
+            if (available === null) return { base: 0, surplus: 0, deficit: 0, marker: null };
+
+            const scale = Math.max(100, available, minimum > 0 ? minimum * 1.2 : 0);
+            const share = (value) => Math.round((Math.max(0, value) / scale) * 1000) / 10;
+            if (!(minimum > 0)) return { base: share(available), surplus: 0, deficit: 0, marker: null };
+
+            return {
+                base: share(Math.min(available, minimum)),
+                surplus: share(available - minimum),
+                deficit: share(minimum - available),
+                marker: share(minimum),
+            };
         },
 
         /** Zahl für Ergebnisfelder; leer, null und (auf Wunsch) 0 werden zum Gedankenstrich. */

@@ -25,7 +25,7 @@
                     </x-slot:content>
                 </x-ui.dropdown.anchor-dropdown>
                 @if ($canStart)
-                    <button type="button" class="rt-floating-toolbar__button" x-on:click="$dispatch('communication:open', { tab: 'chats', newChat: true })" aria-label="Kontakt für neuen Anruf wählen" title="Kontakt für neuen Anruf wählen">
+                    <button type="button" class="rt-floating-toolbar__button rt-comm-new-call" x-on:click="$dispatch('communication:open', { tab: 'chats', newChat: true })" aria-label="Kontakt für neuen Anruf wählen" title="Kontakt für neuen Anruf wählen">
                         <i class="far fa-plus" aria-hidden="true"></i>
                     </button>
                 @endif
@@ -48,7 +48,7 @@
                     </span>
                     <div class="min-w-0 flex-1">
                         <p class="truncate text-sm font-semibold">{{ $room->name }}</p>
-                        <p class="mt-1 truncate text-xs text-rt-muted">
+                        <p class="mt-1 truncate text-xs text-rt-muted {{ $missed ? 'rt-comm-call-missed' : '' }}">
                             {{ $missed ? __('app.calls_not_connected') : ($outgoing ? __('app.calls_outgoing') : __('app.calls_incoming')) }}
                             @if ($duration) · {{ $duration }} @endif
                         </p>

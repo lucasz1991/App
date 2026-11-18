@@ -1147,12 +1147,15 @@ Alpine.data('chatAudioPlayer', (config = {}) => ({
     },
 
     get formattedTime() {
-        const value = this.playing || this.currentTime > 0 ? this.currentTime : this.duration;
-        const safeValue = Number.isFinite(value) ? Math.max(0, value) : 0;
-        const minutes = Math.floor(safeValue / 60);
-        const seconds = String(Math.floor(safeValue % 60)).padStart(2, '0');
+        const format = (seconds) => {
+            const whole = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
+            return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
+        };
 
-        return `${minutes}:${seconds}`;
+        const elapsed = format(this.currentTime);
+        return this.duration > 0 && Number.isFinite(this.duration)
+            ? `${elapsed} / ${format(this.duration)}`
+            : elapsed;
     },
 
     toggle() {

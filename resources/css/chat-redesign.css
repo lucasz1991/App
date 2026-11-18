@@ -1139,32 +1139,48 @@ body[data-mode='dark'] .rt-chat-transcript {
 }
 
 .rt-chat-date-chip {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
     border: 0;
     background: transparent;
     box-shadow: none;
     color: var(--chat-muted);
     font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: normal;
+    text-transform: none;
+}
+
+.rt-chat-date-chip::before,
+.rt-chat-date-chip::after {
+    content: '';
+    flex: 0 1 9rem;
+    height: 1px;
+    background: var(--chat-line);
 }
 
 /* Call events belong to the transcript, with the same compact scale as messages. */
 .rt-chat-page .rt-chat-call-event {
-    width: min(100%, 24rem);
+    width: min(100%, 22rem);
     margin: 1rem auto;
     gap: 0.625rem;
     padding: 0.625rem 0.75rem;
     border: 1px solid var(--chat-line);
     border-radius: 0.875rem;
     color: var(--chat-ink);
-    background: var(--chat-panel);
-    box-shadow: 0 1px 2px color-mix(in srgb, var(--chat-shadow) 20%, transparent);
+    background: var(--chat-panel-muted);
 }
 
 .rt-chat-page .rt-chat-call-event > span:first-child {
-    width: 2.25rem;
+    width: 2.5rem;
     height: 2.25rem;
-    border-radius: 0.75rem;
-    color: var(--chat-muted);
-    background: var(--chat-panel-muted);
+    border-inline-end: 1px solid var(--chat-line);
+    border-radius: 0;
+    color: var(--chat-ink);
+    background: transparent;
 }
 
 .rt-chat-call-event > div > p:first-child {
@@ -1260,8 +1276,8 @@ body[data-mode='dark'] .rt-chat-message--other {
 
 .rt-chat-message-copy {
     max-width: 58ch;
-    font-size: 0.875rem;
-    font-weight: 500;
+    font-size: 0.9375rem;
+    font-weight: 450;
     line-height: 1.55;
     letter-spacing: -0.006em;
     text-wrap: pretty;
@@ -1532,16 +1548,16 @@ button.rt-chat-reaction-chip:focus-visible {
     overflow: visible;
     width: 2.75rem;
     height: 2.75rem;
-    border: 1px solid color-mix(in srgb, var(--chat-accent) 74%, var(--chat-bubble-edge));
-    color: var(--chat-on-accent);
-    background: theme('colors.rt-red.DEFAULT');
+    border: 1px solid transparent;
+    color: var(--chat-ink);
+    background: color-mix(in srgb, var(--chat-ink) 8%, transparent);
     box-shadow: none;
 }
 
 .rt-voice-play:hover,
 .rt-voice-play:focus-visible {
-    color: var(--chat-on-accent);
-    background: theme('colors.rt-red.dark');
+    color: var(--chat-ink);
+    background: color-mix(in srgb, var(--chat-ink) 16%, transparent);
     transform: translateY(-1px) scale(1.025);
 }
 
@@ -1561,7 +1577,8 @@ button.rt-chat-reaction-chip:focus-visible {
 
 .rt-voice-message[data-playing='true'] .rt-voice-play,
 .rt-voice-message[data-loading='true'] .rt-voice-play {
-    background: theme('colors.rt-red.dark');
+    color: var(--chat-accent);
+    background: var(--chat-panel-muted);
     box-shadow: 0 0 0 0.18rem color-mix(in srgb, var(--chat-accent) 12%, transparent);
 }
 
@@ -1575,8 +1592,14 @@ button.rt-chat-reaction-chip:focus-visible {
     animation: rt-voice-attention 1.5s ease-out 1;
 }
 
+.rt-voice-content {
+    display: flex;
+    flex-direction: column;
+}
+
 .rt-voice-heading {
     min-height: 1.35rem;
+    flex-wrap: wrap;
     color: var(--chat-ink);
 }
 
@@ -1591,20 +1614,20 @@ button.rt-chat-reaction-chip:focus-visible {
 }
 
 .rt-voice-duration {
-    min-width: 2.55rem;
-    padding: 0.2rem 0.4rem;
-    border-radius: 0.48rem;
     color: var(--chat-ink);
-    background: color-mix(in srgb, var(--chat-ink) 6%, transparent);
     font-size: 0.75rem;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
     line-height: 1;
-    text-align: center;
+    white-space: nowrap;
 }
 
 .rt-voice-timeline {
-    min-height: 2.45rem;
+    display: grid;
+    align-items: center;
+    order: -1;
+    min-height: 2.75rem;
+    margin-top: 0;
 }
 
 .rt-voice-waveform {

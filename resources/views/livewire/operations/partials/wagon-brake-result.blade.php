@@ -53,7 +53,7 @@
                     <td></td>
                     <td x-text="displayNumber(brakeTotals.minimumPercentage, 0, true)"></td>
                 </tr>
-                <tr>
+                <tr data-key="true">
                     <td>5</td>
                     <th scope="row">{{ __('app.available_brake_percentage') }}</th>
                     <td></td>

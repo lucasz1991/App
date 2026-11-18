@@ -37,6 +37,8 @@
         'gaugeNoMinimum' => __('app.wagon_gauge_no_minimum'),
         'gaugeOk' => __('app.wagon_gauge_ok'),
         'gaugeMissing' => __('app.wagon_gauge_missing'),
+        'wagonsLabel' => __('app.wagons'),
+        'tasksProgress' => __('app.wagon_tasks_progress'),
         'mobileSteps' => [
             ['id' => 'train', 'label' => __('app.train_data')],
             ['id' => 'identity', 'label' => __('app.identification')],
@@ -206,6 +208,7 @@
             escape-action="cancelEditor()"
             :close-on-escape="false"
             :trap="false"
+            :show-default-close="false"
             labelledby="wagon-editor-title"
             body-class="rt-wagon-editor-body min-h-0 flex-1 overflow-hidden"
             content-class="h-full min-h-0"
@@ -214,17 +217,21 @@
             class="rt-wagon-editor"
             data-wagon-editor
         >
+            {{-- Kopf des Editors. Ab 1024 px schwebt er über der Arbeitsfläche:
+                 links der Entwurf, in der Mitte die drei Reiter, rechts die
+                 Aktionen. Auf dem Telefon bleibt er eine schmale Leiste. --}}
             <x-slot:header>
-                <span class="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent sm:flex">
-                    <i class="fad fa-train" aria-hidden="true"></i>
-                </span>
-                <div class="min-w-0 flex-1">
-                    <p class="hidden text-[10px] font-bold uppercase tracking-[0.1em] text-rt-soft dark:text-rt-dark-soft sm:block">{{ $labels['localDraft'] }}</p>
-                    <h2 id="wagon-editor-title" x-ref="editorHeading" tabindex="-1" class="truncate text-sm font-semibold outline-none sm:text-lg" x-text="activeDraftId ? draftTitle({ meta }) : @js($labels['untitledDraft'])"></h2>
-                    <p class="mt-0.5 truncate text-[10px] text-rt-muted dark:text-rt-dark-muted sm:text-xs">
-                        {{ __('app.locally_saved') }} · <span class="tabular-nums" x-text="formatSavedAt()"></span>
-                    </p>
+                <div class="rt-wl-headline">
+                    <span class="rt-wl-headline-icon" aria-hidden="true"><i class="fad fa-train"></i></span>
+                    <div class="rt-wl-headline-text">
+                        <h2 id="wagon-editor-title" x-ref="editorHeading" tabindex="-1" class="rt-wl-headline-title" x-text="activeDraftId ? draftTitle({ meta }) : @js($labels['untitledDraft'])"></h2>
+                        <p class="rt-wl-headline-meta">
+                            {{ __('app.locally_saved') }} · <span x-text="formatSavedAt()"></span>
+                        </p>
+                    </div>
                 </div>
+
+                @include('livewire.operations.partials.wagon-section-tabs')
             </x-slot:header>
 
             <x-slot:actions>
@@ -233,17 +240,17 @@
                 <button
                     type="button"
                     @click="$dispatch('railtime-wagon-video-open')"
-                    class="rt-wagon-video-trigger flex h-10 items-center justify-center gap-2 rounded-lg border border-rt-accent/30 bg-rt-accent-soft px-3 text-sm font-semibold text-rt-accent shadow-rt-xs transition-all duration-200 hover:border-rt-accent/50 hover:bg-rt-accent-soft/70 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/35 dark:border-rt-dark-accent/35 dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent"
+                    class="rt-wagon-video-trigger rt-wl-action"
                     title="{{ __('app.wagon_video_capture') }}"
                     aria-label="{{ __('app.wagon_video_capture') }}"
                 >
                     <i class="far fa-video" aria-hidden="true"></i>
-                    <span class="hidden sm:inline">{{ __('app.wagon_video_capture') }}</span>
+                    <span class="rt-wl-action-label">{{ __('app.wagon_video_capture') }}</span>
                 </button>
                 <button
                     type="button"
                     @click="resetDraft()"
-                    class="rt-wagon-editor-secondary-action h-10 w-10 items-center justify-center rounded-lg border border-transparent text-rt-muted transition-all duration-200 hover:border-red-200 hover:bg-red-50 hover:text-red-700 active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/45 dark:text-rt-dark-muted dark:hover:border-red-500/25 dark:hover:bg-red-500/10 dark:hover:text-red-300"
+                    class="rt-wagon-editor-secondary-action rt-wl-action rt-wl-action--icon rt-wl-action--danger"
                     title="{{ $labels['deleteDraft'] }}"
                     aria-label="{{ $labels['deleteDraft'] }}"
                 >
@@ -253,21 +260,30 @@
                     type="button"
                     @click="exportWorkbook()"
                     :disabled="exporting"
-                    class="rt-wagon-editor-secondary-action h-10 items-center justify-center gap-2 rounded-lg border border-rt-border bg-rt-surface px-3 text-sm font-semibold text-rt-text shadow-rt-xs transition-all duration-200 hover:border-rt-accent/35 hover:bg-rt-surface-muted hover:text-rt-accent active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/35 disabled:cursor-wait disabled:opacity-65 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text dark:hover:border-rt-dark-accent/35 dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-accent"
+                    class="rt-wagon-editor-secondary-action rt-wl-action"
                     title="{{ __('app.export_excel') }}"
                     aria-label="{{ __('app.export_excel') }}"
                 >
                     <i class="far fa-file-excel" x-show="!exporting" aria-hidden="true"></i>
                     <i class="far fa-spinner fa-spin" x-show="exporting" x-cloak aria-hidden="true"></i>
-                    <span class="rt-wagon-editor-export-label" x-text="exporting ? @js(__('app.wagon_exporting')) : @js(__('app.export_excel'))"></span>
+                    <span class="rt-wagon-editor-export-label rt-wl-action-label" x-text="exporting ? @js(__('app.wagon_exporting')) : @js(__('app.export_excel'))"></span>
                 </button>
                 <button
                     type="button"
                     @click="saveAndClose()"
-                    class="rt-wagon-editor-desktop-save min-h-10 items-center gap-2 rounded-lg bg-rt-red px-4 py-2 text-sm font-semibold text-white shadow-rt-xs transition-all duration-200 hover:-translate-y-0.5 hover:bg-rt-red-dark hover:shadow-rt-glow active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40"
+                    class="rt-wagon-editor-desktop-save rt-wl-action rt-wl-action--strong"
                 >
                     <i class="far fa-check" aria-hidden="true"></i>
                     {{ $labels['saveAndClose'] }}
+                </button>
+                <button
+                    type="button"
+                    @click="cancelEditor()"
+                    class="rt-wl-action rt-wl-action--icon"
+                    title="{{ __('app.close') }}"
+                    aria-label="{{ __('app.close') }}"
+                >
+                    <i class="far fa-times" aria-hidden="true"></i>
                 </button>
             </x-slot:actions>
 
