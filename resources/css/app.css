@@ -9153,6 +9153,7 @@ body[data-mode="dark"] [data-autosave-scope] [data-autosave-visual][data-autosav
     --wl-surface: #fff;
     --wl-well: #f4f5f7;
     --wl-hover: #f8f9fa;
+    --wl-stage: #eef0f3;
     --wl-seg: #fff;
     --wl-err: #e4002b;
     --wl-err-text: #c40025;
@@ -9182,6 +9183,7 @@ body[data-mode='dark'] .rt-wagon-editor {
     --wl-surface: #121b29;
     --wl-well: #1b2738;
     --wl-hover: #162131;
+    --wl-stage: #0b121b;
     --wl-seg: #2c3b52;
     --wl-err: #ff5c7a;
     --wl-err-text: #ff9bad;
@@ -11327,6 +11329,507 @@ textarea.rt-wl-input,
 .rt-wl-gauge[data-tone='ok'] .rt-wl-gauge-bar { background: var(--wl-ok); }
 .rt-wl-gauge[data-tone='error'] .rt-wl-gauge-bar { background: var(--wl-err); }
 
+/* ---- Bausteine der früheren Fassung in der ruhigen Optik ------------
+   Wagenauswahl, Wagenformular und die geführte Eingabe am Telefon stammen
+   aus der früheren Fassung und tragen dort feste Farben. Im Editor gelten
+   für sie dieselben Variablen wie für die Arbeitsfläche; Rot bedeutet auch
+   hier nur noch Fehler. Jede Regel beginnt mit .rt-wagon-editor und einer
+   zweiten Klasse, damit sie Vorrang vor den älteren Regeln für den
+   Dunkelmodus hat (html.dark .rt-wagon-…). */
+
+/* Wagenauswahl (Einzelansicht am Desktop, Abschnitt „Wagen“ am Telefon):
+   ruhige Zeilen. Der Stand steht im Punkt rechts, ein Fehler zusätzlich
+   in der Positionsnummer. */
+.rt-wagon-editor .rt-wagon-review-list {
+    gap: 0.15rem;
+}
+
+.rt-wagon-editor .rt-wagon-review-list .rt-wagon-review-item {
+    border: 0;
+    border-radius: 0.85rem;
+    background: transparent;
+    padding: 0.5rem 0.55rem;
+    color: var(--wl-ink);
+    transition: background-color 150ms ease, box-shadow 150ms ease;
+}
+
+.rt-wagon-editor .rt-wagon-review-list .rt-wagon-review-item:hover,
+.rt-wagon-editor .rt-wagon-review-list .rt-wagon-review-item:focus-visible {
+    background: var(--wl-hover);
+}
+
+.rt-wagon-editor .rt-wagon-review-list .rt-wagon-review-item:focus-visible {
+    outline: 2px solid var(--wl-ink);
+    outline-offset: -2px;
+}
+
+.rt-wagon-editor .rt-wagon-review-list .rt-wagon-review-item[data-current='true'] {
+    background: var(--wl-well);
+    box-shadow: inset 0 0 0 1.5px var(--wl-ink);
+}
+
+.rt-wagon-editor .rt-wagon-review-list .rt-wagon-review-item[data-state] .rt-wagon-review-item-index {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.6rem;
+    background: var(--wl-well);
+    color: var(--wl-muted);
+    font-weight: 650;
+}
+
+.rt-wagon-editor .rt-wagon-review-list .rt-wagon-review-item[data-current='true'] .rt-wagon-review-item-index {
+    background: var(--wl-surface);
+    color: var(--wl-ink);
+}
+
+.rt-wagon-editor .rt-wagon-review-list .rt-wagon-review-item[data-state='invalid'] .rt-wagon-review-item-index {
+    background: var(--wl-err-soft);
+    color: var(--wl-err-text);
+}
+
+.rt-wagon-editor .rt-wagon-review-list .rt-wagon-review-item-title {
+    color: var(--wl-ink);
+    font-variant-numeric: tabular-nums;
+    font-weight: 650;
+}
+
+.rt-wagon-editor .rt-wagon-review-list .rt-wagon-review-item-meta,
+.rt-wagon-editor .rt-wagon-review-list .rt-wagon-review-item-route {
+    color: var(--wl-muted);
+}
+
+.rt-wagon-editor .rt-wagon-review-list .rt-wagon-review-item[data-state] .rt-wagon-review-item-state {
+    background: var(--wl-faint);
+}
+
+.rt-wagon-editor .rt-wagon-review-list .rt-wagon-review-item[data-state='partial'] .rt-wagon-review-item-state {
+    background: var(--wl-warn);
+}
+
+.rt-wagon-editor .rt-wagon-review-list .rt-wagon-review-item[data-state='complete'] .rt-wagon-review-item-state {
+    background: var(--wl-ok);
+}
+
+.rt-wagon-editor .rt-wagon-review-list .rt-wagon-review-item[data-state='invalid'] .rt-wagon-review-item-state {
+    background: var(--wl-err);
+}
+
+.rt-wagon-editor .rt-wagon-review-list .rt-wagon-review-item .rt-wagon-review-item-chevron,
+.rt-wagon-editor .rt-wagon-review-list .rt-wagon-review-item:hover .rt-wagon-review-item-chevron {
+    color: var(--wl-faint);
+    transform: none;
+}
+
+/* Einzelansicht am Desktop: links die Auswahl, rechts das Formular des Wagens. */
+.rt-wl-picker {
+    border-right: 1px solid var(--wl-hair2);
+    padding: 0.25rem 0.6rem 1rem 0.75rem;
+}
+
+.rt-wl-picker .rt-wagon-review-item-chevron {
+    display: none;
+}
+
+.rt-wl-inspector {
+    padding: 0 1.5rem 1.5rem;
+}
+
+.rt-wl-inspector-head {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0 -1.5rem;
+    border-bottom: 1px solid var(--wl-hair2);
+    background: var(--wl-surface);
+    padding: 0.35rem 1.25rem 0.7rem 1.5rem;
+}
+
+.rt-wl-inspector-title {
+    overflow: hidden;
+    color: var(--wl-ink);
+    font-size: 0.9rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rt-wl-inspector-meta {
+    overflow: hidden;
+    margin-top: 0.1rem;
+    color: var(--wl-muted);
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rt-wl-inspector-tools {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.rt-wl-inspector .rt-wl-form-grid {
+    gap: 1.5rem;
+    margin-top: 1.25rem;
+}
+
+/* Gleiche Kopfhöhe mit und ohne Statusangabe, damit beide Spalten auf einer Linie beginnen. */
+.rt-wagon-editor .rt-wl-inspector .rt-wagon-card-head {
+    min-height: 1.5rem;
+}
+
+/* Vier Abschnitte in zwei Spalten ohne Lücken: Jede Spalte füllt sich für
+   sich; ein Abschnitt wird nie zwischen den Spalten geteilt. */
+@media (min-width: 1280px) {
+    .rt-wl-inspector .rt-wl-form-grid--2 {
+        display: block;
+        column-count: 2;
+        column-gap: 2.5rem;
+    }
+
+    .rt-wl-inspector .rt-wl-form-grid--2 > .rt-wagon-card {
+        break-inside: avoid;
+    }
+
+    .rt-wl-inspector .rt-wl-form-grid--2 > .rt-wagon-card + .rt-wagon-card {
+        margin-top: 1.75rem;
+    }
+}
+
+/* Berechneter Wert im Wagenformular: eine Zeile statt eines Kastens mit
+   großer Zahl. Der feine Rand unterscheidet ihn von den Eingabefeldern. */
+.rt-wagon-editor .rt-wl-fields .rt-wagon-calculated {
+    display: flex;
+    min-height: 2.6rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border: 0;
+    border-radius: 0.75rem;
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--wl-hair);
+    padding: 0.4rem 0.8rem;
+    color: var(--wl-ink);
+}
+
+.rt-wagon-editor .rt-wl-fields .rt-wagon-calculated .rt-wagon-metric-label {
+    color: var(--wl-muted);
+    font-size: 0.75rem;
+    font-weight: 550;
+}
+
+.rt-wagon-editor .rt-wl-fields .rt-wagon-calculated .rt-wagon-calculated-value {
+    margin-top: 0;
+    font-size: 0.95rem;
+    font-weight: 650;
+}
+
+/* Schrittfeld (Achsen) und Datumsfeld: dieselbe Fläche wie die übrigen
+   Felder. Die allgemeine Feldhülle färbt Rand und Schatten beim Überfahren
+   rot und lässt die Schritt-Tasten im Dunkelmodus hell; im Editor ist Rot
+   dem Fehler vorbehalten. */
+.rt-wagon-editor .rt-wl-field .rt-ui-number-input,
+.rt-wagon-editor .rt-wl-field .rt-ui-date-field__shell {
+    min-height: 2.6rem !important;
+    border-color: transparent !important;
+    border-radius: 0.75rem;
+    background: var(--wl-well);
+    box-shadow: inset 0 0 0 1px var(--wl-hair2);
+    color: var(--wl-ink);
+    transition: background-color 150ms ease, box-shadow 150ms ease;
+}
+
+.rt-wagon-editor .rt-wl-field .rt-ui-number-input,
+.rt-wagon-editor .rt-wl-field > .rt-ui-date-field {
+    margin-top: 0.35rem;
+}
+
+.rt-wagon-editor .rt-wl-field .rt-ui-number-input:focus-within,
+.rt-wagon-editor .rt-wl-field .rt-ui-date-field__shell:focus-within,
+.rt-wagon-editor .rt-wl-field .rt-ui-date-field__shell[data-open='true'] {
+    background: var(--wl-surface);
+    box-shadow: inset 0 0 0 1.5px var(--wl-ink), 0 0 0 4px var(--wl-focus);
+}
+
+.rt-wagon-editor .rt-wl-field .rt-ui-number-input input,
+.rt-wagon-editor .rt-wl-field .rt-ui-date-field__shell input {
+    color: var(--wl-ink);
+    font-size: 0.875rem;
+    font-weight: 550;
+}
+
+.rt-wagon-editor .rt-wl-field .rt-ui-number-input > [role='button'],
+.rt-wagon-editor .rt-wl-field .rt-ui-date-field__shell > .rt-ui-date-field__trigger {
+    border-color: var(--wl-hair);
+    background: transparent;
+    color: var(--wl-muted);
+}
+
+.rt-wagon-editor .rt-wl-field .rt-ui-number-input > [role='button']:hover,
+.rt-wagon-editor .rt-wl-field .rt-ui-date-field__shell > .rt-ui-date-field__trigger:hover:not(:disabled) {
+    background: var(--wl-hair2);
+    color: var(--wl-ink);
+}
+
+/* Datum: Platz für zehn Zeichen neben dem Kalenderknopf, auch in der halben Breite am Telefon. */
+.rt-wagon-editor .rt-wl-field .rt-ui-date-field__shell input {
+    padding-inline: 0.8rem 0;
+}
+
+.rt-wagon-editor .rt-wl-field .rt-ui-date-field__shell > .rt-ui-date-field__trigger {
+    flex-basis: 2.5rem;
+    width: 2.5rem;
+}
+
+/* ---- Geführte Eingabe am Telefon ------------------------------------ */
+.rt-wagon-editor section.rt-wagon-mobile-wizard {
+    background: var(--wl-stage);
+    color: var(--wl-ink);
+}
+
+/* Abschnittsleiste: wie die Reiter am Desktop, der aktive Abschnitt dunkel. */
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-wizard-progress {
+    border-bottom: 1px solid var(--wl-hair2);
+    background: var(--wl-surface);
+    backdrop-filter: none;
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-step-chip {
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    box-shadow: none;
+    padding-inline: 0.4rem 0.9rem;
+    color: var(--wl-muted);
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-step-chip:hover,
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-step-chip:focus-visible {
+    color: var(--wl-ink);
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-step-chip:focus-visible {
+    outline: 2px solid var(--wl-ink);
+    outline-offset: -2px;
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-step-chip .rt-wagon-step-number {
+    width: 1.85rem;
+    min-width: 1.85rem;
+    height: 1.85rem;
+    border-radius: 999px;
+    background: var(--wl-well);
+    color: var(--wl-muted);
+    font-size: 0.7rem;
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-step-chip[data-active='true'] {
+    background: var(--wl-cta);
+    box-shadow: 0 10px 20px -12px rgb(13 16 22 / 0.5);
+    color: var(--wl-cta-text);
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-step-chip[data-active='true'] .rt-wagon-step-number {
+    background: var(--wl-cta-chip);
+    color: var(--wl-cta-text);
+}
+
+/* Karten: weiche Tiefe statt Rahmen, ruhige Titelzeile ohne Band und Symbol. */
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-card,
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-review-train {
+    border: 0;
+    border-radius: 1.15rem;
+    background: var(--wl-surface);
+    box-shadow: var(--wl-shadow);
+    color: var(--wl-ink);
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-review-train {
+    padding: 1rem;
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-card-head {
+    border: 0;
+    background: transparent;
+    padding: 0.95rem 1rem 0.1rem;
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-card-head h4 {
+    color: var(--wl-ink);
+    font-size: 0.95rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-card-icon {
+    display: none;
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-card-body {
+    padding: 0.75rem 1rem 1rem;
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-flow-eyebrow {
+    color: var(--wl-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-review-count {
+    border-radius: 999px;
+    background: var(--wl-well);
+    padding: 0.15rem 0.6rem;
+    color: var(--wl-muted);
+    font-size: 0.71875rem;
+    font-weight: 600;
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-metric {
+    background: var(--wl-well);
+    color: var(--wl-ink);
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-metric-label {
+    color: var(--wl-muted);
+    font-weight: 550;
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-metric-value {
+    font-size: 1rem;
+    font-weight: 650;
+}
+
+/* Wagen im Abschnitt „Wagen“: Zeilen mit feiner Trennlinie statt Karten in der Karte. */
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-review-list {
+    gap: 0;
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-review-list > li + li {
+    border-top: 1px solid var(--wl-hair2);
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-review-list .rt-wagon-review-item {
+    min-height: 3.6rem;
+    border-radius: 0.6rem;
+    padding: 0.6rem 0.2rem;
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-review-add,
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-export-button {
+    border: 0;
+    border-radius: 999px;
+    font-weight: 600;
+    transition: box-shadow 150ms ease, color 150ms ease, transform 160ms ease;
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-review-add {
+    margin-top: 0.75rem;
+    background: var(--wl-well);
+    color: var(--wl-ink2);
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-review-add:hover:not(:disabled) {
+    background: var(--wl-well);
+    box-shadow: inset 0 0 0 1px var(--wl-faint);
+    color: var(--wl-ink);
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-export-button {
+    background: var(--wl-surface);
+    box-shadow: inset 0 0 0 1px var(--wl-hair);
+    color: var(--wl-ink);
+}
+
+/* Fußleiste: die Hauptaktion dunkel wie „Weiter“ am Desktop. */
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-wizard-footer {
+    border-top: 1px solid var(--wl-hair2);
+    background: var(--wl-surface);
+    box-shadow: 0 -12px 24px -20px rgb(13 16 22 / 0.35);
+    backdrop-filter: none;
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-wizard-footer-title {
+    color: var(--wl-muted);
+    font-weight: 600;
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-wizard-action {
+    border: 0;
+    border-radius: 999px;
+    background: var(--wl-well);
+    padding-inline: 1rem;
+    color: var(--wl-ink2);
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-wizard-action-primary {
+    background: var(--wl-cta);
+    box-shadow: 0 14px 26px -16px rgb(13 16 22 / 0.6);
+    padding-inline: 1.2rem 1.35rem;
+    color: var(--wl-cta-text);
+}
+
+/* Wagen-Modal */
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-modal-panel {
+    border: 0;
+    background: var(--wl-stage);
+    color: var(--wl-ink);
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-modal-head {
+    border-bottom: 1px solid var(--wl-hair2);
+    background: var(--wl-surface);
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-modal-footer {
+    border-top: 1px solid var(--wl-hair2);
+    background: var(--wl-surface);
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-step-number-badge {
+    border: 0;
+    border-radius: 0.8rem;
+    background: var(--wl-well);
+    box-shadow: none;
+    color: var(--wl-ink);
+    font-weight: 650;
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-icon-action {
+    border-radius: 999px;
+    color: var(--wl-muted);
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-icon-action:hover,
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-icon-action:focus-visible {
+    background: var(--wl-well);
+    outline: 0;
+    color: var(--wl-ink);
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-icon-action:focus-visible {
+    outline: 2px solid var(--wl-ink);
+    outline-offset: 2px;
+}
+
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-icon-action--danger:hover,
+.rt-wagon-editor .rt-wagon-mobile-wizard .rt-wagon-icon-action--danger:active {
+    background: var(--wl-err-soft);
+    color: var(--wl-err-text);
+}
+
 /* Mobil: gleiche Bausteine, größere Tippflächen */
 @media (max-width: 1023.98px) {
     .rt-wl-input {
@@ -11359,6 +11862,16 @@ textarea.rt-wl-input,
 
     .rt-wl-ghost {
         min-height: 2.6rem;
+    }
+
+    .rt-wagon-editor .rt-wl-field .rt-ui-number-input,
+    .rt-wagon-editor .rt-wl-field .rt-ui-date-field__shell {
+        min-height: 2.9rem !important;
+    }
+
+    .rt-wagon-editor .rt-wl-field .rt-ui-number-input input,
+    .rt-wagon-editor .rt-wl-field .rt-ui-date-field__shell input {
+        font-size: 1rem;
     }
 }
 

@@ -36,8 +36,11 @@
                 id="rt-chat-overview"
                 class="rt-chat-list-pane flex min-h-0 w-full shrink-0 flex-col overflow-hidden md:w-[21.5rem]"
                 data-anim="left"
-                x-bind:class="{ 'rt-chat-list-collapsed': listCollapsed }"
-                @if($embedded) x-bind:inert="mobilePane !== 'list'" @endif
+                @if($embedded)
+                    x-bind:inert="!splitChat && mobilePane !== 'list'"
+                @else
+                    x-bind:class="{ 'rt-chat-list-collapsed': listCollapsed }"
+                @endif
             >
                 @if($embedded)
                     <x-ui.floating.toolbar label="Chats durchsuchen und filtern" search>
@@ -267,7 +270,7 @@
             </div>
             {{-- chat-section:chat-list:end --}}
             {{-- chat-section:conversation:start --}}
-            <div class="rt-chat-conversation-pane flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" data-anim="fade" @if($embedded) x-bind:inert="mobilePane !== 'chat'" @endif>
+            <div class="rt-chat-conversation-pane flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" data-anim="fade" @if($embedded) x-bind:inert="!splitChat && mobilePane !== 'chat'" @endif>
                 @if (! $selectedChat)
                     <div class="rt-chat-conversation-empty relative min-h-0 flex-1">
                         <button

@@ -45,10 +45,10 @@ export function activeVisibleChatId({
     }
 
     const communication = chatPage.closest?.('[data-communication-host]');
-    if (communication && (communication.dataset.communicationOpen !== 'true'
-        || communication.dataset.communicationTab !== 'chats'
-        || chatPage.dataset.mobilePane !== 'chat')) {
-        return 0;
+    if (communication) {
+        const visible = communication.dataset.communicationOpen === 'true' && communication.dataset.communicationTab === 'chats'
+            && (communication.dataset.chatLayout === 'split' || chatPage.dataset.mobilePane === 'chat');
+        return visible ? chatId : 0;
     }
 
     if (

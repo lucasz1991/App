@@ -92,7 +92,7 @@
                             {{ __('app.date') }}
                             <button type="button" class="rt-wl-link" @click="setToday()">{{ __('app.today') }}</button>
                         </span>
-                        <x-ui.forms.date-field x-model="meta.date" class="mt-1" :aria-label="__('app.date')" />
+                        <x-ui.forms.date-field x-model="meta.date" :aria-label="__('app.date')" />
                     </div>
                     <label class="rt-wl-field">
                         <span class="rt-wl-label">{{ __('app.from') }}</span>

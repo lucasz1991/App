@@ -92,7 +92,7 @@ export function communicationModule() {
                 if (event.key !== 'Escape' || event.defaultPrevented) return;
                 if (!this.open || !this.$refs.panel.contains(event.target)) return;
                 if (event.target.closest('[role="dialog"],dialog,[data-anchor-dropdown-content]')) return;
-                if (this.tab === 'chats' && this.$root.querySelector('[data-mobile-pane="chat"]')) {
+                if (this.tab === 'chats' && !this.splitChat && this.$root.querySelector('[data-mobile-pane="chat"]')) {
                     window.dispatchEvent(new CustomEvent('chat:pane-list')); event.preventDefault();
                 } else if (this.showCall || this.showHistory) {
                     this.showHistory = false;
@@ -109,6 +109,7 @@ export function communicationModule() {
             this.$nextTick(() => this.routeIntent());
         },
         get canDrag() { return this.open && this.mode === 'mini' && this.wide; },
+        get splitChat() { return this.wide && this.mode === 'fullscreen'; },
         dispatchChat(name, payload = {}) { window.Livewire?.dispatchTo('chat-box', name, payload); },
         selectChatFilter(filter) {
             if (!['all', 'unread', 'groups'].includes(filter)) return;
@@ -199,10 +200,12 @@ export function communicationModule() {
             this.$root.dataset.communicationOpen = String(this.open);
             this.$root.dataset.communicationTab = this.tab;
             this.$root.dataset.communicationCall = String(this.showCall && this.activeCall);
+            this.$root.dataset.chatLayout = this.splitChat ? 'split' : 'stacked';
             this.setMainInert(this.open && this.mode === 'fullscreen');
             this.$nextTick(() => {
                 const chat = this.$root.querySelector('[data-communication-chat="true"]');
-                const visible = this.open && this.tab === 'chats' && chat?.dataset.mobilePane === 'chat' && document.visibilityState === 'visible';
+                const visible = this.open && this.tab === 'chats' && Number(chat?.dataset.activeChatId) > 0
+                    && (this.splitChat || chat.dataset.mobilePane === 'chat') && document.visibilityState === 'visible';
                 this.dispatchChat('communication:visibility', { visible });
             });
         },
@@ -239,9 +242,12 @@ export function communicationModule() {
             layoutFrame = requestAnimationFrame(() => { layoutFrame = null; this.measureLayout(); });
         },
         measureLayout() {
+            const wasSplit = this.splitChat;
             this.wide = window.innerWidth > 760;
             if (!this.wide && this.open && this.mode !== 'fullscreen') {
                 this.mode = 'fullscreen';
+                this.syncVisibility();
+            } else if (wasSplit !== this.splitChat) {
                 this.syncVisibility();
             }
             const viewport = window.visualViewport;

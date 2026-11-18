@@ -459,11 +459,11 @@ test('media ownership remains held through close and releases only on actual cal
 });
 
 const appSource = await readFile(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
-function nativeChatGestures() {
+function nativeChatGestures(width = 390) {
     const {document}=parseHTML('<div data-communication-chat="true"><button data-chat-swipe-id="17"><span id="row">Alex</span></button><button id="other">Action</button><input></div>');
     let component, now=1000, selection=''; const opened=[];
-    const window={innerWidth:390,getSelection:()=>({toString:()=>selection})};
-    const context=vm.createContext({Alpine:{data:(name,factory)=>{component=factory(false);}},window,document,localStorage:{getItem:()=>null},performance:{now:()=>now},readChatViewport:()=>({width:390,height:844,top:0})});
+    const window={innerWidth:width,getSelection:()=>({toString:()=>selection})};
+    const context=vm.createContext({Alpine:{data:(name,factory)=>{component=factory(false);}},window,document,localStorage:{getItem:()=>null},performance:{now:()=>now},readChatViewport:()=>({width,height:844,top:0})});
     const start=appSource.indexOf("Alpine.data('chatPaneNavigation'");
     const end=appSource.indexOf("Alpine.data('adminDashboardCharts'",start);
     vm.runInContext(appSource.slice(start,end),context);
@@ -477,6 +477,23 @@ test('native list touch-left selects the touched contact and suppresses its comp
     assert.deepEqual(f.opened,[17]);let blocked=false;
     f.component.consumeSwipeClick({detail:1,pointerType:'touch',clientX:100,clientY:62,preventDefault:()=>{blocked=true;},stopImmediatePropagation:()=>{}});
     assert.equal(blocked,true);
+});
+
+test('desktop touch navigation operates only in the compact chat window', () => {
+    const f = nativeChatGestures(961);
+    const start = () => f.component.touchStart(f.touch(220, 60));
+    const finish = () => f.component.touchEnd(f.touch(100, 62));
+    f.component.splitChat = true;
+    start(); finish();
+    assert.deepEqual(f.opened, []);
+    f.component.splitChat = false;
+    start();
+    f.component.splitChat = true;
+    finish();
+    assert.deepEqual(f.opened, [], 'expanding the window cancels an in-progress swipe');
+    f.component.splitChat = false;
+    start(); finish();
+    assert.deepEqual(f.opened, [17]);
 });
 
 test('native chat touch-right returns to list while vertical scroll and controls retain their actions',()=>{

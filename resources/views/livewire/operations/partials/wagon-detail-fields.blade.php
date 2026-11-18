@@ -72,7 +72,7 @@
     <div class="rt-wagon-card-body rt-wl-fields">
         <label class="rt-wl-field">
             <span class="rt-wl-label">{{ __('app.axles') }}</span>
-            <x-ui.forms.number-input min="0" max="32" x-model="{{ $w }}.axles" class="mt-1" />
+            <x-ui.forms.number-input min="0" max="32" x-model="{{ $w }}.axles" />
         </label>
         <label class="rt-wl-field">
             <span class="rt-wl-label">{{ __('app.length_m') }}</span>

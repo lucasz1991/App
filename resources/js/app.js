@@ -1695,7 +1695,7 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
 
     touchStart(event) {
         this.swipeClick = null;
-        if ((window.innerWidth >= 768 && this.$root.dataset.communicationChat !== 'true') || event.touches.length !== 1) {
+        if (this.splitChat || (window.innerWidth >= 768 && this.$root.dataset.communicationChat !== 'true') || event.touches.length !== 1) {
             this.cancelSwipe();
             return;
         }
@@ -1721,7 +1721,7 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
     },
 
     touchEnd(event) {
-        if ((window.innerWidth >= 768 && this.$root.dataset.communicationChat !== 'true') || this.touchStartX === null || event.changedTouches.length !== 1) {
+        if (this.splitChat || (window.innerWidth >= 768 && this.$root.dataset.communicationChat !== 'true') || this.touchStartX === null || event.changedTouches.length !== 1) {
             this.cancelSwipe();
             return;
         }

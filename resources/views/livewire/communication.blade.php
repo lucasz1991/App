@@ -5,6 +5,7 @@
     data-communication-open="false"
     data-communication-tab="chats"
     data-communication-call="false"
+    data-chat-layout="stacked"
     wire:poll.60s="refreshUnread"
     x-on:rt-floating-surface-opened.window="if ($event.detail?.surface === 'assist' && (!wide || window.innerWidth <= 760 || $event.detail?.mobile || !$event.detail?.corner || corner === $event.detail.corner)) close(false)"
 >

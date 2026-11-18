@@ -278,7 +278,7 @@
         class="grid min-h-0 flex-1 grid-cols-[clamp(15rem,20vw,19rem)_minmax(0,1fr)]"
         data-wagon-desktop-overview
     >
-        <div class="h-full min-h-0 overflow-y-auto border-r border-rt-border/70 bg-rt-surface-muted/45 p-2.5 dark:border-rt-dark-border/70 dark:bg-rt-dark-surface-muted/25">
+        <div class="rt-wl-picker h-full min-h-0 overflow-y-auto">
             <ol
                 class="rt-wagon-review-list"
                 role="listbox"
@@ -316,15 +316,15 @@
             </ol>
         </div>
 
-        <div class="h-full min-h-0 overflow-y-auto px-4 pb-4" data-wagon-detail-inspector>
-            <div class="sticky top-0 z-10 -mx-4 flex items-center justify-between gap-4 border-b border-rt-border/70 bg-rt-surface/95 px-4 py-2.5 backdrop-blur-xl dark:border-rt-dark-border/70 dark:bg-rt-dark-surface/95">
+        <div class="rt-wl-inspector h-full min-h-0 overflow-y-auto" data-wagon-detail-inspector>
+            <div class="rt-wl-inspector-head">
                 <div class="min-w-0">
-                    <h3 class="truncate text-sm font-semibold text-rt-text dark:text-rt-dark-text">
+                    <h3 class="rt-wl-inspector-title">
                         {{ __('app.selected_wagon') }} <span class="tabular-nums" x-text="desktopWagon + 1"></span>
                     </h3>
-                    <p class="mt-0.5 truncate text-xs text-rt-muted dark:text-rt-dark-muted" x-text="wagonNumber(wagons[desktopWagon]) || @js(__('app.wagon_empty'))"></p>
+                    <p class="rt-wl-inspector-meta" x-text="wagonNumber(wagons[desktopWagon]) || @js(__('app.wagon_empty'))"></p>
                 </div>
-                <div class="flex shrink-0 items-center gap-1">
+                <div class="rt-wl-inspector-tools">
                     <button type="button" class="rt-wl-ghost" @click="moveWagon(desktopWagon, -1)" :disabled="desktopWagon === 0" title="{{ __('app.wagon_move_up') }}" aria-label="{{ __('app.wagon_move_up') }}">
                         <i class="far fa-arrow-up" aria-hidden="true"></i>
                     </button>
@@ -337,7 +337,7 @@
                 </div>
             </div>
 
-            <div class="rt-wl-form-grid rt-wl-form-grid--2 mt-3">
+            <div class="rt-wl-form-grid rt-wl-form-grid--2">
                 @include('livewire.operations.partials.wagon-detail-fields', [
                     'w' => 'wagons[desktopWagon]',
                     'scope' => 'desktop',
