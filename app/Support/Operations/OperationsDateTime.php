@@ -58,4 +58,32 @@ final class OperationsDateTime
     {
         return sprintf('%d:%02d h', intdiv(max(0, $seconds), 3600), intdiv(max(0, $seconds) % 3600, 60));
     }
+
+    public static function workTimePreview(array $values, ?string $timezone): string
+    {
+        if (blank($timezone) || ! is_string($values['starts_at'] ?? null) || blank($values['starts_at'])
+            || ! is_string($values['ends_at'] ?? null) || blank($values['ends_at']) || blank($values['pause_minutes'] ?? null)) {
+            return 'Für die Nettozeit Beginn, Ende, Pause und Zeitzone vollständig angeben.';
+        }
+
+        try {
+            [$start, $end] = self::interval($values['starts_at'], $values['ends_at'], $timezone);
+        } catch (ValidationException $exception) {
+            return collect($exception->errors())->flatten()->first();
+        }
+
+        $seconds = $end->getTimestamp() - $start->getTimestamp();
+        $pause = filter_var($values['pause_minutes'], FILTER_VALIDATE_INT);
+        if ($pause === false || $pause < 0 || $pause * 60 >= $seconds) {
+            return 'Die Pause muss in ganzen Minuten angegeben werden und kürzer als die Arbeitszeit sein.';
+        }
+        if ($seconds > 86400) {
+            return 'Der Zeitraum darf höchstens 24 Stunden umfassen.';
+        }
+        if ($end->isFuture()) {
+            return 'Das Ende liegt in der Zukunft.';
+        }
+
+        return self::duration($seconds - $pause * 60);
+    }
 }

@@ -156,6 +156,17 @@ class OperationsEnhancementsTest extends TestCase
         $this->rejected(fn () => app(CustomerProofService::class)->submit($proof->id, 1, $this->outside), 403);
     }
 
+    public function test_rule_kind_switch_requires_a_valid_activity_and_preserves_shared_choices(): void
+    {
+        Livewire::actingAs($this->admin)->test(OperationsEnhancements::class, ['tab' => 'rules'])
+            ->call('create')->set('form.kind', 'remuneration')
+            ->assertSet('form.configuration.activity', '')->assertSee('Lohnart')
+            ->set('form.configuration.activity', 'travel')->set('form.kind', 'planning')
+            ->assertSet('form.configuration.activity', 'travel')
+            ->set('form.kind', 'remuneration')->set('form.configuration.activity', 'work')
+            ->set('form.kind', 'planning')->assertSet('form.configuration.activity', 'all');
+    }
+
     public function test_configured_planning_rules_have_no_implicit_defaults(): void
     {
         $s = app(OperationsRuleEvaluationService::class);

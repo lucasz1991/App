@@ -43,7 +43,7 @@ if (is_string($can) && $can !== '') {
 }
 
 $isDeniedByCan = ! $isAllowed;
-$isDisabled = isset($attributes['disabled']) || $isDeniedByCan;
+$isDisabled = $isDeniedByCan || ! in_array($attributes->get('disabled'), [null, false], true);
 
 $classes = 'rt-ui-button rt-ui-button-' . $themeVariant . ' ' . $modeClasses . ' ' . $sizeClasses;
 $classes .= ' transition-all duration-300 ease-rt-spring inline-flex items-center justify-center gap-2 text-center font-semibold leading-none border rounded-lg shadow-rt-xs active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-offset-0 disabled:opacity-50 [&>i]:shrink-0 [&>i]:leading-none [&>svg]:h-[1em] [&>svg]:w-[1em] [&>svg]:shrink-0';
@@ -60,7 +60,7 @@ $title = $isDeniedByCan
     ? __('app.no_permission')
     : $attributes->get('title');
 
-$attributesWithoutTitle = $attributes->except('title');
+$attributesWithoutTitle = $attributes->except(['title', 'disabled']);
 
 if (is_string($confirmMethod) && trim($confirmMethod) !== '') {
     $attributesWithoutTitle = $attributesWithoutTitle

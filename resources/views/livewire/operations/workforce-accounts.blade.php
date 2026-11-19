@@ -10,23 +10,45 @@
             <x-ui.buttons.multi-toggle id="workforce-account-view" label="Personalansicht" :show-labels="true" :value="$tab" action="showTab" :options="$viewOptions" />
         </header>@endif
         @if($employee)
-            @if($tab === 'account')<div class="rt-personnel-period rt-personnel-period--account" role="group" aria-label="Kontenzeitraum"><div class="rt-personnel-period__intro"><span class="rt-personnel-eyebrow">Zeitraum</span><p>Kontenübersicht</p></div><x-operations.field label="Von" model="from" type="date"/><x-operations.field label="Bis" model="until" type="date"/><div class="rt-personnel-period__action"><x-ui.buttons.button-basic type="button" wire:click="$refresh">Anzeigen</x-ui.buttons.button-basic></div></div>@endif
+            @if($tab === 'account')
+                <form wire:submit="applyAccountPeriod" class="rt-personnel-period rt-personnel-period--account" aria-label="Kontenzeitraum" novalidate>
+                    <div class="rt-personnel-period__intro">
+                        <h3>{{ $accountKind === 'time' ? ($personal ? 'Mein Zeitkonto' : 'Zeitkonto') : 'Kontenübersicht' }}</h3>
+                        <p>{{ \Carbon\CarbonImmutable::parse($accountPeriod['from'])->format('d.m.Y') }} – {{ \Carbon\CarbonImmutable::parse($accountPeriod['until'])->format('d.m.Y') }}</p>
+                    </div>
+                    <x-operations.field label="Von" model="from" type="date" required />
+                    <x-operations.field label="Bis" model="until" type="date" required />
+                    <div class="rt-personnel-period__action"><x-ui.buttons.button-basic type="submit" wire:loading.attr="disabled" wire:target="applyAccountPeriod">Anzeigen</x-ui.buttons.button-basic></div>
+                </form>
+            @endif
             @if($tab === 'account')
                 @if($accountKind !== 'vacation')<section class="rt-personnel-metrics" aria-label="Arbeitszeitkonto"><header class="rt-personnel-section-heading"><h3>Arbeitszeit</h3></header><dl class="rt-personnel-metrics__grid rt-personnel-metrics__grid--time">
                     @foreach(['balance_minutes'=>'Saldo','target_minutes'=>'Soll','actual_minutes'=>'Freigegebenes Ist','credited_minutes'=>'Kontogutschrift','absence_credit_minutes'=>'Urlaubsgutschrift'] as $key=>$label)
                         <div @class(['rt-personnel-metric', 'rt-personnel-metric--lead' => $key === 'balance_minutes'])><dt>{{ $label }}</dt><dd @class(['rt-personnel-metric__value', 'rt-personnel-metric__value--unavailable' => $summary[$key] === null])>{{ $summary[$key] === null ? 'Prüfung erforderlich' : ($summary[$key] < 0 ? '−' : '').\App\Support\Operations\OperationsDateTime::duration(abs($summary[$key]) * 60) }}</dd></div>
                     @endforeach
-                </dl></section>@endif
+                </dl>
+                @if($summary['adjustment_minutes'] != 0)
+                    <p class="rt-personnel-notice">Gebuchte Zeitkorrekturen im Zeitraum: {{ $summary['adjustment_minutes'] > 0 ? '+' : '' }}{{ $summary['adjustment_minutes'] }} min</p>
+                @endif
+                @if($summary['balance_minutes'] === null)
+                    <ul class="rt-personnel-notice rt-personnel-notice--warning" aria-label="Gründe für die offene Bewertung">
+                        @if($summary['missing_dates'])<li>Für {{ count($summary['missing_dates']) }} {{ count($summary['missing_dates']) === 1 ? 'Tag' : 'Tage' }} fehlt ein gültiges Arbeitsmodell.</li>@endif
+                        @if($summary['missing_valuations'])<li>Die Bewertung von Arbeitsabschnitten fehlt.</li>@endif
+                        @if($summary['missing_time_allocations'])<li>Arbeitszeiten müssen dem Zeitraum zugeordnet werden.</li>@endif
+                        @if($summary['missing_absence_allocations'])<li>Die Zuordnung einer genehmigten Abwesenheit zum Konto ist offen.</li>@endif
+                    </ul>
+                @endif
+                </section>@endif
                 @php($vacation = $summary['vacation'])
                 @if($accountKind !== 'time')<section class="rt-personnel-metrics" aria-label="Urlaubskonto"><header class="rt-personnel-section-heading"><h3>Urlaub</h3></header><dl class="rt-personnel-metrics__grid rt-personnel-metrics__grid--vacation">@foreach(['available'=>'Verfügbar','reserved'=>'Reserviert','approved'=>'Genehmigt','used'=>'Verbraucht','expired'=>'Abgelaufen','credited'=>'Anspruch'] as $key=>$label)<div @class(['rt-personnel-metric', 'rt-personnel-metric--lead' => $key === 'available'])><dt>{{ $label }}</dt><dd @class(['rt-personnel-metric__value', 'rt-personnel-metric__value--unavailable' => $vacation['configured'] && $vacation[$key] === null])>{{ !$vacation['configured'] ? '—' : ($vacation[$key] === null ? 'Prüfung erforderlich' : ($vacation['unit'] === 'days' ? number_format($vacation[$key] / 100, 2, ',', '.').' Tage' : $vacation[$key].' min')) }}</dd></div>@endforeach</dl>
                 @if(!$vacation['configured'])<p class="rt-personnel-notice">Urlaubsrichtlinie fehlt.</p>@endif
                 @if($summary['missing_absence_allocations'] !== [])<p class="rt-personnel-notice rt-personnel-notice--warning">Urlaubsübernahme prüfen.</p>@endif</section>@endif
             @endif
-            @php($recordHeading = ['account'=>'Buchungen','models'=>'Arbeitsmodelle','policies'=>'Urlaubsrichtlinien','rules'=>'Regelzuordnungen','checks'=>'Prüfungen','absences'=>'Abwesenheiten','tasks'=>'Aufgaben','training'=>'Schulungen','responsibilities'=>'Zuständigkeiten'][$tab] ?? 'Einträge')
+            @php($recordHeading = ['account'=>($accountKind === 'time' ? 'Zeitbuchungen im Zeitraum' : 'Buchungen'),'models'=>'Arbeitsmodelle','policies'=>'Urlaubsrichtlinien','rules'=>'Regelzuordnungen','checks'=>'Planprüfungen','absences'=>'Abwesenheiten','tasks'=>'Aufgaben','training'=>'Schulungen','responsibilities'=>'Zuständigkeiten'][$tab] ?? 'Einträge')
             <section class="rt-personnel-records ops-stack">
             <header class="rt-personnel-section-heading"><div><h3>{{ $recordHeading }}</h3><p>{{ $records instanceof \Illuminate\Contracts\Pagination\LengthAwarePaginator ? $records->total() : count($records) }} Einträge</p></div><div class="ops-actions">
                 @if($canConfigure && $tab === 'account')@if($accountKind !== 'time')<x-ui.buttons.button-basic type="button" wire:click="openForm('credit')">Anspruch buchen</x-ui.buttons.button-basic>@endif @if($accountKind !== 'vacation')<x-ui.buttons.button-basic type="button" wire:click="openForm('adjustment')">Zeitkorrektur</x-ui.buttons.button-basic>@endif @endif
-                @if($canConfigure && $tab === 'models')<x-ui.buttons.button-basic type="button" wire:click="openForm('model')">Arbeitsmodell</x-ui.buttons.button-basic>@endif
+                @if($canConfigure && $tab === 'models')<x-ui.buttons.button-basic type="button" wire:click="openForm('model')">Arbeitsmodell anlegen</x-ui.buttons.button-basic>@endif
                 @if($canConfigure && $tab === 'policies')<x-ui.buttons.button-basic type="button" wire:click="openForm('policy')">Urlaubsrichtlinie</x-ui.buttons.button-basic>@endif
                 @if($canConfigure && $tab === 'rules')<x-ui.buttons.button-basic type="button" wire:click="openForm('rule')">Regeln zuordnen</x-ui.buttons.button-basic>@endif
                 @if(!$personal && $tab === 'responsibilities' && auth()->user()->isAdmin())<x-ui.buttons.button-basic type="button" wire:click="openForm('responsibility')">Zuständigkeit</x-ui.buttons.button-basic>@endif
@@ -41,19 +63,65 @@
             </section>
         @else<div class="rt-personnel-empty"><strong>{{ $personal || $embedded || $employees->isEmpty() ? 'Keine Mitarbeiter vorhanden' : 'Kein Mitarbeiter ausgewählt' }}</strong>@if(!$personal && !$embedded && $employees->isNotEmpty())<p>Wählen Sie einen Mitarbeiter, um die Personalübersicht zu öffnen.</p>@endif</div>@endif
     @endif
-    <x-operations.modal wire:model="formOpen" :title="['plan_review'=>'Dienst neu beurteilen','model'=>'Arbeitsmodell anlegen','policy'=>'Urlaubsrichtlinie anlegen','credit'=>'Urlaubsanspruch buchen','adjustment'=>'Zeitkorrektur','rule'=>'Regeln zuordnen','task'=>'Aufgabe anlegen','training'=>'Schulung anlegen','enroll'=>'Teilnehmer zuordnen','responsibility'=>'Zuständigkeit anlegen','vacation'=>'Urlaub beantragen','sick'=>'Krankmelden','sickness_correction'=>'Krankmeldung korrigieren'][$formKind] ?? 'Personal'">
+    <x-operations.modal wire:model="formOpen" :title="['plan_review'=>'Dienst neu beurteilen','model'=>'Arbeitsmodell anlegen','end_model'=>'Arbeitsmodell beenden','policy'=>'Urlaubsrichtlinie anlegen','credit'=>'Urlaubsanspruch buchen','adjustment'=>'Zeitkorrektur buchen','rule'=>'Regeln zuordnen','task'=>'Aufgabe anlegen','training'=>'Schulung anlegen','enroll'=>'Teilnehmer zuordnen','responsibility'=>'Zuständigkeit anlegen','vacation'=>'Urlaub beantragen','sick'=>'Krankmelden','sickness_correction'=>'Krankmeldung korrigieren'][$formKind] ?? 'Personal'">
         <form id="workforce-account-form-{{ $this->getId() }}" wire:submit="save" class="rt-personnel-management rt-personnel-account-form ops-form rt-personal-form rt-employee-form" data-employee-form>
+            @if($employee && in_array($formKind, ['model', 'end_model', 'rule', 'plan_review', 'adjustment', 'responsibility'], true))
+                <p class="ops-full ops-muted">{{ $employee->name }}</p>
+            @endif
+            @if($actionRecord && $formKind === 'plan_review')
+                <section class="ops-full rt-personnel-surface">
+                    <h3>{{ $actionRecord->latest_snapshot['shift']['title'] ?? $actionRecord->shift?->title ?? 'Dienst' }}</h3>
+                    <p class="ops-muted">Plan R{{ $actionRecord->latest_snapshot['shift']['published_revision'] ?? $actionRecord->plan_revision }} · Prüfung R{{ $actionRecord->revision }}</p>
+                    @foreach($actionRecord->latest_snapshot['issues'] ?? [] as $issue)<p>{{ $issue['message'] }}</p>@endforeach
+                </section>
+            @elseif($actionRecord && $formKind === 'end_model')
+                <p class="ops-full"><strong>{{ $actionRecord->name }}</strong> · gültig ab {{ \Carbon\CarbonImmutable::parse($actionRecord->starts_on)->format('d.m.Y') }}</p>
+            @endif
             @if($formKind === 'model')
-                <x-operations.field label="Bezeichnung" model="form.name" required :wide="true"/><x-operations.field label="Gültig ab" model="form.starts_on" type="date" required/><x-operations.field label="Gültig bis" model="form.ends_on" type="date"/><x-operations.field label="Zeitzone" model="form.timezone" required/><x-operations.field label="Wochensoll (min)" model="form.weekly_target_minutes" type="number" min="0" required/><x-operations.field label="Wochenlimit (min)" model="form.maximum_weekly_minutes" type="number" min="0"/>
-                <div class="ops-full rt-personnel-section-heading"><div><h3>Wochenverteilung</h3><p>Sollzeit und Arbeitsfenster je Wochentag.</p></div></div>
-                @foreach([1=>'Montag',2=>'Dienstag',3=>'Mittwoch',4=>'Donnerstag',5=>'Freitag',6=>'Samstag',7=>'Sonntag'] as $day=>$label)<fieldset class="ops-full rt-personnel-day"><legend>{{ $label }}</legend><div class="rt-personnel-day__primary"><x-operations.field :label="$label.' (min)'" :model="'form.daily_minutes.'.$day" type="number" min="0" required/><x-operations.field :label="$label.' ab'" :model="'form.window_start.'.$day" type="time"/><x-operations.field :label="$label.' bis (HH:MM)'" :model="'form.window_end.'.$day" placeholder="24:00"/></div><details class="rt-personnel-day__additional" @if(!empty($form['window_start_2'][$day]) || !empty($form['window_end_2'][$day])) open @endif><summary>Zweites Zeitfenster</summary><div class="ops-form"><x-operations.field :label="$label.' zweites Fenster ab'" :model="'form.window_start_2.'.$day" type="time"/><x-operations.field :label="$label.' zweites Fenster bis'" :model="'form.window_end_2.'.$day" placeholder="24:00"/></div></details></fieldset>@endforeach
-                <fieldset class="ops-full rt-personnel-section"><legend>Zeitgutschrift</legend><div class="ops-form">@foreach(['work'=>'Arbeit','preparation'=>'Vorbereitung','driving'=>'Fahrt','shunting'=>'Rangieren','travel'=>'Anreise','waiting'=>'Wartezeit','on_call'=>'Bereitschaft','break'=>'Pause','internal'=>'Interne Arbeit','training'=>'Schulung'] as $kind=>$label)<x-operations.field :label="$label.' (%)'" :model="'form.valuation_percent.'.$kind" type="number" min="0" max="100" step="0.01" placeholder="Nicht konfiguriert"/>@endforeach</div></fieldset>
+                <fieldset class="ops-full rt-personnel-section"><legend>Basisdaten</legend>
+                    <div class="ops-form">
+                        <x-operations.field label="Bezeichnung" model="form.name" required :wide="true" />
+                        <x-operations.field label="Gültig ab" model="form.starts_on" type="date" required />
+                        <x-operations.field label="Gültig bis (optional)" model="form.ends_on" type="date" />
+                        <x-operations.field label="Zeitzone" model="form.timezone" required :wide="true" />
+                        <x-operations.field label="Wochensoll (min)" model="form.weekly_target_minutes" type="number" min="0" required />
+                        <x-operations.field label="Wochenlimit (min)" model="form.maximum_weekly_minutes" type="number" min="0" />
+                    </div>
+                </fieldset>
+                <fieldset class="ops-full rt-personnel-section">
+                    <legend>Wochenverteilung</legend>
+                    @foreach([1=>'Montag',2=>'Dienstag',3=>'Mittwoch',4=>'Donnerstag',5=>'Freitag',6=>'Samstag',7=>'Sonntag'] as $day => $label)
+                        <details class="rt-account-day" x-on:invalid.capture="$el.open = true" wire:key="work-model-day-{{ $day }}" @if($day === 1 || $errors->has('daily_minutes.'.$day) || $errors->has('work_windows.'.$day.'.*')) open @endif>
+                            <summary>{{ $label }}</summary>
+                            <div class="rt-personnel-day__primary">
+                                <x-operations.field :label="$label.' · Soll (min)'" :model="'form.daily_minutes.'.$day" type="number" min="0" required />
+                                <x-operations.field :label="$label.' · Fenster ab'" :model="'form.window_start.'.$day" type="time" />
+                                <x-operations.field :label="$label.' · Fenster bis (HH:MM)'" :model="'form.window_end.'.$day" placeholder="24:00" />
+                            </div>
+                            <details class="rt-personnel-day__additional" x-on:invalid.capture="$el.open = true" @if(filled($form['window_start_2'][$day] ?? '') || filled($form['window_end_2'][$day] ?? '')) open @endif>
+                                <summary>Zweites Zeitfenster</summary>
+                                <div class="ops-form">
+                                    <x-operations.field :label="$label.' · zweites Fenster ab'" :model="'form.window_start_2.'.$day" type="time" />
+                                    <x-operations.field :label="$label.' · zweites Fenster bis'" :model="'form.window_end_2.'.$day" placeholder="24:00" />
+                                </div>
+                            </details>
+                        </details>
+                    @endforeach
+                </fieldset>
+                <fieldset class="ops-full rt-personnel-section">
+                    <legend>Zeitgutschrift je Tätigkeit</legend>
+                    <div class="ops-form">
+                        @foreach(['work'=>'Arbeit','preparation'=>'Vorbereitung','driving'=>'Fahrt','shunting'=>'Rangieren','travel'=>'Anreise','waiting'=>'Wartezeit','on_call'=>'Bereitschaft','break'=>'Pause','internal'=>'Interne Arbeit','training'=>'Schulung'] as $kind => $label)
+                            <x-operations.field :label="$label.' (%)'" :model="'form.valuation_percent.'.$kind" type="number" min="0" max="100" step="0.01" placeholder="Nicht konfiguriert" />
+                        @endforeach
+                    </div>
+                </fieldset>
             @elseif($formKind === 'policy')
                 <x-operations.field label="Bezeichnung" model="form.name" required :wide="true"/><x-operations.field label="Gültig ab" model="form.starts_on" type="date" required/><x-operations.field label="Gültig bis" model="form.ends_on" type="date"/><x-operations.field label="Einheit" model="form.unit" type="select" required><option value="">Auswählen</option><option value="days">Tage</option><option value="minutes">Minuten</option></x-operations.field><x-operations.field label="Feiertagsregion" model="form.holiday_region"/><x-operations.field label="Kalenderstand" model="form.calendar_version" required/><x-operations.field label="Arbeitsfreie Daten (JJJJ-MM-TT)" model="form.non_working_dates_text" type="textarea" :wide="true"/>
             @elseif($formKind === 'credit')
                 <x-operations.field label="Buchungsdatum" model="form.effective_on" type="date" required/><x-operations.field label="Ablauf" model="form.expires_on" type="date"/><x-operations.field label="Anspruchsjahr" model="form.entitlement_year" type="number" required/><x-operations.field label="Menge in Richtlinieneinheit" model="form.amount" type="number" min="0.01" step="0.01" required/><x-operations.field label="Art" model="form.kind" type="select"><option value="grant">Anspruch</option><option value="carry">Übertrag</option><option value="manual">Manuelle Gutschrift</option></x-operations.field><x-operations.field label="Begründung / Quelle" model="form.note" required :wide="true"/>
             @elseif($formKind === 'adjustment')
-                <x-operations.field label="Buchungsdatum" model="form.effective_on" type="date" required/><x-operations.field label="Korrektur (min)" model="form.quantity" type="number" required/><x-operations.field label="Begründung" model="form.note" required :wide="true"/>
+                <x-operations.field label="Buchungsdatum" model="form.effective_on" type="date" required/><x-operations.field label="Zeitkorrektur (+/− Minuten)" model="form.quantity" type="number" required/><x-operations.field label="Begründung" model="form.note" type="textarea" rows="2" required :wide="true"/>
             @elseif($formKind === 'rule')
                 <x-operations.field label="Regelprofil" model="form.operations_rule_profile_id" type="select" required><option value="">Auswählen</option>@foreach($rules as $rule)<option value="{{ $rule->id }}">{{ $rule->name }}</option>@endforeach</x-operations.field><x-operations.field label="Gültig ab" model="form.starts_on" type="date" required/><x-operations.field label="Gültig bis" model="form.ends_on" type="date"/>
             @elseif($formKind === 'task')
@@ -64,7 +132,7 @@
                 <div class="ops-full"><x-ui.forms.label for="workforce-training" value="Schulung"/><x-ui.forms.select id="workforce-training" wire:model.live="form.personnel_training_id" wire:change="selectTraining" required><option value="">Auswählen</option>@foreach($trainings as $training)<option value="{{ $training->id }}">{{ $training->title }} · {{ $training->starts_at->format('d.m.Y H:i') }}</option>@endforeach</x-ui.forms.select></div>
             @elseif($formKind === 'responsibility')
                 <x-operations.field label="Verantwortlich" model="form.responsible_user_id" type="select" required><option value="">Auswählen</option>@foreach($assignees as $person)<option value="{{ $person->id }}">{{ $person->name }}</option>@endforeach</x-operations.field><x-operations.field label="Gültig ab" model="form.starts_on" type="date" required/><x-operations.field label="Gültig bis" model="form.ends_on" type="date"/>
-                <fieldset class="ops-full grid gap-2 sm:grid-cols-2"><legend class="text-sm font-medium">Zuständigkeiten</legend>@foreach(['employees.master-data.view'=>'Personal anzeigen','employees.master-data.edit'=>'Personal bearbeiten','employees.compensation.view'=>'Vergütung anzeigen','employees.compensation.edit'=>'Vergütung bearbeiten','operations.rules.manage'=>'Regeln verwalten','operations.absences.review'=>'Abwesenheiten prüfen','operations.qualifications.manage'=>'Nachweise / Schulung','operations.time.review'=>'Arbeitszeit prüfen','operations.time.export'=>'Arbeitszeit exportieren'] as $ability=>$label)<label class="flex items-center gap-2"><x-ui.forms.checkbox wire:model="form.abilities" :value="$ability"/><span class="text-sm">{{ $label }}</span></label>@endforeach</fieldset>
+                <fieldset class="ops-full grid gap-2 sm:grid-cols-2"><legend class="text-sm font-medium">Zuständigkeiten</legend>@foreach(['employees.master-data.view'=>'Personal anzeigen','employees.master-data.edit'=>'Personal bearbeiten','employees.compensation.view'=>'Vergütung anzeigen','employees.compensation.edit'=>'Vergütung bearbeiten','operations.rules.manage'=>'Regeln verwalten','operations.absences.review'=>'Abwesenheiten prüfen','operations.qualifications.manage'=>'Nachweise / Schulung','operations.time.review'=>'Arbeitszeit prüfen','operations.time.export'=>'Arbeitszeit exportieren'] as $ability=>$label)<x-ui.forms.checkbox wire:model="form.abilities" :value="$ability" :label="$label" />@endforeach</fieldset>
             @elseif($formKind === 'vacation')
                 <fieldset class="rt-employee-form__section ops-full">
                     <legend>Urlaubszeitraum</legend>
@@ -86,6 +154,6 @@
                 <x-operations.field label="Begründung" model="form.note" required :wide="true"/>
             @endif
         </form>
-        <x-slot:footer><div class="rt-employee-form__actions"><x-ui.buttons.button-basic type="button" wire:click="$set('formOpen',false)">Abbrechen</x-ui.buttons.button-basic><x-ui.buttons.button-basic type="submit" :form="'workforce-account-form-'.$this->getId()" mode="primary" wire:loading.attr="disabled" wire:target="save">{{ match($formKind) {'vacation' => 'Antrag einreichen', 'sick' => 'Krankmeldung senden', default => 'Speichern'} }}</x-ui.buttons.button-basic></div></x-slot:footer>
+        <x-slot:footer><div class="rt-employee-form__actions"><x-ui.buttons.button-basic type="button" wire:click="$set('formOpen',false)">Abbrechen</x-ui.buttons.button-basic><x-ui.buttons.button-basic type="submit" :form="'workforce-account-form-'.$this->getId()" mode="primary" wire:loading.attr="disabled" wire:target="save">{{ match($formKind) {'vacation' => 'Antrag einreichen', 'sick' => 'Krankmeldung senden', 'model' => 'Entwurf speichern', 'end_model' => 'Arbeitsmodell beenden', 'adjustment' => 'Korrektur buchen', 'rule' => 'Zuordnung speichern', 'plan_review' => 'Erneut prüfen', default => 'Speichern'} }}</x-ui.buttons.button-basic></div></x-slot:footer>
     </x-operations.modal>
 </div>

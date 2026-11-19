@@ -150,6 +150,26 @@ async function captureRuntime(t, { realSync = false } = {}) {
         emit: (state, account_binding = 'account-one') => windowLike.dispatchEvent(new DetailEvent('railtime:app-connection-state', { detail: { state, account_binding } })) };
 }
 
+test('offline projection exposes pending work and only links directly to a single local conflict', async t => {
+    const { component, key, rows } = await captureRuntime(t);
+    const start = { action: 'start', work_context: 'internal', entry_capture_id: 'entry', occurred_at: '2026-11-18T08:00:00Z' };
+    const conflict = { event_key: 'first-conflict', conflict_reason: 'Dienst geändert.' };
+    rows.push({ id: 'start', status: 'pending', ...await encryptCapture(key, start) });
+    rows.push({ id: 'first-conflict', status: 'conflict', ...await encryptCapture(key, conflict) });
+    component.offline = true;
+    await component.restore();
+    assert.equal(component.active.status, 'running');
+    assert.equal(component.transferStatus(), 'Offline · 1 ausstehend · 1 Konflikt');
+    assert.equal(component.conflictEventKey, conflict.event_key);
+    assert.equal(component.conflictReason, conflict.conflict_reason);
+
+    rows.push({ id: 'second-conflict', status: 'conflict', ...await encryptCapture(key, { event_key: 'second-conflict' }) });
+    await component.restore();
+    assert.equal(component.conflicts, 2);
+    assert.equal(component.conflictEventKey, null);
+    assert.equal(component.conflictReason, '');
+});
+
 test('BFCache return reboots the same account securely without reloading or losing form state', async t => {
     const runtime = await captureRuntime(t);
     const { component, windowLike, metas } = runtime;

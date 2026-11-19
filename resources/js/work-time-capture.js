@@ -103,8 +103,8 @@ export class CaptureStore {
 export function workTimeCapture(options) {
     return {
         ready: false, busy: false, syncing: false, offline: !navigator.onLine,
-        pending: 0, conflicts: 0, error: '', active: null, context: 'internal', title: '', trainingId: '', activityKind: 'work', startDialogOpen: false,
-        key: null, store: null, device: null, sequence: 0, scope: '', base: null,
+        pending: 0, conflicts: 0, conflictEventKey: null, conflictReason: '', error: '', active: null, context: 'internal', title: '', trainingId: '', activityKind: 'work', startDialogOpen: false,
+        key: null, store: null, device: null, sequence: 0, scope: '', base: null, lastConflictMessage: '',
         _online: null, _offline: null, _pagehide: null, _pageshow: null, _visibility: null, _connection: null,
         _channel: null, _timer: null, _destroyed: false, _generation: 0, _bootstrap: null, _accountBinding: '', now: Date.now(),
 
@@ -142,6 +142,9 @@ export function workTimeCapture(options) {
             this._generation += 1;
             this.key = null;
             this.ready = false;
+            this.conflictEventKey = null;
+            this.conflictReason = '';
+            this.lastConflictMessage = '';
             this._bootstrap = null;
         },
 
@@ -258,14 +261,22 @@ export function workTimeCapture(options) {
             const rows = await this.store.rows(scope);
             this.assertCurrent(generation);
             let active = base;
+            const conflicts = [];
             for (const row of rows) {
                 const event = await decryptCapture(key, row);
                 this.assertCurrent(generation);
-                if (row.status !== 'conflict') active = projectCapture(active, event);
+                if (row.status === 'conflict') conflicts.push(event);
+                else active = projectCapture(active, event);
             }
             this.base = base;
-            this.pending = rows.filter(row => row.status !== 'conflict').length;
-            this.conflicts = rows.filter(row => row.status === 'conflict').length;
+            this.pending = rows.length - conflicts.length;
+            this.conflicts = conflicts.length;
+            this.conflictEventKey = conflicts.length === 1 ? conflicts[0].event_key : null;
+            this.conflictReason = conflicts.length === 1 ? (conflicts[0].conflict_reason || '') : '';
+            if (!this.conflicts && this.lastConflictMessage) {
+                if (this.error === this.lastConflictMessage) this.error = '';
+                this.lastConflictMessage = '';
+            }
             this.active = active;
             this.activityKind = this.active?.kind || 'work';
         },
@@ -303,6 +314,16 @@ export function workTimeCapture(options) {
             this.base = state.active;
             this.sequence = sequence;
             await this.store.saveState(scope, encrypted, sequence);
+        },
+
+        transferStatus() {
+            const parts = [];
+            if (this.offline) parts.push('Offline');
+            if (!this.ready) parts.push('Online-Anmeldung erforderlich');
+            else if (this.syncing) parts.push('Übertragung läuft');
+            if (this.pending) parts.push(this.pending + ' ausstehend');
+            if (this.conflicts) parts.push(this.conflicts === 1 ? '1 Konflikt' : this.conflicts + ' Konflikte');
+            return parts.length ? parts.join(' · ') : 'Synchronisiert';
         },
 
         elapsed() {
@@ -367,8 +388,12 @@ export function workTimeCapture(options) {
             finally { this.busy = false; }
         },
 
-        async startGeneral() {
-            if (this.title.trim().length < 3 || (this.context === 'training' && !this.trainingId)) { this.error = 'Tätigkeit und gegebenenfalls Schulung auswählen.'; return; }
+        async startGeneral(availableTrainingIds = []) {
+            if (this.title.trim().length < 3) { this.error = 'Gib eine Tätigkeit mit mindestens drei Zeichen an.'; return; }
+            if (this.context === 'training' && !availableTrainingIds.includes(Number(this.trainingId))) {
+                this.error = 'Wähle eine aktuell laufende Schulung mit bestätigter Teilnahme.';
+                return;
+            }
             await this.capture({ action: 'start', work_context: this.context, title: this.title.trim(), ...(this.context === 'training' ? { training_session_id: Number(this.trainingId) } : {}) });
         },
 
@@ -402,7 +427,8 @@ export function workTimeCapture(options) {
                             const encrypted = await encryptCapture(key, { ...event, conflict_reason: result.reason });
                             this.assertCurrent(generation);
                             await this.store.update({ ...row, ...encrypted, status: 'conflict' });
-                            this.error = result.reason || 'Erfassung muss geprüft werden.';
+                            this.lastConflictMessage = result.reason || 'Erfassung muss geprüft werden.';
+                            this.error = this.lastConflictMessage;
                         }
                     }
                     if (response.results.some(result => result.status === 'awaiting') || response.results.every(result => !['accepted', 'conflict', 'reviewed'].includes(result.status))) break;

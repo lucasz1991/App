@@ -116,6 +116,27 @@ class WorkforcePersonnelTest extends TestCase
         $this->assertSame([], app(WorkforceAccountService::class)->planningIssues($this->shift(), $this->employee));
     }
 
+    public function test_time_account_uses_the_last_valid_period_for_its_balance_and_bookings(): void
+    {
+        $this->model();
+        $accounts = app(WorkforceAccountService::class);
+        $accounts->adjustTime($this->employee, ['effective_on' => '2027-05-04', 'quantity' => 30, 'note' => 'Mai-Buchung'], $this->author);
+        $accounts->adjustTime($this->employee, ['effective_on' => '2027-06-04', 'quantity' => 15, 'note' => 'Juni-Buchung'], $this->author);
+
+        Livewire::actingAs($this->employee)
+            ->test(WorkforceAccounts::class, ['personal' => true, 'accountKind' => 'time'])
+            ->assertSee('Mai-Buchung')->assertDontSee('Juni-Buchung')
+            ->set('from', '')->set('until', '')->call('applyAccountPeriod')
+            ->assertHasErrors(['from', 'until'])
+            ->assertSee('Bitte einen Beginn auswählen.')->assertSee('Bitte ein Ende auswählen.')
+            ->set('from', '2027-06-04')->set('until', '')->call('applyAccountPeriod')
+            ->assertHasErrors(['until'])->assertSee('Mai-Buchung')->assertDontSee('Juni-Buchung')
+            ->set('until', '2027-06-04')->call('applyAccountPeriod')->assertHasNoErrors()
+            ->assertSet('accountPeriod.from', '2027-06-04')
+            ->assertSee('Juni-Buchung')->assertDontSee('Mai-Buchung')
+            ->assertViewHas('summary', fn ($summary) => $summary['adjustment_minutes'] === 15);
+    }
+
     public function test_model_needs_separate_approver_and_rejects_overlaps_or_invented_distribution(): void
     {
         $service = app(WorkforceAccountService::class);

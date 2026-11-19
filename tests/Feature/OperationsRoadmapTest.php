@@ -194,6 +194,11 @@ class OperationsRoadmapTest extends TestCase
         Livewire::actingAs($this->employee)->test(DutyActivity::class, ['shiftId' => $shift->id, 'employeeMode' => true])->call('openResolution', $report->id)->assertForbidden();
         $service->resolve($report->id, 1, 'Disposition hat Ablösung organisiert.', $this->admin);
         $this->assertSame('resolved', $report->fresh()->status);
+        $info = $service->report($shift->id, 1, ['kind' => 'information', 'message' => 'Ablösung ist vor Ort.', 'delay_minutes' => 0], (string) Str::uuid(), $this->employee);
+        $this->assertNull($info->delay_minutes);
+        Livewire::actingAs($this->employee)->test(DutyActivity::class, ['shiftId' => $shift->id, 'employeeMode' => true])
+            ->call('newReport')->set('report.kind', 'delay')->set('report.message', 'Signalstörung')
+            ->call('sendReport')->assertHasErrors('report.delay_minutes')->assertSet('reportOpen', true);
         $this->assertSame(0, WorkTimeEntry::count());
     }
 

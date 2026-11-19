@@ -22,6 +22,7 @@ use App\Services\Operations\OperationsWorkflowService;
 use App\Services\Operations\PayrollClosingService;
 use App\Services\Operations\PersonnelScopeService;
 use App\Services\Operations\ReviewedInquiryImportService;
+use App\Services\Operations\WorkTimeActivityService;
 use App\Services\Operations\WorkTimeTerminalService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsEnhancementsSchema;
@@ -164,6 +165,11 @@ class OperationsEnhancements extends Component
         $this->resetPage();
     }
 
+    public function updatedSearch(): void
+    {
+        $this->resetPage();
+    }
+
     private function query()
     {
         $actor = $this->access();
@@ -171,7 +177,13 @@ class OperationsEnhancements extends Component
             return OperationsRateRule::with('user:id,name,role,status')->orderByDesc('id');
         }
         if ($this->tab === 'payroll') {
-            return app(PersonnelScopeService::class)->applyRelatedQuery(OperationsMonthClosing::with('user:id,name'), $actor, $this->ability('payroll'))->when($this->contextUserId, fn ($q) => $q->where('user_id', $this->contextUserId))->when($this->payrollExportOnly, fn ($q) => $q->whereHas('revisions', fn ($r) => $r->where('action', 'closed')))->orderByDesc('id');
+            return app(PersonnelScopeService::class)->applyRelatedQuery(OperationsMonthClosing::with('user:id,name'), $actor, $this->ability('payroll'))
+                ->when($this->contextUserId, fn ($q) => $q->where('user_id', $this->contextUserId))
+                ->when($this->payrollExportOnly, fn ($q) => $q->whereHas('revisions', fn ($r) => $r->where('action', 'closed')))
+                ->when(filled($this->search), function ($query) {
+                    $term = '%'.mb_substr(trim($this->search), 0, 100).'%';
+                    $query->where(fn ($q) => $q->where('month', 'like', $term)->orWhereHas('user', fn ($user) => $user->where('name', 'like', $term)));
+                })->orderByDesc('id');
         }
         if ($this->tab === 'costs') {
             return app(PersonnelScopeService::class)->applyRelatedQuery(OperationsCostRate::with('user:id,name,role,status'), $actor, 'operations.costs.manage')->orderByDesc('id');
@@ -220,6 +232,20 @@ class OperationsEnhancements extends Component
         $this->formOpen = true;
     }
 
+    public function updatedFormKind(string $kind): void
+    {
+        if ($this->tab !== 'rules') {
+            return;
+        }
+
+        $activity = $this->form['configuration']['activity'] ?? '';
+        if ($kind === 'remuneration' && ! array_key_exists($activity, WorkTimeActivityService::KINDS)) {
+            $this->form['configuration']['activity'] = '';
+        } elseif ($kind === 'planning' && ! in_array($activity, ['all', 'on_call', 'travel'], true)) {
+            $this->form['configuration']['activity'] = 'all';
+        }
+    }
+
     public function addRow(): void
     {
         $this->access();
@@ -232,6 +258,12 @@ class OperationsEnhancements extends Component
         $actor = $this->access();
         abort_if($this->payrollExportOnly, 403);
         OperationsEnhancementsSchema::requireReady();
+        if ($this->tab === 'payroll') {
+            $this->validate([
+                'form.user_id' => 'required|integer|min:1',
+                'form.month_date' => 'required|date_format:Y-m,Y-m-d',
+            ]);
+        }
         $data = $this->nulls($this->form);
         if ($this->orderId && in_array($this->tab, ['proofs', 'travel'], true)) {
             abort_if(isset($data['order_id']) && (int) $data['order_id'] !== $this->orderId, 403);

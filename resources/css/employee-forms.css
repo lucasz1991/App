@@ -28,6 +28,8 @@
 .rt-employee-form__hint { margin: 0; color: var(--employee-form-muted); font-size: 12px; line-height: 1.6; }
 .rt-employee-form__summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 12px 14px; border-radius: 10px; background: var(--employee-form-tint); color: var(--employee-form-ink); font-size: 13px; line-height: 1.5; font-variant-numeric: tabular-nums; }
 .rt-employee-form__summary strong { font-weight: 650; }
+.rt-employee-form__review-note { padding: 12px 14px; border-inline-start: 3px solid var(--employee-form-accent); border-radius: 6px; background: var(--employee-form-soft); color: var(--employee-form-ink); overflow-wrap: anywhere; }
+.rt-employee-form__review-note p { margin-top: 4px; white-space: pre-line; }
 .rt-employee-form__more { min-width: 0; border: 1px solid var(--employee-form-line); border-radius: 10px; background: var(--employee-form-tint); }
 .rt-employee-form__more > summary { min-height: 48px; padding: 13px 14px; cursor: pointer; color: var(--employee-form-ink); font-size: 13px; font-weight: 600; line-height: 1.5; }
 .rt-employee-form__more > summary span { color: var(--employee-form-muted); font-weight: 400; overflow-wrap: anywhere; }

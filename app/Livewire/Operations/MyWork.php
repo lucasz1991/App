@@ -87,6 +87,13 @@ class MyWork extends Component
 
     public string $requestFilter = 'all';
 
+    private const TIME_FILTERS = [
+        'all' => 'Alle Status', 'running' => 'Läuft', 'paused' => 'In Pause',
+        'completed' => 'Bereit zum Einreichen', 'returned' => 'Zurückgegeben',
+        'submitted' => 'Eingereicht', 'approved' => 'Freigegeben', 'exported' => 'Exportiert',
+    ];
+
+    #[Locked]
     public string $timeFilter = 'all';
 
     private ?Collection $capacityInboxRecords = null;
@@ -186,26 +193,67 @@ class MyWork extends Component
         };
     }
 
+    #[Locked]
     public string $timeFrom = '';
 
+    #[Locked]
     public string $timeUntil = '';
 
-    public function updatedTimeFrom(): void
+    public array $timePeriod = ['from' => '', 'until' => ''];
+
+    public function applyTimePeriod(): void
     {
+        $this->access();
+        $this->resetValidation(['timePeriod.from', 'timePeriod.until']);
+        $this->validate(['timePeriod.from' => 'required|date_format:Y-m-d', 'timePeriod.until' => 'required|date_format:Y-m-d|after_or_equal:timePeriod.from'], [
+            'timePeriod.from.required' => 'Bitte ein Startdatum wählen.',
+            'timePeriod.until.required' => 'Bitte ein Enddatum wählen.',
+            'timePeriod.*.date_format' => 'Bitte ein gültiges Datum eingeben.',
+            'timePeriod.until.after_or_equal' => 'Das Enddatum muss am oder nach dem Startdatum liegen.',
+        ]);
+        $this->withFormErrors('timePeriod', fn () => ReportingPeriod::bounds($this->timePeriod['from'], $this->timePeriod['until']));
+        $this->timeFrom = $this->timePeriod['from'];
+        $this->timeUntil = $this->timePeriod['until'];
         $this->resetPage('timesPage');
+        $this->dispatch('personal-time-period-applied');
     }
 
-    public function updatedTimeUntil(): void
+    public function cancelTimePeriod(): void
     {
-        $this->resetPage('timesPage');
+        $this->access();
+        $this->timePeriod = ['from' => $this->timeFrom, 'until' => $this->timeUntil];
+        $this->resetValidation(['timePeriod.from', 'timePeriod.until']);
+        $this->dispatch('personal-time-period-applied');
     }
 
     public function showTimeFilter(string $filter): void
     {
         $this->access();
-        abort_unless(in_array($filter, ['all', 'open', 'submitted'], true), 404);
+        abort_unless(array_key_exists($filter, self::TIME_FILTERS), 404);
         $this->timeFilter = $filter;
         $this->resetPage('timesPage');
+    }
+
+    public function openCurrentTimeIssues(): void
+    {
+        $this->showTab('time');
+        $this->setCurrentTimePeriod();
+        $this->showTimeFilter('all');
+        $this->dispatch('personal-time-issues-opened');
+    }
+
+    public function showCaptureConflicts(?string $eventKey = null): void
+    {
+        $this->showTab('time');
+        $this->dispatch('personal-time-conflicts-opened', eventKey: Str::isUuid($eventKey ?? '') ? $eventKey : null);
+    }
+
+    private function setCurrentTimePeriod(): void
+    {
+        $today = CarbonImmutable::now($this->displayTimezone());
+        $this->timeFrom = $today->startOfMonth()->toDateString();
+        $this->timeUntil = $today->toDateString();
+        $this->timePeriod = ['from' => $this->timeFrom, 'until' => $this->timeUntil];
     }
 
     public function showRequestFilter(string $filter): void
@@ -238,6 +286,9 @@ class MyWork extends Component
         $this->access();
         abort_unless(in_array($form, ['manual', 'qualification', 'absence'], true), 404);
         $this->reset(['manualOpen', 'correctionOpen', 'qualificationOpen', 'absenceOpen', 'generalManualOpen', 'sectionsOpen', 'sectionsId']);
+        if ($form === 'manual') {
+            $this->reset(['manualAssignmentId', 'manualPlanRevision']);
+        }
         $this->resetValidation();
         $this->{$form.'Open'} = true;
     }
@@ -261,6 +312,14 @@ class MyWork extends Component
 
     public ?int $manualAssignmentId = null;
 
+    #[Locked]
+    public ?int $manualPlanRevision = null;
+
+    public function updatedManualAssignmentId(): void
+    {
+        $this->manualPlanRevision = null;
+    }
+
     public array $manualTime = ['starts_at' => '', 'ends_at' => '', 'pause_minutes' => 0, 'note' => ''];
 
     public function saveManual(WorkTimeService $service): void
@@ -269,30 +328,55 @@ class MyWork extends Component
         $this->resetValidation();
         $this->validate(['manualAssignmentId' => 'required|integer']);
         $assignment = ShiftAssignment::where('user_id', auth()->id())->findOrFail($this->manualAssignmentId);
-        $this->withFormErrors('manualTime', fn () => $service->manual($assignment->id, $assignment->plan_revision, $this->manualTime, $this->eventKey, auth()->user()));
+        $this->withFormErrors('manualTime', fn () => $service->manual($assignment->id, $this->manualPlanRevision ?? $assignment->plan_revision, $this->manualTime, $this->eventKey, auth()->user()));
         $this->eventKey = (string) Str::uuid();
-        $this->reset(['manualTime', 'manualAssignmentId']);
+        $this->reset(['manualTime', 'manualAssignmentId', 'manualPlanRevision']);
         $this->manualOpen = false;
         session()->flash('operations.saved', 'Zeit nachgetragen.');
     }
 
-    public function openManualAssignment(int $id): void
+    public function openManualAssignment(int $id, ?int $revision = null): void
     {
         $this->access();
         $assignment = $this->manualAssignments()->firstWhere('id', $id);
         abort_unless($assignment, 404);
+        if ($revision !== null && $revision !== $assignment->plan_revision) {
+            throw ValidationException::withMessages(['workflow' => 'Der Dienst wurde geändert. Bitte den veröffentlichten Dienststand prüfen.']);
+        }
         $this->openForm('manual');
         $this->manualAssignmentId = $assignment->id;
+        $this->manualPlanRevision = $assignment->plan_revision;
         $this->reset('manualTime');
     }
 
     private function manualAssignments(): Collection
     {
+        [$from, $until] = ReportingPeriod::bounds($this->timeFrom, $this->timeUntil);
         return ShiftAssignment::where('user_id', auth()->id())->where('status', 'confirmed')->whereDoesntHave('timeEntry')
             ->whereHas('shift', fn ($q) => $q->where('published_revision', '>', 0)->whereColumn('published_revision', 'revision')
                 ->whereColumn('shift_assignments.plan_revision', 'shifts.published_revision')->where('starts_at', '<=', now()->utc())
-                ->where('ends_at', '>=', now()->subDays(90)->utc())->where('status', '!=', 'cancelled'))
-            ->with('shift')->orderByDesc('id')->limit(50)->get();
+                ->whereNotIn('status', ['draft', 'cancelled'])
+                ->where(fn ($period) => $period->where('ends_at', '>=', now()->subDays(90)->utc())
+                    ->orWhere(fn ($selected) => $selected->where('starts_at', '>=', $from)->where('starts_at', '<', $until))))
+            ->with('shift')->orderByDesc('id')->get();
+    }
+
+    private function trainingOptions(): array
+    {
+        if (! in_array($this->tab, ['today', 'time'], true) || ! Schema::hasTable('personnel_trainings') || ! Schema::hasTable('personnel_training_participants')) {
+            return ['clockTrainings' => collect(), 'startableTrainings' => collect()];
+        }
+        $now = now()->utc();
+        $query = PersonnelTraining::where('status', 'scheduled')->whereHas('participants', fn ($q) => $q
+            ->where('user_id', auth()->id())->whereIn('status', ['confirmed', 'attended']));
+        $trainings = (clone $query)->where('starts_at', '<=', $now)->latest('starts_at')->limit(100)->get();
+        $selectedId = filter_var($this->generalManual['training_session_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if ($selectedId && ! $trainings->contains('id', $selectedId) && ($selected = $query->find($selectedId))) {
+            $trainings->push($selected);
+        }
+        $startable = PersonnelTraining::where('status', 'scheduled')->where('starts_at', '<=', $now)->where('ends_at', '>', $now)
+            ->whereHas('participants', fn ($q) => $q->where('user_id', auth()->id())->where('status', 'confirmed'))->orderBy('starts_at')->get();
+        return ['clockTrainings' => $trainings, 'startableTrainings' => $startable];
     }
 
     public function mount(string $focus = '', string $initialTab = '', array $initialRequest = []): void
@@ -301,8 +385,7 @@ class MyWork extends Component
         $this->eventKey = (string) Str::uuid();
         $this->today();
         $this->overviewDate = CarbonImmutable::now($this->displayTimezone())->toDateString();
-        $this->timeFrom = CarbonImmutable::now($this->displayTimezone())->startOfMonth()->toDateString();
-        $this->timeUntil = CarbonImmutable::now($this->displayTimezone())->toDateString();
+        $this->setCurrentTimePeriod();
         $this->focus = in_array($focus, ['absences', 'records'], true) ? $focus : '';
         $queryTab = request()->query('tab', '');
         $initialTab = $initialTab ?: (is_string($queryTab) ? $queryTab : '');
@@ -648,10 +731,13 @@ class MyWork extends Component
         $this->eventKey = (string) Str::uuid();
     }
 
-    public function editTime(int $id): void
+    public function editTime(int $id, ?int $revision = null): void
     {
         $this->access();
         $entry = WorkTimeEntry::where('user_id', auth()->id())->findOrFail($id);
+        if ($revision !== null && (int) $entry->revision !== $revision) {
+            throw ValidationException::withMessages(['workflow' => 'Diese Zeitmeldung wurde geändert. Bitte den aktuellen Stand prüfen.']);
+        }
         abort_unless(in_array($entry->status, ['completed', 'returned'], true), 403);
         $this->correctingId = $entry->id;
         $this->resetValidation();
@@ -667,6 +753,7 @@ class MyWork extends Component
         $this->withFormErrors('correction', fn () => $service->correct($this->correctingId, $this->correctingRevision, $this->correction, auth()->user()));
         $this->correctingId = null;
         $this->correctionOpen = false;
+        session()->flash('operations.saved', 'Korrektur gespeichert. Die Zeitmeldung kann erneut zur Prüfung eingereicht werden.');
     }
 
     public function cancelCorrection(): void
@@ -1052,15 +1139,12 @@ class MyWork extends Component
         $this->capacityInboxRecords = null;
         $this->firstRequestRevisions = null;
         abort_unless(array_key_exists($this->tab, $this->tabs()), 404);
-        abort_unless(in_array($this->timeFilter, ['all', 'open', 'submitted'], true), 404);
         $timeQuery = WorkTimeEntry::where('user_id', auth()->id());
-        if ($this->tab === 'time' && $this->timeFrom && $this->timeUntil) {
+        if ($this->tab === 'time') {
             ReportingPeriod::apply($timeQuery, $this->timeFrom, $this->timeUntil);
         }
-        if ($this->timeFilter === 'open') {
-            $timeQuery->whereIn('status', ['completed', 'returned', 'running', 'paused']);
-        } elseif ($this->timeFilter === 'submitted') {
-            $timeQuery->whereIn('status', ['submitted', 'approved', 'exported']);
+        if ($this->timeFilter !== 'all') {
+            $timeQuery->where('status', $this->timeFilter);
         }
         abort_unless(in_array($this->viewMode, ['day', 'week', 'month', 'list'], true), 404);
         $anchor = $this->anchor();
@@ -1101,6 +1185,14 @@ class MyWork extends Component
 
         $activeTime = WorkTimeEntry::where('user_id', auth()->id())->whereIn('status', ['running', 'paused'])->first();
         $visible->each(fn ($assignment) => $assignment->setAttribute('has_active_time', $activeTime !== null));
+        $now = CarbonImmutable::now('UTC');
+        $clockDuty = ! $activeTime && in_array($this->tab, ['today', 'time'], true)
+            ? $visible->first(fn ($assignment) => $assignment->status->value === 'confirmed'
+                && ! $assignment->plan_is_stale && ! $assignment->timeEntry
+                && $assignment->shift->starts_at->lte($now->addMinutes(config('operations.clock_start_early_minutes')))
+                && $assignment->shift->ends_at->gt($now)
+                && $assignment->shift()->whereNotIn('status', ['draft', 'cancelled', 'completed'])->exists())
+            : null;
         $workdayOverview = $this->tab === 'today' ? WorkdayOverview::make($loaded, $this->overviewDay(), CarbonImmutable::now($this->displayTimezone())) : null;
         if ($workdayOverview !== null) {
             $workdayOverview['assignments']->each(fn ($assignment) => $assignment->setAttribute('has_active_time', $activeTime !== null));
@@ -1156,17 +1248,21 @@ class MyWork extends Component
 
         $timeCompleteness = in_array($this->tab, ['today', 'time'], true) && WorkTimeSchema::ready()
             ? app(WorkTimeExtensionService::class)->completeness(auth()->user(),
-                $this->tab === 'time' && $this->timeFrom ? $this->timeFrom : now($this->displayTimezone())->startOfMonth()->toDateString(),
-                $this->tab === 'time' && $this->timeUntil ? $this->timeUntil : now($this->displayTimezone())->toDateString(), auth()->user(), $this->displayTimezone()) : null;
+                $this->tab === 'time' ? $this->timeFrom : now($this->displayTimezone())->startOfMonth()->toDateString(),
+                $this->tab === 'time' ? $this->timeUntil : now($this->displayTimezone())->toDateString(), auth()->user()) : null;
         $requestHistory = $this->tab === 'requests' ? $this->requestHistory($loaded) : null;
 
         return view('livewire.operations.my-work', [
             'timeCompleteness' => $timeCompleteness,
+            'timeFilterOptions' => self::TIME_FILTERS,
+            'clockDuty' => $clockDuty,
+            'correctingEntry' => $this->correctionOpen && $this->correctingId
+                ? WorkTimeEntry::where('user_id', auth()->id())->find($this->correctingId) : null,
             'requestRows' => $requestHistory['rows'] ?? null,
             'requestCounts' => $requestHistory['counts'] ?? null,
             'personalTabs' => $this->tabs(),
             'workTimeReady' => WorkTimeSchema::ready(),
-            'clockTrainings' => Schema::hasTable('personnel_trainings') && Schema::hasTable('personnel_training_participants') ? PersonnelTraining::where('status', 'scheduled')->whereHas('participants', fn ($q) => $q->where('user_id', auth()->id())->whereIn('status', ['confirmed', 'attended']))->orderBy('starts_at')->limit(100)->get() : collect(),
+            ...$this->trainingOptions(),
             'from' => $from, 'to' => $to,
             'calendarDays' => $days, 'calendarEvents' => $events, 'selectedCalendarEvent' => $selected,
             'calendarLayout' => $this->tab === 'schedule' ? PersonalCalendarLayout::make($days, $anchor) : null,

@@ -1,49 +1,68 @@
+@section('guest-viewport', 'width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content')
 <x-guest-layout>
-    <section class="mx-auto max-w-xl px-4 py-12" x-data="{
-        userId:'',pin:'',terminalId:'',token:null,active:null,choices:[],choice:'internal',action:'start',busy:false,message:'',locationRequired:false,
-        async request(url,body,bearer=null){
-            const r=await fetch(url,{method:'POST',credentials:'omit',headers:{'Content-Type':'application/json','Accept':'application/json',...(bearer?{'Authorization':'Bearer '+bearer}:{})},body:JSON.stringify(body)});
-            const data=await r.json().catch(()=>({}));
-            if(!r.ok)throw new Error(r.status===404?'Terminal nicht freigegeben.':(data.message||'Erfassung konnte nicht bestätigt werden.'));
-            return data;
-        },
-        reset(){this.userId='';this.pin='';this.token=null;this.active=null;this.choices=[];this.choice='internal';this.action='start';},
-        async identify(){
-            if(this.busy)return;this.busy=true;this.message='';
-            try{const r=await this.request(@js(route('api.operations.terminal.authenticate')),{user_id:Number(this.userId),pin:this.pin,terminal_id:this.terminalId});this.pin='';this.token=r.token;this.active=r.active;this.choices=r.choices||[];this.locationRequired=!!r.location_required;this.action=this.active?(this.active.status==='running'?'pause':(this.active.status==='paused'?'resume':'submit')):'start';}
-            catch(e){this.reset();this.message=e.message;}finally{this.busy=false;}
-        },
-        async capture(){
-            if(this.busy||!this.token)return;this.busy=true;this.message='';
-            try{
-                let location={};
-                if(this.locationRequired){const p=await new Promise((resolve,reject)=>{if(!navigator.geolocation)return reject(new Error('Standort nicht verfügbar.'));navigator.geolocation.getCurrentPosition(resolve,()=>reject(new Error('Standortfreigabe erforderlich.')),{enableHighAccuracy:true,timeout:10000,maximumAge:0});});location={latitude:p.coords.latitude,longitude:p.coords.longitude,accuracy:p.coords.accuracy};}
-                const event={event_key:crypto.randomUUID(),action:this.action,revision:this.active?.revision||0};
-                if(this.action==='start'){const duty=this.choices.find(c=>String(c.id)===this.choice);if(duty){event.assignment_id=duty.id;event.plan_revision=duty.plan_revision;event.work_context='shift';}else{event.work_context='internal';event.title='Interne Arbeit';}}
-                const r=await this.request(@js(route('api.operations.terminal.capture')),{terminal_id:this.terminalId,event,location},this.token);
-                this.reset();this.message=r.status==='accepted'?'Erfassung bestätigt.':(r.reason||'Erfassung zur Prüfung erhalten.');
-            }catch(e){this.reset();this.message=e.message;}finally{this.busy=false;}
-        }
-    }">
-        <div class="ops-panel ops-stack">
-            <header class="ops-toolbar"><h1 class="text-xl font-semibold">Zeiterfassung</h1><span class="ops-kicker">RailTime</span></header>
-            <p x-show="message" x-text="message" role="status" class="ops-muted"></p>
-            <form x-show="!token" x-on:submit.prevent="identify" class="ops-form">
-                <div class="ops-full space-y-1.5"><x-ui.forms.label for="terminal-device" value="Terminal-ID" /><x-ui.forms.input id="terminal-device" x-model="terminalId" required autocomplete="off" /></div>
-                <div class="space-y-1.5"><x-ui.forms.label for="terminal-employee" value="Mitarbeiter-ID" /><x-ui.forms.number-input id="terminal-employee" min="1" x-model="userId" required autocomplete="off" :stepper="false" /></div>
-                <div class="space-y-1.5"><x-ui.forms.label for="terminal-pin" value="PIN" /><x-ui.forms.input id="terminal-pin" type="password" inputmode="numeric" pattern="[0-9]{6,10}" x-model="pin" required autocomplete="off" /></div>
-                <div class="ops-full"><x-ui.buttons.button-basic type="submit" mode="primary" x-bind:disabled="busy">Freigeben</x-ui.buttons.button-basic></div>
-            </form>
-            <form x-cloak x-show="token" x-on:submit.prevent="capture" class="ops-form">
-                <div class="ops-full space-y-1.5" x-show="!active"><x-ui.forms.label for="terminal-context" value="Arbeitskontext" /><x-ui.dropdown.anchor-dropdown align="left" width="full" :match-trigger-width="true"><x-slot:trigger><x-ui.buttons.button-basic id="terminal-context" type="button" x-text="choices.find(c=>String(c.id)===choice)?.title||'Interne Arbeit'">Arbeitskontext</x-ui.buttons.button-basic></x-slot:trigger><x-slot:content><div class="ops-stack"><x-ui.buttons.button-basic type="button" x-on:click="choice='internal'; close()">Interne Arbeit</x-ui.buttons.button-basic><template x-for="duty in choices" :key="duty.id"><x-ui.buttons.button-basic type="button" x-on:click="choice=String(duty.id); close()" x-text="duty.title">Dienst</x-ui.buttons.button-basic></template></div></x-slot:content></x-ui.dropdown.anchor-dropdown></div>
-                <fieldset class="ops-full flex flex-wrap gap-2" aria-label="Uhraktion">
-                    <x-ui.buttons.button-basic type="button" x-show="!active" x-on:click="action='start'" x-bind:aria-pressed="action==='start'">Start</x-ui.buttons.button-basic>
-                    <x-ui.buttons.button-basic type="button" x-show="active?.status==='running'" x-on:click="action='pause'" x-bind:aria-pressed="action==='pause'">Pause</x-ui.buttons.button-basic>
-                    <x-ui.buttons.button-basic type="button" x-show="active?.status==='paused'" x-on:click="action='resume'" x-bind:aria-pressed="action==='resume'">Fortsetzen</x-ui.buttons.button-basic>
-                    <x-ui.buttons.button-basic type="button" x-show="active &amp;&amp; ['running','paused'].includes(active.status)" x-on:click="action='stop'" x-bind:aria-pressed="action==='stop'">Ende</x-ui.buttons.button-basic>
-                    <x-ui.buttons.button-basic type="button" x-show="active?.status==='completed'" x-on:click="action='submit'" x-bind:aria-pressed="action==='submit'">Einreichen</x-ui.buttons.button-basic>
+    <section class="rt-ops mx-auto max-w-2xl px-4 py-8 sm:px-8 sm:py-16"
+        x-data="rtWorkTimeTerminal({ identifyUrl: @js(route('api.operations.terminal.authenticate')), captureUrl: @js(route('api.operations.terminal.capture')) })"
+        x-on:pagehide.window="clear()">
+        <header class="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-rt-border pb-5 dark:border-rt-dark-border">
+            <h1 class="text-2xl font-semibold tracking-tight">Zeiterfassung</h1>
+            <span class="text-sm font-medium text-rt-muted dark:text-rt-dark-muted">RailTime · Terminal</span>
+        </header>
+        <p x-cloak x-show="message" x-text="message" role="status" aria-atomic="true"
+            class="mb-4 rounded-xl px-4 py-3 text-sm font-medium"
+            :class="{
+                'bg-emerald-50 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100': tone === 'ok',
+                'bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-100': tone === 'warning',
+                'bg-red-50 text-red-900 dark:bg-red-950 dark:text-red-100': tone === 'error',
+                'bg-rt-surface-muted text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text': tone === 'neutral'
+            }"></p>
+        <div class="rounded-2xl border border-rt-border bg-rt-surface p-5 shadow-rt-xs sm:p-7 dark:border-rt-dark-border dark:bg-rt-dark-surface">
+            <form x-show="!token" x-on:submit.prevent="identify" class="space-y-5" x-bind:aria-busy="busy" autocomplete="off">
+                <h2 class="text-lg font-semibold">Terminal freigeben</h2>
+                <fieldset x-bind:disabled="busy" class="grid min-w-0 gap-4 sm:grid-cols-2">
+                    <div class="space-y-1.5 sm:col-span-2">
+                        <x-ui.forms.label for="terminal-device" value="Terminal-ID" />
+                        <x-ui.forms.input id="terminal-device" x-model.trim="terminalId" required autocomplete="off" autocapitalize="none" spellcheck="false" />
+                    </div>
+                    <div class="space-y-1.5">
+                        <x-ui.forms.label for="terminal-employee" value="Mitarbeiter-ID" />
+                        <x-ui.forms.input id="terminal-employee" x-model="userId" inputmode="numeric" pattern="[1-9][0-9]*" required autocomplete="off" />
+                    </div>
+                    <div class="space-y-1.5">
+                        <x-ui.forms.label for="terminal-pin" value="PIN" />
+                        <x-ui.forms.input id="terminal-pin" x-model="pin" type="password" inputmode="numeric" pattern="[0-9]{6,10}" minlength="6" maxlength="10" required autocomplete="off" />
+                    </div>
                 </fieldset>
-                <div class="ops-full ops-actions"><x-ui.buttons.button-basic type="submit" mode="primary" x-bind:disabled="busy">Erfassen</x-ui.buttons.button-basic><x-ui.buttons.button-basic type="button" x-on:click="reset">Abbrechen</x-ui.buttons.button-basic></div>
+                <x-ui.buttons.button-basic type="submit" mode="primary" x-bind:disabled="busy" class="w-full sm:w-auto">
+                    <span x-text="busy ? 'Wird freigegeben …' : 'Freigeben'">Freigeben</span>
+                </x-ui.buttons.button-basic>
+            </form>
+            <form x-cloak x-show="token" x-on:submit.prevent="capture" x-bind:aria-busy="busy" class="space-y-5">
+                <h2 id="terminal-state" tabindex="-1" class="text-xl font-semibold tracking-tight" x-text="stateLabel"></h2>
+                <div x-show="!active" class="space-y-1.5">
+                    <x-ui.forms.label for="terminal-context" value="Arbeitskontext" />
+                    <select id="terminal-context" x-model="choice" x-bind:disabled="busy" class="rt-ui-control min-h-11 w-full rounded-xl border border-rt-border bg-rt-control px-3.5 py-2 text-base dark:border-rt-dark-border dark:bg-rt-dark-control">
+                        <option value="internal">Interne Arbeit</option>
+                        <template x-for="duty in choices" :key="duty.id"><option x-bind:value="String(duty.id)" x-text="duty.title"></option></template>
+                    </select>
+                </div>
+                <fieldset x-show="active?.status === 'running' || active?.status === 'paused'" x-bind:disabled="busy" class="space-y-2">
+                    <legend class="text-sm font-semibold">Uhraktion</legend>
+                    <div class="flex flex-wrap gap-4">
+                        <template x-for="option in (active?.status === 'running' ? [['pause', 'Pause starten'], ['stop', 'Arbeitszeit beenden']] : [['resume', 'Weiterarbeiten'], ['stop', 'Arbeitszeit beenden']])" :key="option[0]">
+                            <label class="inline-flex min-h-11 items-center gap-2 text-sm font-medium">
+                                <input type="radio" name="terminal-action" x-model="action" x-bind:value="option[0]" class="h-5 w-5 accent-rt-accent" />
+                                <span x-text="option[1]"></span>
+                            </label>
+                        </template>
+                    </div>
+                </fieldset>
+                <p x-show="active?.status === 'completed'" class="text-sm text-rt-muted dark:text-rt-dark-muted">Reiche die beendete Arbeitszeit zur Prüfung ein.</p>
+                <p x-show="locationRequired" role="status" class="text-sm text-rt-muted dark:text-rt-dark-muted"
+                    x-text="stage === 'locating' ? 'Standort wird für diese Erfassung geprüft …' : 'Für diesen Zugang ist die Standortprüfung freigegeben.'"></p>
+                <div class="flex flex-wrap gap-2 border-t border-rt-border pt-4 dark:border-rt-dark-border">
+                    <x-ui.buttons.button-basic type="submit" mode="primary" x-bind:disabled="busy" class="flex-1 sm:flex-none"><span x-text="submitLabel">Erfassen</span></x-ui.buttons.button-basic>
+                    <x-ui.buttons.button-basic type="button" x-on:click="finish()" x-bind:disabled="busy" class="flex-1 sm:flex-none">Abbrechen</x-ui.buttons.button-basic>
+                </div>
             </form>
         </div>
     </section>

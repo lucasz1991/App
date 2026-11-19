@@ -13,7 +13,7 @@
             ['value'=>'month','label'=>'Monat','icon'=>'fa-calendar-days'],
             ['value'=>'list','label'=>'Liste','icon'=>'fa-list-ul'],
         ]" />
-        <span class="sr-only">Zeitzone: {{ $displayTimezone }}</span>
+        <span class="rt-pcal-zone"><i class="far fa-clock" aria-hidden="true"></i> {{ $displayTimezone }} <span aria-hidden="true">·</span> Planzeiten</span>
         @error('anchorDate')<p class="rt-pcal-validation" role="alert">Bitte wähle ein gültiges Kalenderdatum.</p>@enderror
     </header>
 

@@ -8,6 +8,7 @@ use App\Services\Operations\PayrollReferenceService;
 use App\Services\Operations\PersonnelScopeService;
 use App\Support\Operations\OperationsAccess;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -28,6 +29,9 @@ class PayrollReferences extends Component
     #[Locked]
     public ?int $revision = null;
 
+    #[Locked]
+    public string $employeeName = '';
+
     public array $form = ['employer_reference' => '', 'personnel_number' => '', 'external_employee_reference' => ''];
 
     private function access(): void
@@ -45,9 +49,10 @@ class PayrollReferences extends Component
     {
         $this->access();
         app(PersonnelScopeService::class)->authorize(auth()->user(), $id, 'operations.time.export');
-        User::where('role', 'staff')->findOrFail($id);
+        $employee = User::where('role', 'staff')->findOrFail($id);
         $record = EmployeePayrollReference::where('user_id', $id)->first();
         $this->userId = $id;
+        $this->employeeName = $employee->name;
         $this->revision = $record?->revision;
         $this->form = $record?->only(array_keys($this->form)) ?? ['employer_reference' => '', 'personnel_number' => '', 'external_employee_reference' => ''];
         $this->open = false;
@@ -58,8 +63,30 @@ class PayrollReferences extends Component
     public function save(PayrollReferenceService $service): void
     {
         $this->access();
-        $service->save($this->userId, $this->revision, $this->form, auth()->user());
-        $this->editOpen = false;
+        abort_unless($this->editOpen && $this->userId, 422);
+        try {
+            $service->save($this->userId, $this->revision, $this->form, auth()->user());
+        } catch (ValidationException $exception) {
+            throw ValidationException::withMessages(collect($exception->errors())->mapWithKeys(
+                fn ($messages, $key) => [array_key_exists($key, $this->form) ? 'form.'.$key : $key => $messages]
+            )->all());
+        }
+        $this->returnToList();
+        session()->flash('operations.saved', 'Lohnzuordnung gespeichert.');
+    }
+
+    public function updatedEditOpen(bool $open): void
+    {
+        if (! $open) {
+            $this->returnToList();
+        }
+    }
+
+    public function returnToList(): void
+    {
+        $this->access();
+        $this->reset(['editOpen', 'userId', 'revision', 'employeeName', 'form']);
+        $this->resetValidation();
         $this->open = true;
     }
 

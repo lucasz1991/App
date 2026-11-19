@@ -35,7 +35,13 @@ class WorkTimeExtensionService
         $missing = ShiftAssignment::where('user_id', $subject->id)->where('status', 'confirmed')
             ->whereHas('shift', fn ($q) => $q->where('starts_at', '>=', $start)->where('starts_at', '<', $end)->where('ends_at', '<=', now()->utc())->where('published_revision', '>', 0)->where('status', '!=', 'cancelled'))
             ->whereDoesntHave('timeEntry')->with('shift')->get()->map(fn ($a) => ['assignment_id' => $a->id, 'title' => $a->shift->title, 'starts_at' => $a->shift->starts_at->toIso8601String()])->all();
-        $unsubmitted = WorkTimeEntry::where('user_id', $subject->id)->where('starts_at', '>=', $start)->where('starts_at', '<', $end)->whereIn('status', ['completed', 'returned', 'running', 'paused'])->get()->map(fn ($e) => ['id' => $e->id, 'revision' => $e->revision, 'status' => $e->status, 'title' => $e->plan_snapshot['title'] ?? $e->contextLabel()])->all();
+        $unsubmitted = WorkTimeEntry::where('user_id', $subject->id)->where('starts_at', '>=', $start)->where('starts_at', '<', $end)
+            ->whereIn('status', ['completed', 'returned', 'running', 'paused'])->latest('starts_at')->get()
+            ->map(fn ($entry) => [
+                'id' => $entry->id, 'revision' => $entry->revision, 'status' => $entry->status,
+                'title' => $entry->plan_snapshot['title'] ?? $entry->contextLabel(), 'starts_at' => $entry->starts_at->toIso8601String(),
+                'capture_id' => $entry->capture_id, 'timezone' => $entry->timezone, 'review_note' => $entry->status === 'returned' ? $entry->review_note : null,
+            ])->all();
         $missingTraining = [];
         if (Schema::hasColumns('personnel_trainings', ['id', 'title', 'status', 'starts_at', 'ends_at', 'timezone'])
             && Schema::hasColumns('personnel_training_participants', ['personnel_training_id', 'user_id', 'status'])

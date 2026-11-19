@@ -6,7 +6,7 @@
         @php($action = isset($item['method']) ? $item['method'].'()' : "showTab('".$item['tab']."')")
         <button type="button" class="rt-workday-kpi" wire:key="workday-kpi-{{ $item['key'] }}"
             data-tone="{{ $item['tone'] ?? 'neutral' }}" aria-label="{{ $item['label'] }}: {{ $item['value'] }}. {{ $item['hint'] }}"
-            @if($preview) disabled @else wire:click="{{ $action }}" wire:loading.attr="disabled" wire:target="showTab,openTasks" @endif>
+            @if($preview) disabled @else wire:click="{{ $action }}" wire:loading.attr="disabled" wire:target="showTab,openTasks,openCurrentTimeIssues" @endif>
             <strong>@if(($item['tone'] ?? '') === 'success')<i aria-hidden="true"></i>@endif{{ $item['value'] }}</strong>
             <span>{{ $item['label'] }}</span>
             <small>{{ $item['hint'] }}</small>

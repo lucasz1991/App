@@ -5,8 +5,12 @@ namespace Tests\Feature;
 use App\Livewire\Operations\MyWork;
 use App\Livewire\Operations\WorkTimeCaptureReview;
 use App\Livewire\Operations\WorkTimeSections;
+use App\Models\Customer;
 use App\Models\EmployeeWorkModel;
 use App\Models\OperationsRuleProfile;
+use App\Models\Order;
+use App\Models\Shift;
+use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Models\WorkTimeCaptureDevice;
 use App\Models\WorkTimeCaptureReceipt;
@@ -15,6 +19,7 @@ use App\Models\WorkTimeEvent;
 use App\Services\Operations\WorkTimeActivityService;
 use App\Services\Operations\WorkTimeCaptureService;
 use App\Services\Operations\WorkTimeService;
+use App\Support\Operations\OperationsDateTime;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Str;
 use Livewire\Livewire;
@@ -49,6 +54,40 @@ class WorkTimeExtensionUiTest extends TestCase
         return $extra + ['event_key' => (string) Str::uuid(), 'sequence' => $sequence, 'action' => $action, 'entry_capture_id' => $captureId, 'revision' => $sequence - 1, 'occurred_at' => $at, 'timezone' => 'Europe/Berlin', 'offset_minutes' => 120];
     }
 
+    public function test_confirmed_shift_has_one_contextual_start_on_today_and_times(): void
+    {
+        $customer = Customer::create(['company_name' => 'Uhr-Test', 'is_active' => true]);
+        $order = Order::create(['customer_id' => $customer->id, 'title' => 'Uhr-Test', 'status' => 'confirmed', 'priority' => 'normal', 'timezone' => 'Europe/Berlin', 'starts_at' => now(), 'ends_at' => now()->addDay(), 'required_staff' => 1]);
+        $shift = Shift::forceCreate(['order_id' => $order->id, 'title' => 'Frühdienst Nord', 'timezone' => 'Europe/Berlin', 'starts_at' => now(), 'ends_at' => now()->addHours(8), 'role_name' => 'Betrieb', 'location_name' => 'Hamburg', 'status' => 'open', 'required_staff' => 1, 'planned_break_minutes' => 30, 'revision' => 2, 'published_revision' => 2]);
+        ShiftAssignment::forceCreate(['shift_id' => $shift->id, 'user_id' => $this->employee->id, 'status' => 'confirmed', 'plan_revision' => 2]);
+        $component = Livewire::actingAs($this->employee)->test(MyWork::class);
+
+        foreach (['today', 'time'] as $tab) {
+            $component->call('showTab', $tab)->assertSee('Frühdienst Nord')->assertSee('Andere Arbeit starten')
+                ->assertSeeHtml('showCaptureConflicts(conflictEventKey)');
+            $dom = new \DOMDocument;
+            @$dom->loadHTML($component->html());
+            $xpath = new \DOMXPath($dom);
+            $this->assertCount(1, $xpath->query('//*[@data-worktime-capture]//button[normalize-space(.)="Dienst starten"]'));
+        }
+    }
+
+    public function test_net_preview_uses_actual_elapsed_time_and_rejects_incomplete_or_ambiguous_entries(): void
+    {
+        $preview = fn (string $from, string $until, ?int $pause = 30) => OperationsDateTime::workTimePreview(
+            ['starts_at' => $from, 'ends_at' => $until, 'pause_minutes' => $pause], 'Europe/Berlin',
+        );
+
+        $this->assertSame('7:30 h', $preview('2026-02-21T22:00', '2026-02-22T06:00'));
+        $this->assertSame('6:30 h', $preview('2026-03-28T22:00', '2026-03-29T06:00'));
+        $this->assertSame('8:30 h', $preview('2025-10-25T22:00', '2025-10-26T06:00'));
+        $this->assertStringContainsString('Zeitumstellung', $preview('2025-10-26T02:30', '2025-10-26T04:30'));
+        $this->assertStringContainsString('Zeitumstellung', $preview('2026-03-29T02:30', '2026-03-29T04:30'));
+        $this->assertStringContainsString('vollständig', $preview('2026-02-21T22:00', '', null));
+        $this->assertStringContainsString('Pause', $preview('2026-02-21T22:00', '2026-02-21T22:30', 30));
+        $this->assertStringContainsString('24 Stunden', $preview('2026-02-21T08:00', '2026-02-22T09:00'));
+    }
+
     public function test_personal_clock_shared_modals_and_actual_sections_render(): void
     {
         $component = Livewire::actingAs($this->employee)->test(MyWork::class)->assertSeeHtml('data-worktime-capture')->call('openGeneralManual')->assertSet('generalManualOpen', true)->assertSeeHtml('role="dialog"');
@@ -57,6 +96,24 @@ class WorkTimeExtensionUiTest extends TestCase
         $component->call('openSections', $entry->id)->assertSet('sectionsOpen', true)->assertSee('Tatsächliche Arbeitsabschnitte');
         Livewire::actingAs($this->employee)->test(WorkTimeSections::class, ['entryId' => $entry->id])->call('add')->set('sections.0', ['kind' => 'internal', 'starts_at' => '2027-05-11T08:00', 'ends_at' => '2027-05-11T09:00', 'note' => 'Bestätigter tatsächlicher Abschnitt'])->call('save')->assertHasNoErrors()->assertDispatched('time-sections-saved');
         $this->assertSame(3600, $entry->fresh()->creditedSeconds());
+    }
+
+    public function test_returned_correction_displays_its_review_note_and_live_net_in_the_entries_timezone(): void
+    {
+        $entry = app(WorkTimeService::class)->manualContext([
+            'work_context' => 'internal', 'title' => 'Nachtarbeit', 'timezone' => 'Europe/Berlin',
+            'starts_at' => '2027-03-27T22:00', 'ends_at' => '2027-03-28T06:00', 'pause_minutes' => 30, 'note' => 'Nachtarbeit erfasst.',
+        ], (string) Str::uuid(), $this->employee);
+        $entry->update(['status' => 'returned', 'review_note' => 'Bitte die Pause nachtragen.']);
+        $component = Livewire::actingAs($this->employee)->test(MyWork::class)->call('showTab', 'time')
+            ->call('editTime', $entry->id)->set('correction.pause_minutes', 45)->assertSet('correctionOpen', true);
+
+        $dom = new \DOMDocument;
+        @$dom->loadHTML($component->html());
+        $form = (new \DOMXPath($dom))->evaluate('string(//form[@*[name()="wire:submit"]="correct"])');
+        $this->assertStringContainsString('Bitte die Pause nachtragen.', $form);
+        $this->assertStringContainsString('Europe/Berlin', $form);
+        $this->assertStringContainsString('6:15 h', $form);
     }
 
     public function test_v2_general_replay_rejects_changed_data_not_a_second_time(): void
@@ -157,8 +214,14 @@ class WorkTimeExtensionUiTest extends TestCase
         $service->ingest($this->employee, $boot['device_id'], [$event]);
         $receipt = WorkTimeCaptureReceipt::firstOrFail();
         $original = $receipt->payload;
-        Livewire::actingAs($this->employee)->test(WorkTimeCaptureReview::class, ['personal' => true])->call('open', $receipt->id)->set('note', 'Prüfen')->call('reviewed')->assertForbidden();
-        Livewire::actingAs($this->admin)->test(WorkTimeCaptureReview::class)->call('open', $receipt->id)->set('note', 'Zeitzonenfehler geprüft; keine Istzeit freigegeben.')->call('reviewed')->assertHasNoErrors();
+        Livewire::actingAs($this->employee)->test(WorkTimeCaptureReview::class, ['personal' => true])
+            ->call('openPersonalEvent', (string) Str::uuid())->assertSet('detailOpen', false)
+            ->call('openPersonalEvent', $event['event_key'])->assertSet('selectedId', $receipt->id)
+            ->assertSet('detailOpen', true)->set('note', 'Prüfen')->call('reviewed')->assertForbidden();
+        Livewire::actingAs($this->admin)->test(WorkTimeCaptureReview::class)->call('open', $receipt->id)
+            ->call('prepareReview')->assertHasErrors('note')->assertSet('confirmReview', false)
+            ->set('note', 'Zeitzonenfehler geprüft; keine Istzeit freigegeben.')->call('prepareReview')
+            ->assertSet('confirmReview', true)->call('reviewed')->assertHasNoErrors();
         $this->assertSame('reviewed', $receipt->fresh()->status);
         $this->assertSame($original, $receipt->fresh()->payload);
         $this->assertDatabaseCount('work_time_entries', 0);

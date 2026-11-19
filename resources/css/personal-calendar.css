@@ -184,3 +184,4 @@
 @media (prefers-reduced-motion: reduce) {
     .rt-pcal-content, .rt-pcal-toolbar .rt-ui-button { transition: none; }
 }
+.rt-pcal-zone { grid-column: 1 / -1; display: inline-flex; align-items: center; gap: 6px; color: var(--personal-muted); font-size: 12px; }

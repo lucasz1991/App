@@ -258,6 +258,7 @@ auth.json
 !/tests/Feature/WorkTimeExportReviewTest.php
 !/tests/Feature/OperationsTransactionTest.php
 !/tests/Frontend/work-time-capture.test.js
+!/tests/Frontend/work-time-terminal.test.js
 !/tests/Feature/TimelinePlanningSuggestionServiceTest.php
 !/tests/Feature/TimelinePlanningActionsTest.php
 !/tests/Feature/ResponsiveShiftPlanControlsTest.php

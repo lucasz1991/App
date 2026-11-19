@@ -349,12 +349,13 @@ class WorkforceAccountService
         }, 3);
     }
 
-    public function assertTrainingClock(User $user, int $trainingSessionId, CarbonImmutable $at): void
+    public function assertTrainingClock(User $user, int $trainingSessionId, CarbonImmutable $at, bool $manual = false): void
     {
         OperationsAccess::own($user, $user->id);
         abort_unless(Schema::hasTable('personnel_trainings') && Schema::hasTable('personnel_training_participants'), 503);
         $training = PersonnelTraining::findOrFail($trainingSessionId);
-        $this->check($training->status === 'scheduled' && PersonnelTrainingParticipant::where('personnel_training_id', $training->id)->where('user_id', $user->id)->where('status', 'confirmed')->exists(), 'Keine bestätigte Schulungsteilnahme.');
+        $allowed = $manual ? ['confirmed', 'attended'] : ['confirmed'];
+        $this->check($training->status === 'scheduled' && PersonnelTrainingParticipant::where('personnel_training_id', $training->id)->where('user_id', $user->id)->whereIn('status', $allowed)->exists(), 'Keine bestätigte Schulungsteilnahme.');
         $this->check($at->greaterThanOrEqualTo($training->starts_at) && $at->lessThan($training->ends_at), 'Schulungsuhr kann nur während des Termins gestartet werden.');
         $this->check(! WorkTimeEntry::where('user_id', $user->id)->whereIn('status', ['running', 'paused'])->exists(), 'Eine Zeiterfassung läuft bereits.');
     }

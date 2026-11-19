@@ -380,14 +380,14 @@ class WorkTimeService
         return hash('sha256', json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
 
-    public function startContext(array $data, string $eventKey, User $actor, ?CarbonImmutable $capturedAt = null, bool $requireNewEvent = false): WorkTimeEntry
+    public function startContext(array $data, string $eventKey, User $actor, ?CarbonImmutable $capturedAt = null, bool $requireNewEvent = false, bool $manual = false): WorkTimeEntry
     {
         OperationsAccess::own($actor, $actor->id);
         WorkTimeSchema::requireReady();
         $this->uuid($eventKey);
         $data = Validator::make($data, ['work_context' => 'required|in:internal,training,unplanned', 'title' => 'required|string|min:3|max:180', 'timezone' => 'required|timezone', 'order_id' => 'nullable|integer|min:1', 'training_session_id' => 'nullable|integer|min:1'])->validate();
 
-        return OperationsTransaction::run(function () use ($data, $eventKey, $actor, $capturedAt, $requireNewEvent) {
+        return OperationsTransaction::run(function () use ($data, $eventKey, $actor, $capturedAt, $requireNewEvent, $manual) {
             User::lockForUpdate()->findOrFail($actor->id);
             if ($event = WorkTimeEvent::where('event_key', $eventKey)->first()) {
                 $entry = WorkTimeEntry::findOrFail($event->work_time_entry_id);
@@ -406,7 +406,7 @@ class WorkTimeService
             }
             if ($data['work_context'] === 'training') {
                 $this->check(isset($data['training_session_id']), 'Schulung auswählen.');
-                app(WorkforceAccountService::class)->assertTrainingClock($actor, (int) $data['training_session_id'], $at);
+                app(WorkforceAccountService::class)->assertTrainingClock($actor, (int) $data['training_session_id'], $at, $manual);
             } else {
                 $this->check(empty($data['training_session_id']), 'Schulungsbezug ist nur bei Schulung zulässig.');
             }
@@ -437,7 +437,7 @@ class WorkTimeService
 
                 return $existing;
             }
-            $entry = $this->startContext($data, (string) Str::uuid(), $actor, $start);
+            $entry = $this->startContext($data, (string) Str::uuid(), $actor, $start, manual: true);
             $entry = $this->clock($entry->id, $entry->revision, 'stop', (string) Str::uuid(), $actor, $end);
             // Aggregate manual pause has no known position: do not fabricate activity boundaries.
             $entry->activities()->delete();

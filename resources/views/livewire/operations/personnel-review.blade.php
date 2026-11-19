@@ -1,16 +1,43 @@
 <div class="rt-ops rt-personnel-management rt-personnel-review ops-stack">
 <x-operations.feedback />
 @if($module === 'rules')
-@if($canManageGlobalRules)<div class="flex justify-end"><x-ui.buttons.button-basic mode="primary" wire:click="createRules">Neues Regelprofil</x-ui.buttons.button-basic></div>@endif
-<section class="rt-personnel-surface ops-stack"><p class="ops-kicker">Aktives Regelprofil</p>
-                @if($activeRules)<h2>{{ $activeRules->name }}</h2><dl class="ops-meta">@foreach(['minimum_rest_minutes'=>'Mindestruhezeit','maximum_shift_minutes'=>'Maximale Schichtdauer','break_after_minutes'=>'Pause ab','minimum_break_minutes'=>'Mindestpause'] as $field=>$label)<div><dt>{{ $label }}</dt><dd>{{ $activeRules->$field }} min</dd></div>@endforeach</dl><p class="ops-muted">Freigegeben am {{ $activeRules->approved_at->setTimezone(config('operations.display_timezone'))->format('d.m.Y H:i') }}</p>
-                @else<p>Kein Regelprofil freigegeben.</p>@endif
-            </section>
-<x-operations.modal wire:model="formOpen" title="Regelprofil"><form wire:submit="saveRules" class="rt-personnel-management ops-form"><h2 class="ops-full">Neues Regelprofil</h2><x-operations.field label="Bezeichnung" model="rules.name" required :wide="true" />
-                @foreach(['minimum_rest_minutes'=>'Mindestruhezeit (min)','maximum_shift_minutes'=>'Maximale Schichtdauer (min)','break_after_minutes'=>'Pause nach (min)','minimum_break_minutes'=>'Mindestpause (min)'] as $field=>$label)<x-operations.field :label="$label" :model="'rules.'.$field" type="number" min="0" required />@endforeach
-                <div class="ops-full"><x-ui.forms.checkbox wire:model="rules.confirmed" required label="Betrieblich geprüfte Regeln freigeben" /></div>
-                <div class="ops-full"><x-ui.buttons.button-basic mode="primary" type="submit" wire:loading.attr="disabled">Regelprofil aktivieren</x-ui.buttons.button-basic></div>
-            </form></x-operations.modal>
+<section class="rt-personnel-surface ops-stack">
+    <header class="rt-personnel-section-heading">
+        <div><h2>Aktives Regelprofil</h2>@if($activeRules)<p>{{ $activeRules->name }}</p>@endif</div>
+        @if($canManageGlobalRules)<x-ui.buttons.button-basic mode="primary" type="button" wire:click="createRules">Neues Regelprofil</x-ui.buttons.button-basic>@endif
+    </header>
+    @if($activeRules)
+        <dl class="ops-meta">
+            @foreach(['minimum_rest_minutes'=>'Mindestruhezeit','maximum_shift_minutes'=>'Maximale Schichtdauer','break_after_minutes'=>'Pause ab','minimum_break_minutes'=>'Mindestpause'] as $field => $label)
+                <div><dt>{{ $label }}</dt><dd>{{ $activeRules->$field }} min</dd></div>
+            @endforeach
+        </dl>
+        <p class="ops-muted">Freigegeben am {{ $activeRules->approved_at->setTimezone(config('operations.display_timezone'))->format('d.m.Y H:i') }}</p>
+    @else
+        <p>Kein Regelprofil freigegeben.</p>
+    @endif
+</section>
+<x-operations.modal wire:model="formOpen" title="Neues Regelprofil">
+    <form id="rule-profile-{{ $this->getId() }}" wire:submit="saveRules" class="rt-personnel-management ops-form">
+        <x-operations.field label="Bezeichnung" model="rules.name" required :wide="true" />
+        <fieldset class="ops-full rt-personnel-section">
+            <legend>Prüfwerte</legend>
+            <div class="ops-form">
+                @foreach(['minimum_rest_minutes'=>'Mindestruhezeit (min)','maximum_shift_minutes'=>'Maximale Schichtdauer (min)','break_after_minutes'=>'Pause nach (min)','minimum_break_minutes'=>'Mindestpause (min)'] as $field => $label)
+                    <x-operations.field :label="$label" :model="'rules.'.$field" type="number" min="0" required />
+                @endforeach
+            </div>
+        </fieldset>
+        <div class="ops-full">
+            <x-ui.forms.checkbox wire:model="rules.confirmed" required label="Betrieblich geprüfte Regeln freigeben" />
+            <x-ui.forms.input-error for="rules.confirmed" />
+        </div>
+    </form>
+    <x-slot:footer>
+        <x-ui.buttons.button-basic type="button" wire:click="$set('formOpen', false)">Abbrechen</x-ui.buttons.button-basic>
+        <x-ui.buttons.button-basic mode="primary" type="submit" form="rule-profile-{{ $this->getId() }}" wire:loading.attr="disabled" wire:target="saveRules">Regelprofil aktivieren</x-ui.buttons.button-basic>
+    </x-slot:footer>
+</x-operations.modal>
 @else
 @if($module === 'absences')
 @if(!$embedded)<header class="ops-toolbar"><h2>Urlaub & Abwesenheiten</h2><x-ui.buttons.multi-toggle id="absence-view" label="Abwesenheitsansicht" :value="$absenceView" action="setAbsenceView" :options="[['value'=>'list','label'=>'Liste','icon'=>'fa-table-list'],['value'=>'calendar','label'=>'Kalender','icon'=>'fa-calendar-days']]" /></header>@endif

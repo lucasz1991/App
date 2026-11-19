@@ -1,5 +1,19 @@
 /* Time, leave and personnel accounts: quiet controls, legible balances and
    complete native Livewire interactions. Selectors stay inside these views. */
+.rt-workforce-account .rt-personnel-period__intro h3 { font-size: 15px; font-weight: 650; }
+.rt-workforce-account .rt-personnel-period__intro p { color: var(--ops-muted); font-size: 12px; }
+.rt-personnel-account-form .rt-account-day { border-bottom: 1px solid var(--management-line); }
+.rt-personnel-account-form .rt-account-day:last-child { border-bottom: 0; }
+.rt-personnel-account-form .rt-account-day > summary {
+    min-height: 44px;
+    padding: 12px 0;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+}
+.rt-personnel-account-form .rt-account-day[open] > summary { color: var(--management-accent); }
+.rt-personnel-account-form .rt-account-day[open] { padding-bottom: 8px; }
+
 .rt-personnel-management {
     --ops-ink: var(--rt-shell-text, #182230);
     --ops-muted: var(--rt-shell-muted, #637083);

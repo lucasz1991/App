@@ -22,9 +22,10 @@
     }" :items="$items" row-view="components.tables.rows.operations.attention-record" :empty="$tab === 'reminders' ? 'Noch keine Erinnerungen angelegt.' : 'Keine offenen Einträge.'" />
     {{ $items->links() }}
     @endif
-    <x-operations.modal wire:model="formOpen" :title="$tab === 'profiles' ? 'Leitstellenprofil' : 'Erinnerung'" max-width="3xl">
+    @php($attentionFormId = 'attention-form-'.$this->getId())
+    <x-operations.modal wire:model="formOpen" :title="$tab === 'profiles' ? 'Leitstellenprofil' : ($recordId ? 'Erinnerung bearbeiten' : 'Erinnerung anlegen')" max-width="3xl">
         @if($formOpen)
-        <form wire:submit="save" class="ops-form">
+        <form id="{{ $attentionFormId }}" wire:submit="save" class="ops-form rt-personal-form rt-employee-form" data-employee-form>
             @if($tab === 'profiles')
                 <x-operations.field label="Name" model="form.name" required />
                 <x-operations.field label="Starttoleranz · Minuten" model="form.start_grace_minutes" type="number" min="0" max="1440" required />
@@ -35,12 +36,22 @@
                 @if(!$personal)<x-operations.field label="Mitarbeiter" model="form.user_id" type="select" :disabled="$subjectId !== null"><option value="">Auswählen</option>@foreach($users as $user)<option value="{{ $user->id }}">{{ $user->name }}</option>@endforeach</x-operations.field>@endif
                 <x-operations.field label="Bereich" model="form.kind" type="select">@foreach(\App\Services\Operations\OperationsReminderService::KINDS as $key=>$label)<option value="{{ $key }}">{{ $label }}</option>@endforeach</x-operations.field>
                 <x-operations.field label="Vorlauf · Minuten" model="form.lead_minutes" type="number" min="0" max="86400" required />
-                <x-operations.field label="Ruhefenster von" model="form.quiet_from" type="time" /><x-operations.field label="Ruhefenster bis" model="form.quiet_until" type="time" />
+                <fieldset class="ops-full rt-employee-form__section"><legend>Ruhefenster (optional)</legend>
+                    <div class="rt-employee-form__grid">
+                        <x-operations.field label="Ruhefenster von" model="form.quiet_from" type="time" />
+                        <x-operations.field label="Ruhefenster bis" model="form.quiet_until" type="time" />
+                    </div>
+                </fieldset>
                 <x-operations.field label="Zeitzone" model="form.timezone" required />
             @endif
             <x-ui.forms.checkbox wire:model="form.is_active" label="Aktiv" />
-            <div class="ops-actions ops-full"><x-ui.buttons.button-basic type="submit" mode="primary" wire:loading.attr="disabled">Speichern</x-ui.buttons.button-basic><x-ui.buttons.button-basic type="button" wire:click="$set('formOpen',false)">Abbrechen</x-ui.buttons.button-basic></div>
         </form>
         @endif
+        <x-slot:footer>
+            <div class="rt-employee-form__actions">
+                <x-ui.buttons.button-basic type="button" wire:click="$set('formOpen', false)" wire:loading.attr="disabled" wire:target="save">Abbrechen</x-ui.buttons.button-basic>
+                <x-ui.buttons.button-basic type="submit" form="{{ $attentionFormId }}" mode="primary" wire:loading.attr="disabled" wire:target="save">Speichern</x-ui.buttons.button-basic>
+            </div>
+        </x-slot:footer>
     </x-operations.modal>
 </section>

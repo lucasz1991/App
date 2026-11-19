@@ -3,7 +3,7 @@
     $filter = $requestFilter ?? 'open';
 @endphp
 <section class="rt-personal-requests rt-personal-requests--review" aria-labelledby="personal-requests-heading" data-personal-requests>
-    <h2 id="personal-requests-heading" class="sr-only">Meine Anfragen</h2>
+    <h2 id="personal-requests-heading" class="text-lg font-semibold">Meine Anfragen</h2>
     @isset($requestCounts)
         <x-ui.buttons.multi-toggle id="personal-request-filter" class="rt-personal-requests__filters" label="Anfragen filtern" :show-labels="true" :value="$filter" action="showRequestFilter" :options="[
             ['value'=>'all','label'=>'Alle','icon'=>'fa-inbox'],
@@ -41,7 +41,7 @@
     @else
         <div class="rt-personal-requests__empty">
             <i class="fal fa-inbox" aria-hidden="true"></i>
-            <strong>{{ $filter === 'answered' ? 'Noch keine beantworteten Anfragen' : 'Keine offenen Anfragen' }}</strong>
+            <strong>{{ match ($filter) { 'all' => 'Noch keine Anfragen', 'answered' => 'Noch keine beantworteten Anfragen', default => 'Keine offenen Anfragen' } }}</strong>
             <p>{{ $filter === 'answered' ? 'Deine Rückmeldungen erscheinen anschließend hier.' : 'Sobald eine Rückmeldung benötigt wird, findest du die Anfrage hier.' }}</p>
         </div>
     @endif

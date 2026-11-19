@@ -84,7 +84,12 @@ class DutyActivityService
     public function report(int $shiftId, int $revision, array $data, string $key, User $actor): DutyReport
     {
         PlanningSchema::requireReady();
-        $data = Validator::make($data + ['key' => $key], ['kind' => 'required|in:delay,relief,information', 'message' => 'required|string|min:3|max:2000', 'delay_minutes' => 'nullable|required_if:kind,delay|integer|min:1|max:1440', 'key' => 'required|uuid'])->validate();
+        $data = Validator::make($data + ['key' => $key], [
+            'kind' => 'required|in:delay,relief,information',
+            'message' => 'required|string|min:3|max:2000',
+            'delay_minutes' => 'exclude_unless:kind,delay|required|integer|min:1|max:1440',
+            'key' => 'required|uuid',
+        ])->validate();
         unset($data['key']);
         if ($data['kind'] !== 'delay') {
             $data['delay_minutes'] = null;

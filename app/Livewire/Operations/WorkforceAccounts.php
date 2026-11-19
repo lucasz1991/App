@@ -59,6 +59,9 @@ class WorkforceAccounts extends Component
 
     public string $until = '';
 
+    #[Locked]
+    public array $accountPeriod = [];
+
     public bool $formOpen = false;
 
     #[Locked]
@@ -89,6 +92,7 @@ class WorkforceAccounts extends Component
         abort_if($profileUserId !== null && $initialUserId !== null && $profileUserId !== $initialUserId, 403);
         $this->from = now(config('operations.display_timezone'))->startOfMonth()->toDateString();
         $this->until = now(config('operations.display_timezone'))->endOfMonth()->toDateString();
+        $this->accountPeriod = ['from' => $this->from, 'until' => $this->until];
         $ids = $personal ? null : app(PersonnelScopeService::class)->visibleUserIds(auth()->user(), $this->ability());
         $this->userId = $profileUserId ?? ($personal ? auth()->id() : ($initialUserId ?? (int) User::where('role', 'staff')->when($ids !== null, fn ($q) => $q->whereIn('id', $ids))->orderBy('name')->value('id')));
         $this->access();
@@ -100,6 +104,27 @@ class WorkforceAccounts extends Component
             $record = PersonnelPlanReview::where('user_id', $this->userId)->findOrFail($initialRecordId);
             $this->prepareRecord('plan_review', $record->id, $record->revision);
         }
+    }
+
+    public function applyAccountPeriod(): void
+    {
+        $this->access();
+        abort_unless($this->tab === 'account', 404);
+        $period = $this->validate([
+            'from' => 'required|date_format:Y-m-d',
+            'until' => 'required|date_format:Y-m-d|after_or_equal:from',
+        ], [
+            'from.required' => 'Bitte einen Beginn auswählen.',
+            'until.required' => 'Bitte ein Ende auswählen.',
+            'until.after_or_equal' => 'Das Ende muss am oder nach dem Beginn liegen.',
+        ]);
+
+        if (CarbonImmutable::parse($period['from'], 'UTC')->diffInDays(CarbonImmutable::parse($period['until'], 'UTC')) > 366) {
+            throw ValidationException::withMessages(['until' => 'Zeitraum darf höchstens 367 Tage umfassen.']);
+        }
+
+        $this->accountPeriod = $period;
+        $this->resetPage('workforceRecordsPage');
     }
 
     private function ability(): string
@@ -357,6 +382,7 @@ class WorkforceAccounts extends Component
         }
         $employee = $this->userId ? $this->employee() : null;
         $records = collect();
+        $actionRecord = null;
         if ($ready && $employee) {
             $query = match ($this->tab) {
                 'models' => EmployeeWorkModel::where('user_id', $employee->id)->latest('starts_on'),
@@ -367,8 +393,15 @@ class WorkforceAccounts extends Component
                 'responsibilities' => PersonnelResponsibility::where('user_id', $employee->id)->with('responsible')->latest('starts_on'),
                 'training' => PersonnelTrainingParticipant::where('user_id', $employee->id)->with('training')->latest(),
                 'absences' => AbsenceRequest::where('user_id', $employee->id)->latest(),
-                default => WorkforceAccountEntry::where('user_id', $employee->id)->when($this->accountKind !== 'all', fn ($q) => $q->where('account', $this->accountKind))->latest('effective_on'),
+                default => WorkforceAccountEntry::where('user_id', $employee->id)
+                    ->when($this->accountKind !== 'all', fn ($q) => $q->where('account', $this->accountKind))
+                    ->where(fn ($q) => $q->where('account', '!=', 'time')
+                        ->orWhereBetween('effective_on', [$this->accountPeriod['from'], $this->accountPeriod['until']]))
+                    ->latest('effective_on')->latest('id'),
             };
+            if ($this->formOpen && $this->recordId && in_array($this->formKind, ['plan_review', 'end_model'], true)) {
+                $actionRecord = (clone $query)->findOrFail($this->recordId);
+            }
             $records = $query->paginate(15, ['*'], 'workforceRecordsPage');
         }
 
@@ -378,6 +411,6 @@ class WorkforceAccounts extends Component
         $validVacationDate = Validator::make(['date' => $vacationDate], ['date' => 'required|date_format:Y-m-d'])->passes();
         $vacationWindowAvailable = $this->formOpen && $this->formKind === 'vacation' && $ready && $employee && $validVacationDate && $accounts->effectivePolicy($employee, $vacationDate)?->unit === 'minutes';
 
-        return view('livewire.operations.workforce-accounts', ['vacationWindowAvailable' => $vacationWindowAvailable, 'ready' => $ready, 'employee' => $employee, 'summary' => $ready && $employee && $this->tab === 'account' ? $accounts->summary($employee, $this->from, $this->until, auth()->user()) : null, 'records' => $records, 'employees' => $this->personal || $this->embedded ? collect() : User::where('role', 'staff')->when($ids !== null, fn ($q) => $q->whereIn('id', $ids))->orderBy('name')->get(['id', 'name']), 'canConfigure' => ! $this->personal && $employee && app(PersonnelScopeService::class)->allows(auth()->user(), $employee, 'employees.master-data.edit'), 'canProcesses' => ! $this->personal && $employee && app(PersonnelScopeService::class)->allows(auth()->user(), $employee, 'employees.master-data.edit'), 'canTraining' => ! $this->personal && $employee && app(PersonnelScopeService::class)->allows(auth()->user(), $employee, 'operations.qualifications.manage'), 'trainings' => $ready && $this->formOpen && $this->formKind === 'enroll' ? PersonnelTraining::where('status', 'scheduled')->where('ends_at', '>', now()->utc())->orderBy('starts_at')->get() : collect(), 'rules' => $ready && $this->formOpen && $this->formKind === 'rule' ? OperationsRuleProfile::orderByDesc('id')->get() : collect(), 'types' => $ready && $this->formOpen && $this->formKind === 'training' ? QualificationType::where('is_active', true)->orderBy('name')->get() : collect(), 'assignees' => ! $this->personal && $this->formOpen && in_array($this->formKind, ['task', 'responsibility'], true) ? User::where('status', true)->orderBy('name')->get(['id', 'name']) : collect()]);
+        return view('livewire.operations.workforce-accounts', ['actionRecord' => $actionRecord, 'vacationWindowAvailable' => $vacationWindowAvailable, 'ready' => $ready, 'employee' => $employee, 'summary' => $ready && $employee && $this->tab === 'account' ? $accounts->summary($employee, $this->accountPeriod['from'], $this->accountPeriod['until'], auth()->user()) : null, 'records' => $records, 'employees' => $this->personal || $this->embedded ? collect() : User::where('role', 'staff')->when($ids !== null, fn ($q) => $q->whereIn('id', $ids))->orderBy('name')->get(['id', 'name']), 'canConfigure' => ! $this->personal && $employee && app(PersonnelScopeService::class)->allows(auth()->user(), $employee, 'employees.master-data.edit'), 'canProcesses' => ! $this->personal && $employee && app(PersonnelScopeService::class)->allows(auth()->user(), $employee, 'employees.master-data.edit'), 'canTraining' => ! $this->personal && $employee && app(PersonnelScopeService::class)->allows(auth()->user(), $employee, 'operations.qualifications.manage'), 'trainings' => $ready && $this->formOpen && $this->formKind === 'enroll' ? PersonnelTraining::where('status', 'scheduled')->where('ends_at', '>', now()->utc())->orderBy('starts_at')->get() : collect(), 'rules' => $ready && $this->formOpen && $this->formKind === 'rule' ? OperationsRuleProfile::orderByDesc('id')->get() : collect(), 'types' => $ready && $this->formOpen && $this->formKind === 'training' ? QualificationType::where('is_active', true)->orderBy('name')->get() : collect(), 'assignees' => ! $this->personal && $this->formOpen && in_array($this->formKind, ['task', 'responsibility'], true) ? User::where('status', true)->orderBy('name')->get(['id', 'name']) : collect()]);
     }
 }

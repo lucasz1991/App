@@ -127,6 +127,37 @@ class WorkTimeExportReviewTest extends TestCase
             ->assertDontSee('Plan · Europe/Berlin')->assertSee('13.05. 08:00:00')->assertSee('Interne Arbeit')->assertHasNoErrors();
     }
 
+    public function test_individual_review_returns_to_the_unprocessed_batch_and_retains_its_note(): void
+    {
+        $first = $this->entry($this->employee, false, 'submitted', 'Frühbesprechung')->fresh();
+        $second = $this->entry($this->employee, true, 'submitted', 'Spätdienst')->fresh();
+        $component = Livewire::actingAs($this->manager)->test(TimeReview::class)
+            ->assertDontSeeHtml('wire:click="prepareBatch"')->set('selected', [$first->id, $second->id])
+            ->assertSeeHtml('wire:click="prepareBatch"')->call('prepareBatch')
+            ->assertSee('Regelgrundlage fehlt')->assertSee('Einzeln prüfen')
+            ->set('batchNote', 'Abgleich mit Plan')
+            ->call('openBatchEntry', $first->id)->assertSet('batchOpen', false)->assertSet('detailOpen', true)
+            ->set('detailOpen', false)->assertSet('batchOpen', true)->assertSet('batchNote', 'Abgleich mit Plan')
+            ->call('openBatchEntry', $first->id)->set('notes.'.$first->id, 'Bitte Pausen prüfen.')
+            ->call('decide', $first->id, $first->revision, false)->assertHasNoErrors();
+        $component->assertSet('batchOpen', true)->assertSet('selected', [$second->id])->assertSet('batchNote', 'Abgleich mit Plan')
+            ->assertSet('batchRows', [['id' => $second->id, 'revision' => $second->revision]]);
+        $this->assertSame('returned', $first->fresh()->status);
+        $this->assertSame('submitted', $second->fresh()->status);
+    }
+
+    public function test_incomplete_administrative_period_retains_last_valid_results_and_export_scope(): void
+    {
+        $entry = $this->entry($this->employee, false, 'approved');
+        $component = Livewire::actingAs($this->manager)->test(TimeReview::class, ['exports' => true])
+            ->set('exportProfile', 'v2')->set('from', '2027-06-01')->set('until', '2027-06-30')
+            ->assertViewHas('entries', fn ($entries) => $entries->isEmpty());
+        $component->set('until', '')->assertHasErrors('until')->assertSet('period', ['2027-06-01', '2027-06-30'])
+            ->assertViewHas('entries', fn ($entries) => $entries->isEmpty())
+            ->set('selected', [$entry->id])->call('export')->assertHasErrors('workflow');
+        $this->assertDatabaseCount('work_time_basic_exports', 0);
+    }
+
     public function test_export_profiles_keep_v1_shift_only_and_v2_history_separate(): void
     {
         $shift = $this->entry($this->employee, true, 'approved', 'Shift Only');
@@ -143,7 +174,8 @@ class WorkTimeExportReviewTest extends TestCase
     public function test_v2_selection_creates_its_own_immutable_export_not_a_payroll_handoff(): void
     {
         $entry = $this->entry($this->employee, false);
-        Livewire::actingAs($this->manager)->test(TimeReview::class, ['exports' => true])->set('exportProfile', 'v2')->set('selected', [$entry->id])
+        Livewire::actingAs($this->manager)->test(TimeReview::class, ['exports' => true])->set('exportProfile', 'v2')
+            ->assertDontSeeHtml('wire:click="export"')->set('selected', [$entry->id])->assertSeeHtml('wire:click="export"')
             ->call('export')->assertHasNoErrors()->assertSet('selected', []);
         $this->assertSame(0, WorkTimeExport::count());
         $this->assertSame(1, WorkTimeBasicExport::count());
@@ -397,6 +429,42 @@ class WorkTimeExportReviewTest extends TestCase
         return $training;
     }
 
+    public function test_manual_shortcut_includes_an_attended_training_outside_the_first_hundred_clock_options(): void
+    {
+        for ($i = 0; $i < 100; $i++) {
+            $this->training($this->employee, 'confirmed', [
+                'starts_at' => '2027-05-14 08:00', 'ends_at' => '2027-05-14 09:00',
+            ]);
+        }
+        $target = $this->training($this->employee);
+        $ui = Livewire::actingAs($this->employee)->test(MyWork::class, ['initialTab' => 'time']);
+        $ui->assertViewHas('clockTrainings', fn ($options) => ! $options->contains('id', $target->id))
+            ->call('openTrainingManual', $target->id)->assertSet('generalManualOpen', true)
+            ->assertSet('generalManual.training_session_id', $target->id)
+            ->assertViewHas('clockTrainings', fn ($options) => $options->contains('id', $target->id));
+        $ui->set('generalManual.starts_at', '2027-05-13T08:00')->set('generalManual.ends_at', '2027-05-13T09:30')
+            ->set('generalManual.note', 'Teilnahme vor Ort.')->call('saveGeneralManual')->assertHasNoErrors()
+            ->assertViewHas('timeCompleteness', fn ($result) => $result['missing_training_times'] === []);
+        $entry = WorkTimeEntry::where('training_session_id', $target->id)->sole();
+        $this->assertSame('completed', $entry->status);
+        $this->assertSame(5400, $entry->netSeconds());
+    }
+
+    public function test_live_clock_only_offers_current_training_with_confirmed_own_participation(): void
+    {
+        $window = ['starts_at' => now()->subHour(), 'ends_at' => now()->addHour()];
+        $eligible = $this->training($this->employee, 'confirmed', $window);
+        $attended = $this->training($this->employee, 'attended', $window);
+        $this->training($this->outside, 'confirmed', $window);
+        $this->training($this->employee, 'confirmed');
+        Livewire::actingAs($this->employee)->test(MyWork::class, ['initialTab' => 'time'])
+            ->assertViewHas('startableTrainings', fn ($items) => $items->pluck('id')->all() === [$eligible->id]);
+        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        app(\App\Services\Operations\WorkforceAccountService::class)->assertTrainingClock(
+            $this->employee, $attended->id, CarbonImmutable::now()
+        );
+    }
+
     public function test_attended_past_training_without_actual_time_makes_completeness_false_without_creating_hours(): void
     {
         $training = $this->training($this->employee);
@@ -412,7 +480,8 @@ class WorkTimeExportReviewTest extends TestCase
         $this->assertSame([$assignment->id], array_column($result['missing_shift_times'], 'assignment_id'));
         $this->assertSame([], $result['unfinished_times']);
         $this->assertSame(0, WorkTimeEntry::count());
-        Livewire::actingAs($this->employee)->test(MyWork::class)->set('tab', 'time')->set('timeFrom', '2027-05-01')->set('timeUntil', '2027-05-31')
+        Livewire::actingAs($this->employee)->test(MyWork::class)->set('tab', 'time')
+            ->set('timePeriod', ['from' => '2027-05-01', 'until' => '2027-05-31'])->call('applyTimePeriod')
             ->assertSee('Offene Zeitmeldungen')->assertSee('Dienst ohne Zeitmeldung')->assertSee('Schulung ohne Zeitmeldung')->assertSee($shift->title)->assertSee($training->title)
             ->assertViewHas('timeCompleteness', fn ($value) => count($value['missing_training_times']) + count($value['missing_shift_times']) + count($value['unfinished_times']) === 2);
     }

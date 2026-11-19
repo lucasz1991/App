@@ -16,10 +16,10 @@
     <div wire:key="personal-calendar-other-dialog-{{ $this->getId() }}">
     <x-operations.modal wire:model="calendarEventOpen" :title="$selectedCalendarEvent?->title ?? 'Mein Termin'">
         @if($selectedCalendarEvent)
-                <div class="ops-toolbar"><h3>{{ $selectedCalendarEvent->title }}</h3><x-operations.status :value="$selectedCalendarEvent->status" /></div>
-                <dl class="rt-personal-calendar-details">
-                    <div><dt>Beginn</dt><dd>{{ $selectedCalendarEvent->starts->format('d.m.Y H:i') }}</dd></div>
-                    <div><dt>Ende</dt><dd>{{ $selectedCalendarEvent->ends->format('d.m.Y H:i') }}</dd></div>
+                <div><x-operations.status :value="$selectedCalendarEvent->status" /></div>
+                <dl class="ops-meta rt-personal-calendar-details">
+                    <div><dt>Beginn</dt><dd><time datetime="{{ $selectedCalendarEvent->starts->toIso8601String() }}">{{ $selectedCalendarEvent->starts->format('d.m.Y H:i') }}</time></dd></div>
+                    <div><dt>Ende</dt><dd><time datetime="{{ $selectedCalendarEvent->ends->toIso8601String() }}">{{ $selectedCalendarEvent->ends->format('d.m.Y H:i') }}</time></dd></div>
                     <div><dt>Zeitzone</dt><dd>{{ $displayTimezone }}</dd></div>
                     @if($selectedCalendarEvent->record->note)<div><dt>Notiz</dt><dd>{{ $selectedCalendarEvent->record->note }}</dd></div>@endif
                     @if($selectedCalendarEvent->record->review_note)<div><dt>Rückmeldung</dt><dd>{{ $selectedCalendarEvent->record->review_note }}</dd></div>@endif

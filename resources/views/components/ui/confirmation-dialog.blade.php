@@ -112,7 +112,7 @@
     }"
     x-on:rt-confirm.window="ask($event)"
     x-on:rt-navigation:prepare.window="if (open && !busy) close(false)"
-    x-on:keydown.escape.window="if (open && !busy) close()"
+    x-on:keydown.escape.stop="if (open && !busy) close()"
     x-show="open"
     x-trap.inert.noscroll="open"
     x-cloak

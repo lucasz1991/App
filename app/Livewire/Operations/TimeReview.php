@@ -42,14 +42,39 @@ class TimeReview extends Component
 
     public string $until = '';
 
+    #[Locked]
+    public array $period = [];
+
     public function updatedFrom(): void
     {
-        $this->updatedFilter();
+        $this->updatePeriod();
     }
 
     public function updatedUntil(): void
     {
-        $this->updatedFilter();
+        $this->updatePeriod();
+    }
+
+    private function updatePeriod(): void
+    {
+        $this->resetValidation(['from', 'until']);
+        $period = [];
+        if ($this->from !== '' || $this->until !== '') {
+            try {
+                ReportingPeriod::bounds($this->from, $this->until);
+            } catch (ValidationException $exception) {
+                foreach ($exception->errors() as $field => $messages) {
+                    $this->addError($field, $messages[0]);
+                }
+
+                return;
+            }
+            $period = [$this->from, $this->until];
+        }
+        if ($period !== $this->period) {
+            $this->period = $period;
+            $this->updatedFilter();
+        }
     }
 
     public array $notes = [];
@@ -62,6 +87,9 @@ class TimeReview extends Component
     public array $batchRows = [];
 
     public string $batchNote = '';
+
+    #[Locked]
+    public bool $detailFromBatch = false;
 
     public function prepareBatch(): void
     {
@@ -95,10 +123,47 @@ class TimeReview extends Component
     {
         $this->access();
         $this->entryQuery()->when($this->exports, fn ($q) => $q->where('status', 'approved'))->findOrFail($id);
+        $this->detailFromBatch = false;
         $this->detailId = $id;
         $this->notes = [];
         $this->resetValidation();
         $this->detailOpen = true;
+    }
+
+    public function openBatchEntry(int $id): void
+    {
+        abort_unless(! $this->exports && $this->batchOpen && in_array($id, array_column($this->batchRows, 'id'), true), 404);
+        $this->openDetails($id);
+        $this->detailFromBatch = true;
+        $this->batchOpen = false;
+    }
+
+    public function updatedDetailOpen(bool $open): void
+    {
+        if (! $open) {
+            $this->closeDetails();
+        }
+    }
+
+    public function closeDetails(): void
+    {
+        $this->access();
+        $this->reset(['detailOpen', 'detailId', 'notes']);
+        $this->resetValidation();
+        if (! $this->detailFromBatch) {
+            return;
+        }
+
+        // Keep only the exact pending revisions previously seen by the reviewer.
+        $pending = $this->entryQuery()->whereIn('id', array_column($this->batchRows, 'id'))
+            ->where('status', 'submitted')->where('user_id', '!=', auth()->id())->pluck('revision', 'id');
+        $this->batchRows = array_values(array_filter($this->batchRows, fn ($row) => $pending->get($row['id']) === $row['revision']));
+        $this->selected = array_column($this->batchRows, 'id');
+        $this->batchOpen = (bool) $this->batchRows;
+        $this->detailFromBatch = false;
+        if (! $this->batchOpen) {
+            $this->batchNote = '';
+        }
     }
 
     public function mount(bool $exports = false, bool $embedded = false, bool $historyOnly = false, ?int $initialRecordId = null): void
@@ -153,16 +218,23 @@ class TimeReview extends Component
     public function decide(int $id, int $revision, bool $approve, WorkTimeService $service): void
     {
         $this->access();
+        abort_if($this->exports, 403);
         $service->review($id, $revision, $approve, $this->notes[$id] ?? '', auth()->user());
-        unset($this->notes[$id]);
-        $this->detailOpen = false;
-        $this->resetValidation();
+        $this->closeDetails();
+        session()->flash('operations.saved', $approve ? 'Zeitmeldung freigegeben.' : 'Zeitmeldung zur Korrektur zurückgegeben.');
     }
 
     public function export(WorkTimeService $service)
     {
         $this->access();
         abort_unless($this->exports, 403);
+        if ($this->period) {
+            $query = $this->entryQuery()->whereIn('id', $this->selected);
+            ReportingPeriod::apply($query, ...$this->period);
+            if ($query->count() !== count($this->selected)) {
+                throw ValidationException::withMessages(['workflow' => 'Die Auswahl passt nicht mehr zum angezeigten Zeitraum. Bitte neu auswählen.']);
+            }
+        }
         if ($this->exportProfile === 'v2') {
             $export = app(WorkTimeExtensionService::class)->export($this->selected, auth()->user());
             $this->selected = [];
@@ -212,8 +284,8 @@ class TimeReview extends Component
     {
         $this->access();
         $period = function ($query) {
-            if ($this->from && $this->until) {
-                ReportingPeriod::apply($query, $this->from, $this->until);
+            if ($this->period) {
+                ReportingPeriod::apply($query, ...$this->period);
             }
         };
         $detailEntry = $this->detailId ? $this->entryQuery()->with('user:id,name')->when(WorkTimeSchema::ready(), fn ($q) => $q->with('activities'))->when($this->exports, fn ($q) => $q->where('status', 'approved'))->find($this->detailId) : null;
@@ -221,8 +293,13 @@ class TimeReview extends Component
             $detailEntry->activities->each(fn ($activity) => $activity->setAttribute('display_timezone', $detailEntry->timezone));
         }
 
+        $batchEntries = $this->batchOpen ? $this->entryQuery()->with('user:id,name')->whereIn('id', array_column($this->batchRows, 'id'))->get() : collect();
+        $comparisons = $batchEntries->mapWithKeys(fn ($entry) => [$entry->id => app(WorkTimeService::class)->comparison($entry)]);
+
         return view('livewire.operations.time-review', [
-            'batchEntries' => $this->batchOpen ? $this->entryQuery()->with('user:id,name')->whereIn('id', array_column($this->batchRows, 'id'))->get() : collect(),
+            'batchEntries' => $batchEntries,
+            'comparisons' => $comparisons,
+            'warningCount' => $comparisons->filter(fn ($result) => $result['warnings'] !== [])->count(),
             'detailEntry' => $detailEntry,
             'entries' => $this->historyOnly ? collect() : $this->entryQuery()->with('user:id,name')->tap($period)->when($this->exports, fn ($q) => $q->where('status', 'approved'))
                 ->when($this->exports && $this->exportProfile === 'v1', fn ($q) => $q->whereNotExists(fn ($q) => $q->selectRaw('1')->from('work_time_export_items')->whereColumn('work_time_entry_id', 'work_time_entries.id')->whereColumn('work_time_export_items.revision', 'work_time_entries.revision')))

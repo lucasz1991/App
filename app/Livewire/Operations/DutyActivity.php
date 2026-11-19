@@ -10,6 +10,7 @@ use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\PersonalSchedule;
 use App\Support\Operations\PlanningSchema;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 
@@ -108,7 +109,15 @@ class DutyActivity extends Component
     public function sendReport(DutyActivityService $service): void
     {
         $this->access();
-        $service->report($this->shiftId, $this->planRevision, $this->report, $this->requestKey, auth()->user());
+        try {
+            $service->report($this->shiftId, $this->planRevision, $this->report, $this->requestKey, auth()->user());
+        } catch (ValidationException $exception) {
+            $messages = [];
+            foreach ($exception->errors() as $field => $errors) {
+                $messages[in_array($field, ['kind', 'delay_minutes', 'message'], true) ? 'report.'.$field : $field] = $errors;
+            }
+            throw ValidationException::withMessages($messages);
+        }
         $this->reportOpen = false;
     }
 

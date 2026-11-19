@@ -129,7 +129,10 @@
                 @if($open && $canRespond)
                     @if($livewire)
                         <x-ui.buttons.button-basic type="button" mode="primary" wire:click="{{ $respondAction }}(true)" wire:loading.attr="disabled" wire:target="{{ $respondAction }}">{{ $acceptLabel }}</x-ui.buttons.button-basic>
-                        <x-ui.buttons.button-basic type="button" wire:click="{{ $respondAction }}(false)" wire:confirm="{{ $isCapacity ? 'Diese Kapazitätsanfrage ablehnen?' : 'Diesen Dienst ablehnen?' }}" wire:loading.attr="disabled" wire:target="{{ $respondAction }}">{{ $declineLabel }}</x-ui.buttons.button-basic>
+                        <x-ui.buttons.button-basic type="button" :confirm-method="$respondAction" :confirm-arguments="[false]"
+                            :confirm-title="$isCapacity ? 'Kapazitätsanfrage ablehnen?' : 'Dienstanfrage ablehnen?'"
+                            :confirm-message="$row['title'].' · '.$start->format('d.m.Y H:i').' – '.$end->format($start->isSameDay($end) ? 'H:i' : 'd.m.Y H:i')"
+                            :confirm-label="$declineLabel" wire:loading.attr="disabled" wire:target="{{ $respondAction }}">{{ $declineLabel }}</x-ui.buttons.button-basic>
                     @else
                         <x-ui.buttons.button-basic type="button" mode="primary" disabled>{{ $acceptLabel }}</x-ui.buttons.button-basic><x-ui.buttons.button-basic type="button" disabled>{{ $declineLabel }}</x-ui.buttons.button-basic>
                     @endif

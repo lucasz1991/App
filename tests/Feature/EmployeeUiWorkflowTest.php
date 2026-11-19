@@ -9,6 +9,8 @@ use App\Models\Order;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
+use App\Models\WorkTimeEntry;
+use App\Services\Operations\OperationsReportService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Http;
@@ -145,5 +147,71 @@ class EmployeeUiWorkflowTest extends TestCase
             ->assertDontSeeHtml('wire:click="openManualAssignment('.$assignment->id.')"');
         $ui->call('openManualAssignment', $assignment->id)->assertNotFound();
         $this->assertDatabaseCount('work_time_entries', 0);
+    }
+
+    public function test_unapplied_or_invalid_period_keeps_list_tasks_and_csv_on_the_same_period(): void
+    {
+        $november = $this->timeEntry('Interne Arbeit November', '2026-11-04', 'completed');
+        $october = $this->timeEntry('Interne Arbeit Oktober', '2026-10-18', 'returned');
+        $oldDuty = $this->assignment('confirmed', 'Alter Dienst', '2026-06-04 08:00');
+        $ui = Livewire::actingAs($this->employee)->test(MyWork::class, ['initialTab' => 'time']);
+        $ui->set('timePeriod', ['from' => '2026-10-01', 'until' => ''])->call('applyTimePeriod')
+            ->assertHasErrors('timePeriod.until')->assertSet('timeFrom', '2026-11-01')
+            ->assertViewHas('times', fn ($rows) => $rows->pluck('id')->all() === [$november->id])
+            ->assertViewHas('timeCompleteness', fn ($result) => array_column($result['unfinished_times'], 'id') === [$november->id]);
+        $response = $ui->instance()->exportOwnWorkTimes(app(OperationsReportService::class));
+        ob_start();
+        $response->sendContent();
+        $csv = ob_get_clean();
+        $this->assertStringContainsString('Interne Arbeit November', $csv);
+        $this->assertStringNotContainsString('Interne Arbeit Oktober', $csv);
+
+        $ui->set('timePeriod.until', '2026-09-30')->call('applyTimePeriod')->assertHasErrors('timePeriod.until');
+        $ui->set('timePeriod.until', '2026-10-31')->call('applyTimePeriod')->assertHasNoErrors()
+            ->assertDispatched('personal-time-period-applied')
+            ->assertViewHas('times', fn ($rows) => $rows->pluck('id')->all() === [$october->id]);
+        $ui->set('timePeriod', ['from' => '2026-06-01', 'until' => '2026-06-30'])->call('applyTimePeriod')
+            ->call('openManualAssignment', $oldDuty->id)->assertSet('manualAssignmentId', $oldDuty->id);
+        $ui->call('openCurrentTimeIssues')->assertSet('timeFrom', '2026-11-01')->assertSet('timeUntil', '2026-11-06')
+            ->assertSet('timePeriod.from', '2026-11-01')->assertSet('manualOpen', false)->assertDispatched('personal-time-issues-opened');
+    }
+
+    public function test_status_filter_is_exact_and_each_unfinished_entry_has_its_own_action(): void
+    {
+        $returned = $this->timeEntry('Rückgabe', '2026-11-03', 'returned');
+        $completed = $this->timeEntry('Bereit', '2026-11-04', 'completed');
+        $submitted = $this->timeEntry('Übergeben', '2026-11-02', 'submitted');
+        $this->timeEntry('Freigabe', '2026-11-01', 'approved');
+        $this->timeEntry('Export', '2026-11-05', 'exported');
+        $ui = Livewire::actingAs($this->employee)->test(MyWork::class, ['initialTab' => 'time'])
+            ->call('showTimeFilter', 'submitted')->assertViewHas('times', fn ($rows) => $rows->pluck('id')->all() === [$submitted->id])
+            ->assertSeeHtml('editTime('.$returned->id.', 1)')->assertSeeHtml('clock('.$completed->id.', 1,')
+            ->assertViewHas('timeCompleteness', fn ($result) => count($result['unfinished_times']) === 2);
+        $returned->update(['revision' => 2]);
+        $ui->call('editTime', $returned->id, 1)->assertHasErrors('workflow')->assertSet('correctionOpen', false);
+        $ui->call('editTime', $returned->id, 2)->assertSet('correctingRevision', 2)
+            ->assertViewHas('correctingEntry', fn ($entry) => $entry->is($returned));
+    }
+
+    public function test_clock_duty_and_conflicts_are_available_from_both_workday_views(): void
+    {
+        $this->assignment('requested', 'Offene Anfrage', '2026-11-06 07:00');
+        $own = $this->assignment('confirmed', 'Bestätigter Dienst', '2026-11-06 08:00');
+        $ui = Livewire::actingAs($this->employee)->test(MyWork::class)
+            ->assertViewHas('clockDuty', fn ($item) => $item?->id === $own->id)
+            ->call('showCaptureConflicts', 'ungültig')->assertSet('tab', 'time')
+            ->assertDispatched('personal-time-conflicts-opened', eventKey: null)
+            ->assertViewHas('clockDuty', fn ($item) => $item?->id === $own->id);
+        $own->shift->update(['revision' => 2]);
+        $ui->call('$refresh')->assertViewHas('clockDuty', null);
+    }
+
+    private function timeEntry(string $title, string $date, string $status): WorkTimeEntry
+    {
+        return WorkTimeEntry::create([
+            'user_id' => $this->employee->id, 'work_context' => 'internal', 'status' => $status,
+            'timezone' => 'Europe/Berlin', 'starts_at' => $date.' 08:00', 'ends_at' => $date.' 12:00',
+            'plan_snapshot' => ['title' => $title],
+        ]);
     }
 }
