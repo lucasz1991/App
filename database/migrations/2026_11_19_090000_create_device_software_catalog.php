@@ -68,8 +68,10 @@ return new class extends Migration
     {
         // Ohne anfordernden Benutzer lassen sich diese Aufträge im alten Schema nicht halten.
         DB::table('device_desktop_jobs')->where('origin', 'assignment')->delete();
-        Schema::table('device_desktop_jobs', function (Blueprint $table): void {
-            $table->dropForeign('ddj_package_fk');
+        // SQLite kennt Fremdschlüssel nur über ihre Spalten, MySQL braucht den vergebenen Namen.
+        $byColumn = Schema::getConnection()->getDriverName() === 'sqlite';
+        Schema::table('device_desktop_jobs', function (Blueprint $table) use ($byColumn): void {
+            $byColumn ? $table->dropForeign(['software_package_id']) : $table->dropForeign('ddj_package_fk');
         });
         Schema::table('device_desktop_jobs', function (Blueprint $table): void {
             $table->dropColumn(['origin', 'software_package_id', 'attempt']);

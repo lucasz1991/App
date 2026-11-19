@@ -28,7 +28,7 @@ final class DeviceDesktopService
 
     public const PACKAGE_PATTERN = '/\A[A-Za-z0-9][A-Za-z0-9_-]*(?:\.[A-Za-z0-9][A-Za-z0-9_-]*)+\z/';
 
-    public const POLICY_KEYS = ['allow_camera', 'allow_location', 'allow_notifications', 'allow_software_install', 'kiosk_enabled'];
+    public const POLICY_KEYS = ['allow_camera', 'allow_location', 'allow_notifications', 'allow_software_install', 'kiosk_enabled', 'auto_install'];
 
     public function __construct(private readonly DeviceManagementSettings $settings) {}
 
@@ -53,7 +53,7 @@ final class DeviceDesktopService
     public function defaults(): array
     {
         return ['allow_camera' => false, 'allow_location' => false, 'allow_notifications' => true,
-            'allow_software_install' => false, 'kiosk_enabled' => false];
+            'allow_software_install' => false, 'kiosk_enabled' => false, 'auto_install' => false];
     }
 
     /** Returns the one-time enrollment secret only to the issuing administrator. */
@@ -126,19 +126,29 @@ final class DeviceDesktopService
     {
         $data = Validator::make($input, [
             'client_version' => ['required', 'string', 'regex:'.self::VERSION_PATTERN],
-            'capabilities' => ['sometimes', 'array', 'max:2'],
-            'capabilities.*' => ['string', 'in:winget_install,notification', 'distinct'],
-            'report' => ['sometimes', 'array:software_runner'],
+            'capabilities' => ['sometimes', 'array', 'max:3'],
+            'capabilities.*' => ['string', 'in:winget_install,notification,'.DeviceSoftwareService::CAPABILITY, 'distinct'],
+            'report' => ['sometimes', 'array:software_runner,software'],
             'report.software_runner' => ['sometimes', 'in:available,unavailable,unknown'],
+            'report.software' => ['sometimes', 'array', 'max:'.DeviceSoftwareService::MAX_PACKAGES],
+            'report.software.*' => ['array:package_id,installed,version'],
+            'report.software.*.package_id' => ['required', 'string', 'max:128', 'regex:'.DeviceSoftwareService::PACKAGE_PATTERN, 'distinct'],
+            'report.software.*.installed' => ['required', 'boolean'],
+            'report.software.*.version' => ['sometimes', 'nullable', 'string', 'regex:'.DeviceSoftwareService::REPORTED_VERSION_PATTERN],
         ])->validate();
 
         return $this->withAuthenticated($token, function (DeviceDesktopClient $client, Device $device) use ($data): array {
             $client->forceFill(['client_version' => $data['client_version'], 'last_seen_at' => now(),
                 'last_report' => $data['report'] ?? []])->save();
             $response = $this->response($client, $device);
+            $software = app(DeviceSoftwareService::class);
+            $softwareReady = $software->ready();
             // This client binding's explicitly queued installations must all
             // have succeeded. Hidden/expired jobs are not proof of readiness.
+            // Orders created from the software directory retry on their own
+            // and never lock the workspace.
             $response['setup_ready'] = ! $client->jobs()->where('type', 'install_software')
+                ->when($softwareReady, fn ($query) => $query->where('origin', 'manual'))
                 ->where('status', '!=', 'succeeded')->exists();
             if (Schema::hasTable('device_workplaces') && DeviceWorkplace::query()->where('device_id', $device->id)->exists()) {
                 $response['setup_ready'] = $response['setup_ready'] && app(DeviceReadinessService::class)->isReady($device);
@@ -147,6 +157,18 @@ final class DeviceDesktopService
                 return $response;
             }
             $capabilities = $data['capabilities'] ?? [];
+            // Only a client that understands directory orders and reports the
+            // installed state takes part in the automatic reconciliation.
+            $managed = $softwareReady && in_array(DeviceSoftwareService::CAPABILITY, $capabilities, true)
+                && in_array('winget_install', $capabilities, true);
+            $desired = $managed ? $software->plan($device, $response['policy']) : collect();
+            if ($managed) {
+                // A lapsed order must not hold back its successor for another round.
+                $client->jobs()->whereIn('status', ['queued', 'offered'])->where('expires_at', '<=', now())
+                    ->update(['status' => 'expired', 'completed_at' => now()]);
+                $software->reconcile($client, $desired, $data['report']['software'] ?? []);
+                $response['software'] = $desired->map(fn ($package) => ['package_id' => $package->package_id, 'version' => $package->version])->values()->all();
+            }
             $jobs = $client->jobs()->whereIn('status', ['queued', 'offered'])->orderBy('id')->limit(20)->lockForUpdate()->get();
             foreach ($jobs as $job) {
                 if ($job->expires_at->isPast()) {
@@ -154,18 +176,33 @@ final class DeviceDesktopService
 
                     continue;
                 }
-                $allowed = $job->type === 'install_software'
-                    ? $response['policy']['allow_software_install'] && in_array('winget_install', $capabilities, true)
-                    : $response['policy']['allow_notifications'] && in_array('notification', $capabilities, true);
-                $requester = User::query()->whereKey($job->requested_by)->lockForUpdate()->first();
-                if (! $allowed || ! $requester?->isActive() || ! Gate::forUser($requester)->allows('devices.commands.execute')) {
-                    continue;
+                $assigned = $softwareReady && $job->origin === 'assignment';
+                if ($assigned) {
+                    // Authority is the current directory, assignment and policy,
+                    // not a person. An order already handed out is not repeated;
+                    // its receipt for the original lease stays acceptable.
+                    if (! $software->covers($desired, $job)) {
+                        if ($job->status === 'queued') {
+                            $job->forceFill(['status' => 'cancelled', 'completed_at' => now()])->save();
+                        }
+
+                        continue;
+                    }
+                } else {
+                    $allowed = $job->type === 'install_software'
+                        ? $response['policy']['allow_software_install'] && in_array('winget_install', $capabilities, true)
+                        : $response['policy']['allow_notifications'] && in_array('notification', $capabilities, true);
+                    $requester = User::query()->whereKey($job->requested_by)->lockForUpdate()->first();
+                    if (! $allowed || ! $requester?->isActive() || ! Gate::forUser($requester)->allows('devices.commands.execute')) {
+                        continue;
+                    }
                 }
                 if ($job->status === 'queued') {
                     $job->forceFill(['status' => 'offered', 'lease_id' => (string) Str::uuid(), 'offered_at' => now()])->save();
                 }
                 $response['jobs'][] = ['id' => $job->public_id, 'type' => $job->type, 'lease_id' => $job->lease_id,
-                    'expires_at' => $job->expires_at->toIso8601String(), 'payload' => $job->payload];
+                    'expires_at' => $job->expires_at->toIso8601String(), 'payload' => $job->payload]
+                    + ($assigned ? ['origin' => 'assignment'] : []);
             }
 
             return $response;
@@ -206,15 +243,22 @@ final class DeviceDesktopService
     {
         $this->authorize($actor, 'devices.manage');
         $rules = array_fill_keys(self::POLICY_KEYS, ['required', 'boolean']);
-        $policy = Validator::make($input, $rules)->validate();
+        // Policies stored before the software directory existed do not carry this key.
+        $rules['auto_install'] = ['sometimes', 'boolean'];
+        $policy = Validator::make($input, $rules)->validate() + ['auto_install' => false];
         foreach ($policy as &$value) {
             $value = (bool) $value;
         }
         unset($value);
-        $this->withClient($client, function (DeviceDesktopClient $locked) use ($policy, $actor): void {
+        $this->withClient($client, function (DeviceDesktopClient $locked, Device $device) use ($policy, $actor): void {
             $this->authorize($actor, 'devices.manage');
             if ($policy['allow_software_install']) {
                 $this->authorize($actor, 'devices.commands.execute');
+            }
+            // Installing without a local question is a decision for company
+            // devices only; personal devices keep the local confirmation.
+            if ($policy['auto_install'] && (! $policy['allow_software_install'] || $device->ownership !== 'corporate')) {
+                throw ValidationException::withMessages(['policy' => 'Automatische Installation ist nur auf Firmengeräten und nur zusammen mit der Softwareinstallation möglich.']);
             }
             $locked->forceFill(['policy' => $policy, 'policy_revision' => $locked->policy_revision + 1])->save();
             $this->audit($locked, $actor, 'policy-updated');
@@ -277,6 +321,7 @@ final class DeviceDesktopService
             $policy[$key] = ($client->policy[$key] ?? false) === true;
         }
         $policy['allow_software_install'] = $policy['allow_software_install'] && $this->settings->productionCommandsEnabled(fresh: true);
+        $policy['auto_install'] = $policy['auto_install'] && $policy['allow_software_install'] && $device->ownership === 'corporate';
         $policy['revision'] = $client->policy_revision;
         $policy['kiosk_url'] = 'https://app.rail-time.de';
 
