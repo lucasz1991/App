@@ -7,6 +7,7 @@ use App\Models\Device;
 use App\Models\DeviceDesktopClient;
 use App\Models\User;
 use App\Services\DeviceManagement\Desktop\DeviceDesktopService;
+use App\Services\DeviceManagement\Desktop\DeviceSoftwareService;
 use App\Services\DeviceManagement\DeviceManagementSettings;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Locked;
@@ -56,7 +57,9 @@ class DeviceDesktopClients extends Component
         $client = DeviceDesktopClient::query()->where('public_id', $publicId)->firstOrFail();
         $this->reset('pairingToken', 'pairingExpiresAt', 'revokeConfirmed', 'notice');
         $this->clientPublicId = $client->public_id;
-        $this->policy = array_intersect_key($client->policy ?? [], app(DeviceDesktopService::class)->defaults());
+        // Ältere gespeicherte Richtlinien kennen neuere Schalter noch nicht.
+        $defaults = app(DeviceDesktopService::class)->defaults();
+        $this->policy = array_replace($defaults, array_intersect_key($client->policy ?? [], $defaults));
         $this->resetValidation();
     }
 
@@ -133,13 +136,16 @@ class DeviceDesktopClients extends Component
         $clients = DeviceDesktopClient::query()->with(['device', 'assignment.user:id,name'])->latest()->limit(200)->get();
         $selected = $this->clientPublicId ? $this->selected()->load(['device', 'assignment.user:id,name']) : null;
         $jobs = $selected ? $selected->jobs()->latest()->limit(20)->get() : collect();
-        $setupBlocked = $selected && $selected->jobs()->where('type', 'install_software')->where('status', '!=', 'succeeded')->exists();
+        // Wie im Client-Abruf: Aufträge aus dem Programmverzeichnis sperren den Arbeitsbereich nicht.
+        $softwareReady = app(DeviceSoftwareService::class)->ready();
+        $setupBlocked = $selected && $selected->jobs()->where('type', 'install_software')
+            ->when($softwareReady, fn ($query) => $query->where('origin', 'manual'))->where('status', '!=', 'succeeded')->exists();
         $devices = Device::query()->forPlatform(DevicePlatform::Windows)->operational()
             ->whereHas('assignments', fn ($query) => $query->active())
             ->with('activeAssignment.user:id,name')->orderBy('display_name')->limit(250)->get();
         $commandsEnabled = app(DeviceManagementSettings::class)->productionCommandsEnabled(fresh: true);
 
-        return view('livewire.devices.device-desktop-clients', compact('clients', 'selected', 'jobs', 'devices', 'commandsEnabled', 'setupBlocked'))
+        return view('livewire.devices.device-desktop-clients', compact('clients', 'selected', 'jobs', 'devices', 'commandsEnabled', 'setupBlocked', 'softwareReady'))
             ->layout('layouts.master', ['area' => $actor->usesAdminLayout() ? 'admin' : 'user']);
     }
 }

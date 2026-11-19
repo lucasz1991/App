@@ -71,6 +71,7 @@ use App\Livewire\Calls\CallHistory;
 use App\Livewire\Calls\CallWindow;
 use App\Livewire\ChatBox;
 use App\Livewire\Devices\DeviceDesktopClients;
+use App\Livewire\Devices\DeviceSoftware;
 use App\Livewire\Devices\DeviceEnrollmentSetup;
 use App\Livewire\Devices\DeviceManagement;
 use App\Livewire\Devices\MyDevices;
@@ -285,6 +286,7 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
     // erreichbar. Jede Livewire-Aktion prueft ihr konkretes Device-Gate erneut.
     Route::get('/geraete', DeviceManagement::class)->name('devices.index');
     Route::get('/geraete/desktop-clients', DeviceDesktopClients::class)->name('devices.desktop-clients');
+    Route::get('/geraete/software', DeviceSoftware::class)->name('devices.software');
     Route::get('/geraete/import-vorlage.csv', DeviceInventoryTemplateController::class)
         ->name('devices.import-template');
     Route::get('/meine-geraete', MyDevices::class)->name('devices.mine');

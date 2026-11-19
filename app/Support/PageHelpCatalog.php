@@ -145,6 +145,27 @@ final class PageHelpCatalog
                 ['devices.index', 'admin.devices'],
             ),
             $this->entry(
+                'Software für Geräte',
+                'Software for devices',
+                'Festlegen, welche Programme auf den Geräten der Mitarbeiter vorhanden sein sollen, und sehen, wo sie installiert sind.',
+                'Define which programs employee devices should have and see where they are installed.',
+                [
+                    'Ein Programm steht mit seiner WinGet-Paket-ID und einer festen Version im Verzeichnis; die Bedingungen bestätigt die IT beim Aufnehmen.',
+                    'Zugewiesen wird an alle Firmengeräte, an ein Arbeitsplatzprofil oder an ein einzelnes Gerät.',
+                    'Installiert wird nur auf Geräten mit verbundener RailTime-App, deren Richtlinie die automatische Installation erlaubt.',
+                    'Nach drei erfolglosen Versuchen wartet ein Gerät; Grund und Freigabe stehen unter „Stand je Gerät“.',
+                ],
+                [
+                    'A program is listed with its WinGet package ID and a fixed version; IT accepts the terms when adding it.',
+                    'Assign it to all company devices, to a workplace profile or to a single device.',
+                    'Installation only happens on devices with a connected RailTime app whose policy allows automatic installation.',
+                    'After three failed attempts a device waits; the reason and the release are listed under "State per device".',
+                ],
+                'Administration',
+                'download',
+                ['devices.software'],
+            ),
+            $this->entry(
                 'Meine Geräte einrichten',
                 'Set up my devices',
                 'Eigene zugewiesene Geräte, offene Registrierungen und die wenigen noch erforderlichen persönlichen Schritte anzeigen.',

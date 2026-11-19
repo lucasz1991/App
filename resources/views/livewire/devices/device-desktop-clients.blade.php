@@ -1,5 +1,8 @@
 <x-ui.page title="Desktopclients" eyebrow="IT & Betrieb" description="Windows-Pilot: Geräte verbinden, lokale Berechtigungen vorbereiten und bestätigte Softwareaufträge verfolgen." page-key="device-desktop-clients">
-    <x-slot:actions><a href="{{ route('devices.index') }}" class="rounded-xl border border-rt-border px-4 py-3 text-sm font-semibold">Zur Geräteübersicht</a></x-slot:actions>
+    <x-slot:actions>
+        @if($softwareReady)<a href="{{ route('devices.software') }}" class="rounded-xl border border-rt-border px-4 py-3 text-sm font-semibold">Software</a>@endif
+        <a href="{{ route('devices.index') }}" class="rounded-xl border border-rt-border px-4 py-3 text-sm font-semibold">Zur Geräteübersicht</a>
+    </x-slot:actions>
     @php
         $field = 'mt-1 w-full rounded-xl border border-rt-border bg-white px-3 py-2 text-sm dark:border-rt-dark-border dark:bg-rt-dark-surface';
         $button = 'min-h-11 rounded-xl bg-rt-red px-4 py-2 text-sm font-semibold text-white disabled:opacity-50';
@@ -51,11 +54,14 @@
                         <form wire:submit="savePolicy" class="space-y-3">
                             <h3 class="text-sm font-semibold">Angeforderte Clientberechtigungen</h3>
                             <div class="grid gap-3 sm:grid-cols-2">
-                                @foreach(['allow_camera'=>'Kamera', 'allow_location'=>'Standort', 'allow_notifications'=>'Benachrichtigungen', 'allow_software_install'=>'Bestätigte Softwareinstallation', 'kiosk_enabled'=>'RailTime-Kioskbrowser'] as $key=>$label)
+                                @foreach(['allow_camera'=>'Kamera', 'allow_location'=>'Standort', 'allow_notifications'=>'Benachrichtigungen', 'allow_software_install'=>'Softwareinstallation', 'kiosk_enabled'=>'RailTime-Kioskbrowser'] as $key=>$label)
                                     <label class="flex gap-2 text-sm"><input type="checkbox" wire:model="policy.{{ $key }}">{{ $label }}</label>
                                 @endforeach
+                                @if($softwareReady && $selected->device?->ownership === 'corporate')
+                                    <label class="flex gap-2 text-sm"><input type="checkbox" wire:model="policy.auto_install">Automatische Installation aus dem Programmverzeichnis</label>
+                                @endif
                             </div>
-                            <p class="text-xs text-rt-muted">Dies erteilt keine Betriebssystemrechte. Mitarbeiter können lokal ablehnen. Kamera/Standort werden hier nicht aufgezeichnet; der Kioskbrowser ist regulär schließbar, kein Windows-Lockdown.</p>
+                            <p class="text-xs text-rt-muted">Dies erteilt keine Betriebssystemrechte. Einzelaufträge bestätigt der Mitarbeiter am Gerät und kann sie ablehnen. Mit „Automatische Installation“ entfällt diese Rückfrage auf Firmengeräten für Programme aus dem Verzeichnis; sie setzt „Softwareinstallation“ voraus. Kamera/Standort werden hier nicht aufgezeichnet; der Kioskbrowser ist regulär schließbar, kein Windows-Lockdown.</p>
                             <button type="submit" wire:loading.attr="disabled" class="{{ $button }}">Richtlinie speichern</button>
                         </form>
                     @endcan
@@ -91,7 +97,12 @@
                 <div class="border-t border-rt-border pt-4">
                     <h3 class="text-sm font-semibold">Letzte 20 Aufträge</h3>
                     <p class="mt-1 text-xs text-rt-muted">Erfolg bedeutet eine Client-Rückmeldung, keinen unabhängigen MDM-Nachweis. Nach Widerruf kann das Ergebnis eines bereits gestarteten lokalen Prozesses unbestätigt bleiben.</p>
-                    <div class="mt-3 space-y-2">@forelse($jobs as $job)<div class="flex flex-wrap items-start justify-between gap-2 rounded-lg bg-rt-surface-muted p-3 text-sm dark:bg-rt-dark-surface-muted"><div>{{ $job->type === 'install_software' ? 'Softwareinstallation' : 'Mitteilung' }}<p class="text-xs text-rt-muted">{{ $job->public_id }} · {{ $job->created_at->format('d.m.Y H:i') }}</p></div><span>{{ $statusLabels[$job->status] ?? $job->status }}</span></div>@empty<p class="text-sm text-rt-muted">Noch keine Aufträge.</p>@endforelse</div>
+                    <div class="mt-3 space-y-2">@forelse($jobs as $job)
+                        @php
+                            $jobResult = $job->result ?? [];
+                            $jobExit = $jobResult['exit_code'] ?? null;
+                        @endphp
+                        <div class="flex flex-wrap items-start justify-between gap-2 rounded-lg bg-rt-surface-muted p-3 text-sm dark:bg-rt-dark-surface-muted"><div class="min-w-0">{{ $job->type === 'install_software' ? 'Softwareinstallation' : 'Mitteilung' }}{{ $job->origin === 'assignment' ? ' · aus dem Programmverzeichnis' : '' }}<p class="text-xs text-rt-muted">{{ $job->public_id }} · {{ $job->created_at->format('d.m.Y H:i') }}</p>@if($jobExit !== null || filled($jobResult['message'] ?? null))<p class="break-words text-xs text-rt-muted">@if($jobExit !== null)Exit-Code {{ $jobExit }}@if($jobExit !== 0) ({{ sprintf('0x%08X', $jobExit & 0xFFFFFFFF) }})@endif @endif @if(filled($jobResult['message'] ?? null)){{ $jobExit !== null ? '· ' : '' }}{{ $jobResult['message'] }}@endif</p>@endif</div><span>{{ $statusLabels[$job->status] ?? $job->status }}</span></div>@empty<p class="text-sm text-rt-muted">Noch keine Aufträge.</p>@endforelse</div>
                 </div>
             </section>
         @endif

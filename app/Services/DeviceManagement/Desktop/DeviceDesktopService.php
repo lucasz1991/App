@@ -258,7 +258,7 @@ final class DeviceDesktopService
             // Installing without a local question is a decision for company
             // devices only; personal devices keep the local confirmation.
             if ($policy['auto_install'] && (! $policy['allow_software_install'] || $device->ownership !== 'corporate')) {
-                throw ValidationException::withMessages(['policy' => 'Automatische Installation ist nur auf Firmengeräten und nur zusammen mit der Softwareinstallation möglich.']);
+                throw ValidationException::withMessages(['auto_install' => 'Automatische Installation ist nur auf Firmengeräten und nur zusammen mit der Softwareinstallation möglich.']);
             }
             $locked->forceFill(['policy' => $policy, 'policy_revision' => $locked->policy_revision + 1])->save();
             $this->audit($locked, $actor, 'policy-updated');
@@ -327,7 +327,10 @@ final class DeviceDesktopService
 
         return ['client_id' => $client->public_id, 'device_id' => $device->public_id,
             'device_name' => $device->display_name ?: $device->hostname ?: 'RailTime-Gerät',
-            'sync_interval_seconds' => 60, 'setup_ready' => false, 'policy' => $policy, 'jobs' => []];
+            'sync_interval_seconds' => 60, 'setup_ready' => false, 'policy' => $policy, 'jobs' => [],
+            // Capabilities this server accepts beyond the first contract. A client reports
+            // one only after seeing it here, so a newer client keeps working with an older server.
+            'features' => app(DeviceSoftwareService::class)->ready() ? [DeviceSoftwareService::CAPABILITY] : []];
     }
 
     public function withAuthenticated(#[\SensitiveParameter] string $token, callable $action, bool $requireManagement = true): mixed
