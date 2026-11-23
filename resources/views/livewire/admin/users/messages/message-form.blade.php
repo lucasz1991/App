@@ -41,31 +41,31 @@
                 <div>
                     <x-ui.forms.label for="mailSubject" :value="__('app.subject')" />
                     <x-ui.forms.input id="mailSubject" type="text" wire:model="mailSubject" class="mt-1 block" />
-                    <x-input-error for="mailSubject" class="mt-2" />
+                    <x-ui.forms.input-error for="mailSubject" class="mt-2" />
                 </div>
 
                 <div>
                     <x-ui.forms.label for="mailHeader" :value="__('app.heading')" />
                     <x-ui.forms.input id="mailHeader" type="text" wire:model="mailHeader" class="mt-1 block" />
-                    <x-input-error for="mailHeader" class="mt-2" />
+                    <x-ui.forms.input-error for="mailHeader" class="mt-2" />
                 </div>
 
                 <div>
                     <x-ui.forms.label for="mailBody" :value="__('app.message')" />
                     <x-ui.forms.textarea id="mailBody" rows="6" wire:model="mailBody" class="mt-1 block" />
-                    <x-input-error for="mailBody" class="mt-2" />
+                    <x-ui.forms.input-error for="mailBody" class="mt-2" />
                 </div>
 
                 <div>
                     <x-ui.forms.label for="mailLink" :value="__('app.link_optional')" />
                     <x-ui.forms.input id="mailLink" type="url" wire:model="mailLink" class="mt-1 block" />
-                    <x-input-error for="mailLink" class="mt-2" />
+                    <x-ui.forms.input-error for="mailLink" class="mt-2" />
                 </div>
             </div>
 
             <div class="mt-4">
                 <x-ui.filepool.drop-zone :model="'fileUploads'" :max-filesize="2" />
-                <x-input-error for="fileUploads.*" class="mt-2" />
+                <x-ui.forms.input-error for="fileUploads.*" class="mt-2" />
             </div>
         </x-slot>
 

@@ -81,19 +81,23 @@
 
                         <div class="flex items-center gap-1.5">
                             <x-ui.page-info-button :title="__('app.chats')" route-name="chat" />
-                            <x-chat.icon-button
+                            <x-ui.buttons.button-basic
+                                mode="icon"
+                                tone="plain"
                                 icon="far fa-chevron-left"
                                 :label="__('app.hide_chat_overview')"
                                 size="sm"
-                                class="hidden md:inline-flex"
                                 x-on:click="toggleList()"
                                 aria-controls="rt-chat-overview"
+                                class="rt-chat-icon-button rt-chat-icon-button--quiet rounded-xl text-sm hidden md:inline-flex"
                             />
-                            <x-chat.icon-button
+                            <x-ui.buttons.button-basic
+                                mode="icon"
+                                tone="plain"
                                 icon="far fa-plus"
                                 :label="__('app.new_chat')"
-                                tone="accent"
                                 wire:click="$set('showNewChat', true)"
+                                class="rt-chat-icon-button rt-chat-icon-button--accent rounded-xl text-sm"
                             />
                         </div>
                     </div>
@@ -273,19 +277,19 @@
             <div class="rt-chat-conversation-pane flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" data-anim="fade" @if($embedded) x-bind:inert="!splitChat && mobilePane !== 'chat'" @endif>
                 @if (! $selectedChat)
                     <div class="rt-chat-conversation-empty relative min-h-0 flex-1">
-                        <button
-                            type="button"
+                        <x-ui.buttons.button-basic
+                            mode="icon"
+                            tone="plain"
+                            icon="far fa-chevron-left"
                             x-on:click="toggleList()"
-                            class="rt-chat-icon-button rt-chat-icon-button--quiet absolute left-4 top-4 z-10 hidden h-10 w-10 items-center justify-center rounded-xl text-sm md:inline-flex"
+                            class="rt-chat-icon-button rt-chat-icon-button--quiet absolute left-4 top-4 z-10 hidden rounded-xl text-sm md:inline-flex"
                             data-chat-list-toggle
                             aria-controls="rt-chat-overview"
                             x-bind:aria-expanded="(! listCollapsed).toString()"
                             x-bind:class="listCollapsed ? 'rt-chat-icon-button--open' : ''"
                             x-bind:aria-label="listCollapsed ? @js(__('app.show_chat_overview')) : @js(__('app.hide_chat_overview'))"
                             x-bind:title="listCollapsed ? @js(__('app.show_chat_overview')) : @js(__('app.hide_chat_overview'))"
-                        >
-                            <i class="far fa-chevron-left" aria-hidden="true"></i>
-                        </button>
+                        />
 
                         <x-chat.empty-state
                             :title="__('app.chat_and_messages')"
@@ -326,26 +330,28 @@
                         @endphp
 
                         <div class="rt-chat-conversation-header flex shrink-0 items-center gap-2.5 px-3 py-3 sm:gap-3 sm:px-5 sm:py-3.5">
-                            <button
-                                type="button"
+                            <x-ui.buttons.button-basic
+                                mode="icon"
+                                tone="plain"
+                                icon="far fa-chevron-left"
                                 x-on:click="toggleList()"
-                                class="rt-chat-icon-button rt-chat-icon-button--quiet hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm md:inline-flex"
+                                class="rt-chat-icon-button rt-chat-icon-button--quiet hidden rounded-xl text-sm md:inline-flex"
                                 data-chat-list-toggle
                                 aria-controls="rt-chat-overview"
                                 x-bind:aria-expanded="(! listCollapsed).toString()"
                                 x-bind:class="listCollapsed ? 'rt-chat-icon-button--open' : ''"
                                 x-bind:aria-label="listCollapsed ? @js(__('app.show_chat_overview')) : @js(__('app.hide_chat_overview'))"
                                 x-bind:title="listCollapsed ? @js(__('app.show_chat_overview')) : @js(__('app.hide_chat_overview'))"
-                            >
-                                <i class="far fa-chevron-left" aria-hidden="true"></i>
-                            </button>
+                            />
 
-                            <x-chat.icon-button
+                            <x-ui.buttons.button-basic
+                                mode="icon"
+                                tone="plain"
                                 icon="far fa-arrow-left"
                                 :label="__('app.back')"
-                                class="rt-chat-mobile-back"
                                 data-chat-mobile-back
                                 x-on:click="showList()"
+                                class="rt-chat-icon-button rt-chat-icon-button--quiet rounded-xl text-sm rt-chat-mobile-back"
                             />
 
                             @if ($headerPerson)
@@ -455,28 +461,30 @@
                             @elseif($chatCallsReady)
                                 @can('calls.start')
                                     {{-- Sprachanruf: derselbe Raum, nur ohne Kamera beim Beitritt. --}}
-                                    <x-chat.icon-button
+                                    <x-ui.buttons.button-basic
+                                        mode="icon"
+                                        tone="plain"
                                         icon="far fa-phone"
                                         :label="__('app.calls_start_audio')"
-                                        tone="quiet"
                                         size="lg"
-                                        class="rt-chat-header-action rounded-full"
                                         wire:click="startCall(false)"
                                         wire:loading.attr="disabled"
                                         wire:target="startCall"
                                         data-no-chat-swipe
+                                        class="rt-chat-icon-button rt-chat-icon-button--quiet rounded-xl text-sm rt-chat-header-action rounded-full"
                                     />
 
-                                    <x-chat.icon-button
+                                    <x-ui.buttons.button-basic
+                                        mode="icon"
+                                        tone="plain"
                                         icon="far fa-video"
                                         :label="__('app.calls_start')"
-                                        tone="quiet"
                                         size="lg"
-                                        class="rt-chat-header-action rounded-full"
                                         wire:click="startCall(true)"
                                         wire:loading.attr="disabled"
                                         wire:target="startCall"
                                         data-no-chat-swipe
+                                        class="rt-chat-icon-button rt-chat-icon-button--quiet rounded-xl text-sm rt-chat-header-action rounded-full"
                                     />
                                 @endcan
                             @endif
@@ -1191,7 +1199,7 @@
 
             <x-slot name="footer">
                 <div class="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                    <x-ui.buttons.button-basic type="button" mode="basic" wire:click="$toggle('showNewChat')">
+                    <x-ui.buttons.button-basic type="button" mode="secondary" wire:click="$toggle('showNewChat')">
                         {{ __('app.cancel') }}
                     </x-ui.buttons.button-basic>
                     @if ($newChatTab === 'group')
@@ -1217,7 +1225,7 @@
         <x-slot name="footer">
             <x-ui.buttons.button-basic
                 type="button"
-                mode="basic"
+                mode="secondary"
                 wire:click="$set('showDeleteMessageModal', false)"
             >
                 {{ __('app.cancel') }}
@@ -1262,7 +1270,7 @@
         <x-slot name="footer">
             <x-ui.buttons.button-basic
                 type="button"
-                mode="basic"
+                mode="secondary"
                 wire:click="$set('showDeleteChatModal', false)"
             >
                 {{ __('app.cancel') }}
@@ -1418,7 +1426,7 @@
                 <div class="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                     <x-ui.buttons.button-basic
                         type="button"
-                        mode="basic"
+                        mode="secondary"
                         wire:click="$set('showGroupSettings', false)"
                     >
                         {{ __('app.cancel') }}

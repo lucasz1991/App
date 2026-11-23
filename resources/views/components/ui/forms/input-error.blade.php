@@ -7,7 +7,7 @@
         role="alert"
         aria-live="polite"
     >
-        <i class="far fa-circle-exclamation mt-1 shrink-0 text-[0.7rem]" aria-hidden="true"></i>
+        <i class="far fa-exclamation-circle mt-1 shrink-0 text-[0.7rem]" aria-hidden="true"></i>
         <span>{{ $message }}</span>
     </p>
 @enderror

@@ -56,7 +56,7 @@
                             wire:model="code"
                             wire:keydown.enter="confirmTwoFactorAuthentication" />
 
-                        <x-input-error for="code" class="mt-2" />
+                        <x-ui.forms.input-error for="code" class="mt-2" />
                     </div>
                 @endif
             @endif

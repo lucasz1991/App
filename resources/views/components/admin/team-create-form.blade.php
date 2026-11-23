@@ -17,7 +17,7 @@
             class="mt-2 w-full"
         />
         <div id="{{ $id }}-error" role="status">
-            <x-input-error for="newTeamName" class="mt-2" />
+            <x-ui.forms.input-error for="newTeamName" class="mt-2" />
         </div>
     </div>
     <p id="{{ $id }}-hint" class="text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">Neue Teams starten ohne freigegebene Rechte. Anschließend Rechte auswählen und speichern.</p>

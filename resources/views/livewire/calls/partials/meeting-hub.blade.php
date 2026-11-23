@@ -22,7 +22,7 @@
                         :placeholder="__('app.meetings_name_placeholder')"
                         maxlength="80"
                     />
-                    <x-input-error for="name" class="mt-1" />
+                    <x-ui.forms.input-error for="name" class="mt-1" />
                 </div>
 
                 <label class="inline-flex min-h-11 cursor-pointer items-center gap-3 text-sm font-semibold text-rt-muted dark:text-rt-dark-muted">

@@ -18,7 +18,7 @@
             placeholder="{{ __('app.note_placeholder') }}"
             class="block"
         />
-        <x-input-error for="noteBody" class="mt-2" />
+        <x-ui.forms.input-error for="noteBody" class="mt-2" />
 
         <div class="mt-3 flex justify-end">
             <x-ui.buttons.button-basic
@@ -175,7 +175,7 @@
                         x-bind:disabled="saving"
                         class="rt-ui-control min-h-28 w-full resize-y rounded-xl border border-rt-border bg-rt-control px-3.5 py-2.5 text-base leading-6 text-rt-text shadow-rt-xs outline-none transition duration-200 focus:border-rt-accent focus:ring-4 focus:ring-rt-accent/15 disabled:opacity-60 sm:text-sm dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:focus:ring-rt-dark-accent/20"
                     ></textarea>
-                    <x-input-error for="noteBodies.{{ $note->id }}" />
+                    <x-ui.forms.input-error for="noteBodies.{{ $note->id }}" />
                 </div>
             @else
                 <div class="mt-3 whitespace-pre-line break-words text-sm text-slate-700 dark:text-slate-300">{{ $note->body }}</div>

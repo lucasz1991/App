@@ -41,7 +41,7 @@
                 </div>
             </div>
             <div class="customer-profile__identity-actions">
-                <x-ui.buttons.button-basic type="button" mode="basic" wire:click="showList" class="customer-profile__icon-button" title="Kundenliste" aria-label="Zur Kundenliste"><i class="far fa-arrow-left" aria-hidden="true"></i></x-ui.buttons.button-basic>
+                <x-ui.buttons.button-basic type="button" mode="secondary" wire:click="showList" class="customer-profile__icon-button" title="Kundenliste" aria-label="Zur Kundenliste"><i class="far fa-arrow-left" aria-hidden="true"></i></x-ui.buttons.button-basic>
                 @if($canCreate)<x-ui.buttons.button-basic type="button" wire:click="editCustomer({{ $customerId }})" class="customer-profile__icon-button" title="Kunden bearbeiten" aria-label="Kunden bearbeiten"><i class="far fa-pen" aria-hidden="true"></i></x-ui.buttons.button-basic>@endif
             </div>
         </header>
@@ -105,7 +105,7 @@
             <livewire:operations.customer-history :customer-id="$customerId" :key="'customer-history-'.$customerId.'-'.$contextRevision" />
         @elseif($view==='portal')
             <nav class="customer-profile__portal-navigation" aria-label="Portalverwaltung">
-                @foreach($sections as $key=>$label)<x-ui.buttons.button-basic type="button" :mode="$section===$key?'primary':'basic'" wire:click="setSection('{{ $key }}')" :aria-current="$section===$key?'page':null" wire:loading.attr="disabled" wire:target="setSection">{{ $label }}</x-ui.buttons.button-basic>@endforeach
+                @foreach($sections as $key=>$label)<x-ui.buttons.button-basic type="button" :mode="$section===$key? 'primary' : 'secondary'" wire:click="setSection('{{ $key }}')" :aria-current="$section===$key?'page':null" wire:loading.attr="disabled" wire:target="setSection">{{ $label }}</x-ui.buttons.button-basic>@endforeach
             </nav>
             <livewire:operations.customer-portal-management :customer-id="$customerId" :tab="$section" :embedded="true" :key="'customer-portal-'.$customerId.'-'.$section.'-'.$contextRevision" />
         @endif

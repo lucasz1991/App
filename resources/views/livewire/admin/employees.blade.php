@@ -39,7 +39,7 @@
                         </x-dropdown-link>
                     @endif
                 </x-tables.bulk-actions>
-                <x-input-error for="employeeIds" class="mt-1" />
+                <x-ui.forms.input-error for="employeeIds" class="mt-1" />
                 <x-tables.search-field context="page-topbar" id="employee-list-search"
                     placeholder="Name, E-Mail oder Funktion suchen" :results-count="$employees->count()"
                     wire:model.live.debounce.300ms="search" />

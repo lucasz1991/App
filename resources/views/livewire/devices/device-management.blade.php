@@ -557,7 +557,7 @@
                                     @endforeach
                                 </select>
                             </label>
-                            <x-input-error for="commandNativeProfileId" class="mt-1" />
+                            <x-ui.forms.input-error for="commandNativeProfileId" class="mt-1" />
                             <p class="mt-2 text-xs text-rt-muted dark:text-rt-dark-muted">Nur für dieses Gerät freigegebene Profile. Nach einem unklaren Ausführungsergebnis bleibt die Übergabe gesperrt; kein automatischer Neustart des Auftrags.</p>
                         @endif
                         <label class="mt-3 block text-sm font-medium text-rt-text dark:text-white">Begründung<textarea wire:model="commandJustification" rows="3" placeholder="Konkreter Anlass, erwartetes Ergebnis und Ticket/Notfall …" class="mt-1.5 w-full rounded-xl border border-rt-border bg-white px-3 py-2 text-sm dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white"></textarea></label>

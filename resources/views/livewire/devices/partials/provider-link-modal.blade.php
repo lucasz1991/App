@@ -19,7 +19,7 @@
                                 <option value="{{ $provider['key'] }}">{{ $provider['label'] }}</option>
                             @endforeach
                         </select>
-                        <x-input-error for="providerLinkForm.provider" class="mt-1.5" />
+                        <x-ui.forms.input-error for="providerLinkForm.provider" class="mt-1.5" />
                     </div>
                     <div>
                         <x-ui.forms.label for="device-provider-link-role" value="Rolle" />
@@ -27,7 +27,7 @@
                             <option value="support">Support / Zusatzsystem</option>
                             <option value="primary">Primäre Geräteverwaltung</option>
                         </select>
-                        <x-input-error for="providerLinkForm.role" class="mt-1.5" />
+                        <x-ui.forms.input-error for="providerLinkForm.role" class="mt-1.5" />
                     </div>
                 </div>
 
@@ -43,7 +43,7 @@
                         wire:model="providerLinkForm.external_device_id"
                         class="mt-1.5 font-mono"
                     />
-                    <x-input-error for="providerLinkForm.external_device_id" class="mt-1.5" />
+                    <x-ui.forms.input-error for="providerLinkForm.external_device_id" class="mt-1.5" />
                     @if(($providerLinkForm['provider'] ?? '') === 'meshcentral')
                         <p class="mt-2 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Die vollständige Node-ID findest du in MeshCentral am bereits installierten Agenten. Generische Gruppen-Einladungslinks werden aus Sicherheitsgründen nicht als Gerätebindung akzeptiert.</p>
                     @endif

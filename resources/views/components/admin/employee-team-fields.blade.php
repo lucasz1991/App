@@ -20,8 +20,8 @@
                 <p class="py-3 text-sm text-rt-muted dark:text-rt-dark-muted">Keine weiteren Teams verfügbar.</p>
             @endforelse
         </div>
-        <x-input-error :for="$teamIdsModel" class="mt-2" />
-        <x-input-error :for="$teamIdsModel.'.*'" class="mt-1" />
+        <x-ui.forms.input-error :for="$teamIdsModel" class="mt-2" />
+        <x-ui.forms.input-error :for="$teamIdsModel.'.*'" class="mt-1" />
     </fieldset>
 
     <div class="min-w-0 space-y-4">
@@ -33,7 +33,7 @@
                     <option value="{{ $team->id }}">{{ $team->name }}{{ $team->personal_team ? ' · persönlich' : '' }}</option>
                 @endforeach
             </x-ui.forms.select>
-            <x-input-error :for="$primaryModel" class="mt-2" />
+            <x-ui.forms.input-error :for="$primaryModel" class="mt-2" />
         </div>
 
         @if($fixedTeams->isNotEmpty())

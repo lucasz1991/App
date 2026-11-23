@@ -7,7 +7,7 @@
         @unless($compact)
         <p class="text-sm" role="status">{{ $shareCount }} Freigaben · {{ $pointCount }} Messpunkte innerhalb der Aufbewahrungsfrist.</p>
         @endunless
-        <x-ui.buttons.button-basic type="button" mode="basic" wire:click="revokeAll" wire:loading.attr="disabled"
+        <x-ui.buttons.button-basic type="button" mode="secondary" wire:click="revokeAll" wire:loading.attr="disabled"
             wire:confirm="Alle Freigaben für Chat-Standorte im Personalprofil widerrufen und diese gespeicherten Messpunkte löschen? Die Standortfreigaben im Chat selbst bleiben bestehen."
             :disabled="$shareCount > 0 ? null : true">
             {{ $compact ? 'Chat-Standortverlauf löschen' : 'Freigaben widerrufen und Verlauf löschen' }}

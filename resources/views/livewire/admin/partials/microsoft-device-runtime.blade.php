@@ -78,7 +78,7 @@
             @endforeach
         </ul>
     @endif
-    <x-input-error for="runtime" />
+    <x-ui.forms.input-error for="runtime" />
     @if ($runtimeStatus['overdue'] ?? false)
         <p role="status" class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-medium text-amber-950 dark:border-amber-900 dark:bg-amber-950/25 dark:text-amber-100">Ein Hintergrundauftrag ist überfällig. Prüfen Sie Schedulerkontakt, Worker-Ausführung, Geräteauftrag und Hintergrundtest.</p>
     @endif

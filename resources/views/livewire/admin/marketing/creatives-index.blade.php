@@ -302,7 +302,7 @@
             <div class="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                 <x-ui.buttons.button-basic
                     type="button"
-                    mode="basic"
+                    mode="secondary"
                     size="md"
                     wire:click="cancelCreateMotive"
                     wire:loading.attr="disabled"

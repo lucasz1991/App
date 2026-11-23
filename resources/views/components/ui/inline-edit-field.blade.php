@@ -167,7 +167,7 @@
                 />
             @endif
 
-            <x-input-error :for="$wireModel" class="text-left" />
+            <x-ui.forms.input-error :for="$wireModel" class="text-left" />
         </div>
     @else
         <div class="{{ $alignment }} text-sm font-medium text-rt-text dark:text-rt-dark-text">

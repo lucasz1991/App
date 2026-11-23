@@ -70,7 +70,7 @@
                         wire:model="openRouter.api_url"
                         class="mt-1.5"
                     />
-                    <x-input-error for="openRouter.api_url" class="mt-1.5" />
+                    <x-ui.forms.input-error for="openRouter.api_url" class="mt-1.5" />
                 </div>
 
                 <div class="min-w-0">
@@ -84,7 +84,7 @@
                         wire:model="openRouter.api_key"
                         class="mt-1.5"
                     />
-                    <x-input-error for="openRouter.api_key" class="mt-1.5" />
+                    <x-ui.forms.input-error for="openRouter.api_key" class="mt-1.5" />
                     <p class="mt-1.5 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
                         {{ __('app.openrouter_api_key_hint') }}
                     </p>
@@ -102,7 +102,7 @@
                         wire:model="openRouter.referer_url"
                         class="mt-1.5"
                     />
-                    <x-input-error for="openRouter.referer_url" class="mt-1.5" />
+                    <x-ui.forms.input-error for="openRouter.referer_url" class="mt-1.5" />
                     <p class="mt-1.5 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
                         {{ __('app.openrouter_referer_url_hint') }}
                     </p>
@@ -118,7 +118,7 @@
                         wire:model="openRouter.model_title"
                         class="mt-1.5"
                     />
-                    <x-input-error for="openRouter.model_title" class="mt-1.5" />
+                    <x-ui.forms.input-error for="openRouter.model_title" class="mt-1.5" />
                     <p class="mt-1.5 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
                         {{ __('app.openrouter_model_title_hint') }}
                     </p>
@@ -157,7 +157,7 @@
                             wire:model="openRouter.{{ $field }}"
                             class="mt-1.5 font-mono text-sm"
                         />
-                        <x-input-error :for="'openRouter.'.$field" class="mt-1.5" />
+                        <x-ui.forms.input-error :for="'openRouter.'.$field" class="mt-1.5" />
                         <p class="mt-1.5 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
                             {{ $meta['hint'] }}
                         </p>
@@ -181,7 +181,7 @@
                         wire:model="openRouter.tts_voice"
                         class="mt-1.5 font-mono text-sm"
                     />
-                    <x-input-error for="openRouter.tts_voice" class="mt-1.5" />
+                    <x-ui.forms.input-error for="openRouter.tts_voice" class="mt-1.5" />
                     <p class="mt-1.5 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
                         {{ __('app.openrouter_tts_voice_hint') }}
                     </p>
@@ -222,7 +222,7 @@
                             class="mt-1 w-full"
                             wire:model="openRouter.{{ $field }}"
                         />
-                        <x-input-error :for="'openRouter.'.$field" class="mt-1" />
+                        <x-ui.forms.input-error :for="'openRouter.'.$field" class="mt-1" />
                         <p class="mt-1.5 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
                             {{ $meta['hint'] }}
                             <span class="whitespace-nowrap opacity-70">({{ $min }}–{{ $max }})</span>

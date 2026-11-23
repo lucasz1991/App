@@ -5,7 +5,7 @@
             <option value="connector_v1">{{ $isGerman ? 'Bisheriger Connector-Vertrag' : 'Legacy connector contract' }}</option>
             <option value="native_fork_v1">{{ $isGerman ? 'RailTime-Fork · Windows-Profilaufträge v1' : 'RailTime fork · Windows profile runs v1' }}</option>
         </select>
-        <x-input-error for="providers.openuem.adapter" class="mt-1" />
+        <x-ui.forms.input-error for="providers.openuem.adapter" class="mt-1" />
     </div>
     @if (($provider['adapter'] ?? '') === 'native_fork_v1')
         <p class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
@@ -22,23 +22,23 @@
                         <div>
                             <x-ui.forms.label :for="'openuem-native-agent-'.$profileIndex" value="OpenUEM Agent-ID" />
                             <x-ui.forms.input :id="'openuem-native-agent-'.$profileIndex" wire:model="providers.openuem.native_profiles.{{ $profileIndex }}.agent_id" maxlength="128" autocomplete="off" class="mt-1 font-mono" />
-                            <x-input-error :for="'providers.openuem.native_profiles.'.$profileIndex.'.agent_id'" />
+                            <x-ui.forms.input-error :for="'providers.openuem.native_profiles.'.$profileIndex.'.agent_id'" />
                         </div>
                         <div>
                             <x-ui.forms.label :for="'openuem-native-profile-'.$profileIndex" :value="$isGerman ? 'OpenUEM Profil-ID' : 'OpenUEM profile ID'" />
                             <x-ui.forms.input type="number" min="1" max="2147483647" :id="'openuem-native-profile-'.$profileIndex" wire:model="providers.openuem.native_profiles.{{ $profileIndex }}.profile_id" class="mt-1" />
-                            <x-input-error :for="'providers.openuem.native_profiles.'.$profileIndex.'.profile_id'" />
+                            <x-ui.forms.input-error :for="'providers.openuem.native_profiles.'.$profileIndex.'.profile_id'" />
                         </div>
                     </div>
                     <x-ui.forms.label :for="'openuem-native-label-'.$profileIndex" :value="$isGerman ? 'Bezeichnung (optional)' : 'Label (optional)'" />
                     <x-ui.forms.input :id="'openuem-native-label-'.$profileIndex" wire:model="providers.openuem.native_profiles.{{ $profileIndex }}.label" maxlength="120" />
-                    <x-input-error :for="'providers.openuem.native_profiles.'.$profileIndex.'.label'" />
+                    <x-ui.forms.input-error :for="'providers.openuem.native_profiles.'.$profileIndex.'.label'" />
                     <button type="button" wire:click="removeNativeProfile({{ $profileIndex }})" class="rt-ui-button rt-ui-button-secondary min-h-11">{{ $isGerman ? 'Freigabe entfernen' : 'Remove permission' }}</button>
                 </fieldset>
             @empty
                 <p class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ $isGerman ? 'Noch kein Geräteprofil freigegeben.' : 'No device profiles allowed yet.' }}</p>
             @endforelse
-            <x-input-error for="providers.openuem.native_profiles" />
+            <x-ui.forms.input-error for="providers.openuem.native_profiles" />
             <button type="button" wire:click="addNativeProfile" wire:loading.attr="disabled" class="rt-ui-button rt-ui-button-secondary min-h-11">{{ $isGerman ? 'Profilfreigabe hinzufügen' : 'Add profile permission' }}</button>
         </div>
     @endif

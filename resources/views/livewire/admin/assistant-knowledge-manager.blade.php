@@ -149,7 +149,7 @@
                     class="mt-4 min-h-44"
                 />
                 <div class="mt-2 flex items-start justify-between gap-3 text-xs text-rt-muted dark:text-rt-dark-muted">
-                    <x-input-error for="assistantDefaultPrompt" />
+                    <x-ui.forms.input-error for="assistantDefaultPrompt" />
                     <span class="shrink-0" aria-live="off"><span x-text="promptCount">{{ mb_strlen($assistantDefaultPrompt) }}</span>/3000</span>
                 </div>
             </article>
@@ -179,7 +179,7 @@
                     class="mt-4 min-h-44 border-amber-300/80 focus:border-amber-500 focus:ring-amber-500/25 dark:border-amber-800/70"
                 />
                 <div class="mt-2 flex items-start justify-between gap-3 text-xs text-amber-900/75 dark:text-amber-200/75">
-                    <x-input-error for="assistantRules" />
+                    <x-ui.forms.input-error for="assistantRules" />
                     <span class="shrink-0" aria-live="off"><span x-text="rulesCount">{{ mb_strlen($assistantRules) }}</span>/4000</span>
                 </div>
             </article>
@@ -240,7 +240,7 @@
             class="mt-4"
         />
         <div class="mt-2 flex items-start justify-between gap-3 text-xs text-rt-muted dark:text-rt-dark-muted">
-            <x-input-error for="knowledgeIntro" />
+            <x-ui.forms.input-error for="knowledgeIntro" />
             <span class="shrink-0" aria-live="off"><span x-text="count">{{ mb_strlen($knowledgeIntro) }}</span>/1200</span>
         </div>
     </section>
@@ -454,7 +454,7 @@
                         aria-describedby="{{ $errors->has('topicName') ? 'topicname-error' : '' }}"
                         class="mt-1"
                     />
-                    <x-input-error for="topicName" class="mt-1" />
+                    <x-ui.forms.input-error for="topicName" class="mt-1" />
                 </div>
                 <div>
                     <x-ui.forms.label for="knowledge-topic-description" :value="$isGerman ? 'Kurze Beschreibung für die KI' : 'Short description for the AI'" />
@@ -467,7 +467,7 @@
                         aria-describedby="{{ $errors->has('topicDescription') ? 'topicdescription-error' : '' }}"
                         class="mt-1"
                     />
-                    <x-input-error for="topicDescription" class="mt-1" />
+                    <x-ui.forms.input-error for="topicDescription" class="mt-1" />
                 </div>
                 <x-ui.forms.toggle-button model="topicActive" :label="$isGerman ? 'Thema für den Chatbot freigeben' : 'Enable topic for the chatbot'" />
             </form>
@@ -516,7 +516,7 @@
                             aria-describedby="{{ $errors->has('entryTitle') ? 'entrytitle-error' : '' }}"
                             class="mt-1"
                         />
-                        <x-input-error for="entryTitle" class="mt-1" />
+                        <x-ui.forms.input-error for="entryTitle" class="mt-1" />
                     </div>
                     <div>
                         <x-ui.forms.label for="knowledge-entry-topic" :value="$isGerman ? 'Thema (Pflichtfeld)' : 'Topic (required)'" />
@@ -534,7 +534,7 @@
                                 <option value="{{ $topic->id }}">{{ $topic->name }}{{ $topic->is_active ? '' : ($isGerman ? ' · Inaktiv' : ' · Inactive') }}</option>
                             @endforeach
                         </x-ui.forms.select>
-                        <x-input-error for="entryTopicId" class="mt-1" />
+                        <x-ui.forms.input-error for="entryTopicId" class="mt-1" />
                     </div>
                 </div>
 
@@ -554,7 +554,7 @@
                         aria-describedby="knowledge-entry-summary-help{{ $errors->has('entrySummary') ? ' entrysummary-error' : '' }}"
                         class="mt-1"
                     />
-                    <x-input-error for="entrySummary" class="mt-1" />
+                    <x-ui.forms.input-error for="entrySummary" class="mt-1" />
                 </div>
 
                 <div>
@@ -573,7 +573,7 @@
                         class="mt-1 font-mono text-sm leading-6"
                     />
                     <div class="mt-1 flex items-start justify-between gap-3">
-                        <x-input-error for="entryContent" />
+                        <x-ui.forms.input-error for="entryContent" />
                         <span class="text-xs text-rt-muted dark:text-rt-dark-muted" aria-live="off"><span x-text="count">{{ mb_strlen($entryContent) }}</span>/50000</span>
                     </div>
                 </div>
@@ -591,7 +591,7 @@
                         placeholder="{{ $isGerman ? 'z. B. Dienstplan, Schichttausch, Freigabe' : 'e.g. roster, shift swap, approval' }}"
                     />
                     <p id="knowledge-entry-keywords-help" class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $isGerman ? 'Mit Komma oder Semikolon trennen; maximal 16 Begriffe.' : 'Separate with commas or semicolons; up to 16 terms.' }}</p>
-                    <x-input-error for="entryKeywords" class="mt-1" />
+                    <x-ui.forms.input-error for="entryKeywords" class="mt-1" />
                 </div>
 
                 <div class="grid gap-3 sm:grid-cols-2">
@@ -611,7 +611,7 @@
                                 {{ $isGerman ? 'Entferne zuerst die Basismarkierung bei einer anderen Information.' : 'Remove the baseline marker from another information entry first.' }}
                             @endif
                         </p>
-                        <x-input-error for="entryBaseline" class="mt-1" />
+                        <x-ui.forms.input-error for="entryBaseline" class="mt-1" />
                     </div>
                 </div>
 

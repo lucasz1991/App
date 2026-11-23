@@ -273,9 +273,9 @@
                     <i class="far fa-paper-plane" aria-hidden="true"></i>
                 </button>
             </div>
-            <x-input-error for="messageText" class="mt-1" />
-            <x-input-error for="uploads" class="mt-1" />
-            <x-input-error for="uploads.*" class="mt-1" />
+            <x-ui.forms.input-error for="messageText" class="mt-1" />
+            <x-ui.forms.input-error for="uploads" class="mt-1" />
+            <x-ui.forms.input-error for="uploads.*" class="mt-1" />
         </form>
     @endif
 

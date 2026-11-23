@@ -23,14 +23,14 @@
                                 <option value="{{ $team->id }}">{{ $team->name }}</option>
                             @endforeach
                         </x-ui.forms.select>
-                        <x-input-error for="teamId" class="mt-1" />
+                        <x-ui.forms.input-error for="teamId" class="mt-1" />
                     </div>
                     <p id="employee-team-change-hint" class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
                         Die bisherige primäre Teammitgliedschaft wird ersetzt. Weitere und persönliche Mitgliedschaften bleiben bestehen.
                         Globale Benutzerrolle und Kontostatus bleiben unverändert.
                     </p>
-                    <x-input-error for="employeeIds" class="mt-1" />
-                    <x-input-error for="teamChange" class="mt-1" />
+                    <x-ui.forms.input-error for="employeeIds" class="mt-1" />
+                    <x-ui.forms.input-error for="teamChange" class="mt-1" />
                 </div>
             @endif
         </x-slot:content>

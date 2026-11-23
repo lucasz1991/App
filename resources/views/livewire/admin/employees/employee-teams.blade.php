@@ -8,7 +8,7 @@
                 </div>
                 <i class="far fa-users text-rt-muted dark:text-rt-dark-muted" aria-hidden="true"></i>
             </header>
-            <x-input-error for="snapshot" class="mt-2" />
+            <x-ui.forms.input-error for="snapshot" class="mt-2" />
             <x-admin.employee-team-fields :teams="$teams" :fixed-teams="$fixedTeams" :primary-teams="$primaryTeams" :id-prefix="'employee-profile-teams-'.$userId" />
             <div class="flex flex-wrap justify-end gap-2 border-t border-rt-border pt-4 dark:border-rt-dark-border">
                 <x-ui.buttons.button-basic type="button" wire:click="reload" wire:loading.attr="disabled" wire:target="save,reload" class="min-h-11">Zurücksetzen</x-ui.buttons.button-basic>

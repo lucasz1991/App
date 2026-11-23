@@ -175,7 +175,7 @@
             }
         @endphp
         <x-ui.buttons.button-basic
-            mode="basic"
+            mode="secondary"
             {{ $attributes->only([])->merge($buttonAttributes) }}
             x-on:pointerenter="if ($event.pointerType !== 'touch') showTooltip($el)"
             x-on:pointerleave="if (document.activeElement !== $el) hideTooltip()"

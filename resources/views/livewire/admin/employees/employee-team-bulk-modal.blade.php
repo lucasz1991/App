@@ -12,9 +12,9 @@
                             @endforeach
                         </ul>
                     </details>
-                    <x-input-error for="employeeIds" class="mt-2" />
-                    <x-input-error for="snapshots" class="mt-2" />
-                    <x-input-error for="snapshot" class="mt-2" />
+                    <x-ui.forms.input-error for="employeeIds" class="mt-2" />
+                    <x-ui.forms.input-error for="snapshots" class="mt-2" />
+                    <x-ui.forms.input-error for="snapshot" class="mt-2" />
                     <x-admin.employee-bulk-team-fields :teams="$teams" :replacement-teams="$replacementTeams" :replacement-required="$replacementRequired" :operation="$operation" />
                 </div>
             @endif

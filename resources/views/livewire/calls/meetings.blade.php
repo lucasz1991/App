@@ -43,14 +43,14 @@
     @elseif ($pane === 'form')
         <div class="rt-comm-meeting-heading flex shrink-0 items-center gap-2 border-b border-rt-border/60 p-2 dark:border-rt-dark-border/60"><button type="button" wire:click="showList" class="h-11 w-11 rounded-xl" aria-label="Zurück zur Meetingliste"><i class="far fa-arrow-left" aria-hidden="true"></i></button><p class="font-bold">{{ $formMode === 'instant' ? 'Jetzt starten' : 'Meeting planen' }}</p></div>
         <form wire:submit="{{ $formMode === 'instant' ? 'createMeeting' : 'savePlan' }}" class="rt-comm-meeting-form scroll-container min-h-0 flex-1 space-y-4 overflow-y-auto">
-            <label class="block font-semibold">Titel<x-ui.forms.input wire:model="name" maxlength="120" required /></label><x-input-error for="name" /><x-input-error for="title" />
+            <label class="block font-semibold">Titel<x-ui.forms.input wire:model="name" maxlength="120" required /></label><x-ui.forms.input-error for="name" /><x-ui.forms.input-error for="title" />
             @if ($formMode !== 'instant')
-                <label class="block font-semibold">Zeitzone<x-ui.forms.input wire:model="timezone" required /></label><x-input-error for="timezone" />
-                <label class="block font-semibold">Beginn<x-ui.forms.input type="datetime-local" wire:model="startsAt" required /></label><x-input-error for="starts_at" />
-                <label class="block font-semibold">Ende<x-ui.forms.input type="datetime-local" wire:model="endsAt" required /></label><x-input-error for="ends_at" />
+                <label class="block font-semibold">Zeitzone<x-ui.forms.input wire:model="timezone" required /></label><x-ui.forms.input-error for="timezone" />
+                <label class="block font-semibold">Beginn<x-ui.forms.input type="datetime-local" wire:model="startsAt" required /></label><x-ui.forms.input-error for="starts_at" />
+                <label class="block font-semibold">Ende<x-ui.forms.input type="datetime-local" wire:model="endsAt" required /></label><x-ui.forms.input-error for="ends_at" />
                 @if ($formMode === 'plan')<fieldset><legend class="mb-2 font-semibold">Teilnehmer · {{ count($participantIds) }} ausgewählt</legend><label class="block"><span class="sr-only">Teilnehmer suchen</span><x-ui.forms.input type="search" wire:model.live.debounce.300ms="participantSearch" class="w-full" placeholder="Name suchen" /></label>
                     @foreach ($candidates as $candidate)<label class="flex min-h-11 items-center gap-3 p-3" wire:key="meeting-person-{{ $candidate->id }}"><x-ui.forms.checkbox wire:model="participantIds" value="{{ $candidate->id }}" /><span class="text-sm">{{ $candidate->name }}</span></label>@endforeach
-                </fieldset><x-input-error for="participant_ids" />@endif
+                </fieldset><x-ui.forms.input-error for="participant_ids" />@endif
             @endif
             <label class="flex min-h-11 items-center gap-2 text-sm"><x-ui.forms.checkbox wire:model="video" />Mit Video starten</label>
             <x-ui.buttons.button-basic mode="primary" type="submit" class="w-full justify-center" wire:loading.attr="disabled">{{ $formMode === 'instant' ? 'Gespräch starten' : 'Termin speichern' }}</x-ui.buttons.button-basic>

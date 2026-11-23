@@ -12,7 +12,7 @@
             <option value="add">Teams hinzufügen</option>
             <option value="remove">Teams entfernen</option>
         </x-ui.forms.select>
-        <x-input-error for="operation" class="mt-1" />
+        <x-ui.forms.input-error for="operation" class="mt-1" />
     </div>
     <fieldset class="min-w-0">
         <legend class="text-sm font-semibold">Teams auswählen</legend>
@@ -28,8 +28,8 @@
                 <p class="py-3 text-sm text-rt-muted dark:text-rt-dark-muted">Keine bearbeitbaren Teams verfügbar.</p>
             @endforelse
         </div>
-        <x-input-error for="teamIds" class="mt-2" />
-        <x-input-error for="teamIds.*" class="mt-1" />
+        <x-ui.forms.input-error for="teamIds" class="mt-2" />
+        <x-ui.forms.input-error for="teamIds.*" class="mt-1" />
     </fieldset>
     @if($replacementRequired > 0)
         <div class="rounded-xl border border-rt-border p-3 dark:border-rt-dark-border" data-employee-bulk-primary>
@@ -44,7 +44,7 @@
             @else
                 <p class="text-sm text-rt-muted dark:text-rt-dark-muted">Kein gemeinsames verbleibendes Team verfügbar. Zuerst ein gemeinsames Team hinzufügen oder die Mitarbeiter getrennt bearbeiten.</p>
             @endif
-            <x-input-error for="replacementTeamId" class="mt-2" />
+            <x-ui.forms.input-error for="replacementTeamId" class="mt-2" />
         </div>
     @endif
     <p class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Andere Zuordnungen, persönliche Teams und Eigentümerschaften bleiben erhalten.</p>

@@ -37,7 +37,7 @@
     @else
         <div class="employee-location-history__toolbar">
             <div class="employee-location-history__day-navigation" aria-label="Tag im Standortverlauf">
-                <x-ui.buttons.button-basic type="button" mode="basic" class="employee-location-history__day-button" wire:click="previousDay" wire:loading.attr="disabled"
+                <x-ui.buttons.button-basic type="button" mode="secondary" class="employee-location-history__day-button" wire:click="previousDay" wire:loading.attr="disabled"
                     :disabled="$locationHistory['previous_available'] ? null : true" aria-label="Vorheriger Tag" title="Vorheriger Tag">
                     <i class="far fa-chevron-left" aria-hidden="true"></i>
                 </x-ui.buttons.button-basic>
@@ -48,12 +48,12 @@
                         @endforeach
                     </x-ui.forms.select>
                 </div>
-                <x-ui.buttons.button-basic type="button" mode="basic" class="employee-location-history__day-button" wire:click="nextDay" wire:loading.attr="disabled"
+                <x-ui.buttons.button-basic type="button" mode="secondary" class="employee-location-history__day-button" wire:click="nextDay" wire:loading.attr="disabled"
                     :disabled="$locationHistory['next_available'] ? null : true" aria-label="Nächster Tag" title="Nächster Tag">
                     <i class="far fa-chevron-right" aria-hidden="true"></i>
                 </x-ui.buttons.button-basic>
             </div>
-            <x-ui.buttons.button-basic type="button" mode="basic" class="employee-location-history__refresh" wire:click="refreshHistory" wire:loading.attr="disabled" aria-label="Standortverlauf aktualisieren" title="Aktualisieren">
+            <x-ui.buttons.button-basic type="button" mode="secondary" class="employee-location-history__refresh" wire:click="refreshHistory" wire:loading.attr="disabled" aria-label="Standortverlauf aktualisieren" title="Aktualisieren">
                 <i class="far fa-sync-alt" aria-hidden="true" wire:loading.remove></i>
                 <svg wire:loading class="h-4 w-4 animate-spin motion-reduce:animate-none" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" opacity=".2"/><path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
             </x-ui.buttons.button-basic>

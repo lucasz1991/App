@@ -69,13 +69,13 @@
                     </div>
                     @if($userId && $canManageTeams)
                         <section class="rounded-xl border border-rt-border p-4 dark:border-rt-dark-border" aria-label="Teamzuordnung">
-                            <x-input-error for="teamSnapshot" class="mb-3" />
+                            <x-ui.forms.input-error for="teamSnapshot" class="mb-3" />
                             <x-admin.employee-team-fields :teams="$teams" :fixed-teams="$fixedTeams" :primary-teams="$primaryTeams" team-ids-model="selected_team_ids" primary-model="primary_team_id" :id-prefix="'employee-edit-teams-'.$userId" />
                         </section>
                     @elseif($userId)
                         <p class="text-xs text-rt-muted dark:text-rt-dark-muted">Teamzuordnung bleibt unverändert. Zum Verwalten der Teams ist eine entsprechende Berechtigung erforderlich.</p>
-                        <x-input-error for="selected_team_ids" class="mt-2" />
-                        <x-input-error for="primary_team_id" class="mt-2" />
+                        <x-ui.forms.input-error for="selected_team_ids" class="mt-2" />
+                        <x-ui.forms.input-error for="primary_team_id" class="mt-2" />
                     @endif
                 </x-ui.accordion.tab-panel>
 

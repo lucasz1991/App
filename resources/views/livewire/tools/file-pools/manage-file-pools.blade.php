@@ -507,7 +507,7 @@
       <x-slot name="footer">
         <div class="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <x-ui.buttons.button-basic
-            :mode="'basic'"
+            mode="secondary"
             :size="'md'"
             x-on:click="cancelUploadForm()"
             class="min-h-11 min-w-[8.5rem]"
@@ -611,7 +611,7 @@
               <x-ui.buttons.button-basic :mode="'primary'" :size="'sm'" wire:click="safeFile()">
                   {{ __('app.save') }}
               </x-ui.buttons.button-basic>
-              <x-ui.buttons.button-basic :mode="'basic'" :size="'sm'" wire:click="$toggle('openEditFileForm')">
+              <x-ui.buttons.button-basic mode="secondary" :size="'sm'" wire:click="$toggle('openEditFileForm')">
                   {{ __('app.cancel') }}
               </x-ui.buttons.button-basic>
           </div>
@@ -691,7 +691,7 @@
               <x-ui.buttons.button-basic :mode="'primary'" :size="'sm'" wire:click="saveFolder">
                   {{ __('app.save') }}
               </x-ui.buttons.button-basic>
-              <x-ui.buttons.button-basic :mode="'basic'" :size="'sm'" wire:click="$toggle('openFolderForm')">
+              <x-ui.buttons.button-basic mode="secondary" :size="'sm'" wire:click="$toggle('openFolderForm')">
                   {{ __('app.cancel') }}
               </x-ui.buttons.button-basic>
           </div>
@@ -739,7 +739,7 @@
                 <x-ui.buttons.button-basic :mode="'primary'" :size="'sm'" wire:click="savePermissions">
                     {{ __('app.save') }}
                 </x-ui.buttons.button-basic>
-                <x-ui.buttons.button-basic :mode="'basic'" :size="'sm'" wire:click="$toggle('openFolderPermissions')">
+                <x-ui.buttons.button-basic mode="secondary" :size="'sm'" wire:click="$toggle('openFolderPermissions')">
                     {{ __('app.cancel') }}
                 </x-ui.buttons.button-basic>
             </div>

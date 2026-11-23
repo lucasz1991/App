@@ -16,17 +16,17 @@
             <div class="min-w-0">
                 <x-ui.forms.label for="microsoft-device-tenant-id" value="Verzeichnis-ID (Tenant-ID)" />
                 <x-ui.forms.input id="microsoft-device-tenant-id" type="text" wire:model="form.tenant_id" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" class="mt-1.5 font-mono" />
-                <x-input-error for="form.tenant_id" class="mt-1.5" />
+                <x-ui.forms.input-error for="form.tenant_id" class="mt-1.5" />
             </div>
             <div class="min-w-0">
                 <x-ui.forms.label for="microsoft-device-client-id" value="Anwendungs-ID (Client-ID)" />
                 <x-ui.forms.input id="microsoft-device-client-id" type="text" wire:model="form.client_id" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" class="mt-1.5 font-mono" />
-                <x-input-error for="form.client_id" class="mt-1.5" />
+                <x-ui.forms.input-error for="form.client_id" class="mt-1.5" />
             </div>
             <div class="min-w-0">
                 <x-ui.forms.label for="microsoft-device-client-secret" value="Client-Geheimnis (Wert)" />
                 <x-ui.forms.input id="microsoft-device-client-secret" type="password" wire:model="form.client_secret" autocomplete="new-password" spellcheck="false" class="mt-1.5" aria-describedby="microsoft-device-secret-hint" />
-                <x-input-error for="form.client_secret" class="mt-1.5" />
+                <x-ui.forms.input-error for="form.client_secret" class="mt-1.5" />
                 <p id="microsoft-device-secret-hint" class="mt-1.5 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">{{ ($form['secret_configured'] ?? false) ? 'Ein Geheimnis ist verschlüsselt gespeichert. Leer oder unverändert lassen, um es zu behalten.' : 'Tragen Sie den geheimen Wert der App-Registrierung ein, nicht dessen Geheimnis-ID.' }} Bei Änderung von Tenant oder Anwendung wird das alte Geheimnis entfernt, sofern Sie kein neues eintragen.</p>
                 @if ($form['secret_configured'] ?? false)
                     <label class="mt-2 flex min-h-11 items-center gap-2 text-sm text-rt-muted dark:text-rt-dark-muted">
@@ -38,7 +38,7 @@
             <div class="min-w-0">
                 <x-ui.forms.label for="microsoft-device-sync-interval" value="Automatischer Abruf alle … Minuten" />
                 <x-ui.forms.input id="microsoft-device-sync-interval" type="number" min="5" max="1440" step="1" wire:model="form.sync_interval_minutes" class="mt-1.5" />
-                <x-input-error for="form.sync_interval_minutes" class="mt-1.5" />
+                <x-ui.forms.input-error for="form.sync_interval_minutes" class="mt-1.5" />
                 <p class="mt-1.5 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Standard: 15 Minuten. Der Laravel-Scheduler und der separate Microsoft-Geräte-Worker müssen laufen.</p>
             </div>
         </div>
@@ -56,7 +56,7 @@
                 </label>
             @endforeach
         </div>
-        <x-input-error for="form" />
+        <x-ui.forms.input-error for="form" />
         <div class="flex flex-wrap items-center gap-3">
             <x-ui.buttons.button-basic mode="primary" type="submit" class="min-h-11" wire:loading.attr="disabled" wire:target="save,testConnection,syncNow,testBackgroundProcessing"><i class="far fa-save" aria-hidden="true"></i>Microsoft-Einstellungen speichern</x-ui.buttons.button-basic>
             <span class="text-xs text-rt-muted dark:text-rt-dark-muted">Gilt nach dem Speichern. Zusätzliche ENV-Variablen sind nicht erforderlich.</span>
@@ -75,7 +75,7 @@
                 <x-ui.buttons.button-basic type="button" mode="secondary" class="min-h-11" wire:click="testConnection" wire:loading.attr="disabled" wire:target="save,testConnection,syncNow,testBackgroundProcessing"><i class="far fa-plug" aria-hidden="true"></i>Verbindung testen</x-ui.buttons.button-basic>
             </div>
         </div>
-        <x-input-error for="connection" />
+        <x-ui.forms.input-error for="connection" />
         <p wire:loading wire:target="testConnection,syncNow,save" class="text-sm text-rt-muted dark:text-rt-dark-muted">Die Anfrage wird verarbeitet …</p>
         @if ($diagnostic !== [])
             <p class="text-sm text-rt-text dark:text-rt-dark-text"><span class="font-medium">Verbindungstest:</span> {{ $diagnostic['message'] }} @if ($connectionStatus['last_diagnostic_at'])<span class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ \Illuminate\Support\Carbon::parse($connectionStatus['last_diagnostic_at'])->timezone(config('app.timezone'))->format('d.m.Y. H:i') }}</span>@endif</p>

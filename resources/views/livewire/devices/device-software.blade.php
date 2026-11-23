@@ -66,7 +66,7 @@
                     <div>
                         <x-ui.forms.label for="device-software-name" value="Name" />
                         <x-ui.forms.input id="device-software-name" wire:model="name" maxlength="120" class="mt-1" placeholder="Zum Beispiel Adobe Acrobat Reader" />
-                        <x-input-error for="name" class="mt-1" />
+                        <x-ui.forms.input-error for="name" class="mt-1" />
                     </div>
                     <div>
                         <x-ui.forms.label for="device-software-package-id" value="WinGet-Paket-ID" />
@@ -74,13 +74,13 @@
                         <p id="device-software-package-id-hint" class="mt-1 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
                             {{ $packagePublicId ? 'Die Paket-ID bleibt fest. Für ein anderes Paket bitte ein neues Programm anlegen.' : 'Die ID steht im WinGet-Katalog, zum Beispiel Adobe.Acrobat.Reader.64-bit.' }}
                         </p>
-                        <x-input-error for="package_id" class="mt-1" />
+                        <x-ui.forms.input-error for="package_id" class="mt-1" />
                     </div>
                     <div class="grid gap-4 sm:grid-cols-2">
                         <div>
                             <x-ui.forms.label for="device-software-version" value="Feste Version" />
                             <x-ui.forms.input id="device-software-version" wire:model="version" maxlength="40" class="mt-1 font-mono" placeholder="Zum Beispiel 24.5.20320" autocomplete="off" spellcheck="false" />
-                            <x-input-error for="version" class="mt-1" />
+                            <x-ui.forms.input-error for="version" class="mt-1" />
                         </div>
                         <div>
                             <x-ui.forms.label for="device-software-scope" value="Installation" />
@@ -88,14 +88,14 @@
                                 <option value="user">Für den Benutzer</option>
                                 <option value="machine">Für das ganze Gerät</option>
                             </x-ui.forms.select>
-                            <x-input-error for="scope" class="mt-1" />
+                            <x-ui.forms.input-error for="scope" class="mt-1" />
                         </div>
                     </div>
                     <p class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">„Für das ganze Gerät“ braucht Adminrechte. Windows fragt den Mitarbeiter dann einmal nach der Erlaubnis.</p>
                     <div class="rounded-xl border border-rt-border p-3 dark:border-rt-dark-border">
                         <x-ui.forms.checkbox id="device-software-agreements" wire:model="agreementsAccepted" label="Lizenz- und Quellbedingungen dieser Version sind geprüft und für die Firma akzeptiert." />
                         <p class="mt-1 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Die Installation bestätigt die Bedingungen auf den Geräten ohne weitere Rückfrage. Nötig beim Anlegen und bei jeder neuen Version.</p>
-                        <x-input-error for="agreements_accepted" class="mt-1" />
+                        <x-ui.forms.input-error for="agreements_accepted" class="mt-1" />
                     </div>
                 </form>
             @endif
@@ -161,7 +161,7 @@
                                 </x-ui.forms.select>
                             </div>
                         @endif
-                        <x-input-error for="target" class="mt-1" />
+                        <x-ui.forms.input-error for="target" class="mt-1" />
                         <p class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Die Zuweisung wirkt beim nächsten Abgleich der Geräte, in der Regel innerhalb weniger Minuten. Entfernen deinstalliert nichts.</p>
                     </form>
                 </div>

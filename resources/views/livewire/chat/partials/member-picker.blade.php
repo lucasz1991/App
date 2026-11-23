@@ -99,12 +99,15 @@
                 @endif
 
                 @if ($pickerMode === 'direct')
-                    <x-chat.icon-button
+                    <x-ui.buttons.button-basic
+                        mode="icon"
+                        tone="plain"
                         icon="far fa-arrow-right"
                         :label="__('app.new_chat') . ': ' . $member->name"
                         size="sm"
                         wire:click="startDirect({{ $member->id }})"
                         data-no-chat-swipe
+                        class="rt-chat-icon-button rt-chat-icon-button--quiet rounded-xl text-sm"
                     />
                 @endif
             </div>

@@ -12,14 +12,14 @@
                 @unless($schemaReady)
                     <p role="status" class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">Microsoft-Gerätemigration zuerst ausführen. Danach können Mitarbeiterkonten zugeordnet werden.</p>
                 @endunless
-                <x-input-error for="schema" />
+                <x-ui.forms.input-error for="schema" />
                 <p class="text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">
                     Verbinde ein bestehendes Microsoft-Firmenkonto mit dem zugehörigen RailTime-Mitarbeiter. So kann der Geräteabgleich den Mitarbeiter anhand seiner eindeutigen Microsoft-Identität erkennen.
                 </p>
                 <div class="rounded-xl border border-rt-border bg-rt-surface-muted p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted">
                     <div class="text-xs font-semibold uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">Konfigurierter Microsoft-Mandant</div>
                     <div class="mt-1 break-all font-mono text-sm">{{ $tenantId !== '' ? $tenantId : 'Noch nicht eingerichtet' }}</div>
-                    <x-input-error for="tenant_id" class="mt-2" />
+                    <x-ui.forms.input-error for="tenant_id" class="mt-2" />
                     <div class="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm">
                         <a href="https://entra.microsoft.com/" target="_blank" rel="noopener noreferrer" class="font-semibold text-rt-red hover:underline">Microsoft Entra öffnen ↗</a>
                         <a href="https://admin.microsoft.com/" target="_blank" rel="noopener noreferrer" class="font-semibold text-rt-red hover:underline">Microsoft 365 Admin öffnen ↗</a>
@@ -39,18 +39,18 @@
                                 <option value="{{ $employee->id }}">{{ $employee->name }}</option>
                             @endforeach
                         </select>
-                        <x-input-error for="employee_id" class="mt-1.5" />
+                        <x-ui.forms.input-error for="employee_id" class="mt-1.5" />
                     </div>
                     <div class="grid gap-4 sm:grid-cols-2">
                         <div>
                             <x-ui.forms.label for="microsoft-link-principal" value="Microsoft-Anmeldename (UPN)" />
                             <x-ui.forms.input id="microsoft-link-principal" type="email" wire:model="principal" autocomplete="off" spellcheck="false" placeholder="vorname.nachname@firma.de" class="mt-1.5" />
-                            <x-input-error for="principal" class="mt-1.5" />
+                            <x-ui.forms.input-error for="principal" class="mt-1.5" />
                         </div>
                         <div>
                             <x-ui.forms.label for="microsoft-link-object-id" value="Microsoft-Benutzer-Objekt-ID" />
                             <x-ui.forms.input id="microsoft-link-object-id" type="text" wire:model="object_id" autocomplete="off" spellcheck="false" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" class="mt-1.5 font-mono" />
-                            <x-input-error for="object_id" class="mt-1.5" />
+                            <x-ui.forms.input-error for="object_id" class="mt-1.5" />
                         </div>
                     </div>
                     <p class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">In Microsoft Entra: Identität → Benutzer → gewünschter Benutzer → Übersicht. Übernimm den Benutzerprinzipalnamen und die Objekt-ID aus diesem Mandanten. Hier werden keine Kennwörter benötigt. Die Zuordnung bestätigt weder eine Lizenz noch die Einrichtung eines Geräts.</p>

@@ -87,7 +87,7 @@
                                 wire:model="{{ $field }}"
                                 :autocomplete="$autocomplete"
                             />
-                            <x-input-error :for="$field" />
+                            <x-ui.forms.input-error :for="$field" />
                         </div>
                     </div>
                 @endforeach

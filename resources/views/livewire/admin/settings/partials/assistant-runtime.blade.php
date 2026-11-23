@@ -48,7 +48,7 @@
                             <option value="{{ $value }}">{{ $label }}</option>
                         @endforeach
                     </x-ui.forms.select>
-                    <x-input-error for="assistantSpeechRouting" class="mt-1.5" />
+                    <x-ui.forms.input-error for="assistantSpeechRouting" class="mt-1.5" />
                 </div>
             </div>
 

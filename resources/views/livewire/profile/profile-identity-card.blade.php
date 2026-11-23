@@ -187,7 +187,7 @@
                     required
                     class="font-semibold"
                 />
-                <x-input-error for="name" class="mt-2" />
+                <x-ui.forms.input-error for="name" class="mt-2" />
             </div>
 
             <div
@@ -228,7 +228,7 @@
                     autocomplete="username"
                     required
                 />
-                <x-input-error for="email" class="mt-2 basis-full" />
+                <x-ui.forms.input-error for="email" class="mt-2 basis-full" />
 
                 <div class="flex shrink-0 items-center gap-2">
                     <span
@@ -284,5 +284,5 @@
         </p>
     @endif
 
-    <x-input-error for="photo" class="px-5 pb-4 sm:px-6" />
+    <x-ui.forms.input-error for="photo" class="px-5 pb-4 sm:px-6" />
 </section>

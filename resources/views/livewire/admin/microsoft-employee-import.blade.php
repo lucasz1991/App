@@ -32,12 +32,12 @@
             <input type="checkbox" wire:model="enabled" class="h-4 w-4 rounded border-rt-border text-rt-accent focus:ring-rt-accent dark:border-rt-dark-border dark:bg-rt-dark-surface" />
             Manuellen Benutzerimport-Pilot erlauben
         </label>
-        <x-input-error for="enabled" />
+        <x-ui.forms.input-error for="enabled" />
         <div>
             <x-ui.forms.label for="entra-employee-pilot-ids" value="Freigegebene Entra-Benutzer-Objekt-IDs" />
             <textarea id="entra-employee-pilot-ids" wire:model="pilotObjectIds" rows="3" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="entra-employee-pilot-hint" class="mt-1.5 w-full rounded-xl border border-rt-border bg-rt-surface px-3 py-2 font-mono text-sm text-rt-text focus:border-rt-accent focus:ring-rt-accent dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text"></textarea>
             <p id="entra-employee-pilot-hint" class="mt-1 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Eine Benutzer-Objekt-ID pro Zeile, keine Client-ID und keine Kennwörter. Nur ausdrücklich ausgewählte Mitarbeiterkonten verwenden. Gastkonten und deaktivierte Entra-Konten werden nicht neu angelegt.</p>
-            <x-input-error for="pilotObjectIds" />
+            <x-ui.forms.input-error for="pilotObjectIds" />
         </div>
         <x-ui.buttons.button-basic mode="secondary" type="submit" class="min-h-11" wire:loading.attr="disabled">Pilot-Auswahl speichern</x-ui.buttons.button-basic>
     </form>
@@ -51,7 +51,7 @@
             <x-ui.buttons.button-basic type="button" mode="secondary" class="min-h-11" wire:click="preview" wire:loading.attr="disabled">Vorschau prüfen</x-ui.buttons.button-basic>
             <x-ui.buttons.button-basic type="button" mode="primary" class="min-h-11" wire:click="importInactive" wire:loading.attr="disabled">Inaktiv importieren</x-ui.buttons.button-basic>
         </div>
-        <x-input-error for="operation" />
+        <x-ui.forms.input-error for="operation" />
         <p wire:loading class="text-sm text-rt-muted dark:text-rt-dark-muted">Der begrenzte Pilot-Abruf läuft …</p>
         <div aria-live="polite" class="text-sm text-rt-text dark:text-rt-dark-text">
             @if ($result !== [])

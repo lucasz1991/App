@@ -598,7 +598,7 @@
                                         class="mt-1 w-full"
                                         wire:model="calls.{{ $field }}"
                                     />
-                                    <x-input-error :for="'calls.'.$field" class="mt-1" />
+                                    <x-ui.forms.input-error :for="'calls.'.$field" class="mt-1" />
                                     <p class="mt-1.5 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
                                         {{ $meta['hint'] }}
                                         <span class="whitespace-nowrap opacity-70">({{ $min }}–{{ $max }})</span>

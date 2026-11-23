@@ -126,7 +126,7 @@
                                 </label>
                             @endforeach
                         </div>
-                        <x-input-error for="deployment.mode" class="mt-2" />
+                        <x-ui.forms.input-error for="deployment.mode" class="mt-2" />
                     </fieldset>
 
                     <div class="min-w-0 rounded-xl bg-rt-surface-muted p-4 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60">
@@ -143,7 +143,7 @@
                             aria-describedby="device-base-domain-hint"
                             class="mt-1.5 font-mono"
                         />
-                        <x-input-error for="deployment.base_domain" class="mt-1.5" />
+                        <x-ui.forms.input-error for="deployment.base_domain" class="mt-1.5" />
                         <p id="device-base-domain-hint" class="mt-1.5 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
                             {{ $isGerman
                                 ? 'Nur eine öffentliche FQDN ohne https://, Port oder Pfad eintragen. Im Produktivbetrieb sind localhost sowie private oder reservierte Domains gesperrt.'
@@ -176,7 +176,7 @@
                             class="mt-1 w-full"
                             wire:model="runtime.enrollment_ttl_minutes"
                         />
-                        <x-input-error for="runtime.enrollment_ttl_minutes" class="mt-1" />
+                        <x-ui.forms.input-error for="runtime.enrollment_ttl_minutes" class="mt-1" />
                     </div>
                     <div class="min-w-0">
                         <x-ui.forms.label for="device-max-sync-age" :value="$isGerman ? 'Maximales Synchronisierungsalter' : 'Maximum sync age'" />
@@ -192,7 +192,7 @@
                             class="mt-1 w-full"
                             wire:model="runtime.max_sync_age_hours"
                         />
-                        <x-input-error for="runtime.max_sync_age_hours" class="mt-1" />
+                        <x-ui.forms.input-error for="runtime.max_sync_age_hours" class="mt-1" />
                     </div>
                     <div class="min-w-0">
                         <x-ui.forms.label for="device-artifact-limit" :value="$isGerman ? 'Maximale Datei- und Skriptgröße' : 'Maximum file and script size'" />
@@ -208,7 +208,7 @@
                             class="mt-1 w-full"
                             wire:model="runtime.artifact_max_kilobytes"
                         />
-                        <x-input-error for="runtime.artifact_max_kilobytes" class="mt-1" />
+                        <x-ui.forms.input-error for="runtime.artifact_max_kilobytes" class="mt-1" />
                     </div>
                 </div>
 
@@ -217,7 +217,7 @@
                         <p class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
                             {{ $isGerman ? 'Das Speichern ändert keine Plesk-Konfiguration und startet keinen externen Dienst.' : 'Saving does not change Plesk configuration or start an external service.' }}
                         </p>
-                        <x-input-error for="deployment" class="mt-1.5" />
+                        <x-ui.forms.input-error for="deployment" class="mt-1.5" />
                     </div>
                     <button
                         type="button"
@@ -314,7 +314,7 @@
                                     wire:model="providers.{{ $providerKey }}.subdomain"
                                     class="mt-1.5 font-mono"
                                 />
-                                <x-input-error :for="'providers.'.$providerKey.'.subdomain'" class="mt-1.5" />
+                                <x-ui.forms.input-error :for="'providers.'.$providerKey.'.subdomain'" class="mt-1.5" />
                             </div>
                             <div class="min-w-0">
                                 <x-ui.forms.label :for="'device-provider-'.$providerKey.'-port'" :value="$isGerman ? 'Privater Adapter-Port' : 'Private adapter port'" />
@@ -329,7 +329,7 @@
                                     class="mt-1 w-full"
                                     wire:model="providers.{{ $providerKey }}.adapter_port"
                                 />
-                                <x-input-error :for="'providers.'.$providerKey.'.adapter_port'" class="mt-1" />
+                                <x-ui.forms.input-error :for="'providers.'.$providerKey.'.adapter_port'" class="mt-1" />
                             </div>
                         </div>
 
@@ -356,7 +356,7 @@
                                     wire:model="providers.{{ $providerKey }}.token"
                                     class="mt-1.5 font-mono"
                                 />
-                                <x-input-error :for="'providers.'.$providerKey.'.token'" class="mt-1.5" />
+                                <x-ui.forms.input-error :for="'providers.'.$providerKey.'.token'" class="mt-1.5" />
                                 @if ($provider['token_configured'] ?? false)
                                     <label class="mt-2 flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg px-2 text-xs font-medium text-rt-muted transition hover:bg-rt-surface-muted dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted">
                                         <input
@@ -381,7 +381,7 @@
                                     wire:model="providers.{{ $providerKey }}.webhook_secret"
                                     class="mt-1.5 font-mono"
                                 />
-                                <x-input-error :for="'providers.'.$providerKey.'.webhook_secret'" class="mt-1.5" />
+                                <x-ui.forms.input-error :for="'providers.'.$providerKey.'.webhook_secret'" class="mt-1.5" />
                                 @if ($provider['webhook_secret_configured'] ?? false)
                                     <label class="mt-2 flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg px-2 text-xs font-medium text-rt-muted transition hover:bg-rt-surface-muted dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted">
                                         <input
@@ -416,7 +416,7 @@
                                         class="mt-1 w-full"
                                         wire:model="providers.{{ $providerKey }}.timeout"
                                     />
-                                    <x-input-error :for="'providers.'.$providerKey.'.timeout'" class="mt-1" />
+                                    <x-ui.forms.input-error :for="'providers.'.$providerKey.'.timeout'" class="mt-1" />
                                 </div>
                                 @if ($providerKey === 'meshcentral')
                                     <div class="min-w-0">
@@ -432,7 +432,7 @@
                                             wire:model="providers.{{ $providerKey }}.remote_url_template"
                                             class="mt-1.5 font-mono"
                                         />
-                                        <x-input-error :for="'providers.'.$providerKey.'.remote_url_template'" class="mt-1.5" />
+                                        <x-ui.forms.input-error :for="'providers.'.$providerKey.'.remote_url_template'" class="mt-1.5" />
                                     </div>
                                 @endif
                             </div>
@@ -473,7 +473,7 @@
                                     <span wire:loading wire:target="setNanoMdmMobileCommandsEnabled">{{ __('app.loading') }}</span>
                                 </button>
                             </div>
-                            <x-input-error for="providers.nanomdm.mobile_commands_enabled" />
+                            <x-ui.forms.input-error for="providers.nanomdm.mobile_commands_enabled" />
                         @endif
 
                         @if ($hasResult)
@@ -515,7 +515,7 @@
                             </p>
                         @endif
 
-                        <x-input-error :for="'providers.'.$providerKey" />
+                        <x-ui.forms.input-error :for="'providers.'.$providerKey" />
                         <div class="flex flex-col gap-2.5 border-t border-rt-border/60 pt-4 dark:border-rt-dark-border/60 sm:flex-row">
                             <button
                                 type="button"
@@ -576,11 +576,11 @@
                                 wire:model="identityDomains.{{ $field }}"
                                 class="mt-1.5 font-mono"
                             />
-                            <x-input-error :for="'identityDomains.'.$field" class="mt-1.5" />
+                            <x-ui.forms.input-error :for="'identityDomains.'.$field" class="mt-1.5" />
                         </div>
                     @endforeach
                 </div>
-                <x-input-error for="identityDomains" />
+                <x-ui.forms.input-error for="identityDomains" />
                 <div class="flex justify-end">
                     <button
                         type="button"
@@ -645,7 +645,7 @@
                     <span wire:loading wire:target="setProductionCommandsEnabled">{{ __('app.loading') }}</span>
                 </button>
             </div>
-            <x-input-error for="runtime.production_commands_enabled" class="mx-4 mb-4 sm:mx-6 sm:mb-6" />
+            <x-ui.forms.input-error for="runtime.production_commands_enabled" class="mx-4 mb-4 sm:mx-6 sm:mb-6" />
         </section>
     </x-admin.settings-accordion-section>
 </div>
