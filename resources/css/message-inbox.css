@@ -37,9 +37,6 @@ html:has([data-message-inbox-scroll]), body:has([data-message-inbox-scroll]) { h
 .rt-message-inbox__table .rt-table-row-grid > * { grid-column: auto !important; }
 .rt-message-inbox__table .rt-table-row-actions { inset: 0 8px 0 auto; }
 .rt-message-inbox__sender { display: flex; align-items: center; gap: 8px; min-width: 0; padding-right: 16px; }
-.rt-message-inbox__checkbox { display: flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; height: 44px; border: 0; background: transparent; color: #fff; border-radius: 8px; }
-.rt-message-inbox__checkbox > span { display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; border: 1px solid var(--rt-shell-line); border-radius: 4px; font-size: 10px; }
-.rt-message-inbox__checkbox[aria-checked='true'] > span { background: var(--rt-red, #e4002b); border-color: var(--rt-red, #e4002b); }
 .rt-message-inbox__avatar { width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0; object-fit: cover; }
 .rt-message-inbox__sender-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--rt-shell-text); font-size: 12px; font-weight: 550; }
 .rt-message-inbox__message { min-width: 0; padding-right: 24px; }
@@ -62,7 +59,7 @@ html:has([data-message-inbox-scroll]), body:has([data-message-inbox-scroll]) { h
 .rt-message-inbox__table [data-list-pagination-content] > [role='row']:has(.rt-table-empty) { display: flex !important; flex-direction: column; flex: 1 1 0; }
 .rt-message-inbox__table .rt-table-empty { display: flex; align-items: center; justify-content: center; flex: 1 1 0; margin: 0 !important; border-radius: 0 !important; background: transparent !important; min-height: 160px !important; padding: 32px 20px !important; text-align: center; font-size: 13px !important; }
 .rt-message-inbox__footer { flex: 0 0 auto; padding: 0 12px; border: 1px solid var(--rt-shell-line); border-top: 0; border-radius: 0 0 12px 12px; background: var(--rt-shell-surface-solid); }
-.rt-message-inbox :is(.rt-message-inbox__control, .rt-message-inbox__checkbox, .rt-message-inbox__subject):focus-visible { outline: 2px solid var(--rt-shell-accent); outline-offset: -2px; }
+.rt-message-inbox :is(.rt-message-inbox__control, .rt-message-inbox__subject):focus-visible { outline: 2px solid var(--rt-shell-accent); outline-offset: -2px; }
 @media (max-width: 1000px) { .rt-message-inbox__summary { gap: 8px; } .rt-message-inbox__summary > span:first-child { display: none; } }
 @media (min-width: 768px) and (max-width: 1000px) { .rt-message-inbox__avatar { display: none; } }
 @media (max-width: 767.98px) {

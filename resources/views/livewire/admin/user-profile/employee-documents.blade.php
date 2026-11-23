@@ -133,6 +133,6 @@
         @endforeach
     </div>
 <x-operations.modal wire:model="historyOpen" title="Dokumentversionen">
-    <x-tables.table :columns="[['label'=>'Version','key'=>'revision'],['label'=>'Datei','key'=>'file'],['label'=>'Kenntnisnahme','key'=>'ack']]" :items="$versions" row-view="components.tables.rows.operations.employee-version-row" table-key="employee-document-versions" empty="Keine Versionen hinterlegt." />
+    <x-tables.table :columns="[['label'=>'Version','key'=>'revision'],['label'=>'Datei','key'=>'file'],['label'=>'Kenntnisnahme','key'=>'ack']]" :items="$versions" row-view="components.tables.rows.operations.document-version-row" table-key="employee-document-versions" empty="Keine Versionen hinterlegt." />
 </x-operations.modal>
 </div>

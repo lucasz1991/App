@@ -6,10 +6,9 @@
     $snippet = \Illuminate\Support\Str::limit(preg_replace('/\s+/u', ' ', html_entity_decode(strip_tags($item->message), ENT_QUOTES | ENT_HTML5, 'UTF-8')), 180);
 @endphp
 <x-tables.cell bare :mobile-label="false" class="rt-message-inbox__sender">
-    <button type="button" role="checkbox" aria-checked="{{ $isSelected ? 'true' : 'false' }}" aria-label="Nachricht {{ $item->subject }} {{ $isSelected ? 'abwählen' : 'auswählen' }}"
-        class="rt-message-inbox__checkbox" wire:click="toggleMessageSelection({{ $item->id }})" x-on:keydown.enter.stop wire:loading.attr="disabled">
-        <span aria-hidden="true">@if($isSelected)<i class="far fa-check"></i>@endif</span>
-    </button>
+    <x-tables.selection-toggle size="sm" action="toggleMessageSelection" :arguments="$item->id" :state="$isSelected ? 'true' : 'false'"
+        :label="'Nachricht '.$item->subject.' '.($isSelected ? 'abwählen' : 'auswählen')" class="rt-message-inbox__select"
+        x-on:keydown.enter.stop wire:loading.attr="disabled" />
     <img class="rt-message-inbox__avatar" src="{{ $senderAvatar }}" alt="" loading="lazy">
     <span class="rt-message-inbox__sender-name" title="{{ $senderName }}">{{ $senderName }}</span>
 </x-tables.cell>

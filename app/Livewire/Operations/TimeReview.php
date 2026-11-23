@@ -296,14 +296,18 @@ class TimeReview extends Component
         $batchEntries = $this->batchOpen ? $this->entryQuery()->with('user:id,name')->whereIn('id', array_column($this->batchRows, 'id'))->get() : collect();
         $comparisons = $batchEntries->mapWithKeys(fn ($entry) => [$entry->id => app(WorkTimeService::class)->comparison($entry)]);
 
+        $entries = $this->historyOnly ? collect() : $this->entryQuery()->with('user:id,name')->tap($period)->when($this->exports, fn ($q) => $q->where('status', 'approved'))
+                ->when($this->exports && $this->exportProfile === 'v1', fn ($q) => $q->whereNotExists(fn ($q) => $q->selectRaw('1')->from('work_time_export_items')->whereColumn('work_time_entry_id', 'work_time_entries.id')->whereColumn('work_time_export_items.revision', 'work_time_entries.revision')))
+                ->when(! $this->exports && $this->filter !== 'all', fn ($q) => $q->where('status', $this->filter))->when(filled($this->search), fn ($q) => $q->whereHas('user', fn ($q) => $q->where('name', 'like', '%'.mb_substr($this->search, 0, 100).'%')))->latest()->paginate(15);
+        // Plan/Ist-Vergleich einmal je Zeile; die Tabellenzeile (operations/record) liest time_comparison.
+        $entries->each(fn ($entry) => $entry->setAttribute('time_comparison', app(WorkTimeService::class)->comparison($entry)));
+
         return view('livewire.operations.time-review', [
             'batchEntries' => $batchEntries,
             'comparisons' => $comparisons,
             'warningCount' => $comparisons->filter(fn ($result) => $result['warnings'] !== [])->count(),
             'detailEntry' => $detailEntry,
-            'entries' => $this->historyOnly ? collect() : $this->entryQuery()->with('user:id,name')->tap($period)->when($this->exports, fn ($q) => $q->where('status', 'approved'))
-                ->when($this->exports && $this->exportProfile === 'v1', fn ($q) => $q->whereNotExists(fn ($q) => $q->selectRaw('1')->from('work_time_export_items')->whereColumn('work_time_entry_id', 'work_time_entries.id')->whereColumn('work_time_export_items.revision', 'work_time_entries.revision')))
-                ->when(! $this->exports && $this->filter !== 'all', fn ($q) => $q->where('status', $this->filter))->when(filled($this->search), fn ($q) => $q->whereHas('user', fn ($q) => $q->where('name', 'like', '%'.mb_substr($this->search, 0, 100).'%')))->latest()->paginate(15),
+            'entries' => $entries,
             'history' => ! $this->exports ? collect() : ($this->exportProfile === 'v2' ? app(WorkTimeExportAccessService::class)->basicHistory(auth()->user()) : app(WorkTimeExportAccessService::class)->legacyQuery(auth()->user())->latest('id')->limit(20)->get()),
         ]);
     }

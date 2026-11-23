@@ -1,3 +1,10 @@
+@php
+    // Plan/Ist-Vergleich: vom Livewire-Component je Zeile vorberechnet
+    // (time_comparison); nur ohne Vorberechnung einmal je Zeile hier.
+    $comparison = collect($columnsMeta)->contains(fn ($column) => in_array($column['key'], ['planned_net', 'time_delta'], true))
+        ? ($item->getAttributes()['time_comparison'] ?? app(\App\Services\Operations\WorkTimeService::class)->comparison($item))
+        : null;
+@endphp
 @foreach($columnsMeta as $column)
     @php
         $key = $column['key'];
@@ -6,7 +13,7 @@
             'validity' => $item->validityLabel(),
             'absence_label' => ['vacation'=>'Urlaub', 'unavailable'=>'Nicht verfügbar', 'other'=>'Abwesenheit', 'sick'=>'Krankmeldung'][$item->kind] ?? $item->kind,
             'net_time' => \App\Support\Operations\OperationsDateTime::duration($item->netSeconds()),
-            'planned_net' => ($planned = app(\App\Services\Operations\WorkTimeService::class)->comparison($item)['planned']) === null ? '—' : \App\Support\Operations\OperationsDateTime::duration($planned),
+            'planned_net' => $comparison['planned'] === null ? '—' : \App\Support\Operations\OperationsDateTime::duration($comparison['planned']),
             'time_delta' => null,
             'channel' => ['email'=>'E-Mail', 'phone'=>'Telefon', 'portal'=>'Portal', 'manual'=>'Manuell'][$item->channel] ?? $item->channel,
             default => data_get($item, $key),
@@ -24,7 +31,6 @@
         @if($loop->first && $safeDetailAction)
             <x-ui.buttons.button-basic mode="link" type="button" wire:click="{{ $safeDetailAction }}({{ $item->id }})" class="min-h-11 text-left font-semibold">{{ $value ?: '—' }}</x-ui.buttons.button-basic>
         @elseif($key === 'time_delta')
-            @php($comparison = app(\App\Services\Operations\WorkTimeService::class)->comparison($item))
             <p class="tabular-nums">{{ $comparison['planned'] === null ? '—' : ($comparison['delta'] === null ? 'Läuft' : ($comparison['delta'] > 0 ? '+' : ($comparison['delta'] < 0 ? '−' : '')).\App\Support\Operations\OperationsDateTime::duration(abs($comparison['delta']))) }}</p>
             @foreach($comparison['warnings'] as $warning)<p class="text-xs text-amber-700 dark:text-amber-300">{{ $warning }}</p>@endforeach
         @elseif($key === 'status')

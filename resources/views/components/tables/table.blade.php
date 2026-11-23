@@ -259,7 +259,7 @@
         <div role="presentation" class="rt-table-row-grid content-start items-center gap-1.5 sm:gap-x-3 md:gap-0" style="--rt-table-columns: {{ $gridTemplate }};">
         {{-- Zellen --}}
         @if($rowView)
-            @include($rowView, ['item' => $item, 'isSelected' => $isSelected, 'selectedItems' => $selectedItems, 'columnsMeta' => $columns, 'hideClass' => $hideClass])
+            @include($rowView, ['item' => $item, 'isSelected' => $isSelected, 'selectedItems' => $selectedItems, 'columnsMeta' => $columns, 'hideClass' => $hideClass, 'safeDetailAction' => $safeDetailAction, 'tableKey' => $tableKey])
         @else
             @foreach($columns as $col)
             <div role="cell" class="px-2 py-2 {{ $hideClass($col['hideOn']) }}">—</div>
