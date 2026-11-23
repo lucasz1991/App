@@ -1,23 +1,18 @@
-<x-ui.dropdown.anchor-dropdown width="64" :dropdown-id="'inbox-message-'.$item->id" layer-group="inbox-controls">
-    <x-slot:trigger>
-        <x-ui.dropdown.action-trigger orientation="vertical" class="rt-message-inbox__row-action" x-on:keydown.enter.stop :aria-label="'Aktionen für Nachricht '.$item->subject" />
-    </x-slot:trigger>
-    <x-slot:content>
-        <x-ui.dropdown.dropdown-link href="#" wire:click.prevent="openMessageDetail({{ $item->id }})" x-on:click="close()">
-            <i class="far fa-eye" aria-hidden="true"></i> Nachricht öffnen
+<x-tables.row-actions width="64" :dropdown-id="'inbox-message-'.$item->id" layer-group="inbox-controls" class="rt-message-inbox__row-action" x-on:keydown.enter.stop :label="'Aktionen für Nachricht '.$item->subject">
+    <x-ui.dropdown.dropdown-link wire:click.prevent="openMessageDetail({{ $item->id }})" x-on:click="close()">
+        <i class="far fa-eye" aria-hidden="true"></i> Nachricht öffnen
+    </x-ui.dropdown.dropdown-link>
+    @if((int)$item->status === 1)
+        <x-ui.dropdown.dropdown-link wire:click.prevent="markAsRead({{ $item->id }})" x-on:click="close()">
+            <i class="far fa-envelope-open" aria-hidden="true"></i> Als gelesen markieren
         </x-ui.dropdown.dropdown-link>
-        @if((int)$item->status === 1)
-            <x-ui.dropdown.dropdown-link href="#" wire:click.prevent="markAsRead({{ $item->id }})" x-on:click="close()">
-                <i class="far fa-envelope-open" aria-hidden="true"></i> Als gelesen markieren
-            </x-ui.dropdown.dropdown-link>
-        @else
-            <x-ui.dropdown.dropdown-link href="#" wire:click.prevent="markAsUnread({{ $item->id }})" x-on:click="close()">
-                <i class="far fa-envelope" aria-hidden="true"></i> Als ungelesen markieren
-            </x-ui.dropdown.dropdown-link>
-        @endif
-        <x-ui.dropdown.dropdown-link href="#" tone="danger" confirm-method="deleteMessage" :confirm-arguments="[(int)$item->id]"
-            confirm-title="Nachricht löschen?" confirm-message="Diese Nachricht und ihre Anhänge werden endgültig gelöscht. Diese Aktion kann nicht rückgängig gemacht werden." confirm-label="Endgültig löschen">
-            <i class="far fa-trash-alt" aria-hidden="true"></i> Nachricht löschen
+    @else
+        <x-ui.dropdown.dropdown-link wire:click.prevent="markAsUnread({{ $item->id }})" x-on:click="close()">
+            <i class="far fa-envelope" aria-hidden="true"></i> Als ungelesen markieren
         </x-ui.dropdown.dropdown-link>
-    </x-slot:content>
-</x-ui.dropdown.anchor-dropdown>
+    @endif
+    <x-ui.dropdown.dropdown-link tone="danger" confirm-method="deleteMessage" :confirm-arguments="[(int)$item->id]"
+        confirm-title="Nachricht löschen?" confirm-message="Diese Nachricht und ihre Anhänge werden endgültig gelöscht. Diese Aktion kann nicht rückgängig gemacht werden." confirm-label="Endgültig löschen">
+        <i class="far fa-trash-alt" aria-hidden="true"></i> Nachricht löschen
+    </x-ui.dropdown.dropdown-link>
+</x-tables.row-actions>
