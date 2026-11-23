@@ -45,7 +45,7 @@
 
     <div x-show.important="consumed" class="rt-voice-consumed flex min-h-16 items-center gap-3 rounded-[1rem] px-3 py-2.5">
         <span class="rt-voice-consumed__icon flex h-11 w-11 shrink-0 items-center justify-center rounded-full">
-            <i class="far fa-circle-check" aria-hidden="true"></i>
+            <i class="far fa-check-circle" aria-hidden="true"></i>
         </span>
         <span class="min-w-0">
             <span class="block text-[0.72rem] font-bold tracking-[-0.015em]">{{ $consumedLabel }}</span>

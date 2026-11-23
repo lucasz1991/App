@@ -13,5 +13,5 @@
 @endif
 <div class="widget-footer-links">
     <a class="widget-footer" href="{{ $data['href'] }}" wire:navigate>Mein Arbeitstag öffnen →</a>
-    <a class="widget-footer" href="{{ $data['calendarHref'] }}" wire:navigate><i class="far fa-calendar-days" aria-hidden="true"></i>Mein Kalender</a>
+    <a class="widget-footer" href="{{ $data['calendarHref'] }}" wire:navigate><i class="far fa-calendar-alt" aria-hidden="true"></i>Mein Kalender</a>
 </div>

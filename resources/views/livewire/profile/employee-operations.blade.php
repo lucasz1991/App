@@ -26,7 +26,7 @@
 
         <div class="employee-operations__overview">
             <section class="employee-operations__schedule" aria-labelledby="employee-next-shift-{{ $userId }}">
-                <header class="employee-operations__section-heading"><h3 id="employee-next-shift-{{ $userId }}">{{ count($employeeOperations['current']) ? 'Aktuell im Plan' : 'Nächster Einsatz' }}</h3><i class="far fa-calendar-days" aria-hidden="true"></i></header>
+                <header class="employee-operations__section-heading"><h3 id="employee-next-shift-{{ $userId }}">{{ count($employeeOperations['current']) ? 'Aktuell im Plan' : 'Nächster Einsatz' }}</h3><i class="far fa-calendar-alt" aria-hidden="true"></i></header>
                 @if(count($employeeOperations['current']))
                     @foreach($employeeOperations['current'] as $shift)
                         @include('livewire.profile.partials.employee-shift-preview', ['shift' => $shift, 'featured' => true])
@@ -61,8 +61,8 @@
     @else
         <div class="employee-operations__controls">
             <x-ui.buttons.multi-toggle :options="[
-                ['value' => 'upcoming', 'label' => 'Aktuell & geplant', 'compactLabel' => 'Geplant', 'icon' => 'fa-calendar-days'],
-                ['value' => 'past', 'label' => 'Vergangen', 'icon' => 'fa-clock-rotate-left'],
+                ['value' => 'upcoming', 'label' => 'Aktuell & geplant', 'compactLabel' => 'Geplant', 'icon' => 'fa-calendar-alt'],
+                ['value' => 'past', 'label' => 'Vergangen', 'icon' => 'fa-history'],
                 ['value' => 'all', 'label' => 'Gesamter Verlauf', 'compactLabel' => 'Verlauf', 'icon' => 'fa-list'],
             ]" :value="$period" action="setPeriod" label="Schichtzeitraum" :show-labels="true" />
             <div class="employee-operations__search"><x-ui.forms.search wire:model.live.debounce.300ms="search" placeholder="Schicht, Ort oder Kunde suchen" aria-label="Schicht, Ort oder Kunde suchen" maxlength="120" /></div>

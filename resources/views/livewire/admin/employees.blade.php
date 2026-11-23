@@ -32,7 +32,7 @@
                     </x-ui.dropdown.dropdown-link>
                     @if($canManageEmployeeTeams)
                         <x-ui.dropdown.dropdown-link href="#" wire:click.prevent="openTeamEditSelected">
-                            <i class="far fa-pen-to-square mr-2" aria-hidden="true"></i>Teams bearbeiten
+                            <i class="far fa-edit mr-2" aria-hidden="true"></i>Teams bearbeiten
                         </x-ui.dropdown.dropdown-link>
                         <x-ui.dropdown.dropdown-link href="#" wire:click.prevent="openTeamChangeSelected">
                             <i class="far fa-users mr-2" aria-hidden="true"></i>Team wechseln

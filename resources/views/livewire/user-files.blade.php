@@ -20,7 +20,7 @@
             </div>
 
             <span class="inline-flex shrink-0 items-center gap-2 rounded-full bg-rt-surface px-3 py-1.5 text-xs font-semibold text-rt-text shadow-rt-xs ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60">
-                <i class="fad fa-cloud-arrow-down text-rt-accent dark:text-rt-dark-accent" aria-hidden="true"></i>
+                <i class="fad fa-cloud-download text-rt-accent dark:text-rt-dark-accent" aria-hidden="true"></i>
                 <span wire:loading.class="opacity-50" wire:target="search">
                     {{ trans_choice('app.files_count', $total, ['count' => number_format($total, 0, ',', '.')]) }}
                 </span>
@@ -76,7 +76,7 @@
                  Aussage als "nichts gefunden" und braucht einen anderen Ausweg. --}}
             <div class="flex w-full flex-col items-center gap-3 rounded-2xl border border-dashed border-rt-border bg-rt-surface-muted/60 py-16 text-center dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/40" data-anim="fade-up">
                 <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-rt-surface text-rt-soft shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-soft dark:ring-rt-dark-border/60">
-                    <i class="fad {{ $isFiltered ? 'fa-magnifying-glass' : 'fa-folder-open' }} text-2xl" aria-hidden="true"></i>
+                    <i class="fad {{ $isFiltered ? 'fa-search' : 'fa-folder-open' }} text-2xl" aria-hidden="true"></i>
                 </span>
 
                 @if ($isFiltered)
@@ -87,7 +87,7 @@
                         type="button"
                         wire:click="clearSearch"
                     >
-                        <i class="far fa-arrow-rotate-left" aria-hidden="true"></i>
+                        <i class="far fa-undo" aria-hidden="true"></i>
                         {{ __('app.reset') }}
                     </x-ui.buttons.button-basic>
                 @else

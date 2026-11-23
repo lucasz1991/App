@@ -75,7 +75,7 @@
                     data-email-template-editor-link
                     class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-rt-red-dark focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/20"
                 >
-                    <i class="far fa-pen-ruler" aria-hidden="true"></i>
+                    <i class="far fa-pencil-ruler" aria-hidden="true"></i>
                     Vorlagen verwalten
                 </a>
                 @endif
@@ -321,7 +321,7 @@
                 >
                 <summary class="flex min-h-12 cursor-pointer list-none items-center gap-3 px-4 py-3 text-sm font-semibold text-rt-text transition hover:bg-rt-surface-muted focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-rt-red/15 dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted sm:px-5 [&::-webkit-details-marker]:hidden">
                     <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft text-rt-red dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent">
-                        <i class="far fa-screwdriver-wrench" aria-hidden="true"></i>
+                        <i class="far fa-tools" aria-hidden="true"></i>
                     </span>
                     <span class="min-w-0 flex-1">
                         <span id="email-template-downloads-heading" class="block">
@@ -432,7 +432,7 @@
                 >
                     <summary class="flex min-h-12 cursor-pointer list-none items-center gap-3 px-4 py-3 text-sm font-semibold text-rt-text transition hover:bg-rt-surface-muted focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-rt-red/15 dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted sm:px-5 [&::-webkit-details-marker]:hidden">
                         <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft text-rt-red dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent">
-                            <i class="far fa-pen-ruler" aria-hidden="true"></i>
+                            <i class="far fa-pencil-ruler" aria-hidden="true"></i>
                         </span>
                         <span class="min-w-0 flex-1">
                             <span class="block">Administration: aktuelle Arbeitsstände</span>
@@ -554,7 +554,7 @@
                         class="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-rt-red px-4 py-2 text-sm font-semibold text-white shadow-rt-xs transition hover:bg-rt-red-dark disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
                         data-email-template-signature-copy-confirm
                     >
-                        <i class="far" x-bind:class="signatureLoadFailed ? 'fa-rotate-right' : 'fa-copy'" aria-hidden="true"></i>
+                        <i class="far" x-bind:class="signatureLoadFailed ? 'fa-redo-alt' : 'fa-copy'" aria-hidden="true"></i>
                         <span x-text="signatureLoadFailed ? @js(__('app.email_templates_flow.retry_button')) : @js(__('app.email_templates_flow.copy_button'))"></span>
                     </button>
                 </x-slot:footer>
@@ -609,7 +609,7 @@
                                     class="col-span-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-rt-red ring-1 ring-inset ring-rt-red/20 transition hover:bg-rt-accent-soft focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/20 dark:text-rt-dark-accent dark:ring-rt-dark-accent/25 dark:hover:bg-rt-dark-accent-soft sm:col-span-1 sm:px-4"
                                     data-email-template-preview-replay
                                 >
-                                    <i class="far fa-rotate-right" aria-hidden="true"></i>
+                                    <i class="far fa-redo-alt" aria-hidden="true"></i>
                                     <span>{{ __('app.email_templates_preview_replay') }}</span>
                                 </button>
                                 <a

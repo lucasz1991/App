@@ -339,7 +339,7 @@
                             :disabled="connectionBusy || leaving"
                             class="inline-flex h-11 items-center gap-2 rounded-full bg-rt-red px-5 text-sm font-bold text-white transition-colors hover:bg-rt-red-dark"
                         >
-                            <i class="far fa-rotate-right" aria-hidden="true"></i>
+                            <i class="far fa-redo-alt" aria-hidden="true"></i>
                             {{ __('app.calls_retry') }}
                         </button>
                         <button
@@ -446,7 +446,7 @@
                 <div class="rt-call-panel-heading">
                     <p class="text-sm font-bold text-rt-text dark:text-rt-dark-text">{{ __('app.calls_panel') }}</p>
                     <button type="button" x-ref="panelClose" x-on:click="closePanel()" class="rt-call-panel-close text-rt-muted hover:text-rt-text dark:text-rt-dark-muted dark:hover:text-rt-dark-text" aria-label="{{ __('app.close') }}">
-                        <i class="far fa-xmark" aria-hidden="true"></i>
+                        <i class="far fa-times" aria-hidden="true"></i>
                     </button>
                 </div>
                 <div class="grid shrink-0 grid-cols-2 gap-1 border-b border-rt-border/60 p-2 dark:border-rt-dark-border/60" role="tablist" aria-label="{{ __('app.calls_panel') }}">

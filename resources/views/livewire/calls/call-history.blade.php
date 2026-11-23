@@ -56,11 +56,11 @@
                     </div>
                     @if ($live && $room->mayJoin(auth()->user()))
                         <a href="{{ route('calls.window', $room) }}" class="rt-comm-icon text-emerald-600" aria-label="{{ __('app.calls_join_ongoing') }}" title="{{ __('app.calls_join_ongoing') }}">
-                            <i class="far fa-phone-arrow-up-right" aria-hidden="true"></i>
+                            <i class="far fa-phone-alt" aria-hidden="true"></i>
                         </a>
                     @elseif (! $live && $historyAccess)
                         <a href="{{ route('calls.history', $room) }}" class="rt-comm-icon" aria-label="{{ __('app.calls_open_history') }}" title="{{ __('app.calls_open_history') }}">
-                            <i class="far fa-clock-rotate-left" aria-hidden="true"></i>
+                            <i class="far fa-history" aria-hidden="true"></i>
                         </a>
                     @endif
                 </article>
@@ -189,7 +189,7 @@
                                     title="{{ __('app.calls_open_history') }}"
                                     aria-label="{{ __('app.calls_open_history') }}"
                                 >
-                                    <i class="far fa-clock-rotate-left" aria-hidden="true"></i>
+                                    <i class="far fa-history" aria-hidden="true"></i>
                                 </a>
                             @endif
                         </li>

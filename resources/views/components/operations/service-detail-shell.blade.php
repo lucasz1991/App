@@ -11,8 +11,8 @@
                 <div class="rt-service-detail-skeleton" aria-hidden="true"><x-ui.loading.skeleton variant="list" :rows="3" /></div>
             </div>
             <div x-show="!loading && error" data-service-detail-error class="rt-service-detail-loader" role="alert">
-                <i class="far fa-circle-exclamation" aria-hidden="true"></i><p x-text="error"></p>
-                <x-ui.buttons.button-basic type="button" size="sm" x-on:click="retryServiceDetail()"><i class="far fa-arrow-rotate-right" aria-hidden="true"></i>Erneut versuchen</x-ui.buttons.button-basic>
+                <i class="far fa-exclamation-circle" aria-hidden="true"></i><p x-text="error"></p>
+                <x-ui.buttons.button-basic type="button" size="sm" x-on:click="retryServiceDetail()"><i class="far fa-redo" aria-hidden="true"></i>Erneut versuchen</x-ui.buttons.button-basic>
             </div>
         </div>
     </div>

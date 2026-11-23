@@ -223,7 +223,7 @@
                         class="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-xs font-semibold text-rt-accent ring-1 ring-inset ring-rt-accent/25 transition hover:bg-rt-accent-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/30 disabled:cursor-not-allowed disabled:opacity-45 dark:text-rt-dark-accent dark:ring-rt-dark-accent/25 dark:hover:bg-rt-dark-accent-soft"
                         data-page-builder-preview-replay
                     >
-                        <i class="far fa-rotate-right" aria-hidden="true"></i>
+                        <i class="far fa-redo-alt" aria-hidden="true"></i>
                         Neu starten
                     </button>
                 @endif

@@ -10,7 +10,7 @@
         <x-ui.buttons.multi-toggle id="personal-calendar-view-toggle" class="rt-pcal-views" label="Kalenderansicht" :value="$viewMode" action="switchView" :show-labels="true" :options="[
             ['value'=>'day','label'=>'Tag','icon'=>'fa-calendar-day'],
             ['value'=>'week','label'=>'Woche','icon'=>'fa-calendar-week'],
-            ['value'=>'month','label'=>'Monat','icon'=>'fa-calendar-days'],
+            ['value'=>'month','label'=>'Monat','icon'=>'fa-calendar-alt'],
             ['value'=>'list','label'=>'Liste','icon'=>'fa-list-ul'],
         ]" />
         <span class="rt-pcal-zone"><i class="far fa-clock" aria-hidden="true"></i> {{ $displayTimezone }} <span aria-hidden="true">·</span> Planzeiten</span>

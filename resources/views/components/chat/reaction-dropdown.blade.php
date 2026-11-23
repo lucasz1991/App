@@ -53,7 +53,7 @@
         <div class="space-y-0.5 p-1.5">
             @if ($isMine)
                 <x-ui.dropdown.dropdown-link x-on:click="openReactionMenu()">
-                    <span class="rt-chat-option-icon"><i class="far fa-rotate-right" aria-hidden="true"></i></span>
+                    <span class="rt-chat-option-icon"><i class="far fa-redo-alt" aria-hidden="true"></i></span>
                     <span>{{ __('app.chat_change_reaction') }}</span>
                 </x-ui.dropdown.dropdown-link>
                 <div class="rt-chat-option-divider my-1" role="separator"></div>
@@ -70,7 +70,7 @@
                     <span>{{ $hasReaction ? __('app.chat_change_to_reaction', ['emoji' => $emoji]) : __('app.chat_react_with', ['emoji' => $emoji]) }}</span>
                 </x-ui.dropdown.dropdown-link>
                 <x-ui.dropdown.dropdown-link x-on:click="openReactionMenu()">
-                    <span class="rt-chat-option-icon"><i class="far fa-face-smile" aria-hidden="true"></i></span>
+                    <span class="rt-chat-option-icon"><i class="far fa-smile" aria-hidden="true"></i></span>
                     <span>{{ __('app.chat_choose_other_reaction') }}</span>
                 </x-ui.dropdown.dropdown-link>
             @endif

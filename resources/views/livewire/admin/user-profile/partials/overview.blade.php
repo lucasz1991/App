@@ -56,7 +56,7 @@
 
     <section class="employee-detail-group employee-overview__address" aria-labelledby="employee-overview-address-title">
         <header class="employee-overview__section-header">
-            <span class="employee-overview__section-icon"><i class="far fa-location-dot" aria-hidden="true"></i></span>
+            <span class="employee-overview__section-icon"><i class="far fa-map-marker-alt" aria-hidden="true"></i></span>
             <div><h3 id="employee-overview-address-title">Anschrift</h3><p>Hinterlegte Adresse aus dem Profil</p></div>
         </header>
         <dl class="employee-detail-list employee-overview__address-grid">

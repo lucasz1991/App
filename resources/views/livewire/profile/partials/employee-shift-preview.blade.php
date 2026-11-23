@@ -12,7 +12,7 @@
             @if($shift['ongoing'] && ! $shift['closed'])<span class="employee-operations__time-state">Aktuell geplant</span>@endif
         </div>
         <h4><a href="{{ $shift['url'] }}" wire:navigate>{{ $shift['title'] }}</a></h4>
-        <p class="employee-operations__location"><i class="far fa-location-dot" aria-hidden="true"></i>{{ $shift['location'] ?: 'Einsatzort nicht hinterlegt' }}</p>
+        <p class="employee-operations__location"><i class="far fa-map-marker-alt" aria-hidden="true"></i>{{ $shift['location'] ?: 'Einsatzort nicht hinterlegt' }}</p>
         <p class="employee-operations__duty-meta">{{ $shift['role'] ?: 'Funktion nicht hinterlegt' }}<span aria-hidden="true"> · </span>{{ $shift['customer'] ?: 'Kunde nicht hinterlegt' }}</p>
         <p class="employee-operations__publication">Schicht: {{ $shift['shift_status_label'] }} · {{ $shift['publication_label'] }} · {{ $shift['timezone'] }}</p>
         @if(! empty($shift['assignment_revision_note']))<p class="employee-operations__response-note">{{ $shift['assignment_revision_note'] }}</p>@endif

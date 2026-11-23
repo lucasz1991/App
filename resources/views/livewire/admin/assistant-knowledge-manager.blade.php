@@ -107,7 +107,7 @@
 
                 <div class="flex w-full items-center gap-3 lg:w-auto lg:justify-end">
                     <span x-cloak x-show="dirty" class="text-xs font-semibold text-amber-700 dark:text-amber-300" role="status">
-                        <i class="far fa-circle-exclamation mr-1" aria-hidden="true"></i>{{ $isGerman ? 'Nicht gespeichert' : 'Unsaved' }}
+                        <i class="far fa-exclamation-circle mr-1" aria-hidden="true"></i>{{ $isGerman ? 'Nicht gespeichert' : 'Unsaved' }}
                     </span>
                     <x-ui.buttons.button-basic mode="primary"
                         type="submit"
@@ -213,7 +213,7 @@
             </div>
             <div class="flex items-center gap-2">
                 <span x-cloak x-show="dirty" class="text-xs font-semibold text-amber-700 dark:text-amber-300" role="status">
-                    <i class="far fa-circle-exclamation mr-1" aria-hidden="true"></i>{{ $isGerman ? 'Nicht gespeichert' : 'Unsaved' }}
+                    <i class="far fa-exclamation-circle mr-1" aria-hidden="true"></i>{{ $isGerman ? 'Nicht gespeichert' : 'Unsaved' }}
                 </span>
                 <x-ui.buttons.button-basic mode="primary" type="button" class="min-h-11" wire:click="saveIntro" wire:loading.attr="disabled" wire:target="saveIntro">
                     <span wire:loading.remove wire:target="saveIntro"><i class="far fa-save mr-1.5" aria-hidden="true"></i>{{ $isGerman ? 'Basistext speichern' : 'Save baseline' }}</span>
@@ -476,7 +476,7 @@
                 class="mr-auto inline-flex items-center gap-2 text-left text-xs font-semibold text-amber-700 dark:text-amber-300"
                 role="status"
             >
-                <i class="far fa-circle-exclamation" aria-hidden="true"></i>
+                <i class="far fa-exclamation-circle" aria-hidden="true"></i>
                 {{ $isGerman ? 'Nicht gespeicherte Änderungen' : 'Unsaved changes' }}
             </span>
             <x-ui.buttons.button-basic mode="secondary" type="button" class="min-h-11" wire:click="$set('topicEditorOpen', false)">{{ $isGerman ? 'Abbrechen' : 'Cancel' }}</x-ui.buttons.button-basic>
@@ -621,7 +621,7 @@
                 class="mr-auto inline-flex items-center gap-2 text-left text-xs font-semibold text-amber-700 dark:text-amber-300"
                 role="status"
             >
-                <i class="far fa-circle-exclamation" aria-hidden="true"></i>
+                <i class="far fa-exclamation-circle" aria-hidden="true"></i>
                 {{ $isGerman ? 'Nicht gespeicherte Änderungen' : 'Unsaved changes' }}
             </span>
             <x-ui.buttons.button-basic mode="secondary" type="button" class="min-h-11" wire:click="$set('entryEditorOpen', false)">{{ $isGerman ? 'Abbrechen' : 'Cancel' }}</x-ui.buttons.button-basic>

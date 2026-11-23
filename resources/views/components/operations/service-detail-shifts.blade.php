@@ -41,7 +41,7 @@
                                 @endif
                                 <x-operations.status :value="$shift->status" icon class="rt-service-detail-status" />
                             </div>
-                            <p class="rt-service-detail-shift__context"><span><i class="far fa-user-hard-hat" aria-hidden="true"></i>{{ $shift->role_name ?: 'Rolle offen' }}</span><span><i class="far fa-location-dot" aria-hidden="true"></i>{{ $shift->location_name ?: 'Einsatzort offen' }}</span></p>
+                            <p class="rt-service-detail-shift__context"><span><i class="far fa-user-hard-hat" aria-hidden="true"></i>{{ $shift->role_name ?: 'Rolle offen' }}</span><span><i class="far fa-map-marker-alt" aria-hidden="true"></i>{{ $shift->location_name ?: 'Einsatzort offen' }}</span></p>
                             @if($entry->active)
                                 <div class="rt-service-detail-shift__staffing"><x-operations.service-staffing-content :seats="$entry->seats" :summary="$entry->summary" :timezone="$item->timezone" /></div>
                             @else
@@ -53,6 +53,6 @@
             </ul>
         </section>
     @empty
-        <div class="rt-service-detail-tab__empty"><i class="far fa-calendar-days" aria-hidden="true"></i><h4>Noch keine Schichten</h4><p>Den bestehenden Personalbedarf kannst du unter „Bedarf & Planung“ prüfen und bearbeiten.</p></div>
+        <div class="rt-service-detail-tab__empty"><i class="far fa-calendar-alt" aria-hidden="true"></i><h4>Noch keine Schichten</h4><p>Den bestehenden Personalbedarf kannst du unter „Bedarf & Planung“ prüfen und bearbeiten.</p></div>
     @endforelse
 </section>

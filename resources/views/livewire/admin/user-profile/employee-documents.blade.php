@@ -96,7 +96,7 @@
                     </label>
                 @else
                     <div class="mt-4 rounded-xl border border-dashed border-rt-border px-4 py-5 text-center text-sm text-rt-muted dark:border-rt-dark-border dark:text-rt-dark-muted">
-                        <i class="far fa-file-slash mb-2 block text-lg" aria-hidden="true"></i>
+                        <i class="far fa-file-times mb-2 block text-lg" aria-hidden="true"></i>
                         {{ __('app.no_file_linked') }}
                     </div>
                 @endif

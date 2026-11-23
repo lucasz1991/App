@@ -92,7 +92,7 @@
             aria-haspopup="dialog"
             aria-label="{{ __('app.date_choose') }}: {{ $controlLabel }}"
         >
-            <i class="far fa-calendar-days" aria-hidden="true"></i>
+            <i class="far fa-calendar-alt" aria-hidden="true"></i>
         </button>
     </div>
 
@@ -132,7 +132,7 @@
         >
             <div class="rt-ui-date-panel__header">
                 <button type="button" @click="shiftMonth(-12)" :disabled="!canShiftMonth(-12)" class="rt-ui-date-nav" aria-label="{{ $previousYearLabel }}">
-                    <i class="far fa-angles-left" aria-hidden="true"></i>
+                    <i class="far fa-angle-double-left" aria-hidden="true"></i>
                 </button>
                 <button type="button" @click="shiftMonth(-1)" :disabled="!canShiftMonth(-1)" class="rt-ui-date-nav" aria-label="{{ __('app.date_previous_month') }}">
                     <i class="far fa-chevron-left" aria-hidden="true"></i>
@@ -145,7 +145,7 @@
                     <i class="far fa-chevron-right" aria-hidden="true"></i>
                 </button>
                 <button type="button" @click="shiftMonth(12)" :disabled="!canShiftMonth(12)" class="rt-ui-date-nav" aria-label="{{ $nextYearLabel }}">
-                    <i class="far fa-angles-right" aria-hidden="true"></i>
+                    <i class="far fa-angle-double-right" aria-hidden="true"></i>
                 </button>
             </div>
 

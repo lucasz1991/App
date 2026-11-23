@@ -7,7 +7,7 @@
             @if(!$personal)<div><x-ui.forms.label for="personnel-enhancement-person" value="Mitarbeiter"/><x-ui.forms.select id="personnel-enhancement-person" wire:model.live="userId"><option value="0">Auswählen</option>@foreach($employees as $person)<option value="{{ $person->id }}">{{ $person->name }}</option>@endforeach</x-ui.forms.select></div>@endif
             @php
                 $options = [
-                    ['value'=>'workflows','label'=>'Prozesse','icon'=>'fa-list-check'],
+                    ['value'=>'workflows','label'=>'Prozesse','icon'=>'fa-tasks'],
                     ['value'=>'documents','label'=>'Unterlagen','icon'=>'fa-file-signature'],
                     ['value'=>'emergency','label'=>'Notfallkontakt','icon'=>'fa-phone'],
                     ['value'=>'surveys','label'=>'Rückmeldung','icon'=>'fa-comment-dots'],
@@ -17,7 +17,7 @@
                 if(!$personal) {
                     $options[] = ['value'=>'reports','label'=>'Berichte','icon'=>'fa-chart-line'];
                     if(auth()->user()->can('operations.absences.review')) $options[] = ['value'=>'approvals','label'=>'Freigaben','icon'=>'fa-check-double'];
-                    if(auth()->user()->can('operations.rules.manage')) $options[] = ['value'=>'calendars','label'=>'Regionalkalender','icon'=>'fa-calendar-days'];
+                    if(auth()->user()->can('operations.rules.manage')) $options[] = ['value'=>'calendars','label'=>'Regionalkalender','icon'=>'fa-calendar-alt'];
                     if(auth()->user()->can('employees.recruiting.manage')) $options[] = ['value'=>'recruiting','label'=>'Bewerbungen','icon'=>'fa-user-plus'];
                 }
             @endphp

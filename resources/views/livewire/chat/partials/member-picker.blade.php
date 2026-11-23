@@ -114,7 +114,7 @@
         @empty
             <div class="flex min-h-24 flex-col items-center justify-center px-4 py-5 text-center">
                 <span class="flex h-8 w-8 items-center justify-center rounded-lg text-rt-muted dark:text-rt-dark-muted">
-                    <i class="far fa-user-search text-sm" aria-hidden="true"></i>
+                    <i class="far fa-search text-sm" aria-hidden="true"></i>
                 </span>
                 <p class="mt-1.5 text-xs font-semibold text-rt-muted dark:text-rt-dark-muted">
                     {{ __('app.no_entries_found') }}

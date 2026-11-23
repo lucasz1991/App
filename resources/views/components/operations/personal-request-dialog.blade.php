@@ -66,7 +66,7 @@
                             <div class="rt-request-dialog__mini-calendar"><x-operations.timeline-mini-calendar :start="$start" :end="$end" /></div>
                             <x-operations.personal-request-map :preview="$row['location_preview'] ?? null" :location="$row['location'] ?? null" :id="$scopedId.'-map'" />
                         </div>
-                        @if(filled($row['location'] ?? null))<p class="rt-request-dialog__place"><i class="far fa-location-dot" aria-hidden="true"></i><span>{{ $row['location'] }}</span></p>@endif
+                        @if(filled($row['location'] ?? null))<p class="rt-request-dialog__place"><i class="far fa-map-marker-alt" aria-hidden="true"></i><span>{{ $row['location'] }}</span></p>@endif
                     </x-ui.accordion.tab-panel>
                     <x-ui.accordion.tab-panel :for="$scopedId.'-details'" :order="1" content-class="rt-request-dialog__panel">
                         <section class="rt-request-dialog__section" aria-label="Einsatzdetails">

@@ -181,7 +181,7 @@ class UserProfile extends Component
         }
         if ($this->personnelAllowed('employees.master-data.view')) {
             $tabs['masterData'] = ['label' => __('app.master_data'), 'icon' => 'fad fa-user-lock', 'group' => 'Personalakte'];
-            $tabs['documents'] = ['label' => __('app.employee_documents'), 'icon' => 'fad fa-folder-check', 'group' => 'Personalakte'];
+            $tabs['documents'] = ['label' => __('app.employee_documents'), 'icon' => 'fad fa-folder-open', 'group' => 'Personalakte'];
         }
         if ($this->personnelAllowed('employees.compensation.view')) {
             $tabs['compensation'] = ['label' => __('app.compensation_data'), 'icon' => 'fad fa-coins', 'group' => 'Personalakte'];
@@ -189,11 +189,11 @@ class UserProfile extends Component
 
         if ($this->operationalProfileAllowed()) {
             $tabs['operationsOverview'] = ['label' => 'Übersicht', 'icon' => 'far fa-chart-line', 'group' => 'Betrieb'];
-            $tabs['shifts'] = ['label' => 'Schichten', 'icon' => 'far fa-calendar-days', 'group' => 'Betrieb'];
-            $tabs['regions'] = ['label' => 'Einsatzgebiete', 'icon' => 'far fa-map-location-dot', 'group' => 'Betrieb'];
+            $tabs['shifts'] = ['label' => 'Schichten', 'icon' => 'far fa-calendar-alt', 'group' => 'Betrieb'];
+            $tabs['regions'] = ['label' => 'Einsatzgebiete', 'icon' => 'far fa-map-marked-alt', 'group' => 'Betrieb'];
         }
         if (auth()->user()?->isActive() && auth()->user()->isAdmin() && $this->user->role === 'staff') {
-            $tabs['locations'] = ['label' => 'Standorte', 'icon' => 'far fa-location-dot', 'group' => 'Betrieb'];
+            $tabs['locations'] = ['label' => 'Standorte', 'icon' => 'far fa-map-marker-alt', 'group' => 'Betrieb'];
         }
 
         return $tabs + EmployeeProfileSections::forUser(auth()->user(), $this->user);

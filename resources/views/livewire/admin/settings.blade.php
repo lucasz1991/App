@@ -26,7 +26,7 @@
             $settingsTabs['ai-disposition'] = ['label' => 'AI-Disposition', 'icon' => 'fad fa-inbox'];
             $settingsTabs['dropbox'] = ['label' => 'Dropbox', 'icon' => 'fab fa-dropbox'];
             $settingsTabs['tomtom'] = ['label' => 'TomTom / Routenplanung', 'icon' => 'fad fa-route'];
-            $settingsTabs['employee-locations'] = ['label' => 'Mitarbeiter-Standorte', 'icon' => 'fad fa-location-dot'];
+            $settingsTabs['employee-locations'] = ['label' => 'Mitarbeiter-Standorte', 'icon' => 'fad fa-map-marker-alt'];
             $settingsTabs['superadmin'] = ['label' => __('app.settings_superadmin'), 'icon' => 'fad fa-shield-alt'];
         }
 
@@ -107,7 +107,7 @@
         if ($isSuperAdmin) {
             array_splice($settingsTeasers, count($settingsTeasers) - 1, 0, [
                 ['tab' => 'tomtom', 'section' => '', 'label' => 'TomTom / Routenplanung', 'description' => 'Fahrzeiten, Fahrtreserve und Verbrauchsgrenzen einrichten.', 'icon' => 'fad fa-route', 'items' => ['Verbindung', 'Fahrzeiten', 'Verbrauch']],
-                ['tab' => 'employee-locations', 'section' => '', 'label' => 'Mitarbeiter-Standorte', 'description' => 'Tägliche Standortfreigabe und Geschäftshandy-Dienst einrichten.', 'icon' => 'fad fa-location-dot', 'items' => ['Tagesfreigabe', 'Geschäftshandy', 'Aufbewahrung']],
+                ['tab' => 'employee-locations', 'section' => '', 'label' => 'Mitarbeiter-Standorte', 'description' => 'Tägliche Standortfreigabe und Geschäftshandy-Dienst einrichten.', 'icon' => 'fad fa-map-marker-alt', 'items' => ['Tagesfreigabe', 'Geschäftshandy', 'Aufbewahrung']],
             ]);
         }
     @endphp
@@ -398,7 +398,7 @@
         <div
             class="flex items-start gap-3 rounded-xl border-l-4 border-amber-500 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-rt-sm ring-1 ring-amber-200/70 dark:bg-amber-500/10 dark:text-amber-200 dark:ring-amber-500/25"
         >
-            <i class="fad fa-triangle-exclamation mt-0.5 fa-lg" aria-hidden="true"></i>
+            <i class="fad fa-exclamation-triangle mt-0.5 fa-lg" aria-hidden="true"></i>
             <span>{{ __('app.maintenance_mode_active_banner') }}</span>
         </div>
     @endif

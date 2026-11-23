@@ -1,5 +1,5 @@
 <section class="rt-staffing-section rt-staffing-editor" aria-label="Einsatzgebiete bearbeiten" wire:key="regional-editor-{{ $regionalEmployeeId }}" tabindex="-1" x-data x-init="$nextTick(() => { $el.focus({ preventScroll: true }); $el.scrollIntoView({ block: 'start', behavior: 'auto' }); })">
-    <div class="rt-staffing-heading"><div><h3>Einsatzgebiete</h3><p>Persönliche Präferenzen · optional</p></div><button type="button" class="rt-ops-panel__icon-button" wire:click="closeRegionalPreference" aria-label="Gebietseinstellungen schließen"><i class="far fa-xmark" aria-hidden="true"></i></button></div>
+    <div class="rt-staffing-heading"><div><h3>Einsatzgebiete</h3><p>Persönliche Präferenzen · optional</p></div><button type="button" class="rt-ops-panel__icon-button" wire:click="closeRegionalPreference" aria-label="Gebietseinstellungen schließen"><i class="far fa-times" aria-hidden="true"></i></button></div>
     <x-user.person-anchor-preview :user="$regionalEmployee" :show-presence="false" :show-email="false" :size="8" />
     @if(($regionalPreference['schema_version'] ?? 1) < 2)
         <x-ui.forms.toggle-button id="staffing-region-enabled" wire:model.live="regionalPreference.enabled" label="Regionale Präferenzen verwenden" />
@@ -17,7 +17,7 @@
                 <p class="rt-staffing-note"><strong>{{ $label }}:</strong> {{ collect($regionalPreference['federal_states'][$zone])->map(fn ($code) => \App\Support\Operations\GermanFederalStates::options()[$code] ?? $code)->implode(', ') }}</p>
             @endif
         @endforeach
-        @can('employees.view')<a class="rt-staffing-text-button" href="{{ route(auth()->user()->usesAdminLayout() ? 'admin.user-profile' : 'employees.show', ['userId' => $regionalEmployeeId, 'profileTab' => 'regions']) }}" target="_blank" rel="noopener">Bundesländer und Karte im Mitarbeiterprofil <i class="far fa-arrow-up-right-from-square" aria-hidden="true"></i></a>@endcan
+        @can('employees.view')<a class="rt-staffing-text-button" href="{{ route(auth()->user()->usesAdminLayout() ? 'admin.user-profile' : 'employees.show', ['userId' => $regionalEmployeeId, 'profileTab' => 'regions']) }}" target="_blank" rel="noopener">Bundesländer und Karte im Mitarbeiterprofil <i class="far fa-external-link" aria-hidden="true"></i></a>@endcan
         <p class="rt-staffing-note">Bundesländer und Radien ergänzen sich. Außerhalb bleibt eine Zuteilung mit niedrigerer Eignung möglich. Ausgeschlossene Gebiete bleiben auch im Notfall gesperrt.</p>
         <div class="rt-staffing-heading"><h4>No-Go-Gebiete</h4><button type="button" class="rt-staffing-text-button" wire:click="addNoGoArea"><i class="far fa-plus" aria-hidden="true"></i> Gebiet hinzufügen</button></div>
         @foreach(($regionalPreference['no_go_areas'] ?? []) as $index => $area)

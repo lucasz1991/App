@@ -36,7 +36,7 @@
         title="{{ __('app.chat_live_location_share') }}"
         aria-label="{{ __('app.chat_live_location_share') }}"
     >
-        <i x-bind:class="busy ? 'fas fa-spinner fa-spin' : 'far fa-location-dot'" aria-hidden="true"></i>
+        <i x-bind:class="busy ? 'fas fa-spinner fa-spin' : 'far fa-map-marker-alt'" aria-hidden="true"></i>
     </button>
 
     <x-ui.state-modal
@@ -44,7 +44,7 @@
         state="open"
         :title="__('app.chat_live_location_choose_duration')"
         :description="__('app.chat_live_location_duration_hint')"
-        icon="fad fa-location-dot"
+        icon="fad fa-map-marker-alt"
         max-width="2xl"
         close-action="closePicker()"
     >
@@ -84,7 +84,7 @@
                 style="display: none;"
                 role="status"
             >
-                <i class="far fa-triangle-exclamation mt-0.5 shrink-0" aria-hidden="true"></i>
+                <i class="far fa-exclamation-triangle mt-0.5 shrink-0" aria-hidden="true"></i>
                 <p x-text="$store.liveLocation.secureContext ? messages.unsupported : messages.insecure"></p>
             </div>
 

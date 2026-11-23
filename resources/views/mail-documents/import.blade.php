@@ -30,7 +30,7 @@
                 href="{{ route('admin.mail-documents.editor') }}"
                 class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-rt-border bg-rt-surface px-4 text-sm font-semibold text-rt-text shadow-sm transition hover:border-rt-red/40 hover:text-rt-red focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/15 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text dark:hover:border-rt-dark-accent/50 dark:hover:text-rt-dark-accent"
             >
-                <i class="far fa-pen-ruler" aria-hidden="true"></i>
+                <i class="far fa-pencil-ruler" aria-hidden="true"></i>
                 Editor optional öffnen
             </a>
         </x-slot:actions>
@@ -151,7 +151,7 @@
                         data-mail-draft-import-editor-link
                         hidden
                     >
-                        <i class="far fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                        <i class="far fa-external-link" aria-hidden="true"></i>
                         Importierten Entwurf im Editor öffnen
                     </a>
                 </aside>

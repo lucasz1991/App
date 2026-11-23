@@ -48,7 +48,7 @@
                     x-on:click="rememberScroll()"
                     class="inline-flex min-h-11 items-center gap-2 rounded-full bg-rt-surface-muted px-4 text-xs font-bold text-rt-muted transition hover:text-rt-text dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted dark:hover:text-rt-dark-text"
                 >
-                    <i class="far fa-clock-rotate-left" aria-hidden="true"></i>
+                    <i class="far fa-history" aria-hidden="true"></i>
                     {{ __('app.chat_load_older_messages') }}
                 </button>
             </div>
@@ -193,7 +193,7 @@
             </article>
         @empty
             <div class="flex min-h-64 flex-col items-center justify-center px-6 text-center text-rt-muted dark:text-rt-dark-muted">
-                <i class="far fa-message-dots text-2xl" aria-hidden="true"></i>
+                <i class="far fa-comment-alt-dots text-2xl" aria-hidden="true"></i>
                 <p class="mt-3 text-sm font-semibold">{{ __('app.calls_chat_empty') }}</p>
             </div>
         @endforelse
@@ -216,7 +216,7 @@
                         </span>
                     </span>
                     <button type="button" wire:click="cancelReply" class="inline-flex h-11 w-11 items-center justify-center rounded-xl text-rt-muted" aria-label="{{ __('app.cancel') }}">
-                        <i class="far fa-xmark" aria-hidden="true"></i>
+                        <i class="far fa-times" aria-hidden="true"></i>
                     </button>
                 </div>
             @endif
@@ -228,7 +228,7 @@
                             <i class="far fa-paperclip" aria-hidden="true"></i>
                             <span class="max-w-40 truncate">{{ $upload->getClientOriginalName() }}</span>
                             <button type="button" wire:click="removeUpload({{ $index }})" class="inline-flex h-9 w-9 items-center justify-center" aria-label="{{ __('app.remove') }}">
-                                <i class="far fa-xmark" aria-hidden="true"></i>
+                                <i class="far fa-times" aria-hidden="true"></i>
                             </button>
                         </span>
                     @endforeach

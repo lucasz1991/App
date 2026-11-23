@@ -11,7 +11,7 @@
                     <option value="email" data-icon-class="far fa-envelope">E-Mail</option>
                     <option value="portal" data-icon-class="far fa-globe">Portal</option>
                     <option value="phone" data-icon-class="far fa-phone">Telefon</option>
-                    <option value="manual" data-icon-class="far fa-pen-to-square">Manuell</option>
+                    <option value="manual" data-icon-class="far fa-edit">Manuell</option>
                     <option value="ai" data-icon-class="far fa-sparkles">AI-verarbeitet</option>
                     <option value="import" data-icon-class="far fa-file-import">Import</option>
                 </x-ui.forms.select>
@@ -20,7 +20,7 @@
     <template x-teleport="[data-page-header-action-list]" wire:key="unified-inbox-actions-{{ $this->getId() }}">
         <div class="ops-actions rt-unified-inbox__actions">
                 @if(isset($sections['ai-intake']) || isset($sections['imports']))
-                    <details class="rt-unified-inbox__more" wire:ignore.self x-on:click="if ($event.target.closest('button')) $el.open = false" x-on:click.outside="$el.open = false" x-on:keydown.escape.stop="$el.open = false"><summary aria-label="Weitere Eingangsaktionen"><i class="far fa-ellipsis" aria-hidden="true"></i></summary><div>
+                    <details class="rt-unified-inbox__more" wire:ignore.self x-on:click="if ($event.target.closest('button')) $el.open = false" x-on:click.outside="$el.open = false" x-on:keydown.escape.stop="$el.open = false"><summary aria-label="Weitere Eingangsaktionen"><i class="far fa-ellipsis-h" aria-hidden="true"></i></summary><div>
                         @if(isset($sections['ai-intake']))<button type="button" wire:click="create('ai')">Text / Datei mit AI erfassen</button>@endif
                         @if(isset($sections['imports']))<button type="button" wire:click="create('import')">CSV / Text prüfen</button>@endif
                     </div></details>

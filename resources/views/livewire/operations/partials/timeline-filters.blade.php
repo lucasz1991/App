@@ -60,7 +60,7 @@
         </div>
         <footer class="rt-timeline-filters__footer">
             <x-ui.buttons.button-basic type="button" size="sm" mode="link" wire:click="resetTimelineFilters" wire:loading.attr="disabled" wire:target="resetTimelineFilters" :disabled="$timelineFilterCount === 0 ? true : null">
-                <i class="far fa-rotate-left" aria-hidden="true"></i> Zurücksetzen
+                <i class="far fa-undo-alt" aria-hidden="true"></i> Zurücksetzen
             </x-ui.buttons.button-basic>
             <span class="rt-timeline-filters__feedback" role="status" aria-live="polite">
                 <span wire:loading.remove wire:target="search,staffPresence,shiftRole,shiftStatus,assignmentStatusFilter,resetTimelineFilters">{{ $timelineFilterCount ? $timelineFilterCount.' aktiv' : 'Keine Filter' }}</span>

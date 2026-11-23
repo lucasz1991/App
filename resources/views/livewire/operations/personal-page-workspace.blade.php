@@ -22,7 +22,7 @@
                             x-on:keydown.enter.prevent.stop="openDropdown(true); $nextTick(() => $refs.panel.querySelector('[data-rt-dropdown-item]')?.focus())"
                             x-on:keydown.space.prevent.stop="openDropdown(true); $nextTick(() => $refs.panel.querySelector('[data-rt-dropdown-item]')?.focus())"
                         >
-                            <i class="far fa-sliders" aria-hidden="true"></i>
+                            <i class="far fa-sliders-h" aria-hidden="true"></i>
                             <span>{{ $section !== '' ? $sections[$section] : 'Werkzeuge' }}</span>
                             <i class="far fa-chevron-down" aria-hidden="true"></i>
                         </x-ui.buttons.button-basic>
@@ -54,7 +54,7 @@
             @php
                 $ruleOptions = [['value' => 'profiles', 'label' => 'Prüfprofile', 'icon' => 'fa-shield']];
                 if (\App\Support\Operations\OperationsEnhancementsSchema::ready()) {
-                    $ruleOptions[] = ['value' => 'rates', 'label' => 'Fachregeln & Bewertung', 'icon' => 'fa-sliders'];
+                    $ruleOptions[] = ['value' => 'rates', 'label' => 'Fachregeln & Bewertung', 'icon' => 'fa-sliders-h'];
                 }
             @endphp
             <x-ui.buttons.multi-toggle id="personal-rule-kind" label="Regelbereich" :show-labels="true" :value="$ruleView" action="setRuleView" :options="$ruleOptions" />

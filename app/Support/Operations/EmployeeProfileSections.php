@@ -47,7 +47,7 @@ final class EmployeeProfileSections
             if ($allowed('employees.emergency.access')) {
                 $add('emergency', 'Notfallkontakt', 'fad fa-phone', 'Personalakte', 'enhancements', 'emergency');
             }
-            $add('workflows', 'On-/Offboarding', 'fad fa-list-check', 'Entwicklung & Aufgaben', 'enhancements', 'workflows');
+            $add('workflows', 'On-/Offboarding', 'fad fa-tasks', 'Entwicklung & Aufgaben', 'enhancements', 'workflows');
             if ($allowed('employees.development.manage')) {
                 $add('development', 'Entwicklung', 'fad fa-seedling', 'Entwicklung & Aufgaben', 'enhancements', 'development');
             }
@@ -57,17 +57,17 @@ final class EmployeeProfileSections
         }
 
         if (app(PersonnelProcessService::class)->ready()) {
-            $add('tasks', 'Aufgaben', 'fad fa-list-check', 'Entwicklung & Aufgaben', 'workforce', 'tasks');
+            $add('tasks', 'Aufgaben', 'fad fa-tasks', 'Entwicklung & Aufgaben', 'workforce', 'tasks');
         }
         if (app(WorkforceAccountService::class)->ready()) {
             $add('accounts', 'Urlaub & Zeitkonto', 'fad fa-clock', 'Arbeitszeit & Regeln', 'workforce', 'account');
             if (PersonnelReview::moduleReady('absences')) {
-                $add('absences', 'Abwesenheiten', 'fad fa-calendar-days', 'Arbeitszeit & Regeln', 'workforce', 'absences');
+                $add('absences', 'Abwesenheiten', 'fad fa-calendar-alt', 'Arbeitszeit & Regeln', 'workforce', 'absences');
             }
             $add('workModel', 'Arbeitsmodell', 'fad fa-business-time', 'Arbeitszeit & Regeln', 'workforce', 'models');
             $add('vacationPolicy', 'Urlaubsrichtlinie', 'fad fa-umbrella-beach', 'Arbeitszeit & Regeln', 'workforce', 'policies');
             if ($allowed('operations.rules.manage') && PersonnelReview::moduleReady('rules')) {
-                $add('ruleAssignments', 'Regelprofile', 'fad fa-sliders', 'Arbeitszeit & Regeln', 'workforce', 'rules');
+                $add('ruleAssignments', 'Regelprofile', 'fad fa-sliders-h', 'Arbeitszeit & Regeln', 'workforce', 'rules');
             }
             if (app(WorkforcePlanReviewService::class)->ready()) {
                 $add('planReviews', 'Planprüfungen', 'fad fa-clipboard-check', 'Betrieb', 'workforce', 'checks');

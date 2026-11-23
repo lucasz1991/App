@@ -193,7 +193,7 @@
                 @endif
                 x-bind:disabled="distributionTab !== 'shifts' || @js(! $distributionShift || $viewMode !== 'timeline' || ! $nativeOperations)"
                 @disabled(! $distributionShift || $viewMode !== 'timeline' || ! $nativeOperations) aria-label="Ausgewählte Schicht in der Zeitleiste zeigen" title="Ausgewählte Schicht in der Zeitleiste zeigen">
-                <i class="far fa-location-crosshairs" aria-hidden="true"></i>
+                <i class="far fa-location" aria-hidden="true"></i>
             </button>
             <button type="button" class="rt-shift-distribution__footer-button" data-distribution-auto x-ref="distributionAutoTrigger"
                 x-on:click="distributionMode = 'auto'; $nextTick(() => $refs.distributionAutoHeading?.focus({ preventScroll: true }))"

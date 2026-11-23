@@ -102,7 +102,7 @@
                         <span class="truncate" x-text="lastUpdatedLabel"></span>
                     </span>
                     <span class="inline-flex shrink-0 items-center gap-1 tabular-nums">
-                        <i class="far fa-location-crosshairs" aria-hidden="true"></i>
+                        <i class="far fa-location" aria-hidden="true"></i>
                         <span x-text="accuracy ? `± ${Math.round(accuracy)} m` : '—'"></span>
                     </span>
                 </div>

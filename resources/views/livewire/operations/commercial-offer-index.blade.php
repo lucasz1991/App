@@ -8,7 +8,7 @@
                 <label class="sr-only" for="case-offer-status-{{ $this->getId() }}">Angebotsstatus</label>
                 <x-ui.forms.select id="case-offer-status-{{ $this->getId() }}" wire:model.live="status" aria-label="Angebotsstatus">
                     <option value="all" data-icon-class="far fa-layer-group">Alle Stände</option>
-                    <option value="draft" data-icon-class="far fa-pen-to-square">Entwürfe</option>
+                    <option value="draft" data-icon-class="far fa-edit">Entwürfe</option>
                     <option value="offered" data-icon-class="far fa-paper-plane">Angeboten</option>
                     <option value="accepted" data-icon-class="far fa-check">Zugesagt</option>
                 </x-ui.forms.select>

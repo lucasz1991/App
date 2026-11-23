@@ -25,7 +25,7 @@
                     @foreach([25, 50, 100] as $size)<option value="{{ $size }}" data-icon-class="far fa-list">{{ $size }} pro Seite</option>@endforeach
                 </x-ui.forms.select>
             </x-tables.filter-field>
-            @if($ordersFilterCount > 0)<x-ui.buttons.button-basic type="button" size="sm" wire:click="resetFilters" wire:loading.attr="disabled"><i class="far fa-rotate-left" aria-hidden="true"></i>Filter zurücksetzen</x-ui.buttons.button-basic>@endif
+            @if($ordersFilterCount > 0)<x-ui.buttons.button-basic type="button" size="sm" wire:click="resetFilters" wire:loading.attr="disabled"><i class="far fa-undo-alt" aria-hidden="true"></i>Filter zurücksetzen</x-ui.buttons.button-basic>@endif
         </div>
     </x-slot:content>
 </x-ui.dropdown.anchor-dropdown>

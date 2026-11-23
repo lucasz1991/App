@@ -31,7 +31,7 @@
             data-live-location-resume-banner
         >
             <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 text-rt-dark-accent">
-                <i class="far fa-location-dot" aria-hidden="true"></i>
+                <i class="far fa-map-marker-alt" aria-hidden="true"></i>
             </span>
             <div class="min-w-0 flex-1">
                 <p class="text-xs leading-5 sm:text-sm">{{ __('app.chat_live_location_resume_hint') }}</p>
@@ -75,7 +75,7 @@
         state="open"
         :title="__('app.chat_live_location_preview_title')"
         :description="__('app.chat_live_location_preview_description')"
-        icon="fad fa-map-location-dot"
+        icon="fad fa-map-marked-alt"
         max-width="6xl"
         close-action="close()"
         :layer="230"
@@ -113,7 +113,7 @@
                                 </div>
                                 <div class="inline-flex items-center gap-1.5">
                                     <dt class="sr-only">{{ __('app.chat_live_location_accuracy') }}</dt>
-                                    <i class="far fa-location-crosshairs shrink-0" aria-hidden="true"></i>
+                                    <i class="far fa-location shrink-0" aria-hidden="true"></i>
                                     <dd class="tabular-nums" x-text="accuracy ? `± ${Math.round(accuracy)} m` : '—'"></dd>
                                 </div>
                             </dl>
@@ -125,7 +125,7 @@
                                 x-on:click="recenter()"
                                 class="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-slate-950 px-3.5 text-xs font-extrabold text-white transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-950/20 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100 sm:flex-none"
                             >
-                                <i class="far fa-location-crosshairs" aria-hidden="true"></i>
+                                <i class="far fa-location" aria-hidden="true"></i>
                                 <span>{{ __('app.chat_live_location_recenter') }}</span>
                             </button>
 

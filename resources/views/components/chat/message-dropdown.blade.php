@@ -52,7 +52,7 @@
             aria-label="{{ __('app.message_options') }}"
         >
             @unless ($bubbleTrigger)
-                <i class="far fa-ellipsis" aria-hidden="true"></i>
+                <i class="far fa-ellipsis-h" aria-hidden="true"></i>
             @endunless
         </button>
     </x-slot>
@@ -70,7 +70,7 @@
                     x-on:click="showReactionMenu()"
                     data-rt-dropdown-keep-open
                 >
-                    <span class="rt-chat-option-icon"><i class="far fa-face-smile" aria-hidden="true"></i></span>
+                    <span class="rt-chat-option-icon"><i class="far fa-smile" aria-hidden="true"></i></span>
                     <span>{{ __('app.chat_react') }}</span>
                     <i class="far fa-chevron-right ml-auto text-xs text-rt-muted dark:text-rt-dark-muted" aria-hidden="true"></i>
                 </x-ui.dropdown.dropdown-link>

@@ -20,7 +20,7 @@
         <button type="button" class="rt-ops-panel__icon-button"
             @if($closeAction) wire:click="{{ $closeAction }}" wire:loading.attr="disabled" @else x-on:click="$dispatch('close')" @endif
             aria-label="{{ $closeLabel }}" title="{{ $closeLabel }}" data-dialog-close>
-            <i class="far fa-xmark" aria-hidden="true"></i>
+            <i class="far fa-times" aria-hidden="true"></i>
         </button>
     </div>
     @isset($meta)

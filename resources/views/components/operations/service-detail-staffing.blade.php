@@ -11,7 +11,7 @@
         <div class="rt-service-detail-tab__total"><strong>{{ $item->summary['reserved'] }}<span>/{{ $item->summary['required'] }}</span></strong><span>Einsatzplätze</span></div>
     </header>
     <div class="rt-service-detail-staffing__facts" aria-label="Aktive Besetzung">
-        <span><i class="far fa-circle-check" aria-hidden="true"></i><strong>{{ $item->summary['confirmed'] }}</strong> bestätigt</span>
+        <span><i class="far fa-check-circle" aria-hidden="true"></i><strong>{{ $item->summary['confirmed'] }}</strong> bestätigt</span>
         <span><i class="far fa-clock" aria-hidden="true"></i><strong>{{ $item->summary['reserved'] - $item->summary['confirmed'] }}</strong> angefragt</span>
         <span data-open="{{ $item->summary['open'] > 0 ? 'true' : 'false' }}"><i class="far fa-user-plus" aria-hidden="true"></i><strong>{{ $item->summary['open'] }}</strong> offen</span>
     </div>
@@ -19,7 +19,7 @@
     @foreach(['active'=>$activeEntries, 'closed'=>$closedEntries] as $group => $entries)
         @if($entries->isNotEmpty())
             @if($group === 'closed')
-                <details class="rt-service-detail-staffing__archive" data-service-staffing-archive><summary><i class="far fa-clock-rotate-left" aria-hidden="true"></i>Abgeschlossene & stornierte Schichten <span>{{ $entries->count() }}</span></summary><p class="rt-service-detail-tab__note">Historische Zuteilungen · nicht im aktiven Personalbedarf enthalten</p>
+                <details class="rt-service-detail-staffing__archive" data-service-staffing-archive><summary><i class="far fa-history" aria-hidden="true"></i>Abgeschlossene & stornierte Schichten <span>{{ $entries->count() }}</span></summary><p class="rt-service-detail-tab__note">Historische Zuteilungen · nicht im aktiven Personalbedarf enthalten</p>
             @endif
             <div class="rt-service-detail-staffing__groups">
                 @foreach($entries as $entry)
@@ -29,7 +29,7 @@
                         $pastAssignments = $entry->assignments->where('blocking', false);
                     @endphp
                     <section class="rt-service-detail-staffing__shift" data-service-staffing-shift="{{ $shift->id }}" data-active="{{ $entry->active ? 'true' : 'false' }}" wire:key="service-staffing-shift-{{ $item->id }}-{{ $shift->id }}" aria-label="Besetzung: {{ $shift->title ?: 'Schicht' }}">
-                        <header class="rt-service-detail-staffing__shift-heading"><div><h4>{{ $shift->title ?: 'Schicht' }}</h4><p><i class="far fa-calendar-day" aria-hidden="true"></i>{{ $entry->from?->format('d.m.Y H:i') ?? 'Beginn offen' }} – {{ $entry->until?->format('d.m.Y H:i') ?? 'Ende offen' }}</p><p><i class="far fa-location-dot" aria-hidden="true"></i>{{ $shift->location_name ?: 'Einsatzort offen' }} · {{ $shift->role_name ?: 'Rolle offen' }}</p></div><x-operations.status :value="$shift->status->value" :label="$shift->status->label()" /></header>
+                        <header class="rt-service-detail-staffing__shift-heading"><div><h4>{{ $shift->title ?: 'Schicht' }}</h4><p><i class="far fa-calendar-day" aria-hidden="true"></i>{{ $entry->from?->format('d.m.Y H:i') ?? 'Beginn offen' }} – {{ $entry->until?->format('d.m.Y H:i') ?? 'Ende offen' }}</p><p><i class="far fa-map-marker-alt" aria-hidden="true"></i>{{ $shift->location_name ?: 'Einsatzort offen' }} · {{ $shift->role_name ?: 'Rolle offen' }}</p></div><x-operations.status :value="$shift->status->value" :label="$shift->status->label()" /></header>
                         <ul class="rt-service-detail-staffing__people" aria-label="{{ $entry->active ? 'Aktuelle Einsatzplätze' : 'Historische Zuteilungen' }}">
                             @foreach($currentAssignments as $assignment)
                                 <li class="rt-service-detail-staffing__person" data-service-detail-assignment="{{ $assignment['id'] }}" wire:key="service-detail-assignment-{{ $item->id }}-{{ $assignment['id'] }}">

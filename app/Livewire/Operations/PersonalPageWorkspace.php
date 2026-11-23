@@ -311,7 +311,7 @@ class PersonalPageWorkspace extends Component
         $this->access();
         $views = self::availableViews(auth()->user(), $this->page);
         $sections = self::availableSections(auth()->user(), $this->page);
-        $icons = ['employees' => 'fa-users', 'documents' => 'fa-folder-open', 'qualifications' => 'fa-award', 'training' => 'fa-graduation-cap', 'tasks' => 'fa-list-check', 'workflows' => 'fa-user-check', 'recruiting' => 'fa-user-plus', 'development' => 'fa-seedling', 'requests' => 'fa-inbox', 'calendar' => 'fa-calendar-days', 'leave-accounts' => 'fa-umbrella-beach', 'time-accounts' => 'fa-wallet', 'times' => 'fa-clock', 'conflicts' => 'fa-triangle-exclamation', 'closing' => 'fa-check-double', 'export' => 'fa-file-export', 'history' => 'fa-clock-rotate-left'];
+        $icons = ['employees' => 'fa-users', 'documents' => 'fa-folder-open', 'qualifications' => 'fa-award', 'training' => 'fa-graduation-cap', 'tasks' => 'fa-tasks', 'workflows' => 'fa-user-check', 'recruiting' => 'fa-user-plus', 'development' => 'fa-seedling', 'requests' => 'fa-inbox', 'calendar' => 'fa-calendar-alt', 'leave-accounts' => 'fa-umbrella-beach', 'time-accounts' => 'fa-wallet', 'times' => 'fa-clock', 'conflicts' => 'fa-exclamation-triangle', 'closing' => 'fa-check-double', 'export' => 'fa-file-export', 'history' => 'fa-history'];
         $viewOptions = collect($views)->map(fn ($label, $value) => ['value' => $value, 'label' => $label, 'icon' => $icons[$value]])->values()->all();
         $employees = collect();
         if ($ability = $this->personAbility()) {

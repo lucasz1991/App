@@ -45,9 +45,9 @@ final class EmployeePhoneStatusService
             'device_label' => 'Automatische Geräteauswahl',
             'assigned_phone_count' => $this->assignedPhoneCount($userId),
             'rows' => [
-                'installation' => $this->unknown('Web-App', 'far fa-mobile-screen-button'),
+                'installation' => $this->unknown('Web-App', 'far fa-mobile-alt'),
                 'push' => $this->unknown('Push-Freigabe', 'far fa-bell'),
-                'location' => $this->unknown('Standortberechtigung', 'far fa-location-dot'),
+                'location' => $this->unknown('Standortberechtigung', 'far fa-map-marker-alt'),
             ],
             'evidence_note' => 'Aus einer aktiven App-Sitzung wurde noch kein Status empfangen. Beim Öffnen von RailTime meldet das benutzte Gerät seinen Einrichtungsstatus automatisch.',
         ];
@@ -66,14 +66,14 @@ final class EmployeePhoneStatusService
             .($fresh ? 'Die gemeldeten Zustände sind höchstens 15 Minuten alt.' : 'Die Meldung ist älter als 15 Minuten; aktueller Gerätestatus unbekannt.')
             .' Die Geräteauswahl folgt automatisch der letzten App-Nutzung.';
         $result['rows'] = [
-            'installation' => $this->runtimeRow('Web-App', 'far fa-mobile-screen-button', $receipt, $fresh, 'display_mode', [
+            'installation' => $this->runtimeRow('Web-App', 'far fa-mobile-alt', $receipt, $fresh, 'display_mode', [
                 'standalone' => ['active', 'Als Web-App geöffnet'], 'browser' => ['info', 'Im Browser geöffnet'],
             ], 'Der Anzeigemodus meldet, wie RailTime auf diesem Gerät geöffnet wurde. Ein Browserfenster beweist keine Deinstallation.'),
             'push' => $this->runtimeRow('Push-Freigabe', 'far fa-bell', $receipt, $fresh, 'notification_permission', [
                 'granted' => ['ready', 'Push im Browser erlaubt'], 'denied' => ['denied', 'Push im Browser blockiert'],
                 'default' => ['info', 'Push im Browser noch nicht entschieden'], 'unsupported' => ['unknown', 'Push auf dieser Plattform nicht unterstützt'],
             ], 'Die Browserberechtigung ist von der RailTime-Sitzungsfreigabe getrennt. Tatsächlicher Push-Versand benötigt zusätzlich die Freigabe und eine aktive Push-Anmeldung auf diesem Gerät.'),
-            'location' => $this->runtimeRow('Standortberechtigung', 'far fa-location-dot', $receipt, $fresh, 'geolocation_permission', [
+            'location' => $this->runtimeRow('Standortberechtigung', 'far fa-map-marker-alt', $receipt, $fresh, 'geolocation_permission', [
                 'granted' => ['ready', 'Standort im Browser erlaubt'], 'denied' => ['denied', 'Standort im Browser blockiert'],
                 'prompt' => ['info', 'Standort im Browser noch nicht entschieden'], 'unsupported' => ['unknown', 'Standortberechtigung auf dieser Plattform nicht auslesbar'],
             ], 'Dies ist die Browserberechtigung, kein Nachweis einer laufenden Ortung. Arbeitsstandorte benötigen außerdem die RailTime-Freigabe, das zugeordnete Geschäftshandy, den nativen Standortdienst und dessen ausdrücklichen Start während laufender Arbeitszeit.'),

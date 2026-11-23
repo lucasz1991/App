@@ -91,7 +91,7 @@
                     </div>
                 @else
                     <div class="flex min-h-72 flex-col items-center justify-center text-center">
-                        <i class="fad fa-arrow-pointer text-3xl text-rt-soft" aria-hidden="true"></i>
+                        <i class="fad fa-mouse-pointer text-3xl text-rt-soft" aria-hidden="true"></i>
                         <h2 class="mt-3 text-sm font-semibold text-rt-text dark:text-white">Kunden auswählen</h2>
                         <p class="mt-1 max-w-sm text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Wähle links einen Kunden aus, um Kontaktdaten und Aufträge zu sehen.</p>
                     </div>

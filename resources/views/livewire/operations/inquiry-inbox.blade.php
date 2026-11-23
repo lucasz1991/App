@@ -39,7 +39,7 @@
                         <option value="email" data-icon-class="far fa-envelope">E-Mail</option>
                         <option value="phone" data-icon-class="far fa-phone">Telefon</option>
                         <option value="portal" data-icon-class="far fa-globe">Portal</option>
-                        <option value="manual" data-icon-class="far fa-pen-to-square">Manuell</option>
+                        <option value="manual" data-icon-class="far fa-edit">Manuell</option>
                     </x-ui.forms.select>
                 </x-tables.filter-field>
             </x-tables.toolbar>

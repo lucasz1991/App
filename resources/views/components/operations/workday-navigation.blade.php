@@ -7,7 +7,7 @@
     'disabled' => false,
 ])
 @php
-    $icons = ['today' => 'fa-sun', 'requests' => 'fa-inbox', 'schedule' => 'fa-calendar-days', 'time' => 'fa-clock'];
+    $icons = ['today' => 'fa-sun', 'requests' => 'fa-inbox', 'schedule' => 'fa-calendar-alt', 'time' => 'fa-clock'];
     $workTabs = array_filter(array_intersect_key(is_array($tabs) ? $tabs : [], $icons), static fn ($label): bool => is_string($label) && trim($label) !== '');
     $current = is_string($selected) && array_key_exists($selected, $workTabs) ? $selected : array_key_first($workTabs);
     $count = max(0, (int) $requestCount);

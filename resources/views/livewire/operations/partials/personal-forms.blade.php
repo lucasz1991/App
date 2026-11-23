@@ -14,7 +14,7 @@
             <x-operations.field label="Gültig bis" model="qualification.valid_until" type="date" required />
             <div class="rt-employee-form__upload ops-full">
                 @if($evidence)
-                    <div class="rt-employee-form__file"><i class="far fa-file-lines" aria-hidden="true"></i><div><strong>{{ $evidence->getClientOriginalName() }}</strong><span>{{ number_format($evidence->getSize() / 1024 / 1024, 1, ',', '.') }} MB · Ausgewählt</span></div><x-ui.buttons.button-basic type="button" mode="link" wire:click="$set('evidence', null)" wire:loading.attr="disabled" wire:target="evidence,upload" aria-label="Ausgewählte Datei entfernen"><i class="far fa-xmark" aria-hidden="true"></i></x-ui.buttons.button-basic></div>
+                    <div class="rt-employee-form__file"><i class="far fa-file-alt" aria-hidden="true"></i><div><strong>{{ $evidence->getClientOriginalName() }}</strong><span>{{ number_format($evidence->getSize() / 1024 / 1024, 1, ',', '.') }} MB · Ausgewählt</span></div><x-ui.buttons.button-basic type="button" mode="link" wire:click="$set('evidence', null)" wire:loading.attr="disabled" wire:target="evidence,upload" aria-label="Ausgewählte Datei entfernen"><i class="far fa-times" aria-hidden="true"></i></x-ui.buttons.button-basic></div>
                 @endif
                 <x-operations.field :label="$evidence ? 'Datei ersetzen' : 'Datei auswählen'" model="evidence" type="file" accept="application/pdf,image/jpeg,image/png" :required="!$evidence" />
                 <p class="rt-employee-form__hint">PDF, JPG oder PNG · maximal {{ $evidenceLimitLabel }}</p>

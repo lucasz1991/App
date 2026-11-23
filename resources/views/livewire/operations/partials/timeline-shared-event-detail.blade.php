@@ -26,7 +26,7 @@
                     </p>
                 </div>
                 <x-ui.buttons.button-basic type="button" class="rt-personnel-timeline-detail-close" aria-label="Dienstdetails schließen" title="Schließen" x-on:click.stop="close(true)" data-timeline-detail-close>
-                    <i class="far fa-xmark" aria-hidden="true"></i>
+                    <i class="far fa-times" aria-hidden="true"></i>
                 </x-ui.buttons.button-basic>
             </header>
 

@@ -13,7 +13,7 @@
             </x-operations.panel.header>
             @if($consolidated)
                 @php
-                    $detailTabIcons = ['overview'=>'far fa-briefcase', 'shifts'=>'far fa-calendar-days', 'staffing'=>'far fa-users', 'planning'=>'far fa-calendar-check', 'proofs'=>'far fa-file-check', 'costs'=>'far fa-coins', 'history'=>'far fa-clock-rotate-left'];
+                    $detailTabIcons = ['overview'=>'far fa-briefcase', 'shifts'=>'far fa-calendar-alt', 'staffing'=>'far fa-users', 'planning'=>'far fa-calendar-check', 'proofs'=>'far fa-file-check', 'costs'=>'far fa-coins', 'history'=>'far fa-history'];
                     $detailTabs = collect($this->detailSections())->map(fn ($label, $key) => [
                         'label'=>$label, 'icon'=>$detailTabIcons[$key] ?? 'far fa-circle',
                         'count'=>match ($key) { 'shifts'=>$serviceDetailItem->count, 'staffing'=>$serviceDetailItem->summary['reserved'], default=>null },
@@ -141,13 +141,13 @@
                 <nav class="rt-service-detail-links" aria-label="Verknüpfte Bereiche">
                     @if($originInquiry)<x-ui.buttons.button-basic size="sm" mode="link" data-no-navigate :href="route('operations.page',['page'=>'cases','view'=>'inbox','inquiry'=>$originInquiry->id,'customer'=>$selectedOrder->customer_id])">{{ $originInquiry->number }}</x-ui.buttons.button-basic>@endif
                     <x-ui.buttons.button-basic size="sm" mode="link" data-no-navigate :href="route('operations.page',['page'=>'customers','customer'=>$selectedOrder->customer_id])"><i class="far fa-building" aria-hidden="true"></i>Kundenakte</x-ui.buttons.button-basic>
-                    <x-ui.buttons.button-basic size="sm" mode="link" data-no-navigate :href="route($planningRoute, ['module'=>'shift-management','order'=>$selectedOrder->id])"><i class="far fa-table-list" aria-hidden="true"></i>Schichtplan</x-ui.buttons.button-basic>
-                    <x-ui.buttons.button-basic size="sm" mode="link" data-no-navigate :href="route($planningRoute, ['module'=>'calendar','order'=>$selectedOrder->id])"><i class="far fa-calendar-days" aria-hidden="true"></i>Kalender</x-ui.buttons.button-basic>
+                    <x-ui.buttons.button-basic size="sm" mode="link" data-no-navigate :href="route($planningRoute, ['module'=>'shift-management','order'=>$selectedOrder->id])"><i class="far fa-th-list" aria-hidden="true"></i>Schichtplan</x-ui.buttons.button-basic>
+                    <x-ui.buttons.button-basic size="sm" mode="link" data-no-navigate :href="route($planningRoute, ['module'=>'calendar','order'=>$selectedOrder->id])"><i class="far fa-calendar-alt" aria-hidden="true"></i>Kalender</x-ui.buttons.button-basic>
                 </nav>
             </x-operations.panel.footer>
         @else
             <div class="flex min-h-80 flex-col items-center justify-center text-center">
-                <i class="fad fa-arrow-pointer text-3xl text-rt-soft" aria-hidden="true"></i>
+                <i class="fad fa-mouse-pointer text-3xl text-rt-soft" aria-hidden="true"></i>
                 <h2 class="mt-3 text-sm font-semibold text-rt-text dark:text-white">Auftrag auswählen</h2>
                 <p class="mt-1 max-w-sm text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Wähle einen Auftrag aus, um Details und Planungsstatus zu sehen.</p>
             </div>
