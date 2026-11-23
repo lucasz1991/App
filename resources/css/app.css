@@ -32,6 +32,7 @@
 @import './table-scroll.css';
 @import './table-pagination.css';
 @import './table-surface.css';
+@import './table-filter-dropdown.css';
 @import './message-inbox.css';
 @import './service-table.css';
 @import './service-detail-tabs.css';
@@ -5813,15 +5814,7 @@ body[data-mode='dark'] .rt-employee-mobile-header {
     }
 }
 
-/* Alte semantische Tabellen koennen dieselbe Mobile-Kartendarstellung
-   nutzen. Matrizen bekommen dagegen bewusst einen horizontalen Scrollbereich. */
-.rt-table-scroll {
-    max-width: 100%;
-    overflow-x: auto;
-    overscroll-behavior-inline: contain;
-    -webkit-overflow-scrolling: touch;
-}
-
+/* Alte semantische Tabellen koennen dieselbe Mobile-Kartendarstellung nutzen. */
 @media (max-width: 767px) {
     .rt-responsive-data-table,
     .rt-responsive-data-table tbody,

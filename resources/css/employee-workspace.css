@@ -137,21 +137,6 @@ body:has([data-employee-directory-scroll]) {
 }
 .employee-directory__controls .rt-table-toolbar__search-field { min-width: 0; }
 .employee-directory__filter-panel { color: var(--rt-shell-text); }
-.employee-directory__filter-count {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    color: var(--employee-signal, var(--rt-shell-accent));
-    background: var(--employee-inset, var(--rt-shell-panel));
-    font-size: 11px;
-    position: absolute;
-    top: -4px;
-    right: -4px;
-}
-.employee-directory__filter-trigger { position: relative; }
 /* Teleported actions are outside .employee-workspace: scope by page marker. */
 [data-page-header]:has(.employee-directory__header-actions) :is([data-page-header-control], [data-page-info-button]),
 .employee-directory__header-actions :is(.rt-ui-button, [data-page-header-control]),

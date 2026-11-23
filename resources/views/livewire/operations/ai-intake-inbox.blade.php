@@ -35,7 +35,7 @@
                 <p class="ops-muted">Die AI-Annahme ist noch nicht eingerichtet. Der Superadmin richtet die Datenbankerweiterung und das Dispositionspostfach ein.</p>
             @else
                 @if(!$enabled)<p class="ops-muted" role="status">Die automatische Verarbeitung ist deaktiviert. Eingänge bleiben zur späteren Auswertung erhalten.</p>@endif
-                <x-tables.toolbar title="AI-Eingänge filtern" id="ai-intake-filters" :search-in-header="true">
+                <x-tables.toolbar title="AI-Eingänge filtern" id="ai-intake-filters" :search-in-header="true" :filter-count="$this->activeFilterCount()" reset-action="resetFilters">
                     <x-slot:search><x-ui.forms.search context="page" wire:model.live.debounce.300ms="search" placeholder="AI-Eingang suchen" /></x-slot:search>
                     <x-tables.filter-field label="Bearbeitung" for="ai-intake-status"><x-ui.forms.select id="ai-intake-status" wire:model.live="statusFilter"><option value="all">Alle Zustände</option>@foreach($labels as $key=>$label)<option value="{{ $key }}">{{ $label }}</option>@endforeach</x-ui.forms.select></x-tables.filter-field>
                 </x-tables.toolbar>

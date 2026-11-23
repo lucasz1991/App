@@ -73,8 +73,9 @@ class DispatchMapCompactUiTest extends TestCase
                 $this->assertSame('', trim($button->textContent), 'The primary header controls remain icon-only.');
             }
             $this->assertSame(0, $xpath->query($card.'/*[contains(@class,"widget-card-body")]//*[@data-rt-dropdown-trigger]/button[not(@data-dispatch-marker)]')->length);
-            $this->assertSame(3, $xpath->query($header.'//*[@role="dialog"]')->length);
-            $this->assertSame(1, $xpath->query($header.'//*[@role="dialog"]//input[@type="date"]')->length);
+            // Der Kalender des Datumsfelds ist ein eigener (unbenannter) Dialog.
+            $this->assertSame(3, $xpath->query($header.'//*[@role="dialog" and @aria-label]')->length);
+            $this->assertSame(1, $xpath->query($header.'//*[@role="dialog"]//*[@data-rt-date-field]')->length);
         }
         $this->assertDatabaseCount('shifts', 0);
         $this->assertDatabaseCount('operation_inquiries', 0);

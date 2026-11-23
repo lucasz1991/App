@@ -42,27 +42,16 @@
             <section class="space-y-4">
                 <h4 class="font-semibold">Mitarbeiter und Dienstleister zuordnen</h4>
                 <p class="text-sm text-rt-muted dark:text-rt-dark-muted">{{ $unresolved }} Bezeichnungen sind noch ungeklärt. Eindeutige Namensvorschläge sind vorausgewählt; mit „Zuordnung speichern“ bestätigen. Ungeklärte Einsätze bleiben als Hinweis erhalten.</p>
-                <div><x-ui.forms.label for="local-excel-search" value="Bezeichnung suchen" /><x-ui.forms.search id="local-excel-search" wire:model.live.debounce.300ms="search" placeholder="Bezeichnung suchen" /></div>
-                @foreach($identities as $identity)
-                    <div wire:key="local-identity-{{ $identity->id }}" class="grid min-w-0 gap-3 border-t border-rt-border/60 py-3 dark:border-rt-dark-border/60 md:grid-cols-3">
-                        <div class="min-w-0"><p class="break-words text-sm font-semibold">{{ $identity->details['display_name'] ?? $identity->alias }}</p><p class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ match($identity->kind) { 'employee' => 'Mitarbeiterkonto zugeordnet', 'provider' => 'Dienstleister', default => 'Zuordnung offen' } }}</p></div>
-                        <x-ui.forms.select wire:model="targets.{{ $identity->id }}" aria-label="Zuordnung für {{ $identity->details['display_name'] ?? $identity->alias }}"><option value="">Bitte auswählen</option><option value="provider">Dienstleister (kein Benutzerkonto)</option>@foreach($employees as $employee)<option value="{{ $employee->id }}">{{ $employee->name }}</option>@endforeach @if($canCreateTestUsers && $identity->kind === 'unresolved')<option value="new">Neues lokales Testkonto</option>@endif</x-ui.forms.select>
-                        <div><x-ui.buttons.button-basic type="button" mode="secondary" wire:click="assign({{ $identity->id }})" wire:loading.attr="disabled">Zuordnung speichern</x-ui.buttons.button-basic></div>
-                    </div>
-                @endforeach
+                <x-tables.toolbar title="Bezeichnungen durchsuchen" id="local-excel-filters" search-for="local-excel-search" search-label="Bezeichnung suchen">
+                    <x-slot:search><x-ui.forms.search id="local-excel-search" wire:model.live.debounce.300ms="search" placeholder="Bezeichnung suchen" /></x-slot:search>
+                </x-tables.toolbar>
+                <x-tables.table :columns="[['label' => 'Bezeichnung', 'key' => 'alias', 'width' => 'minmax(0,1fr)'], ['label' => 'Zuordnung', 'key' => 'target', 'width' => 'minmax(0,1fr)'], ['label' => 'Aktion', 'key' => 'actions', 'width' => 'auto']]" :items="$identities" :row-context="['employees' => $employees, 'canCreateTestUsers' => $canCreateTestUsers]" table-key="local-identity" label="Zuordnungen" row-view="components.tables.rows.imports.local-identity-row" empty="Keine Bezeichnungen gefunden." />
                 <x-tables.pagination :paginator="$identities" label="Personenseiten" />
                 @if($canCreateTestUsers)<div class="space-y-2"><x-ui.forms.label for="local-excel-password" value="Passwort für ein neues lokales Testkonto (mindestens 12 Zeichen)" /><x-ui.forms.input id="local-excel-password" type="password" wire:model="testPassword" autocomplete="new-password" /><p class="text-xs text-rt-muted dark:text-rt-dark-muted">Nur bei Auswahl „Neues lokales Testkonto“. Verwendet eine Testadresse @railtime.invalid und versendet keine Einladungsmail. Bestehende Konten und Passwörter bleiben erhalten.</p></div>@endif
             </section>
             <section class="space-y-3">
                 <h4 class="font-semibold">Importhinweise</h4>
-                @forelse($conflicts as $conflict)
-                    <div class="border-t border-rt-border/60 py-3 text-sm dark:border-rt-dark-border/60">
-                        <p class="font-semibold">{{ \App\Services\Dropbox\SyncLabels::error($conflict->reason) }}</p>
-                        <p class="text-xs">{{ $conflict->snapshot['sheet'] ?? '' }} · {{ $conflict->snapshot['slot'] ?? $conflict->snapshot['row'] ?? '' }}</p>
-                        @foreach($conflict->snapshot['messages'] ?? [] as $messages)@foreach((array)$messages as $message)<p class="mt-1">{{ $message }}</p>@endforeach@endforeach
-                        @if($conflict->reason === 'field_conflict')<p class="mt-1">App und Datei wurden unterschiedlich geändert. Die App-Werte bleiben erhalten. Werte in der Originaldatei oder App angleichen und die Datei erneut prüfen/importieren.</p>@endif
-                    </div>
-                @empty<p class="text-sm text-rt-muted dark:text-rt-dark-muted">Noch keine offenen Importhinweise.</p>@endforelse
+                <x-tables.table :columns="[['label' => 'Hinweis', 'key' => 'reason', 'width' => 'minmax(0,1fr)'], ['label' => 'Fundstelle', 'key' => 'snapshot', 'width' => '12rem']]" :items="$conflicts" table-key="local-conflict" label="Importhinweise" row-view="components.tables.rows.imports.local-conflict-row" empty="Noch keine offenen Importhinweise." />
                 <x-tables.pagination :paginator="$conflicts" label="Hinweisseiten" />
             </section>
         @endif

@@ -338,6 +338,18 @@ class AiIntakeInbox extends Component
         $this->setDetailTab('assistant');
     }
 
+    public function activeFilterCount(): int
+    {
+        return (int) (trim($this->search) !== '') + (int) ($this->statusFilter !== 'all');
+    }
+
+    public function resetFilters(): void
+    {
+        $this->search = '';
+        $this->statusFilter = 'all';
+        $this->resetPage('aiIntakePage');
+    }
+
     public function updatedSearch(): void
     {
         $this->resetPage('aiIntakePage');

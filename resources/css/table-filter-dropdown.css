@@ -1,0 +1,33 @@
+/*
+ * x-tables.filter-dropdown: einheitlicher Filter-Trigger mit Zaehler und
+ * Dropdown-Kopf (Titel + Zuruecksetzen). Seitenspezifische Groessen kommen
+ * weiter ueber die zusaetzliche Trigger-Klasse der jeweiligen Seite.
+ */
+.rt-filter-dropdown__trigger {
+    position: relative;
+}
+
+.rt-filter-dropdown__count {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    display: grid;
+    place-items: center;
+    min-width: 15px;
+    height: 15px;
+    padding-inline: 3px;
+    border-radius: 8px;
+    color: var(--rt-shell-accent);
+    background: var(--rt-accent-soft);
+    font-size: 9px;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+}
+
+.rt-filter-dropdown__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}

@@ -1,4 +1,4 @@
-<div class="rt-staffing" data-shift-staffing x-data="{ filtersOpen: false }">
+<div class="rt-staffing" data-shift-staffing x-data>
     <section class="rt-staffing-section" aria-label="Aktuelle Besetzung">
         <div class="rt-staffing-heading">
             <div><h3>Besetzung & Rückmeldungen</h3><p>{{ $selectedReservedCount }} von {{ $selectedShift->required_staff }} Plätzen reserviert · {{ max(0, $selectedShift->required_staff - $selectedReservedCount) }} offen</p></div>
@@ -53,17 +53,14 @@
                 @if(\App\Support\Routing\TomTomSettings::all()['enabled'] && $pendingTravelIds && empty($planningTravelAutoLoaded[$staffingTravelAutoKey]))
                     <div x-data x-intersect.once="$wire.loadShiftTravel({{ $selectedShift->id }})" wire:key="candidate-travel-load-{{ $staffingTravelAutoKey }}" role="status" class="rt-staffing-note">Fahrzeiten werden nachgeladen …</div>
                 @endif
-                <div class="rt-staffing-search">
-                    <x-ui.forms.search wire:model.live.debounce.350ms="candidateSearch" placeholder="Name suchen" aria-label="Mitarbeitende nach Namen suchen" />
-                    <x-ui.buttons.button-basic type="button" x-on:click="filtersOpen = !filtersOpen" x-bind:aria-expanded="filtersOpen" aria-controls="staffing-filters-{{ $selectedShift->id }}"><i class="far fa-sliders-h" aria-hidden="true"></i> Filter @if($candidateQualification || $candidatePool || $candidateSuitability !== 'all' || $candidateRegion !== 'all')<span class="rt-staffing-filter-dot" aria-label="Filter aktiv"></span>@endif</x-ui.buttons.button-basic>
-                </div>
-                <div class="rt-staffing-filters" x-show="filtersOpen" x-cloak id="staffing-filters-{{ $selectedShift->id }}">
+                @php($staffingFilterCount = (int) (trim($candidateSearch) !== '') + (int) filled($candidateQualification) + (int) filled($candidatePool) + (int) ($candidateSuitability !== 'all') + (int) ($candidateRegion !== 'all'))
+                <x-tables.toolbar title="Mitarbeitende filtern" id="staffing-filters-{{ $selectedShift->id }}" :filter-count="$staffingFilterCount" reset-action="resetCandidateFilters" class="rt-staffing-toolbar">
+                    <x-slot:search><x-ui.forms.search wire:model.live.debounce.350ms="candidateSearch" placeholder="Name suchen" aria-label="Mitarbeitende nach Namen suchen" /></x-slot:search>
                     <x-tables.filter-field label="Eignung" for="staffing-suitability"><x-ui.forms.select id="staffing-suitability" wire:model.live="candidateSuitability"><option value="all">Alle Eignungen</option><option value="eligible">Geeignet</option><option value="review">Zeitkonflikt prüfen</option><option value="blocked">Nicht zuweisbar</option></x-ui.forms.select></x-tables.filter-field>
                     <x-tables.filter-field label="Qualifikation" for="staffing-qualification"><x-ui.forms.select id="staffing-qualification" wire:model.live="candidateQualification"><option value="">Alle Qualifikationen</option>@foreach($candidateFilterOptions['qualifications'] as $qualification)<option value="{{ $qualification['id'] }}">{{ $qualification['name'] }}</option>@endforeach</x-ui.forms.select></x-tables.filter-field>
                     <x-tables.filter-field label="Personalpool" for="staffing-pool"><x-ui.forms.select id="staffing-pool" wire:model.live="candidatePool"><option value="">Alle Personalpools</option>@foreach($candidateFilterOptions['pools'] as $pool)<option value="{{ $pool['id'] }}">{{ $pool['name'] }}</option>@endforeach</x-ui.forms.select></x-tables.filter-field>
                     <x-tables.filter-field label="Einsatzgebiet" for="staffing-region"><x-ui.forms.select id="staffing-region" wire:model.live="candidateRegion"><option value="all">Alle Gebiete</option><option value="preferred">Wunschgebiet</option><option value="border">Mögliches Gebiet</option><option value="emergency">Notfallgebiet</option><option value="outside">Außerhalb Wunschgebiet</option><option value="no_go">No-Go-Gebiet</option><option value="unknown">Ort nicht prüfbar</option><option value="neutral">Ohne Regionalwunsch</option></x-ui.forms.select></x-tables.filter-field>
-                    <button type="button" class="rt-staffing-text-button" wire:click="resetCandidateFilters">Filter zurücksetzen</button>
-                </div>
+                </x-tables.toolbar>
                 <details class="rt-staffing-more"><summary>Wie wird die Eignung ermittelt?</summary><p>Der Wert ist eine Planungshilfe, keine Wahrscheinlichkeit oder Rechtsfreigabe: 85 Basispunkte, bevorzugt +15, möglich +5, Notfallgebiet −10, außerhalb der neuen Zonen −20. Bestehende Radiusprofile behalten außerhalb −10 bis zur Umstellung. Fehlende Regionalwünsche bleiben neutral. Zeitkonflikte senken den Wert und erfordern eine gesonderte Prüfung; feste Ausschlussgründe stehen immer zuletzt. Pflichtqualifikationen müssen während der gesamten Schicht gültig sein.</p></details>
                 <div wire:loading.flex wire:target="candidateSearch,candidateQualification,candidatePool,candidateSuitability,candidateRegion,resetCandidateFilters" class="rt-staffing-loading" role="status"><i class="far fa-spinner-third fa-spin" aria-hidden="true"></i> Treffer werden neu geprüft …</div>
                 <div wire:loading.class="opacity-50 pointer-events-none" wire:target="candidateSearch,candidateQualification,candidatePool,candidateSuitability,candidateRegion,resetCandidateFilters">

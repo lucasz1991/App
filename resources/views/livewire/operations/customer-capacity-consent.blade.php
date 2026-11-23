@@ -1,7 +1,9 @@
 <section class="rt-ops ops-stack min-w-0" aria-label="Meine Verfügbarkeitsfreigaben">
     <header class="ops-toolbar"><h2 class="text-lg font-semibold">Verfügbarkeitsfreigaben</h2></header>
     <x-operations.feedback />
-    <x-ui.forms.search wire:model.live.debounce.300ms="search" placeholder="Kunde, Einsatzort oder Tätigkeit" />
+    <x-tables.toolbar title="Verfügbarkeitsfreigaben durchsuchen" id="customer-capacity-filters">
+        <x-slot:search><x-ui.forms.search wire:model.live.debounce.300ms="search" placeholder="Kunde, Einsatzort oder Tätigkeit" /></x-slot:search>
+    </x-tables.toolbar>
     <x-tables.table :items="$items" :columns="[['label'=>'Kunde / Tätigkeit','key'=>'service','width'=>'2fr'],['label'=>'Zeitraum','key'=>'period','width'=>'2fr'],['label'=>'Rückmeldung','key'=>'state'],['label'=>'Aktion','key'=>'actions']]" row-view="components.tables.rows.customers.capacity-consent-row" empty="Keine Verfügbarkeitsanfragen." />
     <x-tables.pagination :paginator="$items" />
     <x-operations.modal wire:model="formOpen" title="Verfügbarkeit bestätigen" max-width="2xl">

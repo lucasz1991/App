@@ -175,6 +175,29 @@ class PersonnelReview extends Component
         $this->resetPage();
     }
 
+    public function activeFilterCount(): int
+    {
+        return (int) (trim($this->search) !== '')
+            + (int) ($this->filter !== $this->defaultFilter())
+            + (int) ($this->module === 'absences' && $this->absenceKind !== 'all')
+            + (int) ($this->module === 'qualifications' && $this->validity !== 'all');
+    }
+
+    public function resetFilters(): void
+    {
+        $this->access();
+        $this->search = '';
+        $this->filter = $this->defaultFilter();
+        $this->validity = 'all';
+        $this->absenceKind = 'all';
+        $this->resetPage();
+    }
+
+    private function defaultFilter(): string
+    {
+        return $this->profileUserId !== null ? 'all' : 'pending';
+    }
+
     public function updatedSearch(): void
     {
         $this->resetPage();

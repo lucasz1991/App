@@ -14,6 +14,8 @@
     'rowView' => null,       // z.B. 'components.tables.rows.messages.message-row'
     'actionsView' => null,   // z.B. 'components.tables.rows.messages.message-actions'
     'detailsView' => null,
+    // Zusaetzliche Werte fuer rowView/actionsView, z. B. Auswahllisten aus render().
+    'rowContext' => [],
     'expandedId' => null,
     // Einheitliche Zeileninteraktion: Einfachklick = Auswahl,
     // Doppelklick = vorhandene Detailansicht bzw. Detailroute.
@@ -259,7 +261,7 @@
         <div role="presentation" class="rt-table-row-grid content-start items-center gap-1.5 sm:gap-x-3 md:gap-0" style="--rt-table-columns: {{ $gridTemplate }};">
         {{-- Zellen --}}
         @if($rowView)
-            @include($rowView, ['item' => $item, 'isSelected' => $isSelected, 'selectedItems' => $selectedItems, 'columnsMeta' => $columns, 'hideClass' => $hideClass, 'safeDetailAction' => $safeDetailAction, 'tableKey' => $tableKey])
+            @include($rowView, ['item' => $item, 'isSelected' => $isSelected, 'selectedItems' => $selectedItems, 'columnsMeta' => $columns, 'hideClass' => $hideClass, 'safeDetailAction' => $safeDetailAction, 'tableKey' => $tableKey] + (array) $rowContext)
         @else
             @foreach($columns as $col)
             <div role="cell" class="px-2 py-2 {{ $hideClass($col['hideOn']) }}">—</div>
@@ -272,7 +274,7 @@
              immer am rechten Zeilenrand erreichbar. --}}
         @if($actionsView ?? false)
             <div class="rt-table-row-actions absolute right-3 top-3 z-10 flex items-center md:inset-y-0 md:right-2 md:z-auto">
-                @include($actionsView, ['item' => $item])
+                @include($actionsView, ['item' => $item] + (array) $rowContext)
             </div>
         @endif
         @if ($detailsView && (int) $expandedId === (int) $item->id)

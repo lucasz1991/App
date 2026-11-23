@@ -87,7 +87,7 @@ class DispositionPageHeaderTest extends TestCase
         $this->assertSame(0, $xpath->query($statusHost.'//nav//button[@role="combobox" and @disabled]')->length);
         $this->assertSame(1, $xpath->query($statusHost.'//*[@data-rt-custom-select and @data-autosave-model="channel"]')->length);
         $this->assertSame(1, $xpath->query($actionsHost.'//button[@aria-label="Eingang erfassen"]')->length);
-        $this->assertSame(0, $xpath->query('//section[contains(@class,"rt-disposition-panel")]//nav')->length);
+        $this->assertSame(0, $xpath->query('//section[contains(@class,"rt-disposition-panel")]//nav[not(@data-table-pagination)]')->length);
 
         $component->call('setStatus', 'waiting')->assertDontSee($inquiry->title);
         $xpath = $this->xpath($component->html());

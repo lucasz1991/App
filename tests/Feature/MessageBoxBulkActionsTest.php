@@ -493,7 +493,7 @@ class MessageBoxBulkActionsTest extends TestCase
         foreach (['markSelectedAsRead', 'markSelectedAsUnread', 'clearSelection'] as $method) {
             $this->assertCount(1, $xpath->query('//a[@*[name()="wire:click.prevent" and .="'.$method.'"]]'));
         }
-        $deletes = $xpath->query('//a[@data-rt-tone="danger"]');
+        $deletes = $xpath->query('//*[self::a or self::button][@data-rt-tone="danger"]');
         $this->assertCount(2, $deletes);
         foreach ($deletes as $delete) {
             $this->assertFalse($delete->hasAttribute('wire:click'));

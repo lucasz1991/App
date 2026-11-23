@@ -146,6 +146,23 @@ class InquiryInbox extends Component
         OperationsAccess::requireReady();
     }
 
+    public function activeFilterCount(): int
+    {
+        return (int) (trim($this->search) !== '')
+            + (int) ($this->filter !== 'active')
+            + (int) ($this->statusFilter !== 'all');
+    }
+
+    public function resetFilters(): void
+    {
+        $this->access();
+        $this->search = '';
+        $this->filter = 'active';
+        $this->statusFilter = 'all';
+        $this->resetPage();
+        $this->syncUrl();
+    }
+
     public function updatedSearch(): void
     {
         $this->resetPage();

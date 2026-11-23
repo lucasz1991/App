@@ -15,7 +15,7 @@
             </div>
         </template>
     @else
-    <x-tables.toolbar id="commercial-offer-index" title="Angebote" :search-in-header="true">
+    <x-tables.toolbar id="commercial-offer-index" title="Angebote" :search-in-header="true" :filter-count="$this->activeFilterCount()" reset-action="resetFilters">
         <x-slot:search><x-ui.forms.search context="page" wire:model.live.debounce.300ms="search" placeholder="Angebot oder Kunde suchen" /></x-slot:search>
         <x-tables.filter-field label="Status" for="case-offer-status"><x-ui.forms.select id="case-offer-status" wire:model.live="status"><option value="all">Alle Stände</option><option value="draft">Entwürfe</option><option value="offered">Angeboten</option><option value="accepted">Zugesagt</option></x-ui.forms.select></x-tables.filter-field>
     </x-tables.toolbar>

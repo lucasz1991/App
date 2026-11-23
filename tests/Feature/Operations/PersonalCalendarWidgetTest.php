@@ -67,7 +67,7 @@ class PersonalCalendarWidgetTest extends TestCase
         $this->assertStringContainsString('Kein bevorstehender Dienst.', $html);
         $this->assertStringNotContainsString('Veröffentlichter Dienst', $html);
         $this->assertStringContainsString('Mein Kalender', $html);
-        $this->assertStringContainsString('fa-calendar-days', $html);
+        $this->assertStringContainsString('fa-calendar-alt', $html);
     }
 
     private function order(string $customerName): Order

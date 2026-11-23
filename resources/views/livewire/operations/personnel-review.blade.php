@@ -43,7 +43,7 @@
 @if(!$embedded)<header class="ops-toolbar"><h2>Urlaub & Abwesenheiten</h2><x-ui.buttons.multi-toggle id="absence-view" label="Abwesenheitsansicht" :value="$absenceView" action="setAbsenceView" :options="[['value'=>'list','label'=>'Liste','icon'=>'fa-th-list'],['value'=>'calendar','label'=>'Kalender','icon'=>'fa-calendar-alt']]" /></header>@endif
 <div class="rt-personnel-period" role="group" aria-label="Zeitraum der Abwesenheiten"><div class="rt-personnel-period__intro"><span class="rt-personnel-eyebrow">Zeitraum</span><p>Urlaub & Abwesenheiten</p></div><div><x-ui.forms.label for="absence-period-from" value="Von" /><x-ui.forms.date-field id="absence-period-from" wire:model.live="from" aria-label="Abwesenheiten von" /></div><div><x-ui.forms.label for="absence-period-until" value="Bis" /><x-ui.forms.date-field id="absence-period-until" wire:model.live="until" aria-label="Abwesenheiten bis" /></div></div>
 @endif
-<x-tables.toolbar title="Filter" id="personnel-filters">
+<x-tables.toolbar title="Filter" id="personnel-filters" :filter-count="$this->activeFilterCount()" reset-action="resetFilters">
 @if($profileUserId === null)
 <x-slot:search><x-ui.forms.search wire:model.live.debounce.300ms="search" placeholder="Mitarbeiter suchen" /></x-slot:search>
 @endif

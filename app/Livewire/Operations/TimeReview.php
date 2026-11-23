@@ -209,6 +209,20 @@ class TimeReview extends Component
         $this->selected = [];
     }
 
+    public function activeFilterCount(): int
+    {
+        return (int) (trim($this->search) !== '')
+            + (int) (! $this->exports && $this->filter !== 'submitted');
+    }
+
+    public function resetFilters(): void
+    {
+        $this->access();
+        $this->search = '';
+        $this->filter = $this->exports ? 'approved' : 'submitted';
+        $this->updatedFilter();
+    }
+
     public function updatedSearch(): void
     {
         $this->resetPage();

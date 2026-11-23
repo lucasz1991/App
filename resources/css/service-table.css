@@ -45,23 +45,6 @@
     border-color: var(--rt-shell-line);
 }
 
-.rt-service-filter-count {
-    position: absolute;
-    top: 3px;
-    right: 3px;
-    display: grid;
-    place-items: center;
-    min-width: 15px;
-    height: 15px;
-    padding-inline: 3px;
-    border-radius: 8px;
-    color: var(--rt-shell-accent);
-    background: var(--rt-accent-soft);
-    font-size: 9px;
-    font-weight: 650;
-    font-variant-numeric: tabular-nums;
-}
-
 .rt-service-filter-fields {
     display: grid;
     gap: 12px;

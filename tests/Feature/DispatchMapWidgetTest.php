@@ -531,7 +531,7 @@ class DispatchMapWidgetTest extends TestCase
         $this->shift(['title' => '<script>alert("title")</script>', 'location_name' => '<img src=x onerror=alert(1)>']);
         $component = $this->grid($this->admin)
             ->assertSet('dispatchMapDate', '2026-10-09')
-            ->assertSeeHtml('type="date"')
+            ->assertSeeHtml('data-rt-date-field')->assertSeeHtml('data-rt-date-value')
             ->assertSee('Datum der Dispositionskarte')->assertSee('Standort filtern')->assertSee('Einträge anzeigen')
             ->assertSeeHtml('wire:click="moveDispatchMapDate(-1)"')
             ->assertSeeHtml('wire:click="moveDispatchMapDate(1)"')
@@ -552,8 +552,8 @@ class DispatchMapWidgetTest extends TestCase
         }
         $dialogs = $toolbar.'//*[@role="dialog"]';
         $this->assertSame(3, $xpath->query($dialogs.'[@aria-label]')->length);
-        $this->assertSame(1, $xpath->query($dialogs.'//input[@type="date"]')->length);
-        $this->assertSame(0, $xpath->query($widget.'//input[@type="date" and not(ancestor::*[@role="dialog"])]')->length);
+        $this->assertSame(1, $xpath->query($dialogs.'//*[@data-rt-date-field]//input[@data-rt-date-value]')->length);
+        $this->assertSame(0, $xpath->query($widget.'//*[@data-rt-date-field and not(ancestor::*[@role="dialog"])]')->length);
         $this->assertSame(0, $xpath->query($widget.'//select')->length);
         foreach (['kind', 'place'] as $model) {
             $radios = $xpath->query($dialogs.'//input[@type="radio" and @x-model="'.$model.'"]');

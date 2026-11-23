@@ -145,6 +145,19 @@ class CommercialOfferIndex extends Component
         $this->selectedSubjectId = $record->subject_id;
     }
 
+    public function activeFilterCount(): int
+    {
+        return (int) (trim($this->search) !== '') + (int) ($this->status !== 'all');
+    }
+
+    public function resetFilters(): void
+    {
+        $this->access();
+        $this->search = '';
+        $this->status = 'all';
+        $this->resetPage('offersPage');
+    }
+
     public function updatedSearch(): void
     {
         $this->resetPage('offersPage');

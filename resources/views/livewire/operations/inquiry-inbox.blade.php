@@ -21,7 +21,7 @@
             <div class="rt-disposition-section-heading">
                 <h2 id="inquiries-list-heading">Posteingang <span class="rt-disposition-count">{{ $inquiries->total() }}</span></h2>
             </div>
-            <x-tables.toolbar title="Anfragen filtern" id="inquiry-filters" :search-in-header="true">
+            <x-tables.toolbar title="Anfragen filtern" id="inquiry-filters" :search-in-header="true" :filter-count="$this->activeFilterCount()" reset-action="resetFilters">
                 @unless($consolidated && !$profileEmbedded)
                     <x-slot:search><x-ui.forms.search context="page" wire:model.live.debounce.300ms="search" placeholder="Anfrage oder Kunde suchen" /></x-slot:search>
                 @endunless

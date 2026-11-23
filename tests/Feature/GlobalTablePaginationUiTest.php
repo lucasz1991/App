@@ -151,17 +151,16 @@ class GlobalTablePaginationUiTest extends TestCase
         $this->assertCount(count($keys), array_unique($keys));
     }
 
-    public function test_legacy_personal_adapter_delegates_to_the_same_component_and_reset_scope(): void
+    public function test_employee_directory_uses_the_shared_pager_with_its_table_reset_scope(): void
     {
         $pages = $this->pages(30, 15, 1);
-        $html = (string) $pages->links('livewire.admin.employees.directory-pagination', ['scrollTo' => false]);
+        $html = Blade::render('<x-tables.pagination :paginator="$pages" table-key="employee-directory" class="employee-directory__pager" />', compact('pages'));
         $xpath = $this->xpath($html);
         $employee = file_get_contents(resource_path('views/livewire/admin/employees.blade.php'));
-        $adapter = file_get_contents(resource_path('views/livewire/admin/employees/directory-pagination.blade.php'));
 
+        $this->assertFileDoesNotExist(resource_path('views/livewire/admin/employees/directory-pagination.blade.php'));
+        $this->assertStringContainsString('<x-tables.pagination :paginator="$employees" table-key="employee-directory"', $employee);
         $this->assertCount(1, $xpath->query('//nav[@data-table-pagination and @data-table-pagination-key="employee-directory" and contains(@class,"employee-directory__pager")]'));
-        $this->assertStringContainsString('<x-tables.pagination', $adapter);
-        $this->assertStringNotContainsString('previousPage(', $adapter);
         $this->assertStringContainsString('data-table-pagination-key="employee-directory"', $employee);
         $this->assertStringContainsString('data-employee-pagination', $employee);
         $handler = $xpath->query('//nav')->item(0)->getAttribute('x-on:click');
@@ -171,6 +170,46 @@ class GlobalTablePaginationUiTest extends TestCase
         $this->assertStringContainsString('[data-table-scroll-body]', $handler);
         $this->assertStringContainsString("behavior: 'instant'", $handler);
         $this->assertStringNotContainsString('window.scroll', $handler);
+        $this->assertStringNotContainsString('scrollIntoView', $handler);
+    }
+
+    public function test_livewire_links_safety_net_delegates_to_the_shared_pager_and_keeps_scroll_to(): void
+    {
+        $pages = $this->pages(80, 50, 1, 'servicesPage');
+        $default = $this->xpath(view('livewire::tailwind', ['paginator' => $pages])->render());
+        $disabled = $this->xpath(view('livewire::tailwind', ['paginator' => $pages, 'scrollTo' => false])->render());
+        $custom = $this->xpath(view('livewire::tailwind', ['paginator' => $pages, 'scrollTo' => '#list'])->render());
+
+        $this->assertCount(1, $default->query('//nav[@data-table-pagination and @data-table-page-name="servicesPage"]'));
+        $this->assertStringContainsString('scrollIntoView', $default->query('//nav')->item(0)->getAttribute('x-on:click'));
+        $this->assertStringContainsString("'body'", $default->query('//nav')->item(0)->getAttribute('x-on:click'));
+        $this->assertStringNotContainsString('scrollIntoView', $disabled->query('//nav')->item(0)->getAttribute('x-on:click'));
+        $this->assertStringContainsString("'#list'", $custom->query('//nav')->item(0)->getAttribute('x-on:click'));
+        $this->assertFileDoesNotExist(resource_path('views/vendor/livewire/simple-tailwind.blade.php'));
+        $this->assertFileDoesNotExist(resource_path('views/vendor/pagination/tailwind.blade.php'));
+        $this->assertFileDoesNotExist(resource_path('views/vendor/pagination/simple-tailwind.blade.php'));
+    }
+
+    public function test_compact_variant_keeps_native_actions_and_marks_the_narrow_layout(): void
+    {
+        $pages = $this->pages(150, 50, 2, 'meetingsPage');
+        $xpath = $this->xpath(Blade::render('<x-tables.pagination :paginator="$pages" :compact="true" label="Terminseiten" />', compact('pages')));
+        $css = file_get_contents(resource_path('css/table-pagination.css'));
+
+        $this->assertCount(1, $xpath->query('//nav[contains(concat(" ",normalize-space(@class)," ")," rt-table-pagination--compact ") and @aria-label="Terminseiten"]'));
+        $this->assertCount(1, $xpath->query('//*[contains(@class,"rt-table-pagination__mobile-page") and normalize-space(.)="2 / 3"]'));
+        $this->assertCount(5, $xpath->query('//button[@type="button" and @data-table-page-action]'));
+        $this->assertMatchesRegularExpression('/\.rt-table-pagination--compact \.rt-table-pagination__mobile-page\s*\{\s*display:\s*inline-flex;/', $css);
+        $plain = $this->xpath($this->render($pages));
+        $this->assertCount(0, $plain->query('//nav[contains(@class,"rt-table-pagination--compact")]'));
+    }
+
+    public function test_service_pagination_wrapper_lives_only_in_the_pagination_stylesheet(): void
+    {
+        $this->assertStringContainsString('.rt-service-pagination {', file_get_contents(resource_path('css/table-pagination.css')));
+        foreach (['operations-planning.css', 'service-table.css', 'table-surface.css'] as $file) {
+            $this->assertStringNotContainsString('.rt-service-pagination', file_get_contents(resource_path('css/'.$file)), $file);
+        }
     }
 
     public function test_global_styles_keep_native_targets_tokens_and_mobile_reduced_motion_contracts(): void

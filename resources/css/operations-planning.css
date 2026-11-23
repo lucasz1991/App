@@ -507,10 +507,6 @@
 .rt-staffing .rt-staffing-table .rt-table-row { padding: 4px 0; }
 .rt-staffing .rt-staffing-choose { white-space: nowrap; padding-inline: 8px; font-size: 12px; }
 .rt-staffing-table .rt-table-cell { min-width: 0; padding: 12px 8px; }
-.rt-staffing-search { display: flex; gap: 8px; align-items: center; }
-.rt-staffing-search > :first-child { min-width: 0; flex: 1; }
-.rt-staffing-search > :last-child { flex-shrink: 0; }
-.rt-staffing-filter-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--rt-red, #e90032); }
 .rt-staffing-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .rt-staffing-field-wide { grid-column: 1 / -1; }
 .rt-staffing-text-button, .rt-staffing-region-link { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; line-height: 20px; color: var(--staffing-muted); text-align: left; }
@@ -566,7 +562,6 @@
 @media (max-width: 479px) {
     .rt-staffing-filters { grid-template-columns: minmax(0, 1fr); }
     .rt-staffing-editor { padding: 12px; }
-    .rt-staffing-search { align-items: stretch; }
     .rt-staffing .rt-staffing-table .rt-table-cell { padding: 6px 0; }
     .rt-staffing-table .rt-table-row { padding: 12px 4px; }
 }

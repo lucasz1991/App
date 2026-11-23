@@ -8,7 +8,7 @@
         <div><x-ui.forms.label for="time-period-until" value="Beginn bis" /><x-ui.forms.date-field id="time-period-until" wire:model.live="until" aria-label="Beginn bis" /><x-ui.forms.input-error for="until" /></div>
     </div>
 @endif
-<x-tables.toolbar title="Filter" id="time-filters">
+<x-tables.toolbar title="Filter" id="time-filters" :filter-count="$this->activeFilterCount()" reset-action="resetFilters">
 <x-slot:search>@if(!$historyOnly)<x-ui.forms.search wire:model.live.debounce.300ms="search" placeholder="Mitarbeiter suchen" />@endif</x-slot:search>
 <x-slot:bulk>
     @if(!$historyOnly)

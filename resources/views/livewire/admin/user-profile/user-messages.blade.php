@@ -7,30 +7,17 @@
         </x-ui.buttons.button-basic>
     </div>
 
-    <div class="rounded-xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
-        <div class="divide-y divide-rt-border/60 dark:divide-rt-dark-border/60">
-            @forelse ($messages as $message)
-                <button type="button"
-                        wire:click="showMessage({{ $message->id }})"
-                        class="flex w-full items-center justify-between gap-4 px-5 py-3 text-left transition-colors duration-300 ease-rt-spring first:rounded-t-xl last:rounded-b-xl hover:bg-rt-surface-muted dark:hover:bg-rt-dark-surface-muted/60">
-                    <div class="min-w-0">
-                        <p class="truncate text-sm font-medium text-slate-900 dark:text-white">
-                            @if ((int) $message->status === 1)
-                                <span class="mr-1 inline-block h-2 w-2 rounded-full bg-rt-red align-middle" title="{{ __('app.unread') }}"></span>
-                            @endif
-                            {{ $message->subject }}
-                        </p>
-                        <p class="truncate text-xs text-slate-500 dark:text-slate-400">
-                            {{ __('app.from') }}: {{ $message->sender?->name ?? __('app.unknown') }}
-                        </p>
-                    </div>
-                    <span class="shrink-0 text-xs text-slate-400">{{ $message->created_at?->format('d.m.Y H:i') }}</span>
-                </button>
-            @empty
-                <p class="px-5 py-6 text-sm text-slate-500 dark:text-slate-400">{{ __('app.no_messages') }}</p>
-            @endforelse
-        </div>
-    </div>
+    <x-tables.table
+        :columns="[['label' => __('app.subject'), 'key' => 'subject', 'width' => 'minmax(0,1fr)'], ['label' => __('app.date'), 'key' => 'created_at', 'width' => '9rem']]"
+        :items="$messages"
+        :label="__('app.messages')"
+        table-key="user-messages"
+        detail-action="showMessage"
+        :detail-on-click="true"
+        row-view="components.tables.rows.messages.user-message-row"
+        :empty="__('app.no_messages')"
+        :flush-top="true"
+    />
 
     <div>
         <x-tables.pagination :paginator="$messages" label="Nachrichtenseiten" />

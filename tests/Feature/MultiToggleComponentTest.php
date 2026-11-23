@@ -16,7 +16,7 @@ class MultiToggleComponentTest extends TestCase
             'options' => $options ?: [
                 ['value' => 'day', 'label' => 'Tag', 'icon' => 'fa-calendar-day'],
                 ['value' => 'week', 'label' => 'Woche', 'icon' => 'fa-calendar-week'],
-                ['value' => 'month', 'label' => 'Monat', 'icon' => 'fa-calendar-days'],
+                ['value' => 'month', 'label' => 'Monat', 'icon' => 'fa-calendar-alt'],
             ],
             'value' => 'week', 'action' => 'switchView', 'disabled' => false,
         ], $attributes));

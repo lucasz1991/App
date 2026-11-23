@@ -12,8 +12,10 @@
         @elseif($tab === 'reminders')<x-ui.buttons.button-basic type="button" wire:click="edit">Erinnerung anlegen</x-ui.buttons.button-basic>@endif
     </header>
     <x-operations.feedback />
-    @if($tab === 'board')<div class="ops-form"><x-operations.field label="Von" model="from" type="date" /><x-operations.field label="Bis" model="until" type="date" /></div>@endif
-    <x-ui.forms.search wire:model.live.debounce.300ms="search" placeholder="Arbeitsliste durchsuchen" />
+    <x-tables.toolbar :title="$tab === 'board' ? 'Dienststand filtern' : 'Arbeitsliste durchsuchen'" :id="'attention-filters-'.$this->getId()">
+        <x-slot:search><x-ui.forms.search wire:model.live.debounce.300ms="search" placeholder="Arbeitsliste durchsuchen" /></x-slot:search>
+        @if($tab === 'board')<x-operations.field label="Von" model="from" type="date" /><x-operations.field label="Bis" model="until" type="date" />@endif
+    </x-tables.toolbar>
     <x-tables.table :columns="match($tab) {
         'board'=>[['label'=>'Mitarbeiter / Dienst','key'=>'duty'],['label'=>'Plan / Meldung','key'=>'period'],['label'=>'Dienststand','key'=>'state'],['label'=>'Aktion','key'=>'actions']],
         'profiles'=>[['label'=>'Profil','key'=>'name'],['label'=>'Toleranzen','key'=>'tolerances'],['label'=>'Status','key'=>'active'],['label'=>'Aktion','key'=>'actions']],

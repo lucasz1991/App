@@ -704,35 +704,31 @@
         <x-slot name="title">{{ __('app.folder_permissions') }}</x-slot>
         <x-slot name="content">
           <p class="mb-3 text-sm text-rt-muted dark:text-rt-dark-muted">{{ __('app.folder_permissions_hint') }}</p>
-          <div class="rt-table-scroll rounded-xl border border-rt-border dark:border-rt-dark-border">
-            <table class="min-w-[34rem] w-full text-sm">
-              <thead>
-                <tr class="bg-rt-surface-muted text-left text-xs font-semibold uppercase tracking-wide text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted">
-                  <th class="sticky left-0 z-[1] bg-rt-surface-muted px-3 py-2 dark:bg-rt-dark-surface-muted">{{ __('app.team') }}</th>
-                  @foreach(\App\Models\FileFolder::permissionActions() as $actionKey => $actionLabel)
-                    <th class="px-3 py-2 text-center">{{ $actionLabel }}</th>
-                  @endforeach
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-rt-border dark:divide-rt-dark-border">
-                @foreach($teams as $team)
-                  <tr>
-                    <td class="sticky left-0 bg-rt-surface px-3 py-2 font-medium text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text">{{ $team->name }}</td>
-                    @foreach(\App\Models\FileFolder::permissionActions() as $actionKey => $actionLabel)
-                      <td class="px-3 py-2 text-center">
-                        <x-ui.forms.toggle-button
-                          :id="'folder-permission-'.$team->id.'-'.$actionKey"
-                          :model="'folderPermissions.'.$team->id.'.'.$actionKey"
-                          aria-label="{{ $team->name }}: {{ $actionLabel }}"
-                          class="justify-center"
-                        />
-                      </td>
-                    @endforeach
-                  </tr>
+          <x-tables.html-table :label="__('app.folder_permissions')" table-class="min-w-[34rem]">
+            <x-slot:head>
+              <tr>
+                <th scope="col" class="sticky left-0 z-[1] bg-rt-surface-muted dark:bg-rt-dark-surface-muted">{{ __('app.team') }}</th>
+                @foreach(\App\Models\FileFolder::permissionActions() as $actionKey => $actionLabel)
+                  <th scope="col" class="text-center">{{ $actionLabel }}</th>
                 @endforeach
-              </tbody>
-            </table>
-          </div>
+              </tr>
+            </x-slot:head>
+            @foreach($teams as $team)
+              <tr>
+                <th scope="row" class="sticky left-0 bg-rt-surface font-medium text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text">{{ $team->name }}</th>
+                @foreach(\App\Models\FileFolder::permissionActions() as $actionKey => $actionLabel)
+                  <td class="text-center">
+                    <x-ui.forms.toggle-button
+                      :id="'folder-permission-'.$team->id.'-'.$actionKey"
+                      :model="'folderPermissions.'.$team->id.'.'.$actionKey"
+                      aria-label="{{ $team->name }}: {{ $actionLabel }}"
+                      class="justify-center"
+                    />
+                  </td>
+                @endforeach
+              </tr>
+            @endforeach
+          </x-tables.html-table>
         </x-slot>
         <x-slot name="footer">
             <div class="flex justify-end space-x-2">
