@@ -277,19 +277,19 @@
             <div class="rt-chat-conversation-pane flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" data-anim="fade" @if($embedded) x-bind:inert="!splitChat && mobilePane !== 'chat'" @endif>
                 @if (! $selectedChat)
                     <div class="rt-chat-conversation-empty relative min-h-0 flex-1">
-                        <x-ui.buttons.button-basic
-                            mode="icon"
-                            tone="plain"
-                            icon="far fa-chevron-left"
+                        <button
+                            type="button"
                             x-on:click="toggleList()"
-                            class="rt-chat-icon-button rt-chat-icon-button--quiet absolute left-4 top-4 z-10 hidden rounded-xl text-sm md:inline-flex"
+                            class="rt-chat-icon-button rt-chat-icon-button--quiet absolute left-4 top-4 z-10 hidden h-10 w-10 items-center justify-center rounded-xl text-sm md:inline-flex"
                             data-chat-list-toggle
                             aria-controls="rt-chat-overview"
                             x-bind:aria-expanded="(! listCollapsed).toString()"
                             x-bind:class="listCollapsed ? 'rt-chat-icon-button--open' : ''"
                             x-bind:aria-label="listCollapsed ? @js(__('app.show_chat_overview')) : @js(__('app.hide_chat_overview'))"
                             x-bind:title="listCollapsed ? @js(__('app.show_chat_overview')) : @js(__('app.hide_chat_overview'))"
-                        />
+                        >
+                            <i class="far fa-chevron-left" aria-hidden="true"></i>
+                        </button>
 
                         <x-chat.empty-state
                             :title="__('app.chat_and_messages')"
@@ -330,19 +330,19 @@
                         @endphp
 
                         <div class="rt-chat-conversation-header flex shrink-0 items-center gap-2.5 px-3 py-3 sm:gap-3 sm:px-5 sm:py-3.5">
-                            <x-ui.buttons.button-basic
-                                mode="icon"
-                                tone="plain"
-                                icon="far fa-chevron-left"
+                            <button
+                                type="button"
                                 x-on:click="toggleList()"
-                                class="rt-chat-icon-button rt-chat-icon-button--quiet hidden rounded-xl text-sm md:inline-flex"
+                                class="rt-chat-icon-button rt-chat-icon-button--quiet hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm md:inline-flex"
                                 data-chat-list-toggle
                                 aria-controls="rt-chat-overview"
                                 x-bind:aria-expanded="(! listCollapsed).toString()"
                                 x-bind:class="listCollapsed ? 'rt-chat-icon-button--open' : ''"
                                 x-bind:aria-label="listCollapsed ? @js(__('app.show_chat_overview')) : @js(__('app.hide_chat_overview'))"
                                 x-bind:title="listCollapsed ? @js(__('app.show_chat_overview')) : @js(__('app.hide_chat_overview'))"
-                            />
+                            >
+                                <i class="far fa-chevron-left" aria-hidden="true"></i>
+                            </button>
 
                             <x-ui.buttons.button-basic
                                 mode="icon"

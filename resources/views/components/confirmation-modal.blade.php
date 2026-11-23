@@ -22,15 +22,14 @@
             {{ $title }}
         </h2>
 
-        <button
-            type="button"
+        <x-ui.buttons.button-basic
+            mode="icon"
+            tone="quiet"
+            icon="far fa-times text-base"
+            :label="__('app.close')"
             x-on:click="$dispatch('close')"
-            class="absolute right-3 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg border border-rt-border/70 bg-rt-control text-rt-muted transition hover:border-rt-accent/35 hover:text-rt-accent focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-accent/15 dark:border-rt-dark-border/70 dark:bg-rt-dark-control dark:text-rt-dark-muted dark:hover:border-rt-dark-accent/35 dark:hover:text-rt-dark-accent sm:right-4"
-            aria-label="{{ __('app.close') }}"
-            title="{{ __('app.close') }}"
-        >
-            <i class="far fa-times text-base" aria-hidden="true"></i>
-        </button>
+            class="absolute right-3 top-1/2 -translate-y-1/2 sm:right-4"
+        />
     </header>
 
     <div id="{{ $contentId }}" class="rt-modal-content min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-5 py-5 text-sm leading-6 text-rt-text [overflow-wrap:anywhere] [scrollbar-gutter:stable] dark:text-rt-dark-text sm:px-6 sm:py-6">
