@@ -2,7 +2,7 @@
     <x-ui.buttons.button-basic wire:click="$set('open', true)">Lohnzuordnung</x-ui.buttons.button-basic>
     <x-operations.modal wire:model="open" title="Lohnzuordnung">
         <div class="rt-personnel-management ops-stack">
-            <x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Mitarbeiter suchen" />
+            <x-ui.forms.search wire:model.live.debounce.300ms="search" placeholder="Mitarbeiter suchen" />
             <x-tables.table class="rt-personnel-table" label="Lohnzuordnungen" :columns="[['label'=>'Mitarbeiter','key'=>'name'],['label'=>'Arbeitgeberreferenz','key'=>'employer_reference'],['label'=>'Personalnummer','key'=>'personnel_number']]" :items="$users" detail-action="edit" :detail-on-click="true" row-view="components.tables.rows.operations.record" />
             {{ $users->links() }}
         </div>

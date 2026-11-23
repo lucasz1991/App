@@ -1,7 +1,7 @@
 <div class="rt-calendar rt-disposition rt-disposition--calendar" @if($viewport) data-disposition-viewport="calendar" @endif data-operations-calendar data-calendar-view="{{ $viewMode }}" data-calendar-week="{{ $weekStartDate->toDateString() }}"
     x-data="rtShiftDetailDrawer" x-on:operations-shift-detail-request.window="openShiftDetail($event.detail.id)">
     <template x-teleport="[data-topbar-page-search]" wire:key="calendar-topbar-search-{{ $this->getId() }}">
-        <x-tables.search-field context="page-topbar" wire:model.live.debounce.300ms="search" :results-count="$shifts->count()" placeholder="Schicht, Kunde oder Ort" aria-label="Kalenderschichten suchen" />
+        <x-ui.forms.search context="page-topbar" wire:model.live.debounce.300ms="search" :results-count="$shifts->count()" placeholder="Schicht, Kunde oder Ort" aria-label="Kalenderschichten suchen" />
     </template>
     @php
         $calendarViews = [

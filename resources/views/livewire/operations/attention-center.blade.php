@@ -13,7 +13,7 @@
     </header>
     <x-operations.feedback />
     @if($tab === 'board')<div class="ops-form"><x-operations.field label="Von" model="from" type="date" /><x-operations.field label="Bis" model="until" type="date" /></div>@endif
-    <x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Arbeitsliste durchsuchen" />
+    <x-ui.forms.search wire:model.live.debounce.300ms="search" placeholder="Arbeitsliste durchsuchen" />
     <x-tables.table :columns="match($tab) {
         'board'=>[['label'=>'Mitarbeiter / Dienst','key'=>'duty'],['label'=>'Plan / Meldung','key'=>'period'],['label'=>'Dienststand','key'=>'state'],['label'=>'Aktion','key'=>'actions']],
         'profiles'=>[['label'=>'Profil','key'=>'name'],['label'=>'Toleranzen','key'=>'tolerances'],['label'=>'Status','key'=>'active'],['label'=>'Aktion','key'=>'actions']],

@@ -18,7 +18,7 @@
             </div>
         </div>
         @if($notice)<p role="status" class="rounded-xl bg-rt-accent-soft/40 px-4 py-3 text-sm dark:bg-rt-dark-accent-soft/30">{{ $notice }}</p>@endif
-        @if($errors->any())<div role="alert" class="rounded-xl border-l-4 border-rt-accent bg-rt-accent-soft/40 p-4 text-sm dark:bg-rt-dark-accent-soft/30"><ul class="list-inside list-disc space-y-1">@foreach($errors->all() as $message)<li>{{ $message }}</li>@endforeach</ul></div>@endif
+        <x-validation-errors title="" />
         @if($running)<p class="text-sm">{{ $running }} Verarbeitung(en) laufen noch. Ein bereits gestarteter Upload kann auch nach dem Ausschalten abgeschlossen werden.</p>@endif
         @if($connection->closing)<p role="status" class="rounded-xl bg-rt-surface-muted p-4 text-sm dark:bg-rt-dark-surface-muted">Abschlussabgleich läuft. Offene Änderungen und Konflikte klären; anschließend werden Archivkopien erstellt und Dropbox getrennt.</p>@endif
         <nav class="flex flex-wrap gap-2" aria-label="Dropbox-Einstellungsbereiche">
@@ -206,7 +206,7 @@
                         @if(in_array($selectedConflict->reason, ['mapping_required', 'ambiguous_row'], true))
                             <p class="text-sm">Excel-Zeile: {{ $selectedConflict->snapshot['sheet'] ?? '' }} · {{ $selectedConflict->snapshot['slot'] ?? '' }}</p>
                             <dl class="grid gap-2 text-sm sm:grid-cols-2">@foreach($selectedConflict->snapshot['values'] ?? [] as $key => $value)<div><dt class="font-semibold">{{ $fields[$key] ?? $key }}</dt><dd class="break-words">{{ is_bool($value) ? ($value ? 'Ja' : 'Nein') : ($value ?? '—') }}</dd></div>@endforeach</dl>
-                            <label class="block text-sm">App-Datensatz suchen (Name oder Nummer)<input type="search" wire:model.live.debounce.300ms="mappingSearch" class="mt-1 w-full rounded-lg border-rt-border bg-rt-surface dark:border-rt-dark-border dark:bg-rt-dark-surface" /></label>
+                            <div class="text-sm"><label for="dropbox-mapping-search" class="block">App-Datensatz suchen (Name oder Nummer)</label><div class="mt-1"><x-ui.forms.search id="dropbox-mapping-search" wire:model.live.debounce.300ms="mappingSearch" placeholder="Name oder Nummer" aria-label="App-Datensatz suchen (Name oder Nummer)" /></div></div>
                             <x-ui.forms.select wire:model="targetRecord" aria-label="Zugehöriger App-Datensatz"><option value="">Vorhandenen App-Datensatz auswählen</option>@foreach($mappingRecords as $candidate)<option value="{{ $candidate->id }}">#{{ $candidate->id }} · {{ $candidate->metadata['employee_label'] ?? $candidate->metadata['subject'] ?? $candidate->model_type }} · {{ $candidate->metadata['name'] ?? $candidate->model_id }}</option>@endforeach</x-ui.forms.select>
                             <x-ui.buttons.button-basic type="button" mode="primary" wire:click="linkRow">Zeile diesem Datensatz zuordnen</x-ui.buttons.button-basic>
                         @endif

@@ -54,7 +54,7 @@
                     <div x-data x-intersect.once="$wire.loadShiftTravel({{ $selectedShift->id }})" wire:key="candidate-travel-load-{{ $staffingTravelAutoKey }}" role="status" class="rt-staffing-note">Fahrzeiten werden nachgeladen …</div>
                 @endif
                 <div class="rt-staffing-search">
-                    <x-tables.search-field wire:model.live.debounce.350ms="candidateSearch" placeholder="Name suchen" aria-label="Mitarbeitende nach Namen suchen" />
+                    <x-ui.forms.search wire:model.live.debounce.350ms="candidateSearch" placeholder="Name suchen" aria-label="Mitarbeitende nach Namen suchen" />
                     <x-ui.buttons.button-basic type="button" x-on:click="filtersOpen = !filtersOpen" x-bind:aria-expanded="filtersOpen" aria-controls="staffing-filters-{{ $selectedShift->id }}"><i class="far fa-sliders-h" aria-hidden="true"></i> Filter @if($candidateQualification || $candidatePool || $candidateSuitability !== 'all' || $candidateRegion !== 'all')<span class="rt-staffing-filter-dot" aria-label="Filter aktiv"></span>@endif</x-ui.buttons.button-basic>
                 </div>
                 <div class="rt-staffing-filters" x-show="filtersOpen" x-cloak id="staffing-filters-{{ $selectedShift->id }}">

@@ -20,8 +20,8 @@
             <fieldset class="rt-timeline-filters__group">
                 <legend><i class="far fa-users" aria-hidden="true"></i> Mitarbeiter</legend>
                 <label for="timeline-filter-search-{{ $this->getId() }}">Name suchen</label>
-                <x-ui.forms.input type="search" id="timeline-filter-search-{{ $this->getId() }}" wire:model.live.debounce.300ms="search"
-                    maxlength="100" autocomplete="off" placeholder="Name eingeben …" aria-label="Mitarbeiter nach Name filtern" />
+                <x-ui.forms.search id="timeline-filter-search-{{ $this->getId() }}" wire:model.live.debounce.300ms="search"
+                    maxlength="100" placeholder="Name eingeben …" aria-label="Mitarbeiter nach Name filtern" />
                 <label for="timeline-filter-presence-{{ $this->getId() }}">Einteilung im gewählten Zeitraum</label>
                 <x-ui.forms.select id="timeline-filter-presence-{{ $this->getId() }}" wire:model.live="staffPresence" aria-label="Mitarbeiter nach Einteilung filtern">
                     <option value="all">Alle Mitarbeiter</option>

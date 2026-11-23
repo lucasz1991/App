@@ -7,7 +7,7 @@
             <p class="mt-1 text-sm text-rt-muted dark:text-rt-dark-muted">Datei auf diesem Gerät auswählen und einmalig in diese App übernehmen. Dropbox und Redis werden dafür nicht benötigt. Die Originaldatei wird nicht verändert.</p>
         </div>
         @if($notice)<p role="status" class="rounded-xl bg-rt-accent-soft/40 p-4 text-sm dark:bg-rt-dark-accent-soft/30">{{ $notice }}</p>@endif
-        @if($errors->any())<div role="alert" class="rounded-xl border-l-4 border-rt-accent p-4 text-sm"><ul class="list-inside list-disc">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
+        <x-validation-errors title="" />
         <form wire:submit="inspect" class="space-y-4">
             <div class="grid min-w-0 gap-4 md:grid-cols-2">
                 <div><x-ui.forms.label for="local-excel-upload" value="Excel-Datei (.xlsx, maximal 12 MB)" /><input id="local-excel-upload" type="file" wire:model="upload" accept=".xlsx" class="block w-full min-w-0 text-sm" /><p wire:loading wire:target="upload" class="mt-2 text-sm">Datei wird hochgeladen …</p></div>
@@ -42,7 +42,7 @@
             <section class="space-y-4">
                 <h4 class="font-semibold">Mitarbeiter und Dienstleister zuordnen</h4>
                 <p class="text-sm text-rt-muted dark:text-rt-dark-muted">{{ $unresolved }} Bezeichnungen sind noch ungeklärt. Eindeutige Namensvorschläge sind vorausgewählt; mit „Zuordnung speichern“ bestätigen. Ungeklärte Einsätze bleiben als Hinweis erhalten.</p>
-                <div><x-ui.forms.label for="local-excel-search" value="Bezeichnung suchen" /><x-ui.forms.input id="local-excel-search" type="search" wire:model.live.debounce.300ms="search" /></div>
+                <div><x-ui.forms.label for="local-excel-search" value="Bezeichnung suchen" /><x-ui.forms.search id="local-excel-search" wire:model.live.debounce.300ms="search" placeholder="Bezeichnung suchen" /></div>
                 @foreach($identities as $identity)
                     <div wire:key="local-identity-{{ $identity->id }}" class="grid min-w-0 gap-3 border-t border-rt-border/60 py-3 dark:border-rt-dark-border/60 md:grid-cols-3">
                         <div class="min-w-0"><p class="break-words text-sm font-semibold">{{ $identity->details['display_name'] ?? $identity->alias }}</p><p class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ match($identity->kind) { 'employee' => 'Mitarbeiterkonto zugeordnet', 'provider' => 'Dienstleister', default => 'Zuordnung offen' } }}</p></div>

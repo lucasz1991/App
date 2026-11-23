@@ -27,7 +27,7 @@
                 <p class="rt-distribution-auto__note">{{ $preview['summary']['omitted_shifts'] }} bereits begonnene oder geschlossene Schichten werden nicht automatisch besetzt.</p>
             @endif
             @if(! $preview['valid'] && $preview['rows'] !== [])
-                <p class="rt-shift-distribution__error" role="alert">Die Vorschau kann so nicht übernommen werden. Bitte die Hinweise prüfen und neu berechnen.</p>
+                <x-ui.feedback.alert type="danger" :dismissible="false">Die Vorschau kann so nicht übernommen werden. Bitte die Hinweise prüfen und neu berechnen.</x-ui.feedback.alert>
             @endif
             <ol class="rt-distribution-auto__rows" aria-label="Vorbereitete Zuordnungen">
                 @foreach($preview['rows'] as $row)

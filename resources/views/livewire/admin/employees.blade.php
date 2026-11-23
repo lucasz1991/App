@@ -40,7 +40,7 @@
                     @endif
                 </x-tables.bulk-actions>
                 <x-ui.forms.input-error for="employeeIds" class="mt-1" />
-                <x-tables.search-field context="page-topbar" id="employee-list-search"
+                <x-ui.forms.search context="page-topbar" id="employee-list-search"
                     placeholder="Name, E-Mail oder Funktion suchen" :results-count="$employees->count()"
                     wire:model.live.debounce.300ms="search" />
             </div>

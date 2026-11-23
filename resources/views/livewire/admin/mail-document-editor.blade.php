@@ -836,9 +836,9 @@
                 </x-slot:actions>
 
                 @if (! \Illuminate\Support\Facades\Schema::hasColumn('mail_documents', 'is_active'))
-                    <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900 dark:border-amber-800 dark:bg-amber-500/10 dark:text-amber-100" role="alert">
+                    <x-ui.feedback.alert type="warning" :dismissible="false">
                         Die Design-Slot-Migration ist noch nicht installiert. Bitte führe zuerst die Datenbankmigrationen aus.
-                    </div>
+                    </x-ui.feedback.alert>
                 @else
                     <form
                         class="mb-5 grid gap-3 rounded-2xl border border-rt-border bg-rt-surface-muted/60 p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/40 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"

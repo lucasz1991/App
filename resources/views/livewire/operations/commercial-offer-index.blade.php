@@ -1,7 +1,7 @@
 <section class="ops-stack min-w-0" @if($headerInPage) data-disposition-viewport="offers" @endif aria-label="Angebote" x-data="{}">
     @if($headerInPage)
         <template x-teleport="[data-topbar-page-search]" wire:key="offers-topbar-search-{{ $this->getId() }}">
-            <x-tables.search-field context="page-topbar" wire:model.live.debounce.300ms="search" :results-count="$offers->count()" placeholder="Angebot oder Kunde suchen" aria-label="Angebote suchen" />
+            <x-ui.forms.search context="page-topbar" wire:model.live.debounce.300ms="search" :results-count="$offers->count()" placeholder="Angebot oder Kunde suchen" aria-label="Angebote suchen" />
         </template>
         <template x-teleport="[data-page-header-search]" wire:key="offers-header-controls-{{ $this->getId() }}">
             <div class="rt-offers-header-controls">
@@ -16,7 +16,7 @@
         </template>
     @else
     <x-tables.toolbar id="commercial-offer-index" title="Angebote" :search-in-header="true">
-        <x-slot:search><x-tables.search-field context="page" wire:model.live.debounce.300ms="search" placeholder="Angebot oder Kunde suchen" /></x-slot:search>
+        <x-slot:search><x-ui.forms.search context="page" wire:model.live.debounce.300ms="search" placeholder="Angebot oder Kunde suchen" /></x-slot:search>
         <x-tables.filter-field label="Status" for="case-offer-status"><x-ui.forms.select id="case-offer-status" wire:model.live="status"><option value="all">Alle Stände</option><option value="draft">Entwürfe</option><option value="offered">Angeboten</option><option value="accepted">Zugesagt</option></x-ui.forms.select></x-tables.filter-field>
     </x-tables.toolbar>
     @endif

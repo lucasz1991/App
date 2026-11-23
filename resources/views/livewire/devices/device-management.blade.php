@@ -116,7 +116,7 @@
             search-for="device-inventory-search"
         >
             <x-slot:search>
-                <x-tables.search-field
+                <x-ui.forms.search
                     id="device-inventory-search"
                     :results-count="$devices->count()"
                     wire:model.live.debounce.350ms="search"

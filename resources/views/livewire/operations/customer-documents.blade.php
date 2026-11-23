@@ -1,6 +1,6 @@
 <div class="rt-ops ops-stack min-w-0" data-customer-documents>
     <x-tables.toolbar id="customer-documents-filters" :single-line="true" :filter-count="$activeFilterCount" title="Dokumente filtern" reset-action="resetFilters" search-for="customer-documents-search">
-        <x-slot:search><x-tables.search-field id="customer-documents-search" :results-count="$items->total()" placeholder="Dokumente suchen" maxlength="100" wire:model.live.debounce.300ms="search" /></x-slot:search>
+        <x-slot:search><x-ui.forms.search id="customer-documents-search" :results-count="$items->total()" placeholder="Dokumente suchen" maxlength="100" wire:model.live.debounce.300ms="search" /></x-slot:search>
         <x-tables.filter-field label="Status" for="customer-documents-status" icon="far fa-filter">
             <x-ui.forms.select id="customer-documents-status" wire:model.live="status" aria-label="Dokumentenstatus">
                 <option value="all">Alle Status</option><option value="quarantined">Prüfung offen</option><option value="published">Freigegeben</option><option value="withdrawn">Zurückgezogen</option><option value="reviewed">Eingang geprüft</option>

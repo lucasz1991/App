@@ -17,7 +17,7 @@
 </header>
 <x-operations.feedback />
 @if($tab === 'inbox')
-    @if($search !== '' || $items->total() > 8)<x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Aufgaben durchsuchen" />@endif
+    @if($search !== '' || $items->total() > 8)<x-ui.forms.search wire:model.live.debounce.300ms="search" placeholder="Aufgaben durchsuchen" />@endif
     @if($items->isEmpty())
         <div class="rt-today-empty">
             <span class="rt-today-empty__icon" data-tone="success" aria-hidden="true"><i class="fas fa-check"></i></span>

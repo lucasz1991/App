@@ -1,11 +1,18 @@
-@if ($errors->any())
-    <div data-rt-tone="danger" role="alert" {{ $attributes->class('rt-ui-alert rounded-xl border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-100') }}>
-        <div class="font-medium">{{ __('Whoops! Something went wrong.') }}</div>
+@props(['title' => null])
 
-        <ul class="mt-3 list-inside list-disc text-sm">
-            @foreach ($errors->all() as $error)
-                <li>{{ $error }}</li>
-            @endforeach
-        </ul>
+{{--
+    Sammelliste aller Validierungsfehler. Rendert intern den Standard-Hinweis
+    x-ui.feedback.alert (danger), damit Fehlerlisten app-weit gleich aussehen.
+    Klassen am Aufruf (Abstaende, ops-full im Raster) landen an der Huelle.
+--}}
+@if ($errors->any())
+    <div {{ $attributes }}>
+        <x-ui.feedback.alert type="danger" :title="$title ?? __('Whoops! Something went wrong.')" :dismissible="false">
+            <ul class="list-inside list-disc space-y-1">
+                @foreach (array_unique($errors->all()) as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </x-ui.feedback.alert>
     </div>
 @endif

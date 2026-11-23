@@ -13,7 +13,7 @@
                                 </x-slot:content>
                             </x-ui.dropdown.anchor-dropdown>
                         @endif
-                        <x-tables.search-field context="page-topbar" id="customer-list-search" :results-count="$customers->total()" placeholder="Kunden suchen" maxlength="100" wire:model.live.debounce.300ms="search" />
+                        <x-ui.forms.search context="page-topbar" id="customer-list-search" :results-count="$customers->total()" placeholder="Kunden suchen" maxlength="100" wire:model.live.debounce.300ms="search" />
                     </div>
                     <span class="customer-directory__total" aria-live="polite">{{ number_format($customers->total(), 0, ',', '.') }} {{ $customers->total()===1?'Kunde':'Kunden' }}</span>
                     <div class="customer-directory__actions">

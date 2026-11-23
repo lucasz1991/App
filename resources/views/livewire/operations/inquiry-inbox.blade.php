@@ -23,7 +23,7 @@
             </div>
             <x-tables.toolbar title="Anfragen filtern" id="inquiry-filters" :search-in-header="true">
                 @unless($consolidated && !$profileEmbedded)
-                    <x-slot:search><x-tables.search-field context="page" wire:model.live.debounce.300ms="search" placeholder="Anfrage oder Kunde suchen" /></x-slot:search>
+                    <x-slot:search><x-ui.forms.search context="page" wire:model.live.debounce.300ms="search" placeholder="Anfrage oder Kunde suchen" /></x-slot:search>
                 @endunless
                 <x-slot:bulk>
                     <div class="rt-disposition-segments" role="group" aria-label="Anfragestatus" data-tables-bulk>

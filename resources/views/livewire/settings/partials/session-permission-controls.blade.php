@@ -68,8 +68,8 @@
         </div>
     </details>
     @endif
-    @error('permissions')<p role="alert" class="rounded-xl bg-red-50 p-3 text-sm text-red-800 dark:bg-red-500/10 dark:text-red-200">{{ $message }}</p>@enderror
-    @error('location')<p role="alert" class="rounded-xl bg-red-50 p-3 text-sm text-red-800 dark:bg-red-500/10 dark:text-red-200">{{ $message }}</p>@enderror
-    @error('push')<p role="alert" class="rounded-xl bg-red-50 p-3 text-sm text-red-800 dark:bg-red-500/10 dark:text-red-200">{{ $message }}</p>@enderror
+    @error('permissions')<x-ui.feedback.alert type="danger" :dismissible="false" data-session-permission-error="permissions">{{ $message }}</x-ui.feedback.alert>@enderror
+    @error('location')<x-ui.feedback.alert type="danger" :dismissible="false" data-session-permission-error="location">{{ $message }}</x-ui.feedback.alert>@enderror
+    @error('push')<x-ui.feedback.alert type="danger" :dismissible="false" data-session-permission-error="push">{{ $message }}</x-ui.feedback.alert>@enderror
     <p x-cloak x-show="browserMessage" x-text="browserMessage" role="status" aria-live="polite" class="rounded-xl bg-rt-surface-muted p-3 text-sm leading-6 text-rt-text dark:bg-rt-dark-surface-muted dark:text-rt-dark-text"></p>
 </div>

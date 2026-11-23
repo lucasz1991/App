@@ -22,10 +22,9 @@
         </x-slot>
 
         <x-slot name="content">
-            <div class="mb-4 rounded-lg border-l-4 border-yellow-500 bg-yellow-50 p-4 text-yellow-800 dark:border-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-300" role="alert">
-                <p class="font-bold">{{ __('app.important_notice') }}</p>
-                <p>{{ __('app.compose_check_hint') }}</p>
-            </div>
+            <x-ui.feedback.alert type="warning" :title="__('app.important_notice')" :dismissible="false" class="mb-4">
+                {{ __('app.compose_check_hint') }}
+            </x-ui.feedback.alert>
 
             @if ($forceMailOnly)
                 <div class="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300">

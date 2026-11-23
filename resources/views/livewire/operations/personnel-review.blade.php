@@ -45,7 +45,7 @@
 @endif
 <x-tables.toolbar title="Filter" id="personnel-filters">
 @if($profileUserId === null)
-<x-slot:search><x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Mitarbeiter suchen" /></x-slot:search>
+<x-slot:search><x-ui.forms.search wire:model.live.debounce.300ms="search" placeholder="Mitarbeiter suchen" /></x-slot:search>
 @endif
 <x-slot:bulk>@if($module === 'qualifications')@if($profileUserId === null)<x-ui.buttons.button-basic wire:click="$set('typesOpen', true)">Nachweisarten</x-ui.buttons.button-basic>@else<a class="text-sm text-rt-muted underline" href="{{ \App\Support\Operations\OperationsPages::url('people', ['view' => 'qualifications']) }}" data-no-navigate>Nachweisübersicht & Nachweisarten</a>@endif @else<x-ui.buttons.button-basic wire:click="exportAbsences" wire:loading.attr="disabled">CSV exportieren</x-ui.buttons.button-basic>@endif</x-slot:bulk>
 @if($module === 'absences')<x-tables.filter-field label="Art" for="absence-kind-filter"><x-ui.forms.select id="absence-kind-filter" wire:model.live="absenceKind" aria-label="Abwesenheitsart"><option value="all">Alle Arten</option><option value="vacation">Urlaub</option><option value="sick">Krankmeldung</option><option value="unavailable">Nicht verfügbar</option><option value="other">Abwesenheit</option></x-ui.forms.select></x-tables.filter-field>@endif

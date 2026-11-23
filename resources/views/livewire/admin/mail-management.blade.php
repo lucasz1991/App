@@ -13,13 +13,6 @@
         @endif
     </x-slot:actions>
 
-    @if (session()->has('message'))
-        <x-ui.feedback.alert type="success">{{ session('message') }}</x-ui.feedback.alert>
-    @endif
-    @if (session()->has('error'))
-        <x-ui.feedback.alert type="danger">{{ session('error') }}</x-ui.feedback.alert>
-    @endif
-
     <div data-anim="fade-up" data-anim-delay="0.05">
         <x-tables.toolbar
             id="mail-log-filters"
@@ -29,7 +22,7 @@
             search-for="mail-log-search"
         >
             <x-slot:search>
-                <x-tables.search-field
+                <x-ui.forms.search
                     id="mail-log-search"
                     :results-count="$mails->count()"
                     wire:model.live.debounce.350ms="search"

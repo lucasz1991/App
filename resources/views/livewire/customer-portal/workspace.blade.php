@@ -98,7 +98,7 @@
                 </section>
             @else
                 <section class="rt-customer-portal__table-panel" aria-label="{{ $tabs[$tab] }}">
-                    <x-tables.toolbar :title="$tabs[$tab]" id="customer-portal-filters"><x-slot:search><x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Vorgang suchen" /></x-slot:search></x-tables.toolbar>
+                    <x-tables.toolbar :title="$tabs[$tab]" id="customer-portal-filters"><x-slot:search><x-ui.forms.search wire:model.live.debounce.300ms="search" placeholder="Vorgang suchen" /></x-slot:search></x-tables.toolbar>
                     <x-tables.table :items="$items" :columns="[['label'=>'Vorgang','key'=>'title','width'=>'2fr'],['label'=>'Zeitraum','key'=>'period','width'=>'1.5fr'],['label'=>'Status','key'=>'status'],['label'=>'Aktion','key'=>'actions']]" :table-key="'portal-'.$customerId.'-'.$tab" row-view="components.tables.rows.customer-portal.record" empty="Keine Einträge." />
                 </section>
             @endif

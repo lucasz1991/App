@@ -14,7 +14,7 @@
             Registrierung und Statusabgleich funktionieren unabhängig davon. Dies ist ein benutzerbestätigter Desktop-Pilot, kein vollständiges MDM, kein Fernsteuerungsdienst und keine automatische Microsoft-Installation. Der Administrator-Haupt-PC bleibt nur Verwaltungsstation.
         </div>
         @if($notice)<p role="status" class="rounded-xl border border-emerald-200 p-3 text-sm">{{ $notice }}</p>@endif
-        @if($errors->any())<ul role="alert" class="rounded-xl border border-red-200 p-3 text-sm text-red-700">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>@endif
+        <x-validation-errors title="" />
 
         @can('devices.enrollment.manage')
             <details class="{{ $panel }}" @if($pairingToken) open @endif>

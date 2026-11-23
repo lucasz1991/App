@@ -9,7 +9,7 @@
     </div>
 @endif
 <x-tables.toolbar title="Filter" id="time-filters">
-<x-slot:search>@if(!$historyOnly)<x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Mitarbeiter suchen" />@endif</x-slot:search>
+<x-slot:search>@if(!$historyOnly)<x-ui.forms.search wire:model.live.debounce.300ms="search" placeholder="Mitarbeiter suchen" />@endif</x-slot:search>
 <x-slot:bulk>
     @if(!$historyOnly)
         @if($exports)<x-ui.buttons.button-basic mode="primary" wire:click="export" :disabled="empty($selected)" wire:loading.attr="disabled">Auswahl exportieren</x-ui.buttons.button-basic>

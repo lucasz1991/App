@@ -16,7 +16,7 @@
     @unless($detailOnly)
     @if($boundedOrdersList)
         <template x-teleport="[data-topbar-page-search]">
-            <x-tables.search-field context="page-topbar" wire:model.live.debounce.300ms="search" :results-count="$orders->count()" placeholder="Leistungen suchen" aria-label="Leistungen suchen" />
+            <x-ui.forms.search context="page-topbar" wire:model.live.debounce.300ms="search" :results-count="$orders->count()" placeholder="Leistungen suchen" aria-label="Leistungen suchen" />
         </template>
         <template x-teleport="[data-page-header-search]">
             <div class="rt-orders-list-controls" data-orders-list-controls>

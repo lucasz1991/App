@@ -12,7 +12,7 @@
         <h2 class="mb-3 text-sm font-semibold">Aufträge filtern</h2>
         <div class="rt-service-filter-fields" data-orders-filter-fields>
             <x-tables.filter-field label="Suche" for="orders-filter-search-{{ $this->getId() }}">
-                <x-tables.search-field context="table" wire:model.live.debounce.300ms="search" placeholder="Leistungen suchen" aria-label="Leistungen suchen" id="orders-filter-search-{{ $this->getId() }}" />
+                <x-ui.forms.search context="table" wire:model.live.debounce.300ms="search" placeholder="Leistungen suchen" aria-label="Leistungen suchen" id="orders-filter-search-{{ $this->getId() }}" />
             </x-tables.filter-field>
             <x-tables.filter-field label="Leistungsstatus" for="order-status-filter-{{ $this->getId() }}">
                 <x-ui.forms.select id="order-status-filter-{{ $this->getId() }}" wire:model.live="statusFilter" aria-label="Leistungsstatus">

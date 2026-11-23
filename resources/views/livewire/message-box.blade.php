@@ -20,7 +20,7 @@
                         <i class="far fa-times" aria-hidden="true"></i> Auswahl aufheben
                     </x-ui.dropdown.dropdown-link>
                 </x-tables.bulk-actions>
-                <x-tables.search-field context="page-topbar" id="inbox-search" placeholder="Absender, Betreff oder Nachricht suchen"
+                <x-ui.forms.search context="page-topbar" id="inbox-search" placeholder="Absender, Betreff oder Nachricht suchen"
                     :results-count="$messages->total()" wire:model.live.debounce.400ms="search" />
             </div>
                 <p class="rt-message-inbox__summary" role="status" aria-live="polite">

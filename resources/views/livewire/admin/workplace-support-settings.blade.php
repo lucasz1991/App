@@ -10,7 +10,7 @@
             <button class="min-h-10 rounded-xl border px-3" wire:confirm="Programmumfang ändern und erneute Mitarbeiterzustimmung erforderlich machen?">Programmumfang speichern</button>
         </form>
     </details>
-    @if($errors->any())<ul role="alert" class="text-sm text-red-700">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>@endif
+    <x-validation-errors title="" />
     <details><summary class="cursor-pointer text-sm font-semibold">Supportkontakt & Diagnoseaufbewahrung</summary><form wire:submit="saveSupport" class="mt-3 grid gap-3 sm:grid-cols-2"><x-operations.field label="Öffentliche IT-E-Mail" model="supportEmail" type="email" /><x-operations.field label="IT-Telefon" model="supportPhone" /><x-operations.field label="Aufbewahrung neuer Diagnosen (Tage)" model="retentionDays" type="number" min="1" max="90" :nullable="false" /><button class="min-h-10 rounded-xl border px-3">Supporteinstellungen speichern</button><p class="text-xs text-rt-muted sm:col-span-2">Kontakt wird vor Anmeldung im Client angezeigt. Keine Geheimnisse eintragen. Standard 30 Tage; Ablaufentfernung benötigt den Laravel-Scheduler.</p></form></details>
     <details><summary class="cursor-pointer text-sm font-semibold">Microsoft-Bereitstellung – getrennter Schreibzugang</summary><form wire:submit="saveWriter" class="mt-3 space-y-3">
         <p class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">Vor App-Registrierung, Rechten oder Adminzustimmung in Microsoft Admin/Entra nachfragen. Dieser Bereich ersetzt nicht diese Zustimmung. Keine automatischen Lizenzkäufe; keine Geräte- oder Mail-Schreibrechte.</p>

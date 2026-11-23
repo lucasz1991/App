@@ -16,10 +16,10 @@
 @if(!$absencesOnly)
     @if($searchInHeader)
         <template x-teleport="[data-topbar-page-search]" wire:key="timeline-topbar-search-{{ $this->getId() }}">
-            <x-tables.search-field context="page-topbar" wire:model.live.debounce.300ms="search" placeholder="Mitarbeiter suchen" aria-label="Mitarbeiter suchen" />
+            <x-ui.forms.search context="page-topbar" wire:model.live.debounce.300ms="search" placeholder="Mitarbeiter suchen" aria-label="Mitarbeiter suchen" />
         </template>
     @else
-        <x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Mitarbeiter suchen" />
+        <x-ui.forms.search wire:model.live.debounce.300ms="search" placeholder="Mitarbeiter suchen" />
     @endif
 @endif
 @if($windowNavigation)

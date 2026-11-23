@@ -326,16 +326,13 @@
 
         <div class="min-w-0 p-4 sm:p-5">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <label class="relative block min-w-0 flex-1">
-                    <span class="sr-only">{{ $isGerman ? 'Wissenseinträge durchsuchen' : 'Search knowledge entries' }}</span>
-                    <i class="far fa-search pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-rt-muted" aria-hidden="true"></i>
-                    <input
-                        type="search"
+                <div class="min-w-0 flex-1">
+                    <x-ui.forms.search
                         wire:model.live.debounce.300ms="search"
-                        placeholder="{{ $isGerman ? 'Titel, Stichwort oder Inhalt suchen …' : 'Search title, keyword or content …' }}"
-                        class="min-h-11 w-full rounded-xl border-0 bg-rt-surface-muted py-2.5 pl-10 pr-4 text-sm text-rt-text ring-1 ring-inset ring-rt-border/70 placeholder:text-rt-soft focus:ring-2 focus:ring-rt-red dark:bg-rt-dark-surface-muted dark:text-rt-dark-text dark:ring-rt-dark-border/70"
-                    >
-                </label>
+                        :placeholder="$isGerman ? 'Titel, Stichwort oder Inhalt suchen …' : 'Search title, keyword or content …'"
+                        :aria-label="$isGerman ? 'Wissenseinträge durchsuchen' : 'Search knowledge entries'"
+                    />
+                </div>
                 <x-ui.buttons.button-basic mode="primary" type="button" class="min-h-11" wire:click="createEntry" :disabled="$topics->isEmpty()">
                     <i class="far fa-plus mr-1.5" aria-hidden="true"></i>{{ $isGerman ? 'Information anlegen' : 'Add information' }}
                 </x-ui.buttons.button-basic>

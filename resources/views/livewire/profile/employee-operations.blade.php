@@ -65,7 +65,7 @@
                 ['value' => 'past', 'label' => 'Vergangen', 'icon' => 'fa-clock-rotate-left'],
                 ['value' => 'all', 'label' => 'Gesamter Verlauf', 'compactLabel' => 'Verlauf', 'icon' => 'fa-list'],
             ]" :value="$period" action="setPeriod" label="Schichtzeitraum" :show-labels="true" />
-            <div class="employee-operations__search"><x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Schicht, Ort oder Kunde suchen" aria-label="Schicht, Ort oder Kunde suchen" maxlength="120" /></div>
+            <div class="employee-operations__search"><x-ui.forms.search wire:model.live.debounce.300ms="search" placeholder="Schicht, Ort oder Kunde suchen" aria-label="Schicht, Ort oder Kunde suchen" maxlength="120" /></div>
         </div>
         @error('search') <p class="employee-operations__validation" role="alert">{{ $message }}</p> @enderror
         @error('period') <p class="employee-operations__validation" role="alert">{{ $message }}</p> @enderror

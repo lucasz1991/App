@@ -90,7 +90,7 @@ class MailManagement extends Component
         $mail = Mail::query()->find($id);
 
         if (! $mail) {
-            session()->flash('error', 'Mail nicht gefunden.');
+            $this->dispatch('swal:toast', type: 'error', text: 'Mail nicht gefunden.');
 
             return;
         }
@@ -110,7 +110,7 @@ class MailManagement extends Component
         // Der Versand laeuft ueber den bestehenden Job-Flow.
         ProcessMailJob::dispatch($mail->fresh());
 
-        session()->flash('message', __('app.mail_requeued'));
+        $this->dispatch('swal:toast', type: 'success', text: __('app.mail_requeued'));
     }
 
     public function sendMessageToSuperAdmin(int $id): void
@@ -118,7 +118,7 @@ class MailManagement extends Component
         $sourceMail = Mail::query()->find($id);
 
         if (! $sourceMail) {
-            session()->flash('error', 'Ausgangs-Mail nicht gefunden.');
+            $this->dispatch('swal:toast', type: 'error', text: 'Ausgangs-Mail nicht gefunden.');
 
             return;
         }
@@ -126,7 +126,7 @@ class MailManagement extends Component
         $superAdminMail = (string) config('mail.super_admin', '');
 
         if (! filter_var($superAdminMail, FILTER_VALIDATE_EMAIL)) {
-            session()->flash('error', 'SUPER_ADMIN_MAIL ist nicht gesetzt oder ungueltig.');
+            $this->dispatch('swal:toast', type: 'error', text: 'SUPER_ADMIN_MAIL ist nicht gesetzt oder ungültig.');
 
             return;
         }
@@ -146,7 +146,7 @@ class MailManagement extends Component
             ],
         ]);
 
-        session()->flash('message', 'Nachricht wurde unveraendert an den SuperAdmin zur Zustellung eingeplant.');
+        $this->dispatch('swal:toast', type: 'success', text: 'Nachricht wurde unverändert an den SuperAdmin zur Zustellung eingeplant.');
     }
 
     public function render()

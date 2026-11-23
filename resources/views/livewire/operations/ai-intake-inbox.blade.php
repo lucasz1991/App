@@ -36,7 +36,7 @@
             @else
                 @if(!$enabled)<p class="ops-muted" role="status">Die automatische Verarbeitung ist deaktiviert. Eingänge bleiben zur späteren Auswertung erhalten.</p>@endif
                 <x-tables.toolbar title="AI-Eingänge filtern" id="ai-intake-filters" :search-in-header="true">
-                    <x-slot:search><x-tables.search-field context="page" wire:model.live.debounce.300ms="search" placeholder="AI-Eingang suchen" /></x-slot:search>
+                    <x-slot:search><x-ui.forms.search context="page" wire:model.live.debounce.300ms="search" placeholder="AI-Eingang suchen" /></x-slot:search>
                     <x-tables.filter-field label="Bearbeitung" for="ai-intake-status"><x-ui.forms.select id="ai-intake-status" wire:model.live="statusFilter"><option value="all">Alle Zustände</option>@foreach($labels as $key=>$label)<option value="{{ $key }}">{{ $label }}</option>@endforeach</x-ui.forms.select></x-tables.filter-field>
                 </x-tables.toolbar>
                 <x-tables.table :columns="[['label'=>'Eingang','key'=>'title','width'=>'minmax(0,1.7fr)'],['label'=>'Kunde','key'=>'customer','width'=>'minmax(0,1fr)'],['label'=>'Bearbeitung','key'=>'status','width'=>'minmax(0,.8fr)'],['label'=>'Erfasst','key'=>'created','width'=>'minmax(0,.8fr)']]" :items="$intakes" table-key="ai-intake" detail-action="select" row-view="components.tables.rows.operations.ai-intake-row" empty="Noch keine AI-Eingänge für diese Auswahl." :flush-top="true" />
@@ -206,7 +206,7 @@
                                 <summary>{{ $message->metadata['subject'] ?? 'Originaleingang' }} <span class="rt-intake-drawer__meta">{{ $message->created_at->timezone('Europe/Berlin')->format('d.m.Y H:i') }}</span></summary>
                                 <div class="rt-intake-drawer__disclosure-content">
                                     <p class="rt-intake-drawer__original">{{ $message->body }}</p>
-                                    @if(($message->metadata['raw_archive_complete'] ?? true) === false || ($message->metadata['text_archive_complete'] ?? true) === false)<p class="ops-muted" role="alert">Dieser Eingang überschreitet die Verarbeitungsgrenzen. Das vollständige Original im Postfach manuell prüfen; hier ist ein begrenzter Ausschnitt archiviert.</p>@endif
+                                    @if(($message->metadata['raw_archive_complete'] ?? true) === false || ($message->metadata['text_archive_complete'] ?? true) === false)<x-ui.feedback.alert type="warning" :dismissible="false">Dieser Eingang überschreitet die Verarbeitungsgrenzen. Das vollständige Original im Postfach manuell prüfen; hier ist ein begrenzter Ausschnitt archiviert.</x-ui.feedback.alert>@endif
                                     @if($message->raw_path)<x-ui.buttons.button-basic mode="link" :href="route('operations.ai-intake.original', $message->id)" data-no-navigate>{{ ($message->metadata['raw_archive_complete'] ?? true) ? 'Original herunterladen' : 'Archivierten Ausschnitt herunterladen' }}</x-ui.buttons.button-basic>@endif
                                 </div>
                             </details>

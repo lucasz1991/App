@@ -27,7 +27,7 @@
             @if($embedded)<div class="ops-actions"><x-ui.buttons.button-basic mode="link" :href="\App\Support\Operations\OperationsPages::intakeFormUrl($selected->id, $customerId)" data-no-navigate x-on:click="$dispatch('railtime-assistant-close')"><i class="far fa-file-alt" aria-hidden="true"></i>Im Formular bearbeiten</x-ui.buttons.button-basic></div>@endif
             @if(!$enabled && $selected->source_type !== 'email')<p class="ops-muted" role="status">Die automatische Auswertung ist aus. Dieser Eingang und seine Anlagen bleiben erhalten; erneut analysieren ist nach Aktivierung verfügbar.</p>@endif
             <x-ui.forms.input-error for="intake" />
-            @if($selected->error_code && $selected->status !== 'not_inquiry' && (!$embedded || $selected->error_code !== 'mailbox_test_review'))<p class="ops-muted" role="alert">Die Verarbeitung benötigt eine Prüfung. Quellen und erkannte Angaben bleiben erhalten.</p>@endif
+            @if($selected->error_code && $selected->status !== 'not_inquiry' && (!$embedded || $selected->error_code !== 'mailbox_test_review'))<x-ui.feedback.alert type="warning" :dismissible="false">Die Verarbeitung benötigt eine Prüfung. Quellen und erkannte Angaben bleiben erhalten.</x-ui.feedback.alert>@endif
             @if($selected->proposals->contains(fn ($record) => $record->source_revision !== $selected->source_revision || $record->status === 'stale'))<p class="ops-muted" role="status">Ein neuerer Eingang liegt vor. Frühere Angaben erst nach Prüfung der aktuellen Quelle übernehmen.</p>@endif
             @if(!$embedded && $selected->missing_fields)
                 <div class="ai-intake-panel__accordion ai-intake-panel__missing" x-data="{ openAccordionSection: null, toggleAccordionSection(section) { this.openAccordionSection = this.openAccordionSection === section ? null : section } }">
@@ -145,7 +145,7 @@
                     @foreach($selected->messages as $message)
                         <x-ui.accordion.section compact :section="'message-'.$message->id" :label="($message->metadata['subject'] ?? 'Originaleingang').' · '.$message->created_at->timezone('Europe/Berlin')->format('d.m.Y H:i')" icon="far fa-envelope" :id-prefix="'intake-source-'.$this->getId()" wire:key="ai-message-{{ $message->id }}">
                             <p class="whitespace-pre-wrap break-words text-sm">{{ $message->body }}</p>
-                            @if(($message->metadata['raw_archive_complete'] ?? true) === false || ($message->metadata['text_archive_complete'] ?? true) === false)<p class="ops-muted" role="alert">Dieser Eingang überschreitet die Verarbeitungsgrenzen. Das vollständige Original im Postfach manuell prüfen; hier ist ein begrenzter Ausschnitt archiviert.</p>@endif
+                            @if(($message->metadata['raw_archive_complete'] ?? true) === false || ($message->metadata['text_archive_complete'] ?? true) === false)<x-ui.feedback.alert type="warning" :dismissible="false">Dieser Eingang überschreitet die Verarbeitungsgrenzen. Das vollständige Original im Postfach manuell prüfen; hier ist ein begrenzter Ausschnitt archiviert.</x-ui.feedback.alert>@endif
                             @if($message->raw_path)<x-ui.buttons.button-basic mode="link" :href="route('operations.ai-intake.original',$message->id)" data-no-navigate>{{ ($message->metadata['raw_archive_complete'] ?? true) ? 'Original herunterladen' : 'Archivierten Ausschnitt herunterladen' }}</x-ui.buttons.button-basic>@endif
                         </x-ui.accordion.section>
                     @endforeach

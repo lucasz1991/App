@@ -12,9 +12,9 @@
         <x-tables.toolbar :title="\App\Livewire\Operations\OperationsEnhancements::TABS[$tab]" id="operations-enhancement-filters">
             <x-slot:search>
                 @if($tab === 'payroll')
-                    <x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Mitarbeiter oder Monat (JJJJ-MM)" />
+                    <x-ui.forms.search wire:model.live.debounce.300ms="search" placeholder="Mitarbeiter oder Monat (JJJJ-MM)" />
                 @elseif(in_array($tab, ['proofs','travel','partners','imports']))
-                    <x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Vorgang suchen" />
+                    <x-ui.forms.search wire:model.live.debounce.300ms="search" placeholder="Vorgang suchen" />
                 @endif
             </x-slot:search>
             <x-slot:bulk>@if(!$payrollExportOnly && !($personal && $tab === 'partners') && !(!$personal && in_array($tab,['proofs','travel'])))<x-ui.buttons.button-basic mode="primary" type="button" wire:click="create">{{ $tab === 'terminal' ? 'Zugang einrichten' : 'Neu' }}</x-ui.buttons.button-basic>@endif</x-slot:bulk>

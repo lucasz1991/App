@@ -22,6 +22,9 @@
         ? $inputAttributes
         : $attributes;
     $wireModel = $searchAttributes->wire('model')->value();
+    // Ein uebergebenes aria-label ersetzt den Platzhalter als zugaenglichen
+    // Namen, statt ein zweites (vom Browser ignoriertes) Attribut zu erzeugen.
+    $searchLabel = filled($searchAttributes->get('aria-label')) ? (string) $searchAttributes->get('aria-label') : $ph;
 @endphp
 
 <div
@@ -282,7 +285,7 @@
         x-on:blur="closeWhenEmpty()"
         x-bind:tabindex="isExpanded() ? 0 : -1"
         x-bind:aria-hidden="isExpanded() ? null : 'true'"
-        aria-label="{{ $ph }}"
+        aria-label="{{ $searchLabel }}"
         aria-placeholder="{{ $ph }}"
         placeholder="{{ $ph }}"
         autocomplete="off"
@@ -293,7 +296,7 @@
         @if ($isTopbarSearch)
             role="searchbox"
         @endif
-        {{ $searchAttributes->merge(['class' => 'rt-expandable-search__input']) }}
+        {{ $searchAttributes->except('aria-label')->merge(['class' => 'rt-expandable-search__input']) }}
         @if ($noResults) :class="String(value ?? '').length > 0 && 'border-rt-red/60 ring-2 ring-rt-red/20 dark:border-rt-red/60'" @endif
     />
 

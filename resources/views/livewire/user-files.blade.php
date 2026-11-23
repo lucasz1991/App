@@ -13,25 +13,10 @@
             {{-- Suche ueber alle Bereiche: Bei vielen Freigaben war das
                  Durchscrollen bisher der einzige Weg zu einer Datei. --}}
             <div class="relative w-full sm:w-64">
-                <i class="far fa-magnifying-glass pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-rt-soft dark:text-rt-dark-soft" aria-hidden="true"></i>
-                <input
-                    type="search"
+                <x-ui.forms.search
                     wire:model.live.debounce.250ms="search"
-                    placeholder="{{ __('app.search_files_placeholder') }}"
-                    aria-label="{{ __('app.search_files_placeholder') }}"
-                    class="h-11 w-full rounded-xl border border-rt-border bg-rt-control pl-9 pr-9 text-base leading-6 text-rt-text shadow-rt-xs outline-none transition placeholder:text-rt-soft focus:border-rt-accent sm:text-sm dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:placeholder:text-rt-dark-soft"
-                >
-                <button
-                    type="button"
-                    x-cloak
-                    wire:click="clearSearch"
-                    @if(! $isFiltered) hidden @endif
-                    class="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-rt-muted transition hover:bg-rt-surface-muted hover:text-rt-text dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted"
-                    title="{{ __('app.reset') }}"
-                    aria-label="{{ __('app.reset') }}"
-                >
-                    <i class="far fa-xmark" aria-hidden="true"></i>
-                </button>
+                    :placeholder="__('app.search_files_placeholder')"
+                />
             </div>
 
             <span class="inline-flex shrink-0 items-center gap-2 rounded-full bg-rt-surface px-3 py-1.5 text-xs font-semibold text-rt-text shadow-rt-xs ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60">

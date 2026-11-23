@@ -1,7 +1,7 @@
 <section class="rt-ops ops-stack min-w-0" aria-label="Meine Verfügbarkeitsfreigaben">
     <header class="ops-toolbar"><h2 class="text-lg font-semibold">Verfügbarkeitsfreigaben</h2></header>
     <x-operations.feedback />
-    <x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Kunde, Einsatzort oder Tätigkeit" />
+    <x-ui.forms.search wire:model.live.debounce.300ms="search" placeholder="Kunde, Einsatzort oder Tätigkeit" />
     <x-tables.table :items="$items" :columns="[['label'=>'Kunde / Tätigkeit','key'=>'service','width'=>'2fr'],['label'=>'Zeitraum','key'=>'period','width'=>'2fr'],['label'=>'Rückmeldung','key'=>'state'],['label'=>'Aktion','key'=>'actions']]" row-view="components.tables.rows.operations.customer-capacity" empty="Keine Verfügbarkeitsanfragen." />
     {{ $items->links() }}
     <x-operations.modal wire:model="formOpen" title="Verfügbarkeit bestätigen" max-width="2xl">

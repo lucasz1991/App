@@ -28,17 +28,13 @@
 
     <x-ui.surface.card padding="p-4 sm:p-5">
         <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_14rem]" aria-label="Marketing-Motive filtern">
-            <label class="relative block min-w-0">
-                <span class="sr-only">Motive durchsuchen</span>
-                <i class="far fa-search pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-rt-soft" aria-hidden="true"></i>
-                <input
-                    type="search"
+            <div class="min-w-0">
+                <x-ui.forms.search
                     wire:model.live.debounce.300ms="search"
                     placeholder="Nach Motivnamen suchen …"
-                    autocomplete="off"
-                    class="min-h-11 w-full rounded-xl border border-rt-border bg-rt-control py-2.5 pl-10 pr-4 text-base text-rt-text outline-none transition placeholder:text-rt-soft focus:border-rt-red focus:ring-4 focus:ring-rt-red/10 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-text sm:text-sm"
-                >
-            </label>
+                    aria-label="Motive durchsuchen"
+                />
+            </div>
 
             <label class="block min-w-0">
                 <span class="sr-only">Nach Motivtyp filtern</span>

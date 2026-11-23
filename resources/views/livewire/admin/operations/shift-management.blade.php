@@ -2,7 +2,7 @@
     x-data="rtShiftDetailDrawer" x-on:operations-shift-detail-request.window="openShiftDetail($event.detail.id)">
     @if($viewMode !== 'timeline')
         <template x-teleport="[data-topbar-page-search]" wire:key="shift-plan-topbar-search">
-            <x-tables.search-field context="page-topbar" wire:model.live.debounce.300ms="search" :results-count="$shifts->count()" placeholder="Schicht, Kunde oder Einsatzort suchen" aria-label="Schichten suchen" />
+            <x-ui.forms.search context="page-topbar" wire:model.live.debounce.300ms="search" :results-count="$shifts->count()" placeholder="Schicht, Kunde oder Einsatzort suchen" aria-label="Schichten suchen" />
         </template>
     @endif
     <template x-teleport="[data-page-header-search]">
@@ -465,7 +465,7 @@
                                                 @error('assignmentNote') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                                             </div>
                                         </div>
-                                        @error('assignment') <p class="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300" role="alert">{{ $message }}</p> @enderror
+                                        @error('assignment') <x-ui.feedback.alert type="danger" :dismissible="false">{{ $message }}</x-ui.feedback.alert> @enderror
                                         <x-ui.buttons.button-basic type="button" mode="primary" wire:click="assignEmployee" wire:loading.attr="disabled">
                                             <i wire:loading.remove wire:target="assignEmployee" class="far fa-user-plus" aria-hidden="true"></i>
                                             <i wire:loading wire:target="assignEmployee" class="far fa-spinner-third fa-spin" aria-hidden="true"></i>
