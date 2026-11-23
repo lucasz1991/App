@@ -25,9 +25,9 @@
                 <x-ui.forms.input id="password_confirmation" class="mt-1 block" type="password" name="password_confirmation" required autocomplete="new-password" />
             </div>
 
-            <x-button class="w-full justify-center">
+            <x-ui.buttons.button-basic mode="primary" type="submit" class="w-full justify-center">
                 {{ __('app.register_button') }}
-            </x-button>
+            </x-ui.buttons.button-basic>
         </form>
 
         <p class="mt-6 text-center text-sm text-rt-muted dark:text-rt-dark-muted">

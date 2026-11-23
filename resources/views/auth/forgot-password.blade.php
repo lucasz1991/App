@@ -16,9 +16,9 @@
                 <x-ui.forms.input id="email" class="mt-1 block" type="email" name="email" :value="old('email')" required autofocus autocomplete="username" />
             </div>
 
-            <x-button class="w-full justify-center">
+            <x-ui.buttons.button-basic mode="primary" type="submit" class="w-full justify-center">
                 {{ __('app.send_reset_link') }}
-            </x-button>
+            </x-ui.buttons.button-basic>
         </form>
 
         <div class="mt-6 text-center">

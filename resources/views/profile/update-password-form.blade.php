@@ -30,8 +30,8 @@
             {{ __('Gespeichert.') }}
         </x-action-message>
 
-        <x-button>
+        <x-ui.buttons.button-basic mode="primary" type="submit">
             {{ __('Speichern') }}
-        </x-button>
+        </x-ui.buttons.button-basic>
     </x-slot>
 </x-form-section>

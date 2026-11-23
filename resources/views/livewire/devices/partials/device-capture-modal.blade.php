@@ -241,26 +241,26 @@
         </x-slot>
 
         <x-slot name="footer">
-            <button
+            <x-ui.buttons.button-basic mode="secondary"
                 type="button"
                 wire:click="closeCreate"
-                class="inline-flex min-h-11 items-center justify-center rounded-xl border border-rt-border bg-white px-4 text-sm font-semibold text-rt-text transition hover:bg-rt-surface-muted focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/15 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white dark:hover:bg-rt-dark-surface-muted"
+                class="min-h-11"
             >
                 Abbrechen
-            </button>
+            </x-ui.buttons.button-basic>
 
             @if($captureMode === 'manual')
-                <button
+                <x-ui.buttons.button-basic mode="primary"
                     type="submit"
                     form="device-capture-manual-form"
                     wire:loading.attr="disabled"
                     wire:target="createDevice"
-                    class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-4 text-sm font-semibold text-white transition hover:bg-rt-red-dark focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/25 disabled:cursor-wait disabled:opacity-50"
+                    class="min-h-11"
                 >
                     <i data-feather="plus" class="h-4 w-4" aria-hidden="true"></i>
                     <span wire:loading.remove wire:target="createDevice">Im Lager erfassen</span>
                     <span wire:loading wire:target="createDevice">Wird erfasst …</span>
-                </button>
+                </x-ui.buttons.button-basic>
             @else
                 <button
                     type="submit"

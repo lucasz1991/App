@@ -48,9 +48,9 @@
                         {{ __('Use an authentication code') }}
                     </button>
 
-                    <x-button class="ms-4">
+                    <x-ui.buttons.button-basic mode="primary" type="submit" class="ms-4">
                         {{ __('Log in') }}
-                    </x-button>
+                    </x-ui.buttons.button-basic>
                 </div>
             </form>
         </div>

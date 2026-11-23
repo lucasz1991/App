@@ -97,9 +97,9 @@
                 <p class="text-xs leading-5">
                     {{ __('app.assistant_speech_privacy_fallback') }}
                 </p>
-                <button
+                <x-ui.buttons.button-basic mode="secondary"
                     type="button"
-                    class="rt-ui-button rt-ui-button-secondary shrink-0"
+                    class="shrink-0"
                     wire:click="refreshAssistantSpeechStatus"
                     wire:loading.attr="disabled"
                     wire:target="refreshAssistantSpeechStatus"
@@ -107,7 +107,7 @@
                     <i class="fad fa-sync" aria-hidden="true"></i>
                     <span wire:loading.remove wire:target="refreshAssistantSpeechStatus">{{ __('app.refresh') }}</span>
                     <span wire:loading wire:target="refreshAssistantSpeechStatus">{{ __('app.loading') }}</span>
-                </button>
+                </x-ui.buttons.button-basic>
             </div>
         </div>
     </div>

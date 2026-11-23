@@ -109,7 +109,7 @@
                     <span x-cloak x-show="dirty" class="text-xs font-semibold text-amber-700 dark:text-amber-300" role="status">
                         <i class="far fa-circle-exclamation mr-1" aria-hidden="true"></i>{{ $isGerman ? 'Nicht gespeichert' : 'Unsaved' }}
                     </span>
-                    <x-button
+                    <x-ui.buttons.button-basic mode="primary"
                         type="submit"
                         form="assistant-prompt-rules-form"
                         class="ml-auto min-h-11 w-full sm:w-auto lg:ml-0"
@@ -118,7 +118,7 @@
                     >
                         <span wire:loading.remove wire:target="savePromptConfiguration"><i class="far fa-save mr-1.5" aria-hidden="true"></i>{{ $isGerman ? 'Prompt & Regeln speichern' : 'Save prompt & rules' }}</span>
                         <span wire:loading wire:target="savePromptConfiguration">{{ $isGerman ? 'Speichert …' : 'Saving …' }}</span>
-                    </x-button>
+                    </x-ui.buttons.button-basic>
                 </div>
             </div>
         </div>
@@ -215,10 +215,10 @@
                 <span x-cloak x-show="dirty" class="text-xs font-semibold text-amber-700 dark:text-amber-300" role="status">
                     <i class="far fa-circle-exclamation mr-1" aria-hidden="true"></i>{{ $isGerman ? 'Nicht gespeichert' : 'Unsaved' }}
                 </span>
-                <x-button type="button" class="min-h-11" wire:click="saveIntro" wire:loading.attr="disabled" wire:target="saveIntro">
+                <x-ui.buttons.button-basic mode="primary" type="button" class="min-h-11" wire:click="saveIntro" wire:loading.attr="disabled" wire:target="saveIntro">
                     <span wire:loading.remove wire:target="saveIntro"><i class="far fa-save mr-1.5" aria-hidden="true"></i>{{ $isGerman ? 'Basistext speichern' : 'Save baseline' }}</span>
                     <span wire:loading wire:target="saveIntro">{{ $isGerman ? 'Speichert …' : 'Saving …' }}</span>
-                </x-button>
+                </x-ui.buttons.button-basic>
             </div>
         </div>
         <x-ui.forms.label
@@ -336,9 +336,9 @@
                         class="min-h-11 w-full rounded-xl border-0 bg-rt-surface-muted py-2.5 pl-10 pr-4 text-sm text-rt-text ring-1 ring-inset ring-rt-border/70 placeholder:text-rt-soft focus:ring-2 focus:ring-rt-red dark:bg-rt-dark-surface-muted dark:text-rt-dark-text dark:ring-rt-dark-border/70"
                     >
                 </label>
-                <x-button type="button" class="min-h-11" wire:click="createEntry" :disabled="$topics->isEmpty()">
+                <x-ui.buttons.button-basic mode="primary" type="button" class="min-h-11" wire:click="createEntry" :disabled="$topics->isEmpty()">
                     <i class="far fa-plus mr-1.5" aria-hidden="true"></i>{{ $isGerman ? 'Information anlegen' : 'Add information' }}
-                </x-button>
+                </x-ui.buttons.button-basic>
             </div>
 
             @if ($topics->isEmpty())
@@ -346,7 +346,7 @@
                     <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-rt-accent-soft text-xl text-rt-red dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent"><i class="fad fa-folder-plus" aria-hidden="true"></i></span>
                     <h4 class="mt-4 font-semibold text-rt-text dark:text-rt-dark-text">{{ $isGerman ? 'Mit einem Thema beginnen' : 'Start with a topic' }}</h4>
                     <p class="mt-1 max-w-md text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">{{ $isGerman ? 'Themen geben dem Such-Tool Kontext und halten den Wissenspool auch bei vielen Einträgen übersichtlich.' : 'Topics give the search tool context and keep a growing knowledge pool manageable.' }}</p>
-                    <x-button type="button" wire:click="createTopic" class="mt-4 min-h-11"><i class="far fa-plus mr-1.5" aria-hidden="true"></i>{{ $isGerman ? 'Erstes Thema anlegen' : 'Create first topic' }}</x-button>
+                    <x-ui.buttons.button-basic mode="primary" type="button" wire:click="createTopic" class="mt-4 min-h-11"><i class="far fa-plus mr-1.5" aria-hidden="true"></i>{{ $isGerman ? 'Erstes Thema anlegen' : 'Create first topic' }}</x-ui.buttons.button-basic>
                 </div>
             @else
                 <div class="mt-5 space-y-3">
@@ -482,8 +482,8 @@
                 <i class="far fa-circle-exclamation" aria-hidden="true"></i>
                 {{ $isGerman ? 'Nicht gespeicherte Änderungen' : 'Unsaved changes' }}
             </span>
-            <x-secondary-button type="button" class="min-h-11" wire:click="$set('topicEditorOpen', false)">{{ $isGerman ? 'Abbrechen' : 'Cancel' }}</x-secondary-button>
-            <x-button type="submit" form="assistant-knowledge-topic-form" class="ml-2 min-h-11" wire:loading.attr="disabled" wire:target="saveTopic">{{ $isGerman ? 'Thema speichern' : 'Save topic' }}</x-button>
+            <x-ui.buttons.button-basic mode="secondary" type="button" class="min-h-11" wire:click="$set('topicEditorOpen', false)">{{ $isGerman ? 'Abbrechen' : 'Cancel' }}</x-ui.buttons.button-basic>
+            <x-ui.buttons.button-basic mode="primary" type="submit" form="assistant-knowledge-topic-form" class="ml-2 min-h-11" wire:loading.attr="disabled" wire:target="saveTopic">{{ $isGerman ? 'Thema speichern' : 'Save topic' }}</x-ui.buttons.button-basic>
         </x-slot:footer>
     </x-dialog-modal>
 
@@ -627,8 +627,8 @@
                 <i class="far fa-circle-exclamation" aria-hidden="true"></i>
                 {{ $isGerman ? 'Nicht gespeicherte Änderungen' : 'Unsaved changes' }}
             </span>
-            <x-secondary-button type="button" class="min-h-11" wire:click="$set('entryEditorOpen', false)">{{ $isGerman ? 'Abbrechen' : 'Cancel' }}</x-secondary-button>
-            <x-button type="submit" form="assistant-knowledge-entry-form" class="ml-2 min-h-11" wire:loading.attr="disabled" wire:target="saveEntry">{{ $isGerman ? 'Information speichern' : 'Save information' }}</x-button>
+            <x-ui.buttons.button-basic mode="secondary" type="button" class="min-h-11" wire:click="$set('entryEditorOpen', false)">{{ $isGerman ? 'Abbrechen' : 'Cancel' }}</x-ui.buttons.button-basic>
+            <x-ui.buttons.button-basic mode="primary" type="submit" form="assistant-knowledge-entry-form" class="ml-2 min-h-11" wire:loading.attr="disabled" wire:target="saveEntry">{{ $isGerman ? 'Information speichern' : 'Save information' }}</x-ui.buttons.button-basic>
         </x-slot:footer>
     </x-dialog-modal>
 </div>

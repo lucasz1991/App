@@ -98,14 +98,13 @@
                     <p class="text-sm text-rt-muted dark:text-rt-dark-muted">
                         {{ __('app.no_files_for_search', ['term' => $search]) }}
                     </p>
-                    <button
+                    <x-ui.buttons.button-basic mode="secondary"
                         type="button"
                         wire:click="clearSearch"
-                        class="inline-flex items-center gap-2 rounded-lg bg-rt-surface px-3.5 py-2 text-xs font-semibold text-rt-text shadow-rt-xs ring-1 ring-rt-border/60 transition hover:bg-rt-surface-muted dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60 dark:hover:bg-rt-dark-surface-muted"
                     >
                         <i class="far fa-arrow-rotate-left" aria-hidden="true"></i>
                         {{ __('app.reset') }}
-                    </button>
+                    </x-ui.buttons.button-basic>
                 @else
                     <p class="text-sm text-rt-muted dark:text-rt-dark-muted">{{ __('app.no_downloads_available') }}</p>
                 @endif

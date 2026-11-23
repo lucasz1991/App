@@ -219,17 +219,17 @@
                         </p>
                         <x-ui.forms.input-error for="deployment" class="mt-1.5" />
                     </div>
-                    <button
+                    <x-ui.buttons.button-basic mode="primary"
                         type="button"
                         wire:click="saveDeployment"
                         wire:loading.attr="disabled"
                         wire:target="saveDeployment"
-                        class="rt-ui-button rt-ui-button-primary min-h-11 w-full shrink-0 sm:w-auto"
+                        class="min-h-11 w-full shrink-0 sm:w-auto"
                     >
                         <i class="fad fa-save" aria-hidden="true"></i>
                         <span wire:loading.remove wire:target="saveDeployment">{{ $isGerman ? 'Betriebswerte speichern' : 'Save runtime settings' }}</span>
                         <span wire:loading wire:target="saveDeployment">{{ __('app.loading') }}</span>
-                    </button>
+                    </x-ui.buttons.button-basic>
                 </div>
             </div>
         </section>
@@ -454,7 +454,7 @@
                                             : 'This separate switch confirms only the reviewed NanoMDM command chain. The global production guard still applies as well.' }}
                                     </p>
                                 </div>
-                                <button
+                                <x-ui.buttons.button-basic mode="secondary"
                                     type="button"
                                     wire:click="setNanoMdmMobileCommandsEnabled({{ $mobileCommandsEnabled ? 'false' : 'true' }})"
                                     wire:confirm="{{ $mobileCommandsEnabled
@@ -462,7 +462,7 @@
                                         : ($isGerman ? 'Mobile NanoMDM-Kommandos wirklich freigeben? Apple-Testorganisation, APNs/ADE und ein Laborgerät müssen zuvor geprüft sein.' : 'Enable mobile NanoMDM commands? The Apple test organisation, APNs/ADE and a lab device must be verified first.') }}"
                                     wire:loading.attr="disabled"
                                     wire:target="setNanoMdmMobileCommandsEnabled"
-                                    class="rt-ui-button rt-ui-button-secondary min-h-11 w-full shrink-0 sm:w-auto"
+                                    class="min-h-11 w-full shrink-0 sm:w-auto"
                                 >
                                     <i class="fad {{ $mobileCommandsEnabled ? 'fa-lock' : 'fa-unlock-alt' }}" aria-hidden="true"></i>
                                     <span wire:loading.remove wire:target="setNanoMdmMobileCommandsEnabled">
@@ -471,7 +471,7 @@
                                             : ($isGerman ? 'Kontrolliert freigeben' : 'Enable deliberately') }}
                                     </span>
                                     <span wire:loading wire:target="setNanoMdmMobileCommandsEnabled">{{ __('app.loading') }}</span>
-                                </button>
+                                </x-ui.buttons.button-basic>
                             </div>
                             <x-ui.forms.input-error for="providers.nanomdm.mobile_commands_enabled" />
                         @endif
@@ -517,28 +517,28 @@
 
                         <x-ui.forms.input-error :for="'providers.'.$providerKey" />
                         <div class="flex flex-col gap-2.5 border-t border-rt-border/60 pt-4 dark:border-rt-dark-border/60 sm:flex-row">
-                            <button
+                            <x-ui.buttons.button-basic mode="primary"
                                 type="button"
                                 wire:click="saveProvider('{{ $providerKey }}')"
                                 wire:loading.attr="disabled"
                                 wire:target="saveProvider('{{ $providerKey }}')"
-                                class="rt-ui-button rt-ui-button-primary min-h-11 w-full sm:flex-1"
+                                class="min-h-11 w-full sm:flex-1"
                             >
                                 <i class="fad fa-save" aria-hidden="true"></i>
                                 <span wire:loading.remove wire:target="saveProvider('{{ $providerKey }}')">{{ $isGerman ? 'Provider speichern' : 'Save provider' }}</span>
                                 <span wire:loading wire:target="saveProvider('{{ $providerKey }}')">{{ __('app.loading') }}</span>
-                            </button>
-                            <button
+                            </x-ui.buttons.button-basic>
+                            <x-ui.buttons.button-basic mode="secondary"
                                 type="button"
                                 wire:click="testProvider('{{ $providerKey }}')"
                                 wire:loading.attr="disabled"
                                 wire:target="testProvider('{{ $providerKey }}')"
-                                class="rt-ui-button rt-ui-button-secondary min-h-11 w-full sm:flex-1"
+                                class="min-h-11 w-full sm:flex-1"
                             >
                                 <i class="fad fa-stethoscope" aria-hidden="true"></i>
                                 <span wire:loading.remove wire:target="testProvider('{{ $providerKey }}')">{{ $isGerman ? 'Gespeicherte Verbindung testen' : 'Test saved connection' }}</span>
                                 <span wire:loading wire:target="testProvider('{{ $providerKey }}')">{{ __('app.loading') }}</span>
-                            </button>
+                            </x-ui.buttons.button-basic>
                         </div>
                     </div>
                 </section>
@@ -582,17 +582,17 @@
                 </div>
                 <x-ui.forms.input-error for="identityDomains" />
                 <div class="flex justify-end">
-                    <button
+                    <x-ui.buttons.button-basic mode="primary"
                         type="button"
                         wire:click="saveIdentityDomains"
                         wire:loading.attr="disabled"
                         wire:target="saveIdentityDomains"
-                        class="rt-ui-button rt-ui-button-primary min-h-11 w-full sm:w-auto"
+                        class="min-h-11 w-full sm:w-auto"
                     >
                         <i class="fad fa-save" aria-hidden="true"></i>
                         <span wire:loading.remove wire:target="saveIdentityDomains">{{ $isGerman ? 'Kontendomänen speichern' : 'Save identity domains' }}</span>
                         <span wire:loading wire:target="saveIdentityDomains">{{ __('app.loading') }}</span>
-                    </button>
+                    </x-ui.buttons.button-basic>
                 </div>
             </div>
         </section>
@@ -626,7 +626,7 @@
                         </p>
                     </div>
                 </div>
-                <button
+                <x-ui.buttons.button-basic
                     type="button"
                     wire:click="setProductionCommandsEnabled({{ $commandsEnabled ? 'false' : 'true' }})"
                     wire:confirm="{{ $commandsEnabled
@@ -634,7 +634,8 @@
                         : ($isGerman ? 'Externe Geräteaktionen und Konto-Synchronisationen wirklich global freigeben? Provider, Laborgeräte und Rollback müssen zuvor geprüft sein.' : 'Enable external device actions and identity synchronization globally? Providers, lab devices and rollback must be verified first.') }}"
                     wire:loading.attr="disabled"
                     wire:target="setProductionCommandsEnabled"
-                    class="rt-ui-button min-h-11 w-full shrink-0 {{ $commandsEnabled ? 'rt-ui-button-secondary' : 'bg-rose-600 text-white hover:bg-rose-700 focus-visible:ring-rose-500' }} lg:w-auto"
+                    :mode="$commandsEnabled ? 'secondary' : 'danger'"
+                    class="min-h-11 w-full shrink-0 lg:w-auto"
                 >
                     <i class="fad {{ $commandsEnabled ? 'fa-lock' : 'fa-unlock-alt' }}" aria-hidden="true"></i>
                     <span wire:loading.remove wire:target="setProductionCommandsEnabled">
@@ -643,7 +644,7 @@
                             : ($isGerman ? 'Befehle kontrolliert freigeben' : 'Enable commands deliberately') }}
                     </span>
                     <span wire:loading wire:target="setProductionCommandsEnabled">{{ __('app.loading') }}</span>
-                </button>
+                </x-ui.buttons.button-basic>
             </div>
             <x-ui.forms.input-error for="runtime.production_commands_enabled" class="mx-4 mb-4 sm:mx-6 sm:mb-6" />
         </section>

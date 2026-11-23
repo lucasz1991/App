@@ -27,9 +27,9 @@
             </div>
 
             <div class="flex items-center justify-end">
-                <x-button>
+                <x-ui.buttons.button-basic mode="primary" type="submit">
                     {{ __('Reset Password') }}
-                </x-button>
+                </x-ui.buttons.button-basic>
             </div>
         </form>
     </x-authentication-card>

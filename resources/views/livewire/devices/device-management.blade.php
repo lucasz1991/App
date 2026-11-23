@@ -24,10 +24,10 @@
                 </button>
             @endcan
         @endif
-        <button
+        <x-ui.buttons.button-basic mode="secondary"
             type="button"
             wire:click="openProviderReadiness"
-            class="relative inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-rt-border bg-white px-3 py-2 text-sm font-semibold text-rt-text shadow-rt-xs transition duration-200 hover:border-rt-accent/30 hover:bg-rt-surface-muted active:scale-[0.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-accent/15 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white dark:hover:bg-rt-dark-surface-muted sm:px-4"
+            class="relative min-h-11"
             aria-haspopup="dialog"
             aria-controls="device-provider-readiness-modal"
             aria-label="Systemstatus öffnen"
@@ -41,19 +41,19 @@
             ]) aria-hidden="true"></span>
             <span class="hidden sm:inline">Systemstatus</span>
             <span class="sr-only sm:hidden">Systemstatus öffnen</span>
-        </button>
+        </x-ui.buttons.button-basic>
 
         @can('devices.manage')
-            <button
+            <x-ui.buttons.button-basic mode="primary"
                 type="button"
                 wire:click="openCreate"
-                class="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-3 py-2 text-sm font-semibold text-white shadow-rt-sm transition hover:bg-rt-red-dark focus:outline-none focus:ring-2 focus:ring-rt-red/30 sm:px-4"
+                class="min-h-11 min-w-11"
                 aria-label="Gerät erfassen"
                 title="Gerät erfassen"
             >
                 <i data-feather="plus" class="h-4 w-4" aria-hidden="true"></i>
                 <span class="hidden sm:inline">Gerät erfassen</span>
-            </button>
+            </x-ui.buttons.button-basic>
         @endcan
     </x-slot:actions>
 
@@ -425,7 +425,7 @@
                             @can('devices.assign')
                                 <label class="mt-4 block text-sm font-medium text-rt-text dark:text-white">Mitarbeiter zuweisen<select wire:model="assignmentUserId" class="mt-1.5 min-h-11 w-full rounded-xl border border-rt-border bg-white px-3 text-sm dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white"><option value="">Bitte auswählen</option>@foreach($employees as $employee)<option value="{{ $employee->id }}">{{ $employee->name }} · {{ $employee->email }}</option>@endforeach</select></label>
                                 <textarea wire:model="assignmentNote" rows="2" placeholder="Optionale Übergabenotiz" class="mt-2 w-full rounded-xl border border-rt-border bg-white px-3 py-2 text-sm dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white"></textarea>
-                                <div class="mt-2 grid gap-2 sm:grid-cols-2"><button type="button" wire:click="assignDevice" class="min-h-10 rounded-xl bg-rt-red px-3 text-sm font-semibold text-white">Zuweisen</button><button type="button" wire:click="confirmHandover" @disabled(!$activeAssignment) class="min-h-10 rounded-xl border border-rt-border px-3 text-sm font-semibold disabled:opacity-40 dark:border-rt-dark-border">Übergabe bestätigen</button></div>
+                                <div class="mt-2 grid gap-2 sm:grid-cols-2"><x-ui.buttons.button-basic mode="primary" type="button" wire:click="assignDevice" class="min-h-10">Zuweisen</x-ui.buttons.button-basic><button type="button" wire:click="confirmHandover" @disabled(!$activeAssignment) class="min-h-10 rounded-xl border border-rt-border px-3 text-sm font-semibold disabled:opacity-40 dark:border-rt-dark-border">Übergabe bestätigen</button></div>
                                 <label class="mt-3 block text-sm font-medium text-rt-text dark:text-white">Rückgabe-/Lagerstandort<input wire:model="returnLocation" type="text" class="mt-1.5 min-h-10 w-full rounded-xl border border-rt-border px-3 text-sm dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white"></label>
                                 <button type="button" wire:click="returnDevice" @disabled(!$activeAssignment) class="mt-2 min-h-10 w-full rounded-xl border border-amber-300 bg-amber-50 px-3 text-sm font-semibold text-amber-800 disabled:opacity-40 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">Rückgabe ins Lager erfassen</button>
                             @endcan
@@ -497,7 +497,7 @@
                                 <p class="mt-1">{{ $selectedEnrollmentMode['description'] }}</p>
                             </div>
                         @endif
-                        @can('devices.enrollment.manage')<button type="button" wire:click="createEnrollment" @disabled(!$activeAssignment || !$enrollmentProvider || !$enrollmentMode) class="mt-4 min-h-11 w-full rounded-xl bg-rt-red px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">Persönliche Einrichtungs-E-Mail senden</button>@endcan
+                        @can('devices.enrollment.manage')<x-ui.buttons.button-basic mode="primary" type="button" wire:click="createEnrollment" :disabled="!$activeAssignment || !$enrollmentProvider || !$enrollmentMode" class="mt-4 min-h-11 w-full">Persönliche Einrichtungs-E-Mail senden</x-ui.buttons.button-basic>@endcan
                         <div class="mt-4 space-y-2">
                             @forelse($selectedDevice->enrollments->take(4) as $enrollment)
                                 <div class="flex items-center justify-between gap-3 rounded-lg bg-rt-surface-muted px-3 py-2 text-sm dark:bg-rt-dark-surface-muted"><span>{{ $enrollment->provider }} · {{ str_replace('_',' ',$enrollment->mode) }}</span><span class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ $enrollment->status->value }} · {{ $enrollment->expires_at?->format('d.m. H:i') }}</span></div>
@@ -530,7 +530,7 @@
                         @can('devices.commands.execute')
                             <input type="file" wire:model="artifactUpload" class="mt-4 block w-full rounded-xl border border-dashed border-rt-border p-3 text-sm dark:border-rt-dark-border">
                             @error('artifactUpload')<p class="mt-2 text-sm text-red-600">{{ $message }}</p>@enderror
-                            <button type="button" wire:click="uploadArtifact" wire:loading.attr="disabled" @disabled(!$artifactUpload) class="mt-3 min-h-11 w-full rounded-xl bg-rt-red px-4 text-sm font-semibold text-white disabled:opacity-40">Privat hochladen & prüfen</button>
+                            <x-ui.buttons.button-basic mode="primary" type="button" wire:click="uploadArtifact" wire:loading.attr="disabled" :disabled="!$artifactUpload" class="mt-3 min-h-11 w-full">Privat hochladen & prüfen</x-ui.buttons.button-basic>
                         @endcan
                         <div class="mt-4 space-y-2">
                             @forelse($selectedDevice->artifacts as $artifact)

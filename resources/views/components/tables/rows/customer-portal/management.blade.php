@@ -20,7 +20,7 @@
                     @elseif(($item->subject_type ?? '')==='request' && in_array($item->status,['submitted','reviewing']))<x-ui.buttons.button-basic type="button" mode="link" wire:click="edit('review-request',{{ $actionId }})">Bearbeiten</x-ui.buttons.button-basic>
                     @elseif(($item->subject_type ?? '')==='message')<x-ui.buttons.button-basic type="button" mode="link" wire:click="edit('reply',{{ $actionId }})">Antworten</x-ui.buttons.button-basic>
                     @elseif(($item->subject_type ?? '')==='attachment')
-                        @if(\Illuminate\Support\Facades\Route::has('customer-portal.manager.attachment'))<a class="rt-ui-button rt-ui-button-secondary" href="{{ route('customer-portal.manager.attachment',['id'=>$actionId]) }}">Datei prüfen</a>@endif
+                        @if(\Illuminate\Support\Facades\Route::has('customer-portal.manager.attachment'))<x-ui.buttons.button-basic mode="secondary" data-no-navigate href="{{ route('customer-portal.manager.attachment',['id'=>$actionId]) }}">Datei prüfen</x-ui.buttons.button-basic>@endif
                         @if($item->status==='quarantined')<x-ui.buttons.button-basic type="button" mode="link" wire:click="edit('review-attachment',{{ $actionId }})">Prüfung bestätigen</x-ui.buttons.button-basic>@endif
                     @endif
                 @endif

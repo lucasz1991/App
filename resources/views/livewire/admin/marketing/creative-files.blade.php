@@ -49,16 +49,16 @@
                 @enderror
             </label>
 
-            <button
+            <x-ui.buttons.button-basic mode="primary"
                 type="submit"
                 wire:loading.attr="disabled"
                 wire:target="saveMetadata"
-                class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-4 text-sm font-semibold text-white shadow-rt-xs transition hover:bg-rt-red-dark disabled:cursor-wait disabled:opacity-60"
+                class="min-h-11"
             >
                 <i data-feather="save" class="h-4 w-4" aria-hidden="true"></i>
                 <span wire:loading.remove wire:target="saveMetadata">Details speichern</span>
                 <span wire:loading wire:target="saveMetadata">Wird gespeichert …</span>
-            </button>
+            </x-ui.buttons.button-basic>
         </form>
     </x-ui.surface.card>
 

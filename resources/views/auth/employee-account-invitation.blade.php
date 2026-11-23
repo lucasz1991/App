@@ -20,7 +20,7 @@
                 <x-ui.forms.label for="password_confirmation" value="Passwort bestätigen" />
                 <x-ui.forms.input id="password_confirmation" class="mt-1 block" type="password" name="password_confirmation" required autocomplete="new-password" />
             </div>
-            <x-button type="submit">Zugang einrichten</x-button>
+            <x-ui.buttons.button-basic mode="primary" type="submit">Zugang einrichten</x-ui.buttons.button-basic>
         </form>
     </x-authentication-card>
 </x-guest-layout>

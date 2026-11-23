@@ -52,14 +52,14 @@
         </x-slot>
 
         <x-slot name="footer">
-            <button type="button" wire:click="closeProviderLink" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-rt-border bg-white px-4 text-sm font-semibold text-rt-text hover:bg-rt-surface-muted dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white dark:hover:bg-rt-dark-surface-muted">
+            <x-ui.buttons.button-basic mode="secondary" type="button" wire:click="closeProviderLink" class="min-h-11">
                 Abbrechen
-            </button>
-            <button type="submit" form="device-provider-link-form" wire:loading.attr="disabled" wire:target="saveProviderLink" @disabled(blank($providerLinkForm['provider'] ?? '') || blank($providerLinkForm['external_device_id'] ?? '')) class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-4 text-sm font-semibold text-white hover:bg-rt-red-dark disabled:cursor-not-allowed disabled:opacity-40">
+            </x-ui.buttons.button-basic>
+            <x-ui.buttons.button-basic mode="primary" type="submit" form="device-provider-link-form" wire:loading.attr="disabled" wire:target="saveProviderLink" :disabled="blank($providerLinkForm['provider'] ?? '') || blank($providerLinkForm['external_device_id'] ?? '')" class="min-h-11">
                 <i data-feather="link" class="h-4 w-4" aria-hidden="true"></i>
                 <span wire:loading.remove wire:target="saveProviderLink">Verknüpfung speichern</span>
                 <span wire:loading wire:target="saveProviderLink">Wird geprüft …</span>
-            </button>
+            </x-ui.buttons.button-basic>
         </x-slot>
     </x-dialog-modal>
 @endcan

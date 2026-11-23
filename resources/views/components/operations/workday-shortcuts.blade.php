@@ -54,10 +54,10 @@
                             {{ $item['action'] }}<i class="far fa-arrow-right" aria-hidden="true"></i>
                         </x-ui.buttons.button-basic>
                     @else
-                        <a class="rt-ui-button rt-ui-button-link rt-workday-shortcut__action" href="{{ $preview ? '#' : $item['action_href'] }}"
-                            @if($preview) aria-disabled="true" x-on:click.prevent @else wire:navigate @endif>
+                        <x-ui.buttons.button-basic mode="link" class="rt-workday-shortcut__action" :can="!$preview"
+                            :href="$preview ? '#' : $item['action_href']">
                             {{ $item['action'] }}<i class="far fa-arrow-right" aria-hidden="true"></i>
-                        </a>
+                        </x-ui.buttons.button-basic>
                     @endif
                 </article>
             @endforeach

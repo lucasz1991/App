@@ -39,9 +39,9 @@
                 </a>
             </div>
 
-            <x-button class="w-full justify-center">
+            <x-ui.buttons.button-basic mode="primary" type="submit" class="w-full justify-center">
                 {{ __('app.admin_login_button') }}
-            </x-button>
+            </x-ui.buttons.button-basic>
         </form>
     </x-auth-brand-layout>
 </x-guest-layout>

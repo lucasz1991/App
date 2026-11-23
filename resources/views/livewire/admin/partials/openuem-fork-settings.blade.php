@@ -33,13 +33,13 @@
                     <x-ui.forms.label :for="'openuem-native-label-'.$profileIndex" :value="$isGerman ? 'Bezeichnung (optional)' : 'Label (optional)'" />
                     <x-ui.forms.input :id="'openuem-native-label-'.$profileIndex" wire:model="providers.openuem.native_profiles.{{ $profileIndex }}.label" maxlength="120" />
                     <x-ui.forms.input-error :for="'providers.openuem.native_profiles.'.$profileIndex.'.label'" />
-                    <button type="button" wire:click="removeNativeProfile({{ $profileIndex }})" class="rt-ui-button rt-ui-button-secondary min-h-11">{{ $isGerman ? 'Freigabe entfernen' : 'Remove permission' }}</button>
+                    <x-ui.buttons.button-basic mode="secondary" type="button" wire:click="removeNativeProfile({{ $profileIndex }})" class="min-h-11">{{ $isGerman ? 'Freigabe entfernen' : 'Remove permission' }}</x-ui.buttons.button-basic>
                 </fieldset>
             @empty
                 <p class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ $isGerman ? 'Noch kein Geräteprofil freigegeben.' : 'No device profiles allowed yet.' }}</p>
             @endforelse
             <x-ui.forms.input-error for="providers.openuem.native_profiles" />
-            <button type="button" wire:click="addNativeProfile" wire:loading.attr="disabled" class="rt-ui-button rt-ui-button-secondary min-h-11">{{ $isGerman ? 'Profilfreigabe hinzufügen' : 'Add profile permission' }}</button>
+            <x-ui.buttons.button-basic mode="secondary" type="button" wire:click="addNativeProfile" wire:loading.attr="disabled" class="min-h-11">{{ $isGerman ? 'Profilfreigabe hinzufügen' : 'Add profile permission' }}</x-ui.buttons.button-basic>
         </div>
     @endif
 </div>

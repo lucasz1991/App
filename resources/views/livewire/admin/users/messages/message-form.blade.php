@@ -70,21 +70,15 @@
         </x-slot>
 
         <x-slot name="footer">
-            <x-secondary-button wire:click="resetMailModal" wire:loading.attr="disabled">
+            <x-ui.buttons.button-basic mode="secondary" type="button" wire:click="resetMailModal" wire:loading.attr="disabled">
                 {{ __('app.cancel') }}
-            </x-secondary-button>
+            </x-ui.buttons.button-basic>
 
             @php $canSendMail = auth()->user()?->isAdmin(); @endphp
 
-            @if ($canSendMail)
-                <x-button wire:click="sendMail" wire:loading.attr="disabled" class="ml-2">
-                    {{ __('app.send') }}
-                </x-button>
-            @else
-                <x-button disabled class="pointer-events-none ml-2 cursor-not-allowed opacity-60" title="{{ __('app.no_permission') }}">
-                    {{ __('app.send') }}
-                </x-button>
-            @endif
+            <x-ui.buttons.button-basic mode="primary" type="button" :can="(bool) $canSendMail" wire:click="sendMail" wire:loading.attr="disabled" class="ml-2">
+                {{ __('app.send') }}
+            </x-ui.buttons.button-basic>
         </x-slot>
     </x-dialog-modal>
 </div>

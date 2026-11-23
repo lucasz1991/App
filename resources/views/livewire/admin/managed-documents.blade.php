@@ -59,12 +59,12 @@
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2 lg:max-w-md lg:justify-end">
-                    <button type="button" wire:click="openVersionUpload({{ $document->id }})" class="inline-flex items-center gap-2 rounded-lg bg-rt-red px-3.5 py-2 text-sm font-semibold text-white shadow-rt-xs transition hover:bg-rt-red-dark active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40">
+                    <x-ui.buttons.button-basic mode="primary" type="button" wire:click="openVersionUpload({{ $document->id }})">
                         <i class="far fa-upload" aria-hidden="true"></i>{{ __('app.upload_new_version') }}
-                    </button>
-                    <button type="button" wire:click="openHistory({{ $document->id }})" class="inline-flex items-center gap-2 rounded-lg border border-rt-border bg-rt-surface px-3.5 py-2 text-sm font-semibold text-rt-text transition hover:bg-rt-surface-muted active:scale-[0.98] dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted">
+                    </x-ui.buttons.button-basic>
+                    <x-ui.buttons.button-basic mode="secondary" type="button" wire:click="openHistory({{ $document->id }})">
                         <i class="far fa-history" aria-hidden="true"></i>{{ __('app.version_history') }}
-                    </button>
+                    </x-ui.buttons.button-basic>
                     <button type="button" wire:click="openEdit({{ $document->id }})" class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-rt-muted transition hover:bg-rt-surface-muted hover:text-rt-text dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted dark:hover:text-white" title="{{ __('app.edit') }}">
                         <i class="far fa-pen" aria-hidden="true"></i>
                     </button>
@@ -133,8 +133,8 @@
             </div>
         </x-slot:content>
         <x-slot:footer>
-            <x-secondary-button wire:click="$set('formOpen', false)">{{ __('app.cancel') }}</x-secondary-button>
-            <x-button class="ml-2" wire:click="save" wire:loading.attr="disabled" wire:target="save,upload">{{ __('app.save') }}</x-button>
+            <x-ui.buttons.button-basic mode="secondary" type="button" wire:click="$set('formOpen', false)">{{ __('app.cancel') }}</x-ui.buttons.button-basic>
+            <x-ui.buttons.button-basic mode="primary" type="button" class="ml-2" wire:click="save" wire:loading.attr="disabled" wire:target="save,upload">{{ __('app.save') }}</x-ui.buttons.button-basic>
         </x-slot:footer>
     </x-dialog-modal>
 
@@ -155,8 +155,8 @@
             </div>
         </x-slot:content>
         <x-slot:footer>
-            <x-secondary-button wire:click="$set('versionUploadOpen', false)">{{ __('app.cancel') }}</x-secondary-button>
-            <x-button class="ml-2" wire:click="uploadVersion" wire:loading.attr="disabled" wire:target="uploadVersion,upload">{{ __('app.publish_version') }}</x-button>
+            <x-ui.buttons.button-basic mode="secondary" type="button" wire:click="$set('versionUploadOpen', false)">{{ __('app.cancel') }}</x-ui.buttons.button-basic>
+            <x-ui.buttons.button-basic mode="primary" type="button" class="ml-2" wire:click="uploadVersion" wire:loading.attr="disabled" wire:target="uploadVersion,upload">{{ __('app.publish_version') }}</x-ui.buttons.button-basic>
         </x-slot:footer>
     </x-dialog-modal>
 
@@ -178,19 +178,19 @@
                             <div class="flex shrink-0 gap-2">
                                 <button type="button" wire:click="downloadVersion({{ $version->id }})" class="rounded-lg border border-rt-border px-3 py-2 text-xs font-semibold text-rt-text dark:border-rt-dark-border dark:text-white"><i class="far fa-download mr-1"></i>{{ __('app.download') }}</button>
                                 @if(!$version->is_current)
-                                    <button
+                                    <x-ui.buttons.button-basic
+                                        mode="primary"
+                                        size="sm"
                                         type="button"
-                                        x-on:click.prevent="$dispatch('rt-confirm', {
-                                            title: @js(__('app.restore')),
-                                            message: @js(__('app.restore_version_confirm')),
-                                            variant: 'default',
-                                            confirmLabel: @js(__('app.restore')),
-                                            action: () => $wire.restoreVersion({{ $version->id }})
-                                        })"
-                                        class="rounded-lg bg-rt-red px-3 py-2 text-xs font-semibold text-white"
+                                        confirm-method="restoreVersion"
+                                        :confirm-arguments="[$version->id]"
+                                        :confirm-title="__('app.restore')"
+                                        :confirm-message="__('app.restore_version_confirm')"
+                                        confirm-variant="default"
+                                        :confirm-label="__('app.restore')"
                                     >
-                                        <i class="far fa-undo mr-1"></i>{{ __('app.restore') }}
-                                    </button>
+                                        <i class="far fa-undo" aria-hidden="true"></i>{{ __('app.restore') }}
+                                    </x-ui.buttons.button-basic>
                                 @endif
                             </div>
                         </div>
@@ -198,6 +198,6 @@
                 </div>
             @endif
         </x-slot:content>
-        <x-slot:footer><x-secondary-button wire:click="$set('historyOpen', false)">{{ __('app.close') }}</x-secondary-button></x-slot:footer>
+        <x-slot:footer><x-ui.buttons.button-basic mode="secondary" type="button" wire:click="$set('historyOpen', false)">{{ __('app.close') }}</x-ui.buttons.button-basic></x-slot:footer>
     </x-dialog-modal>
 </x-dynamic-component>

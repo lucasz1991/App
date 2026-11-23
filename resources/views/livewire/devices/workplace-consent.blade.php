@@ -33,7 +33,7 @@
                         <p role="status">Verwaltungsumfang bestätigt. Dies ist noch kein Nachweis installierter Dienste.</p>
                         @if($owner)<form wire:submit="withdraw" class="space-y-2"><label class="flex gap-2"><input type="checkbox" wire:model="withdrawConfirmed">Ich möchte die Verwaltung beenden und weitere Aufträge sperren.</label><button type="submit" class="min-h-10 rounded-xl border border-red-300 px-3 text-red-700">Verwaltung widerrufen</button></form>@endif
                     @elseif($owner)
-                        <form wire:submit="accept" class="space-y-2"><label class="flex items-start gap-2"><input type="checkbox" wire:model="confirmed">Ich bestätige die Gerätezuordnung, das angegebene Eigentum und den beschriebenen Verwaltungsumfang. Bei meinem Privatgerät stimme ich der dauerhaften Verwaltung ausdrücklich zu.</label><button type="submit" class="min-h-10 rounded-xl bg-rt-red px-3 text-white">Umfang verbindlich bestätigen</button></form>
+                        <form wire:submit="accept" class="space-y-2"><label class="flex items-start gap-2"><input type="checkbox" wire:model="confirmed">Ich bestätige die Gerätezuordnung, das angegebene Eigentum und den beschriebenen Verwaltungsumfang. Bei meinem Privatgerät stimme ich der dauerhaften Verwaltung ausdrücklich zu.</label><x-ui.buttons.button-basic mode="primary" type="submit" class="min-h-10">Umfang verbindlich bestätigen</x-ui.buttons.button-basic></form>
                     @else
                         <p>Die persönliche Zustimmung erfolgt durch den zugeordneten Mitarbeiter unter „Meine Geräte“.</p>
                     @endif

@@ -82,11 +82,11 @@
     </x-slot:content>
 
     <x-slot:footer>
-        <button
+        <x-ui.buttons.button-basic mode="secondary"
             type="button"
             wire:click="closeProviderReadiness"
-            class="inline-flex min-h-11 items-center justify-center rounded-lg border border-rt-border bg-white px-4 text-sm font-semibold text-rt-text transition hover:bg-rt-surface-muted focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-accent/15 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white dark:hover:bg-rt-dark-surface-muted"
-        >Schließen</button>
+            class="min-h-11"
+        >Schließen</x-ui.buttons.button-basic>
 
         @if(auth()->user()?->isSuperAdmin())
             <a

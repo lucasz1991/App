@@ -1,8 +1,8 @@
 <div>
-    <button type="button" wire:click="openModal" class="rt-ui-button rt-ui-button-secondary inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold" aria-haspopup="dialog">
+    <x-ui.buttons.button-basic mode="secondary" type="button" wire:click="openModal" class="min-h-11" aria-haspopup="dialog">
         <i class="fab fa-microsoft" aria-hidden="true"></i>
         Microsoft-Konten
-    </button>
+    </x-ui.buttons.button-basic>
 
     <x-dialog-modal id="microsoft-employee-links-modal" wire:model.live="showModal" maxWidth="3xl">
         <x-slot name="title">Microsoft-Konten zuordnen</x-slot>
@@ -87,11 +87,11 @@
         </x-slot>
 
         <x-slot name="footer">
-            <button type="button" wire:click="closeModal" class="rt-ui-button rt-ui-button-secondary min-h-11 rounded-xl px-4 text-sm font-semibold">Schließen</button>
-            <button type="submit" form="microsoft-employee-link-form" wire:loading.attr="disabled" wire:target="save" @disabled(! $schemaReady) class="rt-ui-button rt-ui-button-primary min-h-11 rounded-xl px-4 text-sm font-semibold disabled:opacity-40">
+            <x-ui.buttons.button-basic mode="secondary" type="button" wire:click="closeModal" class="min-h-11">Schließen</x-ui.buttons.button-basic>
+            <x-ui.buttons.button-basic mode="primary" type="submit" form="microsoft-employee-link-form" wire:loading.attr="disabled" wire:target="save" :disabled="! $schemaReady" class="min-h-11">
                 <span wire:loading.remove wire:target="save">Konto zuordnen</span>
                 <span wire:loading wire:target="save">Wird gespeichert …</span>
-            </button>
+            </x-ui.buttons.button-basic>
         </x-slot>
     </x-dialog-modal>
 </div>

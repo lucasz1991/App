@@ -17,9 +17,9 @@
                 @csrf
 
                 <div>
-                    <x-button type="submit">
+                    <x-ui.buttons.button-basic mode="primary" type="submit">
                         {{ __('Bestätigungs-E-Mail erneut senden') }}
-                    </x-button>
+                    </x-ui.buttons.button-basic>
                 </div>
             </form>
 

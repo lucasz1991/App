@@ -136,16 +136,15 @@
                                                 </a>
                                             @endif
 
-                                            <button
+                                            <x-ui.buttons.button-basic mode="primary"
                                                 type="button"
                                                 wire:click="downloadFile({{ $file->id }})"
                                                 wire:loading.attr="disabled"
                                                 wire:target="downloadFile({{ $file->id }})"
-                                                class="inline-flex items-center gap-2 rounded-lg bg-rt-red px-3 py-2 text-xs font-semibold text-white shadow-rt-xs transition-all duration-200 hover:bg-rt-red-dark active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60 dark:focus-visible:ring-offset-rt-dark-surface"
                                             >
                                                 <i class="far fa-download" aria-hidden="true"></i>
                                                 {{ __('app.download') }}
-                                            </button>
+                                            </x-ui.buttons.button-basic>
                                         </div>
                                     </li>
                                 @endforeach
@@ -155,13 +154,12 @@
                 </div>
 
                 <footer class="flex shrink-0 justify-end border-t border-rt-border/70 bg-rt-surface-muted px-5 py-4 dark:border-rt-dark-border/70 dark:bg-rt-dark-surface-muted sm:px-7">
-                    <button
+                    <x-ui.buttons.button-basic mode="secondary"
                         type="button"
                         wire:click="close"
-                        class="inline-flex items-center justify-center rounded-lg border border-rt-border bg-rt-surface px-4 py-2 text-sm font-semibold text-rt-text shadow-rt-xs transition-all duration-200 hover:bg-rt-nav-hover active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text dark:hover:bg-rt-dark-nav-hover"
                     >
                         {{ __('app.close') }}
-                    </button>
+                    </x-ui.buttons.button-basic>
                 </footer>
             </article>
         @endif
