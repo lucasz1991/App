@@ -42,13 +42,13 @@
                         <div class="rt-service-detail-shift__body">
                             <div class="rt-service-detail-shift__heading">
                                 @if($detailOnly)
-                                    <x-ui.buttons.button-basic mode="link" size="sm" type="button" class="rt-service-detail-shift__link" x-on:click="$dispatch('close'); $wire.detailOpen = false; $dispatch('operations-shift-detail-request', { id: {{ $shift->id }} })" aria-label="Schichtdetails öffnen: {{ $shift->title ?: 'Schicht' }}"><span>{{ $shift->title ?: 'Schicht' }}</span><i class="far fa-arrow-up-right" aria-hidden="true"></i></x-ui.buttons.button-basic>
+                                    <x-ui.buttons.button-basic mode="link" size="sm" type="button" class="rt-service-detail-shift__link" x-on:click="$dispatch('close'); $wire.detailOpen = false; $dispatch('operations-shift-detail-request', { id: {{ $shift->id }} })" aria-label="Schichtdetails öffnen: {{ $shift->title ?: 'Schicht' }}"><span>{{ $shift->title ?: 'Schicht' }}</span><i class="far fa-arrow-right" aria-hidden="true"></i></x-ui.buttons.button-basic>
                                 @else
-                                    <x-ui.buttons.button-basic mode="link" size="sm" class="rt-service-detail-shift__link" data-no-navigate :href="route($planningRoute, ['module'=>'shift-management', 'order'=>$item->id, 'shift'=>$shift->id])" aria-label="Schichtdetails öffnen: {{ $shift->title ?: 'Schicht' }}"><span>{{ $shift->title ?: 'Schicht' }}</span><i class="far fa-arrow-up-right" aria-hidden="true"></i></x-ui.buttons.button-basic>
+                                    <x-ui.buttons.button-basic mode="link" size="sm" class="rt-service-detail-shift__link" data-no-navigate :href="route($planningRoute, ['module'=>'shift-management', 'order'=>$item->id, 'shift'=>$shift->id])" aria-label="Schichtdetails öffnen: {{ $shift->title ?: 'Schicht' }}"><span>{{ $shift->title ?: 'Schicht' }}</span><i class="far fa-arrow-right" aria-hidden="true"></i></x-ui.buttons.button-basic>
                                 @endif
                                 <span class="rt-service-detail-status"><i class="far {{ $statusIcon }}" aria-hidden="true"></i><x-operations.status :value="$shift->status->value" :label="$shift->status->label()" /></span>
                             </div>
-                            <p class="rt-service-detail-shift__context"><span><i class="far fa-user-helmet-safety" aria-hidden="true"></i>{{ $shift->role_name ?: 'Rolle offen' }}</span><span><i class="far fa-location-dot" aria-hidden="true"></i>{{ $shift->location_name ?: 'Einsatzort offen' }}</span></p>
+                            <p class="rt-service-detail-shift__context"><span><i class="far fa-user-hard-hat" aria-hidden="true"></i>{{ $shift->role_name ?: 'Rolle offen' }}</span><span><i class="far fa-location-dot" aria-hidden="true"></i>{{ $shift->location_name ?: 'Einsatzort offen' }}</span></p>
                             @if($entry->active)
                                 <div class="rt-service-detail-shift__staffing"><x-operations.service-staffing-content :seats="$entry->seats" :summary="$entry->summary" :timezone="$item->timezone" /></div>
                             @else

@@ -50,6 +50,31 @@ class PersonnelScopeService
         return $ids === null || in_array($target instanceof User ? $target->id : $target, $ids, true);
     }
 
+    /**
+     * Personen, fuer die der Akteur heute zustaendig ist, unabhaengig von der
+     * einzelnen Faehigkeit. Null = globaler Zugriff (Admin oder ohne eigene
+     * Zustaendigkeiten), wie bei visibleUserIds().
+     */
+    public function responsibleUserIds(User $actor): ?array
+    {
+        if ($actor->isAdmin() || ! $this->ready() || ! PersonnelResponsibility::where('responsible_user_id', $actor->id)->exists()) {
+            return null;
+        }
+        $today = now(config('operations.display_timezone', 'Europe/Berlin'))->toDateString();
+
+        return PersonnelResponsibility::where('responsible_user_id', $actor->id)
+            ->where('starts_on', '<=', $today)
+            ->where(fn ($q) => $q->whereNull('ends_on')->orWhere('ends_on', '>=', $today))
+            ->pluck('user_id')->map(fn ($id) => (int) $id)->unique()->values()->all();
+    }
+
+    /** Kontoaktionen (Aktivieren, Deaktivieren) nur fuer Personen im eigenen Zustaendigkeitsbereich. */
+    public function authorizeTarget(User $actor, User|int $target): void
+    {
+        $ids = $this->responsibleUserIds($actor);
+        abort_unless($ids === null || in_array($target instanceof User ? $target->id : (int) $target, $ids, true), 403);
+    }
+
     public function authorizeGlobal(User $actor, string $ability): void
     {
         abort_unless($this->visibleUserIds($actor, $ability) === null, 403, 'Globale Änderungen sind nicht Teil einer Personen-Zuständigkeit.');

@@ -7,6 +7,7 @@ use App\Notifications\RailtimeWebPushNotification;
 use App\Services\Privacy\SessionPermissionService;
 use App\Support\Push\PushCategory;
 use App\Support\Push\PushDelivery;
+use App\Support\Ui\InitialsAvatar;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Contracts\Translation\HasLocalePreference;
 use Illuminate\Database\Eloquent\Collection;
@@ -88,6 +89,15 @@ class User extends Authenticatable implements HasLocalePreference, MustVerifyEma
         static::deleting(function (self $user): void {
             $user->pushSubscriptions()->delete();
         });
+    }
+
+    /**
+     * Lokaler Initialen-Avatar statt Jetstreams ui-avatars.com-Rueckfall,
+     * damit ohne eigenes Profilbild kein Name an Dritte geht.
+     */
+    protected function defaultProfilePhotoUrl(): string
+    {
+        return InitialsAvatar::dataUri($this->name);
     }
 
     public function isAdmin(): bool

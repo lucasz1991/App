@@ -182,7 +182,7 @@ class PlanningEnhancements extends Component
         };
         $this->formOpen = false;
         $this->dispatch('operations-plan-changed');
-        session()->flash('operations-status', 'Gespeichert.');
+        session()->flash('operations.saved', 'Gespeichert.');
     }
 
     public function approve(int $id, int $revision): void
@@ -191,7 +191,7 @@ class PlanningEnhancements extends Component
         match ($this->tab) {
             'bundles' => app(PlanningEnhancementService::class)->approveBundle($id, $revision, auth()->user()),'positions' => app(PlanningEnhancementService::class)->approvePosition($id, $revision, auth()->user()),default => abort(422)
         };
-        session()->flash('operations-status', 'Freigegeben.');
+        session()->flash('operations.saved', 'Freigegeben.');
     }
 
     public function prepare(): void
@@ -237,7 +237,7 @@ class PlanningEnhancements extends Component
         $this->formOpen = false;
         $this->preview = [];
         $this->dispatch('operations-plan-changed');
-        session()->flash('operations-status', $this->modal === 'bulk' ? 'Team angefragt.' : 'Planvariante erstellt.');
+        session()->flash('operations.saved', $this->modal === 'bulk' ? 'Team angefragt.' : 'Planvariante erstellt.');
     }
 
     public function inspectVariant(int $id): void

@@ -32,12 +32,12 @@
                 </x-dropdown-link>
             @endif
             @if ($user->status)
-                <x-dropdown-link wire:click.prevent="deactivateUser()" :can="'users.edit'" tone="warning">
+                <x-dropdown-link wire:click.prevent="deactivateUser()" :can="'employees.create'" tone="warning">
                     <i class="far fa-times-circle mr-2"></i>
                     {{ __('app.deactivate') }}
                 </x-dropdown-link>
             @else
-                <x-dropdown-link wire:click.prevent="activateUser()" :can="'users.edit'" tone="success">
+                <x-dropdown-link wire:click.prevent="activateUser()" :can="'employees.create'" tone="success">
                     <i class="far fa-check-circle mr-2"></i>
                     {{ __('app.activate') }}
                 </x-dropdown-link>

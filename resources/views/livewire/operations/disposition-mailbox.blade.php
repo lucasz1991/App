@@ -38,7 +38,7 @@
                 <nav class="rt-disposition-mailbox__tabs" aria-label="Postfachordner">
                     @foreach($this::TABS as $key => $label)
                         <button type="button" wire:click="setTab('{{ $key }}')" aria-pressed="{{ $tab === $key ? 'true' : 'false' }}" wire:loading.attr="disabled" wire:target="setTab,refresh,search,previousPage,nextPage">
-                            <i class="far {{ ['inbox'=>'fa-inbox','sent'=>'fa-paper-plane','outbox'=>'fa-arrow-up-from-bracket'][$key] }}" aria-hidden="true"></i><span>{{ $label }}</span>@if($tab === $key && $mailboxPage !== [])<span class="rt-disposition-mailbox__count">{{ $total }}</span>@endif
+                            <i class="far {{ ['inbox'=>'fa-inbox','sent'=>'fa-paper-plane','outbox'=>'fa-inbox-out'][$key] }}" aria-hidden="true"></i><span>{{ $label }}</span>@if($tab === $key && $mailboxPage !== [])<span class="rt-disposition-mailbox__count">{{ $total }}</span>@endif
                         </button>
                     @endforeach
                 </nav>

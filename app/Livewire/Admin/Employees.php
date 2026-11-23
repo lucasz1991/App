@@ -13,6 +13,7 @@ use App\Livewire\Concerns\InteractsWithPersonQuickActions;
 use App\Models\Team;
 use App\Models\User;
 use App\Models\UserProfile;
+use App\Services\Operations\PersonnelScopeService;
 use App\Services\Personnel\EmployeeTeamService;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Gate;
@@ -235,6 +236,9 @@ class Employees extends Component
         Gate::authorize('employees.create');
 
         $user = User::find($userId);
+        if ($user) {
+            app(PersonnelScopeService::class)->authorizeTarget(auth()->user(), $user);
+        }
 
         // Admin-Konten duerfen nur von Admins verwaltet werden
         if ($user && $user->isAdmin() && ! auth()->user()->isAdmin()) {
@@ -254,6 +258,9 @@ class Employees extends Component
         Gate::authorize('employees.create');
 
         $user = User::find($userId);
+        if ($user) {
+            app(PersonnelScopeService::class)->authorizeTarget(auth()->user(), $user);
+        }
 
         // Admin-Konten duerfen nur von Admins verwaltet werden
         if ($user && $user->isAdmin() && ! auth()->user()->isAdmin()) {

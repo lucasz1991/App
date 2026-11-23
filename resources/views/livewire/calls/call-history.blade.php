@@ -152,8 +152,8 @@
                                 <p class="flex items-center gap-2 truncate text-sm font-bold text-rt-text dark:text-rt-dark-text">
                                     <i @class([
                                         'far text-[10px]',
-                                        'fa-arrow-up-right text-sky-500' => $outgoing,
-                                        'fa-arrow-down-left text-emerald-500' => ! $outgoing,
+                                        'fa-arrow-up rotate-45 text-sky-500' => $outgoing,
+                                        'fa-arrow-down rotate-45 text-emerald-500' => ! $outgoing,
                                     ]) aria-hidden="true" title="{{ $outgoing ? __('app.calls_outgoing') : __('app.calls_incoming') }}"></i>
                                     {{ $room->name }}
                                 </p>

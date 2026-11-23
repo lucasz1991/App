@@ -262,10 +262,11 @@ class UserProfile extends Component
 
     public function activateUser(): void
     {
-        Gate::authorize('users.edit');
+        Gate::authorize('employees.create');
 
         $this->loadUser();
         $this->guardAdminAccount($this->user);
+        app(PersonnelScopeService::class)->authorizeTarget(auth()->user(), $this->user);
 
         if ($this->user && ! $this->user->status) {
             $this->user->update(['status' => true]);
@@ -333,10 +334,11 @@ class UserProfile extends Component
 
     public function deactivateUser(): void
     {
-        Gate::authorize('users.edit');
+        Gate::authorize('employees.create');
 
         $this->loadUser();
         $this->guardAdminAccount($this->user);
+        app(PersonnelScopeService::class)->authorizeTarget(auth()->user(), $this->user);
 
         if ($this->user && $this->user->status) {
             $this->user->update(['status' => false]);

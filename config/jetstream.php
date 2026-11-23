@@ -60,7 +60,9 @@ return [
     'features' => [
         // Features::termsAndPrivacyPolicy(),
         Features::profilePhotos(),
-        Features::teams(['invitations' => true]),
+        // Jetstream-Team-Seiten (/teams/*, Einladungen) sind stillgelegt: Teams werden
+        // in der Admin-Mitarbeiterverwaltung gepflegt. HasTeams bleibt am User-Modell aktiv.
+        // Features::teams(['invitations' => true]),
     ],
 
     /*

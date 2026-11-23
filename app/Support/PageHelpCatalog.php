@@ -490,7 +490,7 @@ final class PageHelpCatalog
                 ],
                 'Administration',
                 'users',
-                ['teams.create', 'teams.show'],
+                ['admin.employees'],
                 true,
             ),
             $this->entry(

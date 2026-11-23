@@ -5,7 +5,7 @@
     <header class="rt-time-review__heading">
         <h2>Meine Zeiten</h2>
         <details class="rt-time-review__export">
-            <summary><i class="far fa-arrow-down-to-line" aria-hidden="true"></i> Export</summary>
+            <summary><i class="far fa-download" aria-hidden="true"></i> Export</summary>
             <div>
                 <p class="rt-time-entry__meta">{{ $periodCaption }} · alle Status</p>
                 <x-ui.buttons.button-basic wire:click="exportOwnTimes" wire:loading.attr="disabled" aria-label="Dienstzeiten CSV herunterladen">Eigene Dienstzeiten (CSV v1)</x-ui.buttons.button-basic>

@@ -60,9 +60,7 @@
     $teamName = trim((string) ($resolvedUser?->currentTeam?->name ?? ''));
     $contextLabel = $profilePosition !== '' ? $profilePosition : $teamName;
 
-    $avatarUrl = 'https://ui-avatars.com/api/?name='
-        . urlencode($displayName)
-        . '&color=7F9CF5&background=EBF4FF&bold=true&size=96';
+    $avatarUrl = \App\Support\Ui\InitialsAvatar::dataUri($displayName);
 
     $sizeClass = match ((int) $size) {
         6 => 'h-6 w-6 rounded-full',
