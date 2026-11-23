@@ -1,7 +1,5 @@
 <section class="rt-ops ops-stack min-w-0" aria-label="Vorgänge und Aufträge" data-case-workspace="{{ $view }}" x-data="{}">
-    <template x-teleport="[data-topbar-planning-navigation]" wire:key="case-topbar-navigation">
-        <x-ui.navigation.area-menu id="case-workspace-view" label="Vorgangsansicht" :value="$view === 'shifts' && $section === 'calendar' ? 'calendar' : $view" action="setPlanningView" :options="$planningOptions" :navigate="true" />
-    </template>
+    <x-ui.navigation.area-menu id="case-workspace-view" teleport="[data-topbar-planning-navigation]" label="Vorgangsansicht" :value="$view === 'shifts' && $section === 'calendar' ? 'calendar' : $view" action="setPlanningView" :options="$planningOptions" :navigate="true" />
     @if($view === 'shifts' && $section === 'plan')
         <x-ui.page-header-actions target="actions" wire:key="case-shift-create-action">
             <x-operations.create-action module="shift-management" />

@@ -9,10 +9,8 @@
         <p>{{ $tab === 'inbox' ? 'Freigaben, Rückfragen und Angebote für dich' : 'Wann und wie RailTime dich erinnert' }}</p>
     </div>
     @if($remindersAvailable)
-        <div class="rt-today-segment" role="group" aria-label="Ansicht">
-            <button type="button" wire:click="setTab('inbox')" aria-pressed="{{ $tab === 'inbox' ? 'true' : 'false' }}">Offen</button>
-            <button type="button" wire:click="setTab('reminders')" aria-pressed="{{ $tab === 'reminders' ? 'true' : 'false' }}">Erinnerungen</button>
-        </div>
+        <x-ui.buttons.multi-toggle :id="'personal-tasks-view-'.$this->getId()" label="Ansicht" :show-labels="true" :value="$tab" action="setTab"
+            :options="[['value' => 'inbox', 'label' => 'Offen', 'icon' => 'fa-tasks'], ['value' => 'reminders', 'label' => 'Erinnerungen', 'icon' => 'fa-bell']]" />
     @endif
 </header>
 <x-operations.feedback />

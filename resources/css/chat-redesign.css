@@ -123,7 +123,6 @@ body[data-mode='dark'] .rt-chat-page {
 .rt-chat-send-button,
 .rt-chat-media-button,
 .rt-voice-play,
-.rt-chat-modal-tab,
 .rt-chat-list-item,
 .rt-chat-contact,
 .rt-chat-text-action {
@@ -139,7 +138,6 @@ body[data-mode='dark'] .rt-chat-page {
 .rt-chat-icon-button:focus-visible,
 .rt-chat-composer-action:focus-visible,
 .rt-chat-send-button:focus-visible,
-.rt-chat-modal-tab:focus-visible,
 .rt-chat-list-item:focus-visible,
 .rt-chat-contact:focus-visible,
 .rt-chat-text-action:focus-visible,
@@ -1884,22 +1882,6 @@ button.rt-chat-reaction-chip:focus-visible {
 .rt-chat-modal-tabs {
     border: 1px solid color-mix(in srgb, var(--chat-line) 75%, transparent);
     background: var(--chat-panel-muted);
-}
-
-.rt-chat-modal-tab {
-    color: var(--chat-muted);
-}
-
-.rt-chat-modal-tab:hover {
-    color: var(--chat-ink);
-}
-
-.rt-chat-modal-tab.is-active {
-    color: var(--chat-accent);
-    background: var(--chat-panel);
-    box-shadow:
-        0 1px 0 var(--chat-glint) inset,
-        0 8px 20px -16px var(--chat-shadow);
 }
 
 .rt-chat-contact {

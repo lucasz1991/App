@@ -6,15 +6,23 @@
     // Server-owned lazy panels use manual activation: focus alone never loads data.
     'action' => null,
     'active' => null,
+    // panel: Unterstrich unter dem aktiven Reiter (Panel- und Seitenköpfe) · surface: Segmentleiste
+    // auf Flächen (Dialoge, Seitenspalten) · window: Segmentleiste auf farbigen Fensterköpfen.
+    'appearance' => 'panel',
 ])
+@php
+    $appearance = in_array($appearance, ['panel', 'surface', 'window'], true) ? $appearance : 'panel';
+@endphp
 {{--
     Reiterleiste nach dem APG-Muster: Pfeiltasten, Pos1 und Ende bewegen den Fokus,
     Standard: Fokus aktiviert den Reiter, dessen Inhalt bereits vorliegt.
     Mit action: Klick/Enter lädt den Bereich serverseitig; Fokus bleibt beim Reiter.
     Jeder Eintrag: ['label' => …, 'count' => optional, 'countExpression' => optional (Alpine,
-    zählt live mit, z. B. für Auswahlfelder), 'alert' => optional bool].
+    zählt live mit, z. B. für Auswahlfelder), 'alert' => optional bool, 'icon' => optional FA-Klassen].
+    Standard für Inhaltsreiter. Bereichsumschaltungen ohne Reiterpanel laufen über
+    x-ui.buttons.multi-toggle; x-ui.accordion.tabs nur dort, wo Wischgesten gebraucht werden.
 --}}
-<div {{ $attributes->class('rt-ops-panel__tabs') }} role="tablist" aria-label="{{ $label }}"
+<div {{ $attributes->class(['rt-ops-panel__tabs', 'rt-ops-panel__tabs--'.$appearance]) }} role="tablist" aria-label="{{ $label }}"
     x-on:keydown.arrow-right.prevent="$focus.within($el).wrap().next()"
     x-on:keydown.arrow-left.prevent="$focus.within($el).wrap().previous()"
     x-on:keydown.home.prevent="$focus.within($el).first()"

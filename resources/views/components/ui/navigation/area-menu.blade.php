@@ -1,6 +1,14 @@
-@props(['options' => [], 'value' => null, 'action' => null, 'label' => 'Bereichsmenü', 'id' => null, 'navigate' => false, 'disabled' => false])
+@props(['options' => [], 'value' => null, 'action' => null, 'label' => 'Bereichsmenü', 'id' => null, 'navigate' => false, 'disabled' => false, 'teleport' => null])
+@php
+    // teleport: CSS-Selektor des Menü-Hosts in der Topbar (z. B. "[data-area-menu-host]");
+    // leer = an Ort und Stelle rendern. Der Aufrufer braucht einen Alpine-Scope (x-data).
+    $teleportTarget = is_string($teleport) && trim($teleport) !== '' ? trim($teleport) : null;
+@endphp
 
 {{-- One native navigation instance: topbar on tablet/desktop, bottom dock on phones. --}}
+@if($teleportTarget)
+<template x-teleport="{{ $teleportTarget }}" wire:key="{{ ($id ?: 'area-menu') }}-teleport">
+@endif
 <x-ui.buttons.multi-toggle
     :options="$options" :value="$value" :action="$action" :label="$label" :id="$id"
     :navigate="$navigate" :disabled="$disabled" :show-labels="true"
@@ -22,3 +30,6 @@
         </x-ui.buttons.button-basic>
     @endif
 </x-ui.buttons.multi-toggle>
+@if($teleportTarget)
+</template>
+@endif

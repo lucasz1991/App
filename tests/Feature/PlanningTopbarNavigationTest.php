@@ -51,7 +51,7 @@ class PlanningTopbarNavigationTest extends TestCase
             $teleports = $xpath->query('//template[@*[name()="x-teleport"]="[data-topbar-planning-navigation]"]');
             $this->assertSame(1, $teleports->length);
             $teleport = $teleports->item(0);
-            $this->assertSame('case-topbar-navigation', $teleport->getAttribute('wire:key'));
+            $this->assertSame('case-workspace-view-teleport', $teleport->getAttribute('wire:key'));
             $groups = $xpath->query('//*[@id="case-workspace-view"]');
             $this->assertSame(1, $groups->length);
             $group = $groups->item(0);

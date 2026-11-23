@@ -233,16 +233,35 @@
 .rt-ops-panel__skeleton--title { width: 62%; height: 20px; margin-top: 8px; }
 .rt-ops-panel__skeleton--line { width: 40%; margin-top: 9px; }
 
-/* Reiter */
+/*
+ * Reiter (x-operations.panel.tabs)
+ * Eigene --tabs-*-Tokens: innerhalb von .rt-ops-panel folgen sie den Panel-Farben,
+ * außerhalb (Gerätedetail, Anruf-Seitenspalte, Chat-Dialog) den Shell-Tokens.
+ * appearance: panel = Unterstrich, surface = Segmentleiste auf Flächen,
+ * window = Segmentleiste auf farbigen Fensterköpfen.
+ */
 .rt-ops-panel__tabs {
+    --tabs-surface: var(--panel-surface, var(--rt-shell-surface-solid, #fff));
+    --tabs-inset: var(--panel-inset, var(--rt-shell-panel, #f7f9fc));
+    --tabs-line: var(--panel-line, var(--rt-shell-line, rgba(148, 163, 184, 0.28)));
+    --tabs-text: var(--panel-text, var(--rt-shell-text, #182435));
+    --tabs-muted: var(--panel-muted, var(--rt-shell-muted, #637188));
+    --tabs-accent: var(--panel-accent, var(--rt-shell-accent, #e4002b));
+    --tabs-accent-strong: var(--panel-accent-strong, #b5001f);
+    --tabs-accent-soft: var(--panel-accent-soft, rgb(228 0 43 / 0.08));
     flex: none;
     display: flex;
     gap: 2px;
     padding: 0 14px;
-    border-bottom: 1px solid var(--panel-line);
-    background: var(--panel-surface);
+    border-bottom: 1px solid var(--tabs-line);
+    background: var(--tabs-surface);
     overflow-x: auto;
     scrollbar-width: none;
+}
+
+:is(html.dark, body[data-mode='dark']) .rt-ops-panel__tabs {
+    --tabs-accent-strong: var(--panel-accent-strong, #ff9aac);
+    --tabs-accent-soft: var(--panel-accent-soft, rgb(255 113 137 / 0.13));
 }
 
 .rt-ops-panel__tabs::-webkit-scrollbar {
@@ -259,12 +278,12 @@
     padding: 0 12px;
     border: 0;
     background: transparent;
-    color: var(--panel-muted);
+    color: var(--tabs-muted);
     font-size: 13px;
     font-weight: 600;
     white-space: nowrap;
     cursor: pointer;
-    transition: color 140ms ease;
+    transition: color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
 }
 
 .rt-ops-panel__tab::after {
@@ -280,23 +299,80 @@
 }
 
 .rt-ops-panel__tab:hover {
-    color: var(--panel-text);
+    color: var(--tabs-text);
 }
 
 .rt-ops-panel__tab[aria-selected='true'] {
-    color: var(--panel-text);
+    color: var(--tabs-text);
     font-weight: 700;
 }
 
 .rt-ops-panel__tab[aria-selected='true']::after {
-    background: var(--panel-accent);
+    background: var(--tabs-accent);
+}
+
+.rt-ops-panel__tab:focus-visible {
+    border-radius: 8px;
+    outline: 2px solid var(--tabs-accent);
+    outline-offset: -5px;
 }
 
 /* Höhere Spezifität als der allgemeine .rt-disposition-Fokusring (Versatz 3 px würde abgeschnitten). */
 .rt-ops-panel .rt-ops-panel__tab:focus-visible {
     border-radius: 8px;
-    outline: 2px solid var(--panel-accent);
+    outline: 2px solid var(--tabs-accent);
     outline-offset: -5px;
+}
+
+/* Segmentleiste: gleich breite Reiter, die aktive Fläche ist der Indikator. */
+.rt-ops-panel__tabs--surface,
+.rt-ops-panel__tabs--window {
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid var(--tabs-line);
+    border-radius: 12px;
+    background: var(--tabs-inset);
+}
+
+.rt-ops-panel__tabs--surface > .rt-ops-panel__tab,
+.rt-ops-panel__tabs--window > .rt-ops-panel__tab {
+    flex: 1 1 0;
+    justify-content: center;
+    min-width: 0;
+    min-height: 40px;
+    padding: 0 10px;
+    border-radius: 9px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.rt-ops-panel__tabs--surface > .rt-ops-panel__tab::after,
+.rt-ops-panel__tabs--window > .rt-ops-panel__tab::after {
+    content: none;
+}
+
+.rt-ops-panel__tabs--surface > .rt-ops-panel__tab[aria-selected='true'] {
+    color: var(--tabs-accent-strong);
+    background: var(--tabs-surface);
+    box-shadow: 0 1px 3px var(--tabs-line);
+}
+
+.rt-ops-panel__tabs--window {
+    --tabs-line: rgb(255 255 255 / 28%);
+    --tabs-muted: rgb(255 255 255 / 86%);
+    --tabs-text: #fff;
+    --tabs-accent: #fff;
+    background: rgb(70 0 14 / 18%);
+}
+
+.rt-ops-panel__tabs--window > .rt-ops-panel__tab:hover:not([aria-selected='true']) {
+    background: rgb(255 255 255 / 15%);
+}
+
+.rt-ops-panel__tabs--window > .rt-ops-panel__tab[aria-selected='true'] {
+    color: #a81632;
+    background: #fff;
+    box-shadow: 0 2px 8px rgb(62 0 14 / 12%);
 }
 
 .rt-ops-panel__count {
@@ -306,25 +382,25 @@
     padding: 0 6px;
     place-items: center;
     border-radius: 999px;
-    background: var(--panel-inset);
-    box-shadow: inset 0 0 0 1px var(--panel-line);
-    color: var(--panel-muted);
+    background: var(--tabs-inset, var(--panel-inset));
+    box-shadow: inset 0 0 0 1px var(--tabs-line, var(--panel-line));
+    color: var(--tabs-muted, var(--panel-muted));
     font-size: 11px;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
 }
 
 .rt-ops-panel__tab[aria-selected='true'] .rt-ops-panel__count {
-    background: var(--panel-accent-soft);
+    background: var(--tabs-accent-soft);
     box-shadow: none;
-    color: var(--panel-accent-strong);
+    color: var(--tabs-accent-strong);
 }
 
 .rt-ops-panel__alert {
     width: 7px;
     height: 7px;
     border-radius: 50%;
-    background: var(--panel-accent);
+    background: var(--tabs-accent, var(--panel-accent));
 }
 
 /* Rumpf */

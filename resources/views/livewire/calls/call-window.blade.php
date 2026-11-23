@@ -455,44 +455,10 @@
                         <i class="far fa-times" aria-hidden="true"></i>
                     </button>
                 </div>
-                <div class="grid shrink-0 grid-cols-2 gap-1 border-b border-rt-border/60 p-2 dark:border-rt-dark-border/60" role="tablist" aria-label="{{ __('app.calls_panel') }}">
-                    <button
-                        type="button"
-                        x-on:click="panelTab = 'participants'"
-                        class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-2 text-xs font-bold transition"
-                        :class="panelTab === 'participants' ? 'bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent' : 'text-rt-muted hover:bg-rt-surface-muted dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted'"
-                        role="tab"
-                        id="rt-call-participants-tab-{{ $room->id }}"
-                        aria-controls="rt-call-participants-{{ $room->id }}"
-                        x-on:keydown.arrow-right.prevent="panelTab = 'chat'; $refs.callChatTab.focus()"
-                        x-on:keydown.arrow-left.prevent="panelTab = 'chat'; $refs.callChatTab.focus()"
-                        x-ref="callParticipantsTab"
-                        :tabindex="panelTab === 'participants' ? 0 : -1"
-                        :aria-selected="(panelTab === 'participants').toString()"
-                    >
-                        <i class="far fa-users" aria-hidden="true"></i>
-                        {{ __('app.calls_participants') }}
-                    </button>
-                    <button
-                        type="button"
-                        x-on:click="panelTab = 'chat'"
-                        class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-2 text-xs font-bold transition"
-                        :class="panelTab === 'chat' ? 'bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent' : 'text-rt-muted hover:bg-rt-surface-muted dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted'"
-                        role="tab"
-                        id="rt-call-chat-tab-{{ $room->id }}"
-                        aria-controls="rt-call-chat-{{ $room->id }}"
-                        x-on:keydown.arrow-left.prevent="panelTab = 'participants'; $refs.callParticipantsTab.focus()"
-                        x-on:keydown.arrow-right.prevent="panelTab = 'participants'; $refs.callParticipantsTab.focus()"
-                        x-ref="callChatTab"
-                        :tabindex="panelTab === 'chat' ? 0 : -1"
-                        :aria-selected="(panelTab === 'chat').toString()"
-                    >
-                        <i class="far fa-comment-dots" aria-hidden="true"></i>
-                        {{ __('app.calls_chat') }}
-                    </button>
-                </div>
+                <x-operations.panel.tabs class="m-2 shrink-0" appearance="surface" model="panelTab" :label="__('app.calls_panel')" :id-prefix="'rt-call-'.$room->id"
+                    :tabs="['participants' => ['label' => __('app.calls_participants'), 'icon' => 'far fa-users'], 'chat' => ['label' => __('app.calls_chat'), 'icon' => 'far fa-comment-dots']]" />
 
-                <div id="rt-call-participants-{{ $room->id }}" aria-labelledby="rt-call-participants-tab-{{ $room->id }}" x-show="panelTab === 'participants'" class="scroll-container min-h-0 flex-1 overflow-y-auto p-3" role="tabpanel">
+                <div id="rt-call-{{ $room->id }}-panel-participants" aria-labelledby="rt-call-{{ $room->id }}-tab-participants" x-show="panelTab === 'participants'" class="scroll-container min-h-0 flex-1 overflow-y-auto p-3" role="tabpanel">
                     <p class="px-1 pb-2 text-[10px] font-bold uppercase tracking-[0.1em] text-rt-muted dark:text-rt-dark-muted">
                         {{ __('app.calls_participants') }}
                     </p>
@@ -573,7 +539,7 @@
                     </ul>
                 </div>
 
-                <div id="rt-call-chat-{{ $room->id }}" aria-labelledby="rt-call-chat-tab-{{ $room->id }}" x-show="panelTab === 'chat'" class="min-h-0 flex-1" role="tabpanel">
+                <div id="rt-call-{{ $room->id }}-panel-chat" aria-labelledby="rt-call-{{ $room->id }}-tab-chat" x-show="panelTab === 'chat'" class="min-h-0 flex-1" role="tabpanel">
                     @if ($room->callChat)
                         <livewire:calls.call-chat :room="$room" :embedded="$embedded" :key="'active-call-chat-'.$room->id" />
                     @endif

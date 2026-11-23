@@ -809,6 +809,13 @@ class ChatBox extends Component
         $this->resetMemberPickerPages();
     }
 
+    /** Reiterwechsel im Dialog „Neuer Chat“ (x-operations.panel.tabs mit action). */
+    public function selectNewChatTab(string $tab): void
+    {
+        $this->newChatTab = $tab;
+        $this->updatedNewChatTab($tab);
+    }
+
     public function updatingDirectContactSearch(): void
     {
         $this->resetPage('directContactsPage');

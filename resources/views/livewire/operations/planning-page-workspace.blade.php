@@ -6,9 +6,7 @@
         $options = collect($availableViews)->map(fn($label,$key)=>['value'=>$key,'label'=>$label,'icon'=>$icons[$key], 'compactLabel'=>$page === 'planning' ? ($compactLabels[$key] ?? null) : null])->values()->all();
     @endphp
     @if(!$embedded && $page === 'planning')
-        <template x-teleport="[data-area-menu-host]" wire:key="resources-area-navigation">
-            <x-ui.navigation.area-menu id="resources-workspace-view" label="Ressourcen & Kapazität" :options="$options" :value="$view" action="selectView" />
-        </template>
+        <x-ui.navigation.area-menu id="resources-workspace-view" teleport="[data-area-menu-host]" label="Ressourcen & Kapazität" :options="$options" :value="$view" action="selectView" />
     @endif
     @if(!$embedded && ($page !== 'shifts' || $view !== 'plan') && ($page !== 'planning' || count($this->sections()) > 1))<header class="ops-toolbar">
         @if($page !== 'planning')

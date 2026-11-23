@@ -66,8 +66,7 @@ class AreaMenuUiTest extends TestCase
     public function test_resource_workspace_reuses_the_component_without_replacing_existing_section_filters(): void
     {
         $view = file_get_contents(resource_path('views/livewire/operations/planning-page-workspace.blade.php'));
-        $this->assertStringContainsString('x-teleport="[data-area-menu-host]"', $view);
-        $this->assertStringContainsString('<x-ui.navigation.area-menu id="resources-workspace-view"', $view);
+        $this->assertStringContainsString('<x-ui.navigation.area-menu id="resources-workspace-view" teleport="[data-area-menu-host]"', $view);
         $this->assertStringContainsString('action="selectView"', $view);
         $this->assertStringContainsString('change="$wire.selectSection($event.target.value)"', $view);
         $this->assertStringContainsString("!\$embedded && \$page === 'planning'", $view);

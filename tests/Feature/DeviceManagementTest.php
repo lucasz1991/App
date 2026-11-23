@@ -896,11 +896,12 @@ class DeviceManagementTest extends TestCase
             ->test(DeviceManagement::class)
             ->call('selectDevice', $device->public_id)
             ->assertSeeHtml('role="tablist"')
-            ->assertSeeHtml('id="device-tab-'.$device->public_id.'-overview"')
-            ->assertSeeHtml('aria-controls="device-panel-'.$device->public_id.'-overview"')
-            ->assertSeeHtml('id="device-panel-'.$device->public_id.'-overview"')
+            ->assertSeeHtml('aria-label="Gerätebereiche"')
+            ->assertSeeHtml('id="device-'.$device->public_id.'-tab-overview"')
+            ->assertSeeHtml('aria-controls="device-'.$device->public_id.'-panel-overview"')
+            ->assertSeeHtml('id="device-'.$device->public_id.'-panel-overview"')
             ->assertSeeHtml('role="tabpanel"')
-            ->assertSeeHtml('aria-labelledby="device-tab-'.$device->public_id.'-overview"');
+            ->assertSeeHtml('aria-labelledby="device-'.$device->public_id.'-tab-overview"');
     }
 
     public function test_authorized_remote_support_opens_only_the_configured_https_console(): void

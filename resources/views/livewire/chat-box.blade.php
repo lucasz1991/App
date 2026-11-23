@@ -1106,38 +1106,9 @@
             </x-slot>
 
             <x-slot name="content">
-                <div
-                    class="rt-chat-modal-tabs mb-5 grid grid-cols-2 gap-1 rounded-xl p-1"
-                    role="tablist"
-                    aria-label="{{ __('app.chat_and_messages') }}"
-                >
-                    <button
-                        id="rt-new-chat-tab-direct"
-                        type="button"
-                        role="tab"
-                        aria-selected="{{ $newChatTab === 'direct' ? 'true' : 'false' }}"
-                        aria-controls="rt-new-chat-panel-direct"
-                        tabindex="{{ $newChatTab === 'direct' ? '0' : '-1' }}"
-                        wire:click="$set('newChatTab', 'direct')"
-                        class="rt-chat-modal-tab {{ $newChatTab === 'direct' ? 'is-active' : '' }} min-h-10 rounded-lg px-3 py-2 text-xs font-bold"
-                    >
-                        <i class="far fa-user mr-1.5" aria-hidden="true"></i>
-                        {{ __('app.new_chat') }}
-                    </button>
-                    <button
-                        id="rt-new-chat-tab-group"
-                        type="button"
-                        role="tab"
-                        aria-selected="{{ $newChatTab === 'group' ? 'true' : 'false' }}"
-                        aria-controls="rt-new-chat-panel-group"
-                        tabindex="{{ $newChatTab === 'group' ? '0' : '-1' }}"
-                        wire:click="$set('newChatTab', 'group')"
-                        class="rt-chat-modal-tab {{ $newChatTab === 'group' ? 'is-active' : '' }} min-h-10 rounded-lg px-3 py-2 text-xs font-bold"
-                    >
-                        <i class="far fa-users mr-1.5" aria-hidden="true"></i>
-                        {{ __('app.new_group') }}
-                    </button>
-                </div>
+                <x-operations.panel.tabs class="rt-chat-modal-tabs mb-5" appearance="surface" :label="__('app.chat_and_messages')" id-prefix="rt-new-chat"
+                    action="selectNewChatTab" :active="$newChatTab"
+                    :tabs="['direct' => ['label' => __('app.new_chat'), 'icon' => 'far fa-user'], 'group' => ['label' => __('app.new_group'), 'icon' => 'far fa-users']]" />
 
                 @if ($showNewChat)
                     @if ($newChatTab === 'direct')

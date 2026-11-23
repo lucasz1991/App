@@ -356,36 +356,18 @@
                     <button type="button" wire:click="closeDevice" class="grid min-h-11 min-w-11 shrink-0 place-items-center rounded-xl text-rt-muted hover:bg-rt-surface-muted dark:hover:bg-rt-dark-surface-muted" aria-label="Gerätedetail schließen"><i data-feather="x" class="h-5 w-5"></i></button>
                 </div>
 
-                <div class="mt-4 flex gap-1 overflow-x-auto border-b border-rt-border/70 dark:border-rt-dark-border" role="tablist">
-                    @php
-                        $deviceTabs = ['overview' => 'Überblick', 'provisioning' => 'Bereitstellung & Konten'];
-                        if (auth()->user()->can('devices.commands.execute')) {
-                            $deviceTabs['files'] = 'Dateien & Aktionen';
-                        }
-                        if (auth()->user()->can('devices.audit.view')) {
-                            $deviceTabs['audit'] = 'Kommandos & Audit';
-                        }
-                    @endphp
-                    @foreach($deviceTabs as $key => $label)
-                        <button
-                            id="device-tab-{{ $selectedDevice->public_id }}-{{ $key }}"
-                            type="button"
-                            role="tab"
-                            aria-controls="device-panel-{{ $selectedDevice->public_id }}-{{ $key }}"
-                            :aria-selected="tab === '{{ $key }}' ? 'true' : 'false'"
-                            :tabindex="tab === '{{ $key }}' ? 0 : -1"
-                            @click="tab='{{ $key }}'"
-                            @keydown.arrow-right.prevent="(() => { const tabs = Array.from($el.parentElement.querySelectorAll('[role=tab]')); const next = tabs[(tabs.indexOf($el) + 1) % tabs.length]; next.click(); next.focus(); })()"
-                            @keydown.arrow-left.prevent="(() => { const tabs = Array.from($el.parentElement.querySelectorAll('[role=tab]')); const previous = tabs[(tabs.indexOf($el) - 1 + tabs.length) % tabs.length]; previous.click(); previous.focus(); })()"
-                            @keydown.home.prevent="(() => { const first = $el.parentElement.querySelector('[role=tab]'); first.click(); first.focus(); })()"
-                            @keydown.end.prevent="(() => { const tabs = $el.parentElement.querySelectorAll('[role=tab]'); const last = tabs[tabs.length - 1]; last.click(); last.focus(); })()"
-                            :class="tab==='{{ $key }}' ? 'border-rt-red text-rt-red' : 'border-transparent text-rt-muted'"
-                            class="min-h-11 whitespace-nowrap border-b-2 px-3 text-sm font-semibold"
-                        >{{ $label }}</button>
-                    @endforeach
-                </div>
+                @php
+                    $deviceTabs = ['overview' => ['label' => 'Überblick'], 'provisioning' => ['label' => 'Bereitstellung & Konten']];
+                    if (auth()->user()->can('devices.commands.execute')) {
+                        $deviceTabs['files'] = ['label' => 'Dateien & Aktionen'];
+                    }
+                    if (auth()->user()->can('devices.audit.view')) {
+                        $deviceTabs['audit'] = ['label' => 'Kommandos & Audit'];
+                    }
+                @endphp
+                <x-operations.panel.tabs class="mt-4 !bg-transparent !px-0" :tabs="$deviceTabs" label="Gerätebereiche" :id-prefix="'device-'.$selectedDevice->public_id" />
 
-                <div id="device-panel-{{ $selectedDevice->public_id }}-overview" x-show.important="tab==='overview'" class="mt-5 grid gap-5 xl:grid-cols-[1.25fr_0.75fr]" role="tabpanel" aria-labelledby="device-tab-{{ $selectedDevice->public_id }}-overview" tabindex="0">
+                <div id="device-{{ $selectedDevice->public_id }}-panel-overview" x-show.important="tab==='overview'" class="mt-5 grid gap-5 xl:grid-cols-[1.25fr_0.75fr]" role="tabpanel" aria-labelledby="device-{{ $selectedDevice->public_id }}-tab-overview" tabindex="0">
                     <div class="space-y-4">
                         @include('livewire.devices.partials.microsoft-device-detail')
                         <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -481,7 +463,7 @@
                     </aside>
                 </div>
 
-                <div id="device-panel-{{ $selectedDevice->public_id }}-provisioning" x-show.important="tab==='provisioning'" x-cloak class="mt-5 grid gap-5 lg:grid-cols-2" role="tabpanel" aria-labelledby="device-tab-{{ $selectedDevice->public_id }}-provisioning" tabindex="0">
+                <div id="device-{{ $selectedDevice->public_id }}-panel-provisioning" x-show.important="tab==='provisioning'" x-cloak class="mt-5 grid gap-5 lg:grid-cols-2" role="tabpanel" aria-labelledby="device-{{ $selectedDevice->public_id }}-tab-provisioning" tabindex="0">
                     <div class="rounded-xl border border-rt-border p-4 dark:border-rt-dark-border">
                         <h3 class="font-semibold text-rt-text dark:text-white">Bestehendes Gerät aus der Ferne registrieren</h3>
                         <p class="mt-2 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">Der Mitarbeiter erhält einen persönlichen, auth-gebundenen Einmal-Link. Bei Bestandsmobilgeräten ist zunächst eine eingeschränkte Verwaltung möglich; Full Device Owner/Supervision benötigt meist einen geplanten Reset.</p>
@@ -522,7 +504,7 @@
                 </div>
 
                 @can('devices.commands.execute')
-                <div id="device-panel-{{ $selectedDevice->public_id }}-files" x-show.important="tab==='files'" x-cloak class="mt-5 grid gap-5 lg:grid-cols-[0.8fr_1.2fr]" role="tabpanel" aria-labelledby="device-tab-{{ $selectedDevice->public_id }}-files" tabindex="0">
+                <div id="device-{{ $selectedDevice->public_id }}-panel-files" x-show.important="tab==='files'" x-cloak class="mt-5 grid gap-5 lg:grid-cols-[0.8fr_1.2fr]" role="tabpanel" aria-labelledby="device-{{ $selectedDevice->public_id }}-tab-files" tabindex="0">
                     <div class="rounded-xl border border-rt-border p-4 dark:border-rt-dark-border">
                         <h3 class="font-semibold text-rt-text dark:text-white">Datei, Paket oder Skript</h3>
                         <p class="mt-2 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">Uploads liegen privat, werden gehasht und erst nach expliziter Adminfreigabe für eine Geräteaktion verwendet. XLSX-Dateien werden verteilt, nicht als Programm ausgeführt.</p>
@@ -567,7 +549,7 @@
                 @endcan
 
                 @can('devices.audit.view')
-                <div id="device-panel-{{ $selectedDevice->public_id }}-audit" x-show.important="tab==='audit'" x-cloak class="mt-5" role="tabpanel" aria-labelledby="device-tab-{{ $selectedDevice->public_id }}-audit" tabindex="0">
+                <div id="device-{{ $selectedDevice->public_id }}-panel-audit" x-show.important="tab==='audit'" x-cloak class="mt-5" role="tabpanel" aria-labelledby="device-{{ $selectedDevice->public_id }}-tab-audit" tabindex="0">
                     <x-tables.html-table label="Geräteaktionen">
                         <x-slot:head><tr><th scope="col">Zeit</th><th scope="col">Aktion</th><th scope="col">Provider</th><th scope="col">Angefordert von</th><th scope="col">Status</th><th scope="col">Freigabe</th></tr></x-slot:head>
                             @forelse($selectedDevice->commands->take(30) as $command)

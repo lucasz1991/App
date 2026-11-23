@@ -463,10 +463,6 @@
 .rt-today-card__link:hover > i { transform: translateX(3px); }
 .rt-today-card__more { width: 100%; background: var(--personal-inset); }
 .rt-today-card__toolbar { display: flex; justify-content: flex-end; }
-.rt-today-segment { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--personal-inset); }
-.rt-today-segment button { min-height: 32px; padding: 0 12px; border-radius: 8px; color: var(--personal-muted); font-size: 12px; font-weight: 600; transition: background-color 180ms, color 180ms; }
-.rt-today-segment button[aria-pressed="true"] { background: var(--personal-sheet); color: var(--personal-signal); box-shadow: 0 1px 3px var(--personal-line); }
-.rt-today-segment button:hover { color: var(--personal-ink); }
 
 .rt-task-list { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
 .rt-task {

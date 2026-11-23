@@ -3,11 +3,17 @@
         @include('livewire.operations.partials.personal-tasks')
     @else
     <header class="ops-toolbar">
-        @if(!$embedded)<nav class="ops-actions" aria-label="Arbeitsbereiche">
-            @foreach($mode === 'monitor' ? ['board'=>'Dienststand','profiles'=>'Toleranzen'] : ['inbox'=>'Arbeitsliste','reminders'=>'Erinnerungen'] as $key=>$label)
-                @if(($key !== 'profiles' || ($profilesReady && auth()->user()->can('operations.rules.manage'))) && ($key !== 'reminders' || ($preferencesReady && ($personal || auth()->user()->can('employees.master-data.edit')))))<x-ui.buttons.button-basic type="button" :mode="$tab === $key ? 'primary' : 'secondary'" wire:click="setTab('{{ $key }}')">{{ $label }}</x-ui.buttons.button-basic>@endif
-            @endforeach
-        </nav>@endif
+        @if(!$embedded)
+            @php
+                $areaOptions = [];
+                foreach ($mode === 'monitor' ? ['board' => ['Dienststand', 'fa-clipboard-check'], 'profiles' => ['Toleranzen', 'fa-sliders-h']] : ['inbox' => ['Arbeitsliste', 'fa-tasks'], 'reminders' => ['Erinnerungen', 'fa-bell']] as $key => [$label, $icon]) {
+                    if (($key !== 'profiles' || ($profilesReady && auth()->user()->can('operations.rules.manage'))) && ($key !== 'reminders' || ($preferencesReady && ($personal || auth()->user()->can('employees.master-data.edit'))))) {
+                        $areaOptions[] = ['value' => $key, 'label' => $label, 'icon' => $icon];
+                    }
+                }
+            @endphp
+            <x-ui.buttons.multi-toggle :id="'attention-area-'.$this->getId()" label="Arbeitsbereiche" :show-labels="true" :options="$areaOptions" :value="$tab" action="setTab" />
+        @endif
         @if($tab === 'profiles' && auth()->user()->can('operations.rules.manage'))<x-ui.buttons.button-basic type="button" wire:click="edit">Profil anlegen</x-ui.buttons.button-basic>
         @elseif($tab === 'reminders')<x-ui.buttons.button-basic type="button" wire:click="edit">Erinnerung anlegen</x-ui.buttons.button-basic>@endif
     </header>

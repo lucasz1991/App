@@ -32,9 +32,6 @@
 .rt-ops .rt-ui-button { min-height:44px; border-radius:7px; box-shadow:none; transition:opacity 160ms, transform 160ms; }
 .rt-ops .rt-ui-button:hover { transform:none; box-shadow:none; }
 .rt-ops .rt-ui-button:disabled { opacity:.45; cursor:wait; }
-.ops-tabs { display:flex; flex-wrap:wrap; align-items:center; gap:4px; padding:4px; background:var(--ops-platform); border-radius:9px; }
-.ops-tabs :is(a,button) { min-height:42px; display:flex; align-items:center; justify-content:center; padding:9px 14px; border-radius:6px; color:var(--ops-muted); font-size:13px; font-weight:600; }
-.ops-tabs [aria-current=page], .ops-tabs [aria-pressed=true] { color:var(--ops-ink); background:var(--ops-sheet); box-shadow:0 1px 3px var(--ops-line); }
 .ops-row { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 0; border-bottom:1px solid var(--ops-line); min-width:0; }
 .ops-row:last-child { border-bottom:0; }
 .ops-row > div { min-width:0; }
