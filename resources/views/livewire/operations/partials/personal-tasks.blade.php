@@ -47,7 +47,7 @@
                 </li>
             @endforeach
         </ul>
-        {{ $items->links() }}
+        <x-tables.pagination :paginator="$items" label="Aufgabenseiten" />
     @endif
 @else
     <div class="rt-today-card__toolbar"><x-ui.buttons.button-basic type="button" size="sm" wire:click="edit">Erinnerung anlegen</x-ui.buttons.button-basic></div>

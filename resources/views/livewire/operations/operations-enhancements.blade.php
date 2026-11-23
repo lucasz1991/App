@@ -37,7 +37,7 @@
         @else
             <x-tables.table :columns="[['label'=>'Vorgang','key'=>'title'],['label'=>'Mitarbeiter','key'=>'user_id'],['label'=>'Status','key'=>'status'],['label'=>'Revision','key'=>'revision'],['label'=>'Aktion','key'=>'action']]" :items="$records" row-view="components.tables.rows.operations.enhancement" empty="Keine Vorgänge in dieser Ansicht." />
         @endif
-        @if(method_exists($records, 'links')){{ $records->links() }}@endif
+        @if($records instanceof \Illuminate\Contracts\Pagination\LengthAwarePaginator)<x-tables.pagination :paginator="$records" />@endif
         @if($tab === 'costs')
             <section class="ops-panel ops-stack"><h2>Nachkalkulation</h2><form wire:submit="calculateCosts" class="ops-form"><x-operations.field label="Auftrags-ID" model="form.order_id" type="number" min="1" required :disabled="(bool)$orderId" /><div class="self-end"><x-ui.buttons.button-basic type="submit">Prüfen</x-ui.buttons.button-basic></div></form>
                 @if($costResult)<dl class="ops-meta">@foreach(['actual_cost_cents'=>'Istkosten','accepted_revenue_cents'=>'Abgenommener Erlös','contribution_cents'=>'Deckungsbeitrag'] as $key=>$label)<div><dt>{{ $label }}</dt><dd class="tabular-nums">{{ isset($costResult[$key]) ? number_format($costResult[$key]/100,2,',','.').' €' : 'Offen' }}</dd></div>@endforeach</dl>@if($costResult['missing_entry_ids'])<p class="ops-muted">Kostenbasis für {{ count($costResult['missing_entry_ids']) }} Zeitmeldungen fehlt.</p>@endif @endif

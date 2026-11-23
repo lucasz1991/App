@@ -80,6 +80,31 @@
 .rt-table-pagination__controls[data-area-indicator-ready] :is(.rt-table-pagination__button, .rt-table-pagination__mobile-page) { color: var(--rt-shell-muted); }
 .rt-table-pagination__controls[data-area-indicator-ready] :is(.rt-table-pagination__button[aria-current='page'], .rt-table-pagination__mobile-page)::before { background: transparent; }
 
+/* Compact variant for narrow card and chat columns: always "x / y". */
+.rt-table-pagination--compact .rt-table-pagination__page-number,
+.rt-table-pagination--compact .rt-table-pagination__ellipsis { display: none; }
+.rt-table-pagination--compact .rt-table-pagination__mobile-page { display: inline-flex; }
+
+/* Framed footer wrapper of the service and order lists (formerly split across
+   operations-planning, service-table and table-surface). */
+.rt-service-pagination {
+    display: flex;
+    flex: none;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-width: 0;
+    margin-block-start: 0 !important;
+    padding: 0 12px !important;
+    border-top: 1px solid var(--rt-border, #dbe2ec);
+    border-radius: 0 0 12px 12px;
+    background: var(--rt-surface, #fff);
+    box-shadow: none;
+}
+.rt-service-pagination nav { flex: 1; }
+.dark .rt-service-pagination { background: var(--rt-dark-surface, #171d28); border-color: var(--rt-dark-border, #303a4d); }
+
 @media (max-width: 767px) {
     .rt-table-pagination__page-number, .rt-table-pagination__ellipsis { display: none; }
     .rt-table-pagination__mobile-page { display: inline-flex; }

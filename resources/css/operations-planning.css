@@ -1,8 +1,6 @@
 /* Service overview: restrained identity, staffing and status cues within the native table. */
 .rt-service-customer { display:flex; align-items:center; gap:8px; min-width:0; }
 .rt-service-customer .rt-table-value { min-width:0; overflow-wrap:anywhere; }
-.rt-service-pagination { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; flex-shrink:0; padding:8px 12px; border-top:1px solid var(--rt-border,#dbe2ec); background:var(--rt-surface,#fff); border-radius:0 0 10px 10px; }
-.rt-service-pagination nav { flex:1; }
 .rt-service-staffing { display:block; min-width:0; max-width:100%; width:100%; }
 .rt-service-staffing__trigger-wrap { display:flex; height:100%; width:100%; }
 .rt-service-staffing__trigger { display:flex; align-items:center; width:100%; min-width:0; min-height:44px; border-radius:6px; }
@@ -89,7 +87,6 @@
 .rt-service-staffing-preview.rt-motion-pop-leave-to { opacity:0; filter:none; transform:scale(.62); }
 .rt-service-staffing-preview.rt-motion-pop-enter-to,
 .rt-service-staffing-preview.rt-motion-pop-leave-from { opacity:1; filter:none; transform:scale(1); }
-.dark .rt-service-pagination { background:var(--rt-dark-surface,#171d28); border-color:var(--rt-dark-border,#303a4d); }
 .dark .rt-service-avatar { border-color:var(--rt-dark-surface,#171d28); background:#253754; color:#bfd1ff; }
 .dark .rt-service-avatar--open { background:#3d331e; color:#f5d68c; border-color:#9a7830; }
 .dark .rt-service-avatar__dot { border-color:var(--rt-dark-surface,#171d28); }
@@ -102,7 +99,7 @@
 .dark .rt-service-person-detail time { color:var(--rt-dark-muted,#a5afbd); }
 .dark .rt-service-person-detail__link:hover { background:var(--rt-dark-surface-muted,#202836); }
 .dark .rt-service-staffing-preview .rt-service-avatar[role=button]:is(:hover,:focus-visible,[aria-expanded=true]) { box-shadow:0 0 0 2px var(--rt-dark-surface,#171d28),0 0 0 3px var(--rt-red,#e4002b); }
-@media(max-width:767px) { .rt-service-pagination { padding:8px; } .rt-service-avatar { width:26px; height:26px; margin-left:-14px; font-size:9px; } }
+@media(max-width:767px) { .rt-service-avatar { width:26px; height:26px; margin-left:-14px; font-size:9px; } }
 @media(min-width:768px) { [data-service-overview] .rt-table-row-grid > .rt-table-cell--service-staffing { display:flex; align-self:stretch; } }
 @media(prefers-reduced-motion:reduce) { .rt-service-staffing-preview[class*="rt-motion-"], .rt-service-cell-preview[class*="rt-motion-"], .rt-service-person-enter, .rt-service-staffing-preview .rt-service-avatar[role=button] { transition:none !important; transform:none !important; } }
 

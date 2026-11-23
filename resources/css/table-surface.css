@@ -15,7 +15,7 @@ div[data-table-html-frame] {
     border-radius: var(--rt-table-top-radius) var(--rt-table-top-radius) var(--rt-table-bottom-radius) var(--rt-table-bottom-radius);
 }
 
-[data-table-html-frame]:has(+ div > .rt-pagination) {
+[data-table-html-frame]:has(+ div > .rt-table-pagination) {
     margin-bottom: 0;
 }
 
@@ -31,24 +31,21 @@ div[data-table-html-frame] {
     border-radius: 0 0 var(--rt-table-bottom-radius) var(--rt-table-bottom-radius);
 }
 
-/* Only an actual nav joins the footer. Legacy links() emits an empty wrapper
-   for a single page, which must leave the table's bottom corners intact. */
-:is(.rt-table-frame, [data-table-html-frame]):has(+ :is(.rt-pagination, .rt-table-pagination)),
-:is(.rt-table-frame, [data-table-html-frame]):has(+ * > :is(.rt-pagination, .rt-table-pagination)),
-:is(.rt-table-frame, [data-table-html-frame]):has(+ * > div > :is(.rt-pagination, .rt-table-pagination)),
-[data-disposition-list-content]:has(+ .rt-disposition-pagination :is(.rt-pagination, .rt-table-pagination)) > .rt-table-frame,
+/* Only an actual pager nav joins the footer; a wrapper without one leaves
+   the table's bottom corners intact. */
+:is(.rt-table-frame, [data-table-html-frame]):has(+ .rt-table-pagination),
+:is(.rt-table-frame, [data-table-html-frame]):has(+ * > .rt-table-pagination),
+[data-disposition-list-content]:has(+ .rt-disposition-pagination .rt-table-pagination) > .rt-table-frame,
 [data-shift-view='orders']:has(+ [data-service-pagination] > .rt-table-pagination) > [data-service-overview] > .rt-table-frame {
     --rt-table-bottom-radius: 0px;
 }
 
 /* The existing footer wrappers retain their native Livewire page owners.
    Specificity also replaces legacy card margins/backgrounds in app.css. */
-:is(.rt-table-frame, [data-table-html-frame]) + :is(.rt-pagination, .rt-table-pagination),
-:is(.rt-table-frame, [data-table-html-frame]) + :is(div, section):has(> :is(.rt-pagination, .rt-table-pagination)),
-:is(.rt-table-frame, [data-table-html-frame]) + :is(div, section):has(> div > .rt-pagination),
-.rt-disposition-pagination:has(.rt-pagination),
-[data-disposition-list-pagination]:has(.rt-pagination),
-.rt-service-pagination:has(> .rt-table-pagination) {
+:is(.rt-table-frame, [data-table-html-frame]) + .rt-table-pagination,
+:is(.rt-table-frame, [data-table-html-frame]) + :is(div, section):has(> .rt-table-pagination),
+.rt-disposition-pagination:has(.rt-table-pagination),
+[data-disposition-list-pagination]:has(.rt-table-pagination) {
     flex: none;
     min-width: 0;
     margin-block-start: 0 !important;
@@ -60,26 +57,14 @@ div[data-table-html-frame] {
 /* Low-specificity defaults let directory, profile and message surfaces retain
    their own theme tokens and border ownership. */
 :where(
-    :is(.rt-table-frame, [data-table-html-frame]) + :is(.rt-pagination, .rt-table-pagination),
-    :is(.rt-table-frame, [data-table-html-frame]) + :is(div, section):has(> :is(.rt-pagination, .rt-table-pagination)),
-    :is(.rt-table-frame, [data-table-html-frame]) + :is(div, section):has(> div > .rt-pagination),
-    .rt-disposition-pagination:has(.rt-pagination),
-    [data-disposition-list-pagination]:has(.rt-pagination),
-    .rt-service-pagination:has(> .rt-table-pagination)
+    :is(.rt-table-frame, [data-table-html-frame]) + .rt-table-pagination,
+    :is(.rt-table-frame, [data-table-html-frame]) + :is(div, section):has(> .rt-table-pagination),
+    .rt-disposition-pagination:has(.rt-table-pagination),
+    [data-disposition-list-pagination]:has(.rt-table-pagination)
 ):is(div, nav, section) {
     border: 0;
     border-top: 1px solid var(--rt-shell-line, #dce1e6);
     background: var(--rt-shell-surface-solid, #fff);
-}
-
-:is(:is(.rt-table-frame, [data-table-html-frame]) + div, :is(.rt-table-frame, [data-table-html-frame]) + section, .rt-disposition-pagination, [data-disposition-list-pagination]) nav.rt-pagination {
-    min-height: 44px;
-    margin: 0;
-    padding: 4px 0;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
 }
 
 /* Directory/profile/message owners already supply their own surface colors;

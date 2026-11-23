@@ -63,7 +63,7 @@ window.rtInitializeFloatingLauncherGroup = function(doc = document, win = window
     html.dataset.rtLauncherGroupReady = 'true';
     let drag = null, suppressClickUntil = 0, frame = null, destroyed = false;
     const launchers = new Set(), cleanups = [], watched = new Set(), windows = new Set(), ownStyles = new WeakMap();
-    const obstacleSelector = '[data-table-pagination], [data-orders-pagination], [data-service-pagination], .rt-service-pagination, .rt-pagination, [data-area-menu], [data-floating-launcher-obstacle]';
+    const obstacleSelector = '[data-table-pagination], [data-orders-pagination], [data-service-pagination], .rt-service-pagination, [data-area-menu], [data-floating-launcher-obstacle]';
     const group = () => doc.querySelector('[data-rt-floating-launcher-group]');
     const listen = (target, name, listener, options) => {
         target?.addEventListener(name, listener, options);

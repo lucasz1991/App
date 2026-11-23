@@ -20,7 +20,7 @@
         'reminders'=>[['label'=>'Erinnerung','key'=>'preference'],['label'=>'Vorlauf / Ruhefenster','key'=>'quiet'],['label'=>'Status','key'=>'active'],['label'=>'Aktion','key'=>'actions']],
         default=>[['label'=>'Vorgang','key'=>'work_item'],['label'=>'Frist / Status','key'=>'due'],['label'=>'Aktion','key'=>'actions']],
     }" :items="$items" row-view="components.tables.rows.operations.attention-record" :empty="$tab === 'reminders' ? 'Noch keine Erinnerungen angelegt.' : 'Keine offenen Einträge.'" />
-    {{ $items->links() }}
+    <x-tables.pagination :paginator="$items" />
     @endif
     @php($attentionFormId = 'attention-form-'.$this->getId())
     <x-operations.modal wire:model="formOpen" :title="$tab === 'profiles' ? 'Leitstellenprofil' : ($recordId ? 'Erinnerung bearbeiten' : 'Erinnerung anlegen')" max-width="3xl">

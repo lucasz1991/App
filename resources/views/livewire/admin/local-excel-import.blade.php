@@ -50,7 +50,7 @@
                         <div><x-ui.buttons.button-basic type="button" mode="secondary" wire:click="assign({{ $identity->id }})" wire:loading.attr="disabled">Zuordnung speichern</x-ui.buttons.button-basic></div>
                     </div>
                 @endforeach
-                {{ $identities->links() }}
+                <x-tables.pagination :paginator="$identities" label="Personenseiten" />
                 @if($canCreateTestUsers)<div class="space-y-2"><x-ui.forms.label for="local-excel-password" value="Passwort für ein neues lokales Testkonto (mindestens 12 Zeichen)" /><x-ui.forms.input id="local-excel-password" type="password" wire:model="testPassword" autocomplete="new-password" /><p class="text-xs text-rt-muted dark:text-rt-dark-muted">Nur bei Auswahl „Neues lokales Testkonto“. Verwendet eine Testadresse @railtime.invalid und versendet keine Einladungsmail. Bestehende Konten und Passwörter bleiben erhalten.</p></div>@endif
             </section>
             <section class="space-y-3">
@@ -63,7 +63,7 @@
                         @if($conflict->reason === 'field_conflict')<p class="mt-1">App und Datei wurden unterschiedlich geändert. Die App-Werte bleiben erhalten. Werte in der Originaldatei oder App angleichen und die Datei erneut prüfen/importieren.</p>@endif
                     </div>
                 @empty<p class="text-sm text-rt-muted dark:text-rt-dark-muted">Noch keine offenen Importhinweise.</p>@endforelse
-                {{ $conflicts->links() }}
+                <x-tables.pagination :paginator="$conflicts" label="Hinweisseiten" />
             </section>
         @endif
     @endif

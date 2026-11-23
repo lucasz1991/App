@@ -28,7 +28,7 @@
     </p>
 @endif
 @if(!$historyOnly)<div class="rt-personnel-results" aria-live="polite" aria-atomic="true"><span><strong>{{ $entries->total() }}</strong> {{ $entries->total() === 1 ? 'Zeitmeldung' : 'Zeitmeldungen' }}</span><span>{{ count($selected) }} ausgewählt</span></div><x-tables.table class="rt-personnel-table" label="Zeitmeldungen" :columns="[['label'=>'Tätigkeit','key'=>'plan_snapshot.title','width'=>'2fr'],['label'=>'Mitarbeiter','key'=>'user.name'],['label'=>'Plan netto','key'=>'planned_net'],['label'=>'Ist netto','key'=>'net_time'],['label'=>'Abweichung','key'=>'time_delta'],['label'=>'Status','key'=>'status']]" :items="$entries" :selected-items="$selected" detail-action="openDetails" row-view="components.tables.rows.operations.record" :actions-view="$exports ? 'components.tables.rows.operations.export-selection' : 'components.tables.rows.operations.review-selection'" empty="Keine Zeitmeldungen in dieser Ansicht. Prüfen Sie den Zeitraum und den Zeitstatus." />
-{{ $entries->links() }}@endif
+<x-tables.pagination :paginator="$entries" label="Zeitmeldungsseiten" />@endif
 <x-operations.modal wire:model="batchOpen" title="Auswahl prüfen" max-width="4xl">
     <div class="rt-personnel-management rt-personnel-detail ops-stack">
     <header class="rt-personnel-section-heading">

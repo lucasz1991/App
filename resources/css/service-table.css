@@ -25,10 +25,6 @@
     border-radius: 0;
 }
 
-.rt-service-pagination {
-    padding: 0 12px;
-}
-
 .rt-shift-plan-split[data-view='orders'] > .rt-shift-plan-split__main {
     gap: 0;
 }
@@ -82,10 +78,6 @@
     .rt-shift-plan-split[data-view='orders'] > .rt-shift-distribution-side {
         flex-shrink: 0;
     }
-}
-
-@media (max-width: 767px) {
-    .rt-service-pagination { padding-inline: 8px; }
 }
 
 /* Services and Orders share the record layout. Container width, not viewport

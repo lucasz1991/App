@@ -22,11 +22,11 @@
             <header class="rt-personal-work-heading"><div><p class="ops-muted">Dokumente, Qualifikationen und Gültigkeit im Überblick.</p></div><x-ui.buttons.button-basic mode="primary" wire:click="openForm('qualification')" wire:loading.attr="disabled">Nachweis einreichen</x-ui.buttons.button-basic></header>
             @if(class_exists(\App\Livewire\Operations\PersonnelDocuments::class) && \Illuminate\Support\Facades\Schema::hasTable('employee_document_versions'))<livewire:operations.personnel-documents />@endif
             @include('livewire.operations.partials.personal-forms')
-            <x-tables.table class="rt-personal-record-list" :columns="[['label'=>'Nachweis','key'=>'record']]" :items="$qualifications" row-view="components.tables.rows.operations.personal-qualification" empty="Keine Nachweise eingereicht. Ergänze hier deine gültigen Qualifikationen." />{{ $qualifications->links() }}
+            <x-tables.table class="rt-personal-record-list" :columns="[['label'=>'Nachweis','key'=>'record']]" :items="$qualifications" row-view="components.tables.rows.operations.personal-qualification" empty="Keine Nachweise eingereicht. Ergänze hier deine gültigen Qualifikationen." /><x-tables.pagination :paginator="$qualifications" label="Nachweisseiten" />
         @elseif($tab === 'absences')
             <header class="rt-personal-work-heading"><div><p class="ops-muted">Deine Abwesenheiten und Anträge.</p></div><x-ui.buttons.button-basic mode="primary" wire:click="openForm('absence')" wire:loading.attr="disabled">Abwesenheit beantragen</x-ui.buttons.button-basic></header>
             @include('livewire.operations.partials.personal-forms')
-            <x-tables.table class="rt-personal-record-list" label="Meine Abwesenheiten" :columns="[['label'=>'Abwesenheit','key'=>'record']]" :items="$absences" row-view="components.tables.rows.operations.personal-absence" empty="Noch keine Abwesenheiten. Beantrage hier Urlaub oder einen anderen Zeitraum." />{{ $absences->links() }}
+            <x-tables.table class="rt-personal-record-list" label="Meine Abwesenheiten" :columns="[['label'=>'Abwesenheit','key'=>'record']]" :items="$absences" row-view="components.tables.rows.operations.personal-absence" empty="Noch keine Abwesenheiten. Beantrage hier Urlaub oder einen anderen Zeitraum." /><x-tables.pagination :paginator="$absences" label="Abwesenheitsseiten" />
         @endif
     </div>
     @if($tab === 'today')

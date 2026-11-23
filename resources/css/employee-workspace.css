@@ -309,13 +309,6 @@ body:has([data-employee-directory-scroll]) {
     [data-employee-directory-scroll] .rt-table-toolbar__bulk { grid-column: 1; }
     [data-employee-directory-scroll] .rt-table-toolbar__search-field { grid-column: 2; }
     [data-employee-directory-scroll] .rt-table-toolbar__actions { grid-column: 3; }
-
-    [data-employee-directory-scroll] .rt-pagination .sm\:hidden :is(button, span.relative) {
-        min-height: 44px;
-        padding-inline: 8px !important;
-        font-size: 12px;
-        white-space: nowrap;
-    }
 }
 
 .employee-profile .employee-profile__identity,

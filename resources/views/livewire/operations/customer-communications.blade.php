@@ -16,7 +16,7 @@
                 @if($view==='records')<x-tables.filter-field label="Kanal" icon="far fa-comments" for="customer-communication-channel"><x-ui.forms.select id="customer-communication-channel" wire:model.live="channelFilter" aria-label="Kommunikationskanal"><option value="all">Alle Kanäle</option>@foreach(\App\Models\CustomerInteraction::CHANNELS as $key=>$label)<option value="{{ $key }}">{{ $label }}</option>@endforeach</x-ui.forms.select></x-tables.filter-field>@endif
             </x-tables.toolbar>
             <x-tables.table label="Kundenkommunikation" table-key="customer-communication" :flush-top="true" :columns="[['label'=>'Betreff','key'=>'subject','width'=>'46%'],['label'=>'Kanal','key'=>'channel','width'=>'20%'],['label'=>'Zeitpunkt','key'=>'date','width'=>'34%']]" :items="$records" detail-action="openDetails" row-view="components.tables.rows.customers.communication-row" actions-view="components.tables.rows.customers.communication-actions" empty="Noch keine Kommunikation hinterlegt." />
-            <div class="py-4">{{ $records->links() }}</div>
+            <div class="py-4"><x-tables.pagination :paginator="$records" label="Kommunikationsseiten" /></div>
         @else<p class="rounded-xl border border-rt-border p-4 text-sm text-rt-muted dark:border-rt-dark-border dark:text-rt-dark-muted">Kommunikationsprotokoll nach Datenbankaktualisierung verfügbar.</p>@endif
     </x-operations.surface>
     @if($formOpen && $canRecord && $ready)

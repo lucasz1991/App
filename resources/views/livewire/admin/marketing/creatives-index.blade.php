@@ -196,7 +196,7 @@
         </div>
 
         @if ($creatives->hasPages())
-            <div>{{ $creatives->links() }}</div>
+            <div><x-tables.pagination :paginator="$creatives" label="Motivseiten" /></div>
         @endif
     @endif
 

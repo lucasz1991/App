@@ -59,7 +59,7 @@
             @if($profileUserId !== null && $tab === 'rules')<p class="text-sm text-rt-muted">Hier ordnen Sie diesem Mitarbeiter ein Regelprofil mit Gültigkeitszeitraum zu. Arbeitsmodell und Urlaubsrichtlinie werden in den benachbarten Menüpunkten gepflegt.</p>@endif
             @if($profileUserId !== null && $tab === 'training')<p class="text-sm text-rt-muted">Hier bearbeiten Sie die Teilnahme dieses Mitarbeiters. Kursanlage und Änderungen für alle Teilnehmer finden Sie unter „Schulungen verwalten“.</p>@endif
             <x-tables.table class="rt-personnel-table" :label="$recordHeading" :columns="[['label'=>'Eintrag','key'=>'label'],['label'=>'Zeitraum / Wert','key'=>'value'],['label'=>'Status','key'=>'status'],['label'=>'Aktionen','key'=>'actions']]" :items="$records" row-view="components.tables.rows.operations.workforce-account" empty="Keine Einträge in dieser Ansicht." />
-            @if($records instanceof \Illuminate\Contracts\Pagination\Paginator){{ $records->links() }}@endif
+            @if($records instanceof \Illuminate\Contracts\Pagination\LengthAwarePaginator)<x-tables.pagination :paginator="$records" />@endif
             </section>
         @else<div class="rt-personnel-empty"><strong>{{ $personal || $embedded || $employees->isEmpty() ? 'Keine Mitarbeiter vorhanden' : 'Kein Mitarbeiter ausgewählt' }}</strong>@if(!$personal && !$embedded && $employees->isNotEmpty())<p>Wählen Sie einen Mitarbeiter, um die Personalübersicht zu öffnen.</p>@endif</div>@endif
     @endif

@@ -98,7 +98,7 @@
                 </div>
             @endforelse
         </div>
-        {{ $times->links() }}
+        <x-tables.pagination :paginator="$times" label="Zeitseiten" />
     </section>
     @if($workTimeReady)<livewire:operations.work-time-capture-review :personal="true" />@endif
     @if($manualAssignments->isNotEmpty())<x-ui.buttons.button-basic class="rt-time-review__legacy" wire:click="openForm('manual')">Andere Dienstzeit nachtragen</x-ui.buttons.button-basic>@endif

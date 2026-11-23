@@ -60,7 +60,7 @@
 @else
 @if($module === 'absences' && $absenceView === 'calendar')<p class="ops-muted">Kalender: maximal 93 Tage auswählen.</p>@endif
 <x-tables.table class="rt-personnel-table" :label="$module === 'qualifications' ? 'Nachweise' : 'Abwesenheiten'" :columns="array_merge([['label'=>'Mitarbeiter','key'=>'user.name'],['label'=>'Art','key'=>$module === 'qualifications' ? 'qualification_label' : 'absence_label'],['label'=>'Beginn','key'=>$module === 'qualifications' ? 'valid_from' : 'starts_at'],['label'=>'Ende','key'=>$module === 'qualifications' ? 'valid_until' : 'ends_at'],['label'=>'Status','key'=>'status']], $module === 'qualifications' ? [['label'=>'Gültigkeit','key'=>'validity']] : [])" :items="$records" detail-action="openDetails" row-view="components.tables.rows.operations.record" empty="Keine Einträge in dieser Ansicht. Prüfen Sie den Zeitraum und die Filter." />
-{{ $records->links() }}
+<x-tables.pagination :paginator="$records" />
 @endif
 <x-operations.modal wire:model="detailOpen" title="Prüfung">
 <div class="rt-personnel-management rt-personnel-detail ops-stack">

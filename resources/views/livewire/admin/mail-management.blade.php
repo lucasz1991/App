@@ -57,7 +57,7 @@
         />
 
         <div class="pt-4">
-            {{ $mails->links() }}
+            <x-tables.pagination :paginator="$mails" label="Mailseiten" />
         </div>
     </div>
 </x-ui.page>

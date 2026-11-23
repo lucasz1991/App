@@ -417,7 +417,7 @@
                 </div>
 
                 @if ($entries->hasPages())
-                    <div class="mt-5">{{ $entries->links() }}</div>
+                    <div class="mt-5"><x-tables.pagination :paginator="$entries" label="Wissensseiten" /></div>
                 @endif
             @endif
         </div>

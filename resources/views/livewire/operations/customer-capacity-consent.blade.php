@@ -3,7 +3,7 @@
     <x-operations.feedback />
     <x-ui.forms.search wire:model.live.debounce.300ms="search" placeholder="Kunde, Einsatzort oder Tätigkeit" />
     <x-tables.table :items="$items" :columns="[['label'=>'Kunde / Tätigkeit','key'=>'service','width'=>'2fr'],['label'=>'Zeitraum','key'=>'period','width'=>'2fr'],['label'=>'Rückmeldung','key'=>'state'],['label'=>'Aktion','key'=>'actions']]" row-view="components.tables.rows.operations.customer-capacity" empty="Keine Verfügbarkeitsanfragen." />
-    {{ $items->links() }}
+    <x-tables.pagination :paginator="$items" />
     <x-operations.modal wire:model="formOpen" title="Verfügbarkeit bestätigen" max-width="2xl">
         @if($formOpen && $selected)
             <div class="ops-stack">

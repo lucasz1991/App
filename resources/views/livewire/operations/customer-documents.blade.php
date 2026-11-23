@@ -19,5 +19,5 @@
         ['label'=>'Datei','key'=>'file','width'=>'1fr','hideOn'=>'md'],
         ['label'=>'Eingang','key'=>'date','width'=>'1fr','hideOn'=>'md'],
     ]" :flush-top="true" :table-key="'customer-documents-'.$customerId" row-view="components.tables.rows.customers.document-row" actions-view="components.tables.rows.customers.document-actions" empty="Keine Dokumente vorhanden." />
-    <div class="py-3">{{ $items->links() }}</div>
+    <div class="py-3"><x-tables.pagination :paginator="$items" label="Dokumentseiten" /></div>
 </div>

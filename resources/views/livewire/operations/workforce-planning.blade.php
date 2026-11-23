@@ -21,7 +21,7 @@
         <x-tables.table :columns="[['label'=>'Abgabezeitraum','key'=>'name'],['label'=>'Frist','key'=>'due_at'],['label'=>'Abgabe','key'=>'submission_state']]" :items="$periods" row-view="components.tables.rows.operations.workforce-record" empty="Keine offenen Abgabefristen." />
     @endif
     <x-tables.table :columns="$columns" :items="$items" row-view="components.tables.rows.operations.workforce-record" empty="Keine Einträge." />
-    {{ $items->links() }}
+    <x-tables.pagination :paginator="$items" />
 
     <x-operations.modal wire:model="formOpen" :title="match($modal) {'wish'=>$recordId ? 'Dienstwunsch bearbeiten' : 'Dienstwunsch einreichen','pool'=>'Planungspool','period'=>'Abgabefrist','offer'=>'Dienstangebot','transfer'=>'Übergabe / Tausch','review-transfer'=>'Übergabe / Tausch prüfen',default=>'Ausfall / Ablösung'}" max-width="4xl">
         <form id="workforce-planning-form-{{ $this->getId() }}" wire:submit="save" class="ops-form rt-personal-form rt-employee-form" data-employee-form>

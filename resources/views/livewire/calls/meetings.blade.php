@@ -38,7 +38,7 @@
             @empty
                 @if ($planningReady)<p class="rt-comm-meeting-empty text-center text-sm">Keine passenden Termine.</p>@endif
             @endforelse
-            @if ($plans?->hasPages()){{ $plans->links() }}@endif
+            @if ($plans?->hasPages())<x-tables.pagination :paginator="$plans" :compact="true" label="Terminseiten" />@endif
         </div>
     @elseif ($pane === 'form')
         <div class="rt-comm-meeting-heading flex shrink-0 items-center gap-2 border-b border-rt-border/60 p-2 dark:border-rt-dark-border/60"><button type="button" wire:click="showList" class="h-11 w-11 rounded-xl" aria-label="Zurück zur Meetingliste"><i class="far fa-arrow-left" aria-hidden="true"></i></button><p class="font-bold">{{ $formMode === 'instant' ? 'Jetzt starten' : 'Meeting planen' }}</p></div>

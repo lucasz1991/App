@@ -33,7 +33,7 @@
         <div data-disposition-list-content wire:loading.class="opacity-60" wire:target="setStatus,channel,gotoPage,nextPage,previousPage">
             <x-tables.table :columns="[['label'=>'Vorgang / Kunde','key'=>'title','width'=>'minmax(0,2fr)'],['label'=>'Quelle','key'=>'channel','width'=>'minmax(0,.8fr)'],['label'=>'Bearbeitung','key'=>'status','width'=>'minmax(0,1fr)'],['label'=>'Nächster Schritt','key'=>'next','width'=>'minmax(0,1.3fr)']]" :items="$rows" table-key="unified-inbox" selection-action="openRow" detail-action="openRow" row-view="components.tables.rows.operations.unified-inbox-row" :flush-top="true" :scroll-body="true" label="Gemeinsamer Eingang" data-disposition-list-table :empty="$status !== 'all' || $channel !== 'all' ? 'Keine Eingänge für diese Auswahl. Wähle einen anderen Filter.' : 'Keine Eingänge vorhanden. Neue Anfragen und offene Prüfungen erscheinen hier.'" />
         </div>
-        <div class="rt-disposition-pagination">{{ $rows->links() }}</div>
+        <div class="rt-disposition-pagination"><x-tables.pagination :paginator="$rows" label="Eingangsseiten" /></div>
     </section>
     @if($mailboxAvailable)<livewire:operations.disposition-mailbox :key="'disposition-mailbox-'.$this->getId()" />@endif
     @if($detail)

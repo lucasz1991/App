@@ -279,7 +279,7 @@
                     actions-view="components.tables.rows.devices.device-actions"
                     empty="Noch keine passenden Geräte gefunden. Passe die Filter an oder erfasse das erste Gerät für das virtuelle Lager."
                 />
-                <div class="py-3">{{ $devices->links() }}</div>
+                <div class="py-3"><x-tables.pagination :paginator="$devices" label="Geräteseiten" /></div>
             </section>
 
             <aside class="overflow-hidden rounded-xl border border-rt-border/80 bg-white shadow-rt-xs dark:border-rt-dark-border dark:bg-rt-dark-surface" aria-labelledby="device-locations-title">

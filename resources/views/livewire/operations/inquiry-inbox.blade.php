@@ -55,7 +55,7 @@
                     :flush-top="true"
                 />
             </div>
-            <div class="rt-disposition-pagination">{{ $inquiries->links() }}</div>
+            <div class="rt-disposition-pagination"><x-tables.pagination :paginator="$inquiries" label="Anfrageseiten" /></div>
         </section>
 
         <aside class="rt-disposition-workgrid__aside" aria-labelledby="inquiries-next-heading">

@@ -29,5 +29,5 @@
             @endforeach
         </ol>
     @endif
-    <div class="ai-intake-panel__pagination">{{ $intakes->links() }}</div>
+    <div class="ai-intake-panel__pagination"><x-tables.pagination :paginator="$intakes" :compact="true" label="Eingangsseiten" /></div>
 </div>

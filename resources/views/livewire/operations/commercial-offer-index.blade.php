@@ -21,7 +21,7 @@
     </x-tables.toolbar>
     @endif
     <x-tables.table :columns="[['label'=>'Vorgang / Kunde','key'=>'case'],['label'=>'Angebotsstand','key'=>'revision'],['label'=>'Betrag netto','key'=>'total'],['label'=>'Status','key'=>'status']]" :items="$offers" :flush-top="$headerInPage" :scroll-body="$headerInPage" label="Angebote" data-disposition-list-table detail-action="select" row-view="components.tables.rows.operations.case-offer" table-key="case-offers" empty="Keine Angebote für diese Auswahl." />
-    @if($headerInPage)<div data-disposition-list-pagination>{{ $offers->links() }}</div>@else{{ $offers->links() }}@endif
+    @if($headerInPage)<div data-disposition-list-pagination><x-tables.pagination :paginator="$offers" label="Angebotsseiten" /></div>@else<x-tables.pagination :paginator="$offers" label="Angebotsseiten" />@endif
     @if($selectedId)
         <livewire:operations.commercial-offers :subject-type="$selectedSubjectType" :subject-id="$selectedSubjectId" :initial-offer-id="$selectedId" :show-list="false" :key="'case-offer-detail-'.$selectedId.'-'.$detailGeneration" />
     @endif

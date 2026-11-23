@@ -68,7 +68,7 @@
                 <p class="px-6 py-12 text-center text-sm text-rt-muted">{{ __('app.calls_history_empty') }}</p>
             @endforelse
             @if ($rooms->hasPages())
-                <div class="px-3 py-2">{{ $rooms->links() }}</div>
+                <div class="px-3 py-2"><x-tables.pagination :paginator="$rooms" :compact="true" label="Anrufseiten" /></div>
             @endif
         </div>
     @else
@@ -198,7 +198,7 @@
             </div>
 
             @if ($rooms->hasPages())
-                <div class="mt-4">{{ $rooms->links() }}</div>
+                <div class="mt-4"><x-tables.pagination :paginator="$rooms" :compact="true" label="Anrufseiten" /></div>
             @endif
         @endif
     </x-ui.page>

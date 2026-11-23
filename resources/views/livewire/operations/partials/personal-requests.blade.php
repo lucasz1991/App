@@ -37,7 +37,7 @@
                 </li>
             @endforeach
         </ul>
-        @if($rows->hasPages())<div class="rt-personal-requests__pagination">{{ $rows->links() }}</div>@endif
+        @if($rows->hasPages())<div class="rt-personal-requests__pagination"><x-tables.pagination :paginator="$rows" label="Antragsseiten" /></div>@endif
     @else
         <div class="rt-personal-requests__empty">
             <i class="fal fa-inbox" aria-hidden="true"></i>

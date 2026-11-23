@@ -2,6 +2,12 @@
     'paginator',
     'label' => __('pagination.pagination_navigation'),
     'tableKey' => null,
+    // Optional CSS selector scrolled into view after a page action (legacy
+    // links() behaviour). Default: only the matching table body resets.
+    'scrollTo' => null,
+    // Compact variant for narrow card/chat columns: always "x / y" instead of
+    // the numbered page row, same native actions and 44px targets.
+    'compact' => false,
 ])
 
 @php
@@ -17,10 +23,12 @@
         : collect([1, $currentPage - 1, $currentPage, $currentPage + 1, $lastPage])
             ->filter(fn ($page) => $page >= 1 && $page <= $lastPage)
             ->unique()->sort()->values()->all();
+    $compact = filter_var($compact, FILTER_VALIDATE_BOOL);
+    $scrollTo = is_string($scrollTo) && trim($scrollTo) !== '' ? $scrollTo : null;
     $action = fn ($method, $page = null) => $method.'('.($page === null ? '' : $page.', ').json_encode($pageName).')';
 @endphp
 
-<nav {{ $attributes->class(['rt-table-pagination']) }} role="navigation" aria-label="{{ $label }}"
+<nav {{ $attributes->class(['rt-table-pagination', 'rt-table-pagination--compact' => $compact]) }} role="navigation" aria-label="{{ $label }}"
     data-table-pagination data-table-pagination-key="{{ $scopeKey }}" data-table-page-name="{{ $pageName }}"
     x-data="{}"
     x-on:click="
@@ -30,6 +38,10 @@
         const table = Array.from(owner?.querySelectorAll('[data-rt-premium-table][data-table-pagination-key]') ?? [])
             .find(candidate => candidate.closest('[wire\\:id]') === owner && candidate.dataset.tablePaginationKey === key);
         table?.querySelector('[data-table-scroll-body]')?.scrollTo({ top: 0, behavior: 'instant' });
+        @if($scrollTo)
+        const scrollSelector = {{ \Illuminate\Support\Js::from($scrollTo) }};
+        ($el.closest(scrollSelector) || document.querySelector(scrollSelector))?.scrollIntoView();
+        @endif
     "
 >
     <span class="rt-table-pagination__range" aria-live="polite" aria-atomic="true"

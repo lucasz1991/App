@@ -33,7 +33,7 @@
     </div>
 
     <div>
-        {{ $messages->links() }}
+        <x-tables.pagination :paginator="$messages" label="Nachrichtenseiten" />
     </div>
 
     {{-- Detail-Modal --}}

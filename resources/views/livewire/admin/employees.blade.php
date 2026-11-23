@@ -75,7 +75,7 @@
                 :sort-dir="$sortDir ?? 'asc'"
             />
             <div class="employee-directory__pagination" data-employee-pagination>
-                {{ $employees->onEachSide(1)->links('livewire.admin.employees.directory-pagination', data: ['scrollTo' => false]) }}
+                <x-tables.pagination :paginator="$employees" table-key="employee-directory" class="employee-directory__pager" />
             </div>
         </div>
     </x-dynamic-component>
