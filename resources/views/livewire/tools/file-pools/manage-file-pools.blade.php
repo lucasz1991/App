@@ -163,7 +163,7 @@
         </button>
       @endif
       @if($filePool && $poolFiles->count() > 0)
-        <x-dropdown class="" :width="'w-max'">
+        <x-ui.dropdown.anchor-dropdown class="" :width="'w-max'">
           <x-slot name="trigger">
               <button
                 type="button"
@@ -175,11 +175,11 @@
               </button>
           </x-slot>
           <x-slot name="content">
-            <x-dropdown-link wire:click="downloadAll" class="flex items-center gap-2">
+            <x-ui.dropdown.dropdown-link wire:click="downloadAll" class="flex items-center gap-2">
                 <i class="fad fa-file-archive fa-lg"></i>&nbsp;&nbsp;{{ __('app.download_all_files') }}
-            </x-dropdown-link>
+            </x-ui.dropdown.dropdown-link>
           </x-slot>
-        </x-dropdown>
+        </x-ui.dropdown.anchor-dropdown>
       @endif
     </div>
 
@@ -262,22 +262,22 @@
 
           @if(!$readOnly)
             <div class="absolute right-1.5 top-1.5">
-              <x-dropdown align="right" width="48">
+              <x-ui.dropdown.anchor-dropdown align="right" width="48">
                 <x-slot name="trigger">
                   <button type="button" class="rounded-lg bg-rt-surface/80 px-1.5 py-0.5 text-sm text-rt-muted shadow-rt-xs ring-1 ring-rt-border/60 transition hover:bg-rt-surface-muted hover:text-rt-text dark:bg-rt-dark-surface/80 dark:text-rt-dark-muted dark:ring-rt-dark-border/60 dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-text">
                     &#x22EE;
                   </button>
                 </x-slot>
                 <x-slot name="content">
-                  <x-dropdown-link wire:click.prevent="openRenameFolder({{ $folder->id }})">
+                  <x-ui.dropdown.dropdown-link wire:click.prevent="openRenameFolder({{ $folder->id }})">
                     <i class="far fa-cog mr-2"></i>{{ __('app.folder_settings') }}
-                  </x-dropdown-link>
+                  </x-ui.dropdown.dropdown-link>
                   @if($allowTeamPermissions)
-                    <x-dropdown-link wire:click.prevent="openPermissions({{ $folder->id }})">
+                    <x-ui.dropdown.dropdown-link wire:click.prevent="openPermissions({{ $folder->id }})">
                       <i class="far fa-shield-alt mr-2"></i>{{ __('app.permissions') }}
-                    </x-dropdown-link>
+                    </x-ui.dropdown.dropdown-link>
                   @endif
-                  <x-dropdown-link
+                  <x-ui.dropdown.dropdown-link
                       confirm-method="deleteFolder"
                       :confirm-arguments="[(int) $folder->id]"
                       :confirm-title="__('app.delete')"
@@ -286,9 +286,9 @@
                       class="!text-red-600 dark:!text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
                   >
                     <i class="far fa-trash-alt mr-2"></i>{{ __('app.delete') }}
-                  </x-dropdown-link>
+                  </x-ui.dropdown.dropdown-link>
                 </x-slot>
-              </x-dropdown>
+              </x-ui.dropdown.anchor-dropdown>
             </div>
           @endif
         </div>

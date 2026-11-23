@@ -24,19 +24,19 @@
         <div class="employee-directory__controls" aria-label="Mitarbeiter auswählen und suchen">
             <div class="employee-directory__search-controls">
                 <x-tables.bulk-actions :count="count($selectedEmployees)" select-all="toggleSelectAll">
-                    <x-dropdown-link href="#" wire:click.prevent="clearSelection" tone="danger">
+                    <x-ui.dropdown.dropdown-link href="#" wire:click.prevent="clearSelection" tone="danger">
                         <i class="far fa-align-slash mr-2"></i>{{ __('app.clear_selection') }}
-                    </x-dropdown-link>
-                    <x-dropdown-link href="#" wire:click.prevent="messageSelected" :can="'users.messages.create'">
+                    </x-ui.dropdown.dropdown-link>
+                    <x-ui.dropdown.dropdown-link href="#" wire:click.prevent="messageSelected" :can="'users.messages.create'">
                         <i class="far fa-paper-plane mr-2"></i>{{ __('app.compose_message') }}
-                    </x-dropdown-link>
+                    </x-ui.dropdown.dropdown-link>
                     @if($canManageEmployeeTeams)
-                        <x-dropdown-link href="#" wire:click.prevent="openTeamEditSelected">
+                        <x-ui.dropdown.dropdown-link href="#" wire:click.prevent="openTeamEditSelected">
                             <i class="far fa-pen-to-square mr-2" aria-hidden="true"></i>Teams bearbeiten
-                        </x-dropdown-link>
-                        <x-dropdown-link href="#" wire:click.prevent="openTeamChangeSelected">
+                        </x-ui.dropdown.dropdown-link>
+                        <x-ui.dropdown.dropdown-link href="#" wire:click.prevent="openTeamChangeSelected">
                             <i class="far fa-users mr-2" aria-hidden="true"></i>Team wechseln
-                        </x-dropdown-link>
+                        </x-ui.dropdown.dropdown-link>
                     @endif
                 </x-tables.bulk-actions>
                 <x-ui.forms.input-error for="employeeIds" class="mt-1" />

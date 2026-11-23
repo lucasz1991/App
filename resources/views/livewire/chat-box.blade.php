@@ -221,6 +221,7 @@
                                             <x-ui.dropdown.dropdown-link
                                                 as="a"
                                                 :href="route('chat.export', ['chat' => $chat])"
+                                                data-no-navigate
                                                 data-no-chat-swipe
                                             >
                                                 <span class="rt-chat-option-icon">
@@ -233,7 +234,7 @@
 
                                             <x-ui.dropdown.dropdown-link
                                                 wire:click="requestDeleteChat({{ $chat->id }})"
-                                                data-rt-tone="danger"
+                                                tone="danger"
                                                 data-no-chat-swipe
                                             >
                                                 <span class="rt-chat-option-icon">
@@ -520,6 +521,7 @@
                                         <x-ui.dropdown.dropdown-link
                                             as="a"
                                             :href="route('chat.export', ['chat' => $selectedChat])"
+                                            data-no-navigate
                                             data-no-chat-swipe
                                         >
                                             <span class="rt-chat-option-icon">
@@ -532,7 +534,7 @@
 
                                         <x-ui.dropdown.dropdown-link
                                             wire:click="requestDeleteChat"
-                                            data-rt-tone="danger"
+                                            tone="danger"
                                         >
                                             <span class="rt-chat-option-icon">
                                                 <i class="far {{ $selectedChat->isGroup() && ! $selectedChat->canManageGroup($me) ? 'fa-sign-out-alt' : 'fa-trash-alt' }}" aria-hidden="true"></i>

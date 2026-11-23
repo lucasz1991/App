@@ -6,19 +6,19 @@
                 <x-tables.bulk-actions :count="$selectedCount" select-all="togglePageSelection"
                     :select-all-title="$pageSelected ? 'Auswahl dieser Seite aufheben' : 'Alle Nachrichten auf dieser Seite auswählen'" width="72">
                     <div class="rt-message-inbox__menu-label">{{ $selectedCount }} ausgewählt</div>
-                    <x-dropdown-link href="#" wire:click.prevent="markSelectedAsRead" x-on:click="close()">
+                    <x-ui.dropdown.dropdown-link href="#" wire:click.prevent="markSelectedAsRead" x-on:click="close()">
                         <i class="far fa-envelope-open" aria-hidden="true"></i> Als gelesen markieren
-                    </x-dropdown-link>
-                    <x-dropdown-link href="#" wire:click.prevent="markSelectedAsUnread" x-on:click="close()">
+                    </x-ui.dropdown.dropdown-link>
+                    <x-ui.dropdown.dropdown-link href="#" wire:click.prevent="markSelectedAsUnread" x-on:click="close()">
                         <i class="far fa-envelope" aria-hidden="true"></i> Als ungelesen markieren
-                    </x-dropdown-link>
-                    <x-dropdown-link href="#" tone="danger" confirm-method="deleteSelectedMessages" confirm-title="Ausgewählte Nachrichten löschen?"
+                    </x-ui.dropdown.dropdown-link>
+                    <x-ui.dropdown.dropdown-link href="#" tone="danger" confirm-method="deleteSelectedMessages" confirm-title="Ausgewählte Nachrichten löschen?"
                         :confirm-message="$selectedCount.' ausgewählte Nachrichten und ihre Anhänge werden endgültig gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.'" confirm-label="Endgültig löschen">
                         <i class="far fa-trash-alt" aria-hidden="true"></i> Auswahl löschen
-                    </x-dropdown-link>
-                    <x-dropdown-link href="#" wire:click.prevent="clearSelection" x-on:click="close()">
+                    </x-ui.dropdown.dropdown-link>
+                    <x-ui.dropdown.dropdown-link href="#" wire:click.prevent="clearSelection" x-on:click="close()">
                         <i class="far fa-times" aria-hidden="true"></i> Auswahl aufheben
-                    </x-dropdown-link>
+                    </x-ui.dropdown.dropdown-link>
                 </x-tables.bulk-actions>
                 <x-tables.search-field context="page-topbar" id="inbox-search" placeholder="Absender, Betreff oder Nachricht suchen"
                     :results-count="$messages->total()" wire:model.live.debounce.400ms="search" />
@@ -36,16 +36,16 @@
                     </x-slot:trigger>
                     <x-slot:content>
                         @foreach(['all' => 'Alle Nachrichten', 'unread' => 'Ungelesen', 'read' => 'Gelesen'] as $value => $label)
-                            <x-dropdown-link href="#" role="menuitemradio" :aria-checked="$status === $value ? 'true' : 'false'" wire:click.prevent="$set('status', '{{ $value }}')" x-on:click="close()">
+                            <x-ui.dropdown.dropdown-link href="#" role="menuitemradio" :aria-checked="$status === $value ? 'true' : 'false'" wire:click.prevent="$set('status', '{{ $value }}')" x-on:click="close()">
                                 <i class="far {{ $value === 'unread' ? 'fa-envelope' : ($value === 'read' ? 'fa-envelope-open' : 'fa-inbox') }}" aria-hidden="true"></i>
                                 <span class="flex-1">{{ $label }}</span>
                                 @if($status === $value) <i class="far fa-check text-rt-red" aria-hidden="true"></i> @endif
-                            </x-dropdown-link>
+                            </x-ui.dropdown.dropdown-link>
                         @endforeach
                         @if(trim($search) !== '' || $status !== 'all')
-                            <x-dropdown-link href="#" wire:click.prevent="resetFilters" x-on:click="close()">
+                            <x-ui.dropdown.dropdown-link href="#" wire:click.prevent="resetFilters" x-on:click="close()">
                                 <i class="far fa-undo" aria-hidden="true"></i> Suche und Filter zurücksetzen
-                            </x-dropdown-link>
+                            </x-ui.dropdown.dropdown-link>
                         @endif
                     </x-slot:content>
                 </x-ui.dropdown.anchor-dropdown>

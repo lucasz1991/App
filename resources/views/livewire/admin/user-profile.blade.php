@@ -27,25 +27,25 @@
     <x-slot:actions>
         <x-ui.dropdown.page-actions width="48">
             @if($canManageEmployeeTeams)
-                <x-dropdown-link wire:click.prevent="openTeamChange">
+                <x-ui.dropdown.dropdown-link wire:click.prevent="openTeamChange">
                     <i class="far fa-users mr-2" aria-hidden="true"></i>Team wechseln
-                </x-dropdown-link>
+                </x-ui.dropdown.dropdown-link>
             @endif
             @if ($user->status)
-                <x-dropdown-link wire:click.prevent="deactivateUser()" :can="'employees.create'" tone="warning">
+                <x-ui.dropdown.dropdown-link wire:click.prevent="deactivateUser()" :can="'employees.create'" tone="warning">
                     <i class="far fa-times-circle mr-2"></i>
                     {{ __('app.deactivate') }}
-                </x-dropdown-link>
+                </x-ui.dropdown.dropdown-link>
             @else
-                <x-dropdown-link wire:click.prevent="activateUser()" :can="'employees.create'" tone="success">
+                <x-ui.dropdown.dropdown-link wire:click.prevent="activateUser()" :can="'employees.create'" tone="success">
                     <i class="far fa-check-circle mr-2"></i>
                     {{ __('app.activate') }}
-                </x-dropdown-link>
+                </x-ui.dropdown.dropdown-link>
             @endif
 
             @can('employees.delete')
                 @if ((int) $user->id !== (int) auth()->id() && ! $user->isSuperAdmin())
-                    <x-dropdown-link
+                    <x-ui.dropdown.dropdown-link
                         confirm-method="deleteUser"
                         :confirm-title="__('app.delete_user')"
                         :confirm-message="__('app.delete_user_confirm')"
@@ -54,7 +54,7 @@
                     >
                         <i class="far fa-trash-alt mr-2"></i>
                         {{ __('app.delete_user') }}
-                    </x-dropdown-link>
+                    </x-ui.dropdown.dropdown-link>
                 @endif
             @endcan
         </x-ui.dropdown.page-actions>

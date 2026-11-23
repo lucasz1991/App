@@ -96,7 +96,7 @@
     @endif
 
     <div class="absolute right-2 top-2 z-40">
-        <x-dropdown align="right" width="56" :offset="6">
+        <x-ui.dropdown.anchor-dropdown align="right" width="56" :offset="6">
             <x-slot name="trigger">
                 <button
                     type="button"
@@ -117,25 +117,25 @@
                 </button>
             </x-slot>
             <x-slot name="content">
-                <x-dropdown-link
+                <x-ui.dropdown.dropdown-link
                     x-on:click.prevent="window.dispatchEvent(new CustomEvent('filepool-preview', { detail: { id: {{ $file->id }} } }))"
                 >
                     <i class="far fa-eye mr-2 w-4 text-center" aria-hidden="true"></i>
                     {{ __('app.preview') }}
-                </x-dropdown-link>
+                </x-ui.dropdown.dropdown-link>
 
-                <x-dropdown-link wire:click="downloadFile({{ $file->id }})">
+                <x-ui.dropdown.dropdown-link wire:click="downloadFile({{ $file->id }})">
                     <i class="far fa-download mr-2 w-4 text-center" aria-hidden="true"></i>
                     {{ __('app.download') }}
-                </x-dropdown-link>
+                </x-ui.dropdown.dropdown-link>
 
                 @if($canManageFile)
-                    <x-dropdown-link wire:click.prevent="editFile({{ $file->id }})">
+                    <x-ui.dropdown.dropdown-link wire:click.prevent="editFile({{ $file->id }})">
                         <i class="far fa-pen mr-2 w-4 text-center" aria-hidden="true"></i>
                         {{ __('app.edit') }}
-                    </x-dropdown-link>
+                    </x-ui.dropdown.dropdown-link>
 
-                    <x-dropdown-link
+                    <x-ui.dropdown.dropdown-link
                         confirm-method="deleteFile"
                         :confirm-arguments="[(int) $file->id]"
                         :confirm-title="__('app.delete')"
@@ -145,9 +145,9 @@
                     >
                         <i class="far fa-trash-alt mr-2 w-4 text-center" aria-hidden="true"></i>
                         {{ __('app.delete') }}
-                    </x-dropdown-link>
+                    </x-ui.dropdown.dropdown-link>
                 @endif
             </x-slot>
-        </x-dropdown>
+        </x-ui.dropdown.anchor-dropdown>
     </div>
 </article>

@@ -8,8 +8,8 @@
                             <x-ui.dropdown.anchor-dropdown dropdown-id="customer-list-selection" width="64" layer-group="topbar-controls">
                                 <x-slot:trigger><x-ui.buttons.button-basic type="button" mode="secondary" aria-label="Aktionen für ausgewählten Kunden" title="Ausgewählter Kunde"><i class="far fa-layer-group" aria-hidden="true"></i></x-ui.buttons.button-basic></x-slot:trigger>
                                 <x-slot:content>
-                                    <x-dropdown-link wire:click.prevent="selectCustomer({{ $selectedListCustomerId }})"><i class="far fa-id-card" aria-hidden="true"></i>Kundenprofil öffnen</x-dropdown-link>
-                                    <x-dropdown-link wire:click.prevent="toggleCustomerSelection({{ $selectedListCustomerId }})"><i class="far fa-align-slash" aria-hidden="true"></i>Auswahl aufheben</x-dropdown-link>
+                                    <x-ui.dropdown.dropdown-link wire:click.prevent="selectCustomer({{ $selectedListCustomerId }})"><i class="far fa-id-card" aria-hidden="true"></i>Kundenprofil öffnen</x-ui.dropdown.dropdown-link>
+                                    <x-ui.dropdown.dropdown-link wire:click.prevent="toggleCustomerSelection({{ $selectedListCustomerId }})"><i class="far fa-align-slash" aria-hidden="true"></i>Auswahl aufheben</x-ui.dropdown.dropdown-link>
                                 </x-slot:content>
                             </x-ui.dropdown.anchor-dropdown>
                         @endif

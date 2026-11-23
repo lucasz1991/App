@@ -14,7 +14,7 @@
             : route('messages');
     @endphp
 
-    <x-dropdown align="right" width="w-96"
+    <x-ui.dropdown.anchor-dropdown align="right" width="w-96"
                 dropdown-id="topbar-inbox"
                 layer-group="topbar"
                 wire:key="topbar-inbox-dropdown"
@@ -107,5 +107,5 @@
                 </div>
             </div>
         </x-slot>
-    </x-dropdown>
+    </x-ui.dropdown.anchor-dropdown>
 </div>

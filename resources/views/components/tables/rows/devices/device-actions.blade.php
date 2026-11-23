@@ -8,9 +8,9 @@
     </x-slot>
 
     <x-slot name="content">
-        <x-dropdown-link href="#" wire:click.prevent="selectDeviceById({{ $item->id }})">
+        <x-ui.dropdown.dropdown-link href="#" wire:click.prevent="selectDeviceById({{ $item->id }})">
             <i class="far fa-eye mr-2" aria-hidden="true"></i>
             Details öffnen
-        </x-dropdown-link>
+        </x-ui.dropdown.dropdown-link>
     </x-slot>
 </x-ui.dropdown.anchor-dropdown>

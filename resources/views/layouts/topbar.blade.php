@@ -190,7 +190,7 @@
                     @auth
                         <!-- Settings Dropdown -->
                         <div class="relative" data-topbar-profile>
-                            <x-dropdown
+                            <x-ui.dropdown.anchor-dropdown
                                 align="right"
                                 width="64"
                                 :offset="10"
@@ -227,32 +227,32 @@
                                             <p class="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-rt-soft dark:text-rt-dark-soft">{{ __('app.manage_account') }}</p>
                                         </div>
                                     </div>
-                                    <x-dropdown-link href="{{ route('profile.show') }}">
+                                    <x-ui.dropdown.dropdown-link href="{{ route('profile.show') }}">
                                     <svg class="w-5 h-5  mr-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
                                     <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 9h3m-3 3h3m-3 3h3m-6 1c-.306-.613-.933-1-1.618-1H7.618c-.685 0-1.312.387-1.618 1M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm7 5a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"/>
                                     </svg>
 
                                         {{ __('app.profile') }}
-                                    </x-dropdown-link>
+                                    </x-ui.dropdown.dropdown-link>
 
                                     <div class="my-1 border-t border-rt-border/70 dark:border-rt-dark-border/70"></div>
                                     <form method="POST" action="{{ route('logout') }}" x-data>
                                         @csrf
-                                        <x-dropdown-link href="{{ route('logout') }}" @click.prevent="$root.submit();">
+                                        <x-ui.dropdown.dropdown-link href="{{ route('logout') }}" @click.prevent="$root.submit();">
                                             <svg class="w-5 h-5  mr-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
                                                 <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m15 9-6 6m0-6 6 6m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
                                             </svg>
 
                                             {{ __('app.logout') }}
-                                        </x-dropdown-link>
+                                        </x-ui.dropdown.dropdown-link>
                                     </form>
                                 </x-slot>
-                            </x-dropdown>
+                            </x-ui.dropdown.anchor-dropdown>
                         </div>
                     @else
                         <!-- Guest Dropdown -->
                         <div class="relative ms-1 sm:ms-2">
-                            <x-dropdown
+                            <x-ui.dropdown.anchor-dropdown
                                 align="right"
                                 width="48"
                                 :offset="10"
@@ -276,15 +276,15 @@
                                     </button>
                                 </x-slot>
                                 <x-slot name="content">
-                                    <x-dropdown-link href="{{ $area === 'admin' ? route('admin.login') : route('login') }}">
+                                    <x-ui.dropdown.dropdown-link href="{{ $area === 'admin' ? route('admin.login') : route('login') }}">
                                         <svg class="w-5 h-5  mr-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
                                             <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 14v3m4-6V7a3 3 0 1 1 6 0v4M5 11h10a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1Z"/>
                                         </svg>
 
                                         {{ $area === 'admin' ? __('app.admin_login') : __('app.login') }}
-                                    </x-dropdown-link>
+                                    </x-ui.dropdown.dropdown-link>
                                 </x-slot>
-                            </x-dropdown>
+                            </x-ui.dropdown.anchor-dropdown>
                         </div>
                     @endauth
                 </div>

@@ -30,10 +30,10 @@
                     <x-slot:content>
                         <div x-on:keydown="if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes($event.key)) { $event.preventDefault(); const items = Array.from($el.querySelectorAll('[data-rt-dropdown-item]')); const current = items.indexOf(document.activeElement); const index = $event.key === 'Home' ? 0 : $event.key === 'End' ? items.length - 1 : (current + ($event.key === 'ArrowUp' ? -1 : 1) + items.length) % items.length; items[index]?.focus(); }">
                         @foreach($sections as $key => $label)
-                            <x-dropdown-link href="#" role="menuitem" wire:click.prevent="setSection('{{ $key }}')" :aria-current="$section === $key ? 'true' : null">
+                            <x-ui.dropdown.dropdown-link href="#" role="menuitem" wire:click.prevent="setSection('{{ $key }}')" :aria-current="$section === $key ? 'true' : null">
                                 <span class="min-w-0 flex-1">{{ $label }}</span>
                                 @if($section === $key)<i class="far fa-check" aria-hidden="true"></i>@endif
-                            </x-dropdown-link>
+                            </x-ui.dropdown.dropdown-link>
                         @endforeach
                         </div>
                     </x-slot:content>

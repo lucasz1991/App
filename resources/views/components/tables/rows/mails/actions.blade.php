@@ -5,10 +5,10 @@
         <x-ui.dropdown.action-trigger orientation="vertical" />
     </x-slot>
     <x-slot name="content">
-        <x-dropdown-link href="javascript:void(0)" wire:click="toggleMailDetails({{ $item->id }})"><i class="far fa-eye mr-2"></i>{{ __('app.show') }}</x-dropdown-link>
-        <x-dropdown-link href="javascript:void(0)" wire:click="resendMail({{ $item->id }})"><i class="far fa-redo mr-2"></i>{{ __('app.resend') }}</x-dropdown-link>
+        <x-ui.dropdown.dropdown-link href="javascript:void(0)" wire:click="toggleMailDetails({{ $item->id }})"><i class="far fa-eye mr-2"></i>{{ __('app.show') }}</x-ui.dropdown.dropdown-link>
+        <x-ui.dropdown.dropdown-link href="javascript:void(0)" wire:click="resendMail({{ $item->id }})"><i class="far fa-redo mr-2"></i>{{ __('app.resend') }}</x-ui.dropdown.dropdown-link>
         @if (Auth::user()->isAdmin())
-            <x-dropdown-link href="javascript:void(0)" wire:click="sendMessageToSuperAdmin({{ $item->id }})"><i class="far fa-paper-plane mr-2"></i>SuperAdmin Test</x-dropdown-link>
+            <x-ui.dropdown.dropdown-link href="javascript:void(0)" wire:click="sendMessageToSuperAdmin({{ $item->id }})"><i class="far fa-paper-plane mr-2"></i>SuperAdmin Test</x-ui.dropdown.dropdown-link>
         @endif
     </x-slot>
 </x-ui.dropdown.anchor-dropdown>

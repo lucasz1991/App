@@ -6,10 +6,10 @@
 >
     <x-slot:actions>
         <x-ui.dropdown.page-actions>
-            <x-dropdown-link wire:click.prevent="openCreate" can="files.manage">
+            <x-ui.dropdown.dropdown-link wire:click.prevent="openCreate" can="files.manage">
                 <i class="far fa-plus" aria-hidden="true"></i>
                 {{ __('app.add_managed_document') }}
-            </x-dropdown-link>
+            </x-ui.dropdown.dropdown-link>
         </x-ui.dropdown.page-actions>
     </x-slot:actions>
 

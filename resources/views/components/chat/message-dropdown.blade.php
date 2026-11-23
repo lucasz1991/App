@@ -85,7 +85,7 @@
                 <div class="rt-chat-option-divider my-1" role="separator"></div>
                 <x-ui.dropdown.dropdown-link
                     wire:click="{{ $deleteMethod }}({{ (int) $messageId }})"
-                    data-rt-tone="danger"
+                    tone="danger"
                 >
                     <span class="rt-chat-option-icon"><i class="far fa-trash-alt" aria-hidden="true"></i></span>
                     <span>{{ $resolvedDeleteLabel }}</span>

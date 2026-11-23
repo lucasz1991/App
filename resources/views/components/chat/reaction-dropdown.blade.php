@@ -59,7 +59,7 @@
                 <div class="rt-chat-option-divider my-1" role="separator"></div>
                 <x-ui.dropdown.dropdown-link
                     wire:click="{{ $removeMethod }}({{ (int) $messageId }})"
-                    data-rt-tone="danger"
+                    tone="danger"
                 >
                     <span class="rt-chat-option-icon"><i class="far fa-trash-alt" aria-hidden="true"></i></span>
                     <span>{{ __('app.chat_remove_reaction') }}</span>

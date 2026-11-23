@@ -553,7 +553,7 @@
                                                 <span>{{ $participant->role === 'viewer' ? __('app.calls_role_speaker') : __('app.calls_role_viewer') }}</span>
                                             </x-ui.dropdown.dropdown-link>
                                             <div class="rt-chat-option-divider my-1" role="separator"></div>
-                                            <x-ui.dropdown.dropdown-link wire:click="removeParticipant({{ $participant->id }})" data-rt-tone="danger">
+                                            <x-ui.dropdown.dropdown-link wire:click="removeParticipant({{ $participant->id }})" tone="danger">
                                                 <span class="rt-chat-option-icon"><i class="far fa-user-slash" aria-hidden="true"></i></span>
                                                 <span>{{ __('app.calls_remove_participant') }}</span>
                                             </x-ui.dropdown.dropdown-link>
