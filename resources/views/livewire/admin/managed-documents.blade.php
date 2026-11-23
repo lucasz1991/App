@@ -56,6 +56,9 @@
                     @if($file)
                         <p class="mt-3 truncate text-xs font-medium text-rt-text dark:text-rt-dark-text">{{ $file->name_with_extension }} · {{ $file->size_formatted }}</p>
                     @endif
+                    @if($trustReady && $version && $version->trustCertificates->isNotEmpty())
+                        <p class="mt-1 inline-flex items-center gap-1.5 text-xs text-rt-muted dark:text-rt-dark-muted"><i class="far fa-file-certificate text-rt-soft" aria-hidden="true"></i>Signiert mit: {{ $version->trustCertificates->pluck('name')->join(', ') }}</p>
+                    @endif
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2 lg:max-w-md lg:justify-end">
@@ -129,12 +132,31 @@
                         <x-ui.forms.label for="managed-initial-notes" :value="__('app.change_notes')" class="mt-4" />
                         <x-ui.forms.input id="managed-initial-notes" type="text" wire:model="changeNotes" class="mt-1" />
                     </div>
+                @if($trustReady && ($certificates->isNotEmpty() || $canManageTrust))
+                    <div class="rounded-xl border border-rt-border p-3 dark:border-rt-dark-border">
+                        <x-ui.forms.label for="managed-certificate-initial" value="Signiert mit (nur bei Listen mit Makros)" />
+                        <select id="managed-certificate-initial" wire:model="certificateId" class="mt-1 block min-h-11 w-full rounded-xl border-rt-border bg-rt-surface text-base text-rt-text dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white sm:text-sm">
+                            <option value="">Kein Zertifikat</option>
+                            @foreach($certificates as $certificate)
+                                <option value="{{ $certificate->public_id }}">{{ $certificate->name }} · gültig bis {{ $certificate->valid_until?->format('d.m.Y') }}</option>
+                            @endforeach
+                        </select>
+                        @error('certificateId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                        @if($canManageTrust)
+                            <x-ui.forms.label for="managed-certificate-file-initial" value="Oder neues Zertifikat hochladen (.cer)" class="mt-3" />
+                            <input id="managed-certificate-file-initial" type="file" wire:model="certificateFile" accept=".cer,.crt,.pem" class="mt-2 block w-full text-base text-rt-muted sm:text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-rt-red file:px-3 file:py-2 file:font-semibold file:text-white">
+                            @error('certificateFile') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                            @error('certificate') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                        @endif
+                        <p class="mt-2 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Die RailTime-App richtet dieses Zertifikat auf den Firmengeräten als vertrauenswürdigen Herausgeber ein. Hochgeladen wird nur der öffentliche Teil, nie der private Schlüssel.</p>
+                    </div>
+                @endif
                 @endif
             </div>
         </x-slot:content>
         <x-slot:footer>
             <x-ui.buttons.button-basic mode="secondary" type="button" wire:click="$set('formOpen', false)">{{ __('app.cancel') }}</x-ui.buttons.button-basic>
-            <x-ui.buttons.button-basic mode="primary" type="button" class="ml-2" wire:click="save" wire:loading.attr="disabled" wire:target="save,upload">{{ __('app.save') }}</x-ui.buttons.button-basic>
+            <x-ui.buttons.button-basic mode="primary" type="button" class="ml-2" wire:click="save" wire:loading.attr="disabled" wire:target="save,upload,certificateFile">{{ __('app.save') }}</x-ui.buttons.button-basic>
         </x-slot:footer>
     </x-dialog-modal>
 
@@ -151,12 +173,31 @@
                     <x-ui.forms.label for="managed-version-notes" :value="__('app.change_notes')" />
                     <x-ui.forms.textarea id="managed-version-notes" wire:model="changeNotes" rows="3" class="mt-1" />
                 </div>
+                @if($trustReady && ($certificates->isNotEmpty() || $canManageTrust))
+                    <div class="rounded-xl border border-rt-border p-3 dark:border-rt-dark-border">
+                        <x-ui.forms.label for="managed-certificate-version" value="Signiert mit (nur bei Listen mit Makros)" />
+                        <select id="managed-certificate-version" wire:model="certificateId" class="mt-1 block min-h-11 w-full rounded-xl border-rt-border bg-rt-surface text-base text-rt-text dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white sm:text-sm">
+                            <option value="">Kein Zertifikat</option>
+                            @foreach($certificates as $certificate)
+                                <option value="{{ $certificate->public_id }}">{{ $certificate->name }} · gültig bis {{ $certificate->valid_until?->format('d.m.Y') }}</option>
+                            @endforeach
+                        </select>
+                        @error('certificateId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                        @if($canManageTrust)
+                            <x-ui.forms.label for="managed-certificate-file-version" value="Oder neues Zertifikat hochladen (.cer)" class="mt-3" />
+                            <input id="managed-certificate-file-version" type="file" wire:model="certificateFile" accept=".cer,.crt,.pem" class="mt-2 block w-full text-base text-rt-muted sm:text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-rt-red file:px-3 file:py-2 file:font-semibold file:text-white">
+                            @error('certificateFile') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                            @error('certificate') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                        @endif
+                        <p class="mt-2 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Die RailTime-App richtet dieses Zertifikat auf den Firmengeräten als vertrauenswürdigen Herausgeber ein. Hochgeladen wird nur der öffentliche Teil, nie der private Schlüssel.</p>
+                    </div>
+                @endif
                 <p class="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">{{ __('app.previous_versions_remain') }}</p>
             </div>
         </x-slot:content>
         <x-slot:footer>
             <x-ui.buttons.button-basic mode="secondary" type="button" wire:click="$set('versionUploadOpen', false)">{{ __('app.cancel') }}</x-ui.buttons.button-basic>
-            <x-ui.buttons.button-basic mode="primary" type="button" class="ml-2" wire:click="uploadVersion" wire:loading.attr="disabled" wire:target="uploadVersion,upload">{{ __('app.publish_version') }}</x-ui.buttons.button-basic>
+            <x-ui.buttons.button-basic mode="primary" type="button" class="ml-2" wire:click="uploadVersion" wire:loading.attr="disabled" wire:target="uploadVersion,upload,certificateFile">{{ __('app.publish_version') }}</x-ui.buttons.button-basic>
         </x-slot:footer>
     </x-dialog-modal>
 

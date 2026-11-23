@@ -37,7 +37,7 @@
         @forelse($data['cases'] as $case)
             <div class="wv-item">
                 <span class="wv-item-main"><span class="wv-truncate">{{ \Illuminate\Support\Str::limit($case->subject, 60) }}</span><small class="wv-truncate">{{ $case->user?->name }} · {{ $case->updated_at?->diffForHumans() }}</small></span>
-                <span class="ops-badge">{{ $statusMeta[$case->status]['label'] ?? str($case->status)->replace('_', ' ')->title() }}</span>
+                <x-operations.status :value="$case->status" :label="$statusMeta[$case->status]['label'] ?? str($case->status)->replace('_', ' ')->title()" />
             </div>
         @empty
             <x-dashboard.empty icon="check-circle">Keine offenen Fälle.</x-dashboard.empty>

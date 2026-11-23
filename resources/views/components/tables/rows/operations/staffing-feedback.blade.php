@@ -10,7 +10,7 @@
             @if($item->planning_travel)<span class="rt-table-meta" data-routing-state="{{ $item->planning_travel['route_state'] }}">{{ $item->planning_travel['route_label'] }}</span>@endif
             @foreach($item->planning_travel['warnings'] ?? [] as $warning)<span class="rt-table-meta text-amber-700 dark:text-amber-300">{{ $warning['message'] }}</span>@endforeach
             @if($item->status->blocksAvailability() && ($item->planning_travel['route_state'] ?? 'disabled') !== 'disabled')<button type="button" class="underline min-h-11" wire:click="inspectAssignedTravel({{ $item->shift_id }}, {{ $item->user_id }})" wire:loading.attr="disabled">Fahrten prüfen</button>@endif
-            <x-operations.status :value="$item->status->value" :label="$item->status->label()" />
+            <x-operations.status :value="$item->status" />
             @if($item->plan_revision > 0 && $item->plan_revision === $item->shift->published_revision)
                 <span class="rt-table-meta">Revision {{ $item->plan_revision }}@if($item->responded_at) · {{ $item->responded_at->setTimezone($displayTimezone ?? config('operations.display_timezone'))->format('d.m. H:i') }}@endif</span>
                 <span class="rt-table-meta"><i class="far {{ $item->plan_opened_at ? 'fa-eye' : 'fa-envelope' }}" aria-hidden="true"></i> {{ $item->plan_opened_at ? 'Geöffnet am '.$item->plan_opened_at->setTimezone(config('operations.display_timezone'))->format('d.m. H:i') : 'Noch nicht geöffnet' }}</span>

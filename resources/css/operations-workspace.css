@@ -42,12 +42,9 @@
 .ops-list-choice { width:100%; text-align:left; display:grid; gap:8px; padding:16px; border-radius:8px; border:1px solid transparent; }
 .ops-list-choice:hover { background:var(--ops-platform); }
 .ops-list-choice[aria-pressed=true] { background:var(--ops-platform); border-inline-start:3px solid var(--ops-signal); }
-.ops-badge { display:inline-flex; align-items:center; width:fit-content; padding:4px 8px; border-radius:5px; color:var(--ops-muted); background:var(--ops-platform); font-size:11px; font-weight:650; white-space:nowrap; }
-.ops-badge[data-state=approved], .ops-badge[data-state=confirmed], .ops-badge[data-state=accepted] { background:#eaf5ee; color:#25603b; }
-.ops-badge[data-state=pending], .ops-badge[data-state=requested], .ops-badge[data-state=returned], .ops-badge[data-state=submitted] { background:#fff3dd; color:#855d19; }
-.dark .ops-badge { background:#243245; color:#c8d0dc; }
-.dark .ops-badge[data-state=approved], .dark .ops-badge[data-state=confirmed] { background:#193c30; color:#ace2bf; }
-.dark .ops-badge[data-state=pending], .dark .ops-badge[data-state=requested], .dark .ops-badge[data-state=returned], .dark .ops-badge[data-state=submitted] { background:#3b3121; color:#edcd91; }
+/* Status-Badges laufen ueber x-operations.status -> x-ui.badge (app.css). Die Uebertragungszeile der Arbeitszeituhr ist kein Status, sondern eine eigene Textzeile. */
+.rt-clock-transfer { display:inline-flex; align-items:center; width:fit-content; padding:4px 8px; border-radius:5px; color:var(--ops-muted); background:var(--ops-platform); font-size:11px; font-weight:650; white-space:nowrap; }
+.dark .rt-clock-transfer { background:#243245; color:#c8d0dc; }
 .ops-empty { padding:40px 20px; color:var(--ops-muted); text-align:center; }
 .ops-errors { background:#fff0f1; color:#9e1834; border-radius:8px; padding:12px 16px; }
 .dark .ops-errors { background:#3e202a; color:#ffc2ce; }
@@ -75,7 +72,7 @@
 @media(prefers-reduced-motion:reduce) { .rt-ops .rt-ui-button { transition:none; transform:none; } }
 
 /* KPI-Kacheln, Schnellzugriffe und Diagrammrahmen fuer Cockpit/Dashboard.
-   Additiv - bestehende .ops-panel/.ops-row/.ops-badge-Regeln bleiben fuer
+   Additiv - bestehende .ops-panel/.ops-row-Regeln bleiben fuer
    die anderen Betriebsseiten (Anfragen, Nachweise, Zeitpruefung, ...)
    unveraendert nutzbar. */
 .ops-kpi, .ops-tile { display:flex; align-items:center; gap:14px; min-height:76px; padding:14px 16px; border-radius:14px; background:var(--ops-sheet); border:1px solid var(--ops-line); text-decoration:none; color:inherit; transition:transform 220ms cubic-bezier(.32,.72,0,1), box-shadow 220ms cubic-bezier(.32,.72,0,1), border-color 220ms; }

@@ -129,15 +129,22 @@ final class DeviceDesktopService
     {
         $data = Validator::make($input, [
             'client_version' => ['required', 'string', 'regex:'.self::VERSION_PATTERN],
-            'capabilities' => ['sometimes', 'array', 'max:4'],
-            'capabilities.*' => ['string', 'in:winget_install,notification,'.DeviceSoftwareService::CAPABILITY.','.self::OFFICE_TRUST, 'distinct'],
-            'report' => ['sometimes', 'array:software_runner,software'],
+            'capabilities' => ['sometimes', 'array', 'max:5'],
+            'capabilities.*' => ['string', 'in:winget_install,notification,'.DeviceSoftwareService::CAPABILITY.','.self::OFFICE_TRUST.','.DeviceTrustService::CAPABILITY, 'distinct'],
+            'report' => ['sometimes', 'array:software_runner,software,trust'],
             'report.software_runner' => ['sometimes', 'in:available,unavailable,unknown'],
             'report.software' => ['sometimes', 'array', 'max:'.DeviceSoftwareService::MAX_PACKAGES],
             'report.software.*' => ['array:package_id,installed,version'],
             'report.software.*.package_id' => ['required', 'string', 'max:128', 'regex:'.DeviceSoftwareService::PACKAGE_PATTERN, 'distinct'],
             'report.software.*.installed' => ['required', 'boolean'],
             'report.software.*.version' => ['sometimes', 'nullable', 'string', 'regex:'.DeviceSoftwareService::REPORTED_VERSION_PATTERN],
+            // Stand des Office-Vertrauens: Ordner eingetragen, eingerichtete und am Gerät abgelehnte Zertifikate.
+            'report.trust' => ['sometimes', 'array:folder,certificates,declined'],
+            'report.trust.folder' => ['required_with:report.trust', 'boolean'],
+            'report.trust.certificates' => ['sometimes', 'array', 'max:'.DeviceTrustService::MAX_ACTIVE],
+            'report.trust.certificates.*' => ['string', 'regex:/\A[a-f0-9]{64}\z/', 'distinct'],
+            'report.trust.declined' => ['sometimes', 'array', 'max:'.DeviceTrustService::MAX_ACTIVE],
+            'report.trust.declined.*' => ['string', 'regex:/\A[a-f0-9]{64}\z/', 'distinct'],
         ])->validate();
 
         return $this->withAuthenticated($token, function (DeviceDesktopClient $client, Device $device) use ($data): array {
@@ -160,6 +167,12 @@ final class DeviceDesktopService
                 return $response;
             }
             $capabilities = $data['capabilities'] ?? [];
+            // Herausgeber-Zertifikate: nur für Firmengeräte mit erlaubtem Office-Vertrauen und nur an
+            // Clients, die den Abgleich kennen. Fehlt `trust`, nimmt der Client sein Vertrauen zurück.
+            $trust = app(DeviceTrustService::class);
+            if ($response['policy']['allow_office_trust'] && in_array(DeviceTrustService::CAPABILITY, $capabilities, true) && $trust->ready()) {
+                $response['trust'] = ['certificates' => $trust->plan()];
+            }
             // Only a client that understands directory orders and reports the
             // installed state takes part in the automatic reconciliation.
             $managed = $softwareReady && in_array(DeviceSoftwareService::CAPABILITY, $capabilities, true)
@@ -353,7 +366,8 @@ final class DeviceDesktopService
             'sync_interval_seconds' => 60, 'setup_ready' => false, 'policy' => $policy, 'jobs' => [],
             // Capabilities this server accepts beyond the first contract. A client reports
             // one only after seeing it here, so a newer client keeps working with an older server.
-            'features' => array_merge(app(DeviceSoftwareService::class)->ready() ? [DeviceSoftwareService::CAPABILITY] : [], [self::OFFICE_TRUST])];
+            'features' => array_merge(app(DeviceSoftwareService::class)->ready() ? [DeviceSoftwareService::CAPABILITY] : [], [self::OFFICE_TRUST],
+                app(DeviceTrustService::class)->ready() ? [DeviceTrustService::CAPABILITY] : [])];
     }
 
     public function withAuthenticated(#[\SensitiveParameter] string $token, callable $action, bool $requireManagement = true): mixed

@@ -9,7 +9,7 @@
                 <x-slot:actions>
                     <button type="button" wire:click="editOrder({{ $selectedOrder->id }})" wire:loading.attr="disabled" @if($embeddedDetail) x-on:click="$dispatch('close')" @endif class="rt-ops-panel__icon-button" aria-label="Leistung bearbeiten" title="Leistung bearbeiten"><i class="far fa-pen" aria-hidden="true"></i></button>
                 </x-slot:actions>
-                <x-slot:meta><x-operations.service-status :status="$selectedOrder->status" /><span class="rt-ops-panel__fact">{{ $serviceDetailItem->count }} {{ $serviceDetailItem->count === 1 ? 'Schicht' : 'Schichten' }} · Gesamte Leistung</span></x-slot:meta>
+                <x-slot:meta><x-operations.status :value="$selectedOrder->status" icon class="rt-service-status" /><span class="rt-ops-panel__fact">{{ $serviceDetailItem->count }} {{ $serviceDetailItem->count === 1 ? 'Schicht' : 'Schichten' }} · Gesamte Leistung</span></x-slot:meta>
             </x-operations.panel.header>
             @if($consolidated)
                 @php
@@ -88,7 +88,6 @@
                     <h3 class="text-sm font-semibold text-rt-text dark:text-white">Schichten</h3>
                     <div class="mt-2 divide-y divide-rt-border/60 rounded-xl border border-rt-border/70 dark:divide-rt-dark-border/60 dark:border-rt-dark-border/70">
                         @forelse($selectedOrder->shifts as $shift)
-                            @php($shiftStatus = $shift->status instanceof \BackedEnum ? $shift->status->value : (string) $shift->status)
                             <div class="px-3.5 py-3" wire:key="order-shift-{{ $shift->id }}">
                                 <div class="flex items-center justify-between gap-2">
                                     @if($detailOnly)
@@ -96,7 +95,7 @@
                                     @else
                                         <x-ui.buttons.button-basic mode="link" data-no-navigate :href="route($planningRoute, ['module' => 'shift-management', 'order' => $selectedOrder->id, 'shift' => $shift->id])" class="min-h-11 min-w-0 text-left"><span class="break-words">{{ $shift->title }}</span></x-ui.buttons.button-basic>
                                     @endif
-                                    <x-operations.status :value="$shiftStatus" />
+                                    <x-operations.status :value="$shift->status" />
                                 </div>
                                 <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $shift->starts_at?->format('d.m.Y H:i') }} · {{ $shift->assignments->filter(fn ($assignment) => in_array(
                                     $assignment->status instanceof \BackedEnum ? $assignment->status->value : $assignment->status,

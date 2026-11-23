@@ -42,7 +42,7 @@
                                     @else
                                         <div class="rt-service-detail-staffing__unavailable"><span aria-hidden="true">?</span><strong>Eingeplante Person nicht verfügbar</strong></div>
                                     @endif
-                                    <span class="rt-service-detail-status"><i class="far {{ $assignment['status'] === \App\Enums\ShiftAssignmentStatus::Confirmed ? 'fa-circle-check' : 'fa-clock' }}" aria-hidden="true"></i><x-operations.status :value="$assignment['status']->value" :label="$assignment['status']->label()" /></span>
+                                    <x-operations.status :value="$assignment['status']" icon class="rt-service-detail-status" />
                                 </li>
                             @endforeach
                             @for($slot = 0; $slot < $entry->summary['open']; $slot++)
@@ -61,7 +61,7 @@
                                                 <x-user.public-info :user="$assignment['user']" :size="10" :show-email="false" :show-presence="false" :local-initials="true" />
                                             @endif
                                         @else<span>Eingeplante Person nicht verfügbar</span>@endif
-                                        <x-operations.status :value="$assignment['status']->value" :label="$assignment['status']->label()" />
+                                        <x-operations.status :value="$assignment['status']" />
                                     </li>
                                 @endforeach
                             </ul></details>

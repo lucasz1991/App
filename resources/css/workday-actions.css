@@ -27,7 +27,7 @@
 .rt-workday-actions__summary strong { color: var(--personal-ink); font-size: 14px; font-weight: 650; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rt-workday-actions__duty-controls { flex: 0 0 auto; max-width: 48%; }
 .rt-workday-actions__duty-controls:empty { display: none; }
-.rt-workday-actions__duty-controls .ops-badge { white-space: normal; }
+.rt-workday-actions__duty-controls .rt-ui-badge { white-space: normal; }
 .rt-workday-actions__clock { min-width: 0; }
 .rt-workday-actions .rt-personal-clock-block { gap: 0; }
 .rt-workday-actions__duty + .rt-workday-actions__clock { padding-inline-start: 20px; border-inline-start: 1px solid var(--personal-line); }
@@ -50,7 +50,7 @@
 
 .rt-personal-work .rt-personal-work-clock--action > .ops-toolbar { display: grid; gap: 3px; flex: 1 1 100px; min-width: 0; }
 .rt-personal-work .rt-personal-work-clock--action > .ops-toolbar h2 { min-width: 0; font-size: 14px; font-weight: 650; line-height: 1.4; overflow-wrap: anywhere; }
-.rt-personal-work-clock--action > .ops-toolbar .ops-badge { justify-self: start; max-width: 100%; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--personal-muted); font-size: 11px; line-height: 1.4; white-space: normal; }
+.rt-personal-work-clock--action > .ops-toolbar .rt-clock-transfer { justify-self: start; max-width: 100%; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--personal-muted); font-size: 11px; line-height: 1.4; white-space: normal; }
 .rt-personal-work-clock--action > .ops-errors { flex-basis: 100%; order: 3; margin: 0; }
 .rt-personal-work .rt-personal-work-clock--action .rt-personal-clock-idle { display: block; flex: 0 1 auto; min-width: 0; }
 .rt-personal-work-clock--action .rt-personal-clock-idle .ops-actions { display: flex; gap: 8px; width: auto; }
@@ -94,7 +94,7 @@
     .rt-personal-work .rt-personal-work-clock--action { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
     .rt-personal-work .rt-personal-work-clock--action > .ops-toolbar { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
     .rt-personal-work .rt-personal-work-clock--action > .ops-toolbar h2 { font-size: 12px; }
-    .rt-personal-work-clock--action > .ops-toolbar .ops-badge { font-size: 12px; }
+    .rt-personal-work-clock--action > .ops-toolbar .rt-clock-transfer { font-size: 12px; }
     .rt-personal-work .rt-personal-work-clock--action:is([data-clock-state="running"], [data-clock-state="paused"]) > .ops-toolbar { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
     .rt-personal-work .rt-personal-work-clock--action .rt-personal-clock-idle { grid-column: 1 / -1; width: 100%; }
     .rt-personal-work-clock--action > .ops-errors, .rt-personal-work-clock--action > .rt-ui-button { grid-column: 1 / -1; }

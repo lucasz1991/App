@@ -17,6 +17,6 @@
         @if($shift->feedback_pending > 0)<span class="rt-disposition-record-meta">{{ $shift->feedback_pending }} Rückmeldung ausstehend</span>@endif
         @if($shift->feedback_declined > 0)<span class="rt-disposition-warning">{{ $shift->feedback_declined }} abgelehnt</span>@endif
     </span>
-    <span class="rt-disposition-shift__state"><x-operations.status :value="$shift->status->value" :label="$shift->status->label()" />@if($shift->revision !== null)<span class="rt-disposition-record-meta">{{ $shift->published_revision === $shift->revision ? 'Veröffentlicht' : ($shift->published_revision ? 'Änderung unveröffentlicht' : 'Unveröffentlicht') }}</span>@endif</span>
+    <span class="rt-disposition-shift__state"><x-operations.status :value="$shift->status" />@if($shift->revision !== null)<span class="rt-disposition-record-meta">{{ $shift->published_revision === $shift->revision ? 'Veröffentlicht' : ($shift->published_revision ? 'Änderung unveröffentlicht' : 'Unveröffentlicht') }}</span>@endif</span>
     <i class="far fa-chevron-right rt-disposition-shift__arrow" aria-hidden="true"></i>
 </button>

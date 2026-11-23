@@ -8,17 +8,27 @@ use App\Models\DeviceDesktopJob;
 use App\Models\DeviceDesktopSoftwareState;
 use App\Models\DeviceSoftwareAssignment;
 use App\Models\DeviceSoftwarePackage;
+use App\Models\DeviceTrustCertificate;
 use App\Models\User;
 use App\Services\DeviceManagement\Desktop\DeviceSoftwareService;
+use App\Services\DeviceManagement\Desktop\DeviceTrustService;
 use App\Services\DeviceManagement\DeviceManagementSettings;
 use App\Services\DeviceManagement\WorkplaceProfileCatalog;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 /** Programmverzeichnis der Geräteverwaltung: Pakete pflegen, zuweisen und den Stand je Gerät sehen. */
 class DeviceSoftware extends Component
 {
+    use WithFileUploads;
+
+    public bool $showCertificateDialog = false;
+
+    /** Hochgeladene .cer-Datei; nur der öffentliche Teil eines Zertifikats. */
+    public $certificateFile = null;
+
     public bool $showPackageDialog = false;
 
     #[Locked]
@@ -137,6 +147,49 @@ class DeviceSoftware extends Component
         $this->notice = 'Weitere Versuche freigegeben. Der nächste Abgleich des Geräts merkt die Installation erneut vor.';
     }
 
+    public function openCertificate(): void
+    {
+        $this->trustActor();
+        $this->reset('certificateFile', 'notice');
+        $this->resetValidation();
+        $this->showCertificateDialog = true;
+    }
+
+    public function saveCertificate(DeviceTrustService $trust): void
+    {
+        $actor = $this->trustActor();
+        $this->resetErrorBag();
+        $this->validate(['certificateFile' => ['required', 'file', 'max:16']], [
+            'certificateFile.required' => 'Bitte eine .cer-Datei auswählen.',
+            'certificateFile.max' => 'Die Datei ist zu groß für ein einzelnes Zertifikat.',
+        ]);
+        $certificate = $trust->store((string) file_get_contents($this->certificateFile->getRealPath()), $actor);
+        $this->showCertificateDialog = false;
+        $this->reset('certificateFile');
+        $this->notice = $certificate->wasRecentlyCreated
+            ? 'Zertifikat „'.$certificate->name.'“ aufgenommen. Firmengeräte mit erlaubtem Office-Vertrauen richten es beim nächsten Abgleich ein.'
+            : 'Dieses Zertifikat ist bereits vorhanden.';
+    }
+
+    public function toggleCertificate(string $publicId, DeviceTrustService $trust): void
+    {
+        $actor = $this->trustActor();
+        $certificate = DeviceTrustCertificate::query()->where('public_id', $publicId)->firstOrFail();
+        $trust->setActive($certificate, ! $certificate->active, $actor);
+        $this->notice = $certificate->active
+            ? 'Zertifikat deaktiviert. Die Geräte entfernen es beim nächsten Abgleich wieder.'
+            : 'Zertifikat wieder aktiv.';
+    }
+
+    private function trustActor(): User
+    {
+        $user = $this->actor();
+        abort_unless(app(DeviceTrustService::class)->canManage($user), 403);
+        app(DeviceTrustService::class)->assertReady();
+
+        return $user;
+    }
+
     private function package(string $publicId): DeviceSoftwarePackage
     {
         return DeviceSoftwarePackage::query()->where('public_id', $publicId)->firstOrFail();
@@ -210,7 +263,18 @@ class DeviceSoftware extends Component
         $devices = $assigning ? Device::query()->forPlatform(DevicePlatform::Windows)->operational()
             ->whereIn('ownership', ['corporate', 'byod'])->orderBy('display_name')->limit(250)->get(['id', 'public_id', 'display_name', 'hostname', 'ownership']) : collect();
 
+        $trust = app(DeviceTrustService::class);
+        $trustReady = $trust->ready();
+        $canManageTrust = $trustReady && $trust->canManage($actor);
+        $certificates = $trustReady ? DeviceTrustCertificate::query()
+            ->with(['documentVersions' => fn ($query) => $query->with('document:id,title')->orderByDesc('managed_document_versions.id')])
+            ->orderByDesc('active')->orderBy('name')->limit(50)->get() : collect();
+        foreach ($certificates as $certificate) {
+            $certificate->setAttribute('can_manage', $canManageTrust);
+        }
+
         return view('livewire.devices.device-software', [
+            'certificates' => $certificates, 'trustReady' => $trustReady, 'canManageTrust' => $canManageTrust,
             'packages' => $packages, 'states' => $states, 'profiles' => $profiles, 'devices' => $devices, 'assigning' => $assigning,
             'canManageDirectory' => $canManageDirectory, 'canAssign' => $canAssign,
             'commandsEnabled' => app(DeviceManagementSettings::class)->productionCommandsEnabled(fresh: true),

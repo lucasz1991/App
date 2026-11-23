@@ -57,7 +57,7 @@
                     <span class="wv-truncate">{{ $order->title }}</span>
                     <small class="wv-truncate">{{ $order->customer?->company_name ?? 'Ohne Kunde' }} · ab {{ $order->starts_at?->copy()->setTimezone($tz)->format('d.m.') }}</small>
                 </span>
-                <span class="ops-badge">{{ $stages[$order->status?->value][0] ?? $order->status?->value }}</span>
+                <x-operations.status :value="$order->status" :label="$stages[$order->status?->value][0] ?? $order->status?->value" />
             </a>
         @empty
             <x-dashboard.empty icon="check-circle">Keine offenen Leistungen.</x-dashboard.empty>

@@ -56,7 +56,66 @@
                 empty="Noch keine Meldung. Ein Gerät meldet den Stand, sobald ihm ein Programm zugewiesen ist und die RailTime-App dort läuft."
             />
         </section>
+
+        @if($trustReady)
+            <section aria-labelledby="device-trust-certificates">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <h2 id="device-trust-certificates" class="text-base font-semibold text-rt-text dark:text-white">Zertifikate für signierte Listen</h2>
+                    @if($canManageTrust)
+                        <x-ui.buttons.button-basic type="button" wire:click="openCertificate" class="min-h-11">
+                            <i class="far fa-plus" aria-hidden="true"></i>
+                            Zertifikat hinzufügen
+                        </x-ui.buttons.button-basic>
+                    @endif
+                </div>
+                <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">Firmengeräte mit erlaubtem „Office-Vertrauen“ tragen aktive Zertifikate als vertrauenswürdigen Herausgeber ein. Makros in Listen, die damit signiert sind, laufen dort ohne Sperre. Bei einem selbst erstellten Zertifikat fragt Windows den Mitarbeiter einmal nach.</p>
+                <x-tables.table
+                    label="Zertifikate für signierte Listen"
+                    :columns="[
+                        ['label' => 'Herausgeber', 'key' => 'name', 'width' => '28%', 'hideOn' => 'none'],
+                        ['label' => 'Fingerabdruck', 'key' => 'thumbprint', 'width' => '30%', 'hideOn' => 'md'],
+                        ['label' => 'Gültig bis', 'key' => 'valid', 'width' => '14%', 'hideOn' => 'none'],
+                        ['label' => 'Verwendet für', 'key' => 'lists', 'width' => '28%', 'hideOn' => 'md'],
+                    ]"
+                    :items="$certificates"
+                    row-view="components.tables.rows.devices.trust-certificate-row"
+                    actions-view="components.tables.rows.devices.trust-certificate-actions"
+                    empty="Noch kein Zertifikat hinterlegt."
+                />
+            </section>
+        @endif
     </div>
+
+    <x-dialog-modal wire:model="showCertificateDialog" maxWidth="lg" id="device-trust-certificate-dialog">
+        <x-slot:title>Zertifikat hinzufügen</x-slot:title>
+        <x-slot:content>
+            @if($showCertificateDialog && $canManageTrust)
+                <form wire:submit="saveCertificate" class="space-y-4">
+                    <div>
+                        <x-ui.forms.label for="device-trust-certificate-file" value="Zertifikatsdatei (.cer)" />
+                        <input id="device-trust-certificate-file" type="file" wire:model="certificateFile" accept=".cer,.crt,.pem" class="mt-2 block w-full text-base text-rt-muted sm:text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-rt-red file:px-3 file:py-2 file:font-semibold file:text-white" aria-describedby="device-trust-certificate-hint">
+                        <p id="device-trust-certificate-hint" class="mt-1 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Nur der öffentliche Teil. Der private Schlüssel (.pfx) bleibt auf dem PC, der die Listen signiert, und wird hier abgelehnt.</p>
+                        <x-ui.forms.input-error for="certificateFile" class="mt-1" />
+                        <x-ui.forms.input-error for="certificate" class="mt-1" />
+                    </div>
+                    <div class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-950 dark:bg-amber-950/20 dark:text-amber-100">
+                        Ein aufgenommenes Zertifikat gilt auf den Firmengeräten als vertrauenswürdiger Herausgeber. Bitte nur Zertifikate aufnehmen, mit denen RailTime selbst Listen signiert. Angenommen werden nur Zertifikate, die ausschließlich für Codesignatur ausgestellt sind.
+                    </div>
+                </form>
+            @endif
+        </x-slot:content>
+        <x-slot:footer>
+            <div class="flex flex-wrap justify-end gap-2">
+                <x-ui.buttons.button-basic type="button" wire:click="$set('showCertificateDialog', false)" class="min-h-11">Abbrechen</x-ui.buttons.button-basic>
+                @if($showCertificateDialog && $canManageTrust)
+                    <x-ui.buttons.button-basic type="button" mode="primary" wire:click="saveCertificate" wire:loading.attr="disabled" wire:target="saveCertificate,certificateFile" class="min-h-11">
+                        <i class="far fa-spinner fa-spin" wire:loading wire:target="saveCertificate" aria-hidden="true"></i>
+                        Aufnehmen
+                    </x-ui.buttons.button-basic>
+                @endif
+            </div>
+        </x-slot:footer>
+    </x-dialog-modal>
 
     <x-dialog-modal wire:model="showPackageDialog" maxWidth="lg" id="device-software-package-dialog">
         <x-slot:title>{{ $packagePublicId ? 'Programm bearbeiten' : 'Programm hinzufügen' }}</x-slot:title>

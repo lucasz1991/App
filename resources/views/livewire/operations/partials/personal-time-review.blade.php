@@ -22,7 +22,7 @@
         x-on:personal-time-issues-opened.window="$nextTick(() => $el.focus())">
         @if($timeCompleteness && !$timeCompleteness['complete'])
             <section class="rt-time-review__missing" aria-label="Offene Zeitmeldungen">
-                <header><h3>Offene Zeitmeldungen</h3><span class="ops-badge">{{ count($timeCompleteness['missing_shift_times']) + count($timeCompleteness['missing_training_times'] ?? []) + count($timeCompleteness['unfinished_times']) }}</span></header>
+                <header><h3>Offene Zeitmeldungen</h3><x-ui.badge size="sm">{{ count($timeCompleteness['missing_shift_times']) + count($timeCompleteness['missing_training_times'] ?? []) + count($timeCompleteness['unfinished_times']) }}</x-ui.badge></header>
                 @foreach($timeCompleteness['missing_shift_times'] as $missing)
                     @php($manualDuty = $manualAssignments->firstWhere('id', $missing['assignment_id']))
                     <div class="rt-time-review__missing-row" wire:key="missing-shift-{{ $missing['assignment_id'] }}">

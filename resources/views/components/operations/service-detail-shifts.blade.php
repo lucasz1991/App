@@ -24,13 +24,6 @@
                     @php
                         $shift = $entry->shift;
                         $overnight = $entry->from && $entry->until && ! $entry->from->isSameDay($entry->until);
-                        $statusIcon = match ($shift->status) {
-                            \App\Enums\ShiftStatus::Completed => 'fa-circle-check',
-                            \App\Enums\ShiftStatus::Cancelled => 'fa-ban',
-                            \App\Enums\ShiftStatus::Confirmed, \App\Enums\ShiftStatus::Staffed => 'fa-user-check',
-                            \App\Enums\ShiftStatus::InProgress => 'fa-play-circle',
-                            default => 'fa-calendar-day',
-                        };
                     @endphp
                     <li class="rt-service-detail-shift" data-service-detail-shift="{{ $shift->id }}" data-active="{{ $entry->active ? 'true' : 'false' }}" wire:key="service-detail-shift-{{ $item->id }}-{{ $shift->id }}">
                         <div class="rt-service-detail-shift__time">
@@ -46,7 +39,7 @@
                                 @else
                                     <x-ui.buttons.button-basic mode="link" size="sm" class="rt-service-detail-shift__link" data-no-navigate :href="route($planningRoute, ['module'=>'shift-management', 'order'=>$item->id, 'shift'=>$shift->id])" aria-label="Schichtdetails öffnen: {{ $shift->title ?: 'Schicht' }}"><span>{{ $shift->title ?: 'Schicht' }}</span><i class="far fa-arrow-right" aria-hidden="true"></i></x-ui.buttons.button-basic>
                                 @endif
-                                <span class="rt-service-detail-status"><i class="far {{ $statusIcon }}" aria-hidden="true"></i><x-operations.status :value="$shift->status->value" :label="$shift->status->label()" /></span>
+                                <x-operations.status :value="$shift->status" icon class="rt-service-detail-status" />
                             </div>
                             <p class="rt-service-detail-shift__context"><span><i class="far fa-user-hard-hat" aria-hidden="true"></i>{{ $shift->role_name ?: 'Rolle offen' }}</span><span><i class="far fa-location-dot" aria-hidden="true"></i>{{ $shift->location_name ?: 'Einsatzort offen' }}</span></p>
                             @if($entry->active)

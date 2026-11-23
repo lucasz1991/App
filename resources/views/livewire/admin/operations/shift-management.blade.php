@@ -299,7 +299,7 @@
                             <span class="rt-ops-panel__fact"><i class="far fa-map-marker-alt" aria-hidden="true"></i>{{ $shiftLocation }}</span>
                         @endif
                         <span class="rt-ops-panel__meta-end">
-                            <x-operations.status :value="$selectedShiftStatus" :label="$selectedShift->status->label()" />
+                            <x-operations.status :value="$selectedShift->status" />
                             @unless($shiftClosed)
                                 <span class="rt-ops-panel__pill" data-tone="{{ $selectedReservedCount >= $selectedShift->required_staff ? 'success' : 'critical' }}">{{ $selectedReservedCount }}/{{ $selectedShift->required_staff }} eingeplant</span>
                             @endunless
@@ -392,7 +392,7 @@
                                     @if($nativeOperations)
                                         <x-operations.panel.row label="Nachweise">
                                             @if($selectedShift->qualifications->isNotEmpty())
-                                                <span class="rt-ops-panel__chips">@foreach($selectedShift->qualifications as $qualification)<span class="ops-badge">{{ $qualification->name }}</span>@endforeach</span>
+                                                <span class="rt-ops-panel__chips">@foreach($selectedShift->qualifications as $qualification)<x-ui.badge size="sm">{{ $qualification->name }}</x-ui.badge>@endforeach</span>
                                             @else
                                                 Keine erforderlich
                                             @endif

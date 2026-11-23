@@ -58,7 +58,7 @@
                                     <label class="flex gap-2 text-sm"><input type="checkbox" wire:model="policy.{{ $key }}">{{ $label }}</label>
                                 @endforeach
                                 @if($selected->device?->ownership === 'corporate')
-                                    <label class="flex gap-2 text-sm"><input type="checkbox" wire:model="policy.allow_office_trust">Office-Vertrauen für RailTime-Listen</label>
+                                    <label class="flex gap-2 text-sm"><input type="checkbox" wire:model="policy.allow_office_trust">Office-Vertrauen für RailTime-Listen (wird automatisch eingerichtet)</label>
                                 @endif
                                 @if($softwareReady && $selected->device?->ownership === 'corporate')
                                     <label class="flex gap-2 text-sm"><input type="checkbox" wire:model="policy.auto_install">Automatische Installation aus dem Programmverzeichnis</label>
@@ -83,11 +83,19 @@
                                     @if($selected->device?->ownership === 'corporate')
                                         <div class="space-y-3">
                                             <h3 class="text-sm font-semibold">Office-Vertrauen</h3>
-                                            <p class="text-xs text-rt-muted">Richtet im Benutzerordner den Ordner „RailTime\Listen“ ein und trägt ihn in Excel als vertrauenswürdigen Speicherort ein. Listen mit Makros öffnen von dort ohne Sperre, auch wenn sie per Mail oder WhatsApp kamen. Zusätzlich wird das Zertifikat der RailTime GmbH als vertrauenswürdiger Herausgeber eingetragen; Windows fragt den Mitarbeiter dazu einmal nach. Signierte Listen öffnen dann auch außerhalb des Ordners. Der Mitarbeiter bestätigt den Auftrag am Gerät; es braucht keine Adminrechte.</p>
-                                            <div class="flex flex-wrap gap-2">
-                                                <button type="button" wire:click="queueOfficeTrust('apply')" wire:loading.attr="disabled" class="{{ $button }}">Einrichten</button>
-                                                <button type="button" wire:click="queueOfficeTrust('remove')" wire:loading.attr="disabled" class="min-h-11 rounded-xl border border-rt-border px-4 py-2 text-sm font-semibold">Wieder entfernen</button>
-                                            </div>
+                                            @php
+                                                $trustReport = is_array($selected->last_report['trust'] ?? null) ? $selected->last_report['trust'] : null;
+                                                $trustInstalled = count((array) ($trustReport['certificates'] ?? []));
+                                                $trustDeclined = count((array) ($trustReport['declined'] ?? []));
+                                            @endphp
+                                            <p class="text-xs text-rt-muted">Mit der Berechtigung „Office-Vertrauen“ richtet die RailTime-App auf dem Gerät von selbst den Ordner „RailTime\Listen“ als vertrauenswürdigen Excel-Speicherort ein und trägt die aktiven <a href="{{ route('devices.software') }}" class="underline">Zertifikate für signierte Listen</a> als vertrauenswürdigen Herausgeber ein. Bei einem selbst erstellten Zertifikat fragt Windows den Mitarbeiter einmal nach. Wird die Berechtigung entzogen, nimmt die App beides zurück; der Ordner und seine Dateien bleiben.</p>
+                                            <p class="text-sm" role="status">
+                                                @if($trustReport === null)
+                                                    Noch keine Meldung vom Gerät.
+                                                @else
+                                                    Stand laut Gerät: Ordner {{ ($trustReport['folder'] ?? false) ? 'eingerichtet' : 'nicht eingerichtet' }} · {{ $trustInstalled }} {{ $trustInstalled === 1 ? 'Zertifikat' : 'Zertifikate' }} eingetragen{{ $trustDeclined > 0 ? ' · '.$trustDeclined.' am Gerät abgelehnt oder nicht annehmbar' : '' }}
+                                                @endif
+                                            </p>
                                         </div>
                                     @endif
                                     <form wire:submit="queueNotification" class="space-y-3">

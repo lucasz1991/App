@@ -8,7 +8,7 @@
     </x-operations.modal>
     <x-operations.modal wire:model="editOpen" title="Planvariante prüfen" max-width="4xl">
         @if($form)
-            <div class="ops-toolbar"><span class="text-sm font-semibold">{{ $form['name'] }} · Revision {{ $revision }}</span><span class="ops-badge">{{ ['draft'=>'Entwurf','approved'=>'Freigegeben','applied'=>'Übernommen'][$status] }}</span></div>
+            <div class="ops-toolbar"><span class="text-sm font-semibold">{{ $form['name'] }} · Revision {{ $revision }}</span><x-operations.status :value="$status" :label="['draft'=>'Entwurf','approved'=>'Freigegeben','applied'=>'Übernommen'][$status]" /></div>
             @if($status === 'draft')<form wire:submit="save" class="ops-form"><x-operations.field label="Name" model="form.name" required /><x-operations.field label="Kommentar" model="form.comment" /><x-operations.field label="Von" model="form.from" type="date" /><x-operations.field label="Bis" model="form.until" type="date" /><x-operations.field label="Zeitzone" model="form.timezone" required /><div class="ops-full"><x-ui.buttons.button-basic type="submit" wire:loading.attr="disabled">Entwurf speichern</x-ui.buttons.button-basic></div></form>@endif
             <x-tables.table :columns="[['label'=>'Dienst','key'=>'title'],['label'=>'Beginn','key'=>'starts_at'],['label'=>'Ende','key'=>'ends_at'],['label'=>'Besetzung','key'=>'people_count']]" :items="$entries" :detail-action="$status === 'draft' ? 'editEntry' : null" row-view="components.tables.rows.operations.record" />
             @if($status !== 'applied')<x-ui.buttons.button-basic type="button" wire:click="preview" wire:loading.attr="disabled">Alle Dienste gemeinsam prüfen</x-ui.buttons.button-basic>@endif

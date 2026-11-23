@@ -978,6 +978,29 @@ body[data-mode="dark"] .rt-ui-badge[data-rt-tone="primary"] {
     background-color: rgba(168, 85, 247, 0.15) !important;
 }
 
+html.dark .rt-ui-badge[data-rt-tone="cyan"],
+body[data-mode="dark"] .rt-ui-badge[data-rt-tone="cyan"] {
+    color: #67e8f9 !important;
+    background-color: rgba(6, 182, 212, 0.15) !important;
+}
+
+/* Kompakte Badge-Variante (x-ui.badge size="sm", Standard von x-operations.status).
+   :where() haelt die Spezifitaet niedrig, damit Seiten-CSS Abstand und Umbruch
+   gezielt anpassen kann. */
+:where(.rt-ui-badge)[data-rt-size="sm"] {
+    width: fit-content;
+    max-width: 100%;
+    padding: 3px 7px;
+    border-radius: 6px;
+    font-size: 11px;
+    line-height: 1.35;
+    white-space: nowrap;
+}
+
+:where(.rt-ui-badge) > i {
+    flex-shrink: 0;
+}
+
 html.dark .rt-ui-alert,
 body[data-mode="dark"] .rt-ui-alert {
     color: #edf2f8 !important;

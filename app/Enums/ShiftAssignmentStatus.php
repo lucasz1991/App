@@ -21,6 +21,28 @@ enum ShiftAssignmentStatus: string
         };
     }
 
+    /** Font-Awesome-5-Pro-Name des Statussymbols (Stil "far"). */
+    public function icon(): string
+    {
+        return match ($this) {
+            self::Confirmed => 'fa-check-circle',
+            self::Declined => 'fa-times-circle',
+            self::Cancelled => 'fa-ban',
+            default => 'fa-clock',
+        };
+    }
+
+    /** Farbton fuer x-ui.badge. */
+    public function tone(): string
+    {
+        return match ($this) {
+            self::Requested => 'amber',
+            self::Confirmed => 'green',
+            self::Declined, self::Cancelled => 'red',
+            self::Reported => 'slate',
+        };
+    }
+
     public function blocksAvailability(): bool
     {
         return in_array($this, [self::Requested, self::Confirmed], true);

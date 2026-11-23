@@ -42,7 +42,7 @@
                 @endif
                 @break
             @case('status')
-                @if($item->order)<x-operations.service-status :status="$item->order->status" />@endif
+                @if($item->order)<x-operations.status :value="$item->order->status" icon class="rt-service-status" />@endif
                 @break
         @endswitch
     </div>

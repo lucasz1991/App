@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
 
 class ManagedDocumentVersion extends Model
@@ -34,6 +35,12 @@ class ManagedDocumentVersion extends Model
     public function file(): MorphOne
     {
         return $this->morphOne(File::class, 'fileable');
+    }
+
+    /** Herausgeber-Zertifikat, mit dem diese Version signiert ist (höchstens eines). */
+    public function trustCertificates(): BelongsToMany
+    {
+        return $this->belongsToMany(DeviceTrustCertificate::class, 'device_trust_certificate_version')->withTimestamps();
     }
 
     public function creator(): BelongsTo

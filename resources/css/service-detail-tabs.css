@@ -53,8 +53,7 @@
 .rt-service-detail-shift__link:focus-visible,
 .rt-service-detail-staffing__profile:focus-visible,
 .rt-service-detail-tab summary:focus-visible { outline: 2px solid var(--rt-red, #e4002b); outline-offset: 4px; border-radius: 4px; }
-.rt-service-detail-status { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 4px; color: var(--service-detail-tab-muted); }
-.rt-service-detail-status > i { font-size: 12px; }
+.rt-service-detail-status { flex: 0 0 auto; }
 .rt-service-detail-shift__context { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 0; font-size: 12px; color: var(--service-detail-tab-muted); }
 .rt-service-detail-shift__context > span { display: inline-flex; align-items: baseline; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
 .rt-service-detail-shift__staffing { min-width: 0; }

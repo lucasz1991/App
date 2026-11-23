@@ -4,7 +4,7 @@
         @if($compactMobileClock ?? false)<i class="far fa-clock rt-personal-clock-overview-icon" aria-hidden="true"></i>@endif
         <h2 x-text="active && ['running','paused'].includes(active.status) ? active.title : '{{ ($compactActionClock ?? false) ? 'Arbeitszeit' : 'Arbeitszeit erfassen' }}'"></h2>
         @if($compactMobileClock ?? false)<span class="rt-personal-clock-overview-label" x-show="!active || !['running','paused'].includes(active.status)">Arbeitszeit</span>@endif
-        <span class="ops-badge rt-clock-transfer" role="status" aria-atomic="true"><span class="sr-only">Übertragung: </span><span x-text="transferStatus()"></span></span>
+        <span class="rt-clock-transfer" role="status" aria-atomic="true"><span class="sr-only">Übertragung: </span><span x-text="transferStatus()"></span></span>
         @if($compactMobileClock ?? false)
             <x-ui.buttons.button-basic mode="link" class="rt-personal-clock-expand" x-show="!active || !['running','paused'].includes(active.status)"
                 x-bind:aria-expanded="overviewClockExpanded" x-bind:aria-controls="$id('overview-clock-details')" x-on:click="overviewClockExpanded = !overviewClockExpanded">

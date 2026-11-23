@@ -250,7 +250,7 @@ body[data-mode="dark"] .rt-disposition--calendar {
 .rt-disposition--calendar .rt-calendar-shift-compact .rt-calendar-shift-order { font-size: 10px; }
 .rt-disposition--calendar .rt-calendar-shift-compact .rt-calendar-shift-status { gap: 4px; }
 .rt-disposition--calendar .rt-calendar-shift-compact .rt-calendar-shift-status > span { font-size: 10px; }
-.rt-disposition--calendar .rt-calendar-shift-compact .ops-badge { padding: 3px 6px; white-space: normal; }
+.rt-disposition--calendar .rt-calendar-shift-compact .rt-ui-badge { padding: 3px 6px; white-space: normal; }
 .rt-disposition--calendar .rt-calendar-month { border-radius: 8px; }
 .rt-disposition--calendar .rt-calendar-weekday { padding-block: 12px; font-size: 11px; }
 .rt-disposition--calendar .rt-calendar-month-day.is-today { background: var(--rt-shell-panel); }

@@ -60,7 +60,7 @@
                         <span class="rt-ops-panel__fact"><i class="far fa-map-marker-alt" aria-hidden="true"></i>{{ $panelLocation }}</span>
                     @endif
                     <span class="rt-ops-panel__meta-end">
-                        <x-operations.status :value="$panelStatus" :label="$selectedShift->status->label()" />
+                        <x-operations.status :value="$selectedShift->status" />
                         @unless($panelClosed)
                             <span class="rt-ops-panel__pill" data-tone="{{ $panelOpenSlots === 0 ? 'success' : 'critical' }}">{{ $panelReserved }}/{{ $selectedShift->required_staff }} eingeplant</span>
                         @endunless

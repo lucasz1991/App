@@ -12,7 +12,7 @@
     </div>
     @if($item->resolution)<p class="mt-2 text-sm">{{ $item->resolution }}</p>@endif
 @else
-    <span class="ops-badge" data-state="{{ $item->status==='open' ? 'pending' : 'approved' }}">{{ $item->status==='open' ? 'Offen' : 'Erledigt' }}</span>
+    <x-operations.status :value="$item->status==='open' ? 'pending' : 'approved'" :label="$item->status==='open' ? 'Offen' : 'Erledigt'" />
     @if(!$this->employeeMode && $item->status==='open')<x-ui.buttons.button-basic wire:click="openResolution({{ $item->id }})">Bearbeiten</x-ui.buttons.button-basic>@endif
 @endif
 </div>@endforeach

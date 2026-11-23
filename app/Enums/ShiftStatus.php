@@ -27,6 +27,30 @@ enum ShiftStatus: string
         };
     }
 
+    /** Font-Awesome-5-Pro-Name des Statussymbols (Stil "far"). */
+    public function icon(): string
+    {
+        return match ($this) {
+            self::Completed => 'fa-check-circle',
+            self::Cancelled => 'fa-ban',
+            self::Confirmed, self::Staffed => 'fa-user-check',
+            self::InProgress => 'fa-play-circle',
+            default => 'fa-calendar-day',
+        };
+    }
+
+    /** Farbton fuer x-ui.badge. */
+    public function tone(): string
+    {
+        return match ($this) {
+            self::Draft, self::Completed => 'slate',
+            self::Open, self::Requested => 'amber',
+            self::Staffed, self::Confirmed => 'green',
+            self::InProgress => 'cyan',
+            self::Cancelled => 'red',
+        };
+    }
+
     /** @return list<string> */
     public static function values(): array
     {

@@ -50,7 +50,7 @@
                 @break
             @case('status')
                 <div>
-                    <x-operations.status :value="$item->status->value" :label="$item->status->label()" />
+                    <x-operations.status :value="$item->status" />
                     @if($item->revision !== null)
                         <span class="rt-table-meta">{{ $item->published_revision === $item->revision ? 'Veröffentlicht' : ($item->published_revision ? 'Änderung unveröffentlicht' : 'Unveröffentlicht') }}</span>
                     @endif

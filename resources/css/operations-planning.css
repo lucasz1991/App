@@ -89,15 +89,6 @@
 .rt-service-staffing-preview.rt-motion-pop-leave-to { opacity:0; filter:none; transform:scale(.62); }
 .rt-service-staffing-preview.rt-motion-pop-enter-to,
 .rt-service-staffing-preview.rt-motion-pop-leave-from { opacity:1; filter:none; transform:scale(1); }
-.rt-service-status { display:inline-flex; align-items:center; gap:5px; width:fit-content; max-width:100%; padding:5px 7px; border-radius:6px; font-size:10px; font-weight:650; line-height:1.35; }
-.rt-service-status i { flex-shrink:0; }
-.rt-service-status[data-service-status=requested] { color:#8c5a0f; background:#fff2d5; }
-.rt-service-status[data-service-status=confirmed] { color:#216644; background:#e5f5ec; }
-.rt-service-status[data-service-status=planned] { color:#315aa3; background:#eaf0ff; }
-.rt-service-status[data-service-status=in_progress] { color:#176676; background:#e2f4f7; }
-.rt-service-status[data-service-status=completed] { color:#516077; background:#edf1f5; }
-.rt-service-status[data-service-status=invoiced] { color:#705294; background:#f1eafa; }
-.rt-service-status[data-service-status=cancelled] { color:#a13949; background:#fbe9ed; }
 .dark .rt-service-pagination { background:var(--rt-dark-surface,#171d28); border-color:var(--rt-dark-border,#303a4d); }
 .dark .rt-service-avatar { border-color:var(--rt-dark-surface,#171d28); background:#253754; color:#bfd1ff; }
 .dark .rt-service-avatar--open { background:#3d331e; color:#f5d68c; border-color:#9a7830; }
@@ -111,13 +102,6 @@
 .dark .rt-service-person-detail time { color:var(--rt-dark-muted,#a5afbd); }
 .dark .rt-service-person-detail__link:hover { background:var(--rt-dark-surface-muted,#202836); }
 .dark .rt-service-staffing-preview .rt-service-avatar[role=button]:is(:hover,:focus-visible,[aria-expanded=true]) { box-shadow:0 0 0 2px var(--rt-dark-surface,#171d28),0 0 0 3px var(--rt-red,#e4002b); }
-.dark .rt-service-status[data-service-status=requested] { color:#f5d68c; background:#3d331e; }
-.dark .rt-service-status[data-service-status=confirmed] { color:#a9e7c4; background:#203c31; }
-.dark .rt-service-status[data-service-status=planned] { color:#bdd2ff; background:#253754; }
-.dark .rt-service-status[data-service-status=in_progress] { color:#9ce0ec; background:#1b3942; }
-.dark .rt-service-status[data-service-status=completed] { color:#c6d1e0; background:#2c3442; }
-.dark .rt-service-status[data-service-status=invoiced] { color:#dcc1ff; background:#392c4b; }
-.dark .rt-service-status[data-service-status=cancelled] { color:#ffc0ca; background:#452631; }
 @media(max-width:767px) { .rt-service-pagination { padding:8px; } .rt-service-avatar { width:26px; height:26px; margin-left:-14px; font-size:9px; } }
 @media(min-width:768px) { [data-service-overview] .rt-table-row-grid > .rt-table-cell--service-staffing { display:flex; align-self:stretch; } }
 @media(prefers-reduced-motion:reduce) { .rt-service-staffing-preview[class*="rt-motion-"], .rt-service-cell-preview[class*="rt-motion-"], .rt-service-person-enter, .rt-service-staffing-preview .rt-service-avatar[role=button] { transition:none !important; transform:none !important; } }

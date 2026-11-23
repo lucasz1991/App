@@ -25,6 +25,34 @@ enum OrderStatus: string
         };
     }
 
+    /** Font-Awesome-5-Pro-Name des Statussymbols (Stil "far"). */
+    public function icon(): string
+    {
+        return match ($this) {
+            self::Requested => 'fa-inbox',
+            self::Confirmed => 'fa-check-circle',
+            self::Planned => 'fa-calendar-check',
+            self::InProgress => 'fa-play-circle',
+            self::Completed => 'fa-check-circle',
+            self::Invoiced => 'fa-file-invoice',
+            self::Cancelled => 'fa-ban',
+        };
+    }
+
+    /** Farbton fuer x-ui.badge. */
+    public function tone(): string
+    {
+        return match ($this) {
+            self::Requested => 'amber',
+            self::Confirmed => 'green',
+            self::Planned => 'sky',
+            self::InProgress => 'cyan',
+            self::Completed => 'slate',
+            self::Invoiced => 'purple',
+            self::Cancelled => 'red',
+        };
+    }
+
     /** @return list<string> */
     public static function values(): array
     {

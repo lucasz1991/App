@@ -18,7 +18,7 @@
     @endunless
     <span class="rt-calendar-shift-status mt-2 flex flex-wrap items-center gap-2 text-xs">
         <span @class(['rt-calendar-shift-staffing font-semibold tabular-nums', 'text-rt-red dark:text-rt-dark-accent' => $shift->calendar_open > 0, 'text-rt-muted dark:text-rt-dark-muted' => $shift->calendar_open === 0])>{{ $shift->calendar_reserved }}/{{ $shift->required_staff }} eingeplant</span>
-        <x-operations.status :value="$shift->status->value" :label="$shift->status->label()" />
+        <x-operations.status :value="$shift->status" />
     </span>
     @if($shift->revision && $shift->published_revision !== $shift->revision)
         <span class="mt-1 block text-xs text-rt-muted dark:text-rt-dark-muted">{{ $shift->published_revision ? 'Änderung unveröffentlicht' : 'Unveröffentlicht' }}</span>

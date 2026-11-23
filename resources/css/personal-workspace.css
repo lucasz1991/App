@@ -107,7 +107,7 @@
 .rt-personal-work .rt-ui-button-primary:hover { opacity: .88; }
 .rt-personal-work .rt-ui-button:active { transform: scale(.98); }
 .rt-personal-work :is(button, a, input, select, textarea):focus-visible { outline: 2px solid var(--personal-signal); outline-offset: 3px; }
-.rt-personal-work .ops-badge { border-radius: 6px; }
+.rt-personal-work .rt-clock-transfer { border-radius: 6px; }
 .rt-personal-work-clock > .ops-toolbar { align-items: flex-start; gap: 12px 24px; }
 .rt-personal-work-clock > .ops-toolbar h2 { font-size: 18px; line-height: 1.5; overflow-wrap: anywhere; }
 .rt-personal-work .rt-personal-work-clock { border-inline-start: 3px solid var(--personal-signal); }

@@ -72,6 +72,19 @@ final class OperationsNavigation
         };
     }
 
+    /**
+     * Farbton eines Status ohne Enum fuer x-ui.badge (x-operations.status).
+     * Enums liefern ihren Ton selbst ueber tone().
+     */
+    public static function tone(string $status): string
+    {
+        return match ($status) {
+            'approved', 'confirmed', 'accepted' => 'green',
+            'pending', 'requested', 'returned', 'submitted' => 'amber',
+            default => 'slate',
+        };
+    }
+
     public static function status(string $status): string
     {
         if ($status === 'not_inquiry') {
