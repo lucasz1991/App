@@ -6,10 +6,15 @@ import { parseHTML } from 'linkedom';
 const blade = await readFile(new URL('../../resources/views/components/ui/dropdown/anchor-dropdown.blade.php', import.meta.url), 'utf8');
 const dropdownSource = await readFile(new URL('../../resources/js/anchor-dropdown.js', import.meta.url), 'utf8');
 const aiAssistView = await readFile(new URL('../../resources/views/livewire/operations/ai-assist.blade.php', import.meta.url), 'utf8');
-const servicePreviewSources = await Promise.all(['service-cell-preview', 'service-staffing'].map(async name => ({
+// service-staffing ist seit Phase 4 eine duenne Huelle ueber service-cell-preview:
+// Trigger, Cursor und Verzoegerung gibt es nur noch dort.
+const servicePreviewSources = await Promise.all(['service-cell-preview'].map(async name => ({
     name,
     source: await readFile(new URL(`../../resources/views/components/operations/${name}.blade.php`, import.meta.url), 'utf8'),
 })));
+const serviceStaffingSource = await readFile(new URL('../../resources/views/components/operations/service-staffing.blade.php', import.meta.url), 'utf8');
+assert.match(serviceStaffingSource, /<x-operations\.service-cell-preview/, 'service-staffing must reuse the shared service-cell-preview trigger.');
+assert.doesNotMatch(serviceStaffingSource, /<x-ui\.dropdown\.anchor-dropdown/, 'service-staffing must not build a second preview dropdown.');
 assert.match(blade, /x-data="rtAnchorDropdown/, 'Dropdown must use the shared controller.');
 const detailBlade = await readFile(new URL('../../resources/views/livewire/operations/partials/timeline-shared-event-detail.blade.php', import.meta.url), 'utf8');
 // Tab state lives in rtTimelineEventDetails (resources/js/timeline-event-details.js, detailTab: 'period').
