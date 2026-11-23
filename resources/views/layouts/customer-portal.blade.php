@@ -17,6 +17,8 @@
     <body class="rt-customer-portal-page font-sans antialiased">
         {{ $slot ?? '' }}
         @yield('content')
+        {{-- Eigene, zentral gesteuerte Bestätigung statt browsernativer confirm()-Dialoge (auch für wire:confirm). --}}
+        <x-ui.confirmation-dialog />
         @livewireScriptConfig
     </body>
 </html>

@@ -21,6 +21,8 @@
     <main>
         {{ $slot }}
     </main>
+    {{-- Eigene, zentral gesteuerte Bestätigung statt browsernativer confirm()-Dialoge (auch für wire:confirm). --}}
+    <x-ui.confirmation-dialog />
     @livewireScriptConfig
 </body>
 </html>

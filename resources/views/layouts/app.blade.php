@@ -19,6 +19,8 @@
         @livewireScriptConfig
         {{-- EIN globales Infomodal fuer alle Info-Buttons dieser Seite. --}}
         <x-ui.info-modal />
+        {{-- Eigene, zentral gesteuerte Bestätigung statt browsernativer confirm()-Dialoge (auch für wire:confirm). --}}
+        <x-ui.confirmation-dialog />
 
     </body>
 </html>

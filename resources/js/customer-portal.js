@@ -5,6 +5,7 @@ import { dateRangePicker } from './date-range-picker';
 import { dateTimeField } from './date-time-field';
 import { modalBody, trackLivewireRequests } from './modal-body';
 import { portalNavigation } from './customer-portal-navigation';
+import { installLivewireConfirm } from './livewire-confirm';
 
 // Deliberately isolated: no employee chat, Echo, GPS, PWA or work-time capture bootstrap.
 window.Alpine = Alpine;
@@ -24,4 +25,5 @@ Alpine.data('rtDateTimeField', dateTimeField);
 Alpine.data('rtModalBody', modalBody);
 Alpine.data('rtPortalNavigation', portalNavigation);
 trackLivewireRequests(Livewire);
+installLivewireConfirm(Livewire);
 Livewire.start();

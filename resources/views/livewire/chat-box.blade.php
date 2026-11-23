@@ -1215,83 +1215,31 @@
     </div>
     {{-- chat-section:new-chat-modal:end --}}
     {{-- chat-section:chat-options-modals:start --}}
-    <x-confirmation-modal id="rt-delete-chat-message-modal" wire:model="showDeleteMessageModal" maxWidth="sm">
-        <x-slot name="title">
-            {{ __('app.delete_message_title') }}
-        </x-slot>
+    {{-- Bestaetigungen laufen ueber den Standarddialog x-ui.confirmation-dialog:
+         requestDelete*() setzt die Property, rtConfirmBridge oeffnet den Dialog. --}}
+    <div
+        id="rt-delete-chat-message-modal"
+        hidden
+        wire:key="rt-delete-chat-message-confirm"
+        x-data="rtConfirmBridge('showDeleteMessageModal', 'confirmDeleteMessage')"
+        data-confirm-title="{{ __('app.delete_message_title') }}"
+        data-confirm-message="{{ __('app.delete_message_hint') }}"
+        data-confirm-label="{{ __('app.delete') }}"
+    ></div>
 
-        <x-slot name="content">
-            {{ __('app.delete_message_hint') }}
-        </x-slot>
-
-        <x-slot name="footer">
-            <x-ui.buttons.button-basic
-                type="button"
-                mode="secondary"
-                wire:click="$set('showDeleteMessageModal', false)"
-            >
-                {{ __('app.cancel') }}
-            </x-ui.buttons.button-basic>
-            <x-ui.buttons.button-basic
-                type="button"
-                mode="danger"
-                wire:click="confirmDeleteMessage"
-                wire:loading.attr="disabled"
-                wire:target="confirmDeleteMessage"
-            >
-                {{ __('app.delete') }}
-            </x-ui.buttons.button-basic>
-        </x-slot>
-    </x-confirmation-modal>
-
-    <x-confirmation-modal id="rt-delete-chat-modal" wire:model="showDeleteChatModal" maxWidth="sm">
-        @php
-            $deleteTargetChat = $pendingDeleteChat ?? $selectedChat;
-        @endphp
-
-        <x-slot name="title">
-            @if ($deleteTargetChat?->isGroup() && ! $deleteTargetChat->canManageGroup($me))
-                {{ __('app.leave_group') }}
-            @elseif ($deleteTargetChat?->isGroup())
-                {{ __('app.delete_group') }}
-            @else
-                {{ __('app.delete_chat') }}
-            @endif
-        </x-slot>
-
-        <x-slot name="content">
-            @if ($deleteTargetChat?->isGroup() && ! $deleteTargetChat->canManageGroup($me))
-                {{ __('app.leave_group_hint') }}
-            @elseif ($deleteTargetChat?->isGroup())
-                {{ __('app.delete_group_hint') }}
-            @else
-                {{ __('app.delete_direct_chat_hint') }}
-            @endif
-        </x-slot>
-
-        <x-slot name="footer">
-            <x-ui.buttons.button-basic
-                type="button"
-                mode="secondary"
-                wire:click="$set('showDeleteChatModal', false)"
-            >
-                {{ __('app.cancel') }}
-            </x-ui.buttons.button-basic>
-            <x-ui.buttons.button-basic
-                type="button"
-                mode="danger"
-                wire:click="confirmDeleteChat"
-                wire:loading.attr="disabled"
-                wire:target="confirmDeleteChat"
-            >
-                @if ($deleteTargetChat?->isGroup() && ! $deleteTargetChat->canManageGroup($me))
-                    {{ __('app.leave_group') }}
-                @else
-                    {{ __('app.delete') }}
-                @endif
-            </x-ui.buttons.button-basic>
-        </x-slot>
-    </x-confirmation-modal>
+    @php
+        $deleteTargetChat = $pendingDeleteChat ?? $selectedChat;
+        $deleteTargetLeaves = $deleteTargetChat?->isGroup() && ! $deleteTargetChat->canManageGroup($me);
+    @endphp
+    <div
+        id="rt-delete-chat-modal"
+        hidden
+        wire:key="rt-delete-chat-confirm"
+        x-data="rtConfirmBridge('showDeleteChatModal', 'confirmDeleteChat')"
+        data-confirm-title="{{ $deleteTargetLeaves ? __('app.leave_group') : ($deleteTargetChat?->isGroup() ? __('app.delete_group') : __('app.delete_chat')) }}"
+        data-confirm-message="{{ $deleteTargetLeaves ? __('app.leave_group_hint') : ($deleteTargetChat?->isGroup() ? __('app.delete_group_hint') : __('app.delete_direct_chat_hint')) }}"
+        data-confirm-label="{{ $deleteTargetLeaves ? __('app.leave_group') : __('app.delete') }}"
+    ></div>
 
     <div class="rt-chat-group-modal">
         <x-dialog-modal id="rt-group-settings-modal" wire:model="showGroupSettings" maxWidth="lg">

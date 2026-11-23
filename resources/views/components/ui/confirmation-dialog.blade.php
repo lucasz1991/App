@@ -60,6 +60,19 @@
             });
         },
 
+        // Schliesst eine offene Anfrage von aussen (z. B. wenn eine
+        // serverseitige Bestaetigung zurueckgesetzt wurde). Mit detail.key
+        // nur die passende Anfrage.
+        dismiss(event) {
+            const key = event.detail?.key ?? null;
+
+            if (!this.open || this.busy || (key !== null && this.request?.key !== key)) {
+                return;
+            }
+
+            this.close(false);
+        },
+
         close(restoreFocus = true, cancelled = true) {
             if (this.busy) {
                 return;
@@ -112,6 +125,7 @@
     }"
     x-on:rt-confirm.window="ask($event)"
     x-on:rt-navigation:prepare.window="if (open && !busy) close(false)"
+    x-on:rt-confirm-dismiss.window="dismiss($event)"
     x-on:keydown.escape.stop="if (open && !busy) close()"
     x-show="open"
     x-trap.inert.noscroll="open"

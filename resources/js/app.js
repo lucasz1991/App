@@ -82,6 +82,7 @@ import {
 import { ensureRailTimeNavigationCoordinator } from './navigation-coordinator';
 import { chatMessageActions } from './chat-message-actions';
 import { modalBody, trackLivewireRequests } from './modal-body';
+import { confirmationBridge, installLivewireConfirm } from './livewire-confirm';
 import { filePreview } from './file-preview';
 import { filePoolDropzone, filePoolExternalDrop } from './filepool-upload';
 import { registerRailtimeLiveLocation } from './live-location';
@@ -620,6 +621,9 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
 // ein Dialogrumpf, der gerade nachgeladen wird, gilt als noch nicht bereit.
 trackLivewireRequests(Livewire);
 
+// wire:confirm oeffnet den RailTime-Bestaetigungsdialog statt confirm().
+installLivewireConfirm(Livewire);
+
 Livewire.hook('request', ({ fail }) => {
     fail(({ status, preventDefault }) => {
         if (status !== 419) {
@@ -692,6 +696,7 @@ Alpine.data('rtAiAssist', aiAssist);
 Alpine.data('rtCalendarReveal', calendarReveal);
 Alpine.data('chatMessageActions', chatMessageActions);
 Alpine.data('rtModalBody', modalBody);
+Alpine.data('rtConfirmBridge', confirmationBridge);
 Alpine.data('filePreview', filePreview);
 Alpine.data('filePoolDropzone', filePoolDropzone);
 Alpine.data('filePoolExternalDrop', filePoolExternalDrop);
