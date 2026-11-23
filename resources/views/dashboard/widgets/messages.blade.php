@@ -22,11 +22,11 @@
             </span>
         </a>
     @else
-        <div class="wv-gap"><x-dashboard.sparkline :values="$data['sparkline']" :labels="$data['sparklineLabels']" /></div>
+        <div class="wv-gap"><x-dashboard.chart.sparkline :values="$data['sparkline']" :labels="$data['sparklineLabels']" aria-label="Nachrichteneingang der letzten 7 Tage: {{ array_sum($data['sparkline']) }}" /></div>
     @endif
 @else
     <div class="widget-detail" style="overflow:visible;">
-        <x-dashboard.sparkline :values="$data['sparkline']" :labels="$data['sparklineLabels']" />
+        <x-dashboard.chart.sparkline :values="$data['sparkline']" :labels="$data['sparklineLabels']" aria-label="Nachrichteneingang der letzten 7 Tage: {{ array_sum($data['sparkline']) }}" />
         <p class="wv-sub" style="margin-top:4px;">Eingang, letzte 7 Tage · heute {{ last($data['sparkline']) }}</p>
     </div>
     <div class="widget-detail wv-list">
@@ -40,7 +40,7 @@
                 @if((int) $message->status === 1)<span class="wv-unread-dot" title="Ungelesen"></span>@endif
             </a>
         @empty
-            <x-dashboard.empty icon="message-circle">Keine Nachrichten.</x-dashboard.empty>
+            <x-ui.empty-state variant="widget" feather="message-circle">Keine Nachrichten.</x-ui.empty-state>
         @endforelse
     </div>
 @endif

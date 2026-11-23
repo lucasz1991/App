@@ -111,7 +111,7 @@
                     >
 
                     <div wire:loading wire:target="uploads.{{ $type }}" class="mt-3 text-xs font-medium text-rt-accent dark:text-rt-dark-accent">
-                        <i class="far fa-spinner-third mr-1 animate-spin" aria-hidden="true"></i>
+                        <x-ui.loading.spinner class="mr-1" />
                         {{ __('app.uploading') }}
                     </div>
 

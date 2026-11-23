@@ -14,7 +14,7 @@
                 <x-ui.buttons.button-basic type="button" wire:click="reload" wire:loading.attr="disabled" wire:target="save,reload" class="min-h-11">Zurücksetzen</x-ui.buttons.button-basic>
                 <x-ui.buttons.button-basic type="submit" mode="primary" wire:loading.attr="disabled" wire:target="save,reload" class="min-h-11">
                     <i class="far fa-check" wire:loading.remove wire:target="save" aria-hidden="true"></i>
-                    <i class="far fa-spinner fa-spin" wire:loading wire:target="save" aria-hidden="true"></i>
+                    <x-ui.loading.spinner wire:loading wire:target="save" />
                     Teams speichern
                 </x-ui.buttons.button-basic>
             </div>

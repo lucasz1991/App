@@ -121,7 +121,7 @@
                 @elseif($notice)<span @class(['rt-regions__success' => !$dirty])>{{ $notice }}</span>
                 @elseif($dirty)<span>Ungespeicherte Änderungen</span>@endif
             </div>
-            <div class="rt-regions__actions"><button type="button" wire:click="reload" x-on:click="closeRegion(false)" wire:loading.attr="disabled" class="rt-regions__reset">Verwerfen</button><button type="submit" class="rt-regions__save" wire:loading.attr="disabled"><i class="far fa-check" aria-hidden="true" wire:loading.remove wire:target="save"></i><i class="far fa-spinner fa-spin" aria-hidden="true" wire:loading wire:target="save"></i> Speichern</button></div>
+            <div class="rt-regions__actions"><button type="button" wire:click="reload" x-on:click="closeRegion(false)" wire:loading.attr="disabled" class="rt-regions__reset">Verwerfen</button><button type="submit" class="rt-regions__save" wire:loading.attr="disabled"><i class="far fa-check" aria-hidden="true" wire:loading.remove wire:target="save"></i><x-ui.loading.spinner wire:loading wire:target="save" /> Speichern</button></div>
         </footer>
     </form>
     @endif

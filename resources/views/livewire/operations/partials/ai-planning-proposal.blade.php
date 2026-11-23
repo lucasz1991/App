@@ -5,7 +5,7 @@
     @else
         <div class="ops-actions">
             <x-ui.buttons.button-basic type="button" wire:click="analyze" wire:loading.attr="disabled" wire:target="analyze,saveVariant,applyDraft,confirmPublished"><i class="far fa-sparkles" aria-hidden="true"></i> {{ $proposal ? 'Neu analysieren' : 'Besetzung analysieren' }}</x-ui.buttons.button-basic>
-            <span class="ops-muted text-xs" wire:loading wire:target="analyze" role="status"><i class="far fa-spinner-third fa-spin" aria-hidden="true"></i> Vorschläge werden geprüft …</span>
+            <span class="ops-muted text-xs" wire:loading wire:target="analyze" role="status"><x-ui.loading.spinner /> Vorschläge werden geprüft …</span>
         </div>
     @endif
     @error('aiPlanning')<p class="rt-staffing-alert" role="alert">{{ $message }}</p>@enderror

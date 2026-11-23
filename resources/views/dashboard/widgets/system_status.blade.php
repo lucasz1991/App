@@ -1,6 +1,6 @@
 {{-- Ampelliste: jeder Systembaustein mit Zustandspunkt, dazu die Belegung des Datentraegers. --}}
 @if(! $systemStatusLoaded)
-    <x-dashboard.empty icon="activity">Datenbank, Warteschlange, Umgebung und Speicher werden erst auf Abruf geprüft.</x-dashboard.empty>
+    <x-ui.empty-state variant="widget" feather="activity">Datenbank, Warteschlange, Umgebung und Speicher werden erst auf Abruf geprüft.</x-ui.empty-state>
     <button type="button" class="widget-footer" wire:click="loadSystemStatus">Systemdaten anzeigen →</button>
 @else
     @php

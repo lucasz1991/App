@@ -24,7 +24,7 @@
                 <x-ui.buttons.button-basic type="button" wire:click="close" wire:loading.attr="disabled" wire:target="save" class="min-h-11">Abbrechen</x-ui.buttons.button-basic>
                 @if($showModal && $canManage)
                     <x-ui.buttons.button-basic type="button" mode="primary" wire:click="save" wire:loading.attr="disabled" wire:target="save" class="min-h-11">
-                        <i class="far fa-spinner fa-spin" wire:loading wire:target="save" aria-hidden="true"></i>
+                        <x-ui.loading.spinner wire:loading wire:target="save" />
                         Änderungen speichern
                     </x-ui.buttons.button-basic>
                 @endif

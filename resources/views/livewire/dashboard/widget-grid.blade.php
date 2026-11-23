@@ -38,7 +38,7 @@
                 @include('dashboard.widgets.' . $item['key'], ['data' => $widgetData[$item['key']] ?? [], 'size' => $item['size'], 'rows' => $item['rows']])
             </x-dashboard.widget-shell>
         @empty
-            <div class="ops-empty widget-empty">Keine Widgets ausgewählt. Über „Dashboard anpassen" welche hinzufügen.</div>
+            <x-ui.empty-state variant="widget" feather="grid">Keine Widgets ausgewählt. Über „Dashboard anpassen" welche hinzufügen.</x-ui.empty-state>
         @endforelse
     </div>
 

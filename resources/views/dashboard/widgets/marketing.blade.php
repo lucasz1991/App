@@ -18,7 +18,7 @@
                 <span class="wv-item-main"><span class="wv-truncate">{{ $creative['title'] }}</span><small>{{ $creative['typeLabel'] }} · {{ $creative['when']?->diffForHumans() }}</small></span>
             </div>
         @empty
-            <x-dashboard.empty icon="check-circle">Nichts wartet auf Freigabe.</x-dashboard.empty>
+            <x-ui.empty-state variant="widget" feather="check-circle">Nichts wartet auf Freigabe.</x-ui.empty-state>
         @endforelse
     </div>
 @endif

@@ -8,7 +8,7 @@
     <span class="wv-pill">{{ $data['today'] }} heute aktiv</span>
 </div>
 @if($data['entries']->isEmpty())
-    <x-dashboard.empty icon="activity">Noch keine Aktivität.</x-dashboard.empty>
+    <x-ui.empty-state variant="widget" feather="activity">Noch keine Aktivität.</x-ui.empty-state>
 @elseif($rows === 1)
     <div class="wv-presence-row">
         @foreach($data['entries'] as $entry)

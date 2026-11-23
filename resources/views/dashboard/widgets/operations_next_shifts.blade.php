@@ -30,7 +30,7 @@
             <span class="wv-tl-fill" title="{{ $shift->reserved }} von {{ $shift->required_staff }} zugesagt">{{ $shift->reserved }}/{{ $shift->required_staff }}<span><i style="width:{{ $fill }}%;"></i></span></span>
         </a>
     @empty
-        <x-dashboard.empty icon="calendar">Keine Dienste in den nächsten 14 Tagen.</x-dashboard.empty>
+        <x-ui.empty-state variant="widget" feather="calendar">Keine Dienste in den nächsten 14 Tagen.</x-ui.empty-state>
     @endforelse
 </div>
 <a class="widget-footer" href="{{ $data['href'] }}" wire:navigate>Schichtplan öffnen →</a>

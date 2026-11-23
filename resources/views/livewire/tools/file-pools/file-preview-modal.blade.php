@@ -104,7 +104,7 @@
                             data-file-preview-action="download"
                         >
                             <i class="far fa-download" wire:loading.remove wire:target="downloadFile({{ $file->id }})" aria-hidden="true"></i>
-                            <i class="far fa-spinner fa-spin" wire:loading wire:target="downloadFile({{ $file->id }})" aria-hidden="true"></i>
+                            <x-ui.loading.spinner wire:loading wire:target="downloadFile({{ $file->id }})" />
                         </button>
                     @endif
 

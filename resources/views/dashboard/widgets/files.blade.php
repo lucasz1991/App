@@ -23,7 +23,7 @@
         @endif
     </div>
 @elseif($rows === 1)
-    <x-dashboard.empty icon="file">Noch keine Dateien für dich bereitgestellt.</x-dashboard.empty>
+    <x-ui.empty-state variant="widget" feather="file">Noch keine Dateien für dich bereitgestellt.</x-ui.empty-state>
 @endif
 @if($rows === 2)
     <div class="widget-detail">
@@ -37,7 +37,7 @@
                     @if($file->created_at?->gte(now()->subDays(7)))<span class="wv-unread-dot" title="Neu"></span>@endif
                 </a>
             @empty
-                <x-dashboard.empty icon="file">Keine Dateien.</x-dashboard.empty>
+                <x-ui.empty-state variant="widget" feather="file">Keine Dateien.</x-ui.empty-state>
             @endforelse
         </div>
     </div>

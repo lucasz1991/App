@@ -31,7 +31,7 @@
                     <span class="wv-item-main"><span class="wv-truncate">{{ $employee->name }}</span><small>seit {{ $employee->created_at->translatedFormat('d.m.Y') }}</small></span>
                 </div>
             @empty
-                <x-dashboard.empty icon="users">Keine Mitarbeiter.</x-dashboard.empty>
+                <x-ui.empty-state variant="widget" feather="users">Keine Mitarbeiter.</x-ui.empty-state>
             @endforelse
         </div>
     </div>

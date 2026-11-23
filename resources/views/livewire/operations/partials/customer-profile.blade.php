@@ -72,7 +72,7 @@
                     </x-operations.panel.tabs>
                 </div>
             @endif
-            <span class="customer-profile__loading" wire:loading.delay wire:target="setView" role="status"><i class="far fa-spinner fa-spin" aria-hidden="true"></i><span class="sr-only">Kundenbereich wird geladen …</span></span>
+            <span class="customer-profile__loading" wire:loading.delay wire:target="setView" role="status"><x-ui.loading.spinner /><span class="sr-only">Kundenbereich wird geladen …</span></span>
         </div>
     </div>
 

@@ -56,19 +56,22 @@
                  Abschnitt und wird nicht doppelt gezeigt. --}}
             <x-slot:metrics>
                 <div class="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4" data-anim-stagger>
-                    <x-ui.dashboard.operational-stat
+                    <x-ui.dashboard.stat
+                        variant="row"
                         icon="radio"
                         tone="success"
                         :label="__('app.online_now')"
                         :value="number_format($operations['online'], 0, ',', '.')"
                     />
-                    <x-ui.dashboard.operational-stat
+                    <x-ui.dashboard.stat
+                        variant="row"
                         icon="mail"
                         tone="warning"
                         :label="__('app.open_invitations')"
                         :value="number_format($operations['openInvitations'], 0, ',', '.')"
                     />
-                    <x-ui.dashboard.operational-stat
+                    <x-ui.dashboard.stat
+                        variant="row"
                         icon="message-circle"
                         tone="brand"
                         :label="__('app.unread_messages_total')"
@@ -102,18 +105,18 @@
             </x-ui.dashboard.section-heading>
 
             <div class="mt-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4" data-anim-stagger>
-                <x-ui.dashboard.stat-card :compact-mobile="true" tone="brand" :label="__('app.employees')" :value="number_format($totalEmployees, 0, ',', '.')">
+                <x-ui.dashboard.stat :compact-mobile="true" tone="brand" :label="__('app.employees')" :value="number_format($totalEmployees, 0, ',', '.')">
                     <i data-feather="briefcase" class="h-4 w-4 sm:h-5 sm:w-5"></i>
-                </x-ui.dashboard.stat-card>
-                <x-ui.dashboard.stat-card :compact-mobile="true" tone="success" :label="__('app.active_users')" :value="number_format($activeUsers, 0, ',', '.')">
+                </x-ui.dashboard.stat>
+                <x-ui.dashboard.stat :compact-mobile="true" tone="success" :label="__('app.active_users')" :value="number_format($activeUsers, 0, ',', '.')">
                     <i data-feather="user-check" class="h-4 w-4 sm:h-5 sm:w-5"></i>
-                </x-ui.dashboard.stat-card>
-                <x-ui.dashboard.stat-card :compact-mobile="true" :label="__('app.total_users')" :value="number_format($totalUsers, 0, ',', '.')">
+                </x-ui.dashboard.stat>
+                <x-ui.dashboard.stat :compact-mobile="true" :label="__('app.total_users')" :value="number_format($totalUsers, 0, ',', '.')">
                     <i data-feather="users" class="h-4 w-4 sm:h-5 sm:w-5"></i>
-                </x-ui.dashboard.stat-card>
-                <x-ui.dashboard.stat-card :compact-mobile="true" :label="__('app.teams_rbac')" :value="number_format($totalTeams, 0, ',', '.')">
+                </x-ui.dashboard.stat>
+                <x-ui.dashboard.stat :compact-mobile="true" :label="__('app.teams_rbac')" :value="number_format($totalTeams, 0, ',', '.')">
                     <i data-feather="shield" class="h-4 w-4 sm:h-5 sm:w-5"></i>
-                </x-ui.dashboard.stat-card>
+                </x-ui.dashboard.stat>
             </div>
 
             @if ($deviceWidget['scope'] === 'fleet')

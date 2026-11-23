@@ -1,6 +1,6 @@
 <div class="rt-ops ops-stack"><x-operations.feedback />
     @unless($embedded)<x-ui.forms.select wire:model.live="customerId" aria-label="Kunde auswählen"><option value="">Kunde auswählen</option>@foreach($customers as $customer)<option value="{{ $customer->id }}">{{ $customer->company_name }}</option>@endforeach</x-ui.forms.select>@endunless
-    @if(!$ready)<p class="ops-empty">Kundenprozesse derzeit nicht verfügbar.</p>@elseif($customerId)
+    @if(!$ready)<x-ui.empty-state icon="far fa-plug" description="Kundenprozesse derzeit nicht verfügbar." />@elseif($customerId)
         @foreach(['contact'=>'Ansprechpartner','location'=>'Einsatzorte','condition'=>'Konditionen'] as $relationKind => $title)
             @continue(($section==='contacts' && $relationKind==='condition') || ($section==='conditions' && $relationKind!=='condition'))
             <section class="ops-stack"><header class="ops-toolbar"><h2 class="font-semibold">{{ $title }}</h2><x-ui.buttons.button-basic type="button" size="sm" wire:click="create('{{ $relationKind }}')"><i class="far fa-plus" aria-hidden="true"></i>Hinzufügen</x-ui.buttons.button-basic></header>

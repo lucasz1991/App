@@ -524,7 +524,7 @@
             class="min-h-11 min-w-[9.5rem]"
           >
             <i wire:loading.remove wire:target="uploadFile" class="fad fa-cloud-upload-alt" aria-hidden="true"></i>
-            <i wire:loading wire:target="uploadFile" class="far fa-spinner-third fa-spin" aria-hidden="true"></i>
+            <x-ui.loading.spinner wire:loading wire:target="uploadFile" />
             <span wire:loading.remove wire:target="uploadFile">{{ __('app.upload') }}</span>
             <span wire:loading wire:target="uploadFile">{{ __('app.uploading') }}</span>
           </x-ui.buttons.button-basic>

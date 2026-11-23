@@ -65,21 +65,21 @@
 
             <x-slot:metrics>
                 <div class="grid gap-3 sm:grid-cols-3 sm:gap-4" data-dashboard-personal-summary data-anim-stagger>
-                    <x-ui.dashboard.operational-stat
+                    <x-ui.dashboard.stat
                         :label="__('app.available_files')"
                         :value="number_format($filesTotal, 0, ',', '.')"
                         icon="folder"
                         tone="brand"
                         variant="minimal"
                     />
-                    <x-ui.dashboard.operational-stat
+                    <x-ui.dashboard.stat
                         :label="__('app.unread_messages')"
                         :value="number_format($unreadMessages, 0, ',', '.')"
                         icon="mail"
                         :tone="$unreadMessages > 0 ? 'warning' : 'success'"
                         variant="minimal"
                     />
-                    <x-ui.dashboard.operational-stat
+                    <x-ui.dashboard.stat
                         :label="__('app.profile_status')"
                         :value="$profileCompletion . ' %'"
                         icon="user-check"

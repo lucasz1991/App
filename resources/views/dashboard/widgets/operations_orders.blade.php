@@ -44,7 +44,7 @@
         <p class="wv-label wv-truncate">Starts · 14 Tage</p>
         @if($data['urgent'] > 0)<span class="wv-pill ops-tone-warn" title="Leistungen mit hoher oder dringender Priorität"><i data-feather="alert-circle"></i>{{ $data['urgent'] }} prioritär</span>@endif
     </div>
-    <x-dashboard.columns
+    <x-dashboard.chart.columns
         :values="$data['starts']" :labels="$data['startsLabels']" :axis="$axis" :marks="$data['startsWeekend']"
         value-label="Leistungen beginnen" :height="40"
         aria-label="Beginn offener Leistungen in den nächsten 14 Tagen: {{ array_sum($data['starts']) }}"
@@ -60,7 +60,7 @@
                 <x-operations.status :value="$order->status" :label="$stages[$order->status?->value][0] ?? $order->status?->value" />
             </a>
         @empty
-            <x-dashboard.empty icon="check-circle">Keine offenen Leistungen.</x-dashboard.empty>
+            <x-ui.empty-state variant="widget" feather="check-circle">Keine offenen Leistungen.</x-ui.empty-state>
         @endforelse
     </div>
 @endif

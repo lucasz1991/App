@@ -61,7 +61,7 @@
             class="rt-voice-play flex h-[3.15rem] w-[3.15rem] shrink-0 items-center justify-center rounded-full text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/50"
             aria-label="{{ __('app.play_voice_message') }}"
         >
-            <i x-show="loading" class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+            <x-ui.loading.spinner x-show="loading" />
             <i x-show="!loading" :class="playing ? 'fas fa-pause' : 'fas fa-play pl-0.5'" aria-hidden="true"></i>
         </button>
 

@@ -59,7 +59,7 @@
             role="combobox" aria-autocomplete="list" aria-haspopup="listbox" x-bind:aria-expanded="open"
             aria-controls="region-address-list-{{ $userId }}" x-bind:aria-activedescendant="open && active >= 0 ? 'region-address-{{ $userId }}-' + active : null"
             aria-describedby="region-distance-note-{{ $userId }}" x-bind:aria-busy="loading || selecting">
-        <i class="far fa-spinner fa-spin rt-regions__search-loading" x-cloak x-show="loading || selecting" aria-hidden="true"></i>
+        <x-ui.loading.spinner class="rt-regions__search-loading" x-cloak x-show="loading || selecting" />
     </div>
     <div class="rt-regions__address-results" x-cloak x-show="open" x-ref="suggestions">
         <ul id="region-address-list-{{ $userId }}" role="listbox" aria-label="Adressvorschläge">

@@ -159,7 +159,7 @@
                 @if(!$consolidated || $detailSection === 'history')
                 <details class="rt-disposition-detail-section"><summary>Verlauf</summary>@forelse($history as $event)<div class="ops-row" wire:key="inquiry-event-{{ $event->id }}"><span>{{ \App\Support\Operations\OperationsNavigation::auditLabel($event->action) }}</span><div class="min-w-0 space-y-1">@if($event->actor)<x-user.public-info :user="$event->actor" :size="6" :show-presence="false" />@endif<span class="ops-muted">{{ $event->created_at->setTimezone(config('operations.display_timezone'))->format('d.m. H:i') }}</span></div></div>@empty<p class="ops-muted">Noch keine Einträge.</p>@endforelse</details>
                 @endif
-            @else<div class="ops-empty">Anfrage auswählen.</div>@endif
+            @else<x-ui.empty-state icon="far fa-hand-pointer" description="Anfrage auswählen." />@endif
 
 </x-operations.modal>
 </div>

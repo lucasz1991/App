@@ -151,7 +151,7 @@
             <x-ui.buttons.button-basic type="button" x-on:click="$dispatch('close')" class="inline-flex min-h-11 items-center rounded-xl border border-rt-border px-4 text-sm font-semibold text-rt-text dark:border-rt-dark-border dark:text-white">Abbrechen</x-ui.buttons.button-basic>
             <x-ui.buttons.button-basic type="button" wire:click="saveOrder" wire:loading.attr="disabled" class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-rt-red px-4 text-sm font-semibold text-white disabled:opacity-60">
                 <i wire:loading.remove wire:target="saveOrder" class="far fa-check" aria-hidden="true"></i>
-                <i wire:loading wire:target="saveOrder" class="far fa-spinner-third fa-spin" aria-hidden="true"></i>
+                <x-ui.loading.spinner wire:loading wire:target="saveOrder" />
                 Speichern
             </x-ui.buttons.button-basic>
         </x-slot:footer>

@@ -196,7 +196,7 @@
         <x-ui.buttons.button-basic wire:click="close" class="mr-2" size="sm"><i class="far fa-times"></i>{{ __('app.close') }}</x-ui.buttons.button-basic>
         <x-ui.buttons.button-basic wire:click="save" wire:loading.attr="disabled" size="sm">
             <i class="fal fa-save" wire:loading.remove wire:target="save"></i>
-            <i class="fal fa-spinner fa-spin" wire:loading wire:target="save"></i>
+            <x-ui.loading.spinner wire:loading wire:target="save" />
             {{ __('app.save') }}
         </x-ui.buttons.button-basic>
     </x-slot>

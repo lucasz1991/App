@@ -475,7 +475,7 @@ class AdminDashboardCommandBoardTest extends TestCase
 
         $template = file_get_contents(resource_path('views/livewire/user-dashboard.blade.php'));
         $this->assertStringContainsString('<x-ui.dashboard.role-hero', $template);
-        $this->assertSame(3, substr_count($template, '<x-ui.dashboard.operational-stat'));
+        $this->assertSame(3, substr_count($template, '<x-ui.dashboard.stat'));
         $this->assertSame(2, substr_count($template, '<x-ui.dashboard.focus-card'));
         $this->assertStringContainsString('<x-ui.dashboard.trend-chart', $template);
         $this->assertStringContainsString('grid gap-3 sm:gap-4 md:grid-cols-2', $template);
@@ -612,15 +612,15 @@ class AdminDashboardCommandBoardTest extends TestCase
         $this->assertStringContainsString('shadow-rt-md', $defaultHero);
         $this->assertStringContainsString('data-feather="briefcase"', $defaultHero);
 
-        $minimalStat = Blade::render('<x-ui.dashboard.operational-stat label="Dateien" value="3" icon="folder" variant="minimal" />');
-        $defaultStat = Blade::render('<x-ui.dashboard.operational-stat label="Dateien" value="3" icon="folder" />');
+        $minimalStat = Blade::render('<x-ui.dashboard.stat label="Dateien" value="3" icon="folder" variant="minimal" />');
+        $defaultStat = Blade::render('<x-ui.dashboard.stat label="Dateien" value="3" icon="folder" variant="row" />');
 
         $this->assertStringContainsString('data-dashboard-stat-variant="minimal"', $minimalStat);
         $this->assertStringContainsString('bg-transparent', $minimalStat);
         $this->assertStringContainsString('dark:ring-rt-dark-border/70', $minimalStat);
         $this->assertStringNotContainsString('data-feather', $minimalStat);
         $this->assertStringNotContainsString('shadow-rt-sm', $minimalStat);
-        $this->assertStringContainsString('data-dashboard-stat-variant="default"', $defaultStat);
+        $this->assertStringContainsString('data-dashboard-stat-variant="row"', $defaultStat);
         $this->assertStringContainsString('bg-rt-surface', $defaultStat);
         $this->assertStringContainsString('shadow-rt-sm', $defaultStat);
         $this->assertStringContainsString('data-feather="folder"', $defaultStat);

@@ -29,7 +29,7 @@
         <p class="wv-label wv-truncate">Eingang · 14 Tage</p>
         <span class="wv-pill" title="{{ $data['converted30'] }} von {{ $data['created30'] }} Anfragen der letzten 30 Tage wurden zu Aufträgen"><b style="color:var(--ops-ink);">{{ $data['conversion30'] === null ? '—' : $data['conversion30'].' %' }}</b>&nbsp;zu Auftrag</span>
     </div>
-    <x-dashboard.columns
+    <x-dashboard.chart.columns
         :values="$data['intake']" :fill="$data['intakeConverted']" :labels="$data['intakeLabels']" :axis="$axis"
         value-label="eingegangen" fill-label="zu Auftrag" :height="44"
         aria-label="Eingang der letzten 14 Tage: {{ array_sum($data['intake']) }} Anfragen, davon {{ array_sum($data['intakeConverted']) }} zu Aufträgen"
@@ -46,7 +46,7 @@
                 <span class="wv-age-dot" data-age="{{ $item['age'] }}" title="{{ $ageLabels[$item['age']] }}"></span>
             </a>
         @empty
-            <x-dashboard.empty icon="check-circle">Keine offenen Anfragen.</x-dashboard.empty>
+            <x-ui.empty-state variant="widget" feather="check-circle">Keine offenen Anfragen.</x-ui.empty-state>
         @endforelse
     </div>
 @endif

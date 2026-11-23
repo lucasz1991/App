@@ -45,7 +45,7 @@
             </div>
             @if(!$candidatesReady)
                 <div x-data x-intersect.once="$wire.loadStaffingCandidates()" class="rt-staffing-loading" role="status">
-                    <i class="far fa-spinner-third fa-spin" aria-hidden="true"></i><span>Eignung wird geprüft …</span>
+                    <x-ui.loading.spinner /><span>Eignung wird geprüft …</span>
                     <button type="button" wire:click="loadStaffingCandidates" wire:loading.attr="disabled">Liste laden</button>
                 </div>
             @else
@@ -62,13 +62,13 @@
                     <x-tables.filter-field label="Einsatzgebiet" for="staffing-region"><x-ui.forms.select id="staffing-region" wire:model.live="candidateRegion"><option value="all">Alle Gebiete</option><option value="preferred">Wunschgebiet</option><option value="border">Mögliches Gebiet</option><option value="emergency">Notfallgebiet</option><option value="outside">Außerhalb Wunschgebiet</option><option value="no_go">No-Go-Gebiet</option><option value="unknown">Ort nicht prüfbar</option><option value="neutral">Ohne Regionalwunsch</option></x-ui.forms.select></x-tables.filter-field>
                 </x-tables.toolbar>
                 <details class="rt-staffing-more"><summary>Wie wird die Eignung ermittelt?</summary><p>Der Wert ist eine Planungshilfe, keine Wahrscheinlichkeit oder Rechtsfreigabe: 85 Basispunkte, bevorzugt +15, möglich +5, Notfallgebiet −10, außerhalb der neuen Zonen −20. Bestehende Radiusprofile behalten außerhalb −10 bis zur Umstellung. Fehlende Regionalwünsche bleiben neutral. Zeitkonflikte senken den Wert und erfordern eine gesonderte Prüfung; feste Ausschlussgründe stehen immer zuletzt. Pflichtqualifikationen müssen während der gesamten Schicht gültig sein.</p></details>
-                <div wire:loading.flex wire:target="candidateSearch,candidateQualification,candidatePool,candidateSuitability,candidateRegion,resetCandidateFilters" class="rt-staffing-loading" role="status"><i class="far fa-spinner-third fa-spin" aria-hidden="true"></i> Treffer werden neu geprüft …</div>
+                <div wire:loading.flex wire:target="candidateSearch,candidateQualification,candidatePool,candidateSuitability,candidateRegion,resetCandidateFilters" class="rt-staffing-loading" role="status"><x-ui.loading.spinner /> Treffer werden neu geprüft …</div>
                 <div wire:loading.class="opacity-50 pointer-events-none" wire:target="candidateSearch,candidateQualification,candidatePool,candidateSuitability,candidateRegion,resetCandidateFilters">
                     <x-tables.table :columns="[['label'=>'Mitarbeiter','key'=>'name','width'=>'minmax(0,1.25fr)'],['label'=>'Eignung ↓','key'=>'eligibility','width'=>'minmax(0,1.2fr)'],['label'=>'','key'=>'action','width'=>'110px']]" :items="$candidates" row-view="components.tables.rows.planning.staffing-candidate-row" empty="Keine Treffer. Suche oder Filter anpassen." label="Mitarbeitende nach Planungseignung absteigend" class="rt-staffing-table" />
                 </div>
                 @if($candidates->count() < $candidateTotal)
                     <div class="rt-staffing-loading" wire:key="staffing-more-{{ $selectedShift->id }}-{{ $candidateLimit }}-{{ md5($candidateSearch.$candidateQualification.$candidatePool.$candidateSuitability.$candidateRegion) }}" x-data x-intersect.once="$wire.loadMoreCandidates()">
-                        <button type="button" wire:click="loadMoreCandidates" wire:loading.attr="disabled" wire:target="loadMoreCandidates"><span wire:loading.remove wire:target="loadMoreCandidates">Weitere Mitarbeitende laden</span><span wire:loading wire:target="loadMoreCandidates" role="status"><i class="far fa-spinner-third fa-spin" aria-hidden="true"></i> Wird geladen …</span></button>
+                        <button type="button" wire:click="loadMoreCandidates" wire:loading.attr="disabled" wire:target="loadMoreCandidates"><span wire:loading.remove wire:target="loadMoreCandidates">Weitere Mitarbeitende laden</span><span wire:loading wire:target="loadMoreCandidates" role="status"><x-ui.loading.spinner /> Wird geladen …</span></button>
                     </div>
                 @endif
                 <p class="rt-staffing-note" aria-live="polite">{{ $candidates->count() }} von {{ $candidateTotal }} Mitarbeitenden · Bereits reservierte Personen stehen oben.</p>

@@ -56,7 +56,7 @@
             role="status"
             aria-live="polite"
         >
-            <i class="far fa-spinner-third animate-spin text-rt-red" aria-hidden="true"></i>
+            <x-ui.loading.spinner class="text-rt-red" />
             Motive werden aktualisiert …
         </div>
     </x-ui.surface.card>
@@ -187,7 +187,7 @@
                                 aria-label="{{ $creative->title }} entfernen"
                             >
                                 <i wire:loading.remove wire:target="deleteMotive('{{ $creative->public_id }}')" class="far fa-trash-alt" aria-hidden="true"></i>
-                                <i wire:loading wire:target="deleteMotive('{{ $creative->public_id }}')" class="far fa-spinner-third animate-spin" aria-hidden="true"></i>
+                                <x-ui.loading.spinner wire:loading wire:target="deleteMotive('{{ $creative->public_id }}')" />
                             </button>
                         </div>
                     </div>
@@ -273,7 +273,7 @@
                             <p class="mt-1 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Mindestens eine, maximal 20 Dateien mit jeweils bis zu 50 MB.</p>
                         </div>
                         <span wire:loading.flex wire:target="motiveUploads" class="items-center gap-2 text-xs font-semibold text-rt-red" role="status" aria-live="polite">
-                            <i class="far fa-spinner-third animate-spin" aria-hidden="true"></i>
+                            <x-ui.loading.spinner />
                             Dateien werden vorbereitet …
                         </span>
                     </div>
@@ -319,7 +319,7 @@
                     class="min-h-11 min-w-[10.5rem]"
                 >
                     <i wire:loading.remove wire:target="createMotive" class="fad fa-cloud-upload-alt" aria-hidden="true"></i>
-                    <i wire:loading wire:target="createMotive" class="far fa-spinner-third animate-spin" aria-hidden="true"></i>
+                    <x-ui.loading.spinner wire:loading wire:target="createMotive" />
                     <span wire:loading.remove wire:target="createMotive">Motiv anlegen</span>
                     <span wire:loading wire:target="createMotive">Wird gespeichert …</span>
                 </x-ui.buttons.button-basic>

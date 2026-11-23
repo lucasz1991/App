@@ -4,8 +4,9 @@
     Segmente mit count <= 0 werden uebersprungen, damit der Gradient nicht
     mit leeren Nullbreite-Stopps kollidiert. $value ueberschreibt die Zahl
     in der Mitte (Default: Summe aller Segmente).
+    Huelle und gemeinsame Props: x-dashboard.chart.frame.
 --}}
-@props(['segments', 'value' => null])
+@props(['segments', 'value' => null, 'ariaLabel' => ''])
 @php
     $total = max(1, collect($segments)->sum('count'));
     $offset = 0;
@@ -21,6 +22,6 @@
     }
     $background = $stops ? 'conic-gradient('.implode(', ', $stops).')' : 'var(--ops-line)';
 @endphp
-<div class="widget-donut" style="background:{{ $background }};">
+<x-dashboard.chart.frame type="donut" :aria-label="$ariaLabel" {{ $attributes->class(['widget-donut'])->merge(['style' => 'background:'.$background.';']) }}>
     <span class="widget-donut-val">{{ $value ?? $total }}</span>
-</div>
+</x-dashboard.chart.frame>

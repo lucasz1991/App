@@ -250,7 +250,7 @@
                         data-page-builder-preview-loading
                     >
                         <span class="flex items-center gap-2">
-                            <i class="far fa-spinner-third animate-spin text-rt-accent" aria-hidden="true"></i>
+                            <x-ui.loading.spinner class="text-rt-accent" />
                             {{ $replayable ? 'Animierte Vorschau wird vorbereitet …' : 'Vorschau wird geladen …' }}
                         </span>
                     </div>

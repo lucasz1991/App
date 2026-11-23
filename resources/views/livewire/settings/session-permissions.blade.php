@@ -162,7 +162,7 @@
                 @if ($availablePurposes !== [])
                     <x-ui.buttons.button-basic mode="success" :x-on:click="'allowAll('.\Illuminate\Support\Js::from($availablePurposes).')'" wire:loading.attr="disabled" x-bind:disabled="busy !== null" x-bind:aria-busy="busy === 'all'" class="min-h-11 w-full rounded-xl sm:w-auto" data-permission-allow-all>
                         <i class="fas fa-check" x-show="busy !== 'all'" aria-hidden="true"></i>
-                        <i class="fas fa-spinner fa-spin" x-cloak x-show="busy === 'all'" aria-hidden="true"></i>
+                        <x-ui.loading.spinner x-cloak x-show="busy === 'all'" />
                         <span>Zustimmen</span>
                     </x-ui.buttons.button-basic>
                 @endif

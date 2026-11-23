@@ -38,8 +38,8 @@
     @endif
     @if($data['href'])<a class="widget-footer" href="{{ $data['href'] }}" wire:navigate>Meine Geräte öffnen →</a>@endif
 @elseif($data['stats']['available'])
-    <x-dashboard.empty icon="smartphone">Dir sind noch keine Geräte zugewiesen.</x-dashboard.empty>
+    <x-ui.empty-state variant="widget" feather="smartphone">Dir sind noch keine Geräte zugewiesen.</x-ui.empty-state>
     @if($data['href'])<a class="widget-footer" href="{{ $data['href'] }}" wire:navigate>Meine Geräte öffnen →</a>@endif
 @else
-    <x-dashboard.empty icon="smartphone">Geräteverwaltung ist hier nicht verfügbar.</x-dashboard.empty>
+    <x-ui.empty-state variant="widget" feather="smartphone">Geräteverwaltung ist hier nicht verfügbar.</x-ui.empty-state>
 @endif

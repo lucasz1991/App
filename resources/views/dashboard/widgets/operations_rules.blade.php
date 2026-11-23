@@ -29,6 +29,6 @@
         <p class="wv-sub wv-gap">Freigegeben am {{ $profile->approved_at->setTimezone(config('operations.display_timezone'))->format('d.m.Y') }}</p>
     @endif
 @else
-    <x-dashboard.empty icon="shield">Kein aktives Regelprofil.</x-dashboard.empty>
+    <x-ui.empty-state variant="widget" feather="shield">Kein aktives Regelprofil.</x-ui.empty-state>
 @endif
 <a class="widget-footer" href="{{ $data['href'] }}" wire:navigate>Regelprofil öffnen →</a>

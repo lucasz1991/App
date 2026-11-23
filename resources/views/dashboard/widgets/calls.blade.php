@@ -29,7 +29,7 @@
                 @if($seconds !== null)<span class="ops-muted" style="font-size:12px;white-space:nowrap;">{{ max(1, intdiv($seconds, 60)) }} min</span>@endif
             </div>
         @empty
-            <x-dashboard.empty icon="phone">Keine abgeschlossenen Anrufe.</x-dashboard.empty>
+            <x-ui.empty-state variant="widget" feather="phone">Keine abgeschlossenen Anrufe.</x-ui.empty-state>
         @endforelse
     </div>
 @endif

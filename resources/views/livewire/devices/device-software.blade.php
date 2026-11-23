@@ -109,7 +109,7 @@
                 <x-ui.buttons.button-basic type="button" wire:click="$set('showCertificateDialog', false)" class="min-h-11">Abbrechen</x-ui.buttons.button-basic>
                 @if($showCertificateDialog && $canManageTrust)
                     <x-ui.buttons.button-basic type="button" mode="primary" wire:click="saveCertificate" wire:loading.attr="disabled" wire:target="saveCertificate,certificateFile" class="min-h-11">
-                        <i class="far fa-spinner fa-spin" wire:loading wire:target="saveCertificate" aria-hidden="true"></i>
+                        <x-ui.loading.spinner wire:loading wire:target="saveCertificate" />
                         Aufnehmen
                     </x-ui.buttons.button-basic>
                 @endif
@@ -164,7 +164,7 @@
                 <x-ui.buttons.button-basic type="button" wire:click="$set('showPackageDialog', false)" class="min-h-11">Abbrechen</x-ui.buttons.button-basic>
                 @if($showPackageDialog && $canManageDirectory)
                     <x-ui.buttons.button-basic type="button" mode="primary" wire:click="savePackage" wire:loading.attr="disabled" wire:target="savePackage" class="min-h-11">
-                        <i class="far fa-spinner fa-spin" wire:loading wire:target="savePackage" aria-hidden="true"></i>
+                        <x-ui.loading.spinner wire:loading wire:target="savePackage" />
                         Speichern
                     </x-ui.buttons.button-basic>
                 @endif
@@ -231,7 +231,7 @@
                 <x-ui.buttons.button-basic type="button" wire:click="$set('showAssignDialog', false)" class="min-h-11">Schließen</x-ui.buttons.button-basic>
                 @if($assigning && $canAssign)
                     <x-ui.buttons.button-basic type="button" mode="primary" wire:click="assign" wire:loading.attr="disabled" wire:target="assign" class="min-h-11">
-                        <i class="far fa-spinner fa-spin" wire:loading wire:target="assign" aria-hidden="true"></i>
+                        <x-ui.loading.spinner wire:loading wire:target="assign" />
                         Zuweisen
                     </x-ui.buttons.button-basic>
                 @endif

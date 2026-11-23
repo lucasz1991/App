@@ -10,7 +10,7 @@
     @endif
 </div>
 @if($data['people']->isEmpty())
-    <x-dashboard.empty icon="check-circle">Alle Zeiten freigegeben.</x-dashboard.empty>
+    <x-ui.empty-state variant="widget" feather="check-circle">Alle Zeiten freigegeben.</x-ui.empty-state>
 @else
     <div class="wv-people" @if($rows === 2) style="flex:1 1 auto;" @endif>
         @if($rows === 2)<p class="wv-label" style="margin:0;">Offen je Person</p>@endif

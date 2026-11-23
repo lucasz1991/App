@@ -22,7 +22,7 @@
                     <span class="wv-rank-bar"><span style="width:{{ $customer->open_orders > 0 ? max(4, round($customer->open_orders / $data['topMax'] * 100)) : 0 }}%;"></span></span>
                 </div>
             @empty
-                <x-dashboard.empty icon="briefcase">Noch keine aktiven Kunden.</x-dashboard.empty>
+                <x-ui.empty-state variant="widget" feather="briefcase">Noch keine aktiven Kunden.</x-ui.empty-state>
             @endforelse
         </div>
         <p class="wv-sub wv-gap">{{ $data['inactive'] }} inaktiv · {{ $data['total'] }} gesamt</p>

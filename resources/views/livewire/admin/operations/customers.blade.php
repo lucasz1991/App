@@ -14,7 +14,7 @@
                 </dl>
             </x-ui.surface.card>
             <x-ui.surface.card variant="ops"><livewire:operations.customer-logo :customer-id="$selectedCustomer->id" :key="'admin-embedded-company-logo-'.$selectedCustomer->id" /></x-ui.surface.card>
-        @elseif(!$formOpen)<div class="ops-empty">Keine Kundenstammdaten vorhanden.</div>@endif
+        @elseif(!$formOpen)<x-ui.empty-state icon="far fa-building" description="Keine Kundenstammdaten vorhanden." />@endif
     @else
     <x-tables.toolbar title="Filter" id="operations-customers-filters">
         <x-slot:search><x-ui.forms.search wire:model.live.debounce.300ms="search" placeholder="Kunden suchen" /></x-slot:search>
@@ -161,7 +161,7 @@
             <x-ui.buttons.button-basic type="button" x-on:click="$dispatch('close')" class="inline-flex min-h-11 items-center rounded-xl border border-rt-border px-4 text-sm font-semibold text-rt-text dark:border-rt-dark-border dark:text-white">Abbrechen</x-ui.buttons.button-basic>
             <x-ui.buttons.button-basic type="button" wire:click="saveCustomer" wire:loading.attr="disabled" class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-rt-red px-4 text-sm font-semibold text-white disabled:opacity-60">
                 <i wire:loading.remove wire:target="saveCustomer" class="far fa-check" aria-hidden="true"></i>
-                <i wire:loading wire:target="saveCustomer" class="far fa-spinner-third fa-spin" aria-hidden="true"></i>
+                <x-ui.loading.spinner wire:loading wire:target="saveCustomer" />
                 Speichern
             </x-ui.buttons.button-basic>
         </x-slot:footer>

@@ -66,7 +66,7 @@
 
     @if($available)
         <div class="rt-distribution-auto__actions">
-            <p class="rt-distribution-auto__loading" wire:loading.flex wire:target="prepare,apply" role="status" style="display: none"><i class="far fa-spinner fa-spin" aria-hidden="true"></i><span>Zuordnungen werden geprüft …</span></p>
+            <p class="rt-distribution-auto__loading" wire:loading.flex wire:target="prepare,apply" role="status" style="display: none"><x-ui.loading.spinner /><span>Zuordnungen werden geprüft …</span></p>
             @if($canApply)
                 <x-ui.buttons.button-basic type="button" mode="primary" wire:click="apply" wire:loading.attr="disabled" wire:target="prepare,apply,resetPreview" data-distribution-auto-apply><i class="far fa-check" aria-hidden="true"></i>{{ $preview['summary']['planned_slots'] }} Zuordnungen übernehmen</x-ui.buttons.button-basic>
                 <p class="rt-distribution-auto__note">Übernimmt die Vorschau als „Angefragt“. Alle Bedingungen werden erneut geprüft.</p>

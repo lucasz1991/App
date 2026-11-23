@@ -226,7 +226,7 @@
                 class="min-h-11 w-full sm:w-auto"
             >
                 <i class="far fa-save" wire:loading.remove wire:target="save" aria-hidden="true"></i>
-                <i class="far fa-spinner fa-spin" wire:loading wire:target="save" aria-hidden="true"></i>
+                <x-ui.loading.spinner wire:loading wire:target="save" />
                 {{ __('app.save') }}
             </x-ui.buttons.button-basic>
         </div>

@@ -40,5 +40,5 @@
         <span>{{ $labels[$count - 1] ?? '' }}</span>
     </div>
 @else
-    <x-dashboard.empty icon="trending-up">Noch kein Verlauf vorhanden.</x-dashboard.empty>
+    <x-ui.empty-state variant="widget" feather="trending-up">Noch kein Verlauf vorhanden.</x-ui.empty-state>
 @endif

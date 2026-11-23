@@ -1003,7 +1003,7 @@
                                         data-chat-send-button
                                     >
                                         <i wire:loading.remove wire:target="send" class="far fa-paper-plane" aria-hidden="true"></i>
-                                        <i wire:loading wire:target="send" class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                                        <x-ui.loading.spinner wire:loading wire:target="send" />
                                     </button>
                                     </x-slot:actions>
                                 </x-ui.floating.composer-row>

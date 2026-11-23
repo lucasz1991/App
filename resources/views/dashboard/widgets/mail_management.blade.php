@@ -35,7 +35,7 @@
                     <span class="ops-muted" style="font-size:12px;white-space:nowrap;" title="Empfänger versorgt">{{ $done }}/{{ $all }}</span>
                 </div>
             @empty
-                <x-dashboard.empty icon="check-circle">Alles versendet.</x-dashboard.empty>
+                <x-ui.empty-state variant="widget" feather="check-circle">Alles versendet.</x-ui.empty-state>
             @endforelse
         </div>
     </div>

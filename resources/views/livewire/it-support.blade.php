@@ -135,7 +135,7 @@
                         wire:target="submit"
                     >
                         <i class="far fa-paper-plane" wire:loading.remove wire:target="submit" aria-hidden="true"></i>
-                        <i class="fad fa-spinner-third fa-spin" wire:loading wire:target="submit" aria-hidden="true"></i>
+                        <x-ui.loading.spinner wire:loading wire:target="submit" />
                         <span wire:loading.remove wire:target="submit">{{ __('app.it_support_send') }}</span>
                         <span wire:loading wire:target="submit">{{ __('app.sending') }}</span>
                     </x-ui.buttons.button-basic>

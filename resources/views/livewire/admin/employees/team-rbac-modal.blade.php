@@ -32,7 +32,7 @@
             </x-ui.buttons.button-basic>
             <x-ui.buttons.button-basic type="submit" :form="$createFormId" wire:loading.attr="disabled" wire:target="createTeam" mode="primary" class="min-h-11">
                 <i class="far fa-plus" wire:loading.remove wire:target="createTeam" aria-hidden="true"></i>
-                <i class="far fa-spinner fa-spin" wire:loading wire:target="createTeam" aria-hidden="true"></i>
+                <x-ui.loading.spinner wire:loading wire:target="createTeam" />
                 Team erstellen
             </x-ui.buttons.button-basic>
         @else
@@ -42,7 +42,7 @@
             </x-ui.buttons.button-basic>
             <x-ui.buttons.button-basic wire:click="save" wire:loading.attr="disabled" mode="primary" class="min-h-11">
                 <i class="far fa-save" wire:loading.remove wire:target="save" aria-hidden="true"></i>
-                <i class="far fa-spinner fa-spin" wire:loading wire:target="save" aria-hidden="true"></i>
+                <x-ui.loading.spinner wire:loading wire:target="save" />
                 {{ __('app.save') }}
             </x-ui.buttons.button-basic>
         @endif

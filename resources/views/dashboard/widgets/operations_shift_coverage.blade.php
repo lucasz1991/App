@@ -38,7 +38,7 @@
     @endif
 @else
     <div class="wv-gap">
-        <x-dashboard.columns
+        <x-dashboard.chart.columns
             :values="$data['required']" :fill="$data['reserved']" :labels="$data['labels']" :axis="$data['weekdays']"
             value-label="benötigt" fill-label="zugesagt" :warn-short="true" :height="32"
             aria-label="Besetzung je Tag: zugesagt gegenüber benötigt"

@@ -21,7 +21,7 @@
         @endif
     </div>
     @if($data['open'] > 0)
-        <x-dashboard.donut :segments="$segments" :value="$data['open']" />
+        <x-dashboard.chart.donut :segments="$segments" :value="$data['open']" />
     @endif
 </div>
 @if($rows === 2)
@@ -40,7 +40,7 @@
                 <x-operations.status :value="$case->status" :label="$statusMeta[$case->status]['label'] ?? str($case->status)->replace('_', ' ')->title()" />
             </div>
         @empty
-            <x-dashboard.empty icon="check-circle">Keine offenen Fälle.</x-dashboard.empty>
+            <x-ui.empty-state variant="widget" feather="check-circle">Keine offenen Fälle.</x-ui.empty-state>
         @endforelse
     </div>
 @endif

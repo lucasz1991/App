@@ -30,7 +30,7 @@
                     <span class="wv-item-main"><span class="wv-truncate">{{ $item['title'] }}</span><small class="wv-truncate">{{ $item['meta'] }} · {{ $item['range'] }}</small></span>
                 </div>
             @empty
-                <x-dashboard.empty icon="check-circle">Keine offenen Anträge.</x-dashboard.empty>
+                <x-ui.empty-state variant="widget" feather="check-circle">Keine offenen Anträge.</x-ui.empty-state>
             @endforelse
         </div>
     </div>

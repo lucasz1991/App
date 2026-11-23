@@ -8,6 +8,7 @@
              (leer lassen = keine Achse). $marks: Saeulen hervorheben
              (z. B. Wochenende, heute) als Liste von bool.
     $fillLabel/$valueLabel benennen die Reihen im Tooltip.
+    Huelle und gemeinsame Props: x-dashboard.chart.frame.
 --}}
 @props([
     'values', 'fill' => null, 'labels' => [], 'axis' => [], 'marks' => [],
@@ -16,7 +17,7 @@
 @php
     $max = max(1, max($values ?: [0]), $fill ? max($fill) : 0);
 @endphp
-<div {{ $attributes->class(['wv-columns']) }} style="--columns:{{ count($values) }};" role="img" aria-label="{{ $ariaLabel }}">
+<x-dashboard.chart.frame type="columns" :aria-label="$ariaLabel" {{ $attributes->class(['wv-columns'])->merge(['style' => '--columns:'.count($values).';']) }}>
     <div class="wv-columns-plot" style="height:{{ $height }}px;">
         @foreach($values as $i => $value)
             @php
@@ -37,4 +38,4 @@
             @foreach($axis as $i => $label)<span @if($marks[$i] ?? false) data-mark @endif>{{ $label }}</span>@endforeach
         </div>
     @endif
-</div>
+</x-dashboard.chart.frame>
