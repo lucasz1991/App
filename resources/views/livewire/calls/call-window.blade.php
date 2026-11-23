@@ -193,7 +193,13 @@
                 data-rt-self-preview-stage
             >
                 {{-- Die Bestätigung ist versioniert und wird aktiv per Klick
-                     abgegeben. Bis dahin wird kein LiveKit-Token verbunden. --}}
+                     abgegeben. Bis dahin wird kein LiveKit-Token verbunden.
+                     Dokumentierte Modal-Ausnahme (UI-Standard Phase 4): bewusst
+                     ohne Escape/Hintergrund-Schliessen, weil die Aufzeichnung
+                     nur per ausdruecklicher Entscheidung bestaetigt oder
+                     abgelehnt werden darf; der Tab-Ring unten ist die
+                     Fokusfalle, das Anruffenster selbst bleibt ein eigenes
+                     Spezial-Overlay. --}}
                 <div
                     x-cloak
                     x-show.important="recordingRequiresAcknowledgement"

@@ -215,7 +215,9 @@
         <p class="rt-mail-library__footnote"><i class="far fa-info-circle" aria-hidden="true"></i>{{ $isSignature ? 'Die Systemsignatur bleibt aktiv, während du an einem neuen Entwurf arbeitest.' : 'Outlook-Freigaben und Systemstandards sind getrennt. Eine neue Outlook-Vorlage verändert keine Systemmail.' }}</p>
     @endif
 
-    <x-ui.state-modal :id="$libraryId.'-create'" state="createDialog" :title="isset($source['id']) ? 'Entwurf duplizieren' : 'Neue Outlook-Vorlage'" description="Der neue Stand bleibt privat im Entwurf, bis du ihn ausdrücklich freigibst." icon="far fa-file-plus" max-width="2xl">
+    <x-dialog-modal :id="$libraryId.'-create'" show-expression="createDialog" description="Der neue Stand bleibt privat im Entwurf, bis du ihn ausdrücklich freigibst." icon="far fa-file-plus" max-width="2xl">
+        <x-slot:title>{{ isset($source['id']) ? 'Entwurf duplizieren' : 'Neue Outlook-Vorlage' }}</x-slot:title>
+        <x-slot:content>
         <form wire:submit="createDraft" class="rt-mail-library-form" id="{{ $libraryId }}-create-form">
             @if (isset($source['name']))<p class="rt-mail-library-form__context">Ausgangsdesign: <strong>{{ $source['name'] }}</strong></p>@endif
             <label for="{{ $libraryId }}-name">Name des Entwurfs</label>
@@ -234,13 +236,16 @@
                 @error('signature')<p class="rt-mail-library__error" role="alert">{{ $message }}</p>@enderror
             @endif
         </form>
+        </x-slot:content>
         <x-slot:footer>
             <button type="button" class="rt-mail-library__button" x-on:click="createDialog = false">Abbrechen</button>
             <button type="submit" form="{{ $libraryId }}-create-form" class="rt-mail-library__button rt-mail-library__button--primary" wire:loading.attr="disabled" wire:target="createDraft"><span wire:loading.remove wire:target="createDraft">Entwurf anlegen</span><span wire:loading wire:target="createDraft">Wird angelegt …</span></button>
         </x-slot:footer>
-    </x-ui.state-modal>
+    </x-dialog-modal>
 
-    <x-ui.state-modal :id="$libraryId.'-pairing'" state="pairingDialog" title="Signatur zuordnen" description="Vorlage und Signatur bleiben getrennte Entwürfe und werden nur gemeinsam angezeigt." icon="far fa-link" max-width="2xl">
+    <x-dialog-modal :id="$libraryId.'-pairing'" show-expression="pairingDialog" description="Vorlage und Signatur bleiben getrennte Entwürfe und werden nur gemeinsam angezeigt." icon="far fa-link" max-width="2xl">
+        <x-slot:title>Signatur zuordnen</x-slot:title>
+        <x-slot:content>
         <form wire:submit="savePairing" class="rt-mail-library-form" id="{{ $libraryId }}-pairing-form">
             <p class="rt-mail-library-form__document">{{ $pairing['name'] ?? '' }}</p>
             <label for="{{ $libraryId }}-signature">Signatur für diesen Vorlagenentwurf</label>
@@ -253,13 +258,16 @@
             <p>Die Vorschau verwendet sofort den zugeordneten Signaturentwurf. Eine Veröffentlichung ist erst möglich, nachdem auch diese Signatur einen freigegebenen Stand besitzt.</p>
             @error('signature')<p class="rt-mail-library__error" role="alert">{{ $message }}</p>@enderror
         </form>
+        </x-slot:content>
         <x-slot:footer>
             <button type="button" class="rt-mail-library__button" x-on:click="pairingDialog = false">Abbrechen</button>
             <button type="submit" form="{{ $libraryId }}-pairing-form" class="rt-mail-library__button rt-mail-library__button--primary" wire:loading.attr="disabled" wire:target="savePairing"><span wire:loading.remove wire:target="savePairing">Zuordnung speichern</span><span wire:loading wire:target="savePairing">Wird gespeichert …</span></button>
         </x-slot:footer>
-    </x-ui.state-modal>
+    </x-dialog-modal>
 
-    <x-ui.state-modal :id="$libraryId.'-confirm'" state="confirmDialog" :title="$confirmationTitle" icon="far fa-file-check" max-width="2xl">
+    <x-dialog-modal :id="$libraryId.'-confirm'" show-expression="confirmDialog" icon="far fa-file-check" max-width="2xl">
+        <x-slot:title>{{ $confirmationTitle }}</x-slot:title>
+        <x-slot:content>
         <div class="rt-mail-library-form">
             <p class="rt-mail-library-form__document">{{ $pending['name'] ?? '' }}</p>
             <p class="rt-mail-library-form__context">
@@ -289,15 +297,19 @@
             @endif
             @error('operation')<p class="rt-mail-library__error" role="alert">{{ $message }}</p>@enderror
         </div>
+        </x-slot:content>
         <x-slot:footer>
             <button type="button" class="rt-mail-library__button" x-on:click="confirmDialog = false">Abbrechen</button>
             <button type="button" wire:click="confirmAction" class="rt-mail-library__button {{ $pendingAction === 'delete' ? 'rt-mail-library__button--danger' : 'rt-mail-library__button--primary' }}" wire:loading.attr="disabled" wire:target="confirmAction"><span wire:loading.remove wire:target="confirmAction">{{ match ($pendingAction) { 'archive' => 'Archivieren', 'unarchive' => 'Wiederherstellen', 'delete' => 'Endgültig löschen', 'restore' => 'Als Entwurf wiederherstellen', 'default' => 'Standard festlegen', 'withdraw' => 'Freigabe zurücknehmen', default => 'Prüfen und veröffentlichen' } }}</span><span wire:loading wire:target="confirmAction">Wird verarbeitet …</span></button>
         </x-slot:footer>
-    </x-ui.state-modal>
-    <x-ui.state-modal :id="$libraryId.'-preview'" state="previewDialog" title="Designvorschau" description="Aktuell gespeicherter Entwurf · Browserdarstellung, kein Mailclient-Nachweis." icon="far fa-eye" max-width="6xl">
+    </x-dialog-modal>
+    <x-dialog-modal :id="$libraryId.'-preview'" show-expression="previewDialog" :instant="true" description="Aktuell gespeicherter Entwurf · Browserdarstellung, kein Mailclient-Nachweis." icon="far fa-eye" max-width="6xl">
+        <x-slot:title>Designvorschau</x-slot:title>
+        <x-slot:content>
         <p class="mb-3 text-sm font-semibold"><span x-text="previewName"></span> · Version <span x-text="previewVersion"></span></p>
         <template x-if="previewDialog">
             <x-ui.preview.frame title="Designvorschau des gespeicherten Entwurfs" x-bind:src="previewUrl" style="width:100%;height:65vh;min-height:260px" />
         </template>
-    </x-ui.state-modal>
+        </x-slot:content>
+    </x-dialog-modal>
 </section>

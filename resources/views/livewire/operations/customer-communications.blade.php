@@ -20,9 +20,7 @@
         @else<p class="rounded-xl border border-rt-border p-4 text-sm text-rt-muted dark:border-rt-dark-border dark:text-rt-dark-muted">Kommunikationsprotokoll nach Datenbankaktualisierung verfügbar.</p>@endif
     </x-ui.page>
     @if($formOpen && $canRecord && $ready)
-    <x-dialog-modal wire:model="formOpen" maxWidth="2xl">
-        <x-slot name="title">Kontakt protokollieren</x-slot>
-        <x-slot name="content">
+    <x-operations.modal wire:model="formOpen" title="Kontakt protokollieren" max-width="2xl">
             <form wire:submit="save" id="customer-communication-form" class="ops-form">
                 <x-operations.field label="Kanal" model="form.channel" type="select" required>@foreach(\App\Models\CustomerInteraction::CHANNELS as $key=>$label)<option value="{{ $key }}">{{ $label }}</option>@endforeach</x-operations.field>
                 <x-operations.field label="Richtung" model="form.direction" type="select" required>@foreach(\App\Models\CustomerInteraction::DIRECTIONS as $key=>$label)<option value="{{ $key }}">{{ $label }}</option>@endforeach</x-operations.field>
@@ -34,14 +32,11 @@
                 <x-operations.field label="Betreff" model="form.subject" :wide="true" required maxlength="180" />
                 <x-operations.field label="Gesprächsnotiz / Inhalt" model="form.body" type="textarea" :wide="true" required maxlength="5000" rows="5" />
             </form>
-        </x-slot>
         <x-slot name="footer"><x-ui.buttons.button-basic type="button" wire:click="close">Abbrechen</x-ui.buttons.button-basic><x-ui.buttons.button-basic type="submit" form="customer-communication-form" mode="primary" wire:loading.attr="disabled" wire:target="save">Protokollieren</x-ui.buttons.button-basic></x-slot>
-    </x-dialog-modal>
+    </x-operations.modal>
     @endif
     @if($detailOpen && $selected)
-    <x-dialog-modal wire:model="detailOpen" maxWidth="2xl">
-        <x-slot name="title">{{ $selected?->subject ?? 'Kommunikation' }}</x-slot>
-        <x-slot name="content">
+    <x-operations.modal wire:model="detailOpen" :title="$selected?->subject ?? 'Kommunikation'" max-width="2xl">
             @if($selected)
                 <div class="space-y-4">
                     <div class="flex flex-wrap gap-2 text-xs text-rt-muted dark:text-rt-dark-muted">
@@ -51,8 +46,7 @@
                     <p class="whitespace-pre-wrap break-words text-sm leading-6">{{ $selected->body }}</p>
                 </div>
             @endif
-        </x-slot>
         <x-slot name="footer"><x-ui.buttons.button-basic type="button" wire:click="close">Schließen</x-ui.buttons.button-basic></x-slot>
-    </x-dialog-modal>
+    </x-operations.modal>
     @endif
 </div>

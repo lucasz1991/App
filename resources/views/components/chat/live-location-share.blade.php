@@ -39,15 +39,17 @@
         <i x-bind:class="busy ? 'fas fa-spinner fa-spin' : 'far fa-map-marker-alt'" aria-hidden="true"></i>
     </button>
 
-    <x-ui.state-modal
+    <x-dialog-modal
         :id="$modalId"
-        state="open"
-        :title="__('app.chat_live_location_choose_duration')"
+        show-expression="open"
+        :instant="true"
         :description="__('app.chat_live_location_duration_hint')"
         icon="fad fa-map-marker-alt"
         max-width="2xl"
         close-action="closePicker()"
     >
+        <x-slot:title>{{ __('app.chat_live_location_choose_duration') }}</x-slot:title>
+        <x-slot:content>
         <div class="space-y-4">
             @if (\App\Support\Operations\OperationsAccess::isEmployee(auth()->user()))
             <label class="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl bg-rt-surface-muted p-3 text-sm text-rt-text ring-1 ring-rt-border dark:bg-rt-dark-surface-muted dark:text-rt-dark-text dark:ring-rt-dark-border">
@@ -106,6 +108,7 @@
                 role="alert"
             ></p>
         </div>
+        </x-slot:content>
 
         <x-slot:footer>
             <button
@@ -116,5 +119,5 @@
                 {{ __('app.cancel') }}
             </button>
         </x-slot:footer>
-    </x-ui.state-modal>
+    </x-dialog-modal>
 </div>

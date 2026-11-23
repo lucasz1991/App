@@ -1,83 +1,60 @@
 <div data-testid="message-viewer-host">
-    <x-modal id="message-viewer-modal" wire:model="isOpen" maxWidth="4xl">
-        @if ($message)
-            @php
-                $isAdminSender = optional($message->sender)->role === 'admin';
-                $senderName = $isAdminSender
-                    ? config('app.name')
-                    : ($message->sender?->name ?? __('app.unknown'));
-                $senderAvatar = $isAdminSender
-                    ? asset('rt-brand/rt-logo.svg')
-                    : ($message->sender?->profile_photo_url ?? asset('rt-brand/rt-logo.svg'));
-                $createdAbsolute = $message->created_at?->format('d.m.Y H:i');
-                $createdRelative = $message->created_at?->diffForHumans();
-                $safeActionUrl = is_string($message->action_url) && str_starts_with($message->action_url, '/')
-                    ? $message->action_url
-                    : null;
-            @endphp
+    <x-dialog-modal id="message-viewer-modal" wire:model="isOpen" max-width="4xl">
+        <x-slot:title>
+            <span id="message-viewer-title">{{ $message?->subject ?? __('app.message') }}</span>
+        </x-slot:title>
 
-            <article
-                class="flex max-h-[calc(100dvh-3rem)] min-h-0 flex-col overflow-hidden rounded-2xl"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="message-viewer-title"
-                data-testid="message-viewer-modal"
-                wire:key="message-viewer-{{ $message->id }}"
-            >
-                <header class="relative shrink-0 overflow-hidden border-b border-rt-border/70 bg-rt-surface-muted px-5 py-5 dark:border-rt-dark-border/70 dark:bg-rt-dark-surface-muted sm:px-7">
-                    <div class="absolute inset-y-0 left-0 w-1 bg-rt-red" aria-hidden="true"></div>
+        <x-slot:content>
+            @if ($message)
+                @php
+                    $isAdminSender = optional($message->sender)->role === 'admin';
+                    $senderName = $isAdminSender
+                        ? config('app.name')
+                        : ($message->sender?->name ?? __('app.unknown'));
+                    $senderAvatar = $isAdminSender
+                        ? asset('rt-brand/rt-logo.svg')
+                        : ($message->sender?->profile_photo_url ?? asset('rt-brand/rt-logo.svg'));
+                    $createdAbsolute = $message->created_at?->format('d.m.Y H:i');
+                    $createdRelative = $message->created_at?->diffForHumans();
+                    $safeActionUrl = is_string($message->action_url) && str_starts_with($message->action_url, '/')
+                        ? $message->action_url
+                        : null;
+                @endphp
 
-                    <div class="flex items-start justify-between gap-4">
-                        <div class="flex min-w-0 items-center gap-3.5">
-                            <span class="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-rt-surface p-1 shadow-rt-xs ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70">
-                                <img
-                                    src="{{ $senderAvatar }}"
-                                    class="h-full w-full rounded-lg object-cover"
-                                    alt="{{ $senderName }}"
-                                >
-                            </span>
+                <article
+                    class="min-w-0"
+                    data-testid="message-viewer-modal"
+                    wire:key="message-viewer-{{ $message->id }}"
+                >
+                    <header class="flex min-w-0 items-center gap-3.5 border-b border-rt-border/70 pb-5 dark:border-rt-dark-border/70" data-message-viewer-sender>
+                        <span class="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-rt-surface p-1 shadow-rt-xs ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70">
+                            <img
+                                src="{{ $senderAvatar }}"
+                                class="h-full w-full rounded-lg object-cover"
+                                alt="{{ $senderName }}"
+                            >
+                        </span>
 
-                            <div class="min-w-0">
-                                <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                                    <p class="truncate text-sm font-semibold text-rt-text dark:text-rt-dark-text">
-                                        {{ $senderName }}
-                                    </p>
-                                    <span class="inline-flex items-center gap-1.5 rounded-md bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/15 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/25">
-                                        <span class="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true"></span>
-                                        {{ __('app.read') }}
-                                    </span>
-                                </div>
-                                <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted" title="{{ $createdAbsolute }}">
-                                    {{ __('app.from') }} {{ $senderName }}
-                                    <span class="px-1" aria-hidden="true">&middot;</span>
-                                    {{ $createdRelative }}
+                        <div class="min-w-0">
+                            <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                                <p class="truncate text-sm font-semibold text-rt-text dark:text-rt-dark-text">
+                                    {{ $senderName }}
                                 </p>
+                                <span class="inline-flex items-center gap-1.5 rounded-md bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/15 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/25">
+                                    <span class="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true"></span>
+                                    {{ __('app.read') }}
+                                </span>
                             </div>
+                            <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted" title="{{ $createdAbsolute }}">
+                                {{ __('app.from') }} {{ $senderName }}
+                                <span class="px-1" aria-hidden="true">&middot;</span>
+                                {{ $createdRelative }}
+                            </p>
                         </div>
+                    </header>
 
-                        <button
-                            type="button"
-                            wire:click="close"
-                            class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-rt-muted transition-all duration-200 hover:bg-rt-nav-hover hover:text-rt-text active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40 dark:text-rt-dark-muted dark:hover:bg-rt-dark-nav-hover dark:hover:text-rt-dark-text"
-                            aria-label="{{ __('app.close') }}"
-                        >
-                            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                                <path stroke-linecap="round" d="M6 6l12 12M18 6 6 18" />
-                            </svg>
-                        </button>
-                    </div>
-                </header>
-
-                <div class="min-h-0 flex-1 overflow-y-auto bg-rt-surface px-5 py-6 dark:bg-rt-dark-surface sm:px-7 sm:py-7">
-                    <section aria-labelledby="message-viewer-title">
-                        <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-rt-soft dark:text-rt-dark-soft">
-                            {{ __('app.subject') }}
-                        </p>
-                        <h2 id="message-viewer-title" class="mt-2 max-w-3xl text-balance text-xl font-semibold leading-tight tracking-tight text-rt-text dark:text-rt-dark-text sm:text-2xl">
-                            {{ $message->subject }}
-                        </h2>
-
-                        <div class="mt-6 max-w-[68ch] whitespace-pre-wrap break-words text-[0.9375rem] leading-7 text-rt-text dark:text-rt-dark-text">{{ $message->message }}</div>
+                    <section class="pt-6" aria-labelledby="message-viewer-title">
+                        <div class="max-w-[68ch] whitespace-pre-wrap break-words text-[0.9375rem] leading-7 text-rt-text dark:text-rt-dark-text">{{ $message->message }}</div>
 
                         @if($safeActionUrl)
                             <a
@@ -151,17 +128,17 @@
                             </ul>
                         </section>
                     @endif
-                </div>
+                </article>
+            @endif
+        </x-slot:content>
 
-                <footer class="flex shrink-0 justify-end border-t border-rt-border/70 bg-rt-surface-muted px-5 py-4 dark:border-rt-dark-border/70 dark:bg-rt-dark-surface-muted sm:px-7">
-                    <x-ui.buttons.button-basic mode="secondary"
-                        type="button"
-                        wire:click="close"
-                    >
-                        {{ __('app.close') }}
-                    </x-ui.buttons.button-basic>
-                </footer>
-            </article>
-        @endif
-    </x-modal>
+        <x-slot:footer>
+            <x-ui.buttons.button-basic mode="secondary"
+                type="button"
+                wire:click="close"
+            >
+                {{ __('app.close') }}
+            </x-ui.buttons.button-basic>
+        </x-slot:footer>
+    </x-dialog-modal>
 </div>

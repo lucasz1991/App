@@ -3695,16 +3695,16 @@ test('mail editor exposes one responsive topbar with grouped controls and visibl
 
 test('mail design manager uses the shared state modal and saves before slot or version transitions', async () => {
     const { readFile } = await import('node:fs/promises');
-    const [view, editorShell, stateModal] = await Promise.all([
+    const [view, editorShell, modalShell] = await Promise.all([
         readFile(new URL('../../resources/views/livewire/admin/mail-document-editor.blade.php', import.meta.url), 'utf8'),
         readFile(new URL('../../resources/views/components/ui/page-builder/editor-shell.blade.php', import.meta.url), 'utf8'),
-        readFile(new URL('../../resources/views/components/ui/state-modal.blade.php', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/views/components/modal.blade.php', import.meta.url), 'utf8'),
     ]);
 
     assert.match(view, /x-data="\{[\s\S]*?managerOpen: false,[\s\S]*?managerBusy: false,[\s\S]*?closeManager\(\)/);
     assert.match(view, /x-on:mail-design-manager-open\.window="openManager\(\)"/);
     assert.match(view, /x-on:mail-design-manager-busy\.window="managerBusy = \$event\.detail === true"/);
-    assert.match(view, /<x-ui\.state-modal[\s\S]*?state="managerOpen"[\s\S]*?data-mail-design-manager[\s\S]*?data-page-builder-subdialog/);
+    assert.match(view, /<x-dialog-modal[\s\S]*?show-expression="managerOpen"[\s\S]*?data-mail-design-manager[\s\S]*?data-page-builder-subdialog/);
     assert.match(view, /close-action="closeManager\(\)"/);
     assert.match(view, /description="[^"]*Systemmail-Standard, Outlook-Standard und Mitarbeiterauswahl werden getrennt zugeordnet\."/);
 
@@ -3730,7 +3730,10 @@ test('mail design manager uses the shared state modal and saves before slot or v
     assert.match(editorShell, /pageBuilderSubdialogOpen\(\)/);
     assert.match(editorShell, /escape-action="if \(! pageBuilderAssistantOpen\(\) && ! pageBuilderSubdialogOpen\(\)\) requestClose\(\)"/);
     assert.match(editorShell, /if \(event\.defaultPrevented \|\| this\.pageBuilderSubdialogOpen\(\)\) return;/);
-    assert.match(stateModal, /keydown\.escape\.window="if \(\{\{ \$state \}\}\) \{ \$event\.stopImmediatePropagation\(\);/);
+    // Escape laeuft ueber die closeAction (closeManager respektiert managerBusy);
+    // die data-*-Marker landen am sichtbaren Panel.
+    assert.match(modalShell, /keydown\.escape\.window="if \(\{\{ \$showState \}\}\) \{ \{\{ \$closeExpression \}\} \}"/);
+    assert.match(modalShell, /\{\{ \$panelDataAttributes \}\}/);
 
     const managerScriptStart = view.indexOf('const saveBeforeDesignAction = async () => {');
     const managerScriptEnd = view.indexOf('bindDesignManager();', managerScriptStart);

@@ -56,7 +56,9 @@
     @endif
 
     @if ($notice)<p class="sr-only" role="status">{{ $notice }}</p>@endif
-    <x-ui.state-modal :id="'delivery-confirm-'.$this->getId()" state="deliveryDialog" :title="$actions[$pending['action'] ?? 'system'][0]" icon="far fa-sliders-h" max-width="2xl" data-page-builder-subdialog>
+    <x-dialog-modal :id="'delivery-confirm-'.$this->getId()" show-expression="deliveryDialog" icon="far fa-sliders-h" max-width="2xl" data-page-builder-subdialog>
+        <x-slot:title>{{ $actions[$pending['action'] ?? 'system'][0] }}</x-slot:title>
+        <x-slot:content>
         <div class="space-y-3">
             <p class="font-semibold">{{ $document->name }}</p>
             <p>{{ $actions[$pending['action'] ?? 'system'][1] }}</p>
@@ -67,10 +69,11 @@
             @endif
             @error('delivery')<p role="alert" class="text-red-700">{{ $message }}</p>@enderror
         </div>
+        </x-slot:content>
         <x-slot:footer>
             <button type="button" class="rt-mail-library__button" x-on:click="deliveryDialog = false">Abbrechen</button>
             <button type="button" class="rt-mail-library__button rt-mail-library__button--primary" wire:click="confirm" wire:loading.attr="disabled" wire:target="confirm">{{ ($pending['action'] ?? '') === 'publish' ? 'Gespeicherten Stand veröffentlichen' : 'Zuordnung bestätigen' }}</button>
         </x-slot:footer>
-    </x-ui.state-modal>
+    </x-dialog-modal>
     @endif
 </div>

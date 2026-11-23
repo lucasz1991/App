@@ -18,6 +18,12 @@
     </form>
 
     @if ($showResults)
+        {{-- Dokumentierte Modal-Ausnahme (UI-Standard Phase 4): Die Ergebnisliste
+             haengt direkt am Suchfeld und wird serverseitig ($showResults)
+             gesteuert, deshalb kein x-dialog-modal. Sie erfuellt den Vertrag
+             trotzdem: Escape schliesst (closeResults), x-trap.inert.noscroll
+             haelt den Fokus, Klick auf den Hintergrund schliesst, Seitenwechsel
+             entfernt sie mit dem Livewire-Zustand. --}}
         <template x-teleport="body">
             <div
                 class="fixed inset-0 z-[190] flex items-start justify-center overflow-hidden bg-slate-950/50 px-3 pb-4 pt-[5.25rem] backdrop-blur-sm sm:px-6 sm:pt-24"

@@ -491,16 +491,23 @@
 
             <x-email-templates.outlook-app-links />
 
-            <x-ui.state-modal
+            {{-- instant + inherit-scope: x-ref im Dialog (signatureCopyFrame,
+                 signatureCopyButton) muss an der Seitenwurzel haengen;
+                 Inhaltsschleuse und eigener Modal-Zustand waeren
+                 Alpine-Zwischenwurzeln dazwischen. --}}
+            <x-dialog-modal
                 id="email-template-signature-modal"
-                state="signatureModalOpen"
-                :title="__('app.email_templates_flow.copy_modal_title')"
+                show-expression="signatureModalOpen"
+                :inherit-scope="true"
+                :instant="true"
                 :description="__('app.email_templates_flow.copy_modal_description')"
                 icon="fad fa-signature"
                 max-width="6xl"
                 close-action="closeModal('signature')"
                 data-email-template-modal="signature"
             >
+                <x-slot:title>{{ __('app.email_templates_flow.copy_modal_title') }}</x-slot:title>
+                <x-slot:content>
                 <div class="space-y-4">
                     <ol class="list-decimal space-y-1 pl-5 text-xs leading-5 text-rt-muted marker:font-semibold marker:text-rt-red dark:text-rt-dark-muted dark:marker:text-rt-dark-accent" aria-label="{{ __('app.email_templates_flow.copy_steps_label') }}">
                         @foreach ([
@@ -537,6 +544,7 @@
                         data-email-template-signature-copy-status
                     ></p>
                 </div>
+                </x-slot:content>
 
                 <x-slot:footer>
                     <button
@@ -558,20 +566,22 @@
                         <span x-text="signatureLoadFailed ? @js(__('app.email_templates_flow.retry_button')) : @js(__('app.email_templates_flow.copy_button'))"></span>
                     </button>
                 </x-slot:footer>
-            </x-ui.state-modal>
+            </x-dialog-modal>
 
-            <x-ui.state-modal
+            <x-dialog-modal
                 id="email-template-preview-modal"
-                state="previewModalOpen"
-                :title="__('app.email_templates_preview_accordion')"
+                show-expression="previewModalOpen"
+                :instant="true"
                 :description="__('app.email_templates_preview_accordion_hint')"
                 icon="fad fa-window-restore"
                 max-width="6xl"
                 close-action="closeModal('preview')"
                 body-class="min-h-0 min-w-0 flex-1 overflow-hidden p-2"
-                class="h-[calc(100dvh-1rem)] sm:h-[calc(100dvh-3rem)]"
+                panel-class="h-[calc(100dvh-1.5rem)] sm:h-[calc(100dvh-3rem)]"
                 data-email-template-modal="preview"
             >
+                <x-slot:title>{{ __('app.email_templates_preview_accordion') }}</x-slot:title>
+                <x-slot:content>
                 <div class="flex h-full min-h-0 flex-col gap-2">
                     @if ($user?->isAdmin())
                         <div class="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -636,7 +646,8 @@
                         </div>
                     </template>
                 </div>
-            </x-ui.state-modal>
+                </x-slot:content>
+            </x-dialog-modal>
         </div>
     </x-ui.page>
 @endsection

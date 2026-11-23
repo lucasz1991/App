@@ -70,18 +70,24 @@
         </div>
     </template>
 
-    <x-ui.state-modal
+    {{-- instant + inherit-scope: Die Karte braucht x-ref="map" an der Wurzel
+         dieser Komponente; Inhaltsschleuse und eigener Modal-Zustand waeren
+         Alpine-Zwischenwurzeln und machten $refs.map unsichtbar. --}}
+    <x-dialog-modal
         id="live-location-preview"
-        state="open"
-        :title="__('app.chat_live_location_preview_title')"
+        show-expression="open"
+        :inherit-scope="true"
+        :instant="true"
         :description="__('app.chat_live_location_preview_description')"
         icon="fad fa-map-marked-alt"
         max-width="6xl"
         close-action="close()"
         :layer="230"
         body-class="min-h-0 min-w-0 flex-1 overflow-hidden p-0"
-        class="h-[calc(100dvh-1rem)] sm:h-[min(52rem,calc(100dvh-3rem))]"
+        panel-class="h-[calc(100dvh-1.5rem)] sm:h-[min(52rem,calc(100dvh-3rem))]"
     >
+        <x-slot:title>{{ __('app.chat_live_location_preview_title') }}</x-slot:title>
+        <x-slot:content>
         <section class="relative isolate h-full min-h-0 overflow-hidden bg-rt-surface-muted dark:bg-rt-dark-surface-muted" data-live-location-map-stage>
             <div x-ref="map" wire:ignore class="rt-live-location-preview-map absolute inset-0 z-0" aria-label="{{ __('app.chat_live_location_preview_title') }}"></div>
             <div class="pointer-events-none absolute inset-0 z-10 bg-gradient-to-b from-slate-950/15 via-transparent to-slate-950/35" aria-hidden="true"></div>
@@ -159,5 +165,6 @@
                 role="alert"
             ></p>
         </section>
-    </x-ui.state-modal>
+        </x-slot:content>
+    </x-dialog-modal>
 </div>

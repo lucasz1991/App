@@ -58,9 +58,7 @@
             </x-operations.service-detail-shell>
         </x-operations.panel>
     @endif
-    <x-dialog-modal wire:model="formOpen" maxWidth="4xl">
-        <x-slot:title>{{ $editingOrderId ? 'Auftrag bearbeiten' : 'Neuen Auftrag anlegen' }}</x-slot:title>
-        <x-slot:content>
+    <x-operations.modal wire:model="formOpen" :title="$editingOrderId ? 'Auftrag bearbeiten' : 'Neuen Auftrag anlegen'" max-width="4xl">
             <div class="grid gap-5 sm:grid-cols-2">
                 <div>
                     <x-ui.forms.label for="order-customer" value="Kunde" />
@@ -149,7 +147,6 @@
                     @error('notes') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                 </div>
             </div>
-        </x-slot:content>
         <x-slot:footer>
             <x-ui.buttons.button-basic type="button" x-on:click="$dispatch('close')" class="inline-flex min-h-11 items-center rounded-xl border border-rt-border px-4 text-sm font-semibold text-rt-text dark:border-rt-dark-border dark:text-white">Abbrechen</x-ui.buttons.button-basic>
             <x-ui.buttons.button-basic type="button" wire:click="saveOrder" wire:loading.attr="disabled" class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-rt-red px-4 text-sm font-semibold text-white disabled:opacity-60">
@@ -158,5 +155,5 @@
                 Speichern
             </x-ui.buttons.button-basic>
         </x-slot:footer>
-    </x-dialog-modal>
+    </x-operations.modal>
 </div>

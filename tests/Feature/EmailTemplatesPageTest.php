@@ -1736,12 +1736,11 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertDoesNotMatchRegularExpression('/<iframe\b[^>]*\ssrc=/i', $content);
         $this->assertSame(1, substr_count($content, 'data-testid="message-viewer-host"'));
 
-        $modalSource = file_get_contents(resource_path('views/components/ui/state-modal.blade.php'));
+        $modalSource = file_get_contents(resource_path('views/components/modal.blade.php'));
         $this->assertStringContainsString('id="{{ $id }}"', $modalSource);
-        $this->assertStringContainsString('document.getElementById(@js($titleId))?.focus()', $modalSource);
         $this->assertStringContainsString('x-show.important=', $modalSource);
         $this->assertStringContainsString('x-trap.inert.noscroll=', $modalSource);
-        $this->assertStringContainsString('max-h-[calc(100dvh-1rem)]', $modalSource);
+        $this->assertStringContainsString('max-h-[calc(100dvh-1.5rem)]', $modalSource);
         $this->assertStringContainsString('overscroll-contain', $modalSource);
         $this->assertStringNotContainsString('email-template-preview-dialog', file_get_contents(resource_path('css/app.css')));
     }

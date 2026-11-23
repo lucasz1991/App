@@ -5,28 +5,72 @@
     // Schaltet die Inhaltsschleuse ab. Nur fuer Dialoge sinnvoll, deren
     // Inhalt selbst schon eine eigene Ladedarstellung mitbringt.
     'instant' => false,
+    // Ebene (z-index), siehe components/modal.blade.php. Standard 190.
+    'layer' => 190,
+    // Alpine-Ausdruck statt "show = false" beim Schliessen (Knopf, Escape,
+    // Hintergrund). Fuer Dialoge mit eigener Aufraeum- oder Sperrlogik.
+    'closeAction' => null,
+    // Optionale Kopfzeilen-Ergaenzungen: Symbol links vom Titel und eine
+    // kurze Beschreibung unter dem Titel (wird aria-describedby).
+    'icon' => null,
+    'description' => null,
+    // Zusatzklassen fuer das Panel (z. B. feste Hoehe) bzw. Ersatzklassen
+    // fuer den Inhaltsbereich (z. B. randlose Karte oder Vorschau).
+    'panelClass' => null,
+    'bodyClass' => null,
+    // Siehe components/modal.blade.php: ohne eigene Alpine-Zwischenwurzel.
+    'inheritScope' => false,
 ])
 
 @php
     $modalId = $id ?? md5($attributes->wire('model'));
     $titleId = $modalId.'-title';
     $contentId = $modalId.'-content';
+    $descriptionId = $modalId.'-description';
     $gated = ! filter_var($instant, FILTER_VALIDATE_BOOLEAN);
+    $hasDescription = filled($description);
+    $contentClass = filled($bodyClass)
+        ? 'rt-modal-content '.$bodyClass
+        : 'rt-modal-content min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-5 py-5 text-sm leading-6 text-rt-text [overflow-wrap:anywhere] [scrollbar-gutter:stable] dark:text-rt-dark-text sm:px-6 sm:py-6 [&_iframe]:max-w-full [&_img]:max-w-full [&_video]:max-w-full';
 @endphp
 
 <x-modal
     :id="$modalId"
     :maxWidth="$maxWidth"
     :show-expression="$showExpression"
+    :layer="$layer"
+    :close-action="$closeAction"
+    :panel-class="$panelClass"
+    :inherit-scope="$inheritScope"
     role="dialog"
     aria-labelledby="{{ $titleId }}"
-    aria-describedby="{{ $contentId }}"
+    aria-describedby="{{ $hasDescription ? $descriptionId : $contentId }}"
     {{ $attributes->except(['role', 'aria-labelledby', 'aria-describedby']) }}
 >
-    <header class="rt-modal-header relative grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-rt-border/70 bg-rt-surface px-5 py-4 dark:border-rt-dark-border/70 dark:bg-rt-dark-surface sm:px-6">
-        <h2 id="{{ $titleId }}" class="min-w-0 text-lg font-semibold leading-6 tracking-[-0.02em] text-rt-text dark:text-rt-dark-text">
-            {{ $title }}
-        </h2>
+    <header class="rt-modal-header relative grid shrink-0 grid-cols-[minmax(0,1fr)_auto] {{ filled($icon) || $hasDescription ? 'items-start' : 'items-center' }} gap-4 border-b border-rt-border/70 bg-rt-surface px-5 py-4 dark:border-rt-dark-border/70 dark:bg-rt-dark-surface sm:px-6">
+        @if (filled($icon) || $hasDescription)
+            <div class="flex min-w-0 items-start gap-3.5">
+                @if (filled($icon))
+                    <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft text-rt-red ring-1 ring-rt-red/10 dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent" aria-hidden="true" data-dialog-icon>
+                        <i class="{{ $icon }}"></i>
+                    </span>
+                @endif
+                <div class="min-w-0 pt-0.5">
+                    <h2 id="{{ $titleId }}" class="min-w-0 text-balance text-lg font-semibold leading-6 tracking-[-0.02em] text-rt-text dark:text-rt-dark-text">
+                        {{ $title }}
+                    </h2>
+                    @if ($hasDescription)
+                        <p id="{{ $descriptionId }}" class="mt-1 max-w-3xl text-xs leading-5 text-rt-muted dark:text-rt-dark-muted sm:text-sm" data-dialog-description>
+                            {{ $description }}
+                        </p>
+                    @endif
+                </div>
+            </div>
+        @else
+            <h2 id="{{ $titleId }}" class="min-w-0 text-lg font-semibold leading-6 tracking-[-0.02em] text-rt-text dark:text-rt-dark-text">
+                {{ $title }}
+            </h2>
+        @endif
 
         <div
             class="flex shrink-0 items-center gap-1"
@@ -84,7 +128,7 @@
     --}}
     <div
         id="{{ $contentId }}"
-        class="rt-modal-content min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-5 py-5 text-sm leading-6 text-rt-text [overflow-wrap:anywhere] [scrollbar-gutter:stable] dark:text-rt-dark-text sm:px-6 sm:py-6 [&_iframe]:max-w-full [&_img]:max-w-full [&_video]:max-w-full"
+        class="{{ $contentClass }}"
         @if ($gated)
             {{-- Grundzustand ist BEREIT, nicht ladend. Auf "loading" schaltet
                  ausschliesslich resources/js/modal-body.js, und nur nachdem

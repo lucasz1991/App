@@ -16,7 +16,9 @@
         <span @class(['h-2 w-2 shrink-0 rounded-full', 'bg-emerald-500' => $current, 'bg-amber-500' => ! $current]) aria-hidden="true"></span>
         <span>{{ $statusLabel }}</span>
     </button>
-    <x-ui.state-modal :id="$id.'-connection'" state="connectionOpen" title="Microsoft-Verbindung" icon="fab fa-microsoft" max-width="2xl">
+    <x-dialog-modal :id="$id.'-connection'" show-expression="connectionOpen" icon="fab fa-microsoft" max-width="2xl">
+        <x-slot:title>Microsoft-Verbindung</x-slot:title>
+        <x-slot:content>
         <div class="space-y-4 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">
             <p>{{ $connected ? 'Ihr Microsoft-Firmenkonto ist mit RailTime verknüpft.' : ($deployed ? 'Für Ihr Konto muss die IT die Microsoft-Zuordnung und die Add-in-Zuweisung prüfen.' : 'Die Administration muss das RailTime-Add-in zuerst in Microsoft 365 bereitstellen.') }}</p>
             <ol class="list-decimal space-y-2 pl-5">
@@ -27,8 +29,11 @@
             <p class="text-xs">Die Anmeldung erfolgt ausschließlich bei Microsoft. Diese Seite fragt kein Microsoft-Kennwort ab und verändert keine Postfachberechtigungen.</p>
             <a href="https://outlook.office.com/mail/" target="_blank" rel="noopener noreferrer" class="{{ $glassButton }}">Outlook öffnen <i class="far fa-external-link-alt" aria-hidden="true"></i></a>
         </div>
-    </x-ui.state-modal>
-    <x-ui.state-modal :id="$id.'-status'" state="statusOpen" title="Outlook-Status" icon="far fa-check-circle" max-width="2xl">
+        </x-slot:content>
+    </x-dialog-modal>
+    <x-dialog-modal :id="$id.'-status'" show-expression="statusOpen" icon="far fa-check-circle" max-width="2xl">
+        <x-slot:title>Outlook-Status</x-slot:title>
+        <x-slot:content>
         <div class="space-y-4 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted"
             @if ($connected && $current) data-outlook-addin-managed @elseif ($connected) data-outlook-addin-pending @endif>
             <dl class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-3">
@@ -39,5 +44,6 @@
             <p>{{ $current ? 'Die aktuelle Signatur und die bereitgestellten Vorlagen liegen für das Add-in vor.' : 'Bis zum erfolgreichen Abruf durch das Add-in bleibt die manuelle Einrichtung verfügbar.' }}</p>
             <p class="text-xs">Dieser Status bestätigt den RailTime-Datenstand, nicht die Installation auf jedem Gerät. Automatische Vorlagen benötigen einen unterstützten Outlook-Client. Apple Mail verwendet das Outlook-Add-in nicht.</p>
         </div>
-    </x-ui.state-modal>
+        </x-slot:content>
+    </x-dialog-modal>
 </div>

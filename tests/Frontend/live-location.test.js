@@ -918,7 +918,7 @@ test('the Echo listener forwards only identifiers and status before authorized r
 });
 
 test('live-location markup uses full-map overlays, a compact mini-map, and a flush modal body', async () => {
-    const [preview, card, sharePicker, stateModal, chatCss] = await Promise.all([
+    const [preview, card, sharePicker, dialogModal, modalShell, chatCss] = await Promise.all([
         readFile(new URL(
             '../../resources/views/components/chat/live-location-preview.blade.php',
             import.meta.url,
@@ -932,7 +932,11 @@ test('live-location markup uses full-map overlays, a compact mini-map, and a flu
             import.meta.url,
         ), 'utf8'),
         readFile(new URL(
-            '../../resources/views/components/ui/state-modal.blade.php',
+            '../../resources/views/components/dialog-modal.blade.php',
+            import.meta.url,
+        ), 'utf8'),
+        readFile(new URL(
+            '../../resources/views/components/modal.blade.php',
             import.meta.url,
         ), 'utf8'),
         readFile(new URL(
@@ -970,10 +974,11 @@ test('live-location markup uses full-map overlays, a compact mini-map, and a flu
     assert.doesNotMatch(card, /min-w-\[15rem\]/);
     assert.match(sharePicker, /x-show\.important="!\$store\.liveLocation\.supported"/);
     assert.match(sharePicker, /chat_live_location_foreground_hint/);
-    assert.match(stateModal, /'bodyClass' => 'min-h-0 min-w-0 flex-1/);
-    assert.match(stateModal, /<div class="\{\{ \$bodyClass \}\}">/);
-    assert.match(stateModal, /z-index: \{\{ \$resolvedLayer \}\} !important/);
-    assert.match(stateModal, /data-rt-overlay-base="\{\{ \$resolvedLayer \}\}"/);
+    assert.match(preview, /<x-dialog-modal[\s\S]*?show-expression="open"[\s\S]*?close-action="close\(\)"/);
+    assert.match(dialogModal, /'bodyClass' => null/);
+    assert.match(dialogModal, /class="\{\{ \$contentClass \}\}"/);
+    assert.match(modalShell, /z-index: \{\{ \$resolvedLayer \}\} !important/);
+    assert.match(modalShell, /data-rt-overlay-base="\{\{ \$resolvedLayer \}\}"/);
     assert.match(chatCss, /\.rt-live-location-pulse\.is-paused/);
     assert.match(chatCss, /width: min\(18rem, calc\(100vw - 5\.75rem\)\)/);
 });

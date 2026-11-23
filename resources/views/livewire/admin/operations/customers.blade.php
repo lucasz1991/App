@@ -99,9 +99,7 @@
     </x-operations.modal>
     @endif
     @endunless
-    <x-dialog-modal wire:model.live="formOpen" maxWidth="2xl">
-        <x-slot:title>{{ $editingCustomerId ? 'Kunde bearbeiten' : 'Neuen Kunden anlegen' }}</x-slot:title>
-        <x-slot:content>
+    <x-operations.modal wire:model.live="formOpen" :title="$editingCustomerId ? 'Kunde bearbeiten' : 'Neuen Kunden anlegen'" max-width="2xl">
             <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 [&>div]:min-w-0">
                 <div class="sm:col-span-2">
                     <x-ui.forms.label for="customer-company-name" value="Firma / Auftraggeber" />
@@ -159,7 +157,6 @@
                     <x-ui.forms.toggle-button id="customer-active" wire:model="isActive" label="Kunde ist aktiv" />
                 </div>
             </div>
-        </x-slot:content>
         <x-slot:footer>
             <x-ui.buttons.button-basic type="button" x-on:click="$dispatch('close')" class="inline-flex min-h-11 items-center rounded-xl border border-rt-border px-4 text-sm font-semibold text-rt-text dark:border-rt-dark-border dark:text-white">Abbrechen</x-ui.buttons.button-basic>
             <x-ui.buttons.button-basic type="button" wire:click="saveCustomer" wire:loading.attr="disabled" class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-rt-red px-4 text-sm font-semibold text-white disabled:opacity-60">
@@ -168,5 +165,5 @@
                 Speichern
             </x-ui.buttons.button-basic>
         </x-slot:footer>
-    </x-dialog-modal>
+    </x-operations.modal>
 </div>

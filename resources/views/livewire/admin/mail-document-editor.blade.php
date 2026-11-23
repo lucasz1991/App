@@ -819,10 +819,10 @@
             x-on:mail-design-manager-busy.window="managerBusy = $event.detail === true"
             data-mail-design-manager-host
         >
-            <x-ui.state-modal
+            <x-dialog-modal
                 id="mail-design-manager-{{ $currentDocument->kind->value }}"
-                state="managerOpen"
-                title="Designs &amp; Versionen"
+                show-expression="managerOpen"
+                :instant="true"
                 description="Arbeitsentwürfe und veröffentlichte Stände verwalten. Systemmail-Standard, Outlook-Standard und Mitarbeiterauswahl werden getrennt zugeordnet."
                 icon="far fa-layer-group"
                 max-width="6xl"
@@ -831,9 +831,11 @@
                 data-mail-design-manager
                 data-page-builder-subdialog
             >
-                <x-slot:actions>
+                <x-slot:title>Designs &amp; Versionen</x-slot:title>
+                <x-slot:headerActions>
                     <x-ui.badge color="slate">{{ count($documentSlots) }} {{ count($documentSlots) === 1 ? 'Design' : 'Designs' }}</x-ui.badge>
-                </x-slot:actions>
+                </x-slot:headerActions>
+                <x-slot:content>
 
                 @if (! \Illuminate\Support\Facades\Schema::hasColumn('mail_documents', 'is_active'))
                     <x-ui.feedback.alert type="warning" :dismissible="false">
@@ -1075,7 +1077,8 @@
                         @endforeach
                     </div>
                 @endif
-            </x-ui.state-modal>
+                </x-slot:content>
+            </x-dialog-modal>
         </div>
 
         @script
