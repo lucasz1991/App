@@ -1101,6 +1101,8 @@ class ManageFilePools extends Component
         abort_unless($filePool, 404);
         $this->filePool = $filePool;
         abort_unless($this->userCanAccessPool($filePool), 403);
+        // Das Datumsfeld bindet expires.<id> per entangle; der Schluessel muss existieren.
+        $this->expires[(int) $filePool->id] ??= null;
 
         $currentFolder = $this->resolveCurrentFolder();
 
