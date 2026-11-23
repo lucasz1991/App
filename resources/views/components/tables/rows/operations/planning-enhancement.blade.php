@@ -1,6 +1,6 @@
 @foreach($columnsMeta as $column)
     @php($key=$column['key'])
-    <div class="min-w-0 px-2 py-1.5 {{ $hideClass($column['hideOn']) }}">
+    <x-tables.cell :column="$column" dense :primary="in_array($key, ['bundle', 'preview_title'], true)" :status="$key === 'status'">
         @if($key==='bundle')<span class="font-semibold">{{ $item->name }}</span><p class="ops-muted">{{ $item->role_name }} · v{{ $item->version }}</p>
         @elseif($key==='requirements')@foreach($item->requirements as $requirement)<p class="text-xs {{ $requirement['mandatory']?'':'ops-muted' }}">{{ $requirement['name'] }}{{ $requirement['mandatory']?'':' · Entwicklungsziel' }}</p>@endforeach
         @elseif($key==='members')<span class="tabular-nums">{{ count($item->user_ids) }}</span>
@@ -18,6 +18,6 @@
         @elseif($key==='preview_issues')@php($messages=collect($item->issues ?? [])->flatMap(fn($value)=>is_string($value)?[$value]:(isset($value['message'])?[$value['message']]:collect($value)->pluck('message')->all()))->merge($item->schedule_issues ?? [])->filter(fn($v)=>is_string($v))->all())@if($messages===[])<span class="text-green-700 dark:text-green-300">Geprüft</span>@else @foreach($messages as $message)<p class="text-xs text-amber-700 dark:text-amber-300">{{ $message }}</p>@endforeach @endif
         @elseif($key==='proposals')@foreach($item->proposals as $proposal)<p class="font-medium">{{ $proposal['name'] }}</p><p class="ops-muted">{{ implode(' · ',$proposal['reasons']) }}</p>@endforeach
         @elseif($key==='status')<x-operations.status :value="$item->status" />
-        @else<span class="mr-1 text-xs text-rt-muted md:hidden">{{ $column['label'] }}:</span><span class="break-words {{ $loop->first?'font-semibold':'text-rt-muted dark:text-rt-dark-muted' }} tabular-nums">{{ data_get($item,$key) ?? '—' }}</span>@endif
-    </div>
+        @else<span class="break-words {{ $loop->first?'font-semibold':'text-rt-muted dark:text-rt-dark-muted' }} tabular-nums">{{ data_get($item,$key) ?? '—' }}</span>@endif
+    </x-tables.cell>
 @endforeach

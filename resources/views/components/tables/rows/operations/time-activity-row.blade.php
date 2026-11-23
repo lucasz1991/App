@@ -8,5 +8,5 @@
             default => data_get($item, $key),
         };
     @endphp
-    <div class="min-w-0 px-2 py-1.5 {{ $hideClass($column['hideOn']) }}"><span class="mr-1 text-xs text-rt-muted md:hidden">{{ $column['label'] }}:</span><span>{{ $value }}</span></div>
+    <x-tables.cell :column="$column" dense><span>{{ $value }}</span></x-tables.cell>
 @endforeach

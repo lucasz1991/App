@@ -10,6 +10,7 @@
 .rt-table-value { display: block; color: var(--rt-shell-text, #202b36); font-size: 13px; font-weight: 550; line-height: 1.6; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .rt-table-label { color: var(--rt-shell-muted, #65717c); font-size: 11px; font-weight: 500; }
 .rt-table-row-grid > .rt-table-cell { min-width: 0; padding: 8px; }
+.rt-table-row-grid > .rt-table-cell--dense { padding-block: 6px; }
 .rt-table-coverage { display: block; width: 100%; max-width: 112px; height: 4px; overflow: hidden; border-radius: 4px; background: var(--rt-shell-line, #dce1e6); margin-top: 8px; }
 .rt-table-coverage > span { display: block; height: 100%; border-radius: inherit; background: currentColor; }
 .rt-table-coverage { appearance: none; border: 0; color: var(--rt-red, #e4002b); }

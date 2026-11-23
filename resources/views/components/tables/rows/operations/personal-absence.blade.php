@@ -3,7 +3,7 @@
     $wholeDays = $record->starts_at->format('H:i:s') === '00:00:00' && $record->ends_at->format('H:i:s') === '00:00:00';
     $lastDay = $wholeDays ? $record->ends_at->copy()->subDay() : $record->ends_at;
 @endphp
-<div class="min-w-0 px-3 py-2">
+<x-tables.cell label="Abwesenheit" bare :mobile-label="false" class="px-3 py-2">
     <div class="ops-row">
         <div>
             <h3>{{ ['vacation'=>'Urlaub','unavailable'=>'Nicht verfügbar','other'=>'Abwesenheit','sick'=>'Krankmeldung'][$record->kind] ?? 'Abwesenheit' }}</h3>
@@ -13,4 +13,4 @@
         </div>
         <x-operations.status :value="$record->status" />
     </div>
-</div>
+</x-tables.cell>

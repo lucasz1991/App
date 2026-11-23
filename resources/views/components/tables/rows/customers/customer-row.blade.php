@@ -1,5 +1,5 @@
 @php($hasMasterFields = array_key_exists('is_active', $item->getAttributes()))
-<div role="cell" data-rt-table-label="Kunde" class="rt-table-cell rt-table-cell--primary min-w-0">
+<x-tables.cell label="Kunde" primary>
     <div class="rt-table-record customer-directory__identity">
     <x-operations.company-avatar :customer="$item" :size="40" :initials-only="true" />
     <div class="rt-table-record__body">
@@ -9,17 +9,17 @@
         </button>
     </div>
     </div>
-</div>
+</x-tables.cell>
 @if($hasMasterFields)
-    <div role="cell" data-rt-table-label="Ansprechpartner / Kontakt" class="rt-table-cell hidden min-w-0 md:block">
+    <x-tables.cell label="Ansprechpartner / Kontakt" hide-on="md">
         <p class="truncate text-sm text-rt-text dark:text-rt-dark-text">{{ $item->contact_name ?: '—' }}</p>
         <p class="mt-0.5 truncate text-xs text-rt-muted dark:text-rt-dark-muted" title="{{ $item->email ?: $item->phone }}">{{ $item->email ?: ($item->phone ?: '—') }}</p>
         @if($item->email && $item->phone)<p class="mt-0.5 truncate text-xs text-rt-muted dark:text-rt-dark-muted">{{ $item->phone }}</p>@endif
-    </div>
-    <div role="cell" data-rt-table-label="Ort" class="rt-table-cell hidden min-w-0 md:block">
+    </x-tables.cell>
+    <x-tables.cell label="Ort" hide-on="md">
         <span class="block truncate text-sm text-rt-muted dark:text-rt-dark-muted">{{ $item->city ?: '—' }}</span>
-    </div>
-    <div role="cell" data-rt-table-label="Status" class="rt-table-cell customer-directory__status min-w-0">
+    </x-tables.cell>
+    <x-tables.cell label="Status" class="customer-directory__status">
         <span class="customer-directory__account-state" data-active="{{ $item->is_active?'true':'false' }}"><span aria-hidden="true"></span>{{ $item->is_active ? 'Aktiv' : 'Inaktiv' }}</span>
-    </div>
+    </x-tables.cell>
 @endif

@@ -20,7 +20,7 @@
             $value = $value ? 'Aktiv' : 'Inaktiv';
         }
     @endphp
-    <div class="min-w-0 px-2 py-1.5 {{ $hideClass($column['hideOn']) }}">
+    <x-tables.cell :column="$column" dense :primary="$loop->first && $safeDetailAction" :status="$key === 'status'">
         @if($loop->first && $safeDetailAction)
             <x-ui.buttons.button-basic mode="link" type="button" wire:click="{{ $safeDetailAction }}({{ $item->id }})" class="min-h-11 text-left font-semibold">{{ $value ?: '—' }}</x-ui.buttons.button-basic>
         @elseif($key === 'time_delta')
@@ -30,7 +30,7 @@
         @elseif($key === 'status')
             <x-operations.status :value="$status" />
         @else
-            <span class="mr-1 text-xs text-rt-muted md:hidden">{{ $column['label'] }}:</span><span class="break-words text-rt-muted dark:text-rt-dark-muted">{{ $value ?? '—' }}</span>
+            <span class="break-words text-rt-muted dark:text-rt-dark-muted">{{ $value ?? '—' }}</span>
         @endif
-    </div>
+    </x-tables.cell>
 @endforeach
