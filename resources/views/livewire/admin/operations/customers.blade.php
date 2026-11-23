@@ -2,7 +2,7 @@
     @unless($modalOnly)
     @if($embedded)
         @if($selectedCustomer)
-            <section class="ops-panel ops-stack" aria-label="Kundenstammdaten">
+            <x-ui.surface.card variant="ops" class="ops-stack" aria-label="Kundenstammdaten">
                 <header class="ops-toolbar"><div><span class="ops-muted text-xs">{{ $selectedCustomer->customer_number }}</span><h2 class="font-semibold text-xl">{{ $selectedCustomer->company_name }}</h2></div><x-ui.buttons.button-basic type="button" wire:click="editCustomer({{ $selectedCustomer->id }})">Bearbeiten</x-ui.buttons.button-basic></header>
                 <dl class="grid gap-4 sm:grid-cols-2">
                     <div><dt class="ops-muted text-xs">Ansprechpartner</dt><dd>{{ $selectedCustomer->contact_name ?: '—' }}</dd></div>
@@ -12,8 +12,8 @@
                     <div><dt class="ops-muted text-xs">Anschrift</dt><dd>{{ $selectedCustomer->street }}<br>{{ trim(($selectedCustomer->postal_code ?? '').' '.($selectedCustomer->city ?? '')) }}<br>{{ $selectedCustomer->country }}</dd></div>
                     @if($selectedCustomer->notes)<div><dt class="ops-muted text-xs">Interne Notiz</dt><dd class="whitespace-pre-line break-words">{{ $selectedCustomer->notes }}</dd></div>@endif
                 </dl>
-            </section>
-            <section class="ops-panel"><livewire:operations.customer-logo :customer-id="$selectedCustomer->id" :key="'admin-embedded-company-logo-'.$selectedCustomer->id" /></section>
+            </x-ui.surface.card>
+            <x-ui.surface.card variant="ops"><livewire:operations.customer-logo :customer-id="$selectedCustomer->id" :key="'admin-embedded-company-logo-'.$selectedCustomer->id" /></x-ui.surface.card>
         @elseif(!$formOpen)<div class="ops-empty">Keine Kundenstammdaten vorhanden.</div>@endif
     @else
     <x-tables.toolbar title="Filter" id="operations-customers-filters">

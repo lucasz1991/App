@@ -51,8 +51,8 @@
             </div></header>
             <x-operations.feedback />
             @if($tab==='profile')
-                <section class="ops-panel ops-stack"><h2 class="text-lg font-semibold">{{ $identity->name }}</h2><dl class="rt-customer-portal__details"><div><dt>E-Mail</dt><dd>{{ $identity->email }}</dd></div><div><dt>Kunde</dt><dd>{{ $customer['company_name'] }}</dd></div><div><dt>Rolle</dt><dd>{{ \App\Livewire\Operations\CustomerPortalManagement::ROLES[$membership->role] ?? 'Kontakt' }}</dd></div><div><dt>Kontakt</dt><dd>{{ $membership->contact->name }}</dd></div></dl></section>
-                <section class="ops-panel"><livewire:operations.customer-logo :customer-id="$customerId" :portal="true" :key="'portal-company-logo-'.$customerId" /></section>
+                <x-ui.surface.card variant="ops" class="ops-stack"><h2 class="text-lg font-semibold">{{ $identity->name }}</h2><dl class="rt-customer-portal__details"><div><dt>E-Mail</dt><dd>{{ $identity->email }}</dd></div><div><dt>Kunde</dt><dd>{{ $customer['company_name'] }}</dd></div><div><dt>Rolle</dt><dd>{{ \App\Livewire\Operations\CustomerPortalManagement::ROLES[$membership->role] ?? 'Kontakt' }}</dd></div><div><dt>Kontakt</dt><dd>{{ $membership->contact->name }}</dd></div></dl></x-ui.surface.card>
+                <x-ui.surface.card variant="ops"><livewire:operations.customer-logo :customer-id="$customerId" :portal="true" :key="'portal-company-logo-'.$customerId" /></x-ui.surface.card>
                 @if($canChange)<div class="ops-actions"><x-ui.buttons.button-basic type="button" wire:click="create('master_data')">Stammdatenkorrektur</x-ui.buttons.button-basic></div>@endif
                 @if(\Illuminate\Support\Facades\Route::has('customer-portal.mfa.setup'))<x-ui.buttons.button-basic mode="secondary" data-no-navigate href="{{ route('customer-portal.mfa.setup') }}"><x-customer-portal.icon name="shield" />Anmeldesicherheit</x-ui.buttons.button-basic>@endif
             @elseif($tab==='overview')

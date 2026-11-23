@@ -1,5 +1,5 @@
 <section class="rt-ops ops-stack min-w-0" aria-label="Meine Verfügbarkeitsfreigaben">
-    <header class="ops-toolbar"><h2 class="text-lg font-semibold">Verfügbarkeitsfreigaben</h2></header>
+    <x-ui.section-header title="Verfügbarkeitsfreigaben" size="lg" />
     <x-operations.feedback />
     <x-tables.toolbar title="Verfügbarkeitsfreigaben durchsuchen" id="customer-capacity-filters">
         <x-slot:search><x-ui.forms.search wire:model.live.debounce.300ms="search" placeholder="Kunde, Einsatzort oder Tätigkeit" /></x-slot:search>

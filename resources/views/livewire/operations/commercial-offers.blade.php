@@ -6,7 +6,7 @@
     <x-operations.modal wire:model="formOpen" :title="$subjectType === 'Order' ? 'Nachtrag anlegen' : 'Angebot anlegen'" max-width="4xl">
         <form wire:submit="save" class="ops-stack">
             @foreach($form['positions'] ?? [] as $index => $row)
-                <fieldset class="ops-panel ops-stack" wire:key="offer-position-{{ $index }}"><legend class="font-semibold">Position {{ $index + 1 }}</legend><div class="ops-form">
+                <x-ui.surface.card variant="ops" as="fieldset" class="ops-stack" wire:key="offer-position-{{ $index }}"><legend class="font-semibold">Position {{ $index + 1 }}</legend><div class="ops-form">
                     @if($conditions->isNotEmpty())
                         <div class="ops-full"><x-ui.forms.label value="Kundenkondition" /><x-ui.forms.select wire:model.live="form.positions.{{ $index }}.condition_id" aria-label="Kundenkondition"><option value="">Freie Position</option>@foreach($conditions as $condition)<option value="{{ $condition->id }}">{{ $condition->label }} · {{ number_format($condition->unit_price_cents / 100, 2, ',', '.') }} € / {{ $condition->unit }}</option>@endforeach</x-ui.forms.select></div>
                     @endif
@@ -17,7 +17,7 @@
                     <x-operations.field label="Positionsart" :model="'form.positions.'.$index.'.kind'" type="select"><option value="standard">Fest</option><option value="alternative">Alternative · ohne Summe</option><option value="eventual">Optional · ohne Summe</option><option value="eventual_included">Option beauftragt · in Summe</option></x-operations.field>
                     <x-operations.field label="Leistungsbeginn" :model="'form.positions.'.$index.'.starts_at'" type="datetime-local" />
                     <x-operations.field label="Leistungsende" :model="'form.positions.'.$index.'.ends_at'" type="datetime-local" />
-                </div><div class="ops-actions"><x-ui.buttons.button-basic type="button" size="sm" wire:click="removePosition({{ $index }})">Entfernen</x-ui.buttons.button-basic></div></fieldset>
+                </div><div class="ops-actions"><x-ui.buttons.button-basic type="button" size="sm" wire:click="removePosition({{ $index }})">Entfernen</x-ui.buttons.button-basic></div></x-ui.surface.card>
             @endforeach
             <x-ui.forms.input-error for="positions" /><x-ui.buttons.button-basic type="button" wire:click="addPosition" size="sm">Position hinzufügen</x-ui.buttons.button-basic>
             <div class="ops-form"><x-operations.field label="Gültig bis" model="form.valid_until" type="date" /><x-operations.field label="Konditionen" model="form.terms" type="textarea" required :wide="true" />@if($subjectType === 'Order')<x-operations.field label="Zusatzumfang / Anlass" model="form.reason" type="textarea" required :wide="true" />@endif</div>

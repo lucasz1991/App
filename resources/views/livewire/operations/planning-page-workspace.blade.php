@@ -21,7 +21,7 @@
         @endif
     </header>@endif
     @if($page === 'planning' && $view === 'overview')
-        <section class="ops-panel ops-stack" aria-labelledby="planning-demand-heading">
+        <x-ui.surface.card variant="ops" class="ops-stack" aria-labelledby="planning-demand-heading">
             <div>
                 <p class="ops-kicker">Vom Auftrag zum Dienst</p>
                 <h2 id="planning-demand-heading">Bedarf im Auftrag planen</h2>
@@ -42,8 +42,8 @@
                     <i class="far fa-calendar-alt" aria-hidden="true"></i>Kalender
                 </x-ui.buttons.button-basic>
             </div>
-        </section>
-        <section class="ops-panel ops-stack" aria-labelledby="planning-extensions-heading">
+        </x-ui.surface.card>
+        <x-ui.surface.card variant="ops" class="ops-stack" aria-labelledby="planning-extensions-heading">
             <div>
                 <h2 id="planning-extensions-heading">Erweiterte Planung</h2>
                 <p class="ops-muted mt-2">Verfügbare Werkzeuge öffnen Sie direkt. Noch nicht eingerichtete Erweiterungen verändern keine bestehenden Aufträge oder Schichten.</p>
@@ -62,7 +62,7 @@
                     </div>
                 @endforeach
             </dl>
-        </section>
+        </x-ui.surface.card>
     @elseif($page === 'shifts' && $view === 'plan')
         @if(isset($context['shift']))<div x-data x-init="$nextTick(() => $dispatch('operations-shift-detail-request', {id: @js($context['shift'])}))"></div>@endif
         <livewire:admin.operations.shift-management :key="'hub-shifts-plan'" />

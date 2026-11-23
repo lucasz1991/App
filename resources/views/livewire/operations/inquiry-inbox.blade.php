@@ -106,7 +106,7 @@
                     @can('operations.manage')<p class="ops-full ops-muted">Mit „Auftrag direkt annehmen“ wird der Auftrag nach Prüfung der vollständigen Angaben bestätigt. Angebot und gesonderte Kundenzusage sind dafür nicht erforderlich.</p>@endcan
                 </form>
             @elseif($selected)
-                <header class="ops-toolbar"><div><p class="ops-kicker">{{ $selected->number }} · Revision {{ $selected->revision }}</p><h2>{{ $selected->title }}</h2></div><x-operations.status :value="$selected->status" /></header>
+                <x-ui.section-header :eyebrow="$selected->number.' · Revision '.$selected->revision" :title="$selected->title"><x-slot:actions><x-operations.status :value="$selected->status" /></x-slot:actions></x-ui.section-header>
                 @if($consolidated)<nav class="ops-actions" aria-label="Vorgangsdetails">@foreach(['overview'=>'Übersicht','history'=>'Verlauf'] as $key=>$label)<x-ui.buttons.button-basic type="button" :mode="$detailSection === $key ? 'primary':'link'" wire:click="setDetailSection('{{ $key }}')">{{ $label }}</x-ui.buttons.button-basic>@endforeach</nav>@endif
                 @if(!$consolidated || $detailSection === 'overview')
                 @if(!$selected->duplicate_of_id)
@@ -148,7 +148,7 @@
                     @if(!$commercialReady && in_array($selected->status, ['verified','offered']))
                         <form wire:submit="transition('offer')" class="ops-form"><x-operations.field label="Angebotsbetrag netto (€)" model="amount" type="number" min="0" step="0.01" required /><x-operations.field label="Leistungsumfang und Konditionen" model="terms" type="textarea" required /><div class="ops-full"><x-ui.buttons.button-basic type="submit" mode="primary" wire:loading.attr="disabled">Angebot festhalten</x-ui.buttons.button-basic></div></form>
                     @endif
-                    @if($selected->offer && !$commercialReady)<div class="ops-panel"><p class="ops-kicker">Angebot · Revision {{ $selected->offer['revision'] }}</p><h2>{{ number_format($selected->offer['amount_cents']/100,2,',','.') }} € netto</h2><p>{{ $selected->offer['terms'] }}</p></div>@endif
+                    @if($selected->offer && !$commercialReady)<x-ui.surface.card variant="ops" as="div"><p class="ops-kicker">Angebot · Revision {{ $selected->offer['revision'] }}</p><h2>{{ number_format($selected->offer['amount_cents']/100,2,',','.') }} € netto</h2><p>{{ $selected->offer['terms'] }}</p></x-ui.surface.card>@endif
                     @if($selected->status === 'offered' && !$commercialReady)
                         <form wire:submit="transition('accept')" class="ops-stack"><x-operations.field label="Kundenzusage · Person, Zeitpunkt, Referenz" model="acceptance" type="textarea" required /><x-ui.forms.checkbox wire:model="authorized" required label="Beauftragung durch berechtigten Kundenkontakt bestätigt" /><x-ui.buttons.button-basic type="submit" mode="primary" wire:loading.attr="disabled">Zusage dokumentieren</x-ui.buttons.button-basic></form>
                     @elseif($selected->status === 'accepted')<x-ui.buttons.button-basic mode="primary" wire:click="transition('convert')" wire:loading.attr="disabled">Auftrag anlegen</x-ui.buttons.button-basic>@endif

@@ -41,8 +41,8 @@
             @if($tab === 'sickness' && $canEdit)<x-ui.buttons.button-basic type="button" mode="primary" wire:click="open('sickness')">Nachweisprüfung</x-ui.buttons.button-basic>@endif
         </div>
         @if($personal && $tab === 'sickness')
-            <section class="ops-panel ops-stack" aria-label="Meine Krankmeldungen">
-                <header class="ops-toolbar"><h3>Meine Krankmeldungen</h3><span class="ops-muted">Letzte 30 Meldungen</span></header>
+            <x-ui.surface.card variant="ops" class="ops-stack" aria-label="Meine Krankmeldungen">
+                <x-ui.section-header title="Meine Krankmeldungen" :level="3"><x-slot:actions><span class="ops-muted">Letzte 30 Meldungen</span></x-slot:actions></x-ui.section-header>
                 @forelse($ownSicknesses as $sickness)
                     <div class="ops-toolbar" wire:key="own-sickness-{{ $sickness->id }}">
                         <div><strong>{{ $sickness->starts_at->setTimezone($sickness->timezone)->format('d.m.Y · H:i') }} – {{ $sickness->ends_at->setTimezone($sickness->timezone)->format('d.m.Y · H:i') }}</strong><p class="ops-muted">{{ $sickness->timezone }} · Gemeldeter Zeitraum</p></div>
@@ -51,7 +51,7 @@
                 @empty
                     <p class="ops-muted">Noch keine Krankmeldung erfasst.</p>
                 @endforelse
-            </section>
+            </x-ui.surface.card>
             <h3>Nachweise & Rückmeldungen</h3>
         @endif
         <x-tables.table :columns="[['label'=>'Eintrag','key'=>'label'],['label'=>'Frist / Stand','key'=>'detail'],['label'=>'Status','key'=>'status'],['label'=>'Aktionen','key'=>'actions']]" :items="$records" row-view="components.tables.rows.personnel.enhancement-row" :empty="$personal && $tab === 'sickness' ? 'Keine Nachweisprüfungen oder Rückfragen vorhanden.' : 'Keine Einträge.'" />

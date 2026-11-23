@@ -40,7 +40,7 @@
 </x-operations.modal>
 @else
 @if($module === 'absences')
-@if(!$embedded)<header class="ops-toolbar"><h2>Urlaub & Abwesenheiten</h2><x-ui.buttons.multi-toggle id="absence-view" label="Abwesenheitsansicht" :value="$absenceView" action="setAbsenceView" :options="[['value'=>'list','label'=>'Liste','icon'=>'fa-th-list'],['value'=>'calendar','label'=>'Kalender','icon'=>'fa-calendar-alt']]" /></header>@endif
+@if(!$embedded)<x-ui.section-header title="Urlaub & Abwesenheiten"><x-slot:actions><x-ui.buttons.multi-toggle id="absence-view" label="Abwesenheitsansicht" :value="$absenceView" action="setAbsenceView" :options="[['value'=>'list','label'=>'Liste','icon'=>'fa-th-list'],['value'=>'calendar','label'=>'Kalender','icon'=>'fa-calendar-alt']]" /></x-slot:actions></x-ui.section-header>@endif
 <div class="rt-personnel-period" role="group" aria-label="Zeitraum der Abwesenheiten"><div class="rt-personnel-period__intro"><span class="rt-personnel-eyebrow">Zeitraum</span><p>Urlaub & Abwesenheiten</p></div><div><x-ui.forms.label for="absence-period-from" value="Von" /><x-ui.forms.date-field id="absence-period-from" wire:model.live="from" aria-label="Abwesenheiten von" /></div><div><x-ui.forms.label for="absence-period-until" value="Bis" /><x-ui.forms.date-field id="absence-period-until" wire:model.live="until" aria-label="Abwesenheiten bis" /></div></div>
 @endif
 <x-tables.toolbar title="Filter" id="personnel-filters" :filter-count="$this->activeFilterCount()" reset-action="resetFilters">
@@ -66,7 +66,7 @@
 <div class="rt-personnel-management rt-personnel-detail ops-stack">
 @if($selectedRecord)
 @php($record = $selectedRecord)
-<header class="ops-toolbar"><div><p class="ops-kicker">{{ $record->user->name }} · Revision {{ $record->revision }}</p><h2>{{ $module === 'qualifications' ? $record->type->name : (['vacation'=>'Urlaub','sick'=>'Krankmeldung','unavailable'=>'Nicht verfügbar','other'=>'Abwesenheit'][$record->kind] ?? 'Abwesenheit') }}</h2></div><x-operations.status :value="$record->status" /></header>
+<x-ui.section-header :eyebrow="$record->user->name.' · Revision '.$record->revision" :title="$module === 'qualifications' ? $record->type->name : (['vacation'=>'Urlaub','sick'=>'Krankmeldung','unavailable'=>'Nicht verfügbar','other'=>'Abwesenheit'][$record->kind] ?? 'Abwesenheit')"><x-slot:actions><x-operations.status :value="$record->status" /></x-slot:actions></x-ui.section-header>
                     @if($module === 'qualifications')<div class="ops-toolbar"><p>Gültig {{ $record->valid_from->format('d.m.Y') }} – {{ $record->valid_until->format('d.m.Y') }}</p>@if($record->evidence_path)<a class="ops-link" href="{{ route('operations.evidence', $record->id) }}">Nachweis öffnen ↗</a>@else<span class="ops-muted">Datei fehlt</span>@endif</div>
                     @else<p>{{ $record->starts_at->format('d.m.Y H:i') }} – {{ $record->ends_at->format('d.m.Y H:i') }} <span class="ops-muted">{{ $record->timezone }}</span></p>@if($record->note)<p>{{ $record->note }}</p>@endif @endif
                     @if($record->review_note)<p class="ops-muted">{{ $record->review_note }}</p>@endif

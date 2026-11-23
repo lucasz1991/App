@@ -1,5 +1,5 @@
 <section class="space-y-3" aria-label="Auftragsbedarf">
-<header class="ops-toolbar"><h3 class="text-sm font-semibold">Auftragsbedarf</h3><x-ui.buttons.button-basic type="button" wire:click="edit">Bedarf hinzufügen</x-ui.buttons.button-basic></header>
+<x-ui.section-header title="Auftragsbedarf" :level="3" size="sm"><x-slot:actions><x-ui.buttons.button-basic type="button" wire:click="edit">Bedarf hinzufügen</x-ui.buttons.button-basic></x-slot:actions></x-ui.section-header>
 <x-operations.feedback />
 <x-tables.table :columns="[['label'=>'Tätigkeit','key'=>'role'],['label'=>'Zeitfenster','key'=>'interval'],['label'=>'Bedarf / Planung','key'=>'coverage'],['label'=>'Aktionen','key'=>'actions']]" :items="$demands" row-view="components.tables.rows.planning.order-demand-row" empty="Noch kein eigenständiger Bedarf erfasst." />
 @if($demands->where('status','active')->isNotEmpty())<x-operations.field label="Pause für neue Entwurfsschicht (min)" model="breakMinutes" type="number" min="0" max="1439" />@endif
