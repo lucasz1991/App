@@ -1,9 +1,9 @@
 <section class="space-y-4" aria-label="Dienstablauf">
 <x-operations.feedback />
 <header class="ops-toolbar"><h3 class="text-sm font-semibold">Dienstabschnitte</h3>@if(!$employeeMode)<x-ui.buttons.button-basic wire:click="editSection">Abschnitt hinzufügen</x-ui.buttons.button-basic>@endif</header>
-<x-tables.table :columns="[['label'=>'Abschnitt','key'=>'section'],['label'=>'Zeit','key'=>'time'],['label'=>'Aktion','key'=>'action']]" :items="$sections" row-view="components.tables.rows.operations.duty-section" empty="Keine Dienstabschnitte hinterlegt." />
+<x-tables.table :columns="[['label'=>'Abschnitt','key'=>'section'],['label'=>'Zeit','key'=>'time'],['label'=>'Aktion','key'=>'action']]" :items="$sections" row-view="components.tables.rows.time.duty-section-row" empty="Keine Dienstabschnitte hinterlegt." />
 <header class="ops-toolbar"><h3 class="text-sm font-semibold">{{ $employeeMode ? 'Meine Meldungen' : 'Operative Meldungen' }}</h3><x-ui.buttons.button-basic wire:click="newReport">Meldung erfassen</x-ui.buttons.button-basic></header>
-<x-tables.table :columns="[['label'=>'Meldung','key'=>'message'],['label'=>'Status','key'=>'status']]" :items="$reports" row-view="components.tables.rows.operations.duty-report" empty="Keine Meldungen." />
+<x-tables.table :columns="[['label'=>'Meldung','key'=>'message'],['label'=>'Status','key'=>'status']]" :items="$reports" row-view="components.tables.rows.time.duty-report-row" empty="Keine Meldungen." />
 <x-operations.modal wire:model="sectionOpen" title="Dienstabschnitt"><form wire:submit="saveSection" class="ops-form">
     <x-operations.field label="Abschnitt" model="section.kind" type="select">@foreach($sectionKinds as $key=>$label)<option value="{{ $key }}">{{ $label }}</option>@endforeach</x-operations.field>
     <x-operations.field label="Bezeichnung (optional)" model="section.label" maxlength="180" />

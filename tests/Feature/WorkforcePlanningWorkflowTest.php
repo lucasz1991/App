@@ -477,7 +477,7 @@ class WorkforcePlanningWorkflowTest extends TestCase
 
     public function test_planning_action_buttons_cannot_trigger_a_native_form_submission(): void
     {
-        foreach (['livewire/operations/workforce-planning.blade.php', 'livewire/operations/plan-variants.blade.php', 'components/tables/rows/operations/workforce-record.blade.php', 'livewire/operations/order-demands.blade.php', 'livewire/admin/operations/shift-management.blade.php'] as $file) {
+        foreach (['livewire/operations/workforce-planning.blade.php', 'livewire/operations/plan-variants.blade.php', 'components/tables/rows/planning/workforce-record-row.blade.php', 'livewire/operations/order-demands.blade.php', 'livewire/admin/operations/shift-management.blade.php'] as $file) {
             $source = file_get_contents(resource_path('views/'.$file));
             preg_match_all('/<x-ui\.buttons\.button-basic\b([^>]+)>/s', $source, $buttons);
             $this->assertNotEmpty($buttons[1], $file);

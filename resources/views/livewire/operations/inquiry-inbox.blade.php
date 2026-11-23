@@ -49,8 +49,8 @@
                     sort-action="tableSort" :sort-by="$sortBy" :sort-dir="$sortDir" table-key="inquiries"
                     :items="$inquiries"
                     detail-action="select"
-                    row-view="components.tables.rows.operations.inquiries-row"
-                    actions-view="components.tables.rows.operations.inquiries-actions"
+                    row-view="components.tables.rows.inquiries.inquiry-row"
+                    actions-view="components.tables.rows.inquiries.inquiry-actions"
                     empty="Keine Anfragen für diese Auswahl gefunden."
                     :flush-top="true"
                 />

@@ -13,7 +13,7 @@
                 <a href="{{ route('support') }}" wire:navigate class="rounded-lg bg-rose-600 px-4 py-2 text-white">Neue Anfrage</a>
             </div>
         </div>
-        <x-tables.table :columns="[['key'=>'subject','label'=>'Anfrage','width'=>'2fr'],['key'=>'user','label'=>'Mitarbeiter','width'=>'1fr'],['key'=>'device','label'=>'Gerät','width'=>'1fr'],['key'=>'status','label'=>'Status','width'=>'1fr']]" :items="$cases" row-view="components.tables.rows.support-case" />
+        <x-tables.table :columns="[['key'=>'subject','label'=>'Anfrage','width'=>'2fr'],['key'=>'user','label'=>'Mitarbeiter','width'=>'1fr'],['key'=>'device','label'=>'Gerät','width'=>'1fr'],['key'=>'status','label'=>'Status','width'=>'1fr']]" :items="$cases" row-view="components.tables.rows.support.support-case-row" />
         <x-tables.pagination :paginator="$cases" label="Anfrageseiten" />
     </div>
     <x-dialog-modal wire:model="showCase" maxWidth="3xl">

@@ -503,8 +503,8 @@ class OperationsEnhancementsTest extends TestCase
         @$dom->loadHTML($html);
         $this->assertSame(0, $dom->getElementsByTagName('td')->length);
         $this->assertStringContainsString('Checked wagons', $html);
-        $this->assertStringContainsString('columnsMeta', file_get_contents(resource_path('views/components/tables/rows/operations/enhancement.blade.php')));
-        $this->assertStringContainsString('hideClass', file_get_contents(resource_path('views/components/tables/rows/operations/proof-quantity.blade.php')));
+        $this->assertStringContainsString('columnsMeta', file_get_contents(resource_path('views/components/tables/rows/time/enhancement-row.blade.php')));
+        $this->assertStringContainsString('hideClass', file_get_contents(resource_path('views/components/tables/rows/time/proof-quantity-row.blade.php')));
     }
 
     public function test_partner_projection_is_bounded_and_rechecks_published_revision(): void

@@ -1,7 +1,7 @@
 <section class="space-y-3" aria-label="Auftragsbedarf">
 <header class="ops-toolbar"><h3 class="text-sm font-semibold">Auftragsbedarf</h3><x-ui.buttons.button-basic type="button" wire:click="edit">Bedarf hinzufügen</x-ui.buttons.button-basic></header>
 <x-operations.feedback />
-<x-tables.table :columns="[['label'=>'Tätigkeit','key'=>'role'],['label'=>'Zeitfenster','key'=>'interval'],['label'=>'Bedarf / Planung','key'=>'coverage'],['label'=>'Aktionen','key'=>'actions']]" :items="$demands" row-view="components.tables.rows.operations.order-demand" empty="Noch kein eigenständiger Bedarf erfasst." />
+<x-tables.table :columns="[['label'=>'Tätigkeit','key'=>'role'],['label'=>'Zeitfenster','key'=>'interval'],['label'=>'Bedarf / Planung','key'=>'coverage'],['label'=>'Aktionen','key'=>'actions']]" :items="$demands" row-view="components.tables.rows.planning.order-demand-row" empty="Noch kein eigenständiger Bedarf erfasst." />
 @if($demands->where('status','active')->isNotEmpty())<x-operations.field label="Pause für neue Entwurfsschicht (min)" model="breakMinutes" type="number" min="0" max="1439" />@endif
 <x-operations.modal wire:model="formOpen" title="Auftragsbedarf">
 <form wire:submit="save" class="ops-form">
@@ -16,6 +16,6 @@
     <x-operations.field label="Zeitzone" model="form.timezone" required />
     <div class="ops-full"><x-ui.buttons.button-basic mode="primary" type="submit" wire:loading.attr="disabled">Bedarf speichern</x-ui.buttons.button-basic></div>
 </form>
-@if($matrix->isNotEmpty())<x-tables.table :columns="[['label'=>'Von','key'=>'from'],['label'=>'Bis','key'=>'until'],['label'=>'Geplant','key'=>'planned'],['label'=>'Reserviert','key'=>'reserved'],['label'=>'Angefragt','key'=>'requested'],['label'=>'Bestätigt','key'=>'confirmed']]" :items="$matrix" row-view="components.tables.rows.operations.record" />@endif
+@if($matrix->isNotEmpty())<x-tables.table :columns="[['label'=>'Von','key'=>'from'],['label'=>'Bis','key'=>'until'],['label'=>'Geplant','key'=>'planned'],['label'=>'Reserviert','key'=>'reserved'],['label'=>'Angefragt','key'=>'requested'],['label'=>'Bestätigt','key'=>'confirmed']]" :items="$matrix" row-view="components.tables.rows.shared.record-row" />@endif
 </x-operations.modal>
 </section>

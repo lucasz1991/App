@@ -18,9 +18,9 @@
     </header>
     <x-operations.feedback />
     @if($personal && $tab === 'wishes' && $periods->isNotEmpty())
-        <x-tables.table :columns="[['label'=>'Abgabezeitraum','key'=>'name'],['label'=>'Frist','key'=>'due_at'],['label'=>'Abgabe','key'=>'submission_state']]" :items="$periods" row-view="components.tables.rows.operations.workforce-record" empty="Keine offenen Abgabefristen." />
+        <x-tables.table :columns="[['label'=>'Abgabezeitraum','key'=>'name'],['label'=>'Frist','key'=>'due_at'],['label'=>'Abgabe','key'=>'submission_state']]" :items="$periods" row-view="components.tables.rows.planning.workforce-record-row" empty="Keine offenen Abgabefristen." />
     @endif
-    <x-tables.table :columns="$columns" :items="$items" row-view="components.tables.rows.operations.workforce-record" empty="Keine Einträge." />
+    <x-tables.table :columns="$columns" :items="$items" row-view="components.tables.rows.planning.workforce-record-row" empty="Keine Einträge." />
     <x-tables.pagination :paginator="$items" />
 
     <x-operations.modal wire:model="formOpen" :title="match($modal) {'wish'=>$recordId ? 'Dienstwunsch bearbeiten' : 'Dienstwunsch einreichen','pool'=>'Planungspool','period'=>'Abgabefrist','offer'=>'Dienstangebot','transfer'=>'Übergabe / Tausch','review-transfer'=>'Übergabe / Tausch prüfen',default=>'Ausfall / Ablösung'}" max-width="4xl">
@@ -47,7 +47,7 @@
             @elseif($modal === 'period')
                 <x-operations.field label="Name" model="form.name" required /><x-operations.field label="Abgabefrist" model="form.due_at" type="datetime-local" required />
                 <x-operations.field label="Von" model="form.from" type="date" required /><x-operations.field label="Bis" model="form.until" type="date" required /><x-operations.field label="Zeitzone" model="form.timezone" required />
-                @if($submissions->isNotEmpty())<div class="ops-full"><x-tables.table :columns="[['label'=>'Mitarbeiter','key'=>'name'],['label'=>'Abgabe','key'=>'status_label']]" :items="$submissions" row-view="components.tables.rows.operations.record" /></div>@endif
+                @if($submissions->isNotEmpty())<div class="ops-full"><x-tables.table :columns="[['label'=>'Mitarbeiter','key'=>'name'],['label'=>'Abgabe','key'=>'status_label']]" :items="$submissions" row-view="components.tables.rows.shared.record-row" /></div>@endif
             @elseif($modal === 'offer')
                 <div class="min-w-0 space-y-1.5"><x-ui.forms.label for="workforce-offer-shift" value="Veröffentlichter Dienst" /><x-ui.forms.select id="workforce-offer-shift" wire:model.live="form.shift_id"><option value="">Auswählen</option>@foreach($shifts->filter(fn($shift)=>$shift->revision === $shift->published_revision && $shift->published_revision > 0) as $shift)<option value="{{ $shift->id }}">{{ $shift->starts_at->setTimezone($shift->timezone)->format('d.m. H:i') }} · {{ $shift->title }}</option>@endforeach</x-ui.forms.select></div>
                 <x-operations.field label="Angebotsfrist" model="form.expires_at" type="datetime-local" required /><x-operations.field label="Zeitzone" model="form.timezone" required />

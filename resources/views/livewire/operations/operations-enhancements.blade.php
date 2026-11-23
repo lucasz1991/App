@@ -35,7 +35,7 @@
                 @endforelse
             </ul>
         @else
-            <x-tables.table :columns="[['label'=>'Vorgang','key'=>'title'],['label'=>'Mitarbeiter','key'=>'user_id'],['label'=>'Status','key'=>'status'],['label'=>'Revision','key'=>'revision'],['label'=>'Aktion','key'=>'action']]" :items="$records" row-view="components.tables.rows.operations.enhancement" empty="Keine Vorgänge in dieser Ansicht." />
+            <x-tables.table :columns="[['label'=>'Vorgang','key'=>'title'],['label'=>'Mitarbeiter','key'=>'user_id'],['label'=>'Status','key'=>'status'],['label'=>'Revision','key'=>'revision'],['label'=>'Aktion','key'=>'action']]" :items="$records" row-view="components.tables.rows.time.enhancement-row" empty="Keine Vorgänge in dieser Ansicht." />
         @endif
         @if($records instanceof \Illuminate\Contracts\Pagination\LengthAwarePaginator)<x-tables.pagination :paginator="$records" />@endif
         @if($tab === 'costs')
@@ -158,7 +158,7 @@
                 @if($selected instanceof \App\Models\OperationWorkflow)
                     <x-operations.status :value="$selected->status" />
                     @if($tab === 'proofs')
-                        <x-tables.table :columns="[['label'=>'Tätigkeit','key'=>'activity'],['label'=>'Kundenmenge','key'=>'quantity'],['label'=>'Einheit','key'=>'unit']]" :items="collect($selected->payload['rows'])->map(fn($r,$i)=>(object)(['id'=>$i]+$r))" row-view="components.tables.rows.operations.proof-quantity" />
+                        <x-tables.table :columns="[['label'=>'Tätigkeit','key'=>'activity'],['label'=>'Kundenmenge','key'=>'quantity'],['label'=>'Einheit','key'=>'unit']]" :items="collect($selected->payload['rows'])->map(fn($r,$i)=>(object)(['id'=>$i]+$r))" row-view="components.tables.rows.time.proof-quantity-row" />
                         @if(in_array($selected->status,['draft','rejected']) && $selected->user_id===auth()->id())<details><summary class="ops-link">Nachweis bearbeiten</summary><form wire:submit="act('revise')" class="ops-form">@foreach($form['rows']??[] as $index=>$row)<fieldset class="ops-full grid gap-3 sm:grid-cols-3" wire:key="proof-revise-{{ $index }}"><x-operations.field label="Tätigkeit" :model="'form.rows.'.$index.'.activity'" required /><x-operations.field label="Kundenmenge" :model="'form.rows.'.$index.'.quantity'" type="number" step="0.01" min="0" required /><x-operations.field label="Einheit" :model="'form.rows.'.$index.'.unit'" required /></fieldset>@endforeach<x-operations.field label="Änderungsvermerk" model="note" type="textarea" required /><div class="ops-full"><x-ui.buttons.button-basic type="submit">Neue Revision speichern</x-ui.buttons.button-basic></div></form></details>@endif
                         @if($selected->status === 'draft' && $selected->user_id === auth()->id())<x-ui.buttons.button-basic type="button" mode="primary" wire:click="act('submit')">Zur Prüfung einreichen</x-ui.buttons.button-basic>@endif
                         @if(!$personal && $selected->status === 'submitted')<x-operations.field label="Prüfvermerk" model="note" type="textarea" /><div class="ops-actions"><x-ui.buttons.button-basic type="button" wire:click="act('review')">Prüfen</x-ui.buttons.button-basic><x-ui.buttons.button-basic type="button" wire:click="act('return')">Zurückgeben</x-ui.buttons.button-basic></div>@endif

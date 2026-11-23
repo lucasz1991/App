@@ -5,7 +5,7 @@
             <span class="rt-staffing-count">{{ $feedback->count() }}</span>
         </div>
         @if($feedback->isNotEmpty())
-            <x-tables.table :columns="[['label'=>'Mitarbeiter','key'=>'name','width'=>'minmax(0,1.2fr)'],['label'=>'Rückmeldung & Zustellung','key'=>'response','width'=>'minmax(0,1.3fr)'],['label'=>'','key'=>'action','width'=>'44px']]" :items="$feedback" row-view="components.tables.rows.operations.staffing-feedback" label="Aktuelle Besetzung und Rückmeldungen" class="rt-staffing-table" />
+            <x-tables.table :columns="[['label'=>'Mitarbeiter','key'=>'name','width'=>'minmax(0,1.2fr)'],['label'=>'Rückmeldung & Zustellung','key'=>'response','width'=>'minmax(0,1.3fr)'],['label'=>'','key'=>'action','width'=>'44px']]" :items="$feedback" row-view="components.tables.rows.planning.staffing-feedback-row" label="Aktuelle Besetzung und Rückmeldungen" class="rt-staffing-table" />
         @else
             <p class="rt-staffing-note">Noch niemand zugewiesen. Wählen Sie unten passende Mitarbeitende aus.</p>
         @endif
@@ -67,7 +67,7 @@
                 <details class="rt-staffing-more"><summary>Wie wird die Eignung ermittelt?</summary><p>Der Wert ist eine Planungshilfe, keine Wahrscheinlichkeit oder Rechtsfreigabe: 85 Basispunkte, bevorzugt +15, möglich +5, Notfallgebiet −10, außerhalb der neuen Zonen −20. Bestehende Radiusprofile behalten außerhalb −10 bis zur Umstellung. Fehlende Regionalwünsche bleiben neutral. Zeitkonflikte senken den Wert und erfordern eine gesonderte Prüfung; feste Ausschlussgründe stehen immer zuletzt. Pflichtqualifikationen müssen während der gesamten Schicht gültig sein.</p></details>
                 <div wire:loading.flex wire:target="candidateSearch,candidateQualification,candidatePool,candidateSuitability,candidateRegion,resetCandidateFilters" class="rt-staffing-loading" role="status"><i class="far fa-spinner-third fa-spin" aria-hidden="true"></i> Treffer werden neu geprüft …</div>
                 <div wire:loading.class="opacity-50 pointer-events-none" wire:target="candidateSearch,candidateQualification,candidatePool,candidateSuitability,candidateRegion,resetCandidateFilters">
-                    <x-tables.table :columns="[['label'=>'Mitarbeiter','key'=>'name','width'=>'minmax(0,1.25fr)'],['label'=>'Eignung ↓','key'=>'eligibility','width'=>'minmax(0,1.2fr)'],['label'=>'','key'=>'action','width'=>'110px']]" :items="$candidates" row-view="components.tables.rows.operations.staffing-candidate" empty="Keine Treffer. Suche oder Filter anpassen." label="Mitarbeitende nach Planungseignung absteigend" class="rt-staffing-table" />
+                    <x-tables.table :columns="[['label'=>'Mitarbeiter','key'=>'name','width'=>'minmax(0,1.25fr)'],['label'=>'Eignung ↓','key'=>'eligibility','width'=>'minmax(0,1.2fr)'],['label'=>'','key'=>'action','width'=>'110px']]" :items="$candidates" row-view="components.tables.rows.planning.staffing-candidate-row" empty="Keine Treffer. Suche oder Filter anpassen." label="Mitarbeitende nach Planungseignung absteigend" class="rt-staffing-table" />
                 </div>
                 @if($candidates->count() < $candidateTotal)
                     <div class="rt-staffing-loading" wire:key="staffing-more-{{ $selectedShift->id }}-{{ $candidateLimit }}-{{ md5($candidateSearch.$candidateQualification.$candidatePool.$candidateSuitability.$candidateRegion) }}" x-data x-intersect.once="$wire.loadMoreCandidates()">

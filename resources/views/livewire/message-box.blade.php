@@ -67,7 +67,7 @@
                 ]"
                 :empty="trim($search) !== '' ? 'Keine Nachrichten für diese Suche gefunden.' : ($status === 'unread' ? 'Alles gelesen – keine ungelesenen Nachrichten.' : ($status === 'read' ? 'Noch keine gelesenen Nachrichten.' : 'Dein Posteingang ist leer. Neue Nachrichten erscheinen hier.'))"
                 :items="$messages" :selected-items="$selectedMessages" selection-action="toggleMessageSelection" detail-action="openMessageDetail"
-                row-view="components.tables.rows.messages.row" actions-view="components.tables.rows.messages.actions" />
+                row-view="components.tables.rows.messages.message-row" actions-view="components.tables.rows.messages.message-actions" />
             <div class="rt-message-inbox__footer">
                 <x-tables.pagination :paginator="$messages" table-key="message-inbox" label="Nachrichtenseiten" />
             </div>

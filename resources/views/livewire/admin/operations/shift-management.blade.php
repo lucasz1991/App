@@ -178,7 +178,7 @@
         @elseif($viewMode === 'map')
             @include('livewire.admin.operations.partials.shift-plan-map')
         @elseif($viewMode === 'table' || $shifts->isEmpty())
-            <x-tables.table :columns="$shiftColumns" sort-action="tableSort" :sort-by="$sortBy" :sort-dir="$sortDir" table-key="shift-plan" class="rt-shift-plan-table" :flush-top="true" :items="$shifts" :selected-items="[$selectedShiftId]" selection-action="selectShift" detail-event="operations-shift-detail-request" row-view="components.tables.rows.operations.shift-plan" empty="Keine Schichten für diese Filter gefunden." />
+            <x-tables.table :columns="$shiftColumns" sort-action="tableSort" :sort-by="$sortBy" :sort-dir="$sortDir" table-key="shift-plan" class="rt-shift-plan-table" :flush-top="true" :items="$shifts" :selected-items="[$selectedShiftId]" selection-action="selectShift" detail-event="operations-shift-detail-request" row-view="components.tables.rows.planning.shift-plan-row" empty="Keine Schichten für diese Filter gefunden." />
         @else
             @foreach(match($viewMode) { 'day' => $dailyGroups, 'orders' => $orderGroups, default => $staffingGroups } as $groupKey => $group)
                 @if($group['items']->isNotEmpty())
@@ -200,7 +200,7 @@
                                 @endforeach
                             </div>
                         @else
-                            <x-tables.table :columns="$shiftColumns" sort-action="tableSort" :sort-by="$sortBy" :sort-dir="$sortDir" :table-key="'shift-order-'.$groupKey" :flush-top="true" :items="$group['items']" :selected-items="[$selectedShiftId]" selection-action="selectShift" detail-event="operations-shift-detail-request" row-view="components.tables.rows.operations.shift-plan" />
+                            <x-tables.table :columns="$shiftColumns" sort-action="tableSort" :sort-by="$sortBy" :sort-dir="$sortDir" :table-key="'shift-order-'.$groupKey" :flush-top="true" :items="$group['items']" :selected-items="[$selectedShiftId]" selection-action="selectShift" detail-event="operations-shift-detail-request" row-view="components.tables.rows.planning.shift-plan-row" />
                         @endif
                     </section>
                 @endif
@@ -340,7 +340,7 @@
                                  veröffentlichten Änderungen ist Nachschlagewissen und steht am Ende. --}}
                             @if($nativeOperations && count($planChanges) && ! $shiftPublished)
                                 <x-operations.panel.group :title="$selectedShift->published_revision ? 'Änderungen zur Veröffentlichung' : 'Erste Veröffentlichung'">
-                                    <x-tables.table :columns="[['label'=>'Feld','key'=>'label'],['label'=>'Bisher','key'=>'before'],['label'=>'Neu','key'=>'after']]" :items="collect($planChanges)->map(fn ($change, $key) => (object) ($change + ['id'=>$key]))" row-view="components.tables.rows.operations.plan-change" />
+                                    <x-tables.table :columns="[['label'=>'Feld','key'=>'label'],['label'=>'Bisher','key'=>'before'],['label'=>'Neu','key'=>'after']]" :items="collect($planChanges)->map(fn ($change, $key) => (object) ($change + ['id'=>$key]))" row-view="components.tables.rows.planning.plan-change-row" />
                                 </x-operations.panel.group>
                             @endif
                             @if($detailOpen)
@@ -410,7 +410,7 @@
                             @endif
                             @if($nativeOperations && count($planChanges) && $shiftPublished)
                                 <x-operations.panel.group title="Zuletzt veröffentlichte Änderungen">
-                                    <x-tables.table :columns="[['label'=>'Feld','key'=>'label'],['label'=>'Bisher','key'=>'before'],['label'=>'Neu','key'=>'after']]" :items="collect($planChanges)->map(fn ($change, $key) => (object) ($change + ['id'=>$key]))" row-view="components.tables.rows.operations.plan-change" />
+                                    <x-tables.table :columns="[['label'=>'Feld','key'=>'label'],['label'=>'Bisher','key'=>'before'],['label'=>'Neu','key'=>'after']]" :items="collect($planChanges)->map(fn ($change, $key) => (object) ($change + ['id'=>$key]))" row-view="components.tables.rows.planning.plan-change-row" />
                                 </x-operations.panel.group>
                             @endif
                         </x-operations.panel.tab>

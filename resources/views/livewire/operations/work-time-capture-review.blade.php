@@ -9,7 +9,7 @@
         </header>
         <x-tables.table class="rt-personnel-table" label="Erfassungskonflikte"
             :columns="[['label'=>'Erfasst','key'=>'occurred_at'],['label'=>'Eingang','key'=>'received_at'],['label'=>'Konflikt','key'=>'reason']]"
-            :items="$records" detail-action="open" :detail-on-click="true" row-view="components.tables.rows.operations.record" />
+            :items="$records" detail-action="open" :detail-on-click="true" row-view="components.tables.rows.shared.record-row" />
         <x-tables.pagination :paginator="$records" />
     @else
         <div class="rt-personnel-empty rt-capture-review__empty" @if($personal) x-show="requested" x-cloak @endif>

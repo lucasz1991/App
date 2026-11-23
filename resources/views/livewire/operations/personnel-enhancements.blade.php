@@ -54,7 +54,7 @@
             </section>
             <h3>Nachweise & Rückmeldungen</h3>
         @endif
-        <x-tables.table :columns="[['label'=>'Eintrag','key'=>'label'],['label'=>'Frist / Stand','key'=>'detail'],['label'=>'Status','key'=>'status'],['label'=>'Aktionen','key'=>'actions']]" :items="$records" row-view="components.tables.rows.operations.personnel-enhancement" :empty="$personal && $tab === 'sickness' ? 'Keine Nachweisprüfungen oder Rückfragen vorhanden.' : 'Keine Einträge.'" />
+        <x-tables.table :columns="[['label'=>'Eintrag','key'=>'label'],['label'=>'Frist / Stand','key'=>'detail'],['label'=>'Status','key'=>'status'],['label'=>'Aktionen','key'=>'actions']]" :items="$records" row-view="components.tables.rows.personnel.enhancement-row" :empty="$personal && $tab === 'sickness' ? 'Keine Nachweisprüfungen oder Rückfragen vorhanden.' : 'Keine Einträge.'" />
     @endif
     @php($formTitle = match($formKind) {
         'sickness_report' => 'Krankmelden', 'sickness' => 'Nachweisprüfung anlegen', 'sickness_update' => 'Nachweisstatus aktualisieren',
@@ -71,7 +71,7 @@
         @if($formOpen)
         @if($formKind === 'report_result')
             <p class="text-sm text-rt-muted">{{ $display['from'] ?? '' }} – {{ $display['until'] ?? '' }}</p>
-            <x-tables.table :columns="[['label'=>'Mitarbeiter','key'=>'name'],['label'=>'Soll (min)','key'=>'target_minutes'],['label'=>'Ist (min)','key'=>'actual_minutes'],['label'=>'Saldo (min)','key'=>'balance_minutes']]" :items="collect($display['rows'] ?? [])->map(fn($row)=>(object)($row+['id'=>$row['user_id']]))" row-view="components.tables.rows.operations.personnel-report" empty="Keine Ergebnisse." />
+            <x-tables.table :columns="[['label'=>'Mitarbeiter','key'=>'name'],['label'=>'Soll (min)','key'=>'target_minutes'],['label'=>'Ist (min)','key'=>'actual_minutes'],['label'=>'Saldo (min)','key'=>'balance_minutes']]" :items="collect($display['rows'] ?? [])->map(fn($row)=>(object)($row+['id'=>$row['user_id']]))" row-view="components.tables.rows.personnel.report-row" empty="Keine Ergebnisse." />
             @if(isset($display['change_minutes']))<p class="text-sm tabular-nums">Änderung: {{ $display['change_minutes'] }} min</p>@endif
         @elseif($formKind === 'survey_result')
             <div class="ops-form"><div><p class="ops-muted">Antworten</p><p class="text-xl font-semibold tabular-nums">{{ $display['count'] ?? 0 }}</p></div><div><p class="ops-muted">Mittelwert</p><p class="text-xl font-semibold tabular-nums">{{ $display['average'] ?? '—' }} / 5</p></div></div>

@@ -91,7 +91,7 @@
         </div>
         <div class="rt-time-review__list" aria-label="Meine Zeitmeldungen">
             @forelse($times as $item)
-                <article wire:key="personal-time-{{ $item->id }}" class="rt-time-review__item">@include('components.tables.rows.operations.personal-time')</article>
+                <article wire:key="personal-time-{{ $item->id }}" class="rt-time-review__item">@include('components.tables.rows.personal.time-row')</article>
             @empty
                 <div class="rt-time-review__empty"><i class="far fa-clock" aria-hidden="true"></i><h3>{{ $timeFilter === 'all' ? 'Noch keine Zeiten in diesem Zeitraum' : 'Keine passenden Zeitmeldungen' }}</h3><p>Wähle einen anderen Zeitraum oder Status.</p>
                     @if($workTimeReady)<x-ui.buttons.button-basic wire:click="openGeneralManual">Zeit nachtragen</x-ui.buttons.button-basic>@endif

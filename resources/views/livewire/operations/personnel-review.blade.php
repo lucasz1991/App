@@ -59,7 +59,7 @@
 </div>
 @else
 @if($module === 'absences' && $absenceView === 'calendar')<p class="ops-muted">Kalender: maximal 93 Tage auswählen.</p>@endif
-<x-tables.table class="rt-personnel-table" :label="$module === 'qualifications' ? 'Nachweise' : 'Abwesenheiten'" :columns="array_merge([['label'=>'Mitarbeiter','key'=>'user.name'],['label'=>'Art','key'=>$module === 'qualifications' ? 'qualification_label' : 'absence_label'],['label'=>'Beginn','key'=>$module === 'qualifications' ? 'valid_from' : 'starts_at'],['label'=>'Ende','key'=>$module === 'qualifications' ? 'valid_until' : 'ends_at'],['label'=>'Status','key'=>'status']], $module === 'qualifications' ? [['label'=>'Gültigkeit','key'=>'validity']] : [])" :items="$records" detail-action="openDetails" row-view="components.tables.rows.operations.record" empty="Keine Einträge in dieser Ansicht. Prüfen Sie den Zeitraum und die Filter." />
+<x-tables.table class="rt-personnel-table" :label="$module === 'qualifications' ? 'Nachweise' : 'Abwesenheiten'" :columns="array_merge([['label'=>'Mitarbeiter','key'=>'user.name'],['label'=>'Art','key'=>$module === 'qualifications' ? 'qualification_label' : 'absence_label'],['label'=>'Beginn','key'=>$module === 'qualifications' ? 'valid_from' : 'starts_at'],['label'=>'Ende','key'=>$module === 'qualifications' ? 'valid_until' : 'ends_at'],['label'=>'Status','key'=>'status']], $module === 'qualifications' ? [['label'=>'Gültigkeit','key'=>'validity']] : [])" :items="$records" detail-action="openDetails" row-view="components.tables.rows.shared.record-row" empty="Keine Einträge in dieser Ansicht. Prüfen Sie den Zeitraum und die Filter." />
 <x-tables.pagination :paginator="$records" />
 @endif
 <x-operations.modal wire:model="detailOpen" title="Prüfung">
@@ -79,14 +79,14 @@
                             <div class="ops-full"><x-ui.buttons.button-basic type="submit" wire:loading.attr="disabled">Zeitraum korrigieren</x-ui.buttons.button-basic></div>
                         </form>
                     @endif
-                    @if($module === 'absences' && $absenceConflicts->isNotEmpty())<h3 class="text-sm font-semibold">Umzuplanende Dienste</h3><x-tables.table :columns="[['label'=>'Dienst','key'=>'title'],['label'=>'Beginn','key'=>'starts_at'],['label'=>'Ende','key'=>'ends_at']]" :items="$absenceConflicts" row-view="components.tables.rows.operations.affected-shift" />@endif
+                    @if($module === 'absences' && $absenceConflicts->isNotEmpty())<h3 class="text-sm font-semibold">Umzuplanende Dienste</h3><x-tables.table :columns="[['label'=>'Dienst','key'=>'title'],['label'=>'Beginn','key'=>'starts_at'],['label'=>'Ende','key'=>'ends_at']]" :items="$absenceConflicts" row-view="components.tables.rows.personnel.affected-shift-row" />@endif
                     @if($module === 'absences' && $record->status === 'approved' && $record->starts_at->isFuture() && $record->user_id !== auth()->id())
                         <x-operations.field label="Stornierungsgrund" :model="'notes.'.$record->id" maxlength="1000" />
                         <x-ui.buttons.button-basic wire:click="decide({{ $record->id }}, {{ $record->revision }}, 'cancel')" wire:confirm="Genehmigte Abwesenheit stornieren?" wire:loading.attr="disabled">Abwesenheit stornieren</x-ui.buttons.button-basic>
                     @endif
                     @if($module === 'qualifications')
                         <h3 class="text-sm font-semibold">Betroffene zukünftige Dienste</h3>
-                        <x-tables.table :columns="[['label'=>'Dienst','key'=>'title'],['label'=>'Beginn','key'=>'starts_at'],['label'=>'Ende','key'=>'ends_at']]" :items="$affectedShifts" row-view="components.tables.rows.operations.affected-shift" empty="Keine zukünftigen Dienste ohne gültigen Nachweis." />
+                        <x-tables.table :columns="[['label'=>'Dienst','key'=>'title'],['label'=>'Beginn','key'=>'starts_at'],['label'=>'Ende','key'=>'ends_at']]" :items="$affectedShifts" row-view="components.tables.rows.personnel.affected-shift-row" empty="Keine zukünftigen Dienste ohne gültigen Nachweis." />
                     @endif
                     @if(($record->status === 'pending' || ($module === 'qualifications' && $record->status === 'approved')) && $record->user_id !== auth()->id())
                         <x-operations.field label="Prüfvermerk" :model="'notes.'.$record->id" maxlength="1000" />
@@ -102,7 +102,7 @@
 @if($module === 'qualifications' && $profileUserId === null)
 <x-operations.modal wire:model="typesOpen" title="Nachweisarten">
 <div class="rt-personnel-management ops-stack">
-<x-tables.table :columns="[['label'=>'Bezeichnung','key'=>'name'],['label'=>'Status','key'=>'is_active']]" :items="$types" row-view="components.tables.rows.operations.record" />
+<x-tables.table :columns="[['label'=>'Bezeichnung','key'=>'name'],['label'=>'Status','key'=>'is_active']]" :items="$types" row-view="components.tables.rows.shared.record-row" />
 <form wire:submit="addType" class="ops-form"><x-operations.field label="Neue Nachweisart" model="typeName" required maxlength="180" /><div class="self-end"><x-ui.buttons.button-basic type="submit">Hinzufügen</x-ui.buttons.button-basic></div></form>
 </div>
 </x-operations.modal>

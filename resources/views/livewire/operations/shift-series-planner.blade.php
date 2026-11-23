@@ -5,9 +5,9 @@
 @if($open)
 <x-operations.modal wire:model="open" title="Vorlagen & Serien" max-width="4xl">
     <div class="ops-actions"><x-ui.buttons.button-basic wire:click="editTemplate">Neue Vorlage</x-ui.buttons.button-basic><x-ui.buttons.button-basic mode="primary" wire:click="newSeries">Serie planen</x-ui.buttons.button-basic></div>
-    <x-tables.table :columns="[['label'=>'Vorlage','key'=>'name'],['label'=>'Revision','key'=>'revision']]" :items="$templates" detail-action="editTemplate" row-view="components.tables.rows.operations.record" empty="Noch keine Vorlagen." />
+    <x-tables.table :columns="[['label'=>'Vorlage','key'=>'name'],['label'=>'Revision','key'=>'revision']]" :items="$templates" detail-action="editTemplate" row-view="components.tables.rows.shared.record-row" empty="Noch keine Vorlagen." />
     <h3 class="text-sm font-semibold">Angelegte Serien</h3>
-    <x-tables.table :columns="[['label'=>'Serie','key'=>'id'],['label'=>'Auftrag','key'=>'order.order_number'],['label'=>'Dienste','key'=>'occurrences_count']]" :items="$history" row-view="components.tables.rows.operations.record" empty="Noch keine Serien." />
+    <x-tables.table :columns="[['label'=>'Serie','key'=>'id'],['label'=>'Auftrag','key'=>'order.order_number'],['label'=>'Dienste','key'=>'occurrences_count']]" :items="$history" row-view="components.tables.rows.shared.record-row" empty="Noch keine Serien." />
 </x-operations.modal>
 @endif
 @if($templateOpen)
@@ -38,7 +38,7 @@
 </div>
 @if($previewRows)
     <h3 class="text-sm font-semibold">{{ count($previewRows) }} Dienste · Entwurf</h3>
-    <x-tables.table :columns="[['label'=>'Datum','key'=>'date'],['label'=>'Beginn','key'=>'starts_at'],['label'=>'Ende','key'=>'ends_at'],['label'=>'Prüfung','key'=>'error']]" :items="collect($previewRows)->map(fn ($row)=>(object)$row)" row-view="components.tables.rows.operations.series-preview" />
+    <x-tables.table :columns="[['label'=>'Datum','key'=>'date'],['label'=>'Beginn','key'=>'starts_at'],['label'=>'Ende','key'=>'ends_at'],['label'=>'Prüfung','key'=>'error']]" :items="collect($previewRows)->map(fn ($row)=>(object)$row)" row-view="components.tables.rows.planning.series-preview-row" />
     @if(!collect($previewRows)->contains(fn ($row)=>$row['error'] !== null))<x-ui.buttons.button-basic mode="primary" wire:click="generate" wire:loading.attr="disabled">Entwurfsschichten anlegen</x-ui.buttons.button-basic>@endif
 @endif
 </x-operations.modal>

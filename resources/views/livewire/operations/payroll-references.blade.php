@@ -3,7 +3,7 @@
     <x-operations.modal wire:model="open" title="Lohnzuordnung">
         <div class="rt-personnel-management ops-stack">
             <x-ui.forms.search wire:model.live.debounce.300ms="search" placeholder="Mitarbeiter suchen" />
-            <x-tables.table class="rt-personnel-table" label="Lohnzuordnungen" :columns="[['label'=>'Mitarbeiter','key'=>'name'],['label'=>'Arbeitgeberreferenz','key'=>'employer_reference'],['label'=>'Personalnummer','key'=>'personnel_number']]" :items="$users" detail-action="edit" :detail-on-click="true" row-view="components.tables.rows.operations.record" />
+            <x-tables.table class="rt-personnel-table" label="Lohnzuordnungen" :columns="[['label'=>'Mitarbeiter','key'=>'name'],['label'=>'Arbeitgeberreferenz','key'=>'employer_reference'],['label'=>'Personalnummer','key'=>'personnel_number']]" :items="$users" detail-action="edit" :detail-on-click="true" row-view="components.tables.rows.shared.record-row" />
             <x-tables.pagination :paginator="$users" />
         </div>
     </x-operations.modal>

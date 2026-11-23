@@ -83,7 +83,7 @@
                 ['key' => 'status', 'label' => 'Plan & Rückmeldung', 'width' => 'minmax(160px, .9fr)', 'hideOn' => 'md'],
             ]" :items="$shiftRows" :table-key="$shiftTableKey" label="Schichten des Mitarbeiters"
                 :flush-top="true" :mobile-header="true" detail-action="openShift"
-                row-view="livewire.profile.partials.employee-shift-row" actions-view="livewire.profile.partials.employee-shift-action"
+                row-view="components.tables.rows.profile.employee-shift-row" actions-view="components.tables.rows.profile.employee-shift-actions"
                 empty="Keine Schichtzuordnungen für diese Auswahl gefunden." class="employee-operations__table"
                 :data-table-pagination-key="$shiftTableKey" />
             <x-tables.pagination :paginator="$shiftRows" :table-key="$shiftTableKey" label="Seiten des Schichtverlaufs" class="employee-operations__pagination" />

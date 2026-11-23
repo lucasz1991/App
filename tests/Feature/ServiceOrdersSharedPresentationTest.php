@@ -328,7 +328,7 @@ class ServiceOrdersSharedPresentationTest extends TestCase
             $this->assertDoesNotMatchRegularExpression('/\[data-service-column=[\'"]'.preg_quote($key, '/').'[\'"]\]\s*\{[^}]*display\s*:\s*none/s', $css);
         }
         $this->assertStringContainsString('<x-tables.table', $component);
-        $this->assertStringContainsString('row-view="components.tables.rows.operations.service-overview"', $component);
+        $this->assertStringContainsString('row-view="components.tables.rows.planning.service-overview-row"', $component);
         $this->assertStringContainsString('rt-service-table--selectable', $component);
         $this->assertSame(1, substr_count($orders, '<x-operations.service-table '));
         $this->assertSame(1, substr_count($services, '<x-operations.service-table '));
