@@ -356,7 +356,8 @@ class FilePoolUploadWorkflowTest extends TestCase
             ->assertSet('uploadFolderId', null)
             ->assertSet('uploadTargetPath', '')
             ->assertSet("fileUploads.$pool->id", [])
-            ->assertSet('expires', [])
+            // render() legt den Schluessel fuer das entangle-Datumsfeld wieder leer an.
+            ->assertSet('expires', [$pool->id => null])
             ->assertSet('uploadVisibleFrom', '')
             ->assertSet('uploadAutoDelete', false)
             ->assertDispatched('filepool:cancelled')
