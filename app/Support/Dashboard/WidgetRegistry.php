@@ -16,6 +16,15 @@ use App\Support\Operations\OperationsAccess;
 final class WidgetRegistry
 {
     /**
+     * Zielgruppen-Filter: Gaeste (dashboardAudience() === 'guest') sehen nur
+     * persoenliche Informationen - Nachrichten, Ablage, eigene Geraete und
+     * Profil -, auch wenn ihrem Team weitere Rechte (z. B. devices.view)
+     * delegiert wurden. Das entspricht dem frueheren Gaeste-Dashboard;
+     * Arbeits-, Personal- und Verwaltungs-Widgets bleiben ihnen verborgen.
+     */
+    public const GUEST_WIDGETS = ['messages', 'files', 'my_devices', 'profile_completion'];
+
+    /**
      * @return array<string, array{title:string, description:string, icon:string, section:string, ability:string|\Closure|null, defaultVisible:bool, defaultSize:'sm'|'lg', defaultRows:1|2}>
      */
     public static function all(): array
@@ -180,7 +189,14 @@ final class WidgetRegistry
      */
     public static function availableFor(User $user): array
     {
-        return array_filter(self::all(), static fn (array $widget) => self::allowed($user, $widget['ability']));
+        $guest = $user->dashboardAudience() === 'guest';
+
+        return array_filter(
+            self::all(),
+            static fn (array $widget, string $key) => (! $guest || in_array($key, self::GUEST_WIDGETS, true))
+                && self::allowed($user, $widget['ability']),
+            ARRAY_FILTER_USE_BOTH,
+        );
     }
 
     private static function allowed(User $user, string|\Closure|null $ability): bool

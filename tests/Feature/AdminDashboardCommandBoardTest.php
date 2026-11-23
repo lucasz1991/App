@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Livewire\Admin\Dashboard;
+use App\Livewire\Dashboard\WidgetGrid;
 use App\Livewire\UserDashboard;
 use App\Models\Message;
 use App\Models\Team;
@@ -11,6 +12,7 @@ use App\Services\DeviceManagement\DeviceFleetSnapshot;
 use App\Services\DeviceManagement\DeviceReadinessService;
 use App\Services\DeviceManagement\PersonalDeviceSnapshot;
 use App\Support\Dashboard\SystemDashboardData;
+use App\Support\Dashboard\WidgetRegistry;
 use App\Support\Operations\OperationalPreviewCatalog;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Blade;
@@ -91,7 +93,7 @@ class AdminDashboardCommandBoardTest extends TestCase
         });
     }
 
-    public function test_admin_dashboard_is_a_prioritised_four_area_command_board(): void
+    public function test_admin_dashboard_renders_the_widget_grid_and_loads_system_status_lazily(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $administrators = Team::forceCreate([
@@ -102,42 +104,26 @@ class AdminDashboardCommandBoardTest extends TestCase
         ]);
         $admin->forceFill(['current_team_id' => $administrators->id])->save();
 
-        $component = Livewire::actingAs($admin->fresh())
+        // Ohne Operations-Schema gibt es kein eigenes Admin-Ausweich-Dashboard
+        // mehr: auch dann rendert das Widget-Raster, nur ohne Betriebs-Widgets.
+        Livewire::actingAs($admin->fresh())
             ->test(Dashboard::class)
-            ->assertSee('data-admin-dashboard', escape: false)
-            ->assertSee('data-dashboard-area="operations"', escape: false)
-            ->assertSee('data-dashboard-area="workforce-activity"', escape: false)
-            ->assertSee('data-dashboard-area="accounts"', escape: false)
-            ->assertSee('data-dashboard-area="system"', escape: false)
-            ->assertSee('data-dashboard-action="orders"', escape: false)
-            ->assertSee('data-dashboard-action="shifts"', escape: false)
-            ->assertSee('data-dashboard-action="wagon-list"', escape: false)
-            ->assertSee('data-dashboard-action="calendar"', escape: false)
-            ->assertSee('data-dashboard-action="customers"', escape: false)
-            ->assertSee('data-dashboard-device-widget', escape: false)
-            ->assertSee('data-dashboard-action="devices-manage"', escape: false)
-            ->assertSee('data-dashboard-focus-variant="featured"', escape: false)
-            ->assertSee('data-dashboard-focus-variant="compact"', escape: false)
-            ->assertSee('x-ref="statusChart"', escape: false)
-            ->assertSee('x-ref="activityChart"', escape: false)
-            ->assertSee('x-ref="growthChart"', escape: false)
-            ->assertSee('wire:ignore', escape: false)
-            ->assertSee('data-dashboard-system-loading', escape: false)
+            ->assertSee('data-native-dashboard', escape: false)
+            ->assertSee('data-dashboard-widget-grid', escape: false)
+            ->assertDontSee('data-admin-dashboard', escape: false)
             ->assertDontSee('Lucas M. Zacharias');
 
-        $this->assertSame(
-            3,
-            substr_count(file_get_contents(resource_path('views/livewire/admin/dashboard.blade.php')), 'wire:ignore'),
-            'Every ECharts root must survive Livewire updates such as loading system diagnostics.',
-        );
+        $keys = array_keys(WidgetRegistry::availableFor($admin->fresh()));
+        $this->assertContains('fleet_devices', $keys);
+        $this->assertContains('employees', $keys);
+        $this->assertContains('system_status', $keys);
+        $this->assertSame([], array_values(array_filter($keys, fn (string $key): bool => str_starts_with($key, 'operations_'))));
 
-        $component
-            ->call('loadSystemData')
-            ->assertSet('systemLoaded', true)
-            ->assertSee(__('app.system_runtime'))
-            ->assertSee(__('app.system_data_jobs'))
-            ->assertSee(__('app.system_infrastructure'))
-            ->assertSee('Lucas M. Zacharias');
+        Livewire::actingAs($admin->fresh())
+            ->test(WidgetGrid::class)
+            ->assertSet('systemStatusLoaded', false)
+            ->call('loadSystemStatus')
+            ->assertSet('systemStatusLoaded', true);
     }
 
     public function test_dashboard_payload_uses_structured_attention_values_without_duplicate_status_queries(): void
@@ -239,17 +225,12 @@ class AdminDashboardCommandBoardTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
 
         Livewire::actingAs($admin)
-            ->test(Dashboard::class)
-            ->assertViewHas('deviceSnapshot', fn (array $value): bool => $value === $snapshot)
-            ->assertSee('data-dashboard-device-widget', escape: false)
-            ->assertSee('data-dashboard-device-available="true"', escape: false)
-            ->assertSee('data-dashboard-device-total="4"', escape: false)
-            ->assertSee('data-dashboard-device-assigned="2"', escape: false)
-            ->assertSee('data-dashboard-device-inventory="2"', escape: false)
-            ->assertSee('data-dashboard-device-attention="2"', escape: false)
-            ->assertSee('data-dashboard-action="devices-manage"', escape: false)
-            ->assertSee('href="'.route('admin.devices').'"', escape: false)
-            ->assertSee(__('app.device_management_dashboard_title'));
+            ->test(WidgetGrid::class)
+            ->assertViewHas('widgetData', fn (array $data): bool => $data['fleet_devices']['stats'] === $snapshot
+                && $data['fleet_devices']['tone'] === 'warn'
+                && $data['fleet_devices']['href'] === route('admin.devices'))
+            ->assertSeeHtml('data-widget-key="fleet_devices"')
+            ->assertSee('href="'.route('admin.devices').'"', escape: false);
     }
 
     public function test_device_snapshot_is_zero_safe_for_an_empty_inventory(): void
@@ -263,30 +244,6 @@ class AdminDashboardCommandBoardTest extends TestCase
         ], app(DeviceFleetSnapshot::class)->get());
     }
 
-    public function test_device_widget_keeps_live_values_static_and_the_dark_action_legible(): void
-    {
-        $html = Blade::render(<<<'BLADE'
-            <x-ui.dashboard.device-management-widget
-                :stats="$stats"
-                href="/administrator/geraete"
-            />
-        BLADE, [
-            'stats' => [
-                'available' => true,
-                'total' => 4,
-                'assigned' => 2,
-                'inventory' => 2,
-                'attention' => 2,
-            ],
-        ]);
-
-        $this->assertStringContainsString('data-dashboard-device-total="4"', $html);
-        $this->assertStringNotContainsString('data-dashboard-count=', $html);
-        $this->assertStringContainsString('dark:bg-slate-700', $html);
-        $this->assertStringContainsString('dark:text-white', $html);
-        $this->assertStringNotContainsString('dark:bg-white', $html);
-    }
-
     public function test_device_widget_fails_soft_for_missing_and_partial_device_schema(): void
     {
         Schema::drop('device_assignments');
@@ -295,17 +252,16 @@ class AdminDashboardCommandBoardTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
 
         Livewire::actingAs($admin)
-            ->test(Dashboard::class)
+            ->test(WidgetGrid::class)
             ->assertViewHas(
-                'deviceSnapshot',
-                fn (array $snapshot): bool => $snapshot['available'] === false
-                    && $snapshot['total'] === 0
-                    && $snapshot['attention'] === 0,
+                'widgetData',
+                fn (array $data): bool => $data['fleet_devices']['stats']['available'] === false
+                    && $data['fleet_devices']['stats']['total'] === 0
+                    && $data['fleet_devices']['stats']['attention'] === 0
+                    && $data['fleet_devices']['href'] === null,
             )
-            ->assertSee('data-dashboard-device-widget', escape: false)
-            ->assertSee('data-dashboard-device-available="false"', escape: false)
-            ->assertSee('data-dashboard-device-unavailable', escape: false)
-            ->assertDontSee('data-dashboard-action="devices-manage"', escape: false);
+            ->assertSeeHtml('data-widget-key="fleet_devices"')
+            ->assertDontSee('href="'.route('admin.devices').'"', escape: false);
 
         Schema::create('devices', function (Blueprint $table): void {
             $table->id();
@@ -313,10 +269,9 @@ class AdminDashboardCommandBoardTest extends TestCase
         });
 
         Livewire::actingAs($admin)
-            ->test(Dashboard::class)
-            ->assertViewHas('deviceSnapshot', fn (array $snapshot): bool => $snapshot['available'] === false)
-            ->assertSee('data-dashboard-device-available="false"', escape: false)
-            ->assertDontSee('data-dashboard-action="devices-manage"', escape: false);
+            ->test(WidgetGrid::class)
+            ->assertViewHas('widgetData', fn (array $data): bool => $data['fleet_devices']['stats']['available'] === false)
+            ->assertDontSee('href="'.route('admin.devices').'"', escape: false);
     }
 
     public function test_personal_device_snapshot_is_private_disjoint_and_single_query(): void
@@ -403,37 +358,37 @@ class AdminDashboardCommandBoardTest extends TestCase
 
         Livewire::actingAs($authorized)
             ->test(UserDashboard::class)
-            ->assertViewHas('deviceWidget', fn (array $widget): bool => $widget['scope'] === 'fleet')
-            ->assertSee('data-management-dashboard', escape: false)
-            ->assertSee('data-dashboard-device-scope="fleet"', escape: false)
-            ->assertSee('data-dashboard-action="devices-manage"', escape: false)
+            ->assertSee('data-dashboard-widget-grid', escape: false);
+
+        Livewire::actingAs($authorized)
+            ->test(WidgetGrid::class)
+            ->assertSeeHtml('data-widget-key="fleet_devices"')
+            ->assertViewHas('widgetData', fn (array $data): bool => $data['fleet_devices']['href'] === route('devices.index'))
             ->assertSee('href="'.route('devices.index').'"', escape: false)
             ->assertDontSee('href="'.route('admin.devices').'"', escape: false);
 
         Livewire::actingAs($personal)
-            ->test(UserDashboard::class)
-            ->assertViewHas('deviceWidget', fn (array $widget): bool => $widget['scope'] === 'personal')
-            ->assertSee('data-management-dashboard', escape: false)
-            ->assertSee('data-dashboard-device-scope="personal"', escape: false)
-            ->assertSee('data-dashboard-action="devices-mine"', escape: false)
-            ->assertDontSee('data-dashboard-action="devices-manage"', escape: false);
+            ->test(WidgetGrid::class)
+            ->assertDontSeeHtml('data-widget-key="fleet_devices"')
+            ->assertSeeHtml('data-widget-key="my_devices"')
+            ->assertViewHas('widgetData', fn (array $data): bool => $data['my_devices']['href'] === route('devices.mine'));
     }
 
-    public function test_employee_dashboard_redirects_to_workday_and_guest_keeps_segmented_layout_with_personal_data(): void
+    public function test_employee_dashboard_redirects_to_workday_and_guest_sees_only_personal_widgets(): void
     {
         $owner = User::factory()->create(['role' => 'admin']);
         $employeeTeam = Team::forceCreate([
             'user_id' => $owner->id,
             'name' => 'Mitarbeiter',
             'personal_team' => false,
-            // Selbst ein versehentlich delegiertes Flottenrecht darf fuer
-            // dieses fachliche Dashboard keine globalen Zahlen freigeben.
             'rbac_permissions' => ['devices.view' => true],
         ]);
         $guestTeam = Team::forceCreate([
             'user_id' => $owner->id,
             'name' => 'Gäste',
             'personal_team' => false,
+            // Selbst ein versehentlich delegiertes Flottenrecht darf fuer
+            // Gaeste keine globalen Zahlen freigeben.
             'rbac_permissions' => ['devices.view' => true],
         ]);
         $employee = User::factory()->create(['role' => 'staff', 'current_team_id' => $employeeTeam->id]);
@@ -452,42 +407,16 @@ class AdminDashboardCommandBoardTest extends TestCase
 
         Livewire::actingAs($guest)
             ->test(UserDashboard::class)
-            ->assertViewHas('messageActivity', fn (array $activity): bool => $activity['total'] === 1)
-            ->assertSee('data-dashboard-layout="segmented"', escape: false)
-            ->assertSee('data-dashboard-layout-contract="role-hero-workday-device-news-profile-files-trend"', escape: false)
-            ->assertSee('data-dashboard-role-hero-variant="personal"', escape: false)
-            ->assertSee('data-dashboard-stat-variant="minimal"', escape: false)
-            ->assertSee('data-dashboard-personal-summary', escape: false)
-            ->assertSee('data-dashboard-message-list', escape: false)
-            ->assertSee('data-dashboard-device-variant="panel"', escape: false)
-            ->assertSee('data-dashboard-device-scope="personal"', escape: false)
-            ->assertSee('href="'.route('devices.mine').'"', escape: false)
-            ->assertDontSee('href="'.route('devices.index').'"', escape: false)
-            ->assertDontSee('data-dashboard-action="devices-manage"', escape: false)
-            ->assertSee('href="'.route('messages', ['open' => $guestMessage->id]).'"', escape: false)
-            ->assertSee('data-dashboard-real-series', escape: false)
-            ->assertSee('data-dashboard-chart-variant="minimal"', escape: false)
-            ->assertSee('data-series-source="received-messages"', escape: false)
-            ->assertDontSee('data-dashboard-work-focus', escape: false)
-            ->assertDontSee('data-dashboard-primary-action="wagon-list"', escape: false)
-            ->assertDontSee('data-dashboard-data-source="preview"', escape: false)
-            ->assertDontSee(__('app.planning_not_connected'));
+            ->assertSee('data-dashboard-widget-grid', escape: false)
+            ->assertSee('data-rt-welcome-audience="guest"', escape: false);
 
-        $template = file_get_contents(resource_path('views/livewire/user-dashboard.blade.php'));
-        $this->assertStringContainsString('<x-ui.dashboard.role-hero', $template);
-        $this->assertSame(3, substr_count($template, '<x-ui.dashboard.stat'));
-        $this->assertSame(2, substr_count($template, '<x-ui.dashboard.focus-card'));
-        $this->assertStringContainsString('<x-ui.dashboard.trend-chart', $template);
-        $this->assertStringContainsString('grid gap-3 sm:gap-4 md:grid-cols-2', $template);
-        $this->assertStringContainsString('lg:grid-cols-12', $template);
-        $this->assertStringContainsString("'lg:col-span-7'", $template);
-        $this->assertStringContainsString('lg:col-span-5', $template);
-        $this->assertStringContainsString('grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 xl:grid-cols-6', $template);
-        $this->assertGreaterThanOrEqual(6, substr_count($template, 'data-dashboard-segment-style="minimal"'));
-        $this->assertMatchesRegularExpression(
-            '/data-dashboard-personal-header.*data-dashboard-work-focus.*variant="panel".*data-dashboard-message-list.*aria-labelledby="dashboard-files".*data-dashboard-real-series/s',
-            $template,
-        );
+        Livewire::actingAs($guest)
+            ->test(WidgetGrid::class)
+            ->assertSeeHtml('data-widget-key="my_devices"')
+            ->assertDontSeeHtml('data-widget-key="fleet_devices"')
+            ->assertDontSeeHtml('data-widget-key="wagon_list"')
+            ->assertSee('href="'.route('messages', ['open' => $guestMessage->id]).'"', escape: false)
+            ->assertDontSee('href="'.route('devices.index').'"', escape: false);
     }
 
     public function test_personal_message_activity_is_private_and_uses_one_bounded_aggregate_query(): void
@@ -532,12 +461,12 @@ class AdminDashboardCommandBoardTest extends TestCase
         DB::enableQueryLog();
 
         Livewire::actingAs($employee)
-            ->test(UserDashboard::class)
+            ->test(WidgetGrid::class)
             ->assertViewHas(
-                'messageActivity',
-                fn (array $activity): bool => $activity['total'] === 1
-                    && count($activity['labels']) === 14
-                    && count($activity['values']) === 14,
+                'widgetData',
+                fn (array $data): bool => array_sum($data['messages']['sparkline']) === 1
+                    && count($data['messages']['sparkline']) === 7
+                    && count($data['messages']['sparklineLabels']) === 7,
             );
 
         $activityQueries = collect(DB::getQueryLog())
@@ -546,18 +475,16 @@ class AdminDashboardCommandBoardTest extends TestCase
 
                 return preg_match('/\bfrom\s+["`]?messages["`]?/', $sql) === 1
                     && str_contains($sql, 'created_at')
-                    && str_contains($sql, ' between ');
+                    && str_contains($sql, 'group by');
             })
             ->values();
         DB::disableQueryLog();
 
         $this->assertCount(1, $activityQueries);
-        $this->assertStringContainsString('group by', strtolower($activityQueries->first()['query']));
-        $this->assertStringContainsString(' between ', strtolower($activityQueries->first()['query']));
         $this->assertContains($employee->getKey(), $activityQueries->first()['bindings']);
     }
 
-    public function test_personal_device_widget_fails_soft_and_is_flat_in_both_languages(): void
+    public function test_personal_device_widget_fails_soft(): void
     {
         $owner = User::factory()->create(['role' => 'admin']);
         $team = Team::forceCreate([
@@ -571,47 +498,18 @@ class AdminDashboardCommandBoardTest extends TestCase
         Schema::drop('device_readiness_checks');
 
         Livewire::actingAs($employee)
-            ->test(UserDashboard::class)
+            ->test(WidgetGrid::class)
             ->assertViewHas(
-                'deviceWidget',
-                fn (array $widget): bool => $widget['scope'] === 'personal'
-                    && $widget['stats']['available'] === false
-                    && $widget['href'] === null,
+                'widgetData',
+                fn (array $data): bool => $data['my_devices']['stats']['available'] === false
+                    && $data['my_devices']['href'] === null,
             )
-            ->assertSee('data-dashboard-device-available="false"', escape: false)
-            ->assertSee('data-dashboard-device-unavailable', escape: false)
-            ->assertDontSee('data-dashboard-action="devices-mine"', escape: false);
-
-        $stats = ['available' => true, 'total' => 2, 'ready' => 1, 'pending' => 1, 'blocked' => 0];
-        app()->setLocale('de');
-        $german = Blade::render('<x-ui.dashboard.personal-device-widget :stats="$stats" href="/meine-geraete" />', compact('stats'));
-        app()->setLocale('en');
-        $english = Blade::render('<x-ui.dashboard.personal-device-widget :stats="$stats" href="/my-devices" />', compact('stats'));
-
-        $this->assertStringContainsString('Meine Geräte', $german);
-        $this->assertStringContainsString('My devices', $english);
-        $this->assertStringContainsString('border-y', $english);
-        $this->assertStringContainsString('dark:border-rt-dark-border', $english);
-        $this->assertStringNotContainsString('rt-admin-panel', $english);
-        $this->assertStringNotContainsString('data-feather', $english);
-        $this->assertStringNotContainsString('gradient', $english);
+            ->assertSeeHtml('data-widget-key="my_devices"')
+            ->assertDontSee('href="'.route('devices.mine').'"', escape: false);
     }
 
-    public function test_personal_dashboard_variants_are_minimal_without_changing_component_defaults(): void
+    public function test_stat_variants_are_minimal_without_changing_component_defaults(): void
     {
-        $personalHero = Blade::render('<x-ui.dashboard.role-hero title="Persoenlich" variant="personal" />');
-        $defaultHero = Blade::render('<x-ui.dashboard.role-hero title="Standard" />');
-
-        $this->assertStringContainsString('data-dashboard-role-hero-variant="personal"', $personalHero);
-        $this->assertStringContainsString('bg-rt-surface', $personalHero);
-        $this->assertStringContainsString('dark:bg-rt-dark-surface', $personalHero);
-        $this->assertStringNotContainsString('bg-rt-text', $personalHero);
-        $this->assertStringNotContainsString('data-feather', $personalHero);
-        $this->assertStringContainsString('data-dashboard-role-hero-variant="default"', $defaultHero);
-        $this->assertStringContainsString('bg-rt-text', $defaultHero);
-        $this->assertStringContainsString('shadow-rt-md', $defaultHero);
-        $this->assertStringContainsString('data-feather="briefcase"', $defaultHero);
-
         $minimalStat = Blade::render('<x-ui.dashboard.stat label="Dateien" value="3" icon="folder" variant="minimal" />');
         $defaultStat = Blade::render('<x-ui.dashboard.stat label="Dateien" value="3" icon="folder" variant="row" />');
 
@@ -624,88 +522,5 @@ class AdminDashboardCommandBoardTest extends TestCase
         $this->assertStringContainsString('bg-rt-surface', $defaultStat);
         $this->assertStringContainsString('shadow-rt-sm', $defaultStat);
         $this->assertStringContainsString('data-feather="folder"', $defaultStat);
-
-        $minimalFocus = Blade::render('<x-ui.dashboard.focus-card title="Wagenliste" href="/wagenliste" variant="minimal" />');
-        $minimalPreview = Blade::render('<x-ui.dashboard.focus-card title="Schicht" variant="minimal" preview />');
-        $defaultFocus = Blade::render('<x-ui.dashboard.focus-card title="Standard" href="/standard" />');
-
-        $this->assertStringContainsString('data-dashboard-focus-variant="minimal"', $minimalFocus);
-        $this->assertStringContainsString('data-dashboard-data-source="live"', $minimalFocus);
-        $this->assertStringNotContainsString('blur-3xl', $minimalFocus);
-        $this->assertStringNotContainsString('hover:-translate-y-0.5', $minimalFocus);
-        $this->assertStringContainsString('data-dashboard-data-source="preview"', $minimalPreview);
-        $this->assertStringContainsString('data-dashboard-focus-preview="true"', $minimalPreview);
-        $this->assertStringContainsString('data-dashboard-preview-label', $minimalPreview);
-        $this->assertStringContainsString('data-dashboard-focus-variant="default"', $defaultFocus);
-        $this->assertStringContainsString('blur-3xl', $defaultFocus);
-        $this->assertStringContainsString('hover:-translate-y-0.5', $defaultFocus);
-
-        $labels = ['01.09.', '02.09.'];
-        $values = [1, 2];
-        $minimalChart = Blade::render(
-            '<x-ui.dashboard.trend-chart title="Verlauf" :labels="$labels" :values="$values" variant="minimal" />',
-            compact('labels', 'values'),
-        );
-        $defaultChart = Blade::render(
-            '<x-ui.dashboard.trend-chart title="Verlauf" :labels="$labels" :values="$values" />',
-            compact('labels', 'values'),
-        );
-
-        $this->assertStringContainsString('data-dashboard-chart-variant="minimal"', $minimalChart);
-        $this->assertStringContainsString('h-28 sm:h-32', $minimalChart);
-        $this->assertStringContainsString('dark:border-rt-dark-border/80', $minimalChart);
-        $this->assertStringNotContainsString('linearGradient', $minimalChart);
-        $this->assertStringNotContainsString('shadow-rt-sm', $minimalChart);
-        $this->assertStringContainsString('data-dashboard-chart-variant="default"', $defaultChart);
-        $this->assertStringContainsString('h-36', $defaultChart);
-        $this->assertStringContainsString('linearGradient', $defaultChart);
-        $this->assertStringContainsString('shadow-rt-sm', $defaultChart);
-
-        $minimalHeading = Blade::render('<x-ui.dashboard.section-heading title="Hinweise" icon="inbox" variant="minimal" />');
-        $defaultHeading = Blade::render('<x-ui.dashboard.section-heading title="Hinweise" icon="inbox" />');
-
-        $this->assertStringContainsString('data-dashboard-heading-variant="minimal"', $minimalHeading);
-        $this->assertStringNotContainsString('data-feather', $minimalHeading);
-        $this->assertStringContainsString('data-dashboard-heading-variant="default"', $defaultHeading);
-        $this->assertStringContainsString('data-feather="inbox"', $defaultHeading);
-
-        $stats = ['available' => true, 'total' => 1, 'ready' => 1, 'pending' => 0, 'blocked' => 0];
-        $panelDevice = Blade::render(
-            '<x-ui.dashboard.personal-device-widget :stats="$stats" href="/meine-geraete" variant="panel" />',
-            compact('stats'),
-        );
-        $lineDevice = Blade::render(
-            '<x-ui.dashboard.personal-device-widget :stats="$stats" href="/meine-geraete" />',
-            compact('stats'),
-        );
-
-        $this->assertStringContainsString('data-dashboard-device-variant="panel"', $panelDevice);
-        $this->assertStringContainsString('rounded-xl border', $panelDevice);
-        $this->assertStringContainsString('bg-rt-surface', $panelDevice);
-        $this->assertStringNotContainsString('border-y', $panelDevice);
-        $this->assertStringContainsString('data-dashboard-device-variant="line"', $lineDevice);
-        $this->assertStringContainsString('border-y', $lineDevice);
-    }
-
-    public function test_featured_operational_card_follows_light_and_dark_surfaces(): void
-    {
-        $html = Blade::render(<<<'BLADE'
-            <x-ui.dashboard.focus-card
-                title="Aufträge"
-                description="Offene Aufträge steuern."
-                metric="5"
-                metric-label="Offene Aufträge"
-                href="/administrator/betrieb/orders"
-                variant="featured"
-            />
-        BLADE);
-
-        $this->assertStringContainsString('bg-rt-surface', $html);
-        $this->assertStringContainsString('dark:bg-rt-dark-surface', $html);
-        $this->assertStringContainsString('text-rt-text', $html);
-        $this->assertStringContainsString('dark:text-white', $html);
-        $this->assertStringContainsString('dark:text-rt-dark-accent', $html);
-        $this->assertStringNotContainsString('bg-slate-950', $html);
-        $this->assertStringNotContainsString('dark:text-rt-red-light', $html);
     }
 }

@@ -127,15 +127,11 @@ class ItSupportTest extends TestCase
     {
         $adminSidebar = file_get_contents(resource_path('views/layouts/admin-sidebar.blade.php'));
         $routes = file_get_contents(base_path('routes/web.php'));
-        $dashboard = file_get_contents(resource_path('views/livewire/admin/dashboard.blade.php'));
 
         $this->assertStringContainsString("auth()->user()?->role === 'admin'", $adminSidebar);
         $this->assertStringContainsString("'verified', 'role:admin'", $routes);
-        // Im Dashboard stand dieselbe Rollenpruefung noch einmal im Blade,
-        // obwohl die Route bereits role:admin traegt und die Komponente
-        // zusaetzlich abort_unless(isAdmin()) ausfuehrt. Die Verlinkung der
-        // Betriebsmodule haengt jetzt allein an diesen beiden Schranken.
-        $this->assertStringNotContainsString("auth()->user()?->role === 'admin'", $dashboard);
+        // Das Admin-Dashboard ist das Widget-Raster; seine Komponente prueft
+        // die Rolle zusaetzlich zur role:admin-Route selbst.
         $this->assertStringContainsString(
             'abort_unless(auth()->user()?->isAdmin(), 403)',
             file_get_contents(app_path('Livewire/Admin/Dashboard.php')),

@@ -73,9 +73,10 @@
     $autoIntroPayload = ($autoIntro && $isFirstVisit && filled($help['summary'] ?? null))
         ? array_merge($help, ['intro' => true])
         : null;
-    // Admin sowie Mitarbeiter/Gaeste binden ihr Welcome-Intro bereits in
-    // ihren Dashboard-Views ein. Die Verwaltung teilt sich die Nutzerroute
-    // und erhaelt ihre eng begrenzte Einbindung deshalb im Seitenrahmen.
+    // Das Dashboard (Widget-Raster, livewire.operations.dashboard) setzt
+    // welcome-intro="false" und bindet das Intro nur fuer Gaeste selbst ein.
+    // Diese Einbindung fuer die Verwaltung greift nur auf Seiten der
+    // Nutzerroute "dashboard", die welcome-intro nicht abschalten.
     $dashboardAudience = auth()->user()?->dashboardAudience();
     $mountManagementWelcome = $welcomeIntro && $routeName === 'dashboard'
         && in_array($dashboardAudience, ['administration', 'management'], true);
