@@ -136,7 +136,6 @@ class PersonalRequestDashboardTest extends TestCase
         $this->assertSame(2, $requests->total());
         $this->assertSame([['capacity', $capacity->id], ['shift', $future->id]], $requests->getCollection()->map(fn ($row) => [$row['type'], $row['id']])->all());
         $this->assertCount(0, $ui->viewData('assignments'));
-        $this->assertNotNull($ui->viewData('miniCalendar'));
         $ui->call('showTab', 'requests')->assertSeeHtml('data-personal-requests')
             ->assertSee('Requested duty 120')->assertSee('Capacity role fixture')
             ->assertDontSee('Foreign confidential duty')->assertDontSee('Foreign confidential capacity')->assertDontSee('Unpublished confidential draft');

@@ -234,6 +234,7 @@ auth.json
 !/tests/Feature/MultiToggleComponentTest.php
 !/tests/Frontend/date-field.test.js
 /public/operations-qa-*-build/
+/public/*-fix-build/
 !/tests/Feature/OrderPlanningLinksTest.php
 !/tests/Feature/OperationsPlanningTest.php
 !/tests/Feature/OperationsNumberInputTest.php

@@ -1,5 +1,5 @@
 @foreach($columnsMeta as $column)
-<div class="rt-table-cell {{ $column['key'] === 'name' ? 'rt-table-cell--primary' : '' }}" data-rt-table-label="{{ $column['label'] }}">
+<div class="rt-table-cell {{ $column['key'] === 'name' ? 'rt-table-cell--primary' : '' }} {{ $hideClass($column['hideOn']) }}" data-rt-table-label="{{ $column['label'] }}">
     @if($column['key'] === 'name')
         <div class="min-w-0">@if($item->user)<x-user.person-anchor-preview :user="$item->user" :show-presence="false" :show-email="false" :size="8" />@else<span>Mitarbeiter nicht verfügbar</span>@endif
             @if($item->exception_review)<details class="rt-staffing-reasons rt-staffing-reasons--warning"><summary><i class="far fa-shield-exclamation" aria-hidden="true"></i> Ausnahme dokumentiert</summary><p>{{ $item->exception_review->data['reason'] ?? '' }}</p><p>{{ $item->exception_review->actor?->name ?? 'Ehemalige Verwaltung' }} · {{ $item->exception_review->created_at->setTimezone(config('operations.display_timezone'))->format('d.m.Y H:i') }} · Revision {{ $item->exception_review->data['plan_revision'] ?? '–' }}</p><p>Historischer Prüfstand; Änderungen werden erneut geprüft.</p></details>@endif

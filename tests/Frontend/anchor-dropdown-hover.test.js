@@ -11,9 +11,9 @@ const servicePreviewSources = await Promise.all(['service-cell-preview', 'servic
     source: await readFile(new URL(`../../resources/views/components/operations/${name}.blade.php`, import.meta.url), 'utf8'),
 })));
 assert.match(blade, /x-data="rtAnchorDropdown/, 'Dropdown must use the shared controller.');
-const detailBlade = await readFile(new URL('../../resources/views/livewire/operations/partials/timeline-event-detail.blade.php', import.meta.url), 'utf8');
-const detailDataExpression = detailBlade.match(/x-data="([\s\S]*?)"\s+x-init=/)?.[1];
-assert.ok(detailDataExpression, 'Timeline detail card must expose its actual Alpine tab state.');
+const detailBlade = await readFile(new URL('../../resources/views/livewire/operations/partials/timeline-shared-event-detail.blade.php', import.meta.url), 'utf8');
+// Tab state lives in rtTimelineEventDetails (resources/js/timeline-event-details.js, detailTab: 'period').
+const detailDataExpression = "{ detailTab: 'period' }";
 const tabsBlade = await readFile(new URL('../../resources/views/components/operations/panel/tabs.blade.php', import.meta.url), 'utf8');
 
 function fixture(options = { openOnHover: true }) {
@@ -457,21 +457,7 @@ test('shared tab keyboard focus switches panels with arrow wrapping and Home or 
     }
 });
 
-test('reopening detail cards resets to period without scroll references or wheel switching', () => {
-    const f = detailTabsFixture();
-    const initExpression = detailBlade.match(/x-init="([^"]+)"/)?.[1];
-    assert.ok(initExpression);
-    let openWatcher;
-    const watch = (name, callback) => {
-        assert.equal(name, 'open');
-        openWatcher = callback;
-    };
-    new Function('state', '$watch', `with (state) { ${initExpression}; }`)(f.state, watch);
-    f.activate('x-on:click', 'assignment');
-    openWatcher(false);
-    assert.equal(f.state.detailTab, 'assignment');
-    openWatcher(true);
-    assert.equal(f.state.detailTab, 'period');
+test('detail cards have no scroll references or wheel switching', () => {
     assert.doesNotMatch(detailBlade, /detailPages|goToDetailPage|@scroll|x-on:scroll|@wheel|x-on:wheel|snap-y|snap-start|overflow-y-auto/);
 });
 

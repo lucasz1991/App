@@ -124,30 +124,6 @@ html[data-rt-launcher-side='left'] .rt-chatbot__pet-stage { left: max(1rem,env(s
     transition: opacity 180ms ease, filter 220ms ease, transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.rt-assistant-pet-3d__canvas {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    display: block;
-    width: 100%;
-    height: 100%;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 220ms ease, filter 220ms ease;
-}
-
-[data-assistant-pet-3d-slot].is-webgl-ready .rt-assistant-pet-3d__canvas {
-    opacity: 1;
-}
-
-[data-assistant-pet-3d-slot].is-webgl-ready > .rt-assistant-pet--fallback {
-    opacity: 0;
-}
-
-[data-assistant-pet-3d-slot].is-webgl-failed > .rt-assistant-pet--fallback {
-    opacity: 1;
-}
-
 /* Thinking Orb: original depth-shaded dots, without glow or blur.
  * Canvas and Forced Colors keep the existing accessible launcher contract. */
 [data-assistant-cloud-slot] {
@@ -324,128 +300,9 @@ html[data-rt-launcher-side='left'] .rt-chatbot__pet-stage { left: max(1rem,env(s
     transform: translate(0, 0) scale(1);
 }
 
-/* Soft creature SVG used while WebGL loads and for small chat avatars. */
-.rt-chatbot .rt-assistant-pet__shadow {
-    fill: rgba(42, 16, 25, 0.16);
-}
-
-.rt-chatbot .rt-assistant-pet__capsule {
-    fill: var(--rt-pet-body-deep);
-}
-
-.rt-chatbot .rt-assistant-pet__capsule-highlight,
-.rt-chatbot .rt-assistant-pet__leaf-body {
-    fill: var(--rt-pet-body);
-}
-
-.rt-chatbot .rt-assistant-pet__leaf {
-    transform-box: fill-box;
-    transform-origin: 50% 100%;
-}
-
-.rt-chatbot .rt-assistant-pet__leaf-vein {
-    fill: none;
-    stroke: var(--rt-pet-body-deep);
-    stroke-width: 1.6;
-    stroke-linecap: round;
-}
-
-.rt-chatbot .rt-assistant-pet__face-screen {
-    fill: var(--rt-pet-inner);
-    stroke: color-mix(in srgb, #ffffff 42%, transparent);
-    stroke-width: 1.4;
-}
-
-.rt-chatbot .rt-assistant-pet__eye {
-    fill: var(--rt-pet-ink);
-    transform-box: fill-box;
-    transform-origin: center;
-    animation: rt-chatbot-pet-blink 4.8s ease-in-out infinite;
-}
-
-.rt-chatbot .rt-assistant-pet__eye-shine {
-    fill: #ffffff;
-}
-
-.rt-chatbot .rt-assistant-pet__mouth {
-    fill: none;
-    stroke: var(--rt-pet-ink);
-    stroke-width: 2.4;
-    stroke-linecap: round;
-}
-
-.rt-chatbot .rt-assistant-pet__cheek {
-    fill: color-mix(in srgb, var(--rt-pet-body) 45%, transparent);
-}
-
-.rt-chatbot .rt-assistant-pet__arms {
-    fill: var(--rt-pet-body-deep);
-    transform-box: fill-box;
-    transform-origin: center;
-}
-
-.rt-chatbot .rt-assistant-pet__feet {
-    fill: var(--rt-pet-body-deep);
-}
-
 .rt-chatbot__pet-figure,
-.rt-chatbot__avatar-pet,
-.rt-chatbot__empty-pet .rt-assistant-pet,
-.rt-chatbot__message-pet .rt-assistant-pet {
+.rt-chatbot__avatar-pet {
     animation: rt-chatbot-pet-float 3.2s ease-in-out infinite;
-}
-
-.rt-chatbot .rt-assistant-pet__leaf--left {
-    animation: rt-chatbot-pet-leaf-left 4.1s ease-in-out infinite;
-}
-
-.rt-chatbot .rt-assistant-pet__leaf--right {
-    animation: rt-chatbot-pet-leaf-right 4.1s ease-in-out infinite;
-}
-
-.rt-chatbot [data-state='thinking'] .rt-assistant-pet--fallback,
-.rt-chatbot__message-pet--thinking .rt-assistant-pet {
-    animation: rt-chatbot-pet-thinking 1.6s ease-in-out infinite;
-}
-
-.rt-chatbot [data-state='listening'] .rt-assistant-pet--fallback {
-    animation: rt-chatbot-pet-listening 1.25s ease-in-out infinite;
-}
-
-.rt-chatbot [data-state='listening'] .rt-assistant-pet__eye {
-    animation: none;
-    transform: scaleY(1.08);
-}
-
-.rt-chatbot [data-state='speaking'] .rt-assistant-pet--fallback {
-    animation: rt-chatbot-pet-speaking 0.72s ease-in-out infinite;
-}
-
-.rt-chatbot [data-state='speaking'] .rt-assistant-pet__mouth {
-    transform-box: fill-box;
-    transform-origin: center;
-    animation: rt-chatbot-pet-mouth 0.36s ease-in-out infinite alternate;
-}
-
-.rt-chatbot [data-state='curious'] .rt-assistant-pet--fallback {
-    animation: rt-chatbot-pet-curious 0.95s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.rt-chatbot [data-state='curious'] .rt-assistant-pet__eye {
-    animation: none;
-    transform: scaleY(1.12);
-}
-
-.rt-chatbot [data-state='happy'] .rt-assistant-pet--fallback {
-    animation: rt-chatbot-pet-happy 0.82s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.rt-chatbot [data-state='wave'] .rt-assistant-pet--fallback {
-    animation: rt-chatbot-pet-wave 0.92s ease-in-out both;
-}
-
-.rt-chatbot [data-state='wave'] .rt-assistant-pet__arms {
-    animation: rt-chatbot-pet-arms-wave 0.34s ease-in-out 2 alternate;
 }
 
 .rt-chatbot__pet-halo::after {
@@ -460,15 +317,6 @@ html[data-rt-launcher-side='left'] .rt-chatbot__pet-stage { left: max(1rem,env(s
 
 /* State motion belongs to the point geometry, not a second pulsing shell. */
 
-.rt-chatbot [data-state='offline'] .rt-assistant-pet--fallback,
-.rt-chatbot [data-state='offline'] .rt-assistant-pet-3d__canvas {
-    filter: grayscale(0.72) saturate(0.5);
-    opacity: 0.72;
-}
-
-.rt-chatbot [data-state='offline'] .rt-assistant-pet--fallback {
-    animation: none;
-}
 
 /* Chat panel */
 .rt-chatbot__panel {
@@ -1246,12 +1094,6 @@ html.rt-pagebuilder-fullscreen-open .rt-chatbot__panel {
     border-radius: 1.2rem;
 }
 
-.rt-chatbot__panel[data-empty-chat='true'] .rt-chatbot__empty-pet .rt-assistant-pet {
-    width: 3.55rem;
-    height: 3.55rem;
-    transform: translateY(0.28rem);
-}
-
 .rt-chatbot__panel[data-empty-chat='true'] .rt-chatbot__empty strong {
     font-size: 1rem;
 }
@@ -1266,12 +1108,6 @@ html.rt-pagebuilder-fullscreen-open .rt-chatbot__panel {
     border-radius: 1.75rem;
     background: transparent;
     box-shadow: 0 8px 20px -14px rgba(18, 32, 50, 0.18);
-}
-
-.rt-chatbot__empty-pet .rt-assistant-pet {
-    width: 5.35rem;
-    height: 5.35rem;
-    transform: translateY(0.45rem);
 }
 
 .rt-chatbot__empty-kicker {
@@ -1346,12 +1182,6 @@ html.rt-pagebuilder-fullscreen-open .rt-chatbot__panel {
     border-radius: 0.72rem;
     background: transparent;
     box-shadow: 0 4px 10px -8px rgba(10, 18, 29, 0.18);
-}
-
-.rt-chatbot__message-pet .rt-assistant-pet {
-    width: 2.25rem;
-    height: 2.25rem;
-    transform: translateY(0.2rem);
 }
 
 .rt-chatbot__message {

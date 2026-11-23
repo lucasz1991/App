@@ -13,10 +13,6 @@ import './rt-alerts';
 // importieren, alles registrieren, DANN Livewire.start(). Die Layouts
 // nutzen dafuer @livewireScriptConfig statt @livewireScripts.
 import { Livewire, Alpine } from '../../vendor/livewire/livewire/dist/livewire.esm';
-import collapse from '@alpinejs/collapse';
-import mask from '@alpinejs/mask';
-import resize from '@alpinejs/resize';
-import intersect from '@alpinejs/intersect';
 import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';
 // GSAP-Setup (window.gsap/ScrollTrigger + deklarative data-anim-Reveals)
@@ -75,9 +71,7 @@ import { initMobileFormFocusRecovery } from './mobile-form-focus';
 import { initKeyboardViewport } from './keyboard-viewport';
 import { welcomeIntro } from './welcome-intro';
 import { railtimeChatbot } from './chatbot';
-// Das fruehere 3D-Maskottchen (assistant-pet-3d.js) bleibt als Backup im
-// Repo, ist aber nicht mehr eingebunden — der Assistent traegt jetzt die
-// AI-Partikelwolke mit RT-Morph.
+// Der Assistent traegt die AI-Partikelwolke mit RT-Morph.
 import { railtimeAssistantCloud } from './assistant-particle-cloud';
 import { aiAssist } from './ai-assist';
 import { calendarReveal } from './calendar-reveal';
@@ -199,13 +193,10 @@ if (import.meta.env.VITE_REVERB_APP_KEY) {
     });
 }
 
-// ACHTUNG: persist, sort und anchor bringt Livewires Alpine-Bundle bereits
-// selbst mit — eine erneute Registrierung wirft "Cannot redefine property"
-// in Livewire.start() und killt das restliche Modul (Sidebar-Init etc.).
-Alpine.plugin(collapse);
-Alpine.plugin(mask);
-Alpine.plugin(resize);
-Alpine.plugin(intersect);
+// ACHTUNG: collapse, mask, resize, intersect, focus, anchor, morph und persist
+// bringt Livewires Alpine-Bundle bereits selbst mit. Nicht erneut per
+// Alpine.plugin() registrieren (persist wirft sonst "Cannot redefine property"
+// in Livewire.start(), die uebrigen wuerden auf aeltere npm-Versionen zurueckfallen).
 
 // Zentraler Theme-Store: liest die Einstellung beim Start aus localStorage
 // und schreibt sie beim Umschalten zurueck. Ueberlebt Reloads UND

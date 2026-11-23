@@ -237,8 +237,6 @@ class OperationsPageNavigationTest extends TestCase
         app()->instance('request', $request);
         $links = collect(ApplicationNavigation::sections($actor))->flatten(1);
         $this->assertSame(['Regelprofile'], $links->filter(fn ($link) => ApplicationNavigation::active($link))->pluck('title')->values()->all());
-        $mobile = $this->mobileOptions(view('components.operations.navigation', ['current' => 'rules', 'modules' => []])->render());
-        $this->assertSame([OperationsPages::url('time-review', ['section' => 'rules'])], array_column(array_filter($mobile, fn ($option) => $option['selected']), 'value'));
     }
 
     public function test_employee_base_page_remains_available_without_operations_schema(): void
@@ -408,14 +406,10 @@ class OperationsPageNavigationTest extends TestCase
         $customers = $links->first(fn ($link) => ($link['parameters']['page'] ?? null) === 'customers');
         $this->assertTrue(ApplicationNavigation::active($cases));
         $this->assertFalse(ApplicationNavigation::active($customers));
-        $mobile = view('components.operations.navigation', ['current' => 'orders', 'modules' => []])->render();
         $sidebar = view('layouts.application-navigation')->render();
-        $options = $this->mobileOptions($mobile);
         $destinations = $links->map(fn ($link) => route($link['route'], $link['parameters']))->all();
-        $this->assertSame($destinations, array_column($options, 'value'));
         $this->assertEqualsCanonicalizing($destinations, $this->sidebarDestinations($sidebar));
-        $this->assertSame([OperationsPages::url('cases', ['view' => 'orders'])], array_column(array_filter($options, fn ($option) => $option['selected']), 'value'));
-        foreach ([array_column($options, 'value'), $this->sidebarDestinations($sidebar)] as $targets) {
+        foreach ([$this->sidebarDestinations($sidebar)] as $targets) {
             $this->assertContains(OperationsPages::url('cases', ['view' => 'inbox']), $targets);
             $this->assertContains(OperationsPages::url('cases', ['view' => 'offers']), $targets);
             $this->assertContains(OperationsPages::url('cases', ['view' => 'orders']), $targets);
@@ -424,7 +418,6 @@ class OperationsPageNavigationTest extends TestCase
             $this->assertContains(OperationsPages::url('customers'), $targets);
             $this->assertNotContains(route('operations.workspace', ['module' => 'inquiries']), $targets);
         }
-        $this->assertNotContains('Stammdaten & Geräte', array_column($options, 'label'));
         $this->assertStringNotContainsString('Stammdaten & Geräte', html_entity_decode(strip_tags($sidebar), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
     }
 
@@ -573,13 +566,4 @@ class OperationsPageNavigationTest extends TestCase
         return $destinations;
     }
 
-    private function mobileOptions(string $html): array
-    {
-        $controls = $this->navigationXPath($html)->query('//*[@data-rt-custom-select]');
-        $this->assertCount(1, $controls);
-        $payload = $controls->item(0)->getAttribute('data-rt-select-options');
-        $this->assertNotSame('', $payload, 'The shared select must expose its safely serialized options.');
-
-        return json_decode($payload, true, 512, JSON_THROW_ON_ERROR);
-    }
 }

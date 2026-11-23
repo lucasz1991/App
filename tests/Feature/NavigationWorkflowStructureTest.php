@@ -156,13 +156,6 @@ class NavigationWorkflowStructureTest extends TestCase
         $this->assertCount(1, $expanded);
         $this->assertSame('rt-sidebar-section-personal', $expanded->item(0)->getAttribute('aria-controls'));
 
-        $mobile = $this->xpath(view('components.operations.navigation', ['current' => 'qualifications', 'modules' => []])->render());
-        $select = $mobile->query('//*[@data-rt-custom-select]');
-        $this->assertCount(1, $select);
-        $this->assertNotSame('', $select->item(0)->getAttribute('data-rt-select-options'));
-        $options = json_decode($select->item(0)->getAttribute('data-rt-select-options'), true, 512, JSON_THROW_ON_ERROR);
-        $this->assertSame($destinations, array_column($options, 'value'));
-        $this->assertSame([OperationsPages::url('people')], array_column(array_filter($options, fn (array $option): bool => $option['selected']), 'value'));
     }
 
     public function test_sidebar_sections_are_collapsible_and_time_management_is_nested_without_changing_leaf_links(): void

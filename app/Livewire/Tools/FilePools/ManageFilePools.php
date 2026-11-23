@@ -1094,22 +1094,6 @@ class ManageFilePools extends Component
             && $pool->filepoolable_type === (new MarketingCreative)->getMorphClass();
     }
 
-    public function placeholder()
-    {
-        $loading = e(__('app.loading'));
-
-        return <<<HTML
-            <div role="status" class="h-32 w-full relative animate-pulse">
-                    <div class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/70 dark:bg-slate-900/70 transition-opacity">
-                        <div class="flex items-center gap-3 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2 shadow">
-                            <span class="loader"></span>
-                            <span class="text-sm text-gray-700 dark:text-slate-300">{$loading}</span>
-                        </div>
-                    </div>
-            </div>
-        HTML;
-    }
-
     public function render()
     {
         $filePool = FilePool::find($this->filePoolId);

@@ -21,22 +21,12 @@ class GermanyMapTest extends TestCase
         return $shift;
     }
 
-    private function duty(Shift $shift): object
+    public function test_employee_points_use_a_rounded_locality_area(): void
     {
-        return (object) ['shift' => $shift];
-    }
-
-    public function test_points_use_the_shared_location_resolver_and_count_unplaced_duties(): void
-    {
-        $map = GermanyMap::personal(collect([$this->duty($this->shift('Hamburg-Billwerder')), $this->duty($this->shift('Irgendwo Gbf', null, 2))]), 'Europe/Berlin');
-
-        $this->assertSame([2, 1], [$map['total'], $map['unplaced']]);
-        $this->assertSame('Hamburg-Billwerder', $map['points'][0]['label']);
-        $this->assertTrue($map['points'][0]['next']);
         // Employees see a rounded locality area, including refined Hamburg districts.
         $preview = TimelineLocationPreview::fromShift($this->shift('Hamburg-Billwerder'));
         $coarse = GermanyMap::fromPreview($preview, true);
-        $this->assertSame([$coarse['left'], $coarse['top']], [$map['points'][0]['left'], $map['points'][0]['top']]);
+        $this->assertNotNull($coarse);
         $this->assertNotSame(GermanyMap::fromPreview($preview)['left'], $coarse['left']);
     }
 
@@ -47,12 +37,6 @@ class GermanyMapTest extends TestCase
         $point = GermanyMap::fromPreview($preview);
         $this->assertSame('Nürnberg', $point['label']);
         $this->assertNull(GermanyMap::fromPreview(['state' => 'ambiguous', 'label' => 'Ort nicht eindeutig']));
-
-        $snapshot = ['confirmed' => true, 'name' => 'Werkstor 3', 'latitude' => 53.08321, 'longitude' => 8.80177];
-        $map = GermanyMap::personal(collect([$this->duty($this->shift('Kundenstandort', $snapshot))]), 'Europe/Berlin');
-        $this->assertSame('Werkstor 3', $map['points'][0]['label']);
-        $this->assertSame(['left', 'top', 'label', 'count', 'next', 'date'], array_keys($map['points'][0]));
-        $this->assertStringNotContainsString('53.08', json_encode($map));
     }
 
     public function test_planning_groups_by_resolved_place_and_takes_the_most_urgent_staffing_tone(): void

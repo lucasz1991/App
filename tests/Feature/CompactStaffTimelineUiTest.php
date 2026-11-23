@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\Shift;
 use App\Support\Operations\TimelineLocationPreview;
-use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Blade;
 use Tests\TestCase;
 
@@ -313,68 +312,9 @@ class CompactStaffTimelineUiTest extends TestCase
         }
     }
 
-    public function test_event_detail_reuses_full_person_identity_and_keeps_all_operational_fields(): void
-    {
-        $html = $this->renderEventDetail();
-        foreach (['Dienstdetails schließen', 'close(true)', 'Marcel Schaarschmidt', 'title="Marcel Schaarschmidt"', 'min-w-0 truncate text-sm', 'Beginn', 'Ende', '05.10.2026', '06.10.2026', 'Leistung:', 'RT-2026-000042', 'Kunde', 'Test Rail', 'Tätigkeit', 'Tf', 'Einsatzort', 'Bremen', 'Planstatus', 'Geplante Pause', '30 Minuten', 'Nicht hinterlegt', 'Eingeplant · KW 41', '8,5 h', 'Schicht öffnen', 'data-shift-detail-open="42"'] as $text) {
-            $this->assertStringContainsString($text, $html);
-        }
-        $this->assertStringContainsString('&lt;Dienst&gt;', $html);
-        $this->assertStringNotContainsString('<Dienst>', $html);
-        $this->assertStringNotContainsString('Zeitumstellung', $html);
-    }
-
-    public function test_timeline_parent_context_stays_in_the_shared_header_and_escapes_values(): void
-    {
-        $html = $this->renderEventDetail(false, 23, 42, ['order_title' => '<img src=x onerror=alert(1)>', 'order_number' => '<script>RT-42</script>']);
-        $document = new \DOMDocument;
-        @$document->loadHTML('<?xml encoding="UTF-8">'.$html);
-        $xpath = new \DOMXPath($document);
-        $parent = $xpath->query('//article/header//*[@data-timeline-parent-context]')->item(0);
-        $this->assertNotNull($parent);
-        $this->assertStringContainsString('<img src=x onerror=alert(1)>', $parent->textContent);
-        $this->assertStringContainsString('<script>RT-42</script>', $parent->textContent);
-        $this->assertSame('<img src=x onerror=alert(1)> · <script>RT-42</script>', $parent->getAttribute('title'));
-        $this->assertSame(0, $xpath->query('.//img | .//script', $parent)->length);
-        $this->assertSame(0, $xpath->query('//*[@data-detail-tab]//*[@data-timeline-parent-context]')->length);
-
-        $missing = $this->renderEventDetail(false, 23, 42, ['order_title' => null, 'order_number' => null]);
-        $this->assertStringContainsString('Zugehöriger Auftrag nicht verfügbar.', $missing);
-        $this->assertStringNotContainsString('Leistung:', $missing);
-        $this->assertStringNotContainsString('data-timeline-parent-context', $this->renderEventDetail(true));
-    }
-
     public function test_event_card_uses_shared_accessible_tabs_between_header_and_non_scrolling_content(): void
     {
-        foreach ([false, true] as $absence) {
-            $html = $this->renderEventDetail($absence);
-            $dom = new \DOMDocument;
-            @$dom->loadHTML('<?xml encoding="UTF-8">'.$html);
-            $xpath = new \DOMXPath($dom);
-            $this->assertSame(1, $xpath->query('//article/header')->length);
-            $this->assertSame(1, $xpath->query('//article/footer')->length);
-            $this->assertSame(1, $xpath->query('//article/header/following-sibling::*[1][@role="tablist"]')->length);
-            $this->assertSame(1, $xpath->query('//article/div[@role="tablist"][@data-rt-dropdown-keep-open]/following-sibling::*[1][contains(@class,"detail-panels")]')->length);
-            $this->assertSame(2, $xpath->query('//article/div[contains(@class,"detail-panels")]/section[@role="tabpanel"]')->length);
-            $this->assertSame(0, $xpath->query('//section[@role="tabpanel"]//footer | //section[@role="tabpanel"]//header[contains(@class,"detail-header")]')->length);
-            foreach (['period', 'assignment'] as $key) {
-                $tab = $xpath->query('//article/div[@role="tablist"]/button[@data-panel-tab="'.$key.'"]')->item(0);
-                $panel = $xpath->query('//article/div/section[@data-detail-tab="'.$key.'"]')->item(0);
-                $this->assertNotNull($tab);
-                $this->assertNotNull($panel);
-                $this->assertSame('tab', $tab->getAttribute('role'));
-                $this->assertSame($tab->getAttribute('aria-controls'), $panel->getAttribute('id'));
-                $this->assertSame($tab->getAttribute('id'), $panel->getAttribute('aria-labelledby'));
-                $this->assertSame($key === 'period' ? 'true' : 'false', $tab->getAttribute('aria-selected'));
-                $this->assertSame($key === 'period' ? '0' : '-1', $tab->getAttribute('tabindex'));
-                $this->assertSame("detailTab === '".$key."'", $panel->getAttribute('x-show'));
-                $this->assertSame("detailTab !== '".$key."'", $panel->getAttribute(':inert'));
-            }
-            $this->assertSame(1, $xpath->query('//section[@data-detail-tab="period"]//*[@role="group" and @aria-label="Zeitraum"]')->length);
-            $this->assertSame(1, $xpath->query('//section[@data-detail-tab="assignment"]//*[contains(@class,"detail-person")]')->length);
-            $this->assertDoesNotMatchRegularExpression('/detailPages|goToDetailPage|@scroll|x-on:scroll|@wheel|x-on:wheel|snap-y|snap-start|overflow-y-auto/', $html);
-        }
-        $partial = file_get_contents(resource_path('views/livewire/operations/partials/timeline-event-detail.blade.php'));
+        $partial = file_get_contents(resource_path('views/livewire/operations/partials/timeline-shared-event-detail.blade.php'));
         $this->assertStringContainsString('<x-operations.panel.tabs', $partial);
         $this->assertStringContainsString('model="detailTab"', $partial);
         $source = file_get_contents(resource_path('views/livewire/operations/partials/timeline-shared-event-detail.blade.php'));
@@ -385,29 +325,8 @@ class CompactStaffTimelineUiTest extends TestCase
         $this->assertDoesNotMatchRegularExpression('/\.rt-personnel-timeline-detail-footer \{[^}]*position: sticky/', $css);
     }
 
-    public function test_detail_tab_ids_are_unique_per_employee_event_and_event_kind(): void
-    {
-        $ids = [];
-        foreach ([[false, 23, 42], [false, 24, 42], [false, 23, 43], [true, 23, 42]] as [$absence, $userId, $shiftId]) {
-            $html = $this->renderEventDetail($absence, $userId, $shiftId);
-            preg_match_all('/\bid="(timeline-detail-[^"]+)"/', $html, $matches);
-            $this->assertCount(4, $matches[1]);
-            $ids = [...$ids, ...$matches[1]];
-        }
-        $this->assertCount(16, array_unique($ids));
-    }
-
     public function test_detail_footer_is_flush_primary_and_tab_motion_respects_reduced_motion(): void
     {
-        foreach ([false, true] as $absence) {
-            $html = $this->renderEventDetail($absence);
-            $dom = new \DOMDocument;
-            @$dom->loadHTML('<?xml encoding="UTF-8">'.$html);
-            $xpath = new \DOMXPath($dom);
-            $this->assertSame(1, $xpath->query('//article/footer/button[contains(@class,"rt-ui-button-primary")]')->length);
-            $this->assertSame(0, $xpath->query('//article/footer//*[@role="tab"]')->length);
-            $this->assertStringContainsString($absence ? 'operations-open-absence' : 'operations-shift-detail-request', $html);
-        }
         $css = file_get_contents(resource_path('css/operations-planning.css'));
         $footer = $this->cssDeclarationsFor($css, '.rt-personnel-timeline-detail-footer');
         $this->assertStringContainsString('padding: 0', $footer);
@@ -418,7 +337,7 @@ class CompactStaffTimelineUiTest extends TestCase
         }
         $this->assertMatchesRegularExpression('/@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.rt-timeline-detail-enter\s*\{[^}]*transition: opacity/', $css);
         $this->assertMatchesRegularExpression('/\.rt-timeline-detail-enter-from, \.rt-timeline-detail-enter-to\s*\{\s*transform: none/', $css);
-        $partial = file_get_contents(resource_path('views/livewire/operations/partials/timeline-event-detail.blade.php'));
+        $partial = file_get_contents(resource_path('views/livewire/operations/partials/timeline-shared-event-detail.blade.php'));
         $this->assertSame(2, substr_count($partial, 'x-transition:enter="rt-timeline-detail-enter"'));
         $this->assertStringNotContainsString('x-transition:leave', $partial);
     }
@@ -432,28 +351,8 @@ class CompactStaffTimelineUiTest extends TestCase
         }
     }
 
-    public function test_all_day_absence_uses_inclusive_dates_without_inventing_midnight_shifts_or_hours(): void
-    {
-        $html = $this->renderEventDetail(true);
-        foreach (['Ganztägig', '05.10.2026', '06.10.2026', 'Abwesenheit öffnen'] as $text) {
-            $this->assertStringContainsString($text, $html);
-        }
-        foreach (['07.10.2026', '00:00', 'Regelarbeitszeit', 'Eingeplant', 'Schicht öffnen', 'Kunde', 'Geplante Pause'] as $text) {
-            $this->assertStringNotContainsString($text, $html);
-        }
-        $this->assertStringContainsString('rt-event-mini-calendar', $html);
-        $this->assertStringNotContainsString('rt-event-mini-map', $html);
-    }
-
     public function test_event_previews_mount_on_open_and_unknown_locations_never_get_a_fake_pin(): void
     {
-        $html = $this->renderEventDetail();
-        foreach (['template x-if="open"', 'rt-event-mini-calendar', 'rt-event-mini-map', 'Standort nicht verortet'] as $text) {
-            $this->assertStringContainsString($text, $html);
-        }
-        $this->assertStringNotContainsString('GeoNames', $html);
-        $this->assertStringNotContainsString('rt-event-mini-map__sources', $html);
-        $this->assertStringNotContainsString('data-location-marker', $html);
         $source = file_get_contents(resource_path('views/livewire/operations/partials/timeline-shared-event-detail.blade.php'));
         $this->assertStringContainsString('width="96" :max-height="560" :open-on-hover="false"', $source);
     }
@@ -492,24 +391,6 @@ class CompactStaffTimelineUiTest extends TestCase
         }
         $this->assertStringNotContainsString('GeoNames', $html);
         $this->assertStringNotContainsString('rt-event-mini-map__sources', $html);
-    }
-
-    private function renderEventDetail(bool $absence = false, int $userId = 23, int $shiftId = 42, array $eventOverrides = []): string
-    {
-        $detailStart = CarbonImmutable::parse($absence ? '2026-10-05T00:00:00+02:00' : '2026-10-05T22:00:00+02:00');
-        $detailEnd = CarbonImmutable::parse($absence ? '2026-10-07T00:00:00+02:00' : '2026-10-06T06:00:00+02:00');
-        $user = (object) ['id' => $userId, 'name' => 'Marcel Schaarschmidt', 'profile' => null, 'person' => null, 'email' => '', 'currentTeam' => null, 'profile_photo_url' => '/avatar.png'];
-
-        return view('livewire.operations.partials.timeline-event-detail', [
-            'detailStart' => $detailStart, 'detailEnd' => $detailEnd, 'detailDstChanged' => false,
-            'state' => 'confirmed', 'zone' => 'Europe/Berlin', 'absencesOnly' => $absence,
-            'row' => ['user' => $user, 'weekly_working_hours' => null, 'planned_hours_by_week' => ['2026-41' => 8.5]],
-            'event' => array_replace(['kind' => $absence ? 'absence' : 'shift', 'title' => $absence ? 'Urlaub' : '<Dienst>', 'status' => 'Bestätigt',
-                'detail' => $absence ? '' : 'Test Rail', 'role_name' => $absence ? null : 'Tf', 'location_name' => $absence ? null : 'Bremen',
-                'order_title' => $absence ? null : '<Leistung>', 'order_number' => $absence ? null : 'RT-2026-000042',
-                'shift_status_label' => $absence ? null : 'Veröffentlicht', 'planned_break_minutes' => $absence ? 0 : 30,
-                'iso_week' => '2026-41', 'visible_start' => $detailStart, 'shift_id' => $absence ? null : $shiftId, 'absence_id' => 12], $eventOverrides),
-        ])->render();
     }
 
     public function test_compact_names_preserve_surnames_and_full_avatar_labels_without_changing_the_default(): void

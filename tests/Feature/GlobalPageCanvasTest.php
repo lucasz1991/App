@@ -83,7 +83,6 @@ class GlobalPageCanvasTest extends TestCase
     {
         foreach ([
             'layouts/master.blade.php',
-            'layouts/admin.blade.php',
             'layouts/app.blade.php',
             'layouts/guest.blade.php',
             'layouts/customer-portal.blade.php',

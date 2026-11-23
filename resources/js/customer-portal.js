@@ -1,5 +1,4 @@
 import { Livewire, Alpine } from '../../vendor/livewire/livewire/dist/livewire.esm';
-import collapse from '@alpinejs/collapse';
 import { numberInput } from './number-input';
 import { dateField } from './date-field';
 import { dateRangePicker } from './date-range-picker';
@@ -10,7 +9,6 @@ import { portalNavigation } from './customer-portal-navigation';
 // Deliberately isolated: no employee chat, Echo, GPS, PWA or work-time capture bootstrap.
 window.Alpine = Alpine;
 window.Livewire = Livewire;
-Alpine.plugin(collapse);
 Alpine.store('theme', {
     dark: localStorage.getItem('rt-theme') === 'true',
     toggle() {

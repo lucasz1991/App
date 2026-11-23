@@ -33,8 +33,7 @@
     gap: 0;
 }
 
-.rt-service-filter-trigger.rt-ui-button,
-.rt-service-bulk-trigger.rt-ui-button {
+.rt-service-filter-trigger.rt-ui-button {
     position: relative;
     display: inline-flex;
     align-items: center;
@@ -48,11 +47,6 @@
     color: var(--rt-shell-muted);
     background: var(--rt-shell-surface-solid);
     border-color: var(--rt-shell-line);
-}
-
-.rt-service-bulk-trigger:disabled {
-    cursor: not-allowed;
-    opacity: .55;
 }
 
 .rt-service-filter-count {

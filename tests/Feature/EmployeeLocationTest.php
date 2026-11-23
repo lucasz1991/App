@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Operations\EmployeeLocationStatus;
 use App\Livewire\Operations\MyWork;
 use App\Livewire\Settings\SessionPermissions;
 use App\Models\Device;
@@ -29,7 +28,6 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
-use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Livewire\Livewire;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\Support\BuildsMinimalRailTimeSchema;
@@ -360,7 +358,6 @@ class EmployeeLocationTest extends TestCase
         $this->service->permit($installation);
         $this->assertSame('inaccurate', $this->ownStatus()['state']);
         $this->withToken($token)->postJson('/api/employee-location/quality', array_replace($payload, ['quality_status' => 'unavailable']))->assertOk()->assertJsonPath('reported', true);
-        Livewire::actingAs($this->employee)->test(EmployeeLocationStatus::class)->assertSee('Standortmessung derzeit nicht verfügbar');
         $this->service->point($installation, $this->sample($permit));
         $this->assertSame('precise', $installation->fresh()->quality_status);
         $this->assertSame('active', $this->ownStatus()['state']);
@@ -457,64 +454,12 @@ class EmployeeLocationTest extends TestCase
             ->assertSee('Deine Freigaben')->assertSee('Für diese Sitzung abgelehnt')->assertSet('dialogOpen', false);
         // Standortfreigaben bleiben im globalen Dialog und Profil; im Arbeitstag steht kein Standortbereich.
         Livewire::actingAs($this->employee)->test(MyWork::class)
-            ->assertSee('RailTime als App installieren')->assertDontSeeLivewire(EmployeeLocationStatus::class)
+            ->assertSee('RailTime als App installieren')
             ->assertDontSee('data-employee-location-status', false)->assertDontSee('App-Standort')
-            ->call('showTab', 'time')->assertSet('tab', 'time')->assertDontSeeLivewire(EmployeeLocationStatus::class)
+            ->call('showTab', 'time')->assertSet('tab', 'time')
             ->assertDontSee('data-employee-location-status', false)->assertDontSee('App-Standort');
         $this->assertSame('declined', EmployeeLocationConsent::first()->decision);
         $this->assertSame('running', WorkTimeEntry::first()->status);
-    }
-
-    public function test_manual_handoff_is_explicit_ephemeral_and_cleared_at_expiry_or_withdrawal(): void
-    {
-        config(['app.url' => 'https://railtime.example']);
-        [$installation] = $this->ready();
-        $component = Livewire::actingAs($this->employee)->test(EmployeeLocationStatus::class)
-            ->assertSeeHtml('id="employee-location-device"')
-            ->assertSeeHtml('aria-label="Zugeordnetes Geschäftshandy"')
-            ->assertSeeHtml('data-autosave-model="assignmentId"')
-            ->assertSeeHtml('role="combobox"')
-            ->assertDontSeeHtml('<select ')
-            ->assertSet('handoffCode', '')->assertDontSee('Einmaliger Startcode')->call('prepareHandoff')->assertHasNoErrors()
-            ->assertSee('Einmaliger Startcode')->assertSee('60 Sekunden')->assertSee('Startcode');
-        $code = $component->get('handoffCode');
-        $issued = MobileLocationCode::where('code_hash', hash('sha256', $code))->firstOrFail();
-        $this->assertSame(now()->utc()->addSeconds(60)->toISOString(), $component->get('handoffExpiresAt'));
-        $this->assertSame($issued->expires_at->toISOString(), $component->get('handoffExpiresAt'));
-        $this->assertSame('https://railtime.example/employee-location/open#code='.$code.'&server=https%3A%2F%2Frailtime.example', $component->get('handoffUrl'));
-        $this->assertStringNotContainsString($code, json_encode(DB::table('mobile_location_codes')->get()));
-        $this->travel(60)->seconds();
-        $component->call('refreshStatus')->assertSet('handoffCode', '')->assertSet('handoffUrl', '')->assertSet('handoffExpiresAt', null)->assertDontSee('Einmaliger Startcode');
-        $this->assertDenied(fn () => $this->service->start($installation, $code));
-        $component->call('prepareHandoff')->call('withdraw')->assertSet('handoffCode', '')->assertSet('handoffUrl', '')->assertSet('handoffExpiresAt', null);
-        $this->assertSame('running', WorkTimeEntry::first()->status);
-    }
-
-    public function test_client_cannot_forge_a_manual_start_code(): void
-    {
-        $this->expectException(CannotUpdateLockedPropertyException::class);
-        Livewire::actingAs($this->employee)->test(EmployeeLocationStatus::class)->set('handoffCode', 'forged');
-    }
-
-    public function test_session_dialog_uses_the_current_explanation_version_after_midnight(): void
-    {
-        $this->ready();
-        $component = Livewire::actingAs($this->employee)->test(EmployeeLocationStatus::class)->assertSet('explanationVersion', 3);
-        EmployeeLocationSettings::save(['explanation_text' => EmployeeLocationSettings::DEFAULTS['explanation_text'].' Neue Erklärung.'], $this->admin);
-        $this->travelTo(CarbonImmutable::parse('2026-10-11T22:00:00Z'));
-        $component->call('refreshStatus')->assertSet('explanationVersion', 4)->assertSee('Neue Erklärung.')->assertSee('Für diese Sitzung erlauben')
-            ->call('accept')->assertHasNoErrors();
-        $this->assertSame(4, EmployeeLocationConsent::where('local_date', '2026-10-12')->firstOrFail()->explanation_version);
-        $this->assertSame('running', WorkTimeEntry::first()->status);
-    }
-
-    public function test_handoff_requires_https_before_issuing_any_new_code(): void
-    {
-        config(['app.url' => 'http://railtime.example']);
-        $this->ready();
-        $count = MobileLocationCode::count();
-        Livewire::actingAs($this->employee)->test(EmployeeLocationStatus::class)->call('prepareHandoff')->assertStatus(422);
-        $this->assertSame($count, MobileLocationCode::count());
     }
 
     public function test_employee_can_read_and_delete_own_retained_history_while_tracking_is_disabled(): void
@@ -527,10 +472,7 @@ class EmployeeLocationTest extends TestCase
         $this->assertSame('disabled', $status['state']);
         $this->assertCount(1, $status['history']);
         $this->assertNotNull($status['last_point']);
-        Livewire::actingAs($this->employee)->test(EmployeeLocationStatus::class)
-            ->assertSee('Die Standorterfassung ist ausgeschaltet')->assertDontSee('Für diese Sitzung erlauben')
-            ->set('historyOpen', true)->assertSee('52,520000')->assertSee('Meinen Verlauf löschen')
-            ->call('deleteHistory')->assertHasNoErrors();
+        $this->service->deleteHistory($this->employee);
         $this->assertDatabaseCount('employee_location_points', 0);
         $this->assertSame('running', WorkTimeEntry::first()->status);
         $this->assertNull($this->ownStatus(true)['last_point']);

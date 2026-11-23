@@ -132,39 +132,6 @@ final class GermanyMap
     }
 
     /**
-     * Eigene Dienste (Mein Arbeitstag): Orte der kommenden Dienste, der nächste hervorgehoben.
-     *
-     * @return array{points: list<array{left: float, top: float, label: string, count: int, next: bool, date: string}>, unplaced: int, total: int}
-     */
-    public static function personal(Collection $assignments, string $timezone): array
-    {
-        $points = [];
-        $unplaced = 0;
-        $upcoming = $assignments->filter(fn ($assignment) => $assignment->shift?->ends_at?->isFuture())->values();
-        foreach ($upcoming as $index => $assignment) {
-            $places = $assignment->shift instanceof Shift ? self::locateAll($assignment->shift, true) : [];
-            if ($places === []) {
-                $unplaced++;
-
-                continue;
-            }
-            $seen = [];
-            foreach ($places as $place) {
-                $key = $place['left'].'|'.$place['top'];
-                if (isset($seen[$key])) {
-                    continue;
-                }
-                $seen[$key] = true;
-                $points[$key] ??= ['left' => $place['left'], 'top' => $place['top'], 'label' => $place['label'], 'count' => 0, 'next' => false, 'date' => $assignment->shift->starts_at->setTimezone($timezone)->locale('de')->isoFormat('dd, D. MMM')];
-                $points[$key]['count']++;
-                $points[$key]['next'] = $points[$key]['next'] || $index === 0;
-            }
-        }
-
-        return ['points' => array_values($points), 'unplaced' => $unplaced, 'total' => $upcoming->count()];
-    }
-
-    /**
      * Schichtplanung: Schichten je Einsatzort, eingefärbt nach dem dringlichsten Besetzungsstand.
      *
      * @return array{points: list<array{key: string, left: float, top: float, label: string, precisionLabels: list<string>, count: int, open: int, tone: string}>, unplaced: int, total: int}

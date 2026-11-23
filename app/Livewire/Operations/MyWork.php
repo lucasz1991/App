@@ -25,7 +25,6 @@ use App\Services\Operations\UnifiedOperationsInboxService;
 use App\Services\Operations\WorkTimeExtensionService;
 use App\Services\Operations\WorkTimeService;
 use App\Support\CustomerPortal\CustomerPortalIntakeSchema;
-use App\Support\Operations\GermanyMap;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\PersonalCalendarLayout;
 use App\Support\Operations\PersonalSchedule;
@@ -58,9 +57,6 @@ class MyWork extends Component
     public string $anchorDate = '';
 
     public string $viewMode = 'week';
-
-    /** Monatsversatz des Mini-Kalenders auf „Heute“ (0 = aktueller Monat). */
-    public int $miniMonth = 0;
 
     public string $overviewDate = '';
 
@@ -948,13 +944,6 @@ class MyWork extends Component
         $this->updatedAnchorDate();
     }
 
-    public function shiftMiniMonth(int $direction): void
-    {
-        $this->access();
-        // 0 springt zurück in den aktuellen Monat, ±1 blättert.
-        $this->miniMonth = $direction === 0 ? 0 : max(-12, min(12, $this->miniMonth + ($direction <=> 0)));
-    }
-
     /** Sprung aus dem Mini-Kalender in die Tagesansicht des großen Kalenders. */
     public function openDay(string $date): void
     {
@@ -1060,28 +1049,6 @@ class MyWork extends Component
         ];
     }
 
-    /** Monatsraster mit Markierungen für Dienste und Abwesenheiten. */
-    private function miniCalendar(array $month, $assignments): array
-    {
-        $absences = AbsenceRequest::where('user_id', auth()->id())->whereIn('status', ['pending', 'approved', 'reported'])
-            ->where('starts_at', '<', $month['to']->utc())->where('ends_at', '>', $month['from']->utc())->get(['id', 'kind', 'status', 'starts_at', 'ends_at']);
-        $days = [];
-        for ($date = $month['from']; $date->lt($month['to']); $date = $date->addDay()) {
-            $next = $date->addDay();
-            $duties = $assignments->filter(fn ($assignment) => $assignment->shift->starts_at->lt($next) && $assignment->shift->ends_at->gt($date));
-            $days[] = [
-                'date' => $date,
-                'in_month' => $date->month === $month['anchor']->month,
-                'is_today' => $date->isSameDay(CarbonImmutable::now($this->displayTimezone())),
-                'duties' => $duties->count(),
-                'open' => $duties->contains(fn ($assignment) => $assignment->status->value === 'requested' && ! $assignment->plan_is_stale),
-                'absence' => $absences->first(fn ($absence) => $absence->starts_at->lt($next) && $absence->ends_at->gt($date))?->kind,
-            ];
-        }
-
-        return ['label' => $month['anchor']->locale('de')->isoFormat('MMMM YYYY'), 'days' => $days, 'offset' => $this->miniMonth];
-    }
-
     /** Read-only calendar context for the owned request, using published shift projections. */
     private function requestCalendar(?array $request): ?array
     {
@@ -1160,14 +1127,13 @@ class MyWork extends Component
         };
         $rangeStart = $this->tab === 'schedule' ? $from : CarbonImmutable::now($this->displayTimezone())->startOfDay();
         $rangeEnd = $this->tab === 'schedule' ? $to : $rangeStart->addDays(14);
-        $miniMonth = null;
         if ($this->tab === 'today') {
-            // Gemeinsame veröffentlichte Quelle für Tagesleiste, Dienste und den bisherigen Mini-Kalender.
-            $monthAnchor = CarbonImmutable::now($this->displayTimezone())->startOfMonth()->addMonthsNoOverflow($this->miniMonth);
-            $miniMonth = ['anchor' => $monthAnchor, 'from' => $monthAnchor->startOfWeek(), 'to' => $monthAnchor->endOfMonth()->endOfWeek()->addDay()->startOfDay()];
+            // Gemeinsame veröffentlichte Quelle für Tagesleiste und Dienste; geladen wird unverändert
+            // ab Wochenbeginn des laufenden Monats (früheres Mini-Kalender-Fenster).
+            $monthStart = CarbonImmutable::now($this->displayTimezone())->startOfMonth()->startOfWeek();
             // Keep the 14-day duty view and month intact while the request inbox
             // covers every future published request, including later months.
-            $loaded = app(PersonalSchedule::class)->assignments(auth()->user(), $rangeStart->min($miniMonth['from'])->min(WorkdayOverview::stripStart($this->overviewDay())));
+            $loaded = app(PersonalSchedule::class)->assignments(auth()->user(), $rangeStart->min($monthStart)->min(WorkdayOverview::stripStart($this->overviewDay())));
             $visible = $loaded->filter(fn ($assignment) => $assignment->shift->ends_at->gt($rangeStart) && $assignment->shift->starts_at->lt($rangeEnd))->values();
         } elseif ($this->tab === 'requests') {
             $loaded = app(PersonalSchedule::class)->assignments(auth()->user(), $rangeStart);
@@ -1284,8 +1250,6 @@ class MyWork extends Component
             'workdayOverview' => $workdayOverview,
             'taskCount' => $this->tab === 'today' ? $this->taskCount() : null,
             'glance' => $this->tab === 'today' ? $this->glance($timeCompleteness) : [],
-            'miniCalendar' => $miniMonth ? $this->miniCalendar($miniMonth, $loaded) : null,
-            'dutyMap' => $this->tab === 'today' ? GermanyMap::personal($visible, $this->displayTimezone()) : null,
             'times' => $this->tab === 'time' ? $timeQuery->latest('starts_at')->paginate(20, ['*'], 'timesPage') : collect(),
             'qualifications' => $this->tab === 'records' ? EmployeeQualification::where('user_id', auth()->id())->with('type')->latest()->paginate(20, ['*'], 'qualificationsPage') : collect(),
             'absences' => $this->tab === 'absences' ? AbsenceRequest::where('user_id', auth()->id())->latest()->paginate(20, ['*'], 'absencesPage') : collect(),

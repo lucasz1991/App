@@ -15,10 +15,6 @@ class ChatbotViewMarkupTest extends TestCase
 
     private string $css;
 
-    private string $pet;
-
-    private string $pet3d;
-
     protected function setUp(): void
     {
         parent::setUp();
@@ -27,8 +23,6 @@ class ChatbotViewMarkupTest extends TestCase
         $this->view = (string) file_get_contents($root.'/resources/views/livewire/tools/chatbot.blade.php');
         $this->javascript = (string) file_get_contents($root.'/resources/js/chatbot.js');
         $this->css = (string) file_get_contents($root.'/resources/css/chatbot.css');
-        $this->pet = (string) file_get_contents($root.'/resources/views/components/railtime-assistant-pet.blade.php');
-        $this->pet3d = (string) file_get_contents($root.'/resources/js/assistant-pet-3d.js');
     }
 
     public function test_view_exposes_the_livewire_chat_contract_with_escaped_messages(): void
@@ -249,8 +243,7 @@ class ChatbotViewMarkupTest extends TestCase
         $this->assertStringContainsString('x-for="action in petBubbleActions"', $this->view);
         $this->assertStringContainsString('x-on:click.stop="runPetBubbleAction(action)"', $this->view);
         $this->assertStringContainsString('async handlePetClick()', $this->javascript);
-        // Launcher und Chat verwenden denselben Thinking Orb; das fruehere
-        // 3D-Maskottchen bleibt als Backup in assistant-pet-3d.js liegen.
+        // Launcher und Chat verwenden denselben Thinking Orb.
         $this->assertStringContainsString('x-data="railtimeAssistantCloud()"', $this->view);
         $this->assertStringContainsString('data-assistant-cloud-slot="launcher"', $this->view);
         $this->assertStringContainsString('data-assistant-cloud-slot="header"', $this->view);
@@ -269,44 +262,9 @@ class ChatbotViewMarkupTest extends TestCase
         );
     }
 
-    public function test_pet_is_a_text_free_red_leaf_capsule_creature(): void
+    public function test_pet_body_color_token_stays_defined(): void
     {
-        $this->assertStringContainsString('aria-hidden="true"', $this->pet);
-        $this->assertStringContainsString('focusable="false"', $this->pet);
-        $this->assertStringContainsString('rt-assistant-pet__capsule', $this->pet);
-        $this->assertStringContainsString('rt-assistant-pet__face-screen', $this->pet);
-        $this->assertStringContainsString('rt-assistant-pet__face', $this->pet);
-        $this->assertStringContainsString('rt-assistant-pet__leaf', $this->pet);
-        $this->assertStringContainsString('rt-assistant-pet__feet', $this->pet);
-        $this->assertStringNotContainsString('rt-assistant-pet__antenna', $this->pet);
-        $this->assertStringNotContainsString('rt-assistant-pet__circuit', $this->pet);
-        $this->assertStringNotContainsString('rt-assistant-pet__tail', $this->pet);
-        $this->assertStringNotContainsString('rt-assistant-pet__robot', $this->pet);
-        $this->assertStringNotContainsString('<text', $this->pet);
         $this->assertStringContainsString('--rt-pet-body: #e21d3f;', $this->css);
-    }
-
-    public function test_prominent_pet_uses_one_lazy_webgl_model_that_moves_between_launcher_and_header(): void
-    {
-        $this->assertStringContainsString("import('three')", $this->pet3d);
-        $this->assertStringContainsString('new THREE.WebGLRenderer', $this->pet3d);
-        $this->assertStringContainsString('MAX_DEVICE_PIXEL_RATIO = 1.75', $this->pet3d);
-        $this->assertStringContainsString('MAX_FRAMES_PER_SECOND = 30', $this->pet3d);
-        $this->assertStringContainsString('new IntersectionObserver', $this->pet3d);
-        $this->assertStringContainsString('new THREE.SphereGeometry', $this->pet3d);
-        $this->assertStringNotContainsString('new THREE.ExtrudeGeometry', $this->pet3d);
-        $this->assertStringContainsString('railtime-assistant-red-baby-creature', $this->pet3d);
-        $this->assertStringContainsString("document.addEventListener('visibilitychange'", $this->pet3d);
-        $this->assertStringContainsString("'(prefers-reduced-motion: reduce)'", $this->pet3d);
-        $this->assertStringContainsString('this.petActiveSlot.appendChild(this.petCanvas)', $this->pet3d);
-        $this->assertStringContainsString("targetName = this.\$el.dataset.petOpen === 'true' ? 'header' : 'launcher'", $this->pet3d);
-        $this->assertStringContainsString("canvas.addEventListener('webglcontextlost'", $this->pet3d);
-        $this->assertStringContainsString('this.petRenderer.dispose()', $this->pet3d);
-        $this->assertStringContainsString('SVG fallback stays active', $this->pet3d);
-        $this->assertStringContainsString('PET_MOTION_PROFILES', $this->pet3d);
-        $this->assertStringContainsString('assistantPetMotionProfile(state)', $this->pet3d);
-        $this->assertStringContainsString('profile.mouthPulse', $this->pet3d);
-        $this->assertStringNotContainsString('petState:', $this->pet3d);
     }
 
     public function test_settings_popover_keeps_audio_and_automatic_help_controls_in_the_panel(): void
@@ -376,13 +334,8 @@ class ChatbotViewMarkupTest extends TestCase
         $this->assertStringContainsString('@keyframes rt-chatbot-pet-float', $this->css);
         $this->assertStringContainsString('@keyframes rt-chatbot-pet-blink', $this->css);
         $this->assertStringContainsString('@keyframes rt-chatbot-pet-leaf-left', $this->css);
-        $this->assertStringContainsString("[data-state='offline'] .rt-assistant-pet-3d__canvas", $this->css);
-        $this->assertStringContainsString("[data-state='thinking']", $this->css);
-        $this->assertStringContainsString("[data-state='listening']", $this->css);
-        $this->assertStringContainsString("[data-state='speaking']", $this->css);
-        $this->assertStringContainsString("[data-state='curious']", $this->css);
-        $this->assertStringContainsString("[data-state='happy']", $this->css);
-        $this->assertStringContainsString("[data-state='wave']", $this->css);
+        // Die Zustaende der Partikelwolke steuert assistant-particle-cloud.js ueber data-state,
+        // nicht CSS; die frueheren [data-state=...]-Regeln galten nur dem entfernten Pet-Markup.
         $this->assertStringContainsString('.rt-chatbot__speech-token', $this->css);
         $this->assertStringContainsString('.rt-chatbot__message-actions', $this->css);
         $this->assertMatchesRegularExpression('/\.rt-chatbot__message-actions\s*\{[^}]*flex-wrap:\s*wrap;/s', $this->css);

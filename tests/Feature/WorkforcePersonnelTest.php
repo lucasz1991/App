@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Operations\PersonnelProcesses;
 use App\Livewire\Operations\WorkforceAccounts;
 use App\Models\AbsenceRequest;
 use App\Models\Customer;
@@ -438,7 +437,7 @@ class WorkforcePersonnelTest extends TestCase
         $this->credit();
         Livewire::actingAs($this->author)->test(WorkforceAccounts::class)->assertSee('Kontogutschrift')->assertSeeHtml('data-rt-premium-table')->call('showTab', 'models')->assertSee('Explicit fixture')->call('openForm', 'model')->assertSet('formOpen', true)->assertSeeHtml('role="dialog"');
         Livewire::actingAs($this->employee)->test(WorkforceAccounts::class, ['personal' => true])->call('showTab', 'absences')->call('openForm', 'vacation')->set('form.starts_on', '2027-05-12')->set('form.ends_on', '2027-05-12')->call('save')->assertHasNoErrors()->assertSet('formOpen', false)->assertSee('Urlaub');
-        Livewire::actingAs($this->author)->test(PersonnelProcesses::class)->assertSet('tab', 'tasks')->call('showTab', 'training')->call('openForm', 'training')->assertSet('formOpen', true);
+        Livewire::actingAs($this->author)->test(WorkforceAccounts::class, ['tab' => 'tasks'])->assertSet('tab', 'tasks')->call('showTab', 'training')->call('openForm', 'training')->assertSet('formOpen', true);
     }
 
     public function test_personal_mode_cannot_change_subject_or_open_management_forms(): void

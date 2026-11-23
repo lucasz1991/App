@@ -80,16 +80,12 @@ test('global form field components use the shared premium surface system', async
         '../../resources/views/components/ui/forms/input.blade.php',
         '../../resources/views/components/ui/forms/textarea.blade.php',
         '../../resources/views/components/ui/forms/select.blade.php',
-        '../../resources/views/components/ui/forms/date-input.blade.php',
-        '../../resources/views/components/ui/forms/time-input.blade.php',
     ];
-    const [components, numberInput, dateField, checkbox, radioGroup, radioItem, styles] = await Promise.all([
+    const [components, numberInput, dateField, checkbox, styles] = await Promise.all([
         Promise.all(paths.map(read)),
         read('../../resources/views/components/ui/forms/number-input.blade.php'),
         read('../../resources/views/components/ui/forms/date-field.blade.php'),
         read('../../resources/views/components/ui/forms/checkbox.blade.php'),
-        read('../../resources/views/components/ui/forms/radio-btn-group.blade.php'),
-        read('../../resources/views/components/ui/forms/radio-btn-group-item.blade.php'),
         read('../../resources/css/app.css'),
     ]);
 
@@ -97,8 +93,6 @@ test('global form field components use the shared premium surface system', async
     assert.match(numberInput, /rt-ui-field-shell/);
     assert.match(dateField, /rt-ui-field-shell/);
     assert.match(checkbox, /rt-ui-check-field/);
-    assert.match(radioGroup, /rt-ui-radio-group/);
-    assert.match(radioItem, /rt-ui-radio-item/);
     assert.match(styles, /\/\* Premium-Formsystem/);
     assert.match(styles, /\.rt-ui-field-control,[\s\S]*?min-height:\s*3\.35rem/);
     assert.match(styles, /\.rt-ui-checkbox::before[\s\S]*?cubic-bezier\(\.34, 1\.56, \.64, 1\)/);

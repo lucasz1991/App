@@ -6,8 +6,8 @@
     (App\Support\Dashboard\WidgetRegistry) aus, ordnet per Drag&Drop oder
     Pfeiltasten an und stellt zwei Groessen ein - gespeichert in
     dashboard_widget_placements (App\Support\Dashboard\DashboardLayout).
-    Cockpit und MyWork bleiben als eigene Seiten/Komponenten bestehen
-    (operations.mine, operations.workspace); ihre Kennzahlen liefert hier
+    MyWork bleibt als eigene Seite bestehen (operations.mine);
+    ihre Kennzahlen liefert hier
     App\Support\Dashboard\WidgetDataProvider aus denselben Modellen neu.
 --}}
 <x-ui.page :auto-intro="false" :welcome-intro="false" content-class="rt-ops" data-native-dashboard>

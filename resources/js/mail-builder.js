@@ -42,7 +42,7 @@ import { assertTableOverlapSignature, isTableOverlapSignatureVersion } from './m
  * createMailBuilder() bereit; wer den Editor einhaengt, entscheidet die
  * aufrufende Stelle.
  *
- * Der Unterschied zum Marketing-Studio (resources/js/marketing-studio.js) ist
+ * Der Unterschied zum frueheren Marketing-Studio ist
  * nicht kosmetisch: dort wird eine Bildflaeche mit fester Kantenlaenge
  * gestaltet, hier ein Dokument, das durch Outlook, Gmail und Apple Mail muss.
  * Deshalb faellt hier alles weg, was eine Mail nicht ueberlebt — Motion,

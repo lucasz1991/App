@@ -11,8 +11,8 @@
     'tableKey' => null,
     'label' => 'Ergebnisliste',
     // Optionale Partials für Zeilen und Aktionen
-    'rowView' => null,       // z.B. 'components.tables.rows.user-messages.row'
-    'actionsView' => null,   // z.B. 'components.tables.rows.user-messages.actions'
+    'rowView' => null,       // z.B. 'components.tables.rows.messages.row'
+    'actionsView' => null,   // z.B. 'components.tables.rows.messages.actions'
     'detailsView' => null,
     'expandedId' => null,
     // Einheitliche Zeileninteraktion: Einfachklick = Auswahl,

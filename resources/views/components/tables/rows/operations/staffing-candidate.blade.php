@@ -1,5 +1,5 @@
 @foreach($columnsMeta as $column)
-<div class="rt-table-cell {{ $column['key'] === 'name' ? 'rt-table-cell--primary' : '' }}" data-rt-table-label="{{ $column['label'] }}">
+<div class="rt-table-cell {{ $column['key'] === 'name' ? 'rt-table-cell--primary' : '' }} {{ $hideClass($column['hideOn']) }}" data-rt-table-label="{{ $column['label'] }}">
     @if($column['key'] === 'name')
         <div class="min-w-0">
             <x-user.person-anchor-preview :user="$item" :show-presence="false" :show-email="false" :size="8" />
