@@ -3,7 +3,7 @@
     $activeEntries = $item->shiftDetails->where('active', true)->values();
     $closedEntries = $item->shiftDetails->where('active', false)->values();
     $viewer = auth()->user();
-    $canViewProfiles = $viewer?->canViewManagementDashboard() && $viewer->can('employees.view');
+    $canViewProfiles = (bool) ($viewer?->canViewManagementDashboard() && $viewer->can('employees.view'));
 @endphp
 <section class="rt-service-detail-tab rt-service-detail-staffing" data-service-staffing-tab aria-label="Besetzung der gesamten Leistung">
     <header class="rt-service-detail-tab__heading">
@@ -34,11 +34,7 @@
                             @foreach($currentAssignments as $assignment)
                                 <li class="rt-service-detail-staffing__person" data-service-detail-assignment="{{ $assignment['id'] }}" wire:key="service-detail-assignment-{{ $item->id }}-{{ $assignment['id'] }}">
                                     @if($assignment['user'])
-                                        @if($canViewProfiles)
-                                            <a href="{{ route($viewer->usesAdminLayout() ? 'admin.user-profile' : 'employees.show', $assignment['user']->id) }}" wire:navigate class="rt-service-detail-staffing__profile" aria-label="Profil öffnen: {{ $assignment['user']->name }}" data-service-detail-profile="{{ $assignment['user']->id }}"><x-user.public-info :user="$assignment['user']" :size="12" :show-email="false" :show-presence="false" :local-initials="true" /></a>
-                                        @else
-                                            <x-user.public-info :user="$assignment['user']" :size="12" :show-email="false" :show-presence="false" :local-initials="true" />
-                                        @endif
+                                        <x-user.profile-link :user="$assignment['user']" :size="12" :can-view="$canViewProfiles" class="rt-service-detail-staffing__profile" data-service-detail-profile="{{ $assignment['user']->id }}" />
                                     @else
                                         <div class="rt-service-detail-staffing__unavailable"><span aria-hidden="true">?</span><strong>Eingeplante Person nicht verfügbar</strong></div>
                                     @endif
@@ -55,11 +51,7 @@
                                 @foreach($pastAssignments as $assignment)
                                     <li class="rt-service-detail-staffing__person" data-service-detail-past-assignment="{{ $assignment['id'] }}">
                                         @if($assignment['user'])
-                                            @if($canViewProfiles)
-                                                <a href="{{ route($viewer->usesAdminLayout() ? 'admin.user-profile' : 'employees.show', $assignment['user']->id) }}" wire:navigate class="rt-service-detail-staffing__profile" aria-label="Profil öffnen: {{ $assignment['user']->name }}" data-service-detail-profile="{{ $assignment['user']->id }}"><x-user.public-info :user="$assignment['user']" :size="10" :show-email="false" :show-presence="false" :local-initials="true" /></a>
-                                            @else
-                                                <x-user.public-info :user="$assignment['user']" :size="10" :show-email="false" :show-presence="false" :local-initials="true" />
-                                            @endif
+                                            <x-user.profile-link :user="$assignment['user']" :size="10" :can-view="$canViewProfiles" class="rt-service-detail-staffing__profile" data-service-detail-profile="{{ $assignment['user']->id }}" />
                                         @else<span>Eingeplante Person nicht verfügbar</span>@endif
                                         <x-operations.status :value="$assignment['status']" />
                                     </li>

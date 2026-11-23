@@ -10,6 +10,7 @@ use App\Models\Shift;
 use App\Services\Operations\PlanningCapacityService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OrderSelection;
+use App\Support\Operations\ShiftCardData;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Validation\ValidationException;
@@ -310,17 +311,15 @@ class Calendar extends Component
             ->orderBy('starts_at')
             ->get()
             ->map(function (Shift $shift): Shift {
-                $reserved = $shift->assignments->filter(fn ($assignment) => in_array($assignment->status->value, ShiftAssignmentStatus::blockingValues(), true))->count();
-                $requested = $shift->assignments->filter(fn ($assignment) => $assignment->status === ShiftAssignmentStatus::Requested)->count();
-                $shift->setAttribute('calendar_reserved', $reserved);
-                $shift->setAttribute('calendar_requested', $requested);
-                $closed = in_array($shift->status, [ShiftStatus::Cancelled, ShiftStatus::Completed], true);
-                $open = $closed ? 0 : max(0, $shift->required_staff - $reserved);
-                $shift->setAttribute('calendar_open', $open);
+                // Gleiche Aufbereitung wie die Schichtkarten (ShiftCardData).
+                $card = ShiftCardData::from($shift, $this->displayTimezone());
+                $shift->setAttribute('calendar_reserved', $card->reserved);
+                $shift->setAttribute('calendar_requested', $card->requested);
+                $shift->setAttribute('calendar_open', $card->open);
                 // Ein Zustand je Schicht, damit Farbe und Text ohne Legende eindeutig sind.
-                $shift->setAttribute('calendar_state', $closed ? 'closed' : ($open > 0 ? 'open' : ($requested > 0 ? 'pending' : 'staffed')));
-                $shift->setAttribute('calendar_starts', $shift->starts_at->setTimezone($this->displayTimezone()));
-                $shift->setAttribute('calendar_ends', $shift->ends_at->setTimezone($this->displayTimezone()));
+                $shift->setAttribute('calendar_state', $card->state());
+                $shift->setAttribute('calendar_starts', $card->starts);
+                $shift->setAttribute('calendar_ends', $card->ends);
 
                 return $shift;
             })
