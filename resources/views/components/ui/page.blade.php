@@ -21,9 +21,42 @@
     // Abstaende fuer den eigentlichen Seiteninhalt gehoeren auf den inneren
     // Live-Content-Wrapper. So bleiben sie auch mit Skeleton-Overlay wirksam.
     'contentClass' => null,
+    // Eingebettet (Kind-Komponente in einer fremden Seite, z. B. Arbeitsplatz
+    // oder Disposition): kein Seitenkopf, kein Intro, kein Gesehen-Tracking
+    // und kein Dokumenttitel. Uebrig bleibt ein ops-stack mit optionaler
+    // actions-Toolbar. Ersetzt die fruehere Weiche operations.surface/ui.page.
+    'embedded' => false,
+    // Browser-Tab-Titel; Standard ist :title. Eine vorher gesetzte
+    // @section('title') hat Vorrang (die erste Definition gewinnt).
+    'documentTitle' => null,
 ])
 
+{{--
+    eyebrow und description werden bewusst geschluckt: Der Seitenkopf zeigt
+    nur Titel, Steuerung, Aktionen und Info-Knopf. Die Props bleiben, damit die
+    Werte nicht als HTML-Attribute (title= als Tooltip) am Wrapper landen.
+--}}
+{{--
+    Bewusst ein PHP-if statt der if-Direktive: Livewire setzt vor jede if-Direktive Morph-Marker
+    (<!--[if BLOCK]-->). Am Anfang der Komponente laegen sie VOR dem
+    Wurzelelement, und Livewire haengte wire:id dann an das erste Kind-Tag
+    der Seite statt an deren Wurzel. $embedded aendert sich nach mount nicht.
+--}}
+@php if ($embedded): @endphp
+<section {{ $attributes->class('ops-stack min-w-0') }}>
+    @isset($actions)<div class="ops-toolbar justify-end">{{ $actions }}</div>@endisset
+    {{ $slot }}
+</section>
+@php else: @endphp
 @php
+    // Dokumenttitel: layouts.master liest @section('title') (sonst 'Dashboard').
+    // Livewire reicht Sections aus der Komponentenansicht an das Layout weiter.
+    // Der Inhalt wird roh abgelegt, weil das Layout ihn selbst escaped.
+    $resolvedDocumentTitle = trim(strip_tags((string) ($documentTitle ?? $title)));
+    if ($resolvedDocumentTitle !== '' && ! $__env->hasSection('title')) {
+        $__env->startSection('title', new \Illuminate\Support\HtmlString($resolvedDocumentTitle));
+    }
+
     $routeName = request()->route()?->getName();
     $help = app(\App\Support\PageHelpCatalog::class)->forRoute($routeName, $title);
     // Fallback-Reihenfolge bewusst: Routenname -> Titel -> Pfad. Der Pfad kommt
@@ -115,3 +148,4 @@
         </div>
     </div>
 </div>
+@php endif; @endphp

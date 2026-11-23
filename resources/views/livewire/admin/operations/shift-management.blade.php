@@ -5,7 +5,7 @@
             <x-ui.forms.search context="page-topbar" wire:model.live.debounce.300ms="search" :results-count="$shifts->count()" placeholder="Schicht, Kunde oder Einsatzort suchen" aria-label="Schichten suchen" />
         </template>
     @endif
-    <template x-teleport="[data-page-header-search]">
+    <x-ui.page-header-actions target="search">
         <div class="rt-shift-plan-header-controls" data-shift-plan-header-controls>
             @php
                 $planViews = [
@@ -93,8 +93,8 @@
                 <div data-timeline-filter-owner="{{ $this->getId() }}" wire:ignore wire:key="timeline-filter-host-{{ $this->getId() }}"></div>
             @endif
         </div>
-    </template>
-    <template x-teleport="[data-page-header-actions]">
+    </x-ui.page-header-actions>
+    <x-ui.page-header-actions target="actions">
             <div class="rt-shift-plan-header-action" data-shift-plan-header-actions>
             {{-- „Noch zu verteilen“ ist ein Seitenpanel; der Zähler schaltet es. Offen = Vorschläge in der Zeitleiste. --}}
             <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-plan-control rt-shift-plan-distribution-trigger" wire:click="toggleDistribution" wire:loading.attr="disabled" wire:target="toggleDistribution"
@@ -133,7 +133,7 @@
                     @include('livewire.admin.operations.partials.service-filter-trigger')
                 @endif
             </div>
-    </template>
+    </x-ui.page-header-actions>
     @if($nativeOperations)
         <livewire:operations.ai-planning-helper :from="$rangeFrom" :until="$rangeTo" :key="'ai-planning-period-'.$rangeFrom.'-'.$rangeTo" />
     @endif

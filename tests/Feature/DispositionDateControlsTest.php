@@ -78,7 +78,7 @@ class DispositionDateControlsTest extends TestCase
         $this->assertStringContainsString("'timeline' => ['Zeitleiste', 'fa-clock']", $source);
         $this->assertStringNotContainsString('x-ui.buttons.multi-toggle id="shift-plan-view-toggle"', $source);
         $this->assertStringNotContainsString('<details class="rt-disposition-range">', $source);
-        $this->assertStringContainsString('<template x-teleport="[data-page-header-actions]">', $source);
+        $this->assertStringContainsString('<x-ui.page-header-actions target="actions">', $source);
         $this->assertStringContainsString('<livewire:operations.shift-series-planner :show-trigger="false" />', $source);
         $this->assertStringContainsString('x-ui.forms.date-range-picker from-model="rangeFrom" until-model="rangeTo" apply-action="applyPeriod"', $source);
         $this->assertStringNotContainsString('wire:click="currentWeek"', $source);

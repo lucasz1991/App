@@ -2,7 +2,7 @@
 @section('title', $pageTitle)
 {{-- Customers own their compact header inside the Livewire component, so its
      controls remain mounted after search, selection and profile round trips. --}}
-<x-dynamic-component :component="$page === 'customers' ? 'operations.surface' : 'ui.page'" :title="$pageTitle" :header-variant="in_array($page, ['cases', 'shifts', 'planning', 'duty'], true) ? 'compact' : 'default'" :auto-intro="false" :title-in-topbar="$page === 'people'" :show-back="! in_array($page, ['cases', 'shifts', 'planning', 'duty', 'people'], true)" content-class="rt-ops ops-stack" :class="in_array($page, ['cases', 'shifts', 'planning', 'duty'], true) ? 'rt-disposition-page' : (in_array($page, ['people', 'personnel-processes', 'leave', 'time-review', 'payroll'], true) ? 'rt-personnel-page' : '')">
+<x-ui.page :embedded="$page === 'customers'" :title="$pageTitle" :header-variant="in_array($page, ['cases', 'shifts', 'planning', 'duty'], true) ? 'compact' : 'default'" :auto-intro="false" :title-in-topbar="$page === 'people'" :show-back="! in_array($page, ['cases', 'shifts', 'planning', 'duty', 'people'], true)" content-class="rt-ops ops-stack" :class="in_array($page, ['cases', 'shifts', 'planning', 'duty'], true) ? 'rt-disposition-page' : (in_array($page, ['people', 'personnel-processes', 'leave', 'time-review', 'payroll'], true) ? 'rt-personnel-page' : '')">
     @if($page === 'shifts')
         <x-slot:actions><x-operations.create-action :module="$initialView === 'calendar' ? 'calendar' : 'shift-management'" /></x-slot:actions>
     @endif
@@ -25,4 +25,4 @@
         {{-- Eigenständige Disposition bleibt bei ausgeschaltetem zentralen Chat verfügbar. --}}
         <livewire:operations.ai-assist :page="$page" :view="$initialView" :section="$initialSection" :key="'ai-assist-'.$page.'-'.$initialView.'-'.$initialSection" />
     @endif
-</x-dynamic-component>
+</x-ui.page>

@@ -1,5 +1,5 @@
 <div class="employee-workspace employee-directory" data-employee-directory-scroll x-data="{}">
-    <x-dynamic-component :component="$embedded ? 'operations.surface' : 'ui.page'"
+    <x-ui.page :embedded="$embedded"
         :title="$embedded ? null : __('app.employees')"
         :count="number_format($employeesTotal, 0, ',', '.')"
         :auto-intro="!$embedded"
@@ -8,11 +8,11 @@
     >
         <x-slot:actions>
             @if($embedded)
-                <template x-teleport="[data-page-header-action-list]" wire:key="employee-header-actions">
+                <x-ui.page-header-actions target="action-list" wire:key="employee-header-actions">
                     <div class="employee-directory__header-actions flex items-center gap-1">
                         @include('livewire.admin.employees.directory-actions')
                     </div>
-                </template>
+                </x-ui.page-header-actions>
             @else
                 <div class="employee-directory__header-actions flex items-center gap-1">
                 @include('livewire.admin.employees.directory-actions')
@@ -20,7 +20,7 @@
             @endif
         </x-slot:actions>
 
-        <template x-teleport="[data-page-header-search]" wire:key="employee-header-search">
+        <x-ui.page-header-actions target="search" wire:key="employee-header-search">
         <div class="employee-directory__controls" aria-label="Mitarbeiter auswählen und suchen">
             <div class="employee-directory__search-controls">
                 <x-tables.bulk-actions :count="count($selectedEmployees)" select-all="toggleSelectAll">
@@ -45,7 +45,7 @@
                     wire:model.live.debounce.300ms="search" />
             </div>
         </div>
-        </template>
+        </x-ui.page-header-actions>
 
         {{-- Tabelle --}}
         <div class="employee-directory__results w-full">
@@ -78,7 +78,7 @@
                 <x-tables.pagination :paginator="$employees" table-key="employee-directory" class="employee-directory__pager" />
             </div>
         </div>
-    </x-dynamic-component>
+    </x-ui.page>
 
     <livewire:admin.employees.employee-form-modal :key="'employee-form-modal'" />
     <livewire:admin.employees.team-rbac-modal :key="'employee-team-rbac-modal'" />

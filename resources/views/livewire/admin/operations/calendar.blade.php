@@ -18,7 +18,7 @@
         };
     @endphp
     {{-- Eine Steuerzeile im Seitenkopf: Zeitraum, Ansicht, Filter und offene Plätze als schlanke Auswahlfelder. --}}
-    <template x-teleport="[data-page-header-search]" wire:key="calendar-header-controls-{{ $this->getId() }}">
+    <x-ui.page-header-actions target="search" wire:key="calendar-header-controls-{{ $this->getId() }}">
         <div class="rt-shift-plan-header-controls rt-calendar-header-controls" data-calendar-header-controls>
             <div class="rt-calendar-period-group" role="group" aria-label="Kalenderzeitraum">
                 <button type="button" class="rt-calendar-step" wire:click="previousPeriod" wire:loading.attr="disabled" wire:target="previousPeriod,nextPeriod,today" aria-label="Vorheriger Zeitraum" title="Vorheriger Zeitraum"><i class="far fa-chevron-left" aria-hidden="true"></i></button>
@@ -100,7 +100,7 @@
                 <span class="rt-calendar-open-toggle__dot" aria-hidden="true"></span><strong>{{ $openCount }}</strong> offen
             </button>
         </div>
-    </template>
+    </x-ui.page-header-actions>
     <x-operations.feedback />
 
     @if($viewport)<div data-disposition-calendar-surface>@endif

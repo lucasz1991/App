@@ -1,5 +1,5 @@
 <div class="rt-ops ops-stack" data-customer-communications>
-    <x-operations.surface>
+    <x-ui.page embedded>
         <x-slot:actions>
             @if(count($views)>1)
                 <nav class="ops-actions mr-auto" aria-label="Kommunikationsansichten">
@@ -18,7 +18,7 @@
             <x-tables.table label="Kundenkommunikation" table-key="customer-communication" :flush-top="true" :columns="[['label'=>'Betreff','key'=>'subject','width'=>'46%'],['label'=>'Kanal','key'=>'channel','width'=>'20%'],['label'=>'Zeitpunkt','key'=>'date','width'=>'34%']]" :items="$records" detail-action="openDetails" row-view="components.tables.rows.customers.communication-row" actions-view="components.tables.rows.customers.communication-actions" empty="Noch keine Kommunikation hinterlegt." />
             <div class="py-4"><x-tables.pagination :paginator="$records" label="Kommunikationsseiten" /></div>
         @else<p class="rounded-xl border border-rt-border p-4 text-sm text-rt-muted dark:border-rt-dark-border dark:text-rt-dark-muted">Kommunikationsprotokoll nach Datenbankaktualisierung verfügbar.</p>@endif
-    </x-operations.surface>
+    </x-ui.page>
     @if($formOpen && $canRecord && $ready)
     <x-dialog-modal wire:model="formOpen" maxWidth="2xl">
         <x-slot name="title">Kontakt protokollieren</x-slot>

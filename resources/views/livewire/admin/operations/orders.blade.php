@@ -18,17 +18,17 @@
         <template x-teleport="[data-topbar-page-search]">
             <x-ui.forms.search context="page-topbar" wire:model.live.debounce.300ms="search" :results-count="$orders->count()" placeholder="Leistungen suchen" aria-label="Leistungen suchen" />
         </template>
-        <template x-teleport="[data-page-header-search]">
+        <x-ui.page-header-actions target="search">
             <div class="rt-orders-list-controls" data-orders-list-controls>
                 <x-operations.service-table-selection :count="count($selectedServiceRows)" />
             </div>
-        </template>
-        <template x-teleport="[data-page-header-actions]">
+        </x-ui.page-header-actions>
+        <x-ui.page-header-actions target="actions">
             <div class="rt-orders-table-filters" data-orders-table-filters>
                 @include('livewire.admin.operations.partials.orders-period-trigger')
                 @include('livewire.admin.operations.partials.orders-filter-trigger')
             </div>
-        </template>
+        </x-ui.page-header-actions>
     @else
         <div class="rt-orders-list-controls" data-orders-list-controls>
             <x-operations.service-table-selection :count="count($selectedServiceRows)" />

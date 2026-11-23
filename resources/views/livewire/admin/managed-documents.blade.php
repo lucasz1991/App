@@ -1,4 +1,4 @@
-<x-dynamic-component :component="$embedded ? 'operations.surface' : 'ui.page'"
+<x-ui.page :embedded="$embedded"
     :title="__('app.managed_documents')"
     :eyebrow="__('app.file_management')"
     :description="__('app.managed_documents_intro')"
@@ -241,4 +241,4 @@
         </x-slot:content>
         <x-slot:footer><x-ui.buttons.button-basic mode="secondary" type="button" wire:click="$set('historyOpen', false)">{{ __('app.close') }}</x-ui.buttons.button-basic></x-slot:footer>
     </x-dialog-modal>
-</x-dynamic-component>
+</x-ui.page>

@@ -23,7 +23,7 @@
     $profilePrefix = 'employee-profile-'.$user->id;
   @endphp
 
-  <x-dynamic-component :component="$embedded ? 'operations.surface' : 'ui.page'" :title="$embedded ? null : 'Mitarbeiterprofil'" :eyebrow="__('app.employees')" :description="$user->email" :auto-intro="!$embedded">
+  <x-ui.page :embedded="$embedded" :title="$embedded ? null : 'Mitarbeiterprofil'" :eyebrow="__('app.employees')" :description="$user->email" :auto-intro="!$embedded">
     <x-slot:actions>
         <x-ui.dropdown.page-actions width="48">
             @if($canManageEmployeeTeams)
@@ -286,7 +286,7 @@
     </div>
     </div>
     </div>
-  </x-dynamic-component>
+  </x-ui.page>
 
     @if($canManageEmployeeTeams)
         <livewire:admin.employees.employee-team-modal :key="'profile-team-change-'.$user->id" />

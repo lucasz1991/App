@@ -95,9 +95,9 @@
         </div>
         @isset($search)
             @if ($searchInHeader)
-                <template x-teleport="[data-page-header-search]">
+                <x-ui.page-header-actions target="search">
                     <div data-page-list-search>{{ $search }}</div>
-                </template>
+                </x-ui.page-header-actions>
             @else
             <div class="rt-table-toolbar__search-field">
                 @if (filled($searchFor))

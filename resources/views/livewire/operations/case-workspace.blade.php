@@ -3,14 +3,14 @@
         <x-ui.navigation.area-menu id="case-workspace-view" label="Vorgangsansicht" :value="$view === 'shifts' && $section === 'calendar' ? 'calendar' : $view" action="setPlanningView" :options="$planningOptions" :navigate="true" />
     </template>
     @if($view === 'shifts' && $section === 'plan')
-        <template x-teleport="[data-page-header-actions]" wire:key="case-shift-create-action">
+        <x-ui.page-header-actions target="actions" wire:key="case-shift-create-action">
             <x-operations.create-action module="shift-management" />
-        </template>
+        </x-ui.page-header-actions>
     @endif
     @if($view === 'orders' && !$costsOnly)
-        <template x-teleport="[data-page-header-action-list]" wire:key="case-order-create-action">
+        <x-ui.page-header-actions target="action-list" wire:key="case-order-create-action">
             <x-ui.buttons.button-basic class="rt-case-create-action rt-case-create-action--icon" type="button" mode="primary" aria-label="Auftrag anlegen" title="Auftrag anlegen" wire:click="$dispatch('operations-create')"><i class="far fa-plus" aria-hidden="true"></i></x-ui.buttons.button-basic>
-        </template>
+        </x-ui.page-header-actions>
     @endif
     @if($reservation)
         <div class="ops-actions" aria-label="Reservierungskontext"><x-operations.status :value="$reservation->status" />

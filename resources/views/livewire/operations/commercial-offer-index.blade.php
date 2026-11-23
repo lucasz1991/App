@@ -3,7 +3,7 @@
         <template x-teleport="[data-topbar-page-search]" wire:key="offers-topbar-search-{{ $this->getId() }}">
             <x-ui.forms.search context="page-topbar" wire:model.live.debounce.300ms="search" :results-count="$offers->count()" placeholder="Angebot oder Kunde suchen" aria-label="Angebote suchen" />
         </template>
-        <template x-teleport="[data-page-header-search]" wire:key="offers-header-controls-{{ $this->getId() }}">
+        <x-ui.page-header-actions target="search" wire:key="offers-header-controls-{{ $this->getId() }}">
             <div class="rt-offers-header-controls">
                 <label class="sr-only" for="case-offer-status-{{ $this->getId() }}">Angebotsstatus</label>
                 <x-ui.forms.select id="case-offer-status-{{ $this->getId() }}" wire:model.live="status" aria-label="Angebotsstatus">
@@ -13,7 +13,7 @@
                     <option value="accepted" data-icon-class="far fa-check">Zugesagt</option>
                 </x-ui.forms.select>
             </div>
-        </template>
+        </x-ui.page-header-actions>
     @else
     <x-tables.toolbar id="commercial-offer-index" title="Angebote" :search-in-header="true" :filter-count="$this->activeFilterCount()" reset-action="resetFilters">
         <x-slot:search><x-ui.forms.search context="page" wire:model.live.debounce.300ms="search" placeholder="Angebot oder Kunde suchen" /></x-slot:search>

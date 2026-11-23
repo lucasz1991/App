@@ -1,5 +1,5 @@
 <section class="rt-disposition rt-unified-inbox" data-disposition-viewport="inbox" aria-label="Gemeinsamer Eingang" wire:poll.visible.15s x-data="{}">
-    <template x-teleport="[data-page-header-search]" wire:key="unified-inbox-filters-{{ $this->getId() }}">
+    <x-ui.page-header-actions target="search" wire:key="unified-inbox-filters-{{ $this->getId() }}">
         <div class="ops-actions rt-unified-inbox__actions">
                 <x-ui.navigation.status-menu class="rt-unified-inbox__statuses" variant="dropdown"
                     :dropdown-id="'unified-inbox-status-'.$this->getId()"
@@ -16,8 +16,8 @@
                     <option value="import" data-icon-class="far fa-file-import">Import</option>
                 </x-ui.forms.select>
         </div>
-    </template>
-    <template x-teleport="[data-page-header-action-list]" wire:key="unified-inbox-actions-{{ $this->getId() }}">
+    </x-ui.page-header-actions>
+    <x-ui.page-header-actions target="action-list" wire:key="unified-inbox-actions-{{ $this->getId() }}">
         <div class="ops-actions rt-unified-inbox__actions">
                 @if(isset($sections['ai-intake']) || isset($sections['imports']))
                     <details class="rt-unified-inbox__more" wire:ignore.self x-on:click="if ($event.target.closest('button')) $el.open = false" x-on:click.outside="$el.open = false" x-on:keydown.escape.stop="$el.open = false"><summary aria-label="Weitere Eingangsaktionen"><i class="far fa-ellipsis-h" aria-hidden="true"></i></summary><div>
@@ -28,7 +28,7 @@
             @if($mailboxAvailable)<x-ui.buttons.button-basic mode="secondary" type="button" wire:click="openMailbox" wire:loading.attr="disabled" wire:target="openMailbox" aria-label="Dispositionspostfach öffnen" title="Dispositionspostfach öffnen"><i class="far fa-envelope" aria-hidden="true"></i><span>Postfach</span></x-ui.buttons.button-basic>@endif
             @if(isset($sections['overview']))<x-ui.buttons.button-basic class="rt-unified-inbox__create" mode="primary" type="button" wire:click="create" aria-label="Eingang erfassen" title="Eingang erfassen"><i class="far fa-plus" aria-hidden="true"></i></x-ui.buttons.button-basic>@endif
         </div>
-    </template>
+    </x-ui.page-header-actions>
     <section class="rt-disposition-panel" data-disposition-list>
         <div data-disposition-list-content wire:loading.class="opacity-60" wire:target="setStatus,channel,gotoPage,nextPage,previousPage">
             <x-tables.table :columns="[['label'=>'Vorgang / Kunde','key'=>'title','width'=>'minmax(0,2fr)'],['label'=>'Quelle','key'=>'channel','width'=>'minmax(0,.8fr)'],['label'=>'Bearbeitung','key'=>'status','width'=>'minmax(0,1fr)'],['label'=>'Nächster Schritt','key'=>'next','width'=>'minmax(0,1.3fr)']]" :items="$rows" table-key="unified-inbox" selection-action="openRow" detail-action="openRow" row-view="components.tables.rows.inquiries.unified-inbox-row" :flush-top="true" :scroll-body="true" label="Gemeinsamer Eingang" data-disposition-list-table :empty="$status !== 'all' || $channel !== 'all' ? 'Keine Eingänge für diese Auswahl. Wähle einen anderen Filter.' : 'Keine Eingänge vorhanden. Neue Anfragen und offene Prüfungen erscheinen hier.'" />
