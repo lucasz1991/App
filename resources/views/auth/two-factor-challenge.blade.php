@@ -1,10 +1,6 @@
-<x-app-layout>
-    <x-authentication-card>
-        <x-slot name="logo">
-            <x-authentication-card-logo />
-        </x-slot>
-
-        <div x-data="{ recovery: false }">
+<x-guest-layout>
+    <x-auth-brand-layout :title="__('app.two_factor_authentication')">
+        <div class="mt-4" x-data="{ recovery: false }">
             <div class="mb-4 text-sm text-rt-muted dark:text-rt-dark-muted" x-show="! recovery">
                 {{ __('Please confirm access to your account by entering the authentication code provided by your authenticator application.') }}
             </div>
@@ -54,5 +50,5 @@
                 </div>
             </form>
         </div>
-    </x-authentication-card>
-</x-app-layout>
+    </x-auth-brand-layout>
+</x-guest-layout>

@@ -72,7 +72,7 @@ test('premium auth motion and mobile geometry remain bounded and optional', asyn
     assert.match(appStyles, /transform \.52s var\(--rt-toggle-spring\)/);
     assert.match(appStyles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.rt-ui-toggle-control::before/);
     assert.match(styles, /\.rt-login-forgot\s*\{[\s\S]*?padding:\s*\.35rem \.75rem/);
-    assert.match(guest, /rt-auth\.css'\) \}\}\?v=20260904-toggle-alignment/);
+    assert.match(guest, /rt-auth\.css'\) \}\}\?v=20261123-local-fonts/);
 });
 
 test('global form field components use the shared premium surface system', async () => {

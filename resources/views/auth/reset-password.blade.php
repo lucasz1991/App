@@ -1,12 +1,8 @@
 <x-guest-layout>
-    <x-authentication-card>
-        <x-slot name="logo">
-            <x-authentication-card-logo />
-        </x-slot>
+    <x-auth-brand-layout :title="__('Reset Password')">
+        <x-validation-errors class="mt-4 mb-4" />
 
-        <x-validation-errors class="mb-4" />
-
-        <form method="POST" action="{{ route('password.update') }}" class="space-y-5">
+        <form method="POST" action="{{ route('password.update') }}" class="mt-6 space-y-5">
             @csrf
 
             <input type="hidden" name="token" value="{{ $request->route('token') }}">
@@ -32,5 +28,5 @@
                 </x-ui.buttons.button-basic>
             </div>
         </form>
-    </x-authentication-card>
+    </x-auth-brand-layout>
 </x-guest-layout>

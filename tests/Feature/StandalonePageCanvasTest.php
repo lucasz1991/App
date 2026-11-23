@@ -100,7 +100,14 @@ class StandalonePageCanvasTest extends TestCase
                 $this->assertStringNotContainsString($dependency, $source);
             }
 
-            $this->assertStringContainsString("@include('layouts.icon-head')", $source);
+            $this->assertStringContainsString("@include('layouts.document-head'", $source);
+            $this->assertStringContainsString("'pwa' => false", $source);
+            $this->assertStringContainsString("'csrf' => false", $source);
         }
+
+        $this->assertStringContainsString(
+            "@include('layouts.icon-head')",
+            File::get(resource_path('views/layouts/document-head.blade.php')),
+        );
     }
 }

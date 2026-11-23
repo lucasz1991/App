@@ -14,15 +14,17 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
-    <meta name="robots" content="noindex, nofollow">
-    <meta name="theme-color" content="#dce3ed" media="(prefers-color-scheme: light)">
-    <meta name="theme-color" content="#03060b" media="(prefers-color-scheme: dark)">
+    {{-- Gemeinsamer Dokumentkopf wie die Fehlerseiten: ohne CSRF, ohne
+         pwa-head, ohne App-Theme-Skript. Theme-Color und Favicons kommen
+         aus dem reinen Icon-Partial (layouts.icon-head). --}}
+    @include('layouts.document-head', ['documentHead' => [
+        'robots' => 'noindex, nofollow',
+        'csrf' => false,
+        'pwa' => false,
+        'themeScript' => false,
+    ]])
 
     <title>Wartung · RailTime</title>
-
-    @include('layouts.icon-head')
 
     <script>
         try {

@@ -1,12 +1,11 @@
 <x-guest-layout>
-    <x-authentication-card>
-        <x-slot name="logo"><x-authentication-card-logo /></x-slot>
+    <x-auth-brand-layout
+        title="Mitarbeiterzugang einrichten"
+        description="Legen Sie Ihr Passwort fest. Damit bestätigen Sie Ihre E-Mail-Adresse und werden anschließend direkt angemeldet."
+    >
+        <x-validation-errors class="mt-4 mb-4" />
 
-        <h1 class="text-xl font-semibold">Mitarbeiterzugang einrichten</h1>
-        <p class="mt-2 mb-4 text-sm">Legen Sie Ihr Passwort fest. Damit bestätigen Sie Ihre E-Mail-Adresse und werden anschließend direkt angemeldet.</p>
-        <x-validation-errors class="mb-4" />
-
-        <form method="POST" action="{{ $request->fullUrl() }}" class="space-y-5">
+        <form method="POST" action="{{ $request->fullUrl() }}" class="mt-6 space-y-5">
             @csrf
             <div>
                 <x-ui.forms.label for="email" value="E-Mail-Adresse" />
@@ -20,7 +19,7 @@
                 <x-ui.forms.label for="password_confirmation" value="Passwort bestätigen" />
                 <x-ui.forms.input id="password_confirmation" class="mt-1 block" type="password" name="password_confirmation" required autocomplete="new-password" />
             </div>
-            <x-ui.buttons.button-basic mode="primary" type="submit">Zugang einrichten</x-ui.buttons.button-basic>
+            <x-ui.buttons.button-basic mode="primary" type="submit" class="w-full justify-center">Zugang einrichten</x-ui.buttons.button-basic>
         </form>
-    </x-authentication-card>
+    </x-auth-brand-layout>
 </x-guest-layout>

@@ -34,13 +34,16 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
-    <meta name="robots" content="noindex, nofollow">
+    {{-- Gemeinsamer Dokumentkopf ohne CSRF, ohne pwa-head und ohne
+         App-Theme-Skript: bindet nur das reine Icon-Partial
+         (layouts.icon-head) ohne Auth-/Session-/DB-Zugriff ein. --}}
+    @include('layouts.document-head', ['documentHead' => [
+        'robots' => 'noindex, nofollow',
+        'csrf' => false,
+        'pwa' => false,
+        'themeScript' => false,
+    ]])
     <title>{{ $status }} · {{ $title }} | {{ config('app.name', 'RailTime') }}</title>
-
-    {{-- Reines Icon-Partial ohne Auth-/DB-Zugriff. --}}
-    @include('layouts.icon-head')
 
     {{-- Dunkelmodus vor dem Zeichnen anwenden (wie im Hauptlayout). Faellt
          ohne JavaScript auf die helle Darstellung zurueck. --}}

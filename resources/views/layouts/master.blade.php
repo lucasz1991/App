@@ -22,9 +22,9 @@
       x-bind:class="$store.theme?.dark ? 'dark' : ''">
 
 <head>
-    @include('layouts.metahead')
-    @include('layouts.pwa-head')
-    <meta name="csrf-token" content="{{ csrf_token() }}">
+    {{-- Meta, Viewport, CSRF, Favicons/PWA und FOUC-Schutz: gemeinsamer
+         Dokumentkopf aller Huellen. Font Awesome kommt ueber head-css. --}}
+    @include('layouts.document-head', ['documentHead' => ['description' => 'RailTime App']])
     @auth
         <meta name="rt-user-id" content="{{ auth()->id() }}">
         <meta name="rt-live-location-active-url" content="{{ route('chat.live-locations.active') }}">
@@ -41,14 +41,6 @@
         </script>
     @endauth
     <title>{{ $documentTitle }} | {{ config('app.name', 'RailTime') }}{{ $area === 'admin' ? ' Admin' : '' }}</title>
-    {{-- FOUC-Schutz: Theme vor dem ersten Paint anwenden. Die eigentliche
-         Verwaltung uebernimmt der Alpine-Persist-Store ($store.theme),
-         der auch wire:navigate-Seitenwechsel uebersteht. --}}
-    <script>
-        if (localStorage.getItem('rt-theme') === 'true') {
-            document.documentElement.classList.add('dark');
-        }
-    </script>
     <!-- css files -->
     @include('layouts.head-css')
     {{-- Das globale Modul muss im <head> liegen. Livewire kann Vite-Assets dort

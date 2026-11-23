@@ -3,14 +3,16 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" x-data x-bind:class="$store.theme?.dark ? 'dark' : ''">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
-    <meta name="robots" content="noindex, nofollow">
-    <meta name="referrer" content="no-referrer">
+    {{-- Derselbe Dokumentkopf wie layouts.customer-portal (echte Favicons
+         statt rt-logo.svg, Font Awesome fuer den gemeinsamen App-Look). --}}
+    @include('layouts.document-head', ['documentHead' => [
+        'viewport' => 'width=device-width, initial-scale=1, viewport-fit=cover',
+        'robots' => 'noindex, nofollow',
+        'referrer' => 'no-referrer',
+        'pwa' => false,
+        'fontAwesome' => true,
+    ]])
     <title>RailTime · Kundenportal</title>
-    <link rel="icon" type="image/svg+xml" href="{{ asset('rt-brand/rt-logo.svg') }}">
-    <script>if (localStorage.getItem('rt-theme') === 'true') document.documentElement.classList.add('dark');</script>
     @vite(['resources/css/app.css', 'resources/js/customer-portal.js'])
     @livewireStyles
     @stack('styles')

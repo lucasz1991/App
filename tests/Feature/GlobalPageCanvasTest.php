@@ -83,7 +83,6 @@ class GlobalPageCanvasTest extends TestCase
     {
         foreach ([
             'layouts/master.blade.php',
-            'layouts/app.blade.php',
             'layouts/guest.blade.php',
             'layouts/customer-portal.blade.php',
             'components/customer-portal-auth-layout.blade.php',
@@ -98,7 +97,7 @@ class GlobalPageCanvasTest extends TestCase
         foreach (['layouts/guest.blade.php', 'components/customer-portal-auth-layout.blade.php'] as $path) {
             $this->assertStringNotContainsString('resources/css/shell-redesign.css', $this->source('resources/views/'.$path));
         }
-        $this->assertStringContainsString('v=20261011-global-canvas', $this->source('resources/views/layouts/guest.blade.php'));
+        $this->assertStringContainsString('v=20261123-local-fonts', $this->source('resources/views/layouts/guest.blade.php'));
     }
 
     public function test_all_four_auth_page_bases_use_the_shared_canvas_and_keep_existing_transparent_brand_layers(): void
@@ -128,8 +127,8 @@ class GlobalPageCanvasTest extends TestCase
         $config = $this->source('tailwind.config.js');
         $this->assertStringContainsString("canvas: '#dce3ed'", $config);
         $this->assertStringContainsString("canvas: '#03060b'", $config);
-        $card = $this->source('resources/views/components/authentication-card.blade.php');
-        $this->assertStringContainsString('bg-rt-canvas dark:bg-rt-dark-canvas', $card);
+        // Alle Auth-Seiten laufen ueber x-auth-brand-layout (authentication-card ist entfernt).
+        $card = $this->source('resources/views/components/auth-brand-layout.blade.php');
         $this->assertStringContainsString('bg-rt-surface', $card);
         $this->assertStringContainsString('dark:bg-rt-dark-surface', $card);
     }

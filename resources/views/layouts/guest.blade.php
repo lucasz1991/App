@@ -1,18 +1,18 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" x-data x-bind:class="$store.theme?.dark ? 'dark' : ''">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="@yield('guest-viewport', 'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content')">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
-    @include('layouts.pwa-head')
-    <link rel="icon" type="image/svg+xml" href="{{ asset('rt-brand/rt-logo.svg') }}">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@700&display=swap" rel="stylesheet">
+    {{-- Gemeinsamer Dokumentkopf; Seiten wie das Zeiterfassungs-Terminal
+         geben per @section('guest-viewport') einen zoombaren Viewport vor.
+         Font Awesome wie in der App (gemeinsamer App-Look der Anmeldung). --}}
+    @include('layouts.document-head', ['documentHead' => array_filter([
+        'viewport' => trim($__env->yieldContent('guest-viewport')) ?: null,
+        'fontAwesome' => true,
+    ], fn ($value) => $value !== null)])
     <title>{{ config('app.name') }}</title>
-    <script>if (localStorage.getItem('rt-theme') === 'true') document.documentElement.classList.add('dark');</script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
-    <link rel="stylesheet" href="{{ asset('rt-brand/rt-auth.css') }}?v=20261011-global-canvas">
+    {{-- Auth-Stylesheet bleibt statisch (Vite-Manifest ohne eigenen Einstieg);
+         Space Mono liegt lokal unter rt-brand/fonts statt am Google-CDN. --}}
+    <link rel="stylesheet" href="{{ asset('rt-brand/rt-auth.css') }}?v=20261123-local-fonts">
     @livewireStyles
     @yield('css')
     @stack('styles')

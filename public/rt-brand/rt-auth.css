@@ -6,6 +6,16 @@
    Fade/Scale-Reveal. Farben: Signalrot #e4002b, Anthrazit #080b10.
    ============================================================ */
 
+/* Space Mono 700 (Statuszeile) lokal statt ueber das Google-Fonts-CDN:
+   dieselbe WOFF2-Datei wie im Marketing-Renderer (SIL OFL, fonts/OFL.txt). */
+@font-face {
+    font-family: "Space Mono";
+    src: url("fonts/space-mono-700-latin.woff2") format("woff2");
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+}
+
 :root {
     --rt-red: #e4002b;
     --rt-black: #080b10;
