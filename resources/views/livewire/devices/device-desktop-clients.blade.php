@@ -57,6 +57,9 @@
                                 @foreach(['allow_camera'=>'Kamera', 'allow_location'=>'Standort', 'allow_notifications'=>'Benachrichtigungen', 'allow_software_install'=>'Softwareinstallation', 'kiosk_enabled'=>'RailTime-Kioskbrowser'] as $key=>$label)
                                     <label class="flex gap-2 text-sm"><input type="checkbox" wire:model="policy.{{ $key }}">{{ $label }}</label>
                                 @endforeach
+                                @if($selected->device?->ownership === 'corporate')
+                                    <label class="flex gap-2 text-sm"><input type="checkbox" wire:model="policy.allow_office_trust">Office-Vertrauen für RailTime-Listen</label>
+                                @endif
                                 @if($softwareReady && $selected->device?->ownership === 'corporate')
                                     <label class="flex gap-2 text-sm"><input type="checkbox" wire:model="policy.auto_install">Automatische Installation aus dem Programmverzeichnis</label>
                                 @endif
@@ -77,6 +80,16 @@
                                         <p class="text-xs text-rt-muted">Nur Installation im Benutzerkontext, keine automatische Rechteerhöhung. Paket und Version müssen im freigegebenen WinGet-Katalog vorhanden sein; lokale Bestätigung erforderlich.</p>
                                         <button type="submit" wire:loading.attr="disabled" class="{{ $button }}">Installation vormerken</button>
                                     </form>
+                                    @if($selected->device?->ownership === 'corporate')
+                                        <div class="space-y-3">
+                                            <h3 class="text-sm font-semibold">Office-Vertrauen</h3>
+                                            <p class="text-xs text-rt-muted">Richtet im Benutzerordner den Ordner „RailTime\Listen“ ein und trägt ihn in Excel als vertrauenswürdigen Speicherort ein. Listen mit Makros öffnen von dort ohne Sperre, auch wenn sie per Mail oder WhatsApp kamen. Zusätzlich wird das Zertifikat der RailTime GmbH als vertrauenswürdiger Herausgeber eingetragen; Windows fragt den Mitarbeiter dazu einmal nach. Signierte Listen öffnen dann auch außerhalb des Ordners. Der Mitarbeiter bestätigt den Auftrag am Gerät; es braucht keine Adminrechte.</p>
+                                            <div class="flex flex-wrap gap-2">
+                                                <button type="button" wire:click="queueOfficeTrust('apply')" wire:loading.attr="disabled" class="{{ $button }}">Einrichten</button>
+                                                <button type="button" wire:click="queueOfficeTrust('remove')" wire:loading.attr="disabled" class="min-h-11 rounded-xl border border-rt-border px-4 py-2 text-sm font-semibold">Wieder entfernen</button>
+                                            </div>
+                                        </div>
+                                    @endif
                                     <form wire:submit="queueNotification" class="space-y-3">
                                         <h3 class="text-sm font-semibold">Clientmitteilung</h3>
                                         <label class="block text-sm">Titel<input wire:model="notificationTitle" maxlength="100" class="{{ $field }}"></label>
@@ -102,7 +115,7 @@
                             $jobResult = $job->result ?? [];
                             $jobExit = $jobResult['exit_code'] ?? null;
                         @endphp
-                        <div class="flex flex-wrap items-start justify-between gap-2 rounded-lg bg-rt-surface-muted p-3 text-sm dark:bg-rt-dark-surface-muted"><div class="min-w-0">{{ $job->type === 'install_software' ? 'Softwareinstallation' : 'Mitteilung' }}{{ $job->origin === 'assignment' ? ' · aus dem Programmverzeichnis' : '' }}<p class="text-xs text-rt-muted">{{ $job->public_id }} · {{ $job->created_at->format('d.m.Y H:i') }}</p>@if($jobExit !== null || filled($jobResult['message'] ?? null))<p class="break-words text-xs text-rt-muted">@if($jobExit !== null)Exit-Code {{ $jobExit }}@if($jobExit !== 0) ({{ sprintf('0x%08X', $jobExit & 0xFFFFFFFF) }})@endif @endif @if(filled($jobResult['message'] ?? null)){{ $jobExit !== null ? '· ' : '' }}{{ $jobResult['message'] }}@endif</p>@endif</div><span>{{ $statusLabels[$job->status] ?? $job->status }}</span></div>@empty<p class="text-sm text-rt-muted">Noch keine Aufträge.</p>@endforelse</div>
+                        <div class="flex flex-wrap items-start justify-between gap-2 rounded-lg bg-rt-surface-muted p-3 text-sm dark:bg-rt-dark-surface-muted"><div class="min-w-0">{{ match($job->type) { 'install_software' => 'Softwareinstallation', 'office_trust' => 'Office-Vertrauen', default => 'Mitteilung' } }}{{ $job->origin === 'assignment' ? ' · aus dem Programmverzeichnis' : '' }}<p class="text-xs text-rt-muted">{{ $job->public_id }} · {{ $job->created_at->format('d.m.Y H:i') }}</p>@if($jobExit !== null || filled($jobResult['message'] ?? null))<p class="break-words text-xs text-rt-muted">@if($jobExit !== null)Exit-Code {{ $jobExit }}@if($jobExit !== 0) ({{ sprintf('0x%08X', $jobExit & 0xFFFFFFFF) }})@endif @endif @if(filled($jobResult['message'] ?? null)){{ $jobExit !== null ? '· ' : '' }}{{ $jobResult['message'] }}@endif</p>@endif</div><span>{{ $statusLabels[$job->status] ?? $job->status }}</span></div>@empty<p class="text-sm text-rt-muted">Noch keine Aufträge.</p>@endforelse</div>
                 </div>
             </section>
         @endif

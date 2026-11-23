@@ -28,7 +28,10 @@ final class DeviceDesktopService
 
     public const PACKAGE_PATTERN = '/\A[A-Za-z0-9][A-Za-z0-9_-]*(?:\.[A-Za-z0-9][A-Za-z0-9_-]*)+\z/';
 
-    public const POLICY_KEYS = ['allow_camera', 'allow_location', 'allow_notifications', 'allow_software_install', 'kiosk_enabled', 'auto_install'];
+    public const POLICY_KEYS = ['allow_camera', 'allow_location', 'allow_notifications', 'allow_software_install', 'kiosk_enabled', 'auto_install', 'allow_office_trust'];
+
+    /** Excel-Ordner des Benutzers als vertrauenswürdig einrichten oder wieder entfernen. */
+    public const OFFICE_TRUST = 'office_trust';
 
     public function __construct(private readonly DeviceManagementSettings $settings) {}
 
@@ -53,7 +56,7 @@ final class DeviceDesktopService
     public function defaults(): array
     {
         return ['allow_camera' => false, 'allow_location' => false, 'allow_notifications' => true,
-            'allow_software_install' => false, 'kiosk_enabled' => false, 'auto_install' => false];
+            'allow_software_install' => false, 'kiosk_enabled' => false, 'auto_install' => false, 'allow_office_trust' => false];
     }
 
     /** Returns the one-time enrollment secret only to the issuing administrator. */
@@ -126,8 +129,8 @@ final class DeviceDesktopService
     {
         $data = Validator::make($input, [
             'client_version' => ['required', 'string', 'regex:'.self::VERSION_PATTERN],
-            'capabilities' => ['sometimes', 'array', 'max:3'],
-            'capabilities.*' => ['string', 'in:winget_install,notification,'.DeviceSoftwareService::CAPABILITY, 'distinct'],
+            'capabilities' => ['sometimes', 'array', 'max:4'],
+            'capabilities.*' => ['string', 'in:winget_install,notification,'.DeviceSoftwareService::CAPABILITY.','.self::OFFICE_TRUST, 'distinct'],
             'report' => ['sometimes', 'array:software_runner,software'],
             'report.software_runner' => ['sometimes', 'in:available,unavailable,unknown'],
             'report.software' => ['sometimes', 'array', 'max:'.DeviceSoftwareService::MAX_PACKAGES],
@@ -189,9 +192,11 @@ final class DeviceDesktopService
                         continue;
                     }
                 } else {
-                    $allowed = $job->type === 'install_software'
-                        ? $response['policy']['allow_software_install'] && in_array('winget_install', $capabilities, true)
-                        : $response['policy']['allow_notifications'] && in_array('notification', $capabilities, true);
+                    $allowed = match ($job->type) {
+                        'install_software' => $response['policy']['allow_software_install'] && in_array('winget_install', $capabilities, true),
+                        self::OFFICE_TRUST => $response['policy']['allow_office_trust'] && in_array(self::OFFICE_TRUST, $capabilities, true),
+                        default => $response['policy']['allow_notifications'] && in_array('notification', $capabilities, true),
+                    };
                     $requester = User::query()->whereKey($job->requested_by)->lockForUpdate()->first();
                     if (! $allowed || ! $requester?->isActive() || ! Gate::forUser($requester)->allows('devices.commands.execute')) {
                         continue;
@@ -244,8 +249,8 @@ final class DeviceDesktopService
         $this->authorize($actor, 'devices.manage');
         $rules = array_fill_keys(self::POLICY_KEYS, ['required', 'boolean']);
         // Policies stored before the software directory existed do not carry this key.
-        $rules['auto_install'] = ['sometimes', 'boolean'];
-        $policy = Validator::make($input, $rules)->validate() + ['auto_install' => false];
+        $rules['auto_install'] = $rules['allow_office_trust'] = ['sometimes', 'boolean'];
+        $policy = Validator::make($input, $rules)->validate() + ['auto_install' => false, 'allow_office_trust' => false];
         foreach ($policy as &$value) {
             $value = (bool) $value;
         }
@@ -254,6 +259,13 @@ final class DeviceDesktopService
             $this->authorize($actor, 'devices.manage');
             if ($policy['allow_software_install']) {
                 $this->authorize($actor, 'devices.commands.execute');
+            }
+            // Office trust changes a security setting of the user's Excel: command permission, company devices only.
+            if ($policy['allow_office_trust']) {
+                $this->authorize($actor, 'devices.commands.execute');
+                if ($device->ownership !== 'corporate') {
+                    throw ValidationException::withMessages(['allow_office_trust' => 'Das Office-Vertrauen lässt sich nur auf Firmengeräten einrichten.']);
+                }
             }
             // Installing without a local question is a decision for company
             // devices only; personal devices keep the local confirmation.
@@ -273,6 +285,8 @@ final class DeviceDesktopService
                 'version' => ['required', 'string', 'regex:'.self::VERSION_PATTERN]],
             'notification' => ['title' => ['required', 'string', 'max:100', 'not_regex:/[\x00-\x1F\x7F]/'],
                 'body' => ['required', 'string', 'max:500', 'not_regex:/[\x00-\x1F\x7F]/']],
+            // No path and no certificate travel in the order: both are fixed in the client.
+            self::OFFICE_TRUST => ['action' => ['required', 'in:apply,remove']],
             default => throw ValidationException::withMessages(['type' => 'Dieser Desktop-Auftrag ist nicht erlaubt.']),
         };
         $payload = Validator::make($input, $rules)->validate();
@@ -284,7 +298,14 @@ final class DeviceDesktopService
             if ($type === 'install_software') {
                 app(DeviceWorkplaceService::class)->assertSoftware($device, $payload);
             }
-            $key = $type === 'install_software' ? 'allow_software_install' : 'allow_notifications';
+            if ($type === self::OFFICE_TRUST && $device->ownership !== 'corporate') {
+                throw ValidationException::withMessages(['policy' => 'Das Office-Vertrauen lässt sich nur auf Firmengeräten einrichten.']);
+            }
+            $key = match ($type) {
+                'install_software' => 'allow_software_install',
+                self::OFFICE_TRUST => 'allow_office_trust',
+                default => 'allow_notifications',
+            };
             if (($locked->policy[$key] ?? false) !== true) {
                 throw ValidationException::withMessages(['policy' => 'Die Gerätrichtlinie erlaubt diesen Auftrag nicht.']);
             }
@@ -322,6 +343,8 @@ final class DeviceDesktopService
         }
         $policy['allow_software_install'] = $policy['allow_software_install'] && $this->settings->productionCommandsEnabled(fresh: true);
         $policy['auto_install'] = $policy['auto_install'] && $policy['allow_software_install'] && $device->ownership === 'corporate';
+        $policy['allow_office_trust'] = $policy['allow_office_trust'] && $device->ownership === 'corporate'
+            && $this->settings->productionCommandsEnabled(fresh: true);
         $policy['revision'] = $client->policy_revision;
         $policy['kiosk_url'] = 'https://app.rail-time.de';
 
@@ -330,7 +353,7 @@ final class DeviceDesktopService
             'sync_interval_seconds' => 60, 'setup_ready' => false, 'policy' => $policy, 'jobs' => [],
             // Capabilities this server accepts beyond the first contract. A client reports
             // one only after seeing it here, so a newer client keeps working with an older server.
-            'features' => app(DeviceSoftwareService::class)->ready() ? [DeviceSoftwareService::CAPABILITY] : []];
+            'features' => array_merge(app(DeviceSoftwareService::class)->ready() ? [DeviceSoftwareService::CAPABILITY] : [], [self::OFFICE_TRUST])];
     }
 
     public function withAuthenticated(#[\SensitiveParameter] string $token, callable $action, bool $requireManagement = true): mixed

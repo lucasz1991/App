@@ -105,6 +105,14 @@ class DeviceDesktopClients extends Component
         $this->notice = 'Mitteilung vorgemerkt; Zustellung erst beim nächsten freigegebenen Clientabgleich. Kein Offline-Push.';
     }
 
+    public function queueOfficeTrust(string $action, DeviceDesktopService $clients): void
+    {
+        $clients->queueJob($this->selected(), DeviceDesktopService::OFFICE_TRUST, ['action' => $action], $this->justification, $this->actor());
+        $this->notice = $action === 'remove'
+            ? 'Entfernen des Office-Vertrauens vorgemerkt. Der Mitarbeiter bestätigt es am Gerät.'
+            : 'Office-Vertrauen vorgemerkt. Der Mitarbeiter bestätigt es am Gerät; danach öffnet Excel Dateien aus dem Ordner „RailTime\\Listen“ in seinem Benutzerordner ohne Makrosperre.';
+    }
+
     public function revoke(DeviceDesktopService $clients): void
     {
         $this->validate(['revokeConfirmed' => ['accepted']]);
