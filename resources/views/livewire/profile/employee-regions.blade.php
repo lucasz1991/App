@@ -99,7 +99,7 @@
                 @include('livewire.profile.partials.employee-regions-address')
                 <fieldset class="rt-regions__radius-fields"><legend class="sr-only">Radius je Zone</legend>
                     @foreach($zones as $zone => $definition)
-                    <label data-zone="{{ $zone }}" for="region-radius-{{ $userId }}-{{ $zone }}"><span>{{ $definition['label'] }}</span><span class="rt-regions__unit"><input id="region-radius-{{ $userId }}-{{ $zone }}" type="number" min="1" max="{{ $zone === 'preferred' ? 1000 : 2000 }}" wire:model.live.blur="preferences.{{ $definition['radius'] }}" @if($zone === 'emergency') placeholder="–" @endif><span>km</span></span></label>
+                    <label data-zone="{{ $zone }}" for="region-radius-{{ $userId }}-{{ $zone }}"><span>{{ $definition['label'] }}</span><span class="rt-regions__unit"><x-ui.forms.number-input :stepper="false" :id="'region-radius-'.$userId.'-'.$zone" min="1" :max="$zone === 'preferred' ? 1000 : 2000" wire:model.live.blur="preferences.{{ $definition['radius'] }}" :placeholder="$zone === 'emergency' ? '–' : null" /><span>km</span></span></label>
                     @endforeach
                 </fieldset>
                 <p id="region-distance-note-{{ $userId }}" class="rt-regions__hint">Luftlinie. Radien und Bundesländer gelten gemeinsam.</p>
@@ -109,7 +109,7 @@
                 <div class="rt-regions__popover-title"><strong>Ausgeschlossene Gebiete</strong><button type="button" x-on:click="exclusionsOpen = false; $refs.exclusionToggle.focus()" aria-label="Ausgeschlossene Gebiete schließen"><i class="far fa-times" aria-hidden="true"></i></button></div>
                 <p class="rt-regions__hint">Diese Gebiete bleiben auch im Notfall gesperrt.</p>
                 @foreach($preferences['no_go_areas'] ?? [] as $index => $area)
-                    <div class="rt-regions__exclusion" wire:key="region-exclusion-{{ $index }}"><label><span class="sr-only">Ausgeschlossener Ort {{ $index + 1 }}</span><input type="text" wire:model="preferences.no_go_areas.{{ $index }}.location" placeholder="Ort" maxlength="200"></label><label><span class="sr-only">Ausschlussradius {{ $index + 1 }} in km</span><input type="number" min="1" max="1000" wire:model="preferences.no_go_areas.{{ $index }}.radius_km" aria-label="Ausschlussradius {{ $index + 1 }} in km"></label><button type="button" wire:click="removeExclusion({{ $index }})" aria-label="Ausschluss {{ $index + 1 }} entfernen"><i class="far fa-trash-alt" aria-hidden="true"></i></button></div>
+                    <div class="rt-regions__exclusion" wire:key="region-exclusion-{{ $index }}"><label><span class="sr-only">Ausgeschlossener Ort {{ $index + 1 }}</span><input type="text" wire:model="preferences.no_go_areas.{{ $index }}.location" placeholder="Ort" maxlength="200"></label><label><span class="sr-only">Ausschlussradius {{ $index + 1 }} in km</span><x-ui.forms.number-input :stepper="false" min="1" max="1000" wire:model="preferences.no_go_areas.{{ $index }}.radius_km" aria-label="Ausschlussradius {{ $index + 1 }} in km" /></label><button type="button" wire:click="removeExclusion({{ $index }})" aria-label="Ausschluss {{ $index + 1 }} entfernen"><i class="far fa-trash-alt" aria-hidden="true"></i></button></div>
                 @endforeach
                 <button type="button" wire:click="addExclusion" class="rt-regions__text-button"><i class="far fa-plus" aria-hidden="true"></i> Ausschluss hinzufügen</button>
             </div>

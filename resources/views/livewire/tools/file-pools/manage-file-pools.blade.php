@@ -443,8 +443,8 @@
             <div class="rt-filepool-setting-card">
               <span class="rt-filepool-setting-card__icon" aria-hidden="true"><i class="fad fa-calendar-day"></i></span>
               <div class="min-w-0 flex-1">
-                <x-ui.forms.label :value="__('app.visible_from')" />
-                <x-ui.forms.input type="date" wire:model="uploadVisibleFrom" class="mt-2 block" />
+                <x-ui.forms.label for="file-pool-upload-visible-from" :value="__('app.visible_from')" />
+                <x-ui.forms.date-field id="file-pool-upload-visible-from" wire:model="uploadVisibleFrom" :aria-label="__('app.visible_from')" class="mt-2" />
                 <p class="mt-2 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.visible_from_hint') }}</p>
                 @error('uploadVisibleFrom')
                   <span class="mt-1 block text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
@@ -486,8 +486,8 @@
             <div class="rt-filepool-setting-card">
               <span class="rt-filepool-setting-card__icon" aria-hidden="true"><i class="fad fa-calendar-times"></i></span>
               <div class="min-w-0 flex-1">
-                <x-ui.forms.label :value="__('app.expires_date')" />
-                <x-ui.forms.input type="date" wire:model="expires.{{ $filePool->id }}" class="mt-2 block" />
+                <x-ui.forms.label :for="'file-pool-expires-'.$filePool->id" :value="__('app.expires_date')" />
+                <x-ui.forms.date-field :id="'file-pool-expires-'.$filePool->id" wire:model="expires.{{ $filePool->id }}" :aria-label="__('app.expires_date')" class="mt-2" />
                 @error('expires.'.$filePool->id)
                   <span class="mt-1 block text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
                 @enderror
@@ -557,8 +557,8 @@
 
           <x-ui.accordion.tab-panel for="fileVisibility" content-class="space-y-4" panel-class="rounded-xl border border-rt-border bg-rt-surface-muted/40 p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/30">
             <div>
-              <x-ui.forms.label :value="__('app.visible_from')" />
-              <x-ui.forms.input type="date" wire:model="selectedFileVisibleFrom" class="mt-1 block" />
+              <x-ui.forms.label for="file-pool-file-visible-from" :value="__('app.visible_from')" />
+              <x-ui.forms.date-field id="file-pool-file-visible-from" wire:model="selectedFileVisibleFrom" :aria-label="__('app.visible_from')" class="mt-1" />
               <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.visible_from_hint') }}</p>
               @error('selectedFileVisibleFrom')
                 <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
@@ -593,8 +593,8 @@
 
           <x-ui.accordion.tab-panel for="fileDeletion" content-class="space-y-4" panel-class="rounded-xl border border-rt-border bg-rt-surface-muted/40 p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/30">
             <div>
-              <x-ui.forms.label :value="__('app.expires_date')" />
-              <x-ui.forms.input type="date" wire:model="selectedFileExpiresDate" class="mt-1 block" />
+              <x-ui.forms.label for="file-pool-file-expires" :value="__('app.expires_date')" />
+              <x-ui.forms.date-field id="file-pool-file-expires" wire:model="selectedFileExpiresDate" :aria-label="__('app.expires_date')" class="mt-1" />
               @error('selectedFileExpiresDate')
                 <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
               @enderror
@@ -643,8 +643,8 @@
 
           <x-ui.accordion.tab-panel for="folderVisibility" content-class="space-y-4" panel-class="rounded-xl border border-rt-border bg-rt-surface-muted/40 p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/30">
             <div>
-              <x-ui.forms.label :value="__('app.visible_from')" />
-              <x-ui.forms.input type="date" wire:model="folderVisibleFrom" class="mt-1 block" />
+              <x-ui.forms.label for="file-pool-folder-visible-from" :value="__('app.visible_from')" />
+              <x-ui.forms.date-field id="file-pool-folder-visible-from" wire:model="folderVisibleFrom" :aria-label="__('app.visible_from')" class="mt-1" />
               <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.visible_from_hint') }}</p>
               @error('folderVisibleFrom')
                 <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
@@ -673,8 +673,8 @@
 
           <x-ui.accordion.tab-panel for="folderDeletion" content-class="space-y-4" panel-class="rounded-xl border border-rt-border bg-rt-surface-muted/40 p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/30">
             <div>
-              <x-ui.forms.label :value="__('app.visible_until')" />
-              <x-ui.forms.input type="date" wire:model="folderVisibleUntil" class="mt-1 block" />
+              <x-ui.forms.label for="file-pool-folder-visible-until" :value="__('app.visible_until')" />
+              <x-ui.forms.date-field id="file-pool-folder-visible-until" wire:model="folderVisibleUntil" :aria-label="__('app.visible_until')" class="mt-1" />
               @error('folderVisibleUntil')
                 <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
               @enderror

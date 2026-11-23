@@ -53,9 +53,8 @@
                             @if ($available)
                                 <div class="flex min-h-11 items-center justify-between gap-3">
                                     <label for="{{ $prefix }}-{{ $group }}-signature" class="text-sm text-rt-text dark:text-rt-dark-text">Signatur einfügen</label>
-                                    <x-ui.forms.checkbox
+                                    <x-ui.forms.toggle-button
                                         :id="$prefix.'-'.$group.'-signature'"
-                                        :toggle="true"
                                         :checked="$preferences[$group]['signature']"
                                         :aria-label="'Signatur automatisch einfügen: '.$title.($group === 'newMessages' ? ' und Weiterleitungen' : '')"
                                         class="min-h-11"

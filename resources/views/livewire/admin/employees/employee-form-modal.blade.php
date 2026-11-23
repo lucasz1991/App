@@ -116,8 +116,8 @@
                                 <x-ui.forms.input type="text" wire:model="personnel_nr" :disabled="!$canEditMasterData" />
                             </div>
                             <div>
-                                <x-ui.forms.label :value="__('app.entry_date')" />
-                                <x-ui.forms.input type="date" wire:model="entry_date" :disabled="!$canEditMasterData" />
+                                <x-ui.forms.label for="employee-form-entry-date" :value="__('app.entry_date')" />
+                                <x-ui.forms.date-field id="employee-form-entry-date" wire:model="entry_date" :disabled="!$canEditMasterData" :aria-label="__('app.entry_date')" />
                             </div>
                             <div>
                                 <x-ui.forms.label :value="__('app.multiple_employment')" />

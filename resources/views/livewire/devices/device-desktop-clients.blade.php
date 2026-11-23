@@ -4,7 +4,6 @@
         <a href="{{ route('devices.index') }}" class="rounded-xl border border-rt-border px-4 py-3 text-sm font-semibold">Zur Geräteübersicht</a>
     </x-slot:actions>
     @php
-        $field = 'mt-1 w-full rounded-xl border border-rt-border bg-white px-3 py-2 text-sm dark:border-rt-dark-border dark:bg-rt-dark-surface';
         $button = 'min-h-11 rounded-xl bg-rt-red px-4 py-2 text-sm font-semibold text-white disabled:opacity-50';
         $panel = 'rounded-xl border border-rt-border bg-white p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface';
         $statusLabels = ['unpaired' => 'Code ausgestellt', 'active' => 'Verbunden', 'revoked' => 'Widerrufen', 'queued' => 'Vorgemerkt', 'offered' => 'Angeboten / lokal unbestätigt', 'expired' => 'Abgelaufen / Ergebnis unbestätigt', 'cancelled' => 'Abgebrochen / laufender Prozess ggf. unbestätigt', 'succeeded' => 'Client meldet Erfolg', 'failed' => 'Client meldet Fehler', 'declined' => 'Lokal abgelehnt', 'unsupported' => 'Nicht unterstützt', 'requires_admin' => 'Erhöhte Rechte erforderlich'];
@@ -21,16 +20,14 @@
             <details class="{{ $panel }}" @if($pairingToken) open @endif>
                 <summary class="cursor-pointer text-sm font-semibold">Mitarbeiter-Endgerät verbinden</summary>
                 <form wire:submit="issuePairing" class="mt-4 space-y-3">
-                    <label class="block text-sm">Vorhandenes Windows-Gerät mit Mitarbeiterzuweisung
-                        <select wire:model="devicePublicId" class="{{ $field }}"><option value="">Gerät auswählen</option>@foreach($devices as $device)<option value="{{ $device->public_id }}">{{ $device->display_name }} · {{ $device->activeAssignment?->user?->name ?? 'Zuweisung prüfen' }}</option>@endforeach</select>
-                    </label>
-                    <label class="flex items-start gap-2 text-sm"><input type="checkbox" wire:model="endpointConfirmed" class="mt-1">Ich bestätige ein Mitarbeiter-Endgerät. Dies ist nicht der Administrator-Haupt-PC oder eine reine Verwaltungsstation.</label>
+                    <x-operations.field id="desktop-client-device" label="Vorhandenes Windows-Gerät mit Mitarbeiterzuweisung" model="devicePublicId" type="select"><option value="">Gerät auswählen</option>@foreach($devices as $device)<option value="{{ $device->public_id }}">{{ $device->display_name }} · {{ $device->activeAssignment?->user?->name ?? 'Zuweisung prüfen' }}</option>@endforeach</x-operations.field>
+                    <x-ui.forms.checkbox id="desktop-client-endpoint-confirmed" wire:model="endpointConfirmed" label="Ich bestätige ein Mitarbeiter-Endgerät. Dies ist nicht der Administrator-Haupt-PC oder eine reine Verwaltungsstation." />
                     <button type="submit" wire:loading.attr="disabled" class="{{ $button }}">Einmalcode erstellen</button>
                     <p class="text-xs text-rt-muted">Der Mitarbeiter installiert den freigegebenen RailTime-Client selbst und gibt den Code dort ein. Die vorhandene Gerätezuweisung bleibt maßgeblich; eine Microsoft-Anmeldung allein installiert keinen Client.</p>
                 </form>
                 @if($pairingToken)
                     <div class="mt-4 rounded-xl border border-amber-300 p-3" data-desktop-pairing>
-                        <label class="block text-sm font-semibold">Vertraulicher Einmalcode – gültig bis {{ $pairingExpiresAt }}<input readonly autocomplete="off" spellcheck="false" value="{{ $pairingToken }}" class="{{ $field }} font-mono" aria-label="Vertraulicher Einmalcode"></label>
+                        <x-ui.forms.label for="desktop-client-pairing-token">Vertraulicher Einmalcode – gültig bis {{ $pairingExpiresAt }}</x-ui.forms.label><x-ui.forms.input id="desktop-client-pairing-token" :readonly="true" autocomplete="off" spellcheck="false" :value="$pairingToken" class="font-mono" aria-label="Vertraulicher Einmalcode" />
                         <p class="mt-2 text-xs">Nur einmal nutzbar, 15 Minuten gültig; nach Schließen nicht erneut abrufbar. Kein Kontopasswort.</p>
                         <button type="button" wire:click="dismissPairing" class="mt-2 text-sm underline">Code ausblenden</button>
                     </div>
@@ -55,13 +52,13 @@
                             <h3 class="text-sm font-semibold">Angeforderte Clientberechtigungen</h3>
                             <div class="grid gap-3 sm:grid-cols-2">
                                 @foreach(['allow_camera'=>'Kamera', 'allow_location'=>'Standort', 'allow_notifications'=>'Benachrichtigungen', 'allow_software_install'=>'Softwareinstallation', 'kiosk_enabled'=>'RailTime-Kioskbrowser'] as $key=>$label)
-                                    <label class="flex gap-2 text-sm"><input type="checkbox" wire:model="policy.{{ $key }}">{{ $label }}</label>
+                                    <x-ui.forms.checkbox :id="'desktop-client-policy-'.$key" wire:model="policy.{{ $key }}" :label="$label" />
                                 @endforeach
                                 @if($selected->device?->ownership === 'corporate')
-                                    <label class="flex gap-2 text-sm"><input type="checkbox" wire:model="policy.allow_office_trust">Office-Vertrauen für RailTime-Listen (wird automatisch eingerichtet)</label>
+                                    <x-ui.forms.checkbox id="desktop-client-policy-allow_office_trust" wire:model="policy.allow_office_trust" label="Office-Vertrauen für RailTime-Listen (wird automatisch eingerichtet)" />
                                 @endif
                                 @if($softwareReady && $selected->device?->ownership === 'corporate')
-                                    <label class="flex gap-2 text-sm"><input type="checkbox" wire:model="policy.auto_install">Automatische Installation aus dem Programmverzeichnis</label>
+                                    <x-ui.forms.checkbox id="desktop-client-policy-auto_install" wire:model="policy.auto_install" label="Automatische Installation aus dem Programmverzeichnis" />
                                 @endif
                             </div>
                             <p class="text-xs text-rt-muted">Dies erteilt keine Betriebssystemrechte. Einzelaufträge bestätigt der Mitarbeiter am Gerät und kann sie ablehnen. Mit „Automatische Installation“ entfällt diese Rückfrage auf Firmengeräten für Programme aus dem Verzeichnis; sie setzt „Softwareinstallation“ voraus. Kamera/Standort werden hier nicht aufgezeichnet; der Kioskbrowser ist regulär schließbar, kein Windows-Lockdown.</p>
@@ -71,12 +68,12 @@
                     @if($selected->status === 'active')
                         @can('devices.commands.execute')
                             <div class="border-t border-rt-border pt-4">
-                                <label class="block text-sm">Begründung für den nächsten Auftrag<textarea wire:model="justification" maxlength="1000" rows="2" class="{{ $field }}" placeholder="Mindestens 10 Zeichen; keine Geheimnisse oder personenbezogenen Problemdetails."></textarea></label>
+                                <x-operations.field id="desktop-client-justification" label="Begründung für den nächsten Auftrag" model="justification" type="textarea" maxlength="1000" rows="2" placeholder="Mindestens 10 Zeichen; keine Geheimnisse oder personenbezogenen Problemdetails." />
                                 <div class="mt-3 grid gap-4 lg:grid-cols-2">
                                     <form wire:submit="queueSoftware" class="space-y-3">
                                         <h3 class="text-sm font-semibold">Software über WinGet</h3>
-                                        <label class="block text-sm">Paket-ID<input wire:model="packageId" maxlength="128" class="{{ $field }}" placeholder="Hersteller.Paketname"></label>
-                                        <label class="block text-sm">Exakte freigegebene Version<input wire:model="packageVersion" maxlength="40" class="{{ $field }}" placeholder="Beispielsweise 1.2.3"></label>
+                                        <x-operations.field id="desktop-client-package-id" label="Paket-ID" model="packageId" maxlength="128" placeholder="Hersteller.Paketname" />
+                                        <x-operations.field id="desktop-client-package-version" label="Exakte freigegebene Version" model="packageVersion" maxlength="40" placeholder="Beispielsweise 1.2.3" />
                                         <p class="text-xs text-rt-muted">Nur Installation im Benutzerkontext, keine automatische Rechteerhöhung. Paket und Version müssen im freigegebenen WinGet-Katalog vorhanden sein; lokale Bestätigung erforderlich.</p>
                                         <button type="submit" wire:loading.attr="disabled" class="{{ $button }}">Installation vormerken</button>
                                     </form>
@@ -100,8 +97,8 @@
                                     @endif
                                     <form wire:submit="queueNotification" class="space-y-3">
                                         <h3 class="text-sm font-semibold">Clientmitteilung</h3>
-                                        <label class="block text-sm">Titel<input wire:model="notificationTitle" maxlength="100" class="{{ $field }}"></label>
-                                        <label class="block text-sm">Mitteilung<textarea wire:model="notificationBody" maxlength="500" rows="3" class="{{ $field }}"></textarea></label>
+                                        <x-operations.field id="desktop-client-notification-title" label="Titel" model="notificationTitle" maxlength="100" />
+                                        <x-operations.field id="desktop-client-notification-body" label="Mitteilung" model="notificationBody" type="textarea" maxlength="500" rows="3" />
                                         <button type="submit" wire:loading.attr="disabled" class="{{ $button }}">Mitteilung vormerken</button>
                                     </form>
                                 </div>
@@ -110,7 +107,7 @@
                     @endif
                     @can('devices.enrollment.manage')
                         <form wire:submit="revoke" class="space-y-2 border-t border-rt-border pt-4">
-                            <label class="flex gap-2 text-sm"><input type="checkbox" wire:model="revokeConfirmed">Clientzugang und offene Einladungen ausdrücklich widerrufen.</label>
+                            <x-ui.forms.checkbox id="desktop-client-revoke-confirmed" wire:model="revokeConfirmed" label="Clientzugang und offene Einladungen ausdrücklich widerrufen." />
                             <button type="submit" wire:loading.attr="disabled" class="min-h-11 rounded-xl border border-red-300 px-4 py-2 text-sm font-semibold text-red-700">Zugang widerrufen</button>
                         </form>
                     @endcan

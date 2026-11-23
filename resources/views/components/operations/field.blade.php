@@ -1,6 +1,7 @@
-@props(['label', 'model', 'type' => 'text', 'wide' => false, 'searchModel' => null, 'scope' => null, 'live' => false])
+@props(['label', 'model', 'type' => 'text', 'wide' => false, 'searchModel' => null, 'scope' => null, 'live' => false, 'id' => null])
 @php
-    $fieldId = ($scope ? 'intake-'.$scope.'-' : 'ops-').str_replace('.', '-', $model);
+    // Eigene ID nur, wenn Tests oder Sprungziele eine feste Kennung brauchen.
+    $fieldId = $id ?: ($scope ? 'intake-'.$scope.'-' : 'ops-').str_replace('.', '-', $model);
     $attributes = $attributes->merge([($live ? 'wire:model.live' : 'wire:model') => $model]);
     if ($errors->has($model)) {
         $attributes = $attributes->merge([

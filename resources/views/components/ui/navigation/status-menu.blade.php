@@ -7,6 +7,8 @@
     'disabled' => false,
     'variant' => 'group',
     'dropdownId' => null,
+    // Nur Variante "group": FA-Icon je Option (Standard fa-filter).
+    'icons' => [],
 ])
 
 @php
@@ -31,22 +33,15 @@
             @endforeach
         </x-ui.forms.select>
     @else
-    <x-ui.buttons.btn-group.btn-group class="rt-status-menu__group" :label="$label">
-    @foreach($options as $key => $optionLabel)
-        <button type="button" class="rt-status-menu__item"
-            data-status-value="{{ $key }}"
-            aria-pressed="{{ (string) $value === (string) $key ? 'true' : 'false' }}"
-            @disabled($isDisabled)
-            @if(! $isDisabled)
-                wire:click="{{ $safeAction }}({{ \Illuminate\Support\Js::from((string) $key) }})"
-                wire:loading.attr="disabled" wire:target="{{ $safeAction }}"
-            @endif>
-            <span>{{ $optionLabel }}</span>
-            @if(isset($counts[$key]))
-                <span class="rt-status-menu__count">{{ $counts[$key] }}</span>
-            @endif
-        </button>
-    @endforeach
-    </x-ui.buttons.btn-group.btn-group>
+        @php
+            // Segmentwahl ueber den gemeinsamen Baustein; Zaehler stehen im Text.
+            $toggleOptions = collect($options)->map(fn ($optionLabel, $key) => [
+                'value' => (string) $key,
+                'label' => $optionLabel.(isset($counts[$key]) ? ' ('.$counts[$key].')' : ''),
+                'icon' => $icons[$key] ?? 'fa-filter',
+            ])->values()->all();
+        @endphp
+        <x-ui.buttons.multi-toggle class="rt-status-menu__group" :options="$toggleOptions" :value="(string) $value"
+            :action="$safeAction" :label="$label" :disabled="$isDisabled" :show-labels="true" />
     @endif
 </nav>

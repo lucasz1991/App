@@ -13,20 +13,20 @@
                 <div class="grid gap-4 sm:grid-cols-2">
                     <div>
                         <x-ui.forms.label for="device-provider-link-provider" value="Provider" />
-                        <select id="device-provider-link-provider" wire:model.live="providerLinkForm.provider" class="mt-1.5 min-h-11 w-full rounded-xl border border-rt-border bg-white px-3 text-sm text-rt-text dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white">
+                        <x-ui.forms.select id="device-provider-link-provider" wire:model.live="providerLinkForm.provider">
                             <option value="">Bitte auswählen</option>
                             @foreach($compatibleProviders->where('key', '!=', 'simulation') as $provider)
                                 <option value="{{ $provider['key'] }}">{{ $provider['label'] }}</option>
                             @endforeach
-                        </select>
+                        </x-ui.forms.select>
                         <x-ui.forms.input-error for="providerLinkForm.provider" class="mt-1.5" />
                     </div>
                     <div>
                         <x-ui.forms.label for="device-provider-link-role" value="Rolle" />
-                        <select id="device-provider-link-role" wire:model="providerLinkForm.role" class="mt-1.5 min-h-11 w-full rounded-xl border border-rt-border bg-white px-3 text-sm text-rt-text dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white">
+                        <x-ui.forms.select id="device-provider-link-role" wire:model="providerLinkForm.role">
                             <option value="support">Support / Zusatzsystem</option>
                             <option value="primary">Primäre Geräteverwaltung</option>
-                        </select>
+                        </x-ui.forms.select>
                         <x-ui.forms.input-error for="providerLinkForm.role" class="mt-1.5" />
                     </div>
                 </div>

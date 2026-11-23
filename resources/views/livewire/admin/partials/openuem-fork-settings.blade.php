@@ -26,7 +26,7 @@
                         </div>
                         <div>
                             <x-ui.forms.label :for="'openuem-native-profile-'.$profileIndex" :value="$isGerman ? 'OpenUEM Profil-ID' : 'OpenUEM profile ID'" />
-                            <x-ui.forms.input type="number" min="1" max="2147483647" :id="'openuem-native-profile-'.$profileIndex" wire:model="providers.openuem.native_profiles.{{ $profileIndex }}.profile_id" class="mt-1" />
+                            <x-ui.forms.number-input min="1" max="2147483647" :id="'openuem-native-profile-'.$profileIndex" wire:model="providers.openuem.native_profiles.{{ $profileIndex }}.profile_id" />
                             <x-ui.forms.input-error :for="'providers.openuem.native_profiles.'.$profileIndex.'.profile_id'" />
                         </div>
                     </div>

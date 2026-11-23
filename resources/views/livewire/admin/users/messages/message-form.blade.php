@@ -33,7 +33,7 @@
                 </div>
             @else
                 <div class="mt-4 flex items-center rounded-xl bg-rt-surface-muted px-4 py-3 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60">
-                    <x-ui.forms.checkbox toggle wire:model="mailWithMail" :label="__('app.also_send_as_email')" />
+                    <x-ui.forms.toggle-button wire:model="mailWithMail" :label="__('app.also_send_as_email')" />
                 </div>
             @endif
 

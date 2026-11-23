@@ -9,6 +9,8 @@
     'autocomplete' => 'off',
     'rows' => 3,
     'align' => 'right',
+    // Nur fuer type="number": erlaubte Dezimalstellen der Zahlen-Eingabe.
+    'decimals' => 0,
 ])
 
 @php
@@ -28,7 +30,9 @@
 
             this.editing = true;
             const shell = this.$refs.editorShell;
-            const editor = this.$refs.editor;
+            // Die Zahlen-Eingabe besitzt einen eigenen Alpine-Bereich; ihre
+            // Referenz ist hier nicht sichtbar, daher das Feld direkt suchen.
+            const editor = this.$refs.editor ?? shell?.querySelector('input, select, textarea');
 
             // Der Editor muss vor der nativen Label-Aktivierung sichtbar sein.
             // Der Browser leitet denselben vertrauenswuerdigen Tap danach an
@@ -152,6 +156,22 @@
                     data-autosave-visual
                     class="rt-ui-control min-h-24 w-full resize-y rounded-xl border border-rt-border bg-rt-control px-3.5 py-2.5 text-base leading-6 text-rt-text shadow-rt-xs outline-none transition-[border-color,box-shadow,background-color,color] duration-200 focus:border-rt-accent disabled:opacity-60 sm:text-sm dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white"
                 ></textarea>
+            @elseif ($type === 'number')
+                {{-- Kompakte Bauform: Schritt-Tasten wuerden beim Klick den
+                     Fokus nehmen und damit sofort speichern. Laravels
+                     numeric-Regel verlangt den Punkt als Trennzeichen. --}}
+                <x-ui.forms.number-input
+                    :id="$inputId"
+                    :stepper="false"
+                    :decimals="$decimals"
+                    separator="."
+                    wire:model="{{ $wireModel }}"
+                    x-on:blur="commit()"
+                    x-on:keydown.enter.prevent="$el.blur()"
+                    x-on:keydown.escape.prevent.stop="cancel()"
+                    x-bind:disabled="saving"
+                    class="rt-ui-control min-h-11 w-full rounded-xl border border-rt-border bg-rt-control px-3.5 py-2.5 text-base leading-6 text-rt-text shadow-rt-xs outline-none transition-[border-color,box-shadow,background-color,color] duration-200 focus:border-rt-accent disabled:opacity-60 sm:text-sm dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white {{ $alignment }}"
+                />
             @else
                 <x-ui.forms.input
                     x-ref="editor"

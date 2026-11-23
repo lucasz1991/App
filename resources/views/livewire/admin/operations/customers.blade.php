@@ -156,7 +156,7 @@
                     @error('notes') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                 </div>
                 <div class="sm:col-span-2">
-                    <x-ui.forms.checkbox id="customer-active" wire:model="isActive" label="Kunde ist aktiv" toggle />
+                    <x-ui.forms.toggle-button id="customer-active" wire:model="isActive" label="Kunde ist aktiv" />
                 </div>
             </div>
         </x-slot:content>

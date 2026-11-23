@@ -46,8 +46,8 @@
             <label class="block font-semibold">Titel<x-ui.forms.input wire:model="name" maxlength="120" required /></label><x-ui.forms.input-error for="name" /><x-ui.forms.input-error for="title" />
             @if ($formMode !== 'instant')
                 <label class="block font-semibold">Zeitzone<x-ui.forms.input wire:model="timezone" required /></label><x-ui.forms.input-error for="timezone" />
-                <label class="block font-semibold">Beginn<x-ui.forms.input type="datetime-local" wire:model="startsAt" required /></label><x-ui.forms.input-error for="starts_at" />
-                <label class="block font-semibold">Ende<x-ui.forms.input type="datetime-local" wire:model="endsAt" required /></label><x-ui.forms.input-error for="ends_at" />
+                <div><x-ui.forms.label for="meeting-starts-at" value="Beginn" /><x-ui.forms.date-time-field id="meeting-starts-at" wire:model="startsAt" :required="true" aria-label="Beginn" /></div><x-ui.forms.input-error for="starts_at" />
+                <div><x-ui.forms.label for="meeting-ends-at" value="Ende" /><x-ui.forms.date-time-field id="meeting-ends-at" wire:model="endsAt" :required="true" aria-label="Ende" /></div><x-ui.forms.input-error for="ends_at" />
                 @if ($formMode === 'plan')<fieldset><legend class="mb-2 font-semibold">Teilnehmer · {{ count($participantIds) }} ausgewählt</legend><label class="block"><span class="sr-only">Teilnehmer suchen</span><x-ui.forms.input type="search" wire:model.live.debounce.300ms="participantSearch" class="w-full" placeholder="Name suchen" /></label>
                     @foreach ($candidates as $candidate)<label class="flex min-h-11 items-center gap-3 p-3" wire:key="meeting-person-{{ $candidate->id }}"><x-ui.forms.checkbox wire:model="participantIds" value="{{ $candidate->id }}" /><span class="text-sm">{{ $candidate->name }}</span></label>@endforeach
                 </fieldset><x-ui.forms.input-error for="participant_ids" />@endif

@@ -91,7 +91,7 @@
                 </div>
                 <div class="employee-detail-row">
                     <dt>{{ __('app.weekly_working_hours') }}</dt>
-                    <dd><x-ui.inline-edit-field id="employee-overview-weekly-hours" field="weekly_working_hours" type="number" :can-edit="$canEditMasterData" align="left">{{ $profile?->weekly_working_hours !== null ? rtrim(rtrim(number_format((float) $profile->weekly_working_hours, 2, ',', '.'), '0'), ',').' h' : __('app.not_set') }}</x-ui.inline-edit-field></dd>
+                    <dd><x-ui.inline-edit-field id="employee-overview-weekly-hours" field="weekly_working_hours" type="number" :decimals="2" :can-edit="$canEditMasterData" align="left">{{ $profile?->weekly_working_hours !== null ? rtrim(rtrim(number_format((float) $profile->weekly_working_hours, 2, ',', '.'), '0'), ',').' h' : __('app.not_set') }}</x-ui.inline-edit-field></dd>
                 </div>
             </dl>
         </section>

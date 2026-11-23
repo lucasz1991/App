@@ -134,42 +134,42 @@
                                 <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                                     <div>
                                         <label for="device-capture-form-factor" class="block text-sm font-medium text-rt-text dark:text-white">Formfaktor</label>
-                                        <select id="device-capture-form-factor" wire:model="deviceForm.form_factor" class="mt-1.5 min-h-11 w-full rounded-xl border border-rt-border bg-white px-3 text-sm dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white">
+                                        <x-ui.forms.select id="device-capture-form-factor" wire:model="deviceForm.form_factor">
                                             <option value="laptop">Laptop</option>
                                             <option value="desktop">Desktop</option>
                                             <option value="phone">Handy</option>
                                             <option value="tablet">Tablet</option>
                                             <option value="other">Sonstiges</option>
-                                        </select>
+                                        </x-ui.forms.select>
                                         @error('deviceForm.form_factor')<p class="mt-1 text-xs font-medium text-red-600 dark:text-red-400">{{ $message }}</p>@enderror
                                     </div>
                                     <div>
                                         <label for="device-capture-platform" class="block text-sm font-medium text-rt-text dark:text-white">Plattform</label>
-                                        <select id="device-capture-platform" wire:model="deviceForm.platform" class="mt-1.5 min-h-11 w-full rounded-xl border border-rt-border bg-white px-3 text-sm dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white">
+                                        <x-ui.forms.select id="device-capture-platform" wire:model="deviceForm.platform">
                                             @foreach(\App\Enums\DevicePlatform::cases() as $platform)
                                                 <option value="{{ $platform->value }}">{{ match($platform->value) {'macos' => 'macOS', 'ios' => 'iOS', 'ipados' => 'iPadOS', default => ucfirst($platform->value)} }}</option>
                                             @endforeach
-                                        </select>
+                                        </x-ui.forms.select>
                                         @error('deviceForm.platform')<p class="mt-1 text-xs font-medium text-red-600 dark:text-red-400">{{ $message }}</p>@enderror
                                     </div>
                                     <div>
                                         <label for="device-capture-ownership" class="block text-sm font-medium text-rt-text dark:text-white">Eigentum</label>
-                                        <select id="device-capture-ownership" wire:model="deviceForm.ownership" class="mt-1.5 min-h-11 w-full rounded-xl border border-rt-border bg-white px-3 text-sm dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white">
+                                        <x-ui.forms.select id="device-capture-ownership" wire:model="deviceForm.ownership">
                                             <option value="corporate">Firmengerät</option>
                                             <option value="byod">Privat / BYOD</option>
-                                        </select>
+                                        </x-ui.forms.select>
                                         @error('deviceForm.ownership')<p class="mt-1 text-xs font-medium text-red-600 dark:text-red-400">{{ $message }}</p>@enderror
                                     </div>
                                     <div>
                                         <label for="device-capture-provider" class="block text-sm font-medium text-rt-text dark:text-white">Primärprovider</label>
-                                        <select id="device-capture-provider" wire:model="deviceForm.primary_provider" class="mt-1.5 min-h-11 w-full rounded-xl border border-rt-border bg-white px-3 text-sm dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white">
+                                        <x-ui.forms.select id="device-capture-provider" wire:model="deviceForm.primary_provider">
                                             <option value="">Noch nicht verbunden</option>
                                             @foreach($providerCards as $provider)
                                                 @if($provider['key'] !== 'simulation')
                                                     <option value="{{ $provider['key'] }}">{{ $provider['label'] }}</option>
                                                 @endif
                                             @endforeach
-                                        </select>
+                                        </x-ui.forms.select>
                                         @error('deviceForm.primary_provider')<p class="mt-1 text-xs font-medium text-red-600 dark:text-red-400">{{ $message }}</p>@enderror
                                     </div>
                                 </div>

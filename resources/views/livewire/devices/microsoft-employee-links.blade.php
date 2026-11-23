@@ -33,12 +33,12 @@
                 <form id="microsoft-employee-link-form" wire:submit="save" class="space-y-4">
                     <div>
                         <x-ui.forms.label for="microsoft-link-employee" value="RailTime-Mitarbeiter" />
-                        <select id="microsoft-link-employee" wire:model="employee_id" class="mt-1.5 min-h-11 w-full rounded-xl border border-rt-border bg-white px-3 text-sm text-rt-text dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white">
+                        <x-ui.forms.select id="microsoft-link-employee" wire:model="employee_id">
                             <option value="">Aktiven Mitarbeiter auswählen</option>
                             @foreach($employees as $employee)
                                 <option value="{{ $employee->id }}">{{ $employee->name }}</option>
                             @endforeach
-                        </select>
+                        </x-ui.forms.select>
                         <x-ui.forms.input-error for="employee_id" class="mt-1.5" />
                     </div>
                     <div class="grid gap-4 sm:grid-cols-2">

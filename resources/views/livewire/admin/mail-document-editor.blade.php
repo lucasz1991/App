@@ -289,17 +289,15 @@
 
                     <label class="rt-mail-preview-width-control" title="Ganzzahlige Breite der Responsive-Vorschau">
                         <span class="sr-only">Individuelle Vorschau-Breite in Pixeln</span>
-                        <input
-                            type="number"
+                        <x-ui.forms.number-input
+                            :stepper="false"
                             min="320"
                             max="1920"
-                            step="1"
-                            inputmode="numeric"
                             value="1920"
                             data-mail-preview-width
                             aria-label="Individuelle Vorschau-Breite in ganzen Pixeln"
                             aria-describedby="mail-responsive-help-{{ $currentDocument->kind->value }}"
-                        >
+                        />
                         <span aria-hidden="true">px</span>
                     </label>
 

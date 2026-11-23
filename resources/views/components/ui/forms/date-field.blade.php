@@ -7,6 +7,11 @@
     'clearable' => true,
     'ariaLabel' => null,
     'keepDropdownOpen' => false,
+    // Meldet jede Wertaenderung als natives change-Ereignis eines versteckten
+    // Feldes, damit wire:change="…($event.target.value)" den ISO-Wert erhaelt.
+    // Das change-Ereignis des sichtbaren Textfelds (deutsches Format) wird
+    // dann nicht nach aussen gereicht.
+    'emitChange' => false,
 ])
 
 {{-- Ein gemeinsames Feld: x-model bleibt fuer Alpine-Verbraucher erhalten;
@@ -63,6 +68,7 @@
             placeholder="{{ __('app.date_format_hint') }}"
             x-model="display"
             @blur="commitTyped()"
+            @if($emitChange) @change.stop @endif
             @keydown.enter.prevent="commitTyped(); closePanel()"
             @keydown.down.prevent="openPanel($event.currentTarget)"
             @disabled($disabled)
@@ -92,6 +98,15 @@
 
     @if($attributes->has('name'))
         <input type="hidden" name="{{ $attributes->get('name') }}" :value="value" @disabled($disabled) />
+    @endif
+
+    @if($emitChange)
+        <input
+            type="hidden"
+            value="{{ $alpineConfig['value'] }}"
+            data-rt-date-value
+            x-init="$watch('value', (next, previous) => { if (next === previous) return; $el.value = next ?? ''; $el.dispatchEvent(new Event('change', { bubbles: true })); })"
+        />
     @endif
 
     {{-- Der Teleport-Inhalt gehoert Alpine. Livewire darf den Body-Klon nicht

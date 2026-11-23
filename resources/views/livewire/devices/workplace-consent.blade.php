@@ -7,11 +7,11 @@
                 <p>{{ $device->ownership === 'byod' ? 'Privatgerät – bleibt Ihr Eigentum und wird nicht zum Firmenlagerbestand.' : 'Zugeordnetes Firmengerät' }}</p>
                 @can('devices.manage')
                     <form wire:submit="configure" class="space-y-2">
-                        <label class="block">Arbeitsplatzprofil<select wire:model="profile" class="mt-1 w-full rounded-xl border-rt-border">
+                        <x-operations.field :id="'workplace-profile-'.$device->public_id" label="Arbeitsplatzprofil" model="profile" type="select">
                             @foreach(\App\Services\DeviceManagement\WorkplaceProfileCatalog::all() as $key => $profileInfo)
                                 @if($key === 'railtime_basic' || ($device->ownership === 'byod' ? $key === 'byod_managed' : $key === 'corporate_standard'))<option value="{{ $key }}">{{ $profileInfo['label'] }}</option>@endif
                             @endforeach
-                        </select></label>
+                        </x-operations.field>
                         <button type="submit" class="min-h-10 rounded-xl border px-3">Profil festlegen</button>
                         <p class="text-xs text-rt-muted">Änderungen sperren offene Aufträge und benötigen eine neue Mitarbeiterfreigabe.</p>
                     </form>
@@ -31,9 +31,9 @@
                         <p role="status" class="font-semibold text-amber-800">Zugriff gesperrt – lokale Bereinigung ausstehend. IT muss das Beenden und Entfernen der Verwaltungs- und Supportdienste bestätigen. Private Dateien werden nicht pauschal gelöscht.</p>
                     @elseif($summary['consent_current'])
                         <p role="status">Verwaltungsumfang bestätigt. Dies ist noch kein Nachweis installierter Dienste.</p>
-                        @if($owner)<form wire:submit="withdraw" class="space-y-2"><label class="flex gap-2"><input type="checkbox" wire:model="withdrawConfirmed">Ich möchte die Verwaltung beenden und weitere Aufträge sperren.</label><button type="submit" class="min-h-10 rounded-xl border border-red-300 px-3 text-red-700">Verwaltung widerrufen</button></form>@endif
+                        @if($owner)<form wire:submit="withdraw" class="space-y-2"><x-ui.forms.checkbox :id="'workplace-withdraw-'.$device->public_id" wire:model="withdrawConfirmed" label="Ich möchte die Verwaltung beenden und weitere Aufträge sperren." /><button type="submit" class="min-h-10 rounded-xl border border-red-300 px-3 text-red-700">Verwaltung widerrufen</button></form>@endif
                     @elseif($owner)
-                        <form wire:submit="accept" class="space-y-2"><label class="flex items-start gap-2"><input type="checkbox" wire:model="confirmed">Ich bestätige die Gerätezuordnung, das angegebene Eigentum und den beschriebenen Verwaltungsumfang. Bei meinem Privatgerät stimme ich der dauerhaften Verwaltung ausdrücklich zu.</label><x-ui.buttons.button-basic mode="primary" type="submit" class="min-h-10">Umfang verbindlich bestätigen</x-ui.buttons.button-basic></form>
+                        <form wire:submit="accept" class="space-y-2"><x-ui.forms.checkbox :id="'workplace-consent-'.$device->public_id" wire:model="confirmed" label="Ich bestätige die Gerätezuordnung, das angegebene Eigentum und den beschriebenen Verwaltungsumfang. Bei meinem Privatgerät stimme ich der dauerhaften Verwaltung ausdrücklich zu." /><x-ui.buttons.button-basic mode="primary" type="submit" class="min-h-10">Umfang verbindlich bestätigen</x-ui.buttons.button-basic></form>
                     @else
                         <p>Die persönliche Zustimmung erfolgt durch den zugeordneten Mitarbeiter unter „Meine Geräte“.</p>
                     @endif

@@ -41,7 +41,7 @@
 .rt-regions__region-menu .rt-regions__remove-state { border-top:1px solid var(--regions-border); border-radius:0 0 7px 7px; margin-top:5px; color:var(--regions-muted); }
 .rt-regions__radius-panel { z-index:2; top:78px; right:20px; width:302px; padding:16px; box-shadow:0 4px 18px rgba(23,40,63,.055); }
 .rt-regions__base-field > label { display:block; margin-bottom:8px; font-size:12px; font-weight:600; }
-.rt-regions input[type=text],.rt-regions input[type=number] { display:block; width:100%; min-width:0; min-height:42px; border:1px solid var(--regions-border); border-radius:8px; background:var(--regions-bg); color:var(--regions-text); font:inherit; font-size:13px; padding:10px; box-shadow:none; }
+.rt-regions input[type=text],.rt-regions input[data-rt-number-input] { display:block; width:100%; min-width:0; min-height:42px; border:1px solid var(--regions-border); border-radius:8px; background:var(--regions-bg); color:var(--regions-text); font:inherit; font-size:13px; padding:10px; box-shadow:none; }
 .rt-regions input::placeholder { color:var(--regions-muted); }
 .rt-regions__origin-field { position:relative; }
 .rt-regions__origin-field > i { position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:13px; color:var(--regions-muted); pointer-events:none; }
@@ -62,7 +62,7 @@
 .rt-regions__radius-fields label > span:first-child { display:block; font-size:10px; color:var(--zone); font-weight:500; }
 .rt-regions__unit { position:relative; display:block; }
 .rt-regions__unit > span { position:absolute; right:0; top:50%; transform:translateY(-50%); font-size:9px; color:var(--regions-muted); pointer-events:none; }
-.rt-regions .rt-regions__unit input[type=number] { padding:7px 17px 7px 0; border:0; border-radius:3px; background:transparent; font-size:18px; line-height:1.4; font-weight:500; font-variant-numeric:tabular-nums; appearance:textfield; }
+.rt-regions .rt-regions__unit input[data-rt-number-input] { padding:7px 17px 7px 0; border:0; border-radius:3px; background:transparent; font-size:18px; line-height:1.4; font-weight:500; font-variant-numeric:tabular-nums; appearance:textfield; }
 .rt-regions__unit input::-webkit-inner-spin-button { display:none; }
 .rt-regions__hint { font-size:10px; color:var(--regions-muted); line-height:1.6; margin:10px 0 0; }
 .rt-regions__exclusions { z-index:4; right:20px; top:78px; width:350px; max-width:calc(100% - 40px); max-height:calc(100% - 96px); overflow:auto; padding:10px; }

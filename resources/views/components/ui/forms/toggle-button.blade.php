@@ -6,6 +6,8 @@
     'size' => 'md',
     'disabled' => false,
     'labelInside' => false,
+    // Anfangszustand ohne wire:model (z. B. mit wire:change). null = keine Angabe.
+    'checked' => null,
 ])
 
 @php
@@ -30,6 +32,8 @@
         @if($change) @change="{{ $change }}" @endif
         @if($model) data-autosave-model="{{ $model }}" data-autosave-field-id="{{ $inputId }}" @endif
         {{ $disabled ? 'disabled' : '' }}
+        @if(! is_null($checked) && filter_var($checked, FILTER_VALIDATE_BOOLEAN)) checked @endif
+        {{-- Weitere Attribute (wire:model, wire:change, x-on:…, aria-*) gehen ans Feld. --}}
         {!! $attributes->except('class') !!}
         class="rt-ui-toggle__input peer sr-only"
     />

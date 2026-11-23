@@ -37,7 +37,7 @@
             </div>
             <div class="min-w-0">
                 <x-ui.forms.label for="microsoft-device-sync-interval" value="Automatischer Abruf alle … Minuten" />
-                <x-ui.forms.input id="microsoft-device-sync-interval" type="number" min="5" max="1440" step="1" wire:model="form.sync_interval_minutes" class="mt-1.5" />
+                <x-ui.forms.number-input id="microsoft-device-sync-interval" min="5" max="1440" wire:model="form.sync_interval_minutes" />
                 <x-ui.forms.input-error for="form.sync_interval_minutes" class="mt-1.5" />
                 <p class="mt-1.5 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Standard: 15 Minuten. Der Laravel-Scheduler und der separate Microsoft-Geräte-Worker müssen laufen.</p>
             </div>
