@@ -22,13 +22,14 @@
                 content-classes="rt-inbox-panel !rounded-[1.2rem] bg-rt-surface p-1.5 text-rt-text dark:bg-rt-dark-surface dark:text-white">
         {{-- Trigger und Badge zaehlen ausschliesslich normale Nachrichten. --}}
         <x-slot name="trigger">
-            <x-topbar.control-button
-                    title="{{ __('app.messages') }}"
-                    aria-label="{{ __('app.messages') }}"
+            <x-ui.buttons.button-basic
+                    mode="icon"
+                    :label="__('app.messages')"
                     aria-haspopup="true"
                     data-inbox-trigger="true"
                     data-inbox-total="{{ $totalUnreadCount }}"
-                    class="relative h-10 w-10 px-0">
+                    class="rt-topbar-control relative min-w-10 px-0"
+                    data-rt-topbar-control>
                 <i class="far fa-envelope text-base" aria-hidden="true"></i>
 
                 @if ($totalUnreadCount >= 1)
@@ -36,7 +37,7 @@
                         {{ $totalUnreadCount > 99 ? '99+' : $totalUnreadCount }}
                     </span>
                 @endif
-            </x-topbar.control-button>
+            </x-ui.buttons.button-basic>
         </x-slot>
 
         <x-slot name="content">
