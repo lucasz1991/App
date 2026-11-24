@@ -367,6 +367,13 @@ class OperationsEnhancements extends Component
         $this->openDetails($record->id);
     }
 
+    public function saveDeviation(): void
+    {
+        $actor = $this->access();
+        $record = app(CustomerProofService::class)->deviation($this->selectedId, $this->selectedRevision, $this->note, $actor);
+        $this->openDetails($record->id);
+    }
+
     public function uploadFile(): void
     {
         $actor = $this->access();

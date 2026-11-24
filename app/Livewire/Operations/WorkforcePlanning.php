@@ -234,7 +234,7 @@ class WorkforcePlanning extends Component
         };
         $items = $query->paginate(20);
         $items->getCollection()->each(fn ($item) => $item->setAttribute('personal_view', $this->personal));
-        $people = User::where('role', 'staff')->where('status', true)->orderBy('name')->get();
+        $people = User::dutyStaff()->orderBy('name')->get();
         $periods = AvailabilityPeriod::where('until', '>=', now()->subYear()->toDateString())->orderByDesc('from')->limit(24)->get();
         $wishPeriodId = filter_var($this->form['availability_period_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         $wishPeriod = $this->personal && $this->modal === 'wish' && $this->formOpen && $wishPeriodId

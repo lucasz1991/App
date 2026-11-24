@@ -258,7 +258,13 @@ export function wagonListPrototype(config = {}) {
             this.$watch('desktopSection', () => this.scheduleAssistantContext('step-updated'));
             this.$watch('desktopWagon', () => this.scheduleAssistantContext('wagon-updated'));
 
-            this.$nextTick(() => this.dispatchAssistantContext('overview-ready', false));
+            this.$nextTick(() => {
+                if (config.proof) {
+                    if (this.drafts.length) this.openDraft(this.drafts[0].id);
+                    else this.createDraft();
+                }
+                this.dispatchAssistantContext('overview-ready', false);
+            });
         },
 
         destroy() {
@@ -354,7 +360,7 @@ export function wagonListPrototype(config = {}) {
         },
 
         createDraft(returnFocus = null) {
-            const draft = normalizeDraft({ id: createDraftId() });
+            const draft = normalizeDraft({ ...config.proof?.draft, id: createDraftId(), visibleCount: config.proof?.draft?.wagons?.length || undefined });
             const nextDrafts = [draft, ...this.drafts];
 
             if (!this.saveCollection(nextDrafts)) return false;
@@ -1064,24 +1070,26 @@ export function wagonListPrototype(config = {}) {
             });
         },
 
-        async exportWorkbook() {
-            if (this.exporting || !config.exportUrl) return;
+        async exportWorkbook(asProof = false) {
+            const endpoint = asProof ? config.proof?.url : config.exportUrl;
+            if (this.exporting || !endpoint) return;
 
             if (!this.persistDraft()) return;
             this.exporting = true;
 
             try {
-                const response = await fetch(config.exportUrl, {
+                const response = await fetch(endpoint, {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: {
-                        Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                        Accept: asProof ? 'application/json' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                         'Content-Type': 'application/json',
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
                         'X-Requested-With': 'XMLHttpRequest',
                     },
                     body: JSON.stringify({
                         meta: this.meta,
+                        ...(asProof ? { revision: config.proof.revision } : {}),
                         wagons: this.wagons.slice(0, this.visibleCount),
                         brakeSheet: this.brakeSheet,
                         report: this.report,
@@ -1094,6 +1102,11 @@ export function wagonListPrototype(config = {}) {
                     throw new Error(validationMessage || error.message || config.exportError);
                 }
 
+                if (asProof) {
+                    const result = await response.json();
+                    window.location.assign(result.redirect);
+                    return;
+                }
                 const blob = await response.blob();
                 const disposition = response.headers.get('Content-Disposition') || '';
                 const encodedName = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];

@@ -7,3 +7,7 @@
                     @if($workTimeReady ?? \App\Support\Operations\WorkTimeSchema::ready())<x-ui.buttons.button-basic mode="primary" x-bind:disabled="busy || !ready || conflicts > 0 || (!!active && ['running','paused'].includes(active.status))" :x-on:click="$startClockAction">Dienst starten</x-ui.buttons.button-basic>
                     @else<x-ui.buttons.button-basic mode="primary" wire:click="start({{ $assignment->id }},{{ $shift->revision }})" wire:loading.attr="disabled">Dienst starten</x-ui.buttons.button-basic>@endif
                     </div>@endif
+
+@if(!$assignment->plan_is_stale && $shift->public_id && $shift->published_revision > 0 && $shift->published_revision === $shift->revision && in_array($assignment->status->value, ['requested','confirmed'], true) && \Illuminate\Support\Facades\Schema::hasTable('duty_activities') && \App\Support\Operations\OperationsEnhancementsSchema::ready())
+    <x-ui.buttons.button-basic mode="link" :href="route('operations.duty-proof', ['duty' => $shift->public_id])">Nachweis zum Dienst</x-ui.buttons.button-basic>
+@endif

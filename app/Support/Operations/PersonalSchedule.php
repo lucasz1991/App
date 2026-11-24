@@ -102,7 +102,7 @@ final class PersonalSchedule
                 ->whereColumn('shift_assignments.plan_revision', 'shifts.published_revision'))
             ->with([
                 'shift' => fn ($query) => $query->select(array_merge(
-                    ['id', 'status', 'revision', 'published_revision', 'published_snapshot'],
+                    ['id', 'public_id', 'status', 'revision', 'published_revision', 'published_snapshot'],
                     self::PUBLISHED_FIELDS,
                     SiteSnapshotService::ready() ? ['customer_location_id', 'location_snapshot'] : [],
                 )),
@@ -139,6 +139,7 @@ final class PersonalSchedule
         $published = new Shift;
         $published->setRawAttributes([
             'id' => $shift->id,
+            'public_id' => $shift->public_id,
             'revision' => $shift->revision,
             'published_revision' => $shift->published_revision,
         ]);

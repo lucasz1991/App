@@ -50,7 +50,7 @@ class TimelinePlanningSuggestionService
         $query = $this->openShifts($from, $until, $actor);
         Validator::make(compact('date'), ['date' => 'required|date_format:Y-m-d'])->validate();
         abort_unless($date >= $from && $date <= $until, 422);
-        $user = User::where('role', 'staff')->where('status', true)->findOrFail($userId);
+        $user = User::dutyStaff()->findOrFail($userId);
         $day = CarbonImmutable::parse($date, config('operations.display_timezone', 'Europe/Berlin'));
 
         return TomTomRoutingService::withinOperation(fn () => $query->during($day, $day->addDay())->limit(30)->get()->map(function (Shift $shift) use ($user, $displayOnly, $stored): array {
@@ -93,7 +93,7 @@ class TimelinePlanningSuggestionService
         if (! $this->isOpen($shift)) {
             return collect();
         }
-        $users = $staff ?? User::where('role', 'staff')->where('status', true)->orderBy('name')->orderBy('id')->get();
+        $users = $staff ?? User::dutyStaff()->orderBy('name')->orderBy('id')->get();
         $users = $users->reject(fn (User $user) => $existing->contains($user->id))->values();
         // The same fresh central assessment now handles every candidate's own
         // virtual schedule in one batch, rather than repeating the whole read
@@ -246,7 +246,7 @@ class TimelinePlanningSuggestionService
         $proposals = collect();
         $additionalByUser = [];
         $limited = $total > self::MAX_SHIFTS;
-        $staff = $shifts->isEmpty() ? collect() : User::where('role', 'staff')->where('status', true)->orderBy('name')->orderBy('id')->get();
+        $staff = $shifts->isEmpty() ? collect() : User::dutyStaff()->orderBy('name')->orderBy('id')->get();
         foreach ($shifts as $shift) {
             $open = max(0, $shift->required_staff - (int) $shift->reserved_count);
             $limited = $limited || $open > self::MAX_SLOTS;

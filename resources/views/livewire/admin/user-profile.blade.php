@@ -257,6 +257,9 @@
 
         @if ($canViewMasterData && $profileTab === 'masterData')
             <x-operations.panel.tab name="masterData" :id-prefix="$profilePrefix" model="$wire.profileTab" class="employee-profile__panel space-y-4">
+                @if(\Illuminate\Support\Facades\Schema::hasTable('duty_activity_user'))
+                    <livewire:admin.employee-duty-activities :user-id="(int) $user->id" :key="'employee-activities-'.$user->id" />
+                @endif
                 @include('livewire.admin.user-profile.partials.master-data', ['profile' => $profile])
             </x-operations.panel.tab>
         @endif

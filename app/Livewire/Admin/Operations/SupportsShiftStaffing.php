@@ -188,7 +188,7 @@ trait SupportsShiftStaffing
 
             return;
         }
-        $employee = User::where('role', 'staff')->where('status', true)->findOrFail($userId);
+        $employee = User::dutyStaff()->findOrFail($userId);
         $preferences = app(StaffRegionalPreferenceService::class)->get($employee);
         $this->regionalEmployeeId = $employee->id;
         $this->regionalRevision = $preferences['revision'];

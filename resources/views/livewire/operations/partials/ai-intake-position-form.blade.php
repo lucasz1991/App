@@ -1,7 +1,12 @@
 <form wire:submit="{{ $manualEditorOpen ? 'saveManualPosition' : 'saveProposal' }}" class="ops-stack mt-3" @unless($embedded) id="intake-drawer-position-form-{{ $this->getId() }}" @endunless data-intake-position-form>
     <div class="ops-form">
         @foreach(['title' => 'Bezeichnung', 'role_name' => 'Tätigkeit', 'location_name' => 'Einsatzort', 'timezone' => 'Zeitzone'] as $key => $label)
-            <x-operations.field :scope="$this->getId()" :label="$label" :model="'proposalForm.demand.'.$key" />
+            @if($key === 'role_name' && !empty($activityCatalog) && $activityCatalog->isNotEmpty())
+                <x-operations.field :scope="$this->getId()" :label="$label" :model="'proposalForm.demand.'.$key" :list="'activity-options-'.$this->getId()" />
+                <datalist id="activity-options-{{ $this->getId() }}">@foreach($activityCatalog->where('active', true)->unique('id') as $item)<option value="{{ $item->code }}">{{ $item->title }}</option>@endforeach</datalist>
+            @else
+                <x-operations.field :scope="$this->getId()" :label="$label" :model="'proposalForm.demand.'.$key" />
+            @endif
         @endforeach
         <x-operations.field :scope="$this->getId()" label="Beginn" model="proposalForm.demand.starts_at" type="datetime-local" />
         <x-operations.field :scope="$this->getId()" label="Ende" model="proposalForm.demand.ends_at" type="datetime-local" />

@@ -53,7 +53,7 @@
                 @endif
                 @if(in_array($tab,['proofs','travel','partners']))
                     @if($tab === 'proofs')<x-operations.field label="Auftrag" model="form.order_id" type="select" required><option value="">Auswählen</option>@foreach($orders as $order)<option value="{{ $order->id }}">{{ $order->order_number }} · {{ $order->title }}</option>@endforeach</x-operations.field>@endif
-                    <x-operations.field label="Dienst" model="form.shift_id" type="select" :required="$tab !== 'proofs'"><option value="">Auswählen</option>@foreach($shifts as $shift)<option value="{{ $shift->id }}">{{ $shift->title }}</option>@endforeach</x-operations.field>
+                    <x-operations.field label="Dienst" model="form.shift_id" type="select" required><option value="">Auswählen</option>@foreach($shifts as $shift)<option value="{{ $shift->id }}">{{ $shift->title }}</option>@endforeach</x-operations.field>
                     @if($tab !== 'partners')<x-operations.field label="Bezeichnung" model="form.title" maxlength="180" required />@endif
                     @if($tab === 'proofs')
                         @foreach($form['rows'] ?? [] as $index=>$row)<fieldset wire:key="proof-row-{{ $index }}" class="ops-full grid gap-3 sm:grid-cols-3"><x-operations.field label="Tätigkeit" :model="'form.rows.'.$index.'.activity'" required /><x-operations.field label="Kundenmenge" :model="'form.rows.'.$index.'.quantity'" type="number" step="0.01" min="0" required /><x-operations.field label="Einheit" :model="'form.rows.'.$index.'.unit'" required /></fieldset>@endforeach
@@ -158,6 +158,15 @@
                 @if($selected instanceof \App\Models\OperationWorkflow)
                     <x-operations.status :value="$selected->status" />
                     @if($tab === 'proofs')
+                        @if($duty = $selected->payload['duty'] ?? null)
+                            <p><strong>{{ $duty['proof_type'] }}</strong> · {{ $duty['title'] }} · {{ count($selected->payload['participants'] ?? []) }} Beteiligte</p>
+                            @if($selected->payload['deviation'] ?? null)<p><strong>Abweichung</strong> · {{ $selected->payload['deviation'] }}</p>@endif
+                            @if(($selected->payload['review']['note'] ?? null) && $selected->status === 'draft')<p><strong>Rückmeldung</strong> · {{ $selected->payload['review']['note'] }}</p>@endif
+                            @if($selected->status === 'draft' && $selected->user_id == auth()->id())
+                                @if($duty['wagon_list'])<x-ui.buttons.button-basic mode="link" :href="route(auth()->user()->usesAdminLayout() ? 'admin.operations.wagon-list' : 'operations.wagon-list', ['proof' => $selected->id])">Wagenliste ausfüllen</x-ui.buttons.button-basic>@endif
+                                <details><summary>Ausfall oder Abweichung dokumentieren</summary><form wire:submit="saveDeviation" class="ops-form"><x-operations.field label="Begründung" type="textarea" model="note" required /><x-ui.buttons.button-basic type="submit">Begründung speichern</x-ui.buttons.button-basic></form></details>
+                            @endif
+                        @endif
                         <x-tables.table :columns="[['label'=>'Tätigkeit','key'=>'activity'],['label'=>'Kundenmenge','key'=>'quantity'],['label'=>'Einheit','key'=>'unit']]" :items="collect($selected->payload['rows'])->map(fn($r,$i)=>(object)(['id'=>$i]+$r))" row-view="components.tables.rows.time.proof-quantity-row" />
                         @if(in_array($selected->status,['draft','rejected']) && $selected->user_id===auth()->id())<details><summary class="ops-link">Nachweis bearbeiten</summary><form wire:submit="act('revise')" class="ops-form">@foreach($form['rows']??[] as $index=>$row)<fieldset class="ops-full grid gap-3 sm:grid-cols-3" wire:key="proof-revise-{{ $index }}"><x-operations.field label="Tätigkeit" :model="'form.rows.'.$index.'.activity'" required /><x-operations.field label="Kundenmenge" :model="'form.rows.'.$index.'.quantity'" type="number" step="0.01" min="0" required /><x-operations.field label="Einheit" :model="'form.rows.'.$index.'.unit'" required /></fieldset>@endforeach<x-operations.field label="Änderungsvermerk" model="note" type="textarea" required /><div class="ops-full"><x-ui.buttons.button-basic type="submit">Neue Revision speichern</x-ui.buttons.button-basic></div></form></details>@endif
                         @if($selected->status === 'draft' && $selected->user_id === auth()->id())<x-ui.buttons.button-basic type="button" mode="primary" wire:click="act('submit')">Zur Prüfung einreichen</x-ui.buttons.button-basic>@endif

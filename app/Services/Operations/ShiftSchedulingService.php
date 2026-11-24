@@ -67,6 +67,28 @@ class ShiftSchedulingService
                 if ($expected !== null && (int) $expected !== $persistedShift->revision) {
                     throw ValidationException::withMessages(['workflow' => 'Schicht wurde geändert. Bitte neu laden.']);
                 }
+                $requestedStatus = $attributes['status'] ?? null;
+                $closing = in_array($requestedStatus, [ShiftStatus::Completed, ShiftStatus::Completed->value], true);
+                if ($persistedShift->activity_requirements !== null && ($closing || $persistedShift->status === ShiftStatus::Completed)) {
+                    $before = clone $persistedShift;
+                    $before->syncOriginal();
+                    $before->fill(\Illuminate\Support\Arr::except($attributes, ['status']));
+                    $siteSelection?->apply($before);
+                    $check = app(OperationsWorkflowService::class);
+                    $check->check($closing && ! $before->isDirty() && $persistedShift->published_revision > 0
+                        && $persistedShift->revision === $persistedShift->published_revision && $persistedShift->status !== ShiftStatus::Cancelled,
+                        'Nur der unveränderte veröffentlichte Dienst kann abgeschlossen werden.');
+                    if ($persistedShift->status === ShiftStatus::Completed) {
+                        return $persistedShift->load(['order.customer', 'assignments.user']);
+                    }
+                    $coverage = app(CustomerProofService::class)->coverage($persistedShift);
+                    $check->check(! collect($coverage)->contains(fn ($item) => $item['complete'] < $item['required']),
+                        'Für diesen Dienst sind noch Nachweise oder Freigaben offen.');
+                    $persistedShift->forceFill(['status' => ShiftStatus::Completed, 'updated_by' => OperationsActor::internalId($actor)])->save();
+                    app(OperationsAuditService::class)->record($persistedShift, $actor, 'shift.completed', ['published_revision' => $persistedShift->published_revision]);
+
+                    return $persistedShift->load(['order.customer', 'assignments.user']);
+                }
                 if (WorkTimeEntry::whereHas('assignment', fn ($q) => $q->where('shift_id', $persistedShift->id))->exists()) {
                     throw ValidationException::withMessages(['workflow' => 'Für diese Schicht wurden bereits Zeiten erfasst.']);
                 }
@@ -83,6 +105,9 @@ class ShiftSchedulingService
                 ]);
             }
 
+            if (! $persistedShift->exists && $shiftStatus === ShiftStatus::Completed && \Illuminate\Support\Facades\Schema::hasTable('duty_activities')) {
+                throw ValidationException::withMessages(['status' => 'Vor dem Abschluss ist ein veröffentlichter Dienst mit geprüftem Beleg erforderlich.']);
+            }
             if ($shiftStatus === null) {
                 throw ValidationException::withMessages([
                     'status' => 'Der angegebene Schichtstatus ist ungültig.',

@@ -1,6 +1,7 @@
 <div
     x-data="wagonListPrototype(@js([
         'storageKey' => $storageKey,
+        'proof' => $proofContext ?? null,
         'locale' => app()->getLocale() === 'de' ? 'de-DE' : 'en-GB',
         'cancel' => __('app.cancel'),
         'notSaved' => __('app.wagon_not_saved'),
@@ -235,6 +236,11 @@
             </x-slot:header>
 
             <x-slot:actions>
+                @if($proofContext ?? null)
+                    <button type="button" class="rt-wl-action rt-wl-action--strong" @click="exportWorkbook(true)" :disabled="exporting" aria-label="Als Dienstnachweis übernehmen">
+                        <i class="far fa-clipboard-check" aria-hidden="true"></i><span class="rt-wl-action-label">Als Dienstnachweis übernehmen</span>
+                    </button>
+                @endif
                 {{-- Extra-Feature oben rechts: Video-Erfassung der Wagen —
                      bewusst auch mobil sichtbar (dort ist sie gedacht). --}}
                 <button

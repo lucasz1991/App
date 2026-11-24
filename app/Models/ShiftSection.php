@@ -9,6 +9,8 @@ class ShiftSection extends Model
 {
     use HasZonedSchedule;
 
+    protected $casts = ['activity_requirements' => 'array'];
+
     protected $guarded = ['id'];
 
     public function shift()

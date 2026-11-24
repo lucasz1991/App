@@ -30,7 +30,9 @@
             $settingsTabs['superadmin'] = ['label' => __('app.settings_superadmin'), 'icon' => 'fad fa-shield-alt'];
         }
 
+        $settingsTabs['activities'] = ['label' => 'Tätigkeitenkatalog', 'icon' => 'far fa-clipboard-list'];
         $settingsTeasers = [
+            ['tab' => 'activities', 'section' => '', 'label' => 'Tätigkeitenkatalog', 'description' => 'Tätigkeiten, Qualifikationen und Dienstnachweise verwalten.', 'icon' => 'far fa-clipboard-list', 'items' => ['Kürzel', 'Anforderungen', 'Belege']],
             [
                 'tab' => 'company',
                 'section' => 'company',
@@ -186,6 +188,8 @@
             @endif
         </div>
     </x-ui.accordion.tab-panel>
+
+    <x-ui.accordion.tab-panel for="activities" :order="count($settingsTabs) - 1" content-class=""><livewire:admin.duty-activity-catalog /></x-ui.accordion.tab-panel>
 
     <x-ui.accordion.tab-panel for="company" :order="1" content-class="">
         <div

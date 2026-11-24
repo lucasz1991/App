@@ -57,6 +57,9 @@
                     x-data="{ editorFocusKey: null }"
                     x-effect="const key = $wire.manualEditorOpen ? 'new-' + $wire.selectedId : ($wire.editingProposalId !== null ? 'position-' + $wire.editingProposalId : ($wire.customerEditorOpen ? 'customer-' + $wire.selectedId : ($wire.planningProposalId !== null ? 'planning-' + $wire.planningProposalId : null))); const changed = key !== editorFocusKey; editorFocusKey = key; if (changed &amp;&amp; key &amp;&amp; $wire.detailTab === 'review') $nextTick(() => { const region = key.startsWith('customer-') ? $el.querySelector('.rt-intake-drawer__customer-form') : (key.startsWith('planning-') ? $el.querySelector('[data-ai-intake-planning-editor]') : $el.querySelector('[data-intake-position-form]')); const target = region?.querySelector('input:not([type=hidden]):not([disabled]),select:not([disabled]),textarea:not([disabled]),[role=combobox]:not([disabled]),button:not([disabled])'); target?.focus({ preventScroll: true }); target?.scrollIntoView({ block: 'nearest', behavior: 'auto' }); });">
                     <div class="rt-intake-drawer__navigation">
+                        <x-operations.panel.tabs class="rt-intake-drawer__tabs" label="Eingang bearbeiten" :id-prefix="'intake-drawer-'.$this->getId()" action="setDetailTab" model="detailTab" :active="$detailTab" :tabs="['review' => ['label' => 'Bearbeiten', 'icon' => 'far fa-pen'], 'sources' => ['label' => 'Original & Anlagen', 'icon' => 'far fa-paperclip'], 'communication' => ['label' => 'Verlauf', 'icon' => 'far fa-history'], 'details' => ['label' => 'Details', 'icon' => 'far fa-list']]" />
+                    </div>
+
                         <header class="rt-intake-drawer__context">
                             <p class="rt-intake-drawer__meta">AI-{{ str_pad((string) $selected->id, 6, '0', STR_PAD_LEFT) }} · {{ ['email' => 'E-Mail', 'manual' => 'Formular', 'text' => 'Text', 'file' => 'Datei', 'audio' => 'Sprachaufnahme'][$selected->source_type] ?? 'Eingang' }}@if($selected->created_at) · {{ $selected->created_at->timezone('Europe/Berlin')->format('d.m.Y, H:i') }}@endif</p>
                             <h2 class="rt-intake-drawer__title" tabindex="-1" data-intake-drawer-heading>{{ $selected->title ?: 'Eingang prüfen' }}</h2>
@@ -65,8 +68,6 @@
                                 <div class="rt-intake-drawer__customer-identity"><span>Kunde</span><strong>{{ $selected->customer?->company_name ?: 'Noch nicht zugeordnet' }}</strong></div>
                             </section>
                         </header>
-                        <x-operations.panel.tabs class="rt-intake-drawer__tabs" label="Eingang bearbeiten" :id-prefix="'intake-drawer-'.$this->getId()" action="setDetailTab" model="detailTab" :active="$detailTab" :tabs="['review' => ['label' => 'Bearbeiten', 'icon' => 'far fa-pen'], 'sources' => ['label' => 'Original & Anlagen', 'icon' => 'far fa-paperclip'], 'communication' => ['label' => 'Verlauf', 'icon' => 'far fa-history']]" />
-                    </div>
 
                     @if($drawerState['stale'])<div class="rt-intake-drawer__notice" role="status">Dieser Eingang oder seine Einstellungen wurden inzwischen geändert. Vor einer Änderung den aktuellen Stand laden.</div>@endif
 
@@ -118,9 +119,54 @@
                                             <div class="rt-intake-drawer__form">@include('livewire.operations.partials.ai-intake-position-form')</div>
                                         @else
                                             <x-operations.intake.visuals :demand="$payload['demand'] ?? []" :order="$proposal->inquiry?->order" :identity="'proposal-'.$proposal->id" />
-                                            <x-operations.intake.facts class="rt-intake-drawer__facts" :demand="$payload['demand'] ?? []" variant="drawer" :assumptions="$payload['assumptions'] ?? []" :confirmed="$positionConfirmed" />
+                                            <x-operations.intake.facts :activities="$activityCatalog ?? []" class="rt-intake-drawer__facts" :demand="$payload['demand'] ?? []" variant="drawer" :assumptions="$payload['assumptions'] ?? []" :confirmed="$positionConfirmed" />
                                         @endif
 
+                                        @if(!$currentProposal)<p class="rt-intake-drawer__notice" role="status">Ein neuerer Eingang liegt vor. Den aktuellen Vorschlag prüfen.</p>
+                                        @elseif($proposal->error_code === 'reply_position_review')<p class="ops-muted">Diese Antwort muss zuerst einer vorhandenen Position zugeordnet werden.</p>
+                                        @elseif($proposal->error_code === 'native_workflow_active')<p class="ops-muted">Diesen Vorgang in der bestehenden Anfrage prüfen; Angebot oder Beauftragung sind bereits angelaufen.</p>@endif
+                                        @if($currentProposal && $proposal->error_code === 'reply_position_review')
+                                            <form wire:submit="mapProposal({{ $proposal->id }},{{ $proposal->revision }})" class="ops-stack rt-intake-drawer__mapping"><x-operations.field :id="'drawer-map-'.$this->getId().'-'.$proposal->id" label="Vorhandene Anfrage für diese Antwort" :model="'mappingInquiryIds.'.$proposal->id" type="select"><option value="">Position ausdrücklich zuordnen</option>@foreach(($payload['candidate_inquiry_ids'] ?? []) as $candidateId)@if($candidate = $mappingInquiries->get($candidateId))<option value="{{ $candidate->id }}">{{ $candidate->number }} · {{ $candidate->title }} · {{ $candidate->location_name }}</option>@endif @endforeach</x-operations.field></form>
+                                        @endif
+                                        @if($proposal->inquiry && $planningProposalId === $proposal->id)@include('livewire.operations.partials.ai-intake-planning')@endif
+
+                                    </article>
+                                @endforeach
+                                @if($currentProposals->isEmpty() && !$manualEditorOpen)
+                                    @if($selected->processed_source_revision === $selected->source_revision && is_array($selected->analysis['positions'] ?? null) && !empty($selected->analysis['positions']))
+                                        @foreach($selected->analysis['positions'] as $index => $position)
+                                            @continue(!is_array($position))
+                                            <article class="rt-intake-drawer__position" data-ai-intake-analysis-preview wire:key="drawer-analysis-{{ $selected->id }}-{{ $selected->source_revision }}-{{ $index }}">
+                                                <div class="rt-intake-drawer__position-header"><h3>Position {{ $index + 1 }}</h3><span class="rt-intake-drawer__meta">Erkannte Angaben</span></div>
+                                                <h4>{{ $position['title'] ?? 'Leistung prüfen' }}</h4>
+                                                <x-operations.intake.visuals :demand="$position" :identity="'analysis-'.$selected->id.'-'.$index" />
+                                                <x-operations.intake.facts :activities="$activityCatalog ?? []" class="rt-intake-drawer__facts" :demand="$position" variant="drawer" :assumptions="$position['assumptions'] ?? []" />
+                                            </article>
+                                        @endforeach
+                                    @else
+                                        <div class="rt-intake-drawer__empty"><h3>Noch keine Positionen</h3><p class="ops-muted">Angaben direkt per Formular erfassen. AI-Assist kann bei Bedarf unterstützen.</p></div>
+                                    @endif
+                                @endif
+                            </section>
+
+                            @php($historicalReferences = $selected->proposals->filter(fn ($proposal) => ($proposal->source_revision !== $selected->source_revision || $proposal->status === 'stale') && $proposal->inquiry)->unique('inquiry_id'))
+                            @if($historicalReferences->isNotEmpty())<details class="rt-intake-drawer__disclosure"><summary>Frühere Anfragen</summary><div class="rt-intake-drawer__disclosure-content"><p class="ops-muted">Verknüpfungen aus früheren Prüfständen.</p>@foreach($historicalReferences as $reference)<x-ui.buttons.button-basic mode="link" :href="\App\Support\Operations\OperationsPages::url('cases',['view'=>'inbox','inquiry'=>$reference->inquiry_id])" data-no-navigate>Native Anfrage {{ $reference->inquiry->number }} öffnen</x-ui.buttons.button-basic>@endforeach</div></details>@endif
+                            @endif
+                        @endif
+                    </section>
+
+                    <section class="rt-intake-drawer__body" id="intake-drawer-{{ $this->getId() }}-panel-details" role="tabpanel" aria-labelledby="intake-drawer-{{ $this->getId() }}-tab-details" @if($detailTab !== 'details') hidden @endif>
+                        @if($proposal = $currentProposals->firstWhere('id', $drawerState['activeProposalId']))
+                            @php($payload = $proposal->payload ?? [])
+                            @php($positionConfirmed = !empty($payload['review_confirmation']['actor_id']) && ($payload['review_confirmation']['source_revision'] ?? null) === $selected->source_revision)
+                            @php($directPath = ($payload['business_path'] ?? 'inquiry') === 'direct_order')
+                            <h3>{{ $payload['demand']['title'] ?? 'Leistung '.($proposal->position_index + 1) }}</h3>
+                            @if($catalogItem = ($activityCatalog ?? collect())->get(mb_strtolower(trim($payload['demand']['role_name'] ?? ''))))
+                                <dl class="ops-meta">
+                                    <div><dt>Dienstnachweis</dt><dd>{{ $catalogItem->proof_type }}</dd></div>
+                                    @if($catalogItem->bundle)<div><dt>Qualifikationsbündel</dt><dd>{{ $catalogItem->bundle->name }} · Version {{ $catalogItem->bundle->version }}</dd></div>@endif
+                                </dl>
+                            @endif
                                         <details class="rt-intake-drawer__disclosure"><summary>Qualifikationen & Schichtabschnitte</summary><div class="rt-intake-drawer__disclosure-content">
                                             @if($payload['raw_requirements'] ?? [])<p><strong>Erkannte Anforderungen:</strong> {{ implode(', ', $payload['raw_requirements']) }}</p>@endif
                                             @if($payload['unmapped_requirements'] ?? [])<p class="ops-muted" role="status">Noch zu prüfen: {{ implode(', ', $payload['unmapped_requirements']) }}. Passende Qualifikationen auswählen und die Prüfung bestätigen.</p>@endif
@@ -154,51 +200,15 @@
                                             <p class="ops-muted">{{ $payload['demand']['timezone'] ?? 'Europe/Berlin' }} · {{ ($payload['provenance']['kind'] ?? '') === 'manual' ? 'Im Formular erfasst' : 'Aus dem Eingang übernommen' }} · {{ $directPath ? 'Direktauftrag' : 'Anfrage' }}</p>
                                             <dl>@forelse(($payload['evidence'] ?? []) as $field => $evidence)<div><dt>{{ is_array($evidence) ? ($evidence['field'] ?? $field) : $field }}</dt><dd>{{ is_array($evidence) ? ($evidence['quote'] ?? 'Quelle im Originaleingang prüfen.') : $evidence }}@if(is_array($evidence) && ($evidence['message_id'] ?? null))<span class="rt-intake-drawer__meta"> · Nachricht {{ $evidence['message_id'] }}</span>@endif</dd></div>@empty<p class="ops-muted">Originalnachrichten und Anlagen stehen unter „Original & Anlagen“ zur Prüfung bereit.</p>@endforelse</dl>
                                         </div></details>
-
-                                        @if(!$currentProposal)<p class="rt-intake-drawer__notice" role="status">Ein neuerer Eingang liegt vor. Den aktuellen Vorschlag prüfen.</p>
-                                        @elseif($proposal->error_code === 'reply_position_review')<p class="ops-muted">Diese Antwort muss zuerst einer vorhandenen Position zugeordnet werden.</p>
-                                        @elseif($proposal->error_code === 'native_workflow_active')<p class="ops-muted">Diesen Vorgang in der bestehenden Anfrage prüfen; Angebot oder Beauftragung sind bereits angelaufen.</p>@endif
-                                        @if($currentProposal && $proposal->error_code === 'reply_position_review')
-                                            <form wire:submit="mapProposal({{ $proposal->id }},{{ $proposal->revision }})" class="ops-stack rt-intake-drawer__mapping"><x-operations.field :id="'drawer-map-'.$this->getId().'-'.$proposal->id" label="Vorhandene Anfrage für diese Antwort" :model="'mappingInquiryIds.'.$proposal->id" type="select"><option value="">Position ausdrücklich zuordnen</option>@foreach(($payload['candidate_inquiry_ids'] ?? []) as $candidateId)@if($candidate = $mappingInquiries->get($candidateId))<option value="{{ $candidate->id }}">{{ $candidate->number }} · {{ $candidate->title }} · {{ $candidate->location_name }}</option>@endif @endforeach</x-operations.field></form>
-                                        @endif
-                                        @if($proposal->inquiry && $planningProposalId === $proposal->id)@include('livewire.operations.partials.ai-intake-planning')@endif
-
-                                    </article>
-                                @endforeach
-                                @if($currentProposals->isEmpty() && !$manualEditorOpen)
-                                    @if($selected->processed_source_revision === $selected->source_revision && is_array($selected->analysis['positions'] ?? null) && !empty($selected->analysis['positions']))
-                                        @foreach($selected->analysis['positions'] as $index => $position)
-                                            @continue(!is_array($position))
-                                            <article class="rt-intake-drawer__position" data-ai-intake-analysis-preview wire:key="drawer-analysis-{{ $selected->id }}-{{ $selected->source_revision }}-{{ $index }}">
-                                                <div class="rt-intake-drawer__position-header"><h3>Position {{ $index + 1 }}</h3><span class="rt-intake-drawer__meta">Erkannte Angaben</span></div>
-                                                <h4>{{ $position['title'] ?? 'Leistung prüfen' }}</h4>
-                                                <x-operations.intake.visuals :demand="$position" :identity="'analysis-'.$selected->id.'-'.$index" />
-                                                <x-operations.intake.facts class="rt-intake-drawer__facts" :demand="$position" variant="drawer" :assumptions="$position['assumptions'] ?? []" />
-                                            </article>
-                                        @endforeach
-                                    @else
-                                        <div class="rt-intake-drawer__empty"><h3>Noch keine Positionen</h3><p class="ops-muted">Angaben direkt per Formular erfassen. AI-Assist kann bei Bedarf unterstützen.</p></div>
-                                    @endif
-                                @endif
-                            </section>
-
-
-
-
-                            @if($currentProposals->isEmpty())
+                        @else
                                 <details class="rt-intake-drawer__disclosure"><summary>Quellen und Prüfhinweise</summary><div class="rt-intake-drawer__disclosure-content">
                                     @if($selected->summary)<p>{{ $selected->summary }}</p>@endif
                                     @if($selected->missing_fields)<ul>@foreach($selected->missing_fields as $field)@php($fieldKey = is_array($field) ? ($field['field'] ?? '') : $field)<li>{{ is_array($field) && isset($field['question']) ? $field['question'] : ($fieldLabels[$fieldKey] ?? 'Angabe prüfen') }}</li>@endforeach</ul>@endif
                                     @if($selected->error_code)<p class="ops-muted" role="status">Die Verarbeitung benötigt eine Prüfung. Quellen und erkannte Angaben bleiben erhalten.</p>@endif
                                     @include('livewire.operations.partials.ai-intake-context-hints', ['showCandidateHints' => false])
                                 </div></details>
-                            @endif
-                            @php($historicalReferences = $selected->proposals->filter(fn ($proposal) => ($proposal->source_revision !== $selected->source_revision || $proposal->status === 'stale') && $proposal->inquiry)->unique('inquiry_id'))
-                            @if($historicalReferences->isNotEmpty())<details class="rt-intake-drawer__disclosure"><summary>Frühere Anfragen</summary><div class="rt-intake-drawer__disclosure-content"><p class="ops-muted">Verknüpfungen aus früheren Prüfständen.</p>@foreach($historicalReferences as $reference)<x-ui.buttons.button-basic mode="link" :href="\App\Support\Operations\OperationsPages::url('cases',['view'=>'inbox','inquiry'=>$reference->inquiry_id])" data-no-navigate>Native Anfrage {{ $reference->inquiry->number }} öffnen</x-ui.buttons.button-basic>@endforeach</div></details>@endif
-                            @endif
                         @endif
                     </section>
-
                     <section class="rt-intake-drawer__body" id="intake-drawer-{{ $this->getId() }}-panel-sources" role="tabpanel" aria-labelledby="intake-drawer-{{ $this->getId() }}-tab-sources" @if($detailTab !== 'sources') hidden @endif>
                         <h3>Nachrichten und Anlagen</h3>
                         @forelse($selected->messages as $message)

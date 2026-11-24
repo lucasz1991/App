@@ -161,7 +161,7 @@ class StaffTimeline extends Component
         $this->ensurePlanning();
         abort_unless($this->assignmentOpen && $this->planningShiftId === $shiftId && $this->planningUserId, 403);
         $shift = app(TimelinePlanningSuggestionService::class)->openShifts($this->from, $this->until, auth()->user())->findOrFail($shiftId);
-        $users = User::whereKey($this->planningUserId)->where('role', 'staff')->where('status', true)->get();
+        $users = User::dutyStaff()->whereKey($this->planningUserId)->get();
         $details = TomTomRoutingService::withinOperation(fn () => app(StaffEligibilityService::class)->assessDetailedMany($shift, $users, false, ['include_employee_location' => true, 'actor' => auth()->user()], true));
         $this->planningTravel[$shiftId] = app(PlanningTravelDisplay::class)->stamp($details);
     }
@@ -232,7 +232,7 @@ class StaffTimeline extends Component
         abort_unless($this->assignmentOpen && $this->planningShiftId && $this->planningUserId && $this->planningRevision !== null, 422);
         $this->validate(['assignmentStatus' => ['required', Rule::in(ShiftAssignmentStatus::blockingValues())]]);
         $initialShift = Shift::findOrFail($this->planningShiftId);
-        $initialUser = User::where('role', 'staff')->where('status', true)->findOrFail($this->planningUserId);
+        $initialUser = User::dutyStaff()->findOrFail($this->planningUserId);
         $travel = app(TravelAssessmentService::class)->preflight($initialShift, collect([$initialUser]));
         OperationsTransaction::run(function () use ($travel) {
             PlanningLocks::acquire([$this->planningShiftId], [$this->planningUserId]);
@@ -240,7 +240,7 @@ class StaffTimeline extends Component
             if (! $shift) {
                 throw ValidationException::withMessages(['workflow' => 'Für diese Schicht ist kein offener Einsatzplatz mehr verfügbar.']);
             }
-            $user = User::where('role', 'staff')->where('status', true)->findOrFail($this->planningUserId);
+            $user = User::dutyStaff()->findOrFail($this->planningUserId);
             app(ShiftAssignmentService::class)->assign($shift, $user, auth()->user(), $this->assignmentStatus, null, $this->planningRevision, null, $travel);
         });
         $this->resetPlanningSelection();
@@ -398,7 +398,7 @@ class StaffTimeline extends Component
 
     protected function quickActionTarget(int $userId): User
     {
-        $other = User::query()->with('currentTeam')->where('role', 'staff')->where('status', true)->findOrFail($userId);
+        $other = User::dutyStaff()->with('currentTeam')->findOrFail($userId);
         abort_if($other->is(auth()->user()), 422);
 
         return $other;
@@ -766,7 +766,7 @@ class StaffTimeline extends Component
         $assigned = fn () => ShiftAssignment::visibleInTimeline()->whereHas('shift', fn ($shiftQuery) => $shiftQuery->notCancelled()->during($from, $until))->select('user_id');
         $query = User::with(['profile:id,user_id,first_name,last_name,position,weekly_working_hours', 'currentTeam'])
             ->where('role', 'staff')
-            ->where(fn ($query) => $query->where('status', true)
+            ->where(fn ($query) => $query->whereIn('id', User::dutyStaff()->select('id'))
                 ->orWhereIn('id', ShiftAssignment::visibleInTimeline()
                     ->whereHas('shift', fn ($shiftQuery) => $shiftQuery->notCancelled()->during($from, $until))
                     ->select('user_id')))

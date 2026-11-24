@@ -260,6 +260,10 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
     Route::get('/kundenportal-pruefung/anlagen/{id}', [CustomerPortalDocumentController::class, 'managerAttachment'])->whereNumber('id')->middleware('throttle:30,1')->name('customer-portal.manager.attachment');
     Route::get('/kunden/{customer}/firmenlogo', [CustomerLogoController::class, 'internal'])->whereNumber('customer')->middleware('throttle:600,1')->name('operations.customers.logo');
     Route::get('/kundenportal-pruefung/dokumente/{id}', [CustomerPortalDocumentController::class, 'managerDocument'])->whereNumber('id')->middleware('throttle:30,1')->name('customer-portal.manager.document');
+    Route::get('/dienste/{duty}/dienstnachweis', \App\Livewire\Operations\ShiftDutyProof::class)
+        ->whereUuid('duty')->name('operations.duty-proof');
+    Route::post('/leistungsnachweise/{proof}/wagenliste', [WagonListExportController::class, 'attach'])
+        ->whereNumber('proof')->middleware('throttle:30,1')->name('operations.proofs.wagon');
     Route::get('/leistungsnachweise/{id}/anlagen/{attachment}', CustomerProofAttachmentController::class)
         ->whereNumber('id')->whereUuid('attachment')->middleware('throttle:30,1')->name('operations.proofs.attachment');
     Route::get('/ai-annahme/anlagen/{id}', [AiIntakeSourceController::class, 'attachment'])->whereNumber('id')->middleware('throttle:30,1')->name('operations.ai-intake.attachment');

@@ -72,7 +72,7 @@ class Settings extends Component
         $tab = request()->query('tab', '');
         $section = request()->query('section', '');
         $sections = [
-            'overview' => [], 'company' => ['company'], 'users' => ['invitations', 'permissions'],
+            'activities' => [], 'overview' => [], 'company' => ['company'], 'users' => ['invitations', 'permissions'],
             'system' => ['system', 'assistant', 'sounds'], 'email' => ['mails', 'templates'],
         ];
         if ($this->isSuperAdmin()) {

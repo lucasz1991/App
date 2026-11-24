@@ -65,7 +65,7 @@ class WorkforcePlanningService
             $this->check(! $id || $pool->revision === $revision, 'Pool wurde geändert. Bitte neu laden.');
             $ids = $data['user_ids'] ?? [];
             unset($data['user_ids']);
-            $this->check(User::whereKey($ids)->where('role', 'staff')->where('status', true)->count() === count($ids), 'Nur aktive Mitarbeiter in Pools aufnehmen.');
+            $this->check(User::dutyStaff()->whereKey($ids)->count() === count($ids), 'Nur aktive Mitarbeiter in Pools aufnehmen.');
             $pool->fill($data)->forceFill(['revision' => $id ? $revision + 1 : 1])->save();
             $pool->users()->sync($ids);
             app(OperationsAuditService::class)->record($pool, $actor, 'pool.saved', ['user_ids' => $ids]);
@@ -500,7 +500,7 @@ class WorkforcePlanningService
         $this->access($actor);
 
         return ShiftAssignment::blocking()->where('user_id', $userId)->whereHas('shift', fn ($q) => $q->notCancelled()->during($start, $end))->with('shift.order')->get()->map(function ($assignment) use ($userId) {
-            $users = User::where('role', 'staff')->where('status', true)->where('id', '!=', $userId)->get();
+            $users = User::dutyStaff()->where('id', '!=', $userId)->get();
             $issues = app(StaffEligibilityService::class)->assessMany($assignment->shift, $users);
 
             return ['assignment' => $assignment, 'eligible' => $users->filter(fn ($user) => ($issues[$user->id] ?? []) === [])->values(), 'issues' => $issues];

@@ -128,6 +128,16 @@ class StaffEligibilityService
             ? $query(ShiftBundleSnapshot::where('shift_id', $shift->id))->get()
                 ->flatMap(fn ($snapshot) => collect($snapshot->requirements)->where('mandatory', true)->pluck('id'))->unique()->values()
             : collect();
+        $activities = $shift->sectionActivityRules()->values();
+        if ($mainActivity = $shift->planningActivityRequirements()) {
+            $activities->push($mainActivity);
+        }
+        $mandatory = $activities->flatMap(fn ($activity) => collect($activity['requirements'] ?? [])->where('mandatory', true)->pluck('id'));
+        $snapshotIds = $snapshotIds->merge($mandatory)->unique()->values();
+        $eligibleTeam = User::dutyStaff()->whereKey($users->pluck('id')->all())->pluck('id')->flip();
+        $activityIds = $activities->pluck('activity_id')->filter()->unique();
+        $assignments = $activityIds->isEmpty() ? collect() : $query(DB::table('duty_activity_user')->whereIn('user_id', $users->pluck('id'))
+            ->whereIn('duty_activity_id', $activityIds))->get()->groupBy('user_id');
         $snapshotTypes = $query(QualificationType::whereKey($snapshotIds))->get();
         $types = $types->merge($snapshotTypes)->unique('id');
         $ids = $users->pluck('id');
@@ -192,7 +202,11 @@ class StaffEligibilityService
                     $issues[] = compact('code', 'message');
                 }
             };
-            $check($user->status && $user->role === 'staff', 'staff_inactive', 'Mitarbeiter ist nicht einsatzberechtigt.');
+            $check($eligibleTeam->has($user->id), 'staff_inactive', 'Für Dienste ist eine aktive Zuordnung zum Team Mitarbeiter erforderlich.');
+            foreach ($activities as $activity) {
+                $check(! empty($activity['confirmed']), 'activity_unconfirmed', 'Die Tätigkeitsanforderungen müssen im Katalog freigegeben werden.');
+                $check($assignments->get($user->id, collect())->contains('duty_activity_id', $activity['activity_id'] ?? 0), 'activity_assignment', 'Die Tätigkeitszuordnung fehlt: '.($activity['title'] ?? $activity['code'] ?? 'Tätigkeit offen').'.');
+            }
             $check($profile !== null, 'rules_missing', 'Regelprofil fehlt.');
             if ($profile) {
                 $check($minutes <= $profile->maximum_shift_minutes, 'shift_duration', 'Die Schicht überschreitet die freigegebene Höchstdauer.');

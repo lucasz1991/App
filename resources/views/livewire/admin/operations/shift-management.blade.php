@@ -290,7 +290,7 @@
                     </x-slot:actions>
                     <x-slot:meta>
                         @if(filled($selectedShift->role_name))
-                            <span class="rt-ops-panel__fact"><i class="far fa-id-badge" aria-hidden="true"></i>{{ $selectedShift->role_name }}</span>
+                            <span class="rt-ops-panel__fact"><i class="far fa-id-badge" aria-hidden="true"></i>{{ $selectedShift->activity_requirements['title'] ?? $selectedShift->role_name }}</span>
                         @endif
                         @if($shiftWindow)
                             <span class="rt-ops-panel__fact rt-ops-panel__fact--strong"><i class="far fa-calendar" aria-hidden="true"></i><time datetime="{{ $shiftStart->toIso8601String() }}">{{ $shiftWindow }}</time></span>
@@ -366,6 +366,7 @@
                                 </x-operations.panel.group>
                             @endif
                             @if($detailOpen)
+                                @include('livewire.operations.partials.duty-proof-coverage', ['shift' => $selectedShift])
                                 <x-operations.panel.group title="Zeit & Ort" data-shift-detail-previews>
                                     <div class="rt-ops-panel__previews">
                                         @if($shiftStart && $shiftEnd)
@@ -379,7 +380,7 @@
                             @endif
                             <x-operations.panel.group title="Einsatz">
                                 <dl class="rt-ops-panel__rows">
-                                    <x-operations.panel.row label="Tätigkeit">{{ $selectedShift->role_name ?: '—' }}</x-operations.panel.row>
+                                    <x-operations.panel.row label="Tätigkeit">{{ $selectedShift->activity_requirements['title'] ?? ($selectedShift->role_name ?: '—') }}</x-operations.panel.row>
                                     <x-operations.panel.row label="Einsatzort">{{ $shiftLocation ?: 'Kein Einsatzort hinterlegt' }}</x-operations.panel.row>
                                     <x-operations.panel.row label="Zeitfenster">
                                         <span class="rt-ops-panel__num">{{ $shiftStart?->format('d.m.Y H:i') }} – {{ $shiftEnd?->format('d.m.Y H:i') }}</span>

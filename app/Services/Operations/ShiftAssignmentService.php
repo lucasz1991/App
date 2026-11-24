@@ -212,7 +212,7 @@ class ShiftAssignmentService
 
     private function assertAssigneeCanBeScheduled(User $assignee): void
     {
-        if (! $assignee->status || $assignee->role !== 'staff') {
+        if (! User::dutyStaff()->whereKey($assignee->id)->exists()) {
             throw ValidationException::withMessages([
                 'user_id' => 'Nur aktive Mitarbeiter können einer Schicht zugewiesen werden.',
             ]);

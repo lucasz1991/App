@@ -241,7 +241,7 @@ class AiIntakeInbox extends Component
     public function setDetailTab(string $tab): void
     {
         $this->selected();
-        abort_unless(in_array($tab, $this->embedded ? ['review', 'sources', 'communication', 'assistant'] : ['review', 'sources', 'communication'], true), 422);
+        abort_unless(in_array($tab, $this->embedded ? ['review', 'sources', 'communication', 'assistant'] : ['review', 'sources', 'communication', 'details'], true), 422);
         $this->detailTab = $tab;
         if ($tab === 'assistant' && $this->embedded) {
             $this->dispatch('ai-intake-discussion-open', componentId: $this->getId());
@@ -1148,7 +1148,7 @@ class AiIntakeInbox extends Component
         $actor = $this->actor();
         $ready = AiIntakeSchema::ready();
         abort_unless(in_array($this->statusFilter, ['all', ...AiIntake::STATUSES], true), 422);
-        abort_unless(in_array($this->detailTab, $this->embedded ? ['review', 'sources', 'communication', 'assistant'] : ['review', 'sources', 'communication'], true), 422);
+        abort_unless(in_array($this->detailTab, $this->embedded ? ['review', 'sources', 'communication', 'assistant'] : ['review', 'sources', 'communication', 'details'], true), 422);
         $query = $ready ? $this->scope()->with('customer')->when($this->statusFilter !== 'all', fn ($query) => $query->where('status', $this->statusFilter))->when(trim($this->search) !== '', fn ($query) => $query->where('title', 'like', '%'.mb_substr(trim($this->search), 0, 100).'%')) : null;
         $selected = $ready && $this->selectedId ? $this->selected()->load(['customer', 'contact', 'messages', 'attachments', 'runs', 'deliveries', 'proposals.inquiry.order']) : null;
         $confirmation = $selected ? app(AiIntakeService::class)->confirmationState($selected) : ['enabled' => false, 'completed' => false, 'reason' => ''];
@@ -1158,7 +1158,13 @@ class AiIntakeInbox extends Component
             $confirmation = ['enabled' => false, 'completed' => false, 'reason' => 'Die geänderte Kunden- oder Kontaktzuordnung zuerst speichern.'];
         }
 
+        $activityCatalog = $selected && \Illuminate\Support\Facades\Schema::hasTable('duty_activities')
+            ? \App\Models\DutyActivity::with('bundle')->orderBy('code')->get()->keyBy('id')
+            : collect();
+
+        $codes = $activityCatalog->isNotEmpty() ? \Illuminate\Support\Facades\DB::table('duty_activity_codes')->pluck('duty_activity_id', 'lookup') : collect();
         return view('livewire.operations.ai-intake-inbox', [
+            'activityCatalog' => $codes->map(fn ($id) => $activityCatalog->get($id))->filter(),
             'ready' => $ready, 'enabled' => AiDispositionSettings::enabled(), 'labels' => self::LABELS, 'fieldLabels' => self::FIELD_LABELS,
             'intakes' => $query?->latest('id')->paginate(12, ['*'], 'aiIntakePage'), 'selected' => $selected,
             'customers' => Customer::active()->when($this->customerId, fn ($query) => $query->whereKey($this->customerId))->orderBy('company_name')->get(),

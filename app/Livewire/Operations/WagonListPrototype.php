@@ -6,9 +6,15 @@ use Livewire\Component;
 
 class WagonListPrototype extends Component
 {
+    #[\Livewire\Attributes\Locked]
+    public ?int $proofId = null;
+
     public function mount(): void
     {
         $user = auth()->user();
+        if (request()->has('proof')) {
+            $this->proofId = request()->validate(['proof' => 'required|integer|min:1'])['proof'];
+        }
 
         abort_unless($user && in_array($user->dashboardAudience(), [
             'admin',
@@ -86,8 +92,26 @@ class WagonListPrototype extends Component
                 'drafts' => 'Drafts',
             ];
 
+        $proofContext = null;
+        $storageKey = sprintf('rt-wagon-list-prototype:v1:%d', $user->id);
+        if ($this->proofId) {
+            $proof = \App\Models\OperationWorkflow::findOrFail($this->proofId);
+            $shift = app(\App\Services\Operations\CustomerProofService::class)->authorizeWagon($proof, $user);
+            $storageKey .= ':proof:'.$proof->id.':'.$proof->revision;
+            $proofContext = [
+                'url' => route('operations.proofs.wagon', $proof->id),
+                'revision' => $proof->revision,
+                'draft' => $proof->payload['wagon_data'] ?? ['meta' => [
+                    'date' => $shift->starts_at->timezone($shift->timezone)->format('Y-m-d'),
+                    'reference' => $shift->order->order_number, 'customer' => $shift->order->customer?->company_name,
+                    'preparedBy' => $user->name,
+                ]],
+            ];
+        }
+
         return view('livewire.operations.wagon-list-prototype', [
-            'storageKey' => sprintf('rt-wagon-list-prototype:v1:%d', $user->id),
+            'proofContext' => $proofContext,
+            'storageKey' => $storageKey,
             'labels' => $labels,
         ])->layout('layouts.master', ['area' => $user->usesAdminLayout() ? 'admin' : 'user']);
     }

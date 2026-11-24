@@ -139,7 +139,7 @@ class StaffingAutomationService
             return null;
         }
         // Lock the complete staff population in native order before assessing mutable facts.
-        $userIds = User::where('status', true)->where('role', 'staff')->pluck('id')->all();
+        $userIds = User::dutyStaff()->pluck('id')->all();
         $userIds[] = (int) $settings['supervisor_id'];
         if ($requestedBy) {
             $userIds[] = $requestedBy->id;

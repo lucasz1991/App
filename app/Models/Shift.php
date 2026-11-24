@@ -53,16 +53,55 @@ class Shift extends Model
         'published_revision' => 'integer',
         'published_at' => 'immutable_datetime',
         'published_snapshot' => 'array',
+        'activity_requirements' => 'array',
         'planned_break_minutes' => 'integer',
     ];
 
     protected static function booted(): void
     {
+        static::saving(function (self $shift): void {
+            $newRole = ! $shift->exists || $shift->isDirty('role_name');
+            $pending = empty($shift->activity_requirements['confirmed']) && ! $shift->getOriginal('published_revision');
+            if (($newRole || $pending) && \Illuminate\Support\Facades\Schema::hasColumn('shifts', 'activity_requirements')) {
+                $shift->activity_requirements = $shift->currentActivityRequirements();
+            }
+        });
+
         static::creating(function (self $shift): void {
             if (blank($shift->public_id)) {
                 $shift->public_id = (string) Str::uuid();
             }
         });
+    }
+
+    public function currentActivityRequirements(): array
+    {
+        return DutyActivity::fromCode($this->role_name)?->snapshot() ?? [
+            'code' => $this->role_name, 'confirmed' => false, 'proof_type' => 'Einsatzbericht',
+        ];
+    }
+
+    public function planningActivityRequirements(): ?array
+    {
+        if ($this->isDirty('role_name') && \Illuminate\Support\Facades\Schema::hasColumn('shifts', 'activity_requirements')) {
+            return $this->currentActivityRequirements();
+        }
+        if (empty($this->activity_requirements['confirmed']) && ! $this->published_revision && \Illuminate\Support\Facades\Schema::hasColumn('shifts', 'activity_requirements')) {
+            return $this->currentActivityRequirements();
+        }
+
+        return $this->activity_requirements;
+    }
+
+    public function sectionActivityRules(): \Illuminate\Support\Collection
+    {
+        if (! $this->exists || ! \Illuminate\Support\Facades\Schema::hasColumn('shift_sections', 'activity_requirements')) {
+            return collect();
+        }
+
+        return ShiftSection::where('shift_id', $this->id)->whereNotNull('activity_requirements')->orderBy('starts_at')->get()
+            ->mapWithKeys(fn ($section) => [$section->id => $section->activity_requirements + ['section_id' => $section->id,
+                'section_label' => $section->label ?: $section->starts_at->timezone($section->timezone)->format('H:i')]]);
     }
 
     public function getRouteKeyName(): string

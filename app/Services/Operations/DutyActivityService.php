@@ -26,7 +26,7 @@ class DutyActivityService
         OperationsAccess::authorize($actor, 'operations.manage');
         PlanningSchema::requireReady();
         if ($data !== null) {
-            $data = Validator::make($data, ['kind' => 'required|in:'.implode(',', array_keys(self::KINDS)), 'label' => 'nullable|string|max:180', 'starts_at' => 'required|string', 'ends_at' => 'required|string'])->validate();
+            $data = Validator::make($data, ['activity_id' => 'nullable|integer', 'kind' => 'required|in:'.implode(',', array_keys(self::KINDS)), 'label' => 'nullable|string|max:180', 'starts_at' => 'required|string', 'ends_at' => 'required|string'])->validate();
         }
         OperationsTransaction::run(function () use ($shiftId, $revision, $id, $data, $actor) {
             $shift = Shift::lockForUpdate()->findOrFail($shiftId);
@@ -44,6 +44,12 @@ class DutyActivityService
                 [$start, $end] = OperationsDateTime::interval($data['starts_at'], $data['ends_at'], $shift->timezone);
                 $this->check($start->gte($shift->starts_at) && $end->lte($shift->ends_at), 'Abschnitt muss innerhalb des Dienstes liegen.');
                 $this->check(! ShiftSection::where('shift_id', $shiftId)->when($id, fn ($q) => $q->where('id', '!=', $id))->where('starts_at', '<', $end)->where('ends_at', '>', $start)->exists(), 'Dienstabschnitte dürfen sich nicht überschneiden.');
+                if (array_key_exists('activity_id', $data) && \Illuminate\Support\Facades\Schema::hasColumn('shift_sections', 'activity_requirements')) {
+                    $activity = empty($data['activity_id']) ? null : \App\Models\DutyActivity::where('active', true)->findOrFail($data['activity_id']);
+                    $this->check(! $activity || ($data['kind'] !== 'break' && $activity->requirements_confirmed), 'Für einen Leistungsabschnitt bitte eine freigegebene Tätigkeit auswählen.');
+                    $section->activity_requirements = $activity?->snapshot();
+                }
+                unset($data['activity_id']);
                 $section->fill(array_merge($data, ['shift_id' => $shiftId, 'starts_at' => $start, 'ends_at' => $end, 'timezone' => $shift->timezone]))->save();
             }
             $this->validateSections($shift);
@@ -77,7 +83,7 @@ class DutyActivityService
         }
 
         return ShiftSection::where('shift_id', $shift->id)->orderBy('starts_at')->get()->map(fn ($s) => [
-            'id' => $s->id, 'kind' => $s->kind, 'label' => $s->label, 'starts_at' => $s->starts_at->toIso8601String(), 'ends_at' => $s->ends_at->toIso8601String(), 'timezone' => $shift->timezone,
+            'id' => $s->id, 'kind' => $s->kind, 'activity_title' => $s->activity_requirements['title'] ?? null, 'label' => $s->label, 'starts_at' => $s->starts_at->toIso8601String(), 'ends_at' => $s->ends_at->toIso8601String(), 'timezone' => $shift->timezone,
         ])->all();
     }
 

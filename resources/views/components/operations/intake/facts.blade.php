@@ -1,4 +1,4 @@
-@props(['demand' => [], 'variant' => 'grid', 'assumptions' => [], 'confirmed' => false])
+@props(['demand' => [], 'variant' => 'grid', 'assumptions' => [], 'confirmed' => false, 'activities' => []])
 @php
     $fields = ['role_name'=>['Tätigkeit','fa-user-hard-hat'],'location_name'=>['Einsatzort','fa-map-marker-alt'],'starts_at'=>['Beginn','fa-calendar-alt'],'ends_at'=>['Ende','fa-calendar-check'],'required_staff'=>['Personalbedarf','fa-users'],'timezone'=>['Zeitzone','fa-clock']];
     $parseLocal = static function ($raw) {
@@ -25,6 +25,7 @@
     @foreach($fields as $key => [$label, $icon])
         @php
             $value = $demand[$key] ?? null;
+            if ($key === 'role_name' && is_string($value)) $value = ($activities[mb_strtolower(preg_replace('~\s*/\s*~u', '/', trim($value)))]['title'] ?? null) ?: $value;
             if ($key === 'date') $value = $dateLabel;
             if (in_array($key, ['starts_at', 'ends_at'], true)) {
                 $date = $key === 'starts_at' ? $starts : $ends;

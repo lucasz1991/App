@@ -144,7 +144,7 @@ class ShiftManagement extends Component
     {
         $this->ensureAdmin();
         $shift = Shift::findOrFail($this->selectedShiftId);
-        $user = User::where('status', true)->where('role', 'staff')->findOrFail($id);
+        $user = User::dutyStaff()->findOrFail($id);
         $this->cancelCandidateSelection();
         try {
             app(StaffRegionalPreferenceService::class)->assertAllowed($shift, $user);
@@ -530,7 +530,7 @@ class ShiftManagement extends Component
         $this->validate(['distributionStatus' => ['required', Rule::in(ShiftAssignmentStatus::blockingValues())]]);
         try {
             $initialShift = Shift::findOrFail($shiftId);
-            $initialUser = User::where('role', 'staff')->where('status', true)->findOrFail($userId);
+            $initialUser = User::dutyStaff()->findOrFail($userId);
             $travel = app(TravelAssessmentService::class)->preflight($initialShift, collect([$initialUser]));
             OperationsTransaction::run(function () use ($shiftId, $userId, $revision, $travel) {
                 PlanningLocks::acquire([$shiftId], [$userId]);
@@ -538,7 +538,7 @@ class ShiftManagement extends Component
                 if (! $shift) {
                     throw ValidationException::withMessages(['distribution' => 'Für diese Schicht ist kein offener Einsatzplatz mehr verfügbar.']);
                 }
-                $user = User::query()->where('role', 'staff')->where('status', true)->findOrFail($userId);
+                $user = User::dutyStaff()->findOrFail($userId);
                 app(ShiftAssignmentService::class)->assign($shift, $user, auth()->user(), $this->distributionStatus, null, $revision, null, $travel);
             });
         } catch (ValidationException $exception) {
@@ -708,7 +708,7 @@ class ShiftManagement extends Component
         ]);
 
         $shift = Shift::query()->findOrFail($this->selectedShiftId);
-        $employee = User::query()->where('status', true)->where('role', 'staff')->findOrFail($validated['employeeId']);
+        $employee = User::dutyStaff()->findOrFail($validated['employeeId']);
 
         try {
             $assignmentService->assign(
@@ -985,7 +985,7 @@ class ShiftManagement extends Component
             'orders' => $this->formOpen || $this->viewMode !== 'timeline'
                 ? OrderSelection::options($this->orderSearch, [$this->orderId, $this->orderFilter], $this->customerFilter !== 'all' ? (int) $this->customerFilter : null) : collect(),
             'contextCustomer' => $this->customerFilter !== 'all' ? Customer::find((int) $this->customerFilter) : null,
-            'employees' => $native ? collect() : User::query()->with(['profile', 'currentTeam'])->where('status', true)->where('role', 'staff')->orderBy('name')->get(),
+            'employees' => $native ? collect() : User::dutyStaff()->with(['profile', 'currentTeam'])->orderBy('name')->get(),
             'statusOptions' => $this->enumOptions(ShiftStatus::class),
             'assignmentStatusOptions' => collect($this->enumOptions(ShiftAssignmentStatus::class))
                 ->whereIn('value', ShiftAssignmentStatus::blockingValues())

@@ -270,6 +270,22 @@ class User extends Authenticatable implements HasLocalePreference, MustVerifyEma
         return $this->morphOne(FilePool::class, 'filepoolable');
     }
 
+    public function dutyActivities(): BelongsToMany
+    {
+        return $this->belongsToMany(DutyActivity::class, 'duty_activity_user')->withPivot('confirmed_by', 'confirmed_at');
+    }
+
+    public function scopeDutyStaff(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        $query->where('status', true)->where('role', 'staff');
+        if (! \Illuminate\Support\Facades\Schema::hasTable('duty_activities')) {
+            return $query;
+        }
+
+        return $query->whereHas('teams', fn ($teams) => $teams->where('personal_team', false)->where('name', 'Mitarbeiter'))
+            ->whereDoesntHave('teams', fn ($teams) => $teams->where('personal_team', false)->whereIn('name', ['Verwaltung', 'Administratoren', 'Administrator', 'Administration', 'Gäste', 'Gaeste', 'Gast']));
+    }
+
     public function profile(): HasOne
     {
         return $this->hasOne(UserProfile::class);

@@ -133,6 +133,152 @@ class OperationsEnhancementsTest extends TestCase
         }
     }
 
+    private function enableDutyCatalog(): void
+    {
+        (require database_path('migrations/2026_07_18_000001_create_activity_log_table.php'))->up();
+        (require database_path('migrations/2026_10_06_100000_create_planning_enhancements.php'))->up();
+        (require database_path('migrations/2026_11_23_190000_create_duty_activities.php'))->up();
+    }
+
+    public function test_duty_catalog_assignment_is_separate_from_qualifications_and_team_context(): void
+    {
+        $this->enableDutyCatalog();
+        $this->actingAs($this->admin);
+        $activity = \App\Models\DutyActivity::fromCode(' wu ');
+        $this->assertSame('Wagenuntersuchung', $activity->title);
+        $type = \App\Models\QualificationType::create(['name' => 'Betrieblicher Testnachweis', 'is_active' => true]);
+        $bundle = \App\Models\QualificationBundle::create(['code' => (string) Str::uuid(), 'name' => 'WU-Pflicht', 'role_name' => 'WU',
+            'status' => 'approved', 'created_by' => $this->admin->id, 'version' => 1,
+            'requirements' => [['id' => $type->id, 'name' => $type->name, 'mandatory' => true]]]);
+        $this->assertNull(\App\Models\DutyActivity::fromCode('WSU')->title);
+        Livewire::test(\App\Livewire\Admin\DutyActivityCatalog::class)
+            ->call('edit', $activity->id)->set('form.description', 'Interne Beschreibung')->set('form.qualification_bundle_id', $bundle->id)
+            ->set('form.requirements_confirmed', true)->call('save')->assertHasNoErrors();
+        Livewire::test(\App\Livewire\Admin\EmployeeDutyActivities::class, ['userId' => $this->employee->id])
+            ->set('activityId', $activity->id)->call('assign')->assertSee('Wagenuntersuchung');
+        $this->assertDatabaseCount('employee_qualifications', 0);
+        $team = DB::table('teams')->insertGetId(['name' => 'Mitarbeiter', 'user_id' => $this->admin->id]);
+        $office = DB::table('teams')->insertGetId(['name' => 'Verwaltung', 'user_id' => $this->admin->id]);
+        $this->employee->teams()->attach($team);
+        $this->outside->teams()->attach($office);
+        $this->outside->forceFill(['current_team_id' => $team])->save();
+        $this->assertSame([$this->employee->id], User::dutyStaff()->pluck('id')->all());
+        $this->shift->update(['role_name' => 'WU']);
+        $activity->update(['title' => 'Neuer Titel']);
+        $this->assertSame('Wagenuntersuchung', $this->shift->fresh()->activity_requirements['title']);
+        $issues = app(\App\Services\Operations\StaffEligibilityService::class)->assessPreviewCoreMany($this->shift->fresh(), collect([$this->employee, $this->outside]));
+        $this->assertNotContains('activity_assignment', array_column($issues[$this->employee->id],'code'));
+        $this->assertContains('qualification_'.$type->id, array_column($issues[$this->employee->id],'code'));
+        \App\Models\EmployeeQualification::create(['user_id'=>$this->employee->id,'qualification_type_id'=>$type->id,
+            'valid_from'=>'2027-01-01','valid_until'=>'2027-05-13','status'=>'approved']);
+        $eligible = app(\App\Services\Operations\StaffEligibilityService::class);
+        $this->assertNotContains('qualification_'.$type->id, array_column($eligible->assessPreviewCoreMany($this->shift, collect([$this->employee]))[$this->employee->id], 'code'));
+        $night = clone $this->shift;
+        $night->ends_at = '2027-05-14T02:00:00+02:00';
+        $this->assertContains('qualification_'.$type->id, array_column($eligible->assessPreviewCoreMany($night, collect([$this->employee]))[$this->employee->id], 'code'));
+        Livewire::test(\App\Livewire\Admin\DutyActivityCatalog::class)->call('edit', $activity->id)->set('form.code', 'WU-A')->call('save')->assertHasNoErrors();
+        $this->assertSame($activity->id, \App\Models\DutyActivity::fromCode('WU')->id);
+        $this->assertSame($activity->id, \App\Models\DutyActivity::fromCode('WU-A')->id);
+        $this->assertContains('activity_assignment', array_column($issues[$this->outside->id],'code'));
+        $this->assertContains('staff_inactive', array_column($issues[$this->outside->id],'code'));
+        $this->actingAs($this->employee);
+        Livewire::test(\App\Livewire\Admin\DutyActivityCatalog::class)->assertForbidden();
+    }
+
+    public function test_catalog_changes_require_a_new_planning_revision_for_an_existing_duty(): void
+    {
+        $this->enableDutyCatalog();
+        $this->travelTo(CarbonImmutable::parse('2027-05-01T08:00:00Z'));
+        $this->shift->assignments()->delete();
+        $this->actingAs($this->admin);
+        $activity = \App\Models\DutyActivity::fromCode('Tf');
+        $activity->update(['requirements_confirmed'=>true]);
+        $this->assertNull($this->shift->fresh()->activity_requirements);
+        $service = app(\App\Services\Operations\PlanPublicationService::class);
+        $service->requirements($this->shift, 1, [], $this->admin, useCatalog: true);
+        $shift = $this->shift->fresh();
+        $this->assertSame(1, $shift->published_revision);
+        $this->assertSame(2, $shift->revision);
+        $this->assertSame($activity->id, $shift->activity_requirements['activity_id']);
+        $this->rejected(fn () => $service->requirements($shift, 1, [], $this->admin, useCatalog: true));
+    }
+
+    public function test_shared_result_and_individual_section_have_independent_requirements_and_approval(): void
+    {
+        $this->enableDutyCatalog();
+        $shift = $this->shift;
+        $service = app(CustomerProofService::class);
+        $rb = \App\Models\DutyActivity::fromCode('RB');
+        $rb->update(['individual_proof' => true, 'requirements_confirmed' => true, 'customer_acceptance' => true]);
+        $shift->update(['role_name' => 'WU']);
+        $section = \App\Models\ShiftSection::create(['shift_id' => $shift->id,'kind' => 'shunting','label' => 'Abschnitt B',
+            'starts_at' => $shift->starts_at, 'ends_at' => $shift->ends_at,'timezone' => $shift->timezone,'activity_requirements' => $rb->snapshot()]);
+        $second = ShiftAssignment::create(['shift_id' => $shift->id, 'user_id' => $this->outside->id,'status' => 'confirmed','assigned_by' => $this->admin->id]);
+        $second->forceFill(['plan_revision' => 1])->save();
+        $data = ['order_id' => $this->order->id, 'shift_id' => $shift->id, 'title' => 'Dienstbeleg', 'rows' => [['activity'=>'Arbeit','quantity'=>1,'unit'=>'Dienst']]];
+        $shared = $service->create($data, $this->employee);
+        $this->assertEqualsCanonicalizing([$this->employee->id, $this->outside->id], $shared->payload['participants']);
+        $this->assertSame($shared->id, $service->dutyRecord($shift, $this->outside)->id);
+        $this->rejected(fn () => $service->create($data, $this->outside));
+        $first = $service->create($data + ['section_id' => $section->id], $this->employee);
+        $other = $service->create($data + ['section_id' => $section->id], $this->outside);
+        $this->assertNotSame($first->id, $other->id);
+        $this->assertSame([$this->employee->id], $first->payload['participants']);
+        Storage::fake('local');
+        $first = $service->attachment($first->id, 1, UploadedFile::fake()->createWithContent('bericht.pdf', "%PDF-1.4\nDienst"), $this->employee);
+        $first = $service->submit($first->id, $first->revision, $this->employee);
+        $first = $service->decide($first->id, $first->revision, 'review', 'Unterlagen vollständig', null, $this->admin);
+        $this->assertSame(0, $service->coverage($shift)[1]['complete']);
+        $contact = CustomerContact::create(['customer_id'=>$this->order->customer_id,'name'=>'Testkontakt','roles'=>['acceptance'],'is_active'=>true,'updated_by'=>$this->admin->id]);
+        $service->decide($first->id, $first->revision, 'accept', 'Vom Kunden bestätigt', $contact->id, $this->admin);
+        $this->assertSame(['title'=>'Abschnitt B','document'=>'Einsatzbericht','required'=>2,'complete'=>1], $service->coverage($shift)[1]);
+        $shared = $service->deviation($shared->id, 1, 'Leistung fiel vor Ort aus.', $this->employee);
+        $shared = $service->submit($shared->id, $shared->revision, $this->employee);
+        $service->decide($shared->id, $shared->revision, 'review', 'Ausfall fachlich geprüft', null, $this->admin);
+        $this->assertSame(1, $service->coverage($shift)[0]['complete']);
+    }
+
+    public function test_personal_duty_wagon_proof_is_revision_bound_reviewable_and_idempotent(): void
+    {
+        $this->enableDutyCatalog();
+        Storage::fake('local');
+        $this->shift->update(['role_name' => 'WU']);
+        $service = app(CustomerProofService::class);
+        $this->actingAs($this->employee);
+        Livewire::test(\App\Livewire\Operations\ShiftDutyProof::class, ['duty' => $this->shift->public_id])
+            ->assertSee('Nachweis erfassen')->call('openProof')->assertSee('Wagenliste ausfüllen');
+        $proof = $service->dutyRecord($this->shift, $this->employee);
+        $this->assertSame([$this->employee->id], $proof->payload['participants']);
+        $visible = app(\App\Support\Operations\PersonalSchedule::class)->assignment($this->employee, $this->assignment->id);
+        $this->assertSame($this->shift->public_id, $visible->shift->public_id);
+        $this->rejected(fn () => $service->submit($proof->id, 1, $this->employee));
+        $this->rejected(fn () => app(\App\Services\Operations\ShiftSchedulingService::class)->save($this->shift, ['status'=>'completed','expected_revision'=>1], $this->admin));
+        $data = ['revision' => 1, 'meta' => ['date' => '2027-05-13'], 'wagons' => [['category' => 'Testwagen']], 'brakeSheet' => ['listOrder' => 'head']];
+        $url = route('operations.proofs.wagon', $proof->id);
+        $this->postJson($url, $data)->assertOk();
+        $this->postJson($url, $data)->assertOk();
+        $proof->refresh();
+        $this->assertSame(2, $proof->revision);
+        $this->assertCount(1, $proof->payload['attachments']);
+        $this->assertSame(1, count(Storage::disk('local')->allFiles('operations/customer-proofs')));
+        $file = $proof->payload['attachments'][0];
+        $this->assertStringStartsWith('PK', Storage::disk('local')->get($file['path']));
+        $this->get(route('operations.proofs.attachment', [$proof->id, $file['id']]))->assertDownload();
+        $this->postJson($url, array_replace($data, ['wagons' => [['category' => 'Andere Liste']]]))->assertUnprocessable();
+        $this->actingAs($this->outside)->postJson($url, $data)->assertForbidden();
+        $this->get(route('operations.duty-proof', $this->shift->public_id))->assertNotFound();
+        $proof = $service->submit($proof->id, 2, $this->employee);
+        $this->actingAs($this->employee)->postJson($url, $data)->assertConflict();
+        $service->decide($proof->id, 3, 'review', 'Wagenliste geprüft', null, $this->admin);
+        $this->assertSame(1, $service->coverage($this->shift)[0]['complete']);
+        $this->actingAs($this->admin);
+        $final = app(\App\Services\Operations\ShiftSchedulingService::class)->save($this->shift, ['status'=>'completed','expected_revision'=>1], $this->admin);
+        $this->assertSame('completed', $final->status->value);
+        $this->assertSame(1, $final->published_revision);
+        $this->assertDatabaseCount('work_time_entries', 0);
+        $this->assertDatabaseCount('employee_qualifications', 0);
+    }
+
     public function test_proof_quantities_and_customer_acceptance_are_revision_bound_not_time(): void
     {
         $service = app(CustomerProofService::class);

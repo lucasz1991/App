@@ -153,7 +153,7 @@ class ShiftStaffingCandidates
 
     private function staffQuery(): Builder
     {
-        return User::query()->where('status', true)->where('role', 'staff');
+        return User::dutyStaff();
     }
 
     private function validQualifications(?Shift $shift): Builder

@@ -20,12 +20,41 @@ class WagonListExportController extends Controller
             'employee',
         ], true), 403);
 
+        $payload = $this->validatedPayload($request);
+        $path = $exporter->export($payload);
+        $trainNumber = Str::slug((string) data_get($payload, 'meta.trainNumber'));
+        $date = data_get($payload, 'meta.date') ?: now()->format('Y-m-d');
+        $filename = 'RailTime_Wagenliste'
+            .($trainNumber !== '' ? '_'.$trainNumber : '')
+            .'_'.$date.'.xlsx';
+
+        return response()
+            ->download($path, $filename, [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ])
+            ->deleteFileAfterSend(true);
+    }
+
+    public function attach(Request $request, int $proof, \App\Services\Operations\WagonDutyProofService $service)
+    {
+        $actor = $request->user();
+        $record = \App\Models\OperationWorkflow::findOrFail($proof);
+        $shift = app(\App\Services\Operations\CustomerProofService::class)->authorizeWagon($record, $actor);
+        $revision = $request->validate(['revision' => 'required|integer|min:1'])['revision'];
+        $data = $this->validatedPayload($request);
+        $service->store($record, (int) $revision, $data, $actor);
+
+        return response()->json(['redirect' => route('operations.duty-proof', ['duty' => $shift->public_id, 'section' => $record->payload['duty']['section_id'] ?? null])]);
+    }
+
+    private function validatedPayload(Request $request): array
+    {
         // Felder und Grenzen folgen der Excel-Wagenliste v16_5. Zahlen dürfen
         // mit Komma kommen (deutsche Eingabe), deshalb keine numeric-Regel.
         $number = ['nullable', 'regex:/\A\d{1,6}(?:[.,]\d{1,3})?\z/'];
         $yesNo = ['nullable', 'in:yes,no'];
 
-        $payload = $request->validate([
+        return $request->validate([
             'meta' => ['required', 'array'],
             'meta.trainNumber' => ['nullable', 'string', 'max:80'],
             'meta.date' => ['nullable', 'date_format:Y-m-d'],
@@ -98,18 +127,5 @@ class WagonListExportController extends Controller
             'report.extraWork.*' => ['nullable', 'string', 'max:160'],
             'report.remarks' => ['nullable', 'string', 'max:600'],
         ]);
-
-        $path = $exporter->export($payload);
-        $trainNumber = Str::slug((string) data_get($payload, 'meta.trainNumber'));
-        $date = data_get($payload, 'meta.date') ?: now()->format('Y-m-d');
-        $filename = 'RailTime_Wagenliste'
-            .($trainNumber !== '' ? '_'.$trainNumber : '')
-            .'_'.$date.'.xlsx';
-
-        return response()
-            ->download($path, $filename, [
-                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            ])
-            ->deleteFileAfterSend(true);
     }
 }

@@ -18,18 +18,25 @@ use Illuminate\Validation\ValidationException;
 
 class PlanPublicationService
 {
-    public function requirements(Shift $shift, int $revision, array $ids, User $actor): void
+    public function requirements(Shift $shift, int $revision, array $ids, User $actor, bool $useCatalog = false): void
     {
         OperationsAccess::authorize($actor, 'operations.manage');
         Validator::make(['ids' => $ids], ['ids' => 'array|max:50', 'ids.*' => 'integer|distinct|exists:qualification_types,id'])->validate();
         $preflight = $this->preflight($shift);
-        OperationsTransaction::run(function () use ($shift, $revision, $ids, $actor, $preflight) {
+        OperationsTransaction::run(function () use ($shift, $revision, $ids, $actor, $preflight, $useCatalog) {
             OperationsAccess::authorize(User::findOrFail($actor->id), 'operations.manage');
             PlanningLocks::acquire([$shift->id], $shift->assignments()->blocking()->pluck('user_id')->all());
             $record = Shift::lockForUpdate()->findOrFail($shift->id);
             $this->check($record->revision === $revision, 'Schicht wurde geändert. Bitte neu laden.');
             $this->check(! WorkTimeEntry::whereHas('assignment', fn ($q) => $q->where('shift_id', $record->id))->exists(), 'Für diese Schicht wurden bereits Zeiten erfasst.');
-            $record->qualifications()->sync($ids);
+            if ($useCatalog) {
+                $this->check($record->starts_at->isFuture() && ! in_array($record->status->value, ['cancelled', 'completed'], true), 'Nur ein bevorstehender Dienst kann neu geplant werden.');
+                $rule = $record->currentActivityRequirements();
+                $this->check(! empty($rule['confirmed']), 'Die Tätigkeit muss im Katalog freigegeben sein.');
+                $record->activity_requirements = $rule;
+            } else {
+                $record->qualifications()->sync($ids);
+            }
             if ($record->published_revision > 0 && ! $record->published_snapshot) {
                 $record->published_snapshot = $record->only(['order_id', 'title', 'role_name', 'starts_at', 'ends_at', 'timezone', 'location_name', 'customer_location_id', 'location_snapshot', 'planned_break_minutes']);
             }
@@ -39,7 +46,7 @@ class PlanPublicationService
             }
             $record->revision++;
             $record->save();
-            app(OperationsAuditService::class)->record($record, $actor, 'shift.requirements', ['qualification_ids' => $ids]);
+            app(OperationsAuditService::class)->record($record, $actor, $useCatalog ? 'shift.activity_requirements' : 'shift.requirements', $useCatalog ? ['activity_id' => $rule['activity_id'], 'bundle_version' => $rule['bundle_version']] : ['qualification_ids' => $ids]);
         }, 3);
     }
 

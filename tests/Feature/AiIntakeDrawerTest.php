@@ -124,16 +124,33 @@ class AiIntakeDrawerTest extends TestCase
         $this->assertDatabaseCount('shifts', 0);
     }
 
-    public function test_native_drawer_has_three_accessible_tabs_without_an_embedded_assistant(): void
+    public function test_native_drawer_has_four_accessible_tabs_without_an_embedded_assistant(): void
     {
         $source = $this->source();
         $component = $this->drawer($source)->assertDontSeeLivewire(AiIntakeAssistant::class);
         $dom = $this->dom($component->html());
         $tabs = $dom->query('//*[@role="tab"]');
-        $this->assertSame(['Bearbeiten', 'Original & Anlagen', 'Verlauf'], array_map(fn ($tab) => trim($tab->textContent), iterator_to_array($tabs)));
+        $this->assertSame(['Bearbeiten', 'Original & Anlagen', 'Verlauf', 'Details'], array_map(fn ($tab) => trim($tab->textContent), iterator_to_array($tabs)));
         $this->assertActiveTab($component, 'Bearbeiten');
         $this->assertSame('assisted', $source->fresh()->processing_mode);
         $this->assertNoExternalEffects();
+    }
+
+    public function test_drawer_uses_catalog_title_and_keeps_evidence_and_requirements_in_details(): void
+    {
+        (require database_path('migrations/2026_11_23_190000_create_duty_activities.php'))->up();
+        \App\Models\DutyActivity::fromCode('WU')->update(['description' => 'Nur für die Verwaltung']);
+        $source = $this->source();
+        $source->proposals()->create(['source_revision'=>1, 'position_index'=>0, 'revision'=>1, 'status'=>'proposed',
+            'payload'=>['demand'=>$this->demand(),'segments'=>[], 'business_path'=>'inquiry']]);
+        $component = $this->drawer($source)->assertDontSee('Nur für die Verwaltung');
+        $review = $this->assertActiveTab($component, 'Bearbeiten');
+        $this->assertStringContainsString('Wagenuntersuchung', $review->textContent);
+        $this->assertStringNotContainsString('Quellen und Prüfhinweise', $review->textContent);
+        $details = $this->assertActiveTab($component->call('setDetailTab', 'details'), 'Details');
+        $this->assertStringContainsString('Wagenliste', $details->textContent);
+        $this->assertStringContainsString('Qualifikationen & Schichtabschnitte', $details->textContent);
+        $this->assertStringContainsString('Quellen und Prüfhinweise', $details->textContent);
     }
 
     public function test_original_and_customer_message_tabs_are_read_only_and_do_not_claim_or_cancel_a_source(): void
@@ -149,6 +166,8 @@ class AiIntakeDrawerTest extends TestCase
         $this->assertStringContainsString('Original synthetic drawer message', $this->assertActiveTab($component, 'Original & Anlagen')->textContent);
         $component->call('setDetailTab', 'communication')->assertSet('detailTab', 'communication');
         $this->assertStringContainsString('Synthetic unsent customer message', $this->assertActiveTab($component, 'Verlauf')->textContent);
+        $component->call('setDetailTab', 'details');
+        $this->assertActiveTab($component, 'Details');
         $component->call('setDetailTab', 'review');
         $this->assertActiveTab($component, 'Bearbeiten');
         $this->assertSame($before, $source->fresh()->getRawOriginal());

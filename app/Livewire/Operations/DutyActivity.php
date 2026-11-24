@@ -64,6 +64,14 @@ class DutyActivity extends Component
         return $shift;
     }
 
+    public function useCatalog(int $revision): void
+    {
+        $shift = $this->access();
+        abort_if($this->employeeMode, 403);
+        app(\App\Services\Operations\PlanPublicationService::class)->requirements($shift, $revision, [], auth()->user(), useCatalog: true);
+        $this->dispatch('operations-plan-changed');
+    }
+
     public function editSection(?int $id = null): void
     {
         $shift = $this->access();
@@ -73,7 +81,7 @@ class DutyActivity extends Component
         $this->planRevision = $shift->revision;
         if ($id) {
             $section = ShiftSection::where('shift_id', $shift->id)->findOrFail($id);
-            $this->section = $section->only(['kind', 'label']) + ['starts_at' => $section->starts_at->format('Y-m-d\TH:i'), 'ends_at' => $section->ends_at->format('Y-m-d\TH:i')];
+            $this->section = $section->only(['kind', 'label']) + ['activity_id' => $section->activity_requirements['activity_id'] ?? null,'starts_at' => $section->starts_at->format('Y-m-d\TH:i'), 'ends_at' => $section->ends_at->format('Y-m-d\TH:i')];
         }
         $this->sectionOpen = true;
         $this->resetValidation();
@@ -149,12 +157,17 @@ class DutyActivity extends Component
         $sections = $this->employeeMode ? collect($shift->published_snapshot['sections'] ?? [])->map(fn ($row) => (object) $row)
             : collect(app(DutyActivityService::class)->snapshot($shift))->map(fn ($row) => (object) ($row + ['plan_revision' => $shift->revision]));
 
+        $catalog = ! $this->employeeMode && $shift->starts_at->isFuture() && ! in_array($shift->status->value, ['cancelled', 'completed'], true)
+            ? $shift->currentActivityRequirements() : null;
         return view('livewire.operations.duty-activity', [
+            'canUseCatalog' => ! empty($catalog['confirmed']) && $shift->activity_requirements != $catalog,
             'sections' => $sections, 'currentRevision' => $shift->revision,
             'reports' => DutyReport::where('shift_id', $shift->id)
                 ->when($this->employeeMode, fn ($q) => $q->where('user_id', auth()->id()))
                 ->with(['user:id,name,email,current_team_id,profile_photo_path', 'user.profile', 'user.currentTeam'])
                 ->latest()->get(),
+            'activities' => $this->sectionOpen && \Illuminate\Support\Facades\Schema::hasTable('duty_activities')
+                ? \App\Models\DutyActivity::where('active', true)->where('requirements_confirmed', true)->orderBy('code')->get() : collect(),
             'sectionKinds' => DutyActivityService::KINDS, 'reportKinds' => DutyActivityService::REPORTS,
         ]);
     }
