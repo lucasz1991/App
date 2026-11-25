@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Operations;
 
+use App\Livewire\Concerns\ResolvesOperationsActor;
 use App\Models\AiIntake;
 use App\Models\AiIntakeDelivery;
 use App\Models\User;
@@ -9,7 +10,6 @@ use App\Services\Ai\OpenRouterChatException;
 use App\Services\Operations\DispositionMailboxService;
 use App\Services\Operations\DispositionMailboxWorkflowService;
 use App\Support\Operations\AiDispositionSettings;
-use App\Support\Operations\OperationsAccess;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
@@ -20,6 +20,8 @@ use Throwable;
 
 class DispositionMailbox extends Component
 {
+    use ResolvesOperationsActor;
+
     public const TABS = ['inbox' => 'Posteingang', 'sent' => 'Gesendet', 'outbox' => 'Postausgang'];
 
     public bool $showMailbox = false;
@@ -66,12 +68,7 @@ class DispositionMailbox extends Component
 
     private function actor(): User
     {
-        $actor = auth()->user()?->fresh();
-        abort_unless($actor instanceof User, 403);
-        OperationsAccess::authorize($actor, 'operations.inquiries.manage');
-        OperationsAccess::requireReady();
-
-        return $actor;
+        return $this->freshActor('operations.inquiries.manage');
     }
 
     private function mailbox(): DispositionMailboxService

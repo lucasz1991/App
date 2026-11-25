@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Operations;
 
+use App\Livewire\Concerns\ResolvesOperationsActor;
 use App\Models\AiIntake;
 use App\Models\Customer;
 use App\Models\CustomerContact;
@@ -31,7 +32,7 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class AiIntakeInbox extends Component
 {
-    use WithFileUploads, WithPagination;
+    use ResolvesOperationsActor, WithFileUploads, WithPagination;
 
     public const LABELS = ['received' => 'Erfasst', 'analyzing' => 'Wird analysiert', 'review' => 'Prüfung nötig', 'waiting_customer' => 'Antwort ausstehend', 'ready' => 'Vorbereitet', 'paused' => 'Pausiert', 'not_inquiry' => 'Keine Anfrage', 'failed' => 'Verarbeitung prüfen', 'completed' => 'Übernommen'];
 
@@ -138,12 +139,7 @@ class AiIntakeInbox extends Component
 
     private function actor(): User
     {
-        $actor = auth()->user()?->fresh();
-        abort_unless($actor instanceof User, 403);
-        OperationsAccess::authorize($actor, 'operations.inquiries.manage');
-        OperationsAccess::requireReady();
-
-        return $actor;
+        return $this->freshActor('operations.inquiries.manage');
     }
 
     private function scope(): Builder

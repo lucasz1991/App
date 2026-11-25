@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Operations;
 
+use App\Livewire\Concerns\ResolvesOperationsActor;
 use App\Models\Customer;
 use App\Models\CustomerCapacityCommitment;
 use App\Models\CustomerCondition;
@@ -39,7 +40,7 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class CustomerPortalManagement extends Component
 {
-    use WithFileUploads;
+    use ResolvesOperationsActor, WithFileUploads;
 
     public const TABS = ['access' => 'Zugang', 'contacts' => 'Kontakte', 'automation' => 'Automatik', 'publications' => 'Freigaben', 'delivery' => 'Versand', 'requests' => 'Anfragen'];
 
@@ -117,13 +118,7 @@ class CustomerPortalManagement extends Component
 
     private function actor(): User
     {
-        $actor = auth()->user();
-        abort_unless($actor instanceof User, 403);
-
-        $fresh = $actor->fresh();
-        abort_unless($fresh, 403);
-
-        return $fresh;
+        return $this->freshActor(requireReady: false);
     }
 
     private function access(string $ability = 'customers.portal.manage'): void

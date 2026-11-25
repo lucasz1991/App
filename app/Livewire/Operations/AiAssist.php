@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Operations;
 
+use App\Livewire\Concerns\ResolvesOperationsActor;
 use App\Models\AiIntake;
 use App\Models\Customer;
 use App\Models\OperationInquiry;
@@ -37,7 +38,7 @@ use Throwable;
  */
 class AiAssist extends Component
 {
-    use WithFileUploads;
+    use ResolvesOperationsActor, WithFileUploads;
 
     private const SESSION = 'operations.ai_assist.messages';
 
@@ -560,12 +561,7 @@ class AiAssist extends Component
 
     private function actor(): User
     {
-        $actor = auth()->user()?->fresh();
-        abort_unless($actor instanceof User && $actor->isActive(), 403);
-        abort_unless($actor->can('operations.manage') || $actor->can('operations.inquiries.manage'), 403);
-        OperationsAccess::requireReady();
-
-        return $actor;
+        return $this->freshActor(['operations.manage', 'operations.inquiries.manage']);
     }
 
     private function consumeAssistRate(User $actor): void

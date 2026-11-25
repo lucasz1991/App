@@ -3,6 +3,7 @@
 namespace App\Livewire\Operations;
 
 use App\Enums\OrderStatus;
+use App\Livewire\Concerns\ResolvesOperationsActor;
 use App\Models\Customer;
 use App\Models\CustomerCondition;
 use App\Models\CustomerContact;
@@ -29,7 +30,7 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class CustomerHistory extends Component
 {
-    use WithPagination;
+    use ResolvesOperationsActor, WithPagination;
 
     #[Locked]
     public int $customerId;
@@ -68,10 +69,7 @@ class CustomerHistory extends Component
 
     private function actor(): User
     {
-        $actor = auth()->user()?->fresh();
-        abort_unless($actor instanceof User && $actor->status, 403);
-
-        return $actor;
+        return $this->freshActor(requireReady: false);
     }
 
     private function portalAllowed(User $actor): bool

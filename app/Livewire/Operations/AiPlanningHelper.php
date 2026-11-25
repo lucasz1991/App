@@ -3,9 +3,9 @@
 namespace App\Livewire\Operations;
 
 use App\Livewire\Admin\Operations\ShiftManagement;
+use App\Livewire\Concerns\ResolvesOperationsActor;
 use App\Models\User;
 use App\Services\Operations\AiPlanningService;
-use App\Support\Operations\OperationsAccess;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
@@ -13,6 +13,8 @@ use Livewire\Component;
 
 class AiPlanningHelper extends Component
 {
+    use ResolvesOperationsActor;
+
     #[Locked]
     public ?int $shiftId = null;
 
@@ -121,12 +123,7 @@ class AiPlanningHelper extends Component
 
     private function actor(): User
     {
-        $actor = auth()->user()?->fresh();
-        abort_unless($actor instanceof User, 403);
-        OperationsAccess::authorize($actor, 'operations.manage');
-        OperationsAccess::requireReady();
-
-        return $actor;
+        return $this->freshActor('operations.manage');
     }
 
     public function render()

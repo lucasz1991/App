@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Operations;
 
+use App\Livewire\Concerns\ResolvesOperationsActor;
 use App\Models\Customer;
 use App\Models\User;
 use App\Services\Operations\CustomerProfileData;
@@ -22,7 +23,7 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class CustomerWorkspace extends Component
 {
-    use WithoutUrlPagination, WithPagination;
+    use ResolvesOperationsActor, WithoutUrlPagination, WithPagination;
 
     public const VIEWS = ['master' => 'Übersicht', 'orders' => 'Aufträge', 'inquiries' => 'Anfragen', 'offers' => 'Angebote', 'contacts' => 'Kontakte & Orte', 'conditions' => 'Konditionen', 'communication' => 'Kommunikation', 'documents' => 'Dokumente', 'history' => 'Historie', 'portal' => 'Kundenportal'];
 
@@ -125,12 +126,7 @@ class CustomerWorkspace extends Component
 
     private function actor(): User
     {
-        $actor = auth()->user();
-        abort_unless($actor instanceof User, 403);
-        $actor = $actor->fresh();
-        abort_unless($actor?->status, 403);
-
-        return $actor;
+        return $this->freshActor(requireReady: false);
     }
 
     private function portalReady(): bool

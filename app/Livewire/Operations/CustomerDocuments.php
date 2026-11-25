@@ -2,7 +2,7 @@
 
 namespace App\Livewire\Operations;
 
-use App\Models\User;
+use App\Livewire\Concerns\ResolvesOperationsActor;
 use App\Support\CustomerPortal\CustomerPortalScope;
 use App\Support\CustomerPortal\CustomerPortalWorkflowSchema;
 use Illuminate\Database\Query\Builder;
@@ -17,7 +17,7 @@ use Livewire\WithPagination;
 /** Portal document metadata only; downloading and publishing retain their original guards. */
 class CustomerDocuments extends Component
 {
-    use WithoutUrlPagination, WithPagination;
+    use ResolvesOperationsActor, WithoutUrlPagination, WithPagination;
 
     #[Locked]
     public int $customerId;
@@ -37,8 +37,7 @@ class CustomerDocuments extends Component
 
     private function access(): void
     {
-        $actor = auth()->user()?->fresh();
-        abort_unless($actor instanceof User && $actor->status, 403);
+        $actor = $this->freshActor(requireReady: false);
         abort_unless($actor->can('customers.portal.manage') && $actor->can('customers.portal.publish'), 403);
         abort_unless(CustomerPortalWorkflowSchema::ready(), 503);
         $scope = app(CustomerPortalScope::class);

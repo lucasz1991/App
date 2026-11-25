@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Operations;
 
+use App\Livewire\Concerns\ResolvesOperationsActor;
 use App\Models\AiIntake;
 use App\Models\User;
 use App\Services\Ai\AssistantSpeechException;
@@ -14,7 +15,6 @@ use App\Services\Operations\AiIntakeReviewContext;
 use App\Services\Operations\AiIntakeService;
 use App\Support\Operations\AiDispositionSettings;
 use App\Support\Operations\AiIntakeSchema;
-use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsPages;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -29,7 +29,7 @@ use Throwable;
 /** Questions and explicit recognition guidance for one selected intake. */
 class AiIntakeAssistant extends Component
 {
-    use WithFileUploads;
+    use ResolvesOperationsActor, WithFileUploads;
 
     #[Locked]
     public ?int $intakeId = null;
@@ -349,12 +349,8 @@ class AiIntakeAssistant extends Component
 
     private function actor(): User
     {
-        $actor = auth()->user();
-        abort_unless($actor instanceof User, 403);
-        $actor = User::findOrFail($actor->id);
+        $actor = $this->freshActor('operations.inquiries.manage');
         abort_if($this->contextActorId !== null && $this->contextActorId !== $actor->id, 403);
-        OperationsAccess::authorize($actor, 'operations.inquiries.manage');
-        OperationsAccess::requireReady();
         AiIntakeSchema::requireReady();
 
         return $actor;

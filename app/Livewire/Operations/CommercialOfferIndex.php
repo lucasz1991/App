@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Operations;
 
+use App\Livewire\Concerns\ResolvesOperationsActor;
 use App\Models\CommercialOfferRevision;
 use App\Models\Customer;
 use App\Models\CustomerPortalSubmissionItem;
@@ -19,7 +20,7 @@ use Livewire\WithPagination;
 
 class CommercialOfferIndex extends Component
 {
-    use WithPagination;
+    use ResolvesOperationsActor, WithPagination;
 
     #[Locked]
     public ?int $customerId = null;
@@ -66,10 +67,7 @@ class CommercialOfferIndex extends Component
 
     private function actor(): User
     {
-        $actor = auth()->user()?->fresh();
-        abort_unless($actor instanceof User && $actor->status, 403);
-
-        return $actor;
+        return $this->freshActor(requireReady: false);
     }
 
     private function access(): void

@@ -2,12 +2,15 @@
 
 namespace App\Livewire\Operations;
 
+use App\Livewire\Concerns\ResolvesOperationsActor;
 use App\Support\Operations\OperationsPages;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 class PageWorkspace extends Component
 {
+    use ResolvesOperationsActor;
+
     #[Locked]
     public string $page;
 
@@ -40,8 +43,7 @@ class PageWorkspace extends Component
     private function authorizePage(): void
     {
         abort_unless(isset(OperationsPages::definitions()[$this->page]), 404);
-        $actor = auth()->user();
-        abort_unless($actor && $actor->status, 403);
+        $actor = $this->freshActor(requireReady: false);
         abort_unless(OperationsPages::views($actor, $this->page) || OperationsPages::sections($actor, $this->page), 403);
     }
 

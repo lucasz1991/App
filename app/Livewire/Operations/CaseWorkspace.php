@@ -3,6 +3,7 @@
 namespace App\Livewire\Operations;
 
 use App\Livewire\Admin\Operations\Orders;
+use App\Livewire\Concerns\ResolvesOperationsActor;
 use App\Models\AiIntake;
 use App\Models\Customer;
 use App\Models\CustomerCapacityReservation;
@@ -29,6 +30,8 @@ use Livewire\Component;
 
 class CaseWorkspace extends Component
 {
+    use ResolvesOperationsActor;
+
     #[Locked]
     public string $view = 'inbox';
 
@@ -118,10 +121,7 @@ class CaseWorkspace extends Component
 
     private function actor(): User
     {
-        $actor = auth()->user()?->fresh();
-        abort_unless($actor instanceof User && $actor->status, 403);
-
-        return $actor;
+        return $this->freshActor(requireReady: false);
     }
 
     private function access(): void

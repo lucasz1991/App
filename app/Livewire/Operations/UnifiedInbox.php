@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Operations;
 
+use App\Livewire\Concerns\ResolvesOperationsActor;
 use App\Models\Customer;
 use App\Models\CustomerPortalRequest;
 use App\Models\CustomerPortalSubmission;
@@ -15,7 +16,7 @@ use Livewire\WithPagination;
 
 class UnifiedInbox extends Component
 {
-    use WithPagination;
+    use ResolvesOperationsActor, WithPagination;
 
     public const FILTERS = ['all' => 'Alle', 'review' => 'Zu prüfen', 'waiting' => 'Rückmeldung offen', 'ready' => 'Bereit', 'done' => 'Erledigt'];
 
@@ -45,10 +46,7 @@ class UnifiedInbox extends Component
 
     private function actor(): User
     {
-        $actor = auth()->user()?->fresh();
-        abort_unless($actor instanceof User && $actor->status, 403);
-
-        return $actor;
+        return $this->freshActor(requireReady: false);
     }
 
     private function query()

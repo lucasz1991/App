@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Operations;
 
+use App\Livewire\Concerns\ResolvesOperationsActor;
 use App\Models\CustomerContact;
 use App\Models\EmployeeQualification;
 use App\Models\OperationsCostRate;
@@ -34,7 +35,7 @@ use Livewire\WithPagination;
 
 class OperationsEnhancements extends Component
 {
-    use WithFileUploads, WithPagination;
+    use ResolvesOperationsActor, WithFileUploads, WithPagination;
 
     public const TABS = ['proofs' => 'Leistungsnachweise', 'travel' => 'Reisen', 'partners' => 'Partneranfragen', 'imports' => 'Eingangsprüfung', 'rules' => 'Fachregeln', 'payroll' => 'Monatsabschluss', 'costs' => 'Auftragskosten', 'terminal' => 'Terminalzugang'];
 
@@ -136,8 +137,8 @@ class OperationsEnhancements extends Component
 
     private function access(): User
     {
-        $actor = auth()->user()?->fresh();
-        abort_unless($actor && $this->canTab($this->tab) && (! $this->personal || in_array($this->tab, ['proofs', 'travel', 'partners', 'terminal'])), 403);
+        $actor = $this->freshActor(requireReady: false);
+        abort_unless($this->canTab($this->tab) && (! $this->personal || in_array($this->tab, ['proofs', 'travel', 'partners', 'terminal'])), 403);
         if ($this->personal) {
             OperationsAccess::own($actor, $actor->id);
         } else {

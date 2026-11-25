@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Operations;
 
+use App\Livewire\Concerns\ResolvesOperationsActor;
 use App\Models\Customer;
 use App\Models\CustomerContact;
 use App\Models\CustomerInteraction;
@@ -27,7 +28,7 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class CustomerCommunications extends Component
 {
-    use WithPagination;
+    use ResolvesOperationsActor, WithPagination;
 
     #[Locked]
     public int $customerId;
@@ -61,10 +62,7 @@ class CustomerCommunications extends Component
 
     private function actor(): User
     {
-        $actor = auth()->user();
-        abort_unless($actor instanceof User && ($fresh = $actor->fresh()) && $fresh->status, 403);
-
-        return $fresh;
+        return $this->freshActor(requireReady: false);
     }
 
     private function canRecord(User $actor): bool

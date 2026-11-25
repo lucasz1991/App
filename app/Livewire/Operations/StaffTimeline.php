@@ -6,6 +6,7 @@ use App\Enums\OrderStatus;
 use App\Enums\ShiftAssignmentStatus;
 use App\Enums\ShiftStatus;
 use App\Livewire\Concerns\InteractsWithPersonQuickActions;
+use App\Livewire\Concerns\ResolvesOperationsActor;
 use App\Models\AbsenceRequest;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
@@ -44,6 +45,7 @@ use Livewire\WithPagination;
 
 class StaffTimeline extends Component
 {
+    use ResolvesOperationsActor;
     use InteractsWithPersonQuickActions {
         openDirectChat as private openTimelineDirectChat;
         startDirectCall as private startTimelineDirectCall;
@@ -406,10 +408,7 @@ class StaffTimeline extends Component
 
     private function authorizeTimelineAction(): User
     {
-        $viewer = auth()->user()?->fresh();
-        abort_unless($viewer instanceof User && $viewer->status, 403);
-        OperationsAccess::authorize($viewer, 'operations.manage');
-        OperationsAccess::requireReady();
+        $viewer = $this->freshActor('operations.manage');
         abort_unless($this->planningEnabled && ! $this->absencesOnly, 403);
 
         return $viewer;

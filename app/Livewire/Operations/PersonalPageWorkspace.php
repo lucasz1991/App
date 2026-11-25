@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Operations;
 
+use App\Livewire\Concerns\ResolvesOperationsActor;
 use App\Models\AbsenceRequest;
 use App\Models\EmployeeQualification;
 use App\Models\OperationsMonthClosing;
@@ -29,6 +30,8 @@ use Livewire\Component;
 
 class PersonalPageWorkspace extends Component
 {
+    use ResolvesOperationsActor;
+
     #[Locked]
     public string $page = 'people';
 
@@ -297,8 +300,7 @@ class PersonalPageWorkspace extends Component
 
     private function access(): void
     {
-        $actor = auth()->user()->fresh();
-        abort_unless($actor->status, 403);
+        $actor = $this->freshActor(requireReady: false);
         abort_unless($this->section !== '' ? isset(self::availableSections($actor, $this->page)[$this->section]) : isset(self::availableViews($actor, $this->page)[$this->view]), 403);
         if ($this->userId && ($ability = $this->personAbility())) {
             app(PersonnelScopeService::class)->authorize($actor, $this->userId, $ability);
