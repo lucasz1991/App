@@ -4,7 +4,6 @@ namespace App\Support\Dashboard;
 
 use App\Models\DashboardWidgetPlacement;
 use App\Models\User;
-use Illuminate\Support\Facades\Schema;
 
 /**
  * Verschmilzt WidgetRegistry (was DARF diese Person sehen) mit den
@@ -24,12 +23,10 @@ final class DashboardLayout
     public static function forUser(User $user): array
     {
         $available = WidgetRegistry::availableFor($user);
-        $placements = self::storageReady()
-            ? DashboardWidgetPlacement::where('user_id', $user->id)
-                ->whereIn('widget_key', array_keys($available))
-                ->get()
-                ->keyBy('widget_key')
-            : collect();
+        $placements = DashboardWidgetPlacement::where('user_id', $user->id)
+            ->whereIn('widget_key', array_keys($available))
+            ->get()
+            ->keyBy('widget_key');
 
         $items = [];
         $index = 0;
@@ -123,23 +120,9 @@ final class DashboardLayout
         self::upsert($user, $key, ['rows' => $rows]);
     }
 
-    /**
-     * Fehlt die Tabelle (Umgebung mit unvollstaendigem Schema), zeigt das
-     * Raster die Registry-Vorgaben und Anpassungen werden still verworfen -
-     * das Dashboard selbst darf daran nicht scheitern.
-     */
-    private static function storageReady(): bool
-    {
-        return Schema::hasTable('dashboard_widget_placements');
-    }
-
     /** @param array<string, mixed> $changes */
     private static function upsert(User $user, string $key, array $changes): void
     {
-        if (! self::storageReady()) {
-            return;
-        }
-
         $widget = WidgetRegistry::find($key);
         $existing = DashboardWidgetPlacement::where('user_id', $user->id)->where('widget_key', $key)->first();
 

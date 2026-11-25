@@ -2,24 +2,130 @@
 
 namespace App\Livewire\Admin;
 
-use App\Livewire\Concerns\RendersOperationsDashboard;
+use App\Models\User;
+use App\Services\DeviceManagement\DeviceFleetSnapshot;
+use App\Support\Dashboard\NativeOperationsDashboard;
+use App\Support\Dashboard\SystemDashboardData;
+use App\Support\Operations\OperationalPreviewCatalog;
+use App\Support\Operations\OperationsAccess;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
-/**
- * Admin-Dashboard unter /administrator/dashboard. Inhalt ist dasselbe
- * Widget-Raster wie fuer alle anderen Zielgruppen
- * (siehe RendersOperationsDashboard) - nur im Admin-Layoutbereich.
- */
 class Dashboard extends Component
 {
-    use RendersOperationsDashboard;
+    /**
+     * Anzahl der fachlichen Teams (Rechtegruppen).
+     *
+     * Die uebrigen Werte aus SystemDashboardData::counters() — totalUsers,
+     * activeUsers, totalEmployees — wurden hier frueher ebenfalls geladen,
+     * aber nie ausgegeben. Der Personalbestand kommt aus workforceSnapshot().
+     */
+    public int $totalTeams = 0;
 
-    public function render()
+    /** @var array<string, mixed> */
+    #[Locked]
+    public array $system = [];
+
+    #[Locked]
+    public bool $systemLoaded = false;
+
+    public function mount(SystemDashboardData $dashboardData): void
     {
+        $this->totalTeams = $dashboardData->teamCount();
+    }
+
+    public function render(
+        SystemDashboardData $dashboardData,
+        OperationalPreviewCatalog $previewCatalog,
+        DeviceFleetSnapshot $fleetSnapshot,
+    ) {
         // Die Route traegt bereits role:admin — diese Pruefung schuetzt den
         // Fall, dass die Komponente anderswo eingebunden wird.
         abort_unless(auth()->user()?->isAdmin(), 403);
 
-        return $this->renderOperationsDashboard('admin');
+        $canViewSystemData = auth()->user()->canViewSystemDashboard();
+
+        if (OperationsAccess::ready()) {
+            $stats = $fleetSnapshot->get();
+
+            return view('livewire.operations.dashboard', app(NativeOperationsDashboard::class)->forUser(auth()->user()) + [
+                'deviceWidget' => ['scope' => 'fleet', 'stats' => $stats, 'href' => $stats['available'] ? route('devices.index') : null],
+                'canViewSystemData' => $canViewSystemData,
+                'system' => $this->systemLoaded ? $this->system : null,
+                'systemLoaded' => $this->systemLoaded,
+            ])->layout('layouts.master', ['area' => 'admin']);
+        }
+
+        return view('livewire.admin.dashboard', [
+            'recentUsers' => $dashboardData->recentUsers(),
+            'recentActivity' => $dashboardData->recentActivity(),
+            'charts' => $dashboardData->charts(),
+            'workforce' => $this->workforceSnapshot(),
+            'deviceSnapshot' => auth()->user()->can('devices.view') ? $fleetSnapshot->get() : null,
+            'operationalModules' => $previewCatalog->dashboard(),
+            'canViewSystemData' => $canViewSystemData,
+            'system' => $this->systemLoaded ? $this->system : null,
+            'systemLoaded' => $this->systemLoaded,
+        ])->layout('layouts.master', ['area' => 'admin']);
+    }
+
+    /**
+     * Load protected diagnostics only when the administrator opens the panel.
+     */
+    public function loadSystemData(SystemDashboardData $dashboardData): void
+    {
+        $user = auth()->user();
+        abort_unless($user?->isAdmin() && $user->canViewSystemDashboard(), 403);
+
+        if ($this->systemLoaded) {
+            return;
+        }
+
+        $system = $dashboardData->system();
+        $system['lastActivity'] = $system['lastActivityAt']?->diffForHumans() ?? '—';
+        unset($system['lastActivityAt']);
+
+        $this->system = $system;
+        $this->systemLoaded = true;
+    }
+
+    /**
+     * Produktive Personalkennzahlen fuer den Admin-Einstieg.
+     *
+     * Auftrags- und Schichtwerte werden über den getrennten Operations-Katalog
+     * geladen. Dadurch bleibt die Dashboard-Abfrage kompakt, während alle
+     * Kennzahlen aus denselben produktiven Modellen wie die Arbeitsbereiche
+     * stammen.
+     *
+     * @return array{
+     *     total:int,
+     *     active:int,
+     *     inactive:int,
+     *     activeRate:int,
+     *     status:array{labels:array<int, string>, values:array<int, int>}
+     * }
+     */
+    private function workforceSnapshot(): array
+    {
+        $snapshot = User::query()
+            ->where('role', 'staff')
+            ->selectRaw('COUNT(*) as aggregate_total')
+            ->selectRaw('COALESCE(SUM(CASE WHEN status = ? THEN 1 ELSE 0 END), 0) as aggregate_active', [1])
+            ->first();
+
+        $total = (int) ($snapshot?->aggregate_total ?? 0);
+        $active = (int) ($snapshot?->aggregate_active ?? 0);
+        $inactive = max(0, $total - $active);
+
+        return [
+            'total' => $total,
+            'active' => $active,
+            'inactive' => $inactive,
+            'activeRate' => $total > 0 ? (int) round(($active / $total) * 100) : 0,
+            'status' => [
+                'labels' => [__('app.enabled_accounts'), __('app.disabled_accounts')],
+                'values' => [$active, $inactive],
+            ],
+        ];
     }
 }

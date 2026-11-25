@@ -1,6 +1,6 @@
 {{--
     Flaechen-Liniendiagramm des Kontenbestands (14 Tage) - eigenes SVG statt
-    das fruehere Trenddiagramm-Bauteil: das brachte einen zweiten Titel mit und hatte
+    x-ui.dashboard.trend-chart: das brachte einen zweiten Titel mit und hatte
     eine feste Hoehe, hier waechst die Linie mit der Kachel (1 oder 2 Zeilen).
 --}}
 @php

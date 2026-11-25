@@ -1,0 +1,163 @@
+@props([
+    'title',
+    'description' => null,
+    'metric' => null,
+    'metricLabel' => null,
+    'icon' => 'activity',
+    'tone' => 'neutral',
+    'badge' => null,
+    'href' => null,
+    'navigate' => true,
+    'actionLabel' => null,
+    'preview' => false,
+    'variant' => 'default',
+])
+
+@php
+    $toneClasses = match ($tone) {
+        'brand', 'red' => [
+            'bar' => 'bg-rt-red',
+            'icon' => 'bg-rt-red/10 text-rt-red ring-rt-red/15 dark:bg-rt-red/15 dark:text-rt-red-light dark:ring-rt-red/25',
+            'wash' => 'bg-rt-red/10',
+        ],
+        'success', 'emerald' => [
+            'bar' => 'bg-emerald-500',
+            'icon' => 'bg-emerald-500/10 text-emerald-700 ring-emerald-500/15 dark:text-emerald-300',
+            'wash' => 'bg-emerald-500/10',
+        ],
+        'warning', 'amber' => [
+            'bar' => 'bg-amber-500',
+            'icon' => 'bg-amber-500/10 text-amber-700 ring-amber-500/15 dark:text-amber-300',
+            'wash' => 'bg-amber-500/10',
+        ],
+        'blue' => [
+            'bar' => 'bg-sky-500',
+            'icon' => 'bg-sky-500/10 text-sky-700 ring-sky-500/15 dark:text-sky-300',
+            'wash' => 'bg-sky-500/10',
+        ],
+        default => [
+            'bar' => 'bg-slate-400 dark:bg-slate-500',
+            'icon' => 'bg-rt-surface-muted text-rt-muted ring-rt-border/70 dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted dark:ring-rt-dark-border/70',
+            'wash' => 'bg-slate-400/10',
+        ],
+    };
+    $resolvedActionLabel = $actionLabel ?: __('app.open');
+    $isFeatured = $variant === 'featured';
+    $isCompact = $variant === 'compact';
+    $isMinimal = $variant === 'minimal';
+    $cardClasses = match ($variant) {
+        'featured' => 'min-h-[19rem] bg-rt-surface p-5 shadow-rt-md ring-rt-border/70 sm:p-6 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70',
+        'compact' => 'min-h-[10.75rem] bg-rt-surface p-4 shadow-rt-xs ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70',
+        'minimal' => 'min-h-[10rem] bg-rt-surface p-4 ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70',
+        default => 'min-h-48 bg-rt-surface p-4 shadow-rt-sm ring-rt-border/70 sm:min-h-52 sm:p-5 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70',
+    };
+    $cardRadius = $isMinimal ? 'rounded-xl' : 'rounded-[1.4rem]';
+@endphp
+
+<article
+    {{ $attributes->class([
+        "group relative flex min-w-0 flex-col overflow-hidden {$cardRadius} ring-1 transition duration-200 {$cardClasses}",
+        'hover:ring-rt-red/30 motion-reduce:transition-none' => $isMinimal,
+        'ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md' => ! $isMinimal,
+    ]) }}
+    data-dashboard-focus-card
+    data-dashboard-focus-tone="{{ $tone }}"
+    data-dashboard-focus-variant="{{ $variant }}"
+    data-dashboard-data-source="{{ $preview ? 'preview' : 'live' }}"
+    @if ($preview) data-dashboard-focus-preview="true" @endif
+>
+    <span class="absolute inset-x-0 top-0 {{ $isMinimal ? 'h-0.5' : 'h-1' }} {{ $toneClasses['bar'] }}" aria-hidden="true"></span>
+    @unless ($isMinimal)
+        <span class="pointer-events-none absolute -right-16 -top-20 h-44 w-44 rounded-full blur-3xl {{ $toneClasses['wash'] }}" aria-hidden="true"></span>
+    @endunless
+
+    @if (filled($href))
+        <a
+            href="{{ $href }}"
+            @if ($navigate) wire:navigate @endif
+            class="absolute inset-0 z-10 {{ $cardRadius }} outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rt-red"
+            aria-label="{{ $title }} · {{ $resolvedActionLabel }}"
+        ></a>
+    @endif
+
+    <div class="relative flex items-start justify-between gap-3">
+        @if ($isMinimal)
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ring-1 ring-inset {{ $toneClasses['icon'] }}" aria-hidden="true">
+                <span class="h-2 w-2 rounded-sm {{ $toneClasses['bar'] }}"></span>
+            </span>
+        @else
+            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset {{ $toneClasses['icon'] }}" aria-hidden="true">
+                <i data-feather="{{ $icon }}" class="h-5 w-5"></i>
+            </span>
+        @endif
+
+        @if ($preview || filled($badge))
+            <span class="flex min-w-0 max-w-[76%] flex-wrap justify-end gap-1.5">
+                @if ($preview)
+                    <span
+                        class="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-500/20 dark:text-amber-300"
+                        data-dashboard-preview-label
+                    >
+                        @unless ($isMinimal)
+                            <i data-feather="eye" class="h-3 w-3" aria-hidden="true"></i>
+                        @endunless
+                        {{ __('app.demo_preview') }}
+                    </span>
+                @endif
+
+                @if (filled($badge))
+                    <span class="max-w-full truncate rounded-full bg-rt-surface-muted px-2.5 py-1 text-[10px] font-semibold text-rt-muted ring-1 ring-inset ring-rt-border/70 dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted dark:ring-rt-dark-border/70">
+                        {{ $badge }}
+                    </span>
+                @endif
+            </span>
+        @endif
+    </div>
+
+    @if (filled($metric))
+        <p @class([
+            'relative font-bold leading-none tabular-nums tracking-[-0.05em]',
+            'mt-6 text-5xl text-rt-text sm:text-6xl dark:text-white' => $isFeatured,
+            'mt-3 text-2xl text-rt-text dark:text-white' => $isCompact,
+            'mt-5 text-3xl text-rt-text sm:text-4xl dark:text-white' => ! $isFeatured && ! $isCompact,
+        ])>
+            {{ $metric }}
+        </p>
+    @endif
+
+    @if (filled($metricLabel))
+        <p class="relative mt-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-rt-muted dark:text-rt-dark-muted">
+            {{ $metricLabel }}
+        </p>
+    @endif
+
+    <div @class(['relative', 'mt-6' => $isFeatured, 'mt-3' => ! $isFeatured && ! $isMinimal, 'mt-4' => $isMinimal])>
+        <h3 @class([
+            'font-bold tracking-[-0.02em]',
+            'text-xl text-rt-text dark:text-white' => $isFeatured,
+            'text-base text-rt-text dark:text-white' => ! $isFeatured,
+        ])>{{ $title }}</h3>
+        @if (filled($description) && ! $isCompact)
+            <p @class([
+                'mt-1 text-pretty text-xs leading-5',
+                'max-w-md text-rt-muted dark:text-rt-dark-muted' => $isFeatured,
+                'text-rt-muted dark:text-rt-dark-muted' => ! $isFeatured,
+            ])>{{ $description }}</p>
+        @endif
+    </div>
+
+    <div @class([
+        'relative mt-auto flex items-center justify-between gap-3 pt-3 text-xs font-semibold',
+        'text-rt-red dark:text-rt-dark-accent' => filled($href),
+        'text-rt-soft dark:text-rt-dark-soft' => blank($href),
+    ])>
+        <span>{{ filled($href) ? $resolvedActionLabel : ($preview ? __('app.demo_preview') : __('app.no_database_connection')) }}</span>
+        @if ($isMinimal)
+            <span class="transition duration-200 motion-safe:group-hover:translate-x-0.5 motion-reduce:transition-none" aria-hidden="true">
+                {{ filled($href) ? '→' : '—' }}
+            </span>
+        @else
+            <i data-feather="{{ filled($href) ? 'arrow-up-right' : 'minus' }}" class="h-4 w-4 transition duration-200 group-hover:translate-x-0.5" aria-hidden="true"></i>
+        @endif
+    </div>
+</article>
