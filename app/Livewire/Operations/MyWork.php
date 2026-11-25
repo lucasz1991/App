@@ -1220,6 +1220,7 @@ class MyWork extends Component
         $requestHistory = $this->tab === 'requests' ? $this->requestHistory($loaded) : null;
 
         return view('livewire.operations.my-work', [
+            'showPersonnelDocuments' => $this->tab === 'records' && Schema::hasTable('employee_document_versions'),
             'timeCompleteness' => $timeCompleteness,
             'timeFilterOptions' => self::TIME_FILTERS,
             'clockDuty' => $clockDuty,

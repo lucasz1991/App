@@ -15,6 +15,7 @@ use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\ReportingPeriod;
 use App\Support\Operations\WorkTimeSchema;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
@@ -325,6 +326,10 @@ class TimeReview extends Component
         $entries->each(fn ($entry) => $entry->setAttribute('time_comparison', app(WorkTimeService::class)->comparison($entry)));
 
         return view('livewire.operations.time-review', [
+            'workTimeReady' => WorkTimeSchema::ready(),
+            'showPayrollReferences' => $this->exports && $this->exportProfile === 'v1' && Schema::hasTable('employee_payroll_references'),
+            'detailWarnings' => $detailEntry ? app(WorkTimeService::class)->warnings($detailEntry) : [],
+            'detailRevisions' => $detailEntry ? $detailEntry->revisions()->orderByDesc('id')->get() : collect(),
             'batchEntries' => $batchEntries,
             'comparisons' => $comparisons,
             'warningCount' => $comparisons->filter(fn ($result) => $result['warnings'] !== [])->count(),

@@ -20,7 +20,7 @@
             @include('livewire.operations.partials.personal-time-review')
         @elseif($tab === 'records')
             <header class="rt-personal-work-heading"><div><p class="ops-muted">Dokumente, Qualifikationen und Gültigkeit im Überblick.</p></div><x-ui.buttons.button-basic mode="primary" wire:click="openForm('qualification')" wire:loading.attr="disabled">Nachweis einreichen</x-ui.buttons.button-basic></header>
-            @if(class_exists(\App\Livewire\Operations\PersonnelDocuments::class) && \Illuminate\Support\Facades\Schema::hasTable('employee_document_versions'))<livewire:operations.personnel-documents />@endif
+            @if($showPersonnelDocuments)<livewire:operations.personnel-documents />@endif
             @include('livewire.operations.partials.personal-forms')
             <x-tables.table class="rt-personal-record-list" :columns="[['label'=>'Nachweis','key'=>'record']]" :items="$qualifications" row-view="components.tables.rows.personal.qualification-row" empty="Keine Nachweise eingereicht. Ergänze hier deine gültigen Qualifikationen." /><x-tables.pagination :paginator="$qualifications" label="Nachweisseiten" />
         @elseif($tab === 'absences')

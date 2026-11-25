@@ -1,6 +1,6 @@
 <div class="rt-ops rt-personnel-management rt-time-review ops-stack">
-@if(!$embedded && !$exports && \App\Support\Operations\WorkTimeSchema::ready())<livewire:operations.work-time-capture-review />@endif
-@if($exports && $exportProfile === 'v1' && \Illuminate\Support\Facades\Schema::hasTable('employee_payroll_references'))<livewire:operations.payroll-references />@endif
+@if(!$embedded && !$exports && $workTimeReady)<livewire:operations.work-time-capture-review />@endif
+@if($showPayrollReferences)<livewire:operations.payroll-references />@endif
 @if(!$historyOnly)
     <div class="rt-personnel-period" role="group" aria-label="Zeitraum der Zeitmeldungen">
         <div class="rt-personnel-period__intro"><span class="rt-personnel-eyebrow">Zeitraum</span><p>{{ $exports ? 'Arbeitszeiten exportieren' : 'Arbeitszeiten prüfen' }}</p></div>
@@ -17,7 +17,7 @@
     @endif
 </x-slot:bulk>
 @if(!$exports)<x-tables.filter-field label="Zeitstatus" for="time-status-filter"><x-ui.forms.select id="time-status-filter" wire:model.live="filter" aria-label="Zeitstatus"><option value="submitted">Zur Prüfung</option><option value="returned">Zurückgegeben</option><option value="approved">Freigegeben</option><option value="all">Alle</option></x-ui.forms.select></x-tables.filter-field>@endif
-@if($exports)<x-tables.filter-field label="CSV-Format" for="time-export-profile"><x-ui.forms.select id="time-export-profile" wire:model.live="exportProfile" aria-label="CSV-Format"><option value="v1">Schichtzeiten · CSV v1</option>@if(\App\Support\Operations\WorkTimeSchema::ready())<option value="v2">Alle Arbeitszeiten · CSV v2</option>@endif</x-ui.forms.select></x-tables.filter-field>@endif
+@if($exports)<x-tables.filter-field label="CSV-Format" for="time-export-profile"><x-ui.forms.select id="time-export-profile" wire:model.live="exportProfile" aria-label="CSV-Format"><option value="v1">Schichtzeiten · CSV v1</option>@if($workTimeReady)<option value="v2">Alle Arbeitszeiten · CSV v2</option>@endif</x-ui.forms.select></x-tables.filter-field>@endif
 </x-tables.toolbar>
 <x-operations.feedback />
 @if(!$historyOnly)
@@ -67,17 +67,17 @@
 @if($detailEntry)
 @php
 $entry = $detailEntry;
-$warnings = app(\App\Services\Operations\WorkTimeService::class)->warnings($entry);
+$warnings = $detailWarnings;
 @endphp
 
                 <header class="ops-toolbar"><div class="ops-actions">@if($exports)<x-ui.forms.checkbox wire:model.live="selected" value="{{ $entry->id }}" aria-label="Zeitmeldung auswählen" />@endif<div><p class="ops-kicker">{{ $entry->user?->name }} · Revision {{ $entry->revision }} · {{ $entry->contextLabel() }}</p><h2>{{ $entry->plan_snapshot['title'] ?? $entry->contextLabel() }}</h2></div></div><x-operations.status :value="$entry->status" /></header>
-                <dl class="ops-meta">@if(!empty($entry->plan_snapshot['starts_at']) && !empty($entry->plan_snapshot['ends_at']))<div><dt>Plan · {{ $entry->timezone }}</dt><dd>{{ \Carbon\CarbonImmutable::parse($entry->plan_snapshot['starts_at'])->setTimezone($entry->timezone)->format('d.m. H:i') }} – {{ \Carbon\CarbonImmutable::parse($entry->plan_snapshot['ends_at'])->setTimezone($entry->timezone)->format('d.m. H:i') }}</dd></div>@endif<div><dt>Ist · {{ $entry->timezone }}</dt><dd>{{ $entry->starts_at->format('d.m. H:i') }} – {{ $entry->ends_at?->format('d.m. H:i') ?? 'Läuft' }}</dd></div><div><dt>Pause</dt><dd>{{ intdiv($entry->pause_seconds,60) }} min</dd></div><div><dt>Netto</dt><dd>{{ \App\Support\Operations\OperationsDateTime::duration($entry->netSeconds()) }}</dd></div>@if(\App\Support\Operations\WorkTimeSchema::ready())<div><dt>Kontogutschrift</dt><dd>{{ ($credited = $entry->creditedSeconds()) === null ? 'Nicht bewertet' : \App\Support\Operations\OperationsDateTime::duration($credited) }}</dd></div>@endif</dl>
+                <dl class="ops-meta">@if(!empty($entry->plan_snapshot['starts_at']) && !empty($entry->plan_snapshot['ends_at']))<div><dt>Plan · {{ $entry->timezone }}</dt><dd>{{ \Carbon\CarbonImmutable::parse($entry->plan_snapshot['starts_at'])->setTimezone($entry->timezone)->format('d.m. H:i') }} – {{ \Carbon\CarbonImmutable::parse($entry->plan_snapshot['ends_at'])->setTimezone($entry->timezone)->format('d.m. H:i') }}</dd></div>@endif<div><dt>Ist · {{ $entry->timezone }}</dt><dd>{{ $entry->starts_at->format('d.m. H:i') }} – {{ $entry->ends_at?->format('d.m. H:i') ?? 'Läuft' }}</dd></div><div><dt>Pause</dt><dd>{{ intdiv($entry->pause_seconds,60) }} min</dd></div><div><dt>Netto</dt><dd>{{ \App\Support\Operations\OperationsDateTime::duration($entry->netSeconds()) }}</dd></div>@if($workTimeReady)<div><dt>Kontogutschrift</dt><dd>{{ ($credited = $entry->creditedSeconds()) === null ? 'Nicht bewertet' : \App\Support\Operations\OperationsDateTime::duration($credited) }}</dd></div>@endif</dl>
                 @if($entry->relationLoaded('activities') && $entry->activities->isNotEmpty())<x-tables.table :columns="[['label'=>'Abschnitt','key'=>'kind'],['label'=>'Beginn','key'=>'starts_at'],['label'=>'Ende','key'=>'ends_at'],['label'=>'Bewertung','key'=>'source']]" :items="$entry->activities" row-view="components.tables.rows.time.activity-row" />@endif
                 @if($warnings)<div class="ops-actions">@foreach($warnings as $warning)<x-ui.badge color="amber" size="sm">{{ $warning }}</x-ui.badge>@endforeach</div>@endif
                 @if($entry->note)<p>{{ $entry->note }}</p>@endif
                 @if($entry->review_note)<p class="ops-muted">{{ $entry->review_note }}</p>@endif
                 @if(!$exports && $entry->status === 'submitted' && $entry->user_id !== auth()->id())<x-operations.field label="Prüfvermerk" :model="'notes.'.$entry->id" maxlength="1000" /><div class="ops-actions"><x-ui.buttons.button-basic mode="primary" wire:click="decide({{ $entry->id }}, {{ $entry->revision }}, true)" wire:loading.attr="disabled">Freigeben</x-ui.buttons.button-basic><x-ui.buttons.button-basic wire:click="decide({{ $entry->id }}, {{ $entry->revision }}, false)" wire:loading.attr="disabled">Zur Korrektur</x-ui.buttons.button-basic></div>@endif
-                <details><summary>Änderungsverlauf</summary>@foreach($entry->revisions()->orderByDesc('id')->get() as $revision)<div class="ops-row"><span>Revision {{ $revision->revision }} · {{ ['submitted'=>'Eingereicht','approved'=>'Freigegeben','returned'=>'Zurückgegeben','before_correction'=>'Vor Korrektur','corrected'=>'Korrigiert'][$revision->action] ?? 'Gespeichert' }}</span><span class="ops-muted">{{ $revision->created_at->setTimezone(config('operations.display_timezone'))->format('d.m.Y H:i') }} · {{ \App\Support\Operations\OperationsDateTime::duration($revision->snapshot['net_seconds']) }}</span></div>@endforeach</details>
+                <details><summary>Änderungsverlauf</summary>@foreach($detailRevisions as $revision)<div class="ops-row"><span>Revision {{ $revision->revision }} · {{ ['submitted'=>'Eingereicht','approved'=>'Freigegeben','returned'=>'Zurückgegeben','before_correction'=>'Vor Korrektur','corrected'=>'Korrigiert'][$revision->action] ?? 'Gespeichert' }}</span><span class="ops-muted">{{ $revision->created_at->setTimezone(config('operations.display_timezone'))->format('d.m.Y H:i') }} · {{ \App\Support\Operations\OperationsDateTime::duration($revision->snapshot['net_seconds']) }}</span></div>@endforeach</details>
 
 @endif
 </div>

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Livewire\Operations\AiAssist;
 use App\Livewire\Operations\PageWorkspace;
 use App\Livewire\Operations\Workspace;
 use App\Models\Customer;
@@ -564,6 +565,50 @@ class OperationsPageNavigationTest extends TestCase
         }
 
         return $destinations;
+    }
+
+    public function test_page_frame_and_host_come_from_one_definition_per_page(): void
+    {
+        $hosts = ['cases', 'customers', 'personal', 'attention', 'planning', 'documents'];
+        foreach (OperationsPages::definitions() as $page => $definition) {
+            $this->assertContains($definition['host'] ?? null, $hosts, $page);
+            $this->assertSame($definition['host'] === 'personal', OperationsPages::isPersonalPage($page), $page);
+        }
+        $this->assertSame(['people', 'personnel-processes', 'leave', 'time-review', 'payroll'], array_keys(array_filter(OperationsPages::definitions(), fn (array $definition): bool => $definition['host'] === 'personal')));
+        $this->assertSame(['attention', 'cases', 'planning', 'duty'], array_keys(array_filter(OperationsPages::definitions(), fn (array $definition): bool => $definition['assist'] ?? false)));
+
+        $this->operations();
+        $actor = $this->actor(['operations.manage']);
+        $planning = Livewire::actingAs($actor)->test(PageWorkspace::class, ['page' => 'planning'])->assertSuccessful();
+        $this->assertStringContainsString('rt-disposition-page', $planning->html());
+        $people = Livewire::actingAs($this->actor(['employees.view']))->test(PageWorkspace::class, ['page' => 'people'])->assertSuccessful();
+        $this->assertStringContainsString('rt-personnel-page', $people->html());
+    }
+
+    public function test_assist_fallback_needs_ready_schema_disposition_ability_and_assist_page(): void
+    {
+        $this->operations();
+        // Central chat is off in this schema (no settings), so the standalone fallback may render.
+        Livewire::actingAs($this->actor(['operations.manage']))->test(PageWorkspace::class, ['page' => 'planning'])
+            ->assertSeeLivewire(AiAssist::class);
+        Livewire::actingAs($this->actor(['operations.inquiries.manage', 'operations.inbox.view']))->test(PageWorkspace::class, ['page' => 'attention'])
+            ->assertSeeLivewire(AiAssist::class);
+
+        // Page access alone is not enough: the worklist without a disposition ability shows no assist.
+        Livewire::actingAs($this->actor(['operations.inbox.view']))->test(PageWorkspace::class, ['page' => 'attention'])
+            ->assertSuccessful()->assertDontSeeLivewire(AiAssist::class);
+        // Pages without the assist flag never mount it.
+        Livewire::actingAs($this->actor(['operations.manage', 'employees.view']))->test(PageWorkspace::class, ['page' => 'people'])
+            ->assertSuccessful()->assertDontSeeLivewire(AiAssist::class);
+    }
+
+    public function test_inactive_actor_cannot_render_page_workspace_or_its_assist(): void
+    {
+        $this->operations();
+        $actor = $this->actor(['operations.manage']);
+        $actor->forceFill(['status' => false])->save();
+
+        Livewire::actingAs($actor)->test(PageWorkspace::class, ['page' => 'planning'])->assertForbidden();
     }
 
 }

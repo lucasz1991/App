@@ -512,7 +512,10 @@ class ResponsiveShiftPlanControlsTest extends TestCase
         $header = '.rt-disposition-page:has(.rt-shift-plan) > [data-page-header]';
         $mobile = $this->mediaBody($commands, 600);
         $this->assertStringNotContainsString($header.' > [data-page-header-control]:first-child', $mobile);
-        $this->assertStringContainsString(':show-back="! in_array($page, [\'cases\', \'shifts\', \'planning\', \'duty\'], true)"', file_get_contents(resource_path('views/livewire/operations/page-workspace.blade.php')));
+        $this->assertStringContainsString(':show-back="$definition[\'back\'] ?? true"', file_get_contents(resource_path('views/livewire/operations/page-workspace.blade.php')));
+        foreach (['cases', 'shifts', 'planning', 'duty'] as $page) {
+            $this->assertFalse(\App\Support\Operations\OperationsPages::definitions()[$page]['back']);
+        }
         $narrow = $this->mediaBody($commands, 480);
         $this->assertMatchesRegularExpression('/'.preg_quote($header.' .rt-shift-plan-create,', '/').'\s*'.preg_quote($header.' > [data-page-header-actions] > div:has(> .rt-shift-plan-create)', '/').'\s*\{\s*display:\s*none !important;\s*\}/s', $narrow);
         $this->assertStringContainsString('.rt-shift-plan-compact-action { display: flex; }', $mobile);

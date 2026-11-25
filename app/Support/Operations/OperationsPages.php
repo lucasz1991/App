@@ -14,22 +14,38 @@ use Illuminate\Http\Request;
 /** Navigation adapters only: each mounted feature still authorizes its own actions. */
 final class OperationsPages
 {
+    /**
+     * Single source for page metadata and the page-workspace frame.
+     *
+     * host: mounted Livewire host (cases, customers, personal, attention, planning, documents)
+     * header/back/topbar_title/class/embedded: x-ui.page frame; assist: standalone AI assist fallback.
+     */
     public static function definitions(): array
     {
+        $disposition = ['header' => 'compact', 'back' => false, 'class' => 'rt-disposition-page'];
+        $personnel = ['host' => 'personal', 'class' => 'rt-personnel-page'];
+
         return [
-            'attention' => ['title' => 'Arbeitsliste', 'icon' => 'inbox', 'segment' => 'Disposition'],
-            'cases' => ['title' => 'Vorgänge & Aufträge', 'icon' => 'clipboard', 'segment' => 'Disposition'],
-            'shifts' => ['title' => 'Schichtplanung', 'icon' => 'calendar', 'segment' => 'Disposition', 'group' => 'Planung'],
-            'planning' => ['title' => 'Ressourcen & Kapazität', 'icon' => 'layers', 'segment' => 'Disposition'],
-            'duty' => ['title' => 'Leitstelle', 'icon' => 'activity', 'segment' => 'Disposition'],
-            'customers' => ['title' => 'Kunden', 'icon' => 'briefcase', 'segment' => 'Kunden'],
-            'people' => ['title' => 'Personal', 'icon' => 'users', 'segment' => 'Personal', 'group' => 'Personal'],
-            'personnel-processes' => ['title' => 'Personalprozesse', 'icon' => 'check-square', 'segment' => 'Personal', 'group' => 'Personal'],
-            'leave' => ['title' => 'Urlaub & Konten', 'icon' => 'calendar', 'segment' => 'Personal', 'group' => 'Zeitwirtschaft'],
-            'time-review' => ['title' => 'Zeitprüfung', 'icon' => 'check-circle', 'segment' => 'Personal', 'group' => 'Zeitwirtschaft'],
-            'payroll' => ['title' => 'Monatsabschluss & Export', 'icon' => 'download', 'segment' => 'Personal', 'group' => 'Zeitwirtschaft'],
-            'documents' => ['title' => 'Dateien & Unterlagen', 'icon' => 'folder', 'segment' => 'Dokumente'],
+            'attention' => ['title' => 'Arbeitsliste', 'icon' => 'inbox', 'segment' => 'Disposition', 'host' => 'attention', 'assist' => true],
+            'cases' => ['title' => 'Vorgänge & Aufträge', 'icon' => 'clipboard', 'segment' => 'Disposition', 'host' => 'cases', 'assist' => true] + $disposition,
+            'shifts' => ['title' => 'Schichtplanung', 'icon' => 'calendar', 'segment' => 'Disposition', 'group' => 'Planung', 'host' => 'planning'] + $disposition,
+            'planning' => ['title' => 'Ressourcen & Kapazität', 'icon' => 'layers', 'segment' => 'Disposition', 'host' => 'planning', 'assist' => true] + $disposition,
+            'duty' => ['title' => 'Leitstelle', 'icon' => 'activity', 'segment' => 'Disposition', 'host' => 'planning', 'assist' => true] + $disposition,
+            // Customers own their compact header inside the Livewire component.
+            'customers' => ['title' => 'Kunden', 'icon' => 'briefcase', 'segment' => 'Kunden', 'host' => 'customers', 'embedded' => true],
+            'people' => ['title' => 'Personal', 'icon' => 'users', 'segment' => 'Personal', 'group' => 'Personal', 'back' => false, 'topbar_title' => true] + $personnel,
+            'personnel-processes' => ['title' => 'Personalprozesse', 'icon' => 'check-square', 'segment' => 'Personal', 'group' => 'Personal'] + $personnel,
+            'leave' => ['title' => 'Urlaub & Konten', 'icon' => 'calendar', 'segment' => 'Personal', 'group' => 'Zeitwirtschaft'] + $personnel,
+            'time-review' => ['title' => 'Zeitprüfung', 'icon' => 'check-circle', 'segment' => 'Personal', 'group' => 'Zeitwirtschaft'] + $personnel,
+            'payroll' => ['title' => 'Monatsabschluss & Export', 'icon' => 'download', 'segment' => 'Personal', 'group' => 'Zeitwirtschaft'] + $personnel,
+            'documents' => ['title' => 'Dateien & Unterlagen', 'icon' => 'folder', 'segment' => 'Dokumente', 'host' => 'documents'],
         ];
+    }
+
+    /** Pages mounted by PersonalPageWorkspace. */
+    public static function isPersonalPage(string $page): bool
+    {
+        return (self::definitions()[$page]['host'] ?? null) === 'personal';
     }
 
     public static function views(User $actor, string $page): array
@@ -43,7 +59,7 @@ final class OperationsPages
         if ($page === 'customers') {
             return CustomerWorkspace::availableViews($actor);
         }
-        if (in_array($page, ['people', 'personnel-processes', 'leave', 'time-review', 'payroll'], true)) {
+        if (self::isPersonalPage($page)) {
             return PersonalPageWorkspace::availableViews($actor, $page);
         }
         if ($page === 'documents') {
@@ -78,7 +94,7 @@ final class OperationsPages
             return CaseWorkspace::availableSections($actor);
         }
 
-        return in_array($page, ['people', 'personnel-processes', 'leave', 'time-review', 'payroll'], true)
+        return self::isPersonalPage($page)
             ? PersonalPageWorkspace::availableSections($actor, $page) : [];
     }
 
