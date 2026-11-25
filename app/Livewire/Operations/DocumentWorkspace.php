@@ -2,13 +2,15 @@
 
 namespace App\Livewire\Operations;
 
-use App\Support\Operations\OperationsPages;
+use App\Livewire\Concerns\SyncsWorkspaceUrl;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 class DocumentWorkspace extends Component
 {
+    use SyncsWorkspaceUrl;
+
     #[Locked]
     public string $view = 'files';
 
@@ -23,7 +25,7 @@ class DocumentWorkspace extends Component
         Gate::authorize('files.manage');
         abort_unless(in_array($view, ['files', 'managed'], true), 404);
         $this->view = $view;
-        $this->dispatch('rt-workspace-url', url: OperationsPages::url('documents', ['view' => $view]));
+        $this->dispatchWorkspaceUrl('documents', ['view' => $view]);
     }
 
     public function render()

@@ -5,6 +5,7 @@ namespace App\Livewire\Operations;
 use App\Livewire\Concerns\ResetsPageOnFilterChange;
 use App\Livewire\Concerns\ResolvesOperationsActor;
 use App\Livewire\Concerns\SortsTable;
+use App\Livewire\Concerns\SyncsWorkspaceUrl;
 use App\Models\Customer;
 use App\Models\User;
 use App\Services\Operations\CustomerProfileData;
@@ -25,7 +26,7 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class CustomerWorkspace extends Component
 {
-    use ResetsPageOnFilterChange, ResolvesOperationsActor, SortsTable, WithoutUrlPagination, WithPagination;
+    use ResetsPageOnFilterChange, ResolvesOperationsActor, SortsTable, SyncsWorkspaceUrl, WithoutUrlPagination, WithPagination;
 
     public const VIEWS = ['master' => 'Übersicht', 'orders' => 'Aufträge', 'inquiries' => 'Anfragen', 'offers' => 'Angebote', 'contacts' => 'Kontakte & Orte', 'conditions' => 'Konditionen', 'communication' => 'Kommunikation', 'documents' => 'Dokumente', 'history' => 'Historie', 'portal' => 'Kundenportal'];
 
@@ -432,8 +433,8 @@ class CustomerWorkspace extends Component
         if (! Route::has('operations.page')) {
             return;
         }
-        $url = route('operations.page', array_filter([
-            'page' => 'customers', 'view' => $this->view,
+        $this->dispatchWorkspaceUrl('customers', [
+            'view' => $this->view,
             'section' => $this->customerId && $this->view === 'portal' ? $this->section : null,
             'customer' => $this->customerId, 'search' => $this->search,
             'status' => $this->activeFilter !== ($this->canManage() ? 'active' : 'all') ? $this->activeFilter : null,
@@ -441,8 +442,7 @@ class CustomerWorkspace extends Component
             'sort' => $this->sortBy !== 'company_name' ? $this->sortBy : null,
             'direction' => $this->sortDir !== 'asc' ? $this->sortDir : null,
             'customersPage' => ($this->paginators['customersPage'] ?? 1) > 1 ? $this->paginators['customersPage'] : null,
-        ], fn ($value) => $value !== null && $value !== ''));
-        $this->dispatch('rt-workspace-url', url: $url);
+        ]);
     }
 
     public function render()

@@ -3,6 +3,7 @@
 namespace App\Livewire\Operations;
 
 use App\Livewire\Concerns\ResolvesOperationsActor;
+use App\Livewire\Concerns\SyncsWorkspaceUrl;
 use App\Models\AbsenceRequest;
 use App\Models\EmployeeQualification;
 use App\Models\OperationsMonthClosing;
@@ -22,7 +23,6 @@ use App\Services\Operations\PersonnelScopeService;
 use App\Services\Operations\WorkforceAccountService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsEnhancementsSchema;
-use App\Support\Operations\OperationsPages;
 use App\Support\Operations\WorkTimeSchema;
 use Illuminate\Support\Facades\Schema;
 use Livewire\Attributes\Locked;
@@ -30,7 +30,7 @@ use Livewire\Component;
 
 class PersonalPageWorkspace extends Component
 {
-    use ResolvesOperationsActor;
+    use ResolvesOperationsActor, SyncsWorkspaceUrl;
 
     #[Locked]
     public string $page = 'people';
@@ -209,7 +209,7 @@ class PersonalPageWorkspace extends Component
     private function syncUrl(): void
     {
         $context = array_diff_key($this->context, array_flip(['user', 'user_id']));
-        $this->dispatch('rt-workspace-url', url: OperationsPages::url($this->page, ['view' => $this->view, 'section' => $this->section, 'user' => $this->userId ?: null] + $context));
+        $this->dispatchWorkspaceUrl($this->page, ['view' => $this->view, 'section' => $this->section, 'user' => $this->userId ?: null] + $context);
     }
 
     private function validateRecordContext(): void

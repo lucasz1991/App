@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Operations;
 
+use App\Livewire\Concerns\SyncsWorkspaceUrl;
 use App\Models\Shift;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsNavigation;
@@ -13,6 +14,8 @@ use Livewire\Component;
 
 class PlanningPageWorkspace extends Component
 {
+    use SyncsWorkspaceUrl;
+
     #[Locked]
     public string $page = 'planning';
 
@@ -83,7 +86,7 @@ class PlanningPageWorkspace extends Component
 
     private function syncUrl(): void
     {
-        $this->dispatch('rt-workspace-url', url: OperationsPages::url($this->page, ['view' => $this->view, 'section' => $this->section] + $this->context));
+        $this->dispatchWorkspaceUrl($this->page, ['view' => $this->view, 'section' => $this->section] + $this->context);
     }
 
     public function render()

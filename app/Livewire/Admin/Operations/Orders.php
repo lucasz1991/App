@@ -8,6 +8,7 @@ use App\Enums\ShiftAssignmentStatus;
 use App\Enums\ShiftStatus;
 use App\Livewire\Concerns\ResetsPageOnFilterChange;
 use App\Livewire\Concerns\SortsTable;
+use App\Livewire\Concerns\SyncsWorkspaceUrl;
 use App\Models\Customer;
 use App\Models\OperationInquiry;
 use App\Models\Order;
@@ -16,7 +17,6 @@ use App\Models\ShiftAssignment;
 use App\Services\Operations\OrderLifecycleService;
 use App\Services\Operations\OrderSchedulingService;
 use App\Support\Operations\OperationsEnhancementsSchema;
-use App\Support\Operations\OperationsPages;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
@@ -34,6 +34,7 @@ class Orders extends Component
     use SupportsServiceTableSelection;
     use ResetsPageOnFilterChange;
     use SortsTable;
+    use SyncsWorkspaceUrl;
     use WithPagination;
 
     public string $search = '';
@@ -461,13 +462,13 @@ class Orders extends Component
             $this->scopedQuery()->findOrFail($this->selectedOrderId);
         }
         $proofId = $this->detailOpen && $this->detailSection === 'proofs' ? $this->fulfilmentRecordId : null;
-        $this->dispatch('rt-workspace-url', url: OperationsPages::url('cases', [
+        $this->dispatchWorkspaceUrl('cases', [
             'view' => 'orders', 'section' => $this->selectedOrderId ? $this->detailSection : 'overview',
             'customer' => $this->customerFilterId, 'search' => $state['search'],
             'status' => $state['status'] === 'all' ? null : $state['status'], 'order' => $this->selectedOrderId,
             'record' => $proofId, 'record_type' => $proofId ? 'proof' : null,
             'from' => $state['from'], 'until' => $state['until'],
-        ]));
+        ]);
     }
 
     public function saveOrder(OrderSchedulingService $schedulingService): void

@@ -4,6 +4,7 @@ namespace App\Livewire\Operations;
 
 use App\Livewire\Admin\Operations\Orders;
 use App\Livewire\Concerns\ResolvesOperationsActor;
+use App\Livewire\Concerns\SyncsWorkspaceUrl;
 use App\Models\AiIntake;
 use App\Models\Customer;
 use App\Models\CustomerCapacityReservation;
@@ -30,7 +31,7 @@ use Livewire\Component;
 
 class CaseWorkspace extends Component
 {
-    use ResolvesOperationsActor;
+    use ResolvesOperationsActor, SyncsWorkspaceUrl;
 
     #[Locked]
     public string $view = 'inbox';
@@ -305,9 +306,9 @@ class CaseWorkspace extends Component
 
     private function syncServicesViewUrl(bool $active): void
     {
-        $this->dispatch('rt-workspace-url', url: OperationsPages::url('cases', [
+        $this->dispatchWorkspaceUrl('cases', [
             'view' => 'shifts', 'section' => 'plan', 'services' => $active ? '1' : null,
-        ] + $this->context));
+        ] + $this->context);
     }
 
     public function setSection(string $section): void

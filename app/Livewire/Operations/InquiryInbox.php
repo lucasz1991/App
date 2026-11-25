@@ -4,6 +4,7 @@ namespace App\Livewire\Operations;
 
 use App\Livewire\Concerns\ResetsPageOnFilterChange;
 use App\Livewire\Concerns\SortsTable;
+use App\Livewire\Concerns\SyncsWorkspaceUrl;
 use App\Models\AiIntakeProposal;
 use App\Models\Customer;
 use App\Models\CustomerPortalSubmissionItem;
@@ -23,7 +24,7 @@ use Livewire\WithPagination;
 
 class InquiryInbox extends Component
 {
-    use ResetsPageOnFilterChange, SortsTable, WithPagination;
+    use ResetsPageOnFilterChange, SortsTable, SyncsWorkspaceUrl, WithPagination;
 
     public string $search = '';
 
@@ -244,12 +245,12 @@ class InquiryInbox extends Component
         if ($selectedId) {
             $this->scopedQuery()->findOrFail($selectedId);
         }
-        $this->dispatch('rt-workspace-url', url: OperationsPages::url('cases', [
+        $this->dispatchWorkspaceUrl('cases', [
             'view' => 'inbox', 'section' => 'overview', 'customer' => $this->customerFilterId,
             'search' => $state['search'], 'status' => $state['status'] === 'all' ? null : $state['status'],
             'filter' => $state['filter'] === 'active' ? null : $state['filter'],
             'inquiry' => $selectedId, 'detail' => $selectedId && $state['detail'] !== 'overview' ? $state['detail'] : null,
-        ]));
+        ]);
     }
 
     public function save(InquiryWorkflowService $service): void
