@@ -9,7 +9,7 @@
 <meta name="rt-service-worker-url" content="{{ asset('service-worker.js') }}">
 
 {{-- Wirksame Ton-Zuordnung (Systemstandard, ueberschrieben von den
-     persoenlichen Einstellungen). Wird von public/js/rt-sounds.js gelesen und
+     persoenlichen Einstellungen). Wird von resources/js/rt-sounds.js gelesen und
      nach jedem wire:navigate neu uebernommen. --}}
 <meta name="rt-sound-map" content="{{ json_encode(\App\Support\Sound\SoundLibrary::mapFor(auth()->user()), JSON_THROW_ON_ERROR) }}">
 @auth

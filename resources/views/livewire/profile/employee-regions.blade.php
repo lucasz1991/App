@@ -47,7 +47,6 @@
     }"
     x-on:keydown.escape.stop="if (openedState) closeRegion(); else if (exclusionsOpen) { exclusionsOpen = false; $refs.exclusionToggle.focus(); }"
     x-on:resize.window="closeRegion(false)">
-    @include('livewire.profile.partials.employee-regions-styles')
     <header class="rt-regions__header"><h2>Einsatzgebiete</h2></header>
     @if(!$ready)
         <p role="status" class="rt-regions__message">Einsatzgebiete sind noch nicht eingerichtet.</p>

@@ -1,5 +1,6 @@
-@once
-<style>
+/* Einsatzgebiete (livewire/profile/employee-regions): Karte, Modi, Radius-Panel.
+   Vorher Inline-<style>-Partial im Komponenten-Body; jetzt per app.js importiert,
+   damit es wie zuvor nach den globalen Stylesheets in der Kaskade steht. */
 .rt-regions { --regions-bg:#fff; --regions-surface:#f5f7fa; --regions-text:#17283f; --regions-muted:#697c97; --regions-border:#dce4ee; --regions-preferred:#087f62; --regions-possible:#b65b0b; --regions-emergency:#8551ba; color:var(--regions-text); background:var(--regions-bg); border:1px solid var(--regions-border); border-radius:18px; overflow:hidden; }
 .dark .rt-regions { --regions-bg:#162235; --regions-surface:#1c2b40; --regions-text:#e8edf5; --regions-muted:#a7b5ca; --regions-border:#35465e; --regions-preferred:#47d7b0; --regions-possible:#ffb06a; --regions-emergency:#c7a0ed; }
 .rt-regions [x-cloak] { display:none!important; }
@@ -120,5 +121,3 @@
     .rt-regions__canvas[data-mode=radius] { height:720px; padding-top:350px; }
 }
 @media(prefers-reduced-motion:reduce) { .rt-regions * { transition:none!important; } }
-</style>
-@endonce

@@ -59,7 +59,7 @@ class CallRingingSignalTest extends TestCase
         // Das Ereignis 'call' darf nicht auf einem Einzelanschlag liegen.
         $this->assertSame('ring', SoundLibrary::defaults()['call']);
 
-        $script = File::get(public_path('js/rt-sounds.js'));
+        $script = File::get(resource_path('js/rt-sounds.js'));
 
         // Der Klingelton wiederholt sein Motiv (zwei Durchlaeufe je Aufruf) ...
         $this->assertMatchesRegularExpression('/^\s+ring\s*:\s*function/m', $script);
@@ -73,7 +73,7 @@ class CallRingingSignalTest extends TestCase
 
     public function test_the_caller_hears_a_repeating_ringback_tone(): void
     {
-        $script = File::get(public_path('js/rt-sounds.js'));
+        $script = File::get(resource_path('js/rt-sounds.js'));
 
         // Freizeichen: gerader Ton mit flacher Huellkurve, nicht ausklingend.
         $this->assertMatchesRegularExpression('/^\s+ringback\s*:\s*function/m', $script);

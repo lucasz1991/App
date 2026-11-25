@@ -1,5 +1,7 @@
 /* RailTime Sound-Repertoire: dezente UI-Toene per Web Audio API (keine
-   Audio-Dateien noetig). Stellt window.RTSound bereit:
+   Audio-Dateien noetig). Teil des Vite-Bundles: app.js importiert die Datei
+   direkt nach dem Alpine-Watchdog (Seiteneffekt-Modul, einmal je Seitenleben).
+   Stellt window.RTSound bereit:
 
      RTSound.play('success' | 'message' | 'chat' | 'error' | 'warning' | 'info')
          Spielt den Ton fuer ein EREIGNIS. Welche Klangsignatur dabei erklingt,

@@ -1,6 +1,7 @@
-@php($usesNativePlanning = request()->routeIs('operations.page') && in_array(request()->route('page'), ['cases', 'shifts'], true))
+{{-- Ob die Legacy-Schicht laedt, entscheidet allein App\Support\Ui\LegacyAssets
+     (dieselbe Abfrage nutzt layouts.vendor-scripts). --}}
 <link rel="stylesheet" href="{{ URL::asset('build/css/icons.min.css') }}" />
-@if(!$usesNativePlanning)
+@if(\App\Support\Ui\LegacyAssets::enabled())
 <link rel="stylesheet" href="{{ URL::asset('build/css/tailwind.min.css') }}" />
 <link rel="stylesheet" href="{{ URL::asset('build/libs/apexcharts/apexcharts.css') }}" />
         <link rel="stylesheet" href="https://unpkg.com/trix@2.0.8/dist/trix.css">

@@ -2,9 +2,15 @@
 // Import, also bevor die folgenden Module ausgewertet werden. Ein Fehler in
 // einem dieser Module wird dadurch bereits erfasst (siehe alpine-watchdog.js).
 import './alpine-watchdog';
+// Ton-Repertoire (window.RTSound) direkt danach: der Sound-Store unten liest
+// window.RTSound schon bei seiner Registrierung (vorher public/js/rt-sounds.js
+// als klassisches Skript, das vor diesem Modul lief).
+import './rt-sounds';
 import './bootstrap';
 import { communicationModule } from './communication-module';
 import '../css/communication-module.css';
+// Einsatzgebiete-Karte: wie zuvor das Inline-<style> NACH den globalen Bundles.
+import '../css/employee-regions.css';
 // Meldungen (swal:toast/swal:alert/showAlert) auf SweetAlert2. Frueh
 // importieren, damit auch Meldungen aus dem Seitenaufbau ankommen.
 import './rt-alerts';

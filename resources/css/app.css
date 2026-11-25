@@ -10,8 +10,7 @@
 @import './operations-workspace.css';
 @import './operations-calendar.css';
 @import './operations-planning.css';
-@import './service-detail-panel.css';
-@import './service-detail-summary.css';
+@import './service-detail.css';
 @import './timeline-planning-actions.css';
 @import './timeline-filters.css';
 @import './date-field.css';

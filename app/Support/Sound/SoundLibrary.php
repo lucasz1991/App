@@ -8,7 +8,7 @@ use App\Models\User;
 /**
  * Fuehrende Quelle fuer alle Ton-Schluessel.
  *
- * Die Signaturen werden in public/js/rt-sounds.js per Web Audio erzeugt (es
+ * Die Signaturen werden in resources/js/rt-sounds.js per Web Audio erzeugt (es
  * gibt bewusst keine Audiodateien). Diese Klasse haelt genau dieselben
  * Schluessel und ist dadurch die einzige Stelle, an der Ereignisse oder
  * Signaturen ergaenzt werden muessen. Ein Test vergleicht beide Listen.
