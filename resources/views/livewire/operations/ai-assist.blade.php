@@ -284,37 +284,7 @@
                 @else
                     <x-operations.activity-toolbar :value="$activityFilter" model="activityFilter" :dropdown-id="$panelId.'-activity-filter'" />
                     <div class="rt-ai-assist__scroll">
-                        @if($activity->isEmpty())
-                            <p class="rt-ai-assist__note">Noch keine Aktivitäten. Übernommene Vorschläge und AI-Eingänge erscheinen hier.</p>
-                        @else
-                            @php
-                                $zone = config('operations.display_timezone', 'Europe/Berlin');
-                                $today = \Carbon\CarbonImmutable::now($zone)->toDateString();
-                                $yesterday = \Carbon\CarbonImmutable::now($zone)->subDay()->toDateString();
-                                $group = null;
-                            @endphp
-                            <ol class="rt-ai-assist__activity">
-                                @foreach($activity as $item)
-                                    @php
-                                        $local = $item['at']->setTimezone($zone);
-                                        $day = $local->toDateString() === $today ? 'Heute' : ($local->toDateString() === $yesterday ? 'Gestern' : $local->format('d.m.Y'));
-                                    @endphp
-                                    @if($day !== $group)
-                                        @php
-                                            $group = $day;
-                                        @endphp
-                                        <li class="rt-ai-assist__activity-group">{{ $day }}</li>
-                                    @endif
-                                    <li>
-                                        @if($item['href'])<a class="rt-ai-assist__activity-item" href="{{ $item['href'] }}">@else<div class="rt-ai-assist__activity-item">@endif
-                                            <span class="rt-ai-assist__activity-icon" data-tone="{{ $item['tone'] }}"><i class="far {{ $item['icon'] }}" aria-hidden="true"></i></span>
-                                            <span class="rt-ai-assist__activity-text"><strong>{{ $item['title'] }}</strong><small>{{ $item['detail'] }}</small>@if($item['intake_id'] ?? null)<small>AI-Eingang #{{ $item['intake_id'] }}</small>@endif</span>
-                                            <span class="rt-ai-assist__activity-side"><span>{{ $local->format('H:i') }}</span><span class="rt-ai-assist__badge" data-tone="{{ $item['tone'] }}">{{ $item['status'] }}</span></span>
-                                        @if($item['href'])</a>@else</div>@endif
-                                    </li>
-                                @endforeach
-                            </ol>
-                        @endif
+                        <x-operations.ai-activity-list :items="$activity" empty="Noch keine Aktivitäten. Übernommene Vorschläge und AI-Eingänge erscheinen hier." />
                     </div>
                 @endif
             </div>

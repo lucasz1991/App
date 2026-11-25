@@ -2,7 +2,7 @@
 
 namespace App\Livewire\Tools;
 
-use App\Livewire\Tools\Concerns\InteractsWithOperationsAssist;
+use App\Livewire\Concerns\InteractsWithOperationsAssist;
 use App\Models\User;
 use App\Services\Ai\AssistantApplicationTools;
 use App\Services\Ai\AssistantKnowledgeToolRunner;

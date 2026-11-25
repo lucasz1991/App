@@ -2,12 +2,12 @@
 
 namespace App\Livewire\Operations;
 
+use App\Livewire\Concerns\ManagesAssistantUploads;
 use App\Livewire\Concerns\ResolvesOperationsActor;
 use App\Models\AiIntake;
 use App\Models\User;
 use App\Services\Ai\AssistantSpeechException;
 use App\Services\Ai\Attachments\AssistantAttachmentException;
-use App\Services\Ai\Attachments\AssistantAttachmentProcessor;
 use App\Services\Ai\OpenRouterChatException;
 use App\Services\Operations\AiIntakeAssistantService;
 use App\Services\Operations\AiIntakeMessageContent;
@@ -21,7 +21,6 @@ use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Component;
-use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
@@ -29,7 +28,7 @@ use Throwable;
 /** Questions and explicit recognition guidance for one selected intake. */
 class AiIntakeAssistant extends Component
 {
-    use ResolvesOperationsActor, WithFileUploads;
+    use ManagesAssistantUploads, ResolvesOperationsActor, WithFileUploads;
 
     #[Locked]
     public ?int $intakeId = null;
@@ -163,54 +162,12 @@ class AiIntakeAssistant extends Component
 
     public function updatedUploads(): void
     {
-        $this->actor();
-        if (! $this->uploadsCurrent()) {
-            return;
-        }
-        try {
-            $this->validate(['uploads' => 'array|max:3', 'uploads.*' => 'file|max:10240']);
-            // Audio is handled by the configured speech router only on explicit submission.
-            $documents = array_filter($this->uploads, fn ($file) => ! in_array(strtolower($file->getClientOriginalExtension()), ['wav', 'mp3', 'ogg', 'webm', 'm4a', 'mp4', 'aac', 'flac'], true));
-            app(AssistantAttachmentProcessor::class)->validate(array_values($documents));
-        } catch (AssistantAttachmentException $error) {
-            $this->addError('uploads', $error->userMessage);
-        }
+        $this->validateAssistantUploads();
     }
 
     public function updatedAudioUpload(): void
     {
-        $this->actor();
-        if ($this->uploadsCurrent()) {
-            $this->validate(['audioUpload' => 'nullable|file|max:8192']);
-        }
-    }
-
-    public function removeUpload(int $index): void
-    {
-        $this->actor();
-        if (isset($this->uploads[$index])) {
-            if (! $this->uploads[$index] instanceof TemporaryUploadedFile || ! $this->uploads[$index]->delete()) {
-                $this->addError('uploads', 'Die temporäre Datei konnte nicht entfernt werden. Bitte erneut versuchen.');
-
-                return;
-            }
-            unset($this->uploads[$index]);
-            $this->uploads = array_values($this->uploads);
-        }
-        $this->resetValidation(['uploads', 'uploads.*']);
-    }
-
-    public function removeAudio(): void
-    {
-        $this->actor();
-        if ($this->audioUpload && (! $this->audioUpload instanceof TemporaryUploadedFile || ! $this->audioUpload->delete())) {
-            $this->addError('audioUpload', 'Die temporäre Aufnahme konnte nicht entfernt werden. Bitte erneut versuchen.');
-
-            return;
-        }
-        $this->audioUpload = null;
-        $this->resetValidation('audioUpload');
-        $this->dispatch('ai-intake-composer-audio-removed', componentId: $this->getId());
+        $this->validateAssistantAudioUpload();
     }
 
     public function discardUploads(): void
@@ -300,7 +257,7 @@ class AiIntakeAssistant extends Component
     private function validatePrompt(): void
     {
         $this->validate(['prompt' => ($this->uploads !== [] || $this->audioUpload ? 'nullable' : 'required').'|string|max:2000']);
-        if (($this->uploads !== [] || $this->audioUpload) && ! $this->uploadsCurrent()) {
+        if (($this->uploads !== [] || $this->audioUpload) && ! $this->assistantUploadsCurrent()) {
             throw ValidationException::withMessages(['uploads' => 'Die Dateien gehören nicht mehr zum ausgewählten Eingang. Bitte erneut hinzufügen.']);
         }
     }
@@ -314,7 +271,8 @@ class AiIntakeAssistant extends Component
         return implode(':', [$this->intakeId, $this->intakeRevision, $this->sourceRevision, $this->settingsRevision]);
     }
 
-    private function uploadsCurrent(): bool
+    /** Zusätzliche Dateien gehören immer zum Eingang, für den sie ausgewählt wurden. */
+    protected function assistantUploadsCurrent(): bool
     {
         $intake = $this->current();
         if ((! $intake && (! $this->overview || $this->intakeId || $this->contextChanged)) || $this->uploadContext === '' || $this->uploadContext !== $this->contextKey()) {
@@ -327,24 +285,16 @@ class AiIntakeAssistant extends Component
         return true;
     }
 
+    /** Audio is handled by the configured speech router only on explicit submission. */
+    protected function assistantDocumentUploads(): array
+    {
+        return array_values(array_filter($this->uploads, fn ($file) => ! in_array(strtolower($file->getClientOriginalExtension()), ['wav', 'mp3', 'ogg', 'webm', 'm4a', 'mp4', 'aac', 'flac'], true)));
+    }
+
     private function discardTemporaryUploads(): void
     {
-        $remaining = [];
-        foreach ($this->uploads as $file) {
-            if ($file instanceof TemporaryUploadedFile && ! $file->delete()) {
-                $remaining[] = $file;
-            }
-        }
-        $this->uploads = $remaining;
-        if ($this->audioUpload instanceof TemporaryUploadedFile && ! $this->audioUpload->delete()) {
-            $this->addError('audioUpload', 'Die temporäre Aufnahme konnte nicht entfernt werden. Bitte erneut entfernen.');
-        } else {
-            $this->audioUpload = null;
-        }
+        $this->discardAssistantUploads();
         $this->uploadContext = '';
-        if ($remaining !== []) {
-            $this->addError('uploads', 'Eine temporäre Datei konnte nicht entfernt werden. Bitte erneut entfernen.');
-        }
     }
 
     private function actor(): User

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Livewire\Tools\Concerns;
+namespace App\Livewire\Concerns;
 
 use App\Livewire\Operations\AiIntakeInbox;
 use App\Models\AiIntake;

@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Operations;
 
+use App\Livewire\Concerns\ManagesAssistantUploads;
 use App\Livewire\Concerns\ResolvesOperationsActor;
 use App\Models\AiIntake;
 use App\Models\Customer;
@@ -18,6 +19,7 @@ use App\Support\Operations\AiIntakeSchema;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsPages;
 use Carbon\CarbonImmutable;
+use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
@@ -38,7 +40,7 @@ use Throwable;
  */
 class AiAssist extends Component
 {
-    use ResolvesOperationsActor, WithFileUploads;
+    use ManagesAssistantUploads, ResolvesOperationsActor, WithFileUploads;
 
     private const SESSION = 'operations.ai_assist.messages';
 
@@ -183,15 +185,11 @@ class AiAssist extends Component
     public function run(string $action): void
     {
         $actor = $this->actor();
-        $lock = Cache::lock('operations:assist:'.session()->getId().':'.$actor->id, 60);
-        abort_unless($lock->get(), 409, 'Der Assistent bearbeitet gerade eine Aktion. Bitte kurz warten.');
-        try {
+        $this->withAssistLock($actor, function () use ($action, $actor): void {
             $this->runAction($action, $actor);
             $this->prompt = '';
             $this->dispatch('ai-intake-composer-submitted', componentId: $this->getId());
-        } finally {
-            $lock->release();
-        }
+        });
     }
 
     private function runAction(string $action, User $actor): void
@@ -210,13 +208,7 @@ class AiAssist extends Component
     public function ask(string $text): void
     {
         $actor = $this->actor();
-        $lock = Cache::lock('operations:assist:'.session()->getId().':'.$actor->id, 60);
-        abort_unless($lock->get(), 409, 'Der Assistent bearbeitet gerade eine Aktion. Bitte kurz warten.');
-        try {
-            $this->askText($text, $actor);
-        } finally {
-            $lock->release();
-        }
+        $this->withAssistLock($actor, fn () => $this->askText($text, $actor));
     }
 
     private function askText(string $text, User $actor): void
@@ -228,17 +220,14 @@ class AiAssist extends Component
     public function submitChat(): void
     {
         $actor = $this->actor();
-        $lock = Cache::lock('operations:assist:'.session()->getId().':'.$actor->id, 60);
+        $lock = $this->assistLock($actor);
         abort_unless($lock->get(), 409, 'Der Assistent bearbeitet gerade eine Aktion. Bitte kurz warten.');
         try {
             $this->resetValidation(['prompt', 'uploads', 'uploads.*', 'audioUpload']);
             $hasAttachment = $this->uploads !== [] || $this->audioUpload !== null;
             $this->validate([
                 'prompt' => [$hasAttachment ? 'nullable' : 'required', 'string', 'max:500'],
-                'uploads' => ['array', 'max:3'],
-                'uploads.*' => ['file', 'max:10240'],
-                'audioUpload' => ['nullable', 'file', 'max:8192'],
-            ]);
+            ] + $this->assistantUploadRules());
             if ($this->uploads !== []) {
                 app(AssistantAttachmentProcessor::class)->validate($this->uploads);
             }
@@ -275,7 +264,7 @@ class AiAssist extends Component
             }
             $this->answerText($text, $actor, $attachmentMetadata);
             $this->prompt = '';
-            $this->discardChatUploads();
+            $this->discardAssistantUploads();
             $this->dispatch('ai-intake-composer-submitted', componentId: $this->getId());
         } catch (AssistantAttachmentException $error) {
             $this->addError('uploads', $error->userMessage);
@@ -297,51 +286,12 @@ class AiAssist extends Component
 
     public function updatedUploads(): void
     {
-        $this->actor();
-        $this->resetValidation(['uploads', 'uploads.*']);
-        $this->validate(['uploads' => ['array', 'max:3'], 'uploads.*' => ['file', 'max:10240']]);
-        try {
-            app(AssistantAttachmentProcessor::class)->validate($this->uploads);
-        } catch (AssistantAttachmentException $error) {
-            $this->addError('uploads', $error->userMessage);
-        }
+        $this->validateAssistantUploads();
     }
 
     public function updatedAudioUpload(): void
     {
-        $this->actor();
-        $this->resetValidation('audioUpload');
-        $this->validate(['audioUpload' => ['nullable', 'file', 'max:8192']]);
-    }
-
-    public function removeUpload(int $index): void
-    {
-        $this->actor();
-        if (! isset($this->uploads[$index])) {
-            return;
-        }
-        $file = $this->uploads[$index];
-        if (! $file instanceof TemporaryUploadedFile || ! $file->delete()) {
-            $this->addError('uploads', 'Die temporäre Datei konnte nicht entfernt werden. Bitte erneut versuchen.');
-
-            return;
-        }
-        unset($this->uploads[$index]);
-        $this->uploads = array_values($this->uploads);
-        $this->resetValidation(['uploads', 'uploads.*']);
-    }
-
-    public function removeAudio(): void
-    {
-        $this->actor();
-        if ($this->audioUpload instanceof TemporaryUploadedFile && ! $this->audioUpload->delete()) {
-            $this->addError('audioUpload', 'Die temporäre Aufnahme konnte nicht entfernt werden. Bitte erneut entfernen.');
-
-            return;
-        }
-        $this->audioUpload = null;
-        $this->resetValidation('audioUpload');
-        $this->dispatch('ai-intake-composer-audio-removed', componentId: $this->getId());
+        $this->validateAssistantAudioUpload();
     }
 
     private function answerText(string $text, User $actor, array $attachments = []): void
@@ -379,34 +329,11 @@ class AiAssist extends Component
         $this->push(['role' => 'assistant', 'action' => $known ? $action : null] + ($known ? $service->answer($action, $actor, $this->context()) : $service->help()));
     }
 
-    private function discardChatUploads(): void
-    {
-        $remaining = [];
-        foreach ($this->uploads as $file) {
-            if (! $file instanceof TemporaryUploadedFile || ! $file->delete()) {
-                $remaining[] = $file;
-                $this->addError('uploads', 'Eine temporäre Datei konnte nicht entfernt werden. Bitte erneut entfernen.');
-            }
-        }
-        $this->uploads = $remaining;
-        if ($this->audioUpload instanceof TemporaryUploadedFile && ! $this->audioUpload->delete()) {
-            $this->addError('audioUpload', 'Die temporäre Aufnahme konnte nicht entfernt werden. Bitte erneut entfernen.');
-        } else {
-            $this->audioUpload = null;
-        }
-    }
-
     /** Karten-Aktion auf eine eigene Nachricht: apply | undo | dismiss | tab:… */
     public function act(int $messageId, string $act): void
     {
         $actor = $this->actor();
-        $lock = Cache::lock('operations:assist:'.session()->getId().':'.$actor->id, 60);
-        abort_unless($lock->get(), 409, 'Der Assistent bearbeitet gerade eine Aktion. Bitte kurz warten.');
-        try {
-            $this->actCard($messageId, $act, $actor);
-        } finally {
-            $lock->release();
-        }
+        $this->withAssistLock($actor, fn () => $this->actCard($messageId, $act, $actor));
     }
 
     private function actCard(int $messageId, string $act, User $actor): void
@@ -482,14 +409,10 @@ class AiAssist extends Component
     public function resetConversation(): void
     {
         $actor = $this->actor();
-        $lock = Cache::lock('operations:assist:'.session()->getId().':'.$actor->id, 60);
-        abort_unless($lock->get(), 409, 'Der Assistent bearbeitet gerade eine Aktion. Bitte kurz warten.');
-        try {
+        $this->withAssistLock($actor, function (): void {
             session()->forget(self::SESSION);
             $this->setTab('chat');
-        } finally {
-            $lock->release();
-        }
+        });
     }
 
     public function openSettings(): void
@@ -562,6 +485,23 @@ class AiAssist extends Component
     private function actor(): User
     {
         return $this->freshActor(['operations.manage', 'operations.inquiries.manage']);
+    }
+
+    /** Eine Aktion je Sitzung und Akteur; parallele Aufrufe brechen mit 409 ab. */
+    private function withAssistLock(User $actor, callable $action): void
+    {
+        $lock = $this->assistLock($actor);
+        abort_unless($lock->get(), 409, 'Der Assistent bearbeitet gerade eine Aktion. Bitte kurz warten.');
+        try {
+            $action();
+        } finally {
+            $lock->release();
+        }
+    }
+
+    private function assistLock(User $actor): Lock
+    {
+        return Cache::lock('operations:assist:'.session()->getId().':'.$actor->id, 60);
     }
 
     private function consumeAssistRate(User $actor): void

@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Operations;
 
+use App\Livewire\Concerns\ManagesAssistantUploads;
 use App\Livewire\Concerns\ResetsPageOnFilterChange;
 use App\Livewire\Concerns\ResolvesOperationsActor;
 use App\Models\AiIntake;
@@ -26,14 +27,13 @@ use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Component;
-use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class AiIntakeInbox extends Component
 {
-    use ResetsPageOnFilterChange, ResolvesOperationsActor, WithFileUploads, WithPagination;
+    use ManagesAssistantUploads, ResetsPageOnFilterChange, ResolvesOperationsActor, WithFileUploads, WithPagination;
 
     public const LABELS = ['received' => 'Erfasst', 'analyzing' => 'Wird analysiert', 'review' => 'Prüfung nötig', 'waiting_customer' => 'Antwort ausstehend', 'ready' => 'Vorbereitet', 'paused' => 'Pausiert', 'not_inquiry' => 'Keine Anfrage', 'failed' => 'Verarbeitung prüfen', 'completed' => 'Übernommen'];
 
@@ -425,44 +425,10 @@ class AiIntakeInbox extends Component
         }
     }
 
-    public function removeUpload(int $index): void
-    {
-        $this->actor();
-        abort_unless($index >= 0 && array_key_exists($index, $this->uploads), 422);
-        if (! $this->uploads[$index] instanceof TemporaryUploadedFile || ! $this->uploads[$index]->delete()) {
-            $this->addError('uploads', 'Die temporäre Datei konnte nicht entfernt werden. Bitte erneut versuchen.');
-
-            return;
-        }
-        unset($this->uploads[$index]);
-        $this->uploads = array_values($this->uploads);
-    }
-
-    public function removeAudio(): void
-    {
-        $this->actor();
-        if ($this->audioUpload && (! $this->audioUpload instanceof TemporaryUploadedFile || ! $this->audioUpload->delete())) {
-            $this->addError('audioUpload', 'Die temporäre Aufnahme konnte nicht entfernt werden. Bitte erneut versuchen.');
-
-            return;
-        }
-        $this->audioUpload = null;
-        $this->resetValidation('audioUpload');
-        $this->dispatch('ai-intake-composer-audio-removed', componentId: $this->getId());
-    }
-
     public function discardUploads(): void
     {
         $this->actor();
-        foreach (array_keys($this->uploads) as $index) {
-            $file = $this->uploads[$index];
-            if ($file instanceof TemporaryUploadedFile && $file->delete()) {
-                unset($this->uploads[$index]);
-            } else {
-                $this->addError('uploads', 'Eine temporäre Datei konnte nicht entfernt werden. Bitte erneut versuchen.');
-            }
-        }
-        $this->uploads = array_values($this->uploads);
+        $this->discardAssistantUploads();
         $this->removeAudio();
     }
 
@@ -470,7 +436,7 @@ class AiIntakeInbox extends Component
     {
         $actor = $this->actor();
         AiIntakeSchema::requireReady();
-        $this->validate(['text' => ['nullable', 'string', 'max:20000'], 'contactEmail' => ['nullable', 'email', 'max:254'], 'uploads' => ['array', 'max:3'], 'uploads.*' => ['file', 'max:10240'], 'audioUpload' => ['nullable', 'file', 'max:8192']]);
+        $this->validate(['text' => ['nullable', 'string', 'max:20000'], 'contactEmail' => ['nullable', 'email', 'max:254']] + $this->assistantUploadRules());
         $files = array_values(array_filter([...$this->uploads, $this->audioUpload]));
         if (trim($this->text) === '' && $files === []) {
             $this->addError('text', 'Text eingeben oder eine Datei beziehungsweise Sprachaufnahme hinzufügen.');
