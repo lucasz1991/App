@@ -1,0 +1,332 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Livewire\Concerns;
+
+use App\Models\User;
+use App\Support\OutlookAddin\OutlookAddinAutomaticInsertionPolicy;
+use App\Support\OutlookAddin\OutlookAddinException;
+use App\Support\OutlookAddin\OutlookAddinTemplateChoicesPolicy;
+use App\Support\OutlookAddin\OutlookAddinWordingPolicy;
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Validation\ValidationException;
+use Livewire\Attributes\Locked;
+use Throwable;
+
+/**
+ * Gemeinsame Outlook-Einstellungen (automatische Einfügung, Vorlagenauswahl,
+ * persönliche Vorlagentexte) für das eigene Profil und die verwaltete Person.
+ *
+ * Die nutzende Komponente legt nur fest, WESSEN Einstellungen bearbeitet
+ * werden und WER handelt:
+ *  - outlookTargetUser(): die betroffene Person,
+ *  - outlookManagingActor(): null für Selbstbedienung (…ForSession),
+ *    sonst der handelnde Nutzer (…ForManagedUser inkl. Rechteprüfung).
+ *
+ * AuthorizationException wird nie in eine Hinweiszeile verwandelt, sondern
+ * immer weitergereicht (403).
+ */
+trait ManagesOutlookPreferences
+{
+    #[Locked]
+    public array $preferences = [];
+
+    #[Locked]
+    public string $revision = '';
+
+    #[Locked]
+    public bool $available = false;
+
+    #[Locked]
+    public string $notice = '';
+
+    #[Locked]
+    public array $choiceSelections = [];
+
+    #[Locked]
+    public array $templateOptions = [];
+
+    #[Locked]
+    public string $choicesRevision = '';
+
+    #[Locked]
+    public bool $choicesAvailable = false;
+
+    #[Locked]
+    public string $choicesNotice = '';
+
+    public string $greeting = '';
+
+    public string $farewell = '';
+
+    #[Locked]
+    public bool $showGreeting = false;
+
+    #[Locked]
+    public bool $showFarewell = false;
+
+    #[Locked]
+    public string $wordingRevision = '';
+
+    #[Locked]
+    public bool $wordingAvailable = false;
+
+    #[Locked]
+    public string $wordingNotice = '';
+
+    /** Person, deren Outlook-Einstellungen bearbeitet werden. */
+    abstract protected function outlookTargetUser(): User;
+
+    /** Handelnder Nutzer für den verwalteten Pfad; null = eigenes Profil. */
+    abstract protected function outlookManagingActor(): ?User;
+
+    protected function loadOutlookPreferenceState(OutlookAddinAutomaticInsertionPolicy $policy): void
+    {
+        $this->loadPreferences($policy);
+        $this->loadTemplateChoices();
+        $this->loadWording();
+    }
+
+    public function reloadPreferences(OutlookAddinAutomaticInsertionPolicy $policy): void
+    {
+        $this->resetErrorBag();
+        $this->notice = '';
+        $this->loadPreferences($policy);
+        $this->loadTemplateChoices();
+    }
+
+    public function updatePreference(mixed $group, mixed $field, mixed $enabled): void
+    {
+        $this->resetErrorBag();
+        $this->notice = '';
+        if (! is_string($group) || ! in_array($group, ['newMessages', 'replies'], true)
+            || ! is_string($field) || ! in_array($field, ['signature', 'template'], true) || ! is_bool($enabled)) {
+            throw ValidationException::withMessages(['preferences' => 'Bitte genau eine gültige Outlook-Einstellung auswählen.']);
+        }
+        $policy = app(OutlookAddinAutomaticInsertionPolicy::class);
+        try {
+            $actor = $this->outlookManagingActor();
+            $this->applyPreferences($actor
+                ? $policy->updateForManagedUser($actor, $this->outlookTargetUser(), $group, $field, $enabled, $this->revision)
+                : $policy->updateForSession($this->outlookTargetUser(), $group, $field, $enabled, $this->revision));
+            $this->notice = 'Outlook-Einstellung gespeichert.';
+            $this->loadTemplateChoices();
+        } catch (AuthorizationException $error) {
+            throw $error;
+        } catch (OutlookAddinException $error) {
+            if ($error->errorCode === 'outlook_addin_preferences_conflict') {
+                $this->loadPreferences($policy);
+                $this->loadTemplateChoices();
+                if ($this->available) {
+                    $this->notice = 'Die Einstellungen wurden inzwischen geändert. Der aktuelle Stand wurde geladen. Bitte die gewünschte Änderung erneut auswählen.';
+                }
+            } else {
+                $this->unavailable($error->getMessage());
+            }
+        } catch (Throwable) {
+            $this->unavailable('Die Änderung konnte nicht bestätigt werden. Bitte den aktuellen Stand neu laden.');
+        }
+    }
+
+    public function updateTemplateChoice(mixed $group, mixed $selection): void
+    {
+        $this->resetErrorBag('templateChoices');
+        $this->choicesNotice = '';
+        if (! is_string($group) || ! is_string($selection)) {
+            throw ValidationException::withMessages(['templateChoices' => 'Bitte eine gültige Vorlage auswählen.']);
+        }
+        $policy = app(OutlookAddinTemplateChoicesPolicy::class);
+        try {
+            $actor = $this->outlookManagingActor();
+            $this->applyTemplateChoices($actor
+                ? $policy->updateForManagedUser($actor, $this->outlookTargetUser(), $group, $selection, $this->choicesRevision)
+                : $policy->updateForSession($this->outlookTargetUser(), $group, $selection, $this->choicesRevision));
+            $this->loadPreferences(app(OutlookAddinAutomaticInsertionPolicy::class));
+            $this->choicesNotice = 'Vorlagenauswahl gespeichert.';
+        } catch (ValidationException $error) {
+            $this->loadTemplateChoices();
+            $this->loadPreferences(app(OutlookAddinAutomaticInsertionPolicy::class));
+            throw $error;
+        } catch (AuthorizationException $error) {
+            throw $error;
+        } catch (OutlookAddinException $error) {
+            if ($error->errorCode === 'outlook_addin_template_choices_conflict') {
+                $this->loadTemplateChoices();
+                $this->loadPreferences(app(OutlookAddinAutomaticInsertionPolicy::class));
+                $this->choicesNotice = 'Die Auswahl wurde inzwischen geändert. Bitte die gewünschte Vorlage erneut auswählen.';
+            } else {
+                $this->unavailableTemplateChoices($error->getMessage());
+            }
+        } catch (Throwable) {
+            $this->unavailableTemplateChoices('Die Vorlagenauswahl konnte nicht bestätigt werden. Bitte neu laden.');
+        }
+    }
+
+    private function loadTemplateChoices(): void
+    {
+        $this->choicesNotice = '';
+        $policy = app(OutlookAddinTemplateChoicesPolicy::class);
+        try {
+            $actor = $this->outlookManagingActor();
+            $this->applyTemplateChoices($actor
+                ? $policy->preferencesForManagedUser($actor, $this->outlookTargetUser())
+                : $policy->preferencesForSession($this->outlookTargetUser()));
+        } catch (AuthorizationException $error) {
+            throw $error;
+        } catch (OutlookAddinException $error) {
+            $this->unavailableTemplateChoices($error->getMessage());
+        } catch (Throwable) {
+            $this->unavailableTemplateChoices('Die Vorlagenauswahl ist derzeit nicht verfügbar.');
+        }
+    }
+
+    private function applyTemplateChoices(array $choices): void
+    {
+        $this->choiceSelections = ['newMessages' => $choices['newMessages']['selection'], 'replies' => $choices['replies']['selection']];
+        $this->templateOptions = $choices['templates'];
+        $this->choicesRevision = $choices['revision'];
+        $this->choicesAvailable = true;
+    }
+
+    private function unavailableTemplateChoices(string $message): void
+    {
+        $this->choicesAvailable = false;
+        $this->choiceSelections = $this->templateOptions = [];
+        $this->choicesRevision = '';
+        $this->choicesNotice = $message;
+    }
+
+    public function reloadWording(): void
+    {
+        $this->resetErrorBag(['greeting', 'farewell', 'wording']);
+        $this->wordingNotice = '';
+        $this->loadWording();
+    }
+
+    public function toggleWordingVisibility(string $field): void
+    {
+        if (! in_array($field, ['showGreeting', 'showFarewell'], true)) {
+            throw ValidationException::withMessages(['wording' => 'Bitte eine gültige Anzeige auswählen.']);
+        }
+        $this->resetErrorBag('wording');
+        $this->wordingNotice = '';
+        try {
+            $policy = app(OutlookAddinWordingPolicy::class);
+            $actor = $this->outlookManagingActor();
+            $target = $this->outlookTargetUser();
+            $stored = $actor ? $policy->readForManagedUser($actor, $target) : $policy->readForSession($target);
+            $showGreeting = $field === 'showGreeting' ? ! $this->showGreeting : $this->showGreeting;
+            $showFarewell = $field === 'showFarewell' ? ! $this->showFarewell : $this->showFarewell;
+            $next = $actor
+                ? $policy->updateForManagedUser($actor, $target, $stored['greeting'], $stored['farewell'], $this->wordingRevision, $showGreeting, $showFarewell)
+                : $policy->updateForSession($target, $stored['greeting'], $stored['farewell'], $this->wordingRevision, $showGreeting, $showFarewell);
+            // Deferred text edits remain local until the explicit text save.
+            $this->showGreeting = $next['showGreeting'];
+            $this->showFarewell = $next['showFarewell'];
+            $this->wordingRevision = $next['revision'];
+            $this->wordingNotice = 'Anzeige gespeichert. Gilt beim nächsten Einfügen der Standardvorlage.';
+        } catch (ValidationException $error) {
+            throw $error;
+        } catch (AuthorizationException $error) {
+            throw $error;
+        } catch (OutlookAddinException $error) {
+            $this->wordingNotice = $error->errorCode === 'outlook_addin_wording_conflict'
+                ? 'Inzwischen geändert. Deine Eingabe bleibt erhalten. Bitte den gespeicherten Stand neu laden.'
+                : $error->getMessage();
+        } catch (Throwable) {
+            $this->wordingNotice = 'Die Anzeige konnte nicht bestätigt werden. Bitte neu laden.';
+        }
+    }
+
+    public function saveWording(): void
+    {
+        $this->resetErrorBag(['greeting', 'farewell', 'wording']);
+        $this->wordingNotice = '';
+        try {
+            $policy = app(OutlookAddinWordingPolicy::class);
+            $actor = $this->outlookManagingActor();
+            $wording = $actor
+                ? $policy->updateForManagedUser($actor, $this->outlookTargetUser(), $this->greeting, $this->farewell, $this->wordingRevision)
+                : $policy->updateForSession($this->outlookTargetUser(), $this->greeting, $this->farewell, $this->wordingRevision);
+            $this->applyWording($wording);
+            $this->wordingNotice = 'Persönliche Vorlagentexte gespeichert.';
+        } catch (ValidationException $error) {
+            throw $error;
+        } catch (AuthorizationException $error) {
+            throw $error;
+        } catch (OutlookAddinException $error) {
+            if ($error->errorCode === 'outlook_addin_wording_conflict') {
+                $this->wordingNotice = 'Die Texte wurden inzwischen geändert. Deine Eingabe bleibt erhalten. Lade zuerst die gespeicherten Texte neu.';
+            } else {
+                $this->unavailableWording($error->getMessage());
+            }
+        } catch (Throwable) {
+            $this->unavailableWording('Das Speichern der Texte konnte nicht bestätigt werden. Bitte die gespeicherten Texte neu laden.');
+        }
+    }
+
+    private function loadWording(): void
+    {
+        $user = $this->outlookTargetUser();
+        try {
+            $policy = app(OutlookAddinWordingPolicy::class);
+            $actor = $this->outlookManagingActor();
+            $this->applyWording($actor ? $policy->readForManagedUser($actor, $user) : $policy->readForSession($user));
+        } catch (AuthorizationException $error) {
+            throw $error;
+        } catch (OutlookAddinException $error) {
+            $this->unavailableWording($error->getMessage());
+        } catch (Throwable) {
+            $this->unavailableWording('Die persönlichen Vorlagentexte sind derzeit nicht verfügbar. Bitte später neu laden.');
+        }
+    }
+
+    private function applyWording(array $wording): void
+    {
+        $this->greeting = $wording['greeting'];
+        $this->farewell = $wording['farewell'];
+        $this->showGreeting = $wording['showGreeting'];
+        $this->showFarewell = $wording['showFarewell'];
+        $this->wordingRevision = $wording['revision'];
+        $this->wordingAvailable = true;
+    }
+
+    private function unavailableWording(string $message): void
+    {
+        $this->greeting = $this->farewell = $this->wordingRevision = '';
+        $this->wordingAvailable = false;
+        $this->showGreeting = $this->showFarewell = false;
+        $this->wordingNotice = $message;
+    }
+
+    private function loadPreferences(OutlookAddinAutomaticInsertionPolicy $policy): void
+    {
+        $user = $this->outlookTargetUser();
+        try {
+            $actor = $this->outlookManagingActor();
+            $this->applyPreferences($actor ? $policy->preferencesForManagedUser($actor, $user) : $policy->preferencesForSession($user));
+        } catch (AuthorizationException $error) {
+            throw $error;
+        } catch (OutlookAddinException $error) {
+            $this->unavailable($error->getMessage());
+        } catch (Throwable) {
+            $this->unavailable('Die Outlook-Einstellungen sind derzeit nicht verfügbar. Bitte später neu laden.');
+        }
+    }
+
+    private function applyPreferences(array $preferences): void
+    {
+        $this->preferences = $preferences;
+        $this->revision = $preferences['revision'];
+        $this->available = true;
+    }
+
+    private function unavailable(string $message): void
+    {
+        $this->available = false;
+        $this->preferences = [];
+        $this->revision = '';
+        $this->notice = $message;
+    }
+}

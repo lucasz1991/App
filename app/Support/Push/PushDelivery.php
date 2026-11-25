@@ -139,25 +139,11 @@ class PushDelivery
     protected function unreadCount(User $user): int
     {
         $messages = $user->receivedMessages()->where('status', 1)->count();
+        // Badge-Zahl der Push-Nachricht: zählt bewusst wie bisher auch
+        // Anruf-Chats mit (kein excludingCallChats()).
         $chatMessages = ChatMessage::query()
-            ->join('chat_user', function ($join) use ($user): void {
-                $join->on('chat_user.chat_id', '=', 'chat_messages.chat_id')
-                    ->where('chat_user.user_id', '=', $user->id);
-            })
-            ->where('chat_messages.user_id', '!=', $user->id)
-            ->whereNull('chat_user.hidden_at')
-            ->where(function ($query): void {
-                $query->whereNull('chat_user.joined_at')
-                    ->orWhereColumn('chat_messages.created_at', '>=', 'chat_user.joined_at');
-            })
-            ->where(function ($query): void {
-                $query->whereNull('chat_user.cleared_at')
-                    ->orWhereColumn('chat_messages.created_at', '>=', 'chat_user.cleared_at');
-            })
-            ->where(function ($query): void {
-                $query->whereNull('chat_user.last_read_at')
-                    ->orWhereColumn('chat_messages.created_at', '>', 'chat_user.last_read_at');
-            })
+            ->visibleToParticipant($user)
+            ->unreadByParticipant($user)
             ->count();
 
         return min(999, $messages + $chatMessages);

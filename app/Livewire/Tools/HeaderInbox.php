@@ -3,8 +3,6 @@
 namespace App\Livewire\Tools;
 
 use App\Models\ChatMessage;
-use App\Models\User;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -65,12 +63,10 @@ class HeaderInbox extends Component
         $this->unreadMessagesCount = (clone $unreadMessages)->count();
         $this->latestUnreadMessageId = (int) ($latestUnreadMessage?->id ?? 0);
 
-        $unreadChatMessages = $this->visibleChatMessagesFor($user)
-            ->where('chat_messages.user_id', '!=', $user->id)
-            ->where(function ($query) {
-                $query->whereNull('chat_user.last_read_at')
-                    ->orWhereColumn('chat_messages.created_at', '>', 'chat_user.last_read_at');
-            });
+        $unreadChatMessages = ChatMessage::query()
+            ->visibleToParticipant($user)
+            ->excludingCallChats()
+            ->unreadByParticipant($user);
         $latestUnreadChatMessage = (clone $unreadChatMessages)
             ->select('chat_messages.*')
             ->with('sender:id,name')
@@ -129,30 +125,6 @@ class HeaderInbox extends Component
                 notifications: $notifications,
             );
         }
-    }
-
-    /**
-     * Nachrichten eines nicht ausgeblendeten Chats innerhalb der persoenlichen
-     * Sichtbarkeitsgrenze (Beitritt bzw. spaeteres Leeren des Verlaufs).
-     */
-    protected function visibleChatMessagesFor(User $user): Builder
-    {
-        return ChatMessage::query()
-            ->join('chat_user', function ($join) use ($user): void {
-                $join->on('chat_user.chat_id', '=', 'chat_messages.chat_id')
-                    ->where('chat_user.user_id', '=', $user->id);
-            })
-            ->join('chats', 'chats.id', '=', 'chat_messages.chat_id')
-            ->where('chats.type', '!=', 'call')
-            ->whereNull('chat_user.hidden_at')
-            ->where(function ($query): void {
-                $query->whereNull('chat_user.joined_at')
-                    ->orWhereColumn('chat_messages.created_at', '>=', 'chat_user.joined_at');
-            })
-            ->where(function ($query): void {
-                $query->whereNull('chat_user.cleared_at')
-                    ->orWhereColumn('chat_messages.created_at', '>=', 'chat_user.cleared_at');
-            });
     }
 
     public function render()

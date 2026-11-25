@@ -4,15 +4,8 @@
 
 @section('content')
     @php
-        $profileTabs = [
-            'personal' => ['label' => __('app.personal_data'), 'icon' => 'fad fa-user-edit'],
-            'security' => ['label' => __('app.security'), 'icon' => 'fad fa-shield-alt'],
-            'app' => ['label' => __('app.settings'), 'icon' => 'fad fa-cog'],
-            'outlook' => ['label' => 'Outlook', 'icon' => 'fad fa-envelope'],
-        ];
-        $requestedProfileTab = request('tab', 'personal') === 'sessions'
-            ? 'security'
-            : request('tab', 'personal');
+        $profileTabs = \App\Livewire\Profile\ProfileTabContent::tabDefinitions();
+        $requestedProfileTab = \App\Livewire\Profile\ProfileTabContent::resolveTab(request()->query('tab'));
     @endphp
 
     <x-ui.page
@@ -27,23 +20,13 @@
                 :default="$requestedProfileTab"
                 :force-default="request()->filled('tab')"
                 persist-key="own-profile.tabs"
-                :persist-aliases="['sessions' => 'security']"
+                :persist-aliases="\App\Livewire\Profile\ProfileTabContent::ALIASES"
             >
-            <x-ui.accordion.tab-panel for="personal" content-class="space-y-8">
-                <livewire:profile.profile-tab-content tab="personal" />
-            </x-ui.accordion.tab-panel>
-
-            <x-ui.accordion.tab-panel for="security" content-class="space-y-8">
-                <livewire:profile.profile-tab-content tab="security" />
-            </x-ui.accordion.tab-panel>
-
-            <x-ui.accordion.tab-panel for="app" content-class="space-y-8">
-                <livewire:profile.profile-tab-content tab="app" />
-            </x-ui.accordion.tab-panel>
-
-            <x-ui.accordion.tab-panel for="outlook" content-class="space-y-8">
-                <livewire:profile.profile-tab-content tab="outlook" />
-            </x-ui.accordion.tab-panel>
+            @foreach (array_keys($profileTabs) as $profileTab)
+                <x-ui.accordion.tab-panel :for="$profileTab" content-class="space-y-8">
+                    <livewire:profile.profile-tab-content :tab="$profileTab" :key="'own-profile-tab-'.$profileTab" />
+                </x-ui.accordion.tab-panel>
+            @endforeach
 
             </x-ui.accordion.tabs>
         </div>

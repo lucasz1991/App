@@ -29,15 +29,12 @@ class Communication extends Component
     #[On('inbox:refresh')]
     public function refreshUnread(): void
     {
+        $userId = (int) auth()->id();
+
         $this->unreadCount = ChatMessage::query()
-            ->join('chat_user', fn ($join) => $join->on('chat_user.chat_id', '=', 'chat_messages.chat_id')->where('chat_user.user_id', auth()->id()))
-            ->join('chats', 'chats.id', '=', 'chat_messages.chat_id')
-            ->where('chats.type', '!=', 'call')
-            ->whereNull('chat_user.hidden_at')
-            ->where('chat_messages.user_id', '!=', auth()->id())
-            ->where(fn ($q) => $q->whereNull('chat_user.joined_at')->orWhereColumn('chat_messages.created_at', '>=', 'chat_user.joined_at'))
-            ->where(fn ($q) => $q->whereNull('chat_user.cleared_at')->orWhereColumn('chat_messages.created_at', '>=', 'chat_user.cleared_at'))
-            ->where(fn ($q) => $q->whereNull('chat_user.last_read_at')->orWhereColumn('chat_messages.created_at', '>', 'chat_user.last_read_at'))
+            ->visibleToParticipant($userId)
+            ->excludingCallChats()
+            ->unreadByParticipant($userId)
             ->count();
     }
 

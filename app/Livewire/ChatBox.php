@@ -1153,20 +1153,8 @@ class ChatBox extends Component
 
         if ($chats->isNotEmpty()) {
             $latestMessageIds = ChatMessage::query()
-                ->join('chat_user', function ($join) use ($me): void {
-                    $join->on('chat_user.chat_id', '=', 'chat_messages.chat_id')
-                        ->where('chat_user.user_id', '=', $me->id);
-                })
-                ->whereNull('chat_user.hidden_at')
+                ->visibleToParticipant($me)
                 ->whereIn('chat_messages.chat_id', $chats->pluck('id'))
-                ->where(function ($query): void {
-                    $query->whereNull('chat_user.joined_at')
-                        ->orWhereColumn('chat_messages.created_at', '>=', 'chat_user.joined_at');
-                })
-                ->where(function ($query): void {
-                    $query->whereNull('chat_user.cleared_at')
-                        ->orWhereColumn('chat_messages.created_at', '>=', 'chat_user.cleared_at');
-                })
                 ->groupBy('chat_messages.chat_id')
                 ->selectRaw('MAX(chat_messages.id) as latest_message_id')
                 ->pluck('latest_message_id');

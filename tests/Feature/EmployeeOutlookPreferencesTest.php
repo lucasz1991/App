@@ -254,6 +254,25 @@ final class EmployeeOutlookPreferencesTest extends TestCase
         self::assertSame(0, Setting::count());
     }
 
+    public function test_revoked_permission_makes_visibility_toggle_forbidden_instead_of_a_notice(): void
+    {
+        $manager = $this->manager(['employees.view', 'users.edit']);
+        $this->actingAs($manager);
+        $component = $this->preferencesComponent()->assertSet('wordingAvailable', true);
+        $manager->currentTeam->update(['rbac_permissions' => ['employees.view' => true]]);
+        $component->call('toggleWordingVisibility', 'showGreeting')->assertForbidden();
+        self::assertSame(0, Setting::count());
+    }
+
+    public function test_inactive_manager_cannot_open_managed_outlook_preferences(): void
+    {
+        $manager = $this->manager(['employees.view', 'users.edit']);
+        $manager->forceFill(['status' => false])->save();
+        $this->actingAs($manager);
+        $this->preferencesComponent()->assertForbidden();
+        self::assertSame(0, Setting::count());
+    }
+
     #[DataProvider('revokedStates')]
     public function test_transaction_refresh_rejects_stale_actor_or_target(string $person, array $change): void
     {

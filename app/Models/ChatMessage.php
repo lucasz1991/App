@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -40,6 +41,55 @@ class ChatMessage extends Model
             }
         });
         static::deleting(fn (ChatMessage $message) => abort_if($message->isCall(), 403));
+    }
+
+    /**
+     * Nachrichten, die der Teilnehmer in seinem Verlauf sieht: nicht
+     * ausgeblendeter Chat, innerhalb der persönlichen Sichtbarkeitsgrenze
+     * (Beitritt bzw. späteres Leeren des Verlaufs). Joint chat_user.
+     */
+    public function scopeVisibleToParticipant(Builder $query, User|int $user): Builder
+    {
+        $userId = $user instanceof User ? (int) $user->getKey() : $user;
+
+        return $query
+            ->join('chat_user', function ($join) use ($userId): void {
+                $join->on('chat_user.chat_id', '=', 'chat_messages.chat_id')
+                    ->where('chat_user.user_id', '=', $userId);
+            })
+            ->whereNull('chat_user.hidden_at')
+            ->where(function ($query): void {
+                $query->whereNull('chat_user.joined_at')
+                    ->orWhereColumn('chat_messages.created_at', '>=', 'chat_user.joined_at');
+            })
+            ->where(function ($query): void {
+                $query->whereNull('chat_user.cleared_at')
+                    ->orWhereColumn('chat_messages.created_at', '>=', 'chat_user.cleared_at');
+            });
+    }
+
+    /** Ohne Nachrichten aus Anruf-Chats (chats.type = call). Joint chats. */
+    public function scopeExcludingCallChats(Builder $query): Builder
+    {
+        return $query
+            ->join('chats', 'chats.id', '=', 'chat_messages.chat_id')
+            ->where('chats.type', '!=', 'call');
+    }
+
+    /**
+     * Für den Teilnehmer ungelesene fremde Nachrichten. Setzt den
+     * chat_user-Join aus visibleToParticipant() voraus.
+     */
+    public function scopeUnreadByParticipant(Builder $query, User|int $user): Builder
+    {
+        $userId = $user instanceof User ? (int) $user->getKey() : $user;
+
+        return $query
+            ->where('chat_messages.user_id', '!=', $userId)
+            ->where(function ($query): void {
+                $query->whereNull('chat_user.last_read_at')
+                    ->orWhereColumn('chat_messages.created_at', '>', 'chat_user.last_read_at');
+            });
     }
 
     public function isCall(): bool
