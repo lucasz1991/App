@@ -3,8 +3,8 @@
 namespace App\Livewire\Admin\Marketing;
 
 use App\Enums\MarketingCreativeType;
+use App\Livewire\Concerns\RequiresAdmin;
 use App\Models\MarketingCreative;
-use App\Models\User;
 use App\Services\Marketing\MarketingMotiveService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Validation\Rule;
@@ -17,6 +17,7 @@ use Throwable;
 
 class CreativesIndex extends Component
 {
+    use RequiresAdmin;
     use WithFileUploads;
     use WithPagination;
 
@@ -40,7 +41,7 @@ class CreativesIndex extends Component
 
     public function mount(): void
     {
-        $this->admin();
+        $this->adminActor();
     }
 
     public function updatedSearch(): void
@@ -55,7 +56,7 @@ class CreativesIndex extends Component
 
     public function openCreateMotive(): void
     {
-        $this->admin();
+        $this->adminActor();
         $this->resetCreateDraft();
 
         $this->createDraftReady = true;
@@ -64,7 +65,7 @@ class CreativesIndex extends Component
 
     public function cancelCreateMotive(): void
     {
-        $this->admin();
+        $this->adminActor();
         $this->resetCreateDraft();
     }
 
@@ -74,7 +75,7 @@ class CreativesIndex extends Component
      */
     public function updatedCreateMotiveOpen(bool $open): void
     {
-        $this->admin();
+        $this->adminActor();
 
         if (! $open && $this->createDraftReady) {
             $this->resetCreateDraft();
@@ -83,7 +84,7 @@ class CreativesIndex extends Component
 
     public function createMotive(MarketingMotiveService $motives): void
     {
-        $actor = $this->admin();
+        $actor = $this->adminActor();
         abort_unless($this->createDraftReady && $this->createMotiveOpen, 403);
 
         $this->motiveTitle = trim($this->motiveTitle);
@@ -134,7 +135,7 @@ class CreativesIndex extends Component
 
     public function deleteMotive(string $creativeId, MarketingMotiveService $motives): void
     {
-        $actor = $this->admin();
+        $actor = $this->adminActor();
         $creative = $this->creative($creativeId);
         $title = $creative->title;
 
@@ -150,7 +151,7 @@ class CreativesIndex extends Component
 
     public function render()
     {
-        $this->admin();
+        $this->adminActor();
 
         $search = trim($this->search);
         $selectedType = MarketingCreativeType::tryFrom($this->type);
@@ -177,7 +178,7 @@ class CreativesIndex extends Component
 
     private function creative(string $creativeId): MarketingCreative
     {
-        $this->admin();
+        $this->adminActor();
 
         return MarketingCreative::query()
             ->where('public_id', $creativeId)
@@ -201,13 +202,5 @@ class CreativesIndex extends Component
         if ($notifyClient && $hadActiveDraft) {
             $this->dispatch('filepool:cancelled', model: 'motiveUploads');
         }
-    }
-
-    private function admin(): User
-    {
-        $user = auth()->user();
-        abort_unless($user?->isAdmin(), 403);
-
-        return $user;
     }
 }

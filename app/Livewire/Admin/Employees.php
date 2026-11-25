@@ -2,7 +2,6 @@
 
 namespace App\Livewire\Admin;
 
-use App\Actions\Jetstream\DeleteUser;
 use App\Livewire\Admin\Employees\EmployeeFormModal;
 use App\Livewire\Admin\Employees\EmployeeTeamBulkModal;
 use App\Livewire\Admin\Employees\EmployeeTeamModal;
@@ -13,11 +12,10 @@ use App\Livewire\Concerns\InteractsWithPersonQuickActions;
 use App\Models\Team;
 use App\Models\User;
 use App\Models\UserProfile;
-use App\Services\Operations\PersonnelScopeService;
+use App\Services\Personnel\EmployeeAccountStatusService;
 use App\Services\Personnel\EmployeeTeamService;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -233,92 +231,32 @@ class Employees extends Component
 
     public function activateUser($userId)
     {
-        Gate::authorize('employees.create');
-
-        $user = User::find($userId);
-        if ($user) {
-            app(PersonnelScopeService::class)->authorizeTarget(auth()->user(), $user);
-        }
-
-        // Admin-Konten duerfen nur von Admins verwaltet werden
-        if ($user && $user->isAdmin() && ! auth()->user()->isAdmin()) {
-            abort(403);
-        }
-
-        if ($user && ! $user->status) {
-            $user->update(['status' => true]);
-            $this->dispatch('swal:toast', type: 'success', text: 'Benutzer erfolgreich aktiviert.');
-        } else {
-            $this->dispatch('swal:toast', type: 'info', text: 'Benutzer ist bereits aktiv.');
-        }
+        $this->dispatchAccountResult(app(EmployeeAccountStatusService::class)->activate(auth()->user(), (int) $userId));
     }
 
     public function deactivateUser($userId)
     {
-        Gate::authorize('employees.create');
-
-        $user = User::find($userId);
-        if ($user) {
-            app(PersonnelScopeService::class)->authorizeTarget(auth()->user(), $user);
-        }
-
-        // Admin-Konten duerfen nur von Admins verwaltet werden
-        if ($user && $user->isAdmin() && ! auth()->user()->isAdmin()) {
-            abort(403);
-        }
-
-        if ($user && $user->status) {
-            $user->update(['status' => false]);
-            $this->dispatch('swal:toast', type: 'success', text: 'Benutzer erfolgreich deaktiviert.');
-        } else {
-            $this->dispatch('swal:toast', type: 'info', text: 'Benutzer ist bereits inaktiv.');
-        }
+        $this->dispatchAccountResult(app(EmployeeAccountStatusService::class)->deactivate(auth()->user(), (int) $userId));
     }
 
     public function deleteUser(int $userId): void
     {
-        Gate::authorize('employees.delete');
+        $result = app(EmployeeAccountStatusService::class)->delete(auth()->user(), $userId);
 
-        $user = User::find($userId);
-
-        if (! $user) {
-            $this->dispatch('swal:toast', type: 'error', text: __('app.user_not_found'));
-
-            return;
+        if ($result['status'] === EmployeeAccountStatusService::DELETED) {
+            $this->selectedEmployees = array_values(array_diff(
+                array_map('intval', $this->selectedEmployees),
+                [$userId]
+            ));
         }
 
-        if ($user->id === auth()->id()) {
-            $this->dispatch('swal:toast', type: 'error', text: __('app.cannot_delete_self'));
+        $this->dispatchAccountResult($result);
+    }
 
-            return;
-        }
-
-        if ($user->isSuperAdmin()) {
-            $this->dispatch('swal:toast', type: 'error', text: __('app.cannot_delete_super_admin'));
-
-            return;
-        }
-
-        try {
-            app(DeleteUser::class)->delete($user);
-        } catch (\Throwable $e) {
-            Log::error('Mitarbeiter konnte nicht geloescht werden.', [
-                'user_id' => $user->id,
-                'deleted_by' => auth()->id(),
-                'error' => $e->getMessage(),
-            ]);
-
-            $this->dispatch('swal:toast', type: 'error', text: __('app.user_delete_failed'));
-
-            return;
-        }
-
-        $this->selectedEmployees = array_values(array_diff(
-            array_map('intval', $this->selectedEmployees),
-            [$userId]
-        ));
-
-        $this->dispatch('swal:toast', type: 'success', text: __('app.user_deleted'));
+    /** @param  array{status: string, type: string, text: string}  $result */
+    private function dispatchAccountResult(array $result): void
+    {
+        $this->dispatch('swal:toast', type: $result['type'], text: $result['text']);
     }
 
     public function getEmployeesProperty()

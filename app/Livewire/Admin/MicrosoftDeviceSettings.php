@@ -2,11 +2,11 @@
 
 namespace App\Livewire\Admin;
 
+use App\Livewire\Concerns\AuthorizesSuperAdminSettings;
 use App\Services\DeviceManagement\MicrosoftDeviceRuntime;
 use App\Services\DeviceManagement\MicrosoftDeviceSettings as MicrosoftDeviceSettingsService;
 use App\Services\DeviceManagement\MicrosoftDeviceSyncScheduler;
 use App\Services\DeviceManagement\MicrosoftDeviceSyncService;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
@@ -14,6 +14,8 @@ use Throwable;
 
 class MicrosoftDeviceSettings extends Component
 {
+    use AuthorizesSuperAdminSettings;
+
     /** @var array<string, mixed> */
     public array $form = [];
 
@@ -22,14 +24,14 @@ class MicrosoftDeviceSettings extends Component
 
     public function mount(): void
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
         $this->reloadForm();
         $this->runtimePollUntil = now()->timestamp + 120;
     }
 
     public function save(): void
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
         $this->resetValidation();
 
         try {
@@ -54,7 +56,7 @@ class MicrosoftDeviceSettings extends Component
 
     public function testConnection(): void
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
         $this->resetValidation('connection');
 
         try {
@@ -66,7 +68,7 @@ class MicrosoftDeviceSettings extends Component
 
     public function syncNow(): void
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
         $this->resetValidation('runtime');
         $runtime = $this->runtimeStatus();
         if (! ($runtime['schema_ready'] ?? false) || ! ($runtime['queue_ready'] ?? false)) {
@@ -88,7 +90,7 @@ class MicrosoftDeviceSettings extends Component
 
     public function testBackgroundProcessing(): void
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
         $this->resetValidation('runtime');
         if (! ($this->runtimeStatus()['queue_ready'] ?? false)) {
             $this->addError('runtime', 'Der Hintergrundtest benötigt eine erreichbare, korrekt eingerichtete Warteschlange. Beheben Sie zuerst die angezeigten Probleme.');
@@ -109,14 +111,8 @@ class MicrosoftDeviceSettings extends Component
 
     public function refreshRuntime(): void
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
         $this->runtimePollUntil = now()->timestamp + 120;
-    }
-
-    private function authorizeSuperAdmin(): void
-    {
-        Gate::authorize('settings.manage');
-        abort_unless(auth()->user()?->isSuperAdmin(), 403);
     }
 
     private function reloadForm(): void
@@ -145,7 +141,7 @@ class MicrosoftDeviceSettings extends Component
 
     public function render()
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
         $runtime = $this->runtimeStatus();
         $runtimePending = in_array(data_get($runtime, 'run.status'), ['queued', 'running'], true)
             || in_array(data_get($runtime, 'worker_probe.status'), ['queued', 'running'], true);

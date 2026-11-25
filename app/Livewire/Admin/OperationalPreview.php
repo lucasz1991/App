@@ -2,17 +2,20 @@
 
 namespace App\Livewire\Admin;
 
+use App\Livewire\Concerns\RequiresAdmin;
 use App\Support\Operations\OperationalPreviewCatalog;
 use App\Support\Operations\OperationsAccess;
 use Livewire\Component;
 
 class OperationalPreview extends Component
 {
+    use RequiresAdmin;
+
     public string $module;
 
     public function mount(string $module): void
     {
-        abort_unless(auth()->user()?->isAdmin(), 403);
+        $this->adminActor();
         abort_unless(in_array($module, OperationalPreviewCatalog::slugs(), true), 404);
 
         $this->module = $module;
@@ -23,7 +26,7 @@ class OperationalPreview extends Component
 
     public function render(OperationalPreviewCatalog $catalog)
     {
-        abort_unless(auth()->user()?->isAdmin(), 403);
+        $this->adminActor();
         // Module navigation needs labels and icons only. Dashboard metrics are
         // intentionally not queried on every operational workspace render.
         $allModules = $catalog->definitions();

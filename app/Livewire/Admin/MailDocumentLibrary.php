@@ -3,8 +3,8 @@
 namespace App\Livewire\Admin;
 
 use App\Enums\MailDocumentKind;
+use App\Livewire\Concerns\RequiresAdmin;
 use App\Models\MailDocument;
-use App\Models\User;
 use App\Support\Mail\MailDocumentArchive;
 use App\Support\Mail\MailDocumentDeletion;
 use App\Support\Mail\MailDocumentDelivery;
@@ -22,6 +22,8 @@ use Livewire\Component;
 /** Lightweight administration before opening an individual mail editor. */
 class MailDocumentLibrary extends Component
 {
+    use RequiresAdmin;
+
     public string $kind = 'template';
 
     public string $search = '';
@@ -62,7 +64,7 @@ class MailDocumentLibrary extends Component
 
     public function boot(): void
     {
-        $this->admin();
+        $this->adminActor();
     }
 
     #[On('mail-delivery-changed')]
@@ -70,13 +72,13 @@ class MailDocumentLibrary extends Component
 
     public function mount(string $initialKind = 'template'): void
     {
-        $this->admin();
+        $this->adminActor();
         $this->kind = MailDocumentKind::tryFrom($initialKind)?->value ?? 'template';
     }
 
     public function selectKind(string $kind): void
     {
-        $this->admin();
+        $this->adminActor();
         abort_unless(MailDocumentKind::tryFrom($kind) !== null, 422);
         $this->kind = $kind;
         $this->historyId = null;
@@ -93,27 +95,27 @@ class MailDocumentLibrary extends Component
 
     public function selectFilter(string $filter): void
     {
-        $this->admin();
+        $this->adminActor();
         abort_unless(in_array($filter, ['all', 'draft', 'released', 'default', 'system', 'outlook', 'available', 'hidden', 'archive'], true), 422);
         $this->filter = $filter;
     }
 
     public function updatedSearch(): void
     {
-        $this->admin();
+        $this->adminActor();
         $this->search = mb_substr($this->search, 0, 120);
     }
 
     public function toggleHistory(string $documentId): void
     {
-        $this->admin();
+        $this->adminActor();
         $document = $this->document($documentId, $this->filter === 'archive');
         $this->historyId = $this->historyId === $document->public_id ? null : $document->public_id;
     }
 
     public function openCreate(?string $sourceId = null, ?string $expectedHash = null): void
     {
-        $this->admin();
+        $this->adminActor();
         $this->resetValidation();
         $this->name = '';
         $this->createSignatureId = '';
@@ -140,7 +142,7 @@ class MailDocumentLibrary extends Component
 
     public function createDraft(OutlookTemplateLibrary $library, MailDocumentSignaturePairing $pairing): void
     {
-        $actor = $this->admin();
+        $actor = $this->adminActor();
         abort_unless($this->createOpen, 403);
         $this->name = trim($this->name);
         $this->validate(['name' => ['required', 'string', 'max:80']], [
@@ -180,7 +182,7 @@ class MailDocumentLibrary extends Component
 
     public function openPairing(string $documentId, string $expectedHash): void
     {
-        $this->admin();
+        $this->adminActor();
         abort_unless(MailDocumentSignatureResolver::available(), 422);
         $this->resetValidation();
         $document = $this->document($documentId);
@@ -198,7 +200,7 @@ class MailDocumentLibrary extends Component
 
     public function savePairing(MailDocumentSignaturePairing $service): void
     {
-        $actor = $this->admin();
+        $actor = $this->adminActor();
         abort_unless($this->pairingOpen && isset($this->pairing['id'], $this->pairing['hash']), 403);
 
         try {
@@ -226,7 +228,7 @@ class MailDocumentLibrary extends Component
 
     public function prepareAction(string $action, string $documentId, string $expectedHash, ?string $versionId = null): void
     {
-        $this->admin();
+        $this->adminActor();
         abort_unless(in_array($action, ['publish', 'default', 'withdraw', 'restore', 'delete', 'archive', 'unarchive'], true), 422);
         if (MailDocumentDelivery::available()) {
             abort_unless(in_array($action, ['publish', 'restore', 'delete', 'withdraw', 'archive', 'unarchive'], true), 422);
@@ -264,7 +266,7 @@ class MailDocumentLibrary extends Component
 
     public function confirmAction(OutlookTemplateLibrary $library, MailDocumentDeletion $deletion): void
     {
-        $actor = $this->admin();
+        $actor = $this->adminActor();
         abort_unless($this->confirmOpen && isset($this->pending['document'], $this->pending['hash']), 403);
         $document = $this->document($this->pending['document'], $this->pending['action'] === 'unarchive');
         $hash = $this->pending['hash'];
@@ -320,7 +322,7 @@ class MailDocumentLibrary extends Component
 
     public function render(): View
     {
-        $this->admin();
+        $this->adminActor();
         $ready = Schema::hasTable('mail_documents');
         $libraryReady = $ready && app(OutlookTemplateLibrary::class)->available();
         $historyReady = $ready && Schema::hasTable('mail_document_versions');
@@ -453,13 +455,5 @@ class MailDocumentLibrary extends Component
     private function showValidation(ValidationException $exception, string $field): void
     {
         $this->addError($field, collect($exception->errors())->flatten()->unique()->implode(' '));
-    }
-
-    private function admin(): User
-    {
-        $actor = auth()->user();
-        abort_unless($actor instanceof User && $actor->isAdmin(), 403);
-
-        return $actor;
     }
 }

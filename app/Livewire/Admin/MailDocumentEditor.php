@@ -3,6 +3,7 @@
 namespace App\Livewire\Admin;
 
 use App\Enums\MailDocumentKind;
+use App\Livewire\Concerns\RequiresAdmin;
 use App\Models\MailDocument;
 use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\EmailCompatibilityAuditor;
@@ -33,6 +34,8 @@ use Throwable;
  */
 class MailDocumentEditor extends Component
 {
+    use RequiresAdmin;
+
     public string $kind = MailDocumentKind::Template->value;
 
     public ?string $slotId = null;
@@ -42,7 +45,7 @@ class MailDocumentEditor extends Component
 
     public function mount(): void
     {
-        abort_unless(auth()->user()?->isAdmin(), 403);
+        $this->adminActor();
 
         $requested = (string) request()->query('dokument', MailDocumentKind::Template->value);
         $this->kind = MailDocumentKind::tryFrom($requested)?->value ?? MailDocumentKind::Template->value;
@@ -53,7 +56,7 @@ class MailDocumentEditor extends Component
 
     public function render()
     {
-        abort_unless(auth()->user()?->isAdmin(), 403);
+        $this->adminActor();
 
         [$documents, $documentSlots] = $this->documentState();
         $current = $documents[$this->kind] ?? null;

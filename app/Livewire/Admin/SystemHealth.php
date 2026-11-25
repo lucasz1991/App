@@ -2,8 +2,8 @@
 
 namespace App\Livewire\Admin;
 
+use App\Livewire\Concerns\AuthorizesSuperAdminSettings;
 use App\Services\SystemHealth\SystemHealthService;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
@@ -11,20 +11,22 @@ use Livewire\Component;
 
 class SystemHealth extends Component
 {
+    use AuthorizesSuperAdminSettings;
+
     /** @var array<int, array<string, mixed>> Safe, server-derived results only. */
     #[Locked]
     public array $rows = [];
 
     public function mount(): void
     {
-        $this->authorizeDiagnostics();
+        $this->authorizeSuperAdminSettings();
         // Mounting a hidden tab must never start a network or worker probe.
         $this->rows = app(SystemHealthService::class)->snapshot();
     }
 
     public function refreshSnapshot(): array
     {
-        $this->authorizeDiagnostics();
+        $this->authorizeSuperAdminSettings();
         $this->rows = app(SystemHealthService::class)->snapshot();
         $this->skipRender();
 
@@ -33,7 +35,7 @@ class SystemHealth extends Component
 
     public function checkOne(string $id, bool $force = false): array
     {
-        $this->authorizeDiagnostics();
+        $this->authorizeSuperAdminSettings();
         $this->authorizeCheck($id);
         $row = app(SystemHealthService::class)->check($id, $force);
         $this->replaceRow($row);
@@ -44,7 +46,7 @@ class SystemHealth extends Component
 
     public function pollCheck(string $id, string $runId): array
     {
-        $this->authorizeDiagnostics();
+        $this->authorizeSuperAdminSettings();
         $this->authorizeCheck($id);
         if (! Str::isUuid($runId)) {
             throw ValidationException::withMessages(['systemHealth' => 'Ungültiger Prüflauf.']);
@@ -55,12 +57,6 @@ class SystemHealth extends Component
         $this->skipRender();
 
         return $row;
-    }
-
-    private function authorizeDiagnostics(): void
-    {
-        Gate::authorize('settings.manage');
-        abort_unless(auth()->user()?->isSuperAdmin(), 403);
     }
 
     private function authorizeCheck(string $id): void
@@ -83,7 +79,7 @@ class SystemHealth extends Component
 
     public function render()
     {
-        $this->authorizeDiagnostics();
+        $this->authorizeSuperAdminSettings();
 
         return view('livewire.admin.system-health');
     }

@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Admin;
 
+use App\Livewire\Concerns\RequiresAdmin;
 use App\Models\MailDocument;
 use App\Support\Mail\MailDocumentDelivery;
 use App\Support\OutlookAddin\OutlookTemplateLibrary;
@@ -13,6 +14,8 @@ use Livewire\Component;
 
 class MailDocumentDeliveryControls extends Component
 {
+    use RequiresAdmin;
+
     #[Locked]
     public string $documentId;
 
@@ -28,7 +31,7 @@ class MailDocumentDeliveryControls extends Component
 
     public function boot(): void
     {
-        abort_unless(auth()->user()?->isAdmin(), 403);
+        $this->adminActor();
     }
 
     public function mount(): void

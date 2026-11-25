@@ -3,8 +3,8 @@
 namespace App\Livewire\Admin\Marketing;
 
 use App\Enums\MarketingCreativeType;
+use App\Livewire\Concerns\RequiresAdmin;
 use App\Models\MarketingCreative;
-use App\Models\User;
 use App\Services\Marketing\MarketingMotiveService;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Locked;
@@ -12,6 +12,8 @@ use Livewire\Component;
 
 class CreativeFiles extends Component
 {
+    use RequiresAdmin;
+
     #[Locked]
     public int $creativeId;
 
@@ -24,7 +26,7 @@ class CreativeFiles extends Component
 
     public function mount(MarketingCreative $creative, MarketingMotiveService $motives): void
     {
-        $actor = $this->admin();
+        $actor = $this->adminActor();
         $pool = $motives->filePoolFor($creative, $actor);
         $creative = $creative->fresh();
 
@@ -36,7 +38,7 @@ class CreativeFiles extends Component
 
     public function saveMetadata(MarketingMotiveService $motives): void
     {
-        $actor = $this->admin();
+        $actor = $this->adminActor();
 
         $validated = $this->validate([
             'title' => ['required', 'string', 'max:160'],
@@ -63,7 +65,7 @@ class CreativeFiles extends Component
 
     public function deleteMotive(MarketingMotiveService $motives): void
     {
-        $actor = $this->admin();
+        $actor = $this->adminActor();
 
         $motives->delete($this->creative(), $actor);
 
@@ -72,7 +74,7 @@ class CreativeFiles extends Component
 
     public function render()
     {
-        $this->admin();
+        $this->adminActor();
         $creative = $this->creative();
 
         return view('livewire.admin.marketing.creative-files', [
@@ -83,13 +85,5 @@ class CreativeFiles extends Component
     private function creative(): MarketingCreative
     {
         return MarketingCreative::query()->findOrFail($this->creativeId);
-    }
-
-    private function admin(): User
-    {
-        $actor = auth()->user();
-        abort_unless($actor instanceof User && $actor->isAdmin(), 403);
-
-        return $actor;
     }
 }

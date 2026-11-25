@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Admin;
 
+use App\Livewire\Concerns\AuthorizesSuperAdminSettings;
 use App\Models\Setting;
 use App\Services\Ai\AssistantSpeechRouter;
 use App\Support\Ai\AssistantSettings;
@@ -18,6 +19,8 @@ use Livewire\Component;
 
 class Settings extends Component
 {
+    use AuthorizesSuperAdminSettings;
+
     #[Locked]
     public string $initialTab = '';
 
@@ -121,7 +124,7 @@ class Settings extends Component
     /** OpenRouter-Verbindung und Modellprofile speichern. */
     public function saveOpenRouter(): void
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
 
         $rules = [
             'openRouter.api_url' => ['required', 'url', 'max:2048'],
@@ -158,7 +161,7 @@ class Settings extends Component
     /** Betriebswerte der Anruffunktion speichern. */
     public function saveCalls(): void
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
 
         $rules = [];
 
@@ -239,7 +242,7 @@ class Settings extends Component
 
     public function saveAssistantSpeechRouting(): void
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
 
         $this->validate([
             'assistantSpeechRouting' => [
@@ -263,7 +266,7 @@ class Settings extends Component
 
     public function refreshAssistantSpeechStatus(): void
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
         $this->assistantSpeechStatus = app(AssistantSpeechRouter::class)->capabilities(refresh: true);
     }
 
@@ -335,11 +338,5 @@ class Settings extends Component
         return view('livewire.admin.settings', [
             'isSuperAdmin' => $this->isSuperAdmin(),
         ])->layout('layouts.master', ['area' => 'admin']);
-    }
-
-    private function authorizeSuperAdmin(): void
-    {
-        Gate::authorize('settings.manage');
-        abort_unless($this->isSuperAdmin(), 403);
     }
 }

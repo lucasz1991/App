@@ -717,6 +717,8 @@ return [
     'user_deactivated' => 'Benutzer erfolgreich deaktiviert.',
     'user_already_inactive' => 'Benutzer ist bereits inaktiv.',
     'cannot_delete_self' => 'Sie können Ihr eigenes Konto nicht löschen.',
+    'cannot_deactivate_self' => 'Sie können Ihr eigenes Konto nicht deaktivieren.',
+    'cannot_deactivate_super_admin' => 'Der primäre Systemadministrator kann nur von einem Super-Admin deaktiviert werden.',
     'cannot_delete_super_admin' => 'Der primäre Systemadministrator kann nicht gelöscht werden.',
     'user_delete_failed' => 'Benutzer konnte nicht gelöscht werden.',
     'user_deleted' => 'Benutzer wurde gelöscht.',

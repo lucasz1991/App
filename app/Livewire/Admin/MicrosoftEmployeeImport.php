@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Admin;
 
+use App\Livewire\Concerns\AuthorizesSuperAdminSettings;
 use App\Services\DeviceManagement\MicrosoftEmployeeImportService;
 use App\Services\DeviceManagement\MicrosoftEmployeeImportSettings;
 use Illuminate\Support\Facades\Gate;
@@ -12,6 +13,8 @@ use Throwable;
 
 class MicrosoftEmployeeImport extends Component
 {
+    use AuthorizesSuperAdminSettings;
+
     public bool $enabled = false;
 
     public string $pilotObjectIds = '';
@@ -23,13 +26,13 @@ class MicrosoftEmployeeImport extends Component
 
     public function mount(): void
     {
-        $this->authorizeAdministrator();
+        $this->authorizeSuperAdminSettings();
         $this->reloadForm();
     }
 
     public function save(): void
     {
-        $this->authorizeAdministrator();
+        $this->authorizeSuperAdminSettings();
         $this->resetValidation();
 
         try {
@@ -58,7 +61,7 @@ class MicrosoftEmployeeImport extends Component
 
     public function preview(): void
     {
-        $this->authorizeAdministrator();
+        $this->authorizeSuperAdminSettings();
         $this->resetValidation('operation');
         $this->confirmInactiveImport = false;
 
@@ -75,7 +78,7 @@ class MicrosoftEmployeeImport extends Component
 
     public function importInactive(): void
     {
-        $this->authorizeAdministrator();
+        $this->authorizeSuperAdminSettings();
         Gate::authorize('employees.create');
         $this->resetValidation('operation');
 
@@ -132,15 +135,9 @@ class MicrosoftEmployeeImport extends Component
         $this->confirmInactiveImport = false;
     }
 
-    private function authorizeAdministrator(): void
-    {
-        Gate::authorize('settings.manage');
-        abort_unless(auth()->user()?->isSuperAdmin() && auth()->user()->isActive(), 403);
-    }
-
     public function render()
     {
-        $this->authorizeAdministrator();
+        $this->authorizeSuperAdminSettings();
 
         return view('livewire.admin.microsoft-employee-import', [
             'importStatus' => app(MicrosoftEmployeeImportSettings::class)->status(),

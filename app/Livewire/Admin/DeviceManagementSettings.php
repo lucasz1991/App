@@ -2,11 +2,11 @@
 
 namespace App\Livewire\Admin;
 
+use App\Livewire\Concerns\AuthorizesSuperAdminSettings;
 use App\Services\DeviceManagement\DeviceIdentitySyncService;
 use App\Services\DeviceManagement\DeviceManagementSettings as DeviceManagementSettingsService;
 use App\Services\DeviceManagement\DeviceProviderDiagnosticsService;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
@@ -16,6 +16,8 @@ use Throwable;
 
 class DeviceManagementSettings extends Component
 {
+    use AuthorizesSuperAdminSettings;
+
     /** @var array<int, string> */
     private const EDITABLE_PROVIDERS = [
         'openuem',
@@ -42,13 +44,13 @@ class DeviceManagementSettings extends Component
 
     public function mount(): void
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
         $this->reloadForm();
     }
 
     public function saveDeployment(): void
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
 
         $validated = $this->validate([
             'deployment.mode' => ['required', 'string', Rule::in(['subdomain', 'port'])],
@@ -105,7 +107,7 @@ class DeviceManagementSettings extends Component
 
     public function saveIdentityDomains(): void
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
 
         $domainPattern = '/\A@?(?:localhost|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*)\z/i';
         $validated = $this->validate([
@@ -131,7 +133,7 @@ class DeviceManagementSettings extends Component
 
     public function saveProvider(string $provider): void
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
         $provider = $this->editableProvider($provider);
 
         $rules = [
@@ -259,7 +261,7 @@ class DeviceManagementSettings extends Component
 
     public function setNanoMdmMobileCommandsEnabled(bool $enabled): void
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
         $provider = $this->editableProvider('nanomdm');
 
         // Der separate Sicherheitsknopf darf keine noch ungespeicherten
@@ -288,7 +290,7 @@ class DeviceManagementSettings extends Component
 
     public function testProvider(string $provider, DeviceProviderDiagnosticsService $diagnostics): void
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
         $provider = $this->editableProvider($provider);
 
         try {
@@ -323,7 +325,7 @@ class DeviceManagementSettings extends Component
 
     public function setProductionCommandsEnabled(bool $enabled): void
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
 
         $this->runSettingsMutation(
             fn (): mixed => app(DeviceManagementSettingsService::class)->setProductionCommandsEnabled($enabled),
@@ -424,7 +426,7 @@ class DeviceManagementSettings extends Component
 
     public function addNativeProfile(): void
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
         $profiles = $this->providers['openuem']['native_profiles'] ?? [];
         if (! is_array($profiles) || count($profiles) >= 128) {
             throw ValidationException::withMessages(['providers.openuem.native_profiles' => 'Maximal 128 Freigaben sind zulässig.']);
@@ -435,7 +437,7 @@ class DeviceManagementSettings extends Component
 
     public function removeNativeProfile(int $index): void
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
         $profiles = $this->providers['openuem']['native_profiles'] ?? [];
         if (! is_array($profiles) || $index < 0 || ! array_key_exists($index, $profiles)) {
             throw ValidationException::withMessages(['providers.openuem.native_profiles' => 'Ungültige Freigabe.']);
@@ -551,11 +553,5 @@ class DeviceManagementSettings extends Component
         } catch (Throwable) {
             throw ValidationException::withMessages([$errorKey => $failureMessage]);
         }
-    }
-
-    private function authorizeSuperAdmin(): void
-    {
-        Gate::authorize('settings.manage');
-        abort_unless(auth()->user()?->isSuperAdmin(), 403);
     }
 }

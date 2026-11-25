@@ -2,7 +2,6 @@
 
 namespace App\Livewire\Admin;
 
-use App\Actions\Jetstream\DeleteUser;
 use App\Livewire\Admin\Employees\EmployeeTeamModal;
 use App\Livewire\Concerns\InteractsWithPersonQuickActions;
 use App\Models\DeviceAssignment;
@@ -10,6 +9,7 @@ use App\Models\User;
 use App\Models\UserProfile as ProfileModel;
 use App\Notifications\EmployeeAccountInvitation;
 use App\Services\Operations\PersonnelScopeService;
+use App\Services\Personnel\EmployeeAccountStatusService;
 use App\Services\Personnel\EmployeePhoneStatusService;
 use App\Services\Personnel\EmployeeTeamService;
 use App\Support\Operations\EmployeeProfileSections;
@@ -262,18 +262,8 @@ class UserProfile extends Component
 
     public function activateUser(): void
     {
-        Gate::authorize('employees.create');
-
-        $this->loadUser();
-        $this->guardAdminAccount($this->user);
-        app(PersonnelScopeService::class)->authorizeTarget(auth()->user(), $this->user);
-
-        if ($this->user && ! $this->user->status) {
-            $this->user->update(['status' => true]);
-            $this->dispatch('swal:toast', type: 'success', text: __('app.user_activated'));
-        } else {
-            $this->dispatch('swal:toast', type: 'info', text: __('app.user_already_active'));
-        }
+        $result = app(EmployeeAccountStatusService::class)->activate(auth()->user(), (int) $this->userId);
+        $this->dispatch('swal:toast', type: $result['type'], text: $result['text']);
 
         $this->loadUser();
     }
@@ -334,65 +324,20 @@ class UserProfile extends Component
 
     public function deactivateUser(): void
     {
-        Gate::authorize('employees.create');
-
-        $this->loadUser();
-        $this->guardAdminAccount($this->user);
-        app(PersonnelScopeService::class)->authorizeTarget(auth()->user(), $this->user);
-
-        if ($this->user && $this->user->status) {
-            $this->user->update(['status' => false]);
-            $this->dispatch('swal:toast', type: 'success', text: __('app.user_deactivated'));
-        } else {
-            $this->dispatch('swal:toast', type: 'info', text: __('app.user_already_inactive'));
-        }
+        $result = app(EmployeeAccountStatusService::class)->deactivate(auth()->user(), (int) $this->userId);
+        $this->dispatch('swal:toast', type: $result['type'], text: $result['text']);
 
         $this->loadUser();
     }
 
     public function deleteUser()
     {
-        Gate::authorize('employees.delete');
+        $result = app(EmployeeAccountStatusService::class)->delete(auth()->user(), (int) $this->userId);
+        $this->dispatch('swal:toast', type: $result['type'], text: $result['text']);
 
-        $user = User::find($this->userId);
-
-        if (! $user) {
-            $this->dispatch('swal:toast', type: 'error', text: __('app.user_not_found'));
-
+        if (in_array($result['status'], [EmployeeAccountStatusService::DELETED, EmployeeAccountStatusService::NOT_FOUND], true)) {
             return $this->redirectRoute($this->employeesRoute(), navigate: true);
         }
-
-        $this->guardAdminAccount($user);
-
-        if ($user->id === auth()->id()) {
-            $this->dispatch('swal:toast', type: 'error', text: __('app.cannot_delete_self'));
-
-            return;
-        }
-
-        if ($user->isSuperAdmin()) {
-            $this->dispatch('swal:toast', type: 'error', text: __('app.cannot_delete_super_admin'));
-
-            return;
-        }
-
-        try {
-            app(DeleteUser::class)->delete($user);
-        } catch (\Throwable $e) {
-            Log::error('Benutzer konnte nicht geloescht werden.', [
-                'user_id' => $user->id,
-                'deleted_by' => auth()->id(),
-                'error' => $e->getMessage(),
-            ]);
-
-            $this->dispatch('swal:toast', type: 'error', text: __('app.user_delete_failed'));
-
-            return;
-        }
-
-        $this->dispatch('swal:toast', type: 'success', text: __('app.user_deleted'));
-
-        return $this->redirectRoute($this->employeesRoute(), navigate: true);
     }
 
     public function saveInlineField(string $field): bool

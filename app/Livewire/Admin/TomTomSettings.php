@@ -2,15 +2,17 @@
 
 namespace App\Livewire\Admin;
 
+use App\Livewire\Concerns\AuthorizesSuperAdminSettings;
 use App\Services\Routing\RoutingUsageService;
 use App\Services\Routing\ServerRoutingCache;
 use App\Services\Routing\TomTomRoutingService;
 use App\Support\Routing\TomTomSettings as Settings;
-use Illuminate\Support\Facades\Gate;
 use Livewire\Component;
 
 class TomTomSettings extends Component
 {
+    use AuthorizesSuperAdminSettings;
+
     public array $config = [];
 
     public string $apiKey = '';
@@ -19,19 +21,13 @@ class TomTomSettings extends Component
 
     public function mount(): void
     {
-        $this->authorizeSettings();
+        $this->authorizeSuperAdminSettings();
         $this->config = Settings::all();
-    }
-
-    private function authorizeSettings(): void
-    {
-        Gate::authorize('settings.manage');
-        abort_unless(auth()->user()?->isActive() && auth()->user()?->isSuperAdmin(), 403);
     }
 
     public function save(): void
     {
-        $this->authorizeSettings();
+        $this->authorizeSuperAdminSettings();
         $before = Settings::all();
         $keyChanged = trim($this->apiKey) !== '';
         try {
@@ -51,7 +47,7 @@ class TomTomSettings extends Component
 
     public function deleteKey(): void
     {
-        $this->authorizeSettings();
+        $this->authorizeSuperAdminSettings();
         Settings::save(Settings::all(), null, true);
         $this->reset('apiKey', 'connection');
         $this->config = Settings::all();
@@ -60,21 +56,21 @@ class TomTomSettings extends Component
 
     public function clearServerCache(): void
     {
-        $this->authorizeSettings();
+        $this->authorizeSuperAdminSettings();
         $removed = app(ServerRoutingCache::class)->clear();
         $this->dispatch('swal:toast', type: 'success', text: 'Server-Cache für alle Nutzer geleert: '.$removed.' Einträge entfernt.');
     }
 
     public function test(): void
     {
-        $this->authorizeSettings();
+        $this->authorizeSuperAdminSettings();
         $result = app(TomTomRoutingService::class)->testConnection();
         $this->connection = ['ok' => ($result['status'] ?? null) === 'known', 'reason' => $result['reason'] ?? null];
     }
 
     public function render()
     {
-        $this->authorizeSettings();
+        $this->authorizeSuperAdminSettings();
 
         return view('livewire.admin.tom-tom-settings', [
             'usage' => app(RoutingUsageService::class)->current(), 'saved' => Settings::all(),

@@ -2,18 +2,19 @@
 
 namespace App\Livewire\Admin;
 
+use App\Livewire\Concerns\AuthorizesSuperAdminSettings;
 use App\Models\AssistantKnowledgeEntry;
 use App\Models\AssistantKnowledgeTopic;
 use App\Services\Ai\AssistantKnowledgePool;
 use App\Support\Ai\AssistantKnowledgeSettings;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 use Livewire\WithPagination;
 
 class AssistantKnowledgeManager extends Component
 {
+    use AuthorizesSuperAdminSettings;
     use WithPagination;
 
     public string $knowledgeIntro = '';
@@ -58,7 +59,7 @@ class AssistantKnowledgeManager extends Component
 
     public function mount(): void
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
         $this->assistantDefaultPrompt = AssistantKnowledgeSettings::defaultPrompt(uncached: true);
         $this->assistantRules = AssistantKnowledgeSettings::rules(uncached: true);
         $this->knowledgeIntro = AssistantKnowledgeSettings::intro(uncached: true);
@@ -66,7 +67,7 @@ class AssistantKnowledgeManager extends Component
 
     public function hydrate(): void
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
     }
 
     public function updatedSearch(): void
@@ -81,7 +82,7 @@ class AssistantKnowledgeManager extends Component
 
     public function savePromptConfiguration(): void
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
         $this->assistantDefaultPrompt = trim($this->assistantDefaultPrompt);
         $this->assistantRules = trim($this->assistantRules);
         $this->validate([
@@ -112,7 +113,7 @@ class AssistantKnowledgeManager extends Component
 
     public function saveIntro(): void
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
         $this->knowledgeIntro = trim($this->knowledgeIntro);
         $this->validate([
             'knowledgeIntro' => ['required', 'string', 'max:1200'],
@@ -129,14 +130,14 @@ class AssistantKnowledgeManager extends Component
 
     public function createTopic(): void
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
         $this->resetTopicForm();
         $this->topicEditorOpen = true;
     }
 
     public function editTopic(int $topicId): void
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
         $topic = AssistantKnowledgeTopic::query()->findOrFail($topicId);
 
         $this->editingTopicId = (int) $topic->getKey();
@@ -149,7 +150,7 @@ class AssistantKnowledgeManager extends Component
 
     public function saveTopic(): void
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
         $this->topicName = trim($this->topicName);
         $this->topicDescription = trim($this->topicDescription);
         $wasEditing = $this->editingTopicId !== null;
@@ -195,7 +196,7 @@ class AssistantKnowledgeManager extends Component
 
     public function deleteTopic(int $topicId): void
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
         $topic = AssistantKnowledgeTopic::query()->findOrFail($topicId);
 
         DB::transaction(function () use ($topic): void {
@@ -218,7 +219,7 @@ class AssistantKnowledgeManager extends Component
 
     public function createEntry(?int $topicId = null): void
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
         $this->resetEntryForm();
 
         $preferredTopic = $topicId
@@ -231,7 +232,7 @@ class AssistantKnowledgeManager extends Component
 
     public function editEntry(int $entryId): void
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
         $entry = AssistantKnowledgeEntry::query()->findOrFail($entryId);
 
         $this->editingEntryId = (int) $entry->getKey();
@@ -249,7 +250,7 @@ class AssistantKnowledgeManager extends Component
 
     public function saveEntry(): void
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
         $this->entryTitle = trim($this->entryTitle);
         $this->entrySummary = trim($this->entrySummary);
         $this->entryContent = trim($this->entryContent);
@@ -325,7 +326,7 @@ class AssistantKnowledgeManager extends Component
 
     public function deleteEntry(int $entryId): void
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
         AssistantKnowledgeEntry::query()->findOrFail($entryId)->delete();
         $this->resetPage();
         $this->dispatch(
@@ -337,7 +338,7 @@ class AssistantKnowledgeManager extends Component
 
     public function render()
     {
-        $this->authorizeSuperAdmin();
+        $this->authorizeSuperAdminSettings();
 
         $topics = AssistantKnowledgeTopic::query()
             ->withCount('entries')
@@ -422,12 +423,6 @@ class AssistantKnowledgeManager extends Component
             'entryActive' => $this->localized('Wissensfreigabe', 'knowledge availability'),
             'entryBaseline' => $this->localized('Basiswissen', 'baseline knowledge'),
         ];
-    }
-
-    private function authorizeSuperAdmin(): void
-    {
-        Gate::authorize('settings.manage');
-        abort_unless(auth()->user()?->isSuperAdmin(), 403);
     }
 
     private function resetTopicForm(): void

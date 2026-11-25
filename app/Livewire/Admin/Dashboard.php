@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Admin;
 
+use App\Livewire\Concerns\RequiresAdmin;
 use App\Models\User;
 use App\Services\DeviceManagement\DeviceFleetSnapshot;
 use App\Support\Dashboard\NativeOperationsDashboard;
@@ -13,6 +14,8 @@ use Livewire\Component;
 
 class Dashboard extends Component
 {
+    use RequiresAdmin;
+
     /**
      * Anzahl der fachlichen Teams (Rechtegruppen).
      *
@@ -41,7 +44,7 @@ class Dashboard extends Component
     ) {
         // Die Route traegt bereits role:admin — diese Pruefung schuetzt den
         // Fall, dass die Komponente anderswo eingebunden wird.
-        abort_unless(auth()->user()?->isAdmin(), 403);
+        $this->adminActor();
 
         $canViewSystemData = auth()->user()->canViewSystemDashboard();
 
@@ -74,8 +77,8 @@ class Dashboard extends Component
      */
     public function loadSystemData(SystemDashboardData $dashboardData): void
     {
-        $user = auth()->user();
-        abort_unless($user?->isAdmin() && $user->canViewSystemDashboard(), 403);
+        $user = $this->adminActor();
+        abort_unless($user->canViewSystemDashboard(), 403);
 
         if ($this->systemLoaded) {
             return;
