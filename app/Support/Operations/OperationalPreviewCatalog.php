@@ -29,6 +29,9 @@ final class OperationalPreviewCatalog
      * avoids loading every dashboard metric whenever an individual module is
      * opened or Livewire re-renders its navigation.
      *
+     * 'icon' is a Feather name (dashboard widget style), 'fa_icon' the
+     * Font Awesome 5 Pro class used by the operational preview navigation.
+     *
      * @return array<string, array<string, string>>
      */
     public function definitions(): array
@@ -39,6 +42,7 @@ final class OperationalPreviewCatalog
                 'title' => __('app.operational_orders'),
                 'description' => __('app.operational_orders_description'),
                 'icon' => 'clipboard',
+                'fa_icon' => 'fa-clipboard',
                 'tone' => 'red',
             ],
             'shift-management' => [
@@ -46,6 +50,7 @@ final class OperationalPreviewCatalog
                 'title' => __('app.shift_management'),
                 'description' => __('app.shift_management_description'),
                 'icon' => 'clock',
+                'fa_icon' => 'fa-clock',
                 'tone' => 'amber',
             ],
             'calendar' => [
@@ -53,6 +58,7 @@ final class OperationalPreviewCatalog
                 'title' => __('app.operational_calendar'),
                 'description' => __('app.operational_calendar_description'),
                 'icon' => 'calendar',
+                'fa_icon' => 'fa-calendar',
                 'tone' => 'blue',
             ],
             'customers' => [
@@ -60,6 +66,7 @@ final class OperationalPreviewCatalog
                 'title' => __('app.customer_database'),
                 'description' => __('app.customer_database_description'),
                 'icon' => 'briefcase',
+                'fa_icon' => 'fa-briefcase',
                 'tone' => 'emerald',
             ],
         ];

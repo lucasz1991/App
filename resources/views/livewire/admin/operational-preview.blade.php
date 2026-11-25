@@ -31,7 +31,7 @@
                     'bg-rt-red text-white' => $slug === $module,
                     'bg-rt-surface-muted text-rt-soft group-hover:text-rt-red dark:bg-rt-dark-surface-muted dark:text-rt-dark-soft' => $slug !== $module,
                 ])>
-                    <i data-feather="{{ $navigationModule['icon'] }}" class="h-4 w-4" aria-hidden="true"></i>
+                    <i class="far {{ $navigationModule['fa_icon'] }} h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                 </span>
                 <span class="truncate">{{ $navigationModule['title'] }}</span>
             </a>

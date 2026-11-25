@@ -9,11 +9,11 @@
         <div class="rounded-2xl border border-rt-border bg-white p-5 shadow-rt-sm dark:border-rt-dark-border dark:bg-rt-dark-surface">
             <div class="flex flex-wrap items-start justify-between gap-4">
                 <div class="flex items-start gap-3">
-                    <span class="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-rt-red/10 text-rt-red"><i data-feather="{{ in_array($device->form_factor,['phone','tablet']) ? 'smartphone' : 'monitor' }}" class="h-7 w-7"></i></span>
+                    <span class="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-rt-red/10 text-rt-red"><i class="far {{ in_array($device->form_factor,['phone','tablet']) ? 'fa-mobile-alt' : 'fa-desktop' }} h-7 w-7 text-2xl leading-7 text-center"></i></span>
                     <div>
                         <h2 class="text-xl font-bold text-rt-text dark:text-white">{{ $device->display_name ?: $device->hostname }}</h2>
                         <p class="mt-1 text-sm text-rt-muted dark:text-rt-dark-muted">{{ $device->manufacturer }} {{ $device->model }} · {{ $device->asset_tag ?: $device->serial_number }}</p>
-                        <p class="mt-2 inline-flex items-center gap-1.5 text-xs text-rt-muted dark:text-rt-dark-muted"><i data-feather="clock" class="h-3.5 w-3.5"></i>Einladung gültig bis {{ $enrollment->expires_at?->format('d.m.Y, H:i') }} Uhr</p>
+                        <p class="mt-2 inline-flex items-center gap-1.5 text-xs text-rt-muted dark:text-rt-dark-muted"><i class="far fa-clock h-3.5 w-3.5 text-xs leading-[14px] text-center"></i>Einladung gültig bis {{ $enrollment->expires_at?->format('d.m.Y, H:i') }} Uhr</p>
                     </div>
                 </div>
                 <span class="rounded-full bg-sky-100 px-3 py-1.5 text-xs font-semibold text-sky-800 dark:bg-sky-950 dark:text-sky-300">{{ $enrollment->provider }} · {{ str_replace('_',' ',$enrollment->mode) }}</span>
@@ -42,7 +42,7 @@
 
                 @if($enrollmentUrl)
                     <a href="{{ $enrollmentUrl }}" target="_blank" rel="noopener noreferrer" class="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-rt-red px-5 text-sm font-semibold text-white shadow-rt-sm hover:bg-rt-red-dark">
-                        <i data-feather="external-link" class="h-4 w-4"></i>
+                        <i class="far fa-external-link h-4 w-4 text-sm leading-4 text-center"></i>
                         Offizielle Geräte-Einrichtung öffnen
                     </a>
                 @else
@@ -52,24 +52,24 @@
 
             <aside class="space-y-4">
                 <div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200">
-                    <div class="flex items-start gap-3"><span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-900"><i data-feather="lock" class="h-4 w-4"></i></span><div><p class="font-semibold">Passwortschutz</p><p class="mt-1 leading-6">Geben Sie Microsoft-, Google- oder Apple-Zugangsdaten nur im offiziellen Fenster des jeweiligen Anbieters ein. RailTime fragt nicht danach.</p></div></div>
+                    <div class="flex items-start gap-3"><span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-900"><i class="far fa-lock h-4 w-4 text-sm leading-4 text-center"></i></span><div><p class="font-semibold">Passwortschutz</p><p class="mt-1 leading-6">Geben Sie Microsoft-, Google- oder Apple-Zugangsdaten nur im offiziellen Fenster des jeweiligen Anbieters ein. RailTime fragt nicht danach.</p></div></div>
                 </div>
                 <div class="rounded-2xl border border-rt-border bg-white p-4 text-sm dark:border-rt-dark-border dark:bg-rt-dark-surface">
                     <p class="font-semibold text-rt-text dark:text-white">Was danach passiert</p>
                     <ul class="mt-3 space-y-2 text-rt-muted dark:text-rt-dark-muted">
-                        <li class="flex gap-2"><i data-feather="check" class="mt-0.5 h-4 w-4 shrink-0 text-emerald-600"></i>Provider meldet Enrollment und Pflichtprofile zurück.</li>
-                        <li class="flex gap-2"><i data-feather="check" class="mt-0.5 h-4 w-4 shrink-0 text-emerald-600"></i>Apps und Konto-Adresse werden vorbereitet.</li>
-                        <li class="flex gap-2"><i data-feather="user-check" class="mt-0.5 h-4 w-4 shrink-0 text-sky-600"></i>Sie bestätigen einmal OAuth/SSO/MFA.</li>
-                        <li class="flex gap-2"><i data-feather="shield" class="mt-0.5 h-4 w-4 shrink-0 text-sky-600"></i>„Einsatzbereit“ erscheint erst nach echten Belegen.</li>
+                        <li class="flex gap-2"><i class="far fa-check mt-0.5 h-4 w-4 shrink-0 text-emerald-600 text-sm leading-4 text-center"></i>Provider meldet Enrollment und Pflichtprofile zurück.</li>
+                        <li class="flex gap-2"><i class="far fa-check mt-0.5 h-4 w-4 shrink-0 text-emerald-600 text-sm leading-4 text-center"></i>Apps und Konto-Adresse werden vorbereitet.</li>
+                        <li class="flex gap-2"><i class="far fa-user-check mt-0.5 h-4 w-4 shrink-0 text-sky-600 text-sm leading-4 text-center"></i>Sie bestätigen einmal OAuth/SSO/MFA.</li>
+                        <li class="flex gap-2"><i class="far fa-shield-alt mt-0.5 h-4 w-4 shrink-0 text-sky-600 text-sm leading-4 text-center"></i>„Einsatzbereit“ erscheint erst nach echten Belegen.</li>
                     </ul>
                 </div>
-                <a href="{{ route('support') }}" wire:navigate class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-rt-border bg-white px-4 text-sm font-semibold text-rt-text hover:bg-rt-surface-muted dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white dark:hover:bg-rt-dark-surface-muted"><i data-feather="life-buoy" class="h-4 w-4"></i>IT-Support öffnen</a>
+                <a href="{{ route('support') }}" wire:navigate class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-rt-border bg-white px-4 text-sm font-semibold text-rt-text hover:bg-rt-surface-muted dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white dark:hover:bg-rt-dark-surface-muted"><i class="far fa-life-ring h-4 w-4 text-sm leading-4 text-center"></i>IT-Support öffnen</a>
             </aside>
         </div>
 
         <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rt-border bg-white p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface">
             <p class="text-sm text-rt-muted dark:text-rt-dark-muted">Den belegten Fortschritt sehen Sie anschließend unter „Meine Geräte“.</p>
-            <a href="{{ route('devices.mine') }}" wire:navigate class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white dark:bg-white dark:text-slate-950">Zu meinen Geräten<i data-feather="arrow-right" class="h-4 w-4"></i></a>
+            <a href="{{ route('devices.mine') }}" wire:navigate class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white dark:bg-white dark:text-slate-950">Zu meinen Geräten<i class="far fa-arrow-right h-4 w-4 text-sm leading-4 text-center"></i></a>
         </div>
     </div>
 </x-ui.page>

@@ -8,7 +8,7 @@
             <div class="space-y-5" data-device-capture-modal>
                 <div class="flex items-start gap-3 rounded-2xl border border-sky-200 bg-sky-50/90 p-4 text-sky-950 dark:border-sky-900/70 dark:bg-sky-950/30 dark:text-sky-100">
                     <span class="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky-100 text-sky-700 dark:bg-sky-900/70 dark:text-sky-200">
-                        <i data-feather="package" class="h-4 w-4" aria-hidden="true"></i>
+                        <i class="far fa-box h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                     </span>
                     <div class="min-w-0">
                         <p class="font-semibold">Einzelgerät oder vorhandenen Bestand übernehmen</p>
@@ -34,7 +34,7 @@
                             'text-rt-muted hover:bg-white/65 hover:text-rt-text dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface/65 dark:hover:text-white' => $captureMode !== 'manual',
                         ])
                     >
-                        <i data-feather="plus-circle" class="h-4 w-4" aria-hidden="true"></i>
+                        <i class="far fa-plus-circle h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                         <span>Einzelgerät</span>
                     </button>
                     <button
@@ -48,7 +48,7 @@
                             'text-rt-muted hover:bg-white/65 hover:text-rt-text dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface/65 dark:hover:text-white' => $captureMode !== 'import',
                         ])
                     >
-                        <i data-feather="upload-cloud" class="h-4 w-4" aria-hidden="true"></i>
+                        <i class="far fa-cloud-upload h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                         <span>CSV-Bestand</span>
                     </button>
                 </div>
@@ -194,7 +194,7 @@
                                         href="{{ route('devices.import-template') }}"
                                         class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-rt-border px-3 text-sm font-semibold text-rt-text transition hover:bg-rt-surface-muted focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/15 dark:border-rt-dark-border dark:text-white dark:hover:bg-rt-dark-surface-muted"
                                     >
-                                        <i data-feather="download" class="h-4 w-4" aria-hidden="true"></i>
+                                        <i class="far fa-download h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                                         CSV-Vorlage
                                     </a>
                                 </div>
@@ -257,7 +257,7 @@
                     wire:target="createDevice"
                     class="min-h-11"
                 >
-                    <i data-feather="plus" class="h-4 w-4" aria-hidden="true"></i>
+                    <i class="far fa-plus h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                     <span wire:loading.remove wire:target="createDevice">Im Lager erfassen</span>
                     <span wire:loading wire:target="createDevice">Wird erfasst …</span>
                 </x-ui.buttons.button-basic>
@@ -270,7 +270,7 @@
                     @disabled(!$inventoryImport)
                     class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-900/20 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
                 >
-                    <i data-feather="upload" class="h-4 w-4" aria-hidden="true"></i>
+                    <i class="far fa-upload h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                     <span wire:loading.remove wire:target="importInventory">Bestand prüfen & importieren</span>
                     <span wire:loading wire:target="importInventory">Import wird geprüft …</span>
                 </button>

@@ -684,7 +684,7 @@ body[data-mode='dark'] .rt-mail-builder-root {
     line-height: 1.55;
 }
 
-.rt-mail-code-dialog__notice > svg {
+.rt-mail-code-dialog__notice > :is(svg, i) {
     flex: 0 0 auto;
     margin-top: 0.05rem;
 }

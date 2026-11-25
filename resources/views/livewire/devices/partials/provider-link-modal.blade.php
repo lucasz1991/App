@@ -56,7 +56,7 @@
                 Abbrechen
             </x-ui.buttons.button-basic>
             <x-ui.buttons.button-basic mode="primary" type="submit" form="device-provider-link-form" wire:loading.attr="disabled" wire:target="saveProviderLink" :disabled="blank($providerLinkForm['provider'] ?? '') || blank($providerLinkForm['external_device_id'] ?? '')" class="min-h-11">
-                <i data-feather="link" class="h-4 w-4" aria-hidden="true"></i>
+                <i class="far fa-link h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                 <span wire:loading.remove wire:target="saveProviderLink">Verknüpfung speichern</span>
                 <span wire:loading wire:target="saveProviderLink">Wird geprüft …</span>
             </x-ui.buttons.button-basic>

@@ -118,7 +118,7 @@ export async function createLiveLocationMap({
     }).addTo(map);
     const markerIcon = L.divIcon({
         className: '',
-        html: '<span class="rt-live-location-marker"><i class="fas fa-location-dot" aria-hidden="true"></i></span>',
+        html: '<span class="rt-live-location-marker"><i class="fas fa-map-marker-alt" aria-hidden="true"></i></span>',
         iconAnchor: [18, 18],
         iconSize: [36, 36],
     });

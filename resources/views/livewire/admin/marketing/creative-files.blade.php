@@ -14,7 +14,7 @@
             wire:navigate
             class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rt-border bg-rt-surface px-3.5 text-sm font-semibold text-rt-text transition hover:border-rt-red/40 hover:text-rt-red dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text"
         >
-            <i data-feather="arrow-left" class="h-4 w-4" aria-hidden="true"></i>
+            <i class="far fa-arrow-left h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
             <span>Alle Motive</span>
         </a>
     </x-slot:actions>
@@ -55,7 +55,7 @@
                 wire:target="saveMetadata"
                 class="min-h-11"
             >
-                <i data-feather="save" class="h-4 w-4" aria-hidden="true"></i>
+                <i class="far fa-save h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                 <span wire:loading.remove wire:target="saveMetadata">Details speichern</span>
                 <span wire:loading wire:target="saveMetadata">Wird gespeichert …</span>
             </x-ui.buttons.button-basic>
@@ -73,7 +73,7 @@
             </div>
 
             <span class="inline-flex min-h-9 w-fit items-center gap-2 rounded-full bg-rt-surface-muted px-3 text-xs font-semibold text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted">
-                <i data-feather="hard-drive" class="h-3.5 w-3.5" aria-hidden="true"></i>
+                <i class="far fa-hdd h-3.5 w-3.5 text-xs leading-[14px] text-center" aria-hidden="true"></i>
                 Privater Motiv-Dateipool
             </span>
         </div>
@@ -102,7 +102,7 @@
                 wire:target="deleteMotive"
                 class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-rose-200 px-4 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 disabled:opacity-60 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-500/10"
             >
-                <i data-feather="trash-2" class="h-4 w-4" aria-hidden="true"></i>
+                <i class="far fa-trash-alt h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                 Motiv entfernen
             </button>
         </div>

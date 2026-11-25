@@ -45,7 +45,7 @@
                     title="Neue Vorlage"
                     data-mail-library-create-trigger
                 >
-                    <i data-feather="plus" class="h-4 w-4" aria-hidden="true"></i>
+                    <i class="far fa-plus h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                     <span class="hidden sm:inline">Neue Vorlage</span>
                 </x-ui.buttons.button-basic>
             </span>
@@ -79,10 +79,10 @@
                                 class="min-h-11 min-w-0 shrink-0 rounded-lg px-3"
                                 title="Nachrichtenvorlage oder Signaturblock auswählen"
                             >
-                                <i data-feather="file-text" class="h-4 w-4 shrink-0" aria-hidden="true"></i>
+                                <i class="far fa-file-alt h-4 w-4 shrink-0 text-sm leading-4 text-center" aria-hidden="true"></i>
                                 <span class="rt-mail-studio-toolbar__menu-label">Dokument</span>
                                 <span class="inline-flex h-3.5 w-3.5 shrink-0 transition-transform" :class="open && 'rotate-180'" aria-hidden="true">
-                                    <i data-feather="chevron-down" class="h-3.5 w-3.5" aria-hidden="true"></i>
+                                    <i class="far fa-chevron-down h-3.5 w-3.5 text-xs leading-[14px] text-center" aria-hidden="true"></i>
                                 </span>
                             </x-ui.buttons.button-basic>
                         </x-slot:trigger>
@@ -119,25 +119,25 @@
                     >
                         <x-slot:trigger>
                             <x-ui.buttons.button-basic type="button" mode="secondary" size="sm" class="min-h-11 shrink-0 rounded-lg px-3" title="Bausteine, Ebenen und Medien öffnen">
-                                <i data-feather="layers" class="h-4 w-4 shrink-0" aria-hidden="true"></i>
+                                <i class="far fa-layer-group h-4 w-4 shrink-0 text-sm leading-4 text-center" aria-hidden="true"></i>
                                 <span class="rt-mail-studio-toolbar__menu-label">Inhalt</span>
-                                <span class="inline-flex h-3.5 w-3.5 shrink-0 transition-transform" :class="open && 'rotate-180'" aria-hidden="true"><i data-feather="chevron-down" class="h-3.5 w-3.5" aria-hidden="true"></i></span>
+                                <span class="inline-flex h-3.5 w-3.5 shrink-0 transition-transform" :class="open && 'rotate-180'" aria-hidden="true"><i class="far fa-chevron-down h-3.5 w-3.5 text-xs leading-[14px] text-center" aria-hidden="true"></i></span>
                             </x-ui.buttons.button-basic>
                         </x-slot:trigger>
 
                         <x-slot:content>
                             <div class="grid gap-1">
                                 <x-ui.buttons.button-basic type="button" mode="secondary" size="sm" class="min-h-11 w-full justify-start rounded-lg px-3" data-mail-builder-panel="left:blocks" x-on:click="close()" title="Bausteine in der linken Seitenleiste öffnen">
-                                    <i data-feather="grid" class="h-4 w-4" aria-hidden="true"></i><span>Bausteine</span>
+                                    <i class="far fa-th-large h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i><span>Bausteine</span>
                                 </x-ui.buttons.button-basic>
                                 <x-ui.buttons.button-basic type="button" mode="secondary" size="sm" class="min-h-11 w-full justify-start rounded-lg px-3" data-mail-builder-panel="left:layers" x-on:click="close()" title="Ebenen in der linken Seitenleiste öffnen">
-                                    <i data-feather="layers" class="h-4 w-4" aria-hidden="true"></i><span>Ebenen</span>
+                                    <i class="far fa-layer-group h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i><span>Ebenen</span>
                                 </x-ui.buttons.button-basic>
                                 <x-ui.buttons.button-basic type="button" mode="secondary" size="sm" class="min-h-11 w-full justify-start rounded-lg px-3" data-mail-builder-action="assets" x-on:click="close()" title="Medienbibliothek öffnen">
-                                    <i data-feather="image" class="h-4 w-4" aria-hidden="true"></i><span>Medien</span>
+                                    <i class="far fa-image h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i><span>Medien</span>
                                 </x-ui.buttons.button-basic>
                                 <x-ui.buttons.button-basic type="button" mode="secondary" size="sm" class="min-h-11 w-full justify-start rounded-lg px-3" data-mail-builder-action="upload" x-on:click="close()" title="Bild oder GIF hochladen" hidden aria-disabled="true">
-                                    <i data-feather="upload" class="h-4 w-4" aria-hidden="true"></i><span>Bild / GIF hochladen</span>
+                                    <i class="far fa-upload h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i><span>Bild / GIF hochladen</span>
                                 </x-ui.buttons.button-basic>
                             </div>
                         </x-slot:content>
@@ -157,30 +157,30 @@
                     >
                         <x-slot:trigger>
                             <x-ui.buttons.button-basic type="button" mode="secondary" size="sm" class="min-h-11 shrink-0 rounded-lg px-3" title="Bearbeitungs- und Eigenschaftswerkzeuge öffnen">
-                                <i data-feather="edit-3" class="h-4 w-4 shrink-0" aria-hidden="true"></i>
+                                <i class="far fa-pen h-4 w-4 shrink-0 text-sm leading-4 text-center" aria-hidden="true"></i>
                                 <span class="rt-mail-studio-toolbar__menu-label">Bearbeiten</span>
-                                <span class="inline-flex h-3.5 w-3.5 shrink-0 transition-transform" :class="open && 'rotate-180'" aria-hidden="true"><i data-feather="chevron-down" class="h-3.5 w-3.5" aria-hidden="true"></i></span>
+                                <span class="inline-flex h-3.5 w-3.5 shrink-0 transition-transform" :class="open && 'rotate-180'" aria-hidden="true"><i class="far fa-chevron-down h-3.5 w-3.5 text-xs leading-[14px] text-center" aria-hidden="true"></i></span>
                             </x-ui.buttons.button-basic>
                         </x-slot:trigger>
 
                         <x-slot:content>
                             <div class="grid grid-cols-2 gap-1 border-b border-rt-border pb-2 dark:border-rt-dark-border">
                                 <x-ui.buttons.button-basic type="button" mode="secondary" size="sm" class="min-h-11 justify-center rounded-lg px-3" data-mail-builder-action="undo" x-on:click="close()" title="Letzte Änderung rückgängig machen">
-                                    <i data-feather="corner-up-left" class="h-4 w-4" aria-hidden="true"></i><span>Zurück</span>
+                                    <i class="far fa-undo h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i><span>Zurück</span>
                                 </x-ui.buttons.button-basic>
                                 <x-ui.buttons.button-basic type="button" mode="secondary" size="sm" class="min-h-11 justify-center rounded-lg px-3" data-mail-builder-action="redo" x-on:click="close()" title="Änderung wiederholen">
-                                    <i data-feather="corner-up-right" class="h-4 w-4" aria-hidden="true"></i><span>Vor</span>
+                                    <i class="far fa-redo h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i><span>Vor</span>
                                 </x-ui.buttons.button-basic>
                             </div>
                             <div class="mt-2 grid gap-1">
                                 <x-ui.buttons.button-basic type="button" mode="secondary" size="sm" class="min-h-11 w-full justify-start rounded-lg px-3" data-mail-builder-panel="right:styles" x-on:click="close()" title="Stile in der rechten Seitenleiste öffnen">
-                                    <i data-feather="sliders" class="h-4 w-4" aria-hidden="true"></i><span>Stile</span>
+                                    <i class="far fa-sliders-h h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i><span>Stile</span>
                                 </x-ui.buttons.button-basic>
                                 <x-ui.buttons.button-basic type="button" mode="secondary" size="sm" class="min-h-11 w-full justify-start rounded-lg px-3" data-mail-builder-panel="right:traits" x-on:click="close()" title="Eigenschaften in der rechten Seitenleiste öffnen">
-                                    <i data-feather="settings" class="h-4 w-4" aria-hidden="true"></i><span>Eigenschaften</span>
+                                    <i class="far fa-cog h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i><span>Eigenschaften</span>
                                 </x-ui.buttons.button-basic>
                                 <x-ui.buttons.button-basic type="button" mode="secondary" size="sm" class="min-h-11 w-full justify-start rounded-lg px-3" data-mail-builder-panel="right:classes" x-on:click="close()" title="Klassen in der rechten Seitenleiste öffnen">
-                                    <i data-feather="tag" class="h-4 w-4" aria-hidden="true"></i><span>Klassen</span>
+                                    <i class="far fa-tag h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i><span>Klassen</span>
                                 </x-ui.buttons.button-basic>
                             </div>
                         </x-slot:content>
@@ -189,7 +189,7 @@
 
                 <div class="rt-mail-studio-toolbar__preview" data-mail-toolbar-region="preview" data-mail-preview-toolbar>
                     <x-ui.buttons.button-basic type="button" mode="secondary" size="sm" class="min-h-11 shrink-0 rounded-lg px-3" data-mail-view-shortcut title="Zwischen Bearbeitung und serverseitiger Versandvorschau wechseln">
-                        <i data-feather="edit-3" class="h-4 w-4 shrink-0" aria-hidden="true"></i>
+                        <i class="far fa-pen h-4 w-4 shrink-0 text-sm leading-4 text-center" aria-hidden="true"></i>
                         <span data-mail-view-shortcut-label>Layout bearbeiten</span>
                     </x-ui.buttons.button-basic>
                     <x-ui.dropdown.anchor-dropdown
@@ -206,9 +206,9 @@
                     >
                         <x-slot:trigger>
                             <x-ui.buttons.button-basic type="button" mode="secondary" size="sm" class="min-h-11 shrink-0 rounded-lg px-3" title="Editor- und Versandansicht einstellen">
-                                <i data-feather="monitor" class="h-4 w-4 shrink-0" aria-hidden="true"></i>
+                                <i class="far fa-desktop h-4 w-4 shrink-0 text-sm leading-4 text-center" aria-hidden="true"></i>
                                 <span class="rt-mail-studio-toolbar__menu-label">Ansicht</span>
-                                <span class="inline-flex h-3.5 w-3.5 shrink-0 transition-transform" :class="open && 'rotate-180'" aria-hidden="true"><i data-feather="chevron-down" class="h-3.5 w-3.5" aria-hidden="true"></i></span>
+                                <span class="inline-flex h-3.5 w-3.5 shrink-0 transition-transform" :class="open && 'rotate-180'" aria-hidden="true"><i class="far fa-chevron-down h-3.5 w-3.5 text-xs leading-[14px] text-center" aria-hidden="true"></i></span>
                             </x-ui.buttons.button-basic>
                         </x-slot:trigger>
 
@@ -233,56 +233,56 @@
                                     data-mail-builder-action="preview"
                                     title="Leinwand-Vorschau des Builders umschalten"
                                 >
-                                    <i data-feather="eye" class="h-4 w-4" aria-hidden="true"></i>
+                                    <i class="far fa-eye h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                                     <span>Leinwand-Vorschau</span>
                                 </x-ui.buttons.button-basic>
 
                     <x-ui.buttons.button-basic type="button" mode="secondary" size="sm" class="min-h-11 w-full justify-start rounded-lg px-3" data-mail-findings-open>
-                        <i data-feather="shield" class="h-4 w-4" aria-hidden="true"></i>
+                        <i class="far fa-shield-alt h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                         <span>Prüfhinweise anzeigen</span>
                     </x-ui.buttons.button-basic>
 
                     <div class="rt-mail-preview-toggle" role="group" aria-label="Editoransicht">
                         <button type="button" data-mail-view-mode="edit" aria-pressed="false" title="Autorenansicht mit Platzhaltern; keine Mailclient-Emulation">
-                            <i data-feather="edit-3" class="h-4 w-4" aria-hidden="true"></i>
+                            <i class="far fa-pen h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                             <span>Bearbeiten</span>
                         </button>
                         <button type="button" data-mail-view-mode="delivery" aria-pressed="true" title="Aktuellen Entwurf mit dem produktiven Systemmail-Compiler prüfen; die Darstellung erfolgt weiterhin im Browser">
-                            <i data-feather="mail" class="h-4 w-4" aria-hidden="true"></i>
+                            <i class="far fa-envelope h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                             <span>Versandvorschau</span>
                         </button>
                         <button type="button" data-mail-view-mode="forward" aria-pressed="false" title="Kompiliertes Versand-HTML als zitierte Weiterleitung ohne Head-CSS prüfen">
-                            <i data-feather="corner-up-right" class="h-4 w-4" aria-hidden="true"></i>
+                            <i class="far fa-share h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                             <span>Weiterleitung</span>
                         </button>
                     </div>
 
                     <div class="rt-mail-preview-toggle" data-mail-theme-controls role="group" aria-label="Farbschema der Editorvorschau">
                         <button type="button" data-mail-theme-button="light" aria-pressed="true" title="Helle Mail ansehen">
-                            <i data-feather="sun" class="h-4 w-4" aria-hidden="true"></i>
+                            <i class="far fa-sun h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                             <span>Hell</span>
                         </button>
                         <button type="button" data-mail-theme-button="dark" aria-pressed="false" title="Dunkle Mail ansehen">
-                            <i data-feather="moon" class="h-4 w-4" aria-hidden="true"></i>
+                            <i class="far fa-moon h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                             <span>Dunkel</span>
                         </button>
                     </div>
 
                     <div class="rt-mail-preview-toggle" role="group" aria-label="Breite des Mailprogramms" aria-describedby="mail-responsive-help-{{ $currentDocument->kind->value }}">
                         <button type="button" data-mail-preview-device="wide" aria-pressed="true" title="Breite Systemmail-Vorschau mit 1920 Pixeln">
-                            <i data-feather="maximize-2" class="h-4 w-4" aria-hidden="true"></i>
+                            <i class="far fa-expand-alt h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                             <span>Breit</span>
                         </button>
                         <button type="button" data-mail-preview-device="desktop" aria-pressed="false" title="Desktop-Vorschau mit 1024 Pixeln">
-                            <i data-feather="monitor" class="h-4 w-4" aria-hidden="true"></i>
+                            <i class="far fa-desktop h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                             <span>Desktop</span>
                         </button>
                         <button type="button" data-mail-preview-device="tablet" aria-pressed="false" title="Tablet-Vorschau mit 820 Pixeln">
-                            <i data-feather="tablet" class="h-4 w-4" aria-hidden="true"></i>
+                            <i class="far fa-tablet-alt h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                             <span>Tablet</span>
                         </button>
                         <button type="button" data-mail-preview-device="mobile" aria-pressed="false" title="Mobil-Vorschau mit 375 Pixeln">
-                            <i data-feather="smartphone" class="h-4 w-4" aria-hidden="true"></i>
+                            <i class="far fa-mobile-alt h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                             <span>Mobil</span>
                         </button>
                     </div>
@@ -302,7 +302,7 @@
                     </label>
 
                     <label class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-rt-border bg-rt-surface px-2 text-xs font-semibold text-rt-text dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text">
-                        <i data-feather="shield" class="h-4 w-4 shrink-0" aria-hidden="true"></i>
+                        <i class="far fa-shield-alt h-4 w-4 shrink-0 text-sm leading-4 text-center" aria-hidden="true"></i>
                         <span class="sr-only">Robustheitsvorschau</span>
                         <select
                             data-mail-degradation-mode
@@ -323,7 +323,7 @@
                         class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 text-xs font-semibold text-rt-accent ring-1 ring-inset ring-rt-accent/25 transition hover:bg-rt-accent-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/30 dark:text-rt-dark-accent dark:ring-rt-dark-accent/25 dark:hover:bg-rt-dark-accent-soft"
                         title="Alle GIF-Animationen in der Editorvorschau neu starten"
                     >
-                        <i data-feather="rotate-cw" class="h-4 w-4" aria-hidden="true"></i>
+                        <i class="far fa-redo-alt h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                         <span>Animation neu starten</span>
                     </button>
                             </div>
@@ -366,7 +366,7 @@
                             aria-label="Designs und gespeicherte Versionen verwalten"
                             title="Design-Slots und gespeicherte Versionen verwalten"
                         >
-                            <i data-feather="clock" class="h-4 w-4 shrink-0" aria-hidden="true"></i>
+                            <i class="far fa-clock h-4 w-4 shrink-0 text-sm leading-4 text-center" aria-hidden="true"></i>
                             <span class="rt-mail-studio-toolbar__menu-label">Versionen</span>
                         </x-ui.buttons.button-basic>
 
@@ -393,9 +393,9 @@
                                         title="Systemmail-, Outlook- und Add-in-Verwendung einstellen"
                                         x-on:click="$dispatch('mail-editor-delivery-refresh', { documentId: @js($currentDocument->public_id) })"
                                     >
-                                        <i data-feather="sliders" class="h-4 w-4 shrink-0" aria-hidden="true"></i>
+                                        <i class="far fa-sliders-h h-4 w-4 shrink-0 text-sm leading-4 text-center" aria-hidden="true"></i>
                                         <span class="rt-mail-studio-toolbar__menu-label">Verwendung</span>
-                                        <span class="inline-flex h-3.5 w-3.5 shrink-0 transition-transform" :class="open && 'rotate-180'" aria-hidden="true"><i data-feather="chevron-down" class="h-3.5 w-3.5" aria-hidden="true"></i></span>
+                                        <span class="inline-flex h-3.5 w-3.5 shrink-0 transition-transform" :class="open && 'rotate-180'" aria-hidden="true"><i class="far fa-chevron-down h-3.5 w-3.5 text-xs leading-[14px] text-center" aria-hidden="true"></i></span>
                                     </x-ui.buttons.button-basic>
                                 </x-slot:trigger>
 
@@ -430,10 +430,10 @@
                                     class="min-h-11 shrink-0 rounded-lg px-3"
                                     title="Weitere Werkzeuge des E-Mail-Editors öffnen"
                                 >
-                                    <i data-feather="more-horizontal" class="h-4 w-4" aria-hidden="true"></i>
+                                    <i class="far fa-ellipsis-h h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                                     <span>Werkzeuge</span>
                                     <span class="inline-flex h-3.5 w-3.5 shrink-0 transition-transform" :class="open && 'rotate-180'" aria-hidden="true">
-                                        <i data-feather="chevron-down" class="h-3.5 w-3.5" aria-hidden="true"></i>
+                                        <i class="far fa-chevron-down h-3.5 w-3.5 text-xs leading-[14px] text-center" aria-hidden="true"></i>
                                     </span>
                                 </x-ui.buttons.button-basic>
                             </x-slot:trigger>
@@ -448,7 +448,7 @@
                                         data-mail-document-test-mail
                                         title="Testmail an die Admin-E-Mail-Adresse der Systemeinstellungen senden"
                                     >
-                                        <i data-feather="send" class="h-4 w-4" aria-hidden="true"></i>
+                                        <i class="far fa-paper-plane h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                                         <span class="rt-mail-studio-toolbar__utility-label">Testmail</span>
                                     </x-ui.buttons.button-basic>
 
@@ -460,7 +460,7 @@
                                         data-mail-code-open
                                         title="Kanonischen HTML- und CSS-Code ansehen oder bearbeiten"
                                     >
-                                        <i data-feather="code" class="h-4 w-4" aria-hidden="true"></i>
+                                        <i class="far fa-code h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                                         <span class="rt-mail-studio-toolbar__action-label rt-mail-studio-toolbar__utility-label">Code</span>
                                     </x-ui.buttons.button-basic>
 
@@ -472,7 +472,7 @@
                                         data-mail-code-export
                                         title="Kanonischen Entwurf als portables JSON-Bundle exportieren"
                                     >
-                                        <i data-feather="download" class="h-4 w-4" aria-hidden="true"></i>
+                                        <i class="far fa-download h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                                         <span class="rt-mail-studio-toolbar__action-label rt-mail-studio-toolbar__utility-label">Export</span>
                                     </x-ui.buttons.button-basic>
 
@@ -484,7 +484,7 @@
                                         data-mail-code-import
                                         title="JSON-Bundle, HTML- oder CSS-Datei als Entwurf importieren"
                                     >
-                                        <i data-feather="file-plus" class="h-4 w-4" aria-hidden="true"></i>
+                                        <i class="far fa-file-plus h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                                         <span class="rt-mail-studio-toolbar__action-label rt-mail-studio-toolbar__utility-label">Import</span>
                                     </x-ui.buttons.button-basic>
 
@@ -504,7 +504,7 @@
                             data-mail-document-save
                             title="Aktuellen Arbeitsstand als Entwurf speichern"
                         >
-                            <i data-feather="save" class="h-4 w-4" aria-hidden="true"></i>
+                            <i class="far fa-save h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                             <span class="rt-mail-studio-toolbar__action-label">Speichern</span>
                         </x-ui.buttons.button-basic>
 
@@ -517,7 +517,7 @@
                             aria-label="Entwurf speichern und veröffentlichen"
                             title="Aktuellen Entwurf speichern und für Mail-Notifications sowie Systemmails veröffentlichen"
                         >
-                            <i data-feather="upload-cloud" class="h-4 w-4" aria-hidden="true"></i>
+                            <i class="far fa-cloud-upload h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                             <span class="rt-mail-studio-toolbar__action-label">Veröffentlichen</span>
                         </x-ui.buttons.button-basic>
                 </div>
@@ -544,7 +544,7 @@
 
                 <div class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-500/10 dark:text-amber-100">
                     <div class="flex items-start gap-3">
-                        <i data-feather="upload" class="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true"></i>
+                        <i class="far fa-upload mt-0.5 h-5 w-5 shrink-0 text-lg leading-5 text-center" aria-hidden="true"></i>
                         <div class="min-w-0 flex-1">
                             <h2 class="font-semibold">{{ $kinds[$currentKind][0] }} per Exportdatei einrichten</h2>
                             <p class="mt-1 leading-6">
@@ -552,7 +552,7 @@
                             </p>
                             <div class="mt-4 flex flex-wrap items-center gap-3">
                                 <button type="button" class="inline-flex min-h-11 items-center gap-2 rounded-lg bg-rt-accent px-4 py-2 font-semibold text-white transition hover:bg-rt-accent/90 disabled:cursor-wait disabled:opacity-60" data-mail-document-bootstrap-button>
-                                    <i data-feather="file-plus" class="h-4 w-4" aria-hidden="true"></i>
+                                    <i class="far fa-file-plus h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                                     JSON-Bundle importieren
                                 </button>
                                 <span class="text-xs" data-mail-document-bootstrap-status aria-live="polite">Format v2 · maximal 16 MiB</span>
@@ -736,12 +736,12 @@
                         </p>
                     </div>
                     <button type="submit" value="cancel" class="rt-mail-code-dialog__close" aria-label="Codeansicht schließen">
-                        <i data-feather="x" class="h-5 w-5" aria-hidden="true"></i>
+                        <i class="far fa-times h-5 w-5 text-lg leading-5 text-center" aria-hidden="true"></i>
                     </button>
                 </header>
 
                 <div class="rt-mail-code-dialog__notice" role="note">
-                    <i data-feather="shield" class="h-5 w-5" aria-hidden="true"></i>
+                    <i class="far fa-shield-alt h-5 w-5 text-lg leading-5 text-center" aria-hidden="true"></i>
                     <p>
                         Beim Übernehmen wird der Code zuerst serverseitig geprüft und anschließend über denselben sicheren Speicherweg als
                         <strong>Entwurf</strong> gespeichert. Die veröffentlichte Fassung ändert sich dadurch nicht.
@@ -794,7 +794,7 @@
                             class="min-h-11 rounded-lg px-4"
                             data-mail-code-apply
                         >
-                            <i data-feather="check-circle" class="h-4 w-4" aria-hidden="true"></i>
+                            <i class="far fa-check-circle h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                             <span>Prüfen &amp; als Entwurf speichern</span>
                         </x-ui.buttons.button-basic>
                     </div>
@@ -861,7 +861,7 @@
                             />
                         </label>
                         <x-ui.buttons.button-basic type="submit" mode="primary" size="sm" class="min-h-11 rounded-xl px-4" data-mail-slot-create>
-                            <i data-feather="plus" class="h-4 w-4" aria-hidden="true"></i>
+                            <i class="far fa-plus h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                             <span>Design anlegen</span>
                         </x-ui.buttons.button-basic>
                     </form>
@@ -930,7 +930,7 @@
                                                 data-mail-slot-open
                                                 data-url="{{ route('admin.mail-documents.editor', ['dokument' => $slot->kind->value, 'slot' => $slot->public_id, 'open' => 1]) }}"
                                             >
-                                                <i data-feather="edit-3" class="h-4 w-4" aria-hidden="true"></i>
+                                                <i class="far fa-pen h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                                                 <span>Im Editor öffnen</span>
                                             </x-ui.buttons.button-basic>
                                         @endunless
@@ -945,7 +945,7 @@
                                                 data-expected-hash="{{ $slot->content_hash }}"
                                                 data-slot-name="{{ $slot->name }}"
                                             >
-                                                <i data-feather="upload-cloud" class="h-4 w-4" aria-hidden="true"></i>
+                                                <i class="far fa-cloud-upload h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                                                 <span>Aktiv veröffentlichen</span>
                                             </x-ui.buttons.button-basic>
                                         @endif
@@ -964,7 +964,7 @@
                                             <div class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
                                                 <x-ui.forms.input id="mail-slot-name-{{ $slot->public_id }}" name="name" maxlength="80" value="{{ $slot->name }}" required aria-required="true" data-mail-slot-rename-name />
                                                 <x-ui.buttons.button-basic type="submit" mode="secondary" size="sm" class="min-h-11 rounded-xl px-3" data-mail-slot-rename>
-                                                    <i data-feather="check" class="h-4 w-4" aria-hidden="true"></i>
+                                                    <i class="far fa-check h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                                                     <span>Umbenennen</span>
                                                 </x-ui.buttons.button-basic>
                                             </div>
@@ -985,7 +985,7 @@
                                                 aria-describedby="mail-slot-delete-help-{{ $slot->public_id }}"
                                                 title="{{ $isActiveSlot ? 'Aktive Designs können erst nach dem Aktivieren eines anderen Slots gelöscht werden.' : (count($documentSlots) <= 1 ? 'Der letzte Design-Slot kann nicht gelöscht werden.' : 'Design-Slot löschen') }}"
                                             >
-                                                <i data-feather="trash-2" class="h-4 w-4" aria-hidden="true"></i>
+                                                <i class="far fa-trash-alt h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                                                 <span>Design löschen</span>
                                             </x-ui.buttons.button-basic>
                                             <p id="mail-slot-delete-help-{{ $slot->public_id }}" class="mt-2 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">{{ $slotDeleteReason }}</p>

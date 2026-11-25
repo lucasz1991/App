@@ -33,7 +33,7 @@
             aria-label="Systemstatus öffnen"
             title="Systemstatus"
         >
-            <i data-feather="activity" class="h-4 w-4" aria-hidden="true"></i>
+            <i class="far fa-heartbeat h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
             <span @class([
                 'absolute right-1.5 top-1.5 h-2 w-2 rounded-full ring-2 ring-white dark:ring-rt-dark-surface',
                 'bg-emerald-500' => $productionCommandsEnabled,
@@ -51,7 +51,7 @@
                 aria-label="Gerät erfassen"
                 title="Gerät erfassen"
             >
-                <i data-feather="plus" class="h-4 w-4" aria-hidden="true"></i>
+                <i class="far fa-plus h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                 <span class="hidden sm:inline">Gerät erfassen</span>
             </x-ui.buttons.button-basic>
         @endcan
@@ -71,7 +71,7 @@
         @endif
         <section class="flex min-w-0 items-center gap-3 rounded-xl border border-sky-200/80 bg-sky-50/75 px-3 py-2.5 text-sky-950 dark:border-sky-900/70 dark:bg-sky-950/25 dark:text-sky-100" aria-label="Sichere Bereitstellung">
             <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-sky-100 text-sky-700 dark:bg-sky-900/70 dark:text-sky-200">
-                <i data-feather="shield" class="h-4 w-4" aria-hidden="true"></i>
+                <i class="far fa-shield-alt h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
             </span>
             <div class="min-w-0 flex-1">
                 <p class="truncate text-sm font-semibold">Startklar-Bereitstellung ohne Passwortspeicher</p>
@@ -210,10 +210,10 @@
 
         <section class="grid grid-cols-2 gap-2.5 lg:grid-cols-4" aria-label="Gerätekennzahlen">
             @foreach([
-                ['label' => 'Gesamt', 'value' => $stats['total'], 'hint' => 'Geräte', 'icon' => 'monitor', 'tone' => 'sky'],
-                ['label' => 'Zugewiesen', 'value' => $stats['assigned'], 'hint' => 'aktive Ausgaben', 'icon' => 'user-check', 'tone' => 'emerald'],
-                ['label' => 'Virtuelles Lager', 'value' => $stats['inventory'], 'hint' => 'nicht zugewiesener Bestand', 'icon' => 'package', 'tone' => 'cyan'],
-                ['label' => 'Handlungsbedarf', 'value' => $stats['attention'], 'hint' => 'Warnung oder Fehler', 'icon' => 'alert-triangle', 'tone' => 'amber'],
+                ['label' => 'Gesamt', 'value' => $stats['total'], 'hint' => 'Geräte', 'icon' => 'fa-desktop', 'tone' => 'sky'],
+                ['label' => 'Zugewiesen', 'value' => $stats['assigned'], 'hint' => 'aktive Ausgaben', 'icon' => 'fa-user-check', 'tone' => 'emerald'],
+                ['label' => 'Virtuelles Lager', 'value' => $stats['inventory'], 'hint' => 'nicht zugewiesener Bestand', 'icon' => 'fa-box', 'tone' => 'cyan'],
+                ['label' => 'Handlungsbedarf', 'value' => $stats['attention'], 'hint' => 'Warnung oder Fehler', 'icon' => 'fa-exclamation-triangle', 'tone' => 'amber'],
             ] as $stat)
                 @php
                     $share = $stats['total'] > 0 && $stat['label'] !== 'Gesamt'
@@ -229,7 +229,7 @@
                             'bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300' => $stat['tone'] === 'cyan',
                             'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300' => $stat['tone'] === 'amber',
                         ])>
-                            <i data-feather="{{ $stat['icon'] }}" class="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true"></i>
+                            <i class="far {{ $stat['icon'] }} h-4 w-4 sm:h-5 sm:w-5 text-sm leading-4 sm:text-lg sm:leading-5 text-center" aria-hidden="true"></i>
                         </span>
                         <div class="min-w-0">
                             <p class="truncate text-xs font-medium text-rt-muted dark:text-rt-dark-muted">{{ $stat['label'] }}</p>
@@ -288,7 +288,7 @@
                         <h2 id="device-locations-title" class="text-sm font-bold text-rt-text dark:text-white">Gerätestandorte</h2>
                         <p class="mt-0.5 text-xs text-rt-muted dark:text-rt-dark-muted">Deklarierte Einsatzorte</p>
                     </div>
-                    <span class="grid h-9 w-9 place-items-center rounded-lg bg-sky-50 text-sky-700 dark:bg-sky-950/45 dark:text-sky-300"><i data-feather="map" class="h-4 w-4" aria-hidden="true"></i></span>
+                    <span class="grid h-9 w-9 place-items-center rounded-lg bg-sky-50 text-sky-700 dark:bg-sky-950/45 dark:text-sky-300"><i class="far fa-map h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i></span>
                 </div>
 
                 <div class="relative min-h-72 overflow-hidden bg-sky-50/45 px-3 py-3 dark:bg-sky-950/10">
@@ -306,7 +306,7 @@
                             </button>
                         @empty
                             <div class="relative flex min-h-64 flex-col items-center justify-center rounded-xl border border-dashed border-sky-200 bg-white/70 px-5 text-center dark:border-sky-900 dark:bg-rt-dark-surface/70">
-                                <span class="grid h-11 w-11 place-items-center rounded-xl bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300"><i data-feather="map-pin" class="h-5 w-5" aria-hidden="true"></i></span>
+                                <span class="grid h-11 w-11 place-items-center rounded-xl bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300"><i class="far fa-map-marker-alt h-5 w-5 text-lg leading-5 text-center" aria-hidden="true"></i></span>
                                 <p class="mt-3 text-sm font-semibold text-rt-text dark:text-white">Noch keine Standorte</p>
                                 <p class="mt-1 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Standorte erscheinen hier, sobald Geräte erfasst oder zurückgegeben werden.</p>
                             </div>
@@ -344,7 +344,7 @@
             <section class="rounded-2xl border border-rt-red/20 bg-white p-4 shadow-rt-lg dark:border-rt-red/35 dark:bg-rt-dark-surface" x-data="{ tab: 'overview' }" aria-labelledby="device-detail-title">
                 <div class="flex flex-wrap items-start justify-between gap-3 border-b border-rt-border/70 pb-4 dark:border-rt-dark-border">
                     <div class="flex min-w-0 items-start gap-3">
-                        <span class="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-rt-red/10 text-rt-red"><i data-feather="{{ in_array($selectedDevice->form_factor, ['phone','tablet']) ? 'smartphone' : 'monitor' }}" class="h-6 w-6"></i></span>
+                        <span class="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-rt-red/10 text-rt-red"><i class="far {{ in_array($selectedDevice->form_factor, ['phone','tablet']) ? 'fa-mobile-alt' : 'fa-desktop' }} h-6 w-6 text-xl leading-6 text-center"></i></span>
                         <div class="min-w-0">
                             <div class="flex flex-wrap items-center gap-2">
                                 <h2 id="device-detail-title" class="truncate text-xl font-bold text-rt-text dark:text-white">{{ $selectedDevice->display_name ?: $selectedDevice->hostname }}</h2>
@@ -353,7 +353,7 @@
                             <p class="mt-1 text-sm text-rt-muted dark:text-rt-dark-muted">{{ $selectedDevice->asset_tag ?: 'Ohne Inventarnummer' }} · {{ $selectedDevice->manufacturer }} {{ $selectedDevice->model }} · {{ $selectedDevice->serial_number }}</p>
                         </div>
                     </div>
-                    <button type="button" wire:click="closeDevice" class="grid min-h-11 min-w-11 shrink-0 place-items-center rounded-xl text-rt-muted hover:bg-rt-surface-muted dark:hover:bg-rt-dark-surface-muted" aria-label="Gerätedetail schließen"><i data-feather="x" class="h-5 w-5"></i></button>
+                    <button type="button" wire:click="closeDevice" class="grid min-h-11 min-w-11 shrink-0 place-items-center rounded-xl text-rt-muted hover:bg-rt-surface-muted dark:hover:bg-rt-dark-surface-muted" aria-label="Gerätedetail schließen"><i class="far fa-times h-5 w-5 text-lg leading-5 text-center"></i></button>
                 </div>
 
                 @php
@@ -372,12 +372,12 @@
                         @include('livewire.devices.partials.microsoft-device-detail')
                         <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                             @foreach([
-                                ['label'=>'Lebenszyklus','value'=>match($selectedDevice->lifecycle_status->value){'inventory'=>'Im Lager','preparing'=>'Vorbereitung','assigned'=>'Zugewiesen','in_service'=>'Im Einsatz','repair'=>'Reparatur','lost'=>'Verloren','retired'=>'Ausgemustert',default=>$selectedDevice->lifecycle_status->value},'icon'=>'repeat'],
-                                ['label'=>'Verwaltung','value'=>match($selectedDevice->management_status->value){'managed'=>'Verwaltet','limited'=>'Eingeschränkt','pending'=>'Einladung offen','error'=>'Fehler',default=>'Nicht verwaltet'},'icon'=>'shield'],
-                                ['label'=>'Standort','value'=>$selectedDevice->declared_location ?: 'Nicht gemeldet','icon'=>'map-pin'],
-                                ['label'=>'Letzte Synchronisierung','value'=>$selectedDevice->last_synced_at?->diffForHumans() ?? 'Noch nie','icon'=>'refresh-cw'],
+                                ['label'=>'Lebenszyklus','value'=>match($selectedDevice->lifecycle_status->value){'inventory'=>'Im Lager','preparing'=>'Vorbereitung','assigned'=>'Zugewiesen','in_service'=>'Im Einsatz','repair'=>'Reparatur','lost'=>'Verloren','retired'=>'Ausgemustert',default=>$selectedDevice->lifecycle_status->value},'icon'=>'fa-repeat'],
+                                ['label'=>'Verwaltung','value'=>match($selectedDevice->management_status->value){'managed'=>'Verwaltet','limited'=>'Eingeschränkt','pending'=>'Einladung offen','error'=>'Fehler',default=>'Nicht verwaltet'},'icon'=>'fa-shield-alt'],
+                                ['label'=>'Standort','value'=>$selectedDevice->declared_location ?: 'Nicht gemeldet','icon'=>'fa-map-marker-alt'],
+                                ['label'=>'Letzte Synchronisierung','value'=>$selectedDevice->last_synced_at?->diffForHumans() ?? 'Noch nie','icon'=>'fa-sync-alt'],
                             ] as $item)
-                                <div class="rounded-xl border border-rt-border p-3 dark:border-rt-dark-border"><i data-feather="{{ $item['icon'] }}" class="h-4 w-4 text-rt-red"></i><p class="mt-2 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $item['label'] }}</p><p class="mt-1 text-sm font-semibold text-rt-text dark:text-white">{{ $item['value'] }}</p></div>
+                                <div class="rounded-xl border border-rt-border p-3 dark:border-rt-dark-border"><i class="far {{ $item['icon'] }} h-4 w-4 text-rt-red text-sm leading-4 text-center"></i><p class="mt-2 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $item['label'] }}</p><p class="mt-1 text-sm font-semibold text-rt-text dark:text-white">{{ $item['value'] }}</p></div>
                             @endforeach
                         </div>
 
@@ -387,7 +387,7 @@
                                 @foreach(\App\Services\DeviceManagement\DeviceReadinessService::REQUIRED_CHECKS as $key => $label)
                                     @php $check = $checks->get($key); $checkStatus = $check?->status ?? 'unknown'; @endphp
                                     <div class="flex items-center gap-2 rounded-lg bg-rt-surface-muted/70 px-3 py-2 text-sm dark:bg-rt-dark-surface-muted">
-                                        <span class="grid h-6 w-6 place-items-center rounded-full {{ in_array($checkStatus,['passed','not_applicable'],true) ? 'bg-emerald-100 text-emerald-700' : ($checkStatus === 'blocked' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700') }}"><i data-feather="{{ in_array($checkStatus,['passed','not_applicable'],true) ? 'check' : ($checkStatus === 'blocked' ? 'x' : 'clock') }}" class="h-3.5 w-3.5"></i></span>
+                                        <span class="grid h-6 w-6 place-items-center rounded-full {{ in_array($checkStatus,['passed','not_applicable'],true) ? 'bg-emerald-100 text-emerald-700' : ($checkStatus === 'blocked' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700') }}"><i class="far {{ in_array($checkStatus,['passed','not_applicable'],true) ? 'fa-check' : ($checkStatus === 'blocked' ? 'fa-times' : 'fa-clock') }} h-3.5 w-3.5 text-xs leading-[14px] text-center"></i></span>
                                         <span class="min-w-0 flex-1 text-rt-text dark:text-white">{{ $label }}</span>
                                         <span class="text-[11px] font-medium uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ str_replace('_',' ',$checkStatus) }}</span>
                                     </div>
@@ -421,7 +421,7 @@
                                 </div>
                                 @can('devices.manage')
                                     <button type="button" wire:click="openProviderLink" class="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl border border-rt-border px-3 text-xs font-semibold text-rt-text hover:bg-rt-surface-muted dark:border-rt-dark-border dark:text-white dark:hover:bg-rt-dark-surface-muted" aria-haspopup="dialog" aria-controls="device-provider-link-modal">
-                                        <i data-feather="link" class="h-3.5 w-3.5" aria-hidden="true"></i>
+                                        <i class="far fa-link h-3.5 w-3.5 text-xs leading-[14px] text-center" aria-hidden="true"></i>
                                         Verknüpfen
                                     </button>
                                 @endcan
@@ -453,7 +453,7 @@
                                     <p class="text-sm font-semibold text-sky-950 dark:text-sky-100">Fernsupport</p>
                                     <div class="mt-3 flex flex-wrap gap-2">
                                         @foreach($remoteSupportProviders as $remoteProvider)
-                                            <button type="button" wire:click="openRemoteSupport('{{ $remoteProvider['key'] }}')" class="inline-flex min-h-10 items-center gap-2 rounded-xl bg-sky-700 px-3 text-sm font-semibold text-white hover:bg-sky-800"><i data-feather="monitor" class="h-4 w-4"></i>{{ $remoteProvider['label'] }} öffnen</button>
+                                            <button type="button" wire:click="openRemoteSupport('{{ $remoteProvider['key'] }}')" class="inline-flex min-h-10 items-center gap-2 rounded-xl bg-sky-700 px-3 text-sm font-semibold text-white hover:bg-sky-800"><i class="far fa-desktop h-4 w-4 text-sm leading-4 text-center"></i>{{ $remoteProvider['label'] }} öffnen</button>
                                         @endforeach
                                     </div>
                                     <p class="mt-2 text-xs leading-5 text-sky-800 dark:text-sky-200">Öffnet nur die konfigurierte HTTPS-Konsole; der Aufruf wird in RailTime protokolliert.</p>

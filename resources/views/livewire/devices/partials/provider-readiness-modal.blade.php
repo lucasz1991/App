@@ -18,7 +18,7 @@
                         'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300' => $productionCommandsEnabled,
                         'bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300' => ! $productionCommandsEnabled,
                     ])>
-                        <i data-feather="{{ $productionCommandsEnabled ? 'check-circle' : 'lock' }}" class="h-5 w-5" aria-hidden="true"></i>
+                        <i class="far {{ $productionCommandsEnabled ? 'fa-check-circle' : 'fa-lock' }} h-5 w-5 text-lg leading-5 text-center" aria-hidden="true"></i>
                     </span>
                     <div class="min-w-0">
                         <h3 id="provider-production-status-title" class="text-sm font-bold text-rt-text dark:text-white">
@@ -71,7 +71,7 @@
                             </dl>
 
                             <p class="mt-2 flex items-center gap-1.5 text-[11px] font-medium {{ $provider['commands_enabled'] ? 'text-emerald-700 dark:text-emerald-300' : 'text-rt-muted dark:text-rt-dark-muted' }}">
-                                <i data-feather="{{ $provider['commands_enabled'] ? 'check' : 'lock' }}" class="h-3.5 w-3.5" aria-hidden="true"></i>
+                                <i class="far {{ $provider['commands_enabled'] ? 'fa-check' : 'fa-lock' }} h-3.5 w-3.5 text-xs leading-[14px] text-center" aria-hidden="true"></i>
                                 {{ $provider['commands_enabled'] ? 'Befehlsausführung freigegeben' : 'Befehlsausführung gesperrt' }}
                             </p>
                         </article>
@@ -93,7 +93,7 @@
                 href="{{ route('admin.settings') }}"
                 class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-rt-red px-4 text-sm font-semibold text-white transition hover:bg-rt-red-dark active:scale-[0.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/20"
             >
-                <i data-feather="settings" class="h-4 w-4" aria-hidden="true"></i>
+                <i class="far fa-cog h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                 Geräte-Setup öffnen
             </a>
         @endif

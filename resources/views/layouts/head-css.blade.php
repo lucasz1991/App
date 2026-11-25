@@ -1,6 +1,7 @@
 {{-- Ob die Legacy-Schicht laedt, entscheidet allein App\Support\Ui\LegacyAssets
-     (dieselbe Abfrage nutzt layouts.vendor-scripts). --}}
-<link rel="stylesheet" href="{{ URL::asset('build/css/icons.min.css') }}" />
+     (dieselbe Abfrage nutzt layouts.vendor-scripts).
+     Icons: nur Font Awesome 5 Pro (adminresources/fontawesome6/css/all.min.css);
+     das fruehere Sammel-Stylesheet (Boxicons/MDI/Dripicons/FA6 Free) ist entfernt. --}}
 @if(\App\Support\Ui\LegacyAssets::enabled())
 <link rel="stylesheet" href="{{ URL::asset('build/css/tailwind.min.css') }}" />
 <link rel="stylesheet" href="{{ URL::asset('build/libs/apexcharts/apexcharts.css') }}" />
