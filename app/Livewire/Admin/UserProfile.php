@@ -551,7 +551,7 @@ class UserProfile extends Component
             'canViewCompensation' => $this->personnelAllowed('employees.compensation.view'),
             'canEditCompensation' => $this->personnelAllowed('employees.compensation.view')
                 && $this->personnelAllowed('employees.compensation.edit'),
-        ])->layout('layouts.master', ['area' => auth()->user()->usesAdminLayout() ? 'admin' : 'user']);
+        ])->layout('layouts.master');
     }
 
     private function authorizeInlineField(string $field): void

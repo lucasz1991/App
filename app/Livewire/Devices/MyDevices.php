@@ -24,6 +24,6 @@ class MyDevices extends Component
             ->get();
 
         return view('livewire.devices.my-devices', compact('assignments'))
-            ->layout('layouts.master', ['area' => $user->usesAdminLayout() ? 'admin' : 'user']);
+            ->layout('layouts.master');
     }
 }

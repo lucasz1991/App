@@ -820,7 +820,7 @@ class DeviceManagement extends Component
             'stats' => $fleetSnapshot->get(),
             'microsoftEnabled' => (bool) app(MicrosoftDeviceSettings::class)->configuration()['enabled'],
             'microsoftRuntime' => Gate::allows('devices.manage') ? app(MicrosoftDeviceRuntime::class)->status() : [],
-        ])->layout('layouts.master', ['area' => auth()->user()->usesAdminLayout() ? 'admin' : 'user']);
+        ])->layout('layouts.master');
     }
 
     private function deviceQuery(): Builder

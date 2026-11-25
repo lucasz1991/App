@@ -113,6 +113,6 @@ class SupportCases extends Component
             ->with(['user', 'device'])->latest('updated_at')->paginate(20);
         $detail = $this->showCase && $this->caseId ? app(SupportCaseService::class)->serialize($this->selected(), $user) : null;
 
-        return view('livewire.support-cases', compact('cases', 'detail', 'canManage'))->layout('layouts.master', ['area' => $user->usesAdminLayout() ? 'admin' : 'user']);
+        return view('livewire.support-cases', compact('cases', 'detail', 'canManage'))->layout('layouts.master');
     }
 }

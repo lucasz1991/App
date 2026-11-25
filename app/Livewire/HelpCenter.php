@@ -46,9 +46,7 @@ class HelpCenter extends Component
             'topics' => $topics,
             'topicGroups' => $topics->groupBy('group'),
             'faqs' => $this->faqs(),
-        ])->layout('layouts.master', [
-            'area' => $user->usesAdminLayout() ? 'admin' : 'user',
-        ]);
+        ])->layout('layouts.master');
     }
 
     /**

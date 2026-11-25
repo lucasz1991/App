@@ -140,7 +140,7 @@ class DeviceDesktopClients extends Component
 
     public function render()
     {
-        $actor = $this->actor();
+        $this->actor();
         $clients = DeviceDesktopClient::query()->with(['device', 'assignment.user:id,name'])->latest()->limit(200)->get();
         $selected = $this->clientPublicId ? $this->selected()->load(['device', 'assignment.user:id,name']) : null;
         $jobs = $selected ? $selected->jobs()->latest()->limit(20)->get() : collect();
@@ -154,6 +154,6 @@ class DeviceDesktopClients extends Component
         $commandsEnabled = app(DeviceManagementSettings::class)->productionCommandsEnabled(fresh: true);
 
         return view('livewire.devices.device-desktop-clients', compact('clients', 'selected', 'jobs', 'devices', 'commandsEnabled', 'setupBlocked', 'softwareReady'))
-            ->layout('layouts.master', ['area' => $actor->usesAdminLayout() ? 'admin' : 'user']);
+            ->layout('layouts.master');
     }
 }

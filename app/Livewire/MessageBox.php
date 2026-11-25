@@ -375,9 +375,8 @@ class MessageBox extends Component
         $pageSelected = $visibleIds !== [] && $selectedCount === count($visibleIds);
         $totalCount = $this->inboxQuery()->count();
         $unreadCount = $this->inboxQuery()->where('status', 1)->count();
-        $area = auth()->user()->usesAdminLayout() ? 'admin' : 'user';
 
         return view('livewire.message-box', compact('messages', 'totalCount', 'unreadCount', 'selectedCount', 'pageSelected'))
-            ->layout('layouts.master', ['area' => $area]);
+            ->layout('layouts.master');
     }
 }

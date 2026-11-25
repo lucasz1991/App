@@ -43,6 +43,6 @@ class DeviceEnrollmentSetup extends Component
             ->firstOrFail();
 
         return view('livewire.devices.device-enrollment-setup', compact('enrollment'))
-            ->layout('layouts.master', ['area' => auth()->user()->usesAdminLayout() ? 'admin' : 'user']);
+            ->layout('layouts.master');
     }
 }

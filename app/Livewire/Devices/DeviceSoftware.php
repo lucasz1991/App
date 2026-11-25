@@ -279,6 +279,6 @@ class DeviceSoftware extends Component
             'canManageDirectory' => $canManageDirectory, 'canAssign' => $canAssign,
             'commandsEnabled' => app(DeviceManagementSettings::class)->productionCommandsEnabled(fresh: true),
             'maxAttempts' => DeviceSoftwareService::MAX_ATTEMPTS,
-        ])->layout('layouts.master', ['area' => $actor->usesAdminLayout() ? 'admin' : 'user']);
+        ])->layout('layouts.master');
     }
 }

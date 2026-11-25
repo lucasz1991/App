@@ -89,8 +89,6 @@ class ItSupport extends Component
         return view('livewire.it-support', [
             'categories' => $this->categories(),
             'sender' => auth()->user(),
-        ])->layout('layouts.master', [
-            'area' => auth()->user()->usesAdminLayout() ? 'admin' : 'user',
-        ]);
+        ])->layout('layouts.master');
     }
 }

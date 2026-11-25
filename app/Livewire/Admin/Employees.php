@@ -338,6 +338,6 @@ class Employees extends Component
             'teams' => $teams,
             'canManageEmployeeTeams' => app(EmployeeTeamService::class)->canManage(auth()->user()),
         ])
-            ->layout('layouts.master', ['area' => auth()->user()->usesAdminLayout() ? 'admin' : 'user']);
+            ->layout('layouts.master');
     }
 }

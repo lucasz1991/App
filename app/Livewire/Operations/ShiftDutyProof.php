@@ -61,6 +61,6 @@ class ShiftDutyProof extends Component
 
         return view('livewire.operations.shift-duty-proof', [
             'shift' => $shift, 'rule' => $service->dutyRule($shift, $this->sectionId), 'proof' => $proof, 'sections' => $shift->sectionActivityRules(),
-        ])->layout('layouts.master', ['area' => auth()->user()->usesAdminLayout() ? 'admin' : 'user']);
+        ])->layout('layouts.master');
     }
 }
