@@ -10,6 +10,7 @@ use App\Services\Operations\PersonnelScopeService;
 use App\Services\Operations\WorkTimeExportAccessService;
 use App\Services\Operations\WorkTimeExtensionService;
 use App\Services\Operations\WorkTimeService;
+use App\Support\Exports\CsvDownload;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\ReportingPeriod;
 use App\Support\Operations\WorkTimeSchema;
@@ -278,7 +279,7 @@ class TimeReview extends Component
         $export = app(WorkTimeExportAccessService::class)->legacyQuery(auth()->user())->findOrFail($id);
         $csv = $service->csv($export, auth()->user());
 
-        return response()->streamDownload(fn () => print ($csv), 'RailTime-Zeiten-'.$export->public_id.'.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+        return CsvDownload::stream($csv, 'RailTime-Zeiten-'.$export->public_id.'.csv');
     }
 
     public function downloadPayroll(int $id, PayrollReferenceService $service)
@@ -288,7 +289,7 @@ class TimeReview extends Component
         $export = app(WorkTimeExportAccessService::class)->legacyQuery(auth()->user())->findOrFail($id);
         $csv = $service->csv($export, auth()->user());
 
-        return response()->streamDownload(fn () => print ($csv), 'RailTime-Lohnuebergabe-'.$export->public_id.'.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+        return CsvDownload::stream($csv, 'RailTime-Lohnuebergabe-'.$export->public_id.'.csv');
     }
 
     public function downloadBasic(int $id)
@@ -298,7 +299,7 @@ class TimeReview extends Component
         $export = WorkTimeBasicExport::findOrFail($id);
         $csv = app(WorkTimeExtensionService::class)->csv($export, auth()->user());
 
-        return response()->streamDownload(fn () => print ($csv), 'RailTime-Arbeitszeiten-v2-'.$export->public_id.'.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+        return CsvDownload::stream($csv, 'RailTime-Arbeitszeiten-v2-'.$export->public_id.'.csv');
     }
 
     public function render()

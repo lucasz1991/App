@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\CustomerPortal\CustomerPortalIntakeAttachmentService;
 use App\Services\CustomerPortal\CustomerPortalPublicationService;
 use App\Services\CustomerPortal\CustomerPortalWorkspaceService;
+use App\Support\Exports\CsvDownload;
 use Illuminate\Support\Facades\Auth;
 
 class CustomerPortalDocumentController extends Controller
@@ -33,7 +34,7 @@ class CustomerPortalDocumentController extends Controller
     {
         $csv = $service->report($this->identity(), $customer);
 
-        return response($csv, 200, ['Content-Type' => 'text/csv; charset=utf-8', 'Content-Disposition' => 'attachment; filename="railtime-kundenleistungen.csv"', 'Cache-Control' => 'no-store, private', 'X-Content-Type-Options' => 'nosniff']);
+        return CsvDownload::response($csv, 'railtime-kundenleistungen.csv');
     }
 
     public function managerAttachment(int $id, CustomerPortalIntakeAttachmentService $service)

@@ -171,6 +171,33 @@ class WorkTimeExportReviewTest extends TestCase
             ->assertDontSee('Lohnübergabe CSV')->call('download', $basic->id)->assertFileDownloaded('RailTime-Arbeitszeiten-v2-'.$basic->public_id.'.csv');
     }
 
+    public function test_csv_downloads_share_headers_and_keep_service_output_byte_identical(): void
+    {
+        $shift = $this->entry($this->employee, true, 'approved', 'Shift Byte');
+        $general = $this->entry($this->employee, false, 'approved', 'General Byte');
+        $legacy = $this->legacyExport([$shift]);
+        $basic = app(WorkTimeExtensionService::class)->export([$general->id], $this->admin);
+        $ui = Livewire::actingAs($this->manager)->test(TimeReview::class, ['exports' => true]);
+
+        $v1 = $ui->instance()->download($legacy->id, app(WorkTimeService::class));
+        $this->assertStreamedCsv($v1, app(WorkTimeService::class)->csv($legacy, $this->manager), 'RailTime-Zeiten-'.$legacy->public_id.'.csv');
+        $ui->set('exportProfile', 'v2');
+        $v2 = $ui->instance()->downloadBasic($basic->id);
+        $this->assertStreamedCsv($v2, app(WorkTimeExtensionService::class)->csv($basic, $this->manager), 'RailTime-Arbeitszeiten-v2-'.$basic->public_id.'.csv');
+    }
+
+    private function assertStreamedCsv($response, string $expected, string $filename): void
+    {
+        $this->assertSame('text/csv; charset=UTF-8', $response->headers->get('Content-Type'));
+        $this->assertSame('no-store, private', $response->headers->get('Cache-Control'));
+        $this->assertSame('nosniff', $response->headers->get('X-Content-Type-Options'));
+        $this->assertStringStartsWith('attachment;', (string) $response->headers->get('Content-Disposition'));
+        $this->assertStringContainsString($filename, (string) $response->headers->get('Content-Disposition'));
+        ob_start();
+        $response->sendContent();
+        $this->assertSame($expected, ob_get_clean());
+    }
+
     public function test_v2_selection_creates_its_own_immutable_export_not_a_payroll_handoff(): void
     {
         $entry = $this->entry($this->employee, false);

@@ -13,6 +13,7 @@ use App\Services\Operations\OperationsAuditService;
 use App\Services\Operations\OperationsReportService;
 use App\Services\Operations\PersonnelScopeService;
 use App\Services\Operations\PersonnelWorkflowService;
+use App\Support\Exports\CsvDownload;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsNavigation;
 use App\Support\Operations\ReportingPeriod;
@@ -69,7 +70,7 @@ class PersonnelReview extends Component
         abort_unless($this->module === 'absences', 403);
         $csv = $service->absences(auth()->user(), $this->from, $this->until, $this->filter, $this->absenceKind, $this->search);
 
-        return response()->streamDownload(fn () => print ($csv), 'RailTime-Abwesenheiten-'.$this->from.'.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+        return CsvDownload::stream($csv, 'RailTime-Abwesenheiten-'.$this->from.'.csv');
     }
 
     public function updatedValidity(): void

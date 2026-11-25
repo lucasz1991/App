@@ -25,6 +25,7 @@ use App\Services\Operations\UnifiedOperationsInboxService;
 use App\Services\Operations\WorkTimeExtensionService;
 use App\Services\Operations\WorkTimeService;
 use App\Support\CustomerPortal\CustomerPortalIntakeSchema;
+use App\Support\Exports\CsvDownload;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\PersonalCalendarLayout;
 use App\Support\Operations\PersonalSchedule;
@@ -265,7 +266,7 @@ class MyWork extends Component
         $this->access();
         $csv = $service->ownTimes(auth()->user(), $this->timeFrom, $this->timeUntil);
 
-        return response()->streamDownload(fn () => print ($csv), 'RailTime-Meine-Zeiten-'.$this->timeFrom.'.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+        return CsvDownload::stream($csv, 'RailTime-Meine-Zeiten-'.$this->timeFrom.'.csv');
     }
 
     public function exportOwnWorkTimes(OperationsReportService $service)
@@ -274,7 +275,7 @@ class MyWork extends Component
         WorkTimeSchema::requireReady();
         $csv = $service->ownTimesV2(auth()->user(), $this->timeFrom, $this->timeUntil);
 
-        return response()->streamDownload(fn () => print ($csv), 'RailTime-Meine-Arbeitszeiten-v2-'.$this->timeFrom.'.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+        return CsvDownload::stream($csv, 'RailTime-Meine-Arbeitszeiten-v2-'.$this->timeFrom.'.csv');
     }
 
     public function openForm(string $form): void

@@ -26,6 +26,7 @@ use App\Services\Operations\PersonnelScopeService;
 use App\Services\Operations\ReviewedInquiryImportService;
 use App\Services\Operations\WorkTimeActivityService;
 use App\Services\Operations\WorkTimeTerminalService;
+use App\Support\Exports\CsvDownload;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsEnhancementsSchema;
 use Carbon\CarbonImmutable;
@@ -399,7 +400,7 @@ class OperationsEnhancements extends Component
         $revision ??= $this->selectedRevision;
         $csv = app(PayrollClosingService::class)->csv($record->id, $revision, $actor, $delta);
 
-        return response()->streamDownload(fn () => print ($csv), 'RailTime-Lohnvorbereitung-'.$record->month.'-r'.$revision.'.csv', ['Content-Type' => 'text/csv; charset=UTF-8', 'Cache-Control' => 'private, no-store']);
+        return CsvDownload::stream($csv, 'RailTime-Lohnvorbereitung-'.$record->month.'-r'.$revision.'.csv');
     }
 
     public function returnTime(int $id, int $revision): void
@@ -444,7 +445,7 @@ class OperationsEnhancements extends Component
         abort_unless($record->revision === $this->selectedRevision, 409);
         $data = app(OperationsPartnerService::class)->projection($record->id, $actor);
 
-        return response()->streamDownload(fn () => print (json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)), 'RailTime-Partneranfrage-'.$record->id.'-r'.$record->revision.'.json', ['Content-Type' => 'application/json; charset=UTF-8', 'Cache-Control' => 'private, no-store']);
+        return CsvDownload::streamContent(json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR), 'RailTime-Partneranfrage-'.$record->id.'-r'.$record->revision.'.json', CsvDownload::JSON);
     }
 
     public function render()

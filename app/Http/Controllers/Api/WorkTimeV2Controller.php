@@ -11,6 +11,7 @@ use App\Services\Operations\WorkTimeActivityService;
 use App\Services\Operations\WorkTimeCaptureService;
 use App\Services\Operations\WorkTimeExtensionService;
 use App\Services\Operations\WorkTimeService;
+use App\Support\Exports\CsvDownload;
 use App\Support\Operations\OperationsApiAccess;
 use App\Support\Operations\ReportingPeriod;
 use App\Support\Operations\WorkTimeSchema;
@@ -98,7 +99,7 @@ class WorkTimeV2Controller extends Controller
     {
         $actor = OperationsApiAccess::authorize($request, 'operations:times:export');
 
-        return response($service->csv(WorkTimeBasicExport::where('public_id', $publicId)->firstOrFail(), $actor))->header('Content-Type', 'text/csv; charset=UTF-8')->header('Content-Disposition', 'attachment; filename="RailTime-Arbeitszeit-v2-'.$publicId.'.csv"');
+        return CsvDownload::response($service->csv(WorkTimeBasicExport::where('public_id', $publicId)->firstOrFail(), $actor), 'RailTime-Arbeitszeit-v2-'.$publicId.'.csv');
     }
 
     private function time(WorkTimeEntry $entry): array

@@ -9,6 +9,7 @@ use App\Services\CustomerPortal\CustomerPortalSeriesService;
 use App\Services\CustomerPortal\CustomerPortalSubmissionService;
 use App\Services\CustomerPortal\CustomerPortalWorkspaceService;
 use App\Support\CustomerPortal\CustomerPortalScope;
+use App\Support\Exports\CsvDownload;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -352,7 +353,7 @@ class Workspace extends Component
         $this->access('reports.view');
         $csv = app(CustomerPortalWorkspaceService::class)->report($this->identity(), $this->customerId);
 
-        return response()->streamDownload(fn () => print ($csv), 'RailTime-Auftraege.csv', ['Content-Type' => 'text/csv; charset=UTF-8', 'Cache-Control' => 'private, no-store']);
+        return CsvDownload::stream($csv, 'RailTime-Auftraege.csv');
     }
 
     public function switchView(string $view): void

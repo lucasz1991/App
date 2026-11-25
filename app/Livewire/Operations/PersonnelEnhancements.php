@@ -26,6 +26,7 @@ use App\Services\Operations\PersonnelEnhancementService;
 use App\Services\Operations\PersonnelProcessService;
 use App\Services\Operations\PersonnelScopeService;
 use App\Services\Operations\PersonnelWorkflowService;
+use App\Support\Exports\CsvDownload;
 use App\Support\Operations\OperationsAccess;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
@@ -437,15 +438,14 @@ class PersonnelEnhancements extends Component
         abort_unless($results !== [], 404);
         $result = end($results);
 
-        return response()->streamDownload(function () use ($result): void {
-            $stream = fopen('php://output', 'w');
-            fputcsv($stream, ['Zeitraum_von', 'Zeitraum_bis', 'Mitarbeiter_ID', 'Name', 'Soll_Minuten', 'Ist_Minuten', 'Saldo_Minuten', 'Fehlende_Grundlagen', 'Offene_Abwesenheiten'], ';', '"', '');
-            foreach ($result['rows'] as $row) {
-                $name = preg_match('/^[=+\-@\t\r]/', $row['name']) ? "'".$row['name'] : $row['name'];
-                fputcsv($stream, [$result['from'], $result['until'], $row['user_id'], $name, $row['target_minutes'], $row['actual_minutes'], $row['balance_minutes'], $row['missing_days'], $row['pending_absences']], ';', '"', '');
-            }
-            fclose($stream);
-        }, 'Personalbericht.csv', ['Content-Type' => 'text/csv; charset=UTF-8', 'Cache-Control' => 'private, no-store']);
+        $rows = [];
+        foreach ($result['rows'] as $row) {
+            $name = preg_match('/^[=+\-@\t\r]/', $row['name']) ? "'".$row['name'] : $row['name'];
+            $rows[] = [$result['from'], $result['until'], $row['user_id'], $name, $row['target_minutes'], $row['actual_minutes'], $row['balance_minutes'], $row['missing_days'], $row['pending_absences']];
+        }
+        $csv = CsvDownload::fromRows(['Zeitraum_von', 'Zeitraum_bis', 'Mitarbeiter_ID', 'Name', 'Soll_Minuten', 'Ist_Minuten', 'Saldo_Minuten', 'Fehlende_Grundlagen', 'Offene_Abwesenheiten'], $rows, ';', '"', '');
+
+        return CsvDownload::stream($csv, 'Personalbericht.csv');
     }
 
     public function reportState(int $id, int $revision, bool $active): void
@@ -463,7 +463,7 @@ class PersonnelEnhancements extends Component
         abort_if($this->personal, 403);
         $text = app(PersonnelEnhancementService::class)->renderDocument(PersonnelDocumentTemplate::findOrFail($id), User::findOrFail($this->userId), auth()->user());
 
-        return response()->streamDownload(fn () => print ($text), 'Personalvorlage.txt', ['Content-Type' => 'text/plain; charset=UTF-8', 'Cache-Control' => 'private, no-store']);
+        return CsvDownload::streamContent($text, 'Personalvorlage.txt', CsvDownload::TEXT);
     }
 
     public function reviewSignature(int $id, int $revision, bool $accept): void

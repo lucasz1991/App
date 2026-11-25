@@ -12,6 +12,7 @@ use App\Services\Operations\PersonnelScopeService;
 use App\Services\Operations\PersonnelWorkflowService;
 use App\Services\Operations\WorkTimeExportAccessService;
 use App\Services\Operations\WorkTimeService;
+use App\Support\Exports\CsvDownload;
 use App\Support\Operations\OperationsApiAccess as Access;
 use App\Support\Operations\PersonalSchedule;
 use App\Support\Operations\ReportingPeriod;
@@ -168,7 +169,7 @@ class OperationsController extends Controller
         $actor = Access::authorize($request, 'operations:times:export');
         $export = WorkTimeExport::where('public_id', $publicId)->firstOrFail();
 
-        return response($service->csv($export, $actor))->header('Content-Type', 'text/csv; charset=UTF-8')->header('Content-Disposition', 'attachment; filename="RailTime-Zeiten-'.$publicId.'.csv"');
+        return CsvDownload::response($service->csv($export, $actor), 'RailTime-Zeiten-'.$publicId.'.csv');
     }
 
     public function absenceCsv(Request $request, OperationsReportService $service)
@@ -177,14 +178,14 @@ class OperationsController extends Controller
         $request->validate(['employee_id' => 'prohibited']);
         $data = $this->filters($request, true);
 
-        return response($service->absences($actor, $data['from'], $data['until'], $data['status'] ?? 'all', $data['kind'] ?? 'all'))->header('Content-Type', 'text/csv; charset=UTF-8')->header('Content-Disposition', 'attachment; filename="RailTime-Abwesenheiten.csv"');
+        return CsvDownload::response($service->absences($actor, $data['from'], $data['until'], $data['status'] ?? 'all', $data['kind'] ?? 'all'), 'RailTime-Abwesenheiten.csv');
     }
 
     public function payrollCsv(Request $request, string $publicId, PayrollReferenceService $service)
     {
         $actor = Access::authorize($request, 'operations:times:export');
 
-        return response($service->csv(WorkTimeExport::where('public_id', $publicId)->firstOrFail(), $actor))->header('Content-Type', 'text/csv; charset=UTF-8')->header('Content-Disposition', 'attachment; filename="RailTime-Lohnuebergabe-'.$publicId.'.csv"');
+        return CsvDownload::response($service->csv(WorkTimeExport::where('public_id', $publicId)->firstOrFail(), $actor), 'RailTime-Lohnuebergabe-'.$publicId.'.csv');
     }
 
     private function filters(Request $request, bool $absence): array

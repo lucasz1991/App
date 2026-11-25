@@ -361,7 +361,7 @@ class OperationsRoadmapTest extends TestCase
         $id = $response->json('data.id');
         $this->api($this->admin, ['operations:absences:review', 'operations:absences:read']);
         $this->postJson('/api/v1/operations/absences/'.$id.'/review', ['revision' => 1, 'action' => 'approve'])->assertOk()->assertJsonPath('data.status', 'approved');
-        $this->getJson('/api/v1/operations/absences.csv?from=2027-06-01&until=2027-06-30')->assertOk()->assertDontSee('PRIVATE-ABSENCE')->assertSee('approved');
+        $this->getJson('/api/v1/operations/absences.csv?from=2027-06-01&until=2027-06-30')->assertOk()->assertHeader('Content-Type', 'text/csv; charset=UTF-8')->assertHeader('X-Content-Type-Options', 'nosniff')->assertHeader('Content-Disposition', 'attachment; filename=RailTime-Abwesenheiten.csv')->assertDontSee('PRIVATE-ABSENCE')->assertSee('approved');
         $this->postJson('/api/v1/operations/absences/'.$id.'/review', ['revision' => 2, 'action' => 'cancel', 'note' => 'Urlaub verschoben'])->assertOk()->assertJsonPath('data.status', 'cancelled');
         $this->postJson('/api/v1/operations/absences/'.$id.'/review', ['revision' => 1, 'action' => 'approve'])->assertUnprocessable();
     }
