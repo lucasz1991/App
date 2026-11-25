@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Operations;
 
+use App\Livewire\Concerns\ResetsPageOnFilterChange;
+use App\Livewire\Concerns\SortsTable;
 use App\Models\AiIntakeProposal;
 use App\Models\Customer;
 use App\Models\CustomerPortalSubmissionItem;
@@ -21,7 +23,7 @@ use Livewire\WithPagination;
 
 class InquiryInbox extends Component
 {
-    use WithPagination;
+    use ResetsPageOnFilterChange, SortsTable, WithPagination;
 
     public string $search = '';
 
@@ -163,21 +165,13 @@ class InquiryInbox extends Component
         $this->syncUrl();
     }
 
-    public function updatedSearch(): void
+    protected function pageResetProperties(): array
     {
-        $this->resetPage();
-        $this->syncUrl();
+        return ['search', 'filter', 'statusFilter'];
     }
 
-    public function updatedFilter(): void
+    protected function afterFilterReset(string $property): void
     {
-        $this->resetPage();
-        $this->syncUrl();
-    }
-
-    public function updatedStatusFilter(): void
-    {
-        $this->resetPage();
         $this->syncUrl();
     }
 
@@ -188,15 +182,14 @@ class InquiryInbox extends Component
         }
     }
 
-    public function tableSort(string $key, ?string $dir = null): void
+    protected function sortableColumns(): array
+    {
+        return self::SORTABLE_COLUMNS;
+    }
+
+    protected function authorizeTableSort(): void
     {
         $this->access();
-        abort_unless(in_array($key, self::SORTABLE_COLUMNS, true), 422);
-        abort_unless($dir === null || in_array($dir, ['asc', 'desc'], true), 422);
-        $direction = $dir ?? ($this->sortBy === $key && $this->sortDir === 'asc' ? 'desc' : 'asc');
-        $this->sortBy = $key;
-        $this->sortDir = $direction;
-        $this->resetPage();
     }
 
     public function close(): void

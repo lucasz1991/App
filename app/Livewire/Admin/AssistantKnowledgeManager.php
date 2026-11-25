@@ -3,6 +3,7 @@
 namespace App\Livewire\Admin;
 
 use App\Livewire\Concerns\AuthorizesSuperAdminSettings;
+use App\Livewire\Concerns\ResetsPageOnFilterChange;
 use App\Models\AssistantKnowledgeEntry;
 use App\Models\AssistantKnowledgeTopic;
 use App\Services\Ai\AssistantKnowledgePool;
@@ -15,6 +16,7 @@ use Livewire\WithPagination;
 class AssistantKnowledgeManager extends Component
 {
     use AuthorizesSuperAdminSettings;
+    use ResetsPageOnFilterChange;
     use WithPagination;
 
     public string $knowledgeIntro = '';
@@ -70,14 +72,9 @@ class AssistantKnowledgeManager extends Component
         $this->authorizeSuperAdminSettings();
     }
 
-    public function updatedSearch(): void
+    protected function pageResetProperties(): array
     {
-        $this->resetPage();
-    }
-
-    public function updatedTopicFilter(): void
-    {
-        $this->resetPage();
+        return ['search', 'topicFilter'];
     }
 
     public function savePromptConfiguration(): void

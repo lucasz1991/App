@@ -8,6 +8,7 @@ use App\Events\ChatMessageReceived;
 use App\Events\ChatMessageSent;
 use App\Events\ChatRead;
 use App\Livewire\Concerns\InteractsWithPersonQuickActions;
+use App\Livewire\Concerns\ResetsPageOnFilterChange;
 use App\Models\Chat;
 use App\Models\ChatLiveLocation;
 use App\Models\ChatMessage;
@@ -42,6 +43,7 @@ class ChatBox extends Component
     use InteractsWithPersonQuickActions;
     use WithFileUploads;
     use WithoutUrlPagination;
+    use ResetsPageOnFilterChange;
     use WithPagination;
 
     private const MEMBER_PICKER_PER_PAGE = 6;
@@ -816,19 +818,9 @@ class ChatBox extends Component
         $this->updatedNewChatTab($tab);
     }
 
-    public function updatingDirectContactSearch(): void
+    protected function pageResetProperties(): array
     {
-        $this->resetPage('directContactsPage');
-    }
-
-    public function updatingGroupParticipantSearch(): void
-    {
-        $this->resetPage('groupParticipantsPage');
-    }
-
-    public function updatingGroupMemberSearch(): void
-    {
-        $this->resetPage('groupMembersPage');
+        return ['directContactSearch' => 'directContactsPage', 'groupParticipantSearch' => 'groupParticipantsPage', 'groupMemberSearch' => 'groupMembersPage'];
     }
 
     public function openGroupSettings(): void

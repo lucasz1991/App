@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Operations;
 
+use App\Livewire\Concerns\ResetsPageOnFilterChange;
 use App\Models\AbsenceRequest;
 use App\Models\EmployeeQualification;
 use App\Models\OperationsRuleProfile;
@@ -24,6 +25,7 @@ use Livewire\WithPagination;
 
 class PersonnelReview extends Component
 {
+    use ResetsPageOnFilterChange;
     use WithPagination;
 
     #[Locked]
@@ -56,19 +58,9 @@ class PersonnelReview extends Component
         $this->absenceView = $view;
     }
 
-    public function updatedFrom(): void
+    protected function pageResetProperties(): array
     {
-        $this->resetPage();
-    }
-
-    public function updatedUntil(): void
-    {
-        $this->resetPage();
-    }
-
-    public function updatedAbsenceKind(): void
-    {
-        $this->resetPage();
+        return ['from', 'until', 'absenceKind', 'filter', 'search'];
     }
 
     public function exportAbsences(OperationsReportService $service)
@@ -172,7 +164,6 @@ class PersonnelReview extends Component
     public function updatedFilter(): void
     {
         $this->validity = 'all';
-        $this->resetPage();
     }
 
     public function activeFilterCount(): int
@@ -196,11 +187,6 @@ class PersonnelReview extends Component
     private function defaultFilter(): string
     {
         return $this->profileUserId !== null ? 'all' : 'pending';
-    }
-
-    public function updatedSearch(): void
-    {
-        $this->resetPage();
     }
 
     private function access(): void

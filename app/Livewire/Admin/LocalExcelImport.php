@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Admin;
 
+use App\Livewire\Concerns\ResetsPageOnFilterChange;
 use App\Models\DropboxAppearance;
 use App\Models\DropboxIdentity;
 use App\Models\LocalExcelImport as Import;
@@ -18,7 +19,7 @@ use Livewire\WithPagination;
 
 class LocalExcelImport extends Component
 {
-    use WithFileUploads, WithPagination;
+    use ResetsPageOnFilterChange, WithFileUploads, WithPagination;
 
     public $upload;
 
@@ -119,10 +120,19 @@ class LocalExcelImport extends Component
         $this->notice = $target === 'new' ? 'Lokales Testkonto angelegt: '.$user->email.'. Anmeldung mit dem gerade eingegebenen Passwort.' : 'Zuordnung gespeichert. Bereits abgeschlossene Dateien bei Bedarf erneut importieren.';
     }
 
-    public function updatedSearch(): void
+    protected function pageResetProperties(): array
+    {
+        return ['search'];
+    }
+
+    protected function filterPageName(): string
+    {
+        return 'localIdentities';
+    }
+
+    protected function beforeFilterReset(string $property): void
     {
         $this->service();
-        $this->resetPage('localIdentities');
     }
 
     public function render()

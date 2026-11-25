@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Operations;
 
+use App\Livewire\Concerns\ResetsPageOnFilterChange;
 use App\Livewire\Concerns\ResolvesOperationsActor;
 use App\Models\AiIntake;
 use App\Models\Customer;
@@ -32,7 +33,7 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class AiIntakeInbox extends Component
 {
-    use ResolvesOperationsActor, WithFileUploads, WithPagination;
+    use ResetsPageOnFilterChange, ResolvesOperationsActor, WithFileUploads, WithPagination;
 
     public const LABELS = ['received' => 'Erfasst', 'analyzing' => 'Wird analysiert', 'review' => 'Prüfung nötig', 'waiting_customer' => 'Antwort ausstehend', 'ready' => 'Vorbereitet', 'paused' => 'Pausiert', 'not_inquiry' => 'Keine Anfrage', 'failed' => 'Verarbeitung prüfen', 'completed' => 'Übernommen'];
 
@@ -346,14 +347,14 @@ class AiIntakeInbox extends Component
         $this->resetPage('aiIntakePage');
     }
 
-    public function updatedSearch(): void
+    protected function pageResetProperties(): array
     {
-        $this->resetPage('aiIntakePage');
+        return ['search', 'statusFilter'];
     }
 
-    public function updatedStatusFilter(): void
+    protected function filterPageName(): string
     {
-        $this->resetPage('aiIntakePage');
+        return 'aiIntakePage';
     }
 
     public function updatedAssignCustomerId(): void

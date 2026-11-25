@@ -6,6 +6,8 @@ use App\Enums\OrderPriority;
 use App\Enums\OrderStatus;
 use App\Enums\ShiftAssignmentStatus;
 use App\Enums\ShiftStatus;
+use App\Livewire\Concerns\ResetsPageOnFilterChange;
+use App\Livewire\Concerns\SortsTable;
 use App\Models\Customer;
 use App\Models\OperationInquiry;
 use App\Models\Order;
@@ -30,6 +32,8 @@ class Orders extends Component
 {
     use SupportsOperationsUi;
     use SupportsServiceTableSelection;
+    use ResetsPageOnFilterChange;
+    use SortsTable;
     use WithPagination;
 
     public string $search = '';
@@ -57,26 +61,33 @@ class Orders extends Component
         $this->resetPage('ordersPage');
     }
 
-    public function tableSort(string $key, ?string $dir = null): void
+    protected function sortableColumns(): array
+    {
+        return self::SORTABLE_COLUMNS;
+    }
+
+    protected function authorizeTableSort(): void
     {
         $this->ensureAdmin();
-        abort_unless(in_array($key, self::SORTABLE_COLUMNS, true), 422);
-        abort_unless($dir === null || in_array($dir, ['asc', 'desc'], true), 422);
-        $direction = $dir ?? ($this->sortBy === $key && $this->sortDir === 'asc' ? 'desc' : 'asc');
-        $this->sortBy = $key;
-        $this->sortDir = $direction;
-        $this->resetPage('ordersPage');
     }
 
-    public function updatedSearch(): void
+    protected function sortPageName(): ?string
     {
-        $this->resetPage('ordersPage');
-        $this->syncUrl();
+        return 'ordersPage';
     }
 
-    public function updatedStatusFilter(): void
+    protected function pageResetProperties(): array
     {
-        $this->resetPage('ordersPage');
+        return ['search', 'statusFilter'];
+    }
+
+    protected function filterPageName(): string
+    {
+        return 'ordersPage';
+    }
+
+    protected function afterFilterReset(string $property): void
+    {
         $this->syncUrl();
     }
 

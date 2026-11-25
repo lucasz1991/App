@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Calls;
 
+use App\Livewire\Concerns\ResetsPageOnFilterChange;
 use App\Models\CommunicationMeeting;
 use App\Models\Room;
 use App\Models\User;
@@ -15,6 +16,7 @@ use Livewire\WithPagination;
 class Meetings extends Component
 {
     use WithoutUrlPagination;
+    use ResetsPageOnFilterChange;
     use WithPagination;
 
     #[Locked]
@@ -58,15 +60,19 @@ class Meetings extends Component
         return ['communication:call-ready' => '$refresh', 'communication:call-released' => '$refresh'];
     }
 
-    public function updatedSearch(): void
+    protected function pageResetProperties(): array
     {
-        $this->resetPage('meetingsPage');
+        return ['search', 'filter'];
+    }
+
+    protected function filterPageName(): string
+    {
+        return 'meetingsPage';
     }
 
     public function updatedFilter(): void
     {
         $this->filter = in_array($this->filter, ['upcoming', 'past', 'all'], true) ? $this->filter : 'upcoming';
-        $this->resetPage('meetingsPage');
     }
 
     public function showCreate(string $mode = 'plan'): void

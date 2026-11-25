@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Operations;
 
+use App\Livewire\Concerns\ResetsPageOnFilterChange;
 use App\Livewire\Concerns\ResolvesOperationsActor;
 use App\Models\CustomerContact;
 use App\Models\EmployeeQualification;
@@ -35,7 +36,7 @@ use Livewire\WithPagination;
 
 class OperationsEnhancements extends Component
 {
-    use ResolvesOperationsActor, WithFileUploads, WithPagination;
+    use ResetsPageOnFilterChange, ResolvesOperationsActor, WithFileUploads, WithPagination;
 
     public const TABS = ['proofs' => 'Leistungsnachweise', 'travel' => 'Reisen', 'partners' => 'Partneranfragen', 'imports' => 'Eingangsprüfung', 'rules' => 'Fachregeln', 'payroll' => 'Monatsabschluss', 'costs' => 'Auftragskosten', 'terminal' => 'Terminalzugang'];
 
@@ -166,9 +167,9 @@ class OperationsEnhancements extends Component
         $this->resetPage();
     }
 
-    public function updatedSearch(): void
+    protected function pageResetProperties(): array
     {
-        $this->resetPage();
+        return ['search'];
     }
 
     private function query()

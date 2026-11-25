@@ -49,7 +49,7 @@
                 actions-view="components.tables.rows.customers.customer-actions"
                 :sort-by="$sortBy"
                 :sort-dir="$sortDir"
-                sort-action="sort"
+                sort-action="tableSort"
                 empty="Keine Kunden gefunden."
             />
             <div class="customer-directory__pagination"><x-tables.pagination :paginator="$customers" table-key="customer-list" /></div>

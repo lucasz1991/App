@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Operations;
 
+use App\Livewire\Concerns\ResetsPageOnFilterChange;
 use App\Livewire\Concerns\ResolvesOperationsActor;
 use App\Models\Customer;
 use App\Models\CustomerContact;
@@ -28,7 +29,7 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class CustomerCommunications extends Component
 {
-    use ResolvesOperationsActor, WithPagination;
+    use ResetsPageOnFilterChange, ResolvesOperationsActor, WithPagination;
 
     #[Locked]
     public int $customerId;
@@ -129,17 +130,22 @@ class CustomerCommunications extends Component
         $this->resetPage('customerCommunicationPage');
     }
 
-    public function updatedSearch(): void
+    protected function pageResetProperties(): array
     {
-        $this->access();
-        $this->resetPage('customerCommunicationPage');
+        return ['search', 'channelFilter'];
     }
 
-    public function updatedChannelFilter(): void
+    protected function filterPageName(): string
+    {
+        return 'customerCommunicationPage';
+    }
+
+    protected function beforeFilterReset(string $property): void
     {
         $this->access();
-        $this->filters();
-        $this->resetPage('customerCommunicationPage');
+        if ($property === 'channelFilter') {
+            $this->filters();
+        }
     }
 
     private function filters(): void

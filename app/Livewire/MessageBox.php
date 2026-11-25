@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Livewire\Concerns\ResetsPageOnFilterChange;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -12,6 +13,7 @@ use Livewire\WithPagination;
 
 class MessageBox extends Component
 {
+    use ResetsPageOnFilterChange;
     use WithPagination;
 
     private const PER_PAGE = 15;
@@ -45,16 +47,14 @@ class MessageBox extends Component
         $this->dispatch('message-viewer:open', messageId: $this->openMessageId);
     }
 
-    public function updatingSearch(): void
+    protected function pageResetProperties(): array
     {
-        $this->clearSelection();
-        $this->resetPage();
+        return ['search', 'status'];
     }
 
-    public function updatingStatus(): void
+    protected function afterFilterReset(string $property): void
     {
         $this->clearSelection();
-        $this->resetPage();
     }
 
     public function updatedStatus(): void

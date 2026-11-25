@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Operations;
 
+use App\Livewire\Concerns\ResetsPageOnFilterChange;
 use App\Livewire\Concerns\ResolvesOperationsActor;
 use App\Models\Customer;
 use App\Models\CustomerPortalRequest;
@@ -16,7 +17,7 @@ use Livewire\WithPagination;
 
 class UnifiedInbox extends Component
 {
-    use ResolvesOperationsActor, WithPagination;
+    use ResetsPageOnFilterChange, ResolvesOperationsActor, WithPagination;
 
     public const FILTERS = ['all' => 'Alle', 'review' => 'Zu prüfen', 'waiting' => 'Rückmeldung offen', 'ready' => 'Bereit', 'done' => 'Erledigt'];
 
@@ -61,9 +62,14 @@ class UnifiedInbox extends Component
         $this->resetPage('inboxPage');
     }
 
-    public function updatedChannel(): void
+    protected function pageResetProperties(): array
     {
-        $this->resetPage('inboxPage');
+        return ['channel'];
+    }
+
+    protected function filterPageName(): string
+    {
+        return 'inboxPage';
     }
 
     #[On('disposition-mailbox-updated')]

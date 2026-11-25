@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Operations;
 
+use App\Livewire\Concerns\ResetsPageOnFilterChange;
 use App\Models\EmployeePayrollReference;
 use App\Models\User;
 use App\Services\Operations\PayrollReferenceService;
@@ -15,6 +16,7 @@ use Livewire\WithPagination;
 
 class PayrollReferences extends Component
 {
+    use ResetsPageOnFilterChange;
     use WithPagination;
 
     public bool $open = false;
@@ -40,9 +42,14 @@ class PayrollReferences extends Component
         abort_unless(Schema::hasTable('employee_payroll_references'), 503);
     }
 
-    public function updatedSearch(): void
+    protected function pageResetProperties(): array
     {
-        $this->resetPage('payrollPage');
+        return ['search'];
+    }
+
+    protected function filterPageName(): string
+    {
+        return 'payrollPage';
     }
 
     public function edit(int $id): void

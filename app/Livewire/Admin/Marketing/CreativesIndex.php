@@ -4,6 +4,7 @@ namespace App\Livewire\Admin\Marketing;
 
 use App\Enums\MarketingCreativeType;
 use App\Livewire\Concerns\RequiresAdmin;
+use App\Livewire\Concerns\ResetsPageOnFilterChange;
 use App\Models\MarketingCreative;
 use App\Services\Marketing\MarketingMotiveService;
 use Illuminate\Database\Eloquent\Builder;
@@ -19,6 +20,7 @@ class CreativesIndex extends Component
 {
     use RequiresAdmin;
     use WithFileUploads;
+    use ResetsPageOnFilterChange;
     use WithPagination;
 
     #[Url(as: 'q', except: '')]
@@ -44,14 +46,9 @@ class CreativesIndex extends Component
         $this->adminActor();
     }
 
-    public function updatedSearch(): void
+    protected function pageResetProperties(): array
     {
-        $this->resetPage();
-    }
-
-    public function updatedType(): void
-    {
-        $this->resetPage();
+        return ['search', 'type'];
     }
 
     public function openCreateMotive(): void

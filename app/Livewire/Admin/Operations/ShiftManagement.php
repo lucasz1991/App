@@ -5,6 +5,8 @@ namespace App\Livewire\Admin\Operations;
 use App\Enums\OrderStatus;
 use App\Enums\ShiftAssignmentStatus;
 use App\Enums\ShiftStatus;
+use App\Livewire\Concerns\ResetsPageOnFilterChange;
+use App\Livewire\Concerns\SortsTable;
 use App\Livewire\Operations\StaffTimeline;
 use App\Models\Customer;
 use App\Models\OperationAudit;
@@ -49,6 +51,8 @@ class ShiftManagement extends Component
     use SupportsPlanningTravel;
     use SupportsServiceTableSelection;
     use SupportsShiftStaffing;
+    use ResetsPageOnFilterChange;
+    use SortsTable;
     use WithPagination;
 
     public string $attentionFilter = 'all';
@@ -94,20 +98,19 @@ class ShiftManagement extends Component
         $this->resetPage('servicesPage');
     }
 
+    protected function pageResetProperties(): array
+    {
+        return ['search', 'statusFilter', 'attentionFilter'];
+    }
+
+    protected function filterPageName(): string
+    {
+        return 'servicesPage';
+    }
+
     public function updatedSearch(): void
     {
         $this->mapLocationKey = null;
-        $this->resetPage('servicesPage');
-    }
-
-    public function updatedStatusFilter(): void
-    {
-        $this->resetPage('servicesPage');
-    }
-
-    public function updatedAttentionFilter(): void
-    {
-        $this->resetPage('servicesPage');
     }
 
     public function sortServices(string $key, ?string $dir = null): void
@@ -201,14 +204,20 @@ class ShiftManagement extends Component
 
     private const SORTABLE_COLUMNS = ['shift', 'customer', 'schedule', 'staffing', 'status'];
 
-    public function tableSort(string $key, ?string $dir = null): void
+    protected function sortableColumns(): array
+    {
+        return self::SORTABLE_COLUMNS;
+    }
+
+    protected function authorizeTableSort(): void
     {
         $this->ensureAdmin();
-        abort_unless(in_array($key, self::SORTABLE_COLUMNS, true), 422);
-        abort_unless($dir === null || in_array($dir, ['asc', 'desc'], true), 422);
-        $direction = $dir ?? ($this->sortBy === $key && $this->sortDir === 'asc' ? 'desc' : 'asc');
-        $this->sortBy = $key;
-        $this->sortDir = $direction;
+    }
+
+    /** Der Schichtplan ist nicht paginiert; Sortieren lässt die Leistungsseite unberührt. */
+    protected function sortPageName(): ?string
+    {
+        return null;
     }
 
     #[Locked]

@@ -6,6 +6,7 @@ use App\Enums\OrderStatus;
 use App\Enums\ShiftAssignmentStatus;
 use App\Enums\ShiftStatus;
 use App\Livewire\Concerns\InteractsWithPersonQuickActions;
+use App\Livewire\Concerns\ResetsPageOnFilterChange;
 use App\Livewire\Concerns\ResolvesOperationsActor;
 use App\Models\AbsenceRequest;
 use App\Models\Shift;
@@ -51,7 +52,7 @@ class StaffTimeline extends Component
         startDirectCall as private startTimelineDirectCall;
         openMessage as private openTimelineMessage;
     }
-    use WithoutUrlPagination, WithPagination;
+    use ResetsPageOnFilterChange, WithoutUrlPagination, WithPagination;
 
     private const INITIAL_BATCH_SIZE = 24;
 
@@ -424,9 +425,18 @@ class StaffTimeline extends Component
         $this->suggestionsReady = ! ($this->showSuggestions && $this->planningEnabled && ! $this->absencesOnly && $this->suggestionsAvailable);
     }
 
-    public function updatedSearch(): void
+    protected function pageResetProperties(): array
     {
-        $this->resetPage('staffPage');
+        return ['search'];
+    }
+
+    protected function filterPageName(): string
+    {
+        return 'staffPage';
+    }
+
+    protected function afterFilterReset(string $property): void
+    {
         $this->invalidateFilterPresentation();
     }
 

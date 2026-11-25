@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Operations;
 
+use App\Livewire\Concerns\ResetsPageOnFilterChange;
 use App\Livewire\Concerns\ResolvesOperationsActor;
 use App\Models\CommercialOfferRevision;
 use App\Models\Customer;
@@ -20,7 +21,7 @@ use Livewire\WithPagination;
 
 class CommercialOfferIndex extends Component
 {
-    use ResolvesOperationsActor, WithPagination;
+    use ResetsPageOnFilterChange, ResolvesOperationsActor, WithPagination;
 
     #[Locked]
     public ?int $customerId = null;
@@ -156,14 +157,14 @@ class CommercialOfferIndex extends Component
         $this->resetPage('offersPage');
     }
 
-    public function updatedSearch(): void
+    protected function pageResetProperties(): array
     {
-        $this->resetPage('offersPage');
+        return ['search', 'status'];
     }
 
-    public function updatedStatus(): void
+    protected function filterPageName(): string
     {
-        $this->resetPage('offersPage');
+        return 'offersPage';
     }
 
     #[On('commercial-offer-updated')]

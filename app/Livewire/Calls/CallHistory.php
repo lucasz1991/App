@@ -3,6 +3,7 @@
 namespace App\Livewire\Calls;
 
 use App\Events\CallInvitationAnswered;
+use App\Livewire\Concerns\ResetsPageOnFilterChange;
 use App\Models\Room;
 use App\Models\RoomInvitation;
 use App\Services\Calls\CallConversationService;
@@ -24,6 +25,7 @@ use Livewire\WithPagination;
 class CallHistory extends Component
 {
     use WithoutUrlPagination;
+    use ResetsPageOnFilterChange;
     use WithPagination;
 
     #[Locked]
@@ -58,9 +60,9 @@ class CallHistory extends Component
         $this->resetPage();
     }
 
-    public function updatedSearch(): void
+    protected function pageResetProperties(): array
     {
-        $this->resetPage();
+        return ['search'];
     }
 
     #[On('communication:call-ready')]

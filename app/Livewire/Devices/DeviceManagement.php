@@ -6,6 +6,7 @@ use App\Enums\AccountProvider;
 use App\Enums\DeviceCommandStatus;
 use App\Enums\DeviceCommandType;
 use App\Enums\DevicePlatform;
+use App\Livewire\Concerns\ResetsPageOnFilterChange;
 use App\Models\Device;
 use App\Models\DeviceCommand;
 use App\Models\DeviceProviderLink;
@@ -41,6 +42,7 @@ use Throwable;
 class DeviceManagement extends Component
 {
     use WithFileUploads;
+    use ResetsPageOnFilterChange;
     use WithPagination;
 
     /** @var array<string, array<string, mixed>> */
@@ -53,11 +55,6 @@ class DeviceManagement extends Component
     public string $platformFilter = '';
 
     public string $ownershipFilter = '';
-
-    public function updatedOwnershipFilter(): void
-    {
-        $this->resetPage();
-    }
 
     public string $formFactorFilter = '';
 
@@ -74,11 +71,6 @@ class DeviceManagement extends Component
 
     #[Locked]
     public ?string $microsoftWatchedRunId = null;
-
-    public function updatedMicrosoftFilter(): void
-    {
-        $this->resetPage();
-    }
 
     public function syncMicrosoftDevices(MicrosoftDeviceSyncScheduler $scheduler): void
     {
@@ -195,34 +187,9 @@ class DeviceManagement extends Component
         }
     }
 
-    public function updatedSearch(): void
+    protected function pageResetProperties(): array
     {
-        $this->resetPage();
-    }
-
-    public function updatedPlatformFilter(): void
-    {
-        $this->resetPage();
-    }
-
-    public function updatedFormFactorFilter(): void
-    {
-        $this->resetPage();
-    }
-
-    public function updatedLifecycleFilter(): void
-    {
-        $this->resetPage();
-    }
-
-    public function updatedComplianceFilter(): void
-    {
-        $this->resetPage();
-    }
-
-    public function updatedLocationFilter(): void
-    {
-        $this->resetPage();
+        return ['search', 'ownershipFilter', 'microsoftFilter', 'platformFilter', 'formFactorFilter', 'lifecycleFilter', 'complianceFilter', 'locationFilter'];
     }
 
     public function filterByLocation(string $location): void

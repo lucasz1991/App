@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Operations;
 
+use App\Livewire\Concerns\ResetsPageOnFilterChange;
 use App\Models\OperationsMonitorProfile;
 use App\Models\OperationsReminderPreference;
 use App\Models\User;
@@ -18,6 +19,7 @@ use Livewire\WithPagination;
 
 class AttentionCenter extends Component
 {
+    use ResetsPageOnFilterChange;
     use WithPagination;
 
     #[Locked]
@@ -105,19 +107,9 @@ class AttentionCenter extends Component
         $this->resetPage();
     }
 
-    public function updatedSearch(): void
+    protected function pageResetProperties(): array
     {
-        $this->resetPage();
-    }
-
-    public function updatedFrom(): void
-    {
-        $this->resetPage();
-    }
-
-    public function updatedUntil(): void
-    {
-        $this->resetPage();
+        return ['search', 'from', 'until'];
     }
 
     public function openItem(string $id): void

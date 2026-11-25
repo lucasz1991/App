@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Operations;
 
+use App\Livewire\Concerns\ResetsPageOnFilterChange;
 use App\Models\WorkTimeBasicExport;
 use App\Models\WorkTimeEntry;
 use App\Services\Operations\PayrollReferenceService;
@@ -21,6 +22,7 @@ use Livewire\WithPagination;
 
 class TimeReview extends Component
 {
+    use ResetsPageOnFilterChange;
     use WithPagination;
 
     #[Locked]
@@ -73,7 +75,7 @@ class TimeReview extends Component
         }
         if ($period !== $this->period) {
             $this->period = $period;
-            $this->updatedFilter();
+            $this->resetListState();
         }
     }
 
@@ -199,11 +201,22 @@ class TimeReview extends Component
     public function updatedExportProfile(): void
     {
         $this->access();
-        $this->updatedFilter();
+        $this->resetListState();
         $this->reset(['detailOpen', 'detailId', 'notes']);
     }
 
-    public function updatedFilter(): void
+    protected function pageResetProperties(): array
+    {
+        return ['filter', 'search'];
+    }
+
+    protected function afterFilterReset(string $property): void
+    {
+        $this->selected = [];
+    }
+
+    /** Seite und Auswahl zurücksetzen, wenn sich Zeitraum, Exportprofil oder Filter serverseitig ändern. */
+    private function resetListState(): void
     {
         $this->resetPage();
         $this->selected = [];
@@ -220,13 +233,7 @@ class TimeReview extends Component
         $this->access();
         $this->search = '';
         $this->filter = $this->exports ? 'approved' : 'submitted';
-        $this->updatedFilter();
-    }
-
-    public function updatedSearch(): void
-    {
-        $this->resetPage();
-        $this->selected = [];
+        $this->resetListState();
     }
 
     public function decide(int $id, int $revision, bool $approve, WorkTimeService $service): void

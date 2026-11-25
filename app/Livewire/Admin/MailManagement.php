@@ -3,6 +3,7 @@
 namespace App\Livewire\Admin;
 
 use App\Jobs\ProcessMailJob;
+use App\Livewire\Concerns\ResetsPageOnFilterChange;
 use App\Models\Mail;
 use App\Models\User;
 use Livewire\Component;
@@ -10,6 +11,7 @@ use Livewire\WithPagination;
 
 class MailManagement extends Component
 {
+    use ResetsPageOnFilterChange;
     use WithPagination;
 
     protected $listeners = ['table-sort' => 'tableSort'];
@@ -25,9 +27,9 @@ class MailManagement extends Component
     /** @var array<int, int> */
     public array $selectedMails = [];
 
-    public function updatingSearch(): void
+    protected function pageResetProperties(): array
     {
-        $this->resetPage();
+        return ['search'];
     }
 
     public function resetFilters(): void

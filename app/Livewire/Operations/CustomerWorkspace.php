@@ -2,7 +2,9 @@
 
 namespace App\Livewire\Operations;
 
+use App\Livewire\Concerns\ResetsPageOnFilterChange;
 use App\Livewire\Concerns\ResolvesOperationsActor;
+use App\Livewire\Concerns\SortsTable;
 use App\Models\Customer;
 use App\Models\User;
 use App\Services\Operations\CustomerProfileData;
@@ -23,7 +25,7 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class CustomerWorkspace extends Component
 {
-    use ResolvesOperationsActor, WithoutUrlPagination, WithPagination;
+    use ResetsPageOnFilterChange, ResolvesOperationsActor, SortsTable, WithoutUrlPagination, WithPagination;
 
     public const VIEWS = ['master' => 'Übersicht', 'orders' => 'Aufträge', 'inquiries' => 'Anfragen', 'offers' => 'Angebote', 'contacts' => 'Kontakte & Orte', 'conditions' => 'Konditionen', 'communication' => 'Kommunikation', 'documents' => 'Dokumente', 'history' => 'Historie', 'portal' => 'Kundenportal'];
 
@@ -336,14 +338,25 @@ class CustomerWorkspace extends Component
         abort_unless($canManage || $this->activeFilter === 'all', 403);
     }
 
-    public function updated(string $property): void
+    protected function pageResetProperties(): array
     {
-        if (in_array($property, ['search', 'activeFilter', 'perPage'], true)) {
-            $this->validateListState();
-            $this->selectedListCustomerId = null;
-            $this->resetPage('customersPage');
-            $this->syncUrl();
-        }
+        return ['search', 'activeFilter', 'perPage'];
+    }
+
+    protected function filterPageName(): string
+    {
+        return 'customersPage';
+    }
+
+    protected function beforeFilterReset(string $property): void
+    {
+        $this->validateListState();
+        $this->selectedListCustomerId = null;
+    }
+
+    protected function afterFilterReset(string $property): void
+    {
+        $this->syncUrl();
     }
 
     public function updatedPaginators(int $page, string $pageName): void
@@ -352,12 +365,31 @@ class CustomerWorkspace extends Component
         $this->syncUrl();
     }
 
+    /** Kompatibilitätsname der früheren sort-action; delegiert an SortsTable::tableSort(). */
     public function sort(string $key, string $direction): void
     {
-        $this->sortBy = $key;
-        $this->sortDir = $direction;
+        $this->tableSort($key, $direction);
+    }
+
+    /** Sortierbare Spalten sind rechteabhängig: Verwalter dürfen mehr als Leser. */
+    protected function sortableColumns(): array
+    {
+        return $this->canManage() ? ['company_name', 'city', 'is_active'] : ['company_name'];
+    }
+
+    protected function unsortableColumnStatus(): int
+    {
+        return 403;
+    }
+
+    protected function sortPageName(): ?string
+    {
+        return 'customersPage';
+    }
+
+    protected function afterTableSort(): void
+    {
         $this->validateListState();
-        $this->resetPage('customersPage');
         $this->syncUrl();
     }
 

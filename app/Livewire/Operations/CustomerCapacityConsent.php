@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Operations;
 
+use App\Livewire\Concerns\ResetsPageOnFilterChange;
 use App\Models\Customer;
 use App\Models\CustomerCapacityCommitment;
 use App\Models\CustomerLocation;
@@ -15,6 +16,7 @@ use Livewire\WithPagination;
 
 class CustomerCapacityConsent extends Component
 {
+    use ResetsPageOnFilterChange;
     use WithPagination;
 
     #[Locked]
@@ -38,10 +40,14 @@ class CustomerCapacityConsent extends Component
         return $actor;
     }
 
-    public function updatedSearch(): void
+    protected function pageResetProperties(): array
+    {
+        return ['search'];
+    }
+
+    protected function beforeFilterReset(string $property): void
     {
         $this->actor();
-        $this->resetPage();
     }
 
     public function open(int $id): void

@@ -9,6 +9,7 @@ use App\Livewire\Admin\Employees\InviteEmployeeModal;
 use App\Livewire\Admin\Employees\TeamRbacModal;
 use App\Livewire\Admin\Users\Messages\MessageForm;
 use App\Livewire\Concerns\InteractsWithPersonQuickActions;
+use App\Livewire\Concerns\ResetsPageOnFilterChange;
 use App\Models\Team;
 use App\Models\User;
 use App\Models\UserProfile;
@@ -23,6 +24,7 @@ use Livewire\WithPagination;
 class Employees extends Component
 {
     use InteractsWithPersonQuickActions;
+    use ResetsPageOnFilterChange;
     use WithPagination;
 
     protected $paginationTheme = 'tailwind';
@@ -94,24 +96,9 @@ class Employees extends Component
         }
     }
 
-    public function updatingSearch()
+    protected function pageResetProperties(): array
     {
-        $this->resetPage();
-    }
-
-    public function updatingTeamId()
-    {
-        $this->resetPage();
-    }
-
-    public function updatingRole()
-    {
-        $this->resetPage();
-    }
-
-    public function updatingAccountStatus()
-    {
-        $this->resetPage();
+        return ['search', 'teamId', 'role', 'accountStatus', 'perPage'];
     }
 
     /** Anzahl der gesetzten Filter — steuert die Anzeige in der Toolbar. */
@@ -128,11 +115,6 @@ class Employees extends Component
     public function resetFilters(): void
     {
         $this->reset(['search', 'teamId', 'role', 'accountStatus']);
-        $this->resetPage();
-    }
-
-    public function updatingPerPage()
-    {
         $this->resetPage();
     }
 
