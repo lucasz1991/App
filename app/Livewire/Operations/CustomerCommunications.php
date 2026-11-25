@@ -247,6 +247,15 @@ class CustomerCommunications extends Component
         return CustomerInteraction::where('customer_id', $this->customerId)->findOrFail($id);
     }
 
+    /** Platzhalter, solange das Kundenprofil diesen Reiter per lazy nachlädt. */
+    public function placeholder()
+    {
+        return view('livewire.placeholders.page-skeleton', [
+            'variant' => 'list',
+            'rows' => 5,
+        ]);
+    }
+
     public function render()
     {
         $actor = $this->access();

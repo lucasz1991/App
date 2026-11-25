@@ -346,15 +346,19 @@ class CustomerWorkspaceTest extends TestCase
 
     public function test_profile_reuses_only_active_scoped_commerce_child_and_retains_list_context(): void
     {
+        // Inhalt der Kinder pruefen: im Browser laden Verlauf, Dokumente und Kommunikation lazy nach.
+        Livewire::withoutLazyLoading();
         $actor = $this->actor(['operations.manage', 'operations.inquiries.manage']);
         Order::create(['customer_id' => $this->customer->id, 'title' => 'Own profile order', 'starts_at' => now(), 'ends_at' => now()->addHours(8), 'timezone' => 'Europe/Berlin']);
         Order::create(['customer_id' => $this->other->id, 'title' => 'Foreign profile order', 'starts_at' => now(), 'ends_at' => now()->addHours(8), 'timezone' => 'Europe/Berlin']);
-        Livewire::actingAs($actor)->test(CustomerWorkspace::class, ['context' => ['customer' => $this->customer->id, 'search' => 'Scoped', 'status' => 'all']])
+        $component = Livewire::actingAs($actor)->test(CustomerWorkspace::class, ['context' => ['customer' => $this->customer->id, 'search' => 'Scoped', 'status' => 'all']])
             ->assertSee('data-customer-profile', false)->assertDontSee('data-operations-orders', false)
             ->assertDontSee('data-customer-communications', false)->assertDontSee('data-customer-history', false)
             ->call('setView', 'orders')->assertSee('data-operations-orders', false)->assertSee('Own profile order')->assertDontSee('Foreign profile order')
-            ->assertDontSee('data-customer-communications', false)
-            ->call('setView', 'communication')->assertSee('data-customer-communications', false)->assertDontSee('data-operations-orders', false)
+            ->assertDontSee('data-customer-communications', false);
+        // Livewire setzt den Schalter nach jeder Testanfrage zurueck.
+        Livewire::withoutLazyLoading();
+        $component->call('setView', 'communication')->assertSee('data-customer-communications', false)->assertDontSee('data-operations-orders', false)
             ->call('showList')->assertSet('search', 'Scoped')->assertSet('activeFilter', 'all')->assertSet('customerId', null);
         Mail::assertNothingSent();
         $this->assertSame(0, DB::table('customer_portal_invitations')->count());
@@ -362,6 +366,8 @@ class CustomerWorkspaceTest extends TestCase
 
     public function test_documents_open_original_publication_workflow_without_activating_or_sending(): void
     {
+        // Inhalt der Kinder pruefen: im Browser laden Verlauf, Dokumente und Kommunikation lazy nach.
+        Livewire::withoutLazyLoading();
         $actor = $this->actor(['customers.portal.manage', 'customers.portal.publish']);
         $this->grant($actor, ['customers.portal.manage', 'customers.portal.publish']);
         Livewire::actingAs($actor)->test(CustomerWorkspace::class, ['initialView' => 'documents', 'context' => ['customer' => $this->customer->id]])
@@ -375,6 +381,8 @@ class CustomerWorkspaceTest extends TestCase
 
     public function test_mixed_grants_do_not_leave_document_or_message_views_on_another_customer(): void
     {
+        // Inhalt der Kinder pruefen: im Browser laden Verlauf, Dokumente und Kommunikation lazy nach.
+        Livewire::withoutLazyLoading();
         $actor = $this->actor(['operations.manage', 'customers.portal.manage', 'customers.portal.publish']);
         $this->grant($actor, ['customers.portal.manage', 'customers.portal.publish']);
         Livewire::actingAs($actor)->test(CustomerWorkspace::class, ['initialView' => 'documents', 'context' => ['customer' => $this->customer->id]])
@@ -385,6 +393,8 @@ class CustomerWorkspaceTest extends TestCase
 
     public function test_base_portal_schema_still_allows_scoped_history_without_broken_actions(): void
     {
+        // Inhalt der Kinder pruefen: im Browser laden Verlauf, Dokumente und Kommunikation lazy nach.
+        Livewire::withoutLazyLoading();
         Schema::disableForeignKeyConstraints();
         Schema::drop('customer_portal_submissions');
         Schema::enableForeignKeyConstraints();
@@ -395,8 +405,33 @@ class CustomerWorkspaceTest extends TestCase
             ->assertDontSee('crm-private@example.test')->call('showList')->assertSee('Scoped Customer')->assertDontSee('Other Customer');
         $crm = $this->actor(['operations.manage', 'customers.portal.manage', 'customers.portal.publish']);
         $this->grant($crm, ['customers.portal.manage', 'customers.portal.publish']);
-        Livewire::actingAs($crm)->test(CustomerWorkspace::class, ['context' => ['customer' => $this->customer->id]])
-            ->assertSee('Kundenportal')->assertDontSee('Portalverwaltung')->assertDontSee('wire:click.prevent="setView(\'portal\')"', false)
-            ->call('setView', 'documents')->assertSee('data-customer-documents', false)->assertDontSee('Freigaben verwalten');
+        $component = Livewire::actingAs($crm)->test(CustomerWorkspace::class, ['context' => ['customer' => $this->customer->id]])
+            ->assertSee('Kundenportal')->assertDontSee('Portalverwaltung')->assertDontSee('wire:click.prevent="setView(\'portal\')"', false);
+        Livewire::withoutLazyLoading();
+        $component->call('setView', 'documents')->assertSee('data-customer-documents', false)->assertDontSee('Freigaben verwalten');
+    }
+
+    public function test_profile_loads_heavy_customer_children_lazily_with_skeleton_placeholder(): void
+    {
+        $actor = $this->actor(['operations.manage', 'customers.portal.manage', 'customers.portal.publish']);
+        $this->grant($actor, ['customers.portal.manage', 'customers.portal.publish']);
+        $component = Livewire::actingAs($actor)->test(CustomerWorkspace::class, ['initialView' => 'documents', 'context' => ['customer' => $this->customer->id]])
+            ->assertDontSee('data-customer-documents', false)
+            ->assertSee('data-rt-loading-skeleton="table"', false)
+            ->assertSee('__lazyLoad', false);
+        $component->call('setView', 'communication')->assertDontSee('data-customer-communications', false)
+            ->assertSee('data-rt-loading-skeleton="list"', false)->assertSee('__lazyLoad', false);
+        $component->call('setView', 'history')->assertDontSee('data-customer-history', false)
+            ->assertSee('data-rt-loading-skeleton="list"', false)->assertSee('__lazyLoad', false);
+    }
+
+    public function test_lazy_profile_children_stay_forbidden_for_foreign_customer_scope(): void
+    {
+        $actor = $this->actor(['operations.manage', 'customers.portal.manage', 'customers.portal.publish']);
+        $this->grant($actor, ['customers.portal.manage', 'customers.portal.publish']);
+        Livewire::actingAs($actor)->test(CustomerWorkspace::class, ['initialView' => 'documents', 'context' => ['customer' => $this->customer->id]])
+            ->assertSee('__lazyLoad', false)->call('selectCustomer', $this->other->id)
+            ->assertSet('view', 'master')->assertDontSee('__lazyLoad', false)
+            ->call('setView', 'documents')->assertForbidden();
     }
 }

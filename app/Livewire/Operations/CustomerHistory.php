@@ -212,6 +212,15 @@ class CustomerHistory extends Component
         return "CASE WHEN customer_events.source = 'operations' THEN ".$column.' ELSE '.$local.' END';
     }
 
+    /** Platzhalter, solange das Kundenprofil diesen Reiter per lazy nachlädt. */
+    public function placeholder()
+    {
+        return view('livewire.placeholders.page-skeleton', [
+            'variant' => 'list',
+            'rows' => 5,
+        ]);
+    }
+
     public function render()
     {
         $actor = $this->access();

@@ -1,4 +1,4 @@
-<div class="rt-ops ops-stack rt-personal-work" data-personal-workspace data-personal-work-tab="{{ $tab }}" wire:poll.60s
+<div class="rt-ops ops-stack rt-personal-work" data-personal-workspace data-personal-work-tab="{{ $tab }}" wire:poll.visible.60s
     @if($workTimeReady) x-data="rtWorkTimeCapture({actorId:{{ auth()->id() }},timezone:@js($displayTimezone),bootstrapUrl:@js(route('operations.capture.bootstrap')),syncUrl:@js(route('operations.capture.sync'))})" x-on:work-clock="capture($event.detail)" x-on:worktime-synced.window.debounce.300ms="$wire.$refresh()" x-on:time-sections-saved.window="$wire.closeSections()" @endif>
     @if(count($personalTabs) > 1)
         <x-operations.workday-navigation :tabs="$personalTabs" :selected="$tab" :request-count="$requestCount" />

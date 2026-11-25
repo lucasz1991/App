@@ -98,6 +98,15 @@ class CustomerDocuments extends Component
             ->orderByDesc('created_at')->orderByDesc('record_id')->orderBy('source');
     }
 
+    /** Platzhalter, solange das Kundenprofil diesen Reiter per lazy nachlädt. */
+    public function placeholder()
+    {
+        return view('livewire.placeholders.page-skeleton', [
+            'variant' => 'table',
+            'rows' => 5,
+        ]);
+    }
+
     public function render()
     {
         $this->access();

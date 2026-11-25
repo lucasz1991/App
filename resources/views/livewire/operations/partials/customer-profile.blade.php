@@ -97,12 +97,12 @@
         @elseif(in_array($view,['contacts','conditions'],true))
             <livewire:operations.customer-relations :customer-id="$customerId" :section="$view" :embedded="true" :key="'customer-relations-'.$customerId.'-'.$view.'-'.$contextRevision" />
         @elseif($view==='communication')
-            <livewire:operations.customer-communications :customer-id="$customerId" :key="'customer-communication-'.$customerId.'-'.$contextRevision" />
+            <livewire:operations.customer-communications lazy :customer-id="$customerId" :key="'customer-communication-'.$customerId.'-'.$contextRevision" />
         @elseif($view==='documents')
             <header class="mb-4 flex flex-wrap items-center justify-between gap-3"><h3 class="text-base font-semibold">Dokumente & Anlagen</h3>@if(isset($views['portal']))<x-ui.buttons.button-basic type="button" wire:click="openPortalPublications"><i class="far fa-share-square" aria-hidden="true"></i>Freigaben verwalten</x-ui.buttons.button-basic>@endif</header>
-            <livewire:operations.customer-documents :customer-id="$customerId" :key="'customer-documents-'.$customerId.'-'.$contextRevision" />
+            <livewire:operations.customer-documents lazy :customer-id="$customerId" :key="'customer-documents-'.$customerId.'-'.$contextRevision" />
         @elseif($view==='history')
-            <livewire:operations.customer-history :customer-id="$customerId" :key="'customer-history-'.$customerId.'-'.$contextRevision" />
+            <livewire:operations.customer-history lazy :customer-id="$customerId" :key="'customer-history-'.$customerId.'-'.$contextRevision" />
         @elseif($view==='portal')
             <nav class="customer-profile__portal-navigation" aria-label="Portalverwaltung">
                 @foreach($sections as $key=>$label)<x-ui.buttons.button-basic type="button" :mode="$section===$key? 'primary' : 'secondary'" wire:click="setSection('{{ $key }}')" :aria-current="$section===$key?'page':null" wire:loading.attr="disabled" wire:target="setSection">{{ $label }}</x-ui.buttons.button-basic>@endforeach
