@@ -3,19 +3,14 @@
 namespace App\Livewire\Calls;
 
 use App\Models\Room;
-use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 class CallDetails extends Component
 {
-    #[Locked]
-    public bool $embedded = false;
-
     public Room $room;
 
-    public function mount(Room $room, bool $embedded = false): void
+    public function mount(Room $room): void
     {
-        $this->embedded = $embedded;
         $user = auth()->user();
 
         abort_unless($user && $room->callChat()
@@ -35,7 +30,6 @@ class CallDetails extends Component
             'recording',
         ]);
 
-        return view('livewire.calls.call-details')
-            ->layout('layouts.master');
+        return view('livewire.calls.call-details');
     }
 }

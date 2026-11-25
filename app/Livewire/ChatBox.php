@@ -50,9 +50,6 @@ class ChatBox extends Component
 
     public ?int $selectedChatId = null;
 
-    #[Locked]
-    public bool $embedded = false;
-
     public bool $conversationVisible = false;
 
     public string $listFilter = 'all';
@@ -119,31 +116,6 @@ class ChatBox extends Component
 
     protected $listeners = ['refreshComponent' => '$refresh'];
 
-    /** Beim Einstieg den zuletzt geoeffneten, weiterhin erlaubten Chat anzeigen. */
-    public function mount(bool $embedded = false): void
-    {
-        $this->embedded = $embedded;
-        if ($embedded) {
-            return;
-        }
-        $this->selectedChatId ??= request()->integer('chat') ?: null;
-        if ($this->selectedChatId) {
-            $this->openChat($this->selectedChatId);
-
-            return;
-        }
-
-        $lastChatId = auth()->user()->chats()
-            ->where('chats.type', '!=', 'call')
-            ->orderByDesc('chat_user.last_opened_at')
-            ->orderByDesc('chats.updated_at')
-            ->value('chats.id');
-
-        if ($lastChatId) {
-            $this->openChat((int) $lastChatId);
-        }
-    }
-
     /** Chat des angemeldeten Nutzers laden oder 403. */
     protected function myChat(int $chatId): Chat
     {
@@ -172,7 +144,7 @@ class ChatBox extends Component
         $chat = $this->myChat($chatId);
         $this->conversationVisible = true;
 
-        if ($this->embedded && $this->selectedChatId === $chat->id) {
+        if ($this->selectedChatId === $chat->id) {
             $this->markChatRead($chat);
             $this->dispatch('chat:pane-open');
 
@@ -688,13 +660,9 @@ class ChatBox extends Component
 
         // Laeuft bereits ein Anruf, direkt beitreten statt doppelt zu starten.
         if (! $result['created']) {
-            if ($this->embedded) {
-                $this->dispatch('communication:call', roomUuid: $result['room']->uuid);
+            $this->dispatch('communication:call', roomUuid: $result['room']->uuid);
 
-                return null;
-            }
-
-            return redirect()->route('calls.window', $result['room']);
+            return null;
         }
 
         $invitations->invite(
@@ -703,13 +671,11 @@ class ChatBox extends Component
             $chat->participants()->where('users.id', '!=', auth()->id())->where('users.status', true)->get(),
         );
 
-        if ($this->embedded) {
-            $this->dispatch('communication:call', roomUuid: $result['room']->uuid);
+        // Der Anruf oeffnet sich im persistenten Kommunikationsmodul, nicht
+        // ueber eine eigene Seite.
+        $this->dispatch('communication:call', roomUuid: $result['room']->uuid);
 
-            return null;
-        }
-
-        return redirect()->route('calls.window', $result['room']);
+        return null;
     }
 
     public function startDirect(int $userId): void
@@ -1079,7 +1045,7 @@ class ChatBox extends Component
 
     protected function markChatRead(Chat $chat): void
     {
-        if ($this->embedded && ! $this->conversationVisible) {
+        if (! $this->conversationVisible) {
             return;
         }
         $participant = $chat->participants->firstWhere('id', auth()->id());
@@ -1309,6 +1275,6 @@ class ChatBox extends Component
             'contacts' => $contacts,
             'groupParticipantsPaginator' => $groupParticipants,
             'groupCandidates' => $groupCandidates,
-        ])->layout('layouts.master', ['contentMode' => 'viewport']);
+        ]);
     }
 }

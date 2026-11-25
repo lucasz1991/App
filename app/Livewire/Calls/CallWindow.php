@@ -16,7 +16,6 @@ use App\Services\Calls\RoomEventRecorder;
 use App\Services\Calls\RoomLifecycleService;
 use App\Services\Chat\ChatLiveLocationService;
 use Illuminate\Support\Collection;
-use Livewire\Attributes\Locked;
 use Livewire\Attributes\Renderless;
 use Livewire\Component;
 
@@ -29,16 +28,12 @@ use Livewire\Component;
  */
 class CallWindow extends Component
 {
-    #[Locked]
-    public bool $embedded = false;
-
     public Room $room;
 
     public array $inviteeIds = [];
 
-    public function mount(Room $room, CallConversationService $conversations, bool $embedded = false): void
+    public function mount(Room $room, CallConversationService $conversations): void
     {
-        $this->embedded = $embedded;
         $user = auth()->user();
 
         abort_unless($user->isAdmin() || $user->hasRbacPermission('calls.join'), 403);
@@ -344,21 +339,10 @@ class CallWindow extends Component
         return $unavailable->filter()->unique()->values();
     }
 
+    /** Das Kommunikationsmodul schliesst das Anruf-Fenster und zeigt den Verlauf. */
     protected function redirectAfterCall(): void
     {
-        if ($this->embedded) {
-            $this->dispatch('communication:call-ended', roomUuid: $this->room->uuid);
-
-            return;
-        }
-
-        $this->redirect(
-            $this->room->call_chat_id
-                ? route('calls.history', $this->room)
-                : ($this->room->chat_id
-                    ? route('chat', ['chat' => $this->room->chat_id])
-                    : route('calls.index')),
-        );
+        $this->dispatch('communication:call-ended', roomUuid: $this->room->uuid);
     }
 
     public function render()
@@ -376,6 +360,6 @@ class CallWindow extends Component
                     ->get(['id', 'name', 'email', 'profile_photo_path'])
                     ->filter(fn (User $user) => $user->isAdmin() || $user->hasRbacPermission('calls.join'))
                 : collect(),
-        ])->layout('layouts.master', ['contentMode' => 'viewport', 'chrome' => false, 'callWindow' => true]);
+        ]);
     }
 }

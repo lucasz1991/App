@@ -11,7 +11,6 @@ use App\Services\Calls\LiveKitService;
 use App\Services\Calls\RoomEventRecorder;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
-use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithoutUrlPagination;
@@ -28,9 +27,6 @@ class CallHistory extends Component
     use ResetsPageOnFilterChange;
     use WithPagination;
 
-    #[Locked]
-    public bool $embedded = false;
-
     public string $search = '';
 
     /** all|missed|active|meetings|recordings */
@@ -46,10 +42,8 @@ class CallHistory extends Component
 
         abort_unless($user->isAdmin() || $user->hasRbacPermission('calls.join'), 403);
 
-        if ($this->embedded) {
-            // The global child must not inherit or change its workspace's page.
-            $this->paginators['page'] = 1;
-        }
+        // The global child must not inherit or change its workspace's page.
+        $this->paginators['page'] = 1;
     }
 
     public function setFilter(string $filter): void
@@ -235,13 +229,9 @@ class CallHistory extends Component
 
     protected function openCall(Room $room)
     {
-        if ($this->embedded) {
-            $this->dispatch('communication:call', roomUuid: $room->uuid);
+        $this->dispatch('communication:call', roomUuid: $room->uuid);
 
-            return null;
-        }
-
-        return redirect()->route('calls.window', $room);
+        return null;
     }
 
     /** Raeume, an denen der Nutzer beteiligt war – neueste zuerst. */
@@ -290,19 +280,10 @@ class CallHistory extends Component
     {
         $userId = auth()->id();
 
-        $view = view('livewire.calls.call-history', [
+        return view('livewire.calls.call-history', [
             'rooms' => $this->rooms(),
             'currentUserId' => $userId,
-            'liveMeetings' => $this->embedded ? collect() : Room::query()
-                ->accessibleMeetings(auth()->user())
-                ->with(['owner', 'participants'])
-                ->where('type', 'meeting')
-                ->whereIn('status', ['pending', 'active'])
-                ->latest('id')
-                ->get(),
             'canStart' => auth()->user()->isAdmin() || auth()->user()->hasRbacPermission('calls.start'),
         ]);
-
-        return $this->embedded ? $view : $view->layout('layouts.master');
     }
 }

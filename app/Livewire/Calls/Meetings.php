@@ -19,9 +19,6 @@ class Meetings extends Component
     use ResetsPageOnFilterChange;
     use WithPagination;
 
-    #[Locked]
-    public bool $embedded = false;
-
     public string $name = '';
 
     public bool $video = true;
@@ -47,11 +44,10 @@ class Meetings extends Component
     #[Locked]
     public ?int $selectedMeetingId = null;
 
-    public function mount(bool $embedded = false): void
+    public function mount(): void
     {
         $user = auth()->user();
         abort_unless($user->status && ($user->isAdmin() || $user->hasRbacPermission('calls.join')), 403);
-        $this->embedded = $embedded;
         $this->setPage(1, 'meetingsPage');
     }
 
@@ -186,13 +182,9 @@ class Meetings extends Component
 
     protected function openCall(Room $room)
     {
-        if ($this->embedded) {
-            $this->dispatch('communication:call', roomUuid: $room->uuid);
+        $this->dispatch('communication:call', roomUuid: $room->uuid);
 
-            return null;
-        }
-
-        return redirect()->route('calls.window', $room);
+        return null;
     }
 
     public function render()
@@ -212,13 +204,11 @@ class Meetings extends Component
             ? User::query()->where('status', true)->where('id', '!=', $user->id)
                 ->when(trim($this->participantSearch) !== '', fn ($query) => $query->where('name', 'like', '%'.trim($this->participantSearch).'%'))
                 ->orderBy('name')->limit(40)->get()->filter(fn (User $candidate) => $candidate->isAdmin() || $candidate->hasRbacPermission('calls.join')) : collect();
-        $view = view('livewire.calls.meetings', [
+        return view('livewire.calls.meetings', [
             'planningReady' => $ready, 'plans' => $plans, 'selectedMeeting' => $selected, 'candidates' => $candidates,
             'canStart' => $user->isAdmin() || $user->hasRbacPermission('calls.start'),
             'live' => Room::query()->where('type', 'meeting')->accessibleMeetings($user)
                 ->whereIn('status', ['pending', 'active'])->with('owner')->latest('id')->limit(30)->get(),
         ]);
-
-        return $this->embedded ? $view : $view->layout('layouts.master');
     }
 }

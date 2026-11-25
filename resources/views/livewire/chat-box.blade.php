@@ -7,7 +7,7 @@
     data-keyboard-open="false"
     data-topbar-inset="70"
     data-no-sidebar-swipe
-    data-communication-chat="{{ $embedded ? 'true' : 'false' }}"
+    data-communication-chat="true"
     x-bind:data-mobile-pane="mobilePane"
     x-bind:data-keyboard-open="keyboardOpen ? 'true' : 'false'"
     x-bind:data-topbar-inset="Math.round(topbarInset)"
@@ -18,7 +18,7 @@
     x-on:touchend.passive="touchEnd($event)"
     x-on:touchmove.passive="touchMove($event)"
     x-on:touchcancel="cancelSwipe()"
-    @if($embedded) x-on:click.capture="consumeSwipeClick($event)" @endif
+    x-on:click.capture="consumeSwipeClick($event)"
     wire:loading.class="cursor-wait"
 >
     @php
@@ -36,91 +36,29 @@
                 id="rt-chat-overview"
                 class="rt-chat-list-pane flex min-h-0 w-full shrink-0 flex-col overflow-hidden md:w-[21.5rem]"
                 data-anim="left"
-                @if($embedded)
-                    x-bind:inert="!splitChat && mobilePane !== 'list'"
-                @else
-                    x-bind:class="{ 'rt-chat-list-collapsed': listCollapsed }"
-                @endif
+                x-bind:inert="!splitChat && mobilePane !== 'list'"
             >
-                @if($embedded)
-                    <x-ui.floating.toolbar label="Chats durchsuchen und filtern" search>
-                        <x-ui.forms.search context="floating" id="communication-chat-search" wire:model.live.debounce.300ms="search" placeholder="Gespräche suchen …" />
-                        <x-slot:actions>
-                        <x-ui.dropdown.anchor-dropdown align="right" width="48" :offset="6" dropdown-id="communication-chat-filter" layer-group="communication-controls" content-label="Chats filtern">
-                            <x-slot:trigger>
-                                <button type="button" class="rt-floating-toolbar__button" aria-haspopup="menu" :aria-label="`Chats filtern: ${chatFilter === 'unread' ? 'Ungelesen' : (chatFilter === 'groups' ? 'Gruppen' : 'Alle')}`" title="Chats filtern">
-                                    <i class="far fa-sliders-h" aria-hidden="true"></i>
-                                </button>
-                            </x-slot:trigger>
-                            <x-slot:content>
-                                @foreach(['all' => ['Alle', 'fa-comments'], 'unread' => ['Ungelesen', 'fa-envelope'], 'groups' => ['Gruppen', 'fa-users']] as $filter => [$label, $icon])
-                                    <x-ui.dropdown.dropdown-link role="menuitemradio" :aria-checked="false" x-bind:aria-checked="(chatFilter === '{{ $filter }}').toString()" x-on:click="selectChatFilter('{{ $filter }}'); close()">
-                                        <i class="far {{ $icon }}" aria-hidden="true"></i><span>{{ $label }}</span>
-                                        <i class="far fa-check ml-auto" aria-hidden="true" x-show="chatFilter === '{{ $filter }}'"></i>
-                                    </x-ui.dropdown.dropdown-link>
-                                @endforeach
-                            </x-slot:content>
-                        </x-ui.dropdown.anchor-dropdown>
-                        <button type="button" wire:click="$set('showNewChat', true)" class="rt-floating-toolbar__button" aria-label="{{ __('app.new_chat') }}" title="{{ __('app.new_chat') }}"><i class="far fa-plus" aria-hidden="true"></i></button>
-                        </x-slot:actions>
-                    </x-ui.floating.toolbar>
-                @else
-                <div class="rt-chat-list-header shrink-0 px-4 pb-3 pt-4 sm:px-5 sm:pt-5">
-                    <div class="flex items-start justify-between gap-3">
-                        <div class="min-w-0">
-                            <p class="rt-chat-kicker">{{ __('app.chat_and_messages') }}</p>
-                            <div class="mt-1 flex items-center gap-2">
-                                <h1 class="truncate text-xl font-extrabold tracking-[-0.04em] text-rt-text dark:text-white">
-                                    {{ __('app.chats') }}
-                                </h1>
-                                <span class="rt-chat-count" aria-label="{{ $chats->count() }} {{ __('app.chats') }}">
-                                    {{ $chats->count() }}
-                                </span>
-                            </div>
-                        </div>
-
-                        <div class="flex items-center gap-1.5">
-                            <x-ui.page-info-button :title="__('app.chats')" route-name="chat" />
-                            <x-ui.buttons.button-basic
-                                mode="icon"
-                                tone="plain"
-                                icon="far fa-chevron-left"
-                                :label="__('app.hide_chat_overview')"
-                                size="sm"
-                                x-on:click="toggleList()"
-                                aria-controls="rt-chat-overview"
-                                class="rt-chat-icon-button rt-chat-icon-button--quiet rounded-xl text-sm hidden md:inline-flex"
-                            />
-                            <x-ui.buttons.button-basic
-                                mode="icon"
-                                tone="plain"
-                                icon="far fa-plus"
-                                :label="__('app.new_chat')"
-                                wire:click="$set('showNewChat', true)"
-                                class="rt-chat-icon-button rt-chat-icon-button--accent rounded-xl text-sm"
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                <div class="shrink-0 px-3 pb-3 sm:px-4">
-                    <label for="chat-search" class="sr-only">{{ __('app.search') }}</label>
-                    <div class="rt-chat-search relative">
-                        <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                            <i class="far fa-search text-xs" aria-hidden="true"></i>
-                        </div>
-                        <input
-                            type="search"
-                            id="chat-search"
-                            wire:model.live.debounce.300ms="search"
-                            placeholder="{{ __('app.search') }}"
-                            autocomplete="off"
-                            class="h-11 w-full rounded-[0.9rem] border-0 bg-transparent pl-9 pr-3 text-sm outline-none ring-0 placeholder:text-rt-soft focus:border-0 focus:ring-0 dark:text-white dark:placeholder:text-rt-dark-soft"
-                        >
-                    </div>
-                </div>
-
-                @endif
+                <x-ui.floating.toolbar label="Chats durchsuchen und filtern" search>
+                    <x-ui.forms.search context="floating" id="communication-chat-search" wire:model.live.debounce.300ms="search" placeholder="Gespräche suchen …" />
+                    <x-slot:actions>
+                    <x-ui.dropdown.anchor-dropdown align="right" width="48" :offset="6" dropdown-id="communication-chat-filter" layer-group="communication-controls" content-label="Chats filtern">
+                        <x-slot:trigger>
+                            <button type="button" class="rt-floating-toolbar__button" aria-haspopup="menu" :aria-label="`Chats filtern: ${chatFilter === 'unread' ? 'Ungelesen' : (chatFilter === 'groups' ? 'Gruppen' : 'Alle')}`" title="Chats filtern">
+                                <i class="far fa-sliders-h" aria-hidden="true"></i>
+                            </button>
+                        </x-slot:trigger>
+                        <x-slot:content>
+                            @foreach(['all' => ['Alle', 'fa-comments'], 'unread' => ['Ungelesen', 'fa-envelope'], 'groups' => ['Gruppen', 'fa-users']] as $filter => [$label, $icon])
+                                <x-ui.dropdown.dropdown-link role="menuitemradio" :aria-checked="false" x-bind:aria-checked="(chatFilter === '{{ $filter }}').toString()" x-on:click="selectChatFilter('{{ $filter }}'); close()">
+                                    <i class="far {{ $icon }}" aria-hidden="true"></i><span>{{ $label }}</span>
+                                    <i class="far fa-check ml-auto" aria-hidden="true" x-show="chatFilter === '{{ $filter }}'"></i>
+                                </x-ui.dropdown.dropdown-link>
+                            @endforeach
+                        </x-slot:content>
+                    </x-ui.dropdown.anchor-dropdown>
+                    <button type="button" wire:click="$set('showNewChat', true)" class="rt-floating-toolbar__button" aria-label="{{ __('app.new_chat') }}" title="{{ __('app.new_chat') }}"><i class="far fa-plus" aria-hidden="true"></i></button>
+                    </x-slot:actions>
+                </x-ui.floating.toolbar>
                 <div class="rt-chat-list rt-chat-stacked-list min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-2 pb-3 sm:px-3">
                     @forelse ($chats as $chat)
                         @php
@@ -136,7 +74,7 @@
                                 ? ($latest->created_at->isToday() ? $latest->created_at->format('H:i') : $latest->created_at->format('d.m.'))
                                 : '';
                         @endphp
-                        @continue($embedded && (($listFilter === 'unread' && $unread === 0) || ($listFilter === 'groups' && !$chat->isGroup())))
+                        @continue(($listFilter === 'unread' && $unread === 0) || ($listFilter === 'groups' && !$chat->isGroup()))
 
                         <div
                             wire:key="chat-item-{{ $chat->id }}"
@@ -156,7 +94,7 @@
                                 <x-slot:avatar>
                                     <x-chat.avatar
                                         :src="$avatarUrl"
-                                        :size="$embedded ? 'sm' : 'md'"
+                                        size="sm"
                                         :name="$chat->displayNameFor($me)"
                                         :signal="$previewPersonIsOnline"
                                         decorative
@@ -275,7 +213,7 @@
             </div>
             {{-- chat-section:chat-list:end --}}
             {{-- chat-section:conversation:start --}}
-            <div class="rt-chat-conversation-pane flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" data-anim="fade" @if($embedded) x-bind:inert="!splitChat && mobilePane !== 'chat'" @endif>
+            <div class="rt-chat-conversation-pane flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" data-anim="fade" x-bind:inert="!splitChat && mobilePane !== 'chat'">
                 @if (! $selectedChat)
                     <div class="rt-chat-conversation-empty relative min-h-0 flex-1">
                         <button

@@ -84,7 +84,8 @@ class CallFlowTest extends TestCase
         Livewire::actingAs($caller)
             ->test(ChatBox::class, ['selectedChatId' => $chat->id])
             ->call('startCall')
-            ->assertRedirect();
+            ->assertNoRedirect()
+            ->assertDispatched('communication:call');
 
         $room = Room::firstOrFail();
 
@@ -113,7 +114,7 @@ class CallFlowTest extends TestCase
         ]);
     }
 
-    public function test_accepting_an_invitation_redirects_into_the_call(): void
+    public function test_accepting_an_invitation_opens_the_call_in_the_communication_module(): void
     {
         [$caller, $callee, $chat] = $this->directChatWithCallRights();
 
@@ -123,7 +124,9 @@ class CallFlowTest extends TestCase
         Livewire::actingAs($callee)
             ->test(IncomingCallOverlay::class)
             ->call('accept', $invitation->id)
-            ->assertRedirect(route('calls.window', $room));
+            ->assertNoRedirect()
+            ->assertDispatched('rt:call-gone', invitationId: $invitation->id)
+            ->assertDispatched('communication:call', roomUuid: $room->uuid);
 
         $this->assertSame('accepted', $invitation->fresh()->status);
         $this->assertNotNull($room->fresh('callChat.participants')->callChat->participantFor($callee));
@@ -497,7 +500,8 @@ class CallFlowTest extends TestCase
         Livewire::actingAs($caller)
             ->test(ChatBox::class, ['selectedChatId' => $chat->id])
             ->call('startCall', false)
-            ->assertRedirect();
+            ->assertNoRedirect()
+            ->assertDispatched('communication:call');
 
         $room = Room::firstOrFail();
 
@@ -517,7 +521,8 @@ class CallFlowTest extends TestCase
         Livewire::actingAs($caller)
             ->test(ChatBox::class, ['selectedChatId' => $chat->id])
             ->call('startCall', true)
-            ->assertRedirect();
+            ->assertNoRedirect()
+            ->assertDispatched('communication:call');
 
         $this->assertTrue(Room::firstOrFail()->startsWithVideo());
     }
@@ -576,9 +581,9 @@ class CallFlowTest extends TestCase
 
         Livewire::actingAs($callee)
             ->test(CallHistory::class)
-            ->assertSeeHtml('wire:click="join('.$room->id.')"')
             ->call('join', $room->id)
-            ->assertRedirect(route('calls.window', $room));
+            ->assertNoRedirect()
+            ->assertDispatched('communication:call', roomUuid: $room->uuid);
 
         $latestInvitation = $room->invitations()
             ->where('invitee_id', $callee->id)
@@ -680,7 +685,8 @@ class CallFlowTest extends TestCase
             ->set('name', 'Schichtuebergabe Freitag')
             ->set('video', false)
             ->call('createMeeting')
-            ->assertRedirect();
+            ->assertNoRedirect()
+            ->assertDispatched('communication:call');
 
         $room = Room::where('type', 'meeting')->firstOrFail();
 
@@ -724,7 +730,8 @@ class CallFlowTest extends TestCase
         Livewire::actingAs($guest)
             ->test(Meetings::class)
             ->call('join', $room->id)
-            ->assertRedirect(route('calls.window', $room));
+            ->assertNoRedirect()
+            ->assertDispatched('communication:call', roomUuid: $room->uuid);
 
         $this->assertSame('speaker', $room->fresh()->participantFor($guest)->role);
     }
@@ -776,7 +783,8 @@ class CallFlowTest extends TestCase
         Livewire::actingAs($caller)
             ->test(ChatBox::class, ['selectedChatId' => $chat->id])
             ->call('startCall')
-            ->assertRedirect();
+            ->assertNoRedirect()
+            ->assertDispatched('communication:call');
 
         $this->assertSame(1, Room::count());
     }
@@ -855,6 +863,77 @@ class CallFlowTest extends TestCase
     /**
      * @return array{User, User, Chat}
      */
+    public function test_accepting_an_ended_call_only_clears_the_overlay(): void
+    {
+        [$caller, $callee, $chat] = $this->directChatWithCallRights();
+        $room = $this->roomWithInvitation($caller, $callee, $chat);
+        $invitation = $room->invitations()->firstOrFail();
+        app(RoomLifecycleService::class)->markEnded($room, 'ended');
+
+        Livewire::actingAs($callee)
+            ->test(IncomingCallOverlay::class)
+            ->call('accept', $invitation->id)
+            ->assertNoRedirect()
+            ->assertDispatched('rt:call-gone', invitationId: $invitation->id)
+            ->assertNotDispatched('communication:call');
+    }
+
+    public function test_foreign_user_cannot_open_someone_elses_call_through_the_overlay(): void
+    {
+        [$caller, $callee, $chat] = $this->directChatWithCallRights();
+        $room = $this->roomWithInvitation($caller, $callee, $chat);
+        $invitation = $room->invitations()->firstOrFail();
+        $stranger = User::factory()->create();
+        $this->allowCalls($stranger);
+
+        Livewire::actingAs($stranger)
+            ->test(IncomingCallOverlay::class)
+            ->call('accept', $invitation->id)
+            ->assertForbidden()
+            ->assertNotDispatched('communication:call');
+
+        $this->assertSame('pending', $invitation->fresh()->status);
+    }
+
+    public function test_user_without_call_rights_cannot_start_or_join_from_the_communication_module(): void
+    {
+        [$caller] = $this->directChatWithCallRights();
+        $outsider = User::factory()->create();
+        $room = Room::create([
+            'name' => 'Offene Runde',
+            'type' => 'meeting',
+            'status' => 'active',
+            'owner_id' => $caller->id,
+        ]);
+
+        Livewire::actingAs($outsider)
+            ->test(ChatBox::class)
+            ->call('startCall')
+            ->assertForbidden()
+            ->assertNotDispatched('communication:call');
+
+        Livewire::actingAs($outsider)
+            ->test(CallHistory::class)
+            ->assertForbidden();
+
+        Livewire::actingAs($outsider)
+            ->test(Meetings::class)
+            ->assertForbidden();
+
+        $this->assertNull($room->fresh()->participantFor($outsider));
+        $this->assertSame(1, Room::count());
+    }
+
+    public function test_inactive_user_cannot_open_the_meetings_module(): void
+    {
+        [$caller] = $this->directChatWithCallRights();
+        $caller->forceFill(['status' => false])->save();
+
+        Livewire::actingAs($caller->fresh())
+            ->test(Meetings::class)
+            ->assertForbidden();
+    }
+
     protected function directChatWithCallRights(): array
     {
         $caller = User::factory()->create();

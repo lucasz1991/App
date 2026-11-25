@@ -35,7 +35,7 @@ class CommunicationCallHistoryTest extends TestCase
         $user = User::factory()->create(['role' => 'admin']);
         $room = $this->roomFor($user, 'Eigener Audioanruf');
 
-        $component = Livewire::actingAs($user)->test(CallHistory::class, ['embedded' => true])
+        $component = Livewire::actingAs($user)->test(CallHistory::class)
             ->assertOk()
             ->assertSeeHtml('rt-floating-toolbar')
             ->assertSeeHtml('wire:model.live.debounce.250ms="search"')
@@ -56,12 +56,12 @@ class CommunicationCallHistoryTest extends TestCase
         $component->dispatch('communication:call-released')->assertDontSee($new->name);
     }
 
-    public function test_standalone_history_retains_the_native_meeting_hub(): void
+    public function test_history_has_no_standalone_meeting_hub_or_page_layout(): void
     {
         $user = User::factory()->create(['role' => 'admin']);
         Livewire::actingAs($user)->test(CallHistory::class)
-            ->assertSeeHtml('wire:submit="createMeeting"')
-            ->assertDontSeeHtml('data-communication-call-list');
+            ->assertSeeHtml('data-communication-call-list')
+            ->assertDontSeeHtml('wire:submit="createMeeting"');
     }
 
     public function test_search_and_filters_cannot_reveal_a_foreign_call_and_reset_pagination(): void
@@ -72,7 +72,7 @@ class CommunicationCallHistoryTest extends TestCase
         $this->roomFor($user, 'Eigene Besprechung');
         $this->roomFor($other, 'Fremde Kontrolle');
 
-        Livewire::actingAs($user)->test(CallHistory::class, ['embedded' => true])
+        Livewire::actingAs($user)->test(CallHistory::class)
             ->set('search', 'Kontrolle')
             ->assertSee($own->name)
             ->assertDontSee('Eigene Besprechung')
@@ -92,7 +92,7 @@ class CommunicationCallHistoryTest extends TestCase
     public function test_embedded_meeting_start_dispatches_the_authorized_room_without_navigation(): void
     {
         $user = User::factory()->create(['role' => 'admin']);
-        $component = Livewire::actingAs($user)->test(CallHistory::class, ['embedded' => true])
+        $component = Livewire::actingAs($user)->test(CallHistory::class)
             ->set('name', 'Isoliertes eingebettetes Meeting')
             ->set('video', false)
             ->call('createMeeting')
@@ -111,22 +111,22 @@ class CommunicationCallHistoryTest extends TestCase
         $guest = User::factory()->create(['role' => 'admin']);
         $room = $this->roomFor($host, 'Offene Besprechung');
 
-        Livewire::actingAs($guest)->test(CallHistory::class, ['embedded' => true])
+        Livewire::actingAs($guest)->test(CallHistory::class)
             ->call('join', $room->id)
             ->assertNoRedirect()
             ->assertDispatched('communication:call', roomUuid: $room->uuid);
         $this->assertDatabaseHas('room_participants', ['room_id' => $room->id, 'user_id' => $guest->id, 'connection' => 'invited']);
     }
 
-    public function test_standalone_join_still_redirects_and_removed_participants_stay_blocked(): void
+    public function test_join_never_navigates_and_removed_participants_stay_blocked(): void
     {
         $host = User::factory()->create(['role' => 'admin']);
         $guest = User::factory()->create(['role' => 'admin']);
-        $room = $this->roomFor($host, 'Standalone Besprechung');
+        $room = $this->roomFor($host, 'Offene Besprechung');
         Livewire::actingAs($guest)->test(CallHistory::class)
-            ->call('join', $room->id)->assertRedirect(route('calls.window', $room));
+            ->call('join', $room->id)->assertNoRedirect()->assertDispatched('communication:call', roomUuid: $room->uuid);
         $room->participants()->where('user_id', $guest->id)->update(['connection' => 'disconnected', 'left_at' => now()]);
-        Livewire::actingAs($guest)->test(CallHistory::class, ['embedded' => true])
+        Livewire::actingAs($guest)->test(CallHistory::class)
             ->call('join', $room->id)->assertForbidden()->assertNotDispatched('communication:call');
         $this->assertSame('disconnected', $room->participants()->where('user_id', $guest->id)->value('connection'));
     }
@@ -137,7 +137,7 @@ class CommunicationCallHistoryTest extends TestCase
         $guest = User::factory()->create(['role' => 'admin']);
         $room = $this->roomFor($host, 'Privater Meetingraum');
         $room->forceFill(['settings' => ['communication_meeting_id' => 999]])->save();
-        Livewire::actingAs($guest)->test(CallHistory::class, ['embedded' => true])
+        Livewire::actingAs($guest)->test(CallHistory::class)
             ->assertDontSee($room->name)
             ->call('join', $room->id)->assertForbidden()->assertNotDispatched('communication:call');
         $this->assertDatabaseMissing('room_participants', ['room_id' => $room->id, 'user_id' => $guest->id]);
@@ -152,16 +152,11 @@ class CommunicationCallHistoryTest extends TestCase
         }
 
         $embedded = Livewire::withQueryParams(['page' => 4])->actingAs($user)
-            ->test(CallHistory::class, ['embedded' => true])
+            ->test(CallHistory::class)
             ->assertSet('paginators.page', 1)
             ->call('gotoPage', 2)
             ->assertSet('paginators.page', 2);
         $this->assertArrayNotHasKey('url', $embedded->effects);
-
-        $standalone = Livewire::withQueryParams(['page' => 2])->actingAs($user)
-            ->test(CallHistory::class)->assertSet('paginators.page', 2)
-            ->call('gotoPage', 1)->assertSet('paginators.page', 1);
-        $this->assertArrayNotHasKey('url', $standalone->effects);
     }
 
     private function roomFor(User $owner, string $name): Room

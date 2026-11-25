@@ -28,15 +28,8 @@ final class AssistantAccess
      * Nichtwerfende Layout-Pruefung. Bei Fehlern wird der globale Assistent
      * ausgeblendet, statt die aufgerufene RailTime-Seite zu blockieren.
      */
-    public function shouldRender(
-        ?User $user,
-        ?string $routeName = null,
-        bool $chrome = true,
-    ): bool {
-        if (! $chrome) {
-            return false;
-        }
-
+    public function shouldRender(?User $user, ?string $routeName = null): bool
+    {
         $routeName ??= request()->route()?->getName();
 
         if (in_array($routeName, (array) config('assistant.excluded_routes', []), true)) {

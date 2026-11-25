@@ -64,10 +64,6 @@ body[data-mode='dark'] {
     padding: 70px 0 0 !important;
 }
 
-.rt-chromeless-layout .page-content.rt-app-page-frame {
-    padding-top: 0 !important;
-}
-
 .rt-page-content {
     box-sizing: border-box;
     min-width: 0;

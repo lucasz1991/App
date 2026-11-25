@@ -47,19 +47,19 @@
         </button>
         <div class="rt-comm-content">
             <div id="communication-chats" role="tabpanel" aria-labelledby="communication-tab-chats" class="rt-comm-pane" x-show="tab === 'chats'" :inert="tab !== 'chats'">
-                <livewire:chat-box :embedded="true" :key="'communication-chat'" />
+                <livewire:chat-box :key="'communication-chat'" />
             </div>
             <div id="communication-calls" role="tabpanel" aria-labelledby="communication-tab-calls" class="rt-comm-pane" x-show="tab === 'calls'" :inert="tab !== 'calls'">
                 @if($callsAvailable && (auth()->user()->isAdmin() || auth()->user()->hasRbacPermission('calls.join')))
-                <div class="rt-comm-pane" x-show="!showCall && !showHistory" :inert="showCall || showHistory"><livewire:calls.call-history :embedded="true" :key="'communication-history'" /></div>
+                <div class="rt-comm-pane" x-show="!showCall && !showHistory" :inert="showCall || showHistory"><livewire:calls.call-history :key="'communication-history'" /></div>
                 <div class="rt-comm-pane" x-show="showHistory && !showCall" :inert="!showHistory || showCall">
                     @if($historyRoomUuid)
-                        <livewire:calls.call-details :room="\App\Models\Room::where('uuid', $historyRoomUuid)->firstOrFail()" :embedded="true" :key="'communication-detail-'.$historyRoomUuid" />
+                        <livewire:calls.call-details :room="\App\Models\Room::where('uuid', $historyRoomUuid)->firstOrFail()" :key="'communication-detail-'.$historyRoomUuid" />
                     @endif
                 </div>
                 <div class="rt-comm-pane rt-comm-live-call" x-show="showCall" :inert="!showCall">
                     @if($activeRoomUuid)
-                        <livewire:calls.call-window :room="\App\Models\Room::where('uuid', $activeRoomUuid)->firstOrFail()" :embedded="true" :key="'communication-room-'.$activeRoomUuid" />
+                        <livewire:calls.call-window :room="\App\Models\Room::where('uuid', $activeRoomUuid)->firstOrFail()" :key="'communication-room-'.$activeRoomUuid" />
                     @endif
                 </div>
                 @else
@@ -68,7 +68,7 @@
             </div>
             <div id="communication-meetings" role="tabpanel" aria-labelledby="communication-tab-meetings" class="rt-comm-pane" x-show="tab === 'meetings'" :inert="tab !== 'meetings'">
                 @if($callsAvailable && (auth()->user()->isAdmin() || auth()->user()->hasRbacPermission('calls.join')))
-                <livewire:calls.meetings :embedded="true" :key="'communication-meetings'" />
+                <livewire:calls.meetings :key="'communication-meetings'" />
                 @else
                     <p class="p-6 text-sm text-rt-muted">{{ $callsAvailable ? 'Meetings sind für dein Konto nicht freigeschaltet.' : 'Meetings sind momentan nicht verfügbar.' }}</p>
                 @endif

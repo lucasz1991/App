@@ -5,7 +5,6 @@ namespace App\Livewire\Calls;
 use App\Models\RoomInvitation;
 use App\Services\Calls\CallAvailabilityService;
 use App\Services\Calls\CallInvitationService;
-use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 /**
@@ -17,9 +16,6 @@ use Livewire\Component;
  */
 class IncomingCallOverlay extends Component
 {
-    #[Locked]
-    public bool $embedded = false;
-
     /**
      * "Bei mir laeutet es gerade" — gemeldet, sobald das Overlay sichtbar wird.
      *
@@ -58,14 +54,11 @@ class IncomingCallOverlay extends Component
             return null;
         }
 
-        if ($this->embedded) {
-            $this->dispatch('rt:call-gone', invitationId: $invitationId);
-            $this->dispatch('communication:call', roomUuid: $invitation->room->uuid);
+        // Angenommene Anrufe oeffnen sich im persistenten Kommunikationsmodul.
+        $this->dispatch('rt:call-gone', invitationId: $invitationId);
+        $this->dispatch('communication:call', roomUuid: $invitation->room->uuid);
 
-            return null;
-        }
-
-        return redirect()->route('calls.window', $invitation->room);
+        return null;
     }
 
     public function decline(int $invitationId, CallInvitationService $invitations): void

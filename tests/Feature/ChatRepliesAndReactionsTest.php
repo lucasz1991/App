@@ -55,7 +55,7 @@ class ChatRepliesAndReactionsTest extends TestCase
             ->log('Chat presence test');
 
         Livewire::actingAs($sender)
-            ->test(ChatBox::class, ['selectedChatId' => $chat->id])
+            ->test(ChatBox::class)->call('openChat', $chat->id)
             ->assertSeeHtml('data-chat-presence="online"');
     }
 
@@ -69,7 +69,7 @@ class ChatRepliesAndReactionsTest extends TestCase
         ]);
 
         Livewire::actingAs($sender)
-            ->test(ChatBox::class, ['selectedChatId' => $chat->id])
+            ->test(ChatBox::class)->call('openChat', $chat->id)
             ->call('beginReply', $original->id)
             ->assertSet('replyingToMessageId', $original->id)
             ->set('messageText', 'Wird erledigt.')
@@ -85,7 +85,7 @@ class ChatRepliesAndReactionsTest extends TestCase
         $outsider = User::factory()->create();
 
         Livewire::actingAs($outsider)
-            ->test(ChatBox::class, ['selectedChatId' => $chat->id])
+            ->test(ChatBox::class)->call('openChat', $chat->id)
             ->assertForbidden();
     }
 
@@ -108,7 +108,7 @@ class ChatRepliesAndReactionsTest extends TestCase
         ] as $method => $arguments) {
             try {
                 $component = Livewire::actingAs($sender)
-                    ->test(ChatBox::class, ['selectedChatId' => $chat->id]);
+                    ->test(ChatBox::class)->call('openChat', $chat->id);
 
                 $component->call($method, $hiddenMessage->id, ...$arguments);
 
@@ -129,7 +129,7 @@ class ChatRepliesAndReactionsTest extends TestCase
             'body' => 'Abfahrt bestätigt',
         ]);
         $component = Livewire::actingAs($sender)
-            ->test(ChatBox::class, ['selectedChatId' => $chat->id]);
+            ->test(ChatBox::class)->call('openChat', $chat->id);
 
         $component->call('toggleReaction', $message->id, '👍');
         $this->assertDatabaseHas('chat_message_reactions', [
@@ -153,7 +153,7 @@ class ChatRepliesAndReactionsTest extends TestCase
         ]);
 
         Livewire::actingAs($sender)
-            ->test(ChatBox::class, ['selectedChatId' => $chat->id])
+            ->test(ChatBox::class)->call('openChat', $chat->id)
             ->call('toggleReaction', $message->id, '🚂')
             ->assertStatus(422);
 
@@ -179,7 +179,7 @@ class ChatRepliesAndReactionsTest extends TestCase
         ]);
 
         Livewire::actingAs($sender)
-            ->test(ChatBox::class, ['selectedChatId' => $chat->id])
+            ->test(ChatBox::class)->call('openChat', $chat->id)
             ->call('toggleReaction', $message->id, '👍')
             ->assertForbidden();
 
@@ -199,7 +199,7 @@ class ChatRepliesAndReactionsTest extends TestCase
             'body' => 'Bitte eindeutig reagieren',
         ]);
         $component = Livewire::actingAs($sender)
-            ->test(ChatBox::class, ['selectedChatId' => $chat->id]);
+            ->test(ChatBox::class)->call('openChat', $chat->id);
 
         $component
             ->call('setReaction', $message->id, '👍')
@@ -243,7 +243,7 @@ class ChatRepliesAndReactionsTest extends TestCase
         ]);
 
         Livewire::actingAs($sender)
-            ->test(ChatBox::class, ['selectedChatId' => $chat->id])
+            ->test(ChatBox::class)->call('openChat', $chat->id)
             ->assertViewHas('messages', function ($messages) use ($message): bool {
                 $renderedMessage = $messages->firstWhere('id', $message->id);
                 $reaction = $renderedMessage?->reactions->first();
@@ -285,7 +285,7 @@ class ChatRepliesAndReactionsTest extends TestCase
         ]);
 
         Livewire::actingAs($sender)
-            ->test(ChatBox::class, ['selectedChatId' => $chat->id])
+            ->test(ChatBox::class)->call('openChat', $chat->id)
             ->call('deleteMessage', $original->id);
 
         $deleted = ChatMessage::withTrashed()->findOrFail($original->id);
@@ -337,7 +337,7 @@ class ChatRepliesAndReactionsTest extends TestCase
         }
 
         $component = Livewire::actingAs($sender)
-            ->test(ChatBox::class, ['selectedChatId' => $chat->id])
+            ->test(ChatBox::class)->call('openChat', $chat->id)
             ->assertSet('oldestLoadedMessageId', 21)
             ->assertViewHas('messages', fn ($messages): bool => $messages->count() === 100
                 && $messages->first()->id === 21
@@ -390,7 +390,7 @@ class ChatRepliesAndReactionsTest extends TestCase
         [$sender, , $chat] = $this->directChat();
 
         Livewire::actingAs($sender)
-            ->test(ChatBox::class, ['selectedChatId' => $chat->id])
+            ->test(ChatBox::class)->call('openChat', $chat->id)
             ->set('uploads', [UploadedFile::fake()->create('payload.php', 2, 'application/x-php')])
             ->call('send')
             ->assertHasErrors(['uploads.0']);
@@ -413,12 +413,14 @@ class ChatRepliesAndReactionsTest extends TestCase
 
         Livewire::actingAs($sender)
             ->test(ChatBox::class)
+            ->assertDontSee('Interner Call-Chat')
+            ->call('openChat', $normalChat->id)
             ->assertSet('selectedChatId', $normalChat->id)
             ->assertDontSee('Interner Call-Chat');
 
         try {
             Livewire::actingAs($sender)
-                ->test(ChatBox::class, ['selectedChatId' => $callChat->id]);
+                ->test(ChatBox::class)->call('openChat', $callChat->id);
             $this->fail('A call chat was opened in the normal ChatBox.');
         } catch (ModelNotFoundException $exception) {
             $this->assertSame(Chat::class, $exception->getModel());

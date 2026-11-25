@@ -1,10 +1,5 @@
-@section('title', $room->name)
-
-{{-- Echtes Vollbild: Das Layout rendert hier OHNE Topbar/Sidebar
-     (layouts.master mit chrome=false) - waehrend eines Anrufs ist die
-     App-Navigation Ablenkung, kein Werkzeug. Verlassen fuehrt ueber
-     Auflegen zurueck in den Chat. fixed+z-[200] bleibt als Absicherung
-     gegen darunterliegende Seitenreste. --}}
+{{-- Anruf-Fenster im persistenten Kommunikationsmodul. Auflegen meldet
+     communication:call-ended; das Modul wechselt danach in den Verlauf. --}}
 <div
     wire:ignore.self
     class="rt-call-window z-[200] overflow-hidden bg-[#0b0e13]"
@@ -12,7 +7,6 @@
     data-rt-overlay-layer
     data-rt-overlay-base="200"
     x-data="callRoom({
-        embedded: @js($embedded),
         roomUuid: @js($room->uuid),
         tokenUrl: @js(route('calls.token', $room)),
         recordingAcknowledgementUrl: @js(route('calls.recording.acknowledge')),
@@ -541,7 +535,7 @@
 
                 <div id="rt-call-{{ $room->id }}-panel-chat" aria-labelledby="rt-call-{{ $room->id }}-tab-chat" x-show="panelTab === 'chat'" class="min-h-0 flex-1" role="tabpanel">
                     @if ($room->callChat)
-                        <livewire:calls.call-chat :room="$room" :embedded="$embedded" :key="'active-call-chat-'.$room->id" />
+                        <livewire:calls.call-chat :room="$room" :embedded="true" :key="'active-call-chat-'.$room->id" />
                     @endif
                 </div>
             </aside>

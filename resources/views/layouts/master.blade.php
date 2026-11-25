@@ -3,17 +3,11 @@
     // Ohne expliziten Wert entscheidet ausschliesslich die globale Admin-Rolle.
     $area = $area ?? (auth()->check() && auth()->user()->usesAdminLayout() ? 'admin' : 'user');
     $viewportMode = ($contentMode ?? null) === 'viewport';
-    // chrome=false: Topbar und Sidebar werden GAR NICHT gerendert (Anruf-
-    // Fenster). Bewusst kein Ueberdecken per z-Index: Vorfahren mit
-    // transform/filter machen position:fixed zum Absolut-Anker, wodurch
-    // Topbar/Sidebar wieder durchschimmern - nicht Vorhandenes gewinnt immer.
-    $chrome = $chrome ?? true;
     $documentTitle = trim($__env->yieldContent('title')) ?: __('app.dashboard');
     $assistantShouldRender = auth()->check()
         && app(\App\Support\Ai\AssistantAccess::class)->shouldRender(
             auth()->user(),
             request()->route()?->getName(),
-            (bool) $chrome,
         );
 @endphp
 <!DOCTYPE html>
@@ -78,12 +72,10 @@
         >
             {{ app()->getLocale() === 'de' ? 'Zum Inhalt springen' : 'Skip to content' }}
         </a>
-        @if ($chrome)
-            <!-- sidebar -->
-            @include('layouts.sidebar', ['area' => $area])
-            <!-- topbar -->
-            @include('layouts.topbar', ['area' => $area])
-        @endif
+        <!-- sidebar -->
+        @include('layouts.sidebar', ['area' => $area])
+        <!-- topbar -->
+        @include('layouts.topbar', ['area' => $area])
         <!-- content -->
         {{-- Einheitliche Content-Huelle fuer BEIDE Render-Wege:
              @extends-Seiten liefern @section('content'), Livewire-Seiten via
@@ -92,7 +84,6 @@
         <main id="main-content" tabindex="-1" @class([
             'bg-rt-canvas dark:bg-rt-dark-canvas',
             'rt-viewport-layout' => $viewportMode,
-            'rt-chromeless-layout' => ! $chrome,
         ])>
             <div class="main-content group-data-[sidebar-size=sm]:ml-[70px]">
                 <div @class([
@@ -128,27 +119,21 @@
         </main>
         @auth
             <x-ui.floating.launcher-group />
-            @if ($chrome)
-                @persist('railtime-communication-'.auth()->id())
-                    <div data-communication-persist>
-                        <livewire:communication :key="'global-communication-'.auth()->id()" />
-                        <livewire:calls.incoming-call-overlay :embedded="true" :key="'global-incoming-call-'.auth()->id()" />
-                    </div>
-                @endpersist
-            @endif
-            @if ($chrome)
-                <livewire:settings.session-permissions />
-            @endif
+            {{-- Globales Klingel-Overlay fuer eingehende Videoanrufe lebt im
+                 persistenten Kommunikationsmodul. --}}
+            @persist('railtime-communication-'.auth()->id())
+                <div data-communication-persist>
+                    <livewire:communication :key="'global-communication-'.auth()->id()" />
+                    <livewire:calls.incoming-call-overlay :key="'global-incoming-call-'.auth()->id()" />
+                </div>
+            @endpersist
+            <livewire:settings.session-permissions />
             <livewire:messages.message-viewer-modal />
             <livewire:tools.file-pools.file-preview-modal />
             <x-chat.live-location-preview />
-            {{-- Globales Klingel-Overlay fuer eingehende Videoanrufe --}}
-            @if (! $chrome)
-                <livewire:calls.incoming-call-overlay />
-            @endif
             @if ($assistantShouldRender)
                 {{-- Zentral autorisierter RailTime-Assistent; ausgeschlossene
-                     Seiten und chromelose Anruffenster bleiben bewusst frei. --}}
+                     Seiten bleiben bewusst frei. --}}
                 <livewire:tools.chatbot />
             @endif
         @endauth
