@@ -2,7 +2,11 @@
             @php
                 $selectedStatus = $selectedOrder->status instanceof \BackedEnum ? $selectedOrder->status->value : (string) $selectedOrder->status;
                 $selectedPriority = $selectedOrder->priority instanceof \BackedEnum ? $selectedOrder->priority->value : (string) $selectedOrder->priority;
-                $planningRoute = \App\Support\Operations\OperationsAccess::ready() ? 'operations.workspace' : 'admin.operations.preview';
+                // Betriebsbereit: kanonische Adresse ohne Umweg über die Legacy-Weiterleitung; sonst die Vorschau.
+                $planningRoute = \App\Support\Operations\OperationsAccess::ready() ? null : 'admin.operations.preview';
+                $planningUrl = fn (string $module, array $query = []) => $planningRoute === null
+                    ? \App\Support\Operations\OperationsPages::moduleUrl($module, $query)
+                    : route($planningRoute, ['module' => $module] + $query);
             @endphp
             <div class="rt-ops-panel__accent" aria-hidden="true"></div>
             <x-operations.panel.header :eyebrow="$selectedOrder->order_number" :title="$selectedOrder->title" subtitle="Leistungsdetails" icon="fa-briefcase" close-label="Leistungsdetails schließen">
@@ -93,7 +97,7 @@
                                     @if($detailOnly)
                                         <x-ui.buttons.button-basic mode="link" type="button" x-on:click="$dispatch('close'); $wire.detailOpen = false; $dispatch('operations-shift-detail-request', { id: {{ $shift->id }} })" class="min-h-11 min-w-0 text-left"><span class="break-words">{{ $shift->title }}</span></x-ui.buttons.button-basic>
                                     @else
-                                        <x-ui.buttons.button-basic mode="link" data-no-navigate :href="route($planningRoute, ['module' => 'shift-management', 'order' => $selectedOrder->id, 'shift' => $shift->id])" class="min-h-11 min-w-0 text-left"><span class="break-words">{{ $shift->title }}</span></x-ui.buttons.button-basic>
+                                        <x-ui.buttons.button-basic mode="link" data-no-navigate :href="$planningUrl('shift-management', ['order' => $selectedOrder->id, 'shift' => $shift->id])" class="min-h-11 min-w-0 text-left"><span class="break-words">{{ $shift->title }}</span></x-ui.buttons.button-basic>
                                     @endif
                                     <x-operations.status :value="$shift->status" />
                                 </div>
@@ -141,8 +145,8 @@
                 <nav class="rt-service-detail-links" aria-label="Verknüpfte Bereiche">
                     @if($originInquiry)<x-ui.buttons.button-basic size="sm" mode="link" data-no-navigate :href="route('operations.page',['page'=>'cases','view'=>'inbox','inquiry'=>$originInquiry->id,'customer'=>$selectedOrder->customer_id])">{{ $originInquiry->number }}</x-ui.buttons.button-basic>@endif
                     <x-ui.buttons.button-basic size="sm" mode="link" data-no-navigate :href="route('operations.page',['page'=>'customers','customer'=>$selectedOrder->customer_id])"><i class="far fa-building" aria-hidden="true"></i>Kundenakte</x-ui.buttons.button-basic>
-                    <x-ui.buttons.button-basic size="sm" mode="link" data-no-navigate :href="route($planningRoute, ['module'=>'shift-management','order'=>$selectedOrder->id])"><i class="far fa-th-list" aria-hidden="true"></i>Schichtplan</x-ui.buttons.button-basic>
-                    <x-ui.buttons.button-basic size="sm" mode="link" data-no-navigate :href="route($planningRoute, ['module'=>'calendar','order'=>$selectedOrder->id])"><i class="far fa-calendar-alt" aria-hidden="true"></i>Kalender</x-ui.buttons.button-basic>
+                    <x-ui.buttons.button-basic size="sm" mode="link" data-no-navigate :href="$planningUrl('shift-management', ['order'=>$selectedOrder->id])"><i class="far fa-th-list" aria-hidden="true"></i>Schichtplan</x-ui.buttons.button-basic>
+                    <x-ui.buttons.button-basic size="sm" mode="link" data-no-navigate :href="$planningUrl('calendar', ['order'=>$selectedOrder->id])"><i class="far fa-calendar-alt" aria-hidden="true"></i>Kalender</x-ui.buttons.button-basic>
                 </nav>
             </x-operations.panel.footer>
         @else

@@ -33,7 +33,11 @@ class LivewireAliasServiceProvider extends ServiceProvider
         // Phase 7 – Personal-Komponenten in neutrale Namespaces (Namespace = Nutzungsort)
         'admin.employees' => ['employees.index', \App\Livewire\Employees\Index::class],
         'admin.employees.employee-form-modal' => ['employees.employee-form-modal', \App\Livewire\Employees\EmployeeFormModal::class],
-        'admin.employees.employee-team-bulk-modal' => ['employees.employee-team-bulk-modal', \App\Livewire\Employees\EmployeeTeamBulkModal::class],
+        // Zusammengeführt (livewire-admin-30): der Mehrfachdialog ist EmployeeTeamModal mit mode=bulk.
+        // Beide alten Bulk-Namen lösen übergangsweise auf die gemeinsame Klasse auf. Ihre Snapshots
+        // tragen keinen Modus; die Klasse lässt sie mit 419 ablaufen (Neuladen) statt zu raten.
+        'admin.employees.employee-team-bulk-modal' => ['employees.employee-team-modal', \App\Livewire\Employees\EmployeeTeamModal::class],
+        'employees.employee-team-bulk-modal' => ['employees.employee-team-modal', \App\Livewire\Employees\EmployeeTeamModal::class],
         'admin.employees.employee-team-modal' => ['employees.employee-team-modal', \App\Livewire\Employees\EmployeeTeamModal::class],
         'admin.employees.employee-teams' => ['employees.employee-teams', \App\Livewire\Employees\EmployeeTeams::class],
         'admin.employees.invite-employee-modal' => ['employees.invite-employee-modal', \App\Livewire\Employees\InviteEmployeeModal::class],

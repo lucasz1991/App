@@ -300,7 +300,7 @@ class ResponsiveShiftPlanControlsTest extends TestCase
         $this->assertSame('true', $control->getAttribute('aria-hidden'));
         $this->assertSame('plain-qa', $control->getAttribute('data-autosave-field-id'));
         $this->assertSame('', trim($control->textContent));
-        $create = $this->xpath(Blade::render('<x-operations.create-action module="shift-management" />'));
+        $create = $this->xpath(Blade::render('<x-operations.create-action page="shifts" view="plan" />'));
         $button = $create->query('//button[@data-operations-create]')->item(0);
         $this->assertSame('Neue Schicht', $button->getAttribute('aria-label'));
         $this->assertSame("\$dispatchTo('operations.shift-management', 'operations-create')", $button->getAttribute('wire:click'));
@@ -499,7 +499,7 @@ class ResponsiveShiftPlanControlsTest extends TestCase
         $head = file_get_contents(resource_path('views/layouts/head-css.blade.php'));
         $this->assertStringContainsString('resources/css/legacy-allowlist.css', $head);
         $help = ['title' => 'Schichtplan', 'summary' => 'Synthetic page help', 'points' => ['Synthetic point']];
-        $html = Blade::render('<x-ui.page-header title="Schichtplan" :help="$help"><x-slot:actions><x-operations.create-action module="shift-management" /></x-slot:actions></x-ui.page-header>', compact('help'));
+        $html = Blade::render('<x-ui.page-header title="Schichtplan" :help="$help"><x-slot:actions><x-operations.create-action page="shifts" view="plan" /></x-slot:actions></x-ui.page-header>', compact('help'));
         $xpath = $this->xpath($html);
         $back = $xpath->query('//*[@data-page-header]/*[@data-page-header-control][1]')->item(0);
         $info = $xpath->query('//*[@data-page-header-actions]/*[@data-page-info-button]')->item(0);

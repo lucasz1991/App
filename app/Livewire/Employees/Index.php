@@ -165,7 +165,7 @@ class Index extends Component
     public function openTeamEditSelected(): void
     {
         $selection = app(EmployeeTeamService::class)->prepare($this->selectedEmployees);
-        $this->dispatch('open-employee-team-bulk-modal', ids: $selection['ids'])->to(EmployeeTeamBulkModal::class);
+        $this->dispatch('open-employee-team-bulk-modal', ids: $selection['ids'])->to(EmployeeTeamModal::class);
     }
 
     public function teamsUpdated(array $ids = []): void

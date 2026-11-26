@@ -2,7 +2,7 @@
 {{-- Frame and host per page come from OperationsPages::definitions(). --}}
 <x-ui.page :embedded="$definition['embedded'] ?? false" :title="$pageTitle" :header-variant="$definition['header'] ?? 'default'" :auto-intro="false" :title-in-topbar="$definition['topbar_title'] ?? false" :show-back="$definition['back'] ?? true" content-class="rt-ops ops-stack" :class="$definition['class'] ?? ''">
     @if($page === 'shifts')
-        <x-slot:actions><x-operations.create-action :module="$initialView === 'calendar' ? 'calendar' : 'shift-management'" /></x-slot:actions>
+        <x-slot:actions><x-operations.create-action :page="$page" :view="$initialView" /></x-slot:actions>
     @endif
     <div class="min-w-0" data-page-workspace-content x-data x-on:rt-workspace-url.window="const target = new URL($event.detail.url, location.origin); if (target.origin === location.origin && target.pathname === location.pathname) { history.replaceState(history.state, '', target.href); $nextTick(() => { $dispatch('rt-workspace-url-updated'); $dispatch('operations-assistant-context-changed', { page: @js($page), view: target.searchParams.get('view') || '', section: target.searchParams.get('section') || '' }); }); }">
     @if($definition['host'] === 'cases')

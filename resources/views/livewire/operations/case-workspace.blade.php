@@ -2,7 +2,7 @@
     <x-ui.navigation.area-menu id="case-workspace-view" teleport="[data-topbar-planning-navigation]" label="Vorgangsansicht" :value="$view === 'shifts' && $section === 'calendar' ? 'calendar' : $view" action="setPlanningView" :options="$planningOptions" :navigate="true" />
     @if($view === 'shifts' && $section === 'plan')
         <x-ui.page-header-actions target="actions" wire:key="case-shift-create-action">
-            <x-operations.create-action module="shift-management" />
+            <x-operations.create-action page="cases" view="shifts" section="plan" />
         </x-ui.page-header-actions>
     @endif
     @if($view === 'orders' && !$costsOnly)

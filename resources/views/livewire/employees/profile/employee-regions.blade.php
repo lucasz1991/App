@@ -66,7 +66,10 @@
                             @foreach($states as $code => $label)<option value="{{ $code }}">{{ $label }}</option>@endforeach
                         </select>
                     </div>
-                    <button type="button" class="rt-regions__tool" x-ref="exclusionToggle" x-on:click="closeRegion(false); exclusionsOpen = !exclusionsOpen" x-bind:aria-expanded="exclusionsOpen" aria-controls="region-exclusions-{{ $userId }}" aria-label="Ausgeschlossene Gebiete bearbeiten" title="Ausgeschlossene Gebiete"><i class="far fa-ban" aria-hidden="true"></i>@if(count($preferences['no_go_areas'] ?? []))<small>{{ count($preferences['no_go_areas']) }}</small>@endif</button>
+                    <button type="button" class="rt-regions__tool" x-ref="exclusionToggle" x-on:click="closeRegion(false); exclusionsOpen = !exclusionsOpen"
+                        x-bind:aria-expanded="exclusionsOpen" aria-controls="region-exclusions-{{ $userId }}" aria-label="Ausgeschlossene Gebiete bearbeiten"
+                        title="Ausgeschlossene Gebiete"><i class="far fa-ban"
+                        aria-hidden="true"></i>@if(count($preferences['no_go_areas'] ?? []))<small>{{ count($preferences['no_go_areas']) }}</small>@endif</button>
                 </div>
             </div>
             <x-ui.germany-map :height="580" :interactive="true" label="Einsatzgebiete auf der Deutschlandkarte. Bundesland auswählen und eine Zone zuordnen." class="rt-regions__map">
@@ -75,7 +78,11 @@
                         <defs aria-hidden="true"><clipPath id="region-outline-{{ $this->getId() }}">@foreach($statePaths as $code => $path)<use href="#region-shape-{{ $this->getId() }}-{{ $code }}" />@endforeach</clipPath></defs>
                         @foreach($statePaths as $code => $path)
                             @php($zone = $selectedStates[$code] ?? 'none')
-                            <path id="region-shape-{{ $this->getId() }}-{{ $code }}" d="{{ $path }}" fill-rule="evenodd" class="rt-regions__state" data-zone="{{ $zone }}" data-state-code="{{ $code }}" role="button" tabindex="0" aria-label="{{ $states[$code] }}: {{ $zones[$zone]['label'] ?? 'Nicht zugeordnet' }}" aria-haspopup="dialog" aria-controls="region-menu-{{ $userId }}" x-bind:aria-expanded="openedState === '{{ $code }}'" x-bind:data-open="openedState === '{{ $code }}'"
+                            <path id="region-shape-{{ $this->getId() }}-{{ $code }}" d="{{ $path }}" fill-rule="evenodd" class="rt-regions__state" data-zone="{{ $zone }}"
+                                data-state-code="{{ $code }}" role="button" tabindex="0"
+                                aria-label="{{ $states[$code] }}: {{ $zones[$zone]['label'] ?? 'Nicht zugeordnet' }}" aria-haspopup="dialog"
+                                aria-controls="region-menu-{{ $userId }}" x-bind:aria-expanded="openedState === '{{ $code }}'"
+                                x-bind:data-open="openedState === '{{ $code }}'"
                                 wire:key="region-state-{{ $code }}" x-on:click.stop="openRegion('{{ $code }}', $event)" x-on:keydown.enter.prevent.stop="openRegion('{{ $code }}', $event)" x-on:keydown.space.prevent.stop="openRegion('{{ $code }}', $event)">
                                 <title>{{ $states[$code] }} · {{ $zones[$zone]['label'] ?? 'Nicht zugeordnet' }}</title>
                             </path>
@@ -87,10 +94,16 @@
                     </svg>
                 </x-slot:markers>
             </x-ui.germany-map>
-            <div id="region-menu-{{ $userId }}" class="rt-regions__region-menu" x-ref="regionMenu" x-cloak x-show="openedState !== null" x-bind:style="{ left: menuX + 'px', top: menuY + 'px', maxHeight: menuMaxHeight + 'px' }" role="dialog" x-bind:aria-label="'Einsatzgebiet für ' + (names[openedState] || '')" x-on:click.outside="if (openedState) closeRegion(false)" x-on:keydown.arrow-down.prevent="moveChoice(1)" x-on:keydown.arrow-up.prevent="moveChoice(-1)">
+            <div id="region-menu-{{ $userId }}" class="rt-regions__region-menu" x-ref="regionMenu" x-cloak x-show="openedState !== null"
+                x-bind:style="{ left: menuX + 'px', top: menuY + 'px', maxHeight: menuMaxHeight + 'px' }" role="dialog"
+                x-bind:aria-label="'Einsatzgebiet für ' + (names[openedState] || '')" x-on:click.outside="if (openedState) closeRegion(false)"
+                x-on:keydown.arrow-down.prevent="moveChoice(1)" x-on:keydown.arrow-up.prevent="moveChoice(-1)">
                 <div class="rt-regions__popover-title"><strong x-text="names[openedState] || ''"></strong><button type="button" x-on:click="closeRegion()" aria-label="Bundeslandauswahl schließen"><i class="far fa-times" aria-hidden="true"></i></button></div>
                 @foreach($zones as $zone => $definition)
-                    <button type="button" data-choice data-zone="{{ $zone }}" x-on:click="chooseRegion('{{ $zone }}')" x-bind:aria-pressed="currentZone() === '{{ $zone }}'" x-bind:disabled="busy"><i class="rt-regions__zone-dot" aria-hidden="true"></i><span>{{ $definition['label'] }}</span><i class="far fa-check rt-regions__choice-check" aria-hidden="true" x-show="currentZone() === '{{ $zone }}'"></i></button>
+                    <button type="button" data-choice data-zone="{{ $zone }}" x-on:click="chooseRegion('{{ $zone }}')"
+                        x-bind:aria-pressed="currentZone() === '{{ $zone }}'" x-bind:disabled="busy"><i class="rt-regions__zone-dot"
+                        aria-hidden="true"></i><span>{{ $definition['label'] }}</span><i class="far fa-check rt-regions__choice-check" aria-hidden="true"
+                        x-show="currentZone() === '{{ $zone }}'"></i></button>
                 @endforeach
                 <button type="button" data-choice class="rt-regions__remove-state" x-on:click="chooseRegion(null)" x-bind:disabled="busy || currentZone() === null"><i class="far fa-trash-alt" aria-hidden="true"></i><span>Zuordnung entfernen</span></button>
             </div>
@@ -98,7 +111,10 @@
                 @include('livewire.employees.profile.partials.employee-regions-address')
                 <fieldset class="rt-regions__radius-fields"><legend class="sr-only">Radius je Zone</legend>
                     @foreach($zones as $zone => $definition)
-                    <label data-zone="{{ $zone }}" for="region-radius-{{ $userId }}-{{ $zone }}"><span>{{ $definition['label'] }}</span><span class="rt-regions__unit"><x-ui.forms.number-input :stepper="false" :id="'region-radius-'.$userId.'-'.$zone" min="1" :max="$zone === 'preferred' ? 1000 : 2000" wire:model.live.blur="preferences.{{ $definition['radius'] }}" :placeholder="$zone === 'emergency' ? '–' : null" /><span>km</span></span></label>
+                    <label data-zone="{{ $zone }}" for="region-radius-{{ $userId }}-{{ $zone }}"><span>{{ $definition['label'] }}</span><span
+                        class="rt-regions__unit"><x-ui.forms.number-input :stepper="false" :id="'region-radius-'.$userId.'-'.$zone" min="1"
+                        :max="$zone === 'preferred' ? 1000 : 2000" wire:model.live.blur="preferences.{{ $definition['radius'] }}"
+                        :placeholder="$zone === 'emergency' ? '–' : null" /><span>km</span></span></label>
                     @endforeach
                 </fieldset>
                 <p id="region-distance-note-{{ $userId }}" class="rt-regions__hint">Luftlinie. Radien und Bundesländer gelten gemeinsam.</p>
@@ -108,7 +124,12 @@
                 <div class="rt-regions__popover-title"><strong>Ausgeschlossene Gebiete</strong><button type="button" x-on:click="exclusionsOpen = false; $refs.exclusionToggle.focus()" aria-label="Ausgeschlossene Gebiete schließen"><i class="far fa-times" aria-hidden="true"></i></button></div>
                 <p class="rt-regions__hint">Diese Gebiete bleiben auch im Notfall gesperrt.</p>
                 @foreach($preferences['no_go_areas'] ?? [] as $index => $area)
-                    <div class="rt-regions__exclusion" wire:key="region-exclusion-{{ $index }}"><label><span class="sr-only">Ausgeschlossener Ort {{ $index + 1 }}</span><input type="text" wire:model="preferences.no_go_areas.{{ $index }}.location" placeholder="Ort" maxlength="200"></label><label><span class="sr-only">Ausschlussradius {{ $index + 1 }} in km</span><x-ui.forms.number-input :stepper="false" min="1" max="1000" wire:model="preferences.no_go_areas.{{ $index }}.radius_km" aria-label="Ausschlussradius {{ $index + 1 }} in km" /></label><button type="button" wire:click="removeExclusion({{ $index }})" aria-label="Ausschluss {{ $index + 1 }} entfernen"><i class="far fa-trash-alt" aria-hidden="true"></i></button></div>
+                    <div class="rt-regions__exclusion" wire:key="region-exclusion-{{ $index }}"><label><span
+                        class="sr-only">Ausgeschlossener Ort {{ $index + 1 }}</span><input type="text" wire:model="preferences.no_go_areas.{{ $index }}.location"
+                        placeholder="Ort" maxlength="200"></label><label><span class="sr-only">Ausschlussradius {{ $index + 1 }} in km</span><x-ui.forms.number-input
+                        :stepper="false" min="1" max="1000" wire:model="preferences.no_go_areas.{{ $index }}.radius_km"
+                        aria-label="Ausschlussradius {{ $index + 1 }} in km" /></label><button type="button" wire:click="removeExclusion({{ $index }})"
+                        aria-label="Ausschluss {{ $index + 1 }} entfernen"><i class="far fa-trash-alt" aria-hidden="true"></i></button></div>
                 @endforeach
                 <button type="button" wire:click="addExclusion" class="rt-regions__text-button"><i class="far fa-plus" aria-hidden="true"></i> Ausschluss hinzufügen</button>
             </div>
@@ -120,7 +141,9 @@
                 @elseif($notice)<span @class(['rt-regions__success' => !$dirty])>{{ $notice }}</span>
                 @elseif($dirty)<span>Ungespeicherte Änderungen</span>@endif
             </div>
-            <div class="rt-regions__actions"><button type="button" wire:click="reload" x-on:click="closeRegion(false)" wire:loading.attr="disabled" class="rt-regions__reset">Verwerfen</button><button type="submit" class="rt-regions__save" wire:loading.attr="disabled"><i class="far fa-check" aria-hidden="true" wire:loading.remove wire:target="save"></i><x-ui.loading.spinner wire:loading wire:target="save" /> Speichern</button></div>
+            <div class="rt-regions__actions"><button type="button" wire:click="reload" x-on:click="closeRegion(false)" wire:loading.attr="disabled"
+                class="rt-regions__reset">Verwerfen</button><button type="submit" class="rt-regions__save" wire:loading.attr="disabled"><i class="far fa-check"
+                aria-hidden="true" wire:loading.remove wire:target="save"></i><x-ui.loading.spinner wire:loading wire:target="save" /> Speichern</button></div>
         </footer>
     </form>
     @endif

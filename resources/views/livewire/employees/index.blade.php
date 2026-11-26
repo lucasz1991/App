@@ -80,8 +80,8 @@
 
     <livewire:employees.employee-form-modal :key="'employee-form-modal'" />
     <livewire:employees.team-rbac-modal :key="'employee-team-rbac-modal'" />
-    <livewire:employees.employee-team-modal :key="'employee-team-change-modal'" />
-    <livewire:employees.employee-team-bulk-modal :key="'employee-team-bulk-modal'" />
+    <livewire:employees.employee-team-modal mode="single" :key="'employee-team-change-modal'" />
+    <livewire:employees.employee-team-modal mode="bulk" :key="'employee-team-bulk-modal'" />
     <livewire:employees.invite-employee-modal :key="'employee-invite-modal'" />
     <livewire:messages.message-form :key="'employee-message-form'" />
 </div>

@@ -17,7 +17,10 @@
         <div class="rt-customer-portal__top-actions">
             <div class="rt-customer-portal__customer">
                 @if($memberships->count()>1)
-                    <label class="sr-only" for="portal-current-customer">Kunde</label><x-ui.forms.select id="portal-current-customer" change="$wire.switchCustomer(Number($event.target.value))" aria-label="Kunde wechseln">@foreach($memberships as $member)<option value="{{ $member->customer_id }}" @selected($member->customer_id===$customerId)>{{ $member->customer?->company_name ?? $member->customer_id }}</option>@endforeach</x-ui.forms.select>
+                    <label class="sr-only" for="portal-current-customer">Kunde</label><x-ui.forms.select id="portal-current-customer"
+                        change="$wire.switchCustomer(Number($event.target.value))" aria-label="Kunde wechseln">@foreach($memberships as $member)<option
+                        value="{{ $member->customer_id }}"
+                        @selected($member->customer_id===$customerId)>{{ $member->customer?->company_name ?? $member->customer_id }}</option>@endforeach</x-ui.forms.select>
                 @else
                     <strong>{{ $customer['company_name'] }}</strong><span class="rt-customer-portal__sub">{{ $customer['customer_number'] }}</span>
                 @endif
@@ -36,22 +39,34 @@
                     <div class="rt-customer-portal__group" wire:key="portal-nav-group-{{ $loop->index }}">
                         <p class="rt-customer-portal__group-label">{{ $group }}</p>
                         @foreach($visibleKeys as $key)
-                            <x-ui.buttons.button-basic type="button" :mode="$tab===$key?'primary':'link'" class="rt-customer-portal__nav-button" wire:key="portal-nav-{{ $key }}" wire:click="setTab('{{ $key }}')" x-on:click="close(false)" :aria-current="$tab===$key?'page':null"><x-customer-portal.icon :name="$key" /><span class="rt-customer-portal__nav-label">{{ $tabs[$key] }}</span>@if(isset($totals[$key]) && $totals[$key]>0)<span class="rt-customer-portal__nav-count">{{ $totals[$key] }}</span>@endif</x-ui.buttons.button-basic>
+                            <x-ui.buttons.button-basic type="button" :mode="$tab===$key?'primary':'link'" class="rt-customer-portal__nav-button"
+                                wire:key="portal-nav-{{ $key }}" wire:click="setTab('{{ $key }}')" x-on:click="close(false)"
+                                :aria-current="$tab===$key?'page':null"><x-customer-portal.icon :name="$key" /><span
+                                class="rt-customer-portal__nav-label">{{ $tabs[$key] }}</span>@if(isset($totals[$key]) && $totals[$key]>0)<span
+                                class="rt-customer-portal__nav-count">{{ $totals[$key] }}</span>@endif</x-ui.buttons.button-basic>
                         @endforeach
                     </div>
                 @endif
             @endforeach
-            <div class="rt-customer-portal__profile"><x-ui.buttons.button-basic type="button" :mode="$tab==='profile'?'primary':'link'" class="rt-customer-portal__nav-button" wire:click="setTab('profile')" x-on:click="close(false)" :aria-current="$tab==='profile'?'page':null" aria-label="Profil"><x-customer-portal.icon name="profile" /><span class="rt-customer-portal__profile-meta"><strong>{{ $identity->name }}</strong><span>Mein Profil</span></span></x-ui.buttons.button-basic></div>
+            <div class="rt-customer-portal__profile"><x-ui.buttons.button-basic type="button" :mode="$tab==='profile'?'primary':'link'"
+                class="rt-customer-portal__nav-button" wire:click="setTab('profile')" x-on:click="close(false)" :aria-current="$tab==='profile'?'page':null"
+                aria-label="Profil"><x-customer-portal.icon name="profile" /><span
+                class="rt-customer-portal__profile-meta"><strong>{{ $identity->name }}</strong><span>Mein Profil</span></span></x-ui.buttons.button-basic></div>
         </nav>
         <main class="rt-customer-portal__content rt-ops ops-stack" id="customer-portal-content" x-bind:inert="mobile && open">
             <header class="rt-customer-portal__heading"><div><span class="rt-customer-portal__eyebrow">{{ $customer['customer_number'] ?: 'Kundenbereich' }}</span><h1 id="customer-portal-title" tabindex="-1">{{ $tabs[$tab] }}</h1><p class="rt-customer-portal__sub">{{ $customer['company_name'] }}</p></div><div class="ops-actions">
                 @if($canRequest)<x-ui.buttons.button-basic type="button" mode="primary" class="rt-customer-portal__primary-action" wire:click="create('performance')"><span class="rt-customer-portal__button-label">Leistung anfragen</span><span class="rt-customer-portal__button-icon"><x-customer-portal.icon name="plus" /></span></x-ui.buttons.button-basic>@endif
                 @if($tab==='messages' && in_array('messages.create',$capabilities,true))<x-ui.buttons.button-basic type="button" wire:click="create('message')">Nachricht</x-ui.buttons.button-basic>@endif
-                @if($tab==='reports' && in_array('reports.view',$capabilities,true))<x-ui.buttons.button-basic type="button" wire:click="export" wire:loading.attr="disabled"><x-customer-portal.icon name="download" />CSV exportieren</x-ui.buttons.button-basic>@if(\Illuminate\Support\Facades\Route::has('customer-portal.report.print'))<x-ui.buttons.button-basic mode="secondary" data-no-navigate href="{{ route('customer-portal.report.print',['customer'=>$customerId]) }}">Drucken / PDF</x-ui.buttons.button-basic>@endif @endif
+                @if($tab==='reports' && in_array('reports.view',$capabilities,true))<x-ui.buttons.button-basic type="button" wire:click="export"
+                    wire:loading.attr="disabled"><x-customer-portal.icon
+                    name="download" />CSV exportieren</x-ui.buttons.button-basic>@if(\Illuminate\Support\Facades\Route::has('customer-portal.report.print'))<x-ui.buttons.button-basic
+                    mode="secondary" data-no-navigate
+                    href="{{ route('customer-portal.report.print',['customer'=>$customerId]) }}">Drucken / PDF</x-ui.buttons.button-basic>@endif @endif
             </div></header>
             <x-operations.feedback />
             @if($tab==='profile')
-                <x-ui.surface.card variant="ops" class="ops-stack"><h2 class="text-lg font-semibold">{{ $identity->name }}</h2><dl class="rt-customer-portal__details"><div><dt>E-Mail</dt><dd>{{ $identity->email }}</dd></div><div><dt>Kunde</dt><dd>{{ $customer['company_name'] }}</dd></div><div><dt>Rolle</dt><dd>{{ \App\Livewire\Operations\CustomerPortalManagement::ROLES[$membership->role] ?? 'Kontakt' }}</dd></div><div><dt>Kontakt</dt><dd>{{ $membership->contact->name }}</dd></div></dl></x-ui.surface.card>
+                <x-ui.surface.card variant="ops" class="ops-stack"><h2 class="text-lg font-semibold">{{ $identity->name }}</h2><dl
+                    class="rt-customer-portal__details"><div><dt>E-Mail</dt><dd>{{ $identity->email }}</dd></div><div><dt>Kunde</dt><dd>{{ $customer['company_name'] }}</dd></div><div><dt>Rolle</dt><dd>{{ \App\Livewire\Operations\CustomerPortalManagement::ROLES[$membership->role] ?? 'Kontakt' }}</dd></div><div><dt>Kontakt</dt><dd>{{ $membership->contact->name }}</dd></div></dl></x-ui.surface.card>
                 <x-ui.surface.card variant="ops"><livewire:operations.customer-logo :customer-id="$customerId" :portal="true" :key="'portal-company-logo-'.$customerId" /></x-ui.surface.card>
                 @if($canChange)<div class="ops-actions"><x-ui.buttons.button-basic type="button" wire:click="create('master_data')">Stammdatenkorrektur</x-ui.buttons.button-basic></div>@endif
                 @if(\Illuminate\Support\Facades\Route::has('customer-portal.mfa.setup'))<x-ui.buttons.button-basic mode="secondary" data-no-navigate href="{{ route('customer-portal.mfa.setup') }}"><x-customer-portal.icon name="shield" />Anmeldesicherheit</x-ui.buttons.button-basic>@endif
@@ -60,8 +75,14 @@
                     @if(array_key_exists('orders',$tabs))
                         <section class="rt-customer-portal__focus" aria-labelledby="portal-next-orders-title">
                             <div class="rt-customer-portal__focus-inner">
-                                <header class="rt-customer-portal__focus-heading"><div><span class="rt-customer-portal__eyebrow">Auftragsübersicht</span><h2 id="portal-next-orders-title">Ihre nächsten Einsätze</h2></div><x-ui.buttons.button-basic type="button" mode="link" wire:click="setTab('calendar')" aria-label="Alle Termine öffnen"><x-customer-portal.icon name="calendar" /><span>Termine</span></x-ui.buttons.button-basic></header>
-                                <x-tables.table :items="$items" :columns="[['label'=>'Auftrag','key'=>'title','width'=>'2fr'],['label'=>'Zeitraum','key'=>'period','width'=>'1.5fr'],['label'=>'Status','key'=>'status'],['label'=>'Aktion','key'=>'actions']]" :table-key="'portal-'.$customerId.'-upcoming'" row-view="components.tables.rows.customer-portal.record-row" empty="Keine bevorstehenden Einsätze." />
+                                <header class="rt-customer-portal__focus-heading"><div><span class="rt-customer-portal__eyebrow">Auftragsübersicht</span><h2
+                                    id="portal-next-orders-title">Ihre nächsten Einsätze</h2></div><x-ui.buttons.button-basic type="button" mode="link"
+                                    wire:click="setTab('calendar')" aria-label="Alle Termine öffnen"><x-customer-portal.icon
+                                    name="calendar" /><span>Termine</span></x-ui.buttons.button-basic></header>
+                                <x-tables.table :items="$items"
+                                    :columns="[['label'=>'Auftrag','key'=>'title','width'=>'2fr'],['label'=>'Zeitraum','key'=>'period','width'=>'1.5fr'],['label'=>'Status','key'=>'status'],['label'=>'Aktion','key'=>'actions']]"
+                                    :table-key="'portal-'.$customerId.'-upcoming'" row-view="components.tables.rows.customer-portal.record-row"
+                                    empty="Keine bevorstehenden Einsätze." />
                                 <div class="rt-customer-portal__focus-footer"><x-ui.buttons.button-basic type="button" mode="link" wire:click="setTab('orders')">Alle Aufträge<x-customer-portal.icon name="arrow-right" /></x-ui.buttons.button-basic></div>
                             </div>
                         </section>
@@ -84,16 +105,42 @@
                     <header class="rt-calendar-header">
                         <div class="rt-calendar-heading"><div><h2 class="rt-calendar-period" aria-live="polite">{{ $periodLabel }}</h2><p class="rt-calendar-timezone">{{ $displayTimezone }}</p></div></div>
                         <div class="rt-calendar-controls">
-                            <div class="rt-calendar-navigation"><x-ui.buttons.button-basic type="button" class="rt-calendar-nav-arrow" wire:click="previousPeriod" aria-label="Vorheriger Zeitraum"><x-customer-portal.icon name="chevron-left" /></x-ui.buttons.button-basic><x-ui.buttons.button-basic type="button" wire:click="today">Heute</x-ui.buttons.button-basic><x-ui.buttons.button-basic type="button" class="rt-calendar-nav-arrow" wire:click="nextPeriod" aria-label="Nächster Zeitraum"><x-customer-portal.icon name="chevron-right" /></x-ui.buttons.button-basic></div>
+                            <div class="rt-calendar-navigation"><x-ui.buttons.button-basic type="button" class="rt-calendar-nav-arrow" wire:click="previousPeriod"
+                                aria-label="Vorheriger Zeitraum"><x-customer-portal.icon name="chevron-left" /></x-ui.buttons.button-basic><x-ui.buttons.button-basic
+                                type="button" wire:click="today">Heute</x-ui.buttons.button-basic><x-ui.buttons.button-basic type="button" class="rt-calendar-nav-arrow"
+                                wire:click="nextPeriod" aria-label="Nächster Zeitraum"><x-customer-portal.icon name="chevron-right" /></x-ui.buttons.button-basic></div>
                             <div class="rt-calendar-picker"><x-ui.forms.date-field id="customer-calendar-anchor" wire:model.live="anchorDate" :clearable="false" aria-label="Kalenderdatum" /></div>
-                            <x-ui.buttons.multi-toggle id="customer-calendar-view" label="Kalenderansicht" icon-set="customer-portal" :value="$viewMode" action="switchView" :options="[['value'=>'day','label'=>'Tag','icon'=>'fa-calendar-day'],['value'=>'week','label'=>'Woche','icon'=>'fa-calendar-week'],['value'=>'month','label'=>'Monat','icon'=>'fa-calendar-alt'],['value'=>'list','label'=>'Liste','icon'=>'fa-list-ul']]" />
+                            <x-ui.buttons.multi-toggle id="customer-calendar-view" label="Kalenderansicht" icon-set="customer-portal" :value="$viewMode"
+                                action="switchView"
+                                :options="[['value'=>'day','label'=>'Tag','icon'=>'fa-calendar-day'],['value'=>'week','label'=>'Woche','icon'=>'fa-calendar-week'],['value'=>'month','label'=>'Monat','icon'=>'fa-calendar-alt'],['value'=>'list','label'=>'Liste','icon'=>'fa-list-ul']]" />
                         </div>
                     </header>
                     @if($viewMode==='list')<x-tables.table :items="$calendarEvents" :columns="[['label'=>'Auftrag','key'=>'title','width'=>'2fr'],['label'=>'Zeitraum','key'=>'period','width'=>'1.5fr'],['label'=>'Status','key'=>'status'],['label'=>'Aktion','key'=>'actions']]" row-view="components.tables.rows.customer-portal.record-row" empty="Keine Termine." />
-                    @elseif($viewMode==='month')<div class="rt-calendar-month" aria-label="Monatskalender">@foreach(['Mo','Di','Mi','Do','Fr','Sa','So'] as $weekday)<div class="rt-calendar-weekday">{{ $weekday }}</div>@endforeach @foreach($calendarDays as $day)<section @class(['rt-calendar-month-day','is-outside'=>!$day['in_month'],'is-today'=>$day['is_today'],'is-weekend'=>$day['date']->isWeekend()]) wire:key="portal-month-{{ $day['date']->toDateString() }}"><x-ui.buttons.button-basic type="button" mode="link" class="rt-calendar-date" wire:click="showDay('{{ $day['date']->toDateString() }}')" :aria-label="$day['date']->format('d.m.Y').' öffnen'">{{ $day['date']->format('j') }}</x-ui.buttons.button-basic><div class="hidden space-y-1 lg:block">@foreach($day['events']->take(3) as $event)<x-ui.buttons.button-basic type="button" mode="link" class="rt-calendar-month-shift" wire:click="openDetails('order',{{ $event->publication_id ?? $event->id }})"><span class="block text-xs tabular-nums">{{ $event->starts->format('H:i') }}</span><span class="block break-words text-xs">{{ $event->title }}</span></x-ui.buttons.button-basic>@endforeach</div>@if($day['events']->isNotEmpty())<span class="rt-calendar-day-count lg:hidden">{{ $day['events']->count() }}<span class="sr-only"> Termine</span></span>@endif</section>@endforeach</div>
+                    @elseif($viewMode==='month')<div class="rt-calendar-month" aria-label="Monatskalender">@foreach(['Mo','Di','Mi','Do','Fr','Sa','So'] as $weekday)<div
+                        class="rt-calendar-weekday">{{ $weekday }}</div>@endforeach @foreach($calendarDays as $day)<section
+                        @class(['rt-calendar-month-day','is-outside'=>!$day['in_month'],'is-today'=>$day['is_today'],'is-weekend'=>$day['date']->isWeekend()])
+                        wire:key="portal-month-{{ $day['date']->toDateString() }}"><x-ui.buttons.button-basic type="button" mode="link" class="rt-calendar-date"
+                        wire:click="showDay('{{ $day['date']->toDateString() }}')"
+                        :aria-label="$day['date']->format('d.m.Y').' öffnen'">{{ $day['date']->format('j') }}</x-ui.buttons.button-basic><div
+                        class="hidden space-y-1 lg:block">@foreach($day['events']->take(3) as $event)<x-ui.buttons.button-basic type="button" mode="link"
+                        class="rt-calendar-month-shift" wire:click="openDetails('order',{{ $event->publication_id ?? $event->id }})"><span
+                        class="block text-xs tabular-nums">{{ $event->starts->format('H:i') }}</span><span
+                        class="block break-words text-xs">{{ $event->title }}</span></x-ui.buttons.button-basic>@endforeach</div>@if($day['events']->isNotEmpty())<span
+                        class="rt-calendar-day-count lg:hidden">{{ $day['events']->count() }}<span class="sr-only"> Termine</span></span>@endif</section>@endforeach</div>
                     @else
-                        @if($viewMode==='week')<div class="rt-calendar-week">@foreach($calendarDays as $day)<section @class(['rt-calendar-week-day','is-today'=>$day['is_today'],'is-weekend'=>$day['date']->isWeekend()]) wire:key="portal-week-{{ $day['date']->toDateString() }}"><x-ui.buttons.button-basic type="button" mode="link" class="rt-calendar-week-date" wire:click="showDay('{{ $day['date']->toDateString() }}')"><span>{{ $day['date']->locale('de')->isoFormat('dd') }}</span><strong>{{ $day['date']->format('d') }}</strong><span class="rt-calendar-week-count">{{ $day['events']->count() }}</span></x-ui.buttons.button-basic><div class="rt-calendar-week-shifts">@forelse($day['events'] as $event)@include('components.tables.rows.customer-portal.calendar-event-row',['event'=>$event])@empty<p class="rt-calendar-empty-cell">—</p>@endforelse</div></section>@endforeach</div>@endif
-                        <div @class(['rt-calendar-agenda','xl:hidden'=>$viewMode==='week'])>@foreach($calendarDays as $day)<section class="rt-calendar-agenda-day" wire:key="portal-agenda-{{ $day['date']->toDateString() }}"><h3 class="rt-calendar-agenda-heading"><span class="rt-calendar-agenda-date"><span>{{ $day['date']->locale('de')->isoFormat('dd') }}</span><strong>{{ $day['date']->format('d') }}</strong></span><span class="rt-calendar-agenda-label">{{ $day['date']->locale('de')->isoFormat('dddd, D. MMMM') }}</span><span class="rt-calendar-agenda-count">{{ $day['events']->count() }} Termine</span></h3><div class="rt-calendar-agenda-shifts">@foreach($day['events'] as $event)@include('components.tables.rows.customer-portal.calendar-event-row',['event'=>$event])@endforeach</div></section>@endforeach</div>
+                        @if($viewMode==='week')<div class="rt-calendar-week">@foreach($calendarDays as $day)<section
+                            @class(['rt-calendar-week-day','is-today'=>$day['is_today'],'is-weekend'=>$day['date']->isWeekend()])
+                            wire:key="portal-week-{{ $day['date']->toDateString() }}"><x-ui.buttons.button-basic type="button" mode="link" class="rt-calendar-week-date"
+                            wire:click="showDay('{{ $day['date']->toDateString() }}')"><span>{{ $day['date']->locale('de')->isoFormat('dd') }}</span><strong>{{ $day['date']->format('d') }}</strong><span
+                            class="rt-calendar-week-count">{{ $day['events']->count() }}</span></x-ui.buttons.button-basic><div
+                            class="rt-calendar-week-shifts">@forelse($day['events'] as $event)@include('components.tables.rows.customer-portal.calendar-event-row',['event'=>$event])@empty<p
+                            class="rt-calendar-empty-cell">—</p>@endforelse</div></section>@endforeach</div>@endif
+                        <div @class(['rt-calendar-agenda','xl:hidden'=>$viewMode==='week'])>@foreach($calendarDays as $day)<section class="rt-calendar-agenda-day"
+                            wire:key="portal-agenda-{{ $day['date']->toDateString() }}"><h3 class="rt-calendar-agenda-heading"><span
+                            class="rt-calendar-agenda-date"><span>{{ $day['date']->locale('de')->isoFormat('dd') }}</span><strong>{{ $day['date']->format('d') }}</strong></span><span
+                            class="rt-calendar-agenda-label">{{ $day['date']->locale('de')->isoFormat('dddd, D. MMMM') }}</span><span
+                            class="rt-calendar-agenda-count">{{ $day['events']->count() }} Termine</span></h3><div
+                            class="rt-calendar-agenda-shifts">@foreach($day['events'] as $event)@include('components.tables.rows.customer-portal.calendar-event-row',['event'=>$event])@endforeach</div></section>@endforeach</div>
                     @endif
                 </section>
             @else
@@ -107,13 +154,32 @@
             @if($formOpen)
                 @if($modal==='detail' && $details)
                     <div class="ops-toolbar"><h3>{{ $snapshot['title'] ?? $snapshot['subject'] ?? 'Vorgang' }}</h3><span class="rt-customer-portal__status" data-state="{{ $snapshot['status'] ?? 'published' }}">{{ $this::statusLabel($snapshot['status'] ?? 'published') }}</span></div>
-                    <dl class="rt-customer-portal__details">@foreach(['order_number'=>'Auftrag','number'=>'Referenz','location_name'=>'Einsatzort','role_name'=>'Tätigkeit','required_staff'=>'Personalbedarf','timezone'=>'Zeitzone','terms'=>'Bedingungen','valid_until'=>'Gültig bis','summary'=>'Rückmeldung','response'=>'Antwort','message'=>'Nachricht','body'=>'Nachricht'] as $key=>$label)@if(filled($snapshot[$key] ?? null))<div><dt>{{ $label }}</dt><dd>{{ $snapshot[$key] }}</dd></div>@endif @endforeach</dl>
-                    @if($recordType==='order' && ($canRequest || $canChange))<div class="ops-actions">@if($canRequest)<x-ui.buttons.button-basic type="button" wire:click="templateFromOrder({{ $recordId }})">Erneut anfragen</x-ui.buttons.button-basic>@endif @if($canChange)<x-ui.buttons.button-basic type="button" wire:click="requestForOrder('change')">Änderung</x-ui.buttons.button-basic><x-ui.buttons.button-basic type="button" wire:click="requestForOrder('cancel')">Storno anfragen</x-ui.buttons.button-basic><x-ui.buttons.button-basic type="button" wire:click="requestForOrder('disruption')">Störung melden</x-ui.buttons.button-basic><x-ui.buttons.button-basic type="button" wire:click="requestForOrder('replacement')">Ersatzbedarf</x-ui.buttons.button-basic><x-ui.buttons.button-basic type="button" wire:click="requestForOrder('complaint')">Reklamation</x-ui.buttons.button-basic>@endif</div>@endif
+                    <dl class="rt-customer-portal__details">
+                        @foreach(['order_number'=>'Auftrag','number'=>'Referenz','location_name'=>'Einsatzort','role_name'=>'Tätigkeit','required_staff'=>'Personalbedarf','timezone'=>'Zeitzone','terms'=>'Bedingungen','valid_until'=>'Gültig bis','summary'=>'Rückmeldung','response'=>'Antwort','message'=>'Nachricht','body'=>'Nachricht'] as $key=>$label)
+                        @if(filled($snapshot[$key] ?? null))<div><dt>{{ $label }}</dt><dd>{{ $snapshot[$key] }}</dd></div>@endif @endforeach</dl>
+                    @if($recordType==='order' && ($canRequest || $canChange))<div class="ops-actions">@if($canRequest)<x-ui.buttons.button-basic type="button"
+                        wire:click="templateFromOrder({{ $recordId }})">Erneut anfragen</x-ui.buttons.button-basic>@endif @if($canChange)<x-ui.buttons.button-basic
+                        type="button" wire:click="requestForOrder('change')">Änderung</x-ui.buttons.button-basic><x-ui.buttons.button-basic type="button"
+                        wire:click="requestForOrder('cancel')">Storno anfragen</x-ui.buttons.button-basic><x-ui.buttons.button-basic type="button"
+                        wire:click="requestForOrder('disruption')">Störung melden</x-ui.buttons.button-basic><x-ui.buttons.button-basic type="button"
+                        wire:click="requestForOrder('replacement')">Ersatzbedarf</x-ui.buttons.button-basic><x-ui.buttons.button-basic type="button"
+                        wire:click="requestForOrder('complaint')">Reklamation</x-ui.buttons.button-basic>@endif</div>@endif
                     @if(isset($snapshot['total_cents']))<p class="text-lg font-semibold tabular-nums">{{ number_format($snapshot['total_cents']/100,2,',','.') }} {{ $snapshot['currency'] ?? 'EUR' }}</p>@endif
                     @if($snapshot['positions'] ?? $snapshot['rows'] ?? [])<x-tables.table :items="collect($snapshot['positions'] ?? $snapshot['rows'])->values()->map(fn($r,$i)=>(object)($r+['id'=>$i+1]))" :columns="[['label'=>'Leistung','key'=>'title'],['label'=>'Menge','key'=>'quantity'],['label'=>'Einheit','key'=>'unit']]" row-view="components.tables.rows.customer-portal.quantity-row" />@endif
                     @if(($details['downloadable'] ?? false) && \Illuminate\Support\Facades\Route::has('customer-portal.document.download'))<x-ui.buttons.button-basic mode="secondary" data-no-navigate href="{{ route('customer-portal.document.download',['customer'=>$customerId,'publication'=>$recordId]) }}">Dokument herunterladen</x-ui.buttons.button-basic>@endif
-                    @if($detailAttachments)<section class="ops-stack"><h3 class="text-sm font-semibold">Anlagen</h3>@foreach($detailAttachments as $attachment)<div class="ops-row" wire:key="portal-attachment-{{ $attachment['id'] }}"><span class="break-words">{{ $attachment['name'] }}</span><span class="rt-customer-portal__status" data-state="{{ $attachment['status'] }}">{{ $this::statusLabel($attachment['status']) }}</span>@if($attachment['downloadable'] && \Illuminate\Support\Facades\Route::has('customer-portal.attachment.download'))<x-ui.buttons.button-basic mode="secondary" data-no-navigate href="{{ route('customer-portal.attachment.download',['customer'=>$customerId,'attachment'=>$attachment['id']]) }}">Herunterladen</x-ui.buttons.button-basic>@endif</div>@endforeach</section>@endif
-                    @if(($recordType==='proof' && in_array('proofs.accept',$capabilities,true)) || ($recordType==='offer' && in_array('offers.accept',$capabilities,true)))<form class="ops-form" wire:submit="confirmDetail"><x-operations.field label="Rückmeldung" model="form.note" type="textarea" :wide="true" minlength="5" maxlength="2000" required /><div class="ops-full"><x-ui.forms.checkbox wire:model="form.confirmed" :label="'Stand '.($details['revision'] ?? $recordRevision).' ausdrücklich bestätigen'" /></div><div class="ops-full ops-actions"><x-ui.buttons.button-basic type="submit" mode="primary">{{ $recordType==='offer'?'Angebot annehmen':'Nachweis abnehmen' }}</x-ui.buttons.button-basic>@if($recordType==='proof')<x-ui.buttons.button-basic type="button" wire:click="decideProof('reject')">Zurückweisen</x-ui.buttons.button-basic>@endif</div></form>@endif
+                    @if($detailAttachments)<section class="ops-stack"><h3 class="text-sm font-semibold">Anlagen</h3>@foreach($detailAttachments as $attachment)<div
+                        class="ops-row" wire:key="portal-attachment-{{ $attachment['id'] }}"><span class="break-words">{{ $attachment['name'] }}</span><span
+                        class="rt-customer-portal__status"
+                        data-state="{{ $attachment['status'] }}">{{ $this::statusLabel($attachment['status']) }}</span>@if($attachment['downloadable'] && \Illuminate\Support\Facades\Route::has('customer-portal.attachment.download'))<x-ui.buttons.button-basic
+                        mode="secondary" data-no-navigate
+                        href="{{ route('customer-portal.attachment.download',['customer'=>$customerId,'attachment'=>$attachment['id']]) }}">Herunterladen</x-ui.buttons.button-basic>@endif</div>@endforeach</section>@endif
+                    @if(($recordType==='proof' && in_array('proofs.accept',$capabilities,true)) || ($recordType==='offer' && in_array('offers.accept',$capabilities,true)))<form
+                        class="ops-form" wire:submit="confirmDetail"><x-operations.field label="Rückmeldung" model="form.note" type="textarea" :wide="true" minlength="5"
+                        maxlength="2000" required /><div class="ops-full"><x-ui.forms.checkbox wire:model="form.confirmed"
+                        :label="'Stand '.($details['revision'] ?? $recordRevision).' ausdrücklich bestätigen'" /></div><div
+                        class="ops-full ops-actions"><x-ui.buttons.button-basic type="submit"
+                        mode="primary">{{ $recordType==='offer'?'Angebot annehmen':'Nachweis abnehmen' }}</x-ui.buttons.button-basic>@if($recordType==='proof')<x-ui.buttons.button-basic
+                        type="button" wire:click="decideProof('reject')">Zurückweisen</x-ui.buttons.button-basic>@endif</div></form>@endif
                 @else
                     <form wire:submit="save" class="ops-form rt-customer-portal__request-form">
                         @if($errors->any())<div class="ops-full rt-customer-portal__notice rt-customer-portal__form-errors" role="alert"><strong>Bitte Eingaben prüfen.</strong><ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
@@ -132,17 +198,75 @@
                             </fieldset>
                             <details class="ops-full rt-customer-portal__optional" @if($errors->hasAny(['reference','planned_break_minutes','train_reference','vehicle_reference','cost_center','form.reference','form.planned_break_minutes','form.train_reference','form.vehicle_reference','form.cost_center'])) open @endif>
                                 <summary>Referenzen &amp; Planpause <span class="rt-customer-portal__sub">Optional</span><x-customer-portal.icon name="chevron-right" /></summary>
-                                <div class="ops-form"><x-operations.field label="Bestellreferenz" model="form.reference" maxlength="100" /><x-operations.field label="Planpause (min)" model="form.planned_break_minutes" type="number" min="0" max="1440" /><x-operations.field label="Zugreferenz" model="form.train_reference" maxlength="100" /><x-operations.field label="Fahrzeugreferenz" model="form.vehicle_reference" maxlength="100" /><x-operations.field label="Kostenstelle" model="form.cost_center" maxlength="100" /></div>
+                                <div class="ops-form"><x-operations.field label="Bestellreferenz" model="form.reference" maxlength="100" /><x-operations.field
+                                    label="Planpause (min)" model="form.planned_break_minutes" type="number" min="0" max="1440" /><x-operations.field label="Zugreferenz"
+                                    model="form.train_reference" maxlength="100" /><x-operations.field label="Fahrzeugreferenz" model="form.vehicle_reference"
+                                    maxlength="100" /><x-operations.field label="Kostenstelle" model="form.cost_center" maxlength="100" /></div>
                             </details>
-                            @foreach($form['positions'] ?? [] as $index=>$position)<fieldset class="ops-full ops-form" wire:key="portal-position-{{ $submissionKey }}-{{ $index }}"><legend class="text-sm font-semibold">Weitere Position {{ $index+2 }}</legend><x-operations.field label="Bezeichnung" :model="'form.positions.'.$index.'.title'" required /><x-operations.field label="Tätigkeit" :model="'form.positions.'.$index.'.role_name'" required /><x-operations.field label="Personalbedarf" :model="'form.positions.'.$index.'.required_staff'" type="number" min="1" max="999" required /><x-operations.field label="Beginn" :model="'form.positions.'.$index.'.starts_at'" type="datetime-local" required /><x-operations.field label="Ende" :model="'form.positions.'.$index.'.ends_at'" type="datetime-local" required /><x-operations.field label="Ort / Route" :model="'form.positions.'.$index.'.location_name'" required />@if($terms['conditions'] ?? [])<x-operations.field label="Leistungsposition" :model="'form.positions.'.$index.'.condition_id'" type="select"><option value="">Manuell prüfen</option>@foreach($terms['conditions'] as $condition)<option value="{{ $condition['id'] }}">{{ $condition['label'] }} · {{ $condition['unit'] }}</option>@endforeach</x-operations.field><x-operations.field label="Leistungsmenge" :model="'form.positions.'.$index.'.quantity'" type="number" min="0.001" max="99999.999" step="0.001" />@endif<x-ui.buttons.button-basic type="button" wire:click="removePosition({{ $index }})">Entfernen</x-ui.buttons.button-basic></fieldset>@endforeach
+                            @foreach($form['positions'] ?? [] as $index=>$position)<fieldset class="ops-full ops-form"
+                                wire:key="portal-position-{{ $submissionKey }}-{{ $index }}"><legend
+                                class="text-sm font-semibold">Weitere Position {{ $index+2 }}</legend><x-operations.field label="Bezeichnung"
+                                :model="'form.positions.'.$index.'.title'" required /><x-operations.field label="Tätigkeit" :model="'form.positions.'.$index.'.role_name'"
+                                required /><x-operations.field label="Personalbedarf" :model="'form.positions.'.$index.'.required_staff'" type="number" min="1" max="999"
+                                required /><x-operations.field label="Beginn" :model="'form.positions.'.$index.'.starts_at'" type="datetime-local"
+                                required /><x-operations.field label="Ende" :model="'form.positions.'.$index.'.ends_at'" type="datetime-local"
+                                required /><x-operations.field label="Ort / Route" :model="'form.positions.'.$index.'.location_name'"
+                                required />@if($terms['conditions'] ?? [])<x-operations.field label="Leistungsposition" :model="'form.positions.'.$index.'.condition_id'"
+                                type="select"><option value="">Manuell prüfen</option>@foreach($terms['conditions'] as $condition)<option
+                                value="{{ $condition['id'] }}">{{ $condition['label'] }} · {{ $condition['unit'] }}</option>@endforeach</x-operations.field><x-operations.field
+                                label="Leistungsmenge" :model="'form.positions.'.$index.'.quantity'" type="number" min="0.001" max="99999.999"
+                                step="0.001" />@endif<x-ui.buttons.button-basic type="button"
+                                wire:click="removePosition({{ $index }})">Entfernen</x-ui.buttons.button-basic></fieldset>@endforeach
                             <div class="ops-full"><x-ui.buttons.button-basic type="button" wire:click="addPosition"><x-customer-portal.icon name="plus" />Position hinzufügen</x-ui.buttons.button-basic></div>
-                            <fieldset class="ops-full ops-form rt-customer-portal__form-section"><legend class="rt-customer-portal__form-legend">Hinweise und Anlagen</legend><x-operations.field label="Hinweise" model="form.note" type="textarea" :wide="true" maxlength="2000" /><div class="ops-full space-y-1.5"><x-ui.forms.label for="portal-request-attachments" value="Anlagen · PDF / Bild, max. 10 MB je Datei" /><x-ui.forms.input id="portal-request-attachments" type="file" wire:model="attachments" accept=".pdf,.jpg,.jpeg,.png" multiple /><x-ui.forms.input-error for="attachments" /><x-ui.forms.input-error for="attachments.*" /></div></fieldset>
+                            <fieldset class="ops-full ops-form rt-customer-portal__form-section"><legend
+                                class="rt-customer-portal__form-legend">Hinweise und Anlagen</legend><x-operations.field label="Hinweise" model="form.note"
+                                type="textarea" :wide="true" maxlength="2000" /><div class="ops-full space-y-1.5"><x-ui.forms.label for="portal-request-attachments"
+                                value="Anlagen · PDF / Bild, max. 10 MB je Datei" /><x-ui.forms.input id="portal-request-attachments" type="file" wire:model="attachments"
+                                accept=".pdf,.jpg,.jpeg,.png" multiple /><x-ui.forms.input-error for="attachments" /><x-ui.forms.input-error
+                                for="attachments.*" /></div></fieldset>
                             <div class="ops-full"><x-ui.forms.checkbox wire:model.live="form.series_enabled" label="Wiederkehrende Termine" /></div>
-                            @if($form['series_enabled'] ?? false)<fieldset class="ops-full ops-form"><legend class="text-sm font-semibold">Schichtserie</legend><x-operations.field label="Von" model="form.recurrence.from_date" type="date" required /><x-operations.field label="Bis" model="form.recurrence.to_date" type="date" required /><x-operations.field label="Beginn" model="form.recurrence.start_time" type="time" required /><x-operations.field label="Ende" model="form.recurrence.end_time" type="time" required /><div class="ops-full ops-actions">@foreach([1=>'Mo',2=>'Di',3=>'Mi',4=>'Do',5=>'Fr',6=>'Sa',7=>'So'] as $number=>$label)<x-ui.forms.checkbox wire:model="form.recurrence.weekdays" :value="$number" :label="$label" />@endforeach<x-ui.forms.checkbox wire:model="form.recurrence.overnight" label="Ende am Folgetag" /></div>@foreach($form['recurrence']['exceptions'] as $index=>$exception)<div wire:key="portal-series-exception-{{ $index }}"><x-operations.field label="Ausnahmedatum" :model="'form.recurrence.exceptions.'.$index" type="date" /><x-ui.buttons.button-basic type="button" wire:click="removeException({{ $index }})">Entfernen</x-ui.buttons.button-basic></div>@endforeach<div class="ops-full ops-actions"><x-ui.buttons.button-basic type="button" wire:click="addException">Ausnahme</x-ui.buttons.button-basic><x-ui.buttons.button-basic type="button" wire:click="previewSeries">Vorschau</x-ui.buttons.button-basic></div>@if($seriesPreview)<div class="ops-full"><x-tables.table :items="collect($seriesPreview)->map(fn($r,$i)=>(object)($r+['id'=>$i+1,'title'=>'Termin '.($i+1)]))" :columns="[['label'=>'Termin','key'=>'title'],['label'=>'Zeitraum','key'=>'period']]" row-view="components.tables.rows.customer-portal.record-row" /></div>@endif</fieldset>@endif
-                            @if($canBook && ($form['intent'] ?? '')==='framework')<div class="ops-full ops-stack"><x-ui.buttons.button-basic type="button" wire:click="loadTerms">Konditionen prüfen</x-ui.buttons.button-basic>@if($terms)<div class="rt-customer-portal__notice whitespace-pre-line">{{ $terms['terms'] ?? '' }}</div><div class="ops-form"><x-operations.field label="Leistungsposition" model="form.condition_id" type="select"><option value="">Manuell prüfen</option>@foreach($terms['conditions'] ?? [] as $condition)<option value="{{ $condition['id'] }}">{{ $condition['label'] }} · {{ $condition['unit'] }}</option>@endforeach</x-operations.field><x-operations.field label="Leistungsmenge" model="form.quantity" type="number" min="0.001" max="99999.999" step="0.001" /></div><x-ui.forms.checkbox wire:model="form.accept_conditions" label="Diese Rahmenbedingungen verbindlich akzeptieren" />@endif</div>@endif
+                            @if($form['series_enabled'] ?? false)<fieldset class="ops-full ops-form"><legend
+                                class="text-sm font-semibold">Schichtserie</legend><x-operations.field label="Von" model="form.recurrence.from_date" type="date"
+                                required /><x-operations.field label="Bis" model="form.recurrence.to_date" type="date" required /><x-operations.field label="Beginn"
+                                model="form.recurrence.start_time" type="time" required /><x-operations.field label="Ende" model="form.recurrence.end_time" type="time"
+                                required /><div
+                                class="ops-full ops-actions">@foreach([1=>'Mo',2=>'Di',3=>'Mi',4=>'Do',5=>'Fr',6=>'Sa',7=>'So'] as $number=>$label)<x-ui.forms.checkbox
+                                wire:model="form.recurrence.weekdays" :value="$number" :label="$label" />@endforeach<x-ui.forms.checkbox
+                                wire:model="form.recurrence.overnight"
+                                label="Ende am Folgetag" /></div>@foreach($form['recurrence']['exceptions'] as $index=>$exception)<div
+                                wire:key="portal-series-exception-{{ $index }}"><x-operations.field label="Ausnahmedatum" :model="'form.recurrence.exceptions.'.$index"
+                                type="date" /><x-ui.buttons.button-basic type="button"
+                                wire:click="removeException({{ $index }})">Entfernen</x-ui.buttons.button-basic></div>@endforeach<div
+                                class="ops-full ops-actions"><x-ui.buttons.button-basic type="button"
+                                wire:click="addException">Ausnahme</x-ui.buttons.button-basic><x-ui.buttons.button-basic type="button"
+                                wire:click="previewSeries">Vorschau</x-ui.buttons.button-basic></div>@if($seriesPreview)<div class="ops-full"><x-tables.table
+                                :items="collect($seriesPreview)->map(fn($r,$i)=>(object)($r+['id'=>$i+1,'title'=>'Termin '.($i+1)]))"
+                                :columns="[['label'=>'Termin','key'=>'title'],['label'=>'Zeitraum','key'=>'period']]"
+                                row-view="components.tables.rows.customer-portal.record-row" /></div>@endif</fieldset>@endif
+                            @if($canBook && ($form['intent'] ?? '')==='framework')<div class="ops-full ops-stack"><x-ui.buttons.button-basic type="button"
+                                wire:click="loadTerms">Konditionen prüfen</x-ui.buttons.button-basic>@if($terms)<div
+                                class="rt-customer-portal__notice whitespace-pre-line">{{ $terms['terms'] ?? '' }}</div><div class="ops-form"><x-operations.field
+                                label="Leistungsposition" model="form.condition_id" type="select"><option
+                                value="">Manuell prüfen</option>@foreach($terms['conditions'] ?? [] as $condition)<option
+                                value="{{ $condition['id'] }}">{{ $condition['label'] }} · {{ $condition['unit'] }}</option>@endforeach</x-operations.field><x-operations.field
+                                label="Leistungsmenge" model="form.quantity" type="number" min="0.001" max="99999.999" step="0.001" /></div><x-ui.forms.checkbox
+                                wire:model="form.accept_conditions" label="Diese Rahmenbedingungen verbindlich akzeptieren" />@endif</div>@endif
                         @elseif($modal==='message')<x-operations.field label="Betreff" model="form.subject" required maxlength="180" /><x-operations.field label="Auftrag" model="form.order_id" type="number" min="1" /><x-operations.field label="Nachricht" model="form.body" type="textarea" :wide="true" required maxlength="5000" />
-                        @else<x-operations.field label="Betreff" model="form.title" required maxlength="180" />@if($modal!=='master_data')<x-operations.field label="Auftrag" model="form.order_id" type="number" min="1" />@else<div class="space-y-1.5"><x-ui.forms.label for="portal-correction-type" value="Bereich" /><x-ui.forms.select id="portal-correction-type" wire:model.live="form.target_type"><option value="customer">Kundenstamm</option><option value="contact">Mein Kontakt</option><option value="location">Einsatzort</option></x-ui.forms.select></div>@if($form['target_type']==='location')<x-operations.field label="Einsatzort" model="form.target_id" type="select"><option value="">Auswählen</option>@foreach($locations as $location)<option value="{{ $location['id'] }}">{{ $location['name'] }}</option>@endforeach</x-operations.field>@endif @foreach(($form['target_type']==='contact'?['name'=>'Name','email'=>'E-Mail','phone'=>'Telefon']:($form['target_type']==='location'?['name'=>'Name','street'=>'Straße','postal_code'=>'PLZ','city'=>'Ort','country'=>'Länderkürzel']:['company_name'=>'Firma','phone'=>'Telefon','street'=>'Straße','postal_code'=>'PLZ','city'=>'Ort','country'=>'Länderkürzel'])) as $key=>$label)<x-operations.field :label="$label.' · Korrekturvorschlag'" :model="'form.proposed_fields.'.$key" />@endforeach @endif<x-operations.field label="Anliegen" model="form.message" type="textarea" :wide="true" required maxlength="5000" />@endif
-                        <div class="ops-full ops-actions rt-customer-portal__form-footer"><x-ui.buttons.button-basic type="submit" mode="primary" class="rt-customer-portal__primary-action" wire:loading.attr="disabled"><span class="rt-customer-portal__button-label">Einreichen</span><span class="rt-customer-portal__button-icon"><x-customer-portal.icon name="arrow-right" /></span></x-ui.buttons.button-basic><x-ui.buttons.button-basic type="button" wire:click="close">Abbrechen</x-ui.buttons.button-basic></div>
+                        @else<x-operations.field label="Betreff" model="form.title" required maxlength="180" />@if($modal!=='master_data')<x-operations.field
+                        label="Auftrag" model="form.order_id" type="number" min="1" />@else<div class="space-y-1.5"><x-ui.forms.label for="portal-correction-type"
+                        value="Bereich" /><x-ui.forms.select id="portal-correction-type" wire:model.live="form.target_type"><option
+                        value="customer">Kundenstamm</option><option value="contact">Mein Kontakt</option><option
+                        value="location">Einsatzort</option></x-ui.forms.select></div>@if($form['target_type']==='location')<x-operations.field label="Einsatzort"
+                        model="form.target_id" type="select"><option value="">Auswählen</option>@foreach($locations as $location)<option
+                        value="{{ $location['id'] }}">{{ $location['name'] }}</option>@endforeach</x-operations.field>@endif
+                        @foreach(($form['target_type']==='contact'?['name'=>'Name','email'=>'E-Mail','phone'=>'Telefon']:($form['target_type']==='location'?['name'=>'Name','street'=>'Straße','postal_code'=>'PLZ','city'=>'Ort','country'=>'Länderkürzel']:['company_name'=>'Firma','phone'=>'Telefon','street'=>'Straße','postal_code'=>'PLZ','city'=>'Ort','country'=>'Länderkürzel'])) as $key=>$label)
+                        <x-operations.field :label="$label.' · Korrekturvorschlag'" :model="'form.proposed_fields.'.$key" />@endforeach @endif<x-operations.field
+                        label="Anliegen" model="form.message" type="textarea" :wide="true" required maxlength="5000" />@endif
+                        <div class="ops-full ops-actions rt-customer-portal__form-footer"><x-ui.buttons.button-basic type="submit" mode="primary"
+                            class="rt-customer-portal__primary-action" wire:loading.attr="disabled"><span class="rt-customer-portal__button-label">Einreichen</span><span
+                            class="rt-customer-portal__button-icon"><x-customer-portal.icon
+                            name="arrow-right" /></span></x-ui.buttons.button-basic><x-ui.buttons.button-basic type="button"
+                            wire:click="close">Abbrechen</x-ui.buttons.button-basic></div>
                     </form>
                 @endif
                 @if($modal==='detail')<x-ui.buttons.button-basic type="button" wire:click="close">Schließen</x-ui.buttons.button-basic>@endif

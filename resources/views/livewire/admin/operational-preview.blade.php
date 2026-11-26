@@ -1,4 +1,8 @@
 @section('title', $moduleData['title'])
+@php
+    // Die Vorschau bleibt modulbasiert; der Anlegen-Knopf erwartet Seiten-/Ansichtsschlüssel.
+    $createTarget = \App\Support\Operations\OperationsPages::legacyTarget($module);
+@endphp
 
 <x-ui.page
     :title="$moduleData['title']"
@@ -8,7 +12,7 @@
     content-class="space-y-5"
     data-operational-module="{{ $module }}"
 >
-    <x-slot:actions><x-operations.create-action :module="$module" /></x-slot:actions>
+    <x-slot:actions><x-operations.create-action :page="$createTarget['page']" :view="$createTarget['view']" :section="$createTarget['section']" /></x-slot:actions>
     <nav
         class="flex gap-2 overflow-x-auto pb-1 lg:grid lg:grid-cols-4 lg:overflow-visible"
         aria-label="Bereiche der Einsatzplanung"

@@ -1,5 +1,9 @@
-@props(['item', 'detailOnly' => false, 'planningRoute' => 'operations.workspace'])
+@props(['item', 'detailOnly' => false, 'planningRoute' => null])
 @php
+    // Ohne Angabe direkt die kanonische Adresse; ein Routenname (z. B. admin.operations.preview) bleibt als Ausweichziel möglich.
+    $planningUrl = fn (string $module, array $query = []) => $planningRoute === null
+        ? \App\Support\Operations\OperationsPages::moduleUrl($module, $query)
+        : route($planningRoute, ['module' => $module] + $query);
     $days = $item->shiftDetails->groupBy('day');
     $closedCount = $item->shiftDetails->where('active', false)->count();
 @endphp
@@ -37,7 +41,7 @@
                                 @if($detailOnly)
                                     <x-ui.buttons.button-basic mode="link" size="sm" type="button" class="rt-service-detail-shift__link" x-on:click="$dispatch('close'); $wire.detailOpen = false; $dispatch('operations-shift-detail-request', { id: {{ $shift->id }} })" aria-label="Schichtdetails öffnen: {{ $shift->title ?: 'Schicht' }}"><span>{{ $shift->title ?: 'Schicht' }}</span><i class="far fa-arrow-right" aria-hidden="true"></i></x-ui.buttons.button-basic>
                                 @else
-                                    <x-ui.buttons.button-basic mode="link" size="sm" class="rt-service-detail-shift__link" data-no-navigate :href="route($planningRoute, ['module'=>'shift-management', 'order'=>$item->id, 'shift'=>$shift->id])" aria-label="Schichtdetails öffnen: {{ $shift->title ?: 'Schicht' }}"><span>{{ $shift->title ?: 'Schicht' }}</span><i class="far fa-arrow-right" aria-hidden="true"></i></x-ui.buttons.button-basic>
+                                    <x-ui.buttons.button-basic mode="link" size="sm" class="rt-service-detail-shift__link" data-no-navigate :href="$planningUrl('shift-management', ['order'=>$item->id, 'shift'=>$shift->id])" aria-label="Schichtdetails öffnen: {{ $shift->title ?: 'Schicht' }}"><span>{{ $shift->title ?: 'Schicht' }}</span><i class="far fa-arrow-right" aria-hidden="true"></i></x-ui.buttons.button-basic>
                                 @endif
                                 <x-operations.status :value="$shift->status" icon class="rt-service-detail-status" />
                             </div>

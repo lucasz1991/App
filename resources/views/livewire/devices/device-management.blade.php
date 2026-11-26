@@ -387,7 +387,9 @@
                                 @foreach(\App\Services\DeviceManagement\DeviceReadinessService::REQUIRED_CHECKS as $key => $label)
                                     @php $check = $checks->get($key); $checkStatus = $check?->status ?? 'unknown'; @endphp
                                     <div class="flex items-center gap-2 rounded-lg bg-rt-surface-muted/70 px-3 py-2 text-sm dark:bg-rt-dark-surface-muted">
-                                        <span class="grid h-6 w-6 place-items-center rounded-full {{ in_array($checkStatus,['passed','not_applicable'],true) ? 'bg-emerald-100 text-emerald-700' : ($checkStatus === 'blocked' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700') }}"><i class="far {{ in_array($checkStatus,['passed','not_applicable'],true) ? 'fa-check' : ($checkStatus === 'blocked' ? 'fa-times' : 'fa-clock') }} h-3.5 w-3.5 text-xs leading-[14px] text-center"></i></span>
+                                        <span
+                                            class="grid h-6 w-6 place-items-center rounded-full {{ in_array($checkStatus,['passed','not_applicable'],true) ? 'bg-emerald-100 text-emerald-700' : ($checkStatus === 'blocked' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700') }}"><i
+                                            class="far {{ in_array($checkStatus,['passed','not_applicable'],true) ? 'fa-check' : ($checkStatus === 'blocked' ? 'fa-times' : 'fa-clock') }} h-3.5 w-3.5 text-xs leading-[14px] text-center"></i></span>
                                         <span class="min-w-0 flex-1 text-rt-text dark:text-rt-dark-text">{{ $label }}</span>
                                         <span class="text-[11px] font-medium uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ str_replace('_',' ',$checkStatus) }}</span>
                                     </div>
@@ -407,12 +409,16 @@
                             @can('devices.assign')
                                 <div class="mt-4"><x-operations.field id="device-assignment-user" label="Mitarbeiter zuweisen" model="assignmentUserId" type="select"><option value="">Bitte auswählen</option>@foreach($employees as $employee)<option value="{{ $employee->id }}">{{ $employee->name }} · {{ $employee->email }}</option>@endforeach</x-operations.field></div>
                                 <div class="mt-2"><x-ui.forms.textarea id="device-assignment-note" wire:model="assignmentNote" rows="2" placeholder="Optionale Übergabenotiz" aria-label="Optionale Übergabenotiz" /></div>
-                                <div class="mt-2 grid gap-2 sm:grid-cols-2"><x-ui.buttons.button-basic mode="primary" type="button" wire:click="assignDevice" class="min-h-10">Zuweisen</x-ui.buttons.button-basic><button type="button" wire:click="confirmHandover" @disabled(!$activeAssignment) class="min-h-10 rounded-xl border border-rt-border px-3 text-sm font-semibold disabled:opacity-40 dark:border-rt-dark-border">Übergabe bestätigen</button></div>
+                                <div class="mt-2 grid gap-2 sm:grid-cols-2"><x-ui.buttons.button-basic mode="primary" type="button" wire:click="assignDevice"
+                                    class="min-h-10">Zuweisen</x-ui.buttons.button-basic><button type="button" wire:click="confirmHandover" @disabled(!$activeAssignment)
+                                    class="min-h-10 rounded-xl border border-rt-border px-3 text-sm font-semibold disabled:opacity-40 dark:border-rt-dark-border">Übergabe bestätigen</button></div>
                                 <div class="mt-3"><x-operations.field id="device-return-location" label="Rückgabe-/Lagerstandort" model="returnLocation" /></div>
                                 <button type="button" wire:click="returnDevice" @disabled(!$activeAssignment) class="mt-2 min-h-10 w-full rounded-xl border border-amber-300 bg-amber-50 px-3 text-sm font-semibold text-amber-800 disabled:opacity-40 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">Rückgabe ins Lager erfassen</button>
                             @endcan
                         </div>
-                        <div class="rounded-xl border border-rt-border p-4 text-sm dark:border-rt-dark-border"><p class="font-semibold text-rt-text dark:text-rt-dark-text">Standortschutz</p><p class="mt-2 leading-6 text-rt-muted dark:text-rt-dark-muted">Angezeigt wird der deklarierte Arbeits-/Lagerstandort. Eine permanente Live-Ortung ist nicht Voraussetzung und wird nicht aus der Mitarbeiter-App abgeleitet.</p></div>
+                        <div class="rounded-xl border border-rt-border p-4 text-sm dark:border-rt-dark-border"><p
+                            class="font-semibold text-rt-text dark:text-rt-dark-text">Standortschutz</p><p
+                            class="mt-2 leading-6 text-rt-muted dark:text-rt-dark-muted">Angezeigt wird der deklarierte Arbeits-/Lagerstandort. Eine permanente Live-Ortung ist nicht Voraussetzung und wird nicht aus der Mitarbeiter-App abgeleitet.</p></div>
                         <div class="rounded-xl border border-rt-border p-4 dark:border-rt-dark-border" data-device-provider-links>
                             <div class="flex items-start justify-between gap-3">
                                 <div>
@@ -468,7 +474,10 @@
                         <h3 class="font-semibold text-rt-text dark:text-rt-dark-text">Bestehendes Gerät aus der Ferne registrieren</h3>
                         <p class="mt-2 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">Der Mitarbeiter erhält einen persönlichen, auth-gebundenen Einmal-Link. Bei Bestandsmobilgeräten ist zunächst eine eingeschränkte Verwaltung möglich; Full Device Owner/Supervision benötigt meist einen geplanten Reset.</p>
                         <div class="mt-4 grid gap-3 sm:grid-cols-2">
-                            <x-operations.field id="device-enrollment-provider" label="Provider" model="enrollmentProvider" type="select" :live="true" :disabled="! auth()->user()->can('devices.enrollment.manage')">user()->can('devices.enrollment.manage')) class="mt-1.5 min-h-11 w-full rounded-xl border border-rt-border bg-white px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-rt-dark-text"><option value="">Nicht verfügbar</option>@foreach($compatibleProviders as $provider)@if(in_array($provider['key'], $enrollmentProviderKeys, true))<option value="{{ $provider['key'] }}">{{ $provider['label'] }}</option>@endif @endforeach</x-operations.field>
+                            <x-operations.field id="device-enrollment-provider" label="Provider" model="enrollmentProvider" type="select" :live="true"
+                                :disabled="! auth()->user()->can('devices.enrollment.manage')">user()->can('devices.enrollment.manage')) class="mt-1.5 min-h-11 w-full rounded-xl border border-rt-border bg-white px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-rt-dark-text"><option
+                                value="">Nicht verfügbar</option>@foreach($compatibleProviders as $provider)@if(in_array($provider['key'], $enrollmentProviderKeys, true))<option
+                                value="{{ $provider['key'] }}">{{ $provider['label'] }}</option>@endif @endforeach</x-operations.field>
                             <x-operations.field id="device-enrollment-mode" label="Modus" model="enrollmentMode" type="select" :disabled="! auth()->user()->can('devices.enrollment.manage') || $enrollmentModeOptions === []">user()->can('devices.enrollment.manage') || $enrollmentModeOptions === []) class="mt-1.5 min-h-11 w-full rounded-xl border border-rt-border bg-white px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-rt-dark-text"><option value="">Nicht verfügbar</option>@foreach($enrollmentModeOptions as $mode)<option value="{{ $mode['value'] }}">{{ $mode['label'] }}{{ $mode['requires_reset'] ? ' · Reset nötig' : '' }}{{ $mode['limited_management'] ? ' · eingeschränkt' : '' }}</option>@endforeach</x-operations.field>
                         </div>
                         @error('enrollmentMode')<p class="mt-2 text-sm text-red-600">{{ $message }}</p>@enderror
@@ -481,7 +490,9 @@
                         @can('devices.enrollment.manage')<x-ui.buttons.button-basic mode="primary" type="button" wire:click="createEnrollment" :disabled="!$activeAssignment || !$enrollmentProvider || !$enrollmentMode" class="mt-4 min-h-11 w-full">Persönliche Einrichtungs-E-Mail senden</x-ui.buttons.button-basic>@endcan
                         <div class="mt-4 space-y-2">
                             @forelse($selectedDevice->enrollments->take(4) as $enrollment)
-                                <div class="flex items-center justify-between gap-3 rounded-lg bg-rt-surface-muted px-3 py-2 text-sm dark:bg-rt-dark-surface-muted"><span>{{ $enrollment->provider }} · {{ str_replace('_',' ',$enrollment->mode) }}</span><span class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ $enrollment->status->value }} · {{ $enrollment->expires_at?->format('d.m. H:i') }}</span></div>
+                                <div
+                                    class="flex items-center justify-between gap-3 rounded-lg bg-rt-surface-muted px-3 py-2 text-sm dark:bg-rt-dark-surface-muted"><span>{{ $enrollment->provider }} · {{ str_replace('_',' ',$enrollment->mode) }}</span><span
+                                    class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ $enrollment->status->value }} · {{ $enrollment->expires_at?->format('d.m. H:i') }}</span></div>
                             @empty<p class="text-sm text-rt-muted dark:text-rt-dark-muted">Noch keine Einladung erstellt.</p>@endforelse
                         </div>
                     </div>
@@ -515,7 +526,12 @@
                         @endcan
                         <div class="mt-4 space-y-2">
                             @forelse($selectedDevice->artifacts as $artifact)
-                                <div class="rounded-xl border border-rt-border p-3 dark:border-rt-dark-border"><div class="flex items-start justify-between gap-2"><div class="min-w-0"><p class="truncate text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ $artifact->name }}</p><p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $artifact->kind }} · {{ number_format(($artifact->size_bytes ?? 0)/1024, 1, ',', '.') }} KB · SHA {{ substr($artifact->sha256,0,10) }}…</p></div><span class="rounded-full px-2 py-1 text-[11px] font-semibold {{ $artifact->approved_at ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' }}">{{ $artifact->approved_at ? 'freigegeben' : 'Prüfung offen' }}</span></div>@can('devices.commands.execute')@if(!$artifact->approved_at)<button type="button" wire:click="approveArtifact({{ $artifact->id }})" class="mt-2 text-xs font-semibold text-rt-red hover:underline">Als Admin freigeben</button>@endif @endcan</div>
+                                <div class="rounded-xl border border-rt-border p-3 dark:border-rt-dark-border"><div class="flex items-start justify-between gap-2"><div
+                                    class="min-w-0"><p class="truncate text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ $artifact->name }}</p><p
+                                    class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $artifact->kind }} · {{ number_format(($artifact->size_bytes ?? 0)/1024, 1, ',', '.') }} KB · SHA {{ substr($artifact->sha256,0,10) }}…</p></div><span
+                                    class="rounded-full px-2 py-1 text-[11px] font-semibold {{ $artifact->approved_at ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' }}">{{ $artifact->approved_at ? 'freigegeben' : 'Prüfung offen' }}</span></div>@can('devices.commands.execute')@if(!$artifact->approved_at)<button
+                                    type="button" wire:click="approveArtifact({{ $artifact->id }})"
+                                    class="mt-2 text-xs font-semibold text-rt-red hover:underline">Als Admin freigeben</button>@endif @endcan</div>
                             @empty<p class="text-sm text-rt-muted dark:text-rt-dark-muted">Noch keine Datei hinterlegt.</p>@endforelse
                         </div>
                     </div>
@@ -527,7 +543,10 @@
                             <x-operations.field id="device-command-type" label="Aktion" model="commandType" type="select" :live="true">@foreach(\App\Enums\DeviceCommandType::cases() as $type)@if(in_array($type->value, $availableCommandTypes, true))<option value="{{ $type->value }}">{{ match($type->value){'sync'=>'Synchronisieren','lock'=>'Sperren','unlock'=>'Entsperren','wipe'=>'Fernlöschen (Vier Augen)','restart'=>'Neustarten','execute_script'=>'Freigegebenes Skript ausführen','install_software'=>'Software/Datei installieren','uninstall_software'=>'Software deinstallieren','collect_diagnostics'=>'Diagnose erfassen','apply_profile'=>'Kontenprofil anwenden','apply_managed_profile'=>'OpenUEM-Windows-Profil ausführen','start_remote_support'=>'Fernsupport starten'} }}</option>@endif @endforeach</x-operations.field>
                         </div>
                         @if(in_array($commandType,['execute_script','install_software'],true))
-                            <div class="mt-3"><x-operations.field id="device-command-artifact" label="Freigegebenes Artefakt" model="commandArtifactId" type="select"><option value="">Bitte auswählen</option>@foreach($selectedDevice->artifacts->whereNotNull('approved_at') as $artifact)<option value="{{ $artifact->id }}">{{ $artifact->name }} · {{ substr($artifact->sha256,0,10) }}…</option>@endforeach</x-operations.field></div>
+                            <div class="mt-3"><x-operations.field id="device-command-artifact" label="Freigegebenes Artefakt" model="commandArtifactId"
+                                type="select"><option
+                                value="">Bitte auswählen</option>@foreach($selectedDevice->artifacts->whereNotNull('approved_at') as $artifact)<option
+                                value="{{ $artifact->id }}">{{ $artifact->name }} · {{ substr($artifact->sha256,0,10) }}…</option>@endforeach</x-operations.field></div>
                         @endif
                         @if($commandType === 'apply_managed_profile')
                             <div class="mt-3">
@@ -553,7 +572,13 @@
                     <x-tables.html-table label="Geräteaktionen">
                         <x-slot:head><tr><th scope="col">Zeit</th><th scope="col">Aktion</th><th scope="col">Provider</th><th scope="col">Angefordert von</th><th scope="col">Status</th><th scope="col">Freigabe</th></tr></x-slot:head>
                             @forelse($selectedDevice->commands->take(30) as $command)
-                                <tr><td class="text-xs text-rt-muted">{{ $command->requested_at?->format('d.m.Y H:i') }}</td><td class="font-medium text-rt-text dark:text-rt-dark-text">{{ str_replace('_',' ',$command->type->value) }}<span class="mt-1 block max-w-md text-xs font-normal text-rt-muted dark:text-rt-dark-muted">{{ $command->justification }}</span></td><td>{{ $command->provider }}</td><td>{{ $command->requester?->name ?? 'System' }}</td><td><span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300">{{ str_replace('_',' ',$command->status->value) }}</span></td><td>@if($command->status === \App\Enums\DeviceCommandStatus::PendingApproval)@can('devices.wipe')<button type="button" wire:click="approveWipe('{{ $command->public_id }}')" @disabled((int)$command->requested_by === (int)auth()->id()) class="min-h-9 rounded-lg bg-red-600 px-3 text-xs font-semibold text-white disabled:opacity-40">Als 2. Admin freigeben</button>@endcan @else<span class="text-xs text-rt-muted">{{ $command->approver?->name ?? '—' }}</span>@endif</td></tr>
+                                <tr><td class="text-xs text-rt-muted">{{ $command->requested_at?->format('d.m.Y H:i') }}</td><td
+                                    class="font-medium text-rt-text dark:text-rt-dark-text">{{ str_replace('_',' ',$command->type->value) }}<span
+                                    class="mt-1 block max-w-md text-xs font-normal text-rt-muted dark:text-rt-dark-muted">{{ $command->justification }}</span></td><td>{{ $command->provider }}</td><td>{{ $command->requester?->name ?? 'System' }}</td><td><span
+                                    class="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300">{{ str_replace('_',' ',$command->status->value) }}</span></td><td>@if($command->status === \App\Enums\DeviceCommandStatus::PendingApproval)@can('devices.wipe')<button
+                                    type="button" wire:click="approveWipe('{{ $command->public_id }}')" @disabled((int)$command->requested_by === (int)auth()->id())
+                                    class="min-h-9 rounded-lg bg-red-600 px-3 text-xs font-semibold text-white disabled:opacity-40">Als 2. Admin freigeben</button>@endcan
+                                    @else<span class="text-xs text-rt-muted">{{ $command->approver?->name ?? '—' }}</span>@endif</td></tr>
                             @empty<tr><td colspan="6" class="py-10 text-center text-rt-muted">Noch keine Geräteaktion protokolliert.</td></tr>@endforelse
                     </x-tables.html-table>
                 </div>

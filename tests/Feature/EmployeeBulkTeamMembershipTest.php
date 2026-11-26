@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Livewire\Employees\Index as EmployeesIndex;
-use App\Livewire\Employees\EmployeeTeamBulkModal;
+use App\Livewire\Employees\EmployeeTeamModal;
 use App\Models\Team;
 use App\Models\User;
 use App\Models\UserProfile;
@@ -466,7 +466,7 @@ class EmployeeBulkTeamMembershipTest extends TestCase
     public function test_new_bulk_modal_shows_exact_selection_and_saves_only_after_explicit_confirmation(): void
     {
         $before = $this->state();
-        $component = Livewire::actingAs($this->admin)->test(EmployeeTeamBulkModal::class)
+        $component = Livewire::actingAs($this->admin)->test(EmployeeTeamModal::class, ['mode' => 'bulk'])
             ->call('open', [$this->second->id, (string) $this->first->id])
             ->assertSet('showModal', true)->assertSet('operation', 'add')->assertSet('teamIds', [])
             ->assertSet('replacementTeamId', null)->assertSee('Teams bearbeiten')
@@ -487,7 +487,7 @@ class EmployeeBulkTeamMembershipTest extends TestCase
     #[DataProvider('lockedModalProperties')]
     public function test_bulk_modal_selection_and_snapshots_are_locked_against_browser_tampering(string $property, array $value): void
     {
-        $component = Livewire::actingAs($this->admin)->test(EmployeeTeamBulkModal::class)->call('open', [$this->first->id]);
+        $component = Livewire::actingAs($this->admin)->test(EmployeeTeamModal::class, ['mode' => 'bulk'])->call('open', [$this->first->id]);
         $before = $this->state();
         try {
             $component->set($property, $value);
@@ -506,7 +506,7 @@ class EmployeeBulkTeamMembershipTest extends TestCase
     public function test_bulk_modal_renders_a_replacement_only_when_needed_and_does_not_choose_one_automatically(): void
     {
         $this->first->teams()->attach($this->extra);
-        $component = Livewire::actingAs($this->admin)->test(EmployeeTeamBulkModal::class)->call('open', [$this->first->id, $this->second->id]);
+        $component = Livewire::actingAs($this->admin)->test(EmployeeTeamModal::class, ['mode' => 'bulk'])->call('open', [$this->first->id, $this->second->id]);
         $this->assertCount(0, $this->xpath($component->html())->query('//button[@role="combobox" and @id="employee-bulk-primary-team"]'));
         $component->set('operation', 'remove')->set('teamIds', [$this->north->id])->assertSet('replacementTeamId', null)
             ->assertSee('Neues primäres Team');
@@ -521,7 +521,7 @@ class EmployeeBulkTeamMembershipTest extends TestCase
 
     public function test_bulk_modal_keeps_a_stale_draft_open_and_cancel_never_changes_memberships(): void
     {
-        $component = Livewire::actingAs($this->admin)->test(EmployeeTeamBulkModal::class)->call('open', [$this->first->id, $this->second->id]);
+        $component = Livewire::actingAs($this->admin)->test(EmployeeTeamModal::class, ['mode' => 'bulk'])->call('open', [$this->first->id, $this->second->id]);
         $snapshots = $component->get('snapshots');
         $this->second->teams()->attach($this->extra);
         $before = $this->state();
@@ -536,7 +536,7 @@ class EmployeeBulkTeamMembershipTest extends TestCase
     public function test_bulk_modal_resets_team_and_primary_drafts_when_operation_changes_and_does_not_save_an_empty_action(): void
     {
         $this->first->teams()->attach($this->extra);
-        $component = Livewire::actingAs($this->admin)->test(EmployeeTeamBulkModal::class)->call('open', [$this->first->id])
+        $component = Livewire::actingAs($this->admin)->test(EmployeeTeamModal::class, ['mode' => 'bulk'])->call('open', [$this->first->id])
             ->set('operation', 'remove')->set('teamIds', [$this->north->id])->set('replacementTeamId', $this->extra->id);
         $component->set('operation', 'add')->assertSet('teamIds', [])->assertSet('replacementTeamId', null);
         $before = $this->state();
@@ -548,7 +548,7 @@ class EmployeeBulkTeamMembershipTest extends TestCase
 
     public function test_bulk_modal_explains_when_no_common_replacement_exists_and_never_invents_a_primary_team(): void
     {
-        $component = Livewire::actingAs($this->admin)->test(EmployeeTeamBulkModal::class)->call('open', [$this->first->id, $this->second->id])
+        $component = Livewire::actingAs($this->admin)->test(EmployeeTeamModal::class, ['mode' => 'bulk'])->call('open', [$this->first->id, $this->second->id])
             ->set('operation', 'remove')->set('teamIds', [$this->north->id, $this->south->id])
             ->assertSet('replacementTeamId', null)->assertSee('Kein gemeinsames verbleibendes Team verfügbar.');
         $this->assertCount(0, $this->xpath($component->html())->query('//button[@role="combobox" and @id="employee-bulk-primary-team"]'));
@@ -560,7 +560,7 @@ class EmployeeBulkTeamMembershipTest extends TestCase
     public function test_bulk_modal_rechecks_revoked_role_management_on_save(): void
     {
         $actor = $this->manager();
-        $component = Livewire::actingAs($actor)->test(EmployeeTeamBulkModal::class)->call('open', [$this->first->id, $this->second->id])
+        $component = Livewire::actingAs($actor)->test(EmployeeTeamModal::class, ['mode' => 'bulk'])->call('open', [$this->first->id, $this->second->id])
             ->set('teamIds', [$this->extra->id]);
         $actor->currentTeam->update(['rbac_permissions' => ['employees.view' => true, 'employees.create' => true]]);
         $before = $this->state();
@@ -570,8 +570,8 @@ class EmployeeBulkTeamMembershipTest extends TestCase
 
     public function test_bulk_modal_denies_direct_closed_save_and_unauthorized_open_without_leaking_team_or_target_names(): void
     {
-        Livewire::actingAs($this->admin)->test(EmployeeTeamBulkModal::class)->call('save')->assertForbidden();
-        $component = Livewire::actingAs($this->first)->test(EmployeeTeamBulkModal::class)->assertSuccessful()
+        Livewire::actingAs($this->admin)->test(EmployeeTeamModal::class, ['mode' => 'bulk'])->call('save')->assertForbidden();
+        $component = Livewire::actingAs($this->first)->test(EmployeeTeamModal::class, ['mode' => 'bulk'])->assertSuccessful()
             ->assertDontSee('Zweite Auswahl')->assertDontSee('Zusätzliches Einsatzteam');
         $before = $this->state();
         $component->call('open', [$this->second->id])->assertForbidden();
