@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Livewire\Profile;
+namespace App\Livewire\Employees\Profile;
 
 use App\Services\EmployeeLocation\EmployeeLocationHistoryService;
 use Carbon\CarbonImmutable;
@@ -96,7 +96,7 @@ class EmployeeLocationHistory extends Component
 
         // Coordinates exist only in this private render projection, never in
         // public Livewire state, query strings, sessions or a persistent cache.
-        return view('livewire.profile.employee-location-history', ['locationHistory' => $view]);
+        return view('livewire.employees.profile.employee-location-history', ['locationHistory' => $view]);
     }
 
     private function authorizeProfile(): void

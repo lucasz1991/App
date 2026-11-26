@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\UserProfile;
+use App\Livewire\Employees\Profile as EmployeeProfile;
 use App\Models\CustomerPortalIdentity;
 use App\Models\Team;
 use App\Models\User;
@@ -65,7 +65,7 @@ class EmployeeProfileOverviewUiTest extends TestCase
     #[DataProvider('profileModes')]
     public function test_overview_keeps_shared_manual_tabs_and_existing_authorized_sections(bool $embedded): void
     {
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, [
+        $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, [
             'userId' => $this->employee->id,
             'embedded' => $embedded,
         ])->call('setProfileTab', 'userDetails')->assertSuccessful()->assertSet('profileTab', 'userDetails');
@@ -120,7 +120,7 @@ class EmployeeProfileOverviewUiTest extends TestCase
             'birth_date' => '1991-05-12',
             'personnel_nr' => 'FIXTURE-PERSONNEL-42',
         ]);
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id])
+        $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id])
             ->call('setProfileTab', 'userDetails')
             ->assertSee('Profile Overview Fixture')->assertSee('profile-overview@example.invalid')
             ->assertSee('+49 000 111')->assertSee('+49 000 222')->assertSee('Fixture Street 10')
@@ -151,7 +151,7 @@ class EmployeeProfileOverviewUiTest extends TestCase
             $this->assertCount(1, $xpath->query('//*[@data-inline-edit-field="'.$field.'" and @data-autosave-field-id="'.$id.'"]'));
         }
 
-        $source = file_get_contents(resource_path('views/livewire/admin/user-profile.blade.php'));
+        $source = file_get_contents(resource_path('views/livewire/employees/profile.blade.php'));
         $this->assertStringContainsString('<x-ui.autosave-status', $source);
         $this->assertStringContainsString('event="employee-profile-field-saved"', $source);
         $this->assertStringContainsString('target="savePendingInlineChanges"', $source);
@@ -163,7 +163,7 @@ class EmployeeProfileOverviewUiTest extends TestCase
         DB::flushQueryLog();
         DB::enableQueryLog();
         try {
-            $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id])
+            $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id])
                 ->call('setProfileTab', 'userDetails')
                 ->assertSuccessful()->assertSet('profileTab', 'userDetails')
                 ->assertViewHas('profile', null)
@@ -184,7 +184,7 @@ class EmployeeProfileOverviewUiTest extends TestCase
     public function test_working_time_summary_preserves_quarter_hours_zero_and_missing_values(?string $stored, ?string $display): void
     {
         Profile::create(['user_id' => $this->employee->id, 'weekly_working_hours' => $stored]);
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id])
+        $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id])
             ->call('setProfileTab', 'userDetails');
         $summaries = $this->xpath($component->html())->query('//*[@data-inline-edit-field="weekly_working_hours"]//*[@data-inline-edit-display]');
         $this->assertCount(1, $summaries);
@@ -213,7 +213,7 @@ class EmployeeProfileOverviewUiTest extends TestCase
             'iban' => 'CONFIDENTIAL-FIXTURE-IBAN',
         ]);
         $manager = $this->actor('staff', 'Verwaltung', ['employees.view']);
-        $component = Livewire::actingAs($manager)->test(UserProfile::class, ['userId' => $this->employee->id])
+        $component = Livewire::actingAs($manager)->test(EmployeeProfile::class, ['userId' => $this->employee->id])
             ->assertSuccessful()->assertDontSee('CONFIDENTIAL-FIXTURE-POSITION')
             ->assertDontSee('CONFIDENTIAL-FIXTURE-NR')->assertDontSee('37.25')
             ->assertDontSee('CONFIDENTIAL-FIXTURE-IBAN')
@@ -227,7 +227,7 @@ class EmployeeProfileOverviewUiTest extends TestCase
             'starts_on' => '2026-01-01',
             'abilities' => ['employees.master-data.view'],
         ], $this->admin);
-        $readOnly = Livewire::actingAs($reader)->test(UserProfile::class, ['userId' => $this->employee->id])
+        $readOnly = Livewire::actingAs($reader)->test(EmployeeProfile::class, ['userId' => $this->employee->id])
             ->assertSee('CONFIDENTIAL-FIXTURE-POSITION')->assertSee('CONFIDENTIAL-FIXTURE-NR')
             ->assertDontSee('CONFIDENTIAL-FIXTURE-IBAN')
             ->assertViewHas('canViewMasterData', true)->assertViewHas('canEditMasterData', false);
@@ -237,7 +237,7 @@ class EmployeeProfileOverviewUiTest extends TestCase
     public function test_pending_valid_inline_values_still_save_before_tab_change(): void
     {
         Profile::create(['user_id' => $this->employee->id, 'phone' => '+49 000 111']);
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id])
+        $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id])
             ->set('inlineValues.phone', '+49 000 333')
             ->call('setProfileTab', 'masterData')->assertHasNoErrors()
             ->assertSet('profileTab', 'masterData')->assertSet('dirtyInlineFields', [])
@@ -249,7 +249,7 @@ class EmployeeProfileOverviewUiTest extends TestCase
     public function test_invalid_inline_value_prevents_location_tab_and_does_not_mount_history(): void
     {
         $email = $this->employee->email;
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id])
+        $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id])
             ->call('setProfileTab', 'userDetails')
             ->set('inlineValues.email', 'not-an-email')
             ->call('setProfileTab', 'locations')->assertHasErrors('inlineValues.email')
@@ -268,7 +268,7 @@ class EmployeeProfileOverviewUiTest extends TestCase
         ]);
         $this->admin->teams()->attach($team->id);
         $this->admin->forceFill(['current_team_id' => $team->id])->save();
-        $component = Livewire::actingAs($this->admin->fresh())->test(UserProfile::class, ['userId' => $this->employee->id]);
+        $component = Livewire::actingAs($this->admin->fresh())->test(EmployeeProfile::class, ['userId' => $this->employee->id]);
         $this->assertSame([], $this->locationChildren($component->html()));
 
         $component->call('setProfileTab', 'locations')->assertSuccessful()->assertSet('profileTab', 'locations');
@@ -284,7 +284,7 @@ class EmployeeProfileOverviewUiTest extends TestCase
     public function test_location_tab_rejects_non_admins_even_with_broad_team_permissions(string $role, string $teamName, bool $profileAllowed): void
     {
         $actor = $this->actor($role, $teamName, RbacCatalog::allPermissions());
-        $component = Livewire::actingAs($actor)->test(UserProfile::class, ['userId' => $this->employee->id]);
+        $component = Livewire::actingAs($actor)->test(EmployeeProfile::class, ['userId' => $this->employee->id]);
         if (! $profileAllowed) {
             $component->assertForbidden();
 
@@ -321,14 +321,14 @@ class EmployeeProfileOverviewUiTest extends TestCase
         $identity->setAttribute('role', 'admin');
         $identity->setAttribute('status', true);
 
-        Livewire::actingAs($identity)->test(UserProfile::class, ['userId' => $this->employee->id])
+        Livewire::actingAs($identity)->test(EmployeeProfile::class, ['userId' => $this->employee->id])
             ->assertForbidden();
     }
 
     public function test_inactive_admin_has_no_location_tab_or_history(): void
     {
         $this->admin->forceFill(['status' => false])->save();
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id])
+        $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id])
             ->assertSuccessful()
             ->assertViewHas('employeeProfileTabs', fn (array $tabs): bool => ! isset($tabs['locations']));
         $this->assertSame([], $this->locationChildren($component->html()));
@@ -337,7 +337,7 @@ class EmployeeProfileOverviewUiTest extends TestCase
 
     public function test_location_tab_is_not_offered_for_non_employee_target(): void
     {
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->admin->id])
+        $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->admin->id])
             ->assertSuccessful()
             ->assertViewHas('employeeProfileTabs', fn (array $tabs): bool => ! isset($tabs['locations']));
         $this->assertSame([], $this->locationChildren($component->html()));
@@ -346,14 +346,14 @@ class EmployeeProfileOverviewUiTest extends TestCase
 
     public function test_profile_tab_cannot_be_switched_by_tampering_with_locked_property(): void
     {
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id]);
+        $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id]);
         $this->expectException(CannotUpdateLockedPropertyException::class);
         $component->set('profileTab', 'locations');
     }
 
     public function test_profile_employee_context_remains_locked(): void
     {
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id]);
+        $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id]);
         $this->expectException(CannotUpdateLockedPropertyException::class);
         $component->set('userId', $this->admin->id);
     }
@@ -403,7 +403,7 @@ class EmployeeProfileOverviewUiTest extends TestCase
         $children = [];
         foreach ($this->xpath($html)->query('//*[@*[name()="wire:snapshot"]]') as $element) {
             $snapshot = json_decode($element->getAttribute('wire:snapshot'), true, flags: JSON_THROW_ON_ERROR);
-            if ($snapshot['memo']['name'] === 'profile.employee-location-history') {
+            if ($snapshot['memo']['name'] === 'employees.profile.employee-location-history') {
                 $children[] = $snapshot;
             }
         }

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Livewire\Profile;
+namespace App\Livewire\Employees\Profile;
 
 use App\Models\User;
 use App\Services\Personnel\EmployeePhoneStatusService;
@@ -36,7 +36,7 @@ class EmployeePhoneStatus extends Component
     {
         $this->authorizeActor();
 
-        return view('livewire.profile.employee-phone-status', ['phoneStatus' => $service->read($this->userId)]);
+        return view('livewire.employees.profile.employee-phone-status', ['phoneStatus' => $service->read($this->userId)]);
     }
 
     private function authorizeActor(): void

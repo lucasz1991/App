@@ -92,7 +92,7 @@
       />
 
       <aside class="employee-profile__sidebar" aria-label="Personenübersicht">
-          @include('livewire.admin.user-profile.partials.identity-card')
+          @include('livewire.employees.profile.partials.identity-card')
       </aside>
 
       <div class="employee-profile__main">
@@ -134,7 +134,7 @@
     <div class="employee-profile__content" x-data="{}" wire:loading.class="employee-profile__content--loading" wire:target="setProfileTab">
         @if($profileTab === 'teams' && $canManageEmployeeTeams)
             <x-operations.panel.tab name="teams" :id-prefix="$profilePrefix" model="$wire.profileTab" class="employee-profile__panel">
-                @include('livewire.admin.user-profile.partials.teams')
+                @include('livewire.employees.profile.partials.teams')
             </x-operations.panel.tab>
         @endif
         @foreach($profileGroups[$profileGroup] as $tabId => $definition)
@@ -144,45 +144,45 @@
         @endforeach
         @if(isset($employeeProfileTabs['operationsOverview']) && $profileTab === 'operationsOverview')
             <x-operations.panel.tab name="operationsOverview" :id-prefix="$profilePrefix" model="$wire.profileTab" class="employee-profile__panel">
-                <livewire:profile.employee-operations :user-id="(int) $user->id" view-mode="overview" :key="'employee-operations-overview-'.$user->id" />
+                <livewire:employees.profile.employee-operations :user-id="(int) $user->id" view-mode="overview" :key="'employee-operations-overview-'.$user->id" />
             </x-operations.panel.tab>
         @endif
 
         @if(isset($employeeProfileTabs['shifts']) && $profileTab === 'shifts')
             <x-operations.panel.tab name="shifts" :id-prefix="$profilePrefix" model="$wire.profileTab" class="employee-profile__panel">
-                <livewire:profile.employee-operations :user-id="(int) $user->id" view-mode="shifts" :key="'employee-operations-shifts-'.$user->id" />
+                <livewire:employees.profile.employee-operations :user-id="(int) $user->id" view-mode="shifts" :key="'employee-operations-shifts-'.$user->id" />
             </x-operations.panel.tab>
         @endif
 
         @if(isset($employeeProfileTabs['regions']) && $profileTab === 'regions')
             <x-operations.panel.tab name="regions" :id-prefix="$profilePrefix" model="$wire.profileTab" class="employee-profile__panel">
-                <livewire:profile.employee-regions :user-id="(int) $user->id" :key="'employee-regions-'.$user->id" />
+                <livewire:employees.profile.employee-regions :user-id="(int) $user->id" :key="'employee-regions-'.$user->id" />
             </x-operations.panel.tab>
         @endif
 
         {{-- Native inline-edit actions remain within the existing server-owned tab. --}}
         @if(isset($employeeProfileTabs['outlook']) && $profileTab === 'outlook')
             <x-operations.panel.tab name="outlook" :id-prefix="$profilePrefix" model="$wire.profileTab" class="employee-profile__panel">
-                <livewire:admin.user-profile.outlook-preferences :user-id="(int) $user->id" :key="'employee-outlook-'.$user->id" />
+                <livewire:employees.profile.outlook-preferences :user-id="(int) $user->id" :key="'employee-outlook-'.$user->id" />
             </x-operations.panel.tab>
         @endif
 
         @if($profileTab === 'userDetails')
             <x-operations.panel.tab name="userDetails" :id-prefix="$profilePrefix" model="$wire.profileTab" class="employee-profile__panel">
-                @include('livewire.admin.user-profile.partials.overview')
+                @include('livewire.employees.profile.partials.overview')
             </x-operations.panel.tab>
         @endif
 
         @if(isset($employeeProfileTabs['locations']) && $profileTab === 'locations')
             <x-operations.panel.tab name="locations" :id-prefix="$profilePrefix" model="$wire.profileTab" class="employee-profile__panel">
-                <livewire:profile.employee-location-history :user-id="(int) $user->id" :key="'employee-location-history-'.$user->id" />
+                <livewire:employees.profile.employee-location-history :user-id="(int) $user->id" :key="'employee-location-history-'.$user->id" />
             </x-operations.panel.tab>
         @endif
 
         {{-- TAB: Bemerkungen --}}
         @if(isset($employeeProfileTabs['userNotes']) && $profileTab === 'userNotes')
         <x-operations.panel.tab name="userNotes" :id-prefix="$profilePrefix" model="$wire.profileTab" class="employee-profile__panel space-y-4">
-            <livewire:admin.user-profile.user-notes :user-id="$user->id" :key="'user-notes-'.$user->id" />
+            <livewire:employees.profile.user-notes :user-id="$user->id" :key="'user-notes-'.$user->id" />
         </x-operations.panel.tab>
         @endif
 
@@ -201,8 +201,8 @@
         {{-- TAB: Nachrichten --}}
         @if(isset($employeeProfileTabs['userMessages']) && $profileTab === 'userMessages')
         <x-operations.panel.tab name="userMessages" :id-prefix="$profilePrefix" model="$wire.profileTab" class="employee-profile__panel space-y-4">
-            @if (class_exists(\App\Livewire\Admin\UserProfile\UserMessages::class))
-                <livewire:admin.user-profile.user-messages :user-id="$user->id" :key="'user-messages-'.$user->id" />
+            @if (class_exists(\App\Livewire\Employees\Profile\UserMessages::class))
+                <livewire:employees.profile.user-messages :user-id="$user->id" :key="'user-messages-'.$user->id" />
             @else
                 <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
                     <i class="fad fa-info-circle mr-2"></i>
@@ -258,20 +258,20 @@
         @if ($canViewMasterData && $profileTab === 'masterData')
             <x-operations.panel.tab name="masterData" :id-prefix="$profilePrefix" model="$wire.profileTab" class="employee-profile__panel space-y-4">
                 @if(\Illuminate\Support\Facades\Schema::hasTable('duty_activity_user'))
-                    <livewire:admin.employee-duty-activities :user-id="(int) $user->id" :key="'employee-activities-'.$user->id" />
+                    <livewire:employees.profile.employee-duty-activities :user-id="(int) $user->id" :key="'employee-activities-'.$user->id" />
                 @endif
-                @include('livewire.admin.user-profile.partials.master-data', ['profile' => $profile])
+                @include('livewire.employees.profile.partials.master-data', ['profile' => $profile])
             </x-operations.panel.tab>
         @endif
         @if ($canViewMasterData && $profileTab === 'documents')
             <x-operations.panel.tab name="documents" :id-prefix="$profilePrefix" model="$wire.profileTab" class="employee-profile__panel space-y-4">
-                <livewire:admin.user-profile.employee-documents :user-id="$user->id" :key="'employee-documents-'.$user->id" />
+                <livewire:employees.profile.employee-documents :user-id="$user->id" :key="'employee-documents-'.$user->id" />
             </x-operations.panel.tab>
         @endif
 
         @if ($canViewCompensation && $profileTab === 'compensation')
             <x-operations.panel.tab name="compensation" :id-prefix="$profilePrefix" model="$wire.profileTab" class="employee-profile__panel space-y-4">
-                @include('livewire.admin.user-profile.partials.compensation-data', ['profile' => $profile])
+                @include('livewire.employees.profile.partials.compensation-data', ['profile' => $profile])
             </x-operations.panel.tab>
         @endif
         @if(isset($employeeProfileTabs[$profileTab]['component']))
@@ -292,11 +292,11 @@
   </x-ui.page>
 
     @if($canManageEmployeeTeams)
-        <livewire:admin.employees.employee-team-modal :key="'profile-team-change-'.$user->id" />
+        <livewire:employees.employee-team-modal :key="'profile-team-change-'.$user->id" />
     @endif
 
     {{-- Compose-Modal fuer den Nachrichten-Tab und die Schnellaktion "Nachricht" --}}
     @if(Gate::allows('users.messages.create'))
-        <livewire:admin.users.messages.message-form :key="'profile-message-form'" />
+        <livewire:messages.message-form :key="'profile-message-form'" />
     @endif
 </div>

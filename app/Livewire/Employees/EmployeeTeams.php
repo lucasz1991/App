@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Livewire\Admin\Employees;
+namespace App\Livewire\Employees;
 
 use App\Services\Personnel\EmployeeTeamService;
 use Livewire\Attributes\Locked;
@@ -51,6 +51,6 @@ class EmployeeTeams extends Component
         $service = app(EmployeeTeamService::class);
         $state = $service->editorState($this->userId, $this->teamIds);
 
-        return view('livewire.admin.employees.employee-teams', $state + ['canManage' => $service->canManage()]);
+        return view('livewire.employees.employee-teams', $state + ['canManage' => $service->canManage()]);
     }
 }

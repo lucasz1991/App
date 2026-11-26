@@ -360,7 +360,7 @@
             data-anim-delay="0.04"
             data-admin-users-section="permissions"
         >
-            <livewire:admin.employees.team-rbac-modal
+            <livewire:employees.team-rbac-modal
                 :embedded="true"
                 :key="'settings-team-rbac-manager'"
             />

@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\UserProfile;
+use App\Livewire\Employees\Profile as EmployeeProfile;
 use App\Models\Team;
 use App\Models\User;
 use App\Models\UserProfile as Profile;
@@ -62,7 +62,7 @@ class EmployeeProfileHeaderRefinementTest extends TestCase
     #[DataProvider('profileModes')]
     public function test_refined_identity_keeps_native_header_edit_and_autosave_contracts(bool $embedded): void
     {
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, [
+        $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, [
             'userId' => $this->employee->id,
             'embedded' => $embedded,
         ])->assertSuccessful()->assertSet('profileTab', 'userDetails');
@@ -107,13 +107,13 @@ class EmployeeProfileHeaderRefinementTest extends TestCase
         $team = Team::forceCreate(['user_id' => $this->admin->id, 'name' => 'Mitarbeiter', 'personal_team' => false]);
         $this->employee->forceFill(['current_team_id' => $team->id])->save();
 
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id]);
+        $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id]);
         $badges = $this->headerBadges($component->html());
         $this->assertSame([__('app.role_staff')], $badges);
 
         Profile::where('user_id', $this->employee->id)->first()->forceFill(['position' => 'Wagenmeister'])->save();
         $team->update(['name' => 'Region Nord']);
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id]);
+        $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id]);
         $this->assertSame([__('app.role_staff'), 'Wagenmeister', 'Region Nord'], $this->headerBadges($component->html()));
     }
 
@@ -131,7 +131,7 @@ class EmployeeProfileHeaderRefinementTest extends TestCase
                 'updated_at' => now()->subMinutes($minutesAgo),
             ]);
         }
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id]);
+        $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id]);
         $xpath = $this->xpath($component->html());
         $account = $xpath->query('//header[contains(@class,"employee-profile__identity")]//*[@data-profile-account-status]');
         $this->assertCount(1, $account);
@@ -171,14 +171,14 @@ class EmployeeProfileHeaderRefinementTest extends TestCase
         $manager->teams()->attach($team->id);
         $manager->forceFill(['current_team_id' => $team->id])->save();
 
-        $component = Livewire::actingAs($manager->fresh())->test(UserProfile::class, ['userId' => $this->employee->id])
+        $component = Livewire::actingAs($manager->fresh())->test(EmployeeProfile::class, ['userId' => $this->employee->id])
             ->assertSuccessful()->assertDontSee('HEADER-SENSITIVE-FIXTURE-NR')
             ->assertDontSee('HEADER-SENSITIVE-FIXTURE-POSITION')->assertViewHas('canViewMasterData', false);
         $xpath = $this->xpath($component->html());
         $this->assertCount(0, $xpath->query('//header[contains(@class,"employee-profile__identity")]//*[@data-native-inline-edit-trigger]'));
         $this->assertCount(0, $xpath->query('//*[@data-panel-tab="locations"]'));
 
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id])
+        $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id])
             ->assertSuccessful()->assertSee('HEADER-SENSITIVE-FIXTURE-NR');
         $facts = $this->headerNode($this->xpath($component->html()), 'employee-profile__facts');
         $this->assertStringContainsString('HEADER-SENSITIVE-FIXTURE-NR', $facts->textContent);
@@ -192,7 +192,7 @@ class EmployeeProfileHeaderRefinementTest extends TestCase
         $position = 'Regionaler Wagenmeister <img src=x onerror=fixtureOnly()> & Ausbildung';
         $this->employee->forceFill(['name' => $name, 'email' => $email])->save();
         Profile::create(['user_id' => $this->employee->id, 'position' => $position]);
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id]);
+        $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id]);
         $xpath = $this->xpath($component->html());
         $displayName = $this->headerNode($xpath, 'employee-profile__name-text');
         $displayEmail = $this->headerNode($xpath, 'employee-profile__email-text');
@@ -208,7 +208,7 @@ class EmployeeProfileHeaderRefinementTest extends TestCase
     #[DataProvider('categorySelections')]
     public function test_category_and_native_child_tabs_keep_server_owned_manual_activation(string $firstTab, string $category): void
     {
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id]);
+        $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id]);
         if ($firstTab !== 'userDetails') {
             $component->call('setProfileTab', $firstTab)->assertSuccessful();
         }
@@ -283,7 +283,7 @@ class EmployeeProfileHeaderRefinementTest extends TestCase
         DB::flushQueryLog();
         DB::enableQueryLog();
         try {
-            $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id])
+            $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id])
                 ->assertSuccessful();
             $component->call('setProfileTab', 'masterData')->assertSuccessful()
                 ->call('setProfileTab', 'userDetails')->assertSuccessful();

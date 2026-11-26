@@ -149,7 +149,7 @@ final class AssistantApplicationTools
         $audience = $user->dashboardAudience();
         $pages = [
             'dashboard' => $this->page($admin ? 'admin.dashboard' : 'dashboard'),
-            'messages' => $this->page($admin ? 'admin.messages' : 'messages'),
+            'messages' => $this->page('messages'),
             'chat' => $this->page('chat'),
             'files' => $this->page($admin ? 'admin.files' : 'files'),
             'calls' => $this->page('calls.index', ability: 'calls.join'),
@@ -166,7 +166,7 @@ final class AssistantApplicationTools
 
         if ($admin) {
             $pages += [
-                'employees' => $this->page('admin.employees', ability: 'employees.view'),
+                'employees' => $this->page('employees.index', ability: 'employees.view'),
                 'customers' => $this->page('admin.operations.preview', ['module' => 'customers']),
                 'orders' => $this->page('admin.operations.preview', ['module' => 'orders']),
                 'shift_management' => $this->page('admin.operations.preview', ['module' => 'shift-management']),

@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Profile\EmployeeLocationHistory;
+use App\Livewire\Employees\Profile\EmployeeLocationHistory;
 use App\Models\Chat;
 use App\Models\ChatLiveLocation;
 use App\Models\ChatLocationPoint;

@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\Users\Messages\MessageForm;
+use App\Livewire\Messages\MessageForm;
 use App\Livewire\Operations\StaffTimeline;
 use App\Models\Customer;
 use App\Models\Order;
@@ -51,7 +51,7 @@ class TimelineEmployeePreviewTest extends TestCase
             $this->assertSame(1, $this->actions($xpath, $card, $expression)->length);
         }
         $profile = $xpath->query('.//a[@*[name()="wire:navigate"]]', $card)->item(0);
-        $this->assertSame(route('admin.user-profile', $target->id), $profile->getAttribute('href'));
+        $this->assertSame(route('employees.show', $target->id), $profile->getAttribute('href'));
         foreach ([$target->name, $target->email, 'Synthetic Train Driver', 'Synthetic Preview Team'] as $publicFact) {
             $this->assertStringContainsString($publicFact, $card->textContent);
         }
@@ -74,7 +74,7 @@ class TimelineEmployeePreviewTest extends TestCase
         $this->assertSame(1, $xpath->query('.//button[@*[name()="x-on:click.prevent"]]', $card)->length);
         $this->assertSame(1, $this->actions($xpath, $card, '$wire.call("openDirectChat", '.$target->id.')')->length);
         $this->assertSame(0, $xpath->query('.//a[@*[name()="wire:navigate"]]', $card)->length);
-        $this->assertSame(0, $xpath->query('//*[@*[name()="wire:snapshot"] and contains(@*[name()="wire:snapshot"],"admin.users.messages.message-form")]')->length);
+        $this->assertSame(0, $xpath->query('//*[@*[name()="wire:snapshot"] and contains(@*[name()="wire:snapshot"],"messages.message-form")]')->length);
         $this->assertStringContainsString($target->email, $card->textContent);
         $this->assertNoCommunicationWrites();
     }
@@ -134,7 +134,7 @@ class TimelineEmployeePreviewTest extends TestCase
         $this->staff('Synthetic Second Message Target');
         $component = $this->timeline($this->admin);
         $xpath = $this->xpath($component->html());
-        $hosts = $xpath->query('//*[@*[name()="wire:snapshot"] and contains(@*[name()="wire:snapshot"],"admin.users.messages.message-form")]');
+        $hosts = $xpath->query('//*[@*[name()="wire:snapshot"] and contains(@*[name()="wire:snapshot"],"messages.message-form")]');
         $this->assertSame(1, $hosts->length);
         $hostId = $hosts->item(0)->getAttribute('wire:id');
 
@@ -245,7 +245,7 @@ class TimelineEmployeePreviewTest extends TestCase
             [$xpath, $card] = $this->card($component, $target);
             $this->assertStringContainsString($target->email, $card->textContent);
             $this->assertSame(0, $xpath->query('.//button[@*[name()="x-on:click.prevent"]] | .//a[@*[name()="wire:navigate"]]', $card)->length);
-            $this->assertSame(0, $xpath->query('//*[@*[name()="wire:snapshot"] and contains(@*[name()="wire:snapshot"],"admin.users.messages.message-form")]')->length);
+            $this->assertSame(0, $xpath->query('//*[@*[name()="wire:snapshot"] and contains(@*[name()="wire:snapshot"],"messages.message-form")]')->length);
             foreach (['openDirectChat', 'startDirectCall', 'openMessage'] as $action) {
                 $arguments = $action === 'startDirectCall' ? [$target->id, 'voice'] : [$target->id];
                 $component = Livewire::actingAs($this->admin)->test(StaffTimeline::class, ['from' => '2026-10-10', 'until' => '2026-10-16', ...$scope]);

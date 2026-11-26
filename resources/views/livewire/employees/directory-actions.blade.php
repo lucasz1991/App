@@ -13,4 +13,4 @@
         <i class="far fa-shield-alt mr-2" aria-hidden="true"></i>{{ __('app.teams_permissions') }}
     </x-ui.dropdown.dropdown-link>
 </x-ui.dropdown.page-actions>
-@include('livewire.admin.employees.directory-filter-trigger')
+@include('livewire.employees.directory-filter-trigger')

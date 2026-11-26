@@ -56,7 +56,7 @@
                 <x-user.person-anchor-preview
                     :user="$member"
                     :profile-url="$viewer->canViewManagementDashboard()
-                        ? route($viewer->usesAdminLayout() ? 'admin.user-profile' : 'employees.show', $member->id)
+                        ? route('employees.show', $member->id)
                         : null"
                     :can-chat="$canReach"
                     :can-call="$canCallMember"

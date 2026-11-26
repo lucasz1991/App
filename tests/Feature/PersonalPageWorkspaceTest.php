@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\UserProfile;
+use App\Livewire\Employees\Profile as EmployeeProfile;
 use App\Livewire\Operations\OperationsEnhancements;
 use App\Livewire\Operations\PersonalPageWorkspace;
 use App\Livewire\Operations\WorkforceAccounts;
@@ -97,7 +97,7 @@ class PersonalPageWorkspaceTest extends TestCase
                 ->assertSee('Mitarbeiter-Fachakte')
                 ->assertDontSee('Outside Synthetic')
                 ->assertDontSee('Vergütungsdaten');
-            Livewire::test(UserProfile::class, ['userId' => $this->employee->id, 'embedded' => true])->assertForbidden();
+            Livewire::test(EmployeeProfile::class, ['userId' => $this->employee->id, 'embedded' => true])->assertForbidden();
         }
     }
 
@@ -215,7 +215,7 @@ class PersonalPageWorkspaceTest extends TestCase
     {
         Profile::create(['user_id' => $this->outside->id, 'personnel_nr' => 'PRIVATE-MASTER-OUTSIDE', 'iban' => 'PRIVATE-COMPENSATION-OUTSIDE']);
         $this->actingAs($this->manager(['employees.view', 'employees.master-data.view', 'employees.compensation.view']));
-        Livewire::test(UserProfile::class, ['userId' => $this->outside->id, 'embedded' => true])
+        Livewire::test(EmployeeProfile::class, ['userId' => $this->outside->id, 'embedded' => true])
             ->assertDontSee('PRIVATE-MASTER-OUTSIDE')->assertDontSee('PRIVATE-COMPENSATION-OUTSIDE')
             ->assertViewHas('canViewMasterData', false)->assertViewHas('canViewCompensation', false)
             ->assertSet('inlineValues', fn ($values) => ! array_key_exists('personnel_nr', $values) && ! array_key_exists('iban', $values));
@@ -227,7 +227,7 @@ class PersonalPageWorkspaceTest extends TestCase
         $manager = $this->manager(['employees.view', 'employees.master-data.view', 'employees.compensation.view'], false);
         app(PersonnelScopeService::class)->assign($this->employee, ['responsible_user_id' => $manager->id, 'starts_on' => '2027-01-01', 'abilities' => ['employees.master-data.view']], $this->admin);
         $this->actingAs($manager);
-        Livewire::test(UserProfile::class, ['userId' => $this->employee->id])
+        Livewire::test(EmployeeProfile::class, ['userId' => $this->employee->id])
             ->call('setProfileTab', 'masterData')
             ->assertSee('ALLOWED-MASTER')->assertDontSee('ALLOWED-COMPENSATION')
             ->assertViewHas('canViewCompensation', false);
@@ -270,7 +270,7 @@ class PersonalPageWorkspaceTest extends TestCase
     public function test_embedded_profile_does_not_mount_hidden_file_notes_or_document_children(): void
     {
         $this->actingAs($this->admin);
-        $profile = Livewire::test(UserProfile::class, ['userId' => $this->employee->id, 'embedded' => true]);
+        $profile = Livewire::test(EmployeeProfile::class, ['userId' => $this->employee->id, 'embedded' => true]);
         $profile->assertSee('Alpha Synthetic')->assertDontSee('wire:id="user-notes')->assertDontSee('employee-documents-');
         $this->assertDatabaseCount('file_pools', 0);
         $profile->call('setProfileTab', 'masterData')->assertSet('profileTab', 'masterData');

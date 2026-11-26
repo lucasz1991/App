@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Livewire\Admin\UserProfile;
+namespace App\Livewire\Employees\Profile;
 
 use App\Models\Message;
 use App\Models\User;
@@ -40,7 +40,7 @@ class UserMessages extends Component
         Gate::authorize('users.messages.create');
 
         $this->dispatch('openMailModal', payload: $this->userId)
-            ->to(\App\Livewire\Admin\Users\Messages\MessageForm::class);
+            ->to(\App\Livewire\Messages\MessageForm::class);
     }
 
     public function showMessage(int $messageId): void
@@ -83,7 +83,7 @@ class UserMessages extends Component
             ->latest()
             ->paginate(10);
 
-        return view('livewire.admin.user-profile.user-messages', [
+        return view('livewire.employees.profile.user-messages', [
             'messages' => $messages,
             'user' => User::find($this->userId),
         ]);

@@ -29,6 +29,28 @@ class LivewireAliasServiceProvider extends ServiceProvider
         'admin.operations.shift-management' => ['operations.shift-management', \App\Livewire\Operations\ShiftManagement::class],
         'admin.operations.calendar' => ['operations.calendar', \App\Livewire\Operations\Calendar::class],
         'admin.operations.customers' => ['operations.customers', \App\Livewire\Operations\Customers::class],
+
+        // Phase 7 – Personal-Komponenten in neutrale Namespaces (Namespace = Nutzungsort)
+        'admin.employees' => ['employees.index', \App\Livewire\Employees\Index::class],
+        'admin.employees.employee-form-modal' => ['employees.employee-form-modal', \App\Livewire\Employees\EmployeeFormModal::class],
+        'admin.employees.employee-team-bulk-modal' => ['employees.employee-team-bulk-modal', \App\Livewire\Employees\EmployeeTeamBulkModal::class],
+        'admin.employees.employee-team-modal' => ['employees.employee-team-modal', \App\Livewire\Employees\EmployeeTeamModal::class],
+        'admin.employees.employee-teams' => ['employees.employee-teams', \App\Livewire\Employees\EmployeeTeams::class],
+        'admin.employees.invite-employee-modal' => ['employees.invite-employee-modal', \App\Livewire\Employees\InviteEmployeeModal::class],
+        'admin.employees.team-rbac-modal' => ['employees.team-rbac-modal', \App\Livewire\Employees\TeamRbacModal::class],
+        'admin.user-profile' => ['employees.profile', \App\Livewire\Employees\Profile::class],
+        'admin.user-profile.employee-documents' => ['employees.profile.employee-documents', \App\Livewire\Employees\Profile\EmployeeDocuments::class],
+        'admin.user-profile.outlook-preferences' => ['employees.profile.outlook-preferences', \App\Livewire\Employees\Profile\OutlookPreferences::class],
+        'admin.user-profile.user-messages' => ['employees.profile.user-messages', \App\Livewire\Employees\Profile\UserMessages::class],
+        'admin.user-profile.user-notes' => ['employees.profile.user-notes', \App\Livewire\Employees\Profile\UserNotes::class],
+        'admin.employee-duty-activities' => ['employees.profile.employee-duty-activities', \App\Livewire\Employees\Profile\EmployeeDutyActivities::class],
+        'profile.employee-location-history' => ['employees.profile.employee-location-history', \App\Livewire\Employees\Profile\EmployeeLocationHistory::class],
+        'profile.employee-operations' => ['employees.profile.employee-operations', \App\Livewire\Employees\Profile\EmployeeOperations::class],
+        'profile.employee-regions' => ['employees.profile.employee-regions', \App\Livewire\Employees\Profile\EmployeeRegions::class],
+        'profile.employee-phone-status' => ['employees.profile.employee-phone-status', \App\Livewire\Employees\Profile\EmployeePhoneStatus::class],
+        'admin.users.messages.message-form' => ['messages.message-form', \App\Livewire\Messages\MessageForm::class],
+        'admin.file-manager' => ['files.file-manager', \App\Livewire\Files\FileManager::class],
+        'admin.managed-documents' => ['files.managed-documents', \App\Livewire\Files\ManagedDocuments::class],
     ];
 
     public function boot(): void

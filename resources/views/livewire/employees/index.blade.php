@@ -10,12 +10,12 @@
             @if($embedded)
                 <x-ui.page-header-actions target="action-list" wire:key="employee-header-actions">
                     <div class="employee-directory__header-actions flex items-center gap-1">
-                        @include('livewire.admin.employees.directory-actions')
+                        @include('livewire.employees.directory-actions')
                     </div>
                 </x-ui.page-header-actions>
             @else
                 <div class="employee-directory__header-actions flex items-center gap-1">
-                @include('livewire.admin.employees.directory-actions')
+                @include('livewire.employees.directory-actions')
                 </div>
             @endif
         </x-slot:actions>
@@ -66,9 +66,7 @@
                 :items="$employees"
                 :selected-items="$selectedEmployees"
                 selection-action="toggleEmployeeSelection"
-                :detail-route="auth()->user()->canViewManagementDashboard()
-                    ? (auth()->user()->usesAdminLayout() ? 'admin.user-profile' : 'employees.show')
-                    : null"
+                :detail-route="auth()->user()->canViewManagementDashboard() ? 'employees.show' : null"
                 row-view="components.tables.rows.employees.employee-row"
                 actions-view="components.tables.rows.employees.employee-actions"
                 :sort-by="$sortBy ?? null"
@@ -80,10 +78,10 @@
         </div>
     </x-ui.page>
 
-    <livewire:admin.employees.employee-form-modal :key="'employee-form-modal'" />
-    <livewire:admin.employees.team-rbac-modal :key="'employee-team-rbac-modal'" />
-    <livewire:admin.employees.employee-team-modal :key="'employee-team-change-modal'" />
-    <livewire:admin.employees.employee-team-bulk-modal :key="'employee-team-bulk-modal'" />
-    <livewire:admin.employees.invite-employee-modal :key="'employee-invite-modal'" />
-    <livewire:admin.users.messages.message-form :key="'employee-message-form'" />
+    <livewire:employees.employee-form-modal :key="'employee-form-modal'" />
+    <livewire:employees.team-rbac-modal :key="'employee-team-rbac-modal'" />
+    <livewire:employees.employee-team-modal :key="'employee-team-change-modal'" />
+    <livewire:employees.employee-team-bulk-modal :key="'employee-team-bulk-modal'" />
+    <livewire:employees.invite-employee-modal :key="'employee-invite-modal'" />
+    <livewire:messages.message-form :key="'employee-message-form'" />
 </div>

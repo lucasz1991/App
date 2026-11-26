@@ -1,11 +1,11 @@
 {{--
-    Meldezettel Zugvorbereitung (drittes Blatt der Excel-Liste v16_5).
+    Meldezettel Zugvorbereitung (Blatt der Excel-Liste v17).
     Zugnummer, Datum, Laufweg, erstes und letztes Fahrzeug sowie Gefahrgut
     übernimmt die Datei aus der Wagenliste; hier stehen nur die Angaben, die
     es sonst nirgends gibt.
 
     $part teilt das Formular für die Arbeitsfläche am Desktop auf zwei Karten
-    auf: 'train' (Kunde, Gleis, Papiere, Bestätigung) und 'tasks' (Aufträge,
+    auf: 'train' (Kunde, Gleis, Angaben zum Zug, Bestätigung) und 'tasks' (Aufträge,
     Zusatzarbeiten, Besonderheiten). Ohne Angabe erscheint alles, so nutzt es
     die geführte Eingabe am Telefon.
 --}}
@@ -25,32 +25,26 @@
         'simpleBrakeTest' => __('app.report_task_simple_brake_test'),
     ];
 
+    // Angaben zum Zug wie im Vordruck (VDV) und in der Excel-Liste v17:
+    // zwei Spalten mit je zwei Ankreuzfeldern, je Spalte höchstens ein Kreuz,
+    // leer ist erlaubt. Ein zweiter Klick nimmt das Kreuz wieder weg.
     $choiceGroups = [
         [
             'model' => 'report.papers',
+            'key' => 'papers',
             'label' => __('app.report_papers'),
             'options' => [
-                'electronic' => __('app.report_papers_electronic'),
-                'paper' => __('app.report_papers_paper'),
-                'both' => __('app.report_papers_both'),
+                'complete' => __('app.report_papers_complete'),
                 'none' => __('app.report_papers_none'),
             ],
         ],
         [
             'model' => 'report.transportOrder',
+            'key' => 'transport-order',
             'label' => __('app.report_transport_order'),
             'options' => [
                 'complete' => __('app.report_transport_order_complete'),
-                'standing' => __('app.report_transport_order_standing'),
-                'none' => __('app.report_transport_order_none'),
-            ],
-        ],
-        [
-            'model' => 'report.uicCheck',
-            'label' => __('app.report_uic_check'),
-            'options' => [
-                'yes' => __('app.yes'),
-                'no' => __('app.no'),
+                'standingOrNone' => __('app.report_transport_order_standing_or_none'),
             ],
         ],
     ];
@@ -80,22 +74,26 @@
                 </label>
             </div>
 
-            @foreach ($choiceGroups as $group)
-                <div class="rt-wl-field rt-wl-field--spaced">
-                    <span class="rt-wl-label" id="wagon-{{ \Illuminate\Support\Str::slug($group['model']) }}-{{ $scope }}">{{ $group['label'] }}</span>
-                    <div class="rt-wl-chips" role="group" aria-labelledby="wagon-{{ \Illuminate\Support\Str::slug($group['model']) }}-{{ $scope }}">
-                        @foreach ($group['options'] as $value => $optionLabel)
-                            <button
-                                type="button"
-                                class="rt-wl-chip"
-                                @click="{{ $group['model'] }} = {{ $group['model'] }} === @js($value) ? '' : @js($value)"
-                                :aria-pressed="{{ $group['model'] }} === @js($value)"
-                                :data-active="{{ $group['model'] }} === @js($value) ? 'true' : 'false'"
-                            >{{ $optionLabel }}</button>
-                        @endforeach
-                    </div>
+            <div class="rt-wl-train-details" data-wagon-train-details>
+                <span class="rt-wl-train-details-title">{{ __('app.report_train_details') }}</span>
+                <div class="rt-wl-train-details-grid">
+                    @foreach ($choiceGroups as $group)
+                        <div class="rt-wl-train-details-group" role="group" aria-labelledby="wagon-report-{{ $group['key'] }}-{{ $scope }}">
+                            <span class="rt-wl-label" id="wagon-report-{{ $group['key'] }}-{{ $scope }}">{{ $group['label'] }}</span>
+                            @foreach ($group['options'] as $value => $optionLabel)
+                                <label class="rt-wl-check-row" :data-done="{{ $group['model'] }} === @js($value) ? 'true' : 'false'">
+                                    <input
+                                        type="checkbox"
+                                        :checked="{{ $group['model'] }} === @js($value)"
+                                        @change="{{ $group['model'] }} = $event.target.checked ? @js($value) : ''"
+                                    >
+                                    <span class="min-w-0 flex-1">{{ $optionLabel }}</span>
+                                </label>
+                            @endforeach
+                        </div>
+                    @endforeach
                 </div>
-            @endforeach
+            </div>
 
             {{-- Bestätigung: wer die Wagenliste erstellt hat und wann. --}}
             <div class="rt-wl-fields rt-wl-fields--4 rt-wl-fields--confirm">

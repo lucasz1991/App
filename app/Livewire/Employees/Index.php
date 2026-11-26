@@ -1,15 +1,10 @@
 <?php
 
-namespace App\Livewire\Admin;
+namespace App\Livewire\Employees;
 
-use App\Livewire\Admin\Employees\EmployeeFormModal;
-use App\Livewire\Admin\Employees\EmployeeTeamBulkModal;
-use App\Livewire\Admin\Employees\EmployeeTeamModal;
-use App\Livewire\Admin\Employees\InviteEmployeeModal;
-use App\Livewire\Admin\Employees\TeamRbacModal;
-use App\Livewire\Admin\Users\Messages\MessageForm;
 use App\Livewire\Concerns\InteractsWithPersonQuickActions;
 use App\Livewire\Concerns\ResetsPageOnFilterChange;
+use App\Livewire\Messages\MessageForm;
 use App\Models\Team;
 use App\Models\User;
 use App\Models\UserProfile;
@@ -21,7 +16,7 @@ use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithPagination;
 
-class Employees extends Component
+class Index extends Component
 {
     use InteractsWithPersonQuickActions;
     use ResetsPageOnFilterChange;
@@ -333,7 +328,7 @@ class Employees extends Component
             ->get(['id', 'name']);
         $employees = $this->employees;
 
-        return view('livewire.admin.employees', [
+        return view('livewire.employees.index', [
             'employees' => $employees,
             'teams' => $teams,
             'canManageEmployeeTeams' => app(EmployeeTeamService::class)->canManage(auth()->user()),

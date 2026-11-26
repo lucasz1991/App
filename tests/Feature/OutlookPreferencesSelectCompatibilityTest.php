@@ -53,7 +53,7 @@ final class OutlookPreferencesSelectCompatibilityTest extends TestCase
         $html = $this->renderUsing($legacy, static function () use ($new, $reply, $hasDefault, $employee): string {
             View::share('errors', new ViewErrorBag);
 
-            return view($employee ? 'livewire.admin.user-profile.outlook-preferences' : 'livewire.profile.outlook-preferences', [
+            return view($employee ? 'livewire.employees.profile.outlook-preferences' : 'livewire.profile.outlook-preferences', [
                 'instancePrefix' => 'employee-outlook-1-5-fixture', 'targetName' => 'Synthetic employee',
                 'preferences' => ['newMessages' => ['signature' => true], 'replies' => ['signature' => false]],
                 'available' => true, 'notice' => '', 'greeting' => '', 'farewell' => '',

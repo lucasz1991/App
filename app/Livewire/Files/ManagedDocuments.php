@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Livewire\Admin;
+namespace App\Livewire\Files;
 
 use App\Models\DeviceTrustCertificate;
 use App\Models\ManagedDocument;
@@ -341,7 +341,7 @@ class ManagedDocuments extends Component
             ? ManagedDocument::with(['versions.file', 'versions.creator'])->find($this->historyDocumentId)
             : null;
 
-        return view('livewire.admin.managed-documents', [
+        return view('livewire.files.managed-documents', [
             'documents' => $documents,
             'teams' => Team::query()->where('personal_team', false)->orderBy('name')->get(),
             'historyDocument' => $historyDocument,

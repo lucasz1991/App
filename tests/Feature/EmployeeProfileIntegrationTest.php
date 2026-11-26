@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\UserProfile;
+use App\Livewire\Employees\Profile as EmployeeProfile;
 use App\Livewire\Operations\PersonalPageWorkspace;
 use App\Models\Team;
 use App\Models\User;
@@ -91,7 +91,7 @@ class EmployeeProfileIntegrationTest extends TestCase
         $manager = $this->manager(['employees.view']);
         $this->assertSame([], EmployeeProfileSections::forUser($manager, $this->employee));
         $this->actingAs($manager);
-        Livewire::test(UserProfile::class, ['userId' => $this->employee->id])
+        Livewire::test(EmployeeProfile::class, ['userId' => $this->employee->id])
             ->assertViewHas('employeeProfileTabs', fn (array $tabs) => array_keys($tabs) === ['userDetails'])
             ->call('setProfileTab', 'qualifications')->assertForbidden();
     }
@@ -102,7 +102,7 @@ class EmployeeProfileIntegrationTest extends TestCase
         $this->responsibility($manager, $this->employee, ['operations.qualifications.manage']);
         $this->assertSame(['qualifications', 'training'], array_keys(EmployeeProfileSections::forUser($manager, $this->employee)));
         $this->actingAs($manager);
-        Livewire::test(UserProfile::class, ['userId' => $this->employee->id])->assertForbidden();
+        Livewire::test(EmployeeProfile::class, ['userId' => $this->employee->id])->assertForbidden();
         Livewire::test(PersonalPageWorkspace::class, ['page' => 'people', 'initialView' => 'training', 'context' => ['user' => $this->employee->id]])
             ->assertSet('userId', $this->employee->id)->assertSee('Teilnehmer zuordnen')
             ->assertDontSee($this->outside->name);
@@ -120,7 +120,7 @@ class EmployeeProfileIntegrationTest extends TestCase
         $this->assertArrayNotHasKey('qualifications', $otherSections);
 
         $this->actingAs($manager);
-        Livewire::test(UserProfile::class, ['userId' => $this->employee->id, 'embedded' => true])
+        Livewire::test(EmployeeProfile::class, ['userId' => $this->employee->id, 'embedded' => true])
             ->call('setProfileTab', 'training')->assertSet('userId', $this->employee->id)
             ->assertSet('profileTab', 'training')->assertDontSee($this->outside->name)
             ->call('setProfileTab', 'emergency')->assertForbidden();
@@ -151,7 +151,7 @@ class EmployeeProfileIntegrationTest extends TestCase
         $this->assertArrayNotHasKey('ruleAssignments', EmployeeProfileSections::forUser($manager, $this->employee));
         $this->assertArrayHasKey('ruleAssignments', EmployeeProfileSections::forUser($manager, $this->outside));
         $this->actingAs($manager);
-        Livewire::test(UserProfile::class, ['userId' => $this->employee->id])
+        Livewire::test(EmployeeProfile::class, ['userId' => $this->employee->id])
             ->call('setProfileTab', 'ruleAssignments')->assertForbidden();
     }
 
@@ -174,7 +174,7 @@ class EmployeeProfileIntegrationTest extends TestCase
             $this->assertArrayHasKey($key, $sections);
         }
         $this->actingAs($this->admin);
-        Livewire::test(UserProfile::class, ['userId' => $this->employee->id])->assertSuccessful();
+        Livewire::test(EmployeeProfile::class, ['userId' => $this->employee->id])->assertSuccessful();
     }
 
     public static function optionalModules(): array
@@ -194,7 +194,7 @@ class EmployeeProfileIntegrationTest extends TestCase
     public function test_profile_preserves_existing_tools_but_only_mounts_the_active_section(bool $embedded): void
     {
         $this->actingAs($this->admin);
-        $profile = Livewire::test(UserProfile::class, ['userId' => $this->employee->id, 'embedded' => $embedded])
+        $profile = Livewire::test(EmployeeProfile::class, ['userId' => $this->employee->id, 'embedded' => $embedded])
             ->call('setProfileTab', 'userDetails')
             ->assertSet('profileTab', 'userDetails')
             ->assertViewHas('employeeProfileTabs', fn (array $tabs) => array_diff(['userDetails', 'userNotes', 'userFiles', 'userMessages', 'devices', 'masterData', 'documents', 'compensation'], array_keys($tabs)) === []);
@@ -236,7 +236,7 @@ class EmployeeProfileIntegrationTest extends TestCase
     public function test_selected_section_mounts_exactly_one_child_with_locked_employee_context(string $section, string $component, string $tab, bool $embedded): void
     {
         $this->actingAs($this->admin);
-        $profile = Livewire::test(UserProfile::class, ['userId' => $this->employee->id, 'embedded' => $embedded])
+        $profile = Livewire::test(EmployeeProfile::class, ['userId' => $this->employee->id, 'embedded' => $embedded])
             ->call('setProfileTab', $section)->assertSet('profileTab', $section)->assertSuccessful();
         $children = $this->personnelChildren($profile->html());
         $this->assertCount(1, $children);
@@ -282,7 +282,7 @@ class EmployeeProfileIntegrationTest extends TestCase
     {
         $this->actingAs($this->admin);
         $email = $this->employee->email;
-        Livewire::test(UserProfile::class, ['userId' => $this->employee->id])
+        Livewire::test(EmployeeProfile::class, ['userId' => $this->employee->id])
             ->call('setProfileTab', 'userDetails')
             ->set('inlineValues.email', 'not-an-email')
             ->call('setProfileTab', 'qualifications')
@@ -298,7 +298,7 @@ class EmployeeProfileIntegrationTest extends TestCase
         Profile::create(['user_id' => $this->employee->id, 'phone' => 'old fixture phone']);
         $otherName = $this->outside->name;
         $this->actingAs($this->admin);
-        Livewire::test(UserProfile::class, ['userId' => $this->employee->id])
+        Livewire::test(EmployeeProfile::class, ['userId' => $this->employee->id])
             ->set('inlineValues.name', 'Saved Profile Fixture')
             ->set('inlineValues.phone', '+49 000 111')
             ->call('setProfileTab', 'training')

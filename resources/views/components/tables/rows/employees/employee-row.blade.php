@@ -34,7 +34,7 @@
     <x-user.person-anchor-preview
         :user="$item"
         :profile-url="$viewer->canViewManagementDashboard()
-            ? route($viewer->usesAdminLayout() ? 'admin.user-profile' : 'employees.show', $item->id)
+            ? route('employees.show', $item->id)
             : null"
         :can-message="$viewer->can('users.messages.create')"
         :can-chat="$canCommunicate"

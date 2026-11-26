@@ -27,6 +27,7 @@ use App\Http\Controllers\Calls\CallRecordingAcknowledgementController;
 use App\Http\Controllers\Calls\CallRecordingPlaybackController;
 use App\Http\Controllers\Calls\CallRingAckController;
 use App\Http\Controllers\Calls\CallTokenController;
+use App\Http\Controllers\CanonicalRouteRedirectController;
 use App\Http\Controllers\ChatAttachmentController;
 use App\Http\Controllers\ChatExportController;
 use App\Http\Controllers\ChatLiveLocationController;
@@ -56,21 +57,21 @@ use App\Http\Middleware\EnsureCustomerPortalAccess;
 use App\Http\Middleware\LogActivity;
 use App\Http\Middleware\RedirectAdminWagonList;
 use App\Livewire\Admin\Dashboard;
-use App\Livewire\Admin\Employees;
-use App\Livewire\Admin\FileManager;
 use App\Livewire\Admin\MailDocumentEditor;
 use App\Livewire\Admin\MailManagement;
-use App\Livewire\Admin\ManagedDocuments;
 use App\Livewire\Admin\Marketing\CreativeFiles as MarketingCreativeFiles;
 use App\Livewire\Admin\Marketing\CreativesIndex as MarketingCreativesIndex;
 use App\Livewire\Admin\OperationalPreview;
 use App\Livewire\Admin\Settings;
-use App\Livewire\Admin\UserProfile;
 use App\Livewire\Devices\DeviceDesktopClients;
 use App\Livewire\Devices\DeviceSoftware;
 use App\Livewire\Devices\DeviceEnrollmentSetup;
 use App\Livewire\Devices\DeviceManagement;
 use App\Livewire\Devices\MyDevices;
+use App\Livewire\Employees\Index as EmployeesIndex;
+use App\Livewire\Employees\Profile as EmployeeProfile;
+use App\Livewire\Files\FileManager;
+use App\Livewire\Files\ManagedDocuments;
 use App\Livewire\HelpCenter;
 use App\Livewire\ItSupport;
 use App\Livewire\MessageBox;
@@ -280,8 +281,8 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         ->whereIn('module', array_keys(OperationsNavigation::modules()))->name('operations.workspace');
     Route::get('/nachweise/{id}/download', OperationsEvidenceController::class)
         ->whereNumber('id')->middleware('throttle:30,1')->name('operations.evidence');
-    Route::get('/employees', Employees::class)->name('employees.index');
-    Route::get('/employees/{userId}', UserProfile::class)->name('employees.show');
+    Route::get('/employees', EmployeesIndex::class)->name('employees.index');
+    Route::get('/employees/{userId}', EmployeeProfile::class)->name('employees.show');
     // Die neutrale Route bleibt fuer delegierte Verwaltungs-/Teamrechte
     // erreichbar. Jede Livewire-Aktion prueft ihr konkretes Device-Gate erneut.
     Route::get('/geraete', DeviceManagement::class)->name('devices.index');
@@ -381,7 +382,10 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
     ->name('admin.')
     ->group(function () {
         Route::get('/', Dashboard::class)->name('dashboard');
-        Route::get('/index', Dashboard::class)->name('index');
+        // Alt-Adressen: 301 auf die kanonische Route, Querystring bleibt
+        // erhalten. Die alten Routennamen bleiben als Sicherheitsnetz.
+        Route::get('/index', CanonicalRouteRedirectController::class)
+            ->defaults('canonical', 'admin.dashboard')->name('index');
         Route::get('/betrieb/{module}', OperationalPreview::class)
             ->where('module', 'orders|shift-management|calendar|customers')
             ->name('operations.preview');
@@ -392,8 +396,10 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
             ->middleware('throttle:30,1')
             ->name('operations.wagon-list.media');
         Route::get('/settings', Settings::class)->name('settings');
-        Route::get('/employees', Employees::class)->name('employees');
-        Route::get('/user/{userId}', UserProfile::class)->name('user-profile');
+        Route::get('/employees', CanonicalRouteRedirectController::class)
+            ->defaults('canonical', 'employees.index')->name('employees');
+        Route::get('/user/{userId}', CanonicalRouteRedirectController::class)
+            ->defaults('canonical', 'employees.show')->name('user-profile');
         Route::get('/geraete', DeviceManagement::class)->name('devices');
         Route::get('/files', FileManager::class)->name('files');
         Route::get('/files/verbindlich', ManagedDocuments::class)->name('managed-documents');
@@ -546,9 +552,10 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
                 ->middleware('throttle:60,1')
                 ->name('marketing.renders.download');
         });
-        // Admins verwenden dieselbe robuste Nachrichtenoberfläche, erhalten
-        // aber weiterhin über die Komponente das Admin-Layout.
-        Route::get('/messages', MessageBox::class)->name('messages');
+        // Admins verwenden dieselbe Nachrichtenoberfläche unter /messages;
+        // das Admin-Layout wählt die Komponente nutzerbezogen.
+        Route::get('/messages', CanonicalRouteRedirectController::class)
+            ->defaults('canonical', 'messages')->name('messages');
     });
 
 // Klingel-Rueckmeldung der installierten App: der Service Worker meldet, dass

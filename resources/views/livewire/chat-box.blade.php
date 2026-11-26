@@ -314,7 +314,7 @@
                                             :user="$headerPerson"
                                             trigger-classes="flex min-w-0 max-w-full"
                                             :profile-url="$me->canViewManagementDashboard()
-                                                ? route($me->usesAdminLayout() ? 'admin.user-profile' : 'employees.show', $headerPerson->id)
+                                                ? route('employees.show', $headerPerson->id)
                                                 : null"
                                             :can-chat="false"
                                             :can-call="$headerCanCall"
@@ -1308,6 +1308,6 @@
 
     {{-- Traegt die Schaltflaeche "Nachricht senden" aus den Personenkarten. --}}
     @can('users.messages.create')
-        <livewire:admin.users.messages.message-form :key="'chat-message-form'" />
+        <livewire:messages.message-form :key="'chat-message-form'" />
     @endcan
 </div>

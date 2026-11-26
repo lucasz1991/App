@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\UserProfile;
+use App\Livewire\Employees\Profile as EmployeeProfile;
 use App\Models\Team;
 use App\Models\User;
 use App\Models\UserProfile as Profile;
@@ -66,7 +66,7 @@ class EmployeeProfileMenuRefinementTest extends TestCase
         DB::flushQueryLog();
         DB::enableQueryLog();
         try {
-            $component = Livewire::actingAs($this->admin)->test(UserProfile::class, [
+            $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, [
                 'userId' => $this->employee->id,
                 'embedded' => $embedded,
             ])->assertSuccessful()->assertSet('profileTab', 'userDetails');
@@ -94,21 +94,21 @@ class EmployeeProfileMenuRefinementTest extends TestCase
             $groupKeys[] = $key;
         }
         $this->assertCount($groups->length, array_unique($groupKeys));
-        $source = file_get_contents(resource_path('views/livewire/admin/user-profile.blade.php'));
+        $source = file_get_contents(resource_path('views/livewire/employees/profile.blade.php'));
         $this->assertStringNotContainsString('-group-{{ $loop->index }}', $source);
         $this->assertStringContainsString('operationsOverview', $groups->item(1)->getAttribute('x-on:click'));
-        $this->assertSame([], $this->children($component->html(), 'profile.employee-operations'));
-        $this->assertSame([], $this->children($component->html(), 'profile.employee-location-history'));
+        $this->assertSame([], $this->children($component->html(), 'employees.profile.employee-operations'));
+        $this->assertSame([], $this->children($component->html(), 'employees.profile.employee-location-history'));
         $this->assertCount(1, $xpath->query('//*[@data-profile-overview]'));
 
         $component->call('setProfileTab', 'operationsOverview')->assertSuccessful()->assertSet('profileTab', 'operationsOverview');
-        $children = $this->children($component->html(), 'profile.employee-operations');
+        $children = $this->children($component->html(), 'employees.profile.employee-operations');
         $this->assertCount(1, $children);
         $this->assertSame($this->employee->id, $children[0]['data']['userId']);
         $this->assertSame('overview', $children[0]['data']['viewMode']);
-        $this->assertSame([], $this->children($component->html(), 'profile.employee-location-history'));
+        $this->assertSame([], $this->children($component->html(), 'employees.profile.employee-location-history'));
         $component->call('setProfileTab', 'userDetails')->assertSuccessful();
-        $this->assertSame([], $this->children($component->html(), 'profile.employee-operations'));
+        $this->assertSame([], $this->children($component->html(), 'employees.profile.employee-operations'));
         Http::assertNothingSent();
     }
 
@@ -119,7 +119,7 @@ class EmployeeProfileMenuRefinementTest extends TestCase
 
     public function test_removed_overview_intro_does_not_remove_cards_or_their_native_editors(): void
     {
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id])
+        $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id])
             ->assertSuccessful()->assertDontSee('Die wichtigsten Angaben auf einen Blick')
             ->assertDontSee('Angaben direkt bearbeiten')->assertDontSee('Profilübersicht');
         $xpath = $this->xpath($component->html());
@@ -152,7 +152,7 @@ class EmployeeProfileMenuRefinementTest extends TestCase
     #[DataProvider('activeSections')]
     public function test_two_level_menu_keeps_manual_native_tabs_with_matching_ids_and_panels(string $tabKey, string $groupKey): void
     {
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id]);
+        $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id]);
         if ($tabKey !== 'userDetails') {
             $component->call('setProfileTab', $tabKey)->assertSuccessful();
         }
@@ -198,30 +198,30 @@ class EmployeeProfileMenuRefinementTest extends TestCase
     public function test_invalid_pending_edit_preserves_profile_default_before_switching_to_betrieb(): void
     {
         $original = $this->employee->email;
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id])
+        $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id])
             ->set('inlineValues.email', 'not-an-email')
             ->call('setProfileTab', 'operationsOverview')->assertHasErrors('inlineValues.email')
             ->assertSet('profileTab', 'userDetails')->assertSet('dirtyInlineFields', ['email']);
         $this->assertSame($original, $this->employee->fresh()->email);
-        $this->assertSame([], $this->children($component->html(), 'profile.employee-operations'));
+        $this->assertSame([], $this->children($component->html(), 'employees.profile.employee-operations'));
         $this->assertCount(1, $this->xpath($component->html())->query('//*[@data-panel-tab="userDetails" and @aria-selected="true"]'));
     }
 
     public function test_valid_pending_edit_saves_before_switching_to_operational_overview(): void
     {
         Profile::create(['user_id' => $this->employee->id, 'phone' => '+49 000 100']);
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id])
+        $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id])
             ->set('inlineValues.phone', '+49 000 200')
             ->call('setProfileTab', 'operationsOverview')->assertHasNoErrors()
             ->assertSet('profileTab', 'operationsOverview')->assertSet('dirtyInlineFields', [])
             ->assertDispatched('employee-profile-field-saved');
         $this->assertSame('+49 000 200', Profile::firstWhere('user_id', $this->employee->id)->phone);
-        $this->assertCount(1, $this->children($component->html(), 'profile.employee-operations'));
+        $this->assertCount(1, $this->children($component->html(), 'employees.profile.employee-operations'));
     }
 
     public function test_phone_setup_icons_are_before_account_facts_inside_one_segment_and_never_invent_permission_or_installation(): void
     {
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id])->assertSuccessful();
+        $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id])->assertSuccessful();
         $xpath = $this->xpath($component->html());
         $panels = $xpath->query('//*[@data-profile-identity]//*[@data-profile-phone-status]');
         $this->assertCount(1, $panels);
@@ -258,7 +258,7 @@ class EmployeeProfileMenuRefinementTest extends TestCase
         ]);
         $reader->teams()->attach($team->id);
         $reader->forceFill(['current_team_id' => $team->id])->save();
-        $component = Livewire::actingAs($reader->fresh())->test(UserProfile::class, ['userId' => $this->employee->id])
+        $component = Livewire::actingAs($reader->fresh())->test(EmployeeProfile::class, ['userId' => $this->employee->id])
             ->assertSuccessful()->assertSet('profileTab', 'userDetails');
         $this->assertCount(0, $this->xpath($component->html())->query('//*[@data-profile-phone-status]'));
         $this->assertCount(1, $this->xpath($component->html())->query('//*[@data-profile-identity]//*[@data-profile-status]//dl[contains(concat(" ",normalize-space(@class)," ")," employee-profile__facts ")]'));
@@ -302,13 +302,13 @@ class EmployeeProfileMenuRefinementTest extends TestCase
             'starts_on' => '2026-01-01',
             'abilities' => ['employees.master-data.view'],
         ], $this->admin);
-        $component = Livewire::actingAs($reader->fresh())->test(UserProfile::class, ['userId' => $this->employee->id])->assertSuccessful();
+        $component = Livewire::actingAs($reader->fresh())->test(EmployeeProfile::class, ['userId' => $this->employee->id])->assertSuccessful();
         $this->assertCount(1, $this->xpath($component->html())->query('//*[@data-profile-phone-status]'));
 
         $team->forceFill(['rbac_permissions' => ['employees.view' => true, 'employees.master-data.view' => true]])->save();
         $component->call('$refresh')->assertSuccessful()->assertSet('profileTab', 'userDetails');
         $this->assertCount(0, $this->xpath($component->html())->query('//*[@data-profile-phone-status]'));
-        $this->assertSame([], $this->children($component->html(), 'profile.employee-location-history'));
+        $this->assertSame([], $this->children($component->html(), 'employees.profile.employee-location-history'));
         $this->assertDatabaseCount('employee_location_points', 0);
         Http::assertNothingSent();
     }

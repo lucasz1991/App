@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\Employees\TeamRbacModal;
+use App\Livewire\Employees\TeamRbacModal;
 use App\Livewire\Admin\Settings;
 use App\Models\Team;
 use App\Models\User;

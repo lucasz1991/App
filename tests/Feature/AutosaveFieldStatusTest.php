@@ -82,7 +82,7 @@ class AutosaveFieldStatusTest extends TestCase
         $select = file_get_contents(resource_path('views/components/ui/forms/select.blade.php'));
         $inline = file_get_contents(resource_path('views/components/ui/inline-edit-field.blade.php'));
         $identity = file_get_contents(resource_path('views/livewire/profile/profile-identity-card.blade.php'));
-        $notes = file_get_contents(resource_path('views/livewire/admin/user-profile/user-notes.blade.php'));
+        $notes = file_get_contents(resource_path('views/livewire/employees/profile/user-notes.blade.php'));
         $settings = file_get_contents(resource_path('views/livewire/admin/settings.blade.php'));
 
         $this->assertStringContainsString('data-autosave-model="{{ $wireModel }}"', $select);
@@ -167,7 +167,7 @@ class AutosaveFieldStatusTest extends TestCase
     {
         $component = file_get_contents(app_path('Livewire/Profile/ProfileIdentityCard.php'));
         $identity = file_get_contents(resource_path('views/livewire/profile/profile-identity-card.blade.php'));
-        $notes = file_get_contents(resource_path('views/livewire/admin/user-profile/user-notes.blade.php'));
+        $notes = file_get_contents(resource_path('views/livewire/employees/profile/user-notes.blade.php'));
 
         $this->assertStringContainsString('Auth::user()->updateProfilePhoto($this->photo);', $component);
         $this->assertStringNotContainsString("'photo' => \$this->photo", $component);
@@ -181,8 +181,8 @@ class AutosaveFieldStatusTest extends TestCase
 
     public function test_batch_inline_events_keep_changed_fields_and_report_every_completed_snapshot_field(): void
     {
-        $employee = file_get_contents(app_path('Livewire/Admin/UserProfile.php'));
-        $notes = file_get_contents(app_path('Livewire/Admin/UserProfile/UserNotes.php'));
+        $employee = file_get_contents(app_path('Livewire/Employees/Profile.php'));
+        $notes = file_get_contents(app_path('Livewire/Employees/Profile/UserNotes.php'));
 
         $this->assertStringContainsString('fields: $changedFields', $employee);
         $this->assertStringContainsString('savedFields: $requestedFields', $employee);

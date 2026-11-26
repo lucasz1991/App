@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Livewire\Admin\Employees;
+namespace App\Livewire\Employees;
 
 use App\Models\Setting;
 use App\Models\Team;
@@ -290,7 +290,7 @@ class TeamRbacModal extends Component
             $permissionGroups = RbacCatalog::permissionGroups();
         }
 
-        return view('livewire.admin.employees.team-rbac-modal', [
+        return view('livewire.employees.team-rbac-modal', [
             'teams' => $teams,
             'permissionGroups' => $permissionGroups,
         ]);

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
-const blade = readFileSync(new URL('../../resources/views/livewire/profile/partials/employee-regions-address.blade.php', import.meta.url), 'utf8');
+const blade = readFileSync(new URL('../../resources/views/livewire/employees/profile/partials/employee-regions-address.blade.php', import.meta.url), 'utf8');
 const source = blade.match(/x-data="([\s\S]*?)" x-on:click.outside/)[1];
 function fixture() {
     const timers = new Map();

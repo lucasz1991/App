@@ -76,13 +76,13 @@
         @if($view === 'employees')
             @if($userId)
                 <x-ui.buttons.button-basic type="button" wire:click="showEmployees">Mitarbeiterliste</x-ui.buttons.button-basic>
-                <livewire:admin.user-profile :user-id="$userId" :embedded="true" :key="$contentKey" />
+                <livewire:employees.profile :user-id="$userId" :embedded="true" :key="$contentKey" />
             @else
-                <livewire:admin.employees :embedded="true" :key="$contentKey" />
+                <livewire:employees.index :embedded="true" :key="$contentKey" />
             @endif
         @elseif($view === 'documents')
             @if($userId)
-                <livewire:admin.user-profile.employee-documents :user-id="$userId" :key="$contentKey" />
+                <livewire:employees.profile.employee-documents :user-id="$userId" :key="$contentKey" />
             @else
                 <p class="ops-muted">Keine Mitarbeiter in dieser Ansicht.</p>
             @endif

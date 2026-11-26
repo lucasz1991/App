@@ -9464,6 +9464,37 @@ textarea.rt-wl-input,
     margin-top: 0;
 }
 
+/* Meldezettel: Angaben zum Zug (Vordruck VDV), zwei Spalten mit je zwei Kreuzen. */
+.rt-wl-train-details {
+    margin-top: 1.25rem;
+    border-top: 1px solid var(--wl-hair2);
+    padding-top: 1.1rem;
+}
+
+.rt-wl-train-details-title {
+    display: block;
+    color: var(--wl-ink);
+    font-size: 0.875rem;
+    font-weight: 650;
+}
+
+.rt-wl-train-details-grid {
+    display: grid;
+    gap: 0.75rem 2rem;
+    margin-top: 0.6rem;
+}
+
+.rt-wl-train-details .rt-wl-check-row {
+    padding-block: 0.45rem;
+    line-height: 1.35;
+}
+
+@media (min-width: 1536px) {
+    .rt-wl-train-details-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
 .rt-wl-extra {
     display: grid;
     gap: 0.5rem;

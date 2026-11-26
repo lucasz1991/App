@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\UserProfile;
+use App\Livewire\Employees\Profile as EmployeeProfile;
 use App\Models\Team;
 use App\Models\User;
 use DOMDocument;
@@ -72,7 +72,7 @@ class EmployeeProfileAccessAlertTest extends TestCase
         $this->employee->forceFill(['email_verified_at' => $verified ? now() : null, 'status' => $active])->save();
         $before = $this->employee->fresh()->getAttributes();
 
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, [
+        $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, [
             'userId' => $this->employee->id,
             'embedded' => $embedded,
         ])->assertSuccessful();
@@ -120,7 +120,7 @@ class EmployeeProfileAccessAlertTest extends TestCase
     #[DataProvider('nativeHosts')]
     public function test_next_native_rerender_uses_current_verification_without_changing_the_account(bool $embedded): void
     {
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id, 'embedded' => $embedded]);
+        $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id, 'embedded' => $embedded]);
         $component->assertSee('Mitarbeiter einladen');
 
         foreach ([[true, true], [true, false], [false, false], [false, true]] as [$verified, $active]) {
@@ -143,7 +143,7 @@ class EmployeeProfileAccessAlertTest extends TestCase
     public function test_unverified_non_staff_accounts_do_not_receive_employee_invitations(string $role): void
     {
         $this->employee->forceFill(['role' => $role])->save();
-        Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id])
+        Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id])
             ->assertSuccessful()->assertDontSee('data-account-invitation', false)->assertDontSee('Mitarbeiter einladen');
         $this->assertNoAccessSideEffects();
     }
@@ -156,20 +156,20 @@ class EmployeeProfileAccessAlertTest extends TestCase
     public function test_management_visibility_remains_gated_by_existing_employee_permission(): void
     {
         $manager = $this->manager(true);
-        $component = Livewire::actingAs($manager)->test(UserProfile::class, ['userId' => $this->employee->id])
+        $component = Livewire::actingAs($manager)->test(EmployeeProfile::class, ['userId' => $this->employee->id])
             ->assertSuccessful()->assertSee('data-account-invitation', false);
         $this->employee->forceFill(['email_verified_at' => now()])->save();
         $component->call('setProfileTab', 'userDetails')->assertSuccessful()->assertDontSee('data-account-invitation', false);
 
-        Livewire::actingAs($this->manager(false))->test(UserProfile::class, ['userId' => $this->employee->id])->assertForbidden();
-        Livewire::actingAs($this->employee->fresh())->test(UserProfile::class, ['userId' => $this->employee->id])->assertForbidden();
+        Livewire::actingAs($this->manager(false))->test(EmployeeProfile::class, ['userId' => $this->employee->id])->assertForbidden();
+        Livewire::actingAs($this->employee->fresh())->test(EmployeeProfile::class, ['userId' => $this->employee->id])->assertForbidden();
         $this->assertNoAccessSideEffects();
     }
 
     public function test_inactive_management_actor_does_not_gain_an_invitation_hint(): void
     {
         $this->admin->forceFill(['status' => false])->save();
-        Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id])
+        Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id])
             ->assertSuccessful()->assertDontSee('data-account-invitation', false);
         $this->assertNoAccessSideEffects();
     }

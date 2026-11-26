@@ -154,7 +154,7 @@ class OperationsEnhancementsTest extends TestCase
         Livewire::test(\App\Livewire\Admin\DutyActivityCatalog::class)
             ->call('edit', $activity->id)->set('form.description', 'Interne Beschreibung')->set('form.qualification_bundle_id', $bundle->id)
             ->set('form.requirements_confirmed', true)->call('save')->assertHasNoErrors();
-        Livewire::test(\App\Livewire\Admin\EmployeeDutyActivities::class, ['userId' => $this->employee->id])
+        Livewire::test(\App\Livewire\Employees\Profile\EmployeeDutyActivities::class, ['userId' => $this->employee->id])
             ->set('activityId', $activity->id)->call('assign')->assertSee('Wagenuntersuchung');
         $this->assertDatabaseCount('employee_qualifications', 0);
         $team = DB::table('teams')->insertGetId(['name' => 'Mitarbeiter', 'user_id' => $this->admin->id]);

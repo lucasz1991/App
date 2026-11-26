@@ -3,7 +3,7 @@
         @foreach($phoneStatus['rows'] as $statusKey => $status)
             <div class="employee-profile__status-item" wire:key="{{ $profilePrefix }}-status-phone-{{ $statusKey }}" data-phone-status="{{ $statusKey }}" data-status="{{ $status['state'] }}">
                 <dt>
-                    @include('livewire.admin.user-profile.partials.status-indicator', [
+                    @include('livewire.employees.profile.partials.status-indicator', [
                         'indicatorKey' => 'phone-'.$statusKey,
                         'indicatorLabel' => $status['label'],
                         'indicatorValue' => $status['value'],

@@ -49,7 +49,7 @@ class WagonListExportController extends Controller
 
     private function validatedPayload(Request $request): array
     {
-        // Felder und Grenzen folgen der Excel-Wagenliste v16_5. Zahlen dürfen
+        // Felder und Grenzen folgen der Excel-Wagenliste v17. Zahlen dürfen
         // mit Komma kommen (deutsche Eingabe), deshalb keine numeric-Regel.
         $number = ['nullable', 'regex:/\A\d{1,6}(?:[.,]\d{1,3})?\z/'];
         $yesNo = ['nullable', 'in:yes,no'];
@@ -117,9 +117,10 @@ class WagonListExportController extends Controller
             'brakeSheet.epBrake' => $yesNo,
             'brakeSheet.issuerName' => ['nullable', 'string', 'max:160'],
             'report' => ['nullable', 'array'],
-            'report.papers' => ['nullable', 'in:electronic,paper,both,none'],
-            'report.transportOrder' => ['nullable', 'in:complete,standing,none'],
-            'report.uicCheck' => $yesNo,
+            // Neben den Werten der v17 auch die der früheren, längeren Fassung,
+            // damit ein vor dem Update geöffneter Entwurf noch exportiert.
+            'report.papers' => ['nullable', 'in:complete,none,electronic,paper,both'],
+            'report.transportOrder' => ['nullable', 'in:complete,standingOrNone,standing,none'],
             'report.tasks' => ['nullable', 'array'],
             'report.tasks.*' => ['boolean'],
             'report.wagonInspectionLevel' => ['nullable', 'in:1,2,3,4'],

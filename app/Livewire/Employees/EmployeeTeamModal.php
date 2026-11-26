@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Livewire\Admin\Employees;
+namespace App\Livewire\Employees;
 
 use App\Services\Personnel\EmployeeTeamService;
 use Livewire\Attributes\Locked;
@@ -61,6 +61,6 @@ class EmployeeTeamModal extends Component
             $teams = $service->availableTeams();
         }
 
-        return view('livewire.admin.employees.employee-team-modal', compact('employees', 'teams', 'canManage'));
+        return view('livewire.employees.employee-team-modal', compact('employees', 'teams', 'canManage'));
     }
 }

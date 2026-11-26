@@ -213,7 +213,7 @@ class OperationsPageNavigationTest extends TestCase
         $this->operations();
         $actor = $this->actor(['employees.view']);
         $this->actingAs($actor);
-        foreach (['employees.index' => '/employees', 'employees.show' => '/employees/12', 'admin.employees' => '/administrator/employees', 'admin.user-profile' => '/administrator/user/12'] as $name => $path) {
+        foreach (['employees.index' => '/employees', 'employees.show' => '/employees/12'] as $name => $path) {
             $request = Request::create($path);
             $route = new Route('GET', ltrim($path, '/'), fn () => response(''));
             $route->name($name);

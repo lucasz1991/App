@@ -129,7 +129,7 @@
         <div class="rt-personnel-timeline-name min-w-0" data-timeline-person-column wire:key="staff-person-{{ $row['user']->id }}" @if($focus['shift']) data-focus-fit="{{ $focus['candidates']->has($row['user']->id) ? 'eligible' : 'blocked' }}" @endif>
             <div class="rt-timeline-person-summary">
             <x-user.person-anchor-preview :user="$row['user']"
-                :profile-url="$personCanViewProfile ? route($personViewer->usesAdminLayout() ? 'admin.user-profile' : 'employees.show', $row['user']->id) : null"
+                :profile-url="$personCanViewProfile ? route('employees.show', $row['user']->id) : null"
                 :can-message="$personCanMessage && $personCanCommunicate" :can-chat="$personCanCommunicate" :can-call="$personCanCall"
                 chat-action="openDirectChat" call-action="startDirectCall" :show-presence="false"
                 trigger-classes="flex min-w-0 w-full">
@@ -334,6 +334,6 @@
     </x-ui.dropdown.anchor-dropdown>
 @endif
 @if($personCanMessage)
-    <livewire:admin.users.messages.message-form :key="'timeline-message-form-'.$this->getId()" />
+    <livewire:messages.message-form :key="'timeline-message-form-'.$this->getId()" />
 @endif
 </section>

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Livewire\Admin;
+namespace App\Livewire\Files;
 
 use App\Models\FilePool;
 use Illuminate\Support\Facades\Gate;
@@ -25,7 +25,7 @@ class FileManager extends Component
     public function render()
     {
         Gate::authorize('files.manage');
-        return view('livewire.admin.file-manager')
+        return view('livewire.files.file-manager')
             ->layout('layouts.master', ['area' => 'admin']);
     }
 }

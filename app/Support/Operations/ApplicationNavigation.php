@@ -185,7 +185,7 @@ final class ApplicationNavigation
     public static function active(array $link): bool
     {
         if ($link['route'] === 'operations.page') {
-            if ($link['parameters']['page'] === 'people' && request()->routeIs('admin.employees', 'employees.index', 'admin.user-profile', 'employees.show')) {
+            if ($link['parameters']['page'] === 'people' && request()->routeIs('employees.index', 'employees.show')) {
                 return true;
             }
             $page = request()->route('page');
@@ -234,8 +234,8 @@ final class ApplicationNavigation
             return $area === ($link['parameters']['area'] ?? 'work');
         }
         $patterns = match ($link['route']) {
-            'admin.dashboard' => ['admin.dashboard', 'admin.index'],
-            'admin.employees', 'employees.index' => [$link['route'], 'employees.show'],
+            'admin.dashboard' => ['admin.dashboard'],
+            'employees.index' => ['employees.index', 'employees.show'],
             'devices.mine' => ['devices.mine', 'devices.enrollment'],
             'admin.devices', 'devices.index' => ['admin.devices', 'devices.index'],
             'admin.marketing.creatives.index' => ['admin.marketing.creatives.*'],

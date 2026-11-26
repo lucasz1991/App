@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Livewire\Admin\UserProfile;
+namespace App\Livewire\Employees\Profile;
 
 use App\Models\User;
 use App\Models\UserNote;
@@ -225,7 +225,7 @@ class UserNotes extends Component
             ->latest()
             ->get();
 
-        return view('livewire.admin.user-profile.user-notes', [
+        return view('livewire.employees.profile.user-notes', [
             'notes' => $notes,
         ]);
     }

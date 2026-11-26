@@ -8,10 +8,7 @@
     data-app-badge-count="{{ $totalUnreadCount }}"
 >
     @php
-        $viewer = auth()->user();
-        $messageRoute = $viewer?->usesAdminLayout()
-            ? route('admin.messages')
-            : route('messages');
+        $messageRoute = route('messages');
     @endphp
 
     <x-ui.dropdown.anchor-dropdown align="right" width="w-96"

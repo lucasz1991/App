@@ -77,7 +77,7 @@ final class PageHelpCatalog
                 ],
                 'Grundlagen',
                 'home',
-                ['dashboard', 'admin.dashboard', 'admin.index'],
+                ['dashboard', 'admin.dashboard'],
             ),
             $this->entry(
                 'Mitarbeiterübersicht',
@@ -98,7 +98,7 @@ final class PageHelpCatalog
                 ],
                 'Administration',
                 'users',
-                ['employees.index', 'admin.employees'],
+                ['employees.index'],
                 true,
             ),
             $this->entry(
@@ -120,7 +120,7 @@ final class PageHelpCatalog
                 ],
                 'Administration',
                 'user-check',
-                ['admin.employees', 'employees.show', 'admin.user-profile'],
+                ['employees.index', 'employees.show'],
                 true,
             ),
             $this->entry(
@@ -248,7 +248,7 @@ final class PageHelpCatalog
                 ],
                 'Kommunikation',
                 'mail',
-                ['messages', 'admin.messages'],
+                ['messages'],
             ),
             $this->entry(
                 'Chat',
@@ -490,7 +490,7 @@ final class PageHelpCatalog
                 ],
                 'Administration',
                 'users',
-                ['admin.employees'],
+                ['employees.index'],
                 true,
             ),
             $this->entry(

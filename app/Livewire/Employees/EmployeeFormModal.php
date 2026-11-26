@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Livewire\Admin\Employees;
+namespace App\Livewire\Employees;
 
 use App\Models\Team;
 use App\Models\User;
@@ -346,7 +346,7 @@ class EmployeeFormModal extends Component
             $state = app(EmployeeTeamService::class)->editorState($this->userId, $this->selected_team_ids);
         }
 
-        return view('livewire.admin.employees.employee-form-modal', [
+        return view('livewire.employees.employee-form-modal', [
             ...$state,
             'canManageTeams' => $canManageTeams,
             'canViewMasterData' => Gate::allows('employees.master-data.view'),

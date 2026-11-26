@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Livewire\Profile;
+namespace App\Livewire\Employees\Profile;
 
 use App\Services\Operations\EmployeeOperationsService;
 use Illuminate\Contracts\View\View;
@@ -130,7 +130,7 @@ class EmployeeOperations extends Component
             $this->paginators[EmployeeOperationsService::PAGE_NAME] = $view['records']->currentPage();
         }
 
-        return view('livewire.profile.employee-operations', ['employeeOperations' => $view]);
+        return view('livewire.employees.profile.employee-operations', ['employeeOperations' => $view]);
     }
 
     private function authorizeProfile(): void

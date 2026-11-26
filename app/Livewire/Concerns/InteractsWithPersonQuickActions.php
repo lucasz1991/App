@@ -2,7 +2,7 @@
 
 namespace App\Livewire\Concerns;
 
-use App\Livewire\Admin\Users\Messages\MessageForm;
+use App\Livewire\Messages\MessageForm;
 use App\Models\Chat;
 use App\Models\User;
 use App\Services\Calls\CallAvailabilityService;

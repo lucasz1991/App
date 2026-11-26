@@ -1,7 +1,7 @@
 <x-tables.row-actions class="rt-employee-action-trigger" :label="__('app.actions').': '.$item->name">
     @if (auth()->user()->canViewManagementDashboard())
         <x-ui.dropdown.dropdown-link
-            href="{{ route(auth()->user()->usesAdminLayout() ? 'admin.user-profile' : 'employees.show', $item->id) }}"
+            href="{{ route('employees.show', $item->id) }}"
             :can="'users.profiles.view'"
         >
             <i class="far fa-id-card" aria-hidden="true"></i>

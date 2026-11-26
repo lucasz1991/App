@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Livewire\Admin\UserProfile;
+namespace App\Livewire\Employees\Profile;
 
 use App\Models\EmployeeDocumentRequirement;
 use App\Models\User;
@@ -96,7 +96,7 @@ class EmployeeDocuments extends Component
 
         $this->currentFileIds = $requirements->map(fn ($requirement) => $requirement->file?->id)->all();
 
-        return view('livewire.admin.user-profile.employee-documents', [
+        return view('livewire.employees.profile.employee-documents', [
             'requirements' => $requirements,
             'types' => EmployeeDocumentRequirement::TYPES,
             'canEdit' => EmployeeDocumentVersionService::ready() && Gate::allows('employees.master-data.edit'),

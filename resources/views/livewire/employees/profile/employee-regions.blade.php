@@ -95,7 +95,7 @@
                 <button type="button" data-choice class="rt-regions__remove-state" x-on:click="chooseRegion(null)" x-bind:disabled="busy || currentZone() === null"><i class="far fa-trash-alt" aria-hidden="true"></i><span>Zuordnung entfernen</span></button>
             </div>
             <div class="rt-regions__radius-panel" x-cloak x-show="mode === 'radius' && !exclusionsOpen">
-                @include('livewire.profile.partials.employee-regions-address')
+                @include('livewire.employees.profile.partials.employee-regions-address')
                 <fieldset class="rt-regions__radius-fields"><legend class="sr-only">Radius je Zone</legend>
                     @foreach($zones as $zone => $definition)
                     <label data-zone="{{ $zone }}" for="region-radius-{{ $userId }}-{{ $zone }}"><span>{{ $definition['label'] }}</span><span class="rt-regions__unit"><x-ui.forms.number-input :stepper="false" :id="'region-radius-'.$userId.'-'.$zone" min="1" :max="$zone === 'preferred' ? 1000 : 2000" wire:model.live.blur="preferences.{{ $definition['radius'] }}" :placeholder="$zone === 'emergency' ? '–' : null" /><span>km</span></span></label>

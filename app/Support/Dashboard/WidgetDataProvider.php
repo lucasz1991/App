@@ -599,7 +599,7 @@ class WidgetDataProvider
             'faces' => $staff()->where('status', true)->latest()->limit(6)->get(['id', 'name', 'profile_photo_path']),
             'tone' => 'brand',
             'recent' => $rows === 2 ? $staff()->latest()->limit(3)->get(['id', 'name', 'created_at', 'profile_photo_path']) : collect(),
-            'href' => route($user->isAdmin() ? 'admin.employees' : 'employees.index'),
+            'href' => route('employees.index'),
         ];
     }
 

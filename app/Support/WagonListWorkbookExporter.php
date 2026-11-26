@@ -10,7 +10,7 @@ use RuntimeException;
 use ZipArchive;
 
 /**
- * Füllt die Excel-Wagenliste v16_5 (Blätter Wagenliste, Bremszettel,
+ * Füllt die Excel-Wagenliste v17 (Blätter Wagenliste, Bremszettel,
  * Meldezettel) mit einem Entwurf aus dem Browser.
  *
  * Die Vorlage rechnet selbst: Geschrieben werden nur Eingabefelder, alle
@@ -21,7 +21,7 @@ use ZipArchive;
  */
 class WagonListWorkbookExporter
 {
-    public const TEMPLATE = 'templates/RT-WAGENLISTE_v16_5.xlsx';
+    public const TEMPLATE = 'templates/RT-WAGENLISTE_v17.xlsx';
 
     private const MAIN_NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
 
@@ -254,9 +254,14 @@ class WagonListWorkbookExporter
             'E33' => 'passengerFeatureTb0',
             'E34' => 'passengerFeatureOZub',
             'E35' => 'passengerFeatureOther',
-            'E37' => 'epBrake',
         ] as $reference => $field) {
             $this->setString($document, $xpath, $reference, $this->strikeChoice($choices['yesNo'], Arr::get($brakeSheet, $field)));
+        }
+
+        // ep-Bremse: Die Vorlage gibt seit v16_6 „nein“ vor; nur eine Angabe
+        // aus der App ersetzt die Vorgabe.
+        if (in_array(Arr::get($brakeSheet, 'epBrake'), ['yes', 'no'], true)) {
+            $this->setString($document, $xpath, 'E37', $this->strikeChoice($choices['yesNo'], Arr::get($brakeSheet, 'epBrake')));
         }
 
         // Gefahrgut leitet die Vorlage aus UN-Nummer und Gefahrzettel ab;
@@ -312,22 +317,27 @@ class WagonListWorkbookExporter
         $this->clearFormulaResults($xpath);
 
         $this->setString($document, $xpath, 'AF12', Arr::get($meta, 'track'));
-        $this->setString($document, $xpath, 'H14', Arr::get($meta, 'customer'));
+        $this->setString($document, $xpath, 'AF14', Arr::get($meta, 'customer'));
 
-        $this->markChoice($document, $xpath, $mark, Arr::get($report, 'papers'), [
-            'electronic' => 'C18',
-            'paper' => 'C19',
-            'both' => 'C20',
-            'none' => 'C21',
+        // Angaben zum Zug (Zeilen 17/18, Vordruck VDV). Werte der früheren,
+        // längeren Fassung des Blocks werden wie im Browser abgebildet.
+        $papers = match ((string) Arr::get($report, 'papers', '')) {
+            'complete', 'electronic', 'paper', 'both' => 'complete',
+            'none' => 'none',
+            default => '',
+        };
+        $transportOrder = match ((string) Arr::get($report, 'transportOrder', '')) {
+            'complete' => 'complete',
+            'standingOrNone', 'standing', 'none' => 'standingOrNone',
+            default => '',
+        };
+        $this->markChoice($document, $xpath, $mark, $papers, [
+            'complete' => 'C17',
+            'none' => 'C18',
         ]);
-        $this->markChoice($document, $xpath, $mark, Arr::get($report, 'transportOrder'), [
-            'complete' => 'W17',
-            'standing' => 'W18',
-            'none' => 'W21',
-        ]);
-        $this->markChoice($document, $xpath, $mark, Arr::get($report, 'uicCheck'), [
-            'yes' => 'AF22',
-            'no' => 'AI22',
+        $this->markChoice($document, $xpath, $mark, $transportOrder, [
+            'complete' => 'U17',
+            'standingOrNone' => 'U18',
         ]);
 
         foreach ([
@@ -375,8 +385,8 @@ class WagonListWorkbookExporter
             'AF10' => $date,
             'H12' => $this->text(Arr::get($meta, 'origin')),
             'T12' => $this->text(Arr::get($meta, 'destination')),
-            'T14' => $sheet['firstVehicle'],
-            'AF14' => $sheet['lastVehicle'],
+            'H14' => $sheet['firstVehicle'],
+            'T14' => $sheet['lastVehicle'],
             'C25' => $sheet['firstVehicle'],
             'V25' => $sheet['lastVehicle'],
         ] as $reference => $value) {
@@ -780,6 +790,7 @@ class WagonListWorkbookExporter
     private function setString(DOMDocument $document, DOMXPath $xpath, string $reference, mixed $value): void
     {
         $cell = $this->cell($document, $xpath, $reference);
+        $this->releaseSharedFormula($xpath, $cell);
         $this->clearCell($cell);
 
         $text = $this->text($value);
@@ -801,6 +812,7 @@ class WagonListWorkbookExporter
     private function setNumber(DOMDocument $document, DOMXPath $xpath, string $reference, ?float $value): void
     {
         $cell = $this->cell($document, $xpath, $reference);
+        $this->releaseSharedFormula($xpath, $cell);
         $this->clearCell($cell);
         $cell->removeAttribute('t');
 
@@ -945,6 +957,91 @@ class WagonListWorkbookExporter
         while ($cell->firstChild) {
             $cell->removeChild($cell->firstChild);
         }
+    }
+
+    /**
+     * Excel speichert gleiche Formeln einer Spalte als gemeinsame Formel: Nur
+     * die erste Zelle (z. B. H7 für H7:H46, Gattung) trägt den Formeltext,
+     * die übrigen verweisen auf sie. Überschreibt der Export diese erste Zelle
+     * mit einem Wert, fehlt den übrigen die Formel und Excel meldet die Datei
+     * als beschädigt. Deshalb bekommen vorher alle abhängigen Zellen ihre
+     * eigene, auf ihre Position verschobene Formel.
+     */
+    private function releaseSharedFormula(DOMXPath $xpath, DOMElement $cell): void
+    {
+        $formula = $xpath->query('./x:f[@t="shared"][@ref]', $cell)->item(0);
+        if (! $formula instanceof DOMElement || $formula->textContent === '') {
+            return;
+        }
+
+        $group = $formula->getAttribute('si');
+        [$masterColumn, $masterRow] = $this->splitReference($cell->getAttribute('r'));
+
+        foreach (iterator_to_array($xpath->query('//x:sheetData/x:row/x:c/x:f[@t="shared"][@si="'.$group.'"]')) as $dependent) {
+            if (! $dependent instanceof DOMElement || $dependent === $formula) {
+                continue;
+            }
+
+            $owner = $dependent->parentNode;
+            if (! $owner instanceof DOMElement) {
+                continue;
+            }
+
+            [$column, $row] = $this->splitReference($owner->getAttribute('r'));
+            $dependent->removeAttribute('t');
+            $dependent->removeAttribute('si');
+            $dependent->removeAttribute('ref');
+            $dependent->textContent = $this->shiftFormula(
+                $formula->textContent,
+                $row - $masterRow,
+                $column - $masterColumn
+            );
+        }
+    }
+
+    /** @return array{0: int, 1: int} Spalte und Zeile eines Zellbezugs */
+    private function splitReference(string $reference): array
+    {
+        preg_match('/\A([A-Z]{1,3})(\d{1,7})\z/', $reference, $match);
+
+        return [$this->columnIndex($match[1] ?? 'A'), (int) ($match[2] ?? 1)];
+    }
+
+    /** Relative Bezüge einer Formel verschieben (wie beim Kopieren in Excel); Texte in Anführungszeichen bleiben unberührt. */
+    private function shiftFormula(string $formula, int $rows, int $columns): string
+    {
+        $parts = preg_split('/("(?:[^"]|"")*")/', $formula, -1, PREG_SPLIT_DELIM_CAPTURE) ?: [$formula];
+
+        foreach ($parts as $index => $part) {
+            if ($index % 2 === 1) {
+                continue;
+            }
+
+            $parts[$index] = (string) preg_replace_callback(
+                '/(?<![A-Za-z0-9_.])(\$?)([A-Z]{1,3})(\$?)(\d{1,7})(?![A-Za-z0-9_(.])/',
+                function (array $match) use ($rows, $columns): string {
+                    $column = $match[1] === '' ? $this->columnLetters($this->columnIndex($match[2]) + $columns) : $match[2];
+                    $row = $match[3] === '' ? (int) $match[4] + $rows : (int) $match[4];
+
+                    return $match[1].$column.$match[3].$row;
+                },
+                $part
+            );
+        }
+
+        return implode('', $parts);
+    }
+
+    private function columnLetters(int $index): string
+    {
+        $letters = '';
+        while ($index > 0) {
+            $remainder = ($index - 1) % 26;
+            $letters = chr(65 + $remainder).$letters;
+            $index = intdiv($index - 1, 26);
+        }
+
+        return $letters;
     }
 
     /**

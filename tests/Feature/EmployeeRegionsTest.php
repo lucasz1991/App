@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\UserProfile;
-use App\Livewire\Profile\EmployeeRegions;
+use App\Livewire\Employees\Profile as EmployeeProfile;
+use App\Livewire\Employees\Profile\EmployeeRegions;
 use App\Models\OperationAudit;
 use App\Models\Shift;
 use App\Models\StaffRegionalPreference;
@@ -632,7 +632,7 @@ class EmployeeRegionsTest extends TestCase
 
     public function test_profile_navigation_places_employee_records_in_their_existing_authorized_sections(): void
     {
-        Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id])
+        Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id])
             ->assertViewHas('employeeProfileTabs', function (array $tabs): bool {
                 foreach ([
                     'regions' => 'Betrieb', 'planReviews' => 'Betrieb',
@@ -647,7 +647,7 @@ class EmployeeRegionsTest extends TestCase
                 return true;
             })->call('setProfileTab', 'regions')->assertSuccessful()->assertSeeLivewire(EmployeeRegions::class)
             ->assertSet('userId', $this->employee->id);
-        Livewire::actingAs($this->manager(['employees.view']))->test(UserProfile::class, ['userId' => $this->employee->id])
+        Livewire::actingAs($this->manager(['employees.view']))->test(EmployeeProfile::class, ['userId' => $this->employee->id])
             ->assertViewHas('employeeProfileTabs', fn (array $tabs): bool => ! isset($tabs['regions']))
             ->call('setProfileTab', 'regions')->assertForbidden();
     }
@@ -657,7 +657,7 @@ class EmployeeRegionsTest extends TestCase
     {
         $actor = $fullAccess ? $this->admin : $this->manager(['employees.view']);
         $component = Livewire::actingAs($actor)->withQueryParams(['profileTab' => $requestedTab])
-            ->test(UserProfile::class, ['userId' => $this->employee->id])
+            ->test(EmployeeProfile::class, ['userId' => $this->employee->id])
             ->assertSuccessful()->assertSet('profileTab', $expectedTab)
             ->assertSet('userId', $this->employee->id);
         if ($expectedTab === 'regions') {

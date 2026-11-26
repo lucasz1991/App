@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\UserProfile;
+use App\Livewire\Employees\Profile as EmployeeProfile;
 use App\Models\Device;
 use App\Models\DeviceAssignment;
 use App\Models\Team;
@@ -65,7 +65,7 @@ class EmployeeProfileCompactHeaderUiTest extends TestCase
     #[DataProvider('profileModes')]
     public function test_device_and_account_icons_share_one_compact_segment_on_both_native_hosts(bool $embedded): void
     {
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, [
+        $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, [
             'userId' => $this->employee->id,
             'embedded' => $embedded,
         ])->assertSuccessful()->assertSet('profileTab', 'userDetails');
@@ -111,7 +111,7 @@ class EmployeeProfileCompactHeaderUiTest extends TestCase
         Profile::create(['user_id' => $this->employee->id, 'position' => 'Wagenmeister Fixture']);
         $team = Team::forceCreate(['user_id' => $this->admin->id, 'name' => 'Region Nord Fixture', 'personal_team' => false]);
         $this->employee->forceFill(['current_team_id' => $team->id])->save();
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, [
+        $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, [
             'userId' => $this->employee->id,
             'embedded' => $embedded,
         ])->assertSuccessful()->assertSet('profileTab', 'userDetails');
@@ -277,7 +277,7 @@ class EmployeeProfileCompactHeaderUiTest extends TestCase
     {
         Profile::create(['user_id' => $this->employee->id, 'personnel_nr' => 'PRIVATE-PERSONNEL-FIXTURE']);
         $reader = $this->reader(['employees.view']);
-        $component = Livewire::actingAs($reader)->test(UserProfile::class, ['userId' => $this->employee->id])
+        $component = Livewire::actingAs($reader)->test(EmployeeProfile::class, ['userId' => $this->employee->id])
             ->assertSuccessful()->assertDontSee('PRIVATE-PERSONNEL-FIXTURE');
         $xpath = $this->xpath($component->html());
         $this->assertCount(1, $xpath->query('//*[@data-profile-status]'));
@@ -413,7 +413,7 @@ class EmployeeProfileCompactHeaderUiTest extends TestCase
 
     private function profileComponent()
     {
-        return Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id])->assertSuccessful();
+        return Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id])->assertSuccessful();
     }
 
     private function reader(array $abilities): User

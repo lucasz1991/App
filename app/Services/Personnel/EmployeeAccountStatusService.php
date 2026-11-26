@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * Konto aktivieren, deaktivieren und löschen – eine Regel für die
- * Mitarbeiterliste (Admin\Employees) und das Profil (Admin\UserProfile).
+ * Mitarbeiterliste (Employees\Index) und das Profil (Employees\Profile).
  *
  * - Aktivieren/Deaktivieren: Fähigkeit employees.create, Löschen: employees.delete.
  * - Der Akteur muss aktiv sein; das Ziel muss im eigenen Zuständigkeitsbereich

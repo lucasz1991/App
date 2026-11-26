@@ -8,5 +8,5 @@
     panel-class="employee-directory__filter-panel"
     class="employee-directory__filter-trigger"
 >
-    @include('livewire.admin.employees.directory-filters')
+    @include('livewire.employees.directory-filters')
 </x-tables.filter-dropdown>

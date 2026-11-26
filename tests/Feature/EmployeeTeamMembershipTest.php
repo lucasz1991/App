@@ -3,8 +3,8 @@
 namespace Tests\Feature;
 
 use App\Jobs\RefreshOutlookAddinUserSnapshot;
-use App\Livewire\Admin\Employees\EmployeeFormModal;
-use App\Livewire\Admin\Employees\EmployeeTeams;
+use App\Livewire\Employees\EmployeeFormModal;
+use App\Livewire\Employees\EmployeeTeams;
 use App\Models\Team;
 use App\Models\User;
 use App\Models\UserProfile;

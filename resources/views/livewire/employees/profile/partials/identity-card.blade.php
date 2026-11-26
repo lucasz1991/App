@@ -142,13 +142,13 @@
           <h2 id="{{ $profilePrefix }}-status-title">Einrichtungs Status</h2>
           <div class="employee-profile__status-rail">
               @if($phoneStatus !== null)
-                  <livewire:profile.employee-phone-status :user-id="(int) $user->id" :profile-prefix="$profilePrefix" :key="$profilePrefix.'-phone-status-'.$user->id" />
+                  <livewire:employees.profile.employee-phone-status :user-id="(int) $user->id" :profile-prefix="$profilePrefix" :key="$profilePrefix.'-phone-status-'.$user->id" />
               @endif
               <dl class="employee-profile__status-group employee-profile__facts" aria-label="Konto und Aktivität">
                   @foreach ($identityFacts as $fact)
                       <div class="employee-profile__status-item" wire:key="{{ $profilePrefix }}-status-account-{{ $fact['key'] }}" data-profile-fact="{{ $fact['key'] }}">
                           <dt>
-                              @include('livewire.admin.user-profile.partials.status-indicator', [
+                              @include('livewire.employees.profile.partials.status-indicator', [
                                   'indicatorKey' => 'account-'.$fact['key'],
                                   'indicatorLabel' => $fact['label'],
                                   'indicatorValue' => $fact['value'],

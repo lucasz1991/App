@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Livewire\Profile;
+namespace App\Livewire\Employees\Profile;
 
 use App\Models\Shift;
 use App\Services\Operations\EmployeeOperationsService;
@@ -266,7 +266,7 @@ class EmployeeRegions extends Component
             }
         }
 
-        return view('livewire.profile.employee-regions', [
+        return view('livewire.employees.profile.employee-regions', [
             'states' => $states, 'statePaths' => GermanFederalStates::paths(), 'selectedStates' => $selected,
             'zones' => self::ZONES, 'base' => $base, 'basePoint' => $point, 'rings' => $rings,
             'ready' => app(StaffRegionalPreferenceService::class)->ready(),

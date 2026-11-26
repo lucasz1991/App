@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Livewire\Admin\UserProfile;
+namespace App\Livewire\Employees\Profile;
 
 use App\Livewire\Concerns\ManagesOutlookPreferences;
 use App\Models\User;
@@ -54,6 +54,6 @@ final class OutlookPreferences extends Component
     {
         app(OutlookEmployeePreferencesAccess::class)->resolve($this->outlookManagingActor(), $this->outlookTargetUser());
 
-        return view('livewire.admin.user-profile.outlook-preferences');
+        return view('livewire.employees.profile.outlook-preferences');
     }
 }

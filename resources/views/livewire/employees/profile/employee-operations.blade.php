@@ -29,17 +29,17 @@
                 <header class="employee-operations__section-heading"><h3 id="employee-next-shift-{{ $userId }}">{{ count($employeeOperations['current']) ? 'Aktuell im Plan' : 'Nächster Einsatz' }}</h3><i class="far fa-calendar-alt" aria-hidden="true"></i></header>
                 @if(count($employeeOperations['current']))
                     @foreach($employeeOperations['current'] as $shift)
-                        @include('livewire.profile.partials.employee-shift-preview', ['shift' => $shift, 'featured' => true])
+                        @include('livewire.employees.profile.partials.employee-shift-preview', ['shift' => $shift, 'featured' => true])
                     @endforeach
                 @elseif(count($employeeOperations['next']))
-                    @include('livewire.profile.partials.employee-shift-preview', ['shift' => $employeeOperations['next'][0], 'featured' => true])
+                    @include('livewire.employees.profile.partials.employee-shift-preview', ['shift' => $employeeOperations['next'][0], 'featured' => true])
                 @else
                     <div class="employee-operations__empty-duty"><i class="far fa-calendar-check" aria-hidden="true"></i><h4>Kein weiterer Einsatz eingeplant</h4><p>Für diesen Mitarbeiter liegen aktuell keine offenen oder bestätigten zukünftigen Zuordnungen vor.</p></div>
                 @endif
                 <p class="employee-operations__notice">Planungsdaten, keine Live-Anwesenheit. Angefragte Zuordnungen sind noch nicht bestätigt.</p>
                 <div class="employee-operations__past-heading"><h4>Zuletzt im Verlauf</h4><span>Nach geplantem Endzeitpunkt</span></div>
                 @forelse($employeeOperations['previous'] as $shift)
-                    @include('livewire.profile.partials.employee-shift-preview', ['shift' => $shift, 'featured' => false])
+                    @include('livewire.employees.profile.partials.employee-shift-preview', ['shift' => $shift, 'featured' => false])
                 @empty
                     <p class="employee-operations__empty-context">Noch keine vergangenen Schichtzuordnungen.</p>
                 @endforelse
@@ -51,7 +51,7 @@
                     $nextShifts = count($employeeOperations['current']) ? $employeeOperations['next'] : array_slice($employeeOperations['next'], 1);
                 @endphp
                 @forelse($nextShifts as $shift)
-                    @include('livewire.profile.partials.employee-shift-preview', ['shift' => $shift, 'featured' => false])
+                    @include('livewire.employees.profile.partials.employee-shift-preview', ['shift' => $shift, 'featured' => false])
                 @empty
                     <p class="employee-operations__empty-context">Keine weiteren bevorstehenden Einsätze.</p>
                 @endforelse

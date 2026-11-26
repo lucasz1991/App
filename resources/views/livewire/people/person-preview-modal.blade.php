@@ -42,7 +42,7 @@
                     <x-user.quick-actions
                         :user="$person"
                         :profile-url="$viewer->canViewManagementDashboard()
-                            ? route($viewer->usesAdminLayout() ? 'admin.user-profile' : 'employees.show', $person->id)
+                            ? route('employees.show', $person->id)
                             : null"
                         :can-chat="$canReachPerson"
                         :can-call="$canCallPerson"

@@ -1,8 +1,7 @@
 <?php
 
-namespace App\Livewire\Admin;
+namespace App\Livewire\Employees;
 
-use App\Livewire\Admin\Employees\EmployeeTeamModal;
 use App\Livewire\Concerns\InteractsWithPersonQuickActions;
 use App\Models\DeviceAssignment;
 use App\Models\User;
@@ -25,7 +24,7 @@ use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
-class UserProfile extends Component
+class Profile extends Component
 {
     // Chat, Anruf und Nachricht wie in der Personen-Schnellansicht.
     use InteractsWithPersonQuickActions;
@@ -251,7 +250,7 @@ class UserProfile extends Component
 
     /**
      * Admin-Konten duerfen nur von Admins verwaltet werden
-     * (gleiche Regel wie in Admin\Employees).
+     * (gleiche Regel wie in Employees\Index).
      */
     protected function guardAdminAccount(User $user): void
     {
@@ -336,7 +335,7 @@ class UserProfile extends Component
         $this->dispatch('swal:toast', type: $result['type'], text: $result['text']);
 
         if (in_array($result['status'], [EmployeeAccountStatusService::DELETED, EmployeeAccountStatusService::NOT_FOUND], true)) {
-            return $this->redirectRoute($this->employeesRoute(), navigate: true);
+            return $this->redirectRoute('employees.index', navigate: true);
         }
     }
 
@@ -535,7 +534,7 @@ class UserProfile extends Component
                 ->get()
             : collect();
 
-        return view('livewire.admin.user-profile', [
+        return view('livewire.employees.profile', [
             'user' => $this->user,
             'profile' => $profile,
             'deviceAssignments' => $deviceAssignments,
@@ -701,10 +700,5 @@ class UserProfile extends Component
         }
 
         return $values;
-    }
-
-    private function employeesRoute(): string
-    {
-        return auth()->user()->usesAdminLayout() ? 'admin.employees' : 'employees.index';
     }
 }

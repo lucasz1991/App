@@ -11,7 +11,7 @@
     $linkable = $user && ($canView ?? ($viewer?->canViewManagementDashboard() && $viewer->can('employees.view')));
 @endphp
 @if($linkable)
-    <a href="{{ route($viewer?->usesAdminLayout() ? 'admin.user-profile' : 'employees.show', $user->id) }}" wire:navigate aria-label="Profil öffnen: {{ $label ?? $user->name }}" {{ $attributes }}>
+    <a href="{{ route('employees.show', $user->id) }}" wire:navigate aria-label="Profil öffnen: {{ $label ?? $user->name }}" {{ $attributes }}>
         <x-user.public-info :user="$user" :size="$size" :show-email="false" :show-presence="false" :local-initials="true" />
     </a>
 @elseif($user)

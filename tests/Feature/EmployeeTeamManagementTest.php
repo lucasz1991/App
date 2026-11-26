@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\Employees\EmployeeTeamModal;
-use App\Livewire\Admin\Employees\TeamRbacModal;
+use App\Livewire\Employees\EmployeeTeamModal;
+use App\Livewire\Employees\TeamRbacModal;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\Personnel\EmployeeTeamService;

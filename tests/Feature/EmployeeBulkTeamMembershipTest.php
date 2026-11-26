@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\Employees;
-use App\Livewire\Admin\Employees\EmployeeTeamBulkModal;
+use App\Livewire\Employees\Index as EmployeesIndex;
+use App\Livewire\Employees\EmployeeTeamBulkModal;
 use App\Models\Team;
 use App\Models\User;
 use App\Models\UserProfile;
@@ -581,14 +581,14 @@ class EmployeeBulkTeamMembershipTest extends TestCase
     public function test_directory_exposes_one_bulk_team_editor_and_removes_the_export_menu_and_callable_stub(): void
     {
         $this->migrateDirectory();
-        $component = Livewire::actingAs($this->admin)->test(Employees::class);
+        $component = Livewire::actingAs($this->admin)->test(EmployeesIndex::class);
         $this->assertCount(1, $this->xpath($component->html())->query('//*[@data-employee-team-bulk-modal]'));
         $component->set('selectedEmployees', [$this->first->id, $this->second->id])
             ->assertSee('Teams bearbeiten')->assertDontSee(__('app.export'))->assertDontSee('exportSelected', false);
         $before = $this->state();
         $component->call('openTeamEditSelected')->assertDispatched('open-employee-team-bulk-modal', ids: [$this->first->id, $this->second->id]);
         $this->assertSame($before, $this->state());
-        $this->assertFalse(method_exists(Employees::class, 'exportSelected'));
+        $this->assertFalse(method_exists(EmployeesIndex::class, 'exportSelected'));
         $this->expectException(MethodNotFoundException::class);
         $component->call('exportSelected');
     }
@@ -596,14 +596,14 @@ class EmployeeBulkTeamMembershipTest extends TestCase
     public function test_directory_bulk_team_action_rejects_empty_missing_or_unauthorized_selection_and_clears_only_updated_ids(): void
     {
         $this->migrateDirectory();
-        $component = Livewire::actingAs($this->admin)->test(Employees::class);
+        $component = Livewire::actingAs($this->admin)->test(EmployeesIndex::class);
         $component->set('selectedEmployees', [])->call('openTeamEditSelected')->assertHasErrors('employeeIds');
         $component->set('selectedEmployees', [99999])->call('openTeamEditSelected')->assertHasErrors('employeeIds');
         $component->set('selectedEmployees', [$this->first->id, $this->second->id])->set('selectAll', true)
             ->set('perPage', 1)->call('setPage', 2)->call('teamsUpdated', [$this->first->id])
             ->assertSet('selectedEmployees', [$this->second->id])->assertSet('selectAll', false)->assertSet('paginators.page', 1);
         $actor = $this->manager(['employees.view' => true, 'employees.create' => true]);
-        Livewire::actingAs($actor)->test(Employees::class)->set('selectedEmployees', [$this->first->id])
+        Livewire::actingAs($actor)->test(EmployeesIndex::class)->set('selectedEmployees', [$this->first->id])
             ->assertDontSee('Teams bearbeiten')->call('openTeamEditSelected')->assertForbidden();
         $this->assertSame(0, DB::table('activity_log')->where('description', 'employee_team_memberships_updated')->count());
     }

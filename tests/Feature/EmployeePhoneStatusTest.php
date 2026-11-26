@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Profile\EmployeePhoneStatus;
+use App\Livewire\Employees\Profile\EmployeePhoneStatus;
 use App\Models\CustomerPortalIdentity;
 use App\Models\Device;
 use App\Models\DeviceAssignment;

@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Enums\AccountProvider;
-use App\Livewire\Admin\UserProfile;
-use App\Livewire\Admin\UserProfile\OutlookPreferences;
+use App\Livewire\Employees\Profile as EmployeeProfile;
+use App\Livewire\Employees\Profile\OutlookPreferences;
 use App\Models\EmployeeIdentityAccount;
 use App\Models\Setting;
 use App\Models\Team;
@@ -355,13 +355,13 @@ final class EmployeeOutlookPreferencesTest extends TestCase
             '2026_10_06_102000_create_operations_enhancements.php'] as $migration) {
             (require database_path('migrations/'.$migration))->up();
         }
-        Livewire::test(UserProfile::class, ['userId' => $this->target->id])
+        Livewire::test(EmployeeProfile::class, ['userId' => $this->target->id])
             ->assertViewHas('employeeProfileTabs', fn (array $tabs): bool => isset($tabs['outlook']))
             ->assertDontSee('employee-outlook-'.$this->actor->id.'-'.$this->target->id)
             ->call('setProfileTab', 'outlook')->assertSee('Outlook-Einstellungen')
             ->assertSee('employee-outlook-'.$this->actor->id.'-'.$this->target->id);
         $this->actingAs($this->manager(['employees.view']));
-        Livewire::test(UserProfile::class, ['userId' => $this->target->id])
+        Livewire::test(EmployeeProfile::class, ['userId' => $this->target->id])
             ->assertViewHas('employeeProfileTabs', fn (array $tabs): bool => ! isset($tabs['outlook']))
             ->call('setProfileTab', 'outlook')->assertForbidden();
     }

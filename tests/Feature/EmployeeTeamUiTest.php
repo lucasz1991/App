@@ -2,10 +2,10 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\Employees;
-use App\Livewire\Admin\Employees\EmployeeTeamModal;
-use App\Livewire\Admin\Employees\TeamRbacModal;
-use App\Livewire\Admin\UserProfile;
+use App\Livewire\Employees\Index as EmployeesIndex;
+use App\Livewire\Employees\EmployeeTeamModal;
+use App\Livewire\Employees\TeamRbacModal;
+use App\Livewire\Employees\Profile as EmployeeProfile;
 use App\Models\Team;
 use App\Models\User;
 use DOMDocument;
@@ -64,7 +64,7 @@ class EmployeeTeamUiTest extends TestCase
     #[DataProvider('hosts')]
     public function test_native_profile_exposes_team_tab_and_existing_manual_tab_structure_only_to_authorized_editor(bool $embedded): void
     {
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id, 'embedded' => $embedded])
+        $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id, 'embedded' => $embedded])
             ->assertSuccessful()->assertViewHas('canManageEmployeeTeams', true)
             ->assertViewHas('employeeProfileTabs', fn (array $tabs): bool => ($tabs['teams']['label'] ?? null) === 'Teams')
             ->assertDontSee('Teams & Rechte')->assertDontSee('data-team-rbac-livewire', false);
@@ -96,11 +96,11 @@ class EmployeeTeamUiTest extends TestCase
     {
         $extra = Team::forceCreate(['user_id' => $this->admin->id, 'name' => 'Persönliche Mitgliedschaft', 'personal_team' => true, 'rbac_permissions' => []]);
         $this->employee->teams()->attach($extra, ['role' => 'team_access']);
-        Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id])->call('setProfileTab', 'teams')
+        Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id])->call('setProfileTab', 'teams')
             ->assertSee('Persönliche Mitgliedschaft')->assertSee('persönlich')->assertSee('Weitere Mitgliedschaften')
             ->assertDontSee('Freigegebene Zeitnachweise exportieren')->assertDontSee('Teams & Rechte')
             ->assertDontSee('Team erstellen');
-        Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->admin->id])->call('setProfileTab', 'teams')
+        Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->admin->id])->call('setProfileTab', 'teams')
             ->assertSee('Teamzuordnung')->assertDontSee('globale Administratorrechte')
             ->assertDontSee('data-team-rbac-livewire', false);
         $this->assertDatabaseHas('team_user', ['team_id' => $extra->id, 'user_id' => $this->employee->id]);
@@ -109,7 +109,7 @@ class EmployeeTeamUiTest extends TestCase
 
     public function test_profile_refresh_after_team_update_preserves_unsaved_inline_values(): void
     {
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id])
+        $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id])
             ->set('inlineValues.name', 'Noch ungespeicherte Eingabe')->assertSet('dirtyInlineFields', ['name']);
         $next = Team::forceCreate(['user_id' => $this->admin->id, 'name' => 'Weitere Planung', 'personal_team' => false, 'rbac_permissions' => []]);
         $this->employee->forceFill(['current_team_id' => $next->id])->save();
@@ -122,7 +122,7 @@ class EmployeeTeamUiTest extends TestCase
     public function test_inactive_employee_profile_still_offers_the_same_team_module_to_an_authorized_administrator(): void
     {
         $this->employee->forceFill(['status' => false])->save();
-        Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id])
+        Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id])
             ->assertViewHas('canManageEmployeeTeams', true)->call('setProfileTab', 'teams')
             ->assertSee('Teams zuweisen')->assertSee('Teams speichern')->assertDontSee('Teams & Rechte');
         $this->assertFalse($this->employee->fresh()->status);
@@ -132,20 +132,20 @@ class EmployeeTeamUiTest extends TestCase
     public function test_manager_without_role_management_keeps_profile_access_but_not_team_tools(): void
     {
         $manager = $this->manager(['employees.view' => true, 'employees.create' => true]);
-        $component = Livewire::actingAs($manager)->test(UserProfile::class, ['userId' => $this->employee->id])
+        $component = Livewire::actingAs($manager)->test(EmployeeProfile::class, ['userId' => $this->employee->id])
             ->assertSuccessful()->assertViewHas('canManageEmployeeTeams', false)
             ->assertViewHas('employeeProfileTabs', fn (array $tabs): bool => ! isset($tabs['teams']))
             ->assertDontSee('data-employee-team-modal', false)->assertDontSee('data-team-rbac-livewire', false);
         $component->call('setProfileTab', 'teams')->assertForbidden();
-        Livewire::actingAs($manager)->test(UserProfile::class, ['userId' => $this->employee->id])->call('openTeamChange')->assertForbidden();
+        Livewire::actingAs($manager)->test(EmployeeProfile::class, ['userId' => $this->employee->id])->call('openTeamChange')->assertForbidden();
         $this->assertNoWrites();
     }
 
     public function test_profile_has_no_callable_rights_opening_or_rights_update_entry_point(): void
     {
-        $this->assertFalse(method_exists(UserProfile::class, 'openTeamRights'));
-        $this->assertFalse(method_exists(UserProfile::class, 'teamRightsUpdated'));
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id]);
+        $this->assertFalse(method_exists(EmployeeProfile::class, 'openTeamRights'));
+        $this->assertFalse(method_exists(EmployeeProfile::class, 'teamRightsUpdated'));
+        $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id]);
         $this->assertNoWrites();
         $this->expectException(MethodNotFoundException::class);
         $component->call('openTeamRights');
@@ -153,7 +153,7 @@ class EmployeeTeamUiTest extends TestCase
 
     public function test_directory_keeps_the_existing_rights_modal_and_native_rights_entry_separate_from_profiles(): void
     {
-        $component = Livewire::actingAs($this->admin)->test(Employees::class)->assertSuccessful()
+        $component = Livewire::actingAs($this->admin)->test(EmployeesIndex::class)->assertSuccessful()
             ->assertSee(__('app.teams_permissions'));
         $xpath = $this->xpath($component->html());
         $this->assertCount(1, $xpath->query('//*[@data-team-rbac-livewire="modal"]'));
@@ -171,7 +171,7 @@ class EmployeeTeamUiTest extends TestCase
     {
         $other = User::factory()->create(['role' => 'staff', 'status' => true, 'current_team_id' => $this->team->id]);
         $other->teams()->attach($this->team, ['role' => 'team_access']);
-        $component = Livewire::actingAs($this->admin)->test(Employees::class);
+        $component = Livewire::actingAs($this->admin)->test(EmployeesIndex::class);
         $this->assertCount(1, $this->xpath($component->html())->query('//*[@data-employee-team-modal]'));
         $component->set('selectedEmployees', [$this->employee->id, $other->id])->assertSee('Team wechseln')
             ->call('openTeamChangeSelected')->assertHasNoErrors()
@@ -186,7 +186,7 @@ class EmployeeTeamUiTest extends TestCase
     public function test_bulk_controls_hidden_and_server_denied_without_roles_manage(): void
     {
         $manager = $this->manager(['employees.view' => true, 'employees.create' => true]);
-        Livewire::actingAs($manager)->test(Employees::class)->set('selectedEmployees', [$this->employee->id])
+        Livewire::actingAs($manager)->test(EmployeesIndex::class)->set('selectedEmployees', [$this->employee->id])
             ->assertDontSee('Team wechseln')->call('openTeamChangeSelected')->assertForbidden();
         $this->assertNoWrites();
     }

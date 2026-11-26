@@ -99,7 +99,7 @@ class GlobalSearch extends Component
             [
                 'title' => __('app.messages'),
                 'description' => __('app.chat_and_messages'),
-                'url' => route($isAdminLayout ? 'admin.messages' : 'messages'),
+                'url' => route('messages'),
                 'icon' => 'mail',
                 'keywords' => 'posteingang inbox nachricht',
                 'allowed' => true,
@@ -213,7 +213,7 @@ class GlobalSearch extends Component
      */
     private function messageResults(User $user, string $needle): array
     {
-        $route = $user->usesAdminLayout() ? 'admin.messages' : 'messages';
+        $route = 'messages';
 
         return $user->receivedMessages()
             ->with('sender:id,name')
@@ -284,7 +284,7 @@ class GlobalSearch extends Component
             return [];
         }
 
-        $route = $user->usesAdminLayout() ? 'admin.user-profile' : 'employees.show';
+        $route = 'employees.show';
 
         return User::query()
             ->whereKeyNot(1)

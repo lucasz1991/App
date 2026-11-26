@@ -1,6 +1,6 @@
 // Datenmodell, Rechenregeln und Prüfungen der Wagenliste.
 //
-// Diese Datei bildet die Excel-Wagenliste v16_5 nach (Blätter Wagenliste,
+// Diese Datei bildet die Excel-Wagenliste v17 nach (Blätter Wagenliste,
 // Bremszettel, Meldezettel): gleiche Felder, gleiche Summen, gleiche
 // Bremsabzüge. Sie ist bewusst frei von DOM- und Alpine-Bezügen, damit die
 // Regeln ohne Browser prüfbar bleiben. Die Excel-Vorlage rechnet beim Export
@@ -14,8 +14,14 @@ export const BRAKE_POSITIONS = ['R/P', 'G'];
 export const LIST_ORDERS = ['head', 'tail'];
 export const NINETY_PERCENT_RULES = ['no', 'yes', 'yes800'];
 export const ROUTE_CLASSES = ['A', 'B1', 'B2', 'C2', 'C3', 'C4', 'CE', 'D2', 'D3', 'D4', 'E4', 'E5'];
-export const PAPER_OPTIONS = ['electronic', 'paper', 'both', 'none'];
-export const TRANSPORT_ORDER_OPTIONS = ['complete', 'standing', 'none'];
+// Meldezettel, Block „Angaben zum Zug“ (Excel v17, Vordruck VDV): je Spalte
+// höchstens ein Kreuz. Frühere Entwürfe kannten die längere Fassung des
+// Blocks (Form der Papiere, Dauer-Beförderungsanordnung getrennt); sie wird
+// beim Laden auf die beiden Ankreuzfelder abgebildet.
+export const PAPER_OPTIONS = ['complete', 'none'];
+export const TRANSPORT_ORDER_OPTIONS = ['complete', 'standingOrNone'];
+const LEGACY_PAPERS = { electronic: 'complete', paper: 'complete', both: 'complete' };
+const LEGACY_TRANSPORT_ORDERS = { standing: 'standingOrNone', none: 'standingOrNone' };
 export const REPORT_TASKS = [
     'coupling',
     'wagonInspection',
@@ -128,7 +134,6 @@ export const emptyBrakeSheet = () => ({
 export const emptyReport = () => ({
     papers: '',
     transportOrder: '',
-    uicCheck: '',
     tasks: Object.fromEntries(REPORT_TASKS.map((task) => [task, false])),
     wagonInspectionLevel: '',
     extraWork: Array.from({ length: EXTRA_WORK_ROWS }, () => ''),
@@ -195,9 +200,10 @@ export const normalizeReport = (report = {}) => {
     const source = report && typeof report === 'object' ? report : {};
     const normalized = emptyReport();
 
-    normalized.papers = PAPER_OPTIONS.includes(source.papers) ? source.papers : '';
-    normalized.transportOrder = TRANSPORT_ORDER_OPTIONS.includes(source.transportOrder) ? source.transportOrder : '';
-    normalized.uicCheck = ['yes', 'no'].includes(source.uicCheck) ? source.uicCheck : '';
+    const papers = LEGACY_PAPERS[source.papers] ?? source.papers;
+    const transportOrder = LEGACY_TRANSPORT_ORDERS[source.transportOrder] ?? source.transportOrder;
+    normalized.papers = PAPER_OPTIONS.includes(papers) ? papers : '';
+    normalized.transportOrder = TRANSPORT_ORDER_OPTIONS.includes(transportOrder) ? transportOrder : '';
     normalized.wagonInspectionLevel = ['1', '2', '3', '4'].includes(String(source.wagonInspectionLevel ?? ''))
         ? String(source.wagonInspectionLevel)
         : '';

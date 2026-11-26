@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Livewire\Admin\Employees;
+namespace App\Livewire\Employees;
 
 use App\Services\Personnel\EmployeeTeamService;
 use Livewire\Attributes\Locked;
@@ -72,6 +72,6 @@ class EmployeeTeamBulkModal extends Component
             $state = $service->bulkEditorState($this->employeeIds, $this->operation, $this->teamIds);
         }
 
-        return view('livewire.admin.employees.employee-team-bulk-modal', $state + ['canManage' => $service->canManage()]);
+        return view('livewire.employees.employee-team-bulk-modal', $state + ['canManage' => $service->canManage()]);
     }
 }

@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\UserProfile;
+use App\Livewire\Employees\Profile as EmployeeProfile;
 use App\Models\Team;
 use App\Models\User;
 use App\Notifications\EmployeeAccountInvitation;
@@ -57,7 +57,7 @@ class EmployeeAccountInvitationTest extends TestCase
 
     private function profile(?User $actor = null)
     {
-        return Livewire::actingAs($actor ?? $this->admin)->test(UserProfile::class, ['userId' => $this->employee->id]);
+        return Livewire::actingAs($actor ?? $this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id]);
     }
 
     private function manager(bool $view = true): User

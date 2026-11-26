@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Http\Controllers\Api\AdminStorageController;
-use App\Livewire\Admin\UserProfile\EmployeeDocuments;
+use App\Livewire\Employees\Profile\EmployeeDocuments;
 use App\Livewire\Operations\CommercialOffers;
 use App\Livewire\Operations\CustomerRelations;
 use App\Livewire\Operations\InquiryInbox;

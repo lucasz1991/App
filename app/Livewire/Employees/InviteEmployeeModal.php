@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Livewire\Admin\Employees;
+namespace App\Livewire\Employees;
 
 use App\Mail\StaffInvitationMail;
 use App\Models\Setting;
@@ -103,7 +103,7 @@ class InviteEmployeeModal extends Component
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        return view('livewire.admin.employees.invite-employee-modal', [
+        return view('livewire.employees.invite-employee-modal', [
             'teams' => $teams,
             'canEditMasterData' => $this->canEditPosition(),
         ]);

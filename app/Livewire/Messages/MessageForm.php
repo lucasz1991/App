@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Livewire\Admin\Users\Messages;
+namespace App\Livewire\Messages;
 
 use App\Models\Mail;
 use App\Models\User;
@@ -271,6 +271,6 @@ class MessageForm extends Component
 
     public function render()
     {
-        return view('livewire.admin.users.messages.message-form');
+        return view('livewire.messages.message-form');
     }
 }

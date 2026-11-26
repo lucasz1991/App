@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Livewire\Admin;
+namespace App\Livewire\Employees\Profile;
 
 use App\Models\DutyActivity;
 use App\Models\EmployeeQualification;
@@ -93,6 +93,6 @@ class EmployeeDutyActivities extends Component
             }
         }
 
-        return view('livewire.admin.employee-duty-activities', compact('employee', 'assigned', 'available', 'suggestions', 'canEdit', 'qualificationState', 'qualified'));
+        return view('livewire.employees.profile.employee-duty-activities', compact('employee', 'assigned', 'available', 'suggestions', 'canEdit', 'qualificationState', 'qualified'));
     }
 }

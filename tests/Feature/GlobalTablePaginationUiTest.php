@@ -156,9 +156,9 @@ class GlobalTablePaginationUiTest extends TestCase
         $pages = $this->pages(30, 15, 1);
         $html = Blade::render('<x-tables.pagination :paginator="$pages" table-key="employee-directory" class="employee-directory__pager" />', compact('pages'));
         $xpath = $this->xpath($html);
-        $employee = file_get_contents(resource_path('views/livewire/admin/employees.blade.php'));
+        $employee = file_get_contents(resource_path('views/livewire/employees/index.blade.php'));
 
-        $this->assertFileDoesNotExist(resource_path('views/livewire/admin/employees/directory-pagination.blade.php'));
+        $this->assertFileDoesNotExist(resource_path('views/livewire/employees/directory-pagination.blade.php'));
         $this->assertStringContainsString('<x-tables.pagination :paginator="$employees" table-key="employee-directory"', $employee);
         $this->assertCount(1, $xpath->query('//nav[@data-table-pagination and @data-table-pagination-key="employee-directory" and contains(@class,"employee-directory__pager")]'));
         $this->assertStringContainsString('data-table-pagination-key="employee-directory"', $employee);

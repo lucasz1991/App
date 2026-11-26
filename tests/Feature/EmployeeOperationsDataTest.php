@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Profile\EmployeeOperations;
+use App\Livewire\Employees\Profile\EmployeeOperations;
 use App\Models\CustomerPortalIdentity;
 use App\Models\Team;
 use App\Models\User;

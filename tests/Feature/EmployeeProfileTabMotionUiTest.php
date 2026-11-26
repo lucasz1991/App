@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\UserProfile;
+use App\Livewire\Employees\Profile as EmployeeProfile;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use DOMDocument;
@@ -63,7 +63,7 @@ class EmployeeProfileTabMotionUiTest extends TestCase
     #[DataProvider('profileModes')]
     public function test_both_native_navigation_rows_have_one_decorative_marker_and_no_category_counts(bool $embedded): void
     {
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, [
+        $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, [
             'userId' => $this->employee->id,
             'embedded' => $embedded,
         ])->assertSuccessful()->assertSet('profileTab', 'userDetails');
@@ -103,7 +103,7 @@ class EmployeeProfileTabMotionUiTest extends TestCase
     #[DataProvider('confirmedSections')]
     public function test_selection_visuals_follow_only_native_confirmed_tab_and_authorized_group(string $tab, string $group): void
     {
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id]);
+        $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id]);
         $before = $this->employee->fresh()->getRawOriginal();
         if ($tab !== 'userDetails') {
             $component->call('setProfileTab', $tab)->assertSuccessful();
@@ -137,7 +137,7 @@ class EmployeeProfileTabMotionUiTest extends TestCase
         DB::flushQueryLog();
         DB::enableQueryLog();
         try {
-            $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id])
+            $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id])
                 ->set('inlineValues.email', 'not-an-email')
                 ->call('setProfileTab', 'operationsOverview')
                 ->assertHasErrors('inlineValues.email')->assertSet('profileTab', 'userDetails');
@@ -206,13 +206,13 @@ class EmployeeProfileTabMotionUiTest extends TestCase
     public function test_motion_does_not_introduce_public_livewire_selection_state(): void
     {
         $properties = array_filter(
-            (new ReflectionClass(UserProfile::class))->getProperties(ReflectionProperty::IS_PUBLIC),
-            static fn (ReflectionProperty $property): bool => $property->getDeclaringClass()->getName() === UserProfile::class,
+            (new ReflectionClass(EmployeeProfile::class))->getProperties(ReflectionProperty::IS_PUBLIC),
+            static fn (ReflectionProperty $property): bool => $property->getDeclaringClass()->getName() === EmployeeProfile::class,
         );
         $this->assertSame([
             'embedded', 'profileTab', 'userId', 'user', 'inlineValues', 'dirtyInlineFields',
         ], array_map(static fn (ReflectionProperty $property): string => $property->getName(), array_values($properties)));
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id])
+        $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id])
             ->assertSuccessful()->assertSet('profileTab', 'userDetails');
         $snapshot = $this->xpath($component->html())->query('//*[@*[name()="wire:snapshot"]]')->item(0);
         $this->assertInstanceOf(DOMElement::class, $snapshot);

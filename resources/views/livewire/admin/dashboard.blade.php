@@ -215,7 +215,7 @@
                             <p class="mt-1 max-w-md text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">{{ __('app.employee_accounts_description') }}</p>
                         </div>
                         @can('employees.view')
-                            <a href="{{ route('admin.employees') }}" wire:navigate class="inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-rt-red transition hover:text-rt-red-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/30" data-dashboard-action="employees-manage">
+                            <a href="{{ route('employees.index') }}" wire:navigate class="inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-rt-red transition hover:text-rt-red-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/30" data-dashboard-action="employees-manage">
                                 {{ __('app.manage_employees') }}
                                 <i data-feather="arrow-up-right" class="h-4 w-4" aria-hidden="true"></i>
                             </a>
@@ -289,7 +289,7 @@
                         <ul class="grid gap-1 sm:grid-cols-2" aria-label="{{ __('app.recently_active') }}">
                             @forelse ($recentActivity as $entry)
                                 <li>
-                                    <a href="{{ route('admin.user-profile', $entry['user']->id) }}" wire:navigate class="group grid min-h-11 grid-cols-[2.25rem_minmax(0,1fr)] items-center gap-x-3 rounded-xl px-2 py-2 transition hover:bg-rt-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/30 dark:hover:bg-rt-dark-surface-muted" data-dashboard-action="activity-user-{{ $entry['user']->id }}">
+                                    <a href="{{ route('employees.show', $entry['user']->id) }}" wire:navigate class="group grid min-h-11 grid-cols-[2.25rem_minmax(0,1fr)] items-center gap-x-3 rounded-xl px-2 py-2 transition hover:bg-rt-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/30 dark:hover:bg-rt-dark-surface-muted" data-dashboard-action="activity-user-{{ $entry['user']->id }}">
                                         <span class="relative row-span-2 shrink-0">
                                             <img src="{{ $entry['user']->profile_photo_url }}" alt="" class="h-9 w-9 rounded-xl object-cover ring-1 ring-rt-border/60 dark:ring-rt-dark-border/60">
                                             @if ($entry['lastSeen']->gte(now()->subMinutes(5)))
@@ -369,7 +369,7 @@
                             <h3 class="mt-1 text-lg font-semibold text-rt-text dark:text-white">{{ __('app.recent_users') }}</h3>
                         </div>
                         @can('employees.view')
-                            <a href="{{ route('admin.employees') }}" wire:navigate class="inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-rt-red transition hover:text-rt-red-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/30" data-dashboard-action="employees-all">
+                            <a href="{{ route('employees.index') }}" wire:navigate class="inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-rt-red transition hover:text-rt-red-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/30" data-dashboard-action="employees-all">
                                 {{ __('app.show_all') }}
                                 <i data-feather="arrow-up-right" class="h-4 w-4" aria-hidden="true"></i>
                             </a>
@@ -379,7 +379,7 @@
                     <ul class="divide-y divide-slate-200 dark:divide-slate-700" aria-label="{{ __('app.recent_users') }}">
                         @forelse ($recentUsers as $user)
                             <li>
-                                <a href="{{ route('admin.user-profile', $user->id) }}" wire:navigate class="rt-admin-user-row group grid min-h-14 min-w-0 grid-cols-[2.25rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1 bg-white px-4 py-3 transition hover:bg-rt-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rt-red sm:grid-cols-[2.25rem_minmax(0,1fr)_auto] sm:px-5 dark:bg-slate-900 dark:hover:bg-slate-800" data-dashboard-action="recent-user-{{ $user->id }}">
+                                <a href="{{ route('employees.show', $user->id) }}" wire:navigate class="rt-admin-user-row group grid min-h-14 min-w-0 grid-cols-[2.25rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1 bg-white px-4 py-3 transition hover:bg-rt-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rt-red sm:grid-cols-[2.25rem_minmax(0,1fr)_auto] sm:px-5 dark:bg-slate-900 dark:hover:bg-slate-800" data-dashboard-action="recent-user-{{ $user->id }}">
                                     <span class="rt-admin-user-avatar row-span-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 transition group-hover:border-rt-red sm:row-auto dark:border-slate-700 dark:bg-slate-800">
                                         <img
                                             src="{{ $user->profile_photo_url }}"

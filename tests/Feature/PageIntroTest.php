@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\Http\Middleware\LogActivity;
 use App\Livewire\Admin\Dashboard;
-use App\Livewire\Admin\Employees;
+use App\Livewire\Employees\Index as EmployeesIndex;
 use App\Livewire\Tools\HeaderInbox;
 use App\Models\Chat;
 use App\Models\ChatMessage;
@@ -67,7 +67,7 @@ class PageIntroTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
 
         Livewire::actingAs($admin)
-            ->test(Employees::class)
+            ->test(EmployeesIndex::class)
             ->assertSee('data-rt-intro-auto', escape: false)
             ->assertSee('rt-info:open', escape: false)
             // Js::from maskiert die Anfuehrungszeichen des JSON als ".
@@ -75,7 +75,7 @@ class PageIntroTest extends TestCase
 
         // Zweiter Aufruf: kein automatisches Intro mehr.
         Livewire::actingAs($admin)
-            ->test(Employees::class)
+            ->test(EmployeesIndex::class)
             ->assertDontSee('data-rt-intro-auto', escape: false);
     }
 
