@@ -17,7 +17,7 @@ export default defineConfig({
                 'resources/css/app.css',
                 'resources/css/shell-redesign.css',
                 'resources/css/tabs.css',
-                'resources/css/chat-redesign.css',
+                'resources/css/chat.css',
                 'resources/js/app.js',
                 'resources/js/customer-portal.js',
                 // Eigener Einstieg fuers Anruf-Fenster: haelt livekit-client

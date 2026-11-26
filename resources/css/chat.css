@@ -3,6 +3,50 @@
  * Die Datei bleibt bewusst isoliert: Layout, Interaktion und Livewire-Anker
  * wohnen weiterhin in den bestehenden Blade-/Alpine-Schichten.
  */
+
+/*
+ * Ehemalige Basisschicht aus app.css: nur die Deklarationen, die die
+ * Redesign-Regeln unten nicht ohnehin ueberschreiben. Sie stehen am
+ * Dateianfang, damit die Reihenfolge in der Kaskade gleich bleibt.
+ */
+.rt-chat-read-indicator.is-read {
+    color: #0284c7;
+}
+
+.rt-chat-read-indicator.is-delivered {
+    color: rgba(94, 35, 48, 0.52);
+}
+
+html.dark .rt-chat-read-indicator.is-read {
+    color: #7dd3fc;
+}
+
+html.dark .rt-chat-read-indicator.is-delivered {
+    color: rgba(255, 225, 232, 0.48);
+}
+
+/* Mobil wischt der Messenger zwischen Liste und Verlauf. Lage und
+   Verschiebung der beiden Spalten setzt das Kommunikationsmodul
+   ([data-chat-layout]); hier bleiben Wischrichtung und Uebergang. */
+@media (max-width: 767.98px) {
+    .rt-chat-page {
+        touch-action: pan-y;
+    }
+
+    .rt-chat-list-pane,
+    .rt-chat-conversation-pane {
+        transition: transform 320ms cubic-bezier(0.32, 0.72, 0, 1);
+        will-change: transform;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rt-chat-list-pane,
+    .rt-chat-conversation-pane {
+        transition: none;
+    }
+}
+
 .rt-chat-page {
     --chat-canvas: theme('colors.rt.surface-muted');
     --chat-panel: theme('colors.rt.surface');
@@ -2167,8 +2211,8 @@ html.dark .rt-chat-member-page-button {
 
     /*
      * Beide mobilen Ansichten muessen denselben absoluten Pane-Slot belegen.
-     * Die Basisregeln oben sind absichtlich `relative` fuer Desktop, duerfen
-     * aber die anschliessend geladene Swipe-Regel aus app.css nicht aushebeln.
+     * Die Basisregeln oben sind absichtlich `relative` fuer Desktop; mobil
+     * gilt der gemeinsame absolute Slot.
      */
     .rt-chat-list-pane,
     .rt-chat-conversation-pane {

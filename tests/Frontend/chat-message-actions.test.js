@@ -244,7 +244,7 @@ test('shared dropdown keeps in-panel expansion controls open', async () => {
 
 test('rendered reaction emojis stay transparent while the rail overlaps the bubble', async () => {
     const source = await readFile(
-        new URL('../../resources/css/chat-redesign.css', import.meta.url),
+        new URL('../../resources/css/chat.css', import.meta.url),
         'utf8',
     );
     const chipRule = source.match(/\.rt-chat-reaction-chip\s*\{([\s\S]*?)\}/)?.[1] || '';
@@ -322,7 +322,7 @@ test('composer preserves every input path in the detached premium control layout
 
 test('reference motion and geometry stay compact, branded, and reduced-motion safe', async () => {
     const [styles, app] = await Promise.all([
-        readFile(new URL('../../resources/css/chat-redesign.css', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/css/chat.css', import.meta.url), 'utf8'),
         readFile(new URL('../../resources/js/app.js', import.meta.url), 'utf8'),
     ]);
 
@@ -354,7 +354,7 @@ test('premium stacked lists are shared by the topbar, chat sidebar, and creation
         readChatSection('chat-list'),
         readFile(new URL('../../resources/views/livewire/chat/partials/member-picker.blade.php', import.meta.url), 'utf8'),
         readFile(new URL('../../resources/views/components/user/public-info.blade.php', import.meta.url), 'utf8'),
-        readFile(new URL('../../resources/css/chat-redesign.css', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/css/chat.css', import.meta.url), 'utf8'),
         readFile(new URL('../../app/Livewire/Tools/HeaderInbox.php', import.meta.url), 'utf8'),
         readFile(new URL('../../app/Livewire/ChatBox.php', import.meta.url), 'utf8'),
     ]);

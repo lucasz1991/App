@@ -940,7 +940,7 @@ test('live-location markup uses full-map overlays, a compact mini-map, and a flu
             import.meta.url,
         ), 'utf8'),
         readFile(new URL(
-            '../../resources/css/chat-redesign.css',
+            '../../resources/css/chat.css',
             import.meta.url,
         ), 'utf8'),
     ]);
