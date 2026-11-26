@@ -20,7 +20,7 @@
     <button
         type="button"
         x-cloak
-        x-show="mode === 'prompt' || mode === 'installed' || busy"
+        x-show.important="mode === 'prompt' || mode === 'installed' || busy"
         x-on:click="installApp()"
         x-bind:disabled="disabled"
         x-bind:aria-busy="busy"
@@ -34,7 +34,7 @@
         href="{{ route('help') }}"
         target="_blank"
         rel="noopener noreferrer"
-        x-show="mode !== 'prompt' && mode !== 'installed' && !busy"
+        x-show.important="mode !== 'prompt' && mode !== 'installed' && !busy"
         class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rt-border/70 bg-rt-surface/75 px-4 text-sm font-semibold text-rt-text backdrop-blur-xl focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/20 dark:border-rt-dark-border/70 dark:bg-rt-dark-surface/75 dark:text-rt-dark-text"
         data-railtime-install-help
     >

@@ -38,7 +38,7 @@
             @endif
             @if($selected->status !== 'not_inquiry')<section class="ai-intake-panel__customer border-t border-rt-border pt-3 dark:border-rt-dark-border" x-data="{ editingCustomer: false }" wire:key="intake-customer-{{ $selected->id }}-{{ $selected->revision }}" data-intake-customer-assignment>
                 @if($selected->customer)
-                    <div class="flex min-w-0 items-center gap-2" x-show="!editingCustomer">
+                    <div class="flex min-w-0 items-center gap-2" x-show.important="!editingCustomer">
                         <i class="far fa-building text-rt-muted" aria-hidden="true"></i>
                         <div class="min-w-0 flex-1"><h3 class="break-words font-semibold">{{ $selected->customer->company_name }}</h3><p class="ops-muted">{{ $selected->match_method === 'source_context' ? 'Automatisch erkannt und zugeordnet' : 'Kunde zugeordnet' }}@if($selected->contact) · {{ $selected->contact->name }}@endif</p></div>
                         <x-ui.buttons.button-basic type="button" size="sm" x-ref="customerEditTrigger" x-on:click="editingCustomer = true; $nextTick(() => $refs.customerEditor.querySelector('[role=combobox],select,button')?.focus())" aria-label="Kundenzuordnung ändern" title="Kundenzuordnung ändern"><i class="far fa-pen" aria-hidden="true"></i></x-ui.buttons.button-basic>

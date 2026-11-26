@@ -242,7 +242,7 @@
             @if ($previewSources !== [])
                 @if ($waitForFrame)
                     <div
-                        x-show="!frameReady"
+                        x-show.important="!frameReady"
                         x-transition.opacity
                         class="pointer-events-none absolute inset-0 z-[1] grid place-items-center bg-rt-surface/90 px-5 text-center text-xs font-medium text-rt-muted backdrop-blur-sm dark:bg-rt-dark-surface/90 dark:text-rt-dark-muted"
                         role="status"

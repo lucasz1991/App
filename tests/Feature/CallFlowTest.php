@@ -670,7 +670,7 @@ class CallFlowTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_legacy_meetings_route_redirects_to_the_unified_call_hub(): void
+    public function test_legacy_meetings_route_opens_the_unified_communication_hub(): void
     {
         [$user] = $this->directChatWithCallRights();
 

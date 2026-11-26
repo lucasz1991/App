@@ -17,7 +17,7 @@
 >
     <div
         x-cloak
-        x-show="notice"
+        x-show.important="notice"
         x-transition.opacity.duration.150ms
         class="pointer-events-none fixed bottom-4 left-4 right-4 z-[220] flex min-h-11 items-center gap-3 rounded-xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white shadow-rt-lg sm:left-auto sm:right-6 sm:max-w-sm"
         role="status"

@@ -39,7 +39,7 @@
             <audio x-show="audioPreview" x-bind:src="audioPreview || null" controls preload="metadata" class="h-9 w-full" aria-label="Sprachaufnahme vorhören"></audio>
         </div>
     @endif
-    <div x-cloak x-show="recording || requesting" class="flex flex-wrap items-center gap-2 text-xs" role="status" aria-live="polite">
+    <div x-cloak x-show.important="recording || requesting" class="flex flex-wrap items-center gap-2 text-xs" role="status" aria-live="polite">
         <span x-show="requesting">Mikrofonfreigabe ausstehend …</span><span x-show="recording">Aufnahme · <span x-text="seconds"></span> s</span>
         <button type="button" x-show="recording" x-on:click="stop()" class="rounded-lg border border-rt-border px-2 py-1">Aufnahme übernehmen</button>
         <button type="button" x-show="recording || requesting" x-on:click="cancelRecording()" class="rounded-lg border border-rt-border px-2 py-1">Abbrechen</button>

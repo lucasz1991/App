@@ -141,7 +141,7 @@
                         <div class="ops-full">
                             <x-ui.forms.checkbox wire:model="form.location_consent" label="Standortprüfung für diesen Zugang freigeben" />
                         </div>
-                        <div x-show="$wire.form.location_consent" x-cloak class="ops-full grid gap-4 sm:grid-cols-2">
+                        <div x-show.important="$wire.form.location_consent" x-cloak class="ops-full grid gap-4 sm:grid-cols-2">
                             <x-operations.field label="Breitengrad" model="form.latitude" type="number" min="-90" max="90" step="0.0000001" x-bind:required="$wire.form.location_consent" />
                             <x-operations.field label="Längengrad" model="form.longitude" type="number" min="-180" max="180" step="0.0000001" x-bind:required="$wire.form.location_consent" />
                             <x-operations.field label="Radius in Metern" model="form.radius_metres" type="number" min="30" max="10000" x-bind:required="$wire.form.location_consent" />
