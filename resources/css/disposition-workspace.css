@@ -4,6 +4,7 @@
 .rt-disposition,
 .rt-page-header--compact[data-page-header],
 .rt-orders-table-filters,
+.rt-shift-plan-header-controls,
 .rt-shift-plan-header-action {
     --dispo-line: var(--rt-shell-line);
     --dispo-surface: var(--rt-shell-surface-solid);
@@ -113,7 +114,6 @@ html.dark .rt-disposition {
 .rt-disposition .rt-disposition-period.rt-calendar-header { border: 0; border-radius: 0; background: transparent; padding: 0; box-shadow: none; }
 .rt-disposition-period__navigation { display: flex; gap: 4px; }
 .rt-disposition-period__navigation .rt-ui-button { min-width: 44px; }
-.rt-shift-plan-header-controls,
 .rt-shift-plan { display: flex; min-height: 0; flex-direction: column; gap: 4px; }
 .rt-disposition.rt-disposition--shifts:not(.ops-stack) > * + * { margin-top: 0; }
 .rt-disposition--shifts .rt-calendar-header { gap: 0; }
