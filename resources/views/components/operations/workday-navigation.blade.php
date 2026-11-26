@@ -19,4 +19,4 @@
         ];
     }
 @endphp
-<x-ui.navigation.area-menu :id="$id" :teleport="filter_var($teleport, FILTER_VALIDATE_BOOL) ? '[data-area-menu-host]' : null" label="Mein Arbeitsplatz" :value="$current" action="showTab" :options="$options" :disabled="$disabled" {{ $attributes->merge(['data-workday-navigation' => '']) }} />
+<x-ui.navigation.area-menu :id="$id" :teleport="filter_var($teleport, FILTER_VALIDATE_BOOL) ? '[data-area-menu-host]' : null" label="Mein Arbeitsplatz" :value="$current" action="showTab" :options="$options" :disabled="$disabled" :show-chat="false" {{ $attributes->merge(['data-workday-navigation' => '']) }} />

@@ -265,7 +265,7 @@
                             : 'text-rt-text hover:bg-rt-surface-muted dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted'"
                         class="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium outline-none transition focus:ring-2 focus:ring-inset focus:ring-rt-accent/35 disabled:cursor-not-allowed disabled:opacity-45 dark:focus:ring-rt-dark-accent/40"
                     >
-                        <span x-show="option.icon || option.iconClass" x-cloak class="flex h-5 w-7 shrink-0 items-center justify-center">
+                        <span x-show.important="option.icon || option.iconClass" x-cloak class="flex h-5 w-7 shrink-0 items-center justify-center">
                             <i x-show="!option.icon && option.iconClass" :class="option.iconClass" aria-hidden="true"></i>
                             <img
                                 x-show="option.icon"

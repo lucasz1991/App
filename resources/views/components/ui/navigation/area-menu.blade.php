@@ -1,4 +1,4 @@
-@props(['options' => [], 'value' => null, 'action' => null, 'label' => 'Bereichsmenü', 'id' => null, 'navigate' => false, 'disabled' => false, 'teleport' => null])
+@props(['options' => [], 'value' => null, 'action' => null, 'label' => 'Bereichsmenü', 'id' => null, 'navigate' => false, 'disabled' => false, 'teleport' => null, 'showChat' => true])
 @php
     // teleport: CSS-Selektor des Menü-Hosts in der Topbar (z. B. "[data-area-menu-host]");
     // leer = an Ort und Stelle rendern. Der Aufrufer braucht einen Alpine-Scope (x-data).
@@ -15,7 +15,7 @@
     {{ $attributes->class(['rt-area-menu'])->merge(['data-area-menu' => '']) }}
 >
     <span class="rt-area-menu__indicator" aria-hidden="true" x-data="rtAreaMenu" wire:ignore></span>
-    @if(auth()->check() && ! filter_var($disabled, FILTER_VALIDATE_BOOL))
+    @if($showChat && auth()->check() && ! filter_var($disabled, FILTER_VALIDATE_BOOL))
         <x-ui.buttons.button-basic
             href="{{ route('chat') }}"
             wire:navigate

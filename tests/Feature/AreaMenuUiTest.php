@@ -7,6 +7,20 @@ use Tests\TestCase;
 
 class AreaMenuUiTest extends TestCase
 {
+    public function test_employee_navigation_has_four_destinations_when_signed_in(): void
+    {
+        $this->actingAs(new \App\Models\User);
+        $html = Blade::render('<x-operations.workday-navigation />');
+        $dom = new \DOMDocument;
+        @$dom->loadHTML('<?xml encoding="UTF-8">'.$html);
+        $xpath = new \DOMXPath($dom);
+        $items = $xpath->query('//*[@data-workday-navigation]//*[self::a or self::button]');
+        $this->assertSame(['today', 'requests', 'schedule', 'time'], array_map(
+            fn ($item) => $item->getAttribute('data-toggle-value'),
+            iterator_to_array($items),
+        ));
+    }
+
     public function test_reusable_area_menu_keeps_native_links_labels_and_one_authoritative_active_destination(): void
     {
         $html = Blade::render('<x-ui.navigation.area-menu id="test-area" label="Personalbereich" :options="$options" value="files" action="setView" :navigate="true" />', ['options' => [

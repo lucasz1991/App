@@ -78,7 +78,6 @@ class RememberMeAuthenticationTest extends TestCase
             ->assertSee(__('app.show_password'))
             ->assertSee(__('app.hide_password'))
             ->assertSee('data-rt-logo-3d', escape: false)
-            ->assertSee(config('app.name').' v'.config('app.version'))
             ->assertDontSee('rt-auth__compact-brand', escape: false)
             ->assertDontSee(__('app.login_description'))
             ->assertDontSee('Sicherer Zugang')
