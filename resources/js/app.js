@@ -54,6 +54,7 @@ import {
     settleSidebarDrag,
 } from './mobile-sidebar-swipe';
 import { sidebarScrollBehavior, sidebarScrollTarget } from './sidebar-scroll';
+import { bindSidebarAccordion, settleSidebarSubmenus } from './sidebar-accordion';
 import { staffTimeline } from './staff-timeline';
 import { mapHighlight } from './map-highlight';
 import { anchorDropdown } from './anchor-dropdown';
@@ -2684,36 +2685,9 @@ let sidebarSwipeStart = null;
 const DESKTOP_SIDEBAR_EXPAND_DELAY = 750;
 const DESKTOP_SIDEBAR_COLLAPSE_DELAY = 1500;
 
-function initMetisMenu(sideMenu) {
-    if (!window.MetisMenu || !sideMenu) {
-        return null;
-    }
-
-    // MetisMenu animiert andernfalls den bereits serverseitig offenen Pfad
-    // waehrend seiner Initialisierung. Bei einem schnellen body swap kann
-    // dieser Zustand als "transitioning" haengen bleiben und weitere Klicks
-    // blockieren. Erst neutral initialisieren, dann den aktiven Pfad setzen.
-    sideMenu.querySelectorAll('li.mm-active').forEach((item) => item.classList.remove('mm-active'));
-    sideMenu.querySelectorAll('ul').forEach((submenu) => {
-        submenu.classList.remove('mm-show', 'mm-collapsing');
-        submenu.classList.add('mm-collapse');
-        submenu.style.removeProperty('height');
-    });
-
-    const metisMenu = new window.MetisMenu(sideMenu, {
-        toggle: true,
-    });
-
-    initActiveMenu(sideMenu);
-
-    return metisMenu;
-}
-
 function sidebarNavigation() {
     return {
-        metisMenu: null,
-        shownHandler: null,
-        bootFrame: null,
+        unbindAccordion: null,
 
         init() {
             this.$nextTick(() => {
@@ -2721,70 +2695,28 @@ function sidebarNavigation() {
                     return;
                 }
 
-                // Der Server liefert den aktiven Pfad bereits mit. Vor der
-                // Plugin-Initialisierung normalisieren, damit MetisMenu nicht
-                // direkt danach durch eine zweite Zustandsrunde blockiert wird.
+                // Der Server liefert den aktiven Pfad bereits mit (mm-active,
+                // mm-show, aria-expanded). Hier nur Reste eines abgebrochenen
+                // Uebergangs bereinigen und den Pfad clientseitig bestaetigen.
+                settleSidebarSubmenus(this.$root);
                 initActiveMenu(this.$root);
-                this.metisMenu = initMetisMenu(this.$root);
-
-                if (!this.metisMenu) {
-                    // Klassische Vendor-Skripte koennen nach einem
-                    // wire:navigate-Bodytausch einen Frame spaeter bereit sein.
-                    this.bootFrame = window.requestAnimationFrame(() => {
-                        this.bootFrame = null;
-
-                        if (this.$root.isConnected) {
-                            this.metisMenu = initMetisMenu(this.$root);
-                            this.bindShownHandler();
-                        }
-                    });
-                } else {
-                    this.bindShownHandler();
-                }
+                this.unbindAccordion = bindSidebarAccordion(this.$root, {
+                    onShown: (openedSubmenu) => {
+                        window.requestAnimationFrame(() => {
+                            if (openedSubmenu?.isConnected) {
+                                scrollSidebarBlockIntoView(openedSubmenu);
+                            }
+                        });
+                    },
+                });
 
                 initMenuItemScroll(this.$root);
             });
         },
 
-        bindShownHandler() {
-            if (!this.metisMenu || this.shownHandler) {
-                return;
-            }
-
-            this.shownHandler = (event) => {
-                const openedSubmenu = event.detail?.shownElement;
-
-                window.requestAnimationFrame(() => {
-                    if (openedSubmenu?.isConnected) {
-                        scrollSidebarBlockIntoView(openedSubmenu);
-                    }
-                });
-            };
-
-            this.$root.addEventListener('shown.metisMenu', this.shownHandler);
-            window.__rtSidebarMenu = this.metisMenu;
-        },
-
         destroy() {
-            if (this.bootFrame !== null) {
-                window.cancelAnimationFrame(this.bootFrame);
-                this.bootFrame = null;
-            }
-
-            if (this.shownHandler) {
-                this.$root.removeEventListener('shown.metisMenu', this.shownHandler);
-                this.shownHandler = null;
-            }
-
-            if (this.metisMenu && typeof this.metisMenu.dispose === 'function') {
-                this.metisMenu.dispose();
-            }
-
-            if (window.__rtSidebarMenu === this.metisMenu) {
-                window.__rtSidebarMenu = null;
-            }
-
-            this.metisMenu = null;
+            this.unbindAccordion?.();
+            this.unbindAccordion = null;
         },
     };
 }
@@ -3451,7 +3383,7 @@ function initActiveMenu(sideMenu = document.getElementById('side-menu')) {
 
 function scrollSidebarBlockIntoView(element) {
     const sidebar = element?.closest('.vertical-menu');
-    const scroller = sidebar?.querySelector('.simplebar-content-wrapper');
+    const scroller = sidebar?.querySelector('.rt-sidebar-scroll');
     const block = element?.matches('li')
         ? element
         : element?.closest('li');

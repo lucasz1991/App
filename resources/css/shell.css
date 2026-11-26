@@ -382,8 +382,7 @@ html.rt-topbar-search-open body {
         box-shadow: 0 0 0 rgba(15, 23, 42, 0);
     }
 
-    body[data-sidebar-collapsible="true"] .vertical-menu .simplebar-mask,
-    body[data-sidebar-collapsible="true"] .vertical-menu .simplebar-content-wrapper {
+    body[data-sidebar-collapsible="true"] .vertical-menu .rt-sidebar-scroll {
         overflow-x: hidden !important;
     }
 
@@ -1286,21 +1285,23 @@ body[data-sidebar-drawer='true'].sidebar-enable { overflow: hidden; }
         18px 0 54px -46px rgba(15, 23, 42, 0.55) !important;
 }
 
+/* Nativer Scrollbereich (frueher SimpleBar). SimpleBar blendete die
+   Browser-Scrollleiste aus und zeichnete im Drawer keine eigene sichtbar;
+   dieselbe Optik liefert hier die ausgeblendete native Leiste. Mausrad,
+   Touch und Tastatur scrollen unveraendert. */
 .rt-shell-sidebar > .rt-sidebar-scroll {
+    position: relative;
     flex: 1 1 0%;
     min-height: 0;
     overflow-x: hidden;
     overflow-y: auto;
     max-height: 100%;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
 }
 
-.rt-shell-sidebar .rt-sidebar-scroll .simplebar-content-wrapper {
-    overflow-x: hidden !important;
-    overflow-y: auto !important;
-}
-
-.rt-shell-sidebar > .rt-sidebar-scroll[data-simplebar='init'] {
-    overflow: hidden;
+.rt-shell-sidebar > .rt-sidebar-scroll::-webkit-scrollbar {
+    display: none;
 }
 
 .rt-sidebar-footer {
@@ -1385,12 +1386,6 @@ html.dark .rt-shell-sidebar {
     padding-bottom: calc(2.5rem + env(safe-area-inset-bottom, 0px));
 }
 
-/* Der Scrollbereich soll die volle Höhe der Schale nutzen. */
-.rt-shell-sidebar > [data-simplebar],
-.rt-shell-sidebar .simplebar-content-wrapper {
-    overscroll-behavior: contain;
-}
-
 @media (min-width: 1024px) {
     body[data-sidebar-collapsible='true']:not([data-sidebar-expanded='true']) .rt-shell-sidebar #sidebar-menu {
         padding-inline: 0;
@@ -1444,7 +1439,8 @@ html.dark .rt-shell-sidebar {
 }
 
 /* Native planning deliberately omits the legacy theme. Keep the shell's
-   spacing and MetisMenu visibility contract independent of that stylesheet. */
+   spacing and the submenu visibility contract (resources/js/sidebar-accordion.js)
+   independent of that stylesheet. */
 .rt-shell-sidebar .sidebar-nav-link__icon {
     display: inline-flex;
     flex: 0 0 20px;
@@ -1472,7 +1468,8 @@ html.dark .rt-shell-sidebar {
     transition: height 220ms ease-out;
 }
 @media (prefers-reduced-motion: reduce) {
-    /* MetisMenu needs transitionend (or its timeout) to release its lock. */
+    /* Kurzer Uebergang statt keinem: sidebar-accordion.js schliesst per
+       transitionend ab (der Timer dort ist nur die Rueckfallebene). */
     .rt-shell-sidebar .metismenu .mm-collapsing { transition-duration: 1ms; }
 }
 
@@ -1582,7 +1579,7 @@ html.dark .rt-shell-sidebar [data-rt-sidebar-group][data-menu-active='true'] {
 }
 
 /* The guide belongs to each native submenu, not the active destination.
-   Keep the MetisMenu height/visibility lifecycle and the 44px targets intact. */
+   Keep the submenu height/visibility lifecycle and the 44px targets intact. */
 .rt-shell-sidebar .sidebar-nav-submenu::before {
     position: absolute;
     inset-block: 0.875rem;
