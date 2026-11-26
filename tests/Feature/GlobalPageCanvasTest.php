@@ -96,7 +96,9 @@ class GlobalPageCanvasTest extends TestCase
             'components/customer-portal-auth-layout.blade.php',
         ] as $path) {
             $layout = $this->source('resources/views/'.$path);
-            $this->assertMatchesRegularExpression('/@vite\(\[[^\]]*[\'"]resources\/css\/app\.css[\'"]/', $layout, $path);
+            // master.blade.php setzt die Liste per array_merge() zusammen
+            // (Anrufmodul nur fuer angemeldete Nutzer); app.css bleibt der erste Eintrag.
+            $this->assertMatchesRegularExpression('/@vite\((?:array_merge\(\s*)?\[\s*[\'"]resources\/css\/app\.css[\'"]/', $layout, $path);
             $this->assertStringContainsString('$store.theme?.dark', $layout, $path);
         }
 

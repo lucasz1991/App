@@ -231,7 +231,10 @@ class OperationsAttentionTest extends TestCase
         Livewire::actingAs($this->employee)->test(PersonalWorkspace::class)->assertSet('area', 'work');
         // Die persönliche Arbeitsliste ist in „Mein Arbeitstag“ aufgegangen; alte Links landen dort.
         Livewire::withQueryParams(['area' => 'inbox'])->actingAs($this->employee)->test(PersonalWorkspace::class)->assertSet('area', 'work');
-        Livewire::actingAs($this->employee)->test(\App\Livewire\Operations\MyWork::class)->assertSee('Meine Aufgaben')->assertSeeLivewire(\App\Livewire\Operations\AttentionCenter::class);
+        Livewire::actingAs($this->employee)->test(\App\Livewire\Operations\MyWork::class)->assertSee('Meine Aufgaben')
+            // Seit d2be9f8a wird die persönliche Arbeitsliste erst beim Öffnen des Aufgaben-Dialogs eingehängt.
+            ->assertSet('tasksOpen', false)->assertDontSeeLivewire(\App\Livewire\Operations\AttentionCenter::class)
+            ->call('openTasks')->assertSet('tasksOpen', true)->assertSeeLivewire(\App\Livewire\Operations\AttentionCenter::class);
         // Unbekannte oder nicht freigeschaltete Bereiche fallen auf den Arbeitstag zurück.
         Livewire::withQueryParams(['area' => 'unbekannt'])->actingAs($this->employee)->test(PersonalWorkspace::class)->assertSet('area', 'work');
     }

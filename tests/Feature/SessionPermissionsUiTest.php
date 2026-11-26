@@ -395,7 +395,15 @@ class SessionPermissionsUiTest extends TestCase
         $this->assertStringNotContainsString('<livewire:settings.push-settings />', $view);
         $this->assertStringContainsString('<livewire:profile.logout-other-browser-sessions-form />', $view);
         $layout = file_get_contents(resource_path('views/layouts/master.blade.php'));
-        $this->assertStringContainsString("@if (\$chrome)\n                <livewire:settings.session-permissions />", str_replace("\r\n", "\n", $layout));
+        // Phase 5 (Nov. 2026) hat den chromlosen Layoutmodus ($chrome) entfernt:
+        // der Sitzungsdialog haengt jetzt genau einmal im @auth-Block der Huelle.
+        $layout = str_replace("\r\n", "\n", (string) $layout);
+        $this->assertStringNotContainsString('$chrome', $layout);
+        $this->assertSame(1, substr_count($layout, '<livewire:settings.session-permissions />'));
+        $this->assertMatchesRegularExpression(
+            '/@auth\n(?:(?!@endauth).)*@endpersist\n\s*<livewire:settings\.session-permissions \/>\n(?:(?!@auth\b).)*@endauth/s',
+            $layout,
+        );
         $this->assertDatabaseCount('push_subscriptions', 0);
         $this->assertSame(1, DB::table('users')->count());
     }

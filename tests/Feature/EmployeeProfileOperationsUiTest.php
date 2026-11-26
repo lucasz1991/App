@@ -75,7 +75,7 @@ class EmployeeProfileOperationsUiTest extends TestCase
 
         $component->assertViewHas('employeeProfileTabs', function (array $tabs): bool {
             $existing = [
-                'userDetails', 'userNotes', 'userFiles', 'userMessages', 'devices',
+                'userDetails', 'userNotes', 'userFiles', 'userMessages', 'devices', 'teams', 'outlook',
                 'masterData', 'documents', 'compensation', 'qualifications', 'training',
                 'signatures', 'emergency', 'workflows', 'development', 'sickness', 'tasks',
                 'accounts', 'absences', 'workModel', 'vacationPolicy', 'ruleAssignments',
@@ -99,7 +99,8 @@ class EmployeeProfileOperationsUiTest extends TestCase
         $count = $xpath->query('.//*[contains(@class,"employee-profile__group-count") and @aria-hidden="true"]', $groups->item(0));
         $this->assertCount(0, $count);
         $this->assertSame('Profil', trim($groups->item(0)->textContent));
-        $this->assertSame(['userDetails', 'userNotes', 'userFiles', 'userMessages', 'devices'], array_map(
+        // Teams and Outlook joined the profile group on 2026-11-26 (2d5ae05d); an admin may manage both.
+        $this->assertSame(['userDetails', 'userNotes', 'userFiles', 'userMessages', 'devices', 'teams', 'outlook'], array_map(
             static fn ($tab): string => $tab->getAttribute('data-panel-tab'),
             iterator_to_array($xpath->query('//*[@data-profile-navigation]//*[@role="tab"]')),
         ));

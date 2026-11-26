@@ -313,7 +313,8 @@ final class OutlookDesktopFlowTest extends TestCase
             .'</td></tr></tbody></table></div>';
         $combined = OutlookCombinedComposeDocument::build($template, $signature);
         $payload = $this->payload();
-        $payload['templates'] = [['combinedComposeHtml' => $combined, 'signature' => $payload['signature'], 'signatureVersion' => '0123456789abcdef']];
+        // Seit 4486b042 traegt jede kombinierte Fassung ihre Medienliste mit (OutlookAddinPayloadService setzt beide gemeinsam).
+        $payload['templates'] = [['combinedComposeHtml' => $combined, 'combinedComposeMedia' => [], 'signature' => $payload['signature'], 'signatureVersion' => '0123456789abcdef']];
         $wire = OutlookClientPresentation::payload($payload);
         self::assertSame($wire['version']['signature'], $wire['templates'][0]['signatureVersion']);
         self::assertSame(2, substr_count($wire['templates'][0]['combinedComposeHtml'], 'RT-SIGNATURE-VERSION:'.$wire['version']['signature']));

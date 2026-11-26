@@ -176,9 +176,13 @@ class AiAssistActivityTest extends TestCase
         $service = app(AiAssistService::class);
         $overview = $service->overview($this->actor);
         $this->assertTrue($overview['available']);
-        $this->assertSame(36, $overview['total']);
-        $this->assertSame(array_combine(AiIntake::STATUSES, range(1, 8)), $overview['statuses']);
+        // Nine statuses since "not_inquiry" joined AiIntake::STATUSES: 1 + 2 + … + 9 records.
+        $this->assertSame(45, $overview['total']);
+        $this->assertSame(array_combine(AiIntake::STATUSES, range(1, 9)), $overview['statuses']);
         $this->assertSame(['review' => 3, 'busy' => 3, 'waiting' => 4, 'error' => 7, 'ready' => 5, 'completed' => 8, 'paused' => 6], $overview['counts']);
+        // Dismissed originals (not_inquiry) are counted as a status but feed none of the work buckets.
+        $this->assertSame(9, $overview['statuses']['not_inquiry']);
+        $this->assertSame(36, array_sum($overview['counts']));
         $this->assertCount(5, $overview['recent']);
         $this->assertIsString($overview['recent'][0]['at']);
         $this->assertSame(30, $service->intakes($this->actor)->count());

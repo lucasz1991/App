@@ -298,10 +298,20 @@ class PageBuilderPreviewTest extends TestCase
                 'RailTime-Preview:',
             ),
         );
-        // Logo, RT-Zeichen und Hauptzug erhalten einen eigenen Replay-Nonce.
-        // Das separate Idle-GIF bleibt ein regulaeres Medienasset und darf
-        // deshalb nicht pauschal denselben Preview-Kommentar tragen.
-        $this->assertCount(3, $previewNonceGifs);
+        // Logo und Hauptzug erhalten einen eigenen Replay-Nonce. Das RT-Zeichen
+        // ist seit Okt. 2026 bewusst ein PNG-Standbild (emailMarkAsset) und
+        // traegt deshalb keinen GIF-Kommentar mehr. Das separate Idle-GIF
+        // bleibt ein regulaeres Medienasset und darf nicht pauschal denselben
+        // Preview-Kommentar tragen.
+        $nonceKeys = array_map(static function (string $encodedGif): string {
+            preg_match('/RailTime-Preview:[0-9a-zA-Z]+-([A-Z_]+)/', base64_decode($encodedGif, true) ?: '', $nonce);
+
+            return $nonce[1] ?? '';
+        }, array_values($previewNonceGifs));
+        sort($nonceKeys);
+        $this->assertSame(['LOGO_SRC', 'TRAIN_SRC'], $nonceKeys);
+        $this->assertStringEndsWith('.png', \App\Support\EmailTemplateBuilder::emailMarkAsset('dark'));
+        $this->assertStringEndsWith('.png', \App\Support\EmailTemplateBuilder::emailMarkAsset('light'));
         $this->assertSame($before, $zustand($document->fresh()));
 
         $signatureDocument = MailDocument::query()

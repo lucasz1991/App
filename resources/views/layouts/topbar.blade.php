@@ -56,25 +56,12 @@
         </div>
         <div class="rt-shell-topbar-actions flex min-w-0 flex-1 items-center justify-end gap-2 border-b border-rt-border/60 px-2 dark:border-rt-dark-border/60 sm:px-4 lg:px-6">
             {{-- Reihenfolge der Topbar-Kontrollen: Suche (expandiert nach links,
-                 weil die Nachbarn rechts verankert bleiben), dann Chat und Posteingang,
+                 weil die Nachbarn rechts verankert bleiben), dann Posteingang,
                  dann Einstellungen, aussen das Profil. --}}
             <div class="rt-shell-topbar-controls flex min-w-0 items-center gap-1.5 sm:gap-3">
                     @auth
                         <div class="rt-topbar-search-slot" data-topbar-page-search></div>
                         <div data-topbar-global-search><livewire:tools.global-search /></div>
-
-                        <x-ui.buttons.button-basic
-                            mode="icon"
-                            href="{{ route('chat') }}"
-                            wire:navigate
-                            class="rt-topbar-control min-w-10 px-0"
-                            data-rt-topbar-control
-                            data-topbar-chat
-                            aria-controls="railtime-communication"
-                            label="Chat im Vollbild öffnen"
-                        >
-                            <i class="far fa-comments text-[18px]" aria-hidden="true"></i>
-                        </x-ui.buttons.button-basic>
 
                         {{-- Posteingang fuer normale Nachrichten --}}
                         <livewire:tools.header-inbox />

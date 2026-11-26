@@ -141,7 +141,13 @@ class AutosaveFieldStatusTest extends TestCase
         $feedbackStart = strpos($styles, '/* Einheitlicher Fokus- und Autosave-Ring');
 
         $this->assertIsInt($feedbackStart);
-        $feedbackStyles = substr($styles, $feedbackStart);
+        // Der Formular- und Autosave-Abschnitt endet dort, wo die spaeter
+        // angehaengte Arbeitsflaeche der Wagenliste (rt-wl-*) beginnt. Deren
+        // eigene Fokus-Outlines gehoeren nicht zum Autosave-Vertrag.
+        $feedbackEnd = strpos($styles, "
+.rt-wagon-editor {", $feedbackStart);
+        $this->assertIsInt($feedbackEnd);
+        $feedbackStyles = substr($styles, $feedbackStart, $feedbackEnd - $feedbackStart);
 
         $this->assertStringContainsString('.rt-ui-control:focus,', $feedbackStyles);
         $this->assertStringContainsString('.rt-ui-number-input:focus-within,', $feedbackStyles);

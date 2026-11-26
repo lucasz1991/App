@@ -31,6 +31,11 @@ class ChatRepliesAndReactionsTest extends TestCase
 
         $this->withoutMiddleware(LogActivity::class);
         $this->buildMinimalRailTimeSchema();
+        // Das Loeschen von Dateien prueft ueber den Marketing-Quellschutz
+        // (File::deleting → MarketingFileSourceService), ob ein Motiv die Datei
+        // noch verwendet – dafuer muessen die Marketing-Tabellen vorhanden sein.
+        (require database_path('migrations/2026_08_07_000100_create_marketing_studio_tables.php'))->up();
+        (require database_path('migrations/2026_08_12_010000_add_soft_deletes_to_marketing_creative_variants_table.php'))->up();
         Schema::create('activity_log', function (Blueprint $table): void {
             $table->bigIncrements('id');
             $table->string('log_name')->nullable()->index();

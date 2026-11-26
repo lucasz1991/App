@@ -422,7 +422,7 @@ class EmailTemplatesPageTest extends TestCase
                 'allowedSenderAddresses' => ['mara@example.com', 'mara.alias@example.com'],
             ])
             ->assertJsonPath('templates.0.signatureMode', 'native')
-            ->assertHeader('Vary', 'Authorization, X-RailTime-Outlook-Mailbox, X-RailTime-Outlook-Sender, X-RailTime-Compose-Contract');
+            ->assertHeader('Vary', 'Authorization, X-RailTime-Outlook-Mailbox, X-RailTime-Outlook-Sender, X-RailTime-Compose-Contract, X-RailTime-Outlook-Profile, X-RailTime-Outlook-Context, X-RailTime-Automatic-Policy, X-RailTime-Compose-Type'); // erweitert in 673d7aed/f583057a
         $etag = (string) $response->headers->get('ETag');
         $this->assertNotSame('', $etag);
         $snapshotPath = app(OutlookAddinUserSnapshotStore::class)->pathForUser($user);

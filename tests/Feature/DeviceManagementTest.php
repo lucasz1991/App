@@ -21,6 +21,8 @@ use App\Services\DeviceManagement\DeviceInventoryService;
 use App\Services\DeviceManagement\DeviceManagementSettings;
 use App\Services\DeviceManagement\DeviceProviderRegistry;
 use App\Services\DeviceManagement\DeviceProvisioningProfileCatalog;
+use App\Services\DeviceManagement\DeviceWorkplaceService;
+use App\Services\DeviceManagement\WorkplaceProfileCatalog;
 use App\Support\PageHelpCatalog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -447,6 +449,18 @@ class DeviceManagementTest extends TestCase
         );
     }
 
+    /**
+     * Privatgeraete duerfen seit dem Arbeitsplatz-Freigabeablauf erst registriert
+     * werden, wenn ein Profil festgelegt ist und der zugeordnete Mitarbeiter den
+     * Verwaltungsumfang bestaetigt hat (DeviceWorkplaceService::assertCommand).
+     */
+    private function acceptPrivateWorkplace(Device $device, User $owner, User $admin): void
+    {
+        $service = app(DeviceWorkplaceService::class);
+        $workplace = $service->configure($device->fresh(), 'byod_managed', $admin);
+        $service->accept($device->fresh(), $owner, $workplace->revision, WorkplaceProfileCatalog::hash('byod_managed'), true);
+    }
+
     public function test_enrollment_mode_matrix_rejects_incompatible_ownership_and_drives_the_ui(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'status' => true]);
@@ -461,6 +475,7 @@ class DeviceManagementTest extends TestCase
             'primary_provider' => 'simulation',
         ], $admin);
         app(DeviceInventoryService::class)->assign($device, $employee, $admin);
+        $this->acceptPrivateWorkplace($device, $employee, $admin);
 
         try {
             app(DeviceEnrollmentService::class)->invite(
@@ -499,6 +514,7 @@ class DeviceManagementTest extends TestCase
             'primary_provider' => 'simulation',
         ], $admin);
         app(DeviceInventoryService::class)->assign($device, $employee, $admin);
+        $this->acceptPrivateWorkplace($device, $employee, $admin);
         $invitation = app(DeviceEnrollmentService::class)->invite(
             $device,
             $employee,
@@ -843,7 +859,10 @@ class DeviceManagementTest extends TestCase
             ->call('closeProviderReadiness')
             ->assertSet('showProviderReadiness', false)
             ->set('search', '   ')
-            ->assertSee('0 aktiv')
+            // Ohne aktiven Filter blendet die Toolbar den Zaehler ganz aus;
+            // eine Suche nur aus Leerzeichen zaehlt nicht als Filter.
+            ->assertDontSeeHtml('data-tables-filter-count')
+            ->assertDontSee('1 aktiv')
             ->assertDontSeeHtml('data-rt-filter-chip')
             ->set('search', 'Notebook')
             ->set('platformFilter', 'windows')
@@ -851,6 +870,8 @@ class DeviceManagementTest extends TestCase
             ->set('lifecycleFilter', 'inventory')
             ->set('complianceFilter', 'warning')
             ->set('locationFilter', 'Köln Hbf')
+            ->assertSeeHtml('data-tables-filter-count')
+            ->assertSee('6 aktiv')
             ->assertSeeHtml('data-rt-filter-chip')
             ->assertSee('Gerätetyp')
             ->assertSee('Compliance')

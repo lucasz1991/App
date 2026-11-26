@@ -69,27 +69,34 @@ class AiAssistNavigationHeaderTest extends TestCase
     private function assertHeaderTabs(string $html, string $selected, string $action): void
     {
         $dom = $this->dom($html);
-        $this->assertSame(1, $dom->query('//*[@data-assistant-header]')->length);
-        $this->assertSame(1, $dom->query('//*[@data-assistant-header]/nav[@data-assistant-navigation]')->length);
+        // Both hosts now render their header through x-ui.floating.window; the shared marker is the header class.
+        $header = '//header[contains(concat(" ", normalize-space(@class), " "), " rt-assistant-header ")]';
+        $this->assertSame(1, $dom->query($header)->length);
+        $this->assertSame(1, $dom->query($header.'[contains(concat(" ", normalize-space(@class), " "), " rt-floating-window__header ")]')->length);
+        $this->assertSame(1, $dom->query($header.'/nav[@data-assistant-navigation]')->length);
         $this->assertSame(1, $dom->query('//*[@data-assistant-navigation]')->length);
         $this->assertSame(4, $dom->query('//*[@data-assistant-navigation]/button[@role="tab"]')->length);
         $this->assertSame(1, $dom->query('//*[@data-assistant-navigation]/button[@aria-selected="true"]')->length);
         $this->assertSame(1, $dom->query('//*[@data-assistant-navigation]/button[@tabindex="0"]')->length);
-        foreach (['chat' => 'Chat', 'intake' => 'AI-Annahme', 'actions' => 'Aktionen', 'activity' => 'Aktivitäten'] as $key => $label) {
+        foreach (['chat' => 'Chat', 'intake' => 'Inbox', 'actions' => 'Tasks', 'activity' => 'Logs'] as $key => $label) {
             $button = $dom->query('//*[@data-assistant-navigation]/button[@data-tab="'.$key.'"]')->item(0);
             $this->assertStringStartsWith($label, $button->getAttribute('aria-label'));
             $this->assertSame($key === $selected ? 'true' : 'false', $button->getAttribute('aria-selected'));
             $this->assertSame($action."('".$key."')", $button->getAttribute('wire:click'));
             $this->assertSame('disabled', $button->getAttribute('wire:loading.attr'));
-            $this->assertSame(1, $dom->query('//*[@id="'.$button->getAttribute('id').'"]/svg[@aria-hidden="true"]')->length);
-            $this->assertSame('sr-only', $dom->query('//*[@id="'.$button->getAttribute('id').'"]/span[1]')->item(0)->getAttribute('class'));
+            $this->assertSame(1, $dom->query('//*[@id="'.$button->getAttribute('id').'"]/i[@aria-hidden="true"]')->length);
+            $caption = $dom->query('//*[@id="'.$button->getAttribute('id').'"]/span[1]')->item(0);
+            $this->assertSame('rt-window-tabs__label', $caption->getAttribute('class'));
+            $this->assertSame($label, trim($caption->textContent));
         }
         $active = $dom->query('//*[@data-assistant-navigation]/button[@aria-selected="true"]')->item(0);
         $body = $dom->query('//*[@id="'.$active->getAttribute('aria-controls').'"]')->item(0);
         $this->assertNotNull($body);
         $this->assertSame('tabpanel', $body->getAttribute('role'));
         $this->assertSame($active->getAttribute('id'), $body->getAttribute('aria-labelledby'));
-        $this->assertSame(0, $dom->query('//nav[contains(@class,"rt-ai-assist__tabs")]')->length);
+        // No second tab bar outside the header: every tablist is the one shared header navigation.
+        $this->assertSame(1, $dom->query('//nav[@role="tablist"]')->length);
+        $this->assertSame(0, $dom->query('//nav[contains(@class,"rt-ai-assist__tabs")][not(parent::header)]')->length);
     }
 
     public function test_standalone_assist_has_one_header_with_icon_tabs_and_preserves_settings_reset_close_and_context(): void
@@ -98,10 +105,16 @@ class AiAssistNavigationHeaderTest extends TestCase
         $this->assertHeaderTabs($component->html(), 'chat', 'setTab');
         $component->assertSeeHtml('aria-label="Assistenz-Einstellungen"')->assertSeeHtml('aria-label="Neues Gespräch"')
             ->assertSeeHtml('aria-label="AI-Assist schließen"')->assertSeeHtml('x-on:click="toggle(false)"')
-            ->assertSeeHtml('data-assistant-cloud-slot="header"')->assertSeeHtml('rt-ai-assist__context--compact');
+            ->assertSeeHtml('aria-label="Seitenkontext anzeigen"');
         $dom = $this->dom($component->html());
-        $this->assertSame('AI-Assist', $dom->query('//*[@data-assistant-header]//h2')->item(0)->textContent);
+        $this->assertSame(1, $dom->query('//*[@data-assistant-header]')->length);
+        // The window itself and its tab navigation carry the name since the header holds the tabs instead of a heading.
+        $this->assertSame('AI-Assist', $dom->query('//section[@role="dialog"][.//*[@data-assistant-header]]')->item(0)->getAttribute('aria-label'));
+        $this->assertSame('AI-Assist', $dom->query('//*[@data-assistant-header]/nav[@data-assistant-navigation]')->item(0)->getAttribute('aria-label'));
         $this->assertSame(1, $dom->query('//*[@data-assistant-header]//*[@role="dialog" and @aria-label="Assistenz-Einstellungen"]')->length);
+        foreach (['Neues Gespräch', 'AI-Assist schließen', 'Assistenz-Einstellungen', 'Seitenkontext anzeigen'] as $control) {
+            $this->assertSame(1, $dom->query('//*[@data-assistant-header]//button[@aria-label="'.$control.'"]')->length, $control);
+        }
     }
 
     public function test_context_dropdown_is_available_in_the_header_independent_of_the_assist_tab(): void
@@ -114,8 +127,11 @@ class AiAssistNavigationHeaderTest extends TestCase
             ->assertDontSeeHtml('$wire.tab !== \'intake\'');
 
         $dom = $this->dom($html);
-        $this->assertSame(1, $dom->query('//*[@data-assistant-header]//details[contains(@class,"rt-ai-assist__context--compact")]')->length);
-        $this->assertSame(1, $dom->query('//details[contains(@class,"rt-ai-assist__context--compact")]')->length);
+        // The context is an anchored header dropdown now, no longer a <details> block in the body.
+        $this->assertSame(1, $dom->query('//*[@data-assistant-header]//button[@aria-label="Seitenkontext anzeigen"]')->length);
+        $this->assertSame(1, $dom->query('//button[@aria-label="Seitenkontext anzeigen"]')->length);
+        $this->assertSame(1, $dom->query('//*[@data-assistant-header]//*[@role="group" and @aria-label="Aktueller Seitenkontext"]//*[contains(@class,"rt-ai-assist__chips")]')->length);
+        $this->assertSame(0, $dom->query('//details[contains(@class,"rt-ai-assist__context")]')->length);
     }
 
     public function test_orb_hint_uses_the_shared_hover_anchor_dropdown_without_a_timed_dismissal(): void
@@ -158,7 +174,7 @@ class AiAssistNavigationHeaderTest extends TestCase
         $dom = $this->dom($component->html());
         $this->assertSame(3, $dom->query('//*[@data-assistant-navigation]/button')->length);
         $this->assertSame(0, $dom->query('//*[@data-assistant-navigation]/button[@data-tab="intake"]')->length);
-        $this->assertSame(0, $dom->query('//*[@class="rt-assistant-nav__count"]')->length);
+        $this->assertSame(0, $dom->query('//*[contains(concat(" ", normalize-space(@class), " "), " rt-assistant-nav__count ")]')->length);
         $component->call('setTab', 'intake')->assertForbidden();
     }
 
@@ -170,9 +186,9 @@ class AiAssistNavigationHeaderTest extends TestCase
         $component = Livewire::test(AiAssist::class, ['page' => 'cases', 'view' => 'inbox']);
         $dom = $this->dom($component->html());
         $button = $dom->query('//*[@data-assistant-navigation]/button[@data-tab="intake"]')->item(0);
-        $this->assertSame('AI-Annahme · 2 zur Prüfung', $button->getAttribute('aria-label'));
-        $this->assertSame('AI-Annahme · 2 zur Prüfung', $button->getAttribute('data-tooltip-text'));
-        $badge = $dom->query('//*[@class="rt-assistant-nav__count"]')->item(0);
+        $this->assertSame('Inbox · 2 zur Prüfung', $button->getAttribute('aria-label'));
+        $this->assertSame('Inbox · 2 zur Prüfung', $button->getAttribute('data-tooltip-text'));
+        $badge = $dom->query('//*[contains(concat(" ", normalize-space(@class), " "), " rt-assistant-nav__count ")]')->item(0);
         $this->assertSame('2', $badge->textContent);
         $this->assertSame('true', $badge->getAttribute('aria-hidden'));
     }
@@ -219,8 +235,9 @@ class AiAssistNavigationHeaderTest extends TestCase
         $component = Livewire::actingAs($ordinary)->test(Chatbot::class);
         $dom = $this->dom($component->html());
         $this->assertSame(0, $dom->query('//*[@data-assistant-header]')->length);
+        $this->assertSame(0, $dom->query('//*[contains(concat(" ", normalize-space(@class), " "), " rt-assistant-header ")]')->length);
         $this->assertSame(0, $dom->query('//*[@data-assistant-navigation]')->length);
-        $this->assertSame(1, $dom->query('//header[@class="rt-chatbot__header"]')->length);
+        $this->assertSame(1, $dom->query('//header[@class="rt-floating-window__header rt-chatbot__header"]')->length);
         $component->assertSeeHtml('x-on:click="toggleSettings()"')->assertSeeHtml('x-on:click="setOpen(false)"');
     }
 

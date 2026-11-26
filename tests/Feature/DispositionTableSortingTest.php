@@ -167,7 +167,7 @@ class DispositionTableSortingTest extends TestCase
         $half = $this->shift($order, 'Half', ['required_staff' => 2]);
         $quarter = $this->shift($order, 'Quarter', ['required_staff' => 4]);
         $empty = $this->shift($order, 'Empty');
-        $this->assignment($half, 'requested');
+        $candidate = $this->assignment($half, 'requested');
         $employee = $this->assignment($quarter, 'confirmed');
         $this->assignment($empty, 'declined');
         $this->assignment($empty, 'cancelled');
@@ -175,7 +175,12 @@ class DispositionTableSortingTest extends TestCase
             ->call('tableSort', 'staffing', 'asc')->assertViewHas('shifts', fn ($items) => $items->modelKeys() === [$empty->id, $quarter->id, $half->id])
             ->call('tableSort', 'staffing', 'desc')->assertViewHas('shifts', fn ($items) => $items->modelKeys() === [$half->id, $quarter->id, $empty->id])
             ->call('openDetails', $quarter->id)->assertViewHas('selectedShift', fn ($shift) => $shift->assignments->first()->user->profile_photo_path === 'profile-photos/synthetic.jpg' && $shift->assignments->first()->user->relationLoaded('profile') && $shift->assignments->first()->user->relationLoaded('currentTeam'))
-            ->assertViewHas('candidates', fn ($items) => $items->firstWhere('id', $employee->id)?->profile_photo_path === 'profile-photos/synthetic.jpg' && $items->firstWhere('id', $employee->id)?->email === $employee->email && $items->firstWhere('id', $employee->id)?->relationLoaded('profile'));
+            // The staffing panel loads its candidates only on request since the lazy staffing panel.
+            ->assertSet('candidatesReady', false)->assertViewHas('candidates', fn ($items) => $items->isEmpty())
+            ->call('loadStaffingCandidates')->assertSet('candidatesReady', true)
+            // Whoever already holds a reserving assignment on this shift is no candidate for it any more.
+            ->assertViewHas('candidates', fn ($items) => $items->firstWhere('id', $employee->id) === null)
+            ->assertViewHas('candidates', fn ($items) => $items->firstWhere('id', $candidate->id)?->profile_photo_path === 'profile-photos/synthetic.jpg' && $items->firstWhere('id', $candidate->id)?->email === $candidate->email && $items->firstWhere('id', $candidate->id)?->relationLoaded('profile') && $items->firstWhere('id', $candidate->id)?->relationLoaded('currentTeam'));
     }
 
     public function test_sort_actions_reject_invalid_column_direction_and_unauthorized_users(): void

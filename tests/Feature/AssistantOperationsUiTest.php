@@ -42,7 +42,7 @@ class AssistantOperationsUiTest extends TestCase
         AssistantSettings::setEnabled(false);
         $html = $this->get('/arbeitsplatz/ansicht/cases?view=inbox')->assertOk()->getContent();
         $this->assertStringNotContainsString('data-railtime-chatbot-root', $html);
-        $this->assertSame(1, substr_count($html, 'class="rt-ai-assist__launcher"'));
+        $this->assertSame(1, substr_count($html, 'class="rt-floating-launcher rt-ai-assist__launcher"'));
         $this->assertStringContainsString('Was steht als Nächstes an?', $html);
     }
 

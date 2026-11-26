@@ -80,7 +80,9 @@ class DispositionDateControlsTest extends TestCase
         $this->assertStringNotContainsString('<details class="rt-disposition-range">', $source);
         $this->assertStringContainsString('<x-ui.page-header-actions target="actions">', $source);
         $this->assertStringContainsString('<livewire:operations.shift-series-planner :show-trigger="false" />', $source);
-        $this->assertStringContainsString('x-ui.forms.date-range-picker from-model="rangeFrom" until-model="rangeTo" apply-action="applyPeriod"', $source);
+        // Day and range picker are keyed separately now; both still bind the same range and apply action.
+        $this->assertSame(2, preg_match_all('/<x-ui\.forms\.date-range-picker wire:key="shift-plan-date-picker-[^"]+-(?:single|range)" from-model="rangeFrom" until-model="rangeTo" apply-action="applyPeriod"/', $source));
+        $this->assertSame(2, substr_count($source, '<x-ui.forms.date-range-picker '));
         $this->assertStringNotContainsString('wire:click="currentWeek"', $source);
         $this->assertStringNotContainsString('wire:click="movePeriod(', $source);
     }

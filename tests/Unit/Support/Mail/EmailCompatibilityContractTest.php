@@ -84,8 +84,10 @@ final class EmailCompatibilityContractTest extends TestCase
 
         $attributes = file_get_contents(dirname(__DIR__, 4).DIRECTORY_SEPARATOR.'.gitattributes');
         self::assertIsString($attributes);
+        // .gitattributes selbst hat keine eol-Regel: unter core.autocrlf=true
+        // liegt die Datei im Arbeitsbaum mit CRLF, die Regel bleibt dieselbe.
         self::assertMatchesRegularExpression(
-            '/^resources\/data\/email-html-compatibility-rules\.csv text eol=lf$/m',
+            '/^resources\/data\/email-html-compatibility-rules\.csv text eol=lf\r?$/m',
             $attributes,
         );
 

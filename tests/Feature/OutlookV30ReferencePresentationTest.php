@@ -153,7 +153,7 @@ final class OutlookV30ReferencePresentationTest extends TestCase
         $template->forceFill(['html' => $this->mark($template->published_html, false), 'published_html' => $this->mark($template->published_html, false), 'published_signature_document_id' => $signature->id])->saveQuietly();
         app()->forgetScopedInstances();
         $before = MailDocument::query()->orderBy('id')->get()->toArray();
-        $html = (new SystemMailCssInliner)->convert(EmailTemplateBuilder::buildSystemMailHtml(new HtmlString('<p>Application content stays literal.</p>')));
+        $html = (new SystemMailCssInliner)->convert($this->historicalSystemMailHtml(new HtmlString('<p>Application content stays literal.</p>')));
         self::assertStringContainsString('outlook-desktop-flow-v17', $html);
         self::assertSame(3, substr_count($html, ' rt-v17-column '));
         self::assertStringContainsString('rt-v17-single-dispatch', $html);
@@ -177,7 +177,7 @@ final class OutlookV30ReferencePresentationTest extends TestCase
         $template->forceFill(['html' => $this->mark($template->published_html, false), 'published_html' => $this->mark($template->published_html, false), 'published_signature_document_id' => $signature->id])->saveQuietly();
         app()->forgetScopedInstances();
         $before = MailDocument::query()->orderBy('id')->get()->toArray();
-        $current = EmailTemplateBuilder::buildSystemMailHtml(new HtmlString('<p>Opaque application bytes &amp; text.</p>'));
+        $current = $this->historicalSystemMailHtml(new HtmlString('<p>Opaque application bytes &amp; text.</p>'));
         self::assertStringContainsString('outlook-desktop-flow-v17', $current);
         // Exercise the frozen V16 frame/media contract through the exact new inverse.
         // The compact suite separately covers the current V17 System inliner.
@@ -364,6 +364,27 @@ final class OutlookV30ReferencePresentationTest extends TestCase
         $canonical['version']['personal'] = substr($service->sourceFingerprint($user), 0, 16);
 
         return [$canonical, $user];
+    }
+
+    /**
+     * Seit e959e1c2 liefert buildSystemMailHtml() standardmaessig die U2e-Darstellung.
+     * Diese Pruefungen gelten dem historischen V17-Adapter und halten ihn daher wie
+     * SystemMailDispatchActionsTest/OutlookLinkedAnimatedDeliveryTest auf dem urspruenglichen Renderer fest.
+     */
+    private function historicalSystemMailHtml(HtmlString $content): string
+    {
+        app()->instance(\App\Support\Mail\OutlookUniversalSystemMailPresentation::class, new class
+        {
+            public function project(...$arguments): ?array
+            {
+                return null;
+            }
+        });
+        try {
+            return EmailTemplateBuilder::buildSystemMailHtml($content);
+        } finally {
+            app()->forgetInstance(\App\Support\Mail\OutlookUniversalSystemMailPresentation::class);
+        }
     }
 
     private function mark(string $html, bool $signature): string

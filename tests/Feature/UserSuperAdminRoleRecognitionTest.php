@@ -135,7 +135,15 @@ class UserSuperAdminRoleRecognitionTest extends TestCase
             $this->assertSame($role, $user->role);
         }
 
-        $this->actingAs($this->user('staff'))->get(route('home'))->assertRedirect(route('dashboard'));
+        // Mitarbeiter im Mitarbeiterkontext starten seit Okt. 2026 in ihrem
+        // Arbeitstag (User::usesPersonalWorkspaceAsHome); das Nicht-Admin-
+        // Dashboard bleibt der Einstieg fuer die Verwaltung.
+        $this->actingAs($this->user('staff'))->get(route('home'))->assertRedirect(route('operations.mine'));
+
+        $management = $this->user('staff');
+        $management->setRelation('currentTeam', $this->team('Verwaltung', []));
+        $this->actingAs($management)->get(route('home'))->assertRedirect(route('dashboard'));
+        $this->assertSame('staff', $management->role);
     }
 
     public function test_role_admin_middleware_accepts_the_two_explicit_internal_admin_roles(): void

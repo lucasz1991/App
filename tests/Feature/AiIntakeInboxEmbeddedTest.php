@@ -378,7 +378,7 @@ class AiIntakeInboxEmbeddedTest extends TestCase
         $payload['demand']['title'] = 'Obsolete linked position facts';
         $proposal = $intake->proposals()->create(['source_revision' => 1, 'position_index' => 0, 'revision' => 1, 'status' => 'stale', 'inquiry_id' => $inquiry->id, 'payload' => $payload]);
         Livewire::test(AiIntakeInbox::class, ['embedded' => true, 'initialIntakeId' => $intake->id])
-            ->assertSee('Noch keine Positionen ausgewertet.')->assertDontSee('Outdated analysis facts')->assertDontSee('Obsolete linked position facts')
+            ->assertSee('Noch keine Positionen vorhanden.')->assertDontSee('Outdated analysis facts')->assertDontSee('Obsolete linked position facts')
             ->assertSee('Frühere Anfragen')->assertSee('Native Anfrage '.$inquiry->number.' öffnen')
             ->assertDontSeeHtml('wire:click="editProposal('.$proposal->id.')"')->assertDontSeeHtml('wire:click="createInquiries"');
         $this->assertSame(1, OperationInquiry::count());

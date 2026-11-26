@@ -165,10 +165,13 @@ class AiAssistTest extends TestCase
         $this->assertStringNotContainsString('rt-ai-assist__label', $html);
         $this->assertStringContainsString('aria-label="AI-Assist öffnen', $html);
         $styles = file_get_contents(resource_path('css/ai-assist.css'));
-        $this->assertStringContainsString('background: radial-gradient(circle at center', $styles);
+        // The launcher frame comes from the shared floating launcher; the own halo only keeps the hover motion.
+        $this->assertStringContainsString('.rt-ai-assist__halo { position: absolute; inset: 0; border: 0; border-radius: 17px; background: transparent;', $styles);
+        $this->assertStringNotContainsString('background: radial-gradient(circle at center', $styles);
         $this->assertStringContainsString('.rt-ai-assist .rt-ai-assist__stage { position: fixed !important;', $styles);
-        foreach (['rt-ai-assist__launcher', 'AI-Assist (Strg J)', 'data-assistant-cloud-slot="launcher"', 'data-assistant-cloud-slot="header"',
-            'Besetzung für den Zeitraum vorschlagen', 'Was steht als Nächstes an?', 'role="tablist"', 'Disposition · AI-Eingang aus'] as $needle) {
+        // The header holds the tabs instead of avatar and mode title; the status sits in the settings menu.
+        foreach (['rt-floating-launcher rt-ai-assist__launcher', 'data-rt-floating-launcher', 'AI-Assist (Strg J)', 'data-assistant-cloud-slot="launcher"', 'data-assistant-header',
+            'Besetzung für den Zeitraum vorschlagen', 'Was steht als Nächstes an?', 'role="tablist"', 'AI-Eingang pausiert', 'rt-ai-assist__status-dot" data-on="false"'] as $needle) {
             $this->assertStringContainsString($needle, $html);
         }
         // Ohne Verwaltung keine Einstellungsformulare, nur Anzeige.
@@ -182,7 +185,7 @@ class AiAssistTest extends TestCase
         $styles = file_get_contents(resource_path('css/ai-assist.css'));
 
         $this->assertStringContainsString('.rt-ai-assist .rt-ai-assist__stage { position: fixed !important;', $styles);
-        $this->assertStringContainsString('bottom: max(var(--ai-assist-launcher-bottom, 88px)', $styles);
+        $this->assertStringContainsString('bottom: calc(max(var(--ai-assist-launcher-bottom, 88px), calc(env(safe-area-inset-bottom) + 0.6rem)) + var(--rt-floating-launcher-lift,16px));', $styles);
         $this->assertStringContainsString('z-index: 24; display: grid !important;', $styles);
     }
 
@@ -369,7 +372,7 @@ class AiAssistTest extends TestCase
             ->call('openSettings')->assertSet('config.automation_mode', 'automatic')->assertSet('config.expected_revision', 1)
             ->set('config.automation_mode', 'assisted')->set('config.max_rounds', 1)->call('saveSettings')->assertHasNoErrors();
         $this->assertSame(['assisted', 1, 2], [AiDispositionSettings::all()['automation_mode'], AiDispositionSettings::all()['max_rounds'], AiDispositionSettings::all()['revision']]);
-        $component->assertSet('config.expected_revision', 2)->assertSee('Disposition · AI-Eingang aus');
+        $component->assertSet('config.expected_revision', 2)->assertSee('AI-Eingang pausiert')->assertSeeHtml('rt-ai-assist__status-dot" data-on="false"');
         // Veralteter Stand aus einem zweiten Fenster wird abgewiesen.
         Livewire::actingAs($this->root)->test(AiAssist::class, ['page' => 'cases'])->call('openSettings')->set('config.expected_revision', 1)
             ->set('config.max_ai_calls_per_hour', 250)->call('saveSettings')->assertHasErrors('config');

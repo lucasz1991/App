@@ -76,7 +76,7 @@ final class OutlookCompactReferencePresentationTest extends TestCase
         app()->forgetScopedInstances();
         $before = MailDocument::query()->orderBy('id')->get()->toArray();
         $text = 'Literal application bytes &amp; RT-SIGNATURE-VERSION:0123456789abcdef.';
-        $html = (new SystemMailCssInliner)->convert(EmailTemplateBuilder::buildSystemMailHtml(new HtmlString('<p>'.$text.'</p>')));
+        $html = (new SystemMailCssInliner)->convert($this->historicalSystemMailHtml(new HtmlString('<p>'.$text.'</p>')));
         $this->assertCompact($html, true);
         self::assertStringContainsString($text, $html);
         self::assertSame(3, $this->xpath($html)->query('//table[contains(concat(" ",normalize-space(@class)," ")," rt-v17-column ")]')->length);
@@ -240,6 +240,27 @@ final class OutlookCompactReferencePresentationTest extends TestCase
         }
 
         return [$canonical, $user];
+    }
+
+    /**
+     * Seit e959e1c2 liefert buildSystemMailHtml() standardmaessig die U2e-Darstellung.
+     * Diese Pruefungen gelten dem historischen V17-Adapter und halten ihn daher wie
+     * SystemMailDispatchActionsTest/OutlookLinkedAnimatedDeliveryTest auf dem urspruenglichen Renderer fest.
+     */
+    private function historicalSystemMailHtml(HtmlString $content): string
+    {
+        app()->instance(\App\Support\Mail\OutlookUniversalSystemMailPresentation::class, new class
+        {
+            public function project(...$arguments): ?array
+            {
+                return null;
+            }
+        });
+        try {
+            return EmailTemplateBuilder::buildSystemMailHtml($content);
+        } finally {
+            app()->forgetInstance(\App\Support\Mail\OutlookUniversalSystemMailPresentation::class);
+        }
     }
 
     private function mark(string $html, bool $signature): string

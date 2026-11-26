@@ -189,7 +189,12 @@ class CompactStaffTimelineUiTest extends TestCase
         $this->assertSame(1, substr_count($script, 'new ResizeObserver('));
         // Grid content and confirmed server-period attributes have separate scoped observers.
         $this->assertSame(2, substr_count($script, 'new MutationObserver('));
-        $this->assertStringNotContainsString('window.addEventListener(', $script);
+        // The only window listener is the scoped day-reveal bridge (custom event, removed on destroy);
+        // scrolling and resizing still have no additional window- or document-level owner.
+        $this->assertSame(1, substr_count($script, 'window.addEventListener('));
+        $this->assertStringContainsString("window.addEventListener('operations-timeline-day-reveal', reveal);", $script);
+        $this->assertStringContainsString("this.dayRevealCleanup = () => window.removeEventListener('operations-timeline-day-reveal', reveal);", $script);
+        $this->assertDoesNotMatchRegularExpression('/(?:window|document)\??\.addEventListener\(\s*[\'"](?:scroll|resize|wheel|touchmove)/', $script);
         $this->assertStringContainsString('event.preventDefault()', $script);
         $this->assertStringNotContainsString('x-on:touchmove.prevent', $view);
     }
@@ -360,11 +365,18 @@ class CompactStaffTimelineUiTest extends TestCase
     public function test_map_marks_only_a_resolved_locality_and_explains_its_precision(): void
     {
         $html = Blade::render('<x-operations.timeline-mini-map :preview="$preview" location="Treuchlingen Gbf." />', [
-            'preview' => ['state' => 'located', 'label' => 'Ortslage · ungefähr', 'place' => 'Treuchlingen', 'x' => 80.5, 'y' => 120.3],
+            'preview' => $located = ['state' => 'located', 'label' => 'Ortslage · ungefähr', 'place' => 'Treuchlingen', 'x' => 80.5, 'y' => 120.3, 'latitude' => 48.9553, 'longitude' => 10.9086],
         ]);
-        foreach (['data-location-marker', 'translate(80.5 120.3)', 'Ortslage · ungefähr', 'keine genaue Einsatzadresse', 'title="Treuchlingen Gbf."'] as $text) {
+        // The pin is projected from the resolved coordinates onto the shared Germany map (percent positions).
+        $point = \App\Support\Operations\GermanyMap::pointsFromPreview($located)[0];
+        foreach (['data-location-marker', 'left: '.(float) $point['left'].'%; top: '.(float) $point['top'].'%', 'Ortslage · ungefähr', 'keine genaue Einsatzadresse', 'title="Treuchlingen Gbf."'] as $text) {
             $this->assertStringContainsString($text, $html);
         }
+        $this->assertSame(1, substr_count($html, 'data-location-marker'));
+        // A "located" label without resolved coordinates never gets an invented pin.
+        $this->assertStringNotContainsString('data-location-marker', Blade::render('<x-operations.timeline-mini-map :preview="$preview" location="Treuchlingen Gbf." />', [
+            'preview' => ['state' => 'located', 'label' => 'Ortslage · ungefähr', 'place' => 'Treuchlingen', 'x' => 80.5, 'y' => 120.3],
+        ]));
         $unknown = Blade::render('<x-operations.timeline-mini-map :preview="$preview" :location="$location" />', [
             'preview' => ['state' => 'unknown', 'label' => 'Standort nicht verortet'], 'location' => '<script>alert(1)</script>',
         ]);
@@ -386,7 +398,8 @@ class CompactStaffTimelineUiTest extends TestCase
         $preview = TimelineLocationPreview::fromShift(new Shift(['location_name' => 'München Milbertshofen']));
         $html = Blade::render('<x-operations.timeline-mini-map :preview="$preview" location="München Milbertshofen" />', compact('preview'));
 
-        foreach (['data-location-marker', 'Stadtmitte · ungefähr', 'München', 'title="München Milbertshofen"', 'keine genaue Einsatzadresse'] as $text) {
+        // A named district resolves to its district centre (GeoNames detail index), no longer to the city centre.
+        foreach (['data-location-marker', 'Stadtteillage · ungefähr', 'München-Milbertshofen', 'title="München Milbertshofen"', 'keine genaue Einsatzadresse'] as $text) {
             $this->assertStringContainsString($text, $html);
         }
         $this->assertStringNotContainsString('GeoNames', $html);

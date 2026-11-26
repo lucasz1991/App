@@ -117,6 +117,21 @@ class OperationsPageIntegrationTest extends TestCase
         }
         $xpath = new \DOMXPath($document);
         $this->assertSame(1, $xpath->query('//main//h1')->length);
+        // Seit 855875fb führt die Mitarbeiterliste über die Profilnavigation; die Werkzeugleiste
+        // erscheint erst in den Fachansichten (hier: Qualifikationen) bzw. bei geöffnetem Werkzeug.
+        $this->assertSame(0, $xpath->query('//*[@aria-label="Weitere Personalwerkzeuge"]')->length);
+        $qualifications = $this->get(OperationsPages::url('people', ['view' => 'qualifications']));
+        $qualifications->assertOk();
+        $document = new \DOMDocument;
+        $previous = libxml_use_internal_errors(true);
+        try {
+            $document->loadHTML($qualifications->getContent());
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
+        $xpath = new \DOMXPath($document);
+        $this->assertSame(1, $xpath->query('//main//h1')->length);
         $tools = $xpath->query('//*[@role="menu" and @aria-label="Weitere Personalwerkzeuge"]//a[@role="menuitem"]');
         $this->assertCount(2, $tools);
         foreach (['signatures' => 'Unterzeichnungen', 'emergency' => 'Notfallkontakt'] as $index => $label) {

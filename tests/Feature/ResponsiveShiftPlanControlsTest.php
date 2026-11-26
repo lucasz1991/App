@@ -42,7 +42,7 @@ class ResponsiveShiftPlanControlsTest extends TestCase
 
     public function test_view_trigger_removes_the_eyebrow_but_retains_the_current_name_and_radio_dropdown(): void
     {
-        $views = ['table' => ['Tabelle', 'fa-list-alt'], 'day' => ['Tagesübersicht', 'fa-calendar-day'], 'staffing' => ['Besetzung', 'fa-users'], 'orders' => ['Leistungsübersicht', 'fa-briefcase'], 'timeline' => ['Zeitleiste', 'fa-clock']];
+        $views = ['table' => ['Tabelle', 'fa-list-alt'], 'day' => ['Tagesübersicht', 'fa-calendar-day'], 'staffing' => ['Besetzung', 'fa-users'], 'orders' => ['Leistungsübersicht', 'fa-briefcase'], 'timeline' => ['Zeitleiste', 'fa-clock'], 'map' => ['Karte', 'fa-map-marked-alt']];
         $component = Livewire::actingAs($this->admin)->test(ShiftManagement::class);
         foreach ($views as $view => [$label, $icon]) {
             $component->call('setView', $view);
@@ -56,7 +56,9 @@ class ResponsiveShiftPlanControlsTest extends TestCase
             $this->assertSame(1, $xpath->query('.//i[@data-current-view="'.$view.'" and @aria-hidden="true" and contains(@class,"'.$icon.'")]', $trigger)->length);
             $menu = $xpath->query('//*[@aria-label="Schichtplanansicht auswählen"]')->item(0);
             $this->assertNotNull($menu);
-            $this->assertSame(5, $xpath->query('.//button[@role="menuitemradio"]', $menu)->length);
+            // Sechste Ansicht „Karte“ (Schichten nach Einsatzort) ist hinzugekommen.
+            $this->assertSame(count($views), $xpath->query('.//button[@role="menuitemradio"]', $menu)->length);
+            $this->assertSame(6, count($views));
             $selected = $xpath->query('.//button[@role="menuitemradio" and @aria-checked="true"]', $menu);
             $this->assertSame(1, $selected->length);
             $this->assertSame("setView('".$view."')", $selected->item(0)->getAttribute('wire:click'));
@@ -510,9 +512,12 @@ class ResponsiveShiftPlanControlsTest extends TestCase
         }
         $css = file_get_contents(resource_path('css/disposition-workspace.css'));
         $commands = substr($css, strpos($css, '/* One command row, with only secondary actions moving to the existing menu. */'));
-        $header = '.rt-disposition-page:has(.rt-shift-plan) > [data-page-header]';
+        // Seit der kompakten Kopfzeile (39d053da) gelten die Schichtplan-Regeln nur für den nicht kompakten Seitenkopf.
+        $legacyHeader = '.rt-disposition-page:has(.rt-shift-plan) > [data-page-header]';
+        $header = $legacyHeader.':not(.rt-page-header--compact)';
         $mobile = $this->mediaBody($commands, 600);
         $this->assertStringNotContainsString($header.' > [data-page-header-control]:first-child', $mobile);
+        $this->assertStringNotContainsString($legacyHeader.' > [data-page-header-control]:first-child', $mobile);
         $this->assertStringContainsString(':show-back="$definition[\'back\'] ?? true"', file_get_contents(resource_path('views/livewire/operations/page-workspace.blade.php')));
         foreach (['cases', 'shifts', 'planning', 'duty'] as $page) {
             $this->assertFalse(\App\Support\Operations\OperationsPages::definitions()[$page]['back']);

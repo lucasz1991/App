@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Livewire\Operations\AiAssist;
 use App\Livewire\Operations\PageWorkspace;
-use App\Livewire\Operations\Workspace;
 use App\Models\Customer;
 use App\Models\Team;
 use App\Models\User;
@@ -316,7 +315,8 @@ class OperationsPageNavigationTest extends TestCase
         $this->assertArrayHasKey('rules', OperationsPages::sections($actor, 'time-review'));
         $this->assertArrayHasKey('time-review', OperationsPages::availableFor($actor));
         Livewire::actingAs($actor)->test(PageWorkspace::class, ['page' => 'time-review'])->assertSet('page', 'time-review')->assertSee('Fachregeln');
-        Livewire::actingAs($actor)->test(Workspace::class, ['module' => 'rules'])->assertRedirect(OperationsPages::moduleUrl('rules'));
+        // Legacy module URL: formerly the Operations\Workspace Livewire shell, now OperationsWorkspaceRedirectController (009a5aee).
+        $this->actingAs($actor)->get(route('operations.workspace', 'rules'))->assertRedirect(OperationsPages::moduleUrl('rules'));
     }
 
     public function test_rule_profiles_do_not_offer_an_uninstalled_rate_rules_tab(): void

@@ -48,7 +48,14 @@ class MarketingBuilderVendorIntegrityTest extends TestCase
     public function test_marketing_index_exposes_the_file_library_without_pagebuilder_contracts(): void
     {
         $index = file_get_contents(resource_path('views/livewire/admin/marketing/creatives-index.blade.php'));
-        $sidebar = file_get_contents(resource_path('views/layouts/admin-sidebar.blade.php'));
+        // Die Seitenleiste bezieht ihre Eintraege seit Sept. 2026 aus
+        // ApplicationNavigation; geprueft werden deshalb Huelle, gemeinsames
+        // Navigations-Blade und die Linkliste zusammen.
+        $navigation = file_get_contents(app_path('Support/Operations/ApplicationNavigation.php'));
+        $this->assertIsString($navigation);
+        $sidebar = file_get_contents(resource_path('views/layouts/admin-sidebar.blade.php'))
+            .file_get_contents(resource_path('views/layouts/application-navigation.blade.php'))
+            .$navigation;
 
         $this->assertIsString($index);
         $this->assertIsString($sidebar);
@@ -70,7 +77,9 @@ class MarketingBuilderVendorIntegrityTest extends TestCase
         $this->assertStringNotContainsString('saveMediaFolder', $index);
         $this->assertStringNotContainsString('importOpen', $index);
         $this->assertStringNotContainsString('<iframe', $index);
-        $this->assertStringContainsString("route('admin.marketing.creatives.index')", $sidebar);
+        $this->assertStringContainsString("@include('layouts.application-navigation')", $sidebar);
+        $this->assertStringContainsString("\$add('Marketing', 'Motive', 'admin.marketing.creatives.index', 'image');", $navigation);
+        $this->assertStringNotContainsString("'Medien'", $navigation);
         $this->assertStringNotContainsString('admin.marketing.assets', $sidebar);
         $this->assertStringNotContainsString('>Medien<', preg_replace('/\s+/', '', $sidebar) ?: $sidebar);
         $this->assertFileDoesNotExist(resource_path('views/livewire/admin/marketing/assets-index.blade.php'));

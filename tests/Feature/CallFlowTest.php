@@ -34,6 +34,9 @@ class CallFlowTest extends TestCase
         parent::setUp();
 
         $this->buildMinimalRailTimeSchema();
+        // Die Chatliste liest die letzte Aktivitaet der Teilnehmer (Praesenzanzeige,
+        // withMax('activities …')) und braucht dafuer die Tabelle activity_log.
+        (require database_path('migrations/2026_07_18_000001_create_activity_log_table.php'))->up();
 
         $this->withoutMiddleware(LogActivity::class);
 
@@ -671,9 +674,18 @@ class CallFlowTest extends TestCase
     {
         [$user] = $this->directChatWithCallRights();
 
+        // Seit dem Kommunikationsmodul (a8287406) leitet /meetings nicht mehr
+        // auf /calls um: beide Adressen sind Deep-Links in dieselbe Zentrale
+        // (CommunicationPage) und waehlen dort nur den Reiter vor.
         $this->actingAs($user)
             ->get(route('meetings'))
-            ->assertRedirect(route('calls.index'));
+            ->assertOk()
+            ->assertSee('data-communication-entry data-tab="meetings"', false);
+
+        $this->actingAs($user)
+            ->get(route('calls.index'))
+            ->assertOk()
+            ->assertSee('data-communication-entry data-tab="calls"', false);
     }
 
     public function test_a_meeting_room_is_created_and_joined_without_ringing(): void

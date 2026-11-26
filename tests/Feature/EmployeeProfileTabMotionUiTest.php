@@ -210,7 +210,8 @@ class EmployeeProfileTabMotionUiTest extends TestCase
             static fn (ReflectionProperty $property): bool => $property->getDeclaringClass()->getName() === EmployeeProfile::class,
         );
         $this->assertSame([
-            'embedded', 'profileTab', 'userId', 'user', 'inlineValues', 'dirtyInlineFields',
+            // accountInvitationNotice: Hinweistext der Zugangseinladung (Okt. 2026), kein Auswahlzustand der Reiter.
+            'embedded', 'profileTab', 'userId', 'user', 'inlineValues', 'dirtyInlineFields', 'accountInvitationNotice',
         ], array_map(static fn (ReflectionProperty $property): string => $property->getName(), array_values($properties)));
         $component = Livewire::actingAs($this->admin)->test(EmployeeProfile::class, ['userId' => $this->employee->id])
             ->assertSuccessful()->assertSet('profileTab', 'userDetails');

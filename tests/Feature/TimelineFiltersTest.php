@@ -318,12 +318,19 @@ class TimelineFiltersTest extends TestCase
             try {
                 (new \ReflectionMethod(StaffTimeline::class, 'staffQuery'))->invoke($timeline, $from, $until)->count();
                 (new \ReflectionMethod(StaffTimeline::class, 'timelineRoleOptions'))->invoke($timeline, $from->subDays(3), $until->addDays(3));
-                $counts[] = count(DB::getQueryLog());
+                // User::dutyStaff() prüft seit fdac20cf einmal je Anfrage, ob der Tätigkeitskatalog existiert
+                // (gemerkte Schema-Abfrage). Sie hängt nicht von der Mitarbeiterzahl ab und wird getrennt gezählt.
+                $queries = array_column(DB::getQueryLog(), 'query');
+                $schema = array_filter($queries, fn (string $sql): bool => str_contains($sql, 'sqlite_master'));
+                $schemaProbes[] = count($schema);
+                $counts[] = count($queries) - count($schema);
             } finally {
                 DB::disableQueryLog();
             }
         }
         $this->assertSame([2, 2], $counts);
+        $this->assertLessThanOrEqual(1, array_sum($schemaProbes));
+        $this->assertSame(0, $schemaProbes[1]);
         Http::assertNothingSent();
     }
 

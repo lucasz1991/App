@@ -132,10 +132,16 @@ class TimelineCellStatusUiTest extends TestCase
         $this->assertStringContainsString('animation: rt-timeline-loading-spin', $styles);
         $this->assertMatchesRegularExpression('/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{\s*\.rt-timeline-cell-action\[data-fit=\'checking\'\] \.rt-timeline-cell-status > i\s*\{\s*animation:\s*none;/', $styles);
         $view = file_get_contents(resource_path('views/livewire/operations/staff-timeline.blade.php'));
-        foreach (['x-on:click="openPlanner($event)"', 'x-on:pointerover="hoverCell($event)"', 'x-on:pointerout="leaveCell($event)"', 'x-on:focusin="hoverCell($event)"', 'x-on:focusout="leaveCell($event)"'] as $handler) {
+        // Seit f57b5dbf sind die öffnenden Handler gesperrt, solange der Fensterinhalt nachlädt; es bleibt je ein delegierter Handler.
+        foreach (['x-on:click="if (!windowContentLoading) openPlanner($event)"', 'x-on:pointerover="if (!windowContentLoading) hoverCell($event)"', 'x-on:pointerout="leaveCell($event)"', 'x-on:focusin="if (!windowContentLoading) hoverCell($event)"', 'x-on:focusout="leaveCell($event)"'] as $handler) {
             $this->assertSame(1, substr_count($view, $handler));
         }
-        $this->assertStringContainsString('x-on:scroll.passive="syncHorizontal($event.target)"', $view);
+        foreach (['openPlanner($event)' => 1, 'hoverCell($event)' => 2, 'leaveCell($event)' => 2] as $call => $count) {
+            $this->assertSame($count, substr_count($view, $call));
+        }
+        // Der passive Scroll-Handler aktualisiert seit e007704a zusätzlich die Fokus-Vorschau.
+        $this->assertStringContainsString('x-on:scroll.passive="syncHorizontal($event.target); refreshFocusPreview()"', $view);
+        $this->assertSame(1, substr_count($view, 'x-on:scroll.passive='));
         $this->assertStringNotContainsString('x-on:pointerover.prevent', $view);
         $this->assertStringNotContainsString('x-on:touchmove.prevent', $view);
     }

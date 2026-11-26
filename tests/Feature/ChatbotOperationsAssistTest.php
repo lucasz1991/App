@@ -190,10 +190,19 @@ class ChatbotOperationsAssistTest extends TestCase
         $this->assertFalse($data['loaded']);
         $this->assertEmpty($data['intakes']);
         $this->assertSame([], $data['status']);
+        $this->assertFalse($chatbot->operationsIntakeMounted);
         $chatbot->loadOperationsAssist();
+        $this->assertFalse($chatbot->operationsIntakeMounted);
         $chatbot->setOperationsTab('intake');
         $data = $chatbot->render()->getData()['operationsAssist'];
-        $this->assertSame($record->id, $data['intakes']->sole()->id);
+        // The intake tab mounts the native intake list as a child; the host only carries counts, never the rows.
+        $this->assertTrue($chatbot->operationsIntakeMounted);
+        $this->assertTrue($data['intakesReady']);
+        $this->assertEmpty($data['intakes']);
+        $this->assertSame(1, $data['reviewCount']);
+        $this->assertSame(1, $data['overview']['statuses']['review']);
+        $this->assertSame(1, $data['overview']['total']);
+        $this->assertSame($record->id, app(\App\Services\Operations\AiAssistService::class)->intakes(auth()->user())->sole()->id);
         $this->assertFalse($data['enabled']);
         $this->assertArrayNotHasKey('imap_password', $data);
         $this->assertArrayHasKey('counts', $data['overview']);

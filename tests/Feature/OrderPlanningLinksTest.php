@@ -71,7 +71,8 @@ class OrderPlanningLinksTest extends TestCase
         $component = Livewire::actingAs($this->admin)->test(Orders::class)
             ->call('openDetails', $this->order->id)
             ->assertSet('detailOpen', true)
-            ->assertSeeHtml('aria-label="Planung dieser Leistung"');
+            // Die Planungslinks stehen seit dem Detail-Panel (e007704a) in der Fußleiste „Verknüpfte Bereiche“.
+            ->assertSeeHtml('class="rt-service-detail-links" aria-label="Verknüpfte Bereiche"');
 
         foreach (['shift-management', 'calendar'] as $module) {
             $component->assertSeeHtml('href="'.e($this->planningUrl($route, $module, ['order' => $this->order->id])).'"');

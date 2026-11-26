@@ -6,7 +6,6 @@ use App\Livewire\Operations\InquiryInbox;
 use App\Livewire\Operations\MyWork;
 use App\Livewire\Operations\PersonnelReview;
 use App\Livewire\Operations\TimeReview;
-use App\Livewire\Operations\Workspace;
 use App\Models\Customer;
 use App\Models\EmployeeQualification;
 use App\Models\OperationsRuleProfile;
@@ -240,7 +239,9 @@ class NativeOperationsWorkflowTest extends TestCase
     public function test_employee_cannot_access_reviews_or_other_employees_data(): void
     {
         $this->actingAs($this->employee);
-        Livewire::test(Workspace::class, ['module' => 'inquiries'])->assertForbidden();
+        // Legacy module URL: the Operations\Workspace Livewire shell was removed (009a5aee); the same
+        // authorization now runs in OperationsWorkspaceRedirectController behind operations.workspace.
+        $this->get(route('operations.workspace', 'inquiries'))->assertForbidden();
         Livewire::test(TimeReview::class)->assertForbidden();
         Livewire::test(PersonnelReview::class, ['module' => 'qualifications'])->assertForbidden();
         $other = User::factory()->create(['role' => 'staff']);
@@ -386,9 +387,9 @@ class NativeOperationsWorkflowTest extends TestCase
         $team = Team::forceCreate(['user_id' => $this->admin->id, 'name' => 'Verwaltung', 'personal_team' => false, 'rbac_permissions' => ['operations.inquiries.manage' => true]]);
         $this->employee->forceFill(['current_team_id' => $team->id])->save();
         $this->actingAs($this->employee->fresh());
-        Livewire::test(Workspace::class, ['module' => 'inquiries'])->assertRedirect(OperationsPages::moduleUrl('inquiries'));
+        $this->get(route('operations.workspace', 'inquiries'))->assertRedirect(OperationsPages::moduleUrl('inquiries'));
         $this->get(OperationsPages::moduleUrl('inquiries'))->assertOk();
-        Livewire::test(Workspace::class, ['module' => 'times'])->assertForbidden();
+        $this->get(route('operations.workspace', 'times'))->assertForbidden();
         $this->get(route('dashboard'))->assertOk()->assertDontSee('data-rt-welcome-intro')->assertSee('Offene Anfragen');
         $this->employee->forceFill(['status' => false])->save();
         $this->actingAs($this->employee->fresh());

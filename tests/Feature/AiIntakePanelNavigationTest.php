@@ -184,8 +184,10 @@ class AiIntakePanelNavigationTest extends TestCase
         $rows = UnifiedInboxProjection::query($this->actor, $this->customer->id)->get();
         $this->assertSame(['ai'], $rows->pluck('kind')->all());
         Livewire::test(UnifiedInbox::class, ['customerId' => $this->customer->id])->call('openRow', $intake->id * 8 + 1)
-            ->assertDispatched('open-ai-intake-panel', intakeId: $intake->id, create: false, customerId: $this->customer->id)
-            ->assertSet('detail', null)->assertDontSeeLivewire(AiIntakeInbox::class);
+            // Existing AI sources open their independent native form in place, still bound to the customer scope.
+            ->assertNotDispatched('open-ai-intake-panel')
+            ->assertSet('detail', ['kind' => 'ai', 'id' => $intake->id, 'customer' => $this->customer->id])
+            ->assertSeeLivewire(AiIntakeInbox::class);
         $this->assertSame('new', $inquiry->fresh()->status);
         $this->assertSame('proposed', $intake->proposals()->sole()->status);
         Mail::assertNothingSent();
@@ -208,8 +210,11 @@ class AiIntakePanelNavigationTest extends TestCase
     public function test_worklist_destination_uses_the_exact_canonical_panel_and_customer(): void
     {
         $intake = $this->intake(customerId: $this->customer->id);
-        $this->assertSame(OperationsPages::intakePanelUrl($intake->id, $this->customer->id),
-            app(UnifiedOperationsInboxService::class)->destination('ai-intake-'.$intake->id, $this->actor));
+        $destination = app(UnifiedOperationsInboxService::class)->destination('ai-intake-'.$intake->id, $this->actor);
+        // The worklist targets the independent intake form of exactly this source and customer, not the assistant panel.
+        $this->assertSame(OperationsPages::intakeFormUrl($intake->id, $this->customer->id), $destination);
+        $this->assertStringContainsString('source=ai-intake&record='.$intake->id.'&customer='.$this->customer->id, $destination);
+        $this->assertStringNotContainsString('assistant=intake', $destination);
     }
 
     public function test_global_chat_event_opens_the_complete_scoped_child_and_preserves_it_across_tabs(): void
@@ -276,7 +281,7 @@ class AiIntakePanelNavigationTest extends TestCase
         AssistantSettings::setEnabled(false);
         $html = $this->get($url)->assertOk()->getContent();
         $this->assertStringNotContainsString('data-railtime-chatbot-root', $html);
-        $this->assertSame(1, substr_count($html, 'class="rt-ai-assist__launcher"'));
+        $this->assertSame(1, substr_count($html, 'class="rt-floating-launcher rt-ai-assist__launcher"'));
         $this->assertSame(1, substr_count($html, 'data-ai-intake-inbox'));
     }
 

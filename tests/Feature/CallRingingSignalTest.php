@@ -262,12 +262,27 @@ class CallRingingSignalTest extends TestCase
 
         [$caller, $callee, $chat] = $this->twoUsersWithCallRights();
         $callee->enableDefaultPushPreferences();
-        $callee->pushSubscriptions()->create([
+        // Push-Abos gelten seit den Sitzungsfreigaben (6a693b89) nur noch,
+        // solange sie an eine aktive Anmeldesitzung mit Push-Zustimmung
+        // gebunden sind – ohne Freigabe bleibt via() leer.
+        (require database_path('migrations/2026_10_11_200000_create_session_permission_grants.php'))->up();
+        $grant = \App\Models\SessionPermissionGrant::create([
+            'uuid' => (string) \Illuminate\Support\Str::uuid(),
+            'user_id' => $callee->id,
+            'session_hash' => hash('sha256', (string) \Illuminate\Support\Str::uuid()),
+            'session_identifier' => \Illuminate\Support\Str::random(40),
+            'last_activity_at' => now(),
+            'expires_at' => now()->addHour(),
+            'push_decision' => 'accepted',
+            'push_version' => 1,
+        ]);
+        $subscription = $callee->pushSubscriptions()->create([
             'endpoint' => 'https://fcm.googleapis.com/fcm/send/ring-ack',
             'public_key' => 'public-key',
             'auth_token' => 'auth-token',
             'content_encoding' => 'aes128gcm',
         ]);
+        $subscription->forceFill(['session_permission_grant_id' => $grant->id])->save();
 
         $room = $this->roomWithInvitation($caller, $callee, $chat);
         $invitation = $room->invitations()->firstOrFail();

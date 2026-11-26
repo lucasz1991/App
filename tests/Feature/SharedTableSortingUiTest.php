@@ -52,13 +52,41 @@ class SharedTableSortingUiTest extends TestCase
     {
         foreach (['operations/inquiry-inbox', 'operations/orders', 'operations/shift-management'] as $view) {
             $source = file_get_contents(resource_path('views/livewire/'.$view.'.blade.php'));
-            $this->assertStringContainsString('<x-tables.table', $source);
+            // Die Leistungsliste der Auftraege nutzt die gemeinsame Tabelle ueber
+            // die Huelle x-operations.service-table (dieselbe Darstellung wie im
+            // Schichtplan); Sortierung reicht sie unveraendert durch (siehe unten).
+            $this->assertMatchesRegularExpression('/<x-(?:tables\.table|operations\.service-table)\b/', $source, $view);
+            $this->assertStringNotContainsString('<table', $source, $view);
             $this->assertStringContainsString('sort-action="tableSort"', $source);
             $this->assertStringContainsString(':sort-by="$sortBy"', $source);
             $this->assertStringContainsString(':sort-dir="$sortDir"', $source);
         }
+        $serviceTable = file_get_contents(resource_path('views/components/operations/service-table.blade.php'));
+        $this->assertStringContainsString(
+            '<x-tables.table :columns="$columns" :items="$items" :sort-action="$sortAction" :sort-by="$sortBy" :sort-dir="$sortDir"',
+            $serviceTable,
+        );
+        $this->assertStringContainsString(
+            '<x-operations.service-table :items="$orderTableItems" sort-action="tableSort"',
+            file_get_contents(resource_path('views/livewire/operations/orders.blade.php')),
+        );
         $styles = file_get_contents(resource_path('css/disposition-workspace.css'));
-        $this->assertStringNotContainsString('.rt-table-head', $styles);
+        // Das Aussehen von Kopf und Zeilenraster bleibt Sache der gemeinsamen
+        // Tabelle. Erlaubt sind im Dispositions-Stylesheet nur die reinen
+        // Lage-Angaben, die der eigene Scrollbereich der Listen braucht
+        // (Kopf nicht kleben lassen bzw. ueber dem scrollenden Rumpf halten).
         $this->assertStringNotContainsString('.rt-table-row-grid', $styles);
+        $this->assertStringNotContainsString('.rt-table-head-cell', $styles);
+        $this->assertStringNotContainsString('.rt-table-sort', $styles);
+        preg_match_all('/([^{}]*\.rt-table-head\b[^{}]*)\{([^{}]*)\}/', $styles, $headerRules, PREG_SET_ORDER);
+        $this->assertLessThanOrEqual(2, count($headerRules));
+        foreach ($headerRules as [, $selector, $body]) {
+            preg_match_all('/([a-z-]+)\s*:/', $body, $properties);
+            $this->assertSame(
+                [],
+                array_values(array_diff($properties[1], ['position', 'z-index', 'flex'])),
+                'Lokale Kopf-Regel mit Gestaltung: '.trim($selector),
+            );
+        }
     }
 }

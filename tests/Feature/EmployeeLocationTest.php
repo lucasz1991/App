@@ -449,9 +449,15 @@ class EmployeeLocationTest extends TestCase
         $this->work();
         Livewire::actingAs($this->employee)->test(SessionPermissions::class)
             ->assertSet('dialogOpen', true)->assertSee('Push und Standort freigeben')->assertSee('Ohne Standort fortfahren')
-            ->call('decide', 'location', false)->assertHasNoErrors();
+            ->call('decide', 'location', false)->assertHasNoErrors()
+            // Der Entscheidungsstatus steht nur noch im Sitzungsdialog; das Profil zeigt seit Okt. 2026 die kompakte Fassung.
+            ->assertSee('Für diese Sitzung abgelehnt');
         Livewire::actingAs($this->employee)->test(SessionPermissions::class, ['automatic' => false])
-            ->assertSee('Deine Freigaben')->assertSee('Für diese Sitzung abgelehnt')->assertSet('dialogOpen', false);
+            ->assertSeeHtml('data-session-permissions="profile"')->assertSeeHtml('<section class="space-y-3" aria-label="Push und Standort">')
+            ->assertDontSee('Push und Standort freigeben')
+            // Abgelehnt heisst im Profil: erneut erlauben moeglich, aber nichts zu widerrufen.
+            ->assertSeeHtml('data-permission-allow="location"')->assertSee('Ohne Standort fortfahren')
+            ->assertDontSeeHtml('data-permission-withdraw="location"')->assertSet('dialogOpen', false);
         // Standortfreigaben bleiben im globalen Dialog und Profil; im Arbeitstag steht kein Standortbereich.
         Livewire::actingAs($this->employee)->test(MyWork::class)
             ->assertSee('RailTime als App installieren')

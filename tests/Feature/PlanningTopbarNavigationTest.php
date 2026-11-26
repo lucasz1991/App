@@ -200,7 +200,13 @@ class PlanningTopbarNavigationTest extends TestCase
         $this->assertSame(1, $targets->length);
         $target = $targets->item(0);
         $this->assertSame('', trim($target->textContent));
-        $previous = $xpath->query('preceding-sibling::*[1]', $target)->item(0);
+        // Zwischen Burger und Planungsziel liegt nur noch der ebenfalls leere Seitentitel-Host der Topbar.
+        $titleHost = $xpath->query('preceding-sibling::*[1]', $target)->item(0);
+        $this->assertTrue($titleHost->hasAttribute('data-topbar-page-title'));
+        $this->assertSame('', trim($titleHost->textContent));
+        $this->assertSame(1, $xpath->query('//*[@data-topbar-page-title]')->length);
+        $this->assertSame(0, $xpath->query('following-sibling::*', $target)->length);
+        $previous = $xpath->query('preceding-sibling::*[1]', $titleHost)->item(0);
         $this->assertSame('vertical-menu-btn', $previous->getAttribute('id'));
         $this->assertSame('button', $previous->nodeName);
         $css = file_get_contents(resource_path('css/shell.css'));

@@ -605,8 +605,9 @@ class DispositionMailboxDismissalTest extends TestCase
             $this->plainIntake('review', 'Synthetic active row '.$index);
         }
         $component = Livewire::test(UnifiedInbox::class)->call('select', 'ai', $intake->id)
-            ->assertDispatched('open-ai-intake-panel', intakeId: $intake->id, create: false, customerId: null)
-            ->assertSet('detail', null)->call('setPage', 2, 'inboxPage')
+            // Seit 8e741e61 oeffnet eine KI-Zeile das eigenstaendige Formular als Detail statt des Assistenten-Panels.
+            ->assertNotDispatched('open-ai-intake-panel')
+            ->assertSet('detail.kind', 'ai')->assertSet('detail.id', $intake->id)->call('setPage', 2, 'inboxPage')
             ->assertSet('paginators.inboxPage', 2)->assertViewHas('rows', fn ($page) => $page->total() === 17);
         $this->classify($intake);
 
@@ -614,8 +615,9 @@ class DispositionMailboxDismissalTest extends TestCase
             ->assertViewHas('rows', fn ($page) => $page->total() === 16)
             ->assertViewHas('counts', fn ($counts) => (int) $counts->get('review') === 16 && $counts->sum() === 16);
         $component->call('select', 'ai', $paused->id)
-            ->assertDispatched('open-ai-intake-panel', intakeId: $paused->id, create: false, customerId: null)
-            ->dispatch('disposition-mailbox-updated')->assertSet('detail', null);
+            ->assertNotDispatched('open-ai-intake-panel')
+            ->assertSet('detail.kind', 'ai')->assertSet('detail.id', $paused->id)
+            ->dispatch('disposition-mailbox-updated')->assertSet('detail.kind', 'ai')->assertSet('detail.id', $paused->id);
         $native = OperationInquiry::create(['channel' => 'manual', 'title' => 'Native detail stays selected',
             'original' => 'Synthetic native original', 'status' => 'new', 'timezone' => 'Europe/Berlin', 'created_by' => $this->admin->id]);
         $component->call('select', 'inquiry', $native->id)->assertSet('detail.id', $native->id)

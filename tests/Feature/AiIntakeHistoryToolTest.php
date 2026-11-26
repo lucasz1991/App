@@ -89,6 +89,9 @@ class AiIntakeHistoryToolTest extends TestCase
         $helper->shouldReceive('candidates')->once()->andReturn(array_map(fn ($id) => [
             'customer_id' => $id, 'name' => 'Synthetic candidate '.$id, 'reasons' => ['sender_email'],
         ], $customerIds));
+        // Since the automatic customer recognition, every e-mail analysis asks the same helper for a server-side
+        // identity proof. These candidates carry no such proof, so the history lookup stays free of assignments.
+        $helper->shouldReceive('assignmentCandidate')->zeroOrMoreTimes()->andReturnNull();
 
         return $helper;
     }
