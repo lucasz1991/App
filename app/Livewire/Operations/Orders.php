@@ -1,11 +1,13 @@
 <?php
 
-namespace App\Livewire\Admin\Operations;
+namespace App\Livewire\Operations;
 
 use App\Enums\OrderPriority;
 use App\Enums\OrderStatus;
 use App\Enums\ShiftAssignmentStatus;
 use App\Enums\ShiftStatus;
+use App\Livewire\Concerns\Operations\SupportsOperationsUi;
+use App\Livewire\Concerns\Operations\SupportsServiceTableSelection;
 use App\Livewire\Concerns\ResetsPageOnFilterChange;
 use App\Livewire\Concerns\SortsTable;
 use App\Livewire\Concerns\SyncsWorkspaceUrl;
@@ -681,7 +683,7 @@ class Orders extends Component
                 ->all()
             : [];
 
-        return view('livewire.admin.operations.orders', [
+        return view('livewire.operations.orders', [
             'orders' => $orders,
             'orderTableItems' => $orderTableItems,
             'displayTimezone' => self::displayTimezone(),

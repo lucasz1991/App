@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Livewire\Admin\AiDispositionConfiguration;
-use App\Livewire\Admin\Operations\Customers;
+use App\Livewire\Operations\Customers;
 use App\Livewire\Operations\AiIntakeInbox;
 use App\Livewire\Operations\CaseWorkspace;
 use App\Livewire\Operations\PageWorkspace;

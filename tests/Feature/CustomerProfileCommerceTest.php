@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\Operations\Orders;
+use App\Livewire\Operations\Orders;
 use App\Livewire\Operations\InquiryInbox;
 use App\Models\Customer;
 use App\Models\OperationInquiry;

@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\Operations\Orders;
-use App\Livewire\Admin\Operations\ShiftManagement;
+use App\Livewire\Operations\Orders;
+use App\Livewire\Operations\ShiftManagement;
 use App\Models\User;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\ViewErrorBag;
@@ -68,11 +68,11 @@ class DispositionDateControlsTest extends TestCase
     public function test_disposition_templates_use_shared_dates_and_anchor_dropdowns(): void
     {
         foreach (['shift-management', 'orders'] as $page) {
-            $source = file_get_contents(resource_path('views/livewire/admin/operations/'.$page.'.blade.php'));
+            $source = file_get_contents(resource_path('views/livewire/operations/'.$page.'.blade.php'));
             $this->assertDoesNotMatchRegularExpression('/<x-ui\.forms\.input[^>]+type="(?:date|datetime-local)"/', $source);
             $this->assertStringContainsString('x-ui.forms.date-time-field', $source);
         }
-        $source = file_get_contents(resource_path('views/livewire/admin/operations/shift-management.blade.php'));
+        $source = file_get_contents(resource_path('views/livewire/operations/shift-management.blade.php'));
         $this->assertStringContainsString(":content-label=\"\$timelineDatePicker ? 'Tag auswählen' : 'Planungszeitraum anpassen'\"", $source);
         $this->assertStringContainsString('content-label="Schichtplanansicht auswählen"', $source);
         $this->assertStringContainsString("'timeline' => ['Zeitleiste', 'fa-clock']", $source);

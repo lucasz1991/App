@@ -1,13 +1,16 @@
 <?php
 
-namespace App\Livewire\Admin\Operations;
+namespace App\Livewire\Operations;
 
 use App\Enums\OrderStatus;
 use App\Enums\ShiftAssignmentStatus;
 use App\Enums\ShiftStatus;
+use App\Livewire\Concerns\Operations\SupportsOperationsUi;
+use App\Livewire\Concerns\Operations\SupportsPlanningTravel;
+use App\Livewire\Concerns\Operations\SupportsServiceTableSelection;
+use App\Livewire\Concerns\Operations\SupportsShiftStaffing;
 use App\Livewire\Concerns\ResetsPageOnFilterChange;
 use App\Livewire\Concerns\SortsTable;
-use App\Livewire\Operations\StaffTimeline;
 use App\Models\Customer;
 use App\Models\OperationAudit;
 use App\Models\Order;
@@ -962,7 +965,7 @@ class ShiftManagement extends Component
             ? app(TimelinePlanningSuggestionService::class)->rankedCandidatesForDisplay($distributionShift, auth()->user(), $this->planningTravel[$distributionShift->id] ?? [])->take(6)->values()
             : collect();
 
-        return view('livewire.admin.operations.shift-management', [
+        return view('livewire.operations.shift-management', [
             ...$this->pendingDistribution($from, $to),
             'distributionShift' => $distributionShift,
             'distributionCandidates' => $distributionCandidates,

@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\Operations\ShiftManagement;
+use App\Livewire\Operations\ShiftManagement;
 use App\Livewire\Operations\DistributionAutoAssignment;
 use App\Models\Customer;
 use App\Models\Order;
@@ -201,7 +201,7 @@ class DistributionWorkbenchUiTest extends TestCase
             ->assertSet('customerFilter', (string) $this->customer->id)
             ->assertSet('rangeFrom', '2027-05-10')->assertSet('rangeTo', '2027-05-16')
             ->assertViewHas('pendingShifts', fn ($pages) => $pages->total() === 26 && $pages->count() === 25);
-        $source = file_get_contents(resource_path('views/livewire/admin/operations/partials/pending-distribution.blade.php'));
+        $source = file_get_contents(resource_path('views/livewire/operations/partials/pending-distribution.blade.php'));
         $this->assertStringContainsString('<livewire:operations.distribution-auto-assignment :from="$rangeFrom" :until="$rangeTo" :customer-filter="$customerFilter"', $source);
         $this->assertStringContainsString("'distribution-auto-'.\$this->getId().'-'.\$rangeFrom.'-'.\$rangeTo.'-'.\$customerFilter", $source);
         $this->assertStringNotContainsString(':shift-ids="$pendingShifts', $source);

@@ -2,7 +2,7 @@
 
 namespace App\Livewire\Operations;
 
-use App\Livewire\Admin\Operations\ShiftManagement;
+use App\Livewire\Operations\ShiftManagement;
 use App\Livewire\Concerns\ResolvesOperationsActor;
 use App\Models\User;
 use App\Services\Operations\AiPlanningService;

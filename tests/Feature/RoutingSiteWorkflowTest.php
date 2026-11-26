@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Livewire\Admin\EmployeeLocationSettings;
-use App\Livewire\Admin\Operations\ShiftManagement;
+use App\Livewire\Operations\ShiftManagement;
 use App\Livewire\Admin\Settings as SystemSettings;
 use App\Livewire\Admin\TomTomSettings;
 use App\Livewire\Operations\RoutingSiteEditor;

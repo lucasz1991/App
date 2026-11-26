@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\Operations\Customers;
+use App\Livewire\Operations\Customers;
 use App\Livewire\Operations\AiIntakeAssistant;
 use App\Livewire\Operations\AiIntakeInbox;
 use App\Models\AiIntake;

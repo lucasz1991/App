@@ -130,7 +130,7 @@
                     </x-slot:content>
                 </x-ui.dropdown.anchor-dropdown>
                 @if($viewMode === 'orders')
-                    @include('livewire.admin.operations.partials.service-filter-trigger')
+                    @include('livewire.operations.partials.service-filter-trigger')
                 @endif
             </div>
     </x-ui.page-header-actions>
@@ -152,7 +152,7 @@
                 <i class="far fa-chevron-down rt-shift-filters__chevron" aria-hidden="true"></i>
             </summary>
             <div class="rt-shift-filters__panel">
-                @include('livewire.admin.operations.partials.shift-filter-fields')
+                @include('livewire.operations.partials.shift-filter-fields')
             </div>
         </details>
     </x-tables.toolbar>
@@ -174,9 +174,9 @@
                 <div class="rt-shift-plan-unavailable" role="status"><i class="far fa-clock" aria-hidden="true"></i><span>Die Zeitleiste ist verfügbar, sobald der Mitarbeiter- und Abwesenheitsbereich eingerichtet ist.</span></div>
             @endif
         @elseif($viewMode === 'orders')
-            @include('livewire.admin.operations.partials.service-overview')
+            @include('livewire.operations.partials.service-overview')
         @elseif($viewMode === 'map')
-            @include('livewire.admin.operations.partials.shift-plan-map')
+            @include('livewire.operations.partials.shift-plan-map')
         @elseif($viewMode === 'table' || $shifts->isEmpty())
             <x-tables.table :columns="$shiftColumns" sort-action="tableSort" :sort-by="$sortBy" :sort-dir="$sortDir" table-key="shift-plan" class="rt-shift-plan-table" :flush-top="true" :items="$shifts" :selected-items="[$selectedShiftId]" selection-action="selectShift" detail-event="operations-shift-detail-request" row-view="components.tables.rows.planning.shift-plan-row" empty="Keine Schichten für diese Filter gefunden." />
         @else
@@ -215,7 +215,7 @@
     </div>
     @if($distributionOpen)
         <aside class="rt-shift-distribution-side" id="shift-distribution-side-{{ $this->getId() }}" aria-label="Noch zu verteilen" wire:key="shift-distribution-side">
-            @include('livewire.admin.operations.partials.pending-distribution')
+            @include('livewire.operations.partials.pending-distribution')
         </aside>
     @endif
     </div>

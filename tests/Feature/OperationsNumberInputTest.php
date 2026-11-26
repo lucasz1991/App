@@ -81,13 +81,13 @@ class OperationsNumberInputTest extends TestCase
 
     public function test_operations_forms_do_not_bypass_the_shared_number_component(): void
     {
-        foreach (['livewire/admin/operations', 'livewire/operations'] as $directory) {
+        foreach (['livewire/operations'] as $directory) {
             foreach (File::allFiles(resource_path('views/'.$directory)) as $file) {
                 $this->assertDoesNotMatchRegularExpression('/<(?:input|x-ui\.forms\.input)\b[^>]*\btype=["\']number["\']/s', File::get($file->getPathname()), $file->getRelativePathname());
             }
         }
 
-        $orders = File::get(resource_path('views/livewire/admin/operations/orders.blade.php'));
+        $orders = File::get(resource_path('views/livewire/operations/orders.blade.php'));
         $this->assertStringContainsString('<x-ui.forms.number-input id="order-required-staff" min="1" max="999" :nullable="false"', $orders);
     }
 }

@@ -40,7 +40,7 @@
         @if($costsOnly)
             <livewire:operations.operations-enhancements tab="costs" :order-id="$context['order'] ?? null" :embedded="true" :key="'case-costs-'.($context['order'] ?? 'all')" />
         @else
-            <livewire:admin.operations.orders :initial-order-id="$context['order'] ?? null" :customer-id="$context['customer'] ?? null" :initial-section="$section" :initial-record-id="($context['record_type'] ?? '') === 'proof' && $section === 'proofs' ? ($context['record'] ?? null) : null" :consolidated="true" :key="'case-orders-'.($context['customer'] ?? 'all').'-'.($context['order'] ?? '').'-'.$section" />
+            <livewire:operations.orders :initial-order-id="$context['order'] ?? null" :customer-id="$context['customer'] ?? null" :initial-section="$section" :initial-record-id="($context['record_type'] ?? '') === 'proof' && $section === 'proofs' ? ($context['record'] ?? null) : null" :consolidated="true" :key="'case-orders-'.($context['customer'] ?? 'all').'-'.($context['order'] ?? '').'-'.$section" />
         @endif
     @endif
 </section>

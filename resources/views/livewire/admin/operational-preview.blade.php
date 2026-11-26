@@ -41,16 +41,16 @@
     <div wire:key="operations-workspace-{{ $module }}" data-operations-workspace>
         @switch($module)
             @case('orders')
-                <livewire:admin.operations.orders :key="'operations-orders'" />
+                <livewire:operations.orders :key="'operations-orders'" />
                 @break
             @case('shift-management')
-                <livewire:admin.operations.shift-management :key="'operations-shift-management'" />
+                <livewire:operations.shift-management :key="'operations-shift-management'" />
                 @break
             @case('calendar')
-                <livewire:admin.operations.calendar :key="'operations-calendar'" />
+                <livewire:operations.calendar :key="'operations-calendar'" />
                 @break
             @case('customers')
-                <livewire:admin.operations.customers :key="'operations-customers'" />
+                <livewire:operations.customers :key="'operations-customers'" />
                 @break
         @endswitch
     </div>

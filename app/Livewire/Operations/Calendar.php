@@ -1,9 +1,10 @@
 <?php
 
-namespace App\Livewire\Admin\Operations;
+namespace App\Livewire\Operations;
 
 use App\Enums\ShiftAssignmentStatus;
 use App\Enums\ShiftStatus;
+use App\Livewire\Concerns\Operations\SupportsOperationsUi;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Shift;
@@ -340,7 +341,7 @@ class Calendar extends Component
             ? Shift::query()->with(array_merge(['order.customer', 'assignments.user.profile', 'assignments.user.currentTeam'], OperationsAccess::ready() ? ['qualifications'] : []))->find($this->selectedShiftId)
             : null;
 
-        return view('livewire.admin.operations.calendar', [
+        return view('livewire.operations.calendar', [
             'selectedShift' => $selectedShift,
             'days' => $days, 'shifts' => $shifts,
             'weekStartDate' => $from, 'weekEndDate' => $until->subDay(),

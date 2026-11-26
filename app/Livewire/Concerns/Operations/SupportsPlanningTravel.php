@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Livewire\Admin\Operations;
+namespace App\Livewire\Concerns\Operations;
 
 use App\Models\User;
 use App\Services\Operations\PlanningTravelDisplay;

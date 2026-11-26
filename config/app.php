@@ -7,6 +7,7 @@ use App\Providers\EmployeeLocationServiceProvider;
 use App\Providers\EventServiceProvider;
 use App\Providers\FortifyServiceProvider;
 use App\Providers\JetstreamServiceProvider;
+use App\Providers\LivewireAliasServiceProvider;
 use App\Providers\MicrosoftDeviceQueueServiceProvider;
 use App\Providers\RouteServiceProvider;
 use App\Providers\SessionLifetimeServiceProvider;
@@ -206,6 +207,7 @@ return [
         RouteServiceProvider::class,
         FortifyServiceProvider::class,
         JetstreamServiceProvider::class,
+        LivewireAliasServiceProvider::class,
 
     ])->toArray(),
 

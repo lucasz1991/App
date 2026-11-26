@@ -2,7 +2,7 @@
 
 namespace App\Livewire\Operations;
 
-use App\Livewire\Admin\Operations\Orders;
+use App\Livewire\Operations\Orders;
 use App\Livewire\Concerns\ResolvesOperationsActor;
 use App\Livewire\Concerns\SyncsWorkspaceUrl;
 use App\Models\AiIntake;

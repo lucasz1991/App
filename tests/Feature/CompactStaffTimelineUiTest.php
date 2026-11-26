@@ -61,7 +61,7 @@ class CompactStaffTimelineUiTest extends TestCase
 
         $this->assertMatchesRegularExpression('/<div\b[^>]*data-page-workspace-content[^>]*>/', $workspace);
         $this->assertStringContainsString('data-planning-workspace="{{ $page }}"', $planning);
-        $this->assertStringContainsString('<livewire:admin.operations.shift-management', $planning);
+        $this->assertStringContainsString('<livewire:operations.shift-management', $planning);
 
         // The hub adds two ancestors that the original direct workspace did not have.
         // Every one must shrink inside the viewport instead of growing to all staff rows.
@@ -446,7 +446,7 @@ class CompactStaffTimelineUiTest extends TestCase
 
     public function test_distribution_pagination_lives_in_the_sidebar_without_dropdown_contracts(): void
     {
-        $view = file_get_contents(resource_path('views/livewire/admin/operations/partials/pending-distribution.blade.php'));
+        $view = file_get_contents(resource_path('views/livewire/operations/partials/pending-distribution.blade.php'));
         // Both native named pagers share the stationary footer, not the scrolling tab bodies.
         $footerPosition = strpos($view, '<footer class="rt-shift-distribution__footer"');
         $this->assertNotFalse($footerPosition);
@@ -504,7 +504,7 @@ class CompactStaffTimelineUiTest extends TestCase
 
     public function test_period_trigger_has_no_timezone_subtitle_and_shell_uses_global_drawer(): void
     {
-        $view = file_get_contents(resource_path('views/livewire/admin/operations/shift-management.blade.php'));
+        $view = file_get_contents(resource_path('views/livewire/operations/shift-management.blade.php'));
         $this->assertStringNotContainsString('class="rt-calendar-timezone"', $view);
         $shell = file_get_contents(resource_path('views/layouts/master.blade.php'));
         $this->assertStringContainsString('data-sidebar-drawer="true"', $shell);

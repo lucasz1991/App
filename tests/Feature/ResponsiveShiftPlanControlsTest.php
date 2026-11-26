@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\Operations\ShiftManagement;
+use App\Livewire\Operations\ShiftManagement;
 use App\Livewire\Operations\CaseWorkspace;
 use App\Livewire\Operations\StaffTimeline;
 use App\Models\Customer;
@@ -303,7 +303,7 @@ class ResponsiveShiftPlanControlsTest extends TestCase
         $create = $this->xpath(Blade::render('<x-operations.create-action module="shift-management" />'));
         $button = $create->query('//button[@data-operations-create]')->item(0);
         $this->assertSame('Neue Schicht', $button->getAttribute('aria-label'));
-        $this->assertSame("\$dispatchTo('admin.operations.shift-management', 'operations-create')", $button->getAttribute('wire:click'));
+        $this->assertSame("\$dispatchTo('operations.shift-management', 'operations-create')", $button->getAttribute('wire:click'));
         $this->assertSame('', trim($button->textContent));
         $sharedCss = file_get_contents(resource_path('css/app.css'));
         $this->assertStringContainsString('transform: translate(var(--rt-toggle-travel), -50%)', $sharedCss);

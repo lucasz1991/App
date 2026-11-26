@@ -190,5 +190,5 @@
         </div>
     @endif
     @if($viewport)</div>@endif
-    @include('livewire.admin.operations.partials.calendar-shift-panel')
+    @include('livewire.operations.partials.calendar-shift-panel')
 </div>

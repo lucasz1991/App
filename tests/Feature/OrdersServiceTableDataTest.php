@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\Operations\Orders;
+use App\Livewire\Operations\Orders;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Shift;

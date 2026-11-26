@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\Operations\Orders;
+use App\Livewire\Operations\Orders;
 use App\Livewire\Admin\Settings;
 use App\Livewire\Operations\PersonalPageWorkspace;
 use App\Livewire\Operations\PlanningPageWorkspace;

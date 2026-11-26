@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\Operations\ShiftManagement;
+use App\Livewire\Operations\ShiftManagement;
 use App\Livewire\Operations\MyWork;
 use App\Livewire\Operations\PersonnelReview;
 use App\Models\AbsenceRequest;

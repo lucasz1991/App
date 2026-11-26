@@ -50,7 +50,7 @@ class SharedTableSortingUiTest extends TestCase
 
     public function test_disposition_lists_share_the_existing_table_and_have_no_local_header_overrides(): void
     {
-        foreach (['operations/inquiry-inbox', 'admin/operations/orders', 'admin/operations/shift-management'] as $view) {
+        foreach (['operations/inquiry-inbox', 'operations/orders', 'operations/shift-management'] as $view) {
             $source = file_get_contents(resource_path('views/livewire/'.$view.'.blade.php'));
             $this->assertStringContainsString('<x-tables.table', $source);
             $this->assertStringContainsString('sort-action="tableSort"', $source);

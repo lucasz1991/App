@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\Operations\Calendar;
-use App\Livewire\Admin\Operations\ShiftManagement;
+use App\Livewire\Operations\Calendar;
+use App\Livewire\Operations\ShiftManagement;
 use App\Livewire\Operations\CaseWorkspace;
 use App\Livewire\Operations\StaffTimeline;
 use App\Models\Customer;

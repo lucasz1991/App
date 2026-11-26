@@ -59,6 +59,6 @@
     @endif
     </x-ui.page>
     @if($canCreate && ($startCreating || $editingCustomerId))
-        <livewire:admin.operations.customers :customer-id="$editingCustomerId" :embedded="true" :modal-only="true" :workspace-revision="$contextRevision" :start-creating="$startCreating" :start-editing="(bool)$editingCustomerId" :key="'customer-form-'.($editingCustomerId ?? 'new').'-'.$contextRevision" />
+        <livewire:operations.customers :customer-id="$editingCustomerId" :embedded="true" :modal-only="true" :workspace-revision="$contextRevision" :start-creating="$startCreating" :start-editing="(bool)$editingCustomerId" :key="'customer-form-'.($editingCustomerId ?? 'new').'-'.$contextRevision" />
     @endif
 </div>

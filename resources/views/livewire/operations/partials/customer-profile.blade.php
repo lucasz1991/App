@@ -88,7 +88,7 @@
             @include('livewire.operations.partials.customer-profile-overview')
         @elseif($view==='orders')
             <div class="mb-4 flex justify-end"><x-ui.buttons.button-basic type="button" mode="primary" wire:click="$dispatch('operations-create')"><i class="far fa-plus" aria-hidden="true"></i>Auftrag anlegen</x-ui.buttons.button-basic></div>
-            <livewire:admin.operations.orders :customer-id="$customerId" :consolidated="true" :profile-embedded="true" :key="'customer-orders-'.$customerId.'-'.$contextRevision" />
+            <livewire:operations.orders :customer-id="$customerId" :consolidated="true" :profile-embedded="true" :key="'customer-orders-'.$customerId.'-'.$contextRevision" />
         @elseif($view==='inquiries')
             <div class="mb-4 flex justify-end"><x-ui.buttons.button-basic type="button" mode="primary" wire:click="$dispatch('operations-create')"><i class="far fa-plus" aria-hidden="true"></i>Anfrage anlegen</x-ui.buttons.button-basic></div>
             <livewire:operations.inquiry-inbox :customer-id="$customerId" :consolidated="true" :profile-embedded="true" :key="'customer-inquiries-'.$customerId.'-'.$contextRevision" />

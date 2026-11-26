@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\Operations\Orders;
+use App\Livewire\Operations\Orders;
 use App\Livewire\Operations\CaseWorkspace;
 use App\Livewire\Operations\CommercialOfferIndex;
 use App\Livewire\Operations\CommercialOffers;

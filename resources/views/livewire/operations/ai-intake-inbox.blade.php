@@ -272,5 +272,5 @@
             </x-slot:footer>
         </x-operations.modal>
     @endif
-    @if($customerDraftOpen && $selectedId)<livewire:admin.operations.customers :embedded="true" :modal-only="true" :start-creating="true" :workspace-revision="$selectedRevision" :draft-intake-id="$selectedId" :key="'ai-customer-draft-'.$selectedId.'-'.$selectedRevision" />@endif
+    @if($customerDraftOpen && $selectedId)<livewire:operations.customers :embedded="true" :modal-only="true" :start-creating="true" :workspace-revision="$selectedRevision" :draft-intake-id="$selectedId" :key="'ai-customer-draft-'.$selectedId.'-'.$selectedRevision" />@endif
 </section>

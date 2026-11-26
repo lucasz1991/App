@@ -10,6 +10,6 @@
         <x-slot:context><p class="mb-3 text-xs text-rt-muted dark:text-rt-dark-muted" data-shift-customer-context>Kunde: {{ $contextCustomer->company_name }}</p></x-slot:context>
     @endif
     <div class="rt-service-filter-fields" data-service-filter-fields>
-        @include('livewire.admin.operations.partials.shift-filter-fields')
+        @include('livewire.operations.partials.shift-filter-fields')
     </div>
 </x-tables.filter-dropdown>

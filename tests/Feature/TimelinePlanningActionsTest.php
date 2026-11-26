@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\Operations\ShiftManagement;
+use App\Livewire\Operations\ShiftManagement;
 use App\Livewire\Operations\StaffTimeline;
 use App\Models\AbsenceRequest;
 use App\Models\Customer;
@@ -254,7 +254,7 @@ class TimelinePlanningActionsTest extends TestCase
 
     public function test_distribution_focus_intent_is_emitted_only_by_native_item_click_and_not_hover_or_focus(): void
     {
-        $panel = file_get_contents(resource_path('views/livewire/admin/operations/partials/pending-distribution.blade.php'));
+        $panel = file_get_contents(resource_path('views/livewire/operations/partials/pending-distribution.blade.php'));
         $dom = new \DOMDocument;
         $previous = libxml_use_internal_errors(true);
         $dom->loadHTML($panel);

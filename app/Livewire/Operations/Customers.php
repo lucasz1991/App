@@ -1,7 +1,8 @@
 <?php
 
-namespace App\Livewire\Admin\Operations;
+namespace App\Livewire\Operations;
 
+use App\Livewire\Concerns\Operations\SupportsOperationsUi;
 use App\Models\AiIntake;
 use App\Models\Customer;
 use App\Models\User;
@@ -256,7 +257,7 @@ class Customers extends Component
             ? Customer::query()->when(! $this->embedded, fn ($query) => $query->with(['orders' => fn ($query) => $query->latest('starts_at')->limit(8)]))->find($this->selectedCustomerId)
             : null;
 
-        return view('livewire.admin.operations.customers', [
+        return view('livewire.operations.customers', [
             'customers' => $customers,
             'selectedCustomer' => $selectedCustomer,
             'activeCount' => Customer::query()->where('is_active', true)->count(),

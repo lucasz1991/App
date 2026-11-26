@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\Operations\Calendar;
+use App\Livewire\Operations\Calendar;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Shift;

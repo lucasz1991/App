@@ -25,14 +25,14 @@
         </x-ui.page-header-actions>
         <x-ui.page-header-actions target="actions">
             <div class="rt-orders-table-filters" data-orders-table-filters>
-                @include('livewire.admin.operations.partials.orders-period-trigger')
-                @include('livewire.admin.operations.partials.orders-filter-trigger')
+                @include('livewire.operations.partials.orders-period-trigger')
+                @include('livewire.operations.partials.orders-filter-trigger')
             </div>
         </x-ui.page-header-actions>
     @else
         <div class="rt-orders-list-controls" data-orders-list-controls>
             <x-operations.service-table-selection :count="count($selectedServiceRows)" />
-            @include('livewire.admin.operations.partials.orders-filter-trigger')
+            @include('livewire.operations.partials.orders-filter-trigger')
         </div>
     @endif
     <section class="rt-orders-list" aria-label="{{ __('pagination.orders_list') }}" @if($boundedOrdersList) data-orders-list-scroll @endif>
@@ -45,14 +45,14 @@
 
     @if($embeddedDetail)
         <div class="rt-service-detail-content" data-service-detail-loaded="{{ $selectedOrder?->id }}">
-            @include('livewire.admin.operations.partials.service-details')
+            @include('livewire.operations.partials.service-details')
         </div>
     @else
         <x-operations.panel :id="'order-detail-panel-'.$this->getId()" label="Leistungsdetails" show-expression="panelVisible">
             <x-operations.service-detail-shell :owner-id="$this->getId()">
                 @if($selectedOrder)
                     <div class="rt-service-detail-content" data-service-detail-loaded="{{ $selectedOrder->id }}">
-                        @include('livewire.admin.operations.partials.service-details')
+                        @include('livewire.operations.partials.service-details')
                     </div>
                 @endif
             </x-operations.service-detail-shell>

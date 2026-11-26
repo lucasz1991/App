@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\Operations\Customers;
+use App\Livewire\Operations\Customers;
 use App\Livewire\Operations\CustomerPortalManagement;
 use App\Livewire\Operations\CustomerRelations;
 use App\Livewire\Operations\CustomerWorkspace;

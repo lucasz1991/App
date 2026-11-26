@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\Operations\Orders;
-use App\Livewire\Admin\Operations\ShiftManagement;
+use App\Livewire\Operations\Orders;
+use App\Livewire\Operations\ShiftManagement;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Shift;
@@ -315,8 +315,8 @@ class ServiceOrdersSharedPresentationTest extends TestCase
     {
         $css = file_get_contents(resource_path('css/service-table.css'));
         $component = file_get_contents(resource_path('views/components/operations/service-table.blade.php'));
-        $orders = file_get_contents(resource_path('views/livewire/admin/operations/orders.blade.php'));
-        $services = file_get_contents(resource_path('views/livewire/admin/operations/partials/service-overview.blade.php'));
+        $orders = file_get_contents(resource_path('views/livewire/operations/orders.blade.php'));
+        $services = file_get_contents(resource_path('views/livewire/operations/partials/service-overview.blade.php'));
         $this->assertStringContainsString('container: rt-service-list / inline-size;', $css);
         $this->assertStringContainsString('@container rt-service-list (max-width: 1040px)', $css);
         $this->assertStringContainsString('@container rt-service-list (max-width: 600px)', $css);

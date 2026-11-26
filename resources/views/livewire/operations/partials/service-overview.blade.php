@@ -23,7 +23,7 @@
     <x-operations.panel :id="'service-detail-panel-'.$this->getId()" label="Leistungsdetails" show-expression="panelVisible">
         <x-operations.service-detail-shell :owner-id="$this->getId()">
                 @if($selectedServiceId && $orderGroups->has($selectedServiceId))
-                    <livewire:admin.operations.orders :initial-order-id="$selectedServiceId" :customer-id="$customerFilter !== 'all' ? (int) $customerFilter : null" :consolidated="true" :detail-only="true" :embedded-detail="true" :key="'service-detail-'.$selectedServiceId.'-'.$serviceDetailVersion" />
+                    <livewire:operations.orders :initial-order-id="$selectedServiceId" :customer-id="$customerFilter !== 'all' ? (int) $customerFilter : null" :consolidated="true" :detail-only="true" :embedded-detail="true" :key="'service-detail-'.$selectedServiceId.'-'.$serviceDetailVersion" />
                 @endif
         </x-operations.service-detail-shell>
     </x-operations.panel>

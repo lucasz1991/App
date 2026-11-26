@@ -58,7 +58,7 @@ class GermanyMapTest extends TestCase
         foreach ($map['points'] as $point) {
             $this->assertSame($point['left'].'|'.$point['top'], $point['key']);
         }
-        $html = view('livewire.admin.operations.partials.shift-plan-map', ['planMap' => $map])->render();
+        $html = view('livewire.operations.partials.shift-plan-map', ['planMap' => $map])->render();
         $this->assertStringContainsString('Bahnhofslage · ungefähr', $html);
     }
 
@@ -76,7 +76,7 @@ class GermanyMapTest extends TestCase
         $this->assertSame([2, 1], array_column($map['points'], 'count'));
         $this->assertSame(['Werkstor "Nord"', 'Werkstor "Nord"'], array_column($map['points'], 'label'));
         $this->assertNotSame($map['points'][0]['key'], $map['points'][1]['key']);
-        $html = view('livewire.admin.operations.partials.shift-plan-map', ['planMap' => $map])->render();
+        $html = view('livewire.operations.partials.shift-plan-map', ['planMap' => $map])->render();
         $xpath = $this->mapXpath($html);
         $buttons = $xpath->query('//button[@data-map-highlight-key]');
         $this->assertSame(2, $buttons->length);
@@ -102,7 +102,7 @@ class GermanyMapTest extends TestCase
     {
         $map = GermanyMap::planning(collect([$this->shift('Hamburg-Hasselbrook')]));
         $scope = function (array $data): string {
-            $xpath = $this->mapXpath(view('livewire.admin.operations.partials.shift-plan-map', $data)->render());
+            $xpath = $this->mapXpath(view('livewire.operations.partials.shift-plan-map', $data)->render());
             $section = $xpath->query('//section[@data-shift-plan-map]')->item(0);
             $this->assertSame('mapReset()', $section->getAttribute('x-on:shift-plan-view-changed.window'));
             $this->assertSame('shift-plan-map-'.$section->getAttribute('data-map-scope'), $section->getAttribute('wire:key'));
@@ -120,7 +120,7 @@ class GermanyMapTest extends TestCase
         $this->assertNotSame($initial, $scope(array_replace($data, ['planMap' => $changed])));
         $empty = GermanyMap::planning(collect([$this->shift('Unbekannter Einsatzort')]));
         $this->assertNotSame($initial, $scope(array_replace($data, ['planMap' => $empty])));
-        $xpath = $this->mapXpath(view('livewire.admin.operations.partials.shift-plan-map', ['planMap' => $empty])->render());
+        $xpath = $this->mapXpath(view('livewire.operations.partials.shift-plan-map', ['planMap' => $empty])->render());
         $this->assertSame(0, $xpath->query('//*[@data-map-highlight or @data-map-highlight-key]')->length);
     }
 

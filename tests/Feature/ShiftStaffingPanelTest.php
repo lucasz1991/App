@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\Operations\ShiftManagement;
+use App\Livewire\Operations\ShiftManagement;
 use App\Models\Customer;
 use App\Models\EmployeeQualification;
 use App\Models\OperationAudit;
