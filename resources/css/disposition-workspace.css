@@ -1,10 +1,17 @@
 /* Approved working-view direction. Opt-in only: no shell, wagon or personal-calendar styling. */
+/* --dispo-* ist eine Alias-Familie auf die Shell-Token (tokens.css). Sie gilt
+   fuer die Disposition und die Bausteine, die deren Bedienelemente teilen. */
+.rt-disposition,
+.rt-page-header--compact[data-page-header],
+.rt-orders-table-filters,
+.rt-shift-plan-header-action {
+    --dispo-line: var(--rt-shell-line);
+    --dispo-surface: var(--rt-shell-surface-solid);
+    --dispo-subtle: var(--rt-shell-panel);
+    --dispo-text: var(--rt-shell-text);
+    --dispo-muted: var(--rt-shell-muted);
+}
 .rt-disposition {
-    --dispo-line: var(--rt-shell-line, #dce1e6);
-    --dispo-surface: var(--rt-shell-surface-solid, #fff);
-    --dispo-subtle: var(--rt-shell-panel, #f5f6f7);
-    --dispo-text: var(--rt-shell-text, #202b36);
-    --dispo-muted: var(--rt-shell-muted, #65717c);
     --dispo-warning: #926018;
     --dispo-success: #237159;
     min-width: 0;
@@ -107,7 +114,6 @@ html.dark .rt-disposition {
 .rt-disposition-period__navigation { display: flex; gap: 4px; }
 .rt-disposition-period__navigation .rt-ui-button { min-width: 44px; }
 .rt-shift-plan-header-controls,
-.rt-shift-plan-header-action { --dispo-line: var(--rt-shell-line, #dce1e6); --dispo-surface: var(--rt-shell-surface-solid, #fff); --dispo-subtle: var(--rt-shell-panel, #f5f6f7); --dispo-text: var(--rt-shell-text, #202b36); --dispo-muted: var(--rt-shell-muted, #65717c); }
 .rt-shift-plan { display: flex; min-height: 0; flex-direction: column; gap: 4px; }
 .rt-disposition.rt-disposition--shifts:not(.ops-stack) > * + * { margin-top: 0; }
 .rt-disposition--shifts .rt-calendar-header { gap: 0; }
@@ -306,14 +312,10 @@ body:has(#main-content .rt-shift-plan) { height: 100%; min-height: 0; overflow: 
 .rt-shift-plan-compact-action,
 .rt-shift-plan-compact-create { display: none; }
 .rt-shift-distribution {
-    --panel-surface: var(--rt-shell-surface-solid, #fff);
-    --panel-inset: var(--rt-shell-panel, #f7f9fc);
-    --panel-line: var(--rt-shell-line, #dce1e6);
-    --panel-text: var(--rt-shell-text, #182435);
-    --panel-muted: var(--rt-shell-muted, #637188);
-    --panel-accent: var(--rt-shell-accent, #e4002b);
-    --panel-accent-strong: var(--rt-shell-accent, #b5001f);
-    --panel-accent-soft: var(--rt-accent-soft, rgb(228 0 43 / .08));
+    /* Gemeinsame --panel-*-Aliase stehen in operations-panel.css; die
+       Schichtverteilung behaelt ihr eigenes Akzentpaar (in beiden Themes). */
+    --panel-accent-strong: var(--rt-shell-accent);
+    --panel-accent-soft: rgb(228 0 43 / .08);
     min-width: 0;
 }
 .rt-shift-distribution__header { padding: 12px 16px; }

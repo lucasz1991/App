@@ -1,0 +1,123 @@
+/*
+ * RailTime Design-Tokens – die einzige Farbquelle
+ * ----------------------------------------------
+ * 1. Kanal-Tripel (--rt-*-rgb): feste Palettenwerte ohne Theme-Wechsel.
+ *    tailwind.config.js liest sie als rgb(var(--rt-…-rgb) / <alpha-value>),
+ *    damit Opazitaetsmodifikatoren wie bg-rt-accent/10 weiter funktionieren.
+ *    rt.* = helle Palette, rt-dark.* = dunkle Palette (Klassen-Paare
+ *    bg-rt-surface dark:bg-rt-dark-surface bleiben unveraendert).
+ * 2. Semantische Token (--rt-color-*, --rt-shadow-*, --rt-ease-*): wechseln
+ *    unter html.dark (Tailwind darkMode: 'class') und sind die Grundlage
+ *    fuer alle Modul-Familien (--rt-shell-*, --dispo-*, --panel-*, ...).
+ * 3. Aliase fuer bestehende Namensraeume (--rt-app-canvas, --rt-shell-*).
+ *
+ * Diese Datei ist der erste Import von app.css. Neue Farben gehoeren hierher,
+ * nicht als Hex-Literal in Modul-Dateien.
+ */
+
+:root {
+    /* Marke (theme-unabhaengig) */
+    --rt-red-rgb: 228 0 43;
+    --rt-red-dark-rgb: 201 0 38;
+    --rt-red-light-rgb: 245 27 59;
+    --rt-anthracite-rgb: 8 11 16;
+    --rt-ink-rgb: 21 27 36;
+
+    /* Helle Palette (Tailwind rt.*) */
+    --rt-canvas-rgb: 220 227 237;
+    --rt-surface-rgb: 255 255 255;
+    --rt-surface-muted-rgb: 247 249 252;
+    --rt-topbar-rgb: 246 248 251;
+    --rt-sidebar-rgb: 237 242 247;
+    --rt-control-rgb: 255 255 255;
+    --rt-border-rgb: 215 224 234;
+    --rt-text-rgb: 24 36 53;
+    --rt-muted-rgb: 99 113 136;
+    --rt-soft-rgb: 145 160 180;
+    --rt-accent-rgb: 228 0 43;
+    --rt-accent-soft-rgb: 255 229 234;
+    --rt-nav-hover-rgb: 231 237 245;
+
+    /* Dunkle Palette (Tailwind rt-dark.*) */
+    --rt-dark-canvas-rgb: 3 6 11;
+    --rt-dark-surface-rgb: 17 26 39;
+    --rt-dark-surface-muted-rgb: 24 36 53;
+    --rt-dark-topbar-rgb: 12 20 33;
+    --rt-dark-sidebar-rgb: 13 22 36;
+    --rt-dark-control-rgb: 34 50 73;
+    --rt-dark-border-rgb: 42 57 77;
+    --rt-dark-text-rgb: 237 242 248;
+    --rt-dark-muted-rgb: 174 185 201;
+    --rt-dark-soft-rgb: 119 134 154;
+    --rt-dark-accent-rgb: 255 113 137;
+    --rt-dark-accent-soft-rgb: 72 25 37;
+    --rt-dark-nav-hover-rgb: 26 41 61;
+    --rt-dark-nav-active-rgb: 41 63 92;
+
+    /* Feste Markenfarbe als Wert (fuer Stellen, die in beiden Themes Signalrot bleiben) */
+    --rt-brand-red: rgb(var(--rt-red-rgb));
+
+    /* Semantische Token – hell */
+    --rt-color-canvas: rgb(var(--rt-canvas-rgb));
+    --rt-color-surface: rgb(var(--rt-surface-rgb));
+    --rt-color-surface-muted: rgb(var(--rt-surface-muted-rgb));
+    --rt-color-surface-glass: rgba(255, 255, 255, 0.93);
+    --rt-color-topbar: rgb(var(--rt-topbar-rgb));
+    --rt-color-sidebar: rgb(var(--rt-sidebar-rgb));
+    --rt-color-control: rgb(var(--rt-control-rgb));
+    --rt-color-border: rgb(var(--rt-border-rgb));
+    --rt-color-line: rgba(148, 163, 184, 0.28);
+    --rt-color-line-strong: rgba(100, 116, 139, 0.34);
+    --rt-color-text: rgb(var(--rt-text-rgb));
+    --rt-color-muted: rgb(var(--rt-muted-rgb));
+    --rt-color-soft: rgb(var(--rt-soft-rgb));
+    --rt-color-accent: rgb(var(--rt-accent-rgb));
+    --rt-color-accent-soft: rgb(var(--rt-accent-soft-rgb));
+    --rt-color-nav-hover: rgb(var(--rt-nav-hover-rgb));
+    --rt-shadow-raised: 0 18px 45px -30px rgba(15, 23, 42, 0.42);
+    --rt-shadow-elevated: 0 28px 80px -34px rgba(15, 23, 42, 0.58);
+    --rt-ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
+
+    /* Aliase: Seitenfarbe aller App-Layouts */
+    --rt-app-canvas: var(--rt-color-canvas);
+
+    /* Aliase: Shell-Namensraum (customer-portal.css ueberschreibt ihn im Portal-Scope) */
+    --rt-shell-line: var(--rt-color-line);
+    --rt-shell-line-strong: var(--rt-color-line-strong);
+    --rt-shell-surface: var(--rt-color-surface-glass);
+    --rt-shell-surface-solid: var(--rt-color-surface);
+    --rt-shell-canvas: var(--rt-app-canvas);
+    --rt-shell-panel: var(--rt-color-surface-muted);
+    --rt-shell-border: var(--rt-color-border);
+    --rt-shell-topbar: var(--rt-color-topbar);
+    --rt-shell-sidebar: var(--rt-color-sidebar);
+    --rt-shell-text: var(--rt-color-text);
+    --rt-shell-muted: var(--rt-color-muted);
+    --rt-shell-soft: var(--rt-color-soft);
+    --rt-shell-accent: var(--rt-color-accent);
+    --rt-shell-shadow: var(--rt-shadow-raised);
+    --rt-shell-shadow-elevated: var(--rt-shadow-elevated);
+    --rt-shell-spring: var(--rt-ease-spring);
+}
+
+html.dark {
+    /* Semantische Token – dunkel (Aliase oben folgen automatisch) */
+    --rt-color-canvas: rgb(var(--rt-dark-canvas-rgb));
+    --rt-color-surface: rgb(var(--rt-dark-surface-rgb));
+    --rt-color-surface-muted: rgb(var(--rt-dark-surface-muted-rgb));
+    --rt-color-surface-glass: rgba(12, 20, 33, 0.93);
+    --rt-color-topbar: rgb(var(--rt-dark-topbar-rgb));
+    --rt-color-sidebar: rgb(var(--rt-dark-sidebar-rgb));
+    --rt-color-control: rgb(var(--rt-dark-control-rgb));
+    --rt-color-border: rgb(var(--rt-dark-border-rgb));
+    --rt-color-line: rgba(71, 85, 105, 0.58);
+    --rt-color-line-strong: rgba(100, 116, 139, 0.62);
+    --rt-color-text: rgb(var(--rt-dark-text-rgb));
+    --rt-color-muted: rgb(var(--rt-dark-muted-rgb));
+    --rt-color-soft: rgb(var(--rt-dark-soft-rgb));
+    --rt-color-accent: rgb(var(--rt-dark-accent-rgb));
+    --rt-color-accent-soft: rgb(var(--rt-dark-accent-soft-rgb));
+    --rt-color-nav-hover: rgb(var(--rt-dark-nav-hover-rgb));
+    --rt-shadow-raised: 0 22px 52px -30px rgba(0, 0, 0, 0.78);
+    --rt-shadow-elevated: 0 32px 90px -34px rgba(0, 0, 0, 0.88);
+}

@@ -40,12 +40,12 @@
 .rt-health-overall { display: flex; align-items: baseline; gap: 8px; font-size: 13px; font-weight: 650; line-height: 1.55; }
 .rt-health-dot { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; background: currentColor; }
 .rt-health-timestamp { display: block; margin-top: 5px; color: var(--health-muted); font-size: 11px; line-height: 1.6; }
-.rt-health-primary { display: inline-flex; justify-content: space-between; align-items: center; gap: 14px; width: 100%; min-height: 46px; margin-top: 18px; padding: 6px 6px 6px 18px; border-radius: 999px; background: #e4002b; color: #fff; font-size: 12px; font-weight: 650; transition: transform .45s cubic-bezier(.32,.72,0,1), opacity .45s cubic-bezier(.32,.72,0,1); }
+.rt-health-primary { display: inline-flex; justify-content: space-between; align-items: center; gap: 14px; width: 100%; min-height: 46px; margin-top: 18px; padding: 6px 6px 6px 18px; border-radius: 999px; background: var(--rt-brand-red); color: #fff; font-size: 12px; font-weight: 650; transition: transform .45s cubic-bezier(.32,.72,0,1), opacity .45s cubic-bezier(.32,.72,0,1); }
 .rt-health-button-icon { width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(255,255,255,.15); transition: transform .45s cubic-bezier(.32,.72,0,1); }
 .rt-health-primary:hover .rt-health-button-icon { transform: rotate(18deg); }
 .rt-health-primary:active, .rt-health-secondary:active { transform: scale(.98); }
 .rt-health button:disabled { opacity: .55; cursor: wait; }
-.rt-health button:focus-visible, .rt-health summary:focus-visible, .rt-health-shortcuts button:focus-visible { outline: 2px solid #e4002b; outline-offset: 4px; }
+.rt-health button:focus-visible, .rt-health summary:focus-visible, .rt-health-shortcuts button:focus-visible { outline: 2px solid var(--rt-brand-red); outline-offset: 4px; }
 .rt-health-controls > p { color: var(--health-muted); font-size: 11px; line-height: 1.7; margin: 11px 0 0; }
 .rt-health-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 2px 24px 25px; padding: 19px 0 0; box-shadow: inset 0 1px 0 var(--health-line); }
 .rt-health-metrics > div { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 7px 12px; }
@@ -53,7 +53,7 @@
 .rt-health-metrics span { font-size: 11px; font-weight: 600; line-height: 1.5; }
 .rt-health-metrics small { display: block; color: var(--health-muted); font-size: 10px; font-weight: 400; }
 .rt-health-progress { height: 3px; overflow: hidden; background: var(--health-tray); }
-.rt-health-progress > span { display: block; width: 100%; height: 100%; background: #e4002b; transform-origin: left; transition: transform .5s cubic-bezier(.32,.72,0,1); }
+.rt-health-progress > span { display: block; width: 100%; height: 100%; background: var(--rt-brand-red); transform-origin: left; transition: transform .5s cubic-bezier(.32,.72,0,1); }
 .rt-health-notice { padding: 15px 24px; background: var(--health-subtle); color: var(--health-warning); font-size: 12px; line-height: 1.75; }
 .rt-health-notice--error { color: var(--health-error); }
 .rt-health-list-heading { padding: 22px 24px 16px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; box-shadow: inset 0 1px 0 var(--health-line); }
@@ -95,7 +95,7 @@
 .rt-health-shortcuts button { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 10px; padding: 15px 18px; border-radius: 16px; background: rgba(255,255,255,.65); box-shadow: inset 0 0 0 1px rgba(104,129,166,.12); text-align: left; font-size: 12px; font-weight: 600; color: #192738; transition: transform .4s cubic-bezier(.32,.72,0,1); }
 .rt-health-shortcuts button:hover { transform: translateY(-2px); }
 .rt-health-shortcuts small { display: block; margin-top: 4px; font-size: 10px; font-weight: 400; line-height: 1.6; color: #66768e; }
-.rt-health-shortcuts svg { width: 17px; height: 17px; color: #e4002b; }
+.rt-health-shortcuts svg { width: 17px; height: 17px; color: var(--rt-brand-red); }
 .dark .rt-health-shortcuts button { background: rgba(23,33,50,.7); color: #e5edf8; }
 .dark .rt-health-shortcuts small { color: #a0aec3; }
 @media (min-width: 1100px) {

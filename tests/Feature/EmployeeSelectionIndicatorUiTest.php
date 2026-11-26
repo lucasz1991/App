@@ -52,7 +52,7 @@ class EmployeeSelectionIndicatorUiTest extends TestCase
             $styles,
         );
         $this->assertStringContainsString('.rt-table-row.rt-table-row-selected:focus-visible', $styles);
-        $this->assertStringContainsString('inset 4px 0 0 #e4002b', $styles);
+        $this->assertStringContainsString('inset 4px 0 0 var(--rt-brand-red)', $styles);
         $this->assertMatchesRegularExpression(
             '/@media \\(prefers-reduced-motion: reduce\\)[\\s\\S]*?\\.rt-person-selection-slot,[\\s\\S]*?transition:\\s*none !important/s',
             $styles,

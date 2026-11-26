@@ -3,11 +3,7 @@
 .rt-page-header--compact[data-page-header] {
     --rt-page-header-control-size: 44px;
     --rt-page-header-gap: 8px;
-    --dispo-line: var(--rt-shell-line, #dce1e6);
-    --dispo-surface: var(--rt-shell-surface-solid, #fff);
-    --dispo-subtle: var(--rt-shell-panel, #f5f6f7);
-    --dispo-text: var(--rt-shell-text, #202b36);
-    --dispo-muted: var(--rt-shell-muted, #65717c);
+    /* --dispo-* (Alias-Familie) kommt aus disposition-workspace.css. */
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     flex: none;

@@ -226,11 +226,7 @@
    customer profile deliberately remains in normal document flow. */
 .rt-orders-list-controls { display: flex; align-items: center; gap: 8px; }
 .rt-orders-table-filters {
-    --dispo-line: var(--rt-shell-line);
-    --dispo-surface: var(--rt-shell-surface-solid);
-    --dispo-subtle: var(--rt-shell-panel);
-    --dispo-text: var(--rt-shell-text);
-    --dispo-muted: var(--rt-shell-muted);
+    /* --dispo-* (Alias-Familie) kommt aus disposition-workspace.css. */
     display: flex;
     flex: none;
     align-items: center;

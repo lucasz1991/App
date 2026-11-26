@@ -2762,7 +2762,7 @@ function sidebarNavigation() {
             };
 
             this.$root.addEventListener('shown.metisMenu', this.shownHandler);
-            window.__webreachMetisMenu = this.metisMenu;
+            window.__rtSidebarMenu = this.metisMenu;
         },
 
         destroy() {
@@ -2780,8 +2780,8 @@ function sidebarNavigation() {
                 this.metisMenu.dispose();
             }
 
-            if (window.__webreachMetisMenu === this.metisMenu) {
-                window.__webreachMetisMenu = null;
+            if (window.__rtSidebarMenu === this.metisMenu) {
+                window.__rtSidebarMenu = null;
             }
 
             this.metisMenu = null;
@@ -3304,11 +3304,11 @@ function syncSidebarInteractionMode() {
 
 function initLeftMenuCollapse() {
     document.querySelectorAll('.vertical-menu-btn').forEach((button) => {
-        if (button.dataset.webreachBound === '1') {
+        if (button.dataset.rtSidebarBound === '1') {
             return;
         }
 
-        button.dataset.webreachBound = '1';
+        button.dataset.rtSidebarBound = '1';
 
         button.addEventListener('click', (event) => {
             event.preventDefault();
@@ -3535,11 +3535,11 @@ Livewire.hook('morph.updated', queueFeatherInit);
 
 function initSidebarInteractions() {
     document.querySelectorAll('.vertical-menu, .topbar-brand').forEach((element) => {
-        if (element.dataset.webreachSidebarHoverBound === '1') {
+        if (element.dataset.rtSidebarHoverBound === '1') {
             return;
         }
 
-        element.dataset.webreachSidebarHoverBound = '1';
+        element.dataset.rtSidebarHoverBound = '1';
 
         element.addEventListener('mouseenter', () => {
             if (!isDesktopHoverSidebar()) {

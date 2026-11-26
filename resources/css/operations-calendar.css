@@ -372,8 +372,8 @@ html.dark .rt-disposition--calendar {
  * =================================================================== */
 .rt-disposition--calendar {
     --cal-open: #c8102e;
-    --cal-open-soft: color-mix(in srgb, #e4002b 8%, var(--rt-shell-surface-solid, #fff));
-    --cal-open-line: color-mix(in srgb, #e4002b 32%, var(--rt-shell-line, #dce1e6));
+    --cal-open-soft: color-mix(in srgb, var(--rt-brand-red) 8%, var(--rt-shell-surface-solid, #fff));
+    --cal-open-line: color-mix(in srgb, var(--rt-brand-red) 32%, var(--rt-shell-line, #dce1e6));
     --cal-ok: #0f8a61;
     --cal-draft: #1d6fd0;
 }

@@ -52,25 +52,20 @@
 
 /* --- Gesamtansicht (vorher service-detail-summary.css) --- */
 /* Full-service context: larger versions of the native list identity and previews. */
+/* --detail-*: die Gesamtansicht nutzt die festen Rahmen-Token (solide Linie),
+   das Vorschau-Raster im Panel (operations-panel.css) die Haarlinie --panel-line. */
 .rt-service-detail-summary {
-    --detail-muted: var(--rt-muted, #637188);
-    --detail-border: var(--rt-border, #d7e0ea);
-    --detail-surface: var(--rt-surface-muted, #f7f9fc);
-    --detail-paper: var(--rt-surface, #ffffff);
+    --detail-muted: var(--rt-color-muted);
+    --detail-border: var(--rt-color-border);
+    --detail-surface: var(--rt-color-surface-muted);
+    --detail-paper: var(--rt-color-surface);
     container-type: inline-size;
     display: grid;
     gap: 24px;
     min-width: 0;
-    color: var(--rt-text, #182435);
+    color: var(--rt-color-text);
     font-size: 14px;
     line-height: 1.5;
-}
-.dark .rt-service-detail-summary {
-    --detail-muted: var(--rt-dark-muted, #aeb9c9);
-    --detail-border: var(--rt-dark-border, #2a394d);
-    --detail-surface: var(--rt-dark-surface-muted, #182435);
-    --detail-paper: var(--rt-dark-surface, #111a27);
-    color: var(--rt-dark-text, #edf2f8);
 }
 .rt-service-detail-summary__identity,
 .rt-service-detail-summary__section-heading {

@@ -482,13 +482,14 @@ class ResponsiveShiftPlanControlsTest extends TestCase
 
         $tailwind = file_get_contents(base_path('tailwind.config.js'));
         $appCss = file_get_contents(resource_path('css/app.css'));
-        $shellCss = file_get_contents(resource_path('css/shell-redesign.css'));
-        $this->assertStringContainsString("canvas: '#dce3ed'", $tailwind);
-        $this->assertStringContainsString("canvas: '#03060b'", $tailwind);
+        $tokens = file_get_contents(resource_path('css/tokens.css'));
+        $this->assertStringContainsString("canvas: 'rgb(var(--rt-canvas-rgb) / <alpha-value>)'", $tailwind);
+        $this->assertStringContainsString("canvas: 'rgb(var(--rt-dark-canvas-rgb) / <alpha-value>)'", $tailwind);
         $this->assertStringContainsString('background-color: #03060b !important;', $appCss);
-        $this->assertStringContainsString('--rt-app-canvas: #dce3ed;', $appCss);
-        $this->assertStringContainsString('--rt-app-canvas: #03060b;', $appCss);
-        $this->assertStringContainsString('--rt-shell-canvas: var(--rt-app-canvas);', $shellCss);
+        $this->assertStringContainsString('--rt-canvas-rgb: 220 227 237;', $tokens);
+        $this->assertStringContainsString('--rt-dark-canvas-rgb: 3 6 11;', $tokens);
+        $this->assertStringContainsString('--rt-app-canvas: var(--rt-color-canvas);', $tokens);
+        $this->assertStringContainsString('--rt-shell-canvas: var(--rt-app-canvas);', $tokens);
     }
 
     public function test_compact_secondary_actions_override_legacy_important_display_without_changing_global_utilities(): void

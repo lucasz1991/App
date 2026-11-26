@@ -12,7 +12,7 @@
     --assist-soft: #98a2b3;
     --assist-line: rgba(15, 23, 42, 0.1);
     --assist-line-strong: rgba(15, 23, 42, 0.16);
-    --assist-red: #e4002b;
+    --assist-red: var(--rt-brand-red);
     --assist-red-deep: #bb0023;
     --assist-red-soft: rgba(228, 0, 43, 0.09);
     --assist-night: #090f1c;

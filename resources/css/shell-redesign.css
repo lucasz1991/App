@@ -8,40 +8,8 @@
 
 :root {
     --rt-page-gutter: 1rem;
-    --rt-shell-line: rgba(148, 163, 184, 0.28);
-    --rt-shell-line-strong: rgba(100, 116, 139, 0.34);
-    --rt-shell-surface: rgba(255, 255, 255, 0.93);
-    --rt-shell-surface-solid: #ffffff;
-    --rt-shell-canvas: var(--rt-app-canvas);
-    --rt-shell-panel: #f7f9fc;
-    --rt-shell-border: #d7e0ea;
-    --rt-shell-topbar: #f6f8fb;
-    --rt-shell-sidebar: #edf2f7;
-    --rt-shell-text: #182435;
-    --rt-shell-muted: #637188;
-    --rt-shell-soft: #91a0b4;
-    --rt-shell-accent: #e4002b;
-    --rt-shell-shadow: 0 18px 45px -30px rgba(15, 23, 42, 0.42);
-    --rt-shell-shadow-elevated: 0 28px 80px -34px rgba(15, 23, 42, 0.58);
-    --rt-shell-spring: cubic-bezier(0.32, 0.72, 0, 1);
-}
-
-html.dark {
-    --rt-shell-line: rgba(71, 85, 105, 0.58);
-    --rt-shell-line-strong: rgba(100, 116, 139, 0.62);
-    --rt-shell-surface: rgba(12, 20, 33, 0.93);
-    --rt-shell-surface-solid: #111a27;
-    --rt-shell-canvas: var(--rt-app-canvas);
-    --rt-shell-panel: #182435;
-    --rt-shell-border: #2a394d;
-    --rt-shell-topbar: #0c1421;
-    --rt-shell-sidebar: #0d1624;
-    --rt-shell-text: #edf2f8;
-    --rt-shell-muted: #aeb9c9;
-    --rt-shell-soft: #77869a;
-    --rt-shell-accent: #ff7189;
-    --rt-shell-shadow: 0 22px 52px -30px rgba(0, 0, 0, 0.78);
-    --rt-shell-shadow-elevated: 0 32px 90px -34px rgba(0, 0, 0, 0.88);
+    /* Farben, Schatten und die Federkurve des Shells (--rt-shell-*) kommen
+       aus tokens.css; dort wechseln sie unter html.dark. */
 }
 
 /*
@@ -217,12 +185,12 @@ html.dark .rt-shell-ambient__orb--two {
 
 @media (min-width: 1024px) {
     body[data-sidebar-collapsible='true'] .rt-shell-ambient {
-        left: var(--webreach-sidebar-collapsed-width);
-        transition: left var(--webreach-sidebar-transition);
+        left: var(--rt-sidebar-collapsed-width);
+        transition: left var(--rt-sidebar-transition);
     }
 
     body[data-sidebar-collapsible='true'][data-sidebar-expanded='true'] .rt-shell-ambient {
-        left: var(--webreach-sidebar-expanded-width);
+        left: var(--rt-sidebar-expanded-width);
     }
 }
 
@@ -710,11 +678,11 @@ body[data-sidebar-drawer='true'].sidebar-enable { overflow: hidden; }
 .rt-sidebar-footer__button svg { width: 19px; height: 19px; }
 .rt-sidebar-footer__button:hover,
 .rt-sidebar-footer__button[aria-current='page'],
-.rt-sidebar-footer__button[data-active='true'] { color: #e4002b; border-color: currentColor; }
-.rt-sidebar-footer__button:focus-visible { outline: 2px solid #e4002b; outline-offset: 3px; }
+.rt-sidebar-footer__button[data-active='true'] { color: var(--rt-brand-red); border-color: currentColor; }
+.rt-sidebar-footer__button:focus-visible { outline: 2px solid var(--rt-brand-red); outline-offset: 3px; }
 .rt-sidebar-footer__menu-link { display: block; padding: 10px 16px; }
 .rt-sidebar-footer__menu-link:hover,
-.rt-sidebar-footer__menu-link:focus-visible { background: var(--rt-shell-panel); color: #e4002b; }
+.rt-sidebar-footer__menu-link:focus-visible { background: var(--rt-shell-panel); color: var(--rt-brand-red); }
 
 .rt-shell-sidebar::after {
     position: absolute;
@@ -730,7 +698,7 @@ body[data-sidebar-drawer='true'].sidebar-enable { overflow: hidden; }
     box-shadow: 0 0 18px rgba(228, 0, 43, 0.28);
     transform: scaleY(0.3);
     transition:
-        transform var(--webreach-sidebar-transition),
+        transform var(--rt-sidebar-transition),
         opacity 280ms ease;
     pointer-events: none;
 }
@@ -1014,7 +982,7 @@ html.dark .rt-shell-sidebar #sidebar-menu [data-rt-sidebar-link][data-menu-activ
 @media (min-width: 1024px) {
     body[data-sidebar-collapsible='true']:not([data-sidebar-expanded='true']) .rt-shell-sidebar [data-rt-sidebar-depth] {
         margin-inline: 0;
-        padding-inline: var(--webreach-sidebar-collapsed-padding) !important;
+        padding-inline: var(--rt-sidebar-collapsed-padding) !important;
     }
 
     body[data-sidebar-collapsible='true']:not([data-sidebar-expanded='true']) .rt-shell-sidebar .sidebar-nav-submenu {
@@ -1183,7 +1151,7 @@ html.dark .rt-topbar-profile-panel .rt-ui-dropdown-link:not([aria-disabled='true
     height: 3px;
     content: '';
     background:
-        linear-gradient(90deg, #e4002b 0 14%, rgba(228, 0, 43, 0.18) 14% 38%, transparent 72%);
+        linear-gradient(90deg, var(--rt-brand-red) 0 14%, rgba(228, 0, 43, 0.18) 14% 38%, transparent 72%);
     pointer-events: none;
 }
 
@@ -1581,7 +1549,7 @@ html.dark .rt-welcome-feature {
     right: 13%;
     left: 13%;
     height: 2px;
-    background: linear-gradient(90deg, rgba(255, 255, 255, 0.22), #e4002b 50%, rgba(255, 255, 255, 0.22));
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.22), var(--rt-brand-red) 50%, rgba(255, 255, 255, 0.22));
     transform: rotate(-8deg);
 }
 
@@ -1679,7 +1647,7 @@ html.dark .rt-welcome-feature {
 
 .rt-welcome-feature:hover .rt-welcome-feature-icon {
     color: #ffffff;
-    background: #e4002b;
+    background: var(--rt-brand-red);
     transform: rotate(-3deg) scale(1.04);
 }
 
@@ -1786,7 +1754,7 @@ html.dark .rt-welcome-feature-icon {
     display: block;
     height: 100%;
     border-radius: inherit;
-    background: linear-gradient(90deg, #ff7189, #e4002b);
+    background: linear-gradient(90deg, #ff7189, var(--rt-brand-red));
     transition: width 320ms var(--rt-shell-spring);
 }
 
@@ -1806,7 +1774,7 @@ html.dark .rt-welcome-feature-icon {
 
 .rt-welcome-journey-node[data-state='current'] {
     border-color: rgba(255, 255, 255, 0.34);
-    background: #e4002b;
+    background: var(--rt-brand-red);
     color: #ffffff;
     box-shadow:
         0 0 0 4px rgba(228, 0, 43, 0.16),
@@ -2020,7 +1988,7 @@ html.dark .rt-welcome-feature-icon {
 .rt-welcome-journey-node[data-state='current'] .rt-welcome-module-icon {
     border-color: rgba(228, 0, 43, 0.18);
     background: rgba(228, 0, 43, 0.08);
-    color: #e4002b;
+    color: var(--rt-brand-red);
 }
 
 .rt-welcome-content {

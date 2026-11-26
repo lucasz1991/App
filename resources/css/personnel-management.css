@@ -15,9 +15,7 @@
 .rt-personnel-account-form .rt-account-day[open] { padding-bottom: 8px; }
 
 .rt-personnel-management {
-    --ops-ink: var(--rt-shell-text, #182230);
-    --ops-muted: var(--rt-shell-muted, #637083);
-    --ops-sheet: var(--rt-shell-surface-solid, #fff);
+    /* --ops-ink/-muted/-sheet kommen aus personnel-workspace.css. */
     --management-accent: var(--personnel-accent, #8d253d);
     --management-accent-soft: var(--personnel-accent-soft, #f6edf0);
     --management-line: var(--personnel-line, rgba(71, 85, 105, .12));

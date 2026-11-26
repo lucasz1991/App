@@ -1,4 +1,6 @@
 /* RailTime Designsprache v2 — Premium-Grotesk, ein Akzent, weiche Tiefe */
+/* Token-Quelle zuerst: alle Module und Bundles lesen ihre Farben daraus. */
+@import './tokens.css';
 @import '@fontsource-variable/plus-jakarta-sans';
 @import './help-support.css';
 @import './lmz-editor-shell.css';
@@ -59,16 +61,9 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Eine Seitenfarbe fuer alle App-Layouts, auch ohne das Shell-Bundle.
-   Karten, Controls und Dokument-/Druckflaechen bleiben eigene Oberflaechen. */
-:root {
-    --rt-app-canvas: #dce3ed;
-}
-
-html.dark {
-    --rt-app-canvas: #03060b;
-}
-
+/* Eine Seitenfarbe fuer alle App-Layouts, auch ohne das Shell-Bundle
+   (--rt-app-canvas kommt aus tokens.css). Karten, Controls und
+   Dokument-/Druckflaechen bleiben eigene Oberflaechen. */
 body,
 #main-content,
 .rt-app-page-frame {
@@ -813,7 +808,7 @@ input:checked + .rt-ui-toggle-control::after {
 
 .rt-ui-toggle__input:focus-visible + .rt-ui-toggle-control,
 .peer:focus-visible + .rt-ui-toggle-control {
-    border-color: #e4002b;
+    border-color: var(--rt-brand-red);
     outline: none;
     box-shadow: 0 0 0 4px rgba(228, 0, 43, .16), inset .35rem .35rem .75rem rgba(15, 23, 42, .12);
 }
@@ -1060,10 +1055,10 @@ html.dark .rt-ui-alert[data-rt-tone="danger"] {
     cursor: pointer;
 }
 
-.rt-swal-toast.swal2-toast .rt-swal-toast__close:hover { color: #e4002b; }
+.rt-swal-toast.swal2-toast .rt-swal-toast__close:hover { color: var(--rt-brand-red); }
 
 .rt-swal-toast.swal2-toast .rt-swal-toast__close:focus-visible {
-    outline: 2px solid #e4002b;
+    outline: 2px solid var(--rt-brand-red);
     outline-offset: 2px;
 }
 
@@ -1688,7 +1683,7 @@ html.dark [data-admin-dashboard] .rt-admin-operations-card-divider {
 .dark .rt-operational-nav-link-active:hover {
     color: #ff7189;
     background: #31141e;
-    border-color: #e4002b;
+    border-color: var(--rt-brand-red);
 }
 
 .dark .rt-operational-nav-icon {
@@ -1761,7 +1756,7 @@ html.dark .rt-operational-page .rt-operational-nav-link-active,
 html.dark .rt-operational-page .rt-operational-nav-link-active:hover {
     color: #ff7189 !important;
     background-color: #31141e !important;
-    border-color: #e4002b !important;
+    border-color: var(--rt-brand-red) !important;
 }
 
 html.dark .rt-operational-page .rt-operational-nav-icon {
@@ -1770,7 +1765,7 @@ html.dark .rt-operational-page .rt-operational-nav-icon {
 
 .rt-admin-panel-accent,
 .dark .rt-admin-panel-accent {
-    border-top: 2px solid #e4002b;
+    border-top: 2px solid var(--rt-brand-red);
 }
 
 .rt-admin-chart {
@@ -1878,7 +1873,7 @@ html.dark .rt-admin-legend-dash {
 }
 
 .rt-admin-stat-chip-brand .rt-admin-stat-chip-value {
-    color: #e4002b;
+    color: var(--rt-brand-red);
 }
 
 html.dark .rt-admin-stat-chip {
@@ -2420,7 +2415,7 @@ html.dark .rt-loading-skeleton__action::after {
     flex: 0 0 auto;
     border-radius: 9999px;
     background: currentColor;
-    color: #e4002b;
+    color: var(--rt-brand-red);
     opacity: 0.4;
     transform: scaleY(0.28);
     transform-origin: center;
@@ -3081,7 +3076,7 @@ html.rt-wagon-editor-is-open .rt-chatbot__panel {
     display: block;
     height: 100%;
     border-radius: inherit;
-    background: linear-gradient(90deg, #e4002b, #ff4f70);
+    background: linear-gradient(90deg, var(--rt-brand-red), #ff4f70);
     transform-origin: left center;
     transition: transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -3091,7 +3086,7 @@ html.rt-wagon-editor-is-open .rt-chatbot__panel {
  * Weiss — jetzt traegt der Knopf in beiden Modi dieselbe Identitaet. */
 .rt-wagon-continue {
     border: 1px solid rgba(228, 0, 43, 0.25);
-    background: linear-gradient(135deg, #e4002b, #c40025);
+    background: linear-gradient(135deg, var(--rt-brand-red), #c40025);
     color: #fff;
     box-shadow:
         0 14px 26px -16px rgba(196, 0, 37, 0.65),
@@ -3113,7 +3108,7 @@ html.rt-wagon-editor-is-open .rt-chatbot__panel {
 
 html.dark .rt-wagon-continue {
     border-color: rgba(255, 79, 112, 0.35);
-    background: linear-gradient(135deg, #e4002b, #a30020);
+    background: linear-gradient(135deg, var(--rt-brand-red), #a30020);
     box-shadow:
         0 16px 30px -16px rgba(0, 0, 0, 0.85),
         0 0 22px -8px rgba(228, 0, 43, 0.5),
@@ -3607,7 +3602,7 @@ html.dark .rt-wagon-sheet [data-rt-custom-select] .rt-ui-control {
 }
 
 .rt-wagon-step-chip[data-active='true'] .rt-wagon-step-number {
-    background: #e4002b;
+    background: var(--rt-brand-red);
     color: #fff;
 }
 
@@ -3621,7 +3616,7 @@ html.dark .rt-wagon-sheet [data-rt-custom-select] .rt-ui-control {
     display: block;
     height: 100%;
     width: 100%;
-    background: #e4002b;
+    background: var(--rt-brand-red);
     transform-origin: left center;
     will-change: transform;
 }
@@ -3691,7 +3686,7 @@ html.dark .rt-wagon-sheet [data-rt-custom-select] .rt-ui-control {
 }
 
 .rt-wagon-index-button[data-active='true'] {
-    border-color: #e4002b;
+    border-color: var(--rt-brand-red);
     background: #ffe8ed;
     color: #ba0023;
     box-shadow: inset 0 0 0 1px rgb(228 0 43 / 0.08);
@@ -4024,7 +4019,7 @@ html.dark .rt-wagon-modal-footer {
     height: 3.1rem;
     width: 3.1rem;
     border-radius: 999px;
-    background: #e4002b;
+    background: var(--rt-brand-red);
     transition:
         border-radius 260ms cubic-bezier(0.32, 0.72, 0, 1),
         transform 260ms cubic-bezier(0.32, 0.72, 0, 1);
@@ -4213,7 +4208,7 @@ html.dark .rt-wagon-modal-footer {
     align-items: center;
     justify-content: center;
     border-radius: 999px;
-    background: #e4002b;
+    background: var(--rt-brand-red);
     color: #fff;
     font-size: 0.625rem;
     font-weight: 800;
@@ -4543,7 +4538,7 @@ html.dark .rt-wagon-modal-footer {
 }
 
 .rt-wagon-review-item:hover .rt-wagon-review-item-chevron {
-    color: #e4002b;
+    color: var(--rt-brand-red);
     transform: translateX(2px);
 }
 
@@ -4688,8 +4683,8 @@ html.dark .rt-wagon-modal-footer {
 }
 
 .rt-wagon-wizard-action-primary {
-    border-color: #e4002b;
-    background: #e4002b;
+    border-color: var(--rt-brand-red);
+    background: var(--rt-brand-red);
     color: #fff;
 }
 
@@ -5097,7 +5092,7 @@ html.dark .rt-wagon-wizard-action-primary {
    Datumsfeld (x-ui.forms.date-field)
    ----------------------------------------------------------------- */
 .rt-ui-date-field__shell[data-open='true'] {
-    border-color: #e4002b;
+    border-color: var(--rt-brand-red);
 }
 
 .rt-ui-date-nav {
@@ -5149,7 +5144,7 @@ html.dark .rt-wagon-wizard-action-primary {
 }
 
 .rt-ui-date-day--selected {
-    background: #e4002b !important;
+    background: var(--rt-brand-red) !important;
     color: #fff;
 }
 
@@ -5223,7 +5218,7 @@ html.dark .rt-ui-date-field__shell[data-open='true'] {
 
 .rt-table-row.rt-table-row-selected {
     background: rgba(228, 0, 43, 0.075);
-    box-shadow: inset 3px 0 0 #e4002b;
+    box-shadow: inset 3px 0 0 var(--rt-brand-red);
 }
 
 html.dark .rt-table-row.rt-table-row-selected {
@@ -5602,7 +5597,7 @@ html.dark .rt-employee-mobile-header {
 .rt-welcome-hero {
     background:
         radial-gradient(34rem 16rem at 50% -6rem, rgba(255, 255, 255, 0.28), transparent),
-        linear-gradient(135deg, #e4002b 0%, #a3001f 58%, #151b24 130%);
+        linear-gradient(135deg, var(--rt-brand-red) 0%, #a3001f 58%, #151b24 130%);
 }
 
 .rt-welcome-glow {
@@ -5696,14 +5691,14 @@ body[data-sidebar-collapsible] .rt-nav-overlay {
 
 @media (min-width: 1024px) {
     body[data-sidebar-collapsible='true'] .rt-nav-overlay {
-        left: var(--webreach-sidebar-collapsed-width);
+        left: var(--rt-sidebar-collapsed-width);
         transition:
             opacity 230ms cubic-bezier(0.32, 0.72, 0, 1),
-            left var(--webreach-sidebar-transition);
+            left var(--rt-sidebar-transition);
     }
 
     body[data-sidebar-collapsible='true'][data-sidebar-expanded='true'] .rt-nav-overlay {
-        left: var(--webreach-sidebar-expanded-width);
+        left: var(--rt-sidebar-expanded-width);
     }
 }
 
@@ -5843,7 +5838,7 @@ html.dark .rt-nav-loader__canvas {
     display: block;
     width: 3.3rem;
     height: 3.3rem;
-    background: #e4002b;
+    background: var(--rt-brand-red);
     opacity: 1;
     -webkit-mask: url('/icons/mask-icon.svg') center / contain no-repeat;
     mask: url('/icons/mask-icon.svg') center / contain no-repeat;
@@ -6064,7 +6059,7 @@ html.dark .rt-profile-aurora {
 
 .rt-expandable-search__trigger:hover,
 .rt-expandable-search__clear:hover {
-    color: #e4002b;
+    color: var(--rt-brand-red);
 }
 
 .rt-expandable-search__trigger:active,
@@ -6115,7 +6110,7 @@ html.dark .rt-profile-aurora {
 }
 
 .rt-expandable-search__input:focus {
-    border-color: #e4002b;
+    border-color: var(--rt-brand-red);
     box-shadow:
         0 0 0 4px rgba(228, 0, 43, 0.12),
         0 10px 24px -18px rgba(15, 23, 42, 0.5);
@@ -6336,13 +6331,13 @@ html.rt-topbar-search-open body {
     background: rgba(228, 0, 43, 0.055) !important;
     box-shadow:
         inset 0 0 0 2px rgba(228, 0, 43, 0.58),
-        inset 4px 0 0 #e4002b;
+        inset 4px 0 0 var(--rt-brand-red);
 }
 
 .rt-table-frame .rt-table-row.rt-table-row-selected {
     background: rgba(228, 0, 43, 0.075) !important;
     box-shadow:
-        inset 4px 0 0 #e4002b,
+        inset 4px 0 0 var(--rt-brand-red),
         inset 0 0 0 1px rgba(228, 0, 43, 0.12);
 }
 
@@ -6790,7 +6785,7 @@ html.rt-topbar-search-open body {
     padding: 0.625rem 1rem;
     border: 1px solid rgba(170, 9, 43, 0.48);
     border-radius: 0.75rem;
-    background: #e4002b;
+    background: var(--rt-brand-red);
     color: #fff;
     font-size: 0.8125rem;
     font-weight: 750;
@@ -7232,7 +7227,7 @@ html.dark .rt-table-toolbar :is(.rt-table-select-trigger, .rt-table-bulk-trigger
     .rt-employee-mobile-header,
     .rt-device-mobile-header {
         border-color: rgba(181, 13, 50, 0.78);
-        background: linear-gradient(112deg, #b60d32 0%, #e4002b 68%, #ca1238 100%);
+        background: linear-gradient(112deg, #b60d32 0%, var(--rt-brand-red) 68%, #ca1238 100%);
         color: rgba(255, 255, 255, 0.94);
         box-shadow:
             inset 0 1px 0 rgba(255, 255, 255, 0.24),
@@ -7410,12 +7405,12 @@ html.dark .rt-table-toolbar :is(.rt-table-select-trigger, .rt-table-bulk-trigger
 }
 
 :root {
-    --webreach-sidebar-collapsed-width: 72px;
-    --webreach-sidebar-expanded-width: 272px;
-    --webreach-sidebar-icon-size: 1rem;
-    --webreach-sidebar-collapsed-padding: calc((var(--webreach-sidebar-collapsed-width) - var(--webreach-sidebar-icon-size)) / 2);
-    --webreach-sidebar-expanded-padding: 1.5rem;
-    --webreach-sidebar-transition: 520ms cubic-bezier(0.22, 1, 0.36, 1);
+    --rt-sidebar-collapsed-width: 72px;
+    --rt-sidebar-expanded-width: 272px;
+    --rt-sidebar-icon-size: 1rem;
+    --rt-sidebar-collapsed-padding: calc((var(--rt-sidebar-collapsed-width) - var(--rt-sidebar-icon-size)) / 2);
+    --rt-sidebar-expanded-padding: 1.5rem;
+    --rt-sidebar-transition: 520ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .rt-mobile-sidebar-backdrop {
@@ -7571,22 +7566,22 @@ html.dark .rt-table-toolbar :is(.rt-table-select-trigger, .rt-table-bulk-trigger
     }
 
     body[data-sidebar-collapsible="true"] .main-content {
-        margin-left: var(--webreach-sidebar-collapsed-width) !important;
-        transition: margin-left var(--webreach-sidebar-transition);
+        margin-left: var(--rt-sidebar-collapsed-width) !important;
+        transition: margin-left var(--rt-sidebar-transition);
     }
 
     body[data-sidebar-collapsible="true"][data-sidebar-expanded="true"] .main-content {
-        margin-left: var(--webreach-sidebar-expanded-width) !important;
+        margin-left: var(--rt-sidebar-expanded-width) !important;
     }
 
     body[data-sidebar-collapsible="true"] .vertical-menu,
     body[data-sidebar-collapsible="true"] .topbar-brand .navbar-brand {
-        width: var(--webreach-sidebar-collapsed-width) !important;
+        width: var(--rt-sidebar-collapsed-width) !important;
         will-change: width, box-shadow;
         transition:
-            width var(--webreach-sidebar-transition),
-            box-shadow var(--webreach-sidebar-transition),
-            background-color var(--webreach-sidebar-transition);
+            width var(--rt-sidebar-transition),
+            box-shadow var(--rt-sidebar-transition),
+            background-color var(--rt-sidebar-transition);
     }
 
     body[data-sidebar-collapsible="true"] .vertical-menu {
@@ -7612,9 +7607,9 @@ html.dark .rt-table-toolbar :is(.rt-table-select-trigger, .rt-table-bulk-trigger
         overflow: hidden;
         transform: translateX(-8px);
         transition:
-            max-width var(--webreach-sidebar-transition),
+            max-width var(--rt-sidebar-transition),
             opacity 220ms ease,
-            transform var(--webreach-sidebar-transition);
+            transform var(--rt-sidebar-transition);
         white-space: nowrap;
     }
 
@@ -7625,9 +7620,9 @@ html.dark .rt-table-toolbar :is(.rt-table-select-trigger, .rt-table-bulk-trigger
         padding-top: 0;
         padding-bottom: 0;
         transition:
-            max-height var(--webreach-sidebar-transition),
+            max-height var(--rt-sidebar-transition),
             opacity 220ms ease,
-            padding var(--webreach-sidebar-transition);
+            padding var(--rt-sidebar-transition);
     }
 
     body[data-sidebar-collapsible="true"] .vertical-menu .sidebar-nav-link {
@@ -7636,10 +7631,10 @@ html.dark .rt-table-toolbar :is(.rt-table-select-trigger, .rt-table-bulk-trigger
         white-space: nowrap;
         overflow: hidden;
         border-radius: 0.75rem;
-        padding-left: var(--webreach-sidebar-collapsed-padding);
-        padding-right: var(--webreach-sidebar-collapsed-padding);
+        padding-left: var(--rt-sidebar-collapsed-padding);
+        padding-right: var(--rt-sidebar-collapsed-padding);
         transition:
-            padding var(--webreach-sidebar-transition),
+            padding var(--rt-sidebar-transition),
             background-color 160ms ease,
             color 160ms ease;
     }
@@ -7649,24 +7644,24 @@ html.dark .rt-table-toolbar :is(.rt-table-select-trigger, .rt-table-bulk-trigger
        aktive Untermenue-Icons exakt in der 72-px-Sidebar zentriert bleiben. */
     body[data-sidebar-collapsible="true"]:not([data-sidebar-expanded="true"]) .vertical-menu .mm-collapse .sidebar-nav-link,
     body[data-sidebar-collapsible="true"]:not([data-sidebar-expanded="true"]) .vertical-menu .mm-collapsing .sidebar-nav-link {
-        padding-left: var(--webreach-sidebar-collapsed-padding) !important;
-        padding-right: var(--webreach-sidebar-collapsed-padding) !important;
+        padding-left: var(--rt-sidebar-collapsed-padding) !important;
+        padding-right: var(--rt-sidebar-collapsed-padding) !important;
     }
 
     body[data-sidebar-collapsible="true"] .vertical-menu .sidebar-nav-link__icon {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: var(--webreach-sidebar-icon-size);
-        min-width: var(--webreach-sidebar-icon-size);
+        width: var(--rt-sidebar-icon-size);
+        min-width: var(--rt-sidebar-icon-size);
         flex-shrink: 0;
     }
 
     body[data-sidebar-collapsible="true"] .vertical-menu .sidebar-nav-link__icon svg {
-        width: var(--webreach-sidebar-icon-size) !important;
-        height: var(--webreach-sidebar-icon-size) !important;
+        width: var(--rt-sidebar-icon-size) !important;
+        height: var(--rt-sidebar-icon-size) !important;
         margin: 0 !important;
-        transition: transform var(--webreach-sidebar-transition);
+        transition: transform var(--rt-sidebar-transition);
     }
 
     body[data-sidebar-collapsible="true"] .vertical-menu .sidebar-nav-link__label {
@@ -7678,10 +7673,10 @@ html.dark .rt-table-toolbar :is(.rt-table-select-trigger, .rt-table-bulk-trigger
         margin-left: 0;
         flex: 0 0 auto;
         transition:
-            max-width var(--webreach-sidebar-transition),
+            max-width var(--rt-sidebar-transition),
             opacity 220ms ease,
-            transform var(--webreach-sidebar-transition),
-            margin-left var(--webreach-sidebar-transition);
+            transform var(--rt-sidebar-transition),
+            margin-left var(--rt-sidebar-transition);
         white-space: nowrap;
     }
 
@@ -7692,15 +7687,15 @@ html.dark .rt-table-toolbar :is(.rt-table-select-trigger, .rt-table-bulk-trigger
         overflow: hidden;
         transform: translateX(-6px);
         transition:
-            max-width var(--webreach-sidebar-transition),
-            margin-left var(--webreach-sidebar-transition),
+            max-width var(--rt-sidebar-transition),
+            margin-left var(--rt-sidebar-transition),
             opacity 180ms ease,
-            transform var(--webreach-sidebar-transition);
+            transform var(--rt-sidebar-transition);
     }
 
     body[data-sidebar-collapsible="true"][data-sidebar-expanded="true"] .vertical-menu,
     body[data-sidebar-collapsible="true"][data-sidebar-expanded="true"] .topbar-brand .navbar-brand {
-        width: var(--webreach-sidebar-expanded-width) !important;
+        width: var(--rt-sidebar-expanded-width) !important;
     }
 
     body[data-sidebar-collapsible="true"][data-sidebar-expanded="true"] .vertical-menu {
@@ -7725,8 +7720,8 @@ html.dark .rt-table-toolbar :is(.rt-table-select-trigger, .rt-table-bulk-trigger
     }
 
     body[data-sidebar-collapsible="true"][data-sidebar-expanded="true"] .vertical-menu .sidebar-nav-link {
-        padding-left: var(--webreach-sidebar-expanded-padding);
-        padding-right: var(--webreach-sidebar-expanded-padding);
+        padding-left: var(--rt-sidebar-expanded-padding);
+        padding-right: var(--rt-sidebar-expanded-padding);
     }
 
     body[data-sidebar-collapsible="true"][data-sidebar-expanded="true"] .vertical-menu .sidebar-nav-link__label {
@@ -7767,7 +7762,7 @@ html.dark .rt-table-toolbar :is(.rt-table-select-trigger, .rt-table-bulk-trigger
 /* Legacy MetisMenu setzt aktive Links blau und mit !important. Die
    Anwendung verwendet bewusst den RailTime-Akzent, auch nach wire:navigate. */
 .rt-ui-sidebar .sidebar-nav-link[data-menu-active="true"] {
-    color: #e4002b !important;
+    color: var(--rt-brand-red) !important;
     background-color: #ffe4e9 !important;
 }
 
@@ -7802,11 +7797,11 @@ html.dark .rt-ui-sidebar .sidebar-nav-link:focus-visible {
 }
 
 .rt-ui-sidebar .metismenu .mm-active a:hover {
-    color: #e4002b !important;
+    color: var(--rt-brand-red) !important;
 }
 
 .rt-ui-sidebar .metismenu .mm-active a[data-menu-active="true"] {
-    color: #e4002b !important;
+    color: var(--rt-brand-red) !important;
 }
 
 html.dark .rt-ui-sidebar .metismenu .mm-active > a,
@@ -7823,7 +7818,7 @@ html.dark .rt-ui-sidebar .metismenu .mm-active a[data-menu-active="true"] {
 /* Auch die eingeklappte (sm) Sidebar faerbt Hover blau – auf Rot umstellen. */
 body[data-sidebar-size="sm"] .vertical-menu #sidebar-menu > ul > li:hover > a,
 body[data-sidebar-size="sm"] .vertical-menu #sidebar-menu > ul > li:hover > ul a {
-    color: #e4002b !important;
+    color: var(--rt-brand-red) !important;
 }
 
 /* Geoeffnete Submenue-Gruppe als zusammengehoerigen Block hervorheben: Der
@@ -8084,7 +8079,7 @@ textarea.rt-ui-field-control {
 .rt-ui-field-control:focus,
 .rt-ui-field-control:focus-visible,
 .rt-ui-field-shell:focus-within {
-    border-color: #e4002b;
+    border-color: var(--rt-brand-red);
     outline: none;
     box-shadow:
         inset 0 0 0 3px rgba(228, 0, 43, .14),
@@ -8114,7 +8109,7 @@ textarea.rt-ui-field-control {
 }
 
 .rt-ui-input-field {
-    --rt-field-accent: #e4002b;
+    --rt-field-accent: var(--rt-brand-red);
     --rt-field-accent-dark: #a70f38;
     --rt-field-line: rgba(113, 128, 150, .34);
     --rt-field-muted: #6f7a8c;
@@ -8258,7 +8253,7 @@ input.rt-ui-field-control[type='file']:hover::file-selector-button {
 
 /* All Select presentations keep one focus owner, including teleported lists. */
 [data-rt-custom-select] {
-    --rt-select-focus: #e4002b;
+    --rt-select-focus: var(--rt-brand-red);
     --rt-select-focus-ring: rgb(228 0 43 / 16%);
 }
 html.dark [data-rt-custom-select] {

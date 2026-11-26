@@ -12,16 +12,22 @@
  * den Shell-Tokens und folgen damit automatisch hell/dunkel.
  */
 
+/* --panel-* ist eine Alias-Familie auf die Shell-Token (tokens.css). Die
+   Schichtverteilung (disposition-workspace.css) teilt die Grundfarben. */
+.rt-ops-panel,
+.rt-shift-distribution {
+    --panel-surface: var(--rt-shell-surface-solid);
+    --panel-inset: var(--rt-shell-panel);
+    --panel-line: var(--rt-shell-line);
+    --panel-text: var(--rt-shell-text);
+    --panel-muted: var(--rt-shell-muted);
+    --panel-accent: var(--rt-shell-accent);
+}
+
 .rt-ops-panel {
-    --panel-surface: var(--rt-shell-surface-solid, #fff);
-    --panel-canvas: var(--rt-shell-canvas, #f2f5f9);
-    --panel-inset: var(--rt-shell-panel, #f7f9fc);
-    --panel-line: var(--rt-shell-line, rgba(148, 163, 184, 0.28));
-    --panel-line-strong: var(--rt-shell-line-strong, rgba(100, 116, 139, 0.34));
-    --panel-text: var(--rt-shell-text, #182435);
-    --panel-muted: var(--rt-shell-muted, #637188);
-    --panel-soft: var(--rt-shell-soft, #91a0b4);
-    --panel-accent: var(--rt-shell-accent, #e4002b);
+    --panel-canvas: var(--rt-shell-canvas);
+    --panel-line-strong: var(--rt-shell-line-strong);
+    --panel-soft: var(--rt-shell-soft);
     /* Signalrot als Text auf zarter Rottönung erreicht erst dunkler 4,5:1. */
     --panel-accent-strong: #b5001f;
     --panel-accent-soft: rgb(228 0 43 / 0.08);

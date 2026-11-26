@@ -18,10 +18,16 @@ html.dark .rt-personnel-page {
     --personnel-inset: #182435;
 }
 
+/* --ops-* Grundfarben der Personal-Bereiche: Aliase auf die Shell-Token
+   (tokens.css), gemeinsam fuer Personal-Seiten und Personalverwaltung. */
+.rt-personnel-page .rt-ops,
+.rt-personnel-management {
+    --ops-ink: var(--rt-shell-text);
+    --ops-muted: var(--rt-shell-muted);
+    --ops-sheet: var(--rt-shell-surface-solid);
+}
+
 .rt-personnel-page .rt-ops {
-    --ops-ink: var(--rt-shell-text, #182230);
-    --ops-muted: var(--rt-shell-muted, #637083);
-    --ops-sheet: var(--rt-shell-surface-solid, #fff);
     --ops-signal: var(--personnel-accent);
     --ops-line: var(--personnel-line);
     --ops-platform: var(--personnel-inset);

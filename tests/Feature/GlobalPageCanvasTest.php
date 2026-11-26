@@ -8,15 +8,23 @@ class GlobalPageCanvasTest extends TestCase
 {
     public function test_app_bundle_owns_the_exact_disposition_canvas_for_both_existing_theme_modes(): void
     {
-        $css = $this->source('resources/css/app.css');
+        // Seit Phase 6 ist tokens.css (erster Import von app.css) die Quelle:
+        // --rt-app-canvas zeigt auf das semantische Canvas-Token, das unter
+        // html.dark auf die dunkle Palette wechselt.
+        $css = $this->source('resources/css/tokens.css');
         $light = $this->rule($css, ':root');
         $dark = $this->rule($css, 'html.dark');
 
-        $this->assertSame('#dce3ed', $this->declaration($light, '--rt-app-canvas'));
-        $this->assertSame('#03060b', $this->declaration($dark, '--rt-app-canvas'));
-        $this->assertSame(2, preg_match_all('/--rt-app-canvas\s*:/', $css));
+        $this->assertSame('var(--rt-color-canvas)', $this->declaration($light, '--rt-app-canvas'));
+        $this->assertSame('rgb(var(--rt-canvas-rgb))', $this->declaration($light, '--rt-color-canvas'));
+        $this->assertSame('rgb(var(--rt-dark-canvas-rgb))', $this->declaration($dark, '--rt-color-canvas'));
+        $this->assertSame('220 227 237', $this->declaration($light, '--rt-canvas-rgb'));
+        $this->assertSame('3 6 11', $this->declaration($light, '--rt-dark-canvas-rgb'));
+        $this->assertSame(1, preg_match_all('/--rt-app-canvas\s*:/', $css));
+        $this->assertSame(0, preg_match_all('/--rt-app-canvas\s*:/', $this->source('resources/css/app.css')));
+        $this->assertStringContainsString("@import './tokens.css';", $this->source('resources/css/app.css'));
+        $this->assertStringNotContainsString('--rt-shell-canvas', $dark);
         foreach ([$light, $dark] as $mode) {
-            $this->assertStringNotContainsString('--rt-shell-canvas', $mode);
             $this->assertStringNotContainsString('--portal-platform', $mode);
         }
     }
@@ -38,17 +46,17 @@ class GlobalPageCanvasTest extends TestCase
 
     public function test_shell_canvas_aliases_the_app_owner_and_keeps_distinct_navigation_and_card_surfaces(): void
     {
-        $css = $this->source('resources/css/shell-redesign.css');
+        // Die Shell-Token sind Aliase in tokens.css; sie folgen dem Theme ueber
+        // die semantischen Token und werden nur einmal (unter :root) definiert.
+        $css = $this->source('resources/css/tokens.css');
         $light = $this->rule($css, ':root');
-        $dark = $this->rule($css, 'html.dark');
 
-        foreach ([$light, $dark] as $mode) {
-            $this->assertSame('var(--rt-app-canvas)', $this->declaration($mode, '--rt-shell-canvas'));
-            foreach (['--rt-shell-surface-solid', '--rt-shell-topbar', '--rt-shell-sidebar', '--rt-shell-panel'] as $surface) {
-                $this->assertNotSame('var(--rt-app-canvas)', $this->declaration($mode, $surface));
-            }
+        $this->assertSame('var(--rt-app-canvas)', $this->declaration($light, '--rt-shell-canvas'));
+        foreach (['--rt-shell-surface-solid', '--rt-shell-topbar', '--rt-shell-sidebar', '--rt-shell-panel'] as $surface) {
+            $this->assertNotSame('var(--rt-app-canvas)', $this->declaration($light, $surface));
         }
-        $this->assertSame(2, preg_match_all('/--rt-shell-canvas\s*:\s*var\(--rt-app-canvas\)\s*;/', $css));
+        $this->assertSame(1, preg_match_all('/--rt-shell-canvas\s*:\s*var\(--rt-app-canvas\)\s*;/', $css));
+        $this->assertSame(0, preg_match_all('/--rt-shell-canvas\s*:/', $this->source('resources/css/shell-redesign.css')));
     }
 
     public function test_personnel_frames_no_longer_cover_the_global_canvas_but_keep_their_calm_ambient_contract(): void
@@ -124,9 +132,14 @@ class GlobalPageCanvasTest extends TestCase
 
     public function test_semantic_tailwind_canvas_utilities_agree_with_the_canonical_page_colors(): void
     {
+        // Tailwind liest die Seitenfarben als Kanal-Tripel aus tokens.css.
         $config = $this->source('tailwind.config.js');
-        $this->assertStringContainsString("canvas: '#dce3ed'", $config);
-        $this->assertStringContainsString("canvas: '#03060b'", $config);
+        $tokens = $this->source('resources/css/tokens.css');
+        $this->assertStringContainsString("canvas: 'rgb(var(--rt-canvas-rgb) / <alpha-value>)'", $config);
+        $this->assertStringContainsString("canvas: 'rgb(var(--rt-dark-canvas-rgb) / <alpha-value>)'", $config);
+        $this->assertStringContainsString('--rt-canvas-rgb: 220 227 237;', $tokens);
+        $this->assertStringContainsString('--rt-dark-canvas-rgb: 3 6 11;', $tokens);
+        $this->assertStringContainsString('--rt-app-canvas: var(--rt-color-canvas);', $tokens);
         // Alle Auth-Seiten laufen ueber x-auth-brand-layout (authentication-card ist entfernt).
         $card = $this->source('resources/views/components/auth-brand-layout.blade.php');
         $this->assertStringContainsString('bg-rt-surface', $card);
