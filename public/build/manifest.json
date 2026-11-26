@@ -3,8 +3,8 @@
     "file": "assets/installSVGRenderer-BPfOPR9k.js",
     "name": "installSVGRenderer"
   },
-  "_leaflet-src-Dpms_Ll-.js": {
-    "file": "assets/leaflet-src-Dpms_Ll-.js",
+  "_leaflet-src-DeQdR987.js": {
+    "file": "assets/leaflet-src-DeQdR987.js",
     "name": "leaflet-src",
     "isDynamicEntry": true,
     "imports": [
@@ -54,27 +54,32 @@
     "isDynamicEntry": true
   },
   "resources/css/app.css": {
-    "file": "assets/app-CFrePrqC.css",
+    "file": "assets/app-Dt7OXRfT.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
-  "resources/css/chat-redesign.css": {
-    "file": "assets/chat-redesign-R5wf-Lcv.css",
-    "src": "resources/css/chat-redesign.css",
+  "resources/css/chat.css": {
+    "file": "assets/chat-DNGhGkW0.css",
+    "src": "resources/css/chat.css",
     "isEntry": true
   },
   "resources/css/chatbot.css": {
     "file": "assets/chatbot-baOzq6Hh.css",
     "src": "resources/css/chatbot.css"
   },
-  "resources/css/shell-redesign.css": {
-    "file": "assets/shell-redesign-DnUv1jNX.css",
-    "src": "resources/css/shell-redesign.css",
+  "resources/css/legacy-allowlist.css": {
+    "file": "assets/legacy-allowlist-Bb_SjMXu.css",
+    "src": "resources/css/legacy-allowlist.css",
     "isEntry": true
   },
-  "resources/css/tabs-redesign.css": {
-    "file": "assets/tabs-redesign-B0DHfQim.css",
-    "src": "resources/css/tabs-redesign.css",
+  "resources/css/shell.css": {
+    "file": "assets/shell-Cj017fj-.css",
+    "src": "resources/css/shell.css",
+    "isEntry": true
+  },
+  "resources/css/tabs.css": {
+    "file": "assets/tabs-ZriB9RHv.css",
+    "src": "resources/css/tabs.css",
     "isEntry": true
   },
   "resources/js/admin-dashboard-echarts.js": {
@@ -87,7 +92,7 @@
     ]
   },
   "resources/js/admin-dashboard-motion.js": {
-    "file": "assets/admin-dashboard-motion-BGH7i-4j.js",
+    "file": "assets/admin-dashboard-motion-CgXIe9EC.js",
     "name": "admin-dashboard-motion",
     "src": "resources/js/admin-dashboard-motion.js",
     "isDynamicEntry": true,
@@ -97,7 +102,7 @@
     ]
   },
   "resources/js/app.js": {
-    "file": "assets/app-S75yxDZI.js",
+    "file": "assets/app-i7gzIoP-.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
@@ -107,22 +112,22 @@
     "dynamicImports": [
       "resources/js/wagon-era-codes.js",
       "node_modules/swiper/swiper.mjs",
-      "_leaflet-src-Dpms_Ll-.js",
+      "_leaflet-src-DeQdR987.js",
       "resources/js/admin-dashboard-echarts.js",
       "resources/js/admin-dashboard-motion.js",
       "resources/js/operations-charts.js"
     ],
     "css": [
-      "assets/app-DL4I3yZa.css"
+      "assets/app-ndkEgqFx.css"
     ]
   },
   "resources/js/calls.js": {
-    "file": "assets/calls-QjqU_G0I.js",
+    "file": "assets/calls-Dp3WcwdM.js",
     "name": "calls",
     "src": "resources/js/calls.js",
     "isEntry": true,
     "css": [
-      "assets/calls-BmwyFaOR.css"
+      "assets/calls-Dj97u_8K.css"
     ]
   },
   "resources/js/customer-portal.js": {
