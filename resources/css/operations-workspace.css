@@ -137,7 +137,7 @@ a.ops-kpi:hover, a.ops-tile:hover { transform:translateY(-1px); border-color:tra
 .wv-dispatch-map__canvas { width:100%; height:var(--dispatch-map-height); }
 /*
  * The shared anchor dropdown starts with Tailwind's `relative inline-flex`
- * utility classes.  tailwind.min.css is loaded after this bundle on some
+ * utility classes.  legacy-allowlist.css is loaded after this bundle on some
  * Livewire navigation paths, where `.relative { position:relative!important }`
  * would otherwise win and put map pins back into the inline flow.
  */

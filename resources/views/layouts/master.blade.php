@@ -65,13 +65,12 @@
              <html>-Attribute durch die serverseitige Fassung (ohne dark) und
              fuehrt dieses Skript beim Body-Swap im selben Takt erneut aus, damit
              zwischen Swap und livewire:navigated nichts hell aufblitzt.
-             data-mode bedient nur noch die Legacy-Datei build/css/tailwind.min.css
-             (deren Dark-Regeln haengen an data-mode); entfaellt mit ihr. --}}
+             Ein data-mode-Attribut am body gibt es nicht mehr; auch die Legacy-Allowlist
+             (resources/css/legacy-allowlist.css) liest html.dark. --}}
         <script>
             (function () {
                 var dark = localStorage.getItem('rt-theme') === 'true';
                 document.documentElement.classList.toggle('dark', dark);
-                document.body.dataset.mode = dark ? 'dark' : 'light';
             })();
         </script>
         <a

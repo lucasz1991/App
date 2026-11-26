@@ -2480,7 +2480,7 @@ html.dark .rt-welcome-feature-icon {
     }
 
     .rt-welcome-slide-viewport {
-        /* Legacy tailwind.min.css setzt .flex-1 mit !important. Der Schritt
+        /* legacy-allowlist.css setzt .flex-1 mit !important. Der Schritt
            behaelt deshalb bewusst den verbleibenden Platz und scrollt intern;
            die Navigation bleibt sichtbar und kann den Inhalt nicht ueberlagern. */
         min-height: 0;

@@ -104,8 +104,8 @@
                     data-file-menu-trigger
                     draggable="false"
                     {{-- Ein-/Ausblenden steuert app.css (.rt-file-card-menu-trigger).
-                         Als Utility-Klassen ging es nicht: das Legacy-Bundle
-                         build/css/tailwind.min.css setzt .opacity-0 und
+                         Als Utility-Klassen ging es nicht: die Legacy-Allowlist
+                         resources/css/legacy-allowlist.css setzt .opacity-0 und
                          .pointer-events-none mit !important, wodurch die
                          group-hover-Varianten nie durchkamen — der Ausloeser
                          waere am Desktop unsichtbar geblieben. --}}

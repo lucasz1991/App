@@ -494,10 +494,10 @@ class ResponsiveShiftPlanControlsTest extends TestCase
 
     public function test_compact_secondary_actions_override_legacy_important_display_without_changing_global_utilities(): void
     {
-        $legacyCss = file_get_contents(public_path('build/css/tailwind.min.css'));
+        $legacyCss = file_get_contents(resource_path('css/legacy-allowlist.css'));
         $this->assertMatchesRegularExpression('/\.inline-flex\s*\{\s*display:\s*inline-flex\s*!important\s*;?\s*\}/', $legacyCss);
         $head = file_get_contents(resource_path('views/layouts/head-css.blade.php'));
-        $this->assertStringContainsString('build/css/tailwind.min.css', $head);
+        $this->assertStringContainsString('resources/css/legacy-allowlist.css', $head);
         $help = ['title' => 'Schichtplan', 'summary' => 'Synthetic page help', 'points' => ['Synthetic point']];
         $html = Blade::render('<x-ui.page-header title="Schichtplan" :help="$help"><x-slot:actions><x-operations.create-action module="shift-management" /></x-slot:actions></x-ui.page-header>', compact('help'));
         $xpath = $this->xpath($html);

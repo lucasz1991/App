@@ -14,6 +14,9 @@ export default defineConfig({
     plugins: [
         laravel({
             input: [
+                // Rest der frueheren build/css/tailwind.min.css; laedt nur ueber
+                // layouts.head-css (LegacyAssets::enabled()) vor app.css.
+                'resources/css/legacy-allowlist.css',
                 'resources/css/app.css',
                 'resources/css/shell.css',
                 'resources/css/tabs.css',

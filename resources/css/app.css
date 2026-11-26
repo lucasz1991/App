@@ -285,8 +285,8 @@ html.dark .rt-ui-surface-muted {
  * Erscheinen, entschlossenes Zuruecksinken beim Schliessen) statt
  * linearer Blenden. Bewegt werden ausschliesslich transform, opacity
  * und kurzzeitig filter — GPU-sicher, kein Layout-Thrashing.
- * Eigene Klassennamen statt Utilities: die Legacy-Datei
- * public/build/css/tailwind.min.css setzt viele Utilities !important
+ * Eigene Klassennamen statt Utilities: die Legacy-Allowlist
+ * resources/css/legacy-allowlist.css setzt viele Utilities !important
  * und wuerde Utility-basierte Uebergaenge unberechenbar ueberstimmen.
  * ------------------------------------------------------------------ */
 
@@ -455,8 +455,8 @@ html.dark .rt-ui-surface-muted {
  * overflow:clip erzeugt dagegen gar keinen Scrollbereich. Es gibt nichts
  * zu scrollen, also kann auch nichts verrutschen.
  *
- * !important ist Pflicht: die Legacy-Datei public/build/css/
- * tailwind.min.css liefert .overflow-y-auto{overflow-y:auto!important}
+ * !important ist Pflicht: die Legacy-Allowlist resources/css/
+ * legacy-allowlist.css liefert .overflow-y-auto{overflow-y:auto!important}
  * und wuerde eine gewoehnliche Regel schlicht ueberstimmen. */
 .rt-modal-shell:has(.rt-motion-modal-enter),
 .rt-modal-shell:has(.rt-motion-modal-leave),
@@ -2375,8 +2375,8 @@ html.dark .rt-loading-skeleton__action::after {
 }
 
 /* Zeigt sich, sobald die Kachel angesteuert wird — per Maus oder Tastatur.
-   Die frueheren group-hover-Utilities kamen nie an: das Legacy-Bundle
-   build/css/tailwind.min.css setzt .opacity-0/.pointer-events-none mit
+   Die frueheren group-hover-Utilities kamen nie an: die Legacy-Allowlist
+   resources/css/legacy-allowlist.css setzt .opacity-0/.pointer-events-none mit
    !important und gewinnt gegen jede Varianten-Klasse. */
 .rt-file-card:hover .rt-file-card-menu-trigger,
 .rt-file-card:focus-within .rt-file-card-menu-trigger,

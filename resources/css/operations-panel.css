@@ -57,8 +57,8 @@ html.dark .rt-ops-panel {
 }
 
 /*
- * Breite: disposition-workspace.css sieht min(760px, 100vw) vor, doch das Legacy-Bundle
- * build/css/tailwind.min.css setzt .w-full und .sm:max-w-4xl mit !important – der Drawer
+ * Breite: disposition-workspace.css sieht min(760px, 100vw) vor, doch die Legacy-Allowlist
+ * resources/css/legacy-allowlist.css setzt .w-full und .sm:max-w-4xl mit !important – der Drawer
  * war dadurch 896 px breit. Für Drawer mit Panel-Struktur gilt die vorgesehene Breite.
  */
 .rt-disposition-drawer .rt-disposition-drawer__panel:has(> .rt-ops-panel) {

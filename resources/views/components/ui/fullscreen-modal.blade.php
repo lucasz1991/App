@@ -52,7 +52,7 @@
         </div>
 
     WICHTIG — x-show.important:
-    Die Legacy-Datei public/build/css/tailwind.min.css setzt die Display-
+    Die Legacy-Allowlist resources/css/legacy-allowlist.css setzt die Display-
     Utilities auf !important (.flex{display:flex!important}). Alpines x-show
     schreibt ein INLINE display:none, das dagegen verliert. Ohne .important
     bliebe dieses Modal dauerhaft offen und unverschliessbar. Nicht entfernen.

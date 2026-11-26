@@ -23,7 +23,7 @@
     // size="sm" ist die kompakte Variante fuer Status in Listen, Karten und
     // Kopfzeilen. Abstand, Radius und Schriftgroesse kommen dort aus app.css
     // (.rt-ui-badge[data-rt-size="sm"]), damit Seiten-CSS sie anpassen kann –
-    // die Legacy-Utilities in tailwind.min.css tragen !important.
+    // die Legacy-Utilities in legacy-allowlist.css tragen !important.
     $compact = $size === 'sm';
     $base = $compact
         ? 'rt-ui-badge inline-flex items-center gap-1 font-semibold ring-1 ring-inset '

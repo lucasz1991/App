@@ -14,7 +14,7 @@
     intro=true (erster Seitenbesuch) zeigt zusaetzlich einen Los-geht's-Knopf.
 
     WICHTIG — x-show.important:
-    Die Legacy-Datei public/build/css/tailwind.min.css definiert die
+    Die Legacy-Allowlist resources/css/legacy-allowlist.css definiert die
     Display-Utilities mit !important (.flex{display:flex!important}). Alpines
     x-show setzt ein INLINE display:none, und das verliert gegen ein
     !important aus dem Stylesheet. Ohne den .important-Modifier bleibt dieser

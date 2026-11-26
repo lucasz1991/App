@@ -16,18 +16,14 @@ function registerThemeStore() {
     });
 }
 
-// Theme auf <html>/<body> anwenden. Noetig nach jeder wire:navigate-
+// Theme auf <html> anwenden. Noetig nach jeder wire:navigate-
 // Navigation, weil Livewire dabei das <html>-Element (inkl. dark-Klasse)
 // durch die serverseitig gerenderte Version ersetzt — dokumentiertes
 // Livewire-Muster: im 'livewire:navigated'-Event erneut anwenden.
 function rtApplyTheme() {
     const dark = Alpine.store('theme').dark;
+    // Einziger Dark-Mode-Selektor ist html.dark (auch fuer die Legacy-Allowlist).
     document.documentElement.classList.toggle('dark', dark);
-    // Einziger Dark-Mode-Selektor ist html.dark. data-mode bleibt nur fuer die
-    // [data-mode=dark]-Regeln der Legacy-Datei build/css/tailwind.min.css.
-    if (document.body) {
-        document.body.setAttribute('data-mode', dark ? 'dark' : 'light');
-    }
 }
 
 export { registerThemeStore, rtApplyTheme };
