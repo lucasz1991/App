@@ -6,6 +6,11 @@
  * dehnt sich unterwegs zum Strich. Jeder Tab traegt --a (0…1, Aktivitaetsgrad),
  * aus dem Text-, Icon- und Badge-Farbe stufenlos gemischt werden.
  * Alle Farbwerte werden aus den semantischen rt-* Tokens bezogen.
+ *
+ * Einzige Quelle der Tab-Stile (x-ui.accordion.tabs). Die fruehere
+ * Basisschicht in app.css (@layer rt-legacy-tabs, 3D-Karussell) ist hier
+ * eingefaltet; sie trug nur noch das randlose Innenmass der mobilen
+ * Sticky-Leiste bei (siehe unten).
  */
 [data-rt-tabs-root] {
     --rt-tabs-canvas: theme('colors.rt.canvas');
@@ -460,6 +465,9 @@ html.dark [data-rt-tabs-root] {
         max-width: 100%;
         min-width: 0;
         margin-inline: 0 !important;
+        /* Randlos bis an die Seitenkante: kein seitliches Innenmass. */
+        padding-right: 0;
+        padding-left: 0;
         border-right: 0;
         border-left: 0;
         border-radius: 0;

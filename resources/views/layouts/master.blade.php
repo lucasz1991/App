@@ -43,7 +43,7 @@
          zweite Alpine-/Livewire-Instanz starten. --}}
     {{-- Das Anrufmodul registriert callRoom vor dem Alpine-Start im App-Modul. --}}
     @vite(array_merge(
-        ['resources/css/app.css', 'resources/css/shell-redesign.css', 'resources/css/tabs-redesign.css', 'resources/css/chat-redesign.css'],
+        ['resources/css/app.css', 'resources/css/shell-redesign.css', 'resources/css/tabs.css', 'resources/css/chat-redesign.css'],
         auth()->check() ? ['resources/js/calls.js'] : [],
         ['resources/js/app.js'],
     ))
