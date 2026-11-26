@@ -837,7 +837,7 @@
                             @if ($uploads !== [])
                                 <div class="mb-2 flex flex-wrap gap-2 px-1" aria-live="polite">
                                     @foreach ($uploads as $index => $upload)
-                                        <span wire:key="chat-upload-{{ $index }}" class="rt-chat-upload-chip inline-flex max-w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-[11px] font-semibold text-rt-text dark:text-white">
+                                        <span wire:key="chat-upload-{{ $index }}" class="rt-chat-upload-chip inline-flex max-w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-[11px] font-semibold text-rt-text dark:text-rt-dark-text">
                                             <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg">
                                                 <i class="far fa-paperclip" aria-hidden="true"></i>
                                             </span>
@@ -908,7 +908,7 @@
                                             autocapitalize="sentences"
                                             enterkeyhint="send"
                                             spellcheck="true"
-                                            class="h-10 min-w-0 flex-1 border-0 bg-transparent px-2 text-base leading-6 text-rt-text outline-none placeholder:text-rt-soft focus:border-0 focus:ring-0 sm:text-sm dark:text-white dark:placeholder:text-rt-dark-soft"
+                                            class="h-10 min-w-0 flex-1 border-0 bg-transparent px-2 text-base leading-6 text-rt-text outline-none placeholder:text-rt-soft focus:border-0 focus:ring-0 sm:text-sm dark:text-rt-dark-text dark:placeholder:text-rt-dark-soft"
                                         >
 
                                         <button
@@ -970,7 +970,7 @@
                                     <div class="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
                                         <span class="rt-recording-dot h-2.5 w-2.5 shrink-0 rounded-full" aria-hidden="true"></span>
                                         <span class="sr-only">{{ __('app.recording') }}</span>
-                                        <span class="w-[3.4rem] shrink-0 truncate text-[10px] font-extrabold tabular-nums text-rt-text dark:text-white sm:w-[4.75rem] sm:text-xs" x-text="sendingVoice ? @js(__('app.voice_sending')) : recordingLabel"></span>
+                                        <span class="w-[3.4rem] shrink-0 truncate text-[10px] font-extrabold tabular-nums text-rt-text dark:text-rt-dark-text sm:w-[4.75rem] sm:text-xs" x-text="sendingVoice ? @js(__('app.voice_sending')) : recordingLabel"></span>
                                         <div class="rt-recording-wave flex h-7 min-w-0 flex-1 items-center justify-center gap-[2px] overflow-hidden sm:gap-[3px]" aria-hidden="true">
                                             <template x-for="index in 18" :key="index">
                                                 <span :style="`--rt-wave-index: ${index}`"></span>
@@ -1192,7 +1192,7 @@
                                 <x-ui.forms.label for="group-photo-upload" :value="__('app.group_photo')" />
                                 <label
                                     for="group-photo-upload"
-                                    class="mt-1.5 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-rt-border bg-rt-control px-3 py-1.5 text-xs font-semibold text-rt-text shadow-rt-xs transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:hover:bg-rt-dark-surface-muted"
+                                    class="mt-1.5 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-rt-border bg-rt-control px-3 py-1.5 text-xs font-semibold text-rt-text shadow-rt-xs transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted"
                                 >
                                     <i class="fad fa-camera" aria-hidden="true"></i>
                                     {{ __('app.group_photo_choose') }}

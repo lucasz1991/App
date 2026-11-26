@@ -11,7 +11,7 @@
     --personnel-inset: #f5f6f8;
 }
 
-:is(.dark, body[data-mode="dark"]) .rt-personnel-page {
+html.dark .rt-personnel-page {
     --personnel-accent: #efa3b2;
     --personnel-accent-soft: #35212c;
     --personnel-line: rgba(192, 204, 220, .12);
@@ -119,7 +119,7 @@
     box-shadow: none !important;
 }
 
-:is(.dark, body[data-mode="dark"]) .rt-personnel-page .rt-ui-button-primary { color: #24151e !important; }
+html.dark .rt-personnel-page .rt-ui-button-primary { color: #24151e !important; }
 
 .rt-personnel-page :is(button, a, input, select, textarea):focus-visible {
     outline-color: var(--personnel-accent);

@@ -11,7 +11,7 @@
     --rt-request-schedule-training: #ac9cbd;
     width: 100%; min-width: 0; color: var(--rt-request-schedule-ink);
 }
-:is(.dark, body[data-mode="dark"]) .rt-request-schedule {
+html.dark .rt-request-schedule {
     --rt-request-schedule-paper: var(--request-paper, #171b22);
     --rt-request-schedule-line: var(--request-line, #343b46);
     --rt-request-schedule-ink: var(--request-ink, #edf0f4);

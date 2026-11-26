@@ -255,6 +255,8 @@ Alpine.store('sound', {
 function rtApplyTheme() {
     const dark = Alpine.store('theme').dark;
     document.documentElement.classList.toggle('dark', dark);
+    // Einziger Dark-Mode-Selektor ist html.dark. data-mode bleibt nur fuer die
+    // [data-mode=dark]-Regeln der Legacy-Datei build/css/tailwind.min.css.
     if (document.body) {
         document.body.setAttribute('data-mode', dark ? 'dark' : 'light');
     }

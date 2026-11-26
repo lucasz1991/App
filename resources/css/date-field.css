@@ -19,9 +19,7 @@ html.dark .rt-date-time-field .rt-date-time-field__time { color-scheme: dark; }
 }
 
 html.dark .rt-ui-date-field,
-html.dark .rt-ui-date-panel,
-body[data-mode='dark'] .rt-ui-date-field,
-body[data-mode='dark'] .rt-ui-date-panel {
+html.dark .rt-ui-date-panel {
     --date-surface: theme('colors.rt-dark.surface');
     --date-control: theme('colors.rt-dark.surface-muted');
     --date-border: theme('colors.rt-dark.border');
@@ -174,8 +172,7 @@ body[data-mode='dark'] .rt-ui-date-panel {
 }
 
 .rt-ui-date-panel .rt-ui-date-day,
-html.dark .rt-ui-date-panel .rt-ui-date-day,
-body[data-mode='dark'] .rt-ui-date-panel .rt-ui-date-day {
+html.dark .rt-ui-date-panel .rt-ui-date-day {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -194,12 +191,10 @@ body[data-mode='dark'] .rt-ui-date-panel .rt-ui-date-day {
 }
 
 .rt-ui-date-panel .rt-ui-date-day[data-outside='true'],
-html.dark .rt-ui-date-panel .rt-ui-date-day[data-outside='true'],
-body[data-mode='dark'] .rt-ui-date-panel .rt-ui-date-day[data-outside='true'] { color: var(--date-soft); }
+html.dark .rt-ui-date-panel .rt-ui-date-day[data-outside='true'] { color: var(--date-soft); }
 
 .rt-ui-date-panel .rt-ui-date-day[data-today='true'],
-html.dark .rt-ui-date-panel .rt-ui-date-day[data-today='true'],
-body[data-mode='dark'] .rt-ui-date-panel .rt-ui-date-day[data-today='true'] {
+html.dark .rt-ui-date-panel .rt-ui-date-day[data-today='true'] {
     box-shadow: inset 0 0 0 1px var(--date-accent);
     font-weight: 700;
 }
@@ -207,9 +202,7 @@ body[data-mode='dark'] .rt-ui-date-panel .rt-ui-date-day[data-today='true'] {
 .rt-ui-date-panel .rt-ui-date-nav,
 .rt-ui-date-panel .rt-ui-date-action,
 html.dark .rt-ui-date-panel .rt-ui-date-nav,
-html.dark .rt-ui-date-panel .rt-ui-date-action,
-body[data-mode='dark'] .rt-ui-date-panel .rt-ui-date-nav,
-body[data-mode='dark'] .rt-ui-date-panel .rt-ui-date-action {
+html.dark .rt-ui-date-panel .rt-ui-date-action {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -231,17 +224,13 @@ body[data-mode='dark'] .rt-ui-date-panel .rt-ui-date-action {
 .rt-ui-date-panel .rt-ui-date-action:hover:not(:disabled),
 html.dark .rt-ui-date-panel .rt-ui-date-day:hover:not(:disabled),
 html.dark .rt-ui-date-panel .rt-ui-date-nav:hover:not(:disabled),
-html.dark .rt-ui-date-panel .rt-ui-date-action:hover:not(:disabled),
-body[data-mode='dark'] .rt-ui-date-panel .rt-ui-date-day:hover:not(:disabled),
-body[data-mode='dark'] .rt-ui-date-panel .rt-ui-date-nav:hover:not(:disabled),
-body[data-mode='dark'] .rt-ui-date-panel .rt-ui-date-action:hover:not(:disabled) {
+html.dark .rt-ui-date-panel .rt-ui-date-action:hover:not(:disabled) {
     background: var(--date-control);
     color: var(--date-text);
 }
 
 .rt-ui-date-panel .rt-ui-date-day--selected,
-html.dark .rt-ui-date-panel .rt-ui-date-day--selected,
-body[data-mode='dark'] .rt-ui-date-panel .rt-ui-date-day--selected {
+html.dark .rt-ui-date-panel .rt-ui-date-day--selected {
     background: var(--date-accent) !important;
     color: var(--date-on-accent) !important;
     font-weight: 700;
@@ -267,8 +256,7 @@ body[data-mode='dark'] .rt-ui-date-panel .rt-ui-date-day--selected {
 }
 
 .rt-ui-date-panel .rt-ui-date-action--accent,
-html.dark .rt-ui-date-panel .rt-ui-date-action--accent,
-body[data-mode='dark'] .rt-ui-date-panel .rt-ui-date-action--accent {
+html.dark .rt-ui-date-panel .rt-ui-date-action--accent {
     margin-left: auto;
     color: var(--date-accent);
 }

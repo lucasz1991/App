@@ -1,7 +1,7 @@
 <x-ui.page title="Software" eyebrow="IT & Betrieb" description="Programme festlegen, die auf den Geräten der Mitarbeiter vorhanden sein sollen, und sehen, wo sie installiert sind." page-key="device-software" :count="$packages->count()">
     <x-slot:actions>
         {{-- Auf dem Telefon ist im Seitenkopf nur Platz für die Hauptaktion; zurück führt der Pfeil. --}}
-        <a href="{{ route('devices.desktop-clients') }}" class="hidden min-h-11 items-center rounded-xl border border-rt-border px-4 text-sm font-semibold text-rt-text dark:border-rt-dark-border dark:text-white sm:inline-flex">Desktopclients</a>
+        <a href="{{ route('devices.desktop-clients') }}" class="hidden min-h-11 items-center rounded-xl border border-rt-border px-4 text-sm font-semibold text-rt-text dark:border-rt-dark-border dark:text-rt-dark-text sm:inline-flex">Desktopclients</a>
         @if($canManageDirectory)
             <x-ui.buttons.button-basic type="button" mode="primary" wire:click="openCreate" class="min-h-11" aria-label="Programm hinzufügen">
                 <i class="far fa-plus" aria-hidden="true"></i>
@@ -24,7 +24,7 @@
         @if($notice)<p role="status" class="rounded-xl border border-emerald-200 p-3 text-sm">{{ $notice }}</p>@endif
 
         <section aria-labelledby="device-software-directory">
-            <h2 id="device-software-directory" class="text-base font-semibold text-rt-text dark:text-white">Programmverzeichnis</h2>
+            <h2 id="device-software-directory" class="text-base font-semibold text-rt-text dark:text-rt-dark-text">Programmverzeichnis</h2>
             <x-tables.table
                 label="Programmverzeichnis"
                 :columns="[
@@ -41,7 +41,7 @@
         </section>
 
         <section aria-labelledby="device-software-states">
-            <h2 id="device-software-states" class="text-base font-semibold text-rt-text dark:text-white">Stand je Gerät</h2>
+            <h2 id="device-software-states" class="text-base font-semibold text-rt-text dark:text-rt-dark-text">Stand je Gerät</h2>
             <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">Die Angaben stammen aus der Meldung der RailTime-App auf dem Gerät. Ein vorhandenes Programm gilt in jeder Version als erfüllt; es wird nicht überschrieben. Nach {{ $maxAttempts }} erfolglosen Versuchen wartet das Gerät auf eine Freigabe.</p>
             <x-tables.table
                 label="Stand je Gerät"
@@ -60,7 +60,7 @@
         @if($trustReady)
             <section aria-labelledby="device-trust-certificates">
                 <div class="flex flex-wrap items-center justify-between gap-2">
-                    <h2 id="device-trust-certificates" class="text-base font-semibold text-rt-text dark:text-white">Zertifikate für signierte Listen</h2>
+                    <h2 id="device-trust-certificates" class="text-base font-semibold text-rt-text dark:text-rt-dark-text">Zertifikate für signierte Listen</h2>
                     @if($canManageTrust)
                         <x-ui.buttons.button-basic type="button" wire:click="openCertificate" class="min-h-11">
                             <i class="far fa-plus" aria-hidden="true"></i>
@@ -178,7 +178,7 @@
             @if($assigning && $canAssign)
                 <div class="space-y-4">
                     <div>
-                        <h3 class="text-sm font-semibold text-rt-text dark:text-white">Bisher zugewiesen</h3>
+                        <h3 class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">Bisher zugewiesen</h3>
                         @if($assigning->assignments->isEmpty())
                             <p class="mt-1 text-sm text-rt-muted dark:text-rt-dark-muted">Noch nicht zugewiesen.</p>
                         @else

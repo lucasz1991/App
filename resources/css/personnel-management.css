@@ -31,7 +31,7 @@
     font-variant-numeric: tabular-nums;
 }
 
-:is(.dark, body[data-mode="dark"]) .rt-personnel-management {
+html.dark .rt-personnel-management {
     --management-accent: var(--personnel-accent, #efa3b2);
     --management-accent-soft: var(--personnel-accent-soft, #35212c);
     --management-line: var(--personnel-line, rgba(192, 204, 220, .12));

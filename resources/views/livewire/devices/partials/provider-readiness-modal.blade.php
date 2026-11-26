@@ -21,7 +21,7 @@
                         <i class="far {{ $productionCommandsEnabled ? 'fa-check-circle' : 'fa-lock' }} h-5 w-5 text-lg leading-5 text-center" aria-hidden="true"></i>
                     </span>
                     <div class="min-w-0">
-                        <h3 id="provider-production-status-title" class="text-sm font-bold text-rt-text dark:text-white">
+                        <h3 id="provider-production-status-title" class="text-sm font-bold text-rt-text dark:text-rt-dark-text">
                             {{ $productionCommandsEnabled ? 'Produktive Geräteaktionen sind freigegeben' : 'Produktive Geräteaktionen sind sicher gesperrt' }}
                         </h3>
                         <p class="mt-1 max-w-2xl text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
@@ -39,7 +39,7 @@
             <section aria-labelledby="provider-connectors-title">
                 <div class="flex items-end justify-between gap-3">
                     <div>
-                        <h3 id="provider-connectors-title" class="text-sm font-bold text-rt-text dark:text-white">Connectoren und belegte Funktionen</h3>
+                        <h3 id="provider-connectors-title" class="text-sm font-bold text-rt-text dark:text-rt-dark-text">Connectoren und belegte Funktionen</h3>
                         <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">Der Status zeigt die aktuell in RailTime wirksame Konfiguration.</p>
                     </div>
                     <span class="text-xs font-medium tabular-nums text-rt-muted dark:text-rt-dark-muted">{{ $providerCards->where('enabled', true)->count() }} / {{ $providerCards->count() }} aktiv</span>
@@ -50,7 +50,7 @@
                         <article class="rounded-xl border border-rt-border/80 bg-rt-surface-muted/30 p-3.5 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/35">
                             <div class="flex items-start justify-between gap-3">
                                 <div class="min-w-0">
-                                    <p class="truncate text-sm font-semibold text-rt-text dark:text-white">{{ $provider['label'] }}</p>
+                                    <p class="truncate text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ $provider['label'] }}</p>
                                     <p class="mt-1 truncate text-xs text-rt-muted dark:text-rt-dark-muted">{{ implode(' · ', $provider['capabilities']['platforms'] ?? []) ?: 'Keine Plattform belegt' }}</p>
                                 </div>
                                 <span class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-white px-2 py-1 text-[11px] font-semibold text-rt-muted shadow-rt-xs dark:bg-rt-dark-surface dark:text-rt-dark-muted">
@@ -62,11 +62,11 @@
                             <dl class="mt-3 grid grid-cols-2 gap-2 text-xs">
                                 <div class="rounded-lg bg-white/80 px-2.5 py-2 dark:bg-rt-dark-surface/80">
                                     <dt class="text-rt-muted dark:text-rt-dark-muted">Kommandos</dt>
-                                    <dd class="mt-0.5 font-semibold tabular-nums text-rt-text dark:text-white">{{ count($provider['capabilities']['commands'] ?? []) }} belegt</dd>
+                                    <dd class="mt-0.5 font-semibold tabular-nums text-rt-text dark:text-rt-dark-text">{{ count($provider['capabilities']['commands'] ?? []) }} belegt</dd>
                                 </div>
                                 <div class="rounded-lg bg-white/80 px-2.5 py-2 dark:bg-rt-dark-surface/80">
                                     <dt class="text-rt-muted dark:text-rt-dark-muted">Fernsupport</dt>
-                                    <dd class="mt-0.5 font-semibold text-rt-text dark:text-white">{{ ($provider['capabilities']['remote_support'] ?? false) ? 'Verfügbar' : 'Nicht belegt' }}</dd>
+                                    <dd class="mt-0.5 font-semibold text-rt-text dark:text-rt-dark-text">{{ ($provider['capabilities']['remote_support'] ?? false) ? 'Verfügbar' : 'Nicht belegt' }}</dd>
                                 </div>
                             </dl>
 

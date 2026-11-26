@@ -54,17 +54,25 @@
     @stack('styles')
 </head>
     <body
-        x-bind:data-mode="$store.theme?.dark ? 'dark' : 'light'"
         x-bind:data-sidebar-expanded="$store.shell?.desktopSidebarExpanded ? 'true' : 'false'"
-        data-mode="light"
         data-sidebar-size="lg"
         data-sidebar-collapsible="false"
         data-sidebar-drawer="true"
         data-sidebar-expanded="false"
         class="group font-sans bg-rt-canvas text-rt-text dark:bg-rt-dark-canvas dark:text-rt-dark-text"
     >
+        {{-- Dark Mode haengt allein an html.dark. wire:navigate ersetzt die
+             <html>-Attribute durch die serverseitige Fassung (ohne dark) und
+             fuehrt dieses Skript beim Body-Swap im selben Takt erneut aus, damit
+             zwischen Swap und livewire:navigated nichts hell aufblitzt.
+             data-mode bedient nur noch die Legacy-Datei build/css/tailwind.min.css
+             (deren Dark-Regeln haengen an data-mode); entfaellt mit ihr. --}}
         <script>
-            document.body.dataset.mode = localStorage.getItem('rt-theme') === 'true' ? 'dark' : 'light';
+            (function () {
+                var dark = localStorage.getItem('rt-theme') === 'true';
+                document.documentElement.classList.toggle('dark', dark);
+                document.body.dataset.mode = dark ? 'dark' : 'light';
+            })();
         </script>
         <a
             href="#main-content"

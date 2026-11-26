@@ -206,7 +206,7 @@ class AiAssistTest extends TestCase
         $this->assertStringContainsString('background-color: var(--ai-bg, var(--rt-shell-surface-solid, #fff))', $styles);
         $this->assertStringContainsString('border-radius: 18px;', $styles);
         $this->assertStringContainsString('.rt-ai-assist__hint-dropdown.rt-motion-pop-leave { transition: none !important; }', $styles);
-        $this->assertStringContainsString("body[data-mode='dark'] .rt-viewport-dropdown .rt-ai-assist__orb-hint", $styles);
+        $this->assertStringContainsString("html.dark .rt-viewport-dropdown .rt-ai-assist__orb-hint", $styles);
     }
 
     public function test_period_action_builds_a_real_proposal_and_apply_assigns_requested_with_undo(): void

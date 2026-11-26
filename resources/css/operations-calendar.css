@@ -180,8 +180,7 @@
     --calendar-event-surface: var(--rt-shell-panel);
     --calendar-event-line: var(--rt-shell-line);
 }
-html.dark .rt-disposition--calendar,
-body[data-mode="dark"] .rt-disposition--calendar {
+html.dark .rt-disposition--calendar {
     --calendar-warning: #edcd91;
     --calendar-warning-soft: #302a21;
     --calendar-warning-line: #846a3c;
@@ -378,8 +377,7 @@ body[data-mode="dark"] .rt-disposition--calendar {
     --cal-ok: #0f8a61;
     --cal-draft: #1d6fd0;
 }
-html.dark .rt-disposition--calendar,
-body[data-mode="dark"] .rt-disposition--calendar {
+html.dark .rt-disposition--calendar {
     --cal-open: #ff8a9e;
     --cal-open-soft: color-mix(in srgb, #ff4968 14%, var(--rt-shell-surface-solid, #101923));
     --cal-open-line: color-mix(in srgb, #ff4968 40%, var(--rt-shell-line, #2a3b4f));

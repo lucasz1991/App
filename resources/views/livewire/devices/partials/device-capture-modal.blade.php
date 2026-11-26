@@ -67,7 +67,7 @@
                             <div class="rounded-2xl border border-rt-border/80 p-4 dark:border-rt-dark-border sm:p-5">
                                 <div class="flex flex-wrap items-start justify-between gap-2">
                                     <div>
-                                        <h3 class="font-semibold text-rt-text dark:text-white">Identifikation</h3>
+                                        <h3 class="font-semibold text-rt-text dark:text-rt-dark-text">Identifikation</h3>
                                         <p class="mt-1 text-sm text-rt-muted dark:text-rt-dark-muted">Mindestens Inventar- oder Seriennummer und ein Gerätename sind erforderlich.</p>
                                     </div>
                                     <span class="rounded-full bg-rt-red/10 px-2.5 py-1 text-xs font-semibold text-rt-red dark:bg-rt-red/20 dark:text-rt-red-light">Pflichtangaben</span>
@@ -81,7 +81,7 @@
                                         ['key' => 'hostname', 'label' => 'Hostname', 'placeholder' => 'RT-NB-0142'],
                                     ] as $field)
                                         <div>
-                                            <label for="device-capture-{{ $field['key'] }}" class="block text-sm font-medium text-rt-text dark:text-white">
+                                            <label for="device-capture-{{ $field['key'] }}" class="block text-sm font-medium text-rt-text dark:text-rt-dark-text">
                                                 {{ $field['label'] }}
                                             </label>
                                             <input
@@ -89,7 +89,7 @@
                                                 type="text"
                                                 wire:model="deviceForm.{{ $field['key'] }}"
                                                 placeholder="{{ $field['placeholder'] }}"
-                                                class="mt-1.5 min-h-11 w-full rounded-xl border border-rt-border bg-white px-3 text-sm text-rt-text outline-none transition focus:border-rt-red focus:ring-2 focus:ring-rt-red/15 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white"
+                                                class="mt-1.5 min-h-11 w-full rounded-xl border border-rt-border bg-white px-3 text-sm text-rt-text outline-none transition focus:border-rt-red focus:ring-2 focus:ring-rt-red/15 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-rt-dark-text"
                                             >
                                             @error('deviceForm.'.$field['key'])
                                                 <p class="mt-1 text-xs font-medium text-red-600 dark:text-red-400">{{ $message }}</p>
@@ -100,7 +100,7 @@
                             </div>
 
                             <div class="rounded-2xl border border-rt-border/80 p-4 dark:border-rt-dark-border sm:p-5">
-                                <h3 class="font-semibold text-rt-text dark:text-white">Hardware und Einsatzort</h3>
+                                <h3 class="font-semibold text-rt-text dark:text-rt-dark-text">Hardware und Einsatzort</h3>
                                 <p class="mt-1 text-sm text-rt-muted dark:text-rt-dark-muted">Diese Angaben verbessern Inventarsuche, Übergabe und Support.</p>
 
                                 <div class="mt-4 grid gap-4 sm:grid-cols-2">
@@ -111,7 +111,7 @@
                                         ['key' => 'declared_location', 'label' => 'Deklarierter Standort', 'placeholder' => 'Köln Hbf / Hauptlager'],
                                     ] as $field)
                                         <div>
-                                            <label for="device-capture-{{ $field['key'] }}" class="block text-sm font-medium text-rt-text dark:text-white">
+                                            <label for="device-capture-{{ $field['key'] }}" class="block text-sm font-medium text-rt-text dark:text-rt-dark-text">
                                                 {{ $field['label'] }}
                                             </label>
                                             <input
@@ -119,7 +119,7 @@
                                                 type="text"
                                                 wire:model="deviceForm.{{ $field['key'] }}"
                                                 placeholder="{{ $field['placeholder'] }}"
-                                                class="mt-1.5 min-h-11 w-full rounded-xl border border-rt-border bg-white px-3 text-sm text-rt-text outline-none transition focus:border-rt-red focus:ring-2 focus:ring-rt-red/15 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white"
+                                                class="mt-1.5 min-h-11 w-full rounded-xl border border-rt-border bg-white px-3 text-sm text-rt-text outline-none transition focus:border-rt-red focus:ring-2 focus:ring-rt-red/15 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-rt-dark-text"
                                             >
                                             @error('deviceForm.'.$field['key'])
                                                 <p class="mt-1 text-xs font-medium text-red-600 dark:text-red-400">{{ $message }}</p>
@@ -130,10 +130,10 @@
                             </div>
 
                             <div class="rounded-2xl border border-rt-border/80 p-4 dark:border-rt-dark-border sm:p-5">
-                                <h3 class="font-semibold text-rt-text dark:text-white">Gerätekategorie und Verwaltung</h3>
+                                <h3 class="font-semibold text-rt-text dark:text-rt-dark-text">Gerätekategorie und Verwaltung</h3>
                                 <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                                     <div>
-                                        <label for="device-capture-form-factor" class="block text-sm font-medium text-rt-text dark:text-white">Formfaktor</label>
+                                        <label for="device-capture-form-factor" class="block text-sm font-medium text-rt-text dark:text-rt-dark-text">Formfaktor</label>
                                         <x-ui.forms.select id="device-capture-form-factor" wire:model="deviceForm.form_factor">
                                             <option value="laptop">Laptop</option>
                                             <option value="desktop">Desktop</option>
@@ -144,7 +144,7 @@
                                         @error('deviceForm.form_factor')<p class="mt-1 text-xs font-medium text-red-600 dark:text-red-400">{{ $message }}</p>@enderror
                                     </div>
                                     <div>
-                                        <label for="device-capture-platform" class="block text-sm font-medium text-rt-text dark:text-white">Plattform</label>
+                                        <label for="device-capture-platform" class="block text-sm font-medium text-rt-text dark:text-rt-dark-text">Plattform</label>
                                         <x-ui.forms.select id="device-capture-platform" wire:model="deviceForm.platform">
                                             @foreach(\App\Enums\DevicePlatform::cases() as $platform)
                                                 <option value="{{ $platform->value }}">{{ match($platform->value) {'macos' => 'macOS', 'ios' => 'iOS', 'ipados' => 'iPadOS', default => ucfirst($platform->value)} }}</option>
@@ -153,7 +153,7 @@
                                         @error('deviceForm.platform')<p class="mt-1 text-xs font-medium text-red-600 dark:text-red-400">{{ $message }}</p>@enderror
                                     </div>
                                     <div>
-                                        <label for="device-capture-ownership" class="block text-sm font-medium text-rt-text dark:text-white">Eigentum</label>
+                                        <label for="device-capture-ownership" class="block text-sm font-medium text-rt-text dark:text-rt-dark-text">Eigentum</label>
                                         <x-ui.forms.select id="device-capture-ownership" wire:model="deviceForm.ownership">
                                             <option value="corporate">Firmengerät</option>
                                             <option value="byod">Privat / BYOD</option>
@@ -161,7 +161,7 @@
                                         @error('deviceForm.ownership')<p class="mt-1 text-xs font-medium text-red-600 dark:text-red-400">{{ $message }}</p>@enderror
                                     </div>
                                     <div>
-                                        <label for="device-capture-provider" class="block text-sm font-medium text-rt-text dark:text-white">Primärprovider</label>
+                                        <label for="device-capture-provider" class="block text-sm font-medium text-rt-text dark:text-rt-dark-text">Primärprovider</label>
                                         <x-ui.forms.select id="device-capture-provider" wire:model="deviceForm.primary_provider">
                                             <option value="">Noch nicht verbunden</option>
                                             @foreach($providerCards as $provider)
@@ -185,14 +185,14 @@
                             <div class="rounded-2xl border border-rt-border/80 p-4 dark:border-rt-dark-border sm:p-5">
                                 <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                                     <div class="min-w-0">
-                                        <h3 class="font-semibold text-rt-text dark:text-white">Bestehende Geräteflotte importieren</h3>
+                                        <h3 class="font-semibold text-rt-text dark:text-rt-dark-text">Bestehende Geräteflotte importieren</h3>
                                         <p class="mt-1 max-w-2xl text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">
                                             Die CSV kann vorhandene Geräte aktualisieren und über die Mitarbeiter-E-Mail direkt zuordnen. Die gesamte Datei wird vor dem Speichern geprüft; bei einem Fehler wird keine Teilmenge übernommen.
                                         </p>
                                     </div>
                                     <a
                                         href="{{ route('devices.import-template') }}"
-                                        class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-rt-border px-3 text-sm font-semibold text-rt-text transition hover:bg-rt-surface-muted focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/15 dark:border-rt-dark-border dark:text-white dark:hover:bg-rt-dark-surface-muted"
+                                        class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-rt-border px-3 text-sm font-semibold text-rt-text transition hover:bg-rt-surface-muted focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/15 dark:border-rt-dark-border dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted"
                                     >
                                         <i class="far fa-download h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i>
                                         CSV-Vorlage
@@ -200,14 +200,14 @@
                                 </div>
 
                                 <div class="mt-5 rounded-2xl border-2 border-dashed border-rt-border bg-rt-surface-muted/45 p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/45 sm:p-5">
-                                    <label for="device-capture-inventory-import" class="block text-sm font-semibold text-rt-text dark:text-white">CSV-Datei auswählen</label>
+                                    <label for="device-capture-inventory-import" class="block text-sm font-semibold text-rt-text dark:text-rt-dark-text">CSV-Datei auswählen</label>
                                     <p class="mt-1 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">CSV oder TXT, maximal 2 MB und 500 Gerätezeilen.</p>
                                     <input
                                         id="device-capture-inventory-import"
                                         type="file"
                                         wire:model="inventoryImport"
                                         accept=".csv,text/csv,text/plain"
-                                        class="mt-3 block min-h-11 w-full rounded-xl border border-rt-border bg-white p-2 text-sm text-rt-text file:mr-3 file:rounded-lg file:border-0 file:bg-rt-red/10 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-rt-red dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white dark:file:bg-rt-red/20 dark:file:text-rt-red-light"
+                                        class="mt-3 block min-h-11 w-full rounded-xl border border-rt-border bg-white p-2 text-sm text-rt-text file:mr-3 file:rounded-lg file:border-0 file:bg-rt-red/10 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-rt-red dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text dark:file:bg-rt-red/20 dark:file:text-rt-red-light"
                                     >
                                     <p wire:loading wire:target="inventoryImport" class="mt-2 text-sm font-medium text-sky-700 dark:text-sky-300">Datei wird sicher eingelesen …</p>
                                     @error('inventoryImport')

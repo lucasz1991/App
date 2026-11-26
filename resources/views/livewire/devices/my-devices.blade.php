@@ -30,7 +30,7 @@
                     <span class="grid h-16 w-16 place-items-center rounded-2xl bg-rt-red/10 text-rt-red"><i class="far {{ in_array($device->form_factor, ['phone','tablet']) ? 'fa-mobile-alt' : 'fa-desktop' }} h-8 w-8 text-[28px] leading-8 text-center"></i></span>
                     <div>
                         <div class="flex flex-wrap items-center gap-2">
-                            <h2 class="text-lg font-bold text-rt-text dark:text-white">{{ $device->display_name ?: $device->hostname ?: 'Firmen-Gerät' }}</h2>
+                            <h2 class="text-lg font-bold text-rt-text dark:text-rt-dark-text">{{ $device->display_name ?: $device->hostname ?: 'Firmen-Gerät' }}</h2>
                             <span class="rounded-full px-2.5 py-1 text-xs font-semibold {{ $passed === count($required) ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' }}">{{ $passed === count($required) ? 'Einsatzbereit' : $passed.'/'.count($required).' Voraussetzungen' }}</span>
                         </div>
                         <p class="mt-1 text-sm text-rt-muted dark:text-rt-dark-muted">{{ $device->manufacturer }} {{ $device->model }} · {{ $device->asset_tag ?: $device->serial_number }} · {{ match($device->platform->value) {'macos'=>'macOS','ios'=>'iOS','ipados'=>'iPadOS',default=>ucfirst($device->platform->value)} }}</p>
@@ -43,7 +43,7 @@
                     <div class="flex flex-wrap gap-2 lg:flex-col">
                         <livewire:devices.workplace-consent :device-id="$device->public_id" :key="'workplace-'.$device->public_id" />
                         @if($latestEnrollment)
-                            <span class="inline-flex min-h-10 items-center justify-center rounded-xl border border-rt-border px-3 text-xs font-semibold text-rt-text dark:border-rt-dark-border dark:text-white">Einrichtung: {{ str_replace('_',' ',$latestEnrollment->status->value) }}</span>
+                            <span class="inline-flex min-h-10 items-center justify-center rounded-xl border border-rt-border px-3 text-xs font-semibold text-rt-text dark:border-rt-dark-border dark:text-rt-dark-text">Einrichtung: {{ str_replace('_',' ',$latestEnrollment->status->value) }}</span>
                         @else
                             <span class="inline-flex min-h-10 items-center justify-center rounded-xl border border-amber-300 bg-amber-50 px-3 text-xs font-semibold text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">Einladung folgt durch IT</span>
                         @endif
@@ -57,7 +57,7 @@
                             @php $status = $checks->get($key)?->status ?? 'unknown'; @endphp
                             <div class="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-xs dark:bg-rt-dark-surface">
                                 <span class="grid h-5 w-5 place-items-center rounded-full {{ in_array($status,['passed','not_applicable'],true) ? 'bg-emerald-100 text-emerald-700' : ($status === 'blocked' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700') }}"><i class="far {{ in_array($status,['passed','not_applicable'],true) ? 'fa-check' : ($status === 'blocked' ? 'fa-times' : 'fa-clock') }} h-3 w-3 text-[11px] leading-3 text-center"></i></span>
-                                <span class="text-rt-text dark:text-white">{{ $label }}</span>
+                                <span class="text-rt-text dark:text-rt-dark-text">{{ $label }}</span>
                             </div>
                         @endforeach
                     </div>
@@ -66,13 +66,13 @@
         @empty
             <div class="rounded-2xl border border-dashed border-rt-border bg-white p-10 text-center shadow-rt-xs dark:border-rt-dark-border dark:bg-rt-dark-surface">
                 <span class="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-rt-surface-muted text-rt-muted dark:bg-rt-dark-surface-muted"><i class="far fa-box h-6 w-6 text-xl leading-6 text-center"></i></span>
-                <h2 class="mt-4 text-lg font-bold text-rt-text dark:text-white">Noch kein Gerät zugewiesen</h2>
+                <h2 class="mt-4 text-lg font-bold text-rt-text dark:text-rt-dark-text">Noch kein Gerät zugewiesen</h2>
                 <p class="mx-auto mt-2 max-w-lg text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">Sobald die Verwaltung Ihnen ein Gerät aus dem virtuellen Lager zuweist, erscheint es hier mit dem persönlichen Einrichtungsstatus.</p>
             </div>
         @endforelse
 
         <div class="rounded-2xl border border-rt-border bg-white p-4 text-sm dark:border-rt-dark-border dark:bg-rt-dark-surface">
-            <p class="font-semibold text-rt-text dark:text-white">Standort und Privatsphäre</p>
+            <p class="font-semibold text-rt-text dark:text-rt-dark-text">Standort und Privatsphäre</p>
             <p class="mt-1 leading-6 text-rt-muted dark:text-rt-dark-muted">Die Ansicht verwendet den gemeldeten Arbeits- oder Lagerstandort, keine permanente Live-Ortung. Verwaltete Windows-Privatgeräte benötigen Ihre ausdrückliche Zustimmung: Ein Dienst mit Systemrechten ist kein isolierter Firmencontainer. Apple und Android erhalten gesonderte, plattformspezifische Einrichtungswege.</p>
         </div>
     </div>

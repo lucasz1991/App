@@ -14,7 +14,7 @@
     color: var(--personal-ink);
     font-variant-numeric: tabular-nums;
 }
-:is(.dark, body[data-mode="dark"]) .rt-personal-calendar {
+html.dark .rt-personal-calendar {
     --pcal-pending: #e2b560;
     --pcal-pending-soft: #30291f;
     --pcal-training: #9ab4d5;

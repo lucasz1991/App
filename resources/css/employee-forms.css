@@ -8,7 +8,7 @@
     --employee-form-accent: var(--rt-personnel-accent, #8d253d);
     --employee-form-soft: rgba(141, 37, 61, .07);
 }
-:is(html.dark, body[data-mode='dark']) .rt-modal-frame:has([data-employee-form]) {
+html.dark .rt-modal-frame:has([data-employee-form]) {
     --employee-form-paper: theme('colors.rt-dark.surface');
     --employee-form-tint: theme('colors.rt-dark.surface-muted');
     --employee-form-ink: theme('colors.rt-dark.text');

@@ -11,7 +11,7 @@
                 <div class="flex items-start gap-3">
                     <span class="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-rt-red/10 text-rt-red"><i class="far {{ in_array($device->form_factor,['phone','tablet']) ? 'fa-mobile-alt' : 'fa-desktop' }} h-7 w-7 text-2xl leading-7 text-center"></i></span>
                     <div>
-                        <h2 class="text-xl font-bold text-rt-text dark:text-white">{{ $device->display_name ?: $device->hostname }}</h2>
+                        <h2 class="text-xl font-bold text-rt-text dark:text-rt-dark-text">{{ $device->display_name ?: $device->hostname }}</h2>
                         <p class="mt-1 text-sm text-rt-muted dark:text-rt-dark-muted">{{ $device->manufacturer }} {{ $device->model }} · {{ $device->asset_tag ?: $device->serial_number }}</p>
                         <p class="mt-2 inline-flex items-center gap-1.5 text-xs text-rt-muted dark:text-rt-dark-muted"><i class="far fa-clock h-3.5 w-3.5 text-xs leading-[14px] text-center"></i>Einladung gültig bis {{ $enrollment->expires_at?->format('d.m.Y, H:i') }} Uhr</p>
                     </div>
@@ -29,13 +29,13 @@
 
         <div class="grid gap-5 lg:grid-cols-[1fr_0.7fr]">
             <section class="rounded-2xl border border-rt-border bg-white p-5 shadow-rt-sm dark:border-rt-dark-border dark:bg-rt-dark-surface" aria-labelledby="enrollment-steps-title">
-                <h2 id="enrollment-steps-title" class="text-lg font-bold text-rt-text dark:text-white">Einrichtungsschritte</h2>
+                <h2 id="enrollment-steps-title" class="text-lg font-bold text-rt-text dark:text-rt-dark-text">Einrichtungsschritte</h2>
                 @if($providerMessage)<p class="mt-2 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">{{ $providerMessage }}</p>@endif
                 <ol class="mt-5 space-y-4">
                     @foreach($steps as $step)
                         <li class="flex gap-3">
                             <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-rt-red text-sm font-bold text-white">{{ $loop->iteration }}</span>
-                            <p class="pt-1 text-sm leading-6 text-rt-text dark:text-white">{{ $step }}</p>
+                            <p class="pt-1 text-sm leading-6 text-rt-text dark:text-rt-dark-text">{{ $step }}</p>
                         </li>
                     @endforeach
                 </ol>
@@ -55,7 +55,7 @@
                     <div class="flex items-start gap-3"><span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-900"><i class="far fa-lock h-4 w-4 text-sm leading-4 text-center"></i></span><div><p class="font-semibold">Passwortschutz</p><p class="mt-1 leading-6">Geben Sie Microsoft-, Google- oder Apple-Zugangsdaten nur im offiziellen Fenster des jeweiligen Anbieters ein. RailTime fragt nicht danach.</p></div></div>
                 </div>
                 <div class="rounded-2xl border border-rt-border bg-white p-4 text-sm dark:border-rt-dark-border dark:bg-rt-dark-surface">
-                    <p class="font-semibold text-rt-text dark:text-white">Was danach passiert</p>
+                    <p class="font-semibold text-rt-text dark:text-rt-dark-text">Was danach passiert</p>
                     <ul class="mt-3 space-y-2 text-rt-muted dark:text-rt-dark-muted">
                         <li class="flex gap-2"><i class="far fa-check mt-0.5 h-4 w-4 shrink-0 text-emerald-600 text-sm leading-4 text-center"></i>Provider meldet Enrollment und Pflichtprofile zurück.</li>
                         <li class="flex gap-2"><i class="far fa-check mt-0.5 h-4 w-4 shrink-0 text-emerald-600 text-sm leading-4 text-center"></i>Apps und Konto-Adresse werden vorbereitet.</li>
@@ -63,7 +63,7 @@
                         <li class="flex gap-2"><i class="far fa-shield-alt mt-0.5 h-4 w-4 shrink-0 text-sky-600 text-sm leading-4 text-center"></i>„Einsatzbereit“ erscheint erst nach echten Belegen.</li>
                     </ul>
                 </div>
-                <a href="{{ route('support') }}" wire:navigate class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-rt-border bg-white px-4 text-sm font-semibold text-rt-text hover:bg-rt-surface-muted dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white dark:hover:bg-rt-dark-surface-muted"><i class="far fa-life-ring h-4 w-4 text-sm leading-4 text-center"></i>IT-Support öffnen</a>
+                <a href="{{ route('support') }}" wire:navigate class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-rt-border bg-white px-4 text-sm font-semibold text-rt-text hover:bg-rt-surface-muted dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted"><i class="far fa-life-ring h-4 w-4 text-sm leading-4 text-center"></i>IT-Support öffnen</a>
             </aside>
         </div>
 

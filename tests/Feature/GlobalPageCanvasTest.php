@@ -10,7 +10,7 @@ class GlobalPageCanvasTest extends TestCase
     {
         $css = $this->source('resources/css/app.css');
         $light = $this->rule($css, ':root');
-        $dark = $this->rule($css, 'html.dark, body[data-mode="dark"]');
+        $dark = $this->rule($css, 'html.dark');
 
         $this->assertSame('#dce3ed', $this->declaration($light, '--rt-app-canvas'));
         $this->assertSame('#03060b', $this->declaration($dark, '--rt-app-canvas'));
@@ -40,7 +40,7 @@ class GlobalPageCanvasTest extends TestCase
     {
         $css = $this->source('resources/css/shell-redesign.css');
         $light = $this->rule($css, ':root');
-        $dark = $this->rule($css, "html.dark, body[data-mode='dark']");
+        $dark = $this->rule($css, 'html.dark');
 
         foreach ([$light, $dark] as $mode) {
             $this->assertSame('var(--rt-app-canvas)', $this->declaration($mode, '--rt-shell-canvas'));
@@ -59,7 +59,7 @@ class GlobalPageCanvasTest extends TestCase
         $this->assertSame('none !important', $this->declaration($ambient, 'display'));
         $this->assertDoesNotMatchRegularExpression('/[^{}]*\.rt-app-page-frame[^{}]*\{[^{}]*background(?:-color)?\s*:/s', $css);
         $this->assertStringContainsString('--personnel-inset:', $this->rule($css, '.rt-personnel-page'));
-        $this->assertStringContainsString('--personnel-inset:', $this->rule($css, ':is(.dark, body[data-mode="dark"]) .rt-personnel-page'));
+        $this->assertStringContainsString('--personnel-inset:', $this->rule($css, 'html.dark .rt-personnel-page'));
     }
 
     public function test_customer_portal_uses_the_same_canvas_without_a_cyclic_variable_alias(): void

@@ -605,8 +605,7 @@ export function createNavigationParticleSphere(canvas, options = {}) {
         }
 
         themeCheckedAt = timestamp;
-        isDark = documentObject.documentElement.classList.contains('dark')
-            || documentObject.body?.dataset.mode === 'dark';
+        isDark = documentObject.documentElement.classList.contains('dark');
     }
 
     // Die Rotationswinkel gelten fuer ALLE Partikel eines Frames. Einmal pro
@@ -927,8 +926,7 @@ export function createNavigationParticleSphere(canvas, options = {}) {
         resizePending = true;
         startedAt = view.performance.now();
         phaseStartedAt = startedAt;
-        isDark = documentObject.documentElement.classList.contains('dark')
-            || documentObject.body?.dataset.mode === 'dark';
+        isDark = documentObject.documentElement.classList.contains('dark');
         themeCheckedAt = startedAt;
 
         if (reducedMotion.matches || forcedColors.matches) {

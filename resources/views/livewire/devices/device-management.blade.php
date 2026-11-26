@@ -7,9 +7,9 @@
 >
     <x-slot:actions>
         @can('devices.view')
-            <a href="{{ route('devices.desktop-clients') }}" class="inline-flex min-h-11 items-center rounded-xl border border-rt-border px-3 text-sm font-semibold text-rt-text dark:text-white">Desktopclients</a>
+            <a href="{{ route('devices.desktop-clients') }}" class="inline-flex min-h-11 items-center rounded-xl border border-rt-border px-3 text-sm font-semibold text-rt-text dark:text-rt-dark-text">Desktopclients</a>
             @if(app(\App\Services\DeviceManagement\Desktop\DeviceSoftwareService::class)->ready())
-                <a href="{{ route('devices.software') }}" class="inline-flex min-h-11 items-center rounded-xl border border-rt-border px-3 text-sm font-semibold text-rt-text dark:text-white">Software</a>
+                <a href="{{ route('devices.software') }}" class="inline-flex min-h-11 items-center rounded-xl border border-rt-border px-3 text-sm font-semibold text-rt-text dark:text-rt-dark-text">Software</a>
             @endif
         @endcan
         @can('devices.accounts.manage')
@@ -18,7 +18,7 @@
         @if($microsoftEnabled)
             @can('devices.manage')
                 <button type="button" wire:click="syncMicrosoftDevices" wire:loading.attr="disabled" wire:target="syncMicrosoftDevices"
-                    class="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-xl border border-rt-border px-3 text-sm font-semibold text-rt-text hover:bg-rt-surface-muted disabled:opacity-50 dark:border-rt-dark-border dark:text-white dark:hover:bg-rt-dark-surface-muted"
+                    class="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-xl border border-rt-border px-3 text-sm font-semibold text-rt-text hover:bg-rt-surface-muted disabled:opacity-50 dark:border-rt-dark-border dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted"
                     title="Microsoft-Geräte synchronisieren" aria-label="Microsoft-Geräte synchronisieren">
                     <i class="fab fa-microsoft" aria-hidden="true"></i><span class="hidden lg:inline">Abgleichen</span>
                 </button>
@@ -234,7 +234,7 @@
                         <div class="min-w-0">
                             <p class="truncate text-xs font-medium text-rt-muted dark:text-rt-dark-muted">{{ $stat['label'] }}</p>
                             <div class="mt-0.5 flex items-baseline gap-2">
-                                <p class="text-xl font-bold tabular-nums tracking-tight text-rt-text dark:text-white sm:text-2xl">{{ number_format($stat['value'], 0, ',', '.') }}</p>
+                                <p class="text-xl font-bold tabular-nums tracking-tight text-rt-text dark:text-rt-dark-text sm:text-2xl">{{ number_format($stat['value'], 0, ',', '.') }}</p>
                                 @if(! is_null($share))
                                     <span class="hidden text-[11px] font-medium tabular-nums text-rt-soft sm:inline dark:text-rt-dark-soft">{{ number_format($share, 1, ',', '.') }} %</span>
                                 @endif
@@ -250,7 +250,7 @@
             <section class="min-w-0" aria-labelledby="device-inventory-title">
                 <div class="flex items-center justify-between gap-3 px-1 pb-2">
                     <div>
-                        <h2 id="device-inventory-title" class="text-sm font-bold text-rt-text dark:text-white">Gerätebestand</h2>
+                        <h2 id="device-inventory-title" class="text-sm font-bold text-rt-text dark:text-rt-dark-text">Gerätebestand</h2>
                         <p class="mt-0.5 text-xs text-rt-muted dark:text-rt-dark-muted">{{ number_format($devices->total(), 0, ',', '.') }} Treffer in Inventar und Ausgabe</p>
                     </div>
                 </div>
@@ -285,7 +285,7 @@
             <aside class="overflow-hidden rounded-xl border border-rt-border/80 bg-white shadow-rt-xs dark:border-rt-dark-border dark:bg-rt-dark-surface" aria-labelledby="device-locations-title">
                 <div class="flex items-center justify-between gap-3 border-b border-rt-border/70 px-4 py-3 dark:border-rt-dark-border">
                     <div>
-                        <h2 id="device-locations-title" class="text-sm font-bold text-rt-text dark:text-white">Gerätestandorte</h2>
+                        <h2 id="device-locations-title" class="text-sm font-bold text-rt-text dark:text-rt-dark-text">Gerätestandorte</h2>
                         <p class="mt-0.5 text-xs text-rt-muted dark:text-rt-dark-muted">Deklarierte Einsatzorte</p>
                     </div>
                     <span class="grid h-9 w-9 place-items-center rounded-lg bg-sky-50 text-sky-700 dark:bg-sky-950/45 dark:text-sky-300"><i class="far fa-map h-4 w-4 text-sm leading-4 text-center" aria-hidden="true"></i></span>
@@ -301,13 +301,13 @@
                         @forelse($locationStats as $location)
                             <button type="button" wire:click="filterByLocation({{ \Illuminate\Support\Js::from($location->declared_location) }})" class="group flex min-h-11 w-full items-center gap-2.5 rounded-lg border border-white/90 bg-white/90 px-3 text-left shadow-rt-xs transition duration-200 hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-rt-sm active:translate-y-0 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-500/15 dark:border-rt-dark-border dark:bg-rt-dark-surface/90 dark:hover:border-sky-800">
                                 <span class="h-2.5 w-2.5 shrink-0 rounded-full bg-sky-600 ring-4 ring-sky-100 dark:bg-sky-400 dark:ring-sky-950" aria-hidden="true"></span>
-                                <span class="min-w-0 flex-1 truncate text-xs font-semibold text-rt-text dark:text-white">{{ $location->declared_location }}</span>
+                                <span class="min-w-0 flex-1 truncate text-xs font-semibold text-rt-text dark:text-rt-dark-text">{{ $location->declared_location }}</span>
                                 <span class="tabular-nums text-[11px] font-semibold text-rt-muted dark:text-rt-dark-muted">{{ number_format($location->device_count, 0, ',', '.') }}</span>
                             </button>
                         @empty
                             <div class="relative flex min-h-64 flex-col items-center justify-center rounded-xl border border-dashed border-sky-200 bg-white/70 px-5 text-center dark:border-sky-900 dark:bg-rt-dark-surface/70">
                                 <span class="grid h-11 w-11 place-items-center rounded-xl bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300"><i class="far fa-map-marker-alt h-5 w-5 text-lg leading-5 text-center" aria-hidden="true"></i></span>
-                                <p class="mt-3 text-sm font-semibold text-rt-text dark:text-white">Noch keine Standorte</p>
+                                <p class="mt-3 text-sm font-semibold text-rt-text dark:text-rt-dark-text">Noch keine Standorte</p>
                                 <p class="mt-1 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Standorte erscheinen hier, sobald Geräte erfasst oder zurückgegeben werden.</p>
                             </div>
                         @endforelse
@@ -347,7 +347,7 @@
                         <span class="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-rt-red/10 text-rt-red"><i class="far {{ in_array($selectedDevice->form_factor, ['phone','tablet']) ? 'fa-mobile-alt' : 'fa-desktop' }} h-6 w-6 text-xl leading-6 text-center"></i></span>
                         <div class="min-w-0">
                             <div class="flex flex-wrap items-center gap-2">
-                                <h2 id="device-detail-title" class="truncate text-xl font-bold text-rt-text dark:text-white">{{ $selectedDevice->display_name ?: $selectedDevice->hostname }}</h2>
+                                <h2 id="device-detail-title" class="truncate text-xl font-bold text-rt-text dark:text-rt-dark-text">{{ $selectedDevice->display_name ?: $selectedDevice->hostname }}</h2>
                                 <span class="rounded-full px-2.5 py-1 text-xs font-semibold {{ $ready ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' }}">{{ $ready ? 'Bereit zur Übergabe' : 'Einrichtung offen' }}</span>
                             </div>
                             <p class="mt-1 text-sm text-rt-muted dark:text-rt-dark-muted">{{ $selectedDevice->asset_tag ?: 'Ohne Inventarnummer' }} · {{ $selectedDevice->manufacturer }} {{ $selectedDevice->model }} · {{ $selectedDevice->serial_number }}</p>
@@ -377,18 +377,18 @@
                                 ['label'=>'Standort','value'=>$selectedDevice->declared_location ?: 'Nicht gemeldet','icon'=>'fa-map-marker-alt'],
                                 ['label'=>'Letzte Synchronisierung','value'=>$selectedDevice->last_synced_at?->diffForHumans() ?? 'Noch nie','icon'=>'fa-sync-alt'],
                             ] as $item)
-                                <div class="rounded-xl border border-rt-border p-3 dark:border-rt-dark-border"><i class="far {{ $item['icon'] }} h-4 w-4 text-rt-red text-sm leading-4 text-center"></i><p class="mt-2 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $item['label'] }}</p><p class="mt-1 text-sm font-semibold text-rt-text dark:text-white">{{ $item['value'] }}</p></div>
+                                <div class="rounded-xl border border-rt-border p-3 dark:border-rt-dark-border"><i class="far {{ $item['icon'] }} h-4 w-4 text-rt-red text-sm leading-4 text-center"></i><p class="mt-2 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $item['label'] }}</p><p class="mt-1 text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ $item['value'] }}</p></div>
                             @endforeach
                         </div>
 
                         <div class="rounded-xl border border-rt-border p-4 dark:border-rt-dark-border">
-                            <div class="flex items-center justify-between gap-3"><h3 class="font-semibold text-rt-text dark:text-white">Übergabebereitschaft</h3>@can('devices.manage')<button type="button" wire:click="refreshReadiness" class="text-xs font-semibold text-rt-red hover:underline">Neu bewerten</button>@endcan</div>
+                            <div class="flex items-center justify-between gap-3"><h3 class="font-semibold text-rt-text dark:text-rt-dark-text">Übergabebereitschaft</h3>@can('devices.manage')<button type="button" wire:click="refreshReadiness" class="text-xs font-semibold text-rt-red hover:underline">Neu bewerten</button>@endcan</div>
                             <div class="mt-3 grid gap-2 sm:grid-cols-2">
                                 @foreach(\App\Services\DeviceManagement\DeviceReadinessService::REQUIRED_CHECKS as $key => $label)
                                     @php $check = $checks->get($key); $checkStatus = $check?->status ?? 'unknown'; @endphp
                                     <div class="flex items-center gap-2 rounded-lg bg-rt-surface-muted/70 px-3 py-2 text-sm dark:bg-rt-dark-surface-muted">
                                         <span class="grid h-6 w-6 place-items-center rounded-full {{ in_array($checkStatus,['passed','not_applicable'],true) ? 'bg-emerald-100 text-emerald-700' : ($checkStatus === 'blocked' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700') }}"><i class="far {{ in_array($checkStatus,['passed','not_applicable'],true) ? 'fa-check' : ($checkStatus === 'blocked' ? 'fa-times' : 'fa-clock') }} h-3.5 w-3.5 text-xs leading-[14px] text-center"></i></span>
-                                        <span class="min-w-0 flex-1 text-rt-text dark:text-white">{{ $label }}</span>
+                                        <span class="min-w-0 flex-1 text-rt-text dark:text-rt-dark-text">{{ $label }}</span>
                                         <span class="text-[11px] font-medium uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ str_replace('_',' ',$checkStatus) }}</span>
                                     </div>
                                 @endforeach
@@ -398,9 +398,9 @@
 
                     <aside class="space-y-4">
                         <div class="rounded-xl border border-rt-border p-4 dark:border-rt-dark-border">
-                            <h3 class="font-semibold text-rt-text dark:text-white">Mitarbeiter & Lager</h3>
+                            <h3 class="font-semibold text-rt-text dark:text-rt-dark-text">Mitarbeiter & Lager</h3>
                             @if($activeAssignment?->user)
-                                <div class="mt-3 rounded-xl bg-rt-surface-muted p-3 dark:bg-rt-dark-surface-muted"><p class="font-semibold text-rt-text dark:text-white">{{ $activeAssignment->user->name }}</p><p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $activeAssignment->user->email }} · seit {{ $activeAssignment->assigned_at?->format('d.m.Y') }}</p></div>
+                                <div class="mt-3 rounded-xl bg-rt-surface-muted p-3 dark:bg-rt-dark-surface-muted"><p class="font-semibold text-rt-text dark:text-rt-dark-text">{{ $activeAssignment->user->name }}</p><p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $activeAssignment->user->email }} · seit {{ $activeAssignment->assigned_at?->format('d.m.Y') }}</p></div>
                             @else
                                 <p class="mt-3 text-sm text-rt-muted dark:text-rt-dark-muted">Das Gerät liegt im virtuellen Lager und ist niemandem zugewiesen.</p>
                             @endif
@@ -412,15 +412,15 @@
                                 <button type="button" wire:click="returnDevice" @disabled(!$activeAssignment) class="mt-2 min-h-10 w-full rounded-xl border border-amber-300 bg-amber-50 px-3 text-sm font-semibold text-amber-800 disabled:opacity-40 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">Rückgabe ins Lager erfassen</button>
                             @endcan
                         </div>
-                        <div class="rounded-xl border border-rt-border p-4 text-sm dark:border-rt-dark-border"><p class="font-semibold text-rt-text dark:text-white">Standortschutz</p><p class="mt-2 leading-6 text-rt-muted dark:text-rt-dark-muted">Angezeigt wird der deklarierte Arbeits-/Lagerstandort. Eine permanente Live-Ortung ist nicht Voraussetzung und wird nicht aus der Mitarbeiter-App abgeleitet.</p></div>
+                        <div class="rounded-xl border border-rt-border p-4 text-sm dark:border-rt-dark-border"><p class="font-semibold text-rt-text dark:text-rt-dark-text">Standortschutz</p><p class="mt-2 leading-6 text-rt-muted dark:text-rt-dark-muted">Angezeigt wird der deklarierte Arbeits-/Lagerstandort. Eine permanente Live-Ortung ist nicht Voraussetzung und wird nicht aus der Mitarbeiter-App abgeleitet.</p></div>
                         <div class="rounded-xl border border-rt-border p-4 dark:border-rt-dark-border" data-device-provider-links>
                             <div class="flex items-start justify-between gap-3">
                                 <div>
-                                    <h3 class="font-semibold text-rt-text dark:text-white">Provider-Verknüpfungen</h3>
+                                    <h3 class="font-semibold text-rt-text dark:text-rt-dark-text">Provider-Verknüpfungen</h3>
                                     <p class="mt-1 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Jeder Provider behält seine eigene native Geräte-ID.</p>
                                 </div>
                                 @can('devices.manage')
-                                    <button type="button" wire:click="openProviderLink" class="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl border border-rt-border px-3 text-xs font-semibold text-rt-text hover:bg-rt-surface-muted dark:border-rt-dark-border dark:text-white dark:hover:bg-rt-dark-surface-muted" aria-haspopup="dialog" aria-controls="device-provider-link-modal">
+                                    <button type="button" wire:click="openProviderLink" class="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl border border-rt-border px-3 text-xs font-semibold text-rt-text hover:bg-rt-surface-muted dark:border-rt-dark-border dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted" aria-haspopup="dialog" aria-controls="device-provider-link-modal">
                                         <i class="far fa-link h-3.5 w-3.5 text-xs leading-[14px] text-center" aria-hidden="true"></i>
                                         Verknüpfen
                                     </button>
@@ -430,7 +430,7 @@
                                 @forelse($selectedDevice->providerLinks as $providerLink)
                                     <div class="rounded-xl bg-rt-surface-muted px-3 py-2.5 dark:bg-rt-dark-surface-muted">
                                         <div class="flex flex-wrap items-center justify-between gap-2">
-                                            <p class="text-sm font-semibold text-rt-text dark:text-white">{{ $providerCards->firstWhere('key', $providerLink->provider)['label'] ?? $providerLink->provider }}</p>
+                                            <p class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ $providerCards->firstWhere('key', $providerLink->provider)['label'] ?? $providerLink->provider }}</p>
                                             <div class="flex items-center gap-1.5">
                                                 <span class="rounded-full bg-white px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-rt-muted ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border">{{ $providerLink->role === 'primary' ? 'Primär' : 'Support' }}</span>
                                                 <span @class([
@@ -465,11 +465,11 @@
 
                 <div id="device-{{ $selectedDevice->public_id }}-panel-provisioning" x-show.important="tab==='provisioning'" x-cloak class="mt-5 grid gap-5 lg:grid-cols-2" role="tabpanel" aria-labelledby="device-{{ $selectedDevice->public_id }}-tab-provisioning" tabindex="0">
                     <div class="rounded-xl border border-rt-border p-4 dark:border-rt-dark-border">
-                        <h3 class="font-semibold text-rt-text dark:text-white">Bestehendes Gerät aus der Ferne registrieren</h3>
+                        <h3 class="font-semibold text-rt-text dark:text-rt-dark-text">Bestehendes Gerät aus der Ferne registrieren</h3>
                         <p class="mt-2 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">Der Mitarbeiter erhält einen persönlichen, auth-gebundenen Einmal-Link. Bei Bestandsmobilgeräten ist zunächst eine eingeschränkte Verwaltung möglich; Full Device Owner/Supervision benötigt meist einen geplanten Reset.</p>
                         <div class="mt-4 grid gap-3 sm:grid-cols-2">
-                            <x-operations.field id="device-enrollment-provider" label="Provider" model="enrollmentProvider" type="select" :live="true" :disabled="! auth()->user()->can('devices.enrollment.manage')">user()->can('devices.enrollment.manage')) class="mt-1.5 min-h-11 w-full rounded-xl border border-rt-border bg-white px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white"><option value="">Nicht verfügbar</option>@foreach($compatibleProviders as $provider)@if(in_array($provider['key'], $enrollmentProviderKeys, true))<option value="{{ $provider['key'] }}">{{ $provider['label'] }}</option>@endif @endforeach</x-operations.field>
-                            <x-operations.field id="device-enrollment-mode" label="Modus" model="enrollmentMode" type="select" :disabled="! auth()->user()->can('devices.enrollment.manage') || $enrollmentModeOptions === []">user()->can('devices.enrollment.manage') || $enrollmentModeOptions === []) class="mt-1.5 min-h-11 w-full rounded-xl border border-rt-border bg-white px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white"><option value="">Nicht verfügbar</option>@foreach($enrollmentModeOptions as $mode)<option value="{{ $mode['value'] }}">{{ $mode['label'] }}{{ $mode['requires_reset'] ? ' · Reset nötig' : '' }}{{ $mode['limited_management'] ? ' · eingeschränkt' : '' }}</option>@endforeach</x-operations.field>
+                            <x-operations.field id="device-enrollment-provider" label="Provider" model="enrollmentProvider" type="select" :live="true" :disabled="! auth()->user()->can('devices.enrollment.manage')">user()->can('devices.enrollment.manage')) class="mt-1.5 min-h-11 w-full rounded-xl border border-rt-border bg-white px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-rt-dark-text"><option value="">Nicht verfügbar</option>@foreach($compatibleProviders as $provider)@if(in_array($provider['key'], $enrollmentProviderKeys, true))<option value="{{ $provider['key'] }}">{{ $provider['label'] }}</option>@endif @endforeach</x-operations.field>
+                            <x-operations.field id="device-enrollment-mode" label="Modus" model="enrollmentMode" type="select" :disabled="! auth()->user()->can('devices.enrollment.manage') || $enrollmentModeOptions === []">user()->can('devices.enrollment.manage') || $enrollmentModeOptions === []) class="mt-1.5 min-h-11 w-full rounded-xl border border-rt-border bg-white px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-rt-dark-text"><option value="">Nicht verfügbar</option>@foreach($enrollmentModeOptions as $mode)<option value="{{ $mode['value'] }}">{{ $mode['label'] }}{{ $mode['requires_reset'] ? ' · Reset nötig' : '' }}{{ $mode['limited_management'] ? ' · eingeschränkt' : '' }}</option>@endforeach</x-operations.field>
                         </div>
                         @error('enrollmentMode')<p class="mt-2 text-sm text-red-600">{{ $message }}</p>@enderror
                         @if(($selectedEnrollmentMode = collect($enrollmentModeOptions)->firstWhere('value', $enrollmentMode)))
@@ -487,7 +487,7 @@
                     </div>
 
                     <div class="rounded-xl border border-rt-border p-4 dark:border-rt-dark-border">
-                        <h3 class="font-semibold text-rt-text dark:text-white">Microsoft 365, Outlook, Google & Apple vorbereiten</h3>
+                        <h3 class="font-semibold text-rt-text dark:text-rt-dark-text">Microsoft 365, Outlook, Google & Apple vorbereiten</h3>
                         <p class="mt-2 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">Es werden nur UPN/E-Mail, externe Referenz und sichere Modern-Auth-/SSO-Sollprofile gespeichert. Der Mitarbeiter bestätigt den offiziellen Anmeldedialog einmal selbst.</p>
                         <div class="mt-4 space-y-2">
                             @foreach(['microsoft_365' => 'Microsoft 365 / Outlook / Teams / OneDrive', 'google_workspace' => 'Google Workspace / Gmail / Drive / Chrome', 'apple_managed' => 'Apple Business Managed Account / SSO'] as $value => $label)
@@ -497,7 +497,7 @@
                         @can('devices.accounts.manage')<button type="button" wire:click="prepareAccounts" @disabled(!$activeAssignment) class="mt-4 min-h-11 w-full rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white disabled:opacity-40 dark:bg-white dark:text-slate-950">Konten & Profile vorbereiten</button>@endcan
                         <div class="mt-4 space-y-2">
                             @forelse($selectedDevice->accountAssignments as $account)
-                                <div class="rounded-lg bg-rt-surface-muted px-3 py-2 dark:bg-rt-dark-surface-muted"><p class="text-sm font-medium text-rt-text dark:text-white">{{ $account->provisioningProfile?->name }}</p><p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $account->identityAccount?->principal }} · {{ str_replace('_',' ',$account->status) }}</p></div>
+                                <div class="rounded-lg bg-rt-surface-muted px-3 py-2 dark:bg-rt-dark-surface-muted"><p class="text-sm font-medium text-rt-text dark:text-rt-dark-text">{{ $account->provisioningProfile?->name }}</p><p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $account->identityAccount?->principal }} · {{ str_replace('_',' ',$account->status) }}</p></div>
                             @empty<p class="text-sm text-rt-muted dark:text-rt-dark-muted">Noch keine Kontosollprofile zugewiesen.</p>@endforelse
                         </div>
                     </div>
@@ -506,7 +506,7 @@
                 @can('devices.commands.execute')
                 <div id="device-{{ $selectedDevice->public_id }}-panel-files" x-show.important="tab==='files'" x-cloak class="mt-5 grid gap-5 lg:grid-cols-[0.8fr_1.2fr]" role="tabpanel" aria-labelledby="device-{{ $selectedDevice->public_id }}-tab-files" tabindex="0">
                     <div class="rounded-xl border border-rt-border p-4 dark:border-rt-dark-border">
-                        <h3 class="font-semibold text-rt-text dark:text-white">Datei, Paket oder Skript</h3>
+                        <h3 class="font-semibold text-rt-text dark:text-rt-dark-text">Datei, Paket oder Skript</h3>
                         <p class="mt-2 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">Uploads liegen privat, werden gehasht und erst nach expliziter Adminfreigabe für eine Geräteaktion verwendet. XLSX-Dateien werden verteilt, nicht als Programm ausgeführt.</p>
                         @can('devices.commands.execute')
                             <input type="file" wire:model="artifactUpload" class="mt-4 block w-full rounded-xl border border-dashed border-rt-border p-3 text-sm dark:border-rt-dark-border">
@@ -515,13 +515,13 @@
                         @endcan
                         <div class="mt-4 space-y-2">
                             @forelse($selectedDevice->artifacts as $artifact)
-                                <div class="rounded-xl border border-rt-border p-3 dark:border-rt-dark-border"><div class="flex items-start justify-between gap-2"><div class="min-w-0"><p class="truncate text-sm font-semibold text-rt-text dark:text-white">{{ $artifact->name }}</p><p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $artifact->kind }} · {{ number_format(($artifact->size_bytes ?? 0)/1024, 1, ',', '.') }} KB · SHA {{ substr($artifact->sha256,0,10) }}…</p></div><span class="rounded-full px-2 py-1 text-[11px] font-semibold {{ $artifact->approved_at ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' }}">{{ $artifact->approved_at ? 'freigegeben' : 'Prüfung offen' }}</span></div>@can('devices.commands.execute')@if(!$artifact->approved_at)<button type="button" wire:click="approveArtifact({{ $artifact->id }})" class="mt-2 text-xs font-semibold text-rt-red hover:underline">Als Admin freigeben</button>@endif @endcan</div>
+                                <div class="rounded-xl border border-rt-border p-3 dark:border-rt-dark-border"><div class="flex items-start justify-between gap-2"><div class="min-w-0"><p class="truncate text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ $artifact->name }}</p><p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $artifact->kind }} · {{ number_format(($artifact->size_bytes ?? 0)/1024, 1, ',', '.') }} KB · SHA {{ substr($artifact->sha256,0,10) }}…</p></div><span class="rounded-full px-2 py-1 text-[11px] font-semibold {{ $artifact->approved_at ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' }}">{{ $artifact->approved_at ? 'freigegeben' : 'Prüfung offen' }}</span></div>@can('devices.commands.execute')@if(!$artifact->approved_at)<button type="button" wire:click="approveArtifact({{ $artifact->id }})" class="mt-2 text-xs font-semibold text-rt-red hover:underline">Als Admin freigeben</button>@endif @endcan</div>
                             @empty<p class="text-sm text-rt-muted dark:text-rt-dark-muted">Noch keine Datei hinterlegt.</p>@endforelse
                         </div>
                     </div>
 
                     <div class="rounded-xl border border-rt-border p-4 dark:border-rt-dark-border">
-                        <h3 class="font-semibold text-rt-text dark:text-white">Protokollierte Geräteaktion</h3>
+                        <h3 class="font-semibold text-rt-text dark:text-rt-dark-text">Protokollierte Geräteaktion</h3>
                         <div class="mt-4 grid gap-3 sm:grid-cols-2">
                             <x-operations.field id="device-command-provider" label="Provider" model="commandProvider" type="select"><option value="">Nicht verfügbar</option>@foreach($compatibleProviders as $provider)@if(($provider['capabilities']['commands'] ?? []) !== [])<option value="{{ $provider['key'] }}">{{ $provider['label'] }}</option>@endif @endforeach</x-operations.field>
                             <x-operations.field id="device-command-type" label="Aktion" model="commandType" type="select" :live="true">@foreach(\App\Enums\DeviceCommandType::cases() as $type)@if(in_array($type->value, $availableCommandTypes, true))<option value="{{ $type->value }}">{{ match($type->value){'sync'=>'Synchronisieren','lock'=>'Sperren','unlock'=>'Entsperren','wipe'=>'Fernlöschen (Vier Augen)','restart'=>'Neustarten','execute_script'=>'Freigegebenes Skript ausführen','install_software'=>'Software/Datei installieren','uninstall_software'=>'Software deinstallieren','collect_diagnostics'=>'Diagnose erfassen','apply_profile'=>'Kontenprofil anwenden','apply_managed_profile'=>'OpenUEM-Windows-Profil ausführen','start_remote_support'=>'Fernsupport starten'} }}</option>@endif @endforeach</x-operations.field>
@@ -553,7 +553,7 @@
                     <x-tables.html-table label="Geräteaktionen">
                         <x-slot:head><tr><th scope="col">Zeit</th><th scope="col">Aktion</th><th scope="col">Provider</th><th scope="col">Angefordert von</th><th scope="col">Status</th><th scope="col">Freigabe</th></tr></x-slot:head>
                             @forelse($selectedDevice->commands->take(30) as $command)
-                                <tr><td class="text-xs text-rt-muted">{{ $command->requested_at?->format('d.m.Y H:i') }}</td><td class="font-medium text-rt-text dark:text-white">{{ str_replace('_',' ',$command->type->value) }}<span class="mt-1 block max-w-md text-xs font-normal text-rt-muted dark:text-rt-dark-muted">{{ $command->justification }}</span></td><td>{{ $command->provider }}</td><td>{{ $command->requester?->name ?? 'System' }}</td><td><span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300">{{ str_replace('_',' ',$command->status->value) }}</span></td><td>@if($command->status === \App\Enums\DeviceCommandStatus::PendingApproval)@can('devices.wipe')<button type="button" wire:click="approveWipe('{{ $command->public_id }}')" @disabled((int)$command->requested_by === (int)auth()->id()) class="min-h-9 rounded-lg bg-red-600 px-3 text-xs font-semibold text-white disabled:opacity-40">Als 2. Admin freigeben</button>@endcan @else<span class="text-xs text-rt-muted">{{ $command->approver?->name ?? '—' }}</span>@endif</td></tr>
+                                <tr><td class="text-xs text-rt-muted">{{ $command->requested_at?->format('d.m.Y H:i') }}</td><td class="font-medium text-rt-text dark:text-rt-dark-text">{{ str_replace('_',' ',$command->type->value) }}<span class="mt-1 block max-w-md text-xs font-normal text-rt-muted dark:text-rt-dark-muted">{{ $command->justification }}</span></td><td>{{ $command->provider }}</td><td>{{ $command->requester?->name ?? 'System' }}</td><td><span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300">{{ str_replace('_',' ',$command->status->value) }}</span></td><td>@if($command->status === \App\Enums\DeviceCommandStatus::PendingApproval)@can('devices.wipe')<button type="button" wire:click="approveWipe('{{ $command->public_id }}')" @disabled((int)$command->requested_by === (int)auth()->id()) class="min-h-9 rounded-lg bg-red-600 px-3 text-xs font-semibold text-white disabled:opacity-40">Als 2. Admin freigeben</button>@endcan @else<span class="text-xs text-rt-muted">{{ $command->approver?->name ?? '—' }}</span>@endif</td></tr>
                             @empty<tr><td colspan="6" class="py-10 text-center text-rt-muted">Noch keine Geräteaktion protokolliert.</td></tr>@endforelse
                     </x-tables.html-table>
                 </div>

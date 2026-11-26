@@ -21,7 +21,7 @@
     <section class="rounded-xl border border-sky-200 p-4 dark:border-sky-900" aria-label="Microsoft-Geräteverknüpfung" data-microsoft-device-detail>
         <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
-                <h3 class="flex items-center gap-2 font-semibold text-rt-text dark:text-white"><i class="fab fa-microsoft text-sky-600" aria-hidden="true"></i> Microsoft Entra &amp; Windows</h3>
+                <h3 class="flex items-center gap-2 font-semibold text-rt-text dark:text-rt-dark-text"><i class="fab fa-microsoft text-sky-600" aria-hidden="true"></i> Microsoft Entra &amp; Windows</h3>
                 <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">Letzter Inventarabgleich: {{ $microsoft->last_synced_at?->format('d.m.Y H:i') ?? 'Noch nicht erfolgt' }}</p>
             </div>
             <a href="https://entra.microsoft.com/#view/Microsoft_AAD_Devices/DevicesMenuBlade/~/Devices" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-11 items-center gap-2 rounded-lg px-2 text-xs font-semibold text-sky-700 hover:underline dark:text-sky-300">In Entra prüfen <i class="far fa-external-link" aria-hidden="true"></i></a>

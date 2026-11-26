@@ -7,7 +7,7 @@
     --request-tint: var(--rt-surface-muted, #f5f5f6);
     --request-accent: #8d253d;
 }
-:is(.dark, body[data-mode="dark"]) .rt-modal-frame:has([data-personal-request-dialog]) {
+html.dark .rt-modal-frame:has([data-personal-request-dialog]) {
     --request-paper: var(--rt-dark-surface, #171b22);
     --request-ink: var(--rt-dark-text, #edf0f4);
     --request-muted: var(--rt-dark-muted, #a5acb8);
@@ -101,7 +101,7 @@
 .rt-request-dialog__actions .rt-ui-button { min-width: 44px; min-height: 44px; box-shadow: none; transform: none; }
 .rt-request-dialog__actions .rt-ui-button-primary { background: var(--request-accent); border-color: var(--request-accent); color: #fff; }
 .rt-request-dialog__actions .rt-ui-button-link { margin-left: auto; }
-:is(.dark, body[data-mode="dark"]) .rt-request-dialog__actions .rt-ui-button-primary { color: #2d1720; }
+html.dark .rt-request-dialog__actions .rt-ui-button-primary { color: #2d1720; }
 .rt-request-dialog__empty { margin: 0; color: var(--request-muted); font-size: 13px; line-height: 1.65; }
 @media (max-width: 639px) {
     .rt-modal-frame:has([data-personal-request-dialog]) > .rt-modal-header { padding: 18px 16px !important; gap: 12px !important; }

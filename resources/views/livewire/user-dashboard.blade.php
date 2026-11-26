@@ -35,7 +35,7 @@
                             <p class="text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-rt-red dark:text-rt-dark-accent">
                                 {{ __('app.team') }}
                             </p>
-                            <p class="mt-1 truncate text-lg font-semibold tracking-[-0.02em] text-rt-text dark:text-white">
+                            <p class="mt-1 truncate text-lg font-semibold tracking-[-0.02em] text-rt-text dark:text-rt-dark-text">
                                 {{ $dashboardTeamName }}
                             </p>
                         </div>
@@ -43,7 +43,7 @@
                         <button
                             type="button"
                             x-on:click="$dispatch('rt-welcome:open')"
-                            class="inline-flex min-h-11 shrink-0 items-center justify-center rounded-md border border-rt-border bg-transparent px-3 text-xs font-semibold text-rt-text outline-none transition hover:bg-rt-surface focus-visible:ring-2 focus-visible:ring-rt-red/70 motion-safe:active:scale-[0.98] motion-reduce:transition-none dark:border-rt-dark-border dark:text-white dark:hover:bg-rt-dark-surface"
+                            class="inline-flex min-h-11 shrink-0 items-center justify-center rounded-md border border-rt-border bg-transparent px-3 text-xs font-semibold text-rt-text outline-none transition hover:bg-rt-surface focus-visible:ring-2 focus-visible:ring-rt-red/70 motion-safe:active:scale-[0.98] motion-reduce:transition-none dark:border-rt-dark-border dark:text-rt-dark-text dark:hover:bg-rt-dark-surface"
                             aria-label="{{ __('app.welcome_intro_reopen') }}"
                             title="{{ __('app.welcome_intro_reopen') }}"
                             data-welcome-intro-trigger
@@ -53,7 +53,7 @@
                     </div>
 
                     <div>
-                        <p class="text-sm font-semibold text-rt-text dark:text-white">
+                        <p class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">
                             {{ now()->translatedFormat('l, d. F Y') }}
                         </p>
                         <p class="mt-2 text-pretty text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
@@ -170,7 +170,7 @@
                                 <span class="mt-1.5 h-2 w-2 shrink-0 rounded-full {{ (int) $message->status === 1 ? 'bg-rt-red' : 'bg-slate-300 dark:bg-slate-600' }}" aria-hidden="true"></span>
                                 <span class="min-w-0">
                                     <span class="sr-only">{{ (int) $message->status === 1 ? __('app.unread') : __('app.read') }}: </span>
-                                    <span class="block truncate text-sm font-semibold text-rt-text dark:text-white">{{ $message->subject }}</span>
+                                    <span class="block truncate text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ $message->subject }}</span>
                                     <span class="mt-1 block truncate text-xs text-rt-muted dark:text-rt-dark-muted">
                                         {{ $message->sender?->name ?? config('app.name') }} · {{ $message->created_at?->diffForHumans() }}
                                     </span>
@@ -203,7 +203,7 @@
                     <div class="mt-5">
                         <div class="flex items-center justify-between gap-3 text-sm">
                             <span class="text-rt-muted dark:text-rt-dark-muted">{{ __('app.profile_completion') }}</span>
-                            <span class="text-lg font-semibold tabular-nums text-rt-text dark:text-white">{{ $profileCompletion }} %</span>
+                            <span class="text-lg font-semibold tabular-nums text-rt-text dark:text-rt-dark-text">{{ $profileCompletion }} %</span>
                         </div>
                         <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-rt-surface-muted dark:bg-rt-dark-surface-muted">
                             <div
@@ -267,7 +267,7 @@
                     @foreach (array_combine($fileSources['labels'], $fileSources['values']) as $sourceLabel => $sourceCount)
                         <li class="inline-flex items-center gap-2 rounded-md border border-rt-border/70 bg-transparent px-2.5 py-1.5 text-xs font-medium text-rt-muted dark:border-rt-dark-border/70 dark:text-rt-dark-muted">
                             {{ $sourceLabel }}
-                            <span class="font-semibold tabular-nums text-rt-text dark:text-white">{{ number_format($sourceCount, 0, ',', '.') }}</span>
+                            <span class="font-semibold tabular-nums text-rt-text dark:text-rt-dark-text">{{ number_format($sourceCount, 0, ',', '.') }}</span>
                         </li>
                     @endforeach
                 </ul>

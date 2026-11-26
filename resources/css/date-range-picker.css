@@ -15,7 +15,7 @@
     color: var(--range-text);
     font-size: 12px;
 }
-:is(html.dark, body[data-mode='dark']) .rt-date-range-picker {
+html.dark .rt-date-range-picker {
     --range-surface: theme('colors.rt-dark.surface');
     --range-subtle: theme('colors.rt-dark.surface-muted');
     --range-line: theme('colors.rt-dark.border');

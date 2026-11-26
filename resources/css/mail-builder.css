@@ -224,43 +224,34 @@
     white-space: nowrap;
 }
 
-.dark :is(.rt-mail-studio-toolbar__documents, .rt-mail-preview-toggle),
-.dark .rt-mail-preview-width-control,
-body[data-mode='dark'] :is(.rt-mail-studio-toolbar__documents, .rt-mail-preview-toggle),
-body[data-mode='dark'] .rt-mail-preview-width-control {
+html.dark :is(.rt-mail-studio-toolbar__documents, .rt-mail-preview-toggle),
+html.dark .rt-mail-preview-width-control {
     border-color: rgb(42 57 77);
     background: rgb(18 29 44);
 }
 
-.dark .rt-mail-preview-width-control input,
-body[data-mode='dark'] .rt-mail-preview-width-control input {
+html.dark .rt-mail-preview-width-control input {
     background: rgb(8 13 22);
     color: rgb(241 245 249);
 }
 
-.dark .rt-mail-studio-document,
-.dark .rt-mail-preview-toggle > button,
-body[data-mode='dark'] .rt-mail-studio-document,
-body[data-mode='dark'] .rt-mail-preview-toggle > button {
+html.dark .rt-mail-studio-document,
+html.dark .rt-mail-preview-toggle > button {
     color: rgb(174 185 201);
 }
 
-.dark .rt-mail-studio-document[aria-current='page'],
-.dark .rt-mail-preview-toggle > button[aria-pressed='true'],
-body[data-mode='dark'] .rt-mail-studio-document[aria-current='page'],
-body[data-mode='dark'] .rt-mail-preview-toggle > button[aria-pressed='true'] {
+html.dark .rt-mail-studio-document[aria-current='page'],
+html.dark .rt-mail-preview-toggle > button[aria-pressed='true'] {
     border-color: rgb(255 113 137 / 0.25);
     background: rgb(62 23 36);
     color: rgb(255 132 153);
 }
 
-.dark .rt-mail-preview-context strong,
-body[data-mode='dark'] .rt-mail-preview-context strong {
+html.dark .rt-mail-preview-context strong {
     color: rgb(241 245 249);
 }
 
-.dark :is(.rt-mail-preview-context small, .rt-mail-studio-toolbar__message),
-body[data-mode='dark'] :is(.rt-mail-preview-context small, .rt-mail-studio-toolbar__message) {
+html.dark :is(.rt-mail-preview-context small, .rt-mail-studio-toolbar__message) {
     color: rgb(174 185 201);
 }
 
@@ -303,8 +294,7 @@ body[data-mode='dark'] :is(.rt-mail-preview-context small, .rt-mail-studio-toolb
         rgb(226 232 240);
 }
 
-.dark .rt-mail-editor-frame,
-body[data-mode='dark'] .rt-mail-editor-frame {
+html.dark .rt-mail-editor-frame {
     border-color: rgb(42 57 77);
     background: rgb(8 13 22);
 }
@@ -484,14 +474,12 @@ body[data-mode='dark'] .rt-mail-editor-frame {
     left: var(--rt-mail-custom-left, 0px) !important;
 }
 
-.dark .rt-mail-delivery-preview,
-body[data-mode='dark'] .rt-mail-delivery-preview {
+html.dark .rt-mail-delivery-preview {
     border-color: rgb(42 57 77);
     background: rgb(8 13 22);
 }
 
-.dark .rt-mail-builder-root,
-body[data-mode='dark'] .rt-mail-builder-root {
+html.dark .rt-mail-builder-root {
     border-color: rgb(42 57 77);
     background: rgb(8 13 22);
 }
@@ -782,53 +770,44 @@ body[data-mode='dark'] .rt-mail-builder-root {
     gap: 0.5rem;
 }
 
-.dark .rt-mail-code-dialog,
-body[data-mode='dark'] .rt-mail-code-dialog {
+html.dark .rt-mail-code-dialog {
     border-color: rgb(42 57 77);
     background: rgb(12 20 32);
     color: rgb(241 245 249);
     color-scheme: dark;
 }
 
-.dark :is(.rt-mail-code-dialog__header, .rt-mail-code-dialog__footer),
-body[data-mode='dark'] :is(.rt-mail-code-dialog__header, .rt-mail-code-dialog__footer) {
+html.dark :is(.rt-mail-code-dialog__header, .rt-mail-code-dialog__footer) {
     border-color: rgb(42 57 77);
 }
 
-.dark .rt-mail-code-dialog__header [data-mail-code-origin],
-.dark .rt-mail-code-dialog__footer > p,
-body[data-mode='dark'] .rt-mail-code-dialog__header [data-mail-code-origin],
-body[data-mode='dark'] .rt-mail-code-dialog__footer > p {
+html.dark .rt-mail-code-dialog__header [data-mail-code-origin],
+html.dark .rt-mail-code-dialog__footer > p {
     color: rgb(174 185 201);
 }
 
-.dark .rt-mail-code-dialog__close,
-body[data-mode='dark'] .rt-mail-code-dialog__close {
+html.dark .rt-mail-code-dialog__close {
     border-color: rgb(42 57 77);
     color: rgb(203 213 225);
 }
 
-.dark .rt-mail-code-dialog__notice,
-body[data-mode='dark'] .rt-mail-code-dialog__notice {
+html.dark .rt-mail-code-dialog__notice {
     border-color: rgb(14 116 144 / 0.55);
     background: rgb(8 47 73 / 0.42);
     color: rgb(186 230 253);
 }
 
-.dark .rt-mail-code-dialog__error,
-body[data-mode='dark'] .rt-mail-code-dialog__error {
+html.dark .rt-mail-code-dialog__error {
     border-color: rgb(190 18 60 / 0.55);
     background: rgb(76 5 25 / 0.42);
     color: rgb(253 164 175);
 }
 
-.dark .rt-mail-code-dialog__field > span,
-body[data-mode='dark'] .rt-mail-code-dialog__field > span {
+html.dark .rt-mail-code-dialog__field > span {
     color: rgb(203 213 225);
 }
 
-.dark .rt-mail-code-dialog__field textarea,
-body[data-mode='dark'] .rt-mail-code-dialog__field textarea {
+html.dark .rt-mail-code-dialog__field textarea {
     border-color: rgb(51 65 85);
     background: rgb(8 13 22);
     color: rgb(226 232 240);
@@ -851,22 +830,18 @@ body[data-mode='dark'] .rt-mail-code-dialog__field textarea {
     color: rgb(180 83 9) !important;
 }
 
-.dark [data-mail-document-status][data-status='draft'],
-.dark [data-mail-document-status][data-has-unpublished-changes='true'],
-body[data-mode='dark'] [data-mail-document-status][data-status='draft'],
-body[data-mode='dark'] [data-mail-document-status][data-has-unpublished-changes='true'] {
+html.dark [data-mail-document-status][data-status='draft'],
+html.dark [data-mail-document-status][data-has-unpublished-changes='true'] {
     background: rgb(245 158 11 / 0.1) !important;
     color: rgb(252 211 77) !important;
 }
 
-.dark [data-mail-document-status][data-status='published'],
-body[data-mode='dark'] [data-mail-document-status][data-status='published'] {
+html.dark [data-mail-document-status][data-status='published'] {
     background: rgb(16 185 129 / 0.1) !important;
     color: rgb(110 231 183) !important;
 }
 
-.dark [data-mail-document-status][data-status='published'][data-has-unpublished-changes='true'],
-body[data-mode='dark'] [data-mail-document-status][data-status='published'][data-has-unpublished-changes='true'] {
+html.dark [data-mail-document-status][data-status='published'][data-has-unpublished-changes='true'] {
     background: rgb(245 158 11 / 0.1) !important;
     color: rgb(252 211 77) !important;
 }
@@ -1309,8 +1284,7 @@ body[data-mode='dark'] [data-mail-document-status][data-status='published'][data
     white-space: normal;
 }
 
-.dark .rt-mail-view-menu .rt-mail-preview-context,
-body[data-mode='dark'] .rt-mail-view-menu .rt-mail-preview-context {
+html.dark .rt-mail-view-menu .rt-mail-preview-context {
     border-bottom-color: rgb(42 57 77);
 }
 
@@ -1374,8 +1348,7 @@ body[data-mode='dark'] .rt-mail-view-menu .rt-mail-preview-context {
     --rt-mail-chrome-hover: rgb(113 132 156 / 0.1);
 }
 
-.dark [data-page-builder-editor-mode='mail'][data-page-builder-single-toolbar='true'],
-body[data-mode='dark'] [data-page-builder-editor-mode='mail'][data-page-builder-single-toolbar='true'] {
+html.dark [data-page-builder-editor-mode='mail'][data-page-builder-single-toolbar='true'] {
     --rt-mail-chrome-surface: rgb(18 27 40 / 0.9);
     --rt-mail-chrome-line: rgb(161 182 208 / 0.16);
     --rt-mail-chrome-ink: rgb(218 227 240);
