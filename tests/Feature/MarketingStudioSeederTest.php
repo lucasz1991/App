@@ -9,13 +9,13 @@ use App\Models\User;
 use App\Services\Marketing\MarketingStudioService;
 use App\Services\Marketing\MarketingTemplateFactory;
 use Database\Seeders\MarketingStudioSeeder;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use RuntimeException;
 use Tests\TestCase;
 
 class MarketingStudioSeederTest extends TestCase
 {
-    use DatabaseMigrations;
+    use RefreshDatabase;
 
     public function test_it_creates_six_distinct_start_motives_with_all_variants_for_the_preferred_admin(): void
     {

@@ -12,7 +12,7 @@ use App\Services\DeviceManagement\MicrosoftEmployeeLinkService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Events\TransactionBeginning;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
@@ -24,7 +24,7 @@ use Tests\TestCase;
 
 class MicrosoftEmployeeLinkTest extends TestCase
 {
-    use DatabaseMigrations;
+    use RefreshDatabase;
 
     private const TENANT = '11111111-1111-4111-8111-111111111111';
 

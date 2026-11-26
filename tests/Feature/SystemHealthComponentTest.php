@@ -7,7 +7,7 @@ use App\Livewire\Admin\SystemHealth;
 use App\Models\User;
 use App\Services\Ai\SpeechServiceClient;
 use App\Services\SystemHealth\SystemHealthService;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Livewire\Livewire;
@@ -17,7 +17,7 @@ use Tests\TestCase;
 
 class SystemHealthComponentTest extends TestCase
 {
-    use DatabaseMigrations;
+    use RefreshDatabase;
 
     protected function setUp(): void
     {

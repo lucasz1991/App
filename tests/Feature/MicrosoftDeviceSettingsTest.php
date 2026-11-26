@@ -10,7 +10,7 @@ use App\Services\DeviceManagement\MicrosoftDeviceSettings;
 use App\Services\DeviceManagement\MicrosoftDeviceSyncScheduler;
 use App\Services\DeviceManagement\MicrosoftDeviceSyncService;
 use Illuminate\Database\Events\QueryExecuted;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -23,7 +23,7 @@ use Tests\TestCase;
 
 class MicrosoftDeviceSettingsTest extends TestCase
 {
-    use DatabaseMigrations;
+    use RefreshDatabase;
 
     private MicrosoftDeviceSettings $settings;
 

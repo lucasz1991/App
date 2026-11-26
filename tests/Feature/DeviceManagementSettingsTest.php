@@ -8,7 +8,7 @@ use App\Models\User;
 use App\Services\DeviceManagement\ConnectorDnsResolver;
 use App\Services\DeviceManagement\ConnectorHttpClient;
 use App\Services\DeviceManagement\DeviceManagementSettings;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use InvalidArgumentException;
@@ -17,7 +17,7 @@ use Tests\TestCase;
 
 class DeviceManagementSettingsTest extends TestCase
 {
-    use DatabaseMigrations;
+    use RefreshDatabase;
 
     private DeviceManagementSettings $settings;
 

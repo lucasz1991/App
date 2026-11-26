@@ -15,6 +15,12 @@ return new class extends Migration
 
     public function down(): void
     {
+        // Erst den Index, dann die Spalte: SQLite verweigert sonst das Loeschen
+        // der Spalte, solange der Index sie noch verwendet.
+        Schema::table('mail_documents', function (Blueprint $table): void {
+            $table->dropIndex(['archived_at']);
+        });
+
         Schema::table('mail_documents', function (Blueprint $table): void {
             $table->dropColumn('archived_at');
         });

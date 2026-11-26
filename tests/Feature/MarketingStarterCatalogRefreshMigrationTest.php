@@ -11,13 +11,13 @@ use App\Models\User;
 use App\Services\Marketing\MarketingStudioService;
 use App\Services\Marketing\MarketingTemplateFactory;
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use ReflectionMethod;
 use Tests\TestCase;
 
 class MarketingStarterCatalogRefreshMigrationTest extends TestCase
 {
-    use DatabaseMigrations;
+    use RefreshDatabase;
 
     public function test_it_refreshes_only_complete_legacy_baselines_and_creates_the_network_starter_idempotently(): void
     {

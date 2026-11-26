@@ -6,12 +6,12 @@ use App\Models\DeviceReadinessCheck;
 use App\Models\User;
 use App\Services\DeviceManagement\DeviceInventoryService;
 use App\Services\DeviceManagement\DeviceReadinessService;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class DeviceReadinessHardeningTest extends TestCase
 {
-    use DatabaseMigrations;
+    use RefreshDatabase;
 
     public function test_handover_inventory_checks_require_asset_serial_location_and_an_active_employee(): void
     {

@@ -6,13 +6,13 @@ use App\Models\DeviceProviderLink;
 use App\Models\User;
 use App\Services\DeviceManagement\DeviceInventoryImportService;
 use App\Services\DeviceManagement\DeviceInventoryService;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
 
 class DeviceProviderIdentifierTest extends TestCase
 {
-    use DatabaseMigrations;
+    use RefreshDatabase;
 
     protected function setUp(): void
     {

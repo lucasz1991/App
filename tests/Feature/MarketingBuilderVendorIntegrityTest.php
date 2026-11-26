@@ -6,7 +6,7 @@ use App\Enums\MarketingCreativeType;
 use App\Livewire\Admin\Marketing\CreativesIndex;
 use App\Models\MarketingCreative;
 use App\Models\User;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Storage;
@@ -15,7 +15,7 @@ use Tests\TestCase;
 
 class MarketingBuilderVendorIntegrityTest extends TestCase
 {
-    use DatabaseMigrations;
+    use RefreshDatabase;
 
     /** @var array<string, string> */
     private const EXPECTED_SHA256 = [

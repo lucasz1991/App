@@ -7,14 +7,14 @@ use App\Models\DeviceProviderLink;
 use App\Models\User;
 use App\Services\DeviceManagement\DeviceInventoryService;
 use App\Services\DeviceManagement\DeviceProviderLinkService;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use Tests\TestCase;
 
 class DeviceProviderLinkManagementTest extends TestCase
 {
-    use DatabaseMigrations;
+    use RefreshDatabase;
 
     protected function setUp(): void
     {

@@ -13,7 +13,7 @@ use App\Services\DeviceManagement\DeviceIdentityConnectorService;
 use App\Services\DeviceManagement\DeviceIdentitySyncService;
 use App\Services\DeviceManagement\DeviceInventoryService;
 use App\Services\DeviceManagement\DeviceManagementSettings;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -23,7 +23,7 @@ use Tests\TestCase;
 
 final class DeviceIdentityConnectorTest extends TestCase
 {
-    use DatabaseMigrations;
+    use RefreshDatabase;
 
     private const TOKEN = 'identity-connector-token-000000000000';
 

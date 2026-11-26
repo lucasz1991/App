@@ -15,7 +15,7 @@ use App\Support\OutlookAddin\OutlookAddinException;
 use App\Support\OutlookAddin\OutlookAddinIdentityResolver;
 use App\Support\OutlookAddin\VerifiedEntraIdentity;
 use Illuminate\Console\Scheduling\Schedule;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Queue\Jobs\DatabaseJob;
 use Illuminate\Queue\TimeoutExceededException;
 use Illuminate\Support\Facades\Cache;
@@ -29,7 +29,7 @@ use Tests\TestCase;
 
 final class MicrosoftDeviceSyncTriggerTest extends TestCase
 {
-    use DatabaseMigrations;
+    use RefreshDatabase;
 
     private const TENANT = '11111111-1111-4111-8111-111111111111';
 

@@ -23,14 +23,14 @@ use App\Support\Mail\EmailHtmlSanitizer;
 use App\Support\Mail\SignatureDocumentContract;
 use App\Support\MailSignature;
 use App\Support\PageHelpCatalog;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
 use ReflectionMethod;
 use Tests\TestCase;
 
 class AssistantPageBuilderToolsTest extends TestCase
 {
-    use DatabaseMigrations;
+    use RefreshDatabase;
 
     protected function setUp(): void
     {

@@ -13,7 +13,7 @@ use App\Services\DeviceManagement\DeviceEnrollmentService;
 use App\Services\DeviceManagement\DeviceInventoryService;
 use App\Services\DeviceManagement\DeviceManagementSettings;
 use App\Services\DeviceManagement\Providers\ConnectorDeviceProvider;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Testing\TestResponse;
@@ -22,7 +22,7 @@ use Tests\TestCase;
 
 class DeviceProviderLinkTest extends TestCase
 {
-    use DatabaseMigrations;
+    use RefreshDatabase;
 
     protected function setUp(): void
     {

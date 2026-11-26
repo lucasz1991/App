@@ -19,14 +19,14 @@ use DOMDocument;
 use DOMElement;
 use DOMXPath;
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class MarketingCareerCatalogTest extends TestCase
 {
-    use DatabaseMigrations;
+    use RefreshDatabase;
 
     /** @var list<string> */
     private const TEMPLATE_KEYS = [

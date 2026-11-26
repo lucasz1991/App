@@ -14,7 +14,7 @@ use App\Models\EmployeeIdentityAccount;
 use App\Models\User;
 use App\Services\DeviceManagement\DeviceEnrollmentService;
 use App\Services\DeviceManagement\DeviceInventoryService;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -25,7 +25,7 @@ use Throwable;
 
 class DeviceProviderWebhookHardeningTest extends TestCase
 {
-    use DatabaseMigrations;
+    use RefreshDatabase;
 
     private const SIMULATION_SECRET = 'provider-event-test-secret';
 

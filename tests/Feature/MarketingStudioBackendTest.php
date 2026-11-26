@@ -21,7 +21,7 @@ use App\Services\Marketing\MarketingStudioService;
 use App\Services\Marketing\MarketingTemplateFactory;
 use App\Support\CompanyData;
 use App\Support\MarketingBrandAssets;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Route;
@@ -32,7 +32,7 @@ use Tests\TestCase;
 
 class MarketingStudioBackendTest extends TestCase
 {
-    use DatabaseMigrations;
+    use RefreshDatabase;
 
     protected function setUp(): void
     {

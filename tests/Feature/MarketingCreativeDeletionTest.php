@@ -14,7 +14,7 @@ use App\Services\Marketing\MarketingRenderService;
 use App\Services\Marketing\MarketingStudioService;
 use App\Services\Marketing\MarketingTemplateFactory;
 use Database\Seeders\MarketingStudioSeeder;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
@@ -25,7 +25,7 @@ use Tests\TestCase;
 
 class MarketingCreativeDeletionTest extends TestCase
 {
-    use DatabaseMigrations;
+    use RefreshDatabase;
 
     protected function setUp(): void
     {

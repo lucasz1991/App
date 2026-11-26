@@ -13,7 +13,7 @@ use App\Models\FilePool;
 use App\Models\MarketingCreative;
 use App\Models\User;
 use App\Services\Marketing\MarketingStudioService;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
@@ -23,7 +23,7 @@ use Tests\TestCase;
 
 class MarketingMotiveLibraryTest extends TestCase
 {
-    use DatabaseMigrations;
+    use RefreshDatabase;
 
     protected function setUp(): void
     {

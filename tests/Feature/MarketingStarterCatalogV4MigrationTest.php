@@ -12,12 +12,12 @@ use App\Services\Marketing\MarketingHtmlSanitizer;
 use App\Services\Marketing\MarketingStudioService;
 use App\Services\Marketing\MarketingTemplateFactory;
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class MarketingStarterCatalogV4MigrationTest extends TestCase
 {
-    use DatabaseMigrations;
+    use RefreshDatabase;
 
     /** @var array<string, string> */
     private const RELEASES = [

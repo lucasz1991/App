@@ -6,7 +6,7 @@ use App\Services\DeviceManagement\ConnectorContractValidator;
 use App\Services\DeviceManagement\ConnectorDnsResolver;
 use App\Services\DeviceManagement\DeviceManagementSettings;
 use App\Services\DeviceManagement\DeviceProviderDiagnosticsService;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
@@ -14,7 +14,7 @@ use Tests\TestCase;
 
 class DeviceProviderDiagnosticsServiceTest extends TestCase
 {
-    use DatabaseMigrations;
+    use RefreshDatabase;
 
     private const TOKEN = 'diagnostic-token-must-stay-secret';
 

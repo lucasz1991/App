@@ -11,7 +11,7 @@ use App\Services\SystemHealth\Transport\WebSocketProbe;
 use App\Support\Ai\OpenRouterSettings;
 use App\Support\Push\VapidAutoProvisioner;
 use App\Support\Push\WebPushConfiguration;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Minishlink\WebPush\VAPID;
@@ -22,7 +22,7 @@ use Tests\TestCase;
 
 class SystemHealthIntegrationsTest extends TestCase
 {
-    use DatabaseMigrations;
+    use RefreshDatabase;
 
     protected function setUp(): void
     {

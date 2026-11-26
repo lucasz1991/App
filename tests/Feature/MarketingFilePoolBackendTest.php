@@ -17,7 +17,7 @@ use App\Services\Marketing\MarketingRenderAssetHydrator;
 use App\Services\Marketing\MarketingRenderService;
 use App\Services\Marketing\MarketingStudioService;
 use App\Support\MarketingFileSourceSettings;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Queue;
@@ -29,7 +29,7 @@ use Tests\TestCase;
 
 class MarketingFilePoolBackendTest extends TestCase
 {
-    use DatabaseMigrations;
+    use RefreshDatabase;
 
     protected function setUp(): void
     {

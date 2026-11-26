@@ -52,6 +52,8 @@ return new class extends Migration
         Schema::dropIfExists('disposition_mailbox_reviews');
         foreach (['ai_intake_messages', 'ai_intake_deliveries'] as $name) {
             if (Schema::hasColumn($name, 'mailbox_id')) {
+                // Erst den Index, dann die Spalte (SQLite verweigert sonst das Loeschen).
+                Schema::table($name, fn (Blueprint $table) => $table->dropIndex(['mailbox_id']));
                 Schema::table($name, fn (Blueprint $table) => $table->dropColumn('mailbox_id'));
             }
         }

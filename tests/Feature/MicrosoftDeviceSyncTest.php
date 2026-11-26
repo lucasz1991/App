@@ -12,7 +12,7 @@ use App\Models\MicrosoftDeviceLink;
 use App\Models\User;
 use App\Services\DeviceManagement\MicrosoftDeviceSettings;
 use App\Services\DeviceManagement\MicrosoftDeviceSyncService;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -22,7 +22,7 @@ use Tests\TestCase;
 
 class MicrosoftDeviceSyncTest extends TestCase
 {
-    use DatabaseMigrations;
+    use RefreshDatabase;
 
     private const TENANT = '11111111-1111-4111-8111-111111111111';
 

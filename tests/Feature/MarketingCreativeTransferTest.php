@@ -13,7 +13,7 @@ use App\Services\Marketing\MarketingContentBinder;
 use App\Services\Marketing\MarketingCreativeTransferService;
 use App\Services\Marketing\MarketingFileSourceService;
 use App\Services\Marketing\MarketingStudioService;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -23,7 +23,7 @@ use Tests\TestCase;
 
 final class MarketingCreativeTransferTest extends TestCase
 {
-    use DatabaseMigrations;
+    use RefreshDatabase;
 
     protected function setUp(): void
     {

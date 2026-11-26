@@ -11,7 +11,7 @@ use App\Services\SystemHealth\DeviceChecks;
 use App\Services\SystemHealth\SystemCheckRegistry;
 use App\Services\SystemHealth\SystemHealthService;
 use App\Services\SystemHealth\SystemHealthStore;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -24,7 +24,7 @@ use Tests\TestCase;
 
 class SystemHealthDeviceChecksTest extends TestCase
 {
-    use DatabaseMigrations;
+    use RefreshDatabase;
 
     private const TENANT = '11111111-1111-4111-8111-111111111111';
 

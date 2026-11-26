@@ -33,6 +33,8 @@ return new class extends Migration
             if (DB::table('ai_intake_deliveries')->where('message_type', '!=', 'clarification')->orWhereNotNull('approved_at')->exists()) {
                 throw new RuntimeException('Kundenkommunikation enthält Freigabebelege; Rücknahme würde Historie löschen.');
             }
+            // Erst den Index, dann die Spalte (SQLite verweigert sonst das Loeschen).
+            Schema::table('ai_intake_deliveries', fn (Blueprint $table) => $table->dropIndex(['message_type']));
             Schema::table('ai_intake_deliveries', function (Blueprint $table): void {
                 $table->dropConstrainedForeignId('approval_audit_id');
                 $table->dropConstrainedForeignId('order_id');
