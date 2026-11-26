@@ -38,7 +38,7 @@ Homestead.json
 !/tests/Feature/CaseWorkspaceTest.php
 !/tests/Feature/DispositionPageHeaderTest.php
 !/tests/Feature/CustomerWorkspaceTest.php
-!/tests/Feature/PersonalPageWorkspaceTest.php
+!/tests/Feature/PersonnelPageWorkspaceTest.php
 !/tests/Feature/DropboxSyncTest.php
 !/tests/Feature/LocalExcelImportTest.php
 !/tests/Feature/ImportedOrderStatusTest.php

@@ -51,6 +51,10 @@ class LivewireAliasServiceProvider extends ServiceProvider
         'admin.users.messages.message-form' => ['messages.message-form', \App\Livewire\Messages\MessageForm::class],
         'admin.file-manager' => ['files.file-manager', \App\Livewire\Files\FileManager::class],
         'admin.managed-documents' => ['files.managed-documents', \App\Livewire\Files\ManagedDocuments::class],
+
+        // Phase 7 – Umbenennungen
+        'operations.wagon-list-prototype' => ['operations.wagon-list', \App\Livewire\Operations\WagonList::class],
+        'operations.personal-page-workspace' => ['operations.personnel-page-workspace', \App\Livewire\Operations\PersonnelPageWorkspace::class],
     ];
 
     public function boot(): void

@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Livewire\Employees\Profile as EmployeeProfile;
-use App\Livewire\Operations\PersonalPageWorkspace;
+use App\Livewire\Operations\PersonnelPageWorkspace;
 use App\Models\Team;
 use App\Models\User;
 use App\Models\UserProfile as Profile;
@@ -103,7 +103,7 @@ class EmployeeProfileIntegrationTest extends TestCase
         $this->assertSame(['qualifications', 'training'], array_keys(EmployeeProfileSections::forUser($manager, $this->employee)));
         $this->actingAs($manager);
         Livewire::test(EmployeeProfile::class, ['userId' => $this->employee->id])->assertForbidden();
-        Livewire::test(PersonalPageWorkspace::class, ['page' => 'people', 'initialView' => 'training', 'context' => ['user' => $this->employee->id]])
+        Livewire::test(PersonnelPageWorkspace::class, ['page' => 'people', 'initialView' => 'training', 'context' => ['user' => $this->employee->id]])
             ->assertSet('userId', $this->employee->id)->assertSee('Teilnehmer zuordnen')
             ->assertDontSee($this->outside->name);
     }

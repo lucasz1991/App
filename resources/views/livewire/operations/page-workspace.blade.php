@@ -10,7 +10,7 @@
     @elseif($definition['host'] === 'customers')
         <livewire:operations.customer-workspace :initial-view="$initialView" :initial-section="$initialSection" :context="$context" />
     @elseif($definition['host'] === 'personal')
-        <livewire:operations.personal-page-workspace :page="$page" :initial-view="$initialView" :initial-section="$initialSection" :context="$context" :key="'personal-page-'.$page" />
+        <livewire:operations.personnel-page-workspace :page="$page" :initial-view="$initialView" :initial-section="$initialSection" :context="$context" :key="'personal-page-'.$page" />
     @elseif($definition['host'] === 'attention')
         <livewire:operations.attention-center />
     @elseif($definition['host'] === 'planning')

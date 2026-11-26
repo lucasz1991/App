@@ -28,7 +28,7 @@ use Illuminate\Support\Facades\Schema;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 
-class PersonalPageWorkspace extends Component
+class PersonnelPageWorkspace extends Component
 {
     use ResolvesOperationsActor, SyncsWorkspaceUrl;
 
@@ -322,6 +322,6 @@ class PersonalPageWorkspace extends Component
         $recordId = max(0, (int) ($this->context['record_id'] ?? $this->context['record'] ?? 0)) ?: null;
         $contentKey = implode('-', [$this->page, $this->view, $this->section, $this->userId, $recordId ?? 0, $this->ruleView]);
 
-        return view('livewire.operations.personal-page-workspace', compact('views', 'sections', 'viewOptions', 'employees', 'recordId', 'contentKey'));
+        return view('livewire.operations.personnel-page-workspace', compact('views', 'sections', 'viewOptions', 'employees', 'recordId', 'contentKey'));
     }
 }

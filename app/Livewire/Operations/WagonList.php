@@ -4,7 +4,7 @@ namespace App\Livewire\Operations;
 
 use Livewire\Component;
 
-class WagonListPrototype extends Component
+class WagonList extends Component
 {
     #[\Livewire\Attributes\Locked]
     public ?int $proofId = null;
@@ -109,7 +109,7 @@ class WagonListPrototype extends Component
             ];
         }
 
-        return view('livewire.operations.wagon-list-prototype', [
+        return view('livewire.operations.wagon-list', [
             'proofContext' => $proofContext,
             'storageKey' => $storageKey,
             'labels' => $labels,

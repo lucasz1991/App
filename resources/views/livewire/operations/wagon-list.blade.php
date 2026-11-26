@@ -1,5 +1,5 @@
 <div
-    x-data="wagonListPrototype(@js([
+    x-data="wagonList(@js([
         'storageKey' => $storageKey,
         'proof' => $proofContext ?? null,
         'locale' => app()->getLocale() === 'de' ? 'de-DE' : 'en-GB',
@@ -52,7 +52,7 @@
         ],
     ]))"
     class="min-w-0"
-    data-wagon-list-prototype
+    data-wagon-list
     @keydown.escape.window="handleEscape($event)"
     @keydown.tab.window="trapEditorFocus($event)"
     x-on:railtime-wagon-assistant-command.window="handleAssistantCommand($event.detail)"

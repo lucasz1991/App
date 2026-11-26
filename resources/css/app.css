@@ -2623,7 +2623,7 @@ html.dark .rt-wagon-draft-progress {
     background: #1c293c;
 }
 
-[data-wagon-list-prototype] .rt-wagon-editor[data-wagon-editor][role='dialog'] {
+[data-wagon-list] .rt-wagon-editor[data-wagon-editor][role='dialog'] {
     isolation: isolate;
     margin: 0 !important;
     transform-origin: center;

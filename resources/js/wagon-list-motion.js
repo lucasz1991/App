@@ -7,7 +7,7 @@
 // kleinen Lebenszyklus — jede Animation laeuft in genau einem gsap.context(),
 // der beim Schliessen des Editors verworfen wird.
 //
-// Aufgerufen wird ausschliesslich defensiv aus wagon-list-prototype.js
+// Aufgerufen wird ausschliesslich defensiv aus wagon-list.js
 // (window.RailTimeWagonMotion?.…). Faellt das Modul aus, bleibt der Editor
 // vollstaendig bedienbar — Bewegung ist Zugabe, nie Voraussetzung.
 //

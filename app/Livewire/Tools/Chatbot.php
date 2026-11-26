@@ -489,7 +489,7 @@ class Chatbot extends Component
             return;
         }
 
-        // Feldlisten wie in resources/js/wagon-list-prototype.js und
+        // Feldlisten wie in resources/js/wagon-list.js und
         // AssistantApplicationTools::wagonFields() (Excel-Liste v16_5).
         $metaFields = [
             'meta.trainNumber', 'meta.date', 'meta.origin', 'meta.destination', 'meta.reference',

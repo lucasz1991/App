@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\Livewire\Operations\Orders;
 use App\Livewire\Admin\Settings;
-use App\Livewire\Operations\PersonalPageWorkspace;
+use App\Livewire\Operations\PersonnelPageWorkspace;
 use App\Livewire\Operations\PlanningPageWorkspace;
 use App\Livewire\Operations\WorkforcePlanning;
 use App\Models\Customer;
@@ -126,7 +126,7 @@ class OperationsPageIntegrationTest extends TestCase
             $this->assertTrue($matching[0]->hasAttribute('data-rt-dropdown-item'));
         }
 
-        $workspace = Livewire::test(PersonalPageWorkspace::class, ['page' => 'people'])
+        $workspace = Livewire::test(PersonnelPageWorkspace::class, ['page' => 'people'])
             ->assertSet('view', 'employees')->assertSet('section', '');
         foreach (['signatures', 'emergency'] as $section) {
             $workspace->call('setSection', $section)->assertSet('section', $section)

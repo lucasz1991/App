@@ -25,7 +25,7 @@ import { setupRealtimeEcho } from './realtime-echo';
 import './gsap';
 // Vengeance-Motion (zeigergefuehrter Karten-Glow, Optik in app.css)
 import './vengeance-motion';
-import { wagonListPrototype } from './wagon-list-prototype';
+import { wagonList } from './wagon-list';
 import { wagonVideoCapture } from './wagon-video-capture';
 import { numberInput } from './number-input';
 import { dateField } from './date-field';
@@ -220,7 +220,7 @@ createEmployeeLastLocation().start();
 registerRoutingMap(Alpine);
 registerIntakeLocationMap(Alpine);
 
-Alpine.data('wagonListPrototype', wagonListPrototype);
+Alpine.data('wagonList', wagonList);
 Alpine.data('wagonVideoCapture', wagonVideoCapture);
 Alpine.data('rtNumberInput', numberInput);
 Alpine.data('rtDateField', dateField);

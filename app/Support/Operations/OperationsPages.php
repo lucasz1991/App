@@ -5,7 +5,7 @@ namespace App\Support\Operations;
 use App\Livewire\Operations\CaseWorkspace;
 use App\Livewire\Operations\CustomerWorkspace;
 use App\Livewire\Operations\OperationsEnhancements;
-use App\Livewire\Operations\PersonalPageWorkspace;
+use App\Livewire\Operations\PersonnelPageWorkspace;
 use App\Models\User;
 use App\Services\Operations\PersonnelProcessService;
 use App\Services\Operations\WorkforceAccountService;
@@ -42,7 +42,7 @@ final class OperationsPages
         ];
     }
 
-    /** Pages mounted by PersonalPageWorkspace. */
+    /** Pages mounted by PersonnelPageWorkspace. */
     public static function isPersonalPage(string $page): bool
     {
         return (self::definitions()[$page]['host'] ?? null) === 'personal';
@@ -60,7 +60,7 @@ final class OperationsPages
             return CustomerWorkspace::availableViews($actor);
         }
         if (self::isPersonalPage($page)) {
-            return PersonalPageWorkspace::availableViews($actor, $page);
+            return PersonnelPageWorkspace::availableViews($actor, $page);
         }
         if ($page === 'documents') {
             return $actor->isAdmin() && $actor->can('files.manage') ? ['files' => 'Dateien', 'managed' => 'Verbindliche Unterlagen'] : [];
@@ -95,7 +95,7 @@ final class OperationsPages
         }
 
         return self::isPersonalPage($page)
-            ? PersonalPageWorkspace::availableSections($actor, $page) : [];
+            ? PersonnelPageWorkspace::availableSections($actor, $page) : [];
     }
 
     /** Permission-filtered case workspaces shared by sidebar and topbar shortcuts. */

@@ -193,7 +193,7 @@ const normalizeDraft = (draft = {}, fallbackId = null) => {
     };
 };
 
-export function wagonListPrototype(config = {}) {
+export function wagonList(config = {}) {
     // ERA-Gattungszeichen (Ziffern 5-8 -> Gattung). Bewusst außerhalb des
     // reaktiven Zustands: rund 3900 Einträge, die nur nachgeschlagen werden.
     let eraTypes = null;

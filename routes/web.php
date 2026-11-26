@@ -77,7 +77,7 @@ use App\Livewire\ItSupport;
 use App\Livewire\MessageBox;
 use App\Livewire\Operations\PageWorkspace;
 use App\Livewire\Operations\PersonalWorkspace;
-use App\Livewire\Operations\WagonListPrototype;
+use App\Livewire\Operations\WagonList;
 use App\Livewire\SupportCases;
 use App\Livewire\UserDashboard;
 use App\Livewire\UserFiles;
@@ -295,7 +295,7 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         ->where('token', '[A-Za-z0-9_-]{40,128}')
         ->middleware('throttle:10,1')
         ->name('devices.enrollment');
-    Route::get('/betrieb/wagenliste', WagonListPrototype::class)
+    Route::get('/betrieb/wagenliste', WagonList::class)
         ->middleware(RedirectAdminWagonList::class)
         ->name('operations.wagon-list');
     Route::post('/betrieb/wagenliste/export', WagonListExportController::class)
@@ -389,7 +389,7 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         Route::get('/betrieb/{module}', OperationalPreview::class)
             ->where('module', 'orders|shift-management|calendar|customers')
             ->name('operations.preview');
-        Route::get('/betrieb/wagenliste', WagonListPrototype::class)->name('operations.wagon-list');
+        Route::get('/betrieb/wagenliste', WagonList::class)->name('operations.wagon-list');
         Route::post('/betrieb/wagenliste/export', WagonListExportController::class)
             ->name('operations.wagon-list.export');
         Route::post('/betrieb/wagenliste/medien', WagonListMediaController::class)

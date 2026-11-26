@@ -127,7 +127,7 @@ export function wagonVideoCapture(config = {}) {
             // AUSSERHALB der Komponentenwurzel. Pro Seite existiert genau
             // eine Wagenlisten-Komponente.
             const doc = this.$el?.ownerDocument || document;
-            const root = doc.querySelector('[data-wagon-list-prototype]');
+            const root = doc.querySelector('[data-wagon-list]');
             if (!root) return null;
 
             try {

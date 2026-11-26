@@ -65,7 +65,7 @@ class UserDashboard extends Component
         $deviceWidget = $this->deviceWidget($user, $fleetSnapshot, $personalDeviceSnapshot);
 
         if (OperationsAccess::ready() && $audience !== 'guest') {
-            return view('livewire.operations.dashboard', app(NativeOperationsDashboard::class)->forUser($user) + [
+            return view('livewire.dashboard.native', app(NativeOperationsDashboard::class)->forUser($user) + [
                 'deviceWidget' => $deviceWidget,
                 'canViewSystemData' => $user->canViewSystemDashboard(),
                 'systemLoaded' => $this->systemLoaded,

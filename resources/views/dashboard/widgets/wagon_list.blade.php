@@ -1,7 +1,7 @@
 {{--
     Wagenlisten-Entwuerfe leben ausschliesslich lokal im Browser
     (localStorage-Key "rt-wagon-list-prototype:v1:<Benutzer-ID>", siehe
-    resources/js/wagon-list-prototype.js und WagonListPrototype::render) -
+    resources/js/wagon-list.js und WagonList::render) -
     es gibt dafuer keine
     Server-Tabelle. Dieses Widget liest denselben Schluessel deshalb
     direkt per Alpine, statt eine Zahl vorzutaeuschen, die der Server

@@ -51,7 +51,7 @@ class Dashboard extends Component
         if (OperationsAccess::ready()) {
             $stats = $fleetSnapshot->get();
 
-            return view('livewire.operations.dashboard', app(NativeOperationsDashboard::class)->forUser(auth()->user()) + [
+            return view('livewire.dashboard.native', app(NativeOperationsDashboard::class)->forUser(auth()->user()) + [
                 'deviceWidget' => ['scope' => 'fleet', 'stats' => $stats, 'href' => $stats['available'] ? route('devices.index') : null],
                 'canViewSystemData' => $canViewSystemData,
                 'system' => $this->systemLoaded ? $this->system : null,

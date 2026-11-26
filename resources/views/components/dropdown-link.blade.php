@@ -10,7 +10,7 @@
 ])
 
 {{-- Rueckwaertskompatibler Alias auf x-ui.dropdown.dropdown-link.
-     Wird nur noch von der Wagenliste (livewire/operations/wagon-list-prototype,
+     Wird nur noch von der Wagenliste (livewire/operations/wagon-list,
      dokumentierte Ausnahme des UI-Aufraeumplans) genutzt und rendert wie
      frueher immer ein Link-Element (as="a"). Neue Aufrufe nutzen x-ui.dropdown.dropdown-link
      direkt (UiStandardsGuardTest). Mehrwortige Props werden ausdruecklich

@@ -6,7 +6,7 @@ import { parseHTML } from 'linkedom';
 const app = readFileSync(new URL('../../resources/js/sidebar-navigation.js', import.meta.url), 'utf8');
 const source = app.slice(app.indexOf('function initActiveMenu('), app.indexOf('function scrollSidebarBlockIntoView('));
 assert.ok(source.startsWith('function initActiveMenu('));
-const personalTemplate = readFileSync(new URL('../../resources/views/livewire/operations/personal-page-workspace.blade.php', import.meta.url), 'utf8');
+const personalTemplate = readFileSync(new URL('../../resources/views/livewire/operations/personnel-page-workspace.blade.php', import.meta.url), 'utf8');
 const pageTemplate = readFileSync(new URL('../../resources/views/livewire/operations/page-workspace.blade.php', import.meta.url), 'utf8');
 
 function setup(view = 'inbox') {
