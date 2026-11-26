@@ -1,0 +1,133 @@
+<?php
+
+return [
+    'superadmin_only' => [
+        'title' => 'RailTime super administrator only',
+        'text' => 'Values are stored encrypted in RailTime instead of .env; credentials are only shown as masks. Connection tests only read the health endpoint and never execute a device action.',
+    ],
+
+    'units' => [
+        'minutes' => 'minutes',
+        'hours' => 'hours',
+        'seconds' => 'seconds',
+    ],
+
+    'entra' => [
+        'label' => 'Microsoft Entra and Windows devices',
+        'description' => 'Regularly import existing Windows devices from Microsoft and link employees.',
+    ],
+
+    'deployment' => [
+        'label' => 'Plesk address and runtime',
+        'description' => 'Choose public subdomains or private local adapter ports with safe defaults.',
+        'mode_legend' => 'Address mode',
+        'mode_subdomain_label' => 'Plesk subdomains (recommended)',
+        'mode_subdomain_hint' => 'Public connector addresses over HTTPS and port 443.',
+        'mode_ports_label' => 'Private adapter ports',
+        'mode_ports_hint' => 'RailTime reaches adapters server-side only through http://127.0.0.1.',
+        'base_domain' => 'Shared base domain',
+        'base_domain_hint' => 'Enter only a public FQDN without https://, port or path. Production blocks localhost and private or reserved domains.',
+        'credentials_reset_warning' => 'Changing the address mode or base domain disables active external providers and removes saved credentials even from currently inactive external providers. Re-enter tokens and webhook secrets deliberately in the provider cards afterwards.',
+        'enrollment_ttl' => 'Enrollment link lifetime',
+        'max_sync_age' => 'Maximum sync age',
+        'artifact_limit' => 'Maximum file and script size',
+        'save_hint' => 'Saving does not change Plesk configuration or start an external service.',
+        'save' => 'Save runtime settings',
+    ],
+
+    'providers' => [
+        'label' => 'Device providers and connection tests',
+        'description' => 'Configure RailTime connectors and probe their saved read-only health endpoint.',
+        'setup_help' => 'Use provider is a setting, not evidence of readiness. Apply changes with Save provider first. The connection test checks saved values; it does not install a service or enable device actions.',
+        'use' => 'Use provider',
+        'effective_addresses' => 'Currently effective addresses',
+        'internal_address' => 'RailTime → adapter',
+        'public_address' => 'Public address',
+        'subdomain_prefix' => 'Subdomain prefix',
+        'private_port' => 'Private adapter port',
+        'credentials_hint_native_fork' => 'Changing the adapter or active endpoint requires a new access token; otherwise the provider is disabled. Profile changes invalidate production approval until another health check.',
+        'credentials_hint' => 'When changing the currently used target, you can re-enter the token and webhook secret together. Without a complete re-entry of both values, RailTime disables the provider and safely removes both credentials. Changing the inactive fallback field does not require re-authentication.',
+        'token' => 'Connector access token',
+        'token_remove' => 'Remove the saved token when saving',
+        'webhook_secret' => 'Webhook secret',
+        'secret_stored_placeholder' => 'Stored — enter a new value to replace',
+        'secret_min_placeholder' => 'At least 32 characters',
+        'webhook_secret_remove' => 'Remove the saved webhook secret when saving',
+        'advanced' => 'Advanced connection',
+        'timeout' => 'Timeout',
+        'remote_url' => 'Public remote support URL',
+        'not_tested' => 'No connection test has been run in this view yet. A displayed address does not confirm reachability.',
+        'save' => 'Save provider',
+        'test' => 'Test saved connection',
+    ],
+
+    'openuem_fork' => [
+        'adapter' => 'OpenUEM adapter',
+        'adapter_connector' => 'Legacy connector contract',
+        'adapter_native_fork' => 'RailTime fork · Windows profile runs v1',
+        'native_fork_hint' => 'Requires the extended worker and Windows agent with a durable run journal. Server health and device execution are separate proofs. No automatic installation or production approval; remote support remains separate.',
+        'profiles_hint' => 'Only existing profiles also allowed by the worker. Do not use automatic or tag-applied profiles. Agent ID means the native OpenUEM ID, not the RailTime device ID. Results are polled; no webhook secret is needed.',
+        'profile_permission' => 'Profile permission',
+        'profile_id' => 'OpenUEM profile ID',
+        'profile_label' => 'Label (optional)',
+        'profile_remove' => 'Remove permission',
+        'profiles_empty' => 'No device profiles allowed yet.',
+        'profile_add' => 'Add profile permission',
+    ],
+
+    'nanomdm' => [
+        'title' => 'Mobile Apple commands',
+        'enabled' => 'enabled',
+        'blocked' => 'blocked',
+        'description' => 'This separate switch confirms only the reviewed NanoMDM command chain. The global production guard still applies as well.',
+        'confirm_block' => 'Block mobile NanoMDM commands now?',
+        'confirm_enable' => 'Enable mobile NanoMDM commands? The Apple test organisation, APNs/ADE and a lab device must be verified first.',
+        'block' => 'Block mobile commands',
+        'enable' => 'Enable deliberately',
+    ],
+
+    'diagnostic_checks' => [
+        'configured' => 'Configuration',
+        'reachable' => 'Reachable',
+        'authenticated' => 'Authentication',
+        'contract_valid' => 'Contract',
+    ],
+
+    'diagnostic_status' => [
+        'healthy' => 'Connection and connector contract are ready.',
+        'unauthorized' => 'The connector rejected authentication.',
+        'unreachable' => 'The connector is unreachable.',
+        'invalid_configuration' => 'The saved connector configuration is invalid.',
+        'missing_credentials' => 'The access token is missing.',
+        'redirect_rejected' => 'The connector returned a disallowed redirect.',
+        'http_error' => 'The connector returned an HTTP error.',
+        'response_too_large' => 'The health response exceeds the allowed size.',
+        'invalid_response' => 'The connector returned an invalid health response.',
+        'contract_incompatible' => 'The response does not match the RailTime connector contract.',
+        'contract_invalid' => 'The health response violates the RailTime connector contract.',
+        'provider_mismatch' => 'The connector reported a different provider than expected.',
+        'invalid_provider' => 'The requested device provider is not allowed.',
+        'unhealthy' => 'The connector reports that it is not ready.',
+        'probe_failed' => 'The connection test could not be completed.',
+    ],
+    'diagnostic_status_unknown' => 'The connection test returned an unknown status.',
+
+    'identity' => [
+        'label' => 'Microsoft, Google and Apple domains',
+        'description' => 'Prepare organisation domains only; user passwords and OAuth tokens are never stored in RailTime.',
+        'save' => 'Save identity domains',
+    ],
+
+    'production' => [
+        'label' => 'Production safety',
+        'description' => 'Enrollment, identity synchronization and device commands remain blocked by default, independently of provider credentials.',
+        'switch_title' => 'Global action switch',
+        'enabled' => 'Commands enabled',
+        'blocked' => 'Safely blocked',
+        'switch_description' => 'A connection test never enables this protection automatically. Enabling affects only future commands that remain authorised and audited.',
+        'confirm_block' => 'Block external device actions and identity synchronization globally now?',
+        'confirm_enable' => 'Enable external device actions and identity synchronization globally? Providers, lab devices and rollback must be verified first.',
+        'block' => 'Block commands globally',
+        'enable' => 'Enable commands deliberately',
+    ],
+];

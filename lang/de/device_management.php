@@ -1,0 +1,133 @@
+<?php
+
+return [
+    'superadmin_only' => [
+        'title' => 'Nur für den RailTime-Superadmin',
+        'text' => 'Die Werte liegen verschlüsselt in RailTime statt in der .env; Zugangsdaten werden hier nur maskiert dargestellt. Verbindungstests lesen ausschließlich den Health-Endpunkt und führen keine Geräteaktion aus.',
+    ],
+
+    'units' => [
+        'minutes' => 'Minuten',
+        'hours' => 'Stunden',
+        'seconds' => 'Sekunden',
+    ],
+
+    'entra' => [
+        'label' => 'Microsoft Entra und Windows-Geräte',
+        'description' => 'Vorhandene Windows-Geräte regelmäßig aus Microsoft übernehmen und Mitarbeitern zuordnen.',
+    ],
+
+    'deployment' => [
+        'label' => 'Plesk-Adresse und Betriebswerte',
+        'description' => 'Öffentliche Subdomains oder private lokale Adapter-Ports mit sicheren Standardwerten festlegen.',
+        'mode_legend' => 'Adressmodus',
+        'mode_subdomain_label' => 'Plesk-Subdomains (empfohlen)',
+        'mode_subdomain_hint' => 'Öffentliche Connector-Adressen über HTTPS und Port 443.',
+        'mode_ports_label' => 'Private Adapter-Ports',
+        'mode_ports_hint' => 'RailTime spricht die Adapter nur serverintern über http://127.0.0.1 an.',
+        'base_domain' => 'Gemeinsame Basisdomain',
+        'base_domain_hint' => 'Nur eine öffentliche FQDN ohne https://, Port oder Pfad eintragen. Im Produktivbetrieb sind localhost sowie private oder reservierte Domains gesperrt.',
+        'credentials_reset_warning' => 'Eine Änderung von Adressmodus oder Basisdomain deaktiviert aktive externe Provider und entfernt gespeicherte Zugangsdaten auch bei derzeit inaktiven externen Providern. Trage Token und Webhook-Geheimnis danach bewusst neu in den Provider-Karten ein.',
+        'enrollment_ttl' => 'Einrichtungslink gültig',
+        'max_sync_age' => 'Maximales Synchronisierungsalter',
+        'artifact_limit' => 'Maximale Datei- und Skriptgröße',
+        'save_hint' => 'Das Speichern ändert keine Plesk-Konfiguration und startet keinen externen Dienst.',
+        'save' => 'Betriebswerte speichern',
+    ],
+
+    'providers' => [
+        'label' => 'Geräteprovider und Funktionstests',
+        'description' => 'RailTime-Connectoren einrichten und ihren gespeicherten, rein lesenden Health-Endpunkt prüfen.',
+        'setup_help' => 'Provider verwenden ist eine Einstellung, kein Betriebsnachweis. Änderungen zuerst mit Provider speichern übernehmen. Der Verbindungstest prüft die gespeicherten Werte; er installiert keinen Dienst und gibt keine Geräteaktionen frei.',
+        'use' => 'Provider verwenden',
+        'effective_addresses' => 'Aktuell wirksame Adressen',
+        'internal_address' => 'RailTime → Adapter',
+        'public_address' => 'Öffentliche Adresse',
+        'subdomain_prefix' => 'Subdomain-Präfix',
+        'private_port' => 'Privater Adapter-Port',
+        'credentials_hint_native_fork' => 'Beim Wechsel der Anbindung oder des aktiven Ziels muss das Zugriffstoken neu eingegeben werden. Sonst wird der Provider deaktiviert. Profiländerungen sperren die Produktionsfreigabe bis zum erneuten Funktionstest.',
+        'credentials_hint' => 'Bei einer Änderung des aktuell verwendeten Ziels kannst du Token und Webhook-Geheimnis gemeinsam neu eingeben. Ohne vollständige Neueingabe beider Werte deaktiviert RailTime den Provider und entfernt beide Zugangsdaten sicher. Das inaktive Fallback-Feld löst keine Neu-Anmeldung aus.',
+        'token' => 'Connector-Zugriffstoken',
+        'token_remove' => 'Gespeichertes Token beim Speichern entfernen',
+        'webhook_secret' => 'Webhook-Geheimnis',
+        'secret_stored_placeholder' => 'Gespeichert – zum Ersetzen neu eingeben',
+        'secret_min_placeholder' => 'Mindestens 32 Zeichen',
+        'webhook_secret_remove' => 'Gespeichertes Webhook-Geheimnis beim Speichern entfernen',
+        'advanced' => 'Erweiterte Verbindung',
+        'timeout' => 'Zeitlimit',
+        'remote_url' => 'Öffentliche Fernwartungsadresse',
+        'not_tested' => 'In dieser Ansicht noch kein Verbindungstest durchgeführt. Eine angezeigte Adresse bestätigt keine Erreichbarkeit.',
+        'save' => 'Provider speichern',
+        'test' => 'Gespeicherte Verbindung testen',
+    ],
+
+    'openuem_fork' => [
+        'adapter' => 'OpenUEM-Anbindung',
+        'adapter_connector' => 'Bisheriger Connector-Vertrag',
+        'adapter_native_fork' => 'RailTime-Fork · Windows-Profilaufträge v1',
+        'native_fork_hint' => 'Benötigt den erweiterten Worker und Windows-Agenten mit eigenem Auftragsjournal. Server-Funktionstest und Geräteausführung sind getrennte Nachweise. Keine automatische Installation oder Produktionsfreigabe; Fernwartung bleibt separat.',
+        'profiles_hint' => 'Nur bestehende, im Worker ebenfalls freigegebene Profile eintragen. Keine automatisch oder über Tags verteilten Profile. Agent-ID ist die technische OpenUEM-ID, nicht die RailTime-Geräte-ID. Ergebnisse werden abgefragt; kein Webhook-Geheimnis nötig.',
+        'profile_permission' => 'Profilfreigabe',
+        'profile_id' => 'OpenUEM Profil-ID',
+        'profile_label' => 'Bezeichnung (optional)',
+        'profile_remove' => 'Freigabe entfernen',
+        'profiles_empty' => 'Noch kein Geräteprofil freigegeben.',
+        'profile_add' => 'Profilfreigabe hinzufügen',
+    ],
+
+    'nanomdm' => [
+        'title' => 'Mobile Apple-Kommandos',
+        'enabled' => 'freigegeben',
+        'blocked' => 'blockiert',
+        'description' => 'Dieser separate Schalter belegt nur die geprüfte NanoMDM-Kommandokette. Der globale Produktionsschutz gilt weiterhin zusätzlich.',
+        'confirm_block' => 'Mobile NanoMDM-Kommandos jetzt blockieren?',
+        'confirm_enable' => 'Mobile NanoMDM-Kommandos wirklich freigeben? Apple-Testorganisation, APNs/ADE und ein Laborgerät müssen zuvor geprüft sein.',
+        'block' => 'Mobile Kommandos blockieren',
+        'enable' => 'Kontrolliert freigeben',
+    ],
+
+    'diagnostic_checks' => [
+        'configured' => 'Konfiguration',
+        'reachable' => 'Erreichbar',
+        'authenticated' => 'Anmeldung',
+        'contract_valid' => 'Vertrag',
+    ],
+
+    'diagnostic_status' => [
+        'healthy' => 'Verbindung und Connector-Vertrag sind bereit.',
+        'unauthorized' => 'Der Connector hat die Anmeldung abgelehnt.',
+        'unreachable' => 'Der Connector ist nicht erreichbar.',
+        'invalid_configuration' => 'Die gespeicherte Connector-Konfiguration ist ungültig.',
+        'missing_credentials' => 'Das Zugriffstoken fehlt.',
+        'redirect_rejected' => 'Der Connector antwortet mit einer nicht erlaubten Weiterleitung.',
+        'http_error' => 'Der Connector antwortet mit einem HTTP-Fehler.',
+        'response_too_large' => 'Die Health-Antwort überschreitet die erlaubte Größe.',
+        'invalid_response' => 'Der Connector liefert keine gültige Health-Antwort.',
+        'contract_incompatible' => 'Die Antwort entspricht nicht dem RailTime-Connectorvertrag.',
+        'contract_invalid' => 'Die Health-Antwort verletzt den RailTime-Connectorvertrag.',
+        'provider_mismatch' => 'Der Connector meldet einen anderen Provider als erwartet.',
+        'invalid_provider' => 'Der angeforderte Geräteprovider ist nicht zulässig.',
+        'unhealthy' => 'Der Connector meldet sich als nicht betriebsbereit.',
+        'probe_failed' => 'Der Verbindungstest konnte nicht abgeschlossen werden.',
+    ],
+    'diagnostic_status_unknown' => 'Der Verbindungstest lieferte keinen bekannten Status.',
+
+    'identity' => [
+        'label' => 'Microsoft-, Google- und Apple-Domänen',
+        'description' => 'Nur Organisationsdomänen vorbereiten; Benutzerkennwörter und OAuth-Tokens werden nicht in RailTime gespeichert.',
+        'save' => 'Kontendomänen speichern',
+    ],
+
+    'production' => [
+        'label' => 'Produktionsschutz',
+        'description' => 'Enrollment, Konto-Synchronisationen und Gerätebefehle bleiben unabhängig von Providerzugängen standardmäßig blockiert.',
+        'switch_title' => 'Globaler Aktions-Schalter',
+        'enabled' => 'Befehle freigegeben',
+        'blocked' => 'Sicher blockiert',
+        'switch_description' => 'Ein Verbindungstest schaltet diesen Schutz niemals automatisch frei. Die Freigabe betrifft ausschließlich künftig eingereihte, weiterhin berechtigte und protokollierte Befehle.',
+        'confirm_block' => 'Externe Geräteaktionen und Konto-Synchronisationen jetzt global blockieren?',
+        'confirm_enable' => 'Externe Geräteaktionen und Konto-Synchronisationen wirklich global freigeben? Provider, Laborgeräte und Rollback müssen zuvor geprüft sein.',
+        'block' => 'Befehle global blockieren',
+        'enable' => 'Befehle kontrolliert freigeben',
+    ],
+];

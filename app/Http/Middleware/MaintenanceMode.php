@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\Setting;
 use App\Models\User;
+use App\Support\Settings\SystemSettings;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -20,8 +21,8 @@ class MaintenanceMode
     public function handle(Request $request, Closure $next): Response
     {
         // Wartungsmodus-Status aus dem Cache abrufen oder Datenbank abfragen
-        $maintenanceSetting = Cache::remember('maintenance_mode', 60, function () {
-            return Setting::where('key', 'maintenance_mode')->first() ?? (object) ['value' => false, 'updated_at' => null];
+        $maintenanceSetting = Cache::remember(SystemSettings::MAINTENANCE_CACHE_KEY, 60, function () {
+            return Setting::where('key', SystemSettings::MAINTENANCE_MODE)->first() ?? (object) ['value' => false, 'updated_at' => null];
         });
 
         $maintenanceMode = $maintenanceSetting ? $maintenanceSetting->value : false;

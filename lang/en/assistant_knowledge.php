@@ -1,0 +1,141 @@
+<?php
+
+// Texte der Superadmin-Verwaltung fuer das Assistenten-Wissen
+// (Livewire-Komponente Admin\AssistantKnowledgeManager samt Ansicht).
+return [
+    // Rueckmeldung nach dem Speichern
+    'notice_default' => 'Change saved.',
+
+    // Kopfbereich
+    'hero_eyebrow' => 'RailTime Assist · curated knowledge',
+    'hero_title' => 'Clear guardrails, precise details',
+    'hero_text' => 'The default prompt and binding rules guide every answer. Compact knowledge accompanies the request; full entries are retrieved through the approved search tool only when needed.',
+    'topics' => 'Topics',
+    'active' => 'Active',
+    'baseline_short' => 'Baseline',
+
+    // Verhalten & Regeln
+    'rules_heading' => 'Behavior & important rules',
+    'always_active' => 'Always active',
+    'rules_intro' => 'These trusted Superadmin instructions precede the knowledge context in every model request. Knowledge entries remain separate reference data.',
+    'unsaved' => 'Unsaved',
+    'save_prompt_rules' => 'Save prompt & rules',
+    'saving' => 'Saving …',
+    'default_prompt_label' => 'Default prompt',
+    'default_prompt_help' => 'Defines the assistant’s role, tone and primary task. Do not enter credentials or personal data.',
+    'important_rules_label' => 'Important rules',
+    'important_rules_help' => 'Prefer one unambiguous rule per line. These rules take precedence over knowledge entries, but not over built-in platform protection.',
+    'fixed_safety_note' => 'RailTime still adds fixed safety rules: no fabricated actions, no access to live or personal data, and no secrets. This protection layer is intentionally not editable.',
+
+    // Kompakter Wissenskontext
+    'compact_context_heading' => 'Compact knowledge context',
+    'compact_context_help' => 'Sent as reference data with every request and can never override the prompt or rules. Keep it precise, durable and free of sensitive data.',
+    'save_baseline' => 'Save baseline',
+    'baseline_text_label' => 'Baseline text (required)',
+
+    // Themenliste
+    'topics_subtitle' => 'Structure for knowledge search',
+    'add_topic' => 'Add topic',
+    'topics_nav_label' => 'Knowledge topics',
+    'all_entries' => 'All entries',
+    'topic_inactive' => 'Topic inactive',
+    'edit_topic' => 'Edit topic',
+    'delete_topic' => 'Delete topic',
+    'delete_topic_confirm' => 'Remove this topic and all of its information?',
+
+    // Eintragsliste
+    'search_placeholder' => 'Search title, keyword or content …',
+    'search_label' => 'Search knowledge entries',
+    'add_information' => 'Add information',
+    'empty_topics_title' => 'Start with a topic',
+    'empty_topics_text' => 'Topics give the search tool context and keep a growing knowledge pool manageable.',
+    'create_first_topic' => 'Create first topic',
+    'baseline_badge' => 'Baseline',
+    'available' => 'Available',
+    'inactive' => 'Inactive',
+    'edit_information' => 'Edit information',
+    'delete_information' => 'Delete information',
+    'delete_information_confirm' => 'Remove this knowledge entry?',
+    'no_results_title' => 'No matching information',
+    'no_results_text' => 'Adjust the search or create a new entry.',
+    'privacy_note' => 'Active knowledge entries may be sent in excerpts to the configured OpenRouter text model when relevant. Do not store passwords, API keys, personal data or trade secrets.',
+
+    // Themen-Dialog
+    'create_topic' => 'Create topic',
+    'topic_name_label' => 'Name (required)',
+    'topic_description_label' => 'Short description for the AI',
+    'topic_active_label' => 'Enable topic for the chatbot',
+    'unsaved_changes' => 'Unsaved changes',
+    'cancel' => 'Cancel',
+    'save_topic' => 'Save topic',
+
+    // Eintrags-Dialog
+    'create_information' => 'Create information',
+    'entry_title_label' => 'Title (required)',
+    'entry_topic_label' => 'Topic (required)',
+    'select_topic_label' => 'Select topic',
+    'select_topic_option' => 'Select topic',
+    'inactive_suffix' => ' · Inactive',
+    'summary_label' => 'Summary',
+    'summary_help' => 'Required when baseline knowledge is enabled',
+    'content_label' => 'Full information (required)',
+    'keywords_label' => 'Search keywords',
+    'keywords_placeholder' => 'e.g. roster, shift swap, approval',
+    'keywords_help' => 'Separate with commas or semicolons; up to 16 terms.',
+    'entry_active_label' => 'Enable for knowledge search',
+    'entry_baseline_label' => 'Always send summary as baseline',
+    'baseline_slots_used' => 'baseline slots used.',
+    'baseline_capacity_hint' => 'Remove the baseline marker from another information entry first.',
+    'save_information' => 'Save information',
+
+    // Erfolgsmeldungen der Komponente
+    'saved_prompt_rules' => 'Default prompt and rules saved.',
+    'saved_intro' => 'Baseline text saved.',
+    'topic_updated' => 'Topic updated.',
+    'topic_created' => 'Topic created.',
+    'topic_deleted' => 'Topic and contained information removed.',
+    'entry_updated' => 'Information updated.',
+    'entry_created' => 'Information created.',
+    'entry_deleted' => 'Information removed.',
+
+    // Validierungsmeldungen
+    'baseline_limit_reached' => 'At most :limit summaries can be marked as baseline knowledge.',
+    'validation_default_prompt_required' => 'Please enter a default prompt.',
+    'validation_default_prompt_max' => 'The default prompt may contain at most :max characters.',
+    'validation_rules_required' => 'Please enter at least one binding rule.',
+    'validation_rules_max' => 'The rules may contain at most :max characters in total.',
+    'validation_intro_required' => 'Please enter a short baseline text.',
+    'validation_intro_max' => 'The baseline text may contain at most 1,200 characters.',
+    'validation_topic_name_required' => 'Please enter a topic name.',
+    'validation_topic_name_min' => 'The topic name must contain at least 2 characters.',
+    'validation_topic_name_max' => 'The topic name may contain at most 120 characters.',
+    'validation_topic_name_unique' => 'A topic with this name already exists.',
+    'validation_topic_description_max' => 'The topic description may contain at most 500 characters.',
+    'validation_entry_topic_required' => 'Please select a topic.',
+    'validation_entry_topic_integer' => 'The selected topic is invalid.',
+    'validation_entry_topic_exists' => 'The selected topic is no longer available.',
+    'validation_entry_title_required' => 'Please enter a title for the information.',
+    'validation_entry_title_min' => 'The title must contain at least 2 characters.',
+    'validation_entry_title_max' => 'The title may contain at most 180 characters.',
+    'validation_entry_summary_required' => 'A summary is required for baseline knowledge.',
+    'validation_entry_summary_max' => 'The summary may contain at most 1,000 characters.',
+    'validation_entry_content_required' => 'Please enter the full information.',
+    'validation_entry_content_min' => 'The full information must contain at least 3 characters.',
+    'validation_entry_content_max' => 'The full information may contain at most 50,000 characters.',
+    'validation_entry_keywords_max' => 'Search keywords may contain at most 1,000 characters in total.',
+
+    // Feldnamen fuer Validierungsmeldungen
+    'attribute_default_prompt' => 'default prompt',
+    'attribute_rules' => 'binding rules',
+    'attribute_intro' => 'baseline text',
+    'attribute_topic_name' => 'topic name',
+    'attribute_topic_description' => 'topic description',
+    'attribute_topic_active' => 'topic availability',
+    'attribute_entry_topic' => 'topic',
+    'attribute_entry_title' => 'title',
+    'attribute_entry_summary' => 'summary',
+    'attribute_entry_content' => 'full information',
+    'attribute_entry_keywords' => 'search keywords',
+    'attribute_entry_active' => 'knowledge availability',
+    'attribute_entry_baseline' => 'baseline knowledge',
+];

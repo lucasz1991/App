@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\Settings;
+use App\Livewire\Admin\Settings\AssistantRuntimeSection;
 use App\Livewire\Admin\SystemHealth;
 use App\Models\User;
 use App\Services\Ai\SpeechServiceClient;
@@ -131,7 +131,7 @@ class SystemHealthComponentTest extends TestCase
         $local->shouldNotReceive('status');
         app()->instance(SpeechServiceClient::class, $local);
 
-        Livewire::test(Settings::class)
+        Livewire::test(AssistantRuntimeSection::class)
             ->assertSet('assistantSpeechStatus.providers.local.state', 'not_checked')
             ->assertSee('Beim Öffnen der Einstellungen wurde keine Verbindung aufgebaut.');
     }

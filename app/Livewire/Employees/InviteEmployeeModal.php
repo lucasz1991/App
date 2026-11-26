@@ -3,9 +3,9 @@
 namespace App\Livewire\Employees;
 
 use App\Mail\StaffInvitationMail;
-use App\Models\Setting;
 use App\Models\StaffInvitation;
 use App\Models\Team;
+use App\Support\Settings\InvitationSettings;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -61,8 +61,7 @@ class InviteEmployeeModal extends Component
             ->delete();
 
         // Gueltigkeitsdauer aus den Einstellungen (Fallback 7 Tage)
-        $expiryDays = (int) (Setting::getValue('invitations', 'expiry_days') ?? 7);
-        $expiryDays = $expiryDays > 0 ? $expiryDays : 7;
+        $expiryDays = InvitationSettings::expiryDays();
 
         $invitation = StaffInvitation::create([
             'email' => $this->email,

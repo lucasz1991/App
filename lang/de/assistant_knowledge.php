@@ -1,0 +1,141 @@
+<?php
+
+// Texte der Superadmin-Verwaltung fuer das Assistenten-Wissen
+// (Livewire-Komponente Admin\AssistantKnowledgeManager samt Ansicht).
+return [
+    // Rueckmeldung nach dem Speichern
+    'notice_default' => 'Änderung gespeichert.',
+
+    // Kopfbereich
+    'hero_eyebrow' => 'RailTime Assist · kuratiertes Wissen',
+    'hero_title' => 'Klare Leitplanken, gezielte Details',
+    'hero_text' => 'Default-Prompt und verbindliche Regeln steuern jede Antwort. Der kompakte Wissenskontext begleitet die Anfrage; vollständige Einträge ruft der Chatbot nur bei Bedarf über das freigegebene Such-Tool ab.',
+    'topics' => 'Themen',
+    'active' => 'Aktiv',
+    'baseline_short' => 'Basis',
+
+    // Verhalten & Regeln
+    'rules_heading' => 'Verhalten & wichtige Regeln',
+    'always_active' => 'Immer aktiv',
+    'rules_intro' => 'Diese vertrauenswürdigen Superadmin-Vorgaben werden vor dem Wissenskontext an jede Modellanfrage übergeben. Wissenseinträge bleiben davon getrennte Referenzdaten.',
+    'unsaved' => 'Nicht gespeichert',
+    'save_prompt_rules' => 'Prompt & Regeln speichern',
+    'saving' => 'Speichert …',
+    'default_prompt_label' => 'Default-Prompt',
+    'default_prompt_help' => 'Beschreibt Rolle, Ton und Hauptaufgabe des Assistenten. Keine Zugangsdaten oder personenbezogenen Daten eintragen.',
+    'important_rules_label' => 'Wichtige Regeln',
+    'important_rules_help' => 'Am besten eine eindeutige Regel pro Zeile. Diese Regeln haben Vorrang vor Wissenseinträgen, nicht aber vor dem fest eingebauten Plattform-Schutz.',
+    'fixed_safety_note' => 'RailTime ergänzt weiterhin feste Sicherheitsregeln: keine erfundenen Aktionen, kein Zugriff auf Live- oder Personaldaten und keine Geheimnisse. Diese Schutzebene ist absichtlich nicht editierbar.',
+
+    // Kompakter Wissenskontext
+    'compact_context_heading' => 'Kompakter Wissenskontext',
+    'compact_context_help' => 'Wird als reine Referenz bei jeder Anfrage mitgegeben und darf Prompt oder Regeln niemals überschreiben. Präzise, zeitlos und ohne sensible Daten halten.',
+    'save_baseline' => 'Basistext speichern',
+    'baseline_text_label' => 'Basistext (Pflichtfeld)',
+
+    // Themenliste
+    'topics_subtitle' => 'Struktur für die Wissenssuche',
+    'add_topic' => 'Thema hinzufügen',
+    'topics_nav_label' => 'Wissensthemen',
+    'all_entries' => 'Alle Einträge',
+    'topic_inactive' => 'Thema inaktiv',
+    'edit_topic' => 'Thema bearbeiten',
+    'delete_topic' => 'Thema löschen',
+    'delete_topic_confirm' => 'Thema und alle enthaltenen Informationen wirklich entfernen?',
+
+    // Eintragsliste
+    'search_placeholder' => 'Titel, Stichwort oder Inhalt suchen …',
+    'search_label' => 'Wissenseinträge durchsuchen',
+    'add_information' => 'Information anlegen',
+    'empty_topics_title' => 'Mit einem Thema beginnen',
+    'empty_topics_text' => 'Themen geben dem Such-Tool Kontext und halten den Wissenspool auch bei vielen Einträgen übersichtlich.',
+    'create_first_topic' => 'Erstes Thema anlegen',
+    'baseline_badge' => 'Basisinfo',
+    'available' => 'Abrufbar',
+    'inactive' => 'Inaktiv',
+    'edit_information' => 'Information bearbeiten',
+    'delete_information' => 'Information löschen',
+    'delete_information_confirm' => 'Diesen Wissenseintrag wirklich entfernen?',
+    'no_results_title' => 'Keine passenden Informationen',
+    'no_results_text' => 'Suche anpassen oder einen neuen Eintrag anlegen.',
+    'privacy_note' => 'Aktive Wissenseinträge können bei einer passenden Frage auszugsweise an das konfigurierte OpenRouter-Textmodell übertragen werden. Keine Passwörter, API-Schlüssel, personenbezogenen Daten oder Betriebsgeheimnisse hinterlegen.',
+
+    // Themen-Dialog
+    'create_topic' => 'Thema anlegen',
+    'topic_name_label' => 'Name (Pflichtfeld)',
+    'topic_description_label' => 'Kurze Beschreibung für die KI',
+    'topic_active_label' => 'Thema für den Chatbot freigeben',
+    'unsaved_changes' => 'Nicht gespeicherte Änderungen',
+    'cancel' => 'Abbrechen',
+    'save_topic' => 'Thema speichern',
+
+    // Eintrags-Dialog
+    'create_information' => 'Information anlegen',
+    'entry_title_label' => 'Titel (Pflichtfeld)',
+    'entry_topic_label' => 'Thema (Pflichtfeld)',
+    'select_topic_label' => 'Thema auswählen',
+    'select_topic_option' => 'Thema wählen',
+    'inactive_suffix' => ' · Inaktiv',
+    'summary_label' => 'Kurzinfo',
+    'summary_help' => 'Pflichtfeld, sobald Basiswissen aktiviert ist',
+    'content_label' => 'Vollständige Information (Pflichtfeld)',
+    'keywords_label' => 'Suchbegriffe',
+    'keywords_placeholder' => 'z. B. Dienstplan, Schichttausch, Freigabe',
+    'keywords_help' => 'Mit Komma oder Semikolon trennen; maximal 16 Begriffe.',
+    'entry_active_label' => 'Für die Wissenssuche freigeben',
+    'entry_baseline_label' => 'Kurzinfo immer als Basiswissen senden',
+    'baseline_slots_used' => 'Basisplätze belegt.',
+    'baseline_capacity_hint' => 'Entferne zuerst die Basismarkierung bei einer anderen Information.',
+    'save_information' => 'Information speichern',
+
+    // Erfolgsmeldungen der Komponente
+    'saved_prompt_rules' => 'Default-Prompt und Regeln gespeichert.',
+    'saved_intro' => 'Basistext gespeichert.',
+    'topic_updated' => 'Thema aktualisiert.',
+    'topic_created' => 'Thema angelegt.',
+    'topic_deleted' => 'Thema und enthaltene Informationen entfernt.',
+    'entry_updated' => 'Information aktualisiert.',
+    'entry_created' => 'Information angelegt.',
+    'entry_deleted' => 'Information entfernt.',
+
+    // Validierungsmeldungen
+    'baseline_limit_reached' => 'Es können höchstens :limit Kurzinfos als Basiswissen markiert werden.',
+    'validation_default_prompt_required' => 'Bitte einen Default-Prompt eintragen.',
+    'validation_default_prompt_max' => 'Der Default-Prompt darf höchstens :max Zeichen enthalten.',
+    'validation_rules_required' => 'Bitte mindestens eine verbindliche Regel eintragen.',
+    'validation_rules_max' => 'Die Regeln dürfen zusammen höchstens :max Zeichen enthalten.',
+    'validation_intro_required' => 'Bitte einen kurzen Basistext eintragen.',
+    'validation_intro_max' => 'Der Basistext darf höchstens 1.200 Zeichen enthalten.',
+    'validation_topic_name_required' => 'Bitte einen Namen für das Thema eintragen.',
+    'validation_topic_name_min' => 'Der Themenname muss mindestens 2 Zeichen enthalten.',
+    'validation_topic_name_max' => 'Der Themenname darf höchstens 120 Zeichen enthalten.',
+    'validation_topic_name_unique' => 'Ein Thema mit diesem Namen ist bereits vorhanden.',
+    'validation_topic_description_max' => 'Die Themenbeschreibung darf höchstens 500 Zeichen enthalten.',
+    'validation_entry_topic_required' => 'Bitte ein Thema auswählen.',
+    'validation_entry_topic_integer' => 'Das gewählte Thema ist ungültig.',
+    'validation_entry_topic_exists' => 'Das gewählte Thema ist nicht mehr verfügbar.',
+    'validation_entry_title_required' => 'Bitte einen Titel für die Information eintragen.',
+    'validation_entry_title_min' => 'Der Titel muss mindestens 2 Zeichen enthalten.',
+    'validation_entry_title_max' => 'Der Titel darf höchstens 180 Zeichen enthalten.',
+    'validation_entry_summary_required' => 'Für Basiswissen ist eine Kurzinfo erforderlich.',
+    'validation_entry_summary_max' => 'Die Kurzinfo darf höchstens 1.000 Zeichen enthalten.',
+    'validation_entry_content_required' => 'Bitte die vollständige Information eintragen.',
+    'validation_entry_content_min' => 'Die vollständige Information muss mindestens 3 Zeichen enthalten.',
+    'validation_entry_content_max' => 'Die vollständige Information darf höchstens 50.000 Zeichen enthalten.',
+    'validation_entry_keywords_max' => 'Die Suchbegriffe dürfen zusammen höchstens 1.000 Zeichen enthalten.',
+
+    // Feldnamen fuer Validierungsmeldungen
+    'attribute_default_prompt' => 'Default-Prompt',
+    'attribute_rules' => 'verbindliche Regeln',
+    'attribute_intro' => 'Basistext',
+    'attribute_topic_name' => 'Themenname',
+    'attribute_topic_description' => 'Themenbeschreibung',
+    'attribute_topic_active' => 'Themenfreigabe',
+    'attribute_entry_topic' => 'Thema',
+    'attribute_entry_title' => 'Titel',
+    'attribute_entry_summary' => 'Kurzinfo',
+    'attribute_entry_content' => 'vollständige Information',
+    'attribute_entry_keywords' => 'Suchbegriffe',
+    'attribute_entry_active' => 'Wissensfreigabe',
+    'attribute_entry_baseline' => 'Basiswissen',
+];

@@ -4,6 +4,9 @@ namespace Tests\Feature;
 
 use App\Livewire\Admin\DeviceManagementSettings as DeviceManagementSettingsComponent;
 use App\Livewire\Admin\Settings;
+use App\Livewire\Admin\Settings\AssistantRuntimeSection;
+use App\Livewire\Admin\Settings\AssistantSection;
+use App\Livewire\Admin\Settings\CallsSection;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\DeviceManagement\DeviceManagementSettings as DeviceManagementSettingsService;
@@ -86,13 +89,13 @@ class AdminSettingsOverviewAndSuperadminTest extends TestCase
         $otherAdmin = User::factory()->create(['role' => 'admin']);
         $this->assertFalse($otherAdmin->isSuperAdmin());
 
-        $otherComponent = Livewire::actingAs($otherAdmin)
-            ->test(Settings::class)
-            ->assertSet('assistantSpeechRouting', '')
-            ->assertSet('assistantSpeechStatus', [])
-            ->assertSet('calls', [])
-            ->assertSet('openRouter', []);
-        $otherHtml = $otherComponent->html();
+        // Die Superadmin-Abschnitte sind eigene Komponenten: fuer andere
+        // Administratoren werden sie weder gerendert noch lassen sie sich
+        // direkt einhaengen (und laden dadurch auch keine Werte).
+        $otherHtml = Livewire::actingAs($otherAdmin)->test(Settings::class)->html();
+
+        Livewire::actingAs($otherAdmin)->test(AssistantRuntimeSection::class)->assertForbidden();
+        Livewire::actingAs($otherAdmin)->test(CallsSection::class)->assertForbidden();
 
         $this->assertStringContainsString('assistant-enabled', $otherHtml);
         $this->assertStringNotContainsString('data-tab-panel-id="superadmin"', $otherHtml);
@@ -281,7 +284,7 @@ class AdminSettingsOverviewAndSuperadminTest extends TestCase
         AssistantSettings::setEnabled(true);
 
         Livewire::actingAs($otherAdmin)
-            ->test(Settings::class)
+            ->test(AssistantSection::class)
             ->assertSet('assistantEnabled', true)
             ->set('assistantEnabled', false)
             ->assertDispatched('assistant-settings-saved');
@@ -294,17 +297,23 @@ class AdminSettingsOverviewAndSuperadminTest extends TestCase
         User::factory()->create(['role' => 'admin']);
         $otherAdmin = User::factory()->create(['role' => 'admin']);
 
-        Livewire::actingAs($otherAdmin)
-            ->test(Settings::class)
-            ->call('saveCalls')
-            ->assertForbidden();
+        $superAdmin = User::query()->orderBy('id')->firstOrFail();
+
+        // Direktes Einhaengen scheitert bereits in mount ...
+        Livewire::actingAs($otherAdmin)->test(CallsSection::class)->assertForbidden();
+        Livewire::actingAs($otherAdmin)->test(AssistantRuntimeSection::class)->assertForbidden();
+
+        // ... und jede Aktion prueft die Grenze erneut, auch wenn die
+        // Komponente zuvor vom Superadmin geoeffnet wurde.
+        $calls = Livewire::actingAs($superAdmin)->test(CallsSection::class);
+        $this->actingAs($otherAdmin);
+        $calls->call('saveCalls')->assertForbidden();
 
         $this->assertNull(Setting::getValueUncached(CallSettings::GROUP, 'livekit'));
 
-        Livewire::actingAs($otherAdmin)
-            ->test(Settings::class)
-            ->call('refreshAssistantSpeechStatus')
-            ->assertForbidden();
+        $runtime = Livewire::actingAs($superAdmin)->test(AssistantRuntimeSection::class);
+        $this->actingAs($otherAdmin);
+        $runtime->call('refreshAssistantSpeechStatus')->assertForbidden();
     }
 
     public function test_open_router_settings_are_stored_and_the_key_never_leaves_the_server(): void
@@ -312,7 +321,7 @@ class AdminSettingsOverviewAndSuperadminTest extends TestCase
         $superAdmin = User::factory()->create(['role' => 'admin']);
 
         Livewire::actingAs($superAdmin)
-            ->test(Settings::class)
+            ->test(AssistantRuntimeSection::class)
             ->set('openRouter.api_url', 'https://openrouter.ai/api/v1/chat/completions')
             ->set('openRouter.api_key', 'sk-or-v1-geheim')
             ->set('openRouter.referer_url', 'https://app.rail-time.de')
@@ -354,7 +363,7 @@ class AdminSettingsOverviewAndSuperadminTest extends TestCase
         $storedBefore = (array) Setting::getValueUncached(OpenRouterSettings::GROUP, OpenRouterSettings::KEY);
 
         Livewire::actingAs($superAdmin)
-            ->test(Settings::class)
+            ->test(AssistantRuntimeSection::class)
             ->assertSet('openRouter.api_key', OpenRouterSettings::SECRET_MASK)
             ->set('openRouter.model_title', 'RailTime Betrieb')
             ->call('saveOpenRouter')
@@ -370,13 +379,14 @@ class AdminSettingsOverviewAndSuperadminTest extends TestCase
 
     public function test_a_regular_admin_cannot_save_open_router_settings(): void
     {
-        User::factory()->create(['role' => 'admin']);
+        $superAdmin = User::factory()->create(['role' => 'admin']);
         $otherAdmin = User::factory()->create(['role' => 'admin']);
 
-        Livewire::actingAs($otherAdmin)
-            ->test(Settings::class)
-            ->call('saveOpenRouter')
-            ->assertForbidden();
+        Livewire::actingAs($otherAdmin)->test(AssistantRuntimeSection::class)->assertForbidden();
+
+        $runtime = Livewire::actingAs($superAdmin)->test(AssistantRuntimeSection::class);
+        $this->actingAs($otherAdmin);
+        $runtime->call('saveOpenRouter')->assertForbidden();
 
         $this->assertNull(Setting::getValueUncached(OpenRouterSettings::GROUP, OpenRouterSettings::KEY));
     }
@@ -387,7 +397,7 @@ class AdminSettingsOverviewAndSuperadminTest extends TestCase
         $otherAdmin = User::factory()->create(['role' => 'admin']);
 
         Livewire::actingAs($superAdmin)
-            ->test(Settings::class)
+            ->test(AssistantRuntimeSection::class)
             ->assertSet('assistantSpeechRouting', AssistantSpeechSettings::DEFAULT_MODE)
             ->set('assistantSpeechRouting', AssistantSpeechSettings::EXTERNAL_ONLY)
             ->assertHasNoErrors()
@@ -398,10 +408,11 @@ class AdminSettingsOverviewAndSuperadminTest extends TestCase
             AssistantSpeechSettings::mode(uncached: true),
         );
 
-        Livewire::actingAs($otherAdmin)
-            ->test(Settings::class)
-            ->call('saveAssistantSpeechRouting')
-            ->assertForbidden();
+        Livewire::actingAs($otherAdmin)->test(AssistantRuntimeSection::class)->assertForbidden();
+
+        $runtime = Livewire::actingAs($superAdmin)->test(AssistantRuntimeSection::class);
+        $this->actingAs($otherAdmin);
+        $runtime->call('saveAssistantSpeechRouting')->assertForbidden();
     }
 
     public function test_open_router_runtime_values_stay_within_their_limits(): void
@@ -409,7 +420,7 @@ class AdminSettingsOverviewAndSuperadminTest extends TestCase
         $superAdmin = User::factory()->create(['role' => 'admin']);
 
         Livewire::actingAs($superAdmin)
-            ->test(Settings::class)
+            ->test(AssistantRuntimeSection::class)
             ->set('openRouter.api_url', 'https://openrouter.ai/api/v1/chat/completions')
             ->set('openRouter.timeout', 5000)
             ->set('openRouter.temperature', 9)

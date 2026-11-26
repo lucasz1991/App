@@ -2,15 +2,15 @@
 
 namespace App\Support;
 
-use App\Models\Setting;
 use App\Models\User;
+use App\Support\Settings\MailSettings;
 
 class SupportRecipient
 {
     public static function resolve(): ?string
     {
         $candidates = [
-            Setting::getValueUncached('mails', 'admin_email'),
+            MailSettings::adminEmail(),
             config('mail.super_admin'),
             User::query()->where('role', 'admin')->orderBy('id')->value('email'),
         ];

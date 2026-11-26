@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\Http\Middleware\LogActivity;
 use App\Jobs\ExpireCallInvitation;
-use App\Livewire\Admin\Settings;
+use App\Livewire\Admin\Settings\CallsSection;
 use App\Livewire\Calls\CallDetails;
 use App\Livewire\Calls\CallHistory;
 use App\Livewire\Calls\CallWindow;
@@ -795,7 +795,7 @@ class CallFlowTest extends TestCase
         $this->assertTrue($superAdmin->isSuperAdmin());
 
         Livewire::actingAs($superAdmin)
-            ->test(Settings::class)
+            ->test(CallsSection::class)
             ->set('calls.ring_timeout', 240)
             ->set('calls.max_participants', 25)
             ->call('saveCalls')
@@ -815,7 +815,7 @@ class CallFlowTest extends TestCase
         $this->assertTrue($superAdmin->isSuperAdmin());
 
         Livewire::actingAs($superAdmin)
-            ->test(Settings::class)
+            ->test(CallsSection::class)
             // 5 Sekunden waeren unbedienbar, 99999 wuerde den Chat blockieren.
             ->set('calls.ring_timeout', 5)
             ->call('saveCalls')
@@ -824,16 +824,20 @@ class CallFlowTest extends TestCase
 
     public function test_a_regular_admin_cannot_load_or_change_call_settings(): void
     {
-        User::factory()->create(['role' => 'admin']);
+        $superAdmin = User::factory()->create(['role' => 'admin']);
         $regularAdmin = User::factory()->create(['role' => 'admin']);
 
         $this->assertFalse($regularAdmin->isSuperAdmin());
 
+        // Laden: der Abschnitt laesst sich gar nicht erst einhaengen.
         Livewire::actingAs($regularAdmin)
-            ->test(Settings::class)
-            ->assertSet('calls', [])
-            ->call('saveCalls')
+            ->test(CallsSection::class)
             ->assertForbidden();
+
+        // Aendern: auch eine vom Superadmin geoeffnete Komponente prueft je Aktion.
+        $component = Livewire::actingAs($superAdmin)->test(CallsSection::class);
+        $this->actingAs($regularAdmin);
+        $component->call('saveCalls')->assertForbidden();
     }
 
     public function test_the_ring_timeout_setting_drives_the_invitation_window(): void

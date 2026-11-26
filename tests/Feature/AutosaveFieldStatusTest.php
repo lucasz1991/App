@@ -83,7 +83,7 @@ class AutosaveFieldStatusTest extends TestCase
         $inline = file_get_contents(resource_path('views/components/ui/inline-edit-field.blade.php'));
         $identity = file_get_contents(resource_path('views/livewire/profile/profile-identity-card.blade.php'));
         $notes = file_get_contents(resource_path('views/livewire/employees/profile/user-notes.blade.php'));
-        $settings = file_get_contents(resource_path('views/livewire/admin/settings.blade.php'));
+        $settings = file_get_contents(resource_path('views/livewire/admin/settings/system-section.blade.php'));
 
         $this->assertStringContainsString('data-autosave-model="{{ $wireModel }}"', $select);
         $this->assertStringContainsString('data-autosave-field-id="{{ $autosaveFieldId }}"', $select);

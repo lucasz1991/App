@@ -104,7 +104,7 @@ class AssistantKnowledgeManager extends Component
         $this->dispatch(
             'knowledge-pool-saved',
             fields: ['assistantDefaultPrompt', 'assistantRules'],
-            message: $this->localized('Default-Prompt und Regeln gespeichert.', 'Default prompt and rules saved.'),
+            message: __('assistant_knowledge.saved_prompt_rules'),
         );
     }
 
@@ -121,7 +121,7 @@ class AssistantKnowledgeManager extends Component
         $this->dispatch(
             'knowledge-pool-saved',
             fields: ['knowledgeIntro'],
-            message: $this->localized('Basistext gespeichert.', 'Baseline text saved.'),
+            message: __('assistant_knowledge.saved_intro'),
         );
     }
 
@@ -186,8 +186,8 @@ class AssistantKnowledgeManager extends Component
             'knowledge-pool-saved',
             fields: ['topic'],
             message: $wasEditing
-                ? $this->localized('Thema aktualisiert.', 'Topic updated.')
-                : $this->localized('Thema angelegt.', 'Topic created.'),
+                ? __('assistant_knowledge.topic_updated')
+                : __('assistant_knowledge.topic_created'),
         );
     }
 
@@ -210,7 +210,7 @@ class AssistantKnowledgeManager extends Component
         $this->dispatch(
             'knowledge-pool-saved',
             fields: ['topic'],
-            message: $this->localized('Thema und enthaltene Informationen entfernt.', 'Topic and contained information removed.'),
+            message: __('assistant_knowledge.topic_deleted'),
         );
     }
 
@@ -280,10 +280,7 @@ class AssistantKnowledgeManager extends Component
                         ->count();
 
                     if ($assigned >= AssistantKnowledgePool::BASELINE_ENTRY_LIMIT) {
-                        $fail($this->localized(
-                            'Es können höchstens '.AssistantKnowledgePool::BASELINE_ENTRY_LIMIT.' Kurzinfos als Basiswissen markiert werden.',
-                            'At most '.AssistantKnowledgePool::BASELINE_ENTRY_LIMIT.' summaries can be marked as baseline knowledge.',
-                        ));
+                        $fail(__('assistant_knowledge.baseline_limit_reached', ['limit' => AssistantKnowledgePool::BASELINE_ENTRY_LIMIT]));
                     }
                 },
             ],
@@ -316,8 +313,8 @@ class AssistantKnowledgeManager extends Component
             'knowledge-pool-saved',
             fields: ['entry'],
             message: $wasEditing
-                ? $this->localized('Information aktualisiert.', 'Information updated.')
-                : $this->localized('Information angelegt.', 'Information created.'),
+                ? __('assistant_knowledge.entry_updated')
+                : __('assistant_knowledge.entry_created'),
         );
     }
 
@@ -329,7 +326,7 @@ class AssistantKnowledgeManager extends Component
         $this->dispatch(
             'knowledge-pool-saved',
             fields: ['entry'],
-            message: $this->localized('Information entfernt.', 'Information removed.'),
+            message: __('assistant_knowledge.entry_deleted'),
         );
     }
 
@@ -376,29 +373,29 @@ class AssistantKnowledgeManager extends Component
     protected function messages(): array
     {
         return [
-            'assistantDefaultPrompt.required' => $this->localized('Bitte einen Default-Prompt eintragen.', 'Please enter a default prompt.'),
-            'assistantDefaultPrompt.max' => $this->localized('Der Default-Prompt darf höchstens '.AssistantKnowledgeSettings::DEFAULT_PROMPT_MAX_CHARACTERS.' Zeichen enthalten.', 'The default prompt may contain at most '.AssistantKnowledgeSettings::DEFAULT_PROMPT_MAX_CHARACTERS.' characters.'),
-            'assistantRules.required' => $this->localized('Bitte mindestens eine verbindliche Regel eintragen.', 'Please enter at least one binding rule.'),
-            'assistantRules.max' => $this->localized('Die Regeln dürfen zusammen höchstens '.AssistantKnowledgeSettings::RULES_MAX_CHARACTERS.' Zeichen enthalten.', 'The rules may contain at most '.AssistantKnowledgeSettings::RULES_MAX_CHARACTERS.' characters in total.'),
-            'knowledgeIntro.required' => $this->localized('Bitte einen kurzen Basistext eintragen.', 'Please enter a short baseline text.'),
-            'knowledgeIntro.max' => $this->localized('Der Basistext darf höchstens 1.200 Zeichen enthalten.', 'The baseline text may contain at most 1,200 characters.'),
-            'topicName.required' => $this->localized('Bitte einen Namen für das Thema eintragen.', 'Please enter a topic name.'),
-            'topicName.min' => $this->localized('Der Themenname muss mindestens 2 Zeichen enthalten.', 'The topic name must contain at least 2 characters.'),
-            'topicName.max' => $this->localized('Der Themenname darf höchstens 120 Zeichen enthalten.', 'The topic name may contain at most 120 characters.'),
-            'topicName.unique' => $this->localized('Ein Thema mit diesem Namen ist bereits vorhanden.', 'A topic with this name already exists.'),
-            'topicDescription.max' => $this->localized('Die Themenbeschreibung darf höchstens 500 Zeichen enthalten.', 'The topic description may contain at most 500 characters.'),
-            'entryTopicId.required' => $this->localized('Bitte ein Thema auswählen.', 'Please select a topic.'),
-            'entryTopicId.integer' => $this->localized('Das gewählte Thema ist ungültig.', 'The selected topic is invalid.'),
-            'entryTopicId.exists' => $this->localized('Das gewählte Thema ist nicht mehr verfügbar.', 'The selected topic is no longer available.'),
-            'entryTitle.required' => $this->localized('Bitte einen Titel für die Information eintragen.', 'Please enter a title for the information.'),
-            'entryTitle.min' => $this->localized('Der Titel muss mindestens 2 Zeichen enthalten.', 'The title must contain at least 2 characters.'),
-            'entryTitle.max' => $this->localized('Der Titel darf höchstens 180 Zeichen enthalten.', 'The title may contain at most 180 characters.'),
-            'entrySummary.required' => $this->localized('Für Basiswissen ist eine Kurzinfo erforderlich.', 'A summary is required for baseline knowledge.'),
-            'entrySummary.max' => $this->localized('Die Kurzinfo darf höchstens 1.000 Zeichen enthalten.', 'The summary may contain at most 1,000 characters.'),
-            'entryContent.required' => $this->localized('Bitte die vollständige Information eintragen.', 'Please enter the full information.'),
-            'entryContent.min' => $this->localized('Die vollständige Information muss mindestens 3 Zeichen enthalten.', 'The full information must contain at least 3 characters.'),
-            'entryContent.max' => $this->localized('Die vollständige Information darf höchstens 50.000 Zeichen enthalten.', 'The full information may contain at most 50,000 characters.'),
-            'entryKeywords.max' => $this->localized('Die Suchbegriffe dürfen zusammen höchstens 1.000 Zeichen enthalten.', 'Search keywords may contain at most 1,000 characters in total.'),
+            'assistantDefaultPrompt.required' => __('assistant_knowledge.validation_default_prompt_required'),
+            'assistantDefaultPrompt.max' => __('assistant_knowledge.validation_default_prompt_max', ['max' => AssistantKnowledgeSettings::DEFAULT_PROMPT_MAX_CHARACTERS]),
+            'assistantRules.required' => __('assistant_knowledge.validation_rules_required'),
+            'assistantRules.max' => __('assistant_knowledge.validation_rules_max', ['max' => AssistantKnowledgeSettings::RULES_MAX_CHARACTERS]),
+            'knowledgeIntro.required' => __('assistant_knowledge.validation_intro_required'),
+            'knowledgeIntro.max' => __('assistant_knowledge.validation_intro_max'),
+            'topicName.required' => __('assistant_knowledge.validation_topic_name_required'),
+            'topicName.min' => __('assistant_knowledge.validation_topic_name_min'),
+            'topicName.max' => __('assistant_knowledge.validation_topic_name_max'),
+            'topicName.unique' => __('assistant_knowledge.validation_topic_name_unique'),
+            'topicDescription.max' => __('assistant_knowledge.validation_topic_description_max'),
+            'entryTopicId.required' => __('assistant_knowledge.validation_entry_topic_required'),
+            'entryTopicId.integer' => __('assistant_knowledge.validation_entry_topic_integer'),
+            'entryTopicId.exists' => __('assistant_knowledge.validation_entry_topic_exists'),
+            'entryTitle.required' => __('assistant_knowledge.validation_entry_title_required'),
+            'entryTitle.min' => __('assistant_knowledge.validation_entry_title_min'),
+            'entryTitle.max' => __('assistant_knowledge.validation_entry_title_max'),
+            'entrySummary.required' => __('assistant_knowledge.validation_entry_summary_required'),
+            'entrySummary.max' => __('assistant_knowledge.validation_entry_summary_max'),
+            'entryContent.required' => __('assistant_knowledge.validation_entry_content_required'),
+            'entryContent.min' => __('assistant_knowledge.validation_entry_content_min'),
+            'entryContent.max' => __('assistant_knowledge.validation_entry_content_max'),
+            'entryKeywords.max' => __('assistant_knowledge.validation_entry_keywords_max'),
         ];
     }
 
@@ -406,19 +403,19 @@ class AssistantKnowledgeManager extends Component
     protected function validationAttributes(): array
     {
         return [
-            'assistantDefaultPrompt' => $this->localized('Default-Prompt', 'default prompt'),
-            'assistantRules' => $this->localized('verbindliche Regeln', 'binding rules'),
-            'knowledgeIntro' => $this->localized('Basistext', 'baseline text'),
-            'topicName' => $this->localized('Themenname', 'topic name'),
-            'topicDescription' => $this->localized('Themenbeschreibung', 'topic description'),
-            'topicActive' => $this->localized('Themenfreigabe', 'topic availability'),
-            'entryTopicId' => $this->localized('Thema', 'topic'),
-            'entryTitle' => $this->localized('Titel', 'title'),
-            'entrySummary' => $this->localized('Kurzinfo', 'summary'),
-            'entryContent' => $this->localized('vollständige Information', 'full information'),
-            'entryKeywords' => $this->localized('Suchbegriffe', 'search keywords'),
-            'entryActive' => $this->localized('Wissensfreigabe', 'knowledge availability'),
-            'entryBaseline' => $this->localized('Basiswissen', 'baseline knowledge'),
+            'assistantDefaultPrompt' => __('assistant_knowledge.attribute_default_prompt'),
+            'assistantRules' => __('assistant_knowledge.attribute_rules'),
+            'knowledgeIntro' => __('assistant_knowledge.attribute_intro'),
+            'topicName' => __('assistant_knowledge.attribute_topic_name'),
+            'topicDescription' => __('assistant_knowledge.attribute_topic_description'),
+            'topicActive' => __('assistant_knowledge.attribute_topic_active'),
+            'entryTopicId' => __('assistant_knowledge.attribute_entry_topic'),
+            'entryTitle' => __('assistant_knowledge.attribute_entry_title'),
+            'entrySummary' => __('assistant_knowledge.attribute_entry_summary'),
+            'entryContent' => __('assistant_knowledge.attribute_entry_content'),
+            'entryKeywords' => __('assistant_knowledge.attribute_entry_keywords'),
+            'entryActive' => __('assistant_knowledge.attribute_entry_active'),
+            'entryBaseline' => __('assistant_knowledge.attribute_entry_baseline'),
         ];
     }
 
@@ -455,10 +452,5 @@ class AssistantKnowledgeManager extends Component
             ->take(16)
             ->values()
             ->all();
-    }
-
-    private function localized(string $german, string $english): string
-    {
-        return app()->getLocale() === 'de' ? $german : $english;
     }
 }

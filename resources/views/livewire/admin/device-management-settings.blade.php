@@ -1,5 +1,4 @@
 @php
-    $isGerman = app()->getLocale() === 'de';
     $mode = (string) ($deployment['mode'] ?? 'subdomain');
     $commandsEnabled = (bool) ($runtime['production_commands_enabled'] ?? false);
     $providerIcons = [
@@ -9,39 +8,7 @@
         'nanomdm' => 'fab fa-apple',
         'identity' => 'fad fa-id-badge',
     ];
-    $diagnosticStatusLabels = $isGerman ? [
-        'healthy' => 'Verbindung und Connector-Vertrag sind bereit.',
-        'unauthorized' => 'Der Connector hat die Anmeldung abgelehnt.',
-        'unreachable' => 'Der Connector ist nicht erreichbar.',
-        'invalid_configuration' => 'Die gespeicherte Connector-Konfiguration ist ungültig.',
-        'missing_credentials' => 'Das Zugriffstoken fehlt.',
-        'redirect_rejected' => 'Der Connector antwortet mit einer nicht erlaubten Weiterleitung.',
-        'http_error' => 'Der Connector antwortet mit einem HTTP-Fehler.',
-        'response_too_large' => 'Die Health-Antwort überschreitet die erlaubte Größe.',
-        'invalid_response' => 'Der Connector liefert keine gültige Health-Antwort.',
-        'contract_incompatible' => 'Die Antwort entspricht nicht dem RailTime-Connectorvertrag.',
-        'contract_invalid' => 'Die Health-Antwort verletzt den RailTime-Connectorvertrag.',
-        'provider_mismatch' => 'Der Connector meldet einen anderen Provider als erwartet.',
-        'invalid_provider' => 'Der angeforderte Geräteprovider ist nicht zulässig.',
-        'unhealthy' => 'Der Connector meldet sich als nicht betriebsbereit.',
-        'probe_failed' => 'Der Verbindungstest konnte nicht abgeschlossen werden.',
-    ] : [
-        'healthy' => 'Connection and connector contract are ready.',
-        'unauthorized' => 'The connector rejected authentication.',
-        'unreachable' => 'The connector is unreachable.',
-        'invalid_configuration' => 'The saved connector configuration is invalid.',
-        'missing_credentials' => 'The access token is missing.',
-        'redirect_rejected' => 'The connector returned a disallowed redirect.',
-        'http_error' => 'The connector returned an HTTP error.',
-        'response_too_large' => 'The health response exceeds the allowed size.',
-        'invalid_response' => 'The connector returned an invalid health response.',
-        'contract_incompatible' => 'The response does not match the RailTime connector contract.',
-        'contract_invalid' => 'The health response violates the RailTime connector contract.',
-        'provider_mismatch' => 'The connector reported a different provider than expected.',
-        'invalid_provider' => 'The requested device provider is not allowed.',
-        'unhealthy' => 'The connector reports that it is not ready.',
-        'probe_failed' => 'The connection test could not be completed.',
-    ];
+    $diagnosticStatusLabels = (array) __('device_management.diagnostic_status');
 @endphp
 
 <div
@@ -68,20 +35,18 @@
         <i class="fad fa-shield-check mt-0.5 fa-lg shrink-0 text-rt-accent dark:text-rt-dark-accent" aria-hidden="true"></i>
         <div class="min-w-0">
             <p class="font-semibold">
-                {{ $isGerman ? 'Nur für den RailTime-Superadmin' : 'RailTime super administrator only' }}
+                {{ __('device_management.superadmin_only.title') }}
             </p>
             <p class="mt-0.5 leading-5 text-rt-muted dark:text-rt-dark-muted">
-                {{ $isGerman
-                    ? 'Die Werte liegen verschlüsselt in RailTime statt in der .env; Zugangsdaten werden hier nur maskiert dargestellt. Verbindungstests lesen ausschließlich den Health-Endpunkt und führen keine Geräteaktion aus.'
-                    : 'Values are stored encrypted in RailTime instead of .env; credentials are only shown as masks. Connection tests only read the health endpoint and never execute a device action.' }}
+                {{ __('device_management.superadmin_only.text') }}
             </p>
         </div>
     </div>
 
     <x-admin.settings-accordion-section
         section="device-microsoft"
-        :label="$isGerman ? 'Microsoft Entra und Windows-Geräte' : 'Microsoft Entra and Windows devices'"
-        :description="$isGerman ? 'Vorhandene Windows-Geräte regelmäßig aus Microsoft übernehmen und Mitarbeitern zuordnen.' : 'Regularly import existing Windows devices from Microsoft and link employees.'"
+        :label="__('device_management.entra.label')"
+        :description="__('device_management.entra.description')"
         icon="fab fa-microsoft"
     >
         <livewire:admin.microsoft-device-settings />
@@ -90,8 +55,8 @@
 
     <x-admin.settings-accordion-section
         section="device-deployment"
-        :label="$isGerman ? 'Plesk-Adresse und Betriebswerte' : 'Plesk address and runtime'"
-        :description="$isGerman ? 'Öffentliche Subdomains oder private lokale Adapter-Ports mit sicheren Standardwerten festlegen.' : 'Choose public subdomains or private local adapter ports with safe defaults.'"
+        :label="__('device_management.deployment.label')"
+        :description="__('device_management.deployment.description')"
         icon="fad fa-server"
     >
         <section class="relative min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60 sm:p-1.5">
@@ -99,17 +64,17 @@
                 <div class="grid min-w-0 gap-4 lg:grid-cols-2">
                     <fieldset class="min-w-0 rounded-xl bg-rt-surface-muted p-4 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60">
                         <legend class="px-1 text-sm font-semibold text-rt-text dark:text-rt-dark-text">
-                            {{ $isGerman ? 'Adressmodus' : 'Address mode' }}
+                            {{ __('device_management.deployment.mode_legend') }}
                         </legend>
                         <div class="mt-2 space-y-2">
                             @foreach ([
                                 'subdomain' => [
-                                    'label' => $isGerman ? 'Plesk-Subdomains (empfohlen)' : 'Plesk subdomains (recommended)',
-                                    'hint' => $isGerman ? 'Öffentliche Connector-Adressen über HTTPS und Port 443.' : 'Public connector addresses over HTTPS and port 443.',
+                                    'label' => __('device_management.deployment.mode_subdomain_label'),
+                                    'hint' => __('device_management.deployment.mode_subdomain_hint'),
                                 ],
                                 'port' => [
-                                    'label' => $isGerman ? 'Private Adapter-Ports' : 'Private adapter ports',
-                                    'hint' => $isGerman ? 'RailTime spricht die Adapter nur serverintern über http://127.0.0.1 an.' : 'RailTime reaches adapters server-side only through http://127.0.0.1.',
+                                    'label' => __('device_management.deployment.mode_ports_label'),
+                                    'hint' => __('device_management.deployment.mode_ports_hint'),
                                 ],
                             ] as $value => $option)
                                 <label class="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl bg-rt-surface px-3 py-2.5 ring-1 ring-rt-border/60 transition hover:ring-rt-accent/40 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
@@ -130,7 +95,7 @@
                     </fieldset>
 
                     <div class="min-w-0 rounded-xl bg-rt-surface-muted p-4 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60">
-                        <x-ui.forms.label for="device-base-domain" :value="$isGerman ? 'Gemeinsame Basisdomain' : 'Shared base domain'" />
+                        <x-ui.forms.label for="device-base-domain" :value="__('device_management.deployment.base_domain')" />
                         <x-ui.forms.input
                             id="device-base-domain"
                             type="text"
@@ -145,9 +110,7 @@
                         />
                         <x-ui.forms.input-error for="deployment.base_domain" class="mt-1.5" />
                         <p id="device-base-domain-hint" class="mt-1.5 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
-                            {{ $isGerman
-                                ? 'Nur eine öffentliche FQDN ohne https://, Port oder Pfad eintragen. Im Produktivbetrieb sind localhost sowie private oder reservierte Domains gesperrt.'
-                                : 'Enter only a public FQDN without https://, port or path. Production blocks localhost and private or reserved domains.' }}
+                            {{ __('device_management.deployment.base_domain_hint') }}
                         </p>
                     </div>
                 </div>
@@ -155,15 +118,13 @@
                 <div class="flex items-start gap-2.5 rounded-xl bg-amber-50/80 p-3.5 text-xs leading-5 text-amber-950 ring-1 ring-amber-200/80 dark:bg-amber-500/10 dark:text-amber-200 dark:ring-amber-500/25">
                     <i class="fad fa-key mt-0.5 shrink-0" aria-hidden="true"></i>
                     <p>
-                        {{ $isGerman
-                            ? 'Eine Änderung von Adressmodus oder Basisdomain deaktiviert aktive externe Provider und entfernt gespeicherte Zugangsdaten auch bei derzeit inaktiven externen Providern. Trage Token und Webhook-Geheimnis danach bewusst neu in den Provider-Karten ein.'
-                            : 'Changing the address mode or base domain disables active external providers and removes saved credentials even from currently inactive external providers. Re-enter tokens and webhook secrets deliberately in the provider cards afterwards.' }}
+                        {{ __('device_management.deployment.credentials_reset_warning') }}
                     </p>
                 </div>
 
                 <div class="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     <div class="min-w-0">
-                        <x-ui.forms.label for="device-enrollment-ttl" :value="$isGerman ? 'Einrichtungslink gültig' : 'Enrollment link lifetime'" />
+                        <x-ui.forms.label for="device-enrollment-ttl" :value="__('device_management.deployment.enrollment_ttl')" />
                         <x-ui.forms.number-input
                             id="device-enrollment-ttl"
                             :min="15"
@@ -171,7 +132,7 @@
                             step="15"
                             :decimals="0"
                             separator="."
-                            :unit="$isGerman ? 'Minuten' : 'minutes'"
+                            :unit="__('device_management.units.minutes')"
                             :nullable="false"
                             class="mt-1 w-full"
                             wire:model="runtime.enrollment_ttl_minutes"
@@ -179,7 +140,7 @@
                         <x-ui.forms.input-error for="runtime.enrollment_ttl_minutes" class="mt-1" />
                     </div>
                     <div class="min-w-0">
-                        <x-ui.forms.label for="device-max-sync-age" :value="$isGerman ? 'Maximales Synchronisierungsalter' : 'Maximum sync age'" />
+                        <x-ui.forms.label for="device-max-sync-age" :value="__('device_management.deployment.max_sync_age')" />
                         <x-ui.forms.number-input
                             id="device-max-sync-age"
                             :min="1"
@@ -187,7 +148,7 @@
                             step="1"
                             :decimals="0"
                             separator="."
-                            :unit="$isGerman ? 'Stunden' : 'hours'"
+                            :unit="__('device_management.units.hours')"
                             :nullable="false"
                             class="mt-1 w-full"
                             wire:model="runtime.max_sync_age_hours"
@@ -195,7 +156,7 @@
                         <x-ui.forms.input-error for="runtime.max_sync_age_hours" class="mt-1" />
                     </div>
                     <div class="min-w-0">
-                        <x-ui.forms.label for="device-artifact-limit" :value="$isGerman ? 'Maximale Datei- und Skriptgröße' : 'Maximum file and script size'" />
+                        <x-ui.forms.label for="device-artifact-limit" :value="__('device_management.deployment.artifact_limit')" />
                         <x-ui.forms.number-input
                             id="device-artifact-limit"
                             :min="1024"
@@ -215,7 +176,7 @@
                 <div class="flex flex-col gap-3 border-t border-rt-border/60 pt-4 dark:border-rt-dark-border/60 sm:flex-row sm:items-center sm:justify-between">
                     <div class="min-w-0">
                         <p class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
-                            {{ $isGerman ? 'Das Speichern ändert keine Plesk-Konfiguration und startet keinen externen Dienst.' : 'Saving does not change Plesk configuration or start an external service.' }}
+                            {{ __('device_management.deployment.save_hint') }}
                         </p>
                         <x-ui.forms.input-error for="deployment" class="mt-1.5" />
                     </div>
@@ -227,7 +188,7 @@
                         class="min-h-11 w-full shrink-0 sm:w-auto"
                     >
                         <i class="fad fa-save" aria-hidden="true"></i>
-                        <span wire:loading.remove wire:target="saveDeployment">{{ $isGerman ? 'Betriebswerte speichern' : 'Save runtime settings' }}</span>
+                        <span wire:loading.remove wire:target="saveDeployment">{{ __('device_management.deployment.save') }}</span>
                         <span wire:loading wire:target="saveDeployment">{{ __('app.loading') }}</span>
                     </x-ui.buttons.button-basic>
                 </div>
@@ -237,14 +198,12 @@
 
     <x-admin.settings-accordion-section
         section="device-providers"
-        :label="$isGerman ? 'Geräteprovider und Funktionstests' : 'Device providers and connection tests'"
-        :description="$isGerman ? 'RailTime-Connectoren einrichten und ihren gespeicherten, rein lesenden Health-Endpunkt prüfen.' : 'Configure RailTime connectors and probe their saved read-only health endpoint.'"
+        :label="__('device_management.providers.label')"
+        :description="__('device_management.providers.description')"
         icon="fad fa-network-wired"
     >
         <p class="mb-4 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted" data-device-provider-setup-help>
-            {{ $isGerman
-                ? 'Provider verwenden ist eine Einstellung, kein Betriebsnachweis. Änderungen zuerst mit Provider speichern übernehmen. Der Verbindungstest prüft die gespeicherten Werte; er installiert keinen Dienst und gibt keine Geräteaktionen frei.'
-                : 'Use provider is a setting, not evidence of readiness. Apply changes with Save provider first. The connection test checks saved values; it does not install a service or enable device actions.' }}
+            {{ __('device_management.providers.setup_help') }}
         </p>
         <div class="grid min-w-0 gap-4 xl:grid-cols-2">
             @foreach ($providers as $providerKey => $provider)
@@ -254,7 +213,7 @@
                     $healthy = (bool) ($result['healthy'] ?? false);
                     $diagnosticStatus = (string) ($result['status'] ?? 'probe_failed');
                     $diagnosticStatusLabel = $diagnosticStatusLabels[$diagnosticStatus]
-                        ?? ($isGerman ? 'Der Verbindungstest lieferte keinen bekannten Status.' : 'The connection test returned an unknown status.');
+                        ?? __('device_management.diagnostic_status_unknown');
                 @endphp
                 <section
                     wire:key="device-provider-settings-{{ $providerKey }}"
@@ -277,7 +236,7 @@
                         <x-ui.forms.toggle-button
                             :id="'device-provider-'.$providerKey.'-enabled'"
                             :model="'providers.'.$providerKey.'.enabled'"
-                            :label="$isGerman ? 'Provider verwenden' : 'Use provider'"
+                            :label="__('device_management.providers.use')"
                             class="shrink-0"
                         />
                     </div>
@@ -288,15 +247,15 @@
                         @endif
                         <div class="rounded-xl bg-rt-surface-muted p-3.5 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60">
                             <p class="text-xs font-semibold uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">
-                                {{ $isGerman ? 'Aktuell wirksame Adressen' : 'Currently effective addresses' }}
+                                {{ __('device_management.providers.effective_addresses') }}
                             </p>
                             <dl class="mt-2 space-y-2 text-xs">
                                 <div>
-                                    <dt class="font-semibold text-rt-muted dark:text-rt-dark-muted">{{ $isGerman ? 'RailTime → Adapter' : 'RailTime → adapter' }}</dt>
+                                    <dt class="font-semibold text-rt-muted dark:text-rt-dark-muted">{{ __('device_management.providers.internal_address') }}</dt>
                                     <dd class="mt-0.5 break-all font-mono text-rt-text dark:text-rt-dark-text">{{ $provider['effective_url'] ?: '—' }}</dd>
                                 </div>
                                 <div>
-                                    <dt class="font-semibold text-rt-muted dark:text-rt-dark-muted">{{ $isGerman ? 'Öffentliche Adresse' : 'Public address' }}</dt>
+                                    <dt class="font-semibold text-rt-muted dark:text-rt-dark-muted">{{ __('device_management.providers.public_address') }}</dt>
                                     <dd class="mt-0.5 break-all font-mono text-rt-text dark:text-rt-dark-text">{{ $provider['public_url'] ?: '—' }}</dd>
                                 </div>
                             </dl>
@@ -304,7 +263,7 @@
 
                         <div class="grid min-w-0 gap-4 sm:grid-cols-2">
                             <div class="min-w-0">
-                                <x-ui.forms.label :for="'device-provider-'.$providerKey.'-subdomain'" :value="$isGerman ? 'Subdomain-Präfix' : 'Subdomain prefix'" />
+                                <x-ui.forms.label :for="'device-provider-'.$providerKey.'-subdomain'" :value="__('device_management.providers.subdomain_prefix')" />
                                 <x-ui.forms.input
                                     :id="'device-provider-'.$providerKey.'-subdomain'"
                                     type="text"
@@ -317,7 +276,7 @@
                                 <x-ui.forms.input-error :for="'providers.'.$providerKey.'.subdomain'" class="mt-1.5" />
                             </div>
                             <div class="min-w-0">
-                                <x-ui.forms.label :for="'device-provider-'.$providerKey.'-port'" :value="$isGerman ? 'Privater Adapter-Port' : 'Private adapter port'" />
+                                <x-ui.forms.label :for="'device-provider-'.$providerKey.'-port'" :value="__('device_management.providers.private_port')" />
                                 <x-ui.forms.number-input
                                     :id="'device-provider-'.$providerKey.'-port'"
                                     :min="1024"
@@ -335,24 +294,22 @@
 
                         <p class="rounded-lg bg-amber-50/70 px-3 py-2 text-xs leading-5 text-amber-900 ring-1 ring-amber-200/70 dark:bg-amber-500/10 dark:text-amber-200 dark:ring-amber-500/20">
                             @if ($providerKey === 'openuem' && ($provider['adapter'] ?? '') === 'native_fork_v1')
-                                {{ $isGerman ? 'Beim Wechsel der Anbindung oder des aktiven Ziels muss das Zugriffstoken neu eingegeben werden. Sonst wird der Provider deaktiviert. Profiländerungen sperren die Produktionsfreigabe bis zum erneuten Funktionstest.' : 'Changing the adapter or active endpoint requires a new access token; otherwise the provider is disabled. Profile changes invalidate production approval until another health check.' }}
+                                {{ __('device_management.providers.credentials_hint_native_fork') }}
                             @else
-                            {{ $isGerman
-                                ? 'Bei einer Änderung des aktuell verwendeten Ziels kannst du Token und Webhook-Geheimnis gemeinsam neu eingeben. Ohne vollständige Neueingabe beider Werte deaktiviert RailTime den Provider und entfernt beide Zugangsdaten sicher. Das inaktive Fallback-Feld löst keine Neu-Anmeldung aus.'
-                                : 'When changing the currently used target, you can re-enter the token and webhook secret together. Without a complete re-entry of both values, RailTime disables the provider and safely removes both credentials. Changing the inactive fallback field does not require re-authentication.' }}
+                            {{ __('device_management.providers.credentials_hint') }}
                             @endif
                         </p>
 
                         <div class="grid min-w-0 gap-4 sm:grid-cols-2">
                             <div class="min-w-0">
-                                <x-ui.forms.label :for="'device-provider-'.$providerKey.'-token'" :value="$isGerman ? 'Connector-Zugriffstoken' : 'Connector access token'" />
+                                <x-ui.forms.label :for="'device-provider-'.$providerKey.'-token'" :value="__('device_management.providers.token')" />
                                 <x-ui.forms.input
                                     :id="'device-provider-'.$providerKey.'-token'"
                                     type="password"
                                     autocomplete="new-password"
                                     autocapitalize="none"
                                     spellcheck="false"
-                                    :placeholder="($provider['token_configured'] ?? false) ? ($isGerman ? 'Gespeichert – zum Ersetzen neu eingeben' : 'Stored — enter a new value to replace') : ($isGerman ? 'Mindestens 32 Zeichen' : 'At least 32 characters')"
+                                    :placeholder="($provider['token_configured'] ?? false) ? __('device_management.providers.secret_stored_placeholder') : __('device_management.providers.secret_min_placeholder')"
                                     wire:model="providers.{{ $providerKey }}.token"
                                     class="mt-1.5 font-mono"
                                 />
@@ -364,20 +321,20 @@
                                             wire:model="providers.{{ $providerKey }}.clear_token"
                                             class="h-4 w-4 rounded border-rt-border text-rt-accent focus:ring-rt-accent dark:border-rt-dark-border dark:bg-rt-dark-surface-muted"
                                         >
-                                        <span>{{ $isGerman ? 'Gespeichertes Token beim Speichern entfernen' : 'Remove the saved token when saving' }}</span>
+                                        <span>{{ __('device_management.providers.token_remove') }}</span>
                                     </label>
                                 @endif
                             </div>
                             @if (! ($providerKey === 'openuem' && ($provider['adapter'] ?? '') === 'native_fork_v1'))
                             <div class="min-w-0">
-                                <x-ui.forms.label :for="'device-provider-'.$providerKey.'-webhook'" :value="$isGerman ? 'Webhook-Geheimnis' : 'Webhook secret'" />
+                                <x-ui.forms.label :for="'device-provider-'.$providerKey.'-webhook'" :value="__('device_management.providers.webhook_secret')" />
                                 <x-ui.forms.input
                                     :id="'device-provider-'.$providerKey.'-webhook'"
                                     type="password"
                                     autocomplete="new-password"
                                     autocapitalize="none"
                                     spellcheck="false"
-                                    :placeholder="($provider['webhook_secret_configured'] ?? false) ? ($isGerman ? 'Gespeichert – zum Ersetzen neu eingeben' : 'Stored — enter a new value to replace') : ($isGerman ? 'Mindestens 32 Zeichen' : 'At least 32 characters')"
+                                    :placeholder="($provider['webhook_secret_configured'] ?? false) ? __('device_management.providers.secret_stored_placeholder') : __('device_management.providers.secret_min_placeholder')"
                                     wire:model="providers.{{ $providerKey }}.webhook_secret"
                                     class="mt-1.5 font-mono"
                                 />
@@ -389,7 +346,7 @@
                                             wire:model="providers.{{ $providerKey }}.clear_webhook_secret"
                                             class="h-4 w-4 rounded border-rt-border text-rt-accent focus:ring-rt-accent dark:border-rt-dark-border dark:bg-rt-dark-surface-muted"
                                         >
-                                        <span>{{ $isGerman ? 'Gespeichertes Webhook-Geheimnis beim Speichern entfernen' : 'Remove the saved webhook secret when saving' }}</span>
+                                        <span>{{ __('device_management.providers.webhook_secret_remove') }}</span>
                                     </label>
                                 @endif
                             </div>
@@ -398,12 +355,12 @@
 
                         <details class="rounded-xl bg-rt-surface-muted ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60">
                             <summary class="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3.5 py-2.5 text-sm font-semibold text-rt-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/45 dark:text-rt-dark-text">
-                                <span>{{ $isGerman ? 'Erweiterte Verbindung' : 'Advanced connection' }}</span>
+                                <span>{{ __('device_management.providers.advanced') }}</span>
                                 <i class="fad fa-chevron-down text-xs text-rt-muted" aria-hidden="true"></i>
                             </summary>
                             <div class="grid min-w-0 gap-4 border-t border-rt-border/60 p-3.5 dark:border-rt-dark-border/60 sm:grid-cols-2">
                                 <div class="min-w-0">
-                                    <x-ui.forms.label :for="'device-provider-'.$providerKey.'-timeout'" :value="$isGerman ? 'Zeitlimit' : 'Timeout'" />
+                                    <x-ui.forms.label :for="'device-provider-'.$providerKey.'-timeout'" :value="__('device_management.providers.timeout')" />
                                     <x-ui.forms.number-input
                                         :id="'device-provider-'.$providerKey.'-timeout'"
                                         :min="1"
@@ -411,7 +368,7 @@
                                         step="1"
                                         :decimals="0"
                                         separator="."
-                                        :unit="$isGerman ? 'Sekunden' : 'seconds'"
+                                        :unit="__('device_management.units.seconds')"
                                         :nullable="false"
                                         class="mt-1 w-full"
                                         wire:model="providers.{{ $providerKey }}.timeout"
@@ -420,7 +377,7 @@
                                 </div>
                                 @if ($providerKey === 'meshcentral')
                                     <div class="min-w-0">
-                                        <x-ui.forms.label :for="'device-provider-'.$providerKey.'-remote-url'" :value="$isGerman ? 'Öffentliche Fernwartungsadresse' : 'Public remote support URL'" />
+                                        <x-ui.forms.label :for="'device-provider-'.$providerKey.'-remote-url'" :value="__('device_management.providers.remote_url')" />
                                         <x-ui.forms.input
                                             :id="'device-provider-'.$providerKey.'-remote-url'"
                                             type="url"
@@ -443,23 +400,21 @@
                             <div class="flex flex-col gap-3 rounded-xl bg-amber-50/80 p-3.5 text-amber-950 ring-1 ring-amber-200/80 dark:bg-amber-500/10 dark:text-amber-200 dark:ring-amber-500/25 sm:flex-row sm:items-center sm:justify-between">
                                 <div class="min-w-0">
                                     <div class="flex flex-wrap items-center gap-2">
-                                        <p class="text-sm font-semibold">{{ $isGerman ? 'Mobile Apple-Kommandos' : 'Mobile Apple commands' }}</p>
+                                        <p class="text-sm font-semibold">{{ __('device_management.nanomdm.title') }}</p>
                                         <span class="rounded-full bg-white/65 px-2 py-0.5 text-[0.7rem] font-semibold ring-1 ring-current/10 dark:bg-black/10">
-                                            {{ $mobileCommandsEnabled ? ($isGerman ? 'freigegeben' : 'enabled') : ($isGerman ? 'blockiert' : 'blocked') }}
+                                            {{ $mobileCommandsEnabled ? __('device_management.nanomdm.enabled') : __('device_management.nanomdm.blocked') }}
                                         </span>
                                     </div>
                                     <p class="mt-1 text-xs leading-5 opacity-85">
-                                        {{ $isGerman
-                                            ? 'Dieser separate Schalter belegt nur die geprüfte NanoMDM-Kommandokette. Der globale Produktionsschutz gilt weiterhin zusätzlich.'
-                                            : 'This separate switch confirms only the reviewed NanoMDM command chain. The global production guard still applies as well.' }}
+                                        {{ __('device_management.nanomdm.description') }}
                                     </p>
                                 </div>
                                 <x-ui.buttons.button-basic mode="secondary"
                                     type="button"
                                     wire:click="setNanoMdmMobileCommandsEnabled({{ $mobileCommandsEnabled ? 'false' : 'true' }})"
                                     wire:confirm="{{ $mobileCommandsEnabled
-                                        ? ($isGerman ? 'Mobile NanoMDM-Kommandos jetzt blockieren?' : 'Block mobile NanoMDM commands now?')
-                                        : ($isGerman ? 'Mobile NanoMDM-Kommandos wirklich freigeben? Apple-Testorganisation, APNs/ADE und ein Laborgerät müssen zuvor geprüft sein.' : 'Enable mobile NanoMDM commands? The Apple test organisation, APNs/ADE and a lab device must be verified first.') }}"
+                                        ? __('device_management.nanomdm.confirm_block')
+                                        : __('device_management.nanomdm.confirm_enable') }}"
                                     wire:loading.attr="disabled"
                                     wire:target="setNanoMdmMobileCommandsEnabled"
                                     class="min-h-11 w-full shrink-0 sm:w-auto"
@@ -467,8 +422,8 @@
                                     <i class="fad {{ $mobileCommandsEnabled ? 'fa-lock' : 'fa-unlock-alt' }}" aria-hidden="true"></i>
                                     <span wire:loading.remove wire:target="setNanoMdmMobileCommandsEnabled">
                                         {{ $mobileCommandsEnabled
-                                            ? ($isGerman ? 'Mobile Kommandos blockieren' : 'Block mobile commands')
-                                            : ($isGerman ? 'Kontrolliert freigeben' : 'Enable deliberately') }}
+                                            ? __('device_management.nanomdm.block')
+                                            : __('device_management.nanomdm.enable') }}
                                     </span>
                                     <span wire:loading wire:target="setNanoMdmMobileCommandsEnabled">{{ __('app.loading') }}</span>
                                 </x-ui.buttons.button-basic>
@@ -496,10 +451,10 @@
                                         </p>
                                         <ul class="mt-2 flex flex-wrap gap-1.5 text-[0.7rem] font-semibold">
                                             @foreach ([
-                                                'configured' => $isGerman ? 'Konfiguration' : 'Configuration',
-                                                'reachable' => $isGerman ? 'Erreichbar' : 'Reachable',
-                                                'authenticated' => $isGerman ? 'Anmeldung' : 'Authentication',
-                                                'contract_valid' => $isGerman ? 'Vertrag' : 'Contract',
+                                                'configured' => __('device_management.diagnostic_checks.configured'),
+                                                'reachable' => __('device_management.diagnostic_checks.reachable'),
+                                                'authenticated' => __('device_management.diagnostic_checks.authenticated'),
+                                                'contract_valid' => __('device_management.diagnostic_checks.contract_valid'),
                                             ] as $check => $label)
                                                 <li class="rounded-md bg-white/55 px-2 py-1 ring-1 ring-current/10 dark:bg-black/10">
                                                     <i class="fad {{ ($result[$check] ?? false) ? 'fa-check' : 'fa-times' }} me-1" aria-hidden="true"></i>{{ $label }}
@@ -511,7 +466,7 @@
                             </div>
                         @else
                             <p class="text-sm leading-5 text-rt-muted dark:text-rt-dark-muted" data-device-provider-unchecked="{{ $providerKey }}">
-                                {{ $isGerman ? 'In dieser Ansicht noch kein Verbindungstest durchgeführt. Eine angezeigte Adresse bestätigt keine Erreichbarkeit.' : 'No connection test has been run in this view yet. A displayed address does not confirm reachability.' }}
+                                {{ __('device_management.providers.not_tested') }}
                             </p>
                         @endif
 
@@ -525,7 +480,7 @@
                                 class="min-h-11 w-full sm:flex-1"
                             >
                                 <i class="fad fa-save" aria-hidden="true"></i>
-                                <span wire:loading.remove wire:target="saveProvider('{{ $providerKey }}')">{{ $isGerman ? 'Provider speichern' : 'Save provider' }}</span>
+                                <span wire:loading.remove wire:target="saveProvider('{{ $providerKey }}')">{{ __('device_management.providers.save') }}</span>
                                 <span wire:loading wire:target="saveProvider('{{ $providerKey }}')">{{ __('app.loading') }}</span>
                             </x-ui.buttons.button-basic>
                             <x-ui.buttons.button-basic mode="secondary"
@@ -536,7 +491,7 @@
                                 class="min-h-11 w-full sm:flex-1"
                             >
                                 <i class="fad fa-stethoscope" aria-hidden="true"></i>
-                                <span wire:loading.remove wire:target="testProvider('{{ $providerKey }}')">{{ $isGerman ? 'Gespeicherte Verbindung testen' : 'Test saved connection' }}</span>
+                                <span wire:loading.remove wire:target="testProvider('{{ $providerKey }}')">{{ __('device_management.providers.test') }}</span>
                                 <span wire:loading wire:target="testProvider('{{ $providerKey }}')">{{ __('app.loading') }}</span>
                             </x-ui.buttons.button-basic>
                         </div>
@@ -548,8 +503,8 @@
 
     <x-admin.settings-accordion-section
         section="device-identities"
-        :label="$isGerman ? 'Microsoft-, Google- und Apple-Domänen' : 'Microsoft, Google and Apple domains'"
-        :description="$isGerman ? 'Nur Organisationsdomänen vorbereiten; Benutzerkennwörter und OAuth-Tokens werden nicht in RailTime gespeichert.' : 'Prepare organisation domains only; user passwords and OAuth tokens are never stored in RailTime.'"
+        :label="__('device_management.identity.label')"
+        :description="__('device_management.identity.description')"
         icon="fad fa-id-card"
     >
         <section class="relative min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60 sm:p-1.5">
@@ -590,7 +545,7 @@
                         class="min-h-11 w-full sm:w-auto"
                     >
                         <i class="fad fa-save" aria-hidden="true"></i>
-                        <span wire:loading.remove wire:target="saveIdentityDomains">{{ $isGerman ? 'Kontendomänen speichern' : 'Save identity domains' }}</span>
+                        <span wire:loading.remove wire:target="saveIdentityDomains">{{ __('device_management.identity.save') }}</span>
                         <span wire:loading wire:target="saveIdentityDomains">{{ __('app.loading') }}</span>
                     </x-ui.buttons.button-basic>
                 </div>
@@ -600,8 +555,8 @@
 
     <x-admin.settings-accordion-section
         section="device-safety"
-        :label="$isGerman ? 'Produktionsschutz' : 'Production safety'"
-        :description="$isGerman ? 'Enrollment, Konto-Synchronisationen und Gerätebefehle bleiben unabhängig von Providerzugängen standardmäßig blockiert.' : 'Enrollment, identity synchronization and device commands remain blocked by default, independently of provider credentials.'"
+        :label="__('device_management.production.label')"
+        :description="__('device_management.production.description')"
         icon="fad fa-shield-alt"
     >
         <section class="overflow-hidden rounded-2xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70">
@@ -613,16 +568,14 @@
                     <div class="min-w-0">
                         <div class="flex flex-wrap items-center gap-2">
                             <h3 class="text-base font-semibold text-rt-text dark:text-rt-dark-text">
-                                {{ $isGerman ? 'Globaler Aktions-Schalter' : 'Global action switch' }}
+                                {{ __('device_management.production.switch_title') }}
                             </h3>
                             <span class="rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $commandsEnabled ? 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/25' : 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/25' }}">
-                                {{ $commandsEnabled ? ($isGerman ? 'Befehle freigegeben' : 'Commands enabled') : ($isGerman ? 'Sicher blockiert' : 'Safely blocked') }}
+                                {{ $commandsEnabled ? __('device_management.production.enabled') : __('device_management.production.blocked') }}
                             </span>
                         </div>
                         <p class="mt-1 max-w-3xl text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">
-                            {{ $isGerman
-                                ? 'Ein Verbindungstest schaltet diesen Schutz niemals automatisch frei. Die Freigabe betrifft ausschließlich künftig eingereihte, weiterhin berechtigte und protokollierte Befehle.'
-                                : 'A connection test never enables this protection automatically. Enabling affects only future commands that remain authorised and audited.' }}
+                            {{ __('device_management.production.switch_description') }}
                         </p>
                     </div>
                 </div>
@@ -630,8 +583,8 @@
                     type="button"
                     wire:click="setProductionCommandsEnabled({{ $commandsEnabled ? 'false' : 'true' }})"
                     wire:confirm="{{ $commandsEnabled
-                        ? ($isGerman ? 'Externe Geräteaktionen und Konto-Synchronisationen jetzt global blockieren?' : 'Block external device actions and identity synchronization globally now?')
-                        : ($isGerman ? 'Externe Geräteaktionen und Konto-Synchronisationen wirklich global freigeben? Provider, Laborgeräte und Rollback müssen zuvor geprüft sein.' : 'Enable external device actions and identity synchronization globally? Providers, lab devices and rollback must be verified first.') }}"
+                        ? __('device_management.production.confirm_block')
+                        : __('device_management.production.confirm_enable') }}"
                     wire:loading.attr="disabled"
                     wire:target="setProductionCommandsEnabled"
                     :mode="$commandsEnabled ? 'secondary' : 'danger'"
@@ -640,8 +593,8 @@
                     <i class="fad {{ $commandsEnabled ? 'fa-lock' : 'fa-unlock-alt' }}" aria-hidden="true"></i>
                     <span wire:loading.remove wire:target="setProductionCommandsEnabled">
                         {{ $commandsEnabled
-                            ? ($isGerman ? 'Befehle global blockieren' : 'Block commands globally')
-                            : ($isGerman ? 'Befehle kontrolliert freigeben' : 'Enable commands deliberately') }}
+                            ? __('device_management.production.block')
+                            : __('device_management.production.enable') }}
                     </span>
                     <span wire:loading wire:target="setProductionCommandsEnabled">{{ __('app.loading') }}</span>
                 </x-ui.buttons.button-basic>

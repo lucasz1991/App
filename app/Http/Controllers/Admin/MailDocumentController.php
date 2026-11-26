@@ -10,7 +10,6 @@ use App\Http\Requests\Mail\ReplaceMailDocumentDraftRequest;
 use App\Http\Requests\Mail\SaveMailDocumentRequest;
 use App\Models\MailDocument;
 use App\Models\MailDocumentVersion;
-use App\Models\Setting;
 use App\Models\User;
 use App\Notifications\MailDocumentTestNotification;
 use App\Support\Mail\CssSemantic;
@@ -34,6 +33,7 @@ use App\Support\Mail\TemplateDocumentContract;
 use App\Support\OutlookAddin\OutlookAddinSnapshotRefreshScheduler;
 use App\Support\OutlookAddin\OutlookLinkedAnimatedDelivery;
 use App\Support\OutlookAddin\OutlookStaticLinkedTestProfiles;
+use App\Support\Settings\MailSettings;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -1301,7 +1301,7 @@ final class MailDocumentController extends Controller
             ]);
         }
 
-        $recipient = trim((string) Setting::getValueUncached('mails', 'admin_email'));
+        $recipient = trim(MailSettings::adminEmail());
         if (filter_var($recipient, FILTER_VALIDATE_EMAIL) === false) {
             throw ValidationException::withMessages([
                 'recipient' => 'In den Systemeinstellungen ist keine gültige Admin-E-Mail-Adresse hinterlegt.',

@@ -15,6 +15,9 @@ use App\Models\User;
  */
 final class SoundLibrary
 {
+    /** Settings-Gruppe der systemweiten Standardzuordnung (Schluessel = Ereignis). */
+    public const SETTINGS_GROUP = 'sounds';
+
     /**
      * Zuordenbare Ereignisse mit ihrer Standardsignatur.
      *
@@ -116,13 +119,30 @@ final class SoundLibrary
         $map = [];
 
         foreach (self::EVENTS as $event => $fallback) {
-            $stored = Setting::getValue('sounds', $event);
+            $stored = Setting::getValue(self::SETTINGS_GROUP, $event);
             $map[$event] = (is_string($stored) && self::supportsSignature($stored))
                 ? $stored
                 : $fallback;
         }
 
         return $map;
+    }
+
+    /**
+     * Systemweite Standardzuordnung speichern (Ereignis => Signatur).
+     *
+     * Geschrieben werden nur bekannte Ereignisse, die in $map vorkommen; die
+     * Signaturen prueft der Aufrufer (Validierung der Einstellungsseite).
+     *
+     * @param  array<string, mixed>  $map
+     */
+    public static function saveSystemMap(array $map): void
+    {
+        foreach (self::events() as $event) {
+            if (array_key_exists($event, $map)) {
+                Setting::setValue(self::SETTINGS_GROUP, $event, (string) $map[$event]);
+            }
+        }
     }
 
     /**
