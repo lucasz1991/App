@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { parseHTML } from 'linkedom';
 
-const app = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
+const app = readFileSync(new URL('../../resources/js/sidebar-navigation.js', import.meta.url), 'utf8');
 const source = app.slice(app.indexOf('function initActiveMenu('), app.indexOf('function scrollSidebarBlockIntoView('));
 assert.ok(source.startsWith('function initActiveMenu('));
 const personalTemplate = readFileSync(new URL('../../resources/views/livewire/operations/personal-page-workspace.blade.php', import.meta.url), 'utf8');

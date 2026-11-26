@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseHTML } from 'linkedom';
 
-const source = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
-const start = source.indexOf("Alpine.data('dashboardWidgetGrid',");
-const end = source.indexOf('\n}));', start) + '\n}));'.length;
+const source = readFileSync(new URL('../../resources/js/dashboard-widget-grid.js', import.meta.url), 'utf8');
+const start = source.indexOf('const dashboardWidgetGrid = ');
+const end = source.indexOf('\n});', start) + '\n});'.length;
 assert.ok(start >= 0 && end > start, 'Actual dashboard controller source must be available.');
-const controllerSource = source.slice(start, end);
+// Komponente aus ihrem Modul (ohne export) plus die Registrierung aus app.js.
+const controllerSource = `${source.slice(start, end)}\nAlpine.data('dashboardWidgetGrid', dashboardWidgetGrid);`;
 
 const mapBlade = readFileSync(new URL('../../resources/views/dashboard/widgets/operations_dispatch_map.blade.php', import.meta.url), 'utf8');
 const mapStyles = readFileSync(new URL('../../resources/css/operations-workspace.css', import.meta.url), 'utf8');

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseHTML } from 'linkedom';
 
-const script = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
+const script = readFileSync(new URL('../../resources/js/sidebar-navigation.js', import.meta.url), 'utf8');
 function source(name, next) {
     return script.slice(script.indexOf(`function ${name}(`), script.indexOf(`\n${next}`, script.indexOf(`function ${name}(`)));
 }
@@ -12,7 +12,7 @@ function drawer(width = 1440) {
     window.innerWidth = width;
     const functions = new Function('document', 'window', 'MOBILE_SIDEBAR_BREAKPOINT', [
         source('isDesktopHoverSidebar', 'function isSidebarHoveredOrFocused'),
-        source('setMobileSidebarOpen', '/*'),
+        source('setMobileSidebarOpen', 'function initMobileSidebarSwipe'),
         source('syncSidebarToggleState', 'function scheduleDesktopSidebarCollapse'),
         'return { setMobileSidebarOpen, syncSidebarToggleState, isDesktopHoverSidebar };',
     ].join('\n'))(document, window, 1024);

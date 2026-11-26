@@ -458,15 +458,14 @@ test('media ownership remains held through close and releases only on actual cal
     assert.equal(released,true); assert.equal(f.component.activeCall,false); f.component.destroy();
 });
 
-const appSource = await readFile(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
+const paneSource = await readFile(new URL('../../resources/js/chat-pane-navigation.js', import.meta.url), 'utf8');
 function nativeChatGestures(width = 390) {
     const {document}=parseHTML('<div data-communication-chat="true"><button data-chat-swipe-id="17"><span id="row">Alex</span></button><button id="other">Action</button><input></div>');
     let component, now=1000, selection=''; const opened=[];
     const window={innerWidth:width,getSelection:()=>({toString:()=>selection})};
     const context=vm.createContext({Alpine:{data:(name,factory)=>{component=factory(false);}},window,document,localStorage:{getItem:()=>null},performance:{now:()=>now},readChatViewport:()=>({width,height:844,top:0})});
-    const start=appSource.indexOf("Alpine.data('chatPaneNavigation'");
-    const end=appSource.indexOf("Alpine.data('adminDashboardCharts'",start);
-    vm.runInContext(appSource.slice(start,end),context);
+    const paneComponent=paneSource.slice(paneSource.indexOf('const chatPaneNavigation = '))+"\nAlpine.data('chatPaneNavigation', chatPaneNavigation);";
+    vm.runInContext(paneComponent,context);
     component.$root=document.querySelector('div');component.$wire={openChat:id=>opened.push(id)};
     const touch=(x,y,target=document.querySelector('#row'))=>({target,touches:[{clientX:x,clientY:y}],changedTouches:[{clientX:x,clientY:y}]});
     return {component,document,opened,touch,time:ms=>{now+=ms;},selection:text=>{selection=text;}};

@@ -217,7 +217,7 @@ test('release settles by position, a decisive fling wins against position', () =
 
 // Execute the real app integration, not a copy of its gesture handlers. The
 // synthetic DOM supplies layout metrics; no browser, database or session is used.
-const appSource = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
+const appSource = readFileSync(new URL('../../resources/js/sidebar-navigation.js', import.meta.url), 'utf8');
 const integrationSource = appSource.slice(
     appSource.indexOf('function initMobileSidebarSwipe() {'),
     appSource.indexOf('function syncSidebarToggleState() {'),

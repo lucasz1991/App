@@ -148,7 +148,7 @@ class GlobalPageCanvasTest extends TestCase
 
     public function test_existing_theme_store_remains_the_only_runtime_owner_and_print_reports_stay_standalone(): void
     {
-        foreach (['resources/js/app.js', 'resources/js/customer-portal.js'] as $path) {
+        foreach (['resources/js/theme.js', 'resources/js/customer-portal.js'] as $path) {
             $js = $this->source($path);
             $this->assertStringContainsString("Alpine.store('theme',", $js);
             $this->assertStringContainsString("localStorage.getItem('rt-theme')", $js);

@@ -5,13 +5,14 @@ import vm from 'node:vm';
 import { parseHTML } from 'linkedom';
 
 const settle = () => new Promise(resolve => setTimeout(resolve, 25));
-const appSource = await readFile(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
+const paneSource = await readFile(new URL('../../resources/js/chat-pane-navigation.js', import.meta.url), 'utf8');
 const blade = await readFile(new URL('../../resources/views/livewire/chat-box.blade.php', import.meta.url), 'utf8');
 const nativeDataExpression = blade.match(/x-data="([^"]+)"/)[1];
 const listInert = blade.match(/class="rt-chat-list-pane[^"]*"[\s\S]*?x-bind:inert="([^"]+)"/)[1];
 const chatInert = blade.match(/class="rt-chat-conversation-pane[^"]*"[\s\S]*?x-bind:inert="([^"]+)"/)[1];
-const start = appSource.indexOf("Alpine.data('chatPaneNavigation'");
-const end = appSource.indexOf("Alpine.data('adminDashboardCharts'", start);
+// Die echte Komponente aus ihrem Modul (ohne export) plus die Registrierung aus app.js.
+const paneComponent = paneSource.slice(paneSource.indexOf('const chatPaneNavigation = '))
+    + "\nAlpine.data('chatPaneNavigation', chatPaneNavigation);";
 
 async function fixture({ changingExpression = false, selected = false, split = false } = {}) {
     const { window, document } = parseHTML('<html><head></head><body></body></html>');
@@ -57,7 +58,7 @@ async function fixture({ changingExpression = false, selected = false, split = f
         return state;
     });
     context.Alpine = Alpine;
-    vm.runInContext(appSource.slice(start, end), context, { filename: 'native-chat-pane-navigation.js' });
+    vm.runInContext(paneComponent, context, { filename: 'native-chat-pane-navigation.js' });
 
     const html = (hasSelection, chatId = 17) => {
         const expression = changingExpression

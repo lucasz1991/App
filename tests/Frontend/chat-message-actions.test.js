@@ -323,7 +323,7 @@ test('composer preserves every input path in the detached premium control layout
 test('reference motion and geometry stay compact, branded, and reduced-motion safe', async () => {
     const [styles, app] = await Promise.all([
         readFile(new URL('../../resources/css/chat.css', import.meta.url), 'utf8'),
-        readFile(new URL('../../resources/js/app.js', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/js/chat-transcript-scroll.js', import.meta.url), 'utf8'),
     ]);
 
     const lineRule = styles.match(/\.rt-chat-message-line\s*\{([\s\S]*?)\}/)?.[1] || '';

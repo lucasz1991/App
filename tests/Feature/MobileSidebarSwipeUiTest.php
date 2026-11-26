@@ -8,7 +8,7 @@ class MobileSidebarSwipeUiTest extends TestCase
 {
     public function test_mobile_sidebar_swipe_opens_only_at_the_edge_and_respects_scroll_owners(): void
     {
-        $script = file_get_contents(resource_path('js/app.js'));
+        $script = file_get_contents(resource_path('js/sidebar-navigation.js'));
         $resolver = file_get_contents(resource_path('js/mobile-sidebar-swipe.js'));
         $tabs = file_get_contents(resource_path('views/components/ui/accordion/tabs.blade.php'));
         $chat = file_get_contents(resource_path('views/livewire/chat-box.blade.php'));

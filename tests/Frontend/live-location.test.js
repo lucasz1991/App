@@ -903,7 +903,7 @@ test('Alpine factories expose the stable launcher, mini-card and global preview 
 
 test('the Echo listener forwards only identifiers and status before authorized refresh', async () => {
     const source = await readFile(
-        new URL('../../resources/js/app.js', import.meta.url),
+        new URL('../../resources/js/chat-realtime.js', import.meta.url),
         'utf8',
     );
     const start = source.indexOf(".listen('.chat.live-location.changed'");
