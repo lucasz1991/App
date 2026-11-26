@@ -6,7 +6,7 @@
     @endphp
     <div class="rt-mobile-sidebar-backdrop fixed inset-x-0 bottom-0 top-[70px] z-20 bg-slate-950/45 backdrop-blur-[2px] print:hidden" aria-hidden="true"></div>
 
-    {{-- Höhe und Innenabstände liegen bewusst in `shell-redesign.css`
+    {{-- Höhe und Innenabstände liegen bewusst in `shell.css`
          (.rt-shell-sidebar): Auf dem Telefon muss die Höhe der dynamischen
          Viewporthöhe folgen, und der obere Abstand gehört in den Scrollbereich
          statt an die Schale — sonst entsteht darüber eine tote Zone, in der die

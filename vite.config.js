@@ -15,7 +15,7 @@ export default defineConfig({
         laravel({
             input: [
                 'resources/css/app.css',
-                'resources/css/shell-redesign.css',
+                'resources/css/shell.css',
                 'resources/css/tabs.css',
                 'resources/css/chat.css',
                 'resources/js/app.js',

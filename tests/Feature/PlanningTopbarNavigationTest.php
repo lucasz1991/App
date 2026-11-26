@@ -203,7 +203,7 @@ class PlanningTopbarNavigationTest extends TestCase
         $previous = $xpath->query('preceding-sibling::*[1]', $target)->item(0);
         $this->assertSame('vertical-menu-btn', $previous->getAttribute('id'));
         $this->assertSame('button', $previous->nodeName);
-        $css = file_get_contents(resource_path('css/shell-redesign.css'));
+        $css = file_get_contents(resource_path('css/shell.css'));
         $this->assertStringContainsString('.rt-shell-planning-navigation:empty { display: none; }', $css);
         $this->assertMatchesRegularExpression('/\.rt-shell-planning-navigation \.rt-multi-toggle \.rt-multi-toggle__button\.rt-ui-button\s*\{[^}]*min-width:\s*32px;[^}]*min-height:\s*40px;/s', $css);
         $this->assertStringContainsString('.rt-shell-topbar:has([data-topbar-planning-navigation] > *) .rt-shell-brand-mark', $css);
@@ -279,7 +279,7 @@ class PlanningTopbarNavigationTest extends TestCase
         $topbar = file_get_contents(resource_path('views/layouts/topbar.blade.php'));
         $this->assertSame(1, substr_count($topbar, 'data-topbar-page-search'));
         $this->assertStringContainsString('<div data-topbar-global-search><livewire:tools.global-search /></div>', $topbar);
-        $css = file_get_contents(resource_path('css/shell-redesign.css'));
+        $css = file_get_contents(resource_path('css/shell.css'));
         $this->assertStringContainsString('[data-topbar-page-search]:empty { display: none; }', $css);
         $this->assertStringContainsString('.rt-shell-topbar-controls:has([data-topbar-page-search] > *) [data-topbar-global-search] { display: none; }', $css);
         Http::assertNothingSent();

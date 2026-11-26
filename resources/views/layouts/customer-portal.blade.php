@@ -11,7 +11,7 @@
             'fontAwesome' => true,
         ]])
         <title>RailTime · Kundenportal</title>
-        @vite(['resources/css/app.css', 'resources/css/shell-redesign.css', 'resources/js/customer-portal.js'])
+        @vite(['resources/css/app.css', 'resources/css/shell.css', 'resources/js/customer-portal.js'])
         @livewireStyles
         @stack('styles')
     </head>

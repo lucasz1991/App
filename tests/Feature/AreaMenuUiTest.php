@@ -56,7 +56,7 @@ class AreaMenuUiTest extends TestCase
 
     public function test_native_sidebar_no_longer_depends_on_the_legacy_planning_stylesheet(): void
     {
-        $css = file_get_contents(resource_path('css/shell-redesign.css'));
+        $css = file_get_contents(resource_path('css/shell.css'));
         $this->assertStringContainsString('.rt-shell-sidebar .metismenu .mm-collapse:not(.mm-show) { display: none; }', $css);
         $this->assertStringContainsString('.rt-shell-sidebar .metismenu .mm-collapse.mm-show { display: block; }', $css);
         $this->assertStringContainsString('margin-inline-start: 12px;', $css);

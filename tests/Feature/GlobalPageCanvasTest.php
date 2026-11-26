@@ -56,7 +56,7 @@ class GlobalPageCanvasTest extends TestCase
             $this->assertNotSame('var(--rt-app-canvas)', $this->declaration($light, $surface));
         }
         $this->assertSame(1, preg_match_all('/--rt-shell-canvas\s*:\s*var\(--rt-app-canvas\)\s*;/', $css));
-        $this->assertSame(0, preg_match_all('/--rt-shell-canvas\s*:/', $this->source('resources/css/shell-redesign.css')));
+        $this->assertSame(0, preg_match_all('/--rt-shell-canvas\s*:/', $this->source('resources/css/shell.css')));
     }
 
     public function test_personnel_frames_no_longer_cover_the_global_canvas_but_keep_their_calm_ambient_contract(): void
@@ -100,10 +100,10 @@ class GlobalPageCanvasTest extends TestCase
             $this->assertStringContainsString('$store.theme?.dark', $layout, $path);
         }
 
-        // Guest and portal authentication do not load shell-redesign.css;
+        // Guest and portal authentication do not load shell.css;
         // placing the canonical token in app.css is what covers them too.
         foreach (['layouts/guest.blade.php', 'components/customer-portal-auth-layout.blade.php'] as $path) {
-            $this->assertStringNotContainsString('resources/css/shell-redesign.css', $this->source('resources/views/'.$path));
+            $this->assertStringNotContainsString('resources/css/shell.css', $this->source('resources/views/'.$path));
         }
         $this->assertStringContainsString('v=20261123-local-fonts', $this->source('resources/views/layouts/guest.blade.php'));
     }
