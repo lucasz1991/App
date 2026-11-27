@@ -83,6 +83,7 @@ class FilePreviewModal extends Component
     {
         return $this->open
             && $this->file instanceof File
+            && ($this->file->fileable_type === ChatMessage::class || ! $this->file->isExpired())
             && $this->canAccess($this->file, 'download');
     }
 

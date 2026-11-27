@@ -9,7 +9,7 @@
             :layout="$layout"
             :file-type="$fileType"
             :file-types="$fileTypes"
-            :scope="$currentScope"
+            :scope="$embedded && $scopeLinks === [] ? null : $currentScope"
             :scope-links="$scopeLinks"
             :include-all-scopes="!$embedded"
             :show-up="false"
@@ -54,7 +54,7 @@
                                 <td class="rt-explorer-col-type">{{ \App\Support\FileExplorer::typeLabel(\App\Support\FileExplorer::type($file)) }}</td>
                                 <td class="rt-explorer-col-size">{{ $file->size_formatted }}</td>
                                 <td class="rt-explorer-col-actions">
-                                    <a href="{{ route('managed-documents.download', $document) }}" class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-rt-accent hover:bg-rt-accent-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent dark:text-rt-dark-accent dark:hover:bg-rt-dark-accent-soft" title="{{ __('app.download_current_version') }}">
+                                    <a href="{{ route('managed-documents.download', $document) }}" class="inline-flex h-11 w-8 items-center justify-center rounded-lg text-rt-accent hover:bg-rt-accent-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent dark:text-rt-dark-accent dark:hover:bg-rt-dark-accent-soft" title="{{ __('app.download_current_version') }}">
                                         <i class="far fa-download" aria-hidden="true"></i>
                                         <span class="sr-only">{{ __('app.download_current_version') }} {{ $document->title }}</span>
                                     </a>

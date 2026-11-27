@@ -3,6 +3,7 @@
         :pool-id="$companyPoolId"
         :read-only="false"
         :allow-team-permissions="true"
+        :scope-links="$scopeLinks"
         :key="'company-file-pool'"
     />
 </x-ui.page>

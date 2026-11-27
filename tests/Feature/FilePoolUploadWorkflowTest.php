@@ -54,6 +54,21 @@ class FilePoolUploadWorkflowTest extends TestCase
         }
     }
 
+    public function test_company_manager_rechecks_its_management_permission_on_follow_up_requests(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $component = Livewire::actingAs($admin)->test(ManageFilePools::class, [
+            'poolId' => $this->companyPool()->id,
+            'readOnly' => false,
+            'allowTeamPermissions' => true,
+        ]);
+
+        $admin->forceFill(['role' => 'staff'])->save();
+        Livewire::actingAs($admin->fresh());
+
+        $component->call('openCreateFolder')->assertForbidden();
+    }
+
     public function test_folder_context_delete_is_a_valid_attribute_not_visible_handler_text(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);

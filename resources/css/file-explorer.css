@@ -118,7 +118,16 @@
 }
 
 .rt-explorer-picker select {
-    padding-inline-end: 1.25rem;
+    appearance: none;
+    padding-inline-end: .875rem;
+    background-image: none;
+}
+
+.rt-explorer-picker-chevron {
+    position: absolute;
+    inset-inline-end: .375rem;
+    pointer-events: none;
+    font-size: .625rem;
 }
 
 .rt-explorer-type-picker {
@@ -260,8 +269,10 @@
 }
 
 .rt-explorer-grid-file.rt-file-card {
+    width: 100%;
+    max-width: 100%;
     aspect-ratio: auto;
-    min-height: 8.75rem;
+    min-height: 9.25rem;
     background: var(--rt-color-surface);
     color: var(--rt-color-text);
 }
@@ -332,9 +343,6 @@
 
     .rt-explorer-scope-picker select {
         font-size: .75rem;
-        padding-inline-end: .8rem;
-        background-position: right center;
-        background-size: .85rem;
     }
 
     .rt-explorer-type-picker,
@@ -351,6 +359,10 @@
         opacity: 0;
     }
 
+    :is(.rt-explorer-type-picker, .rt-explorer-layout-picker) .rt-explorer-picker-chevron {
+        display: none;
+    }
+
     .rt-explorer-search {
         padding-inline: .375rem;
     }
@@ -358,7 +370,22 @@
 
 @container railtime-file-tools (max-width: 22rem) {
     .rt-explorer-toolbar {
-        --rt-explorer-control-size: 2.125rem;
+        --rt-explorer-control-size: 2rem;
+        gap: .1875rem;
+        padding: .1875rem;
+    }
+
+    .rt-explorer-up {
+        flex-basis: 1.75rem;
+    }
+
+    .rt-explorer-scope-picker {
+        flex-basis: 4.75rem;
+        padding-inline: .1875rem;
+    }
+
+    .rt-explorer-search {
+        padding-inline: .25rem;
     }
 
     .rt-explorer-search > i {
@@ -386,12 +413,17 @@
     }
 
     .rt-explorer-table .rt-explorer-col-actions {
-        width: 2.5rem;
+        width: 3.25rem;
     }
 }
 
 @media (pointer: coarse) {
     .rt-explorer-toolbar {
+        min-height: 2.75rem;
+    }
+
+    .rt-explorer-toolbar :is(.rt-explorer-control, .rt-explorer-segment),
+    .rt-explorer-toolbar-actions button {
         min-height: 2.75rem;
     }
 

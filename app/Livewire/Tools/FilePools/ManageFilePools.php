@@ -900,6 +900,10 @@ class ManageFilePools extends Component
             return false;
         }
 
+        if ($this->allowTeamPermissions && $pool->filepoolable_type === 'company' && ! Gate::allows('files.manage')) {
+            return false;
+        }
+
         if ($this->isMarketingMotivePool($pool)) {
             return $user->isAdmin();
         }
@@ -1043,13 +1047,21 @@ class ManageFilePools extends Component
     {
         $segments = [__('app.root_folder')];
 
-        if ($folder) {
-            foreach ($folder->breadcrumb() as $crumb) {
-                $segments[] = $crumb->name;
-            }
+        foreach ($this->visibleBreadcrumb($folder) as $crumb) {
+            $segments[] = $crumb->name;
         }
 
         return implode(' / ', $segments);
+    }
+
+    /** @return list<FileFolder> */
+    protected function visibleBreadcrumb(?FileFolder $folder): array
+    {
+        $path = $folder?->breadcrumb() ?? [];
+
+        return $this->canBypassFileVisibility()
+            ? $path
+            : array_values(array_filter($path, fn (FileFolder $entry): bool => $this->mayViewFolder($entry)));
     }
 
     protected function resetUploadDraft(bool $notifyClient = true): void
@@ -1215,7 +1227,7 @@ class ManageFilePools extends Component
             'downloadableIds' => $downloadableIds,
             'isFiltered' => trim($this->search) !== '' || $this->fileType !== '',
             'currentFolder' => $currentFolder,
-            'breadcrumb' => $currentFolder ? $currentFolder->breadcrumb() : [],
+            'breadcrumb' => $this->visibleBreadcrumb($currentFolder),
             'canMoveFiles' => $this->canMoveFiles($filePool),
             'canUploadFiles' => $this->canUploadFiles(),
             'teams' => $this->readOnly

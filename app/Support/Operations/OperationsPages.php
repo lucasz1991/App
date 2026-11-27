@@ -121,6 +121,16 @@ final class OperationsPages
         return array_filter(self::definitions(), fn ($definition, $page) => $page !== 'shifts' && (self::views($actor, $page) || self::sections($actor, $page)), ARRAY_FILTER_USE_BOTH);
     }
 
+    /** @return array<string, string> */
+    public static function documentScopeLinks(bool $embedded = true): array
+    {
+        return [
+            'required' => $embedded ? self::url('documents', ['view' => 'managed']) : route('admin.managed-documents'),
+            'personal' => self::url('documents', ['view' => 'personal']),
+            'shared' => $embedded ? self::url('documents', ['view' => 'files']) : route('admin.files'),
+        ];
+    }
+
     public static function url(string $page, array $parameters = []): string
     {
         abort_unless(isset(self::definitions()[$page]), 404);

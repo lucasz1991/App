@@ -2,12 +2,15 @@
 
 namespace App\Livewire\Files;
 
+use App\Livewire\Concerns\InteractsWithFileExplorer;
 use App\Models\DeviceTrustCertificate;
 use App\Models\ManagedDocument;
 use App\Models\ManagedDocumentVersion;
 use App\Models\Team;
 use App\Services\DeviceManagement\Desktop\DeviceTrustService;
 use App\Services\ManagedDocumentNotifier;
+use App\Support\FileExplorer;
+use App\Support\Operations\OperationsPages;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
@@ -20,10 +23,13 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ManagedDocuments extends Component
 {
+    use InteractsWithFileExplorer;
     use WithFileUploads;
 
     #[Locked]
     public bool $embedded = false;
+
+    public string $search = '';
 
     public bool $formOpen = false;
     public bool $versionUploadOpen = false;
@@ -50,6 +56,14 @@ class ManagedDocuments extends Component
     {
         Gate::authorize('files.manage');
         $this->embedded = $embedded;
+        $this->sortBy = 'date';
+        $this->sortDirection = 'desc';
+    }
+
+    public function clearExplorerFilters(): void
+    {
+        $this->search = '';
+        $this->fileType = '';
     }
 
     public function openCreate(): void
@@ -327,15 +341,21 @@ class ManagedDocuments extends Component
 
     public function render()
     {
+        Gate::authorize('files.manage');
+        $this->normalizeExplorerOptions();
         $trust = app(DeviceTrustService::class);
         $trustReady = $trust->ready();
         $documents = ManagedDocument::query()
             ->with(['currentVersion.file', 'teams'])
             ->when($trustReady, fn ($query) => $query->with('currentVersion.trustCertificates'))
             ->withCount('versions')
-            ->orderByDesc('content_updated_at')
-            ->orderBy('title')
             ->get();
+        $fileTypes = FileExplorer::fileTypes($documents->map(fn (ManagedDocument $document) => $document->currentVersion?->file), current: $this->fileType);
+        $documents = FileExplorer::sortDocuments(
+            FileExplorer::filterDocuments($documents, $this->search, $this->fileType),
+            $this->sortBy,
+            $this->sortDirection,
+        );
 
         $historyDocument = $this->historyDocumentId
             ? ManagedDocument::with(['versions.file', 'versions.creator'])->find($this->historyDocumentId)
@@ -343,6 +363,8 @@ class ManagedDocuments extends Component
 
         return view('livewire.files.managed-documents', [
             'documents' => $documents,
+            'fileTypes' => $fileTypes,
+            'scopeLinks' => OperationsPages::documentScopeLinks($this->embedded),
             'teams' => Team::query()->where('personal_team', false)->orderBy('name')->get(),
             'historyDocument' => $historyDocument,
             'trustReady' => $trustReady,

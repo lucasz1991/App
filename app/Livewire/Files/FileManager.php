@@ -3,12 +3,14 @@
 namespace App\Livewire\Files;
 
 use App\Models\FilePool;
+use App\Support\Operations\OperationsPages;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Component;
 use Livewire\Attributes\Locked;
 
 class FileManager extends Component
 {
+    #[Locked]
     public int $companyPoolId;
 
     #[Locked]
@@ -25,7 +27,10 @@ class FileManager extends Component
     public function render()
     {
         Gate::authorize('files.manage');
-        return view('livewire.files.file-manager')
+
+        return view('livewire.files.file-manager', [
+            'scopeLinks' => OperationsPages::documentScopeLinks($this->embedded),
+        ])
             ->layout('layouts.master', ['area' => 'admin']);
     }
 }

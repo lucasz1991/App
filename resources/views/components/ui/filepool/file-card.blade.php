@@ -111,7 +111,7 @@
                     @unless($isDetails)
                         <span class="rt-explorer-file-meta">{{ $typeLabel }} · {{ $file->size_formatted }}</span>
                     @endunless
-                    @if(($isList || $isDetails) && $file->expires_at)
+                    @if($file->expires_at)
                         <span class="rt-explorer-file-meta">
                             {{ $file->isExpired() ? __('app.expired') : __('app.expires_on', ['date' => $file->expires_at->format('d.m.Y')]) }}
                         </span>
@@ -126,7 +126,7 @@
         <td class="rt-explorer-col-date">{{ $file->updated_at?->format('d.m.Y') ?? '—' }}</td>
         <td class="rt-explorer-col-type">{{ $typeLabel }}</td>
         <td class="rt-explorer-col-size">{{ $file->size_formatted }}</td>
-    @elseif(!$isList && $file->expires_at)
+    @elseif($layout === null && $file->expires_at)
         {{-- Rein informativ: Klicks laufen zum Vorschau-Knopf durch. --}}
         <span
             data-rt-tone="{{ $file->isExpired() ? 'red' : 'slate' }}"

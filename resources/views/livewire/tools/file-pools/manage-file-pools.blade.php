@@ -230,7 +230,9 @@
     wire:target="enterFolder,goUp"
     wire:loading.class="is-busy"
     data-file-explorer-layout="{{ $layout }}"
-    @contextmenu.prevent="openCtx($event, null)"
+    @if(!$readOnly || $canUploadFiles || $downloadableIds->isNotEmpty())
+      @contextmenu.prevent="openCtx($event, null)"
+    @endif
   >
     @if($detailsView && $hasResults)
       <x-ui.filepool.explorer-table :sort-by="$sortBy" :sort-direction="$sortDirection">

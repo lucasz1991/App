@@ -85,6 +85,17 @@ class FilePreviewFullscreenTest extends TestCase
         }
     }
 
+    public function test_an_expired_pool_file_does_not_offer_download_in_the_admin_preview(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $file = $this->file($this->companyPool(), $admin, ['expires_at' => now()->subDay()]);
+
+        Livewire::actingAs($admin)->test(FilePreviewModal::class)
+            ->call('openWith', $file->id)
+            ->assertSet('open', true)
+            ->assertDontSeeHtml('data-file-preview-action="download"');
+    }
+
     public function test_view_permission_does_not_expose_or_execute_download_action(): void
     {
         $staff = User::factory()->create(['role' => 'staff']);

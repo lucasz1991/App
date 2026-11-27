@@ -56,6 +56,7 @@
                         </option>
                     @endforeach
                 </select>
+                <i class="far fa-chevron-down rt-explorer-picker-chevron" aria-hidden="true"></i>
             </label>
         @endif
 
@@ -73,6 +74,7 @@
                     <option value="{{ $value }}">{{ $label }}</option>
                 @endforeach
             </select>
+            <i class="far fa-chevron-down rt-explorer-picker-chevron" aria-hidden="true"></i>
         </label>
 
         <div class="rt-explorer-segments rt-explorer-layouts" role="group" aria-label="{{ __('file_explorer.layout_label') }}">
@@ -91,6 +93,7 @@
                     <option value="{{ $value }}" @selected($layout === $value)>{{ __("file_explorer.layouts.$value") }}</option>
                 @endforeach
             </select>
+            <i class="far fa-chevron-down rt-explorer-picker-chevron" aria-hidden="true"></i>
         </label>
 
         @isset($actions)

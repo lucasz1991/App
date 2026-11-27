@@ -2,16 +2,23 @@
     :title="__('app.managed_documents')"
     :eyebrow="__('app.file_management')"
     :description="__('app.managed_documents_intro')"
-    :count="$documents->count()"
 >
-    <x-slot:actions>
-        <x-ui.dropdown.page-actions>
-            <x-ui.dropdown.dropdown-link wire:click.prevent="openCreate" can="files.manage">
-                <i class="far fa-plus" aria-hidden="true"></i>
-                {{ __('app.add_managed_document') }}
-            </x-ui.dropdown.dropdown-link>
-        </x-ui.dropdown.page-actions>
-    </x-slot:actions>
+    <x-ui.filepool.explorer-toolbar :layout="$layout" :file-type="$fileType" :file-types="$fileTypes"
+        scope="required" :scope-links="$scopeLinks" :show-up="false">
+        <x-slot:actions>
+            <x-ui.dropdown.page-actions>
+                <x-ui.dropdown.dropdown-link wire:click.prevent="openCreate" can="files.manage">
+                    <i class="far fa-plus" aria-hidden="true"></i>
+                    {{ __('app.add_managed_document') }}
+                </x-ui.dropdown.dropdown-link>
+            </x-ui.dropdown.page-actions>
+        </x-slot:actions>
+    </x-ui.filepool.explorer-toolbar>
+
+    <div class="flex min-w-0 flex-wrap items-center justify-between gap-2 px-1 text-sm text-rt-muted dark:text-rt-dark-muted">
+        <span class="font-medium text-rt-text dark:text-rt-dark-text">{{ __('file_explorer.scopes.required') }}</span>
+        <span role="status">{{ trans_choice('app.files_count', $documents->count(), ['count' => $documents->count()]) }}</span>
+    </div>
 
     <section class="rounded-2xl bg-rt-surface p-5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60 sm:p-6" data-anim="fade-up">
         <div class="flex items-start gap-3">
@@ -25,13 +32,63 @@
         </div>
     </section>
 
-    @forelse ($documents as $document)
+    @if ($layout === 'details' && $documents->isNotEmpty())
+        <x-ui.filepool.explorer-table :sort-by="$sortBy" :sort-direction="$sortDirection">
+            @foreach ($documents as $document)
+                @php
+                    $version = $document->currentVersion;
+                    $file = $version?->file;
+                @endphp
+                <tr class="rt-explorer-file-row" wire:key="managed-document-detail-{{ $document->id }}">
+                    <td class="rt-explorer-col-name">
+                        <p class="rt-explorer-file-name">{{ $document->title }}</p>
+                        <p class="rt-explorer-file-meta">
+                            @if($version)
+                                v{{ $version->version_number }} ·
+                            @endif
+                            {{ $document->is_active ? __('app.active') : __('app.inactive') }}
+                        </p>
+                    </td>
+                    <td class="rt-explorer-col-date">{{ $document->content_updated_at?->format('d.m.Y') ?? '—' }}</td>
+                    <td class="rt-explorer-col-type">{{ $file ? \App\Support\FileExplorer::typeLabel(\App\Support\FileExplorer::type($file)) : '—' }}</td>
+                    <td class="rt-explorer-col-size">{{ $file?->size_formatted ?? '—' }}</td>
+                    <td class="rt-explorer-col-actions">
+                        <x-ui.dropdown.anchor-dropdown align="right" width="56">
+                            <x-slot:trigger>
+                                <button type="button" class="rt-explorer-control rt-explorer-row-menu"
+                                    aria-label="{{ __('app.file_actions_label', ['name' => $document->title]) }}">
+                                    <i class="far fa-ellipsis-v" aria-hidden="true"></i>
+                                </button>
+                            </x-slot:trigger>
+                            <x-slot:content>
+                                <x-ui.dropdown.dropdown-link wire:click="openVersionUpload({{ $document->id }})">
+                                    <i class="far fa-upload" aria-hidden="true"></i>{{ __('app.upload_new_version') }}
+                                </x-ui.dropdown.dropdown-link>
+                                <x-ui.dropdown.dropdown-link wire:click="openHistory({{ $document->id }})">
+                                    <i class="far fa-history" aria-hidden="true"></i>{{ __('app.version_history') }}
+                                </x-ui.dropdown.dropdown-link>
+                                <x-ui.dropdown.dropdown-link wire:click="openEdit({{ $document->id }})">
+                                    <i class="far fa-pen" aria-hidden="true"></i>{{ __('app.edit') }}
+                                </x-ui.dropdown.dropdown-link>
+                                <x-ui.dropdown.dropdown-link wire:click="toggleActive({{ $document->id }})">
+                                    <i class="far {{ $document->is_active ? 'fa-eye-slash' : 'fa-eye' }}" aria-hidden="true"></i>
+                                    {{ $document->is_active ? __('app.deactivate') : __('app.activate') }}
+                                </x-ui.dropdown.dropdown-link>
+                            </x-slot:content>
+                        </x-ui.dropdown.anchor-dropdown>
+                    </td>
+                </tr>
+            @endforeach
+        </x-ui.filepool.explorer-table>
+    @else
+      <div @class(['grid min-w-0 gap-3', 'lg:grid-cols-2' => $layout === 'grid'])>
+      @forelse ($documents as $document)
         @php
             $version = $document->currentVersion;
             $file = $version?->file;
         @endphp
         <article class="overflow-hidden rounded-2xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60" wire:key="managed-document-{{ $document->id }}" data-anim="fade-up">
-            <div class="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center sm:p-6">
+            <div @class(['grid gap-5 p-4 sm:p-5', 'lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center' => $layout === 'list'])>
                 <div class="min-w-0">
                     <div class="flex flex-wrap items-center gap-2">
                         <h2 class="text-lg font-semibold tracking-tight text-rt-text dark:text-rt-dark-text">{{ $document->title }}</h2>
@@ -61,7 +118,7 @@
                     @endif
                 </div>
 
-                <div class="flex flex-wrap items-center gap-2 lg:max-w-md lg:justify-end">
+                <div @class(['flex flex-wrap items-center gap-2', 'lg:max-w-md lg:justify-end' => $layout === 'list'])>
                     <x-ui.buttons.button-basic mode="primary" type="button" wire:click="openVersionUpload({{ $document->id }})">
                         <i class="far fa-upload" aria-hidden="true"></i>{{ __('app.upload_new_version') }}
                     </x-ui.buttons.button-basic>
@@ -77,13 +134,22 @@
                 </div>
             </div>
         </article>
-    @empty
-        <section class="flex flex-col items-center rounded-2xl border border-dashed border-rt-border bg-rt-surface-muted/50 px-6 py-16 text-center dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/30">
-            <i class="fad fa-file-plus text-3xl text-rt-soft dark:text-rt-dark-soft" aria-hidden="true"></i>
-            <h2 class="mt-4 font-semibold text-rt-text dark:text-rt-dark-text">{{ __('app.no_managed_documents') }}</h2>
-            <p class="mt-1 max-w-md text-sm text-rt-muted dark:text-rt-dark-muted">{{ __('app.no_managed_documents_hint') }}</p>
-        </section>
-    @endforelse
+      @empty
+          <section class="col-span-full flex flex-col items-center rounded-2xl border border-dashed border-rt-border bg-rt-surface-muted/50 px-6 py-12 text-center dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/30">
+              @if(trim($search) !== '' || $fileType !== '')
+                  <p class="font-medium text-rt-text dark:text-rt-dark-text">{{ __('file_explorer.no_matches') }}</p>
+                  <x-ui.buttons.button-basic class="mt-3" mode="secondary" type="button" wire:click="clearExplorerFilters">
+                      {{ __('file_explorer.clear') }}
+                  </x-ui.buttons.button-basic>
+              @else
+                  <i class="fad fa-file-plus text-3xl text-rt-soft dark:text-rt-dark-soft" aria-hidden="true"></i>
+                  <h2 class="mt-4 font-semibold text-rt-text dark:text-rt-dark-text">{{ __('app.no_managed_documents') }}</h2>
+                  <p class="mt-1 max-w-md text-sm text-rt-muted dark:text-rt-dark-muted">{{ __('app.no_managed_documents_hint') }}</p>
+              @endif
+          </section>
+      @endforelse
+      </div>
+    @endif
 
     <x-dialog-modal wire:model="formOpen">
         <x-slot:title>{{ $editingId ? __('app.edit_managed_document') : __('app.add_managed_document') }}</x-slot:title>

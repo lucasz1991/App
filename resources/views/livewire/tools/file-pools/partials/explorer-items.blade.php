@@ -17,7 +17,7 @@
         @drop.prevent.stop="dropFile($event, {{ $folder->id }}, 'folder-{{ $folder->id }}')"
       @endif
     >
-      @if($detailsView) <td class="px-3 py-1.5"> @endif
+      @if($detailsView) <td class="rt-explorer-col-name"> @endif
       <button type="button" wire:click="enterFolder({{ $folder->id }})"
               @class([
                 'flex w-full min-w-0 items-center rounded-lg text-rt-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent dark:text-rt-dark-text',
@@ -44,10 +44,10 @@
       </button>
       @if($detailsView)
         </td>
-        <td class="whitespace-nowrap px-3 py-1.5 text-sm text-rt-muted dark:text-rt-dark-muted">{{ $folder->updated_at?->format('d.m.Y') ?? '–' }}</td>
-        <td class="whitespace-nowrap px-3 py-1.5 text-sm text-rt-muted dark:text-rt-dark-muted">{{ __('file_explorer.folder') }}</td>
-        <td class="whitespace-nowrap px-3 py-1.5 text-right text-sm text-rt-muted dark:text-rt-dark-muted">–</td>
-        <td class="px-3 py-1.5 text-right">
+        <td class="rt-explorer-col-date">{{ $folder->updated_at?->format('d.m.Y') ?? '–' }}</td>
+        <td class="rt-explorer-col-type">{{ __('file_explorer.folder') }}</td>
+        <td class="rt-explorer-col-size">–</td>
+        <td class="rt-explorer-col-actions">
       @endif
 
       @if(!$readOnly)
@@ -61,11 +61,11 @@
             </x-slot>
             <x-slot name="content">
               <x-ui.dropdown.dropdown-link wire:click.prevent="openRenameFolder({{ $folder->id }})">
-                <i class="far fa-cog mr-2"></i>{{ __('app.folder_settings') }}
+                <i class="far fa-cog mr-2" aria-hidden="true"></i>{{ __('app.folder_settings') }}
               </x-ui.dropdown.dropdown-link>
               @if($allowTeamPermissions)
                 <x-ui.dropdown.dropdown-link wire:click.prevent="openPermissions({{ $folder->id }})">
-                  <i class="far fa-shield-alt mr-2"></i>{{ __('app.permissions') }}
+                  <i class="far fa-shield-alt mr-2" aria-hidden="true"></i>{{ __('app.permissions') }}
                 </x-ui.dropdown.dropdown-link>
               @endif
               <x-ui.dropdown.dropdown-link
@@ -76,7 +76,7 @@
                   :confirm-label="__('app.delete')"
                   class="!text-red-600 dark:!text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
               >
-                <i class="far fa-trash-alt mr-2"></i>{{ __('app.delete') }}
+                <i class="far fa-trash-alt mr-2" aria-hidden="true"></i>{{ __('app.delete') }}
               </x-ui.dropdown.dropdown-link>
             </x-slot>
           </x-ui.dropdown.anchor-dropdown>
