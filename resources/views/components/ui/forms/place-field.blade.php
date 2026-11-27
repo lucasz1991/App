@@ -32,7 +32,7 @@
             </li>
         </template>
     </ul>
-    <small role="status" x-cloak x-show="message" x-text="message" class="block text-rt-muted"></small>
+    <small role="status" x-cloak x-show.important="message" x-text="message" class="block text-rt-muted"></small>
     @if($address || $coordinatesOnly)
         <button type="button" x-show="!portal" class="text-xs text-rt-muted" x-on:mousedown.prevent x-on:click="gps()">Meinen Standort verwenden</button>
     @endif
