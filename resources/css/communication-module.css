@@ -328,7 +328,7 @@ body:has(.rt-ai-assist[data-open='true'] .rt-ai-assist__panel[data-window-mode='
     background: color-mix(in srgb, var(--comm-surface) 62%, var(--comm-canvas));
 }
 .rt-comm-history .rt-comm-list {
-    padding: 0 max(0.75rem, calc((100% - 60rem) / 2)) 0.75rem;
+    padding: 0 0.75rem 0.75rem;
     background: var(--comm-surface);
 }
 .rt-comm-history .rt-comm-card {
