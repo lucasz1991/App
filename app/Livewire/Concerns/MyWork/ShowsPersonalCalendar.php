@@ -24,6 +24,14 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
  */
 trait ShowsPersonalCalendar
 {
+    abstract private function access(): void;
+    abstract private function displayTimezone(): string;
+    abstract public function showTab(string $tab): void;
+    abstract private function requestLocationPreview(array $row, ?array $snapshot = null): array;
+    abstract private function firstPublishedRevisions(Collection $assignments): Collection;
+    abstract private function shiftRequestRow(\App\Models\ShiftAssignment $assignment, Collection $firstRevisions): array;
+    abstract private function requestCalendar(?array $request): ?array;
+
     public int $week = 0;
 
     public string $anchorDate = '';

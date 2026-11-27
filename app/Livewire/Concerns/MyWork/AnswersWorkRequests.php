@@ -35,6 +35,9 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
  */
 trait AnswersWorkRequests
 {
+    abstract private function access(): void;
+    abstract private function displayTimezone(): string;
+
     public string $requestFilter = 'all';
 
     private ?Collection $capacityInboxRecords = null;

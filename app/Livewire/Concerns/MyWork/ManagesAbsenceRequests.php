@@ -15,6 +15,9 @@ use Illuminate\Validation\ValidationException;
  */
 trait ManagesAbsenceRequests
 {
+    abstract private function access(): void;
+    abstract private function withFormErrors(string $prefix, callable $action): mixed;
+
     public bool $absenceOpen = false;
 
     public bool $absenceWholeDays = true;

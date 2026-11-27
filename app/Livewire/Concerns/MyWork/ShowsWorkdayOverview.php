@@ -22,6 +22,9 @@ use Illuminate\Support\Facades\Schema;
  */
 trait ShowsWorkdayOverview
 {
+    abstract private function access(): void;
+    abstract private function displayTimezone(): string;
+
     public string $overviewDate = '';
 
     public bool $tasksOpen = false;

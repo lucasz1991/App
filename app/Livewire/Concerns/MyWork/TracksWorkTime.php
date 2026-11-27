@@ -26,6 +26,12 @@ use Livewire\Attributes\Locked;
  */
 trait TracksWorkTime
 {
+    abstract private function access(): void;
+    abstract private function displayTimezone(): string;
+    abstract private function withFormErrors(string $prefix, callable $action): mixed;
+    abstract public function showTab(string $tab): void;
+    abstract public function openForm(string $form): void;
+
     private const TIME_FILTERS = [
         'all' => 'Alle Status', 'running' => 'Läuft', 'paused' => 'In Pause',
         'completed' => 'Bereit zum Einreichen', 'returned' => 'Zurückgegeben',

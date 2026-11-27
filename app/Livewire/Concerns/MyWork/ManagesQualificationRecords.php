@@ -15,6 +15,9 @@ use Illuminate\Support\Facades\Schema;
  */
 trait ManagesQualificationRecords
 {
+    abstract private function access(): void;
+    abstract private function withFormErrors(string $prefix, callable $action): mixed;
+
     public bool $qualificationOpen = false;
 
     public array $qualification = ['qualification_type_id' => '', 'valid_from' => '', 'valid_until' => ''];

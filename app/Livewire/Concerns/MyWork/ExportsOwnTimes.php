@@ -14,6 +14,8 @@ use App\Support\Operations\WorkTimeSchema;
  */
 trait ExportsOwnTimes
 {
+    abstract private function access(): void;
+
     public function exportOwnTimes(OperationsReportService $service)
     {
         $this->access();

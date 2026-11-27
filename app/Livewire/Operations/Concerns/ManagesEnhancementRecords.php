@@ -75,8 +75,11 @@ trait ManagesEnhancementRecords
      * einem Reiter, der jetzt zu einer anderen Komponente gehört, läuft mit 419 ab
      * (Hinweis zur abgelaufenen Sitzung) statt mit einem Serverfehler; Snapshots
      * mit einem eigenen Reiter arbeiten unverändert weiter.
+     *
+     * Bewusst der Trait-Hook von Livewire (hydrate + Trait-Name): ein späteres
+     * eigenes hydrate() einer Komponente überschreibt diese Prüfung nicht.
      */
-    public function hydrate(): void
+    public function hydrateManagesEnhancementRecords(): void
     {
         abort_unless(array_key_exists($this->tab, static::TABS), 419);
     }

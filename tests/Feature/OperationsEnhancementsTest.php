@@ -699,4 +699,35 @@ class OperationsEnhancementsTest extends TestCase
         Livewire::test(ServiceFulfilment::class, ['tab' => 'proofs'])->call('setTab', 'payroll')->assertForbidden();
         Livewire::test(TimeAdministration::class, ['tab' => 'payroll'])->call('setTab', 'costs')->assertForbidden();
     }
+
+    public function test_snapshots_of_the_former_collective_component_expire_or_continue_through_a_real_update(): void
+    {
+        // Übergang Phase 7, ganzer Weg: Ein vor dem Umbau geöffneter Snapshot trägt den alten Namen
+        // operations.operations-enhancements und alle damaligen Eigenschaften. Die Anfrage läuft über
+        // den Alias in ServiceFulfilment; Reiter der Zeitwirtschaft laufen mit 419 ab, eigene Reiter
+        // arbeiten weiter und werden auf den neuen Namen umgestellt.
+        $this->actingAs($this->admin);
+        $legacy = function (string $class, string $tab): array {
+            $snapshot = Livewire::test($class, ['tab' => $tab, 'embedded' => true])->snapshot;
+            unset($snapshot['checksum']);
+            $snapshot['memo']['name'] = 'operations.operations-enhancements';
+            $snapshot['data'] += ['payrollExportOnly' => false, 'orderId' => null, 'modalOnly' => false];
+            $snapshot['checksum'] = \Livewire\Mechanisms\HandleComponents\Checksum::generate($snapshot);
+
+            return $snapshot;
+        };
+        $create = [['method' => 'create', 'params' => [], 'path' => '']];
+
+        foreach (['rules', 'payroll', 'terminal'] as $tab) {
+            $this->rejected(fn () => app('livewire')->update($legacy(TimeAdministration::class, $tab), [], $create), 419);
+        }
+
+        foreach (['imports', 'costs', 'partners'] as $tab) {
+            [$snapshot] = app('livewire')->update($legacy(ServiceFulfilment::class, $tab), [], $create);
+            $this->assertSame('operations.service-fulfilment', $snapshot['memo']['name']);
+            $this->assertSame($tab, $snapshot['data']['tab']);
+            $this->assertTrue($snapshot['data']['formOpen']);
+            $this->assertArrayNotHasKey('payrollExportOnly', $snapshot['data'], 'Eigenschaften des anderen Fachbereichs werden verworfen.');
+        }
+    }
 }
