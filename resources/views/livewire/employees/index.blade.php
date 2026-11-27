@@ -20,8 +20,11 @@
             @endif
         </x-slot:actions>
 
-        <x-ui.page-header-actions target="search" wire:key="employee-header-search">
-        <div class="employee-directory__controls" aria-label="Mitarbeiter auswählen und suchen">
+        {{-- Kopfsteuerung ueber den controls-Slot: Ein x-teleport in den eigenen
+             Seitenkopf wird beim ersten Livewire-Morph entfernt. Eingebettet
+             reicht x-ui.page den Slot per Teleport an die Gastseite weiter. --}}
+        <x-slot:controls>
+        <div class="employee-directory__controls" aria-label="Mitarbeiter auswählen und suchen" wire:key="employee-header-search">
             <div class="employee-directory__search-controls">
                 <x-tables.bulk-actions :count="count($selectedEmployees)" select-all="toggleSelectAll">
                     <x-ui.dropdown.dropdown-link href="#" wire:click.prevent="clearSelection" tone="danger">
@@ -45,7 +48,7 @@
                     wire:model.live.debounce.300ms="search" />
             </div>
         </div>
-        </x-ui.page-header-actions>
+        </x-slot:controls>
 
         {{-- Tabelle --}}
         <div class="employee-directory__results w-full">

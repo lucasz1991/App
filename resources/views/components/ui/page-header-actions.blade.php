@@ -19,7 +19,9 @@
     Teleport in den Seitenkopf der umgebenden x-ui.page. Nur fuer eingebettete
     Livewire-Kindkomponenten: Slots von x-ui.page sind ueber die
     Komponentengrenze nicht erreichbar. Wer x-ui.page selbst rendert, nutzt
-    die Slots controls/actions. Der Slot braucht genau EIN Wurzelelement
+    die Slots controls/actions: Liegt das Ziel in der eigenen Livewire-
+    Komponente, entfernt der Morph den Klon beim ersten Update und Alpine
+    wirft danach an jedem Ausdruck Fehler. Der Slot braucht genau EIN Wurzelelement
     (x-teleport-Regel); wire:key und weitere Attribute landen am <template>.
 --}}
 <template x-teleport="{{ $teleportTarget }}" {{ $attributes }}>

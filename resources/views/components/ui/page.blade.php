@@ -25,6 +25,8 @@
     // oder Disposition): kein Seitenkopf, kein Intro, kein Gesehen-Tracking
     // und kein Dokumenttitel. Uebrig bleibt ein ops-stack mit optionaler
     // actions-Toolbar. Ersetzt die fruehere Weiche operations.surface/ui.page.
+    // Der controls-Slot wandert eingebettet per Teleport in den Kopf der
+    // Gastseite ([data-page-header-search]) und braucht genau EIN Wurzelelement.
     'embedded' => false,
     // Browser-Tab-Titel; Standard ist :title. Eine vorher gesetzte
     // @section('title') hat Vorrang (die erste Definition gewinnt).
@@ -45,6 +47,7 @@
 @php if ($embedded): @endphp
 <section {{ $attributes->class('ops-stack min-w-0') }}>
     @isset($actions)<div class="ops-toolbar justify-end">{{ $actions }}</div>@endisset
+    @isset($controls)<x-ui.page-header-actions target="search">{{ $controls }}</x-ui.page-header-actions>@endisset
     {{ $slot }}
 </section>
 @php else: @endphp
