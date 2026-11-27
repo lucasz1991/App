@@ -149,7 +149,12 @@ class LexwareSettings extends Component
             'company_name' => (string) $profile?->company_name,
             'import_profile' => (string) $profile?->import_profile,
             'product_version' => (string) $profile?->product_version,
-            'mappings' => $profile?->mappings ?? [],
+            'mappings' => array_map(static fn (array $row) => [
+                'source_code' => $row['source_code'],
+                'target_code' => $row['target_code'],
+                'quantity_kind' => $row['quantity_kind'],
+                'disjoint' => $row['disjoint'],
+            ], $profile?->mappings ?? []),
         ];
     }
 
@@ -166,11 +171,16 @@ class LexwareSettings extends Component
     {
         $actor = $this->actor();
         $employers = $profiles->employers($actor);
-        $profile = $this->employer !== '' ? $profiles->get($this->employer, $actor) : null;
-        $missing = $this->employer !== '' ? $profiles->missing($this->fields($profile)) : [];
-        $history = $profile ? $profiles->history($this->employer, $actor) : [];
-        $canEditReferences = $actor->can('operations.time.export');
+        $overview = $this->employer === ''
+            ? ['profile' => null, 'fieldIssues' => [], 'referenceIssues' => [], 'missing' => [], 'history' => []]
+            : $profiles->overview($this->employer, $actor);
+        if ($this->employer !== '' && $this->form !== $this->fields($overview['profile'])) {
+            $overview['fieldIssues'] = $profiles->fieldIssues($this->form);
+        }
 
-        return view('livewire.operations.lexware-settings', compact('employers', 'profile', 'missing', 'history', 'canEditReferences'));
+        return view('livewire.operations.lexware-settings', $overview + [
+            'employers' => $employers,
+            'canEditReferences' => $actor->can('operations.time.export'),
+        ]);
     }
 }

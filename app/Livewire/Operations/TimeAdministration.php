@@ -42,6 +42,8 @@ class TimeAdministration extends Component
 
     public array $lexwareFirstTransfers = [];
 
+    public array $lexwareImportedRows = [];
+
     public function mount(bool $personal = false, string $tab = 'rules', ?int $initialRecordId = null, bool $embedded = false, bool $payrollExportOnly = false, ?int $initialUserId = null): void
     {
         $this->personal = $personal;
@@ -81,7 +83,7 @@ class TimeAdministration extends Component
 
     protected function resetTabState(): void
     {
-        $this->reset('selectedId', 'selectedRevision', 'detailOpen', 'formOpen', 'form', 'note', 'search', 'lexwareResults', 'lexwareFirstTransfers');
+        $this->reset('selectedId', 'selectedRevision', 'detailOpen', 'formOpen', 'form', 'note', 'search', 'lexwareResults', 'lexwareFirstTransfers', 'lexwareImportedRows');
     }
 
     protected function access(): User
@@ -182,7 +184,7 @@ class TimeAdministration extends Component
         $this->selectedId = $record->id;
         $this->selectedRevision = $this->payrollExportOnly ? (int) $record->revisions()->where('action', 'closed')->latest('revision')->value('revision') : ($record->revision ?? 1);
         $this->form = [];
-        $this->reset('note', 'lexwareResults', 'lexwareFirstTransfers');
+        $this->reset('note', 'lexwareResults', 'lexwareFirstTransfers', 'lexwareImportedRows');
         $this->resetValidation();
         $this->detailOpen = true;
     }
@@ -236,8 +238,16 @@ class TimeAdministration extends Component
             'lexwareResults.*.required' => 'Bitte das Ergebnis des Windows-Imports auswählen.',
             'lexwareResults.*.in' => 'Bitte ein gültiges Importergebnis auswählen.',
         ]);
-        app(LexwareExportService::class)->recordResult($actor, $this->selectedId, $this->lexwareResults[$runId], $runId);
-        unset($this->lexwareResults[$runId]);
+        $codes = [];
+        if ($this->lexwareResults[$runId] === 'partial') {
+            $this->validate(['lexwareImportedRows.'.$runId => 'required|array'], [
+                'lexwareImportedRows.*.required' => 'Bitte die tatsächlich importierten Lohnpositionen markieren.',
+            ]);
+            $marked = array_filter($this->lexwareImportedRows[$runId], fn ($checked) => $checked === true);
+            $codes = array_map('strval', array_keys($marked));
+        }
+        app(LexwareExportService::class)->recordResult($actor, $this->selectedId, $this->lexwareResults[$runId], $runId, $codes);
+        unset($this->lexwareResults[$runId], $this->lexwareImportedRows[$runId]);
         session()->flash('operations.saved', 'Das Importergebnis wurde im Verlauf dokumentiert.');
     }
 

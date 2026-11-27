@@ -73,12 +73,12 @@ final class LexwareMonthlyFile
         ksort($groups, SORT_STRING);
         $rows = [];
         foreach ($groups as $group) {
+            ksort($group['source_seconds'], SORT_STRING);
+            $group['raw_seconds'] = array_sum($group['source_seconds']);
             $group['value'] = self::hours($group['raw_seconds']);
-            $group['source_codes'] = array_keys($group['sources']);
-            $group['source_codes'] = array_map('strval', $group['source_codes']);
-            sort($group['source_codes'], SORT_STRING);
-            self::check(count($group['sources']) === 1 || ! in_array(false, $group['sources'], true), 'Mehrere Quelllohnarten teilen ein Ziel. Die überschneidungsfreie Zuordnung ist nicht für alle Quellen bestätigt.');
-            unset($group['sources']);
+            $group['source_codes'] = array_map('strval', array_keys($group['source_seconds']));
+            self::check(count($group['source_codes']) === 1 || $group['all_disjoint'], 'Mehrere Quelllohnarten teilen ein Ziel. Die überschneidungsfreie Zuordnung ist nicht für alle Quellen bestätigt.');
+            unset($group['all_disjoint']);
             $rows[] = $group;
         }
 
@@ -91,6 +91,7 @@ final class LexwareMonthlyFile
         $coverage = 0;
         $rules = [];
         $supplements = [];
+        $activitySeconds = [];
         foreach ($quantities as $q) {
             $rule = $q['rule_id'] ?? null;
             $activity = $q['activity'] ?? '';
@@ -98,10 +99,11 @@ final class LexwareMonthlyFile
             $quantity = $q['quantity_seconds'] ?? null;
             $additive = $q['additive'] ?? null;
             self::check(is_int($rule) && $rule > 0 && ! isset($rules[$rule]) && is_int($q['rule_revision'] ?? null) && $q['rule_revision'] > 0, 'Eine Regelrevision fehlt oder ist im Zeiteintrag mehrfach enthalten.');
-            self::check(is_bool($additive) && isset(WorkTimeActivityService::KINDS[$activity]) && is_int($raw) && $raw > 0 && $raw <= $elapsed && is_int($quantity) && $quantity >= 0, 'Der Zeitnachweis für eine Mengenposition ist unvollständig.');
+            self::check(is_bool($additive) && is_string($activity) && isset(WorkTimeActivityService::KINDS[$activity]) && is_int($raw) && $raw > 0 && $raw <= $elapsed && is_int($quantity) && $quantity >= 0, 'Der Zeitnachweis für eine Mengenposition ist unvollständig.');
             $rules[$rule] = true;
             if (! $additive) {
                 $coverage += $raw;
+                $activitySeconds[$activity] = ($activitySeconds[$activity] ?? 0) + $raw;
             }
             if ($activity === 'break' && ! $additive && ($q['multiplier_bps'] ?? null) === 0 && $quantity === 0) {
                 $skipped++;
@@ -114,16 +116,20 @@ final class LexwareMonthlyFile
             $mapping = $mappings[$code];
             $target = $mapping['target_code'] ?? '';
             self::check(($mapping['quantity_kind'] ?? null) === $kind && is_string($target) && preg_match('/^(?!0000)\d{4}$/D', $target), 'Mengenart oder Ziellohnart passt nicht zur freigegebenen Regel für '.$code.'.');
-            $groups[$target] ??= ['target_code' => $target, 'quantity_kind' => $kind, 'sources' => [], 'raw_seconds' => 0];
+            $groups[$target] ??= ['target_code' => $target, 'quantity_kind' => $kind, 'source_seconds' => [], 'all_disjoint' => true];
             self::check($groups[$target]['quantity_kind'] === $kind, 'Grundstunden und Zuschlagsstunden dürfen keine gemeinsame Ziellohnart haben.');
             if ($additive) {
                 // Multiple rules for the same source within one activity have no independent non-overlap proof.
                 self::check(! isset($supplements[$target][$activity][$code]), 'Mehrere Zuschlagsregeln überschneiden sich möglicherweise bei der Lohnart '.$code.'.');
                 $supplements[$target][$activity][$code] = $raw;
-                self::check(array_sum($supplements[$target][$activity]) <= $elapsed, 'Die Zuschlagsbasis übersteigt die Dauer des Zeiteintrags.');
             }
-            $groups[$target]['sources'][$code] = ($mapping['disjoint'] ?? false) === true;
-            $groups[$target]['raw_seconds'] += $raw;
+            $groups[$target]['all_disjoint'] = $groups[$target]['all_disjoint'] && ($mapping['disjoint'] ?? false) === true;
+            $groups[$target]['source_seconds'][$code] = ($groups[$target]['source_seconds'][$code] ?? 0) + $raw;
+        }
+        foreach ($supplements as $activities) {
+            foreach ($activities as $activity => $secondsByCode) {
+                self::check(array_sum($secondsByCode) <= ($activitySeconds[$activity] ?? 0), 'Die Zuschlagsbasis übersteigt die nachgewiesene Dauer der Tätigkeit.');
+            }
         }
 
         return $coverage;

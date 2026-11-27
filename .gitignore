@@ -39,6 +39,8 @@ Homestead.json
 !/tests/Feature/DispositionPageHeaderTest.php
 !/tests/Feature/CustomerWorkspaceTest.php
 !/tests/Feature/PersonnelPageWorkspaceTest.php
+!/tests/Feature/LexwarePayrollWorkflowTest.php
+!/tests/Feature/LexwareSettingsUiTest.php
 !/tests/Feature/DropboxSyncTest.php
 !/tests/Feature/LocalExcelImportTest.php
 !/tests/Feature/ImportedOrderStatusTest.php
@@ -170,6 +172,7 @@ Homestead.json
 !/tests/Unit/
 /tests/Unit/*
 !/tests/Unit/OutlookAddinMobileManifestTest.php
+!/tests/Unit/LexwareMonthlyFileTest.php
 !/tests/Frontend/mail-train-runtime.test.js
 !/tests/Frontend/mail-text-eml-hardening.test.js
 !/tests/Frontend/mail-compatibility.test.js

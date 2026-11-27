@@ -17,10 +17,42 @@ class LexwareProfileService
     public const ABILITY = 'operations.lexware.manage';
 
     private const FIELDS = ['company_name', 'import_profile', 'product_version', 'mappings'];
+    private const PERSONNEL_NUMBER_PATTERN = '/\A[A-Za-z0-9][A-Za-z0-9_.-]{0,18}\z/';
 
     public static function ready(): bool
     {
         return Schema::hasTable('lexware_profiles') && Schema::hasTable('employee_payroll_references') && Schema::hasTable('operation_audits');
+    }
+
+    public static function personnelKey(string $number): string
+    {
+        return ctype_digit($number) ? (ltrim($number, '0') ?: '0') : strtolower($number);
+    }
+
+    /** For downloads, the caller holds the same company lock as PayrollReferenceService::save(). */
+    public static function referenceMatches(int $userId, string $employer, string $number): bool
+    {
+        if (! preg_match(self::PERSONNEL_NUMBER_PATTERN, $number) || ! Schema::hasTable('employee_payroll_references')) {
+            return false;
+        }
+
+        $key = self::personnelKey($number);
+        $refs = EmployeePayrollReference::where('employer_reference', $employer);
+        if (ctype_digit($key)) {
+            // References up to 64 characters may exist. Avoid numeric casts that overflow or round identifiers.
+            $variants = [];
+            for ($length = strlen($key); $length <= 64; $length++) {
+                $variants[] = str_pad($key, $length, '0', STR_PAD_LEFT);
+            }
+            $refs->whereIn('personnel_number', $variants);
+        } else {
+            $refs->whereRaw('LOWER(personnel_number) = ?', [$key]);
+        }
+        $matches = $refs->limit(2)->get(['user_id', 'employer_reference', 'personnel_number']);
+        $current = $matches->first();
+
+        return $matches->count() === 1 && (int) $current->user_id === $userId
+            && $current->employer_reference === $employer && $current->personnel_number === $number;
     }
 
     public function canManage(User $actor): bool
@@ -30,7 +62,7 @@ class LexwareProfileService
 
     public function employers(User $actor): array
     {
-        $this->requireReady($actor);
+        $actor = $this->requireReady($actor);
         $ids = app(PersonnelScopeService::class)->visibleUserIds($actor, self::ABILITY);
         $refs = EmployeePayrollReference::query();
         if ($ids === null) {
@@ -46,7 +78,7 @@ class LexwareProfileService
 
     public function get(string $employer, User $actor): ?LexwareProfile
     {
-        $this->requireReady($actor);
+        $actor = $this->requireReady($actor);
         $this->authorizeCompany($employer, $actor);
 
         return LexwareProfile::where('employer_reference', $employer)->first();
@@ -54,7 +86,28 @@ class LexwareProfileService
 
     public function history(string $employer, User $actor): array
     {
-        $record = $this->get($employer, $actor);
+        return $this->profileHistory($this->get($employer, $actor));
+    }
+
+    public function overview(string $employer, User $actor): array
+    {
+        $actor = $this->requireReady($actor);
+        $refs = $this->authorizeCompany($employer, $actor);
+        $profile = LexwareProfile::where('employer_reference', $employer)->first();
+        $referenceIssues = $this->referenceIssues($employer, $refs);
+        $fieldIssues = $this->fieldIssues($profile?->only(self::FIELDS) ?? []);
+
+        return [
+            'profile' => $profile,
+            'fieldIssues' => $fieldIssues,
+            'referenceIssues' => $referenceIssues,
+            'missing' => array_values(array_unique([...array_values($fieldIssues), ...$referenceIssues])),
+            'history' => $this->profileHistory($profile),
+        ];
+    }
+
+    private function profileHistory(?LexwareProfile $record): array
+    {
         if (! $record) {
             return [];
         }
@@ -71,7 +124,7 @@ class LexwareProfileService
 
     public function save(string $employer, int $expectedRevision, array $data, User $actor): LexwareProfile
     {
-        $this->requireReady($actor);
+        $actor = $this->requireReady($actor);
 
         return OperationsTransaction::run(function () use ($employer, $expectedRevision, $data, $actor) {
             $this->authorizeCompany($employer, $actor, lock: true);
@@ -108,18 +161,18 @@ class LexwareProfileService
         return $this->transition($employer, $expectedRevision, $actor, 'deactivated');
     }
 
-    public function missing(array $data): array
+    public function fieldIssues(array $data): array
     {
         $reasons = [];
         if (blank($data['company_name'] ?? null)) {
-            $reasons[] = 'Der Firmenname aus der Windows-Installation fehlt.';
+            $reasons['company_name'] = 'Der Firmenname aus der Windows-Installation fehlt.';
         }
         if (blank($data['import_profile'] ?? null)) {
-            $reasons[] = 'Der Name des verwendeten Windows-Importprofils fehlt.';
+            $reasons['import_profile'] = 'Der Name des verwendeten Windows-Importprofils fehlt.';
         }
         $mappings = $data['mappings'] ?? [];
         if (! is_array($mappings) || ! $mappings) {
-            $reasons[] = 'Mindestens eine Lohnart zuordnen.';
+            $reasons['mappings'] = 'Mindestens eine Lohnart zuordnen.';
 
             return $reasons;
         }
@@ -130,37 +183,66 @@ class LexwareProfileService
             $source = is_string($mapping['source_code'] ?? null) ? trim($mapping['source_code']) : '';
             $target = is_string($mapping['target_code'] ?? null) ? trim($mapping['target_code']) : '';
             $kind = $mapping['quantity_kind'] ?? '';
-            if (! preg_match('/\A[A-Za-z0-9_.-]{1,40}\z/', $source)
-                || ! preg_match('/\A[0-9]{1,4}\z/', $target) || (int) $target === 0
-                || ! in_array($kind, ['base', 'supplement'], true)) {
-                $reasons[] = 'Zuordnung '.($index + 1).': RailTime-Lohnart, Lexware-Lohnart (0001–9999) und Mengenart vervollständigen.';
-                continue;
+            $field = 'mappings.'.$index.'.';
+            if (! preg_match('/\A[A-Za-z0-9_.-]{1,40}\z/', $source)) {
+                $reasons[$field.'source_code'] = 'RailTime-Lohncode aus der Vergütungsregel angeben.';
+            } elseif (isset($sources[$source])) {
+                $message = 'RailTime-Lohnart '.$source.' ist mehrfach zugeordnet.';
+                $reasons['mappings.'.$sources[$source].'.source_code'] = $message;
+                $reasons[$field.'source_code'] = $message;
+            } else {
+                $sources[$source] = $index;
             }
-            if (isset($sources[$source])) {
-                $reasons[] = 'RailTime-Lohnart '.$source.' ist mehrfach zugeordnet.';
+            if (! in_array($kind, ['base', 'supplement'], true)) {
+                $reasons[$field.'quantity_kind'] = 'Eine Mengenart für diese Lohnart auswählen.';
             }
-            $sources[$source] = true;
-            $targets[str_pad($target, 4, '0', STR_PAD_LEFT)][] = $mapping;
+            if (! preg_match('/\A[0-9]{1,4}\z/', $target) || (int) $target === 0) {
+                $reasons[$field.'target_code'] = 'Lexware-Lohnartnummer von 0001 bis 9999 angeben.';
+            } else {
+                $targets[str_pad($target, 4, '0', STR_PAD_LEFT)][$index] = $mapping;
+            }
         }
 
         foreach ($targets as $target => $rows) {
             if (count($rows) < 2) {
                 continue;
             }
-            if (count(array_unique(array_column($rows, 'quantity_kind'))) !== 1) {
-                $reasons[] = 'Lexware-Lohnart '.$target.' darf Grundstunden und Zuschlagsstunden nicht zusammenfassen.';
-            }
-            if (collect($rows)->contains(fn ($row) => ! in_array($row['disjoint'] ?? false, [true, 1, '1'], true))) {
-                $reasons[] = 'Für alle Zuordnungen zu Lexware-Lohnart '.$target.' getrennte, überschneidungsfreie Mengen bestätigen.';
+            $kinds = array_column($rows, 'quantity_kind');
+            $mixed = in_array('base', $kinds, true) && in_array('supplement', $kinds, true);
+            foreach ($rows as $index => $row) {
+                if ($mixed) {
+                    $reasons['mappings.'.$index.'.quantity_kind'] = 'Lexware-Lohnart '.$target.' darf Grundstunden und Zuschlagsstunden nicht zusammenfassen.';
+                }
+                if (! in_array($row['disjoint'] ?? false, [true, 1, '1'], true)) {
+                    $reasons['mappings.'.$index.'.disjoint'] = 'Für Lexware-Lohnart '.$target.' überschneidungsfreie Mengen bestätigen.';
+                }
             }
         }
 
-        return array_values(array_unique($reasons));
+        return $reasons;
+    }
+
+    private function referenceIssues(string $employer, array $references): array
+    {
+        $issues = [];
+        $refs = collect($references);
+        if ($refs->contains(fn ($ref) => $ref['employer_reference'] !== $employer)) {
+            $issues[] = 'Abweichende Schreibweisen der Arbeitgeberreferenz in den Lohnzuordnungen vereinheitlichen.';
+        }
+        if ($refs->isEmpty() || $refs->contains(fn ($ref) => ! preg_match(self::PERSONNEL_NUMBER_PATTERN, $ref['personnel_number']))) {
+            $issues[] = 'Die Firma benötigt gültige Personalnummern aus der Lohnzuordnung (maximal 19 Zeichen).';
+        }
+        $numbers = $refs->map(fn ($ref) => self::personnelKey($ref['personnel_number']));
+        if ($numbers->duplicatesStrict()->isNotEmpty()) {
+            $issues[] = 'Mehrdeutige Personalnummern in der Zielfirma. Bitte führende Nullen und Groß-/Kleinschreibung in der Lohnzuordnung abgleichen.';
+        }
+
+        return $issues;
     }
 
     private function transition(string $employer, int $expectedRevision, User $actor, string $event): LexwareProfile
     {
-        $this->requireReady($actor);
+        $actor = $this->requireReady($actor);
 
         return OperationsTransaction::run(function () use ($employer, $expectedRevision, $actor, $event) {
             $references = $this->authorizeCompany($employer, $actor, lock: true);
@@ -176,13 +258,10 @@ class LexwareProfileService
                 $record->active = false;
                 $this->clearTest($record);
             } else {
-                $missing = $this->missing($record->only(self::FIELDS));
-                if (collect($references)->contains(fn ($ref) => $ref['employer_reference'] !== $employer)) {
-                    $missing[] = 'Abweichende Schreibweisen der Arbeitgeberreferenz in den Lohnzuordnungen vereinheitlichen.';
-                }
-                if (! $references || collect($references)->contains(fn ($ref) => ! preg_match('/\A[A-Za-z0-9][A-Za-z0-9_.-]{0,18}\z/', $ref['personnel_number']))) {
-                    $missing[] = 'Die Firma benötigt gültige Personalnummern aus der Lohnzuordnung (maximal 19 Zeichen).';
-                }
+                $missing = array_values(array_unique([
+                    ...array_values($this->fieldIssues($record->only(self::FIELDS))),
+                    ...$this->referenceIssues($employer, $references),
+                ]));
                 if ($missing) {
                     throw ValidationException::withMessages(['workflow' => $missing]);
                 }
@@ -209,10 +288,13 @@ class LexwareProfileService
         });
     }
 
-    private function requireReady(User $actor): void
+    private function requireReady(User $actor): User
     {
+        $actor = User::findOrFail($actor->id);
         OperationsAccess::authorize($actor, self::ABILITY);
         abort_unless(self::ready(), 503);
+
+        return $actor;
     }
 
     private function authorizeCompany(string $employer, User $actor, bool $lock = false): array
@@ -221,8 +303,10 @@ class LexwareProfileService
             'employer_reference' => ['required', 'string', 'max:64', 'regex:/\A[A-Za-z0-9_.-]+\z/'],
         ])->validate();
 
+        $profile = LexwareProfile::where('employer_reference', $employer);
+        $stored = $profile->when($lock, fn ($q) => $q->lockForUpdate())->value('employer_reference');
         $query = EmployeePayrollReference::where('employer_reference', $employer)->orderBy('id');
-        if ($lock) {
+        if ($lock && $stored === null) {
             $query->lockForUpdate();
         }
         $refs = $query->get(['user_id', 'employer_reference', 'personnel_number']);
@@ -230,7 +314,6 @@ class LexwareProfileService
         if ($ids !== null) {
             abort_if($refs->isEmpty() || $refs->pluck('user_id')->diff($ids)->isNotEmpty(), 403);
         }
-        $stored = LexwareProfile::where('employer_reference', $employer)->value('employer_reference');
         if (($stored !== null && $stored !== $employer) || ($stored === null && $refs->isNotEmpty() && ! $refs->contains('employer_reference', '===', $employer))) {
             throw ValidationException::withMessages(['workflow' => 'Abweichende Schreibweise der Arbeitgeberreferenz. Bitte die Lohnzuordnungen prüfen.']);
         }

@@ -79,6 +79,39 @@ test('diagnostic-only sampling stops when panel closes and rate average restarts
     assert.deepEqual(component.qualityDecisions, []);
 });
 
+test('hiding or reconnecting discards pressure samples and detaches observers on leave', async (t) => {
+    const doc = new EventTarget();
+    doc.hidden = false;
+    const original = Object.getOwnPropertyDescriptor(globalThis, 'document');
+    Object.defineProperty(globalThis, 'document', { value: doc, configurable: true });
+    t.after(() => {
+        if (original) Object.defineProperty(globalThis, 'document', original);
+        else delete globalThis.document;
+    });
+    const { component, calls, next } = fixture('active');
+    for (let n = 0; n < 4; n++) await next();
+    doc.hidden = true;
+    doc.dispatchEvent(new Event('visibilitychange'));
+    assert.equal(calls.stops, 1);
+    await next();
+    doc.hidden = false;
+    doc.dispatchEvent(new Event('visibilitychange'));
+    for (let n = 0; n < 4; n++) await next();
+    assert.deepEqual(calls.profiles, []);
+    component.connected = false;
+    component.suspendQualitySession();
+    component.connected = true;
+    component.startQualitySession();
+    for (let n = 0; n < 4; n++) await next();
+    assert.deepEqual(calls.profiles, []);
+    await next();
+    assert.deepEqual(calls.profiles, ['saver']);
+    component.endQualitySession();
+    doc.dispatchEvent(new Event('visibilitychange'));
+    assert.equal(calls.starts, 3);
+    assert.equal(calls.stops, 3);
+});
+
 test('a replaced publication, a muted track and a receive-only rollout cannot change outgoing video', async () => {
     for (const mode of ['changed', 'muted', 'receive-only']) {
         const { component, calls, next, publication } = fixture(mode === 'receive-only' ? 'off' : 'active', 'observe');

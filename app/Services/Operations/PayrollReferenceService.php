@@ -3,6 +3,7 @@
 namespace App\Services\Operations;
 
 use App\Models\EmployeePayrollReference;
+use App\Models\LexwareProfile;
 use App\Models\User;
 use App\Models\WorkTimeEntry;
 use App\Models\WorkTimeExport;
@@ -23,6 +24,12 @@ class PayrollReferenceService
         app(PersonnelScopeService::class)->authorize($actor, $userId, 'operations.time.export');
         OperationsTransaction::run(function () use ($userId, $revision, $data, $actor) {
             User::where('role', 'staff')->lockForUpdate()->findOrFail($userId);
+            // Serialize changes to existing Lexware rosters with profile approval and real downloads.
+            if (Schema::hasTable('lexware_profiles')) {
+                $before = EmployeePayrollReference::where('user_id', $userId)->value('employer_reference');
+                $companies = array_filter([$before, $data['employer_reference'] ?? null], 'is_string');
+                LexwareProfile::whereIn('employer_reference', $companies)->orderBy('id')->lockForUpdate()->get(['id']);
+            }
             $record = EmployeePayrollReference::where('user_id', $userId)->lockForUpdate()->first();
             if (($record?->revision) !== $revision) {
                 throw ValidationException::withMessages(['workflow' => 'Zuordnung wurde geändert. Bitte neu laden.']);

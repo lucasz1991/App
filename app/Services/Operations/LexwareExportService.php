@@ -65,7 +65,9 @@ class LexwareExportService
                     'profile_id' => $profile->id, 'profile_version' => $profile->config_version,
                     'target_key' => $this->targetKey($profile, $closing, $snapshot),
                     'sha256' => hash('sha256', $file['content']), 'payload' => $file['content'],
-                    'positions' => array_map(static fn (array $row) => ['target_code' => $row['target_code'], 'value' => $row['value']], $file['rows']),
+                    'positions' => array_map(static fn (array $row) => [
+                        'target_code' => $row['target_code'], 'value' => $row['value'], 'source_seconds' => $row['source_seconds'],
+                    ], $file['rows']),
                     'created_by' => $actor->id, 'created_at' => now()->utc(), 'status' => 'open',
                 ]);
             }
@@ -122,9 +124,13 @@ class LexwareExportService
         $snapshot = $sealed->snapshot;
         $employer = $snapshot['payroll_reference']['employer_reference'] ?? null;
         $this->check(is_string($employer) && $employer !== '', 'Im abgeschlossenen Monat fehlt die Arbeitgeberreferenz. Die Lohnzuordnung muss im Abschluss enthalten sein.');
+        $number = $snapshot['payroll_reference']['personnel_number'] ?? null;
+        $this->check(is_string($number) && preg_match('/^[A-Za-z0-9][A-Za-z0-9_.-]{0,18}$/D', $number), 'Im Abschluss fehlt eine für Lexware geeignete Personalnummer (1–19 Zeichen).');
         $profile = LexwareProfile::where('employer_reference', $employer)->when($lock, fn ($query) => $query->lockForUpdate())->first();
         $this->check($profile && $profile->employer_reference === $employer && $profile->active && $profile->tested_at && $profile->tested_version === $profile->config_version,
             'Die Lexware-Übergabe ist für diese Firma deaktiviert oder der Probeimport für die aktuelle Profilversion fehlt.');
+        $this->check(LexwareProfileService::referenceMatches((int) $closing->user_id, $employer, $number),
+            'Die aktuelle Lohnzuordnung stimmt nicht eindeutig mit der Personalnummer und Firma im Abschluss überein. Bitte die Zuordnung vor der Übergabe abgleichen.');
         if ($run) {
             $this->check($run->closing_revision === $closing->revision && (int) $run->profile_id === (int) $profile->id && $run->profile_version === $profile->config_version,
                 'Für diesen Monat existiert bereits eine Vollübergabe mit anderem Abschluss- oder Profilstand. Vor einer Korrektur den vorhandenen Import in Lexware abgleichen.');
@@ -142,11 +148,7 @@ class LexwareExportService
 
     private function targetKey(LexwareProfile $profile, OperationsMonthClosing $closing, array $snapshot): string
     {
-        $number = strtolower($snapshot['payroll_reference']['personnel_number']);
-        if (ctype_digit($number)) {
-            $number = ltrim($number, '0') ?: '0';
-        }
-
+        $number = LexwareProfileService::personnelKey($snapshot['payroll_reference']['personnel_number']);
         return hash('sha256', implode('|', [$profile->id, $closing->month, $number]));
     }
 
@@ -168,6 +170,7 @@ class LexwareExportService
         return [
             'id' => $run->id, 'closing_revision' => $run->closing_revision, 'profile_version' => $run->profile_version,
             'sha256' => $run->sha256, 'status' => $run->status,
+            'created_by' => $run->created_by, 'result_by' => $run->result_by,
             'rows' => $run->positions, 'target_codes' => array_column($run->positions, 'target_code'), 'imported_codes' => $run->imported_codes ?? [],
             'created_at' => $run->created_at->toIso8601String(), 'result_at' => $run->result_at?->toIso8601String(),
         ];
