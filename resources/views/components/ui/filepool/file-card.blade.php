@@ -3,6 +3,8 @@
     'readOnly' => false,
     'canMove' => false,
     'dragHintId' => null,
+    'layout' => null,
+    'canDownload' => null,
 ])
 
 @php
@@ -23,6 +25,14 @@
         $canManageFile = $file->folder->allowsForUser($currentUser, 'delete')
             && $file->folder->isPubliclyVisible($currentUser);
     }
+
+    $canDownload ??= $currentUser?->canAccessFile($file, 'download') === true;
+    $isDetails = $layout === 'details';
+    $isList = $layout === 'list';
+    $isExplorerGrid = $layout === 'grid';
+    $element = $isDetails ? 'tr' : 'article';
+    $displayName = $layout === null ? $file->name : $file->name_with_extension;
+    $typeLabel = $layout === null ? null : \App\Support\FileExplorer::typeLabel(\App\Support\FileExplorer::type($file));
 @endphp
 
 {{--
@@ -38,15 +48,20 @@
     entfallen: Sie verdeckten genau das Vorschaubild, nach dem man sucht, und
     auf Touch gab es kein Hover, das sie haette einblenden koennen.
 --}}
-<article
+<{{ $element }}
     x-data="{
         openFileMenu() {
             this.$root.querySelector('[data-file-menu-trigger]')?.click();
         },
     }"
-    class="rt-file-card group relative aspect-square overflow-hidden rounded-xl bg-rt-surface-muted text-rt-text shadow-rt-xs ring-1 ring-rt-border/70 transition-all duration-300 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-sm hover:ring-rt-accent/35 focus-within:ring-2 focus-within:ring-rt-accent/45 dark:bg-rt-dark-surface-muted dark:text-white dark:ring-rt-dark-border/70 dark:hover:ring-rt-dark-accent/35 {{ $canMove ? 'cursor-grab active:cursor-grabbing' : '' }}"
-    role="group"
-    aria-label="{{ $file->name }}"
+    {{ $attributes->class([
+        'rt-file-card group relative aspect-square overflow-hidden rounded-xl bg-rt-surface-muted text-rt-text shadow-rt-xs ring-1 ring-rt-border/70 transition-all duration-300 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-sm hover:ring-rt-accent/35 focus-within:ring-2 focus-within:ring-rt-accent/45 dark:bg-rt-dark-surface-muted dark:text-white dark:ring-rt-dark-border/70 dark:hover:ring-rt-dark-accent/35' => ! $isDetails && ! $isList,
+        'rt-explorer-grid-file' => $isExplorerGrid,
+        'rt-explorer-list-file' => $isList,
+        'rt-explorer-file-row' => $isDetails,
+        'cursor-grab active:cursor-grabbing' => $canMove,
+    ]) }}
+    @unless($isDetails) role="group" aria-label="{{ $displayName }}" @endunless
     @contextmenu.prevent.stop="openFileMenu()"
     @if($canMove)
         draggable="true"
@@ -56,12 +71,16 @@
         @dragend="endFileDrag($event)"
     @endif
 >
-    <img
-        src="{{ $file->icon_or_thumbnail }}"
-        alt=""
-        draggable="false"
-        class="pointer-events-none absolute inset-0 h-full w-full select-none @if($file->is_image) object-cover @else object-contain p-[22%] @endif"
-    >
+    @if($isDetails)
+        <td class="rt-explorer-col-name">
+    @elseif(! $isList && ! $isExplorerGrid)
+        <img
+            src="{{ $file->icon_or_thumbnail }}"
+            alt=""
+            draggable="false"
+            class="pointer-events-none absolute inset-0 h-full w-full select-none @if($file->is_image) object-cover @else object-contain p-[22%] @endif"
+        >
+    @endif
 
     {{-- Die ganze Kachel ist der Vorschau-Knopf. Als echtes <button> ist sie
          auch per Tabulator und Enter erreichbar; das Ziehen bleibt Sache des
@@ -70,22 +89,44 @@
         type="button"
         data-file-preview
         draggable="false"
-        title="{{ $file->name }}"
-        aria-label="{{ __('app.preview') }}: {{ $file->name }}"
+        title="{{ $displayName }}"
+        aria-label="{{ __('app.preview') }}: {{ $displayName }}"
         @click="window.dispatchEvent(new CustomEvent('filepool-preview', { detail: { id: {{ $file->id }} } }))"
-        class="rt-file-card-preview absolute inset-0 z-10 block w-full text-left focus:outline-none focus-visible:outline-none {{ $canMove ? '' : 'cursor-pointer' }}"
+        @class([
+            'rt-file-card-preview absolute inset-0 z-10 block w-full text-left focus:outline-none focus-visible:outline-none' => ! $isList && ! $isDetails,
+            'rt-explorer-file-link' => $isList || $isDetails,
+            'cursor-pointer' => ! $canMove,
+        ])
     >
-        <span class="absolute inset-x-0 bottom-0 block bg-gradient-to-t from-slate-950/90 via-slate-950/64 to-transparent px-2 pb-2 pt-7 text-left">
-            <span class="line-clamp-2 block break-words text-[11px] font-semibold leading-snug text-white">
-                {{ $file->name }}
+        @if($layout === null)
+            <span class="absolute inset-x-0 bottom-0 block bg-gradient-to-t from-slate-950/90 via-slate-950/64 to-transparent px-2 pb-2 pt-7 text-left">
+                <span class="line-clamp-2 block break-words text-[11px] font-semibold leading-snug text-white">{{ $file->name }}</span>
+                <span class="mt-0.5 block text-[10px] font-medium text-white/70">{{ $file->size_formatted }}</span>
             </span>
-            <span class="mt-0.5 block text-[10px] font-medium text-white/70">
-                {{ $file->size_formatted }}
+        @else
+            <span class="{{ $isExplorerGrid ? 'rt-explorer-grid-content' : 'rt-explorer-file-content' }}">
+                <img class="rt-explorer-file-icon" src="{{ $file->icon_or_thumbnail }}" alt="" loading="lazy" draggable="false">
+                <span class="rt-explorer-file-caption">
+                    <span class="rt-explorer-file-name">{{ $displayName }}</span>
+                    @unless($isDetails)
+                        <span class="rt-explorer-file-meta">{{ $typeLabel }} · {{ $file->size_formatted }}</span>
+                    @endunless
+                    @if(($isList || $isDetails) && $file->expires_at)
+                        <span class="rt-explorer-file-meta">
+                            {{ $file->isExpired() ? __('app.expired') : __('app.expires_on', ['date' => $file->expires_at->format('d.m.Y')]) }}
+                        </span>
+                    @endif
+                </span>
             </span>
-        </span>
+        @endif
     </button>
 
-    @if($file->expires_at)
+    @if($isDetails)
+        </td>
+        <td class="rt-explorer-col-date">{{ $file->updated_at?->format('d.m.Y') ?? '—' }}</td>
+        <td class="rt-explorer-col-type">{{ $typeLabel }}</td>
+        <td class="rt-explorer-col-size">{{ $file->size_formatted }}</td>
+    @elseif(!$isList && $file->expires_at)
         {{-- Rein informativ: Klicks laufen zum Vorschau-Knopf durch. --}}
         <span
             data-rt-tone="{{ $file->isExpired() ? 'red' : 'slate' }}"
@@ -95,7 +136,11 @@
         </span>
     @endif
 
-    <div class="absolute right-2 top-2 z-40">
+    @if($isDetails)
+        <td class="rt-explorer-col-actions">
+    @else
+        <div class="{{ $isList ? 'rt-explorer-row-actions' : 'absolute right-2 top-2 z-40' }}">
+    @endif
         <x-ui.dropdown.anchor-dropdown align="right" width="56" :offset="6">
             <x-slot name="trigger">
                 <button
@@ -109,7 +154,7 @@
                          .pointer-events-none mit !important, wodurch die
                          group-hover-Varianten nie durchkamen — der Ausloeser
                          waere am Desktop unsichtbar geblieben. --}}
-                    class="rt-file-card-menu-trigger"
+                    class="{{ $isList || $isDetails ? 'rt-explorer-control rt-explorer-row-menu' : 'rt-file-card-menu-trigger' }}"
                     title="{{ __('app.file_actions') }}"
                     aria-label="{{ __('app.file_actions_label', ['name' => $file->name]) }}"
                 >
@@ -124,10 +169,12 @@
                     {{ __('app.preview') }}
                 </x-ui.dropdown.dropdown-link>
 
-                <x-ui.dropdown.dropdown-link wire:click="downloadFile({{ $file->id }})">
-                    <i class="far fa-download mr-2 w-4 text-center" aria-hidden="true"></i>
-                    {{ __('app.download') }}
-                </x-ui.dropdown.dropdown-link>
+                @if($canDownload)
+                    <x-ui.dropdown.dropdown-link wire:click="downloadFile({{ $file->id }})">
+                        <i class="far fa-download mr-2 w-4 text-center" aria-hidden="true"></i>
+                        {{ __('app.download') }}
+                    </x-ui.dropdown.dropdown-link>
+                @endif
 
                 @if($canManageFile)
                     <x-ui.dropdown.dropdown-link wire:click.prevent="editFile({{ $file->id }})">
@@ -149,5 +196,9 @@
                 @endif
             </x-slot>
         </x-ui.dropdown.anchor-dropdown>
-    </div>
-</article>
+    @if($isDetails)
+        </td>
+    @else
+        </div>
+    @endif
+</{{ $element }}>

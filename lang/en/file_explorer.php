@@ -1,0 +1,40 @@
+<?php
+
+return [
+    'toolbar' => 'File controls',
+    'scope_label' => 'File section',
+    'scopes' => [
+        'all' => 'All',
+        'required' => 'Required',
+        'personal' => 'For me',
+        'shared' => 'Shared',
+    ],
+    'search' => 'Search files',
+    'search_placeholder' => 'Search',
+    'type_filter' => 'File type',
+    'all_types' => 'All types',
+    'unknown_type' => 'Unknown type',
+    'folder' => 'Folder',
+    'folders_count' => ':count folder|:count folders',
+    'layout_label' => 'File view',
+    'layouts' => [
+        'grid' => 'Grid',
+        'list' => 'List',
+        'details' => 'Details',
+    ],
+    'columns' => [
+        'name' => 'Name',
+        'date' => 'Modified',
+        'type' => 'Type',
+        'size' => 'Size',
+    ],
+    'actions' => 'Actions',
+    'name_and_type' => ':name (:type)',
+    'path_label' => 'Folder path',
+    'up' => 'Parent folder',
+    'empty' => 'This folder is empty.',
+    'no_matches' => 'No matching items.',
+    'clear' => 'Reset search and filters',
+    'download_folder_zip' => 'Download files in this folder as a ZIP',
+    'folder_actions' => 'Actions for folder :name',
+];

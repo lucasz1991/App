@@ -49,7 +49,7 @@ export async function nativeCameraBlur(track, onFrame, onFailure, platform = glo
 }
 
 // Keep SDK tracks, processors and timers outside Alpine's reactive proxies.
-export function callCameraPreview(config, rawRoom, capture = createLocalVideoTrack, loadEffects = url => import(/* @vite-ignore */ url)) {
+export function callCameraPreview(config, rawRoom, capture = createLocalVideoTrack, platform = globalThis) {
     let revision = 0;
     let preview = null;
     let prepared = null;
@@ -57,7 +57,6 @@ export function callCameraPreview(config, rawRoom, capture = createLocalVideoTra
     let releaseTimer;
     let pausePromise;
     let preference = null;
-    let effects;
     const loading = new Set();
 
     function release(item) {
@@ -92,44 +91,29 @@ export function callCameraPreview(config, rawRoom, capture = createLocalVideoTra
         try {
             if (!current()) throw abortCamera();
             const raw = local.mediaStreamTrack;
-            component.cameraNativeBlurAvailable = config.cameraEffectsEnabled !== false && supportsNativeCameraBlur(raw);
+            component.cameraNativeBlurAvailable = config.cameraEffectsEnabled !== false && supportsNativeCameraBlur(raw, platform);
             if (mode === 'original') {
                 item.output = raw;
                 return item;
             }
-            const base = config.cameraAssets;
-            const sdk = await effects;
-            if (!current()) throw abortCamera();
+            if (mode !== 'blur' || !component.cameraNativeBlurAvailable) throw new Error('Native blur unavailable');
             let lastFrame = 0;
             let frames = 0;
-            const onFrame = () => { lastFrame = Date.now(); frames++; };
-            if (base && sdk?.supportsBackgroundProcessors()) {
-                const processor = sdk.BackgroundProcessor({
-                    ...(mode === 'blur'
-                        ? { mode: 'background-blur', blurRadius: 16 }
-                        : { mode: 'virtual-background', imagePath: config.cameraBackground }),
-                    assetPaths: { modelAssetPath: base + '/selfie_segmenter.tflite', tasksVisionFileSet: base + '/wasm' },
-                    onFrameProcessed: onFrame,
-                });
-                await local.setProcessor(processor);
-                item.output = processor.processedTrack;
-            } else if (mode === 'blur' && component.cameraNativeBlurAvailable) {
-                item.native = await nativeCameraBlur(raw, onFrame, () => {
-                    if (item.fail) item.fail();
-                    else release(item);
-                });
-                item.output = item.native.track;
-            } else {
-                throw new Error('Unsupported processor');
-            }
+            item.native = await nativeCameraBlur(raw, () => {
+                lastFrame = Date.now();
+                frames++;
+            }, () => {
+                if (item.fail) item.fail();
+                else release(item);
+            }, platform);
+            item.output = item.native.track;
             if (!current() || item.stopped) {
                 item.native?.stop();
                 local.stop();
                 throw abortCamera();
             }
             const readyBy = Date.now() + 6000;
-            // The library can emit an initialization frame. Publish only an
-            // already-running processor output, never the capture track itself.
+            // Wait for protected frames before enabling the preview or publication.
             while (!item.stopped && frames < 2 && Date.now() < readyBy) {
                 if (!current()) throw abortCamera();
                 await new Promise(resolve => setTimeout(resolve, 40));
@@ -167,7 +151,6 @@ export function callCameraPreview(config, rawRoom, capture = createLocalVideoTra
         cameraMode: 'original',
         cameraDeviceId: '',
         cameraDevices: [],
-        cameraEffectsAvailable: false,
         cameraNativeBlurAvailable: false,
         cameraPreviewReady: false,
         cameraPreviewBusy: false,
@@ -176,12 +159,6 @@ export function callCameraPreview(config, rawRoom, capture = createLocalVideoTra
         cameraNeedsSetup: false,
 
         async openCameraPreview() {
-            if (config.cameraAssets) {
-                effects ??= loadEffects(config.cameraAssets + '/processor.js').catch(() => null);
-                void effects.then(sdk => {
-                    if (!this.disposed) this.cameraEffectsAvailable = Boolean(sdk?.supportsBackgroundProcessors());
-                }).catch(() => { this.cameraEffectsAvailable = false; });
-            }
             this.cameraMode = preference?.mode || (this.startWithVideo ? 'original' : 'off');
             this.cameraDeviceId = preference?.deviceId || '';
             if (this.connected) {

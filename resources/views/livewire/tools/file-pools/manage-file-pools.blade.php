@@ -3,6 +3,10 @@
     ->pluck('name')
     ->prepend(__('app.root_folder'))
     ->implode(' / ');
+  $gridView = $layout === 'grid';
+  $detailsView = $layout === 'details';
+  $hasResults = $folders->isNotEmpty() || $poolFiles->isNotEmpty();
+  $folderTag = $detailsView ? 'tr' : 'div';
 @endphp
 
 <div
@@ -126,71 +130,59 @@
   <p id="file-pool-drag-hint-{{ $filePoolId }}" class="sr-only">
     {{ __('app.file_drag_hint') }}
   </p>
-  {{--
-    Explorer-Kopf:
-    - Aktionen als reine Icon-Knoepfe (Beschriftung via title/aria-label),
-      IMMER in eigener Zeile ueber der Verzeichnisnavigation;
-    - der Pfad bleibt das letzte Element vor dem Explorer.
-  --}}
   <div
-    class="mb-2 flex flex-col gap-2"
+    class="mb-2 flex flex-col gap-2 min-w-0"
     data-file-explorer-header
   >
-    <div
-      class="flex items-center justify-end gap-2"
-      data-file-explorer-actions
+    <x-ui.filepool.explorer-toolbar
+      :layout="$layout"
+      :file-type="$fileType"
+      :file-types="$fileTypes"
+      :scope-links="$scopeLinks"
+      :scope="$scopeLinks === [] ? null : 'shared'"
+      :can-go-up="$currentFolder !== null"
     >
-      @if(!$readOnly)
-        <button
-          wire:click="openCreateFolder"
-          title="{{ __('app.new_folder') }}"
-          aria-label="{{ __('app.new_folder') }}"
-          class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rt-border bg-rt-control text-rt-text shadow-rt-xs transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-rt-accent/40 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:hover:bg-rt-dark-surface-muted"
-        >
-          <i class="fad fa-folder-plus fa-lg" aria-hidden="true"></i>
-        </button>
-      @endif
-      @if($canUploadFiles)
-        <button
-          wire:click="openUploadForm"
-          wire:loading.attr="disabled"
-          wire:target="openUploadForm"
-          title="{{ __('app.file_upload') }}"
-          aria-label="{{ __('app.file_upload') }}"
-          class="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-rt-red text-white shadow-rt-xs transition-all duration-300 ease-rt-spring hover:-translate-y-px hover:bg-rt-red-dark hover:shadow-rt-glow active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-rt-red/40 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60 dark:focus:ring-offset-slate-900"
-        >
-          <i class="fad fa-cloud-upload-alt text-lg" aria-hidden="true"></i>
-        </button>
-      @endif
-      @if($filePool && $poolFiles->count() > 0)
-        <x-ui.dropdown.anchor-dropdown class="" :width="'w-max'">
-          <x-slot name="trigger">
-              <button
-                type="button"
-                title="{{ __('app.download_all_files') }}"
-                aria-label="{{ __('app.download_all_files') }}"
-                class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rt-border bg-rt-control text-rt-text shadow-rt-xs transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-rt-accent/40 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:hover:bg-rt-dark-surface-muted"
-              >
-                  <i class="fad fa-download fa-lg" aria-hidden="true"></i>
+      <x-slot:actions>
+        @if(!$readOnly || $canUploadFiles || $downloadableIds->isNotEmpty())
+          <x-ui.dropdown.anchor-dropdown data-file-explorer-actions :width="'w-max'">
+            <x-slot:trigger>
+              <button type="button" title="{{ __('file_explorer.actions') }}" aria-label="{{ __('file_explorer.actions') }}"
+                      class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rt-border bg-rt-control text-rt-text hover:bg-rt-surface-muted focus-visible:ring-2 focus-visible:ring-rt-accent dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white">
+                <i class="far fa-ellipsis-h" aria-hidden="true"></i>
               </button>
-          </x-slot>
-          <x-slot name="content">
-            <x-ui.dropdown.dropdown-link wire:click="downloadAll" class="flex items-center gap-2">
-                <i class="fad fa-file-archive fa-lg"></i>&nbsp;&nbsp;{{ __('app.download_all_files') }}
-            </x-ui.dropdown.dropdown-link>
-          </x-slot>
-        </x-ui.dropdown.anchor-dropdown>
-      @endif
-    </div>
+            </x-slot:trigger>
+            <x-slot:content>
+              @unless($readOnly)
+                <x-ui.dropdown.dropdown-link wire:click="openCreateFolder" title="{{ __('app.new_folder') }}" aria-label="{{ __('app.new_folder') }}">
+                  <i class="far fa-folder-plus" aria-hidden="true"></i> {{ __('app.new_folder') }}
+                </x-ui.dropdown.dropdown-link>
+              @endunless
+              @if($canUploadFiles)
+                <x-ui.dropdown.dropdown-link wire:click="openUploadForm" wire:loading.attr="disabled" wire:target="openUploadForm"
+                                             title="{{ __('app.file_upload') }}" aria-label="{{ __('app.file_upload') }}">
+                  <i class="far fa-cloud-upload-alt" aria-hidden="true"></i> {{ __('app.file_upload') }}
+                </x-ui.dropdown.dropdown-link>
+              @endif
+              @if($downloadableIds->isNotEmpty())
+                <x-ui.dropdown.dropdown-link wire:click="downloadAll">
+                  <i class="far fa-file-archive" aria-hidden="true"></i> {{ __('file_explorer.download_folder_zip') }}
+                </x-ui.dropdown.dropdown-link>
+              @endif
+            </x-slot:content>
+          </x-ui.dropdown.anchor-dropdown>
+        @endif
+      </x-slot:actions>
+    </x-ui.filepool.explorer-toolbar>
 
-    {{-- Breadcrumbs (Explorer-Pfad) --}}
+    <div class="flex min-w-0 items-center gap-2">
     <nav
-      class="flex min-w-0 items-center gap-1 overflow-x-auto rounded-xl bg-rt-surface-muted px-2 py-1.5 text-sm dark:bg-rt-dark-surface-muted"
-      aria-label="Breadcrumb"
+      class="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto rounded-xl bg-rt-surface-muted px-2 py-1.5 text-sm dark:bg-rt-dark-surface-muted"
+      aria-label="{{ __('file_explorer.path_label') }}"
       data-file-explorer-breadcrumb
     >
       <button type="button" wire:click="enterFolder"
               class="rt-file-drop-breadcrumb inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 font-medium transition-all duration-300 ease-rt-spring {{ $currentFolder ? 'text-rt-muted hover:bg-rt-surface hover:text-rt-accent hover:shadow-rt-xs dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface dark:hover:text-rt-dark-accent' : 'text-rt-text dark:text-rt-dark-text' }}"
+              @if(!$currentFolder) aria-current="page" @endif
               @if($canMoveFiles)
                 :data-drop-active="dropTarget === 'breadcrumb-root' ? 'true' : 'false'"
                 @dragenter.prevent="activateDropTarget($event, 'breadcrumb-root')"
@@ -198,13 +190,13 @@
                 @dragleave="leaveDropTarget($event, 'breadcrumb-root')"
                 @drop.prevent.stop="dropFile($event, null, 'breadcrumb-root')"
               @endif>
-        <i class="fad fa-home fa-sm"></i>
+        <i class="fad fa-home fa-sm" aria-hidden="true"></i>
         {{ __('app.root_folder') }}
       </button>
       @foreach($breadcrumb as $crumb)
-        <i class="far fa-chevron-right text-[10px] text-rt-soft dark:text-rt-dark-soft"></i>
+        <i class="far fa-chevron-right text-[10px] text-rt-soft dark:text-rt-dark-soft" aria-hidden="true"></i>
         @if($loop->last)
-          <span class="truncate rounded-lg px-2 py-1 font-semibold text-rt-text dark:text-rt-dark-text">{{ $crumb->name }}</span>
+          <span class="truncate rounded-lg px-2 py-1 font-semibold text-rt-text dark:text-rt-dark-text" aria-current="page" title="{{ $crumb->name }}">{{ $crumb->name }}</span>
         @else
           <button type="button" wire:click="enterFolder({{ $crumb->id }})"
                   class="rt-file-drop-breadcrumb shrink-0 truncate rounded-lg px-2 py-1 font-medium text-rt-muted transition-all duration-300 ease-rt-spring hover:bg-rt-surface hover:text-rt-accent hover:shadow-rt-xs dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface dark:hover:text-rt-dark-accent"
@@ -220,106 +212,43 @@
         @endif
       @endforeach
     </nav>
+    <p class="shrink-0 whitespace-nowrap pr-1 text-xs text-rt-muted dark:text-rt-dark-muted" role="status" data-file-explorer-counts>
+      {{ trans_choice('file_explorer.folders_count', $folders->count()) }}
+      <span aria-hidden="true">·</span>
+      {{ trans_choice('app.files_count', $poolFiles->count()) }}
+    </p>
+    </div>
   </div>
 
-  {{-- Gemeinsames Explorer-Raster: zuerst Ordner, danach Dateien.
-
-       Ladeverhalten: Beim Ordnerwechsel blendet das alte Raster kurz ab
-       (is-busy) statt zu verschwinden — das haelt die Hoehe stabil und
-       vermeidet den Sprung. Die neuen Kacheln tragen --rt-stagger und laufen
-       per CSS gestaffelt ein; das greift auch beim Ordnerwechsel, waehrend
-       die GSAP-Reveals nur bei echten Seitenwechseln feuern. --}}
   <div
-    class="rt-file-explorer-grid mb-6 mt-0"
-    data-anim-stagger
-    wire:target="enterFolder"
+    @class([
+      'rt-file-explorer-grid mb-6 mt-0' => $gridView,
+      'mb-6 min-w-0 space-y-1' => !$gridView,
+    ])
+    @if($gridView) data-anim-stagger @endif
+    wire:key="file-explorer-{{ $filePoolId }}-{{ $layout }}"
+    wire:target="enterFolder,goUp"
     wire:loading.class="is-busy"
+    data-file-explorer-layout="{{ $layout }}"
     @contextmenu.prevent="openCtx($event, null)"
   >
-    @foreach($folders as $folder)
-        <div
-          class="rt-file-explorer-card rt-file-drop-folder group relative rounded-lg p-1.5 transition-all duration-300 ease-rt-spring hover:bg-rt-accent/5 hover:ring-1 hover:ring-rt-accent/30 dark:hover:bg-rt-dark-accent/10 dark:hover:ring-rt-dark-accent/30"
-          style="--rt-stagger: {{ $loop->index }}"
-          wire:key="folder-{{ $folder->id }}"
-          @contextmenu.prevent.stop="openCtx($event, {{ $folder->id }})"
-          @if($canMoveFiles)
-            :data-drop-active="dropTarget === 'folder-{{ $folder->id }}' ? 'true' : 'false'"
-            @dragenter.prevent="activateDropTarget($event, 'folder-{{ $folder->id }}')"
-            @dragover.prevent="activateDropTarget($event, 'folder-{{ $folder->id }}')"
-            @dragleave="leaveDropTarget($event, 'folder-{{ $folder->id }}')"
-            @drop.prevent.stop="dropFile($event, {{ $folder->id }}, 'folder-{{ $folder->id }}')"
-          @endif
-        >
-          @if($folder->auto_delete || $folder->visible_until)
-            <div class="absolute left-1.5 top-1.5 text-rt-muted dark:text-rt-dark-muted" title="{{ $folder->visible_until ? __('app.visible_until').': '.$folder->visible_until->format('d.m.Y').($folder->auto_delete ? ' · '.__('app.auto_delete') : '') : __('app.auto_delete') }}">
-              <i class="fad fa-clock text-[11px]"></i>
-            </div>
-          @endif
-          <button type="button" wire:click="enterFolder({{ $folder->id }})" class="flex w-full flex-col items-center gap-1 pt-2 text-center focus:outline-none">
-            <i class="fad fa-folder text-4xl text-amber-400 transition group-hover:text-amber-500 dark:text-amber-400 dark:group-hover:text-amber-300"></i>
-            <span class="w-full line-clamp-2 break-words text-xs font-medium leading-snug text-rt-text dark:text-rt-dark-text" title="{{ $folder->name }}">{{ $folder->name }}</span>
-          </button>
-
-          @if(!$readOnly)
-            <div class="absolute right-1.5 top-1.5">
-              <x-ui.dropdown.anchor-dropdown align="right" width="48">
-                <x-slot name="trigger">
-                  <button type="button" class="rounded-lg bg-rt-surface/80 px-1.5 py-0.5 text-sm text-rt-muted shadow-rt-xs ring-1 ring-rt-border/60 transition hover:bg-rt-surface-muted hover:text-rt-text dark:bg-rt-dark-surface/80 dark:text-rt-dark-muted dark:ring-rt-dark-border/60 dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-text">
-                    &#x22EE;
-                  </button>
-                </x-slot>
-                <x-slot name="content">
-                  <x-ui.dropdown.dropdown-link wire:click.prevent="openRenameFolder({{ $folder->id }})">
-                    <i class="far fa-cog mr-2"></i>{{ __('app.folder_settings') }}
-                  </x-ui.dropdown.dropdown-link>
-                  @if($allowTeamPermissions)
-                    <x-ui.dropdown.dropdown-link wire:click.prevent="openPermissions({{ $folder->id }})">
-                      <i class="far fa-shield-alt mr-2"></i>{{ __('app.permissions') }}
-                    </x-ui.dropdown.dropdown-link>
-                  @endif
-                  <x-ui.dropdown.dropdown-link
-                      confirm-method="deleteFolder"
-                      :confirm-arguments="[(int) $folder->id]"
-                      :confirm-title="__('app.delete')"
-                      :confirm-message="__('app.folder_delete_confirm')"
-                      :confirm-label="__('app.delete')"
-                      class="!text-red-600 dark:!text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
-                  >
-                    <i class="far fa-trash-alt mr-2"></i>{{ __('app.delete') }}
-                  </x-ui.dropdown.dropdown-link>
-                </x-slot>
-              </x-ui.dropdown.anchor-dropdown>
-            </div>
-          @endif
-        </div>
-    @endforeach
-
-    @foreach($poolFiles as $file)
-      <div
-        class="rt-file-explorer-card min-w-0"
-        style="--rt-stagger: {{ $folders->count() + $loop->index }}"
-        wire:key="file-{{ $file->id }}"
-      >
-        <x-ui.filepool.file-card
-          :file="$file"
-          :read-only="$readOnly"
-          :can-move="$canMoveFiles && (
-            $file->is_owned_by_auth_user
-            || auth()->user()?->isAdmin()
-            || auth()->user()?->can('files.manage')
-            || auth()->user()?->can('users.edit')
-          )"
-          :drag-hint-id="'file-pool-drag-hint-'.$filePoolId"
-        />
-      </div>
-    @endforeach
-
-    @if($folders->isEmpty() && $poolFiles->isEmpty())
-      <div class="col-span-full flex w-full flex-col items-center gap-2 rounded-xl border border-dashed border-rt-border bg-rt-surface-muted/60 py-12 text-center dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/40">
-        <i class="fad fa-folder-open text-3xl text-rt-soft dark:text-rt-dark-soft"></i>
-        <span class="text-sm text-rt-muted dark:text-rt-dark-muted">{{ __('app.no_files_available') }}</span>
-      </div>
+    @if($detailsView && $hasResults)
+      <x-ui.filepool.explorer-table :sort-by="$sortBy" :sort-direction="$sortDirection">
+        @include('livewire.tools.file-pools.partials.explorer-items')
+      </x-ui.filepool.explorer-table>
+    @else
+      @include('livewire.tools.file-pools.partials.explorer-items')
     @endif
+
+    @unless($hasResults)
+      <div class="col-span-full flex w-full flex-col items-center gap-2 rounded-xl border border-dashed border-rt-border bg-rt-surface-muted/60 py-12 text-center dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/40">
+        <i class="fad fa-folder-open text-3xl text-rt-soft dark:text-rt-dark-soft" aria-hidden="true"></i>
+        <span class="text-sm text-rt-muted dark:text-rt-dark-muted">{{ $isFiltered ? __('file_explorer.no_matches') : __('app.no_files_available') }}</span>
+        @if($isFiltered)
+          <x-ui.buttons.button-basic type="button" mode="secondary" wire:click="clearExplorerFilters">{{ __('app.reset') }}</x-ui.buttons.button-basic>
+        @endif
+      </div>
+    @endunless
   </div>
 
   {{-- Rechtsklick-Kontextmenue (Explorer) --}}
@@ -378,9 +307,9 @@
         <i class="far fa-upload w-4 text-center"></i>{{ __('app.file_upload') }}
       </button>
     @endif
-    @if($filePool && $poolFiles->count() > 0)
+    @if($downloadableIds->isNotEmpty())
       <button type="button" @click="$wire.downloadAll(); ctx = false" class="{{ $ctxItem }} text-rt-text hover:bg-rt-surface-muted dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted">
-        <i class="far fa-file-archive w-4 text-center"></i>{{ __('app.download_all_files') }}
+        <i class="far fa-file-archive w-4 text-center" aria-hidden="true"></i>{{ __('file_explorer.download_folder_zip') }}
       </button>
     @endif
   </div>

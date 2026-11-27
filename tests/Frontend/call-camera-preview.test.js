@@ -9,23 +9,19 @@ function camera() {
         stopped: false,
         stop() { this.stopped = true; },
         detach() {},
-        async setProcessor(processor) {
-            processor.options.onFrameProcessed();
-            processor.options.onFrameProcessed();
-        },
     };
 }
 
-function setup(capture, loadEffects) {
-    const config = { cameraAssets: '/effects', cameraBackground: '/brand.jpg', labels: { effectFailed: 'Effect paused' } };
-    return Object.assign(callCameraPreview(config, value => value, capture, loadEffects), {
+function setup(capture, platform) {
+    const config = { labels: { effectFailed: 'Effect paused' } };
+    return Object.assign(callCameraPreview(config, value => value, capture, platform), {
         $refs: {}, startWithVideo: false, canPublish: true, isActiveRoom: () => true, toast() {},
         deviceErrorLabel() { return 'Camera denied'; },
     });
 }
 
 test('camera denial requires an explicit switch to audio only', async () => {
-    const state = setup(async () => { throw new Error('denied'); }, async () => null);
+    const state = setup(async () => { throw new Error('denied'); });
     state.startWithVideo = true;
     await state.openCameraPreview();
     assert.equal(state.cameraPreviewMessage, 'Camera denied');
@@ -41,7 +37,7 @@ test('closing a camera prompt stops a later-granted capture', async () => {
     let grant, requested;
     const pending = new Promise(resolve => { grant = resolve; });
     const started = new Promise(resolve => { requested = resolve; });
-    const state = setup(() => { requested(); return pending; }, async () => null);
+    const state = setup(() => { requested(); return pending; });
     state.startWithVideo = true;
     const operation = state.openCameraPreview();
     await started;
@@ -53,25 +49,42 @@ test('closing a camera prompt stops a later-granted capture', async () => {
     assert.equal(state.cameraPreviewReady, false);
 });
 
-test('only warmed processed media is published; processor failure turns off the camera', async () => {
+test('preview publishes only native blurred output and pauses when the camera loses blur', async () => {
     const input = camera();
-    const processed = Object.assign(new EventTarget(), { enabled: true });
-    const state = setup(async () => input, async () => ({
-        supportsBackgroundProcessors: () => true,
-        BackgroundProcessor: options => ({ options, processedTrack: processed }),
-    }));
+    let enabled = false;
+    Object.assign(input.mediaStreamTrack, {
+        getCapabilities: () => ({ backgroundBlur: [false, true] }),
+        getConstraints: () => ({}),
+        getSettings: () => ({ backgroundBlur: enabled }),
+        async applyConstraints(options) { enabled = options.backgroundBlur.exact; },
+    });
+    const platform = {
+        MediaStreamTrackProcessor: class {
+            readable = new ReadableStream({ start(controller) {
+                for (let i = 0; i < 3; i++) controller.enqueue({ close() {} });
+            } });
+        },
+        MediaStreamTrackGenerator: class extends EventTarget {
+            writable = new WritableStream();
+            stop() {}
+        },
+    };
+    const state = setup(async () => input, platform);
     await state.openCameraPreview();
     state.cameraMode = 'blur';
     await state.refreshCameraPreview();
+    assert.equal(state.cameraNativeBlurAvailable, true);
     assert.equal(state.cameraPreviewReady, true);
     assert.equal(await state.commitCameraPreview(), true);
     const sent = [];
     const room = { localParticipant: { async publishTrack(track) { sent.push(track); return { track }; } } };
     state.room = room;
     await state.publishCameraSelection(room, 1);
-    assert.deepEqual(sent, [processed]);
-    processed.dispatchEvent(new Event('ended'));
-    assert.equal(processed.enabled, false);
+    assert.equal(sent.length, 1);
+    assert.ok(sent[0] instanceof platform.MediaStreamTrackGenerator);
+    enabled = false;
+    input.mediaStreamTrack.dispatchEvent(new Event('configurationchange'));
+    assert.equal(sent[0].enabled, false);
     assert.equal(input.stopped, true);
     assert.equal(state.cameraPreviewMessage, 'Effect paused');
     assert.equal(state.cameraNeedsSetup, true);
@@ -79,13 +92,13 @@ test('only warmed processed media is published; processor failure turns off the 
     state.disposeCameraPreview();
 });
 
-test('processor initialization failure releases capture and keeps original unpublished', async () => {
+test('unsupported native blur stops capture and requires a new camera selection', async () => {
     const raw = camera();
-    const state = setup(async () => raw, async () => ({ supportsBackgroundProcessors: () => false }));
+    const state = setup(async () => raw, {});
     await state.openCameraPreview();
-    state.cameraMode = 'brand';
+    state.cameraMode = 'blur';
     await state.refreshCameraPreview();
-    assert.equal(state.cameraEffectsAvailable, false);
+    assert.equal(state.cameraNativeBlurAvailable, false);
     assert.equal(state.cameraPreviewReady, false);
     assert.equal(raw.stopped, true);
     assert.equal(await state.commitCameraPreview(), false);

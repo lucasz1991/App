@@ -2,12 +2,14 @@
 
 namespace App\Livewire\Tools\FilePools;
 
+use App\Livewire\Concerns\InteractsWithFileExplorer;
 use App\Models\File;
 use App\Models\FileFolder;
 use App\Models\FilePool;
 use App\Models\MarketingCreative;
 use App\Models\Team;
 use App\Models\User;
+use App\Support\FileExplorer;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +28,7 @@ use ZipArchive;
 
 class ManageFilePools extends Component
 {
+    use InteractsWithFileExplorer;
     use WithFileUploads;
     use WithPagination;
 
@@ -109,6 +112,11 @@ class ManageFilePools extends Component
     #[Url(as: 'folder', history: true)]
     public ?int $currentFolderId = null;
 
+    public string $search = '';
+
+    #[Locked]
+    public array $scopeLinks = [];
+
     /** Ordner anlegen/umbenennen */
     public bool $openFolderForm = false;
 
@@ -138,6 +146,7 @@ class ManageFilePools extends Component
         bool $readOnly = true,
         ?int $poolId = null,
         bool $allowTeamPermissions = false,
+        array $scopeLinks = [],
     ): void {
         if ($modelType === Team::class && $modelId !== null) {
             abort_unless(Auth::user()?->belongsToTeam(Team::findOrFail($modelId)), 403);
@@ -163,6 +172,7 @@ class ManageFilePools extends Component
         $this->openEditFileForm = false;
         $this->readOnly = $readOnly;
         $this->allowTeamPermissions = $allowTeamPermissions;
+        $this->scopeLinks = $scopeLinks;
 
         abort_unless($this->userCanAccessPool($this->filePool), 403);
     }
@@ -191,7 +201,7 @@ class ManageFilePools extends Component
     public function enterFolder(?int $folderId = null): void
     {
         if ($folderId === null) {
-            $this->currentFolderId = null;
+            $this->changeExplorerFolder(null);
 
             return;
         }
@@ -200,7 +210,42 @@ class ManageFilePools extends Component
 
         $this->authorizeFolderView($folder);
 
-        $this->currentFolderId = $folder->id;
+        $this->changeExplorerFolder($folder->id);
+    }
+
+    public function goUp(): void
+    {
+        $folder = $this->resolveCurrentFolder();
+
+        if (! $folder) {
+            return;
+        }
+
+        $parent = $folder->parent;
+        $canOpenParent = $parent
+            && (int) $parent->file_pool_id === $this->filePoolId
+            && $parent->id !== $folder->id
+            && $this->mayViewFolder($parent);
+
+        $this->changeExplorerFolder($canOpenParent ? $parent->id : null);
+    }
+
+    public function updatedCurrentFolderId(): void
+    {
+        $this->clearExplorerFilters();
+    }
+
+    public function clearExplorerFilters(): void
+    {
+        $this->reset('search', 'fileType');
+    }
+
+    protected function changeExplorerFolder(?int $folderId): void
+    {
+        if ($this->currentFolderId !== $folderId) {
+            $this->currentFolderId = $folderId;
+            $this->clearExplorerFilters();
+        }
     }
 
     public function openCreateFolder(): void
@@ -279,7 +324,7 @@ class ManageFilePools extends Component
         $folder->deleteRecursive();
 
         if ($this->currentFolderId === $folderId) {
-            $this->currentFolderId = $folder->parent_id;
+            $this->changeExplorerFolder($folder->parent_id);
         }
 
         $this->dispatch('swal:toast', type: 'success', text: __('app.folder_deleted'));
@@ -810,7 +855,7 @@ class ManageFilePools extends Component
      */
     protected function resolveCurrentFolder(): ?FileFolder
     {
-        if (! $this->currentFolderId) {
+        if ($this->currentFolderId === null) {
             return null;
         }
 
@@ -818,7 +863,7 @@ class ManageFilePools extends Component
             ->find($this->currentFolderId);
 
         if (! $folder || ! $this->mayViewFolder($folder)) {
-            $this->currentFolderId = null;
+            $this->changeExplorerFolder(null);
 
             return null;
         }
@@ -1094,8 +1139,36 @@ class ManageFilePools extends Component
             && $pool->filepoolable_type === (new MarketingCreative)->getMorphClass();
     }
 
+    protected function explorerFolders(Collection $folders): Collection
+    {
+        if ($this->fileType !== '' && $this->fileType !== 'folder') {
+            return collect();
+        }
+
+        $direction = $this->sortDirection === 'desc' ? -1 : 1;
+
+        return $folders
+            ->filter(fn (FileFolder $folder): bool => FileExplorer::matchesSearch($folder->name, $this->search))
+            ->sort(function (FileFolder $left, FileFolder $right) use ($direction): int {
+                if ($this->sortBy === 'date') {
+                    $dates = ($left->updated_at?->timestamp ?? 0) <=> ($right->updated_at?->timestamp ?? 0);
+
+                    if ($dates !== 0) {
+                        return $dates * $direction;
+                    }
+                }
+
+                $names = strnatcmp(mb_strtolower($left->name), mb_strtolower($right->name));
+
+                return ($names * ($this->sortBy === 'name' ? $direction : 1)) ?: ($left->id <=> $right->id);
+            })
+            ->values();
+    }
+
     public function render()
     {
+        $this->normalizeExplorerOptions();
+
         $filePool = FilePool::find($this->filePoolId);
 
         abort_unless($filePool, 404);
@@ -1105,47 +1178,45 @@ class ManageFilePools extends Component
         $this->expires[(int) $filePool->id] ??= null;
 
         $currentFolder = $this->resolveCurrentFolder();
+        $user = Auth::user();
+        $bypassesVisibility = $this->canBypassFileVisibility();
 
-        // Unterordner der aktuellen Ebene (für normale Benutzer nur erlaubte)
-        $folders = $filePool
-            ? FileFolder::where('file_pool_id', $this->filePoolId)
-                ->where(fn ($q) => $this->currentFolderId === null
-                    ? $q->whereNull('parent_id')
-                    : $q->where('parent_id', $this->currentFolderId))
-                ->orderBy('name')
-                ->get()
-            : collect();
+        $folders = FileFolder::where('file_pool_id', $this->filePoolId)
+            ->where('parent_id', $this->currentFolderId)
+            ->get();
+        $poolFiles = $filePool->files()
+            ->with('folder')
+            ->where('folder_id', $this->currentFolderId)
+            ->get();
 
-        if (! $this->canBypassFileVisibility()) {
-            $folders = $folders->filter(
-                fn (FileFolder $folder) => $folder->allowsForUser(Auth::user(), 'view')
-                    && $folder->isPubliclyVisible(Auth::user())
-            )->values();
-        }
-
-        // Dateien der aktuellen Ebene nach Team-Sichtbarkeit/-Berechtigung.
-        $poolFiles = $filePool
-            ? $filePool->files()
-                ->where(fn ($q) => $this->currentFolderId === null
-                    ? $q->whereNull('folder_id')
-                    : $q->where('folder_id', $this->currentFolderId))
-                ->latest()
-                ->get()
-            : collect();
-
-        if (! $this->canBypassFileVisibility()) {
+        if (! $bypassesVisibility) {
+            $folders = $folders->filter(fn (FileFolder $folder) => $folder->allowsForUser($user, 'view')
+                && $folder->isPubliclyVisible($user));
             $poolFiles = $poolFiles->filter(
-                fn (File $file) => Auth::user()?->canAccessFile($file, 'view') === true
-            )->values();
+                fn (File $file) => $user?->canAccessFile($file, 'view') === true
+            );
         }
+
+        $downloadableIds = $poolFiles
+            ->filter(fn (File $file): bool => ! $file->isExpired()
+                && ($bypassesVisibility || $user?->canAccessFile($file, 'download') === true))
+            ->pluck('id')
+            ->flip();
 
         return view('livewire.tools.file-pools.manage-file-pools', [
             'filePool' => $filePool,
-            'poolFiles' => $poolFiles,
-            'folders' => $folders,
+            'fileTypes' => FileExplorer::fileTypes($poolFiles, $folders->isNotEmpty(), $this->fileType),
+            'poolFiles' => $this->fileType === 'folder' ? collect() : FileExplorer::sortFiles(
+                FileExplorer::filterFiles($poolFiles, $this->search, $this->fileType),
+                $this->sortBy,
+                $this->sortDirection,
+            ),
+            'folders' => $this->explorerFolders($folders),
+            'downloadableIds' => $downloadableIds,
+            'isFiltered' => trim($this->search) !== '' || $this->fileType !== '',
             'currentFolder' => $currentFolder,
             'breadcrumb' => $currentFolder ? $currentFolder->breadcrumb() : [],
-            'canMoveFiles' => $filePool ? $this->canMoveFiles($filePool) : false,
+            'canMoveFiles' => $this->canMoveFiles($filePool),
             'canUploadFiles' => $this->canUploadFiles(),
             'teams' => $this->readOnly
                 ? collect()

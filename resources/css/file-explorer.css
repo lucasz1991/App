@@ -1,0 +1,401 @@
+.rt-explorer-toolbar-shell {
+    min-width: 0;
+    container: railtime-file-tools / inline-size;
+}
+
+.rt-explorer-toolbar {
+    --rt-explorer-control-size: 2.375rem;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: .375rem;
+    min-width: 0;
+    padding: .375rem;
+    border: 1px solid var(--rt-color-border);
+    border-radius: .85rem;
+    background: var(--rt-color-surface);
+    color: var(--rt-color-text);
+    font-size: .8125rem;
+}
+
+.rt-explorer-control,
+.rt-explorer-segment {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .375rem;
+    min-width: 0;
+    min-height: var(--rt-explorer-control-size, 2.375rem);
+    padding: 0 .5rem;
+    border: 1px solid transparent;
+    border-radius: .6rem;
+    background: var(--rt-color-surface-muted);
+    color: var(--rt-color-text);
+    white-space: nowrap;
+}
+
+.rt-explorer-control:focus-visible,
+.rt-explorer-segment:focus-visible,
+.rt-explorer-picker:focus-within,
+.rt-explorer-search:focus-within,
+.rt-explorer-file-link:focus-visible,
+.rt-explorer-table th button:focus-visible {
+    outline: 2px solid var(--rt-color-accent);
+    outline-offset: 2px;
+}
+
+.rt-explorer-control:not(:disabled):hover,
+.rt-explorer-segment:hover {
+    background: var(--rt-color-nav-hover);
+}
+
+.rt-explorer-control:disabled {
+    color: var(--rt-color-soft);
+    cursor: default;
+}
+
+.rt-explorer-up {
+    flex: 0 0 var(--rt-explorer-control-size);
+    padding: 0;
+}
+
+.rt-explorer-segments {
+    display: flex;
+    flex: 0 0 auto;
+    gap: .125rem;
+}
+
+.rt-explorer-segment {
+    background: transparent;
+    padding-inline: .625rem;
+    font-weight: 600;
+}
+
+.rt-explorer-segment[aria-pressed="true"],
+.rt-explorer-segment[aria-current="page"],
+.rt-explorer-picker[data-active] {
+    color: var(--rt-color-accent);
+    background: var(--rt-color-accent-soft);
+}
+
+.rt-explorer-search {
+    flex: 1 1 9rem;
+    justify-content: start;
+    border-color: var(--rt-color-border);
+    color: var(--rt-color-muted);
+}
+
+.rt-explorer-search input,
+.rt-explorer-picker select {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    min-height: var(--rt-explorer-control-size);
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--rt-color-text);
+    font: inherit;
+    box-shadow: none;
+}
+
+.rt-explorer-search input:focus,
+.rt-explorer-picker select:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+.rt-explorer-search input::placeholder {
+    color: var(--rt-color-muted);
+}
+
+.rt-explorer-picker {
+    position: relative;
+    flex: 0 0 auto;
+    border-color: var(--rt-color-border);
+    background: var(--rt-color-control);
+}
+
+.rt-explorer-picker select {
+    padding-inline-end: 1.25rem;
+}
+
+.rt-explorer-type-picker {
+    max-width: 8.5rem;
+}
+
+.rt-explorer-scope-picker,
+.rt-explorer-layout-picker {
+    display: none;
+}
+
+.rt-explorer-toolbar-actions {
+    flex: 0 0 auto;
+}
+
+.rt-explorer-table-shell {
+    min-width: 0;
+    container: railtime-file-details / inline-size;
+}
+
+.rt-explorer-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    color: var(--rt-color-text);
+    font-size: .8125rem;
+}
+
+.rt-explorer-table :is(th, td) {
+    padding: .375rem .5rem;
+    border-block-end: 1px solid var(--rt-color-border);
+    text-align: start;
+}
+
+.rt-explorer-table th {
+    background: var(--rt-color-surface-muted);
+    color: var(--rt-color-muted);
+    font-weight: 600;
+}
+
+.rt-explorer-table th button {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    min-height: 1.75rem;
+    text-align: start;
+    line-height: 1.2;
+    padding: 0;
+}
+
+.rt-explorer-table th[aria-sort] {
+    color: var(--rt-color-text);
+}
+
+.rt-explorer-table .rt-explorer-col-date {
+    width: 7.5rem;
+}
+
+.rt-explorer-table .rt-explorer-col-type {
+    width: 6em;
+    overflow-wrap: anywhere;
+}
+
+.rt-explorer-table .rt-explorer-col-size {
+    width: 6em;
+    text-align: end;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.rt-explorer-table .rt-explorer-col-actions {
+    width: 3.125rem;
+    text-align: end;
+}
+
+.rt-explorer-file-row:hover,
+.rt-explorer-list-file:hover {
+    background: var(--rt-color-surface-muted);
+}
+
+.rt-explorer-list-file {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .375rem;
+    min-width: 0;
+    padding: .25rem .5rem;
+    border-block-end: 1px solid var(--rt-color-border);
+    color: var(--rt-color-text);
+}
+
+.rt-explorer-file-link {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 2rem;
+    padding-block: .125rem;
+    border-radius: .375rem;
+    text-align: start;
+}
+
+.rt-explorer-file-content {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    min-width: 0;
+}
+
+.rt-explorer-file-icon {
+    flex: 0 0 auto;
+    width: 1.625rem;
+    height: 1.625rem;
+    object-fit: contain;
+}
+
+.rt-explorer-file-caption {
+    display: grid;
+    min-width: 0;
+    gap: .125rem;
+}
+
+.rt-explorer-file-name {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.rt-explorer-file-meta {
+    color: var(--rt-color-muted);
+    font-size: .75rem;
+}
+
+.rt-explorer-row-actions {
+    flex: 0 0 auto;
+}
+
+.rt-explorer-row-menu {
+    min-width: 2rem;
+    min-height: 2rem;
+}
+
+.rt-explorer-grid-file.rt-file-card {
+    aspect-ratio: auto;
+    min-height: 8.75rem;
+    background: var(--rt-color-surface);
+    color: var(--rt-color-text);
+}
+
+.rt-explorer-grid-file .rt-file-card-preview::before {
+    display: none;
+}
+
+.rt-explorer-grid-content {
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: .5rem;
+    height: 100%;
+    padding: 1.15rem .4rem .5rem;
+    text-align: center;
+    font-size: .8125rem;
+    line-height: 1.2;
+}
+
+.rt-explorer-grid-content .rt-explorer-file-icon {
+    width: 2.75rem;
+    height: 2.75rem;
+    padding: .25rem;
+    border-radius: .55rem;
+    background: var(--rt-color-surface-muted);
+}
+
+.rt-explorer-grid-content .rt-explorer-file-name {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.rt-explorer-grid-file .rt-file-card-menu-trigger {
+    opacity: 1;
+    pointer-events: auto;
+    color: var(--rt-color-muted);
+    background: var(--rt-color-control);
+}
+
+@container railtime-file-tools (max-width: 48rem) {
+    .rt-explorer-layouts {
+        display: none;
+    }
+
+    .rt-explorer-layout-picker {
+        display: inline-flex;
+    }
+}
+
+@container railtime-file-tools (max-width: 32rem) {
+    .rt-explorer-toolbar {
+        gap: .25rem;
+        padding: .25rem;
+    }
+
+    .rt-explorer-scopes {
+        display: none;
+    }
+
+    .rt-explorer-scope-picker {
+        display: inline-flex;
+        flex-basis: 5.4rem;
+        padding-inline: .25rem;
+    }
+
+    .rt-explorer-scope-picker select {
+        font-size: .75rem;
+        padding-inline-end: .8rem;
+        background-position: right center;
+        background-size: .85rem;
+    }
+
+    .rt-explorer-type-picker,
+    .rt-explorer-layout-picker {
+        flex-basis: var(--rt-explorer-control-size);
+        padding: 0;
+    }
+
+    .rt-explorer-type-picker select,
+    .rt-explorer-layout-picker select {
+        position: absolute;
+        inset: 0;
+        height: 100%;
+        opacity: 0;
+    }
+
+    .rt-explorer-search {
+        padding-inline: .375rem;
+    }
+}
+
+@container railtime-file-tools (max-width: 22rem) {
+    .rt-explorer-toolbar {
+        --rt-explorer-control-size: 2.125rem;
+    }
+
+    .rt-explorer-search > i {
+        display: none;
+    }
+}
+
+@container railtime-file-details (max-width: 34rem) {
+    .rt-explorer-table .rt-explorer-col-type {
+        display: none;
+    }
+}
+
+@container railtime-file-details (max-width: 24rem) {
+    .rt-explorer-table :is(th, td) {
+        padding-inline: .25rem;
+    }
+
+    .rt-explorer-table .rt-explorer-col-date {
+        width: 5.25rem;
+    }
+
+    .rt-explorer-table .rt-explorer-col-size {
+        width: 4.125rem;
+    }
+
+    .rt-explorer-table .rt-explorer-col-actions {
+        width: 2.5rem;
+    }
+}
+
+@media (pointer: coarse) {
+    .rt-explorer-toolbar {
+        min-height: 2.75rem;
+    }
+
+    .rt-explorer-search input {
+        font-size: 1rem;
+    }
+}

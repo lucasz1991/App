@@ -1,0 +1,40 @@
+<?php
+
+return [
+    'toolbar' => 'Dateiwerkzeuge',
+    'scope_label' => 'Dateibereich',
+    'scopes' => [
+        'all' => 'Alle',
+        'required' => 'Verbindlich',
+        'personal' => 'Für mich',
+        'shared' => 'Geteilt',
+    ],
+    'search' => 'Dateien suchen',
+    'search_placeholder' => 'Suche',
+    'type_filter' => 'Dateityp',
+    'all_types' => 'Alle Typen',
+    'unknown_type' => 'Unbekannter Typ',
+    'folder' => 'Ordner',
+    'folders_count' => ':count Ordner|:count Ordner',
+    'layout_label' => 'Dateiansicht',
+    'layouts' => [
+        'grid' => 'Raster',
+        'list' => 'Liste',
+        'details' => 'Details',
+    ],
+    'columns' => [
+        'name' => 'Name',
+        'date' => 'Geändert am',
+        'type' => 'Typ',
+        'size' => 'Größe',
+    ],
+    'actions' => 'Aktionen',
+    'name_and_type' => ':name (:type)',
+    'path_label' => 'Ordnerpfad',
+    'up' => 'Übergeordneter Ordner',
+    'empty' => 'Dieser Ordner ist leer.',
+    'no_matches' => 'Keine passenden Einträge.',
+    'clear' => 'Suche und Filter zurücksetzen',
+    'download_folder_zip' => 'Dateien dieses Ordners als ZIP herunterladen',
+    'folder_actions' => 'Aktionen für Ordner :name',
+];

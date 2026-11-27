@@ -16,9 +16,7 @@
         selfIdentity: @js(\App\Services\Calls\LiveKitService::identityFor(auth()->user())),
         canPublish: @js($me?->canPublish() ?? false),
         startWithVideo: @js((bool) data_get($room->settings, 'video', true)),
-        cameraAssets: @js(config('livekit.background_effects') && is_file(public_path('vendor/call-backgrounds/0.7.2/processor.js')) ? url('vendor/call-backgrounds/0.7.2') : null),
         cameraEffectsEnabled: @js((bool) config('livekit.background_effects')),
-        cameraBackground: @js(url('rt-brand/img/hero-railtime.jpg')),
         waiting: @js($this->waitingFor()),
         labels: {
             beingCalled: @js(__('app.calls_being_called')),
