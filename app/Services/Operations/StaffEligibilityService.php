@@ -78,13 +78,24 @@ class StaffEligibilityService
     /** Small, server-owned candidate batch after fresh core/capacity/rank preparation. */
     public function assessPreviewRoutesMany(Shift $shift, Collection $users, array $context = []): array
     {
+        return collect($this->assessPreviewRouteDetailsMany($shift, $users, $context))
+            ->map(fn (array $result) => $result['issues'])->all();
+    }
+
+    /**
+     * Nur Fahrtprüfung mit Details, ohne erneute Kernregeln. Der Aufrufer muss die
+     * Kernregeln in derselben Anfrage bereits geprüft haben; nie verbindlich.
+     *
+     * @return array<int, array{issues: array, warnings: array, travel: array, basis: string}>
+     */
+    public function assessPreviewRouteDetailsMany(Shift $shift, Collection $users, array $context = []): array
+    {
         $preflight = ($context['travel_preflight'] ?? null) instanceof TravelPreflight;
         if ($preflight) {
             $context = array_replace($context['travel_preflight']->context, $context);
         }
 
-        return collect(app(TravelAssessmentService::class)->assessMany($shift, $users, $context, false, DB::transactionLevel() === 0 && ! $preflight))
-            ->map(fn (array $result) => $result['issues'])->all();
+        return app(TravelAssessmentService::class)->assessMany($shift, $users, $context, false, DB::transactionLevel() === 0 && ! $preflight);
     }
 
     /** @return array<int, array{issues: array, warnings: array, travel: array, basis: string}> */
@@ -138,10 +149,11 @@ class StaffEligibilityService
         $activityIds = $activities->pluck('activity_id')->filter()->unique();
         $assignments = $activityIds->isEmpty() ? collect() : $query(DB::table('duty_activity_user')->whereIn('user_id', $users->pluck('id'))
             ->whereIn('duty_activity_id', $activityIds))->get()->groupBy('user_id');
-        $snapshotTypes = $query(QualificationType::whereKey($snapshotIds))->get();
+        // Leere Mengen brauchen keine Abfrage; das Ergebnis wäre ohnehin leer.
+        $snapshotTypes = $snapshotIds->isEmpty() ? new \Illuminate\Database\Eloquent\Collection : $query(QualificationType::whereKey($snapshotIds))->get();
         $types = $types->merge($snapshotTypes)->unique('id');
         $ids = $users->pluck('id');
-        $qualifications = $query(EmployeeQualification::whereIn('user_id', $ids)->where('status', 'approved')
+        $qualifications = $types->isEmpty() ? collect() : $query(EmployeeQualification::whereIn('user_id', $ids)->where('status', 'approved')
             ->whereIn('qualification_type_id', $types->pluck('id'))
             ->whereDate('valid_from', '<=', $start->setTimezone($shift->timezone)->toDateString())
             ->whereDate('valid_until', '>=', $end->setTimezone($shift->timezone)->toDateString()))->get()->groupBy('user_id');
@@ -159,7 +171,8 @@ class StaffEligibilityService
             : $users->mapWithKeys(fn ($user) => [$user->id => $profile]);
         // A neighbouring duty can use an earlier/later, stricter profile. This
         // known minimum remains binding even if route calculation is unavailable.
-        $rest = max((int) ($profile?->minimum_rest_minutes ?? 0), (int) $individualProfiles->max('minimum_rest_minutes'), (int) OperationsRuleProfile::max('minimum_rest_minutes'));
+        $maximumConfiguredRest = (int) OperationsRuleProfile::max('minimum_rest_minutes');
+        $rest = max((int) ($profile?->minimum_rest_minutes ?? 0), (int) $individualProfiles->max('minimum_rest_minutes'), $maximumConfiguredRest);
         $excludes = array_unique(array_merge($context['exclude_shift_ids'] ?? [], $shift->id ? [$shift->id] : []));
         $lookaround = max($rest, (int) ($shift->disposition_details['transfer_buffer_minutes'] ?? 0), Schema::hasColumn('shifts', 'disposition_details') ? 10080 : 0);
         $conflicts = $query(ShiftAssignment::blocking()->whereIn('user_id', $ids)->whereNotIn('shift_id', $excludes)
@@ -167,8 +180,7 @@ class StaffEligibilityService
         // One call-local training projection serves overlap and rest checks for
         // every candidate. Nothing is cached between previews or write guards.
         $personnelReady = class_exists(PersonnelProcessService::class) && app(PersonnelProcessService::class)->ready();
-        $trainingLookaround = $personnelReady
-            ? max($rest, (int) OperationsRuleProfile::max('minimum_rest_minutes')) : 0;
+        $trainingLookaround = $personnelReady ? max($rest, $maximumConfiguredRest) : 0;
         $trainings = $personnelReady
             ? PersonnelTrainingParticipant::whereIn('user_id', $ids)->whereIn('status', ['confirmed', 'attended'])
                 ->whereNotIn('personnel_training_id', $context['exclude_training_ids'] ?? [])

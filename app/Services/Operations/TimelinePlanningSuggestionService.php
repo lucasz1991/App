@@ -108,7 +108,8 @@ class TimelinePlanningSuggestionService
         $eligibility = $staff !== null ? $eligibilityService->assessPreviewCoreMany($shift, $users, $context)
             : collect($routeDetails)->map(fn ($detail) => $detail['issues'])->all();
         $ranked = collect();
-        $routingEnabled = (bool) TomTomSettings::all()['enabled'];
+        $routingSettings = TomTomSettings::all();
+        $routingEnabled = (bool) $routingSettings['enabled'];
         $regions = app(StaffRegionalPreferenceService::class)->assessMany($shift, $users);
         $wishes = app(WorkforcePlanningService::class)->wishSummaries($shift, $users);
         $loads = $this->batchLoads($shift, $users);
@@ -147,7 +148,8 @@ class TimelinePlanningSuggestionService
                 '_load_ratio' => $load['target_minutes'] > 0 ? $load['planned_minutes'] / $load['target_minutes'] : null]);
         }
 
-        $ranked = $staff !== null ? $this->routePreviewCandidates($shift, $ranked, $context) : $this->sortCandidates($ranked);
+        // Die Fahrtprüfung der Vorschau nutzt die oben gelesenen Einstellungen mit.
+        $ranked = $staff !== null ? $this->routePreviewCandidates($shift, $ranked, $context + ['routing_settings' => $routingSettings], $routingEnabled) : $this->sortCandidates($ranked);
 
         return $ranked->map(fn (array $candidate) => collect($candidate)->except(['_wish_priority', '_load_ratio'])->all());
     }
@@ -183,11 +185,13 @@ class TimelinePlanningSuggestionService
     }
 
     /** Route only as far as the exact homogeneous-basis top-k preview requires. */
-    private function routePreviewCandidates(Shift $shift, Collection $ranked, array $context): Collection
+    private function routePreviewCandidates(Shift $shift, Collection $ranked, array $context, bool $routingEnabled): Collection
     {
         if ($ranked->isEmpty()) {
             return $ranked;
         }
+        // Alle Einträge haben in dieser Anfrage bereits leere Kernkonflikte;
+        // hier fehlt nur noch die Fahrt, kein zweiter Lauf der Kernregeln.
         $eligibility = app(StaffEligibilityService::class);
         $hasRatios = $ranked->every(fn (array $candidate) => $candidate['_load_ratio'] !== null);
         $noRatios = $ranked->every(fn (array $candidate) => $candidate['_load_ratio'] === null);
@@ -195,9 +199,9 @@ class TimelinePlanningSuggestionService
             // Routing can remove the last unknown/zero target and thereby
             // change the native comparator from minutes to ratios. Inspect all
             // candidates in this case, then recompute the comparator exactly.
-            $details = $eligibility->assessDetailedMany($shift, $ranked->pluck('user'), false, $context, true);
+            $details = $eligibility->assessPreviewRouteDetailsMany($shift, $ranked->pluck('user'), $context);
 
-            return $this->sortCandidates($this->routeCandidates($ranked, $details));
+            return $this->sortCandidates($this->routeCandidates($ranked, $details, $routingEnabled));
         }
         $ranked = $this->sortCandidates($ranked);
         $needed = min(self::MAX_SLOTS, max(0, $shift->required_staff - (int) $shift->reserved_count));
@@ -209,17 +213,15 @@ class TimelinePlanningSuggestionService
             $size = min(3, $needed - $selected->count() + 1);
             $batch = $ranked->slice($offset, $size);
             $offset += $batch->count();
-            $details = $eligibility->assessDetailedMany($shift, $batch->pluck('user'), false, $context, true);
-            $selected = $selected->concat($this->routeCandidates($batch, $details));
+            $details = $eligibility->assessPreviewRouteDetailsMany($shift, $batch->pluck('user'), $context);
+            $selected = $selected->concat($this->routeCandidates($batch, $details, $routingEnabled));
         }
 
         return $selected->take($needed)->values();
     }
 
-    private function routeCandidates(Collection $candidates, array $details): Collection
+    private function routeCandidates(Collection $candidates, array $details, bool $enabled): Collection
     {
-        $enabled = (bool) TomTomSettings::all()['enabled'];
-
         return $candidates->filter(fn ($candidate) => isset($details[$candidate['user']->id]) && $details[$candidate['user']->id]['issues'] === [])
             ->map(function ($candidate) use ($details, $enabled) {
                 $detail = $details[$candidate['user']->id];

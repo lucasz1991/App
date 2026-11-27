@@ -76,7 +76,7 @@ class TravelAssessmentService
 
     public function preflight(Shift $shift, Collection $users, array $context = []): TravelPreflight
     {
-        unset($context['travel_preflight'], $context['skip_provider'], $context['skip_routing'], $context['include_employee_location'], $context['display'], $context['cache'], $context['cache_purpose']);
+        unset($context['travel_preflight'], $context['skip_provider'], $context['skip_routing'], $context['include_employee_location'], $context['display'], $context['cache'], $context['cache_purpose'], $context['routing_settings']);
 
         $outside = DB::transactionLevel() === 0;
         $assessment = $this->assessMany($shift, $users, $context);
@@ -156,7 +156,9 @@ class TravelAssessmentService
         if (($context['travel_preflight'] ?? null) instanceof TravelPreflight) {
             $context = array_replace($context['travel_preflight']->context, $context);
         }
-        $settings = TomTomSettings::all();
+        // Nur die unverbindliche Vorschau reicht die in derselben Anfrage gelesenen
+        // Einstellungen durch; Sperr- und Preflight-Pfade lesen immer frisch.
+        $settings = ! $lock && is_array($context['routing_settings'] ?? null) ? $context['routing_settings'] : TomTomSettings::all();
         $results = $users->mapWithKeys(fn ($user) => [$user->id => ['issues' => [], 'warnings' => [], 'travel' => [], 'basis' => '']])->all();
         if ($users->isEmpty() || ! OperationsAccess::ready() || ($context['skip_routing'] ?? false)) {
             return $results;
