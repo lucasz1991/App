@@ -126,6 +126,16 @@ Bei Abschalten oder Trennen werden Konfigurationsgenerationen gewechselt. Alte A
 
 ## Excel-Erhalt und lokale Prüfung
 
+Der Dateiworker lädt die ausgewählte Dropbox-Datei über ihren registrierten Pfad. Die Antwort muss zur erwarteten Datei-ID gehören. Ein Umzug aus dem freigegebenen Bereich oder ein unbestätigter Dateiersatz stoppt die Übernahme und die Archivierung. Bei Kontaktzeilen prüft RailTime, ob die belegte Identität zur Mitarbeiter- oder Dienstleisterrolle passt. Ein Widerspruch bleibt bis zur Klärung als Zuordnungskonflikt sichtbar. Bei einer Schicht prüft RailTime beide Planzeiten im lokalen Zeitzonenkalender, bei Nachtschichten das Ende am Folgetag. Nicht existierende und doppelt vorkommende Ortszeiten erfordern eine eindeutige Klärung.
+
+Bei einem bestätigten Wechsel der ISO-Woche sichert RailTime zuerst den Eintrag in der Zielmappe und kennzeichnet anschließend die bisherigen Excel-Vorkommen als verschoben. Die Schicht bleibt dabei aktiv. Historische Zeilen mit einem Datum außerhalb der Dateiwoche allein lösen keinen Umzug aus. Bei mehreren möglichen Zielen ist eine Auswahl im Super-Admin-Bereich erforderlich.
+
+Für die Remote-Worker hält die private Laravel-Disk unter `private/dropbox-revisions` pro Quelle einen verschlüsselten Zwischenstand mit den XLSX-Bytes und dem reinen Leseergebnis. Jeder weitere Teilauftrag kontrolliert die aktuellen Dropbox-Metadaten. Stimmen Datei-ID, Revision, Inhalts-Hash, Verbindungsgeneration, Profil, Parser-Version und Größenlimits überein, nutzt er den Zwischenstand. Die fachlichen Vergleiche laufen gegen den aktuellen App-Stand. Bei einem bestätigten eigenen Upload kann der nächste Auftrag das bereits vom Writer geprüfte Ergebnis übernehmen. Ein fehlender oder beschädigter Zwischenstand wird aus der Quelle neu aufgebaut. Ein fehlender Dropbox-Zugriff stoppt den Vorgang.
+
+Für die Vorschau eines Dateiersatzes gibt es pro Quelle höchstens einen zusätzlichen, separat verschlüsselten Zwischenstand. Wiederholte Vorschauen derselben Revision nutzen ihn erneut. Innerhalb derselben Generation kann der aktive Abgleich den Ersatz-Zwischenstand nach Bestätigung der Metadaten übernehmen. Nach dem Generationswechsel wird die Revision neu eingelesen.
+
+Import- und Exportworker benötigen für die gemeinsame Wiederverwendung dieselbe private Disk und denselben Laravel-Schlüssel. Beim Trennen oder Kontowechsel räumt RailTime die dortigen Zwischenstände der bisherigen Verbindung auf. Bei Änderungen an der Dekodierung, Zeilenklassifikation oder Struktur des Leseergebnisses muss `WorkbookReader::CACHE_VERSION` erhöht werden.
+
 PhpSpreadsheet liest und prüft die Daten. Bestehende Mappen werden anschließend gezielt als OOXML bearbeitet. Unbetroffene Paketbestandteile werden bytegleich übernommen und vor Rückgabe geprüft. Unveränderte Formelzellen werden nicht neu geschrieben; ein benötigter Schreibzugriff auf eine Formelzelle wird zur Prüfung zurückgehalten. Vor jedem Upload liest der Writer das Ergebnis erneut und vergleicht die Zielwerte.
 
 ```sh

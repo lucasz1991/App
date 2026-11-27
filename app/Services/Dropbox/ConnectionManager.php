@@ -160,6 +160,7 @@ class ConnectionManager
             $fresh = DropboxConnection::lockForUpdate()->findOrFail($connection->id);
             $fresh->forceFill(['mode' => DropboxMode::Off, 'generation' => $fresh->generation + 1, 'closing' => false, 'access_token' => null, 'refresh_token' => null, 'expires_at' => null, 'preview_at' => null, 'preview_generation' => null])->save();
         });
+        app(WorkbookRevisionCache::class)->forgetConnection($connection);
         if ($copy->access_token && $copy->expires_at?->isFuture()) {
             try {
                 app(DropboxClient::class)->rpc($copy, 'auth/token/revoke');

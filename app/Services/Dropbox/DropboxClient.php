@@ -73,7 +73,6 @@ class DropboxClient
         return ['bytes' => $response->body(), 'metadata' => json_decode($response->header('Dropbox-API-Result'), true, 512, JSON_THROW_ON_ERROR)];
     }
 
-    /** @return array{bytes: string, metadata: array} */
     public function sourceMetadata(DropboxConnection $connection, DropboxSource $source): array
     {
         $guard = app(SyncGuard::class);
@@ -92,6 +91,7 @@ class DropboxClient
         return $metadata;
     }
 
+    /** @return array{bytes: string, metadata: array} */
     public function downloadSource(DropboxConnection $connection, DropboxSource $source): array
     {
         $guard = app(SyncGuard::class);

@@ -10,7 +10,7 @@ use RuntimeException;
 use ZipArchive;
 
 /**
- * Füllt die Excel-Wagenliste v17 (Blätter Wagenliste, Bremszettel,
+ * Füllt die Excel-Wagenliste v17_1 (Blätter Wagenliste, Bremszettel,
  * Meldezettel) mit einem Entwurf aus dem Browser.
  *
  * Die Vorlage rechnet selbst: Geschrieben werden nur Eingabefelder, alle
@@ -21,7 +21,7 @@ use ZipArchive;
  */
 class WagonListWorkbookExporter
 {
-    public const TEMPLATE = 'templates/RT-WAGENLISTE_v17.xlsx';
+    public const TEMPLATE = 'templates/RT-WAGENLISTE_v17_1.xlsx';
 
     private const MAIN_NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
 

@@ -11,6 +11,9 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class WorkbookReader
 {
+    /** Bump when decoding, classification or the shape of parsed workbook data changes. */
+    public const CACHE_VERSION = 1;
+
     public const PLANNING_COLUMNS = ['B' => 'location', 'C' => 'date', 'D' => 'time', 'E' => 'employee', 'F' => 'train_reference', 'G' => 'notes', 'H' => 'role', 'I' => 'customer', 'J' => 'ordered_at', 'K' => 'cancellation', 'L' => 'information', 'M' => 'billing_notes', 'N' => 'other'];
 
     public const HEADERS = ['B' => 'Einsatzort', 'C' => 'Datum', 'D' => 'Abf.Zeit', 'E' => 'MA', 'F' => 'Zug-Ref.Nr.', 'G' => 'Bemerkungen', 'H' => 'Einsatz als', 'I' => 'Kunde', 'J' => 'Bestellt am', 'K' => 'Storno / Tat. Abf. Zeit', 'L' => 'Infos', 'M' => 'Buchhaltungsanliegen', 'N' => 'Sonstiges'];

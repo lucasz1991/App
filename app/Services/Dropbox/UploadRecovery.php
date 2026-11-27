@@ -16,6 +16,9 @@ class UploadRecovery
             || (isset($metadata['id']) && $metadata['id'] !== $source->file_id)) {
             return;
         }
+        if ($source->own_rev === $metadata['rev'] && $source->processed_rev === $metadata['rev']) {
+            return; // The upload is already applied; intervening row mappings may have changed.
+        }
         $upload = DB::table('dropbox_uploads')->where('connection_id', $connection->id)->where('generation', $connection->generation)
             ->where('path', mb_strtolower($source->path))->where('content_hash', $metadata['content_hash'])
             ->where(fn ($query) => $query->whereIn('status', ['prepared', 'uncertain'])

@@ -91,6 +91,98 @@ class DropboxSourceReplacementTest extends TestCase
         $this->assertSame(0, DB::table('dropbox_conflicts')->where('reason', 'source_missing')->where('state', 'open')->count());
     }
 
+    public function test_disabled_sync_previews_replacement_against_existing_baseline_without_changing_it(): void
+    {
+        $reader = new class extends WorkbookReader
+        {
+            public int $reads = 0;
+
+            public function read(string $bytes, string $profile): array
+            {
+                $this->reads++;
+
+                return parent::read($bytes, $profile);
+            }
+        };
+        $this->app->instance(WorkbookReader::class, $reader);
+        $source = $this->source($this->workbook());
+        app(FileSynchronizer::class)->sync($this->connection, $source);
+        $source->refresh();
+        $appearance = DropboxAppearance::where('source_id', $source->id)->sole();
+        $sourceBefore = $source->getAttributes();
+        $appearanceBefore = $appearance->getAttributes();
+        $disk = Storage::disk('local');
+        $cacheFolder = 'private/dropbox-revisions/'.$this->connection->id;
+        $activeSnapshot = $cacheFolder.'/'.$source->id.'.snapshot';
+        $activeBefore = $disk->get($activeSnapshot);
+        $this->assertNotNull($activeBefore);
+        $readsBefore = $reader->reads;
+        $downloadsBefore = $this->client->downloads;
+        $this->connection->update(['mode' => DropboxMode::Off]);
+        $this->replacementMetadata($this->workbook('[ENTWURF] Neue Notiz'));
+        $this->client->put('/Disposition/Aufträge KW 39 2026.xlsx', $this->workbook());
+        $ledger = app(WorkLedger::class);
+        $scan = $ledger->enqueue($this->connection, 'scan', 'preview:scan', ['preview' => true], 0);
+        $uploads = $this->client->uploads;
+
+        (new ProcessDropboxWork($scan->id))->handle();
+        $files = DropboxWorkItem::where('kind', 'file')->where('payload->preview', true)->get();
+        $this->assertCount(2, $files);
+        $this->assertNull($this->connection->fresh()->preview_at);
+        foreach ($files as $file) {
+            $this->travelTo($file->available_at);
+            (new ProcessDropboxWork($file->id))->handle();
+            $this->assertSame($file->requested, $file->fresh()->completed);
+        }
+
+        $this->assertNotNull($this->connection->fresh()->preview_at);
+        $this->assertSame($sourceBefore, $source->fresh()->getAttributes());
+        $this->assertSame($appearanceBefore, $appearance->fresh()->getAttributes());
+        $this->assertSame('Notiz', Shift::sole()->notes);
+        $this->assertSame($uploads, $this->client->uploads);
+        $runs = DB::table('dropbox_runs')->where('kind', 'preview')->pluck('summary')->map(fn ($summary) => json_decode($summary, true));
+        $this->assertSame(1, $runs->firstWhere('source_id', $source->id)['imported']);
+        $this->assertSame('preview', DropboxSource::whereKeyNot($source->id)->sole()->state);
+        $this->assertSame($readsBefore + 2, $reader->reads);
+        $this->assertSame($downloadsBefore + 2, $this->client->downloads);
+
+        $repeatPreview = function () use ($ledger, $source) {
+            $file = $ledger->enqueue($this->connection, 'file', 'preview:file:'.$source->id, ['source_id' => $source->id, 'preview' => true], 0);
+            (new ProcessDropboxWork($file->id))->handle();
+            $this->assertSame($file->requested, $file->fresh()->completed);
+        };
+        $repeatPreview();
+        $this->assertSame($readsBefore + 2, $reader->reads);
+        $this->assertSame($downloadsBefore + 2, $this->client->downloads);
+        $replacement = $this->replacementMetadata($this->workbook('[ENTWURF] Neueste Notiz'));
+        $repeatPreview();
+        $repeatPreview();
+        $this->assertSame($readsBefore + 3, $reader->reads);
+        $this->assertSame($downloadsBefore + 3, $this->client->downloads);
+        $this->assertSame($activeBefore, $disk->get($activeSnapshot));
+        $this->assertCount(3, $disk->allFiles($cacheFolder)); // Two registered sources and one replacement slot.
+        $this->assertSame($sourceBefore, $source->fresh()->getAttributes());
+        $this->assertSame($appearanceBefore, $appearance->fresh()->getAttributes());
+        $this->assertSame('Notiz', Shift::sole()->notes);
+
+        $this->connection->update(['mode' => DropboxMode::Import]);
+        $registered = app(SourceScanner::class)->register($this->connection, $replacement);
+        $this->assertSame($source->id, $registered->id);
+        $this->assertSame($appearanceBefore, $appearance->fresh()->getAttributes());
+        app(FileSynchronizer::class)->sync($this->connection, $registered);
+        $this->assertSame($readsBefore + 3, $reader->reads);
+        $this->assertSame($downloadsBefore + 3, $this->client->downloads);
+        $this->assertNotSame($activeBefore, $disk->get($activeSnapshot));
+        $this->assertSame('Neueste Notiz', Shift::sole()->notes);
+        $this->assertSame('Neueste Notiz', $appearance->fresh()->baseline['notes']);
+        $this->assertSame($uploads, $this->client->uploads);
+
+        $this->connection->update(['generation' => $this->connection->generation + 1]);
+        app(FileSynchronizer::class)->sync($this->connection, $registered->fresh());
+        $this->assertSame($readsBefore + 4, $reader->reads);
+        $this->assertSame($downloadsBefore + 4, $this->client->downloads);
+    }
+
     public function test_an_old_id_that_is_still_live_is_never_merged_with_a_new_file_at_its_previous_path(): void
     {
         $source = $this->source();
@@ -242,6 +334,7 @@ class DropboxSourceReplacementTest extends TestCase
         $uploads = $this->client->uploads;
         $sequence = $item->requested;
 
+        $this->travelTo($item->available_at);
         (new ProcessDropboxWork($item->id))->handle();
         $this->assertSame($sequence, $item->fresh()->completed);
         $this->assertSame($sequence, $item->fresh()->requested);
@@ -257,9 +350,9 @@ class DropboxSourceReplacementTest extends TestCase
         return DropboxSource::create(['connection_id' => $this->connection->id, 'file_id' => $metadata['id'], 'path' => $metadata['path_lower'], 'name' => $metadata['name'], 'profile' => 'weekly', 'rev' => $metadata['rev'], 'first_seen_at' => now()]);
     }
 
-    private function replacementMetadata(): array
+    private function replacementMetadata(string $bytes = 'replacement-workbook'): array
     {
-        $metadata = $this->client->put(self::PATH, 'replacement-workbook');
+        $metadata = $this->client->put(self::PATH, $bytes);
         $metadata['id'] = 'id:replacement';
         $this->client->files[mb_strtolower(self::PATH)]['metadata'] = $metadata;
 
@@ -275,14 +368,14 @@ class DropboxSourceReplacementTest extends TestCase
         return DropboxAppearance::create(['source_id' => $source->id, 'record_id' => $record->id, 'sheet' => 'Kontakte', 'slot' => '3', 'locator' => ['subject' => 'Kontakt'], 'baseline' => $values, 'last_excel' => $values, 'fingerprint' => WorkbookReader::fingerprint($values), 'seen_rev' => 'old']);
     }
 
-    private function workbook(): string
+    private function workbook(string $notes = '[ENTWURF] Notiz'): string
     {
         $book = new Spreadsheet;
         $sheet = $book->getActiveSheet()->setTitle('Disposition Übersicht');
         foreach (WorkbookReader::HEADERS as $column => $label) {
             $sheet->setCellValue($column.'1', $label);
         }
-        foreach (['B' => 'Testbahnhof', 'C' => '2026-09-15', 'D' => '08:00–10:00', 'G' => '[ENTWURF] Notiz', 'H' => 'WGM', 'I' => 'Testkunde'] as $column => $value) {
+        foreach (['B' => 'Testbahnhof', 'C' => '2026-09-15', 'D' => '08:00–10:00', 'G' => $notes, 'H' => 'WGM', 'I' => 'Testkunde'] as $column => $value) {
             $sheet->setCellValue($column.'2', $value);
         }
         $path = tempnam(sys_get_temp_dir(), 'rt-replacement-');

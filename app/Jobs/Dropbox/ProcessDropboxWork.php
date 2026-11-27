@@ -2,6 +2,7 @@
 
 namespace App\Jobs\Dropbox;
 
+use App\Enums\DropboxMode;
 use App\Models\DropboxConnection;
 use App\Models\DropboxSource;
 use App\Models\DropboxWorkItem;
@@ -34,22 +35,47 @@ class ProcessDropboxWork implements ShouldQueue
 
     public function handle(): void
     {
-        $item = DropboxWorkItem::find($this->workId);
-        if (! $item || $item->requested <= $item->completed) {
-            return;
-        }
-        $connection = DropboxConnection::find($item->connection_id);
-        if (! $connection || $connection->generation !== $item->generation || (! $connection->mode->active() && ! ($item->payload['preview'] ?? false))) {
-            return;
-        }
-        $lock = Cache::store(config('dropbox.lock_store'))->lock('dropbox-work:'.$item->id, 330);
+        $lock = Cache::store(config('dropbox.lock_store'))->lock('dropbox-work:'.$this->workId, 330);
         if (! $lock->get()) {
             return;
         }
+        try {
+            $claim = $this->claim();
+            if (! $claim) {
+                return;
+            }
+            [$item, $connection] = $claim;
+            $this->process($item, $connection);
+        } finally {
+            $lock->release();
+        }
+        app(WorkLedger::class)->dispatch($connection->id);
+    }
+
+    /** @return array{DropboxWorkItem, DropboxConnection}|null */
+    private function claim(): ?array
+    {
+        return DB::transaction(function () {
+            $item = DropboxWorkItem::lockForUpdate()->find($this->workId);
+            $now = now();
+            if (! $item || $item->requested <= $item->completed || $item->available_at->gt($now) || $item->running_until?->gt($now)) {
+                return null;
+            }
+            $connection = DropboxConnection::find($item->connection_id);
+            if (! $connection?->refresh_token || $connection->generation !== $item->generation || (! $connection->mode->active() && ! ($item->payload['preview'] ?? false))) {
+                return null;
+            }
+            $item->forceFill(['running_until' => $now->addSeconds(330), 'attempts' => $item->attempts + 1])->save();
+
+            return [$item, $connection];
+        }, 3);
+    }
+
+    private function process(DropboxWorkItem $item, DropboxConnection $connection): void
+    {
         $sequence = $item->requested;
         $preview = (bool) ($item->payload['preview'] ?? false);
         try {
-            $item->forceFill(['running_until' => now()->addSeconds(330), 'attempts' => $item->attempts + 1])->save();
             match ($item->kind) {
                 'scan' => app(SourceScanner::class)->scan($connection, $preview),
                 'file' => $this->syncSource($connection, (int) $item->payload['source_id'], $preview),
@@ -58,17 +84,19 @@ class ProcessDropboxWork implements ShouldQueue
                 'finish' => app(ClosingService::class)->finish($connection),
                 default => throw new DropboxApiException('unknown_work_type'),
             };
-            DB::transaction(function () use ($item, $sequence) {
-                $fresh = DropboxWorkItem::lockForUpdate()->findOrFail($item->id);
-                $fresh->forceFill(['completed' => max($fresh->completed, $sequence), 'queued_until' => null, 'running_until' => null, 'error_code' => null])->save();
-            });
-            if ($preview && ! DropboxWorkItem::where('connection_id', $connection->id)->where('generation', $connection->generation)->whereColumn('requested', '>', 'completed')->where('payload->preview', true)->exists()) {
+            $completed = DropboxWorkItem::whereKey($item->id)->where('attempts', $item->attempts)->where('completed', '<', $sequence)
+                ->update(['completed' => $sequence, 'queued_until' => null, 'running_until' => null, 'error_code' => null]);
+            if ($completed && $preview && ! DropboxWorkItem::where('connection_id', $connection->id)->where('generation', $connection->generation)->whereColumn('requested', '>', 'completed')->where('payload->preview', true)->exists()) {
                 DropboxConnection::whereKey($connection->id)->where('generation', $connection->generation)->update(['preview_at' => now(), 'preview_generation' => $connection->generation]);
             }
         } catch (\Throwable $e) {
             $code = $e instanceof DropboxApiException ? $e->reason : ($e instanceof ValidationException ? 'validation_required' : (preg_match('/^[a-z_]+(?::[a-z_]+)?$/D', $e->getMessage()) ? $e->getMessage() : 'processing_failed'));
             $delay = $e instanceof DropboxApiException ? $e->retryAfter : min(3600, 30 * 2 ** min($item->attempts, 7));
-            DropboxWorkItem::whereKey($item->id)->update(['error_code' => $code, 'queued_until' => null, 'running_until' => null, 'available_at' => now()->addSeconds($delay)]);
+            $failed = DropboxWorkItem::whereKey($item->id)->where('attempts', $item->attempts)
+                ->update(['error_code' => $code, 'queued_until' => null, 'running_until' => null, 'available_at' => now()->addSeconds($delay)]);
+            if (! $failed) {
+                return;
+            }
             if ($code === 'reconnect_required') {
                 $connection->forceFill(['error_code' => $code])->save();
             }
@@ -76,15 +104,20 @@ class ProcessDropboxWork implements ShouldQueue
                 app(SourceSyncReport::class)->failed($source, $code);
             }
             DB::table('dropbox_runs')->insert(['connection_id' => $connection->id, 'kind' => $item->kind, 'status' => 'error', 'summary' => json_encode(['work_id' => $item->id, 'code' => $code]), 'created_at' => now(), 'updated_at' => now()]);
-        } finally {
-            $lock->release();
         }
-        app(WorkLedger::class)->dispatch($connection->id);
     }
 
     private function syncSource(DropboxConnection $connection, int $sourceId, bool $preview): void
     {
         $source = DropboxSource::where('connection_id', $connection->id)->findOrFail($sourceId);
+        if ($preview || $connection->mode === DropboxMode::Preview) {
+            $source = app(SourceScanner::class)->sourceForPreview($connection, $source);
+            if ($source) {
+                app(FileSynchronizer::class)->sync($connection, $source, true);
+            }
+
+            return;
+        }
         if (in_array($source->state, ['missing', 'excluded'], true)) {
             return; // The scanner retains the source hint; obsolete work is done.
         }
@@ -93,6 +126,6 @@ class ProcessDropboxWork implements ShouldQueue
 
             return;
         }
-        app(FileSynchronizer::class)->sync($connection, $source, $preview);
+        app(FileSynchronizer::class)->sync($connection, $source);
     }
 }

@@ -190,12 +190,62 @@ class DropboxSyncTest extends TestCase
         $package->patch(['Mitarbeiter Übersicht' => $cells]);
         $meta = $this->client->put('/Disposition/Kompetenzmatrix.xlsx', $package->bytes());
         $source = app(SourceScanner::class)->register($this->connection, $meta);
+        $this->partialMock(WorkbookReader::class)->shouldReceive('read')->once()->passthru();
         app(FileSynchronizer::class)->sync($this->connection, $source);
         $this->assertSame(50, DropboxRecord::count());
         $this->assertSame(50, $source->fresh()->progress['next']);
         app(FileSynchronizer::class)->sync($this->connection, $source->fresh());
         $this->assertSame(62, DropboxRecord::count());
         $this->assertNull($source->fresh()->progress);
+        $this->assertSame(1, $this->client->downloads);
+    }
+
+    public function test_external_revision_replaces_snapshot_and_own_verified_upload_is_reused(): void
+    {
+        $source = $this->source($this->workbook());
+        $reader = new class extends WorkbookReader
+        {
+            public int $reads = 0;
+
+            public function read(string $bytes, string $profile): array
+            {
+                $this->reads++;
+
+                return parent::read($bytes, $profile);
+            }
+        };
+        $this->app->instance(WorkbookReader::class, $reader);
+        $sync = app(FileSynchronizer::class);
+        $sync->sync($this->connection, $source);
+        $this->assertGreaterThan(0, $this->client->uploads);
+        $this->assertSame(2, $reader->reads); // Input and the writer's verified output.
+        $sync->sync($this->connection, $source->fresh());
+        $this->assertSame(2, $reader->reads);
+        $this->assertSame(1, $this->client->downloads);
+
+        $this->connection->update(['mode' => DropboxMode::Import]);
+        $this->client->put($source->path, $this->workbook('Neue Revision'));
+        $sync->sync($this->connection, $source->fresh());
+        $this->assertSame(3, $reader->reads);
+        $this->assertSame(2, $this->client->downloads);
+        $this->assertSame('Neue Revision', Shift::firstOrFail()->notes);
+    }
+
+    public function test_unreadable_revision_snapshot_is_rebuilt_and_disconnect_purges_the_copy(): void
+    {
+        $this->connection->update(['mode' => DropboxMode::Import]);
+        $source = $this->source($this->workbook());
+        $sync = app(FileSynchronizer::class);
+        $sync->sync($this->connection, $source);
+        $files = Storage::disk('local')->allFiles('private/dropbox-revisions');
+        $this->assertCount(1, $files);
+        Storage::disk('local')->put($files[0], 'interrupted or unreadable cache');
+        $sync->sync($this->connection, $source->fresh());
+        $sync->sync($this->connection, $source->fresh());
+        $this->assertSame(2, $this->client->downloads);
+        $this->assertSame(1, Shift::count());
+        app(ConnectionManager::class)->disconnect($this->connection, User::findOrFail(1));
+        Storage::disk('local')->assertMissing($files[0]);
     }
 
     public function test_user_confirmed_historical_import_closes_shift_and_order_without_publishing_or_time_approval(): void
@@ -581,18 +631,79 @@ class DropboxSyncTest extends TestCase
         $this->assertSame('Aktualisierter Excel-Hinweis', $new[0]['values']['notes']);
     }
 
-    private function weekRelocationFixture(): array
+    public function test_week_relocation_retires_previous_personal_sheet_with_notes_but_no_cancellation_column(): void
+    {
+        [$shift, $previous] = $this->weekRelocationFixture();
+        $shift->update(['notes' => 'Vorhandener Vermerk']);
+        app(FileSynchronizer::class)->sync($this->connection, $previous->fresh());
+        $personal = DropboxAppearance::where('source_id', $previous->id)->get()->first(fn ($appearance) => ! $appearance->locator['master']);
+        $package = new WorkbookPackage($this->client->files[$previous->path]['bytes']);
+        $package->patch([$personal->sheet => ['K1' => ['value' => '']]]);
+        $this->client->put($previous->path, $package->bytes());
+        app(FileSynchronizer::class)->sync($this->connection, $previous->fresh());
+        $this->assertArrayNotHasKey('cancellation', $personal->fresh()->locator['cells']);
+
+        $shift->update(['starts_at' => '2027-01-04 08:00:00', 'ends_at' => '2027-01-04 10:00:00']);
+        $shiftBefore = $shift->fresh()->getRawOriginal();
+        $orderBefore = $shift->order()->firstOrFail()->getRawOriginal();
+        $assignmentBefore = $shift->assignments()->firstOrFail()->getRawOriginal();
+        $auditCount = OperationAudit::count();
+        app(RecordExporter::class)->export($this->connection, 'Shift', $shift->id);
+        app(FileSynchronizer::class)->sync($this->connection, $previous->fresh());
+        $destination = DropboxSource::where('id', '!=', $previous->id)->firstOrFail();
+        app(FileSynchronizer::class)->sync($this->connection, $destination->fresh());
+        $rows = collect(app(WorkbookReader::class)->read($this->client->files[$previous->path]['bytes'], 'weekly')['rows']);
+        $row = $rows->firstWhere('sheet', $personal->sheet)['values'];
+        $this->assertSame('Vorhandener Vermerk Storno: nach 2027-W01 verschoben.', $row['notes']);
+        $this->assertTrue($row['cancelled']);
+        $this->assertSame(2, DropboxRecord::where('model_type', 'ReportedAssignmentHistory')->where('model_id', $shift->id)->count());
+        $this->assertSame($shiftBefore, $shift->fresh()->getRawOriginal());
+        $this->assertSame($orderBefore, $shift->order()->firstOrFail()->getRawOriginal());
+        $this->assertSame($assignmentBefore, $shift->assignments()->firstOrFail()->getRawOriginal());
+        $this->assertSame($auditCount, OperationAudit::count());
+    }
+
+    public function test_week_relocation_recovers_new_master_only_workbook_after_response_loss(): void
+    {
+        [$shift, $previous] = $this->weekRelocationFixture(withEmployee: false);
+        $this->connection->update(['settings' => [...$this->connection->settings, 'create_sheets' => false]]);
+        $shift->update(['starts_at' => '2027-01-04 08:00:00', 'ends_at' => '2027-01-04 10:00:00']);
+        $this->client->failAfterUpload = true;
+        try {
+            app(RecordExporter::class)->export($this->connection, 'Shift', $shift->id);
+            $this->fail('Die simulierte Antwort muss verloren gehen.');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('network_timeout', $e->getMessage());
+        }
+        $this->assertSame(2, $this->client->uploads);
+        $this->assertSame(0, DropboxRecord::where('model_type', 'ReportedAssignmentHistory')->count());
+
+        app(RecordExporter::class)->export($this->connection, 'Shift', $shift->id);
+        $destination = DropboxSource::where('id', '!=', $previous->id)->firstOrFail();
+        $rows = app(WorkbookReader::class)->read($this->client->files[$destination->path]['bytes'], 'weekly')['rows'];
+        $this->assertCount(1, $rows);
+        $this->assertTrue($rows[0]['locator']['master']);
+        $this->assertSame('2027-01-04', $rows[0]['values']['date']);
+        $this->assertSame(2, $this->client->uploads);
+        app(FileSynchronizer::class)->sync($this->connection, $previous->fresh());
+        $this->assertSame(1, DropboxRecord::where('model_type', 'ReportedAssignmentHistory')->count());
+        $this->assertSame(ShiftStatus::Draft, $shift->fresh()->status);
+    }
+
+    private function weekRelocationFixture(bool $withEmployee = true): array
     {
         $template = app(TemplateService::class)->install($this->workbook());
         $this->connection->update(['settings' => [...$this->connection->settings, 'week_template' => $template, 'employee_template' => $template]]);
-        $user = User::factory()->create(['name' => 'Test Person', 'role' => 'staff', 'status' => true]);
-        DropboxIdentity::create(['connection_id' => $this->connection->id, 'user_id' => $user->id, 'alias' => 'test person', 'kind' => 'employee', 'details' => ['display_name' => 'Test Person']]);
         $customer = Customer::create(['company_name' => 'Testkunde', 'is_active' => true]);
         $order = Order::create(['customer_id' => $customer->id, 'title' => 'Testauftrag', 'service_type' => 'WGM', 'status' => 'requested', 'priority' => 'normal',
             'starts_at' => '2026-12-30 00:00:00', 'ends_at' => '2027-01-06 00:00:00', 'timezone' => 'Europe/Berlin', 'required_staff' => 1]);
         $shift = Shift::create(['order_id' => $order->id, 'title' => 'Testdienst', 'role_name' => 'WGM', 'status' => 'draft', 'required_staff' => 1,
             'starts_at' => '2026-12-31 08:00:00', 'ends_at' => '2026-12-31 10:00:00', 'timezone' => 'Europe/Berlin', 'location_name' => 'Testbahnhof']);
-        ShiftAssignment::create(['shift_id' => $shift->id, 'user_id' => $user->id, 'status' => 'requested', 'assigned_by' => 1]);
+        if ($withEmployee) {
+            $user = User::factory()->create(['name' => 'Test Person', 'role' => 'staff', 'status' => true]);
+            DropboxIdentity::create(['connection_id' => $this->connection->id, 'user_id' => $user->id, 'alias' => 'test person', 'kind' => 'employee', 'details' => ['display_name' => 'Test Person']]);
+            ShiftAssignment::create(['shift_id' => $shift->id, 'user_id' => $user->id, 'status' => 'requested', 'assigned_by' => 1]);
+        }
         app(RecordExporter::class)->export($this->connection, 'Shift', $shift->id);
 
         return [$shift, DropboxSource::firstOrFail(), $template];
@@ -613,7 +724,7 @@ class DropboxSyncTest extends TestCase
 
     public function test_configuration_save_stops_sync_and_invalidates_old_jobs_without_exposing_secrets(): void
     {
-        $item = app(WorkLedger::class)->enqueue($this->connection, 'scan', 'scan');
+        $item = app(WorkLedger::class)->enqueue($this->connection, 'scan', 'scan', [], 0);
         $form = [...config('dropbox.defaults'), 'app_key' => 'key', 'app_secret' => ''];
         $saved = app(ConnectionManager::class)->save($this->connection, 1, $form, User::find(1));
         $this->assertSame(DropboxMode::Off, $saved->mode);
@@ -621,6 +732,44 @@ class DropboxSyncTest extends TestCase
         (new ProcessDropboxWork($item->id))->handle();
         $this->assertSame(0, $this->client->downloads);
         $this->assertSame('secret', $saved->app_secret);
+    }
+
+    public function test_worker_ignores_early_delivery_and_running_reservation(): void
+    {
+        $item = app(WorkLedger::class)->enqueue($this->connection, 'scan', 'scan');
+        $job = new ProcessDropboxWork($item->id);
+        $job->handle();
+        $this->assertSame(0, $item->fresh()->attempts);
+        $this->assertSame(0, $item->fresh()->completed);
+        $this->assertNull($this->connection->fresh()->checked_at);
+
+        $item->update(['running_until' => $item->available_at->addSeconds(10)]);
+        $this->travelTo($item->available_at);
+        $job->handle();
+        $this->assertSame(0, $item->fresh()->attempts);
+
+        $this->travelTo($item->running_until->addSecond());
+        $job->handle();
+        $this->assertSame(1, $item->fresh()->attempts);
+        $this->assertSame($item->requested, $item->fresh()->completed);
+        $this->assertNull($item->fresh()->running_until);
+        $this->assertNotNull($this->connection->fresh()->checked_at);
+        $job->handle();
+        $this->assertSame(1, $item->fresh()->attempts);
+    }
+
+    public function test_dispatcher_does_not_redispatch_an_active_worker_lease(): void
+    {
+        $ledger = app(WorkLedger::class);
+        $item = $ledger->enqueue($this->connection, 'scan', 'scan', [], 0);
+        $item->update(['queued_until' => now()->subSecond(), 'running_until' => now()->addSeconds(10)]);
+
+        $this->assertSame(0, $ledger->dispatch());
+        Queue::assertNothingPushed();
+
+        $this->travelTo($item->running_until->addSecond());
+        $this->assertSame(1, $ledger->dispatch());
+        Queue::assertPushed(ProcessDropboxWork::class, fn ($job) => $job->workId === $item->id);
     }
 
     public function test_same_field_conflict_holds_both_values_and_rechecks_resolution(): void

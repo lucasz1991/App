@@ -2,6 +2,7 @@
 
 namespace App\Services\Dropbox;
 
+use App\Enums\DropboxMode;
 use App\Models\DropboxConflict;
 use App\Models\DropboxConnection;
 use App\Models\DropboxSource;
@@ -15,6 +16,7 @@ class SourceScanner
 
     public function scan(DropboxConnection $connection, bool $preview = false): void
     {
+        $preview = $preview || $connection->mode === DropboxMode::Preview;
         $this->guard->current($connection, preview: $preview);
         foreach ($connection->option('folders') as $path) {
             $folder = DB::table('dropbox_folders')->where('connection_id', $connection->id)->where('path', $path)->where('generation', $connection->generation)->where('preview', $preview)->first();
@@ -86,30 +88,7 @@ class SourceScanner
     {
         $path = $entry['path_lower'] ?? $entry['path_display'] ?? '';
         if (($entry['.tag'] ?? '') === 'deleted') {
-            if (! $this->guard->pathAllowed($connection, $path)) {
-                return null;
-            }
-            // Cursor entries can include the deletion of a file that has already
-            // been replaced at the same path. The current path wins in either order.
-            try {
-                $current = $this->client->rpc($connection, 'files/get_metadata', ['path' => $path]);
-                if (($current['.tag'] ?? 'file') === 'file') {
-                    return $this->register($connection, $current, $preview);
-                }
-            } catch (DropboxApiException $e) {
-                if ($e->reason !== 'not_found') {
-                    throw $e;
-                }
-            }
-            foreach (DropboxSource::where('connection_id', $connection->id)->where('path', $path)->get() as $source) {
-                if (isset($source->last_report['replacement_source_id'])) {
-                    continue; // A superseded baseline remains excluded evidence.
-                }
-                $source->update(['state' => 'missing']);
-                app(ConflictStore::class)->put($connection, $source, null, 'source_missing', ['path' => $path]);
-            }
-
-            return null;
+            return $this->registerDeletion($connection, $path, $preview);
         }
         if (($entry['.tag'] ?? 'file') !== 'file' || ! $this->guard->pathAllowed($connection, $path)) {
             return null;
@@ -133,7 +112,12 @@ class SourceScanner
             return null;
         }
         if (! $source) {
-            $source = $this->replacement($connection, $path, $isMatrix ? 'matrix' : 'weekly', $entry);
+            $source = $this->replacement($connection, $path, $isMatrix ? 'matrix' : 'weekly', $entry, $preview);
+            if ($preview && $source) {
+                $this->ledger->enqueue($connection, 'file', 'preview:file:'.$source->id, ['source_id' => $source->id, 'preview' => true]);
+
+                return $source;
+            }
         }
         $source ??= new DropboxSource(['connection_id' => $connection->id, 'file_id' => $entry['id'], 'first_seen_at' => now()]);
         if (in_array($source->state, ['missing', 'excluded'], true)) {
@@ -153,7 +137,83 @@ class SourceScanner
         return $source;
     }
 
-    private function replacement(DropboxConnection $connection, string $path, string $profile, array $entry): ?DropboxSource
+    private function registerDeletion(DropboxConnection $connection, string $path, bool $preview): ?DropboxSource
+    {
+        $path = mb_strtolower(rtrim($path, '/'));
+        if ($path === '') {
+            return null;
+        }
+        $prefix = $path.'/';
+        $pattern = strtr($prefix, ['!' => '!!', '%' => '!%', '_' => '!_']).'%';
+        $sources = DropboxSource::where('connection_id', $connection->id)
+            ->where(fn ($query) => $query->whereRaw('LOWER(path) = ?', [$path])
+                ->orWhereRaw("LOWER(path) LIKE ? ESCAPE '!'", [$pattern]))
+            ->get()->filter(function (DropboxSource $source) use ($connection, $path, $prefix) {
+                $sourcePath = mb_strtolower($source->path);
+
+                return ($sourcePath === $path || str_starts_with($sourcePath, $prefix))
+                    && ! isset($source->last_report['replacement_source_id'])
+                    && $this->guard->pathAllowed($connection, $sourcePath);
+            });
+        if ($sources->isEmpty() && ! $this->guard->pathAllowed($connection, $path)) {
+            return null;
+        }
+
+        // Cursor deletions can arrive after another file or folder has appeared at the same path.
+        $current = $this->metadataAt($connection, $path);
+        $kind = $current ? ($current['.tag'] ?? 'file') : null;
+        $registered = $kind === 'file' ? $this->register($connection, $current, $preview) : null;
+        foreach ($sources->groupBy(fn (DropboxSource $source) => mb_strtolower($source->path)) as $sourcePath => $matches) {
+            $live = $sourcePath === $path ? $current : ($kind === 'folder' ? $this->metadataAt($connection, $sourcePath) : null);
+            $isFile = $live && ($live['.tag'] ?? 'file') === 'file';
+            $found = $sourcePath === $path ? $registered : ($isFile ? $this->register($connection, $live, $preview) : null);
+            foreach ($matches as $source) {
+                if ($found?->is($source) || ($isFile && ($live['id'] ?? null) === $source->file_id)) {
+                    continue;
+                }
+                $source->update(['state' => 'missing']);
+                app(ConflictStore::class)->put($connection, $source, null, 'source_missing', ['path' => $source->path]);
+            }
+        }
+
+        return $registered;
+    }
+
+    private function metadataAt(DropboxConnection $connection, string $path): ?array
+    {
+        try {
+            return $this->client->rpc($connection, 'files/get_metadata', ['path' => $path]);
+        } catch (DropboxApiException $exception) {
+            if ($exception->reason !== 'not_found') {
+                throw $exception;
+            }
+
+            return null;
+        }
+    }
+
+    public function sourceForPreview(DropboxConnection $connection, DropboxSource $source): ?DropboxSource
+    {
+        if (! $this->guard->pathAllowed($connection, $source->path) || isset($source->last_report['replacement_source_id'])) {
+            return null;
+        }
+        $entry = $this->metadataAt($connection, $source->path);
+        if (($entry['.tag'] ?? 'file') !== 'file' || empty($entry['id'])) {
+            return null;
+        }
+        if ($entry['id'] === $source->file_id) {
+            return in_array($source->state, ['missing', 'excluded'], true) ? null : $source;
+        }
+        $candidate = $this->replacement($connection, $source->path, $source->profile, $entry, true);
+        if (! $candidate?->is($source)) {
+            return null;
+        }
+
+        // Keep the source key for the comparison against its stored baseline, but use the new file only for this preview.
+        return $source->forceFill(['file_id' => $entry['id'], 'state' => 'new']);
+    }
+
+    private function replacement(DropboxConnection $connection, string $path, string $profile, array $entry, bool $preview): ?DropboxSource
     {
         $candidates = DropboxSource::where('connection_id', $connection->id)->where('path', $path)->where('profile', $profile)->get()
             ->reject(fn ($source) => isset($source->last_report['replacement_source_id']));
@@ -174,6 +234,9 @@ class SourceScanner
                 if ($e->reason !== 'not_found') {
                     throw $e;
                 }
+            }
+            if ($preview) {
+                return $candidate;
             }
 
             return DB::transaction(function () use ($connection, $candidate, $entry, $path, $profile) {

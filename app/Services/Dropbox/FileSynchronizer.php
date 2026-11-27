@@ -40,7 +40,8 @@ class FileSynchronizer
         $fresh = $this->guard->current($connection, preview: $preview);
         $preview = $preview || $fresh->mode === DropboxMode::Preview;
         $cache = app(WorkbookRevisionCache::class);
-        $download = $cache->read($this->client, $fresh, $source, $prepared);
+        $replacementPreview = $preview && $source->isDirty('file_id');
+        $download = $cache->read($this->client, $fresh, $source, $prepared, replacementPreview: $replacementPreview);
         $rev = $download['metadata']['rev'];
         if (! $preview && $fresh->mode !== DropboxMode::Preview) {
             app(UploadRecovery::class)->recover($connection, $source, $download['metadata']);
@@ -379,7 +380,7 @@ class FileSynchronizer
                                     $baseline[$field] = $value;
                                 }
                             }
-                            $appearance->forceFill(['baseline' => $baseline, 'last_excel' => $entry['values'], 'fingerprint' => $entry['fingerprint'], 'seen_rev' => $rev])->save();
+                            $appearance->forceFill(['locator' => $entry['locator'], 'baseline' => $baseline, 'last_excel' => $entry['values'], 'fingerprint' => $entry['fingerprint'], 'seen_rev' => $rev])->save();
                         }
                     }
                     if (! $preview && $record->domain === 'planning') {
@@ -471,7 +472,9 @@ class FileSynchronizer
                 $source->processed_rev = $rev;
             }
         }
-        $source->save();
+        if (! $replacementPreview) {
+            $source->save();
+        }
         if (! $preview) {
             $source->forceFill(['last_report' => app(SourceSyncReport::class)->build($source, $parsed, $summary, $end, count($entries))])->save();
         }

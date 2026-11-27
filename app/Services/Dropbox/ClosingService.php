@@ -107,6 +107,7 @@ class ClosingService
             $fresh->forceFill(['mode' => DropboxMode::AppOnly, 'closing' => false, 'generation' => $fresh->generation + 1, 'access_token' => null, 'refresh_token' => null])->save();
         });
         // Local detachment has already completed; revocation is best effort.
+        app(WorkbookRevisionCache::class)->forgetConnection($connection);
         try {
             $client->rpc($connection, 'auth/token/revoke');
         } catch (\Throwable) {

@@ -42,7 +42,7 @@ final class PlanningWeekRelocation
             && ! $this->belongsToWeek($connection, $source, $week);
     }
 
-    public function assertReady(DropboxConnection $connection, DropboxRecord $record, DropboxSource $source): void
+    public function assertReady(DropboxConnection $connection, DropboxRecord $record, DropboxSource $source, string $week): void
     {
         app(SyncGuard::class)->current($connection, write: true);
         if (! app(SyncGuard::class)->pathAllowed($connection, $source->path) || in_array($source->state, ['missing', 'excluded'], true)) {
@@ -56,28 +56,37 @@ final class PlanningWeekRelocation
         if (DropboxConflict::where('source_id', $source->id)->where('record_id', $record->id)->whereIn('state', ['open', 'rechecking'])->exists()) {
             throw new DropboxApiException('relocation_source_needs_review', 60);
         }
+        if (DropboxAppearance::where('source_id', $source->id)->where('record_id', $record->id)->get()
+            ->contains(fn ($appearance) => $this->needsMove($connection, $source, $appearance, $week)
+                && ! isset($appearance->locator['cells']['cancellation']) && ! isset($appearance->locator['cells']['notes']))) {
+            throw new DropboxApiException('relocation_marker_column_missing', 300);
+        }
     }
 
-    public function retire(DropboxConnection $connection, DropboxRecord $record, DropboxSource $previous, DropboxSource $destination, string $week): void
+    public function retire(DropboxConnection $connection, DropboxRecord $record, DropboxSource $previous, DropboxSource $destination, string $week): bool
     {
-        $lock = Cache::store(config('dropbox.lock_store'))->lock('dropbox-file:'.$connection->id.':'.$previous->file_id, 330);
+        $fileId = $previous->file_id;
+        $lock = Cache::store(config('dropbox.lock_store'))->lock('dropbox-file:'.$connection->id.':'.$fileId, 330);
         if (! $lock->get()) {
             throw new DropboxApiException('file_busy', 5);
         }
 
         try {
             $previous = $previous->fresh();
-            $this->assertReady($connection, $record, $previous);
+            if (! $previous || $previous->file_id !== $fileId) {
+                throw new DropboxApiException('file_busy', 5);
+            }
+            $this->assertReady($connection, $record, $previous, $week);
 
-            OperationsTransaction::run(function () use ($connection, $record, $previous, $destination, $week) {
+            return OperationsTransaction::run(function () use ($connection, $record, $previous, $destination, $week) {
                 app(SyncGuard::class)->current($connection, write: true, lock: true);
                 $record = DropboxRecord::lockForUpdate()->findOrFail($record->id);
                 if (! Shift::lockForUpdate()->find($record->model_id)) {
-                    return;
+                    return false;
                 }
                 $current = app(DomainAdapter::class)->current($record);
                 if ($this->weeks->week($current['date']) !== $week) {
-                    return; // A newer App change has its own export intent.
+                    return false; // A newer App change has its own export intent.
                 }
                 $destinationRows = DropboxAppearance::where('source_id', $destination->id)->where('record_id', $record->id)->get();
                 if (! $destinationRows->contains(fn ($appearance) => ($appearance->locator['master'] ?? false)
@@ -106,6 +115,8 @@ final class PlanningWeekRelocation
                 }
 
                 app(WorkLedger::class)->enqueue($connection, 'file', 'file:'.$previous->id, ['source_id' => $previous->id], 0);
+
+                return true;
             });
         } finally {
             $lock->release();

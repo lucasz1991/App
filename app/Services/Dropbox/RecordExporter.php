@@ -68,9 +68,9 @@ class RecordExporter
                     try {
                         $target = $this->target($connection, $record, $week, $sources->diff($previous)->modelKeys());
                         foreach ($previous as $source) {
-                            $this->relocation->assertReady($connection, $record, $source);
+                            $this->relocation->assertReady($connection, $record, $source, $week);
                         }
-                        $destination = $this->append($connection, $record, $target);
+                        $destination = $this->append($connection, $record, $target, $week);
                     } catch (ValidationException $e) {
                         app(ConflictStore::class)->put($connection, null, $record, 'destination_required', ['messages' => $e->errors(), 'week' => $week]);
 
@@ -78,13 +78,16 @@ class RecordExporter
                     }
                     if ($destination) {
                         foreach ($previous as $source) {
-                            $this->relocation->retire($connection, $record, $source, $destination, $week);
+                            if (! $this->relocation->retire($connection, $record, $source, $destination, $week)) {
+                                continue 2;
+                            }
                         }
-                        DropboxConflict::where('record_id', $record->id)->where('reason', 'destination_required')->whereNotNull('snapshot->week')->update(['state' => 'resolved']);
+                        $this->resolveRelocationDestination($record);
                     }
 
                     continue;
                 }
+                $this->resolveRelocationDestination($record);
                 foreach ($sources as $source) {
                     $this->append($connection, $record, $source);
                 }
@@ -100,7 +103,8 @@ class RecordExporter
 
     private function target(DropboxConnection $connection, DropboxRecord $record, ?string $relocationWeek = null, array $preferredSources = []): ?DropboxSource
     {
-        if ($record->metadata['target_source_id'] ?? null) {
+        $selectedWeek = $record->metadata['target_week'] ?? null;
+        if (($record->metadata['target_source_id'] ?? null) && (! $relocationWeek || ! $selectedWeek || $selectedWeek === $relocationWeek)) {
             $source = DropboxSource::where('connection_id', $connection->id)->whereKey($record->metadata['target_source_id'])->firstOrFail();
             if ($relocationWeek !== null && (! $this->relocation->belongsToWeek($connection, $source, $relocationWeek)
                 || in_array($source->state, ['missing', 'excluded'], true) || ! $this->guard->pathAllowed($connection, $source->path))) {
@@ -158,10 +162,19 @@ class RecordExporter
         return $sources->first();
     }
 
-    private function append(DropboxConnection $connection, DropboxRecord $record, ?DropboxSource $source): ?DropboxSource
+    private function resolveRelocationDestination(DropboxRecord $record): void
+    {
+        DropboxConflict::where('record_id', $record->id)->where('reason', 'destination_required')
+            ->whereIn('state', ['open', 'rechecking'])->whereNotNull('snapshot->week')->update(['state' => 'resolved']);
+    }
+
+    private function append(DropboxConnection $connection, DropboxRecord $record, ?DropboxSource $source, ?string $expectedWeek = null): ?DropboxSource
     {
         $values = $this->domain->current($record);
         $week = $record->domain === 'planning' ? app(WeekFileMatcher::class)->week($values['date']) : app(WeeklyAvailability::class)->recordWeek($record);
+        if ($expectedWeek !== null && $expectedWeek !== $week) {
+            return null;
+        }
         $path = $source?->path ?? rtrim($connection->option('folders')[0], '/').'/'.app(WeekFileMatcher::class)->filename($week, $connection->option('filename_rule'));
         // A partial import can already have uploaded its own revision. That does
         // not make later rows safe to append, and retries must not starve imports.
@@ -298,6 +311,9 @@ class RecordExporter
             $written = app(WorkbookWriter::class)->writeChanges($bytes, $changes, $profile);
             $bytes = $written['bytes'];
             $changes = $written['changes'];
+            if ($expectedWeek !== null && $expectedWeek !== app(WeekFileMatcher::class)->week($this->domain->current($record)['date'])) {
+                return null;
+            }
             $metadata = app(RevisionUploader::class)->upload($connection, $path, $bytes, $rev, $changes);
             DB::transaction(function () use ($connection, &$source, $metadata, $path, $profile, $week, $changes) {
                 $source ??= new DropboxSource(['connection_id' => $connection->id, 'file_id' => $metadata['id'], 'first_seen_at' => now()]);

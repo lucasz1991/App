@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\DropboxMode;
 use App\Models\DropboxConnection;
 use App\Services\Dropbox\DropboxClient;
+use App\Services\Dropbox\WorkbookRevisionCache;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -50,6 +51,7 @@ class DropboxOAuthController extends Controller
             abort_unless($current->generation === $state['generation'], 409);
             if ($current->account_id && $current->account_id !== $account['account_id']) {
                 $current->forceFill(['mode' => DropboxMode::Off, 'generation' => $current->generation + 1, 'access_token' => null, 'refresh_token' => null])->save();
+                DB::afterCommit(fn () => app(WorkbookRevisionCache::class)->forgetConnection($connection));
                 $current = new DropboxConnection(['app_key' => $connection->app_key, 'app_secret' => $connection->app_secret, 'settings' => $connection->settings, 'generation' => 1]);
             } else {
                 $current->generation++;

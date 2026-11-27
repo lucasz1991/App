@@ -381,7 +381,7 @@ class DropboxSettings extends Component
                     throw ValidationException::withMessages(['targetSource' => 'Eine verfügbare Wochenmappe für '.$week.' auswählen.']);
                 }
             }
-            $record->metadata = array_merge($record->metadata ?? [], ['target_source_id' => $source->id]);
+            $record->metadata = array_merge($record->metadata ?? [], ['target_source_id' => $source->id, 'target_week' => $week]);
             $record->save();
             app(WorkLedger::class)->enqueue($connection, 'export', $record->model_type.':'.$record->model_id, ['type' => $record->model_type, 'id' => $record->model_id], 0);
             $conflict->update(['state' => $week ? 'rechecking' : 'resolved', 'resolved_by' => auth()->id()]);

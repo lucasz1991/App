@@ -32,8 +32,11 @@ class WorkLedger
 
     public function dispatch(?int $connectionId = null): int
     {
-        $query = DropboxWorkItem::whereColumn('requested', '>', 'completed')
-            ->where(fn ($q) => $q->whereNull('queued_until')->orWhere('queued_until', '<', now()))
+        $now = now()->toImmutable();
+        $unreserved = fn ($q) => $q->whereColumn('requested', '>', 'completed')
+            ->where(fn ($q) => $q->whereNull('queued_until')->orWhere('queued_until', '<=', $now))
+            ->where(fn ($q) => $q->whereNull('running_until')->orWhere('running_until', '<=', $now));
+        $query = DropboxWorkItem::where($unreserved)
             ->whereExists(fn ($q) => $q->selectRaw('1')->from('dropbox_connections')
                 ->whereColumn('dropbox_connections.id', 'dropbox_work_items.connection_id')
                 ->whereColumn('dropbox_connections.generation', 'dropbox_work_items.generation')
@@ -48,8 +51,9 @@ class WorkLedger
             if (! $connection || $connection->generation !== $item->generation || (! $connection->mode->active() && ! ($item->payload['preview'] ?? false))) {
                 continue;
             }
-            $reserved = DropboxWorkItem::whereKey($item->id)->where(fn ($q) => $q->whereNull('queued_until')->orWhere('queued_until', '<', now()))
-                ->update(['queued_until' => ($item->available_at->isFuture() ? $item->available_at : now())->addMinutes(6)]);
+            $leaseUntil = max($item->available_at, $now)->addMinutes(6);
+            $reserved = DropboxWorkItem::whereKey($item->id)->where($unreserved)->where('available_at', $item->available_at)
+                ->update(['queued_until' => $leaseUntil]);
             if (! $reserved) {
                 continue;
             }
@@ -61,7 +65,8 @@ class WorkLedger
                     ->delay($item->available_at);
                 $count++;
             } catch (\Throwable) {
-                $item->forceFill(['queued_until' => null, 'error_code' => 'queue_unavailable'])->save();
+                DropboxWorkItem::whereKey($item->id)->where('queued_until', $leaseUntil)
+                    ->update(['queued_until' => null, 'error_code' => 'queue_unavailable']);
             }
         }
 
