@@ -1,5 +1,5 @@
 <section class="rt-day-review" aria-labelledby="day-review-{{ $entryId }}" x-data="{}"
-    x-on:day-review-edit-finished="$nextTick(() => $refs.editButton?.focus())">
+    x-on:day-review-focus="$nextTick(() => $refs[$event.detail.target]?.focus())">
     @if($confirmed)
         <p id="day-review-{{ $entryId }}" role="status">Tagesbeleg bestätigt und zur Prüfung eingereicht.</p>
     @else
@@ -44,8 +44,7 @@
             @endif
         @endif
         @if($errors->any())
-            <p class="rt-day-review__notice" id="day-review-error-{{ $entryId }}" role="alert" tabindex="-1"
-                x-init="$nextTick(() => $el.focus())">{{ $errors->first() }}</p>
+            <p class="rt-day-review__notice" id="day-review-error-{{ $entryId }}" role="alert" tabindex="-1" x-ref="reviewError">{{ $errors->first() }}</p>
         @endif
         @if($editing)
             <form wire:submit="apply" class="rt-day-review__editor" aria-labelledby="day-review-edit-{{ $entryId }}"

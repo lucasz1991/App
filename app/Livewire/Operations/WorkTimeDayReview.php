@@ -63,7 +63,14 @@ class WorkTimeDayReview extends Component
     {
         $this->resetValidation();
         $this->editing = false;
-        $this->dispatch('day-review-edit-finished')->self();
+        $this->dispatch('day-review-focus', target: 'editButton')->self();
+    }
+
+    public function exception(\Throwable $e): void
+    {
+        if ($e instanceof ValidationException) {
+            $this->dispatch('day-review-focus', target: 'reviewError')->self();
+        }
     }
 
     public function apply(WorkTimeDayReviewService $service): void
