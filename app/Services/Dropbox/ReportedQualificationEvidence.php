@@ -75,12 +75,13 @@ final class ReportedQualificationEvidence
         $origin = ['source_id' => $source->id, 'file_id' => $source->file_id, 'appearance_id' => $appearance->id, 'sheet' => $entry['sheet'], 'cell' => $cell];
         $previous = $fact?->value ?? [];
         $previousOrigin = $previous['origin'] ?? [];
-        $sameStatement = $fact?->identity_id === $identity->id && ($previous['value'] ?? null) === $value
+        $sameIdentity = (int) $fact?->identity_id === $identity->id;
+        $sameStatement = $sameIdentity && ($previous['value'] ?? null) === $value
             && $this->sameProperties(array_diff_key($previousOrigin, ['revision' => true]), $origin);
         $origin['revision'] = $sameStatement ? ($previousOrigin['revision'] ?? $appearance->seen_rev) : $appearance->seen_rev;
         $evidence = ['value' => $value, 'color' => null, 'status' => $value === '' ? 'withdrawn' : 'reported',
             'qualification_type_ids' => $this->typeIds($value), 'origin' => $origin];
-        if ($fact?->identity_id === $identity->id && $this->sameProperties($previousOrigin, $origin)
+        if ($sameIdentity && $this->sameProperties($previousOrigin, $origin)
             && $this->sameProperties(array_diff_key($previous, ['origin' => true]), array_diff_key($evidence, ['origin' => true]))) {
             return;
         }

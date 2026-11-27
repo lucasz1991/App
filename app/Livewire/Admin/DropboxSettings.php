@@ -125,7 +125,7 @@ class DropboxSettings extends Component
     {
         $connection = $this->connection();
         $this->generation = $connection->generation;
-        $this->form = array_merge(config('dropbox.defaults'), $connection->settings ?? []);
+        $this->form = ConnectionManager::normalizeAutomationOptions(array_merge(config('dropbox.defaults'), $connection->settings ?? []));
         unset($this->form['week_template'], $this->form['employee_template']);
         $this->form['app_key'] = $connection->app_key ?? '';
         $this->form['app_secret'] = '';

@@ -19,6 +19,8 @@ use Illuminate\Validation\ValidationException;
 
 class ConnectionManager
 {
+    private const AUTOMATION_OPTIONS = ['historical_import_contacts', 'historical_auto_complete', 'retain_unassigned_drafts'];
+
     public function authorize(?User $user): void
     {
         abort_unless($user?->isSuperAdmin() && $user->status, 403);
@@ -39,6 +41,7 @@ class ConnectionManager
             'domains.*' => [Rule::in(['planning', 'assignments', 'contacts', 'competencies'])],
             'auto_discover' => 'required|boolean', 'watch_history' => 'required|boolean', 'create_workbooks' => 'required|boolean', 'create_sheets' => 'required|boolean', 'append_rows' => 'required|boolean',
             'debounce_seconds' => ['required', Rule::in([2, 5, 10])], 'check_minutes' => ['required', Rule::in([5, 15, 60])], 'timezone' => ['required', Rule::in(['Europe/Berlin'])],
+            ...array_fill_keys(self::AUTOMATION_OPTIONS, 'sometimes|boolean'),
         ])->validate();
         if (! str_contains($data['filename_rule'], '{KW}')) {
             throw ValidationException::withMessages(['filename_rule' => 'Die Dateinamensregel benötigt {KW}.']);
@@ -63,7 +66,7 @@ class ConnectionManager
                 throw ValidationException::withMessages(['settings' => 'Einstellungen wurden inzwischen geändert. Neu laden.']);
             }
             $credentialsChanged = ($current->app_key ?? '') !== ($data['app_key'] ?? '') || (! empty($data['app_secret']) && $data['app_secret'] !== $current->app_secret);
-            $settings = array_merge(config('dropbox.defaults'), $current->settings ?? [], array_diff_key($data, ['app_key' => true, 'app_secret' => true]));
+            $settings = self::normalizeAutomationOptions(array_merge(config('dropbox.defaults'), $current->settings ?? [], array_diff_key($data, ['app_key' => true, 'app_secret' => true])));
             $settings['matrix_path'] ??= '';
             $settings['folders'] = array_values(array_unique(array_map(fn ($p) => rtrim($p, '/') ?: '/', $settings['folders'])));
             $current->forceFill(['app_key' => $data['app_key'], 'settings' => $settings, 'mode' => DropboxMode::Off, 'closing' => false, 'generation' => $current->generation + 1, 'preview_at' => null, 'preview_generation' => null]);
@@ -79,6 +82,15 @@ class ConnectionManager
 
             return $current;
         });
+    }
+
+    public static function normalizeAutomationOptions(array $settings): array
+    {
+        foreach (self::AUTOMATION_OPTIONS as $key) {
+            $settings[$key] = in_array($settings[$key] ?? null, [true, 1, '1'], true);
+        }
+
+        return $settings;
     }
 
     public function activate(DropboxConnection $connection, DropboxMode $mode, User $actor): void

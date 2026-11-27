@@ -73,6 +73,21 @@
                 </div>
                 <div class="space-y-3"><p class="text-sm font-semibold">Weitere zugeordnete Quelldateien</p>@foreach($form['additional_sources'] ?? [] as $index => $configured)<div class="grid gap-2 sm:grid-cols-[1fr_180px_auto]" wire:key="extra-source-{{ $index }}"><x-ui.forms.input wire:model="form.additional_sources.{{ $index }}.path" aria-label="Vollständiger Dropbox-Dateipfad" placeholder="/Disposition/Datei.xlsx" /><x-ui.forms.select wire:model="form.additional_sources.{{ $index }}.profile" aria-label="Dateiprofil"><option value="weekly">Disposition</option><option value="matrix">Kompetenzmatrix</option></x-ui.forms.select><x-ui.buttons.button-basic type="button" mode="secondary" wire:click="removeSource({{ $index }})">Entfernen</x-ui.buttons.button-basic></div>@endforeach<x-ui.buttons.button-basic type="button" mode="secondary" wire:click="addSource">Datei hinzufügen</x-ui.buttons.button-basic></div>
                 <fieldset><legend class="mb-2 text-sm font-semibold">Datenbereiche</legend><div class="grid gap-1 sm:grid-cols-2">@foreach(['planning' => 'Aufträge und Schichten', 'assignments' => 'Mitarbeiterzuordnungen', 'contacts' => 'Abbildbare Stammdaten', 'competencies' => 'Kompetenzen und gemeldete Nachweise'] as $key => $label)<x-ui.forms.checkbox wire:model="form.domains" :value="$key" :label="$label" />@endforeach</div></fieldset>
+                <fieldset class="space-y-2">
+                    <legend class="mb-2 text-sm font-semibold">Automatik für importierte Excel-Daten</legend>
+                    <div>
+                        <x-ui.forms.checkbox id="dropbox-history-contacts" wire:model="form.historical_import_contacts" aria-describedby="dropbox-history-contacts-help" label="Historische Mitarbeiterkontakte übernehmen" />
+                        <p id="dropbox-history-contacts-help" class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Ein eindeutiger Kontakt mit einer belegten vergangenen Mitarbeiterzuordnung kann als inaktives Mitarbeiterkonto übernommen werden. Dafür müssen Aufträge und Schichten, Mitarbeiterzuordnungen und Stammdaten aktiviert sein.</p>
+                    </div>
+                    <div>
+                        <x-ui.forms.checkbox id="dropbox-history-complete" wire:model="form.historical_auto_complete" aria-describedby="dropbox-history-complete-help" label="Importierte Entwurfsschichten nach Planende abschließen" />
+                        <p id="dropbox-history-complete-help" class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Nach dem Planende ordnet RailTime dafür geeignete importierte Entwurfsschichten automatisch als abgeschlossen ein. Arbeitszeitnachweise werden separat erfasst und geprüft.</p>
+                    </div>
+                    <div>
+                        <x-ui.forms.checkbox id="dropbox-pending-drafts" wire:model="form.retain_unassigned_drafts" aria-describedby="dropbox-pending-drafts-help" label="Entwürfe mit offener Mitarbeiterzuordnung speichern" />
+                        <p id="dropbox-pending-drafts-help" class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Wenn der automatische Import eine Zuordnung nicht eindeutig auflösen kann oder die Einsatzregeln sie verhindern, bleibt die Schicht als Entwurf mit einem Prüfhinweis gespeichert.</p>
+                    </div>
+                </fieldset>
                 <div class="grid gap-4 sm:grid-cols-3">
                     <div><x-ui.forms.label for="dropbox-debounce" value="Ereignisse bündeln" /><x-ui.forms.select id="dropbox-debounce" wire:model="form.debounce_seconds">@foreach([2,5,10] as $seconds)<option value="{{ $seconds }}">{{ $seconds }} Sekunden</option>@endforeach</x-ui.forms.select></div>
                     <div><x-ui.forms.label for="dropbox-check" value="Kontrollabfrage" /><x-ui.forms.select id="dropbox-check" wire:model="form.check_minutes">@foreach([5,15,60] as $minutes)<option value="{{ $minutes }}">{{ $minutes }} Minuten</option>@endforeach</x-ui.forms.select></div>

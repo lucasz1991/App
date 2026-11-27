@@ -394,3 +394,4 @@ __pycache__/
 !/tests/Unit/AiIntakeVisualContextTest.php
 !/tests/Frontend/intake-location-map.test.js
 !/tests/Feature/DropboxSourceAndContactSafetyTest.php
+!/tests/Feature/DropboxQualificationEvidenceTest.php

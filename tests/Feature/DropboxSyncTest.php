@@ -735,6 +735,47 @@ class DropboxSyncTest extends TestCase
         $this->assertSame('secret', $saved->app_secret);
     }
 
+    public function test_optional_import_automations_are_off_by_default_and_saved_independently_as_booleans(): void
+    {
+        $options = array_fill_keys(['historical_import_contacts', 'historical_auto_complete', 'retain_unassigned_drafts'], true);
+        $untouched = ['import_chunk_size' => 123, 'historical_completed_before' => '2026-10-09T07:03:42Z', 'week_template' => ['path' => 'test.xlsx']];
+        $this->connection->update(['settings' => [...array_diff_key($this->connection->settings, $options), ...$untouched]]);
+        $admin = User::findOrFail(1);
+
+        $form = Livewire::actingAs($admin)->test(DropboxSettings::class)
+            ->set('panel', 'sources')
+            ->assertSee('Historische Mitarbeiterkontakte übernehmen')
+            ->assertSee('Importierte Entwurfsschichten nach Planende abschließen')
+            ->assertSee('Entwürfe mit offener Mitarbeiterzuordnung speichern')
+            ->assertSee('Arbeitszeitnachweise werden separat erfasst und geprüft.')
+            ->assertSet('form.historical_import_contacts', false)
+            ->assertSet('form.historical_auto_complete', false)
+            ->assertSet('form.retain_unassigned_drafts', false)
+            ->set('form.historical_auto_complete', '1')->call('save')->assertHasNoErrors()
+            ->assertSet('form.historical_auto_complete', true);
+
+        $saved = $this->connection->fresh();
+        $this->assertSame(['historical_import_contacts' => false, 'historical_auto_complete' => true, 'retain_unassigned_drafts' => false], array_intersect_key($saved->settings, $options));
+        $this->assertSame(DropboxMode::Off, $saved->mode);
+        foreach ($untouched as $key => $value) {
+            $this->assertSame($value, $saved->settings[$key]);
+        }
+        $this->assertSame('refresh', $saved->refresh_token);
+
+        $form->set('form.historical_import_contacts', true)->set('form.retain_unassigned_drafts', 1)
+            ->set('form.historical_auto_complete', '0')->call('save')->assertHasNoErrors();
+        $saved = $this->connection->fresh();
+        $expected = ['historical_import_contacts' => true, 'historical_auto_complete' => false, 'retain_unassigned_drafts' => true];
+        $this->assertSame($expected, array_intersect_key($saved->settings, $options));
+
+        $legacyForm = [...array_diff_key(config('dropbox.defaults'), $options), 'app_key' => $saved->app_key, 'app_secret' => ''];
+        $saved = app(ConnectionManager::class)->save($saved, $saved->generation, $legacyForm, $admin);
+        $this->assertSame($expected, array_intersect_key($saved->settings, $options));
+        foreach ($untouched as $key => $value) {
+            $this->assertSame($value, $saved->settings[$key]);
+        }
+    }
+
     public function test_worker_ignores_early_delivery_and_running_reservation(): void
     {
         $item = app(WorkLedger::class)->enqueue($this->connection, 'scan', 'scan');
