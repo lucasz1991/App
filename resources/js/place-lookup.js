@@ -51,16 +51,6 @@ export function registerPlaceLookup(Alpine) {
             if (changed && !this.dead && this.$el.isConnected) await this.$wire.$refresh();
         },
     }));
-    Alpine.data('rtWorksiteChoice', (url, selection) => ({
-        busy: false, error: '',
-        async choose(latitude, longitude) {
-            if (this.busy) return;
-            this.busy = true;
-            try { await post(url, { ...selection, latitude, longitude }); await this.$wire.$refresh(); }
-            catch { this.error = 'Auswahl abgelaufen. Bitte die Ansicht aktualisieren.'; }
-            finally { this.busy = false; }
-        },
-    }));
     Alpine.data('rtWorksitePin', () => {
         let map = null, ticket = 0;
         return {

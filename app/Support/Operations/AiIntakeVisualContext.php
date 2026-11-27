@@ -9,7 +9,7 @@ use Throwable;
 /** Read-only presentation of the proposal's own time and worksite, without lookups or geocoding. */
 final class AiIntakeVisualContext
 {
-    public static function forDemand(array $demand, ?Order $order = null, string $identity = ''): array
+    public static function forDemand(array $demand, ?Order $order = null): array
     {
         $start = $end = null;
         $zone = is_string($demand['timezone'] ?? null) ? $demand['timezone'] : '';
@@ -48,7 +48,7 @@ final class AiIntakeVisualContext
                 $inquiry->setRawAttributes(['location_name' => $location]);
                 $preview = TimelineLocationPreview::fromInquiry($inquiry);
                 $context = $order && self::sameLocation($location, (string) $order->location_name) ? $order : null;
-                $preview = \App\Services\Routing\WorksiteLookup::preview($preview, \App\Services\Routing\WorksiteLookup::input($location, $context), 'intake:'.$identity);
+                $preview = \App\Services\Routing\WorksiteLookup::preview($preview, \App\Services\Routing\WorksiteLookup::input($location, $context));
             }
         }
 

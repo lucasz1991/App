@@ -59,7 +59,7 @@
         <div class="wv-dispatch-map__list" role="region" aria-label="{{ $entryKinds }} mit Standort" tabindex="0">
             @forelse($data['items'] as $entry)
                 @include('dashboard.widgets.partials.dispatch-map-entry', ['entry' => $entry, 'preview' => false])
-                @if(isset($entry['location']['choice']) || ($entry['location']['state'] ?? '') === 'outside')
+                @if(($entry['location']['state'] ?? '') === 'outside')
                     <div x-show="(kind === 'all' || kind === @js($entry['type'])) && mapMatchesPlace(place, @js($entry['locationKeys']))">
                         <x-operations.worksite-lookup :preview="$entry['location']" />
                     </div>

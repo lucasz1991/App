@@ -30,7 +30,7 @@ final class TimelineLocationPreview
     public static function fromShift(Shift $shift, bool $worksite = false): array
     {
         $preview = self::shiftPreview($shift, true, $worksite);
-        return $worksite ? \App\Services\Routing\WorksiteLookup::preview($preview, \App\Services\Routing\WorksiteLookup::forRecord($shift), 'shift:'.$shift->getKey()) : $preview;
+        return $worksite ? \App\Services\Routing\WorksiteLookup::preview($preview, \App\Services\Routing\WorksiteLookup::forRecord($shift)) : $preview;
     }
 
     /** Map-only fallbacks must not change persisted regional exclusion policy. */
@@ -48,7 +48,7 @@ final class TimelineLocationPreview
         $preview = self::structuredDisplayLocation($order, [
             $order->getAttribute('title'), $order->getAttribute('description'),
         ]);
-        return $worksite ? \App\Services\Routing\WorksiteLookup::preview($preview, \App\Services\Routing\WorksiteLookup::forRecord($order), 'order:'.$order->getKey()) : $preview;
+        return $worksite ? \App\Services\Routing\WorksiteLookup::preview($preview, \App\Services\Routing\WorksiteLookup::forRecord($order)) : $preview;
     }
 
     private static function structuredDisplayLocation(Order $order, array $texts): array
@@ -92,7 +92,7 @@ final class TimelineLocationPreview
         $location = self::normalize($inquiry->getAttribute('location_name'));
 
         $preview = $location === null ? self::unlocated('unknown') : self::displayLocation($location, self::mapLocation($location));
-        return $worksite ? \App\Services\Routing\WorksiteLookup::preview($preview, \App\Services\Routing\WorksiteLookup::forRecord($inquiry), 'inquiry:'.$inquiry->getKey()) : $preview;
+        return $worksite ? \App\Services\Routing\WorksiteLookup::preview($preview, \App\Services\Routing\WorksiteLookup::forRecord($inquiry)) : $preview;
     }
 
     private static function shiftPreview(Shift $shift, bool $mapFallbacks, bool $worksite = false): array

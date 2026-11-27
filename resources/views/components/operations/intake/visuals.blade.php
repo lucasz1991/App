@@ -1,7 +1,7 @@
 @props(['demand' => [], 'order' => null, 'identity' => 'intake'])
 @php
-    $visual = \App\Support\Operations\AiIntakeVisualContext::forDemand($demand, $order, $identity);
-    $mapKey = 'intake-location-'.hash('sha256', $identity.'|'.json_encode([$visual['location'], $visual['point'], $visual['mapLabel'], $visual['preview']['choice']['key'] ?? null]));
+    $visual = \App\Support\Operations\AiIntakeVisualContext::forDemand($demand, $order);
+    $mapKey = 'intake-location-'.hash('sha256', $identity.'|'.json_encode([$visual['location'], $visual['point'], $visual['mapLabel']]));
 @endphp
 <div {{ $attributes->class('rt-intake-visuals') }} data-intake-visuals>
     <div class="rt-intake-visuals__calendar">
@@ -19,7 +19,7 @@
                 <span class="rt-intake-visuals__map-status" x-show="status !== 'ready'" x-text="status === 'error' ? 'Karte nicht verfügbar' : 'Karte wird geladen'" role="status">Karte wird geladen</span>
             </div>
         @else
-            <div class="rt-intake-visuals__empty" role="status"><i class="far fa-map-marker-alt" aria-hidden="true"></i><span>{{ ($visual['preview']['state'] ?? '') === 'multiple' ? 'Mehrere Einsatzorte' : (isset($visual['preview']['alternatives']) ? $visual['preview']['label'] : (($visual['preview']['lookupDisabled'] ?? false) ? 'Kartenposition offen · TomTom nicht eingerichtet' : 'Kartenposition offen')) }}</span></div>
+            <div class="rt-intake-visuals__empty" role="status"><i class="far fa-map-marker-alt" aria-hidden="true"></i><span>{{ ($visual['preview']['state'] ?? '') === 'multiple' ? 'Mehrere Einsatzorte' : (($visual['preview']['lookupDisabled'] ?? false) ? 'Kartenposition offen · TomTom nicht eingerichtet' : 'Kartenposition offen') }}</span></div>
         @endif
         <x-operations.worksite-lookup :preview="($visual['point'] && ($visual['preview']['state'] ?? '') === 'outside') ? [] : $visual['preview']" />
         <figcaption class="rt-intake-visuals__caption" title="{{ $visual['mapLabel'] }}"><i class="far fa-map-marker-alt" aria-hidden="true"></i><span>{{ $visual['location'] }}</span></figcaption>

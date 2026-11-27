@@ -107,7 +107,7 @@ class DispatchMapWidgetTest extends TestCase
         request()->attributes->set('worksite_search_enabled', true);
         $this->assertSame(0, $this->map()['unlocatedCount']);
         $this->assertSame(2, $this->map()['markers'][0]['shiftCount']);
-        $intake = \App\Support\Operations\AiIntakeVisualContext::forDemand(['location_name' => $name], null, 'proposal-12');
+        $intake = \App\Support\Operations\AiIntakeVisualContext::forDemand(['location_name' => $name]);
         $this->assertSame(53.55, $intake['point']['latitude']);
         $this->assertFalse($intake['preview']['confirmed'] ?? false);
     }
@@ -699,7 +699,7 @@ class DispatchMapWidgetTest extends TestCase
         $this->assertSame($confirmed, WorksiteLookup::preview($confirmed, $input));
     }
 
-    public function test_ambiguous_and_missing_matches_do_not_produce_map_points_and_shift_override_is_isolated(): void
+    public function test_first_ranked_worksite_is_shown_automatically_in_both_maps(): void
     {
         $this->actingAs($this->admin);
         request()->attributes->set('worksite_search_enabled', true);
@@ -708,16 +708,18 @@ class DispatchMapWidgetTest extends TestCase
         $this->mock(TomTomAddressSearchService::class)->shouldReceive('suggest')->once()
             ->andReturn(['status' => 'known', 'results' => [$this->worksiteRow($name, 48.1), $this->worksiteRow($name, 48.2)]]);
         app(WorksiteLookup::class)->resolve($input);
-        $preview = WorksiteLookup::preview(['state' => 'unknown'], $input, 'shift:22');
-        $this->assertArrayNotHasKey('latitude', $preview);
-        $this->assertCount(2, $preview['alternatives']);
-        $this->assertNotEmpty($preview['choice']['proof']);
-        $selection = $preview['choice'] + ['latitude' => 48.2, 'longitude' => 12.82];
-        $this->postJson(route('places.choose'), $selection)->assertOk();
-        request()->attributes->set('worksite_search_enabled', true);
-        $this->assertSame(48.2, WorksiteLookup::preview(['state' => 'unknown'], $input, 'shift:22')['latitude']);
-        $this->assertArrayNotHasKey('latitude', WorksiteLookup::preview(['state' => 'unknown'], $input, 'shift:23'));
-        $this->postJson(route('places.choose'), array_replace($selection, ['latitude' => 55.0]))->assertStatus(409);
+        $this->shift(['location_name' => $name]);
+        $map = $this->map();
+        $this->assertSame(0, $map['unlocatedCount']);
+        $this->assertSame(48.1, $map['markers'][0]['latitude']);
+        $intake = \App\Support\Operations\AiIntakeVisualContext::forDemand(['location_name' => $name]);
+        $this->assertSame(48.1, $intake['point']['latitude']);
+        $this->assertArrayNotHasKey('choice', $intake['preview']);
+        \Illuminate\Support\Facades\Cache::put(WorksiteLookup::key($input), ['alternatives' => [
+            WorksiteLookup::point($this->worksiteRow($name, 48.3)), WorksiteLookup::point($this->worksiteRow($name, 48.4)),
+        ]]);
+        $this->assertSame(48.3, $this->map()['markers'][0]['latitude']);
+
         $shift = (new Shift)->forceFill(['location_name' => 'Hafen']);
         $shift->setRelation('order', (new Order)->forceFill(['location_name' => 'Bahnhof', 'street' => 'Gleisweg', 'country' => 'AT', 'city' => 'Wien']));
         $this->assertSame(WorksiteLookup::input('Hafen'), WorksiteLookup::forRecord($shift));

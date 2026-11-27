@@ -73,7 +73,7 @@ final class WorksiteLookup
         return hash_hmac('sha256', auth()->id().'|'.self::key($input), config('app.key'));
     }
 
-    public static function preview(array $local, array $input, string $subject = ''): array
+    public static function preview(array $local, array $input): array
     {
         if (! self::needsLookup($local, $input)) {
             return $local;
@@ -94,24 +94,14 @@ final class WorksiteLookup
         if ($saved === null) {
             return $local + ['lookup' => $input + ['signature' => self::signature($input)]];
         }
-        if (! empty($saved['alternatives']) && $subject !== '') {
-            $choiceKey = hash_hmac('sha256', auth()->id().'|'.$subject.'|'.self::key($input), config('app.key'));
-            $choice = session('worksite.'.$choiceKey);
-            foreach ($saved['alternatives'] as $candidate) {
-                if ($choice === [$candidate['latitude'], $candidate['longitude']]) {
-                    return $candidate;
-                }
-            }
-            $local['choice'] = ['key' => $choiceKey, 'signature' => self::signature($input), 'input' => $input,
-                'proof' => hash_hmac('sha256', $choiceKey.self::key($input), config('app.key'))];
+        // Older cache entries still contain the ordered list presented by the previous picker.
+        $point = $saved['point'] ?? $saved['alternatives'][0] ?? null;
+        if ($point !== null) {
+            return $point;
         }
-        if (isset($saved['point'])) {
-            return $saved['point'];
-        }
-        if ($local['state'] === 'located') {
-            return $local + ['lookupMessage' => $saved['label'], 'alternatives' => $saved['alternatives'] ?? []];
-        }
-        return array_replace($local, ['label' => $saved['label'], 'alternatives' => $saved['alternatives'] ?? []]);
+        return $local['state'] === 'located'
+            ? $local + ['lookupMessage' => $saved['label']]
+            : array_replace($local, ['label' => $saved['label']]);
     }
 
     public static function point(array $row): array
@@ -146,18 +136,7 @@ final class WorksiteLookup
                 ($input['city'] === '' || self::words($row['city']) === self::words($input['city']))
                 && ($input['postal'] === '' || $row['postal'] === $input['postal'])));
 
-            $matches = [];
-            foreach ($rows as $row) {
-                $text = self::words(implode(' ', [$row['name'], $row['label'], $row['city'], $row['postal'], $row['street']]));
-                if (array_diff(self::words($input['query']), $text)) {
-                    continue;
-                }
-                $matches[sprintf('%.5F|%.5F', $row['latitude'], $row['longitude'])] = $row;
-            }
-            $value = count($matches) === 1 ? ['point' => self::point(reset($matches))] : [
-                'label' => $rows ? 'TomTom-Treffer prüfen' : 'Kein passender TomTom-Treffer',
-                'alternatives' => array_map(self::point(...), $rows),
-            ];
+            $value = $rows ? ['point' => self::point($rows[0])] : ['label' => 'Kein passender TomTom-Treffer'];
             $ttl = request()->attributes->get('worksite_shared_cache') ? ($rows ? 86400 : 14400) : 600;
             // Store map fields only; private form searches never enter this cache.
             Cache::put($key, $value, $ttl);

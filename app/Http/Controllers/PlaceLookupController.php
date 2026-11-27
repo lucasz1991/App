@@ -22,24 +22,6 @@ class PlaceLookupController extends Controller
         return response()->json($service->reverse((float) $data['latitude'], (float) $data['longitude']))->header('Cache-Control', 'private, no-store');
     }
 
-    public function choose(Request $request): JsonResponse
-    {
-        $data = $request->validate(['key' => 'required|string|size:64', 'proof' => 'required|string|size:64',
-            'latitude' => 'required|numeric|between:-90,90', 'longitude' => 'required|numeric|between:-180,180', 'input' => 'required|array:query,country,city,postal,street',
-            'input.query' => 'required|string|max:200', 'input.country' => 'nullable|string|max:2',
-            'input.street' => 'nullable|string|max:200', 'input.city' => 'nullable|string|max:200', 'input.postal' => 'nullable|string|max:30',
-            'signature' => 'required|string|size:64']);
-        $input = array_map(fn ($value) => (string) $value, $data['input']);
-        abort_unless(hash_equals(WorksiteLookup::signature($input), $data['signature'])
-            && hash_equals(hash_hmac('sha256', $data['key'].WorksiteLookup::key($input), config('app.key')), $data['proof']), 403);
-        $result = WorksiteLookup::cached($input);
-        $point = collect($result['alternatives'] ?? [])->first(fn ($point) =>
-            (float) $point['latitude'] === (float) $data['latitude'] && (float) $point['longitude'] === (float) $data['longitude']);
-        abort_unless($point, 409);
-        $request->session()->put('worksite.'.$data['key'], [$point['latitude'], $point['longitude']]);
-        return response()->json(['selected' => true]);
-    }
-
     public function resolve(Request $request, WorksiteLookup $service): JsonResponse
     {
         $data = $request->validate(['query' => 'required|string|min:3|max:200', 'country' => 'nullable|string|max:16',

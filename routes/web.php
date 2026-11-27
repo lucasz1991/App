@@ -93,7 +93,6 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['auth', 'throttle:60,1'])->withoutMiddleware(LogActivity::class)->group(function () {
     Route::post('/orte/suche', [\App\Http\Controllers\PlaceLookupController::class, 'search'])->name('places.search');
     Route::post('/orte/adresse', [\App\Http\Controllers\PlaceLookupController::class, 'reverse'])->name('places.reverse');
-    Route::post('/orte/auswahl', [\App\Http\Controllers\PlaceLookupController::class, 'choose'])->name('places.choose');
     Route::post('/orte/kartenpunkt', [\App\Http\Controllers\PlaceLookupController::class, 'resolve'])->name('places.resolve');
 });
 
