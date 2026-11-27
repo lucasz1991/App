@@ -5,6 +5,7 @@ namespace App\Services\Dropbox;
 use App\Models\DropboxConnection;
 use App\Models\DropboxIdentity;
 use App\Models\User;
+use App\Support\Operations\OperationsDateTime;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -200,12 +201,9 @@ class PlanningEmployeeEvidence
 
     private function eligible(User $user, array $values, DropboxConnection $connection): bool
     {
-        if ($user->status) {
-            return true;
-        }
         $end = $this->end($values, (string) $connection->option('timezone'));
 
-        return $end && $end->lessThanOrEqualTo(CarbonImmutable::now($end->timezone));
+        return $end && ($user->status || $end->lessThanOrEqualTo(CarbonImmutable::now()));
     }
 
     private function event(array $values, string $timezone): ?array
@@ -242,13 +240,10 @@ class PlanningEmployeeEvidence
             return null;
         }
         try {
-            $from = CarbonImmutable::createFromFormat('!Y-m-d H:i', $date.' '.$start, $timezone);
-            $until = CarbonImmutable::createFromFormat('!Y-m-d H:i', $date.' '.$end, $timezone);
-            if (! $from || ! $until || $from->format('Y-m-d H:i') !== $date.' '.$start || $until->format('Y-m-d H:i') !== $date.' '.$end) {
-                return null;
-            }
+            $endDate = $end <= $start ? CarbonImmutable::parse($date, 'UTC')->addDay()->toDateString() : $date;
+            [, $until] = OperationsDateTime::interval($date.' '.$start, $endDate.' '.$end, $timezone);
 
-            return $until->lessThanOrEqualTo($from) ? $until->addDay() : $until;
+            return $until;
         } catch (\Throwable) {
             return null;
         }

@@ -261,6 +261,16 @@ class DropboxPlanningEmployeeEvidenceTest extends TestCase
         $this->assertSame($this->person->id, $this->evidence($result, 1)['user_id']);
     }
 
+    public function test_roster_evidence_uses_the_date_of_the_overnight_end_for_clock_changes(): void
+    {
+        foreach ([['date' => '2026-10-24', 'starts' => '22:00', 'ends' => '02:15'],
+            ['date' => '2026-03-28', 'starts' => '22:00', 'ends' => '02:15']] as $times) {
+            $result = $this->annotate($this->parsed([$this->row('Übersicht', 5, $times, true), $this->row('Erika Muster', 18, $times)]));
+            $this->assertNull($this->evidence($result, 0));
+            $this->assertNull($this->evidence($result, 1));
+        }
+    }
+
     public function test_existing_ma_unknown_master_role_and_non_planning_availability_never_get_inferred_employees(): void
     {
         $explicit = $this->row('Erika Muster', 3, ['employee' => 'Erika Muster']);

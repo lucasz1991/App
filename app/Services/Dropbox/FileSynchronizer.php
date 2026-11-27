@@ -223,7 +223,7 @@ class FileSynchronizer
             $summary['new']++;
             $subject = $entry['locator']['subject'] ?? $entry['values']['employee'] ?? '';
             if ($subject !== '' && $entry['domain'] !== 'contacts') {
-                $this->domain->identity($connection, $subject, ($entry['locator']['kind'] ?? '') === 'provider' ? 'provider' : 'unresolved', historical: $entry['domain'] === 'planning');
+                $this->domain->identity($connection, $subject, ($entry['locator']['kind'] ?? '') === 'provider' ? 'provider' : 'unresolved', resolve: $entry['domain'] !== 'planning');
             }
             try {
                 if ($preview) {
@@ -252,10 +252,6 @@ class FileSynchronizer
                         $record = $related;
                     } else {
                         $record = $this->domain->create($connection, $createEntry);
-                        if ($evidence) {
-                            $record->metadata = [...($record->metadata ?? []), 'employee_evidence' => $evidence];
-                            $record->save();
-                        }
                     }
                     $collision = DropboxAppearance::where('source_id', $source->id)->where('sheet', $entry['sheet'])->where('slot', $entry['slot'])->first();
                     if ($collision) {
@@ -275,12 +271,13 @@ class FileSynchronizer
         }
         $changes = [];
         $pendingRelocations = 0;
+        $qualificationEvidence = app(ReportedQualificationEvidence::class);
         foreach (collect($bound)->groupBy(fn ($b) => $b['appearance']->record_id) as $recordId => $rows) {
             if (! $rows->contains(fn ($b) => isset($selected[$b['entry']['sheet'].'!'.$b['entry']['slot']]))) {
                 continue;
             }
             try {
-                $result = OperationsTransaction::run(function () use ($connection, $source, $rev, $recordId, $rows, $preview) {
+                $result = OperationsTransaction::run(function () use ($connection, $source, $rev, $recordId, $rows, $preview, $qualificationEvidence) {
                     $this->guard->current($connection, preview: $preview, lock: true);
                     $record = DropboxRecord::lockForUpdate()->findOrFail($recordId);
                     if ($record->domain === 'contacts') {
@@ -297,6 +294,7 @@ class FileSynchronizer
                     if (! $preview) {
                         $this->domain->reconcileNative($connection, $record, false);
                     }
+                    $evidenceIdentity = $preview ? null : $qualificationEvidence->resolveStoredIdentity($connection, $record, $rows);
                     $local = $this->domain->current($record);
                     $versions = $rows->map(fn ($b) => ['baseline' => $b['appearance']->baseline, 'excel' => $b['entry']['values'], 'origin' => $b['entry']['sheet'].'!'.$b['entry']['slot']])->all();
                     $merge = app(ThreeWayMerge::class)->merge($local, $versions);
@@ -381,6 +379,9 @@ class FileSynchronizer
                                 }
                             }
                             $appearance->forceFill(['locator' => $entry['locator'], 'baseline' => $baseline, 'last_excel' => $entry['values'], 'fingerprint' => $entry['fingerprint'], 'seen_rev' => $rev])->save();
+                            if ($record->domain === 'contacts' && $evidenceIdentity) {
+                                $qualificationEvidence->record($evidenceIdentity, $source, $appearance, $entry, $rowTarget);
+                            }
                         }
                     }
                     if (! $preview && $record->domain === 'planning') {

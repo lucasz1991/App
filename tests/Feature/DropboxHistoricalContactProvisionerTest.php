@@ -155,6 +155,11 @@ class DropboxHistoricalContactProvisionerTest extends TestCase
         $provider['locator']['kind'] = 'provider';
         $parsed['rows'][] = $provider;
         $this->assertSame(1, $this->reconcile($parsed)['review']);
+        $provider['locator']['subject'] = 'Muster, Emilio Da Silva';
+        $parsed['rows'][2] = $provider;
+        $this->assertSame(1, $this->reconcile($parsed)['review']);
+        DropboxIdentity::create(['connection_id' => $this->connection->id, 'alias' => 'muster, emilio da silva', 'kind' => 'provider']);
+        $this->assertSame(1, $this->reconcile($this->parsed())['review']);
         $this->assertSame(1, User::count());
     }
 
@@ -177,7 +182,8 @@ class DropboxHistoricalContactProvisionerTest extends TestCase
 
     public function test_contacts_without_exact_past_ma_in_same_workbook_or_with_running_overnight_plan_do_not_provision(): void
     {
-        foreach ([['employee' => 'Andere Person'], ['date' => '2026-10-24'], ['date' => '2026-10-23', 'starts' => '23:00', 'ends' => '04:00'], ['date' => '2026-02-31']] as $changes) {
+        foreach ([['employee' => 'Andere Person'], ['date' => '2026-10-24'], ['date' => '2026-10-23', 'starts' => '23:00', 'ends' => '04:00'],
+            ['date' => '2026-02-31'], ['date' => '2026-03-28', 'starts' => '22:00', 'ends' => '02:15']] as $changes) {
             $parsed = $this->parsed();
             $parsed['rows'][1]['values'] = [...$parsed['rows'][1]['values'], ...$changes];
             $this->assertSame(0, $this->reconcile($parsed)['created']);

@@ -30,13 +30,13 @@ class DomainAdapter
 {
     public function __construct(private EmployeeIdentityResolver $identityResolver) {}
 
-    public function identity(DropboxConnection $connection, string $name, string $kind = 'unresolved', bool $historical = false): DropboxIdentity
+    public function identity(DropboxConnection $connection, string $name, string $kind = 'unresolved', bool $historical = false, bool $resolve = true): DropboxIdentity
     {
         $identity = SyncContext::import(fn () => DropboxIdentity::firstOrCreate([
             'connection_id' => $connection->id, 'alias' => WorkbookReader::normalize($name),
         ], ['kind' => $kind, 'details' => ['display_name' => trim($name)]]));
 
-        return $connection->isLocalImport() || $kind === 'provider' ? $identity : $this->identityResolver->resolve($connection, $identity, $historical);
+        return ! $resolve || $connection->isLocalImport() || $kind === 'provider' ? $identity : $this->identityResolver->resolve($connection, $identity, $historical);
     }
 
     public function contactIdentity(DropboxConnection $connection, array $locator): DropboxIdentity
@@ -95,7 +95,8 @@ class DomainAdapter
                     $employee = $record->metadata['employee_label'];
                 }
             }
-            $cancelled = $shift->status === ShiftStatus::Cancelled || $assignment?->status === ShiftAssignmentStatus::Cancelled;
+            $cancelled = $shift->status === ShiftStatus::Cancelled
+                || in_array($assignment?->status, [ShiftAssignmentStatus::Cancelled, ShiftAssignmentStatus::Declined], true);
             $values = [
                 'location' => $shift->location_name ?? '', 'date' => $shift->starts_at->setTimezone($zone)->format('Y-m-d'),
                 'starts' => $shift->starts_at->setTimezone($zone)->format('H:i'), 'ends' => $shift->ends_at->setTimezone($zone)->format('H:i'),
@@ -141,7 +142,12 @@ class DomainAdapter
                 return SyncContext::import(fn () => app(NativeAvailabilityWorkbook::class)->create($connection, $entry));
             }
             if ($entry['domain'] === 'planning') {
-                $record = new DropboxRecord(['connection_id' => $connection->id, 'domain' => 'planning', 'model_type' => 'Shift', 'model_id' => 0, 'metadata' => ['imported_order' => true]]);
+                $metadata = ['imported_order' => true];
+                $evidence = $entry['locator']['employee_evidence'] ?? null;
+                if ($evidence && ($entry['values']['employee'] ?? '') === $evidence['label']) {
+                    $metadata['employee_evidence'] = $evidence;
+                }
+                $record = new DropboxRecord(['connection_id' => $connection->id, 'domain' => 'planning', 'model_type' => 'Shift', 'model_id' => 0, 'metadata' => $metadata]);
                 $this->apply($connection, $record, $entry['values']);
 
                 return $record;
@@ -226,6 +232,13 @@ class DomainAdapter
         $start = OperationsDateTime::local($date.' '.$values['starts'], $zone, 'starts');
         $end = OperationsDateTime::local($endDate.' '.$values['ends'], $zone, 'ends');
         $identity = ! empty($values['employee']) ? $this->identity($connection, $values['employee'], historical: ($record->metadata['imported_order'] ?? false) && $end->isPast()) : null;
+        $evidence = $record->metadata['employee_evidence'] ?? null;
+        if ($evidence && ($values['employee'] ?? '') !== $evidence['label']) {
+            $metadata = $record->metadata;
+            unset($metadata['employee_evidence']);
+            $record->metadata = $metadata;
+        }
+        $this->validatePlanningEmployeeEvidence($record, $identity);
         $retainDraft = (bool) $connection->option('retain_unassigned_drafts') && ($record->metadata['imported_order'] ?? false)
             && (! $record->model_id || (($record->metadata['assignment_pending'] ?? false) && ! Shift::findOrFail($record->model_id)->published_revision));
         $assignmentPending = null;
@@ -236,8 +249,9 @@ class DomainAdapter
                 throw ValidationException::withMessages(['sync' => 'Mitarbeiter oder Dienstleister zuerst unter Zuordnungen bestätigen.']);
             }
         }
-        if ($identity?->kind === 'employee' && ! $identity->user_id) {
-            throw ValidationException::withMessages(['sync' => 'Das Mitarbeiterkonto fehlt in der bestätigten Zuordnung.']);
+        $assignee = $identity?->kind === 'employee' && $identity->user_id ? User::find($identity->user_id) : null;
+        if ($identity?->kind === 'employee' && $assignee?->role !== 'staff') {
+            throw ValidationException::withMessages(['sync' => 'Die bestätigte Zuordnung verweist auf kein Mitarbeiterkonto.']);
         }
         $customers = Customer::where('company_name', $values['customer'])->get();
         if ($customers->count() > 1) {
@@ -276,17 +290,36 @@ class DomainAdapter
         if ($identity?->kind === 'provider') {
             $details['provider_label'] = $values['employee'];
         }
-        $oldAssignment = $record->assignment_id ? ShiftAssignment::find($record->assignment_id) : null;
+        $oldAssignment = $record->assignment_id ? ShiftAssignment::lockForUpdate()->find($record->assignment_id) : null;
+        if ($oldAssignment && (int) $oldAssignment->shift_id !== (int) $shift->id) {
+            throw ValidationException::withMessages(['sync' => 'Die bisherige Mitarbeiterzuordnung gehört zu einer anderen Schicht.']);
+        }
+        if (! $oldAssignment && $assignee && $shift->exists) {
+            $oldAssignment = $shift->assignments()->where('user_id', $assignee->id)->lockForUpdate()->first();
+            if ($oldAssignment && $this->assignmentAlreadyMapped($record, $oldAssignment)) {
+                throw ValidationException::withMessages(['sync' => 'Die Mitarbeiterzuordnung gehört bereits zu einem anderen Excel-Datensatz.']);
+            }
+            $record->assignment_id = $oldAssignment?->id;
+        }
+        $cancelled = (bool) ($values['cancelled'] ?? false);
+        $personChanged = $oldAssignment && (int) $oldAssignment->user_id !== (int) $identity?->user_id;
+        if ($oldAssignment?->status === ShiftAssignmentStatus::Confirmed && ($personChanged || ($cancelled && $shift->status !== ShiftStatus::Cancelled))) {
+            throw ValidationException::withMessages(['sync' => 'Die bestätigte Mitarbeiterzuordnung muss in der Einsatzplanung geändert werden.']);
+        }
+        $retiredAssignment = in_array($oldAssignment?->status, [ShiftAssignmentStatus::Cancelled, ShiftAssignmentStatus::Declined], true);
         if ($oldAssignment) {
             $details['cancellation'] = $shift->disposition_details['cancellation'] ?? '';
             $details['actual_end'] = $shift->disposition_details['actual_end'] ?? null;
         }
-        $cancelAssignmentOnly = ($values['cancelled'] ?? false) && $oldAssignment && $shift->assignments()->where('id', '!=', $oldAssignment->id)->whereNotIn('status', ['cancelled', 'declined'])->exists();
-        if ($cancelAssignmentOnly && ! in_array($oldAssignment->status, [ShiftAssignmentStatus::Cancelled, ShiftAssignmentStatus::Reported], true)) {
+        $cancelAssignmentOnly = $cancelled && $oldAssignment && ($retiredAssignment
+            || $shift->assignments()->where('id', '!=', $oldAssignment->id)->whereNotIn('status', ['cancelled', 'declined'])->exists());
+        if ($cancelAssignmentOnly && ! $retiredAssignment && $oldAssignment->status !== ShiftAssignmentStatus::Reported) {
             app(ShiftAssignmentService::class)->cancel($oldAssignment, $actor, 'Excel-Stornierung dieser Zuordnung');
         }
-        if ($oldAssignment && $oldAssignment->status !== ShiftAssignmentStatus::Reported && (int) $oldAssignment->user_id !== (int) $identity?->user_id) {
-            app(ShiftAssignmentService::class)->cancel($oldAssignment, $actor, 'Excel-Zuordnung geändert');
+        if ($personChanged && $oldAssignment->status !== ShiftAssignmentStatus::Reported) {
+            if (! $retiredAssignment) {
+                app(ShiftAssignmentService::class)->cancel($oldAssignment, $actor, 'Excel-Zuordnung geändert');
+            }
             $record->assignment_id = null;
         }
         $shiftAttributes = [
@@ -313,10 +346,17 @@ class DomainAdapter
             $record->assignment_id = app(HistoricalEmployeeAssignmentService::class)->sync($connection, $record, $shift, $identity, $actor, $historical, (bool) ($values['cancelled'] ?? false), ! ($values['cancelled'] ?? false))?->id;
             $oldAssignment = $record->assignment_id ? ShiftAssignment::find($record->assignment_id) : null;
         }
-        if ($identity?->kind === 'employee' && ! ($values['cancelled'] ?? false) && ! $historical) {
-            if (! $oldAssignment || $oldAssignment->user_id !== $identity->user_id || $oldAssignment->status === ShiftAssignmentStatus::Cancelled) {
+        if ($identity?->kind === 'employee' && ! $cancelled && ! $historical) {
+            if (! $oldAssignment || $oldAssignment->user_id !== $identity->user_id || ! $oldAssignment->status->blocksAvailability()) {
                 try {
-                    $assignment = app(ShiftAssignmentService::class)->assign($shift, User::findOrFail($identity->user_id), $actor, ShiftAssignmentStatus::Requested);
+                    $assignment = $shift->assignments()->where('user_id', $identity->user_id)->lockForUpdate()->first();
+                    if ($assignment && ! $assignment->status->blocksAvailability()) {
+                        throw ValidationException::withMessages(['sync' => 'Zu dieser Person liegt bereits eine beendete Mitarbeiterzuordnung vor. Bitte in der Einsatzplanung prüfen.']);
+                    }
+                    if ($assignment && $this->assignmentAlreadyMapped($record, $assignment)) {
+                        throw ValidationException::withMessages(['sync' => 'Die Mitarbeiterzuordnung gehört bereits zu einem anderen Excel-Datensatz.']);
+                    }
+                    $assignment ??= app(ShiftAssignmentService::class)->assign($shift, $assignee, $actor, ShiftAssignmentStatus::Requested);
                     $record->assignment_id = $assignment->id;
                 } catch (ValidationException $e) {
                     if (! $retainDraft) {
@@ -348,6 +388,8 @@ class DomainAdapter
                 $record->save();
             }
             if (! $historicalAssignments) {
+                $this->bindExistingPlanningAssignment($connection, $record, $shift);
+
                 return;
             }
             $historical = ($record->metadata['imported_order'] ?? false)
@@ -357,6 +399,7 @@ class DomainAdapter
                 return;
             }
             $identity = ! empty($record->metadata['employee_label']) ? $this->identity($connection, $record->metadata['employee_label'], historical: true) : null;
+            $this->validatePlanningEmployeeEvidence($record, $identity);
             $assignment = app(HistoricalEmployeeAssignmentService::class)->sync($connection, $record, $shift, $identity, User::findOrFail(1), true);
             if ($assignment) {
                 $record->assignment_id = $assignment->id;
@@ -365,6 +408,37 @@ class DomainAdapter
                 DropboxConflict::where('record_id', $record->id)->where('reason', 'assignment_pending')->update(['state' => 'resolved']);
             }
         });
+    }
+
+    private function validatePlanningEmployeeEvidence(DropboxRecord $record, ?DropboxIdentity $identity): void
+    {
+        $evidence = $record->metadata['employee_evidence'] ?? null;
+        if ($evidence && ($identity?->kind !== 'employee' || (int) $identity->user_id !== (int) $evidence['user_id'])) {
+            throw ValidationException::withMessages(['sync' => 'Die Mitarbeiterzuordnung widerspricht dem ausgewerteten Personalblatt. Bitte die Zuordnung prüfen.']);
+        }
+    }
+
+    private function bindExistingPlanningAssignment(DropboxConnection $connection, DropboxRecord $record, Shift $shift): void
+    {
+        if ($record->assignment_id || ! in_array('assignments', $connection->option('domains'), true) || empty($record->metadata['employee_label'])) {
+            return;
+        }
+        $identity = DropboxIdentity::where('connection_id', $connection->id)->where('kind', 'employee')
+            ->where('alias', WorkbookReader::normalize($record->metadata['employee_label']))->first();
+        if (! $identity?->user_id || ! User::whereKey($identity->user_id)->where('role', 'staff')->exists()) {
+            return;
+        }
+        $this->validatePlanningEmployeeEvidence($record, $identity);
+        $assignment = $shift->assignments()->where('user_id', $identity->user_id)->where('status', '!=', ShiftAssignmentStatus::Reported->value)->lockForUpdate()->first();
+        if ($assignment && ! $this->assignmentAlreadyMapped($record, $assignment)) {
+            $record->forceFill(['assignment_id' => $assignment->id, 'metadata' => [...$record->metadata, 'user_id' => $identity->user_id]])->save();
+        }
+    }
+
+    private function assignmentAlreadyMapped(DropboxRecord $record, ShiftAssignment $assignment): bool
+    {
+        return DropboxRecord::where('connection_id', $record->connection_id)->where('model_type', 'Shift')->where('assignment_id', $assignment->id)
+            ->when($record->exists, fn ($query) => $query->whereKeyNot($record->id))->exists();
     }
 
     /** All changed application entities resolve to records, including new draft assignments. */

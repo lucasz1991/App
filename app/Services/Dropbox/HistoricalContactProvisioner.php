@@ -9,6 +9,7 @@ use App\Models\DropboxSource;
 use App\Models\User;
 use App\Models\UserProfile;
 use App\Services\Operations\OperationsAuditService;
+use App\Support\Operations\OperationsDateTime;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -42,6 +43,10 @@ class HistoricalContactProvisioner
                 throw new DropboxApiException('source_unavailable');
             }
             $contacts = $past = $providers = $emails = [];
+            foreach (DropboxIdentity::where('connection_id', $fresh->id)->where('kind', 'provider')->get() as $provider) {
+                $providers += array_fill_keys([$provider->alias, ...$this->resolver->nameKeys($provider->alias),
+                    ...$this->resolver->nameKeys((string) ($provider->details['display_name'] ?? ''))], true);
+            }
             foreach ($parsed['rows'] ?? [] as $row) {
                 if (($row['domain'] ?? '') === 'planning' && $this->past($row['values'] ?? [], (string) $fresh->option('timezone'))) {
                     $alias = WorkbookReader::normalize((string) ($row['values']['employee'] ?? ''));
@@ -54,7 +59,7 @@ class HistoricalContactProvisioner
                 }
                 $alias = WorkbookReader::normalize((string) ($row['locator']['subject'] ?? ''));
                 if (($row['locator']['kind'] ?? '') === 'provider') {
-                    $providers[$alias] = true;
+                    $providers += array_fill_keys([$alias, ...$this->resolver->nameKeys((string) $row['locator']['subject'])], true);
                 } elseif (($row['locator']['kind'] ?? '') === 'employee') {
                     $contacts[$alias][] = $row;
                     $email = trim((string) ($row['values']['contact_email'] ?? ''));
@@ -69,7 +74,8 @@ class HistoricalContactProvisioner
                 }
                 $row = $rows[0];
                 $name = trim((string) $row['locator']['subject']);
-                if (count($rows) !== 1 || isset($providers[$alias]) || ! $this->key($name)
+                $knownProvider = array_intersect_key($providers, array_fill_keys([$alias, ...$this->resolver->nameKeys($name)], true));
+                if (count($rows) !== 1 || $knownProvider || ! $this->key($name)
                     || (isset($row['values']['name']) && WorkbookReader::normalize((string) $row['values']['name']) !== $alias)) {
                     $summary['review']++;
 
@@ -183,12 +189,8 @@ class HistoricalContactProvisioner
                 || ! preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/D', $ends)) {
                 return false;
             }
-            $start = CarbonImmutable::createFromFormat('!Y-m-d H:i', $date.' '.$starts, $timezone);
-            $end = CarbonImmutable::createFromFormat('!Y-m-d H:i', $date.' '.$ends, $timezone);
-            if ($start->format('Y-m-d H:i') !== $date.' '.$starts || $end->format('Y-m-d H:i') !== $date.' '.$ends) {
-                return false;
-            }
-            $end = $end->lte($start) ? $end->addDay() : $end;
+            $endDate = $ends <= $starts ? CarbonImmutable::parse($date, 'UTC')->addDay()->toDateString() : $date;
+            [, $end] = OperationsDateTime::interval($date.' '.$starts, $endDate.' '.$ends, $timezone);
 
             return $end->lte(CarbonImmutable::now());
         } catch (\Throwable) {

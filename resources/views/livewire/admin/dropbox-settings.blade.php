@@ -115,12 +115,15 @@
                             @if($report['has_counts'])
                             <x-tables.html-table :label="'Übernahme aus '.$source->name" :dense="true">
                                 <x-slot:head><tr><th scope="col">Datenbereich</th><th scope="col" class="text-right">Excel-Einträge</th><th scope="col" class="text-right">In der App gespeichert</th></tr></x-slot:head>
-                                @foreach(['planning' => 'Schichten', 'contacts' => 'Kontakte', 'competencies' => 'Kompetenzangaben', 'availability_notes' => 'Verfügbarkeitsnotizen', 'availability_submissions' => 'Verfügbarkeitswünsche'] as $key => $label)
+                                @foreach(['planning' => 'Schichten', 'contacts' => 'Kontakte', 'competencies' => 'Kompetenzangaben', 'qualification_reports' => 'Excel-Meldungen zu Position oder Qualifikation', 'availability_notes' => 'Verfügbarkeitsnotizen', 'availability_submissions' => 'Verfügbarkeitswünsche'] as $key => $label)
                                     @if($report['detected'][$key] > 0 || $report['stored'][$key] > 0)
                                         <tr data-dropbox-report-domain="{{ $key }}"><th scope="row" class="font-medium">{{ $label }}</th><td class="text-right tabular-nums">{{ $report['detected'][$key] }}</td><td class="text-right font-semibold tabular-nums">{{ $report['stored'][$key] }}</td></tr>
                                     @endif
                                 @endforeach
                             </x-tables.html-table>
+                            @if($report['detected']['qualification_reports'] > 0)
+                                <p class="text-xs leading-5 tabular-nums" data-dropbox-report-qualifications>{{ $report['stored']['qualification_accounts'] }} verknüpfte Mitarbeiterkonten · {{ $report['stored']['qualification_reports_with_type'] }} Meldungen mit eindeutig erkanntem Nachweistyp. Freigaben folgen der Nachweisprüfung.</p>
+                            @endif
                             @if($report['detected']['planning'] > 0 || $report['stored']['planning'] > 0)
                                 <p class="text-xs leading-5 tabular-nums"><strong>{{ $report['stored']['orders'] }} zugehörige Aufträge</strong> · {{ $report['stored']['planning'] }} gespeicherte Schichten</p>
                                 @if($report['has_staffing_counts'])

@@ -44,6 +44,7 @@ use App\Services\Dropbox\WorkbookPackage;
 use App\Services\Dropbox\WorkbookPeopleImporter;
 use App\Services\Dropbox\WorkbookReader;
 use App\Services\Dropbox\WorkLedger;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Queue\Factory;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -872,8 +873,7 @@ class DropboxSyncTest extends TestCase
         $metadata = $this->client->put('/Disposition/Kompetenzmatrix.xlsx', $this->matrixWorkbook());
         $source = app(SourceScanner::class)->register($this->connection, $metadata);
         app(FileSynchronizer::class)->sync($this->connection->fresh(), $source);
-        $this->assertSame(1, EmployeeCompetencyFact::count());
-        $fact = EmployeeCompetencyFact::first();
+        $fact = EmployeeCompetencyFact::where('kind', 'customer_authorization')->sole();
         $this->assertSame('FFFF0000', $fact->value['color']);
         $this->assertSame(0, EmployeeQualification::count());
         $profile = UserProfile::where('user_id', $employee->id)->firstOrFail();
@@ -1321,5 +1321,91 @@ class DropboxSyncTest extends TestCase
         $rows = collect(app(WorkbookReader::class)->read($this->client->download($this->connection, $source->file_id)['bytes'], 'weekly')['rows']);
         $this->assertTrue($rows->firstWhere('sheet', 'Erste Person')['values']['cancelled'], DropboxConflict::all()->toJson());
         $this->assertFalse($rows->firstWhere('sheet', 'Zweite Person')['values']['cancelled']);
+    }
+
+    public function test_roster_import_binds_existing_confirmation_without_reasking_or_reassigning(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-09-14T12:00:00+02:00'));
+        $person = $this->mappedStaff('Bestehende Besatzung');
+        $this->mappedStaff('Andere Besatzung');
+        $source = $this->source($this->workbook());
+        app(FileSynchronizer::class)->sync($this->connection, $source);
+        $shift = Shift::firstOrFail();
+        $assignment = ShiftAssignment::create(['shift_id' => $shift->id, 'user_id' => $person->id,
+            'status' => 'confirmed', 'assigned_by' => 1, 'responded_at' => now(), 'note' => 'Manuelle Entscheidung']);
+        $package = new WorkbookPackage($this->client->downloadSource($this->connection, $source->fresh())['bytes']);
+        $package->patch(['WTU Abrechnung + Übersicht' => ['E2' => ['value' => 'Bestehende Besatzung']]]);
+        $this->client->put($source->path, $package->bytes());
+        app(FileSynchronizer::class)->sync($this->connection, $source->fresh());
+        app(FileSynchronizer::class)->sync($this->connection, $source->fresh());
+        $this->assertSame($assignment->id, DropboxRecord::where('domain', 'planning')->firstOrFail()->assignment_id);
+        $this->assertSame('confirmed', $assignment->fresh()->status->value);
+        $this->assertSame('Manuelle Entscheidung', $assignment->fresh()->note);
+        $this->assertSame(0, OperationAudit::where('action', 'assignment.saved')->count());
+
+        $package = new WorkbookPackage($this->client->downloadSource($this->connection, $source->fresh())['bytes']);
+        $package->patch(['WTU Abrechnung + Übersicht' => ['E2' => ['value' => 'Andere Besatzung']]]);
+        $this->client->put($source->path, $package->bytes());
+        app(FileSynchronizer::class)->sync($this->connection, $source->fresh());
+        $this->assertSame('confirmed', $assignment->fresh()->status->value);
+        $this->assertSame(1, ShiftAssignment::count());
+        $this->assertTrue(DropboxConflict::where('reason', 'business_rule')->where('state', 'open')->exists());
+    }
+
+    public function test_roster_import_preserves_assignment_cancellation_without_cancelling_its_shift(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-09-14T12:00:00+02:00'));
+        $this->mappedStaff('Bestehende Besatzung');
+        $source = $this->source($this->workbook(employee: 'Bestehende Besatzung'));
+        app(FileSynchronizer::class)->sync($this->connection, $source);
+        $assignment = ShiftAssignment::firstOrFail();
+        $assignment->update(['status' => 'cancelled', 'responded_at' => now(), 'note' => 'Manuell storniert']);
+
+        $package = new WorkbookPackage($this->client->downloadSource($this->connection, $source->fresh())['bytes']);
+        $package->patch(['WTU Abrechnung + Übersicht' => ['G2' => ['value' => 'Unabhängiger Excel-Hinweis']]]);
+        $this->client->put($source->path, $package->bytes());
+        app(FileSynchronizer::class)->sync($this->connection, $source->fresh());
+        $this->assertSame('Unabhängiger Excel-Hinweis', Shift::firstOrFail()->notes);
+        $this->assertSame(ShiftStatus::Draft, Shift::firstOrFail()->status);
+        $this->assertSame('cancelled', $assignment->fresh()->status->value);
+        $this->assertSame('Manuell storniert', $assignment->fresh()->note);
+
+        $package = new WorkbookPackage($this->client->downloadSource($this->connection, $source->fresh())['bytes']);
+        $package->patch(['WTU Abrechnung + Übersicht' => ['K2' => ['value' => '']]]);
+        $this->client->put($source->path, $package->bytes());
+        app(FileSynchronizer::class)->sync($this->connection, $source->fresh());
+        $this->assertSame('cancelled', $assignment->fresh()->status->value);
+        $this->assertSame(ShiftStatus::Draft, Shift::firstOrFail()->status);
+        $this->assertTrue(DropboxConflict::where('reason', 'business_rule')->where('state', 'open')->exists());
+        $this->assertSame(1, OperationAudit::where('action', 'assignment.saved')->count());
+    }
+
+    public function test_roster_import_does_not_pick_active_namesake_or_infer_from_provider_alias(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-09-14T12:00:00+02:00'));
+        User::factory()->create(['name' => 'Gleiche Person', 'role' => 'staff', 'status' => true]);
+        User::factory()->create(['name' => 'Gleiche Person', 'role' => 'staff', 'status' => false]);
+        User::factory()->create(['name' => 'Andere Person', 'role' => 'staff', 'status' => true]);
+        DropboxIdentity::create(['connection_id' => $this->connection->id, 'alias' => 'person, andere', 'kind' => 'provider', 'details' => ['display_name' => 'Person, Andere']]);
+        $this->connection->update(['settings' => [...$this->connection->settings, 'retain_unassigned_drafts' => true]]);
+        $package = new WorkbookPackage($this->workbook(employee: 'Gleiche Person'));
+        $package->patch(['WTU Abrechnung + Übersicht' => [
+            'B3' => ['value' => 'Anderer Bahnhof'], 'C3' => ['value' => '2026-09-16'], 'D3' => ['value' => '08:00–10:00'],
+            'E3' => ['value' => 'Andere Person'], 'H3' => ['value' => 'WGM'], 'I3' => ['value' => 'Testkunde'],
+        ]]);
+        $source = $this->source($package->bytes());
+        app(FileSynchronizer::class)->sync($this->connection, $source);
+        $this->assertSame(2, Shift::count());
+        $this->assertSame(0, ShiftAssignment::count());
+        $this->assertSame(2, DropboxIdentity::whereIn('alias', ['gleiche person', 'andere person'])->whereNull('user_id')->count());
+        $this->assertSame(2, DropboxConflict::where('reason', 'assignment_pending')->where('state', 'open')->count());
+    }
+
+    private function mappedStaff(string $name): User
+    {
+        $person = User::factory()->create(['name' => $name, 'role' => 'staff', 'status' => true]);
+        DropboxIdentity::create(['connection_id' => $this->connection->id, 'alias' => WorkbookReader::normalize($name), 'kind' => 'employee', 'user_id' => $person->id, 'details' => ['display_name' => $name]]);
+
+        return $person;
     }
 }

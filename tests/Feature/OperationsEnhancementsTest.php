@@ -3,11 +3,16 @@
 namespace Tests\Feature;
 
 use App\Http\Middleware\LogActivity;
+use App\Livewire\Employees\Profile\EmployeeDutyActivities;
 use App\Livewire\Operations\ServiceFulfilment;
 use App\Livewire\Operations\TimeAdministration;
 use App\Livewire\Operations\UnifiedInbox;
 use App\Models\Customer;
 use App\Models\CustomerContact;
+use App\Models\DropboxConnection;
+use App\Models\DropboxIdentity;
+use App\Models\DutyActivity;
+use App\Models\EmployeeCompetencyFact;
 use App\Models\EmployeeWorkModel;
 use App\Models\OperationInquiry;
 use App\Models\OperationsMonthClosing;
@@ -20,6 +25,7 @@ use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Models\WorkTimeCaptureReceipt;
 use App\Models\WorkTimeEntry;
+use App\Services\Dropbox\ReportedQualificationEvidence;
 use App\Services\Operations\CustomerProofService;
 use App\Services\Operations\OperationalCostService;
 use App\Services\Operations\OperationsPartnerService;
@@ -139,6 +145,36 @@ class OperationsEnhancementsTest extends TestCase
         (require database_path('migrations/2026_07_18_000001_create_activity_log_table.php'))->up();
         (require database_path('migrations/2026_10_06_100000_create_planning_enhancements.php'))->up();
         (require database_path('migrations/2026_11_23_190000_create_duty_activities.php'))->up();
+    }
+
+    public function test_duty_profile_shows_only_person_scoped_active_excel_evidence(): void
+    {
+        $this->enableDutyCatalog();
+        (require database_path('migrations/2026_09_22_100000_create_dropbox_sync_tables.php'))->up();
+        Gate::define('employees.master-data.view', fn (User $actor) => $actor->id === $this->outside->id || $actor->isAdmin());
+        Gate::define('operations.qualifications.manage', fn (User $actor) => $actor->id === $this->admin->id);
+
+        $confirmed = DutyActivity::fromCode('WU');
+        $this->employee->dutyActivities()->attach($confirmed->id, ['confirmed_by' => $this->admin->id, 'confirmed_at' => now()]);
+        $connection = DropboxConnection::create([]);
+        $identity = DropboxIdentity::create(['connection_id' => $connection->id, 'user_id' => $this->employee->id, 'alias' => 'eigene-zeile', 'kind' => 'employee']);
+        $other = DropboxIdentity::create(['connection_id' => $connection->id, 'user_id' => $this->outside->id, 'alias' => 'fremde-zeile', 'kind' => 'employee']);
+        $provider = DropboxIdentity::create(['connection_id' => $connection->id, 'user_id' => $this->employee->id, 'alias' => 'dienstleister-zeile', 'kind' => 'provider']);
+        foreach ([[$identity, 'Excel-Meldung <synthetisch>', 'reported'], [$identity, 'Excel-Meldung <synthetisch>', 'reported'],
+            [$identity, 'Entzogene Meldung', 'withdrawn'], [$other, 'Fremde Meldung', 'reported'], [$provider, 'Dienstleistermeldung', 'reported']] as $index => [$owner, $value, $status]) {
+            EmployeeCompetencyFact::create(['identity_id' => $owner->id, 'kind' => ReportedQualificationEvidence::KIND, 'name' => 'Excel-Test', 'scope' => 'test:'.$index,
+                'value' => ['value' => $value, 'status' => $status]]);
+        }
+
+        $profile = Livewire::actingAs($this->admin)->test(EmployeeDutyActivities::class, ['userId' => $this->employee->id]);
+        $profile->assertSee('Wagenuntersuchung')->assertSee('Aus Excel gemeldete Qualifikationen')->assertSee('Excel-Meldung <synthetisch>')
+            ->assertDontSee('Entzogene Meldung')->assertDontSee('Fremde Meldung')->assertDontSee('Dienstleistermeldung');
+        $this->assertSame(1, substr_count($profile->html(), 'Excel-Meldung &lt;synthetisch&gt;'));
+
+        Livewire::actingAs($this->outside)->test(EmployeeDutyActivities::class, ['userId' => $this->employee->id])
+            ->assertSee('Wagenuntersuchung')->assertDontSee('Aus Excel gemeldete Qualifikationen')->assertDontSee('Excel-Meldung');
+        $this->assertSame([$confirmed->id], $this->employee->dutyActivities()->pluck('duty_activities.id')->all());
+        $this->assertDatabaseCount('employee_qualifications', 0);
     }
 
     public function test_duty_catalog_assignment_is_separate_from_qualifications_and_team_context(): void

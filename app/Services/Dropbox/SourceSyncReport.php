@@ -18,13 +18,16 @@ use App\Models\User;
 /** Counts source evidence and native results independently of chunk operations. */
 class SourceSyncReport
 {
-    public const VERSION = '2026-10-23-rolling-history-v7';
+    public const VERSION = '2026-11-27-reported-qualifications-v8';
 
     public function build(DropboxSource $source, array $parsed, array $summary, int $processed, int $total): array
     {
         $rows = collect($parsed['rows']);
         $availability = $rows->filter(fn ($r) => ($r['locator']['kind'] ?? '') === 'availability_note');
         $planning = $rows->where('domain', 'planning');
+        $qualificationRows = $rows->filter(fn ($r) => $r['domain'] === 'contacts' && ($r['locator']['kind'] ?? '') === 'employee'
+            && isset($r['locator']['cells'][ReportedQualificationEvidence::FIELD]) && trim($r['values'][ReportedQualificationEvidence::FIELD] ?? '') !== '')
+            ->keyBy(fn ($r) => $r['sheet'].'!'.$r['slot']);
         $keys = $rows->mapWithKeys(fn ($r) => [$r['sheet'].'!'.$r['slot'] => $r['fingerprint']]);
         $appearances = DropboxAppearance::where('source_id', $source->id)->get()->filter(fn ($a) => isset($keys[$a->sheet.'!'.$a->slot]) && ($a->fingerprint === $keys[$a->sheet.'!'.$a->slot] || $a->seen_rev === $source->rev));
         $records = DropboxRecord::whereIn('id', $appearances->pluck('record_id')->unique())->get();
@@ -37,6 +40,18 @@ class SourceSyncReport
             ->filter(fn ($record) => isset($existingUsers[(int) ($record->metadata['user_id'] ?? 0)]))
             ->pluck('model_id')->intersect($shifts->modelKeys())->unique();
         $facts = EmployeeCompetencyFact::whereIn('id', $records->where('model_type', 'EmployeeCompetencyFact')->pluck('model_id')->unique())->get(['id', 'kind', 'value']);
+        $qualificationScopes = $appearances->mapWithKeys(function ($appearance) use ($qualificationRows) {
+            $row = $qualificationRows->get($appearance->sheet.'!'.$appearance->slot);
+
+            return $row ? [ReportedQualificationEvidence::scopeFor($appearance->id) => $row['values'][ReportedQualificationEvidence::FIELD]] : [];
+        });
+        $qualificationFacts = $qualificationScopes->isEmpty() ? collect() : EmployeeCompetencyFact::where('kind', ReportedQualificationEvidence::KIND)
+            ->whereIn('scope', $qualificationScopes->keys())->get(['scope', 'identity_id', 'value'])
+            ->filter(fn ($fact) => ($fact->value['status'] ?? null) === 'reported' && ($fact->value['value'] ?? null) === $qualificationScopes[$fact->scope]);
+        $qualificationAccounts = $qualificationFacts->isEmpty() ? collect() : DropboxIdentity::where('connection_id', $source->connection_id)
+            ->where('kind', 'employee')->whereIn('id', $qualificationFacts->pluck('identity_id')->unique())
+            ->whereIn('user_id', User::where('role', 'staff')->select('id'))->pluck('user_id', 'id');
+        $qualificationFacts = $qualificationFacts->filter(fn ($fact) => $qualificationAccounts->has($fact->identity_id));
         $nativeIds = $records->where('model_type', 'EmployeeAvailability')->pluck('model_id')->unique();
         $nativeRecords = $records->where('model_type', 'EmployeeAvailability')->keyBy('id');
         $activeNativeIds = $appearances->filter(fn ($a) => isset($nativeRecords[$a->record_id]) && ($a->last_excel['status'] ?? 'active') !== 'withdrawn')
@@ -94,6 +109,7 @@ class SourceSyncReport
                 'availability_cells' => $availability->count(),
                 'availability_notes' => $availability->filter(fn ($r) => trim($r['values']['value'] ?? '') !== '')->count(),
                 'availability_submissions' => $rows->filter(fn ($r) => ($r['locator']['kind'] ?? '') === 'availability_submission')->count(),
+                'qualification_reports' => $qualificationRows->count(),
             ],
             'stored' => [
                 'planning' => $shifts->count(), 'orders' => Order::whereIn('id', $shifts->pluck('order_id')->unique())->count(),
@@ -109,6 +125,9 @@ class SourceSyncReport
                 'historical_recognized_shifts' => $recognizedShiftIds->intersect($completedShiftIds)->count(),
                 'availability_submissions' => $nativeWishes,
                 'withdrawn_submissions' => $nativeIds->count() - $nativeWishes,
+                'qualification_reports' => $qualificationFacts->count(),
+                'qualification_accounts' => $qualificationAccounts->unique()->count(),
+                'qualification_reports_with_type' => $qualificationFacts->filter(fn ($fact) => ! empty($fact->value['qualification_type_ids']))->count(),
             ],
             'employee_references' => $subjects->count(),
             'matched_employees' => $availabilityIdentities->filter(fn ($i) => $i->kind === 'employee' && $i->user_id)->count(),

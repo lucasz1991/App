@@ -520,11 +520,11 @@ class DropboxSettings extends Component
 
         $count = static fn ($value): int => is_numeric($value) ? max(0, (int) $value) : 0;
         $detected = $stored = [];
-        foreach (['planning', 'contacts', 'competencies', 'availability_notes', 'availability_cells', 'availability_submissions'] as $key) {
+        foreach (['planning', 'contacts', 'competencies', 'availability_notes', 'availability_cells', 'availability_submissions', 'qualification_reports'] as $key) {
             $detected[$key] = $count(data_get($report, 'detected.'.$key));
             $stored[$key] = $count(data_get($report, 'stored.'.$key));
         }
-        foreach (['orders', 'assigned_shifts', 'unassigned_shifts', 'active_shifts', 'completed_shifts', 'cancelled_shifts', 'active_assigned_shifts', 'unassigned_active_shifts', 'historical_assigned_shifts', 'recognized_employee_shifts', 'historical_recognized_shifts'] as $key) {
+        foreach (['orders', 'assigned_shifts', 'unassigned_shifts', 'active_shifts', 'completed_shifts', 'cancelled_shifts', 'active_assigned_shifts', 'unassigned_active_shifts', 'historical_assigned_shifts', 'recognized_employee_shifts', 'historical_recognized_shifts', 'qualification_accounts', 'qualification_reports_with_type'] as $key) {
             $stored[$key] = $count(data_get($report, 'stored.'.$key));
         }
         $missing = [];

@@ -21,7 +21,7 @@ class EmployeeIdentityResolver
         if (! $key) {
             return $identity;
         }
-        $matches = User::where('role', 'staff')->when(! $historical, fn ($query) => $query->where('status', true))->with('profile')->get()->filter(function (User $user) use ($key) {
+        $matches = User::where('role', 'staff')->with('profile')->get()->filter(function (User $user) use ($key) {
             $names = [$user->name];
             $parts = preg_split('/\s+/u', trim($user->name));
             if (count($parts) === 2) {
@@ -38,6 +38,13 @@ class EmployeeIdentityResolver
             return $identity;
         }
         $user = $matches->first();
+        $keys = $this->nameKeys($label);
+        $collision = DropboxIdentity::where('connection_id', $connection->id)->whereIn('kind', ['employee', 'provider'])->get()
+            ->contains(fn (DropboxIdentity $candidate) => ($candidate->kind === 'provider' || ($candidate->user_id && (int) $candidate->user_id !== (int) $user->id))
+                && array_intersect($keys, [...$this->nameKeys($candidate->alias), ...$this->nameKeys((string) ($candidate->details['display_name'] ?? ''))]));
+        if ($collision) {
+            return $identity;
+        }
 
         return SyncContext::import(fn () => DB::transaction(function () use ($identity, $user, $historical) {
             $fresh = DropboxIdentity::lockForUpdate()->findOrFail($identity->id);
@@ -50,9 +57,24 @@ class EmployeeIdentityResolver
         }, 1));
     }
 
+    public function nameKeys(string $name): array
+    {
+        $key = $this->key($name);
+        if ($key === null) {
+            return [];
+        }
+        $parts = explode(' ', $key);
+        $comma = explode(',', $name);
+        if (count($comma) === 2 && trim($comma[0]) !== '' && trim($comma[1]) !== '') {
+            return array_values(array_unique([$key, $this->key(trim($comma[1]).' '.trim($comma[0]))]));
+        }
+
+        return count($parts) === 2 ? array_unique([$key, implode(' ', array_reverse($parts))]) : [$key];
+    }
+
     private function key(string $name): ?string
     {
-        if (preg_match('#[/&+;|\r\n]|\b(?:und|oder|and|gmbh|gbr|ug|kg)\b#iu', $name)) {
+        if (preg_match('#[/&+;|\r\n@]|\b(?:und|oder|and|gmbh|gbr|ug|kg)\b#iu', $name)) {
             return null;
         }
         $name = WorkbookReader::normalize(Str::ascii(preg_replace('/[,.]+/u', ' ', $name)));
