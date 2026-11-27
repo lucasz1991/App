@@ -350,7 +350,14 @@ class CallWindow extends Component
     {
         $this->room->load(['participants.user', 'chat', 'callChat']);
 
+        $pilotUsers = (string) config('livekit.quality_pilot_users', '');
+        $inPilot = $pilotUsers === '' || in_array((string) auth()->id(), array_map('trim', explode(',', $pilotUsers)), true);
+
         return view('livewire.calls.call-window', [
+            'qualityPilot' => [
+                'upload' => $inPilot ? config('livekit.quality_upload') : 'off',
+                'download' => $inPilot ? config('livekit.quality_download') : 'off',
+            ],
             'canModerate' => $this->room->canModerate(auth()->user()),
             'me' => $this->room->participantFor(auth()->user()),
             'inviteCandidates' => $this->room->canModerate(auth()->user())

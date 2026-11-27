@@ -1,5 +1,7 @@
 <?php
 
+$qualityDefault = env('APP_ENV', 'production') === 'local' ? 'active' : 'observe';
+
 return [
 
     /*
@@ -19,6 +21,9 @@ return [
     'ws_url' => env('LIVEKIT_WS_URL', 'wss://livekit.rail-time.de'),
     'api_key' => env('LIVEKIT_API_KEY'),
     'api_secret' => env('LIVEKIT_API_SECRET'),
+    'quality_upload' => env('LIVEKIT_QUALITY_UPLOAD', $qualityDefault),
+    'quality_download' => env('LIVEKIT_QUALITY_DOWNLOAD', $qualityDefault),
+    'quality_pilot_users' => trim((string) env('LIVEKIT_QUALITY_PILOT_USERS', '')),
     'background_effects' => (bool) env('LIVEKIT_BACKGROUND_EFFECTS', true),
 
     // Gueltigkeit der Beitritts-Tokens in Sekunden (Standard: 1 Stunde).

@@ -10,12 +10,12 @@
                             <p class="ops-muted">{{ count($closingSnapshot['completeness']['missing_shift_times'] ?? []) }} fehlende Dienste · {{ count($closingSnapshot['completeness']['missing_training_times'] ?? []) }} fehlende Schulungszeiten · {{ count($closingSnapshot['completeness']['unfinished_times'] ?? []) }} offene Zeiten</p>
                         @endif
                         @if($payrollExportOnly || $selected->status === 'closed')
-                            @can('operations.time.export')
+                            @if($canExportSelected)
                                 <div class="ops-actions">
                                     <x-ui.buttons.button-basic mode="primary" wire:click="exportPayroll(false)" wire:loading.attr="disabled">CSV Lohnvorbereitung</x-ui.buttons.button-basic>
                                     <x-ui.buttons.button-basic wire:click="exportPayroll(true)" wire:loading.attr="disabled">CSV Änderungen</x-ui.buttons.button-basic>
                                 </div>
-                            @endcan
+                            @endif
                             @unless($payrollExportOnly)
                                 <details class="rt-employee-form__more" wire:key="open-month-{{ $selected->id }}-{{ $selectedRevision }}">
                                     <summary>Monat kontrolliert öffnen</summary>
@@ -50,7 +50,10 @@
                             @endif
                             <div><x-ui.buttons.button-basic mode="primary" wire:click="act('prepare')" wire:loading.attr="disabled">Erneut vorbereiten</x-ui.buttons.button-basic></div>
                         @endif
-                        @if($closedVersions->isNotEmpty() && auth()->user()->can('operations.time.export'))
+                        @if($lexware)
+                            @include('livewire.operations.partials.time-administration.detail-lexware')
+                        @endif
+                        @if($closedVersions->isNotEmpty() && $canExportSelected)
                             <details><summary>Abschlussversionen</summary><div class="ops-actions">
                                 @foreach($closedVersions as $version)<x-ui.buttons.button-basic wire:click="exportPayroll(false,{{ $version->revision }})" wire:loading.attr="disabled">CSV Revision {{ $version->revision }}</x-ui.buttons.button-basic>@endforeach
                             </div></details>

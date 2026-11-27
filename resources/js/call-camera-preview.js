@@ -82,8 +82,8 @@ export function callCameraPreview(config, rawRoom, capture = createLocalVideoTra
         }
     }
 
-    async function captureSelection(component, mode, deviceId, current) {
-        const options = cameraCaptureOptions(component.cameraProfile);
+    async function captureSelection(component, mode, deviceId, current, profile = component.effectiveCameraProfile) {
+        const options = cameraCaptureOptions(profile);
         if (deviceId) options.deviceId = { exact: deviceId };
         const local = await capture(options);
         const item = { local, output: null, stopped: false };
@@ -267,7 +267,60 @@ export function callCameraPreview(config, rawRoom, capture = createLocalVideoTra
         },
 
         async stopConfiguredCamera(room) {
+            revision++;
+            for (const item of loading) release(item);
             await stopSending(this, room?.localParticipant);
+        },
+
+        async replaceCameraProfile(room, connection, publication, profile) {
+            const participant = room.localParticipant;
+            const track = publication.track;
+            const previous = sending;
+            const previousOutput = track.mediaStreamTrack;
+            const request = revision;
+            const current = () => request === revision && this.isActiveRoom(room, connection)
+                && this.canControlMedia && this.cameraOn && !this.prejoinOpen && !this.audioOnly
+                && !publication.isMuted && participant.getTrackPublication(Track.Source.Camera)?.track === track
+                && sending === previous && !previous?.stopped;
+            if (!current() || track.getProcessor?.()
+                || (this.cameraSelectionCommitted && previous?.output !== previousOutput)) throw abortCamera();
+            const mode = preference?.mode || 'original';
+            const deviceId = previous?.local.mediaStreamTrack.getSettings?.().deviceId
+                || preference?.deviceId || previousOutput.getSettings?.().deviceId || '';
+            const next = await captureSelection(this, mode, deviceId, current, profile);
+            // Keep the candidate under lifecycle control until the SDK finishes replacing
+            // the sender. Closing the room or losing permission stops it even mid-swap.
+            loading.add(next);
+            try {
+                if (!current() || next.stopped) throw abortCamera();
+                await track.replaceTrack(next.output, { userProvidedTrack: true });
+                if (!current() || next.stopped) throw abortCamera();
+                sending = next;
+                preference = { mode, deviceId };
+                this.cameraSelectionCommitted = true;
+                if (previous) release(previous);
+                else previousOutput.stop();
+            } catch (error) {
+                // The SDK may reject after changing the sender. Never restart a
+                // replacement from raw capture or bring back a superseded camera.
+                if (track.mediaStreamTrack === next.output || track.sender?.track === next.output) {
+                    if (current()) {
+                        this.cameraNeedsSetup = true;
+                        this.startWithVideo = false;
+                        await stopSending(this, participant);
+                    }
+                    if (previous && sending === previous) {
+                        release(previous);
+                        sending = null;
+                    } else if (!previous) {
+                        previousOutput.stop();
+                    }
+                }
+                throw error;
+            } finally {
+                loading.delete(next);
+                if (sending !== next) release(next);
+            }
         },
 
         disposeCameraPreview() {

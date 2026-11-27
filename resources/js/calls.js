@@ -52,9 +52,9 @@ document.addEventListener('alpine:init', () => {
         micBusy: false,
         cameraBusy: false,
         screenShareBusy: false,
-        ...callQualityControls(rawCallValue, config.labels),
-        get cameraCaptureOptions() { return cameraCaptureOptions(this.cameraProfile); },
-        get cameraMediaConstraints() { return cameraConstraints(this.cameraProfile); },
+        ...callQualityControls(rawCallValue, config.labels, config.qualityPilot),
+        get cameraCaptureOptions() { return cameraCaptureOptions(this.effectiveCameraProfile); },
+        get cameraMediaConstraints() { return cameraConstraints(this.effectiveCameraProfile); },
         statusLabel: config.labels.connecting,
         connectedRoster: [],
         moreOpen: false,
@@ -923,6 +923,7 @@ document.addEventListener('alpine:init', () => {
                 this.connected = true;
                 this.everConnected = true;
                 this.failed = false;
+                this.startQualitySession();
                 this.renderAllParticipants();
                 this.syncRingback();
 
@@ -1357,7 +1358,11 @@ document.addEventListener('alpine:init', () => {
                 .on(RoomEvent.TrackPublished, current(() => { if (this.audioOnly) this.syncIncomingVideo(activeRoom); }))
                 .on(RoomEvent.ParticipantConnected, current(render))
                 .on(RoomEvent.ParticipantDisconnected, current(render))
-                .on(RoomEvent.Reconnected, current(render))
+                .on(RoomEvent.Reconnected, current(() => {
+                    this.syncIncomingVideo(activeRoom);
+                    render();
+                    this.startQualitySession();
+                }))
                 .on(RoomEvent.TrackSubscribed, current(render))
                 .on(RoomEvent.TrackUnsubscribed, current((track) => { track?.detach(); render(); }))
                 .on(RoomEvent.LocalTrackPublished, current(render))
@@ -1381,6 +1386,7 @@ document.addEventListener('alpine:init', () => {
                 .on(RoomEvent.ConnectionStateChanged, current((state) => {
                     if (state === ConnectionState.Reconnecting) {
                         this.connected = false;
+                        this.suspendQualitySession();
                         this.statusLabel = config.labels.reconnecting;
                     } else if (state === ConnectionState.Connected) {
                         this.connected = true;
@@ -1450,6 +1456,7 @@ document.addEventListener('alpine:init', () => {
                 }
             });
 
+            this.syncQualityView();
             if (this.selfVideoVisible) {
                 this.queueSelfPreviewGeometry();
             }
@@ -1629,6 +1636,7 @@ document.addEventListener('alpine:init', () => {
                     ? '0 0 0 2px rgb(16 185 129), 0 0 24px -4px rgb(16 185 129 / 0.55)'
                     : '';
             });
+            this.syncQualityView();
         },
 
         async toggleMic() { await this.toggleMedia('microphone'); },
@@ -1645,7 +1653,8 @@ document.addEventListener('alpine:init', () => {
         async toggleMedia(kind) {
             const state = kind === 'camera' ? 'cameraOn' : 'micOn';
             const busy = kind === 'camera' ? 'cameraBusy' : 'micBusy';
-            if (!this.canControlMedia || this[busy] || (kind === 'camera' && this.profileBusy)) return;
+            const stopDuringProfileChange = kind === 'camera' && this.cameraOn && this.cameraProfileChanging;
+            if (!this.canControlMedia || this[busy] || (kind === 'camera' && this.profileBusy && !stopDuringProfileChange)) return;
             const activeRoom = rawCallValue(this.room);
             const generation = this.connectionGeneration;
             if (kind === 'camera' && this.audioOnly) {
@@ -1659,7 +1668,7 @@ document.addEventListener('alpine:init', () => {
                 if (enable) {
                     await this.enableTrack(kind);
                 } else if (kind === 'camera') {
-                    if (this.cameraSelectionCommitted) await this.stopConfiguredCamera(activeRoom);
+                    if (this.cameraSelectionCommitted || stopDuringProfileChange) await this.stopConfiguredCamera(activeRoom);
                     else await activeRoom.localParticipant.setCameraEnabled(false);
                 } else {
                     await activeRoom.localParticipant.setMicrophoneEnabled(false);

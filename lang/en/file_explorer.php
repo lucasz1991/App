@@ -29,7 +29,7 @@ return [
         'size' => 'Size',
     ],
     'actions' => 'Actions',
-    'name_and_type' => ':name (:type)',
+    'open_hint' => ':name · Double-click or press Enter to preview',
     'path_label' => 'Folder path',
     'up' => 'Parent folder',
     'empty' => 'This folder is empty.',

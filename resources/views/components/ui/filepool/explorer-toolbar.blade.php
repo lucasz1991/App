@@ -46,7 +46,8 @@
                     @endif
                 @endforeach
             </div>
-            <label class="rt-explorer-control rt-explorer-picker rt-explorer-scope-picker">
+            <label class="rt-explorer-control rt-explorer-picker rt-explorer-scope-picker" data-scope="{{ $scope }}">
+                <span class="rt-explorer-scope-value" aria-hidden="true">{{ __("file_explorer.scopes.$scope") }}</span>
                 <select aria-label="{{ __('file_explorer.scope_label') }}" data-explorer-scope-picker
                     @if($scopeUrls !== []) x-data x-on:change="window.location.assign($event.target.value)"
                     @else wire:change="setExplorerScope($event.target.value)" @endif>

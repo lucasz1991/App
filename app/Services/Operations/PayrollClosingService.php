@@ -15,6 +15,8 @@ use Illuminate\Validation\ValidationException;
 
 class PayrollClosingService
 {
+    private const SNAPSHOT_SCHEMA = 'railtime-payroll-preparation-v2';
+
     public function ready(): bool
     {
         return Schema::hasColumns('operations_month_closings', ['id', 'user_id', 'month', 'timezone', 'status', 'revision', 'snapshot', 'prepared_by', 'closed_by', 'closed_at']);
@@ -73,7 +75,9 @@ class PayrollClosingService
             $subject = User::lockForUpdate()->findOrFail($known->user_id);
             $closing = OperationsMonthClosing::lockForUpdate()->findOrFail($known->id);
             abort_unless($closing->status === 'prepared' && $closing->revision === $revision && $closing->prepared_by !== $actor->id && $subject->id !== $actor->id, 409, 'Vier-Augen-Freigabe oder aktueller Stand fehlt.');
-            $snapshot = $this->snapshot($subject, $closing->month, $actor, $closing->timezone);
+            $schema = $closing->snapshot['schema'] ?? '';
+            abort_unless(in_array($schema, ['railtime-payroll-preparation-v1', self::SNAPSHOT_SCHEMA], true), 409, 'Unbekannter Monatsstand. Erneut vorbereiten.');
+            $snapshot = $this->snapshot($subject, $closing->month, $actor, $closing->timezone, $schema);
             abort_unless(hash_equals(hash('sha256', json_encode($closing->snapshot)), hash('sha256', json_encode($snapshot))), 409, 'Monatsstand wurde geändert. Erneut vorbereiten.');
             abort_unless($snapshot['complete'], 422, 'Monat nicht vollständig geprüft.');
             $closing->forceFill(['status' => 'closed', 'closed_by' => $actor->id, 'closed_at' => now()->utc(), 'revision' => $revision + 1])->save();
@@ -101,7 +105,7 @@ class PayrollClosingService
         }, 3);
     }
 
-    private function snapshot(User $subject, string $month, User $actor, string $timezone): array
+    private function snapshot(User $subject, string $month, User $actor, string $timezone, string $schema = self::SNAPSHOT_SCHEMA): array
     {
         [$from, $until] = $this->bounds($month, $timezone);
         abort_unless($until->lte(now()->utc()), 422, 'Monat noch nicht beendet.');
@@ -111,6 +115,12 @@ class PayrollClosingService
         $issues = [];
         foreach ($entries as $entry) {
             $value = app(WorkTimeRemunerationService::class)->evaluate($entry, $from, $until);
+            // Compare an already prepared month using the fields its reviewers originally saw.
+            if ($schema === 'railtime-payroll-preparation-v1') {
+                foreach (array_keys($value['quantities']) as $index) {
+                    unset($value['quantities'][$index]['activity'], $value['quantities'][$index]['additive']);
+                }
+            }
             if ($entry->creditedSeconds() === null) {
                 $value['complete'] = false;
                 $value['issues'][] = 'Stundenkontobewertung fehlt.';
@@ -121,7 +131,7 @@ class PayrollClosingService
             $rows[] = ['id' => $entry->id, 'revision' => $entry->revision, 'status' => $entry->status, 'starts_at' => $entry->starts_at->toIso8601String(), 'ends_at' => $entry->ends_at?->toIso8601String(), 'raw_net_seconds' => $entry->netSeconds(), 'credited_seconds' => $entry->creditedSeconds(), 'quantities' => $value['quantities']];
         }
 
-        return ['schema' => 'railtime-payroll-preparation-v1', 'external_delivery' => false, 'month' => $month, 'timezone' => $timezone, 'user_id' => $subject->id, 'payroll_reference' => app(PayrollReferenceService::class)->snapshot($subject->id), 'entries' => $rows, 'issues' => $issues, 'completeness' => $completeness, 'complete' => $issues === [] && $completeness['complete'] && $entries->every(fn ($e) => $e->status === 'approved')];
+        return ['schema' => $schema, 'external_delivery' => false, 'month' => $month, 'timezone' => $timezone, 'user_id' => $subject->id, 'payroll_reference' => app(PayrollReferenceService::class)->snapshot($subject->id), 'entries' => $rows, 'issues' => $issues, 'completeness' => $completeness, 'complete' => $issues === [] && $completeness['complete'] && $entries->every(fn ($e) => $e->status === 'approved')];
     }
 
     private function revision(OperationsMonthClosing $closing, string $action, User $actor): void

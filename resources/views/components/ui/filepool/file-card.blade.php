@@ -62,6 +62,9 @@
         'cursor-grab active:cursor-grabbing' => $canMove,
     ]) }}
     @unless($isDetails) role="group" aria-label="{{ $displayName }}" @endunless
+    @if($layout !== null)
+        x-bind:data-explorer-selected="$data.explorerSelection === {{ (int) $file->id }} ? 'true' : null"
+    @endif
     @contextmenu.prevent.stop="openFileMenu()"
     @if($canMove)
         draggable="true"
@@ -89,9 +92,14 @@
         type="button"
         data-file-preview
         draggable="false"
-        title="{{ $displayName }}"
+        title="{{ $isDetails || $isList ? __('file_explorer.open_hint', ['name' => $displayName]) : $displayName }}"
         aria-label="{{ __('app.preview') }}: {{ $displayName }}"
-        @click="window.dispatchEvent(new CustomEvent('filepool-preview', { detail: { id: {{ $file->id }} } }))"
+        @if($isDetails || $isList)
+            @click="$dispatch('rt-explorer-select', { id: {{ (int) $file->id }} }); if ($event.detail === 0 || $event.pointerType === 'touch' || window.matchMedia('(pointer: coarse)').matches) window.dispatchEvent(new CustomEvent('filepool-preview', { detail: { id: {{ $file->id }} } }))"
+            @dblclick="window.dispatchEvent(new CustomEvent('filepool-preview', { detail: { id: {{ $file->id }} } }))"
+        @else
+            @click="{{ $isExplorerGrid ? '$dispatch(\'rt-explorer-select\', { id: '.(int) $file->id.' }); ' : '' }}window.dispatchEvent(new CustomEvent('filepool-preview', { detail: { id: {{ $file->id }} } }))"
+        @endif
         @class([
             'rt-file-card-preview absolute inset-0 z-10 block w-full text-left focus:outline-none focus-visible:outline-none' => ! $isList && ! $isDetails,
             'rt-explorer-file-link' => $isList || $isDetails,

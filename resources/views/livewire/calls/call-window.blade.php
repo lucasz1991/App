@@ -16,6 +16,7 @@
         selfIdentity: @js(\App\Services\Calls\LiveKitService::identityFor(auth()->user())),
         canPublish: @js($me?->canPublish() ?? false),
         startWithVideo: @js((bool) data_get($room->settings, 'video', true)),
+        qualityPilot: @js($qualityPilot),
         cameraEffectsEnabled: @js((bool) config('livekit.background_effects')),
         waiting: @js($this->waitingFor()),
         labels: {
@@ -693,7 +694,7 @@
             <button
                 type="button"
                 x-on:click="toggleCamera()"
-                :disabled="! canControlMedia || cameraBusy"
+                :disabled="!canControlMedia || cameraBusy || (profileBusy && !(cameraOn && cameraProfileChanging))"
                 :aria-pressed="cameraOn.toString()"
                 :aria-busy="cameraBusy.toString()"
                 class="rt-call-control inline-flex h-11 w-11 items-center justify-center rounded-xl text-base disabled:cursor-not-allowed disabled:opacity-40 sm:h-12 sm:w-12 sm:rounded-2xl"

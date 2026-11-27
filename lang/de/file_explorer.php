@@ -29,7 +29,7 @@ return [
         'size' => 'Größe',
     ],
     'actions' => 'Aktionen',
-    'name_and_type' => ':name (:type)',
+    'open_hint' => ':name · Doppelklick oder Enter für die Vorschau',
     'path_label' => 'Ordnerpfad',
     'up' => 'Übergeordneter Ordner',
     'empty' => 'Dieser Ordner ist leer.',

@@ -29,6 +29,7 @@ class RbacCatalog
                 ['key' => 'operations.qualifications.manage', 'label' => 'Qualifikationen und Einsatznachweise prüfen'],
                 ['key' => 'operations.absences.review', 'label' => 'Abwesenheiten prüfen'],
                 ['key' => 'operations.time.review', 'label' => 'Zeitmeldungen prüfen und freigeben'],
+                ['key' => 'operations.lexware.manage', 'label' => 'Lexware-Firmenprofile verwalten und freigeben'],
                 ['key' => 'operations.time.export', 'label' => 'Freigegebene Zeitnachweise exportieren'],
                 ['key' => 'operations.locations.view', 'label' => 'Freigegebene aktuelle Mitarbeiterstandorte für Disposition einsehen'],
                 ['key' => 'operations.rules.manage', 'label' => 'Betriebliche Prüfregeln verwalten'],
@@ -146,7 +147,7 @@ class RbacCatalog
     public static function defaultRolePermissions(): array
     {
         return [
-            'team_access' => array_values(array_diff(self::allPermissions(), ['employees.emergency.access', 'employees.recruiting.manage', 'employees.development.manage', 'operations.costs.manage', 'operations.terminal.manage', 'customers.portal.manage', 'customers.portal.publish', 'customers.portal.automation'])),
+            'team_access' => array_values(array_diff(self::allPermissions(), ['employees.emergency.access', 'employees.recruiting.manage', 'employees.development.manage', 'operations.costs.manage', 'operations.terminal.manage', 'operations.lexware.manage', 'customers.portal.manage', 'customers.portal.publish', 'customers.portal.automation'])),
         ];
     }
 

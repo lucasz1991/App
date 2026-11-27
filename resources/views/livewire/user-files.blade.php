@@ -1,4 +1,5 @@
-<div class="relative" wire:loading.class="cursor-wait">
+<div class="relative" wire:loading.class="cursor-wait"
+    x-data="{ explorerSelection: null }" x-on:rt-explorer-select.stop="explorerSelection = $event.detail.id">
     <x-ui.page
         :embedded="$embedded"
         :title="__('app.download_center')"

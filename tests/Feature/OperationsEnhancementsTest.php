@@ -474,6 +474,8 @@ class OperationsEnhancementsTest extends TestCase
         $raw = $entry->only(['starts_at', 'ends_at', 'revision', 'pause_seconds']);
         $result = app(WorkTimeRemunerationService::class)->evaluate($entry);
         $this->assertTrue($result['complete'], json_encode($result));
+        $this->assertSame('work', $result['quantities'][0]['activity']);
+        $this->assertFalse($result['quantities'][0]['additive']);
         $this->assertSame(28860, $result['quantities'][0]['raw_seconds']);
         $this->assertSame(29700, $result['quantities'][0]['quantity_seconds']);
         $this->assertEquals($raw, $entry->fresh()->only(['starts_at', 'ends_at', 'revision', 'pause_seconds']));
@@ -502,6 +504,25 @@ class OperationsEnhancementsTest extends TestCase
         $closed = $s->close($prepared->id, $prepared->revision, $this->reviewer);
         $this->assertSame('closed', $closed->status);
         $this->assertSame(3, $closed->revisions()->count());
+    }
+
+    public function test_existing_prepared_month_can_close_with_original_payroll_evidence(): void
+    {
+        $this->baseRule();
+        $this->entry();
+        $service = app(PayrollClosingService::class);
+        $prepared = $service->prepare($this->employee, '2027-05', $this->admin);
+        $legacy = $prepared->snapshot;
+        $this->assertSame('railtime-payroll-preparation-v2', $legacy['schema']);
+        $legacy['schema'] = 'railtime-payroll-preparation-v1';
+        unset($legacy['entries'][0]['quantities'][0]['activity'], $legacy['entries'][0]['quantities'][0]['additive']);
+        $prepared->update(['snapshot' => $legacy]);
+
+        $closed = $service->close($prepared->id, $prepared->revision, $this->reviewer);
+
+        $this->assertSame('closed', $closed->status);
+        $this->assertSame($legacy, $closed->snapshot);
+        $this->assertSame($legacy, $closed->revisions()->where('action', 'closed')->firstOrFail()->snapshot);
     }
 
     public function test_closed_month_blocks_direct_manual_context_and_reopen_keeps_old_export(): void

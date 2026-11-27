@@ -8,6 +8,7 @@ use App\Models\OperationsRateRule;
 use App\Models\OperationsTerminalProfile;
 use App\Models\User;
 use App\Models\WorkTimeEntry;
+use App\Services\Operations\LexwareExportService;
 use App\Services\Operations\OperationsRuleEvaluationService;
 use App\Services\Operations\PayrollClosingService;
 use App\Services\Operations\PersonnelScopeService;
@@ -36,6 +37,8 @@ class TimeAdministration extends Component
     /** Nur lesender Abschlussverlauf mit Export (Seite „Monatsabschluss & Export“ → Historie). */
     #[Locked]
     public bool $payrollExportOnly = false;
+
+    public array $lexwareResults = [];
 
     public function mount(bool $personal = false, string $tab = 'rules', ?int $initialRecordId = null, bool $embedded = false, bool $payrollExportOnly = false, ?int $initialUserId = null): void
     {
@@ -76,7 +79,7 @@ class TimeAdministration extends Component
 
     protected function resetTabState(): void
     {
-        $this->reset('selectedId', 'selectedRevision', 'detailOpen', 'formOpen', 'form', 'note', 'search');
+        $this->reset('selectedId', 'selectedRevision', 'detailOpen', 'formOpen', 'form', 'note', 'search', 'lexwareResults');
     }
 
     protected function access(): User
@@ -177,7 +180,7 @@ class TimeAdministration extends Component
         $this->selectedId = $record->id;
         $this->selectedRevision = $this->payrollExportOnly ? (int) $record->revisions()->where('action', 'closed')->latest('revision')->value('revision') : ($record->revision ?? 1);
         $this->form = [];
-        $this->reset('note');
+        $this->reset('note', 'lexwareResults');
         $this->resetValidation();
         $this->detailOpen = true;
     }
@@ -213,6 +216,36 @@ class TimeAdministration extends Component
         return CsvDownload::stream($csv, 'RailTime-Lohnvorbereitung-'.$record->month.'-r'.$revision.'.csv');
     }
 
+    public function downloadLexware(int $profileVersion)
+    {
+        $actor = $this->lexwareActor();
+        $file = app(LexwareExportService::class)->download($actor, $this->selectedId, $this->selectedRevision, $profileVersion);
+
+        return CsvDownload::streamContent($file['content'], $file['filename'], 'text/csv; charset=windows-1252');
+    }
+
+    public function recordLexwareResult(int $runId): void
+    {
+        $actor = $this->lexwareActor();
+        $this->validate(['lexwareResults.'.$runId => 'required|string|in:full,partial,rejected'], [
+            'lexwareResults.*.required' => 'Bitte das Ergebnis des Windows-Imports auswählen.',
+            'lexwareResults.*.in' => 'Bitte ein gültiges Importergebnis auswählen.',
+        ]);
+        app(LexwareExportService::class)->recordResult($actor, $this->selectedId, $this->lexwareResults[$runId], $runId);
+        unset($this->lexwareResults[$runId]);
+        session()->flash('operations.saved', 'Das Importergebnis wurde im Verlauf dokumentiert.');
+    }
+
+    private function lexwareActor(): User
+    {
+        $actor = $this->access();
+        abort_unless($this->tab === 'payroll' && $this->detailOpen && $this->selectedId && $this->selectedRevision, 403);
+        $closing = $this->query()->findOrFail($this->selectedId);
+        app(PersonnelScopeService::class)->authorize($actor, (int) $closing->user_id, 'operations.time.export');
+
+        return $actor;
+    }
+
     public function returnTime(int $id, int $revision): void
     {
         $actor = $this->access();
@@ -244,6 +277,12 @@ class TimeAdministration extends Component
         $correctionTimes = ! $this->payrollExportOnly && $selected instanceof OperationsMonthClosing && $selected->status === 'reopened' ? WorkTimeEntry::where('user_id', $selected->user_id)->where('status', 'approved')->where('starts_at', '<', CarbonImmutable::parse($selected->month.'-01', $selected->timezone)->addMonth()->utc())->where('ends_at', '>', CarbonImmutable::parse($selected->month.'-01', $selected->timezone)->utc())->get() : collect();
         $closingSnapshot = $selected instanceof OperationsMonthClosing ? ($this->payrollExportOnly ? $selected->revisions()->where('action', 'closed')->latest('revision')->value('snapshot') : $selected->snapshot) : [];
 
-        return view('livewire.operations.time-administration', compact('ready', 'records', 'selected', 'staff', 'closedVersions', 'correctionTimes', 'closingSnapshot'));
+        $canExportSelected = $selected instanceof OperationsMonthClosing
+            && app(PersonnelScopeService::class)->allows($actor, (int) $selected->user_id, 'operations.time.export');
+        $lexware = $this->detailOpen && $canExportSelected && $closedVersions->isNotEmpty()
+            ? app(LexwareExportService::class)->inspect($actor, $selected->id)
+            : null;
+
+        return view('livewire.operations.time-administration', compact('ready', 'records', 'selected', 'staff', 'closedVersions', 'correctionTimes', 'closingSnapshot', 'canExportSelected', 'lexware'));
     }
 }

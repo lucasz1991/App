@@ -57,22 +57,26 @@ test('audio only stops outgoing capture and restores only video subscriptions it
     assert.equal(actions.length, 2, 'exiting audio only never publishes private media automatically');
 });
 
-test('camera profile can restart ordinary capture, while a protected track must be stopped by the user first', async () => {
-    let restarted = null;
-    const track = { getProcessor: () => null, getSourceTrackSettings: () => ({ deviceId: 'chosen' }),
-        restartTrack: options => { restarted = options; } };
-    const room = { localParticipant: { getTrackPublication: () => ({ track, isMuted: false }) } };
-    const component = { ...callQualityControls(value => value, {}), room, canControlMedia: true, cameraOn: true, isActiveRoom: r => r === room, syncLocalMediaState() {} };
-    await component.changeCameraProfile('saver');
-    assert.deepEqual(restarted, { deviceId: 'chosen', ...cameraCaptureOptions('saver') });
-    track.getProcessor = () => ({});
-    restarted = null;
-    await component.changeCameraProfile('auto');
-    assert.equal(restarted, null);
+test('adaptive camera limits obey the manual preference and never activate an off camera', async () => {
+    const swaps = [];
+    const publication = { track: { getProcessor: () => undefined }, isMuted: false };
+    const room = { localParticipant: { getTrackPublication: () => publication } };
+    const component = {
+        ...callQualityControls(value => value, {}), room, canControlMedia: true, cameraOn: true,
+        isActiveRoom: candidate => candidate === room, syncLocalMediaState() {},
+        replaceCameraProfile(_room, _generation, _publication, profile) { swaps.push(profile); },
+    };
+    assert.equal(await component.applyCameraProfile('saver'), true);
+    assert.equal(component.cameraProfile, 'auto');
+    assert.equal(component.effectiveCameraProfile, 'saver');
+    assert.equal(await component.changeCameraProfile('saver'), true);
+    assert.equal(await component.applyCameraProfile('auto'), false);
+    publication.track.getProcessor = () => ({});
+    assert.equal(await component.changeCameraProfile('auto'), false);
     assert.equal(component.cameraProfile, 'saver');
-    track.getProcessor = () => null;
-    component.cameraSelectionCommitted = true;
-    await component.changeCameraProfile('auto');
-    assert.equal(restarted, null, 'a separately published processed stream must not reacquire the original camera');
-    assert.equal(component.cameraProfile, 'saver');
+    publication.track = null;
+    component.cameraOn = false;
+    assert.equal(await component.applyCameraProfile('auto'), false);
+    assert.equal(await component.changeCameraProfile('auto'), true);
+    assert.deepEqual(swaps, ['saver']);
 });

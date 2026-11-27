@@ -67,6 +67,8 @@
             <livewire:operations.time-administration tab="terminal" :embedded="true" :initial-user-id="$userId ?: null" :initial-record-id="$recordId" :key="$contentKey" />
         @elseif($section === 'payroll-references')
             <livewire:operations.payroll-references :key="$contentKey" />
+        @elseif($section === 'lexware-settings')
+            <livewire:operations.lexware-settings :key="$contentKey" />
         @elseif(in_array($section, ['models','policies','rules','checks','responsibilities'], true))
             <livewire:operations.workforce-accounts :tab="$section" :embedded="true" :initial-user-id="$userId ?: null" :initial-record-id="$recordId" :key="$contentKey" />
         @else

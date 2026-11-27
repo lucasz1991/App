@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Models\WorkTimeCaptureReceipt;
 use App\Models\WorkTimeEntry;
 use App\Services\Operations\EmployeeDocumentVersionService;
+use App\Services\Operations\LexwareProfileService;
 use App\Services\Operations\PayrollClosingService;
 use App\Services\Operations\PersonnelEnhancementService;
 use App\Services\Operations\PersonnelProcessService;
@@ -141,6 +142,7 @@ class PersonnelPageWorkspace extends Component
             ],
             'payroll' => [
                 'payroll-references' => ['Lohnzuordnung', $actor->can('operations.time.export') && Schema::hasTable('employee_payroll_references')],
+                'lexware-settings' => ['Lexware-Einstellungen', $actor->can('operations.lexware.manage') && Schema::hasTable('lexware_profiles') && app(LexwareProfileService::class)->canManage($actor)],
             ],
             default => [],
         };

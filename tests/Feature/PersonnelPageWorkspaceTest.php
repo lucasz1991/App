@@ -261,9 +261,32 @@ class PersonnelPageWorkspaceTest extends TestCase
         Livewire::test(TimeAdministration::class, ['tab' => 'payroll', 'embedded' => true, 'payrollExportOnly' => true, 'initialRecordId' => $closing->id])
             ->assertSet('selectedRevision', 2)
             ->assertViewHas('closingSnapshot', $snapshot)
+            ->assertSee('CSV Lohnvorbereitung')->assertSee('Lexware lohn+gehalt für Windows')
+            ->assertDontSee('Lexware-Datei herunterladen')
             ->assertDontSee('Kontrolliert öffnen')
             ->call('act', 'reopen')->assertForbidden();
         $this->assertSame(3, $closing->fresh()->revision);
+    }
+
+    public function test_month_reviewer_cannot_inspect_or_download_lexware_outside_their_export_scope(): void
+    {
+        $manager = $this->manager(['operations.time.review', 'operations.time.export'], false);
+        app(PersonnelScopeService::class)->assign($this->employee, [
+            'responsible_user_id' => $manager->id, 'starts_on' => '2027-01-01', 'abilities' => ['operations.time.review'],
+        ], $this->admin);
+        $closing = OperationsMonthClosing::create([
+            'user_id' => $this->employee->id, 'month' => '2027-04', 'timezone' => 'Europe/Berlin',
+            'status' => 'closed', 'revision' => 2, 'snapshot' => [], 'prepared_by' => $this->admin->id,
+        ]);
+        $closing->revisions()->create(['revision' => 2, 'action' => 'closed', 'snapshot' => [], 'actor_id' => $this->admin->id, 'created_at' => now()]);
+        $this->actingAs($manager);
+        $params = ['tab' => 'payroll', 'embedded' => true, 'initialRecordId' => $closing->id];
+        Livewire::test(TimeAdministration::class, $params)
+            ->assertViewHas('lexware', null)
+            ->assertDontSee('Lexware lohn+gehalt für Windows')->assertDontSee('CSV Lohnvorbereitung')
+            ->call('downloadLexware', 1)->assertForbidden();
+        Livewire::test(TimeAdministration::class, $params)
+            ->set('lexwareResults.1', 'full')->call('recordLexwareResult', 1)->assertForbidden();
     }
 
     public function test_explicit_unauthorized_initial_view_is_not_replaced_silently(): void

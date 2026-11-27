@@ -400,6 +400,11 @@ __pycache__/
 !/tests/Feature/CallWindowStateTest.php
 !/tests/Frontend/call-room-lifecycle.test.js
 !/tests/Frontend/meeting-device-check.test.js
+!/tests/Frontend/call-quality-policy.test.js
+!/tests/Frontend/call-quality-session.test.js
+!/tests/Frontend/call-share-quality.test.js
+!/tests/Frontend/call-receive-quality.test.js
+!/tests/Frontend/call-quality-sampling.test.js
 !/tests/Frontend/call-camera-preview.test.js
 !/tests/Frontend/call-media-quality.test.js
 !/tests/Frontend/fixtures/

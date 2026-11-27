@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { callQualityControls } from '../../resources/js/call-media-quality.js';
 import assert from 'node:assert/strict';
 import { callCameraPreview, nativeCameraBlur, supportsNativeCameraBlur } from '../../resources/js/call-camera-preview.js';
 
@@ -152,4 +153,143 @@ test('native output discards the first frame and each frame after loss of blur',
     assert.deepEqual(discarded, ['initial', 'unprotected']);
     assert.equal(failed, 1);
     native.stop();
+});
+
+async function activeCamera(mode) {
+    const captures = [], swaps = [];
+    let captureGate, swapGate, failBlur = false;
+    const platform = {
+        MediaStreamTrackProcessor: class {
+            readable = new ReadableStream({ start(controller) {
+                for (let i = 0; i < 3; i++) controller.enqueue({ close() {} });
+            } });
+        },
+        MediaStreamTrackGenerator: class extends EventTarget {
+            writable = new WritableStream();
+            stop() {}
+        },
+    };
+    const capture = async options => {
+        const local = camera();
+        let blurred = false;
+        Object.assign(local.mediaStreamTrack, {
+            getSettings: () => ({ deviceId: 'front-camera', backgroundBlur: blurred }),
+            getCapabilities: () => ({ backgroundBlur: [false, true] }),
+            getConstraints: () => ({}),
+            async applyConstraints() { blurred = !failBlur; },
+        });
+        captures.push({ local, options });
+        if (captureGate) await captureGate;
+        return local;
+    };
+    let publication;
+    const room = { localParticipant: {
+        getTrackPublication: () => publication,
+        async publishTrack(output) {
+            assert.equal(publication, undefined, 'The existing camera must be replaced in place');
+            publication = { isMuted: false, track: {
+                mediaStreamTrack: output,
+                async replaceTrack(candidate) {
+                    swaps.push(candidate);
+                    this.mediaStreamTrack = candidate;
+                    if (swapGate) await swapGate;
+                },
+            } };
+            return publication;
+        },
+    } };
+    const state = Object.assign(setup(capture, platform), callQualityControls(value => value, {}), {
+        connectionGeneration: 1, canControlMedia: true, syncLocalMediaState() {},
+        isActiveRoom(candidate, generation) { return candidate === this.room && generation === this.connectionGeneration; },
+    });
+    await state.openCameraPreview();
+    state.cameraMode = mode;
+    await state.refreshCameraPreview();
+    assert.equal(await state.commitCameraPreview(), true);
+    state.room = room;
+    await state.publishCameraSelection(room, 1);
+    Object.assign(state, { cameraOn: true, connected: true });
+    return {
+        state, publication, captures, swaps, platform,
+        delayCapture(promise) { captureGate = promise; },
+        delaySwap(promise) { swapGate = promise; },
+        rejectBlur() { failBlur = true; },
+    };
+}
+
+for (const mode of ['original', 'blur']) {
+    test(`active ${mode} camera switches profile while preserving mode, device and publication`, async () => {
+        const { state, publication, captures, swaps, platform } = await activeCamera(mode);
+        try {
+            assert.equal(await state.applyCameraProfile('saver'), true);
+            assert.equal(state.cameraProfile, 'auto');
+            assert.equal(state.effectiveCameraProfile, 'saver');
+            assert.deepEqual(captures[1].options, {
+                resolution: { width: 640, height: 360, frameRate: 15 }, deviceId: { exact: 'front-camera' },
+            });
+            assert.equal(captures[0].local.stopped, true);
+            assert.equal(captures[1].local.stopped, false);
+            assert.equal(publication.track.mediaStreamTrack, swaps[0]);
+            if (mode === 'blur') {
+                assert.ok(swaps[0] instanceof platform.MediaStreamTrackGenerator);
+                assert.notEqual(swaps[0], captures[1].local.mediaStreamTrack);
+            } else {
+                assert.equal(swaps[0], captures[1].local.mediaStreamTrack);
+            }
+            assert.equal(await state.changeCameraProfile('auto'), true);
+            assert.equal(captures[2].options.resolution.height, 720);
+            assert.equal(swaps.length, 2);
+        } finally {
+            state.disposeCameraPreview();
+        }
+    });
+}
+
+test('failed blur verification preserves the current protected sender', async () => {
+    const { state, publication, swaps, captures, rejectBlur } = await activeCamera('blur');
+    const oldOutput = publication.track.mediaStreamTrack;
+    try {
+        rejectBlur();
+        assert.equal(await state.applyCameraProfile('saver'), false);
+        assert.equal(publication.track.mediaStreamTrack, oldOutput);
+        assert.equal(swaps.length, 0);
+        assert.equal(captures[0].local.stopped, false);
+        assert.equal(captures[1].local.stopped, true);
+        assert.equal(state.effectiveCameraProfile, 'auto');
+    } finally {
+        state.disposeCameraPreview();
+    }
+});
+
+test('a late profile capture after disconnect is discarded even if the room is reused', async () => {
+    const { state, swaps, captures, delayCapture } = await activeCamera('original');
+    let resume;
+    delayCapture(new Promise(done => { resume = done; }));
+    const pending = state.applyCameraProfile('saver');
+    assert.equal(captures.length, 2);
+    state.connectionGeneration++;
+    state.disposeCameraPreview();
+    resume();
+    assert.equal(await pending, false);
+    assert.equal(captures[1].local.stopped, true);
+    assert.equal(swaps.length, 0);
+    assert.equal(state.effectiveCameraProfile, 'auto');
+});
+
+test('revoking permission during sender replacement immediately stops both captures', async () => {
+    const { state, swaps, captures, delaySwap } = await activeCamera('original');
+    let resume;
+    delaySwap(new Promise(done => { resume = done; }));
+    const pending = state.applyCameraProfile('saver');
+    await new Promise(done => setImmediate(done));
+    assert.equal(swaps.length, 1);
+    state.canPublish = false;
+    state.canControlMedia = false;
+    state.disposeCameraPreview();
+    assert.equal(captures[0].local.stopped, true);
+    assert.equal(captures[1].local.stopped, true);
+    assert.equal(swaps[0].enabled, false);
+    resume();
+    assert.equal(await pending, false);
+    assert.equal(state.effectiveCameraProfile, 'auto');
 });

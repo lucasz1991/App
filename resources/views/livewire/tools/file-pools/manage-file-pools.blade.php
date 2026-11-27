@@ -12,6 +12,7 @@
 <div
   x-data="{
     openFileForm: @entangle('openFileForm'),
+    explorerSelection: null,
     ctx: false,
     cx: 0,
     cy: 0,
@@ -85,6 +86,7 @@
       }
     },
   }"
+  x-on:rt-explorer-select.stop="explorerSelection = $event.detail.id"
 >
   <div
     x-data="filePoolExternalDrop({

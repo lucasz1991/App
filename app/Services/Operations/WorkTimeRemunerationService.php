@@ -79,7 +79,17 @@ class WorkTimeRemunerationService
                     }
                     $key = $rule->id.':'.$c['wage_code'];
                     if (! isset($quantities[$key])) {
-                        $quantities[$key] = ['rule_id' => $rule->id, 'rule_revision' => $rule->revision, 'wage_code' => $c['wage_code'], 'raw_seconds' => 0, 'multiplier_bps' => $c['multiplier_bps'], 'rounding_minutes' => $c['rounding_minutes'], 'rounding_mode' => $c['rounding_mode']];
+                        $quantities[$key] = [
+                            'rule_id' => $rule->id,
+                            'rule_revision' => $rule->revision,
+                            'wage_code' => $c['wage_code'],
+                            'activity' => $section->kind,
+                            'additive' => (bool) $c['additive'],
+                            'raw_seconds' => 0,
+                            'multiplier_bps' => $c['multiplier_bps'],
+                            'rounding_minutes' => $c['rounding_minutes'],
+                            'rounding_mode' => $c['rounding_mode'],
+                        ];
                     }
                     $quantities[$key]['raw_seconds'] += $seconds;
                 }
