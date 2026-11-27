@@ -35,6 +35,9 @@ class CallChat extends Component
 
     public bool $visible = false;
 
+    #[Locked]
+    public int $unreadCount = 0;
+
     public string $messageText = '';
 
     /** @var array<int, TemporaryUploadedFile> */
@@ -84,10 +87,25 @@ class CallChat extends Component
 
     public function setVisible(bool $visible): void
     {
-        $this->visible = $visible;
-        if ($visible) {
-            $this->markRead($this->authorizedChat());
+        if ($visible === $this->visible) {
+            return;
         }
+
+        $this->visible = $visible;
+        $chat = $this->authorizedChat();
+
+        if ($visible && ! $this->readOnly) {
+            $firstUnreadId = $chat->unreadMessagesFor(auth()->user())?->min('id');
+            if ($firstUnreadId !== null) {
+                $firstUnreadId = (int) $firstUnreadId;
+                $this->oldestLoadedId = min($this->oldestLoadedId ?? $firstUnreadId, $firstUnreadId);
+                $this->dispatch('call-chat:show-unread', messageId: $firstUnreadId)->self();
+            } else {
+                $this->dispatch('call-chat:scroll-bottom')->self();
+            }
+        }
+
+        $this->markRead($chat);
     }
 
     public function loadOlder(): void
@@ -110,7 +128,7 @@ class CallChat extends Component
 
         if ($previousIds->isNotEmpty()) {
             $this->oldestLoadedId = (int) $previousIds->min();
-            $this->dispatch('call-chat:older-loaded');
+            $this->dispatch('call-chat:older-loaded')->self();
         }
     }
 
@@ -119,7 +137,7 @@ class CallChat extends Component
         $this->assertWritable();
         $message = $this->visibleMessagesQuery($this->authorizedChat())->findOrFail($messageId);
         $this->replyToMessageId = (int) $message->id;
-        $this->dispatch('call-chat:focus-composer');
+        $this->dispatch('call-chat:focus-composer')->self();
     }
 
     public function cancelReply(): void
@@ -250,7 +268,7 @@ class CallChat extends Component
 
         $this->broadcastChatEvent(new ChatMessageSent($message));
         $this->broadcastChatEvent(new ChatMessageReceived($message));
-        $this->dispatch('call-chat:scroll-bottom');
+        $this->dispatch('call-chat:scroll-bottom')->self();
     }
 
     public function removeUpload(int $index): void
@@ -321,8 +339,14 @@ class CallChat extends Component
     protected function markRead(Chat $chat): void
     {
         if ($this->embedded && ! $this->visible) {
+            if (! $this->readOnly) {
+                $this->unreadCount = $chat->unreadCountFor(auth()->user());
+            }
+
             return;
         }
+
+        $this->unreadCount = 0;
         $chat->participants()->updateExistingPivot(auth()->id(), [
             'last_read_at' => now(),
             'last_opened_at' => now(),

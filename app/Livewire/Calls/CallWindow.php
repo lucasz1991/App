@@ -125,6 +125,7 @@ class CallWindow extends Component
             ->get()
             ->map(fn (RoomInvitation $invitation): array => [
                 'id' => (int) $invitation->id,
+                'identity' => LiveKitService::identityFor((int) $invitation->invitee_id),
                 'name' => (string) ($invitation->invitee?->name ?? ''),
                 'avatar' => $invitation->invitee?->profile_photo_url,
                 'ringing' => $invitation->isRinging(),
@@ -133,7 +134,7 @@ class CallWindow extends Component
             ->all();
     }
 
-    /** Selbst auflegen; als letzter Moderator/Host beendet das den Anruf fuer alle. */
+    /** Den Anruf verlassen; die bestehenden Regeln für leere Räume gelten weiter. */
     public function leaveCall(RoomLifecycleService $lifecycle): void
     {
         $room = $this->room->fresh(['participants']);

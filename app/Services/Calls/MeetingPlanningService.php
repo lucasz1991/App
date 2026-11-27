@@ -46,11 +46,7 @@ class MeetingPlanningService
             'video' => ['boolean'],
             'chat_id' => ['nullable', 'integer', 'min:1'],
         ])->validate();
-        $start = $this->localTime($data['starts_at'], $data['timezone'], 'starts_at');
-        $end = $this->localTime($data['ends_at'], $data['timezone'], 'ends_at');
-        if ($start->lte(now()) || $end->lte($start)) {
-            throw ValidationException::withMessages(['ends_at' => 'Beginn muss in der Zukunft und Ende nach Beginn liegen.']);
-        }
+        [$start, $end] = $this->scheduledWindow($data['starts_at'], $data['ends_at'], $data['timezone']);
         $ids = collect($data['participant_ids'])->map(fn ($id) => (int) $id)->push((int) $actor->id)->unique()->values();
 
         return DB::transaction(function () use ($actor, $data, $start, $end, $ids): CommunicationMeeting {
@@ -110,11 +106,7 @@ class MeetingPlanningService
             'timezone' => ['required', 'timezone:all'],
             'video' => ['required', 'boolean'],
         ])->validate();
-        $start = $this->localTime($data['starts_at'], $data['timezone'], 'starts_at');
-        $end = $this->localTime($data['ends_at'], $data['timezone'], 'ends_at');
-        if ($start->lte(now()) || $end->lte($start)) {
-            throw ValidationException::withMessages(['ends_at' => 'Beginn muss in der Zukunft und Ende nach Beginn liegen.']);
-        }
+        [$start, $end] = $this->scheduledWindow($data['starts_at'], $data['ends_at'], $data['timezone']);
         DB::transaction(function () use ($meeting, $actor, $data, $start, $end): void {
             $current = CommunicationMeeting::lockForUpdate()->findOrFail($meeting->id);
             abort_unless((int) $current->owner_id === (int) $actor->id, 403);
@@ -267,6 +259,25 @@ class MeetingPlanningService
     protected function requireReady(): void
     {
         abort_unless($this->ready(), 503, 'Die Meetingplanung benötigt die Kommunikations-Migration.');
+    }
+
+    /** @return array{CarbonImmutable, CarbonImmutable} */
+    public function scheduledWindow(string $startsAt, string $endsAt, string $timezone): array
+    {
+        $start = $this->localTime($startsAt, $timezone, 'starts_at');
+        $end = $this->localTime($endsAt, $timezone, 'ends_at');
+        $errors = [];
+        if ($start->lte(now())) {
+            $errors['starts_at'] = 'Der Beginn muss in der Zukunft liegen.';
+        }
+        if ($end->lte($start)) {
+            $errors['ends_at'] = 'Das Ende muss nach dem Beginn liegen.';
+        }
+        if ($errors) {
+            throw ValidationException::withMessages($errors);
+        }
+
+        return [$start, $end];
     }
 
     protected function localTime(string $input, string $zone, string $field): CarbonImmutable

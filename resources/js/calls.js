@@ -15,6 +15,7 @@ import {
     Track,
     ConnectionState,
     DisconnectReason,
+    ParticipantKind,
 } from 'livekit-client';
 import '../css/call-window.css';
 import {
@@ -43,9 +44,11 @@ document.addEventListener('alpine:init', () => {
         cameraBusy: false,
         screenShareBusy: false,
         statusLabel: config.labels.connecting,
-        participantCount: 1,
+        connectedRoster: [],
+        moreOpen: false,
         panelOpen: false,
         panelTab: 'participants',
+        chatUnreadCount: 0,
         panelTrigger: null,
         participantMayPublish: Boolean(config.canPublish),
         canPublish: Boolean(config.canPublish),
@@ -123,19 +126,29 @@ document.addEventListener('alpine:init', () => {
             return typeof navigator.mediaDevices?.getDisplayMedia === 'function';
         },
 
-        isParticipantConnected(identity) {
-            // participantCount makes transport roster changes reactive even
-            // though LiveKit owns the participant Map outside Alpine.
-            const hasParticipants = this.participantCount > 0;
-            const activeRoom = rawCallValue(this.room);
-            if (!hasParticipants || !this.connected || !activeRoom
-                || typeof identity !== 'string' || !identity.trim() || identity !== identity.trim()) return false;
+        get participantCount() {
+            return this.connected ? this.connectedRoster.length : 0;
+        },
 
-            return activeRoom.localParticipant?.identity === identity
-                || activeRoom.remoteParticipants?.has(identity) === true;
+        isParticipantConnected(identity) {
+            return this.connected && this.connectedRoster.some(person => person.identity === identity);
+        },
+
+        get openInvitations() {
+            return this.waiting.filter(invitation => !this.isParticipantConnected(invitation.identity));
+        },
+
+        syncConnectedRoster(participants) {
+            this.connectedRoster = participants.filter(person => person?.identity
+                && ![ParticipantKind.EGRESS, ParticipantKind.INGRESS, ParticipantKind.AGENT].includes(person.kind))
+                .map(person => ({ identity: person.identity, name: person.name || person.identity }));
         },
 
         togglePanel(tab, trigger = null) {
+            if (this.moreOpen) {
+                this.moreOpen = false;
+                trigger = this.$refs.moreTrigger;
+            }
             if (this.panelOpen && this.panelTab === tab) {
                 this.closePanel();
                 return;
@@ -180,7 +193,7 @@ document.addEventListener('alpine:init', () => {
             this.cameraBusy = false;
             this.screenShareBusy = false;
             this.remoteCount = 0;
-            this.participantCount = 1;
+            this.connectedRoster = [];
         },
 
         syncLocalMediaState(activeRoom = this.room) {
@@ -375,7 +388,8 @@ document.addEventListener('alpine:init', () => {
             const ratio = this.selfPreviewPortrait ? '9 / 16' : '16 / 9';
 
             return `transform: translate3d(${this.selfPreviewX}px, ${this.selfPreviewY}px, 0);`
-                + ` width: ${width}px; max-width: 42vw; aspect-ratio: ${ratio};`;
+                + ` width: ${width}px; max-width: 42vw; aspect-ratio: ${ratio};`
+                + ` max-width: min(42vw, calc(100cqw - 16px), calc((100cqh - 16px) * ${ratio}));`;
         },
 
         get selfPreviewRestoreStyle() {
@@ -579,6 +593,25 @@ document.addEventListener('alpine:init', () => {
             this.selfPreviewLastSafeY = safe.y;
 
             return safe;
+        },
+
+        moveSelfPreviewWithKey(event) {
+            const steps = { ArrowLeft: [-24, 0], ArrowRight: [24, 0], ArrowUp: [0, -24], ArrowDown: [0, 24] };
+            if (event.key !== 'Home' && !Object.hasOwn(steps, event.key)) return;
+            const metrics = this.selfPreviewMetrics();
+            if (!metrics) return;
+            event.preventDefault();
+            if (event.key === 'Home') {
+                this.selfPreviewInitialized = false;
+                this.positionSelfPreview();
+                return;
+            }
+            const [dx, dy] = steps[event.key];
+            const safe = this.rememberSafeSelfPreviewPosition(
+                { x: this.selfPreviewX + dx, y: this.selfPreviewY + dy }, metrics,
+            );
+            this.selfPreviewX = safe.x;
+            this.selfPreviewY = safe.y;
         },
 
         minimizeSelfPreview(candidate = null) {
@@ -1309,8 +1342,8 @@ document.addEventListener('alpine:init', () => {
 
             const grid = this.$refs.grid;
             const participants = [activeRoom.localParticipant, ...activeRoom.remoteParticipants.values()];
-            this.participantCount = participants.length;
-            this.remoteCount = activeRoom.remoteParticipants.size;
+            this.syncConnectedRoster(participants);
+            this.remoteCount = Math.max(0, this.connectedRoster.length - 1);
             // Sobald jemand wirklich da ist, hoert das Freizeichen auf.
             this.syncRingback();
 
@@ -1355,7 +1388,13 @@ document.addEventListener('alpine:init', () => {
             video.autoplay = true;
             video.playsInline = true;
             video.muted = isLocal;
-            video.className = 'absolute inset-0 hidden h-full w-full object-cover';
+            video.className = 'rt-call-video hidden';
+            const viewport = document.createElement('div');
+            viewport.className = 'rt-call-video-viewport';
+            video.addEventListener('resize', () => {
+                if (video.videoHeight) viewport.style.setProperty('--rt-share-aspect', video.videoWidth / video.videoHeight);
+            });
+            viewport.appendChild(video);
 
             const audio = document.createElement('audio');
             audio.autoplay = true;
@@ -1377,17 +1416,67 @@ document.addEventListener('alpine:init', () => {
 
             badge.appendChild(mutedIcon);
             badge.appendChild(name);
-            root.appendChild(video);
+            root.appendChild(viewport);
             root.appendChild(audio);
             root.appendChild(placeholder);
             root.appendChild(badge);
 
             (isLocal ? this.$refs.selfPreview : this.$refs.grid).appendChild(root);
 
-            tile = { root, video, audio, placeholder, name, mutedIcon };
+            tile = { root, video, audio, placeholder, name, mutedIcon, viewport };
+            if (!isLocal) this.addShareZoom(tile);
             this.tiles.set(participant.identity, tile);
 
             return tile;
+        },
+
+        addShareZoom(tile) {
+            const { root, viewport } = tile;
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'rt-call-share-zoom';
+            button.textContent = config.labels.shareZoom;
+            root.appendChild(button);
+
+            tile.setZoom = (enabled) => {
+                root.classList.toggle('rt-call-tile--zoomed', enabled);
+                button.textContent = enabled ? config.labels.shareFit : config.labels.shareZoom;
+                viewport.tabIndex = enabled ? 0 : -1;
+                if (enabled) {
+                    viewport.setAttribute('role', 'region');
+                    viewport.setAttribute('aria-label', config.labels.sharePan);
+                    viewport.focus({ preventScroll: true });
+                } else {
+                    viewport.removeAttribute('role');
+                    viewport.removeAttribute('aria-label');
+                    viewport.scrollLeft = 0;
+                    viewport.scrollTop = 0;
+                }
+            };
+            button.addEventListener('click', () => tile.setZoom(!root.classList.contains('rt-call-tile--zoomed')));
+            viewport.addEventListener('keydown', (event) => {
+                if (event.key !== 'Escape' || !root.classList.contains('rt-call-tile--zoomed')) return;
+                event.stopPropagation();
+                event.preventDefault();
+                tile.setZoom(false);
+                button.focus();
+            });
+
+            // Touch and keyboard use native scrolling. Mouse users can drag
+            // documents directly, including beyond the viewport edge.
+            let drag = null;
+            viewport.addEventListener('pointerdown', (event) => {
+                if (event.pointerType !== 'mouse' || event.button !== 0 || !root.classList.contains('rt-call-tile--zoomed')) return;
+                drag = { x: event.clientX, y: event.clientY, left: viewport.scrollLeft, top: viewport.scrollTop };
+                viewport.setPointerCapture(event.pointerId);
+                event.preventDefault();
+            });
+            viewport.addEventListener('pointermove', (event) => {
+                if (!drag) return;
+                viewport.scrollLeft = drag.left + drag.x - event.clientX;
+                viewport.scrollTop = drag.top + drag.y - event.clientY;
+            });
+            viewport.addEventListener('lostpointercapture', () => { drag = null; });
         },
 
         attachTracks(participant, tile) {
@@ -1431,6 +1520,9 @@ document.addEventListener('alpine:init', () => {
             });
 
             const hasVideo = selectedVideoPublication !== null;
+            const share = selectedVideoPublication?.source === Track.Source.ScreenShare;
+            tile.root.classList.toggle('rt-call-tile--share', share);
+            if (!share && tile.root.classList.contains('rt-call-tile--zoomed')) tile.setZoom(false);
 
             tile.video.classList.toggle('hidden', !hasVideo);
             tile.placeholder.classList.toggle('hidden', hasVideo);

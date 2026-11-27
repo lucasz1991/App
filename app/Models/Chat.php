@@ -134,10 +134,15 @@ class Chat extends Model
     /** Ungelesene Nachrichten fuer einen Teilnehmer. */
     public function unreadCountFor(User $user): int
     {
-        $pivot = $this->participants->firstWhere('id', $user->id)?->pivot;
+        return $this->unreadMessagesFor($user)?->count() ?? 0;
+    }
+
+    public function unreadMessagesFor(User $user): ?HasMany
+    {
+        $pivot = $this->participantFor($user)?->pivot;
 
         if (! $pivot || $pivot->hidden_at) {
-            return 0;
+            return null;
         }
 
         $lastRead = $pivot?->last_read_at;
@@ -146,8 +151,7 @@ class Chat extends Model
         return $this->messages()
             ->where('user_id', '!=', $user->id)
             ->when($visibleSince, fn ($query) => $query->where('created_at', '>=', $visibleSince))
-            ->when($lastRead, fn ($q) => $q->where('created_at', '>', $lastRead))
-            ->count();
+            ->when($lastRead, fn ($q) => $q->where('created_at', '>', $lastRead));
     }
 
     /** Sind alle anderen Teilnehmer mit ihrem Lesestand an der Nachricht vorbei? */

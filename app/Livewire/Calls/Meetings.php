@@ -8,6 +8,7 @@ use App\Models\Room;
 use App\Models\User;
 use App\Services\Calls\CallInfrastructureUnavailable;
 use App\Services\Calls\MeetingPlanningService;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithoutUrlPagination;
@@ -120,7 +121,8 @@ class Meetings extends Component
     public function editMeeting(int $meetingId, MeetingPlanningService $meetings): void
     {
         $meeting = $meetings->visibleTo(auth()->user())->findOrFail($meetingId);
-        abort_unless((int) $meeting->owner_id === (int) auth()->id(), 403);
+        abort_unless((int) $meeting->owner_id === (int) auth()->id()
+            && (auth()->user()->isAdmin() || auth()->user()->hasRbacPermission('calls.start')), 403);
         abort_unless($meeting->status === 'scheduled', 410);
         abort_if($meeting->sessions()->whereIn('status', ['pending', 'active'])->exists(), 409);
         $this->selectedMeetingId = $meeting->id;
@@ -187,28 +189,55 @@ class Meetings extends Component
         return null;
     }
 
+    public function updated(string $property): void
+    {
+        if (in_array($property, ['startsAt', 'endsAt', 'timezone'], true)) {
+            $this->resetValidation(['starts_at', 'ends_at', 'timezone']);
+        }
+    }
+
     public function render()
     {
         $user = auth()->user();
         abort_unless($user->status && ($user->isAdmin() || $user->hasRbacPermission('calls.join')), 403);
         $service = app(MeetingPlanningService::class);
         $ready = $service->ready();
+        $live = $this->filter === 'past' ? collect() : Room::query()->where('type', 'meeting')->accessibleMeetings($user)
+            ->whereIn('status', ['pending', 'active'])
+            ->when(trim($this->search) !== '', fn ($query) => $query->where('name', 'like', '%'.trim($this->search).'%'))
+            ->with(['owner', 'participants' => fn ($query) => $query->where('user_id', $user->id)])
+            ->latest('id')->limit(30)->get();
         $selected = $ready && $this->selectedMeetingId
-            ? $service->visibleTo($user)->with(['participants.user', 'owner', 'sessions'])->findOrFail($this->selectedMeetingId) : null;
-        $plans = $ready ? $service->visibleTo($user)->with(['owner', 'participants.user', 'sessions'])
+            ? $service->visibleTo($user)->with(['participants.user', 'owner', 'sessions.participants' => fn ($query) => $query->where('user_id', $user->id)])->findOrFail($this->selectedMeetingId) : null;
+        $plans = $ready ? $service->visibleTo($user)->with(['owner', 'participants', 'sessions.participants' => fn ($query) => $query->where('user_id', $user->id)])
+            ->whereNotIn('id', $live->map(fn (Room $room) => $room->communicationMeetingId())->filter()->unique()->values())
             ->when(trim($this->search) !== '', fn ($query) => $query->where('title', 'like', '%'.trim($this->search).'%'))
-            ->when($this->filter === 'upcoming', fn ($query) => $query->where('status', 'scheduled')->where('ends_at', '>=', now('UTC'))->orderBy('starts_at'))
-            ->when($this->filter === 'past', fn ($query) => $query->where(fn ($past) => $past->where('ends_at', '<', now('UTC'))->orWhere('status', 'cancelled')))
+            ->when($this->filter === 'upcoming', fn ($query) => $query->where('status', 'scheduled')
+                ->where(fn ($schedule) => $schedule->where('ends_at', '>=', now('UTC'))
+                    ->orWhereHas('sessions', fn ($room) => $room->whereIn('status', ['pending', 'active'])))
+                ->orderBy('starts_at'))
+            ->when($this->filter === 'past', fn ($query) => $query->where(fn ($past) => $past->where('ends_at', '<', now('UTC'))->orWhere('status', 'cancelled'))
+                ->whereDoesntHave('sessions', fn ($room) => $room->whereIn('status', ['pending', 'active'])))
             ->orderByDesc('id')->paginate(20, ['*'], 'meetingsPage') : null;
         $candidates = $ready && $this->pane === 'form' && $this->formMode === 'plan'
             ? User::query()->where('status', true)->where('id', '!=', $user->id)
                 ->when(trim($this->participantSearch) !== '', fn ($query) => $query->where('name', 'like', '%'.trim($this->participantSearch).'%'))
                 ->orderBy('name')->limit(40)->get()->filter(fn (User $candidate) => $candidate->isAdmin() || $candidate->hasRbacPermission('calls.join')) : collect();
+        $duration = null;
+        $timeErrors = [];
+        if ($this->pane === 'form' && $this->formMode !== 'instant' && $this->startsAt !== '' && $this->endsAt !== '' && $this->timezone !== '') {
+            try {
+                [$start, $end] = $service->scheduledWindow($this->startsAt, $this->endsAt, $this->timezone);
+                $duration = (int) $start->diffInMinutes($end);
+            } catch (ValidationException $error) {
+                $timeErrors = $error->errors();
+            }
+        }
+
         return view('livewire.calls.meetings', [
+            'live' => $live, 'duration' => $duration, 'timeErrors' => $timeErrors,
             'planningReady' => $ready, 'plans' => $plans, 'selectedMeeting' => $selected, 'candidates' => $candidates,
             'canStart' => $user->isAdmin() || $user->hasRbacPermission('calls.start'),
-            'live' => Room::query()->where('type', 'meeting')->accessibleMeetings($user)
-                ->whereIn('status', ['pending', 'active'])->with('owner')->latest('id')->limit(30)->get(),
         ]);
     }
 }

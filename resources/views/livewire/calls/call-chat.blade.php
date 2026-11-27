@@ -26,9 +26,10 @@
             });
         },
     }"
-    x-on:call-chat:scroll-bottom.window="scrollBottom()"
-    x-on:call-chat:older-loaded.window="restoreOlderScroll()"
-    x-on:call-chat:focus-composer.window="$nextTick(() => $refs.composer?.focus())"
+    x-on:call-chat:show-unread="$nextTick(() => scrollToMessage($event.detail.messageId))"
+    x-on:call-chat:scroll-bottom="scrollBottom()"
+    x-on:call-chat:older-loaded="restoreOlderScroll()"
+    x-on:call-chat:focus-composer="$nextTick(() => $refs.composer?.focus())"
     @if($embedded)
         @if($readOnly)
             x-effect="$wire.setVisible(open && tab === 'calls' && showHistory && !showCall && document.visibilityState === 'visible')"
@@ -39,7 +40,9 @@
         @endif
     @endif
 >
-    <div x-ref="transcript" class="scroll-container min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-4">
+    <div x-ref="transcript"
+        @if($embedded && ! $readOnly) x-effect="chatUnreadCount = $wire.unreadCount" @endif
+        class="scroll-container min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-4">
         @if ($hasOlder)
             <div class="mb-4 text-center">
                 <button
@@ -239,6 +242,7 @@
                     class="[&_.rt-chat-composer-action]:h-11 [&_.rt-chat-composer-action]:w-11 [&_.rt-chat-composer-action]:text-rt-muted"
                 />
                 <textarea
+                    wire:key="call-chat-draft-{{ $room->id }}"
                     x-ref="composer"
                     wire:model="messageText"
                     rows="1"

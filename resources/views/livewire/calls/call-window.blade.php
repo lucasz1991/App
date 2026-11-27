@@ -30,6 +30,9 @@
             cameraMissing: @js(__('app.calls_camera_missing')),
             microphoneBusy: @js(__('app.calls_microphone_busy')),
             cameraBusy: @js(__('app.calls_camera_busy')),
+            shareZoom: @js(__('app.calls_share_zoom')),
+            shareFit: @js(__('app.calls_share_fit')),
+            sharePan: @js(__('app.calls_share_pan')),
             recordingPreparing: @js(__('app.calls_recording_preparing')),
             recordingActive: @js(__('app.calls_recording_active')),
             recordingFailed: @js(__('app.calls_recording_failed')),
@@ -154,14 +157,16 @@
             <button
                 type="button"
                 x-on:click="togglePanel('chat', $el)"
-                class="rt-call-header-action inline-flex h-10 w-10 items-center justify-center rounded-xl text-sm text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+                class="relative rt-call-header-action inline-flex h-10 w-10 items-center justify-center rounded-xl text-sm text-white/70 transition-colors hover:bg-white/10 hover:text-white"
                 :class="panelOpen && panelTab === 'chat' ? 'bg-white/10 text-white' : ''"
                 :aria-expanded="(panelOpen && panelTab === 'chat').toString()"
                 aria-controls="rt-call-panel-{{ $room->id }}"
                 title="{{ __('app.calls_chat') }}"
-                aria-label="{{ __('app.calls_chat') }}"
+                :aria-label="chatUnreadCount ? @js(__('app.calls_chat')).concat(', ', @js(__('app.unread_messages')), ' ', chatUnreadCount) : @js(__('app.calls_chat'))"
             >
                 <i class="far fa-comment-dots" aria-hidden="true"></i>
+                <strong x-cloak x-show="chatUnreadCount > 0" x-text="chatUnreadCount > 99 ? '99+' : chatUnreadCount" aria-hidden="true"
+                    class="absolute right-0 top-0 rounded-full bg-rt-accent px-1 text-[10px] leading-4 text-white"></strong>
             </button>
 
             <button
@@ -387,6 +392,10 @@
                     x-ref="selfPreview"
                     id="rt-self-preview-{{ $room->uuid }}"
                     x-on:pointerdown="startSelfPreviewDrag($event)"
+                    x-on:keydown.self="moveSelfPreviewWithKey($event)"
+                    tabindex="0"
+                    aria-keyshortcuts="Home ArrowUp ArrowDown ArrowLeft ArrowRight"
+                    aria-describedby="rt-preview-keys-{{ $room->uuid }}"
                     x-bind:data-dragging="selfPreviewDragging.toString()"
                     :style="selfPreviewStyle"
                     class="rt-call-self-preview pointer-events-auto absolute left-0 top-0 z-30 touch-none cursor-grab overflow-hidden rounded-2xl bg-black/70 shadow-2xl ring-1 ring-white/20 focus-within:ring-2 focus-within:ring-white/70 active:cursor-grabbing"
@@ -410,6 +419,7 @@
                 </div>
                 </div>
 
+                <span id="rt-preview-keys-{{ $room->uuid }}" class="sr-only">{{ __('app.calls_preview_keys') }}</span>
                 <div x-cloak x-show.important="selfVideoVisible && selfPreviewMinimized" class="pointer-events-none absolute inset-0 z-30">
                 <button
                     type="button"
@@ -449,8 +459,8 @@
                         <i class="far fa-times" aria-hidden="true"></i>
                     </button>
                 </div>
-                <x-operations.panel.tabs class="m-2 shrink-0" appearance="surface" model="panelTab" :label="__('app.calls_panel')" :id-prefix="'rt-call-'.$room->id"
-                    :tabs="['participants' => ['label' => __('app.calls_participants'), 'icon' => 'far fa-users'], 'chat' => ['label' => __('app.calls_chat'), 'icon' => 'far fa-comment-dots']]" />
+                <x-operations.panel.tabs class="m-2 shrink-0 [&_.rt-ops-panel__count:empty]:hidden" appearance="surface" model="panelTab" :label="__('app.calls_panel')" :id-prefix="'rt-call-'.$room->id"
+                    :tabs="['participants' => ['label' => __('app.calls_participants'), 'icon' => 'far fa-users'], 'chat' => ['label' => __('app.calls_chat'), 'icon' => 'far fa-comment-dots', 'countExpression' => "chatUnreadCount || ''"]]" />
 
                 <div id="rt-call-{{ $room->id }}-panel-participants" aria-labelledby="rt-call-{{ $room->id }}-tab-participants" x-show="panelTab === 'participants'" class="scroll-container min-h-0 flex-1 overflow-y-auto p-3" role="tabpanel">
                     <p class="px-1 pb-2 text-[10px] font-bold uppercase tracking-[0.1em] text-rt-muted dark:text-rt-dark-muted">

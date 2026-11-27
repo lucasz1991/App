@@ -91,6 +91,7 @@
 }
 
 .rt-call-window .rt-call-stage {
+    container-type: size;
     min-width: 0;
     padding: 12px !important;
 }
@@ -103,6 +104,75 @@
 .rt-call-window .rt-call-grid > .rt-call-tile {
     border: 1px solid var(--call-border);
     box-shadow: none;
+}
+
+.rt-call-video-viewport {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+}
+
+.rt-call-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.rt-call-tile--share .rt-call-video {
+    object-fit: contain;
+}
+
+.rt-call-tile--share:not(.rt-call-tile--local) {
+    background: var(--call-canvas);
+}
+
+.rt-call-tile--share:not(.rt-call-tile--local) .rt-call-video-viewport {
+    bottom: 44px;
+}
+
+.rt-call-share-zoom {
+    display: none;
+}
+
+.rt-call-tile--share .rt-call-share-zoom {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    padding: 0 12px;
+    color: white;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.rt-call-tile--share:not(.rt-call-tile--local) > span {
+    left: auto !important;
+    right: 8px;
+    max-width: calc(100% - 112px) !important;
+}
+
+.rt-call-tile--zoomed .rt-call-video-viewport {
+    container-type: size;
+    display: grid;
+    place-items: safe center;
+    overflow: auto;
+    overscroll-behavior: contain;
+    cursor: grab;
+}
+
+.rt-call-tile--zoomed .rt-call-video-viewport:active {
+    cursor: grabbing;
+}
+
+.rt-call-tile--zoomed .rt-call-video {
+    display: block;
+    width: 200%;
+    width: min(200cqw, calc(200cqh * var(--rt-share-aspect, 1.7778)));
+    max-width: none;
+    height: auto;
+    pointer-events: none;
 }
 
 .rt-call-window .rt-call-state {
