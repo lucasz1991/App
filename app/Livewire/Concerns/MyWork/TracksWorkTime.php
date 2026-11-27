@@ -70,7 +70,7 @@ trait TracksWorkTime
         if ($this->dayReviewId === $entryId) {
             $this->dayReviewId = null;
         }
-        session()->flash('operations.saved', 'Tagesbeleg bestätigt und zur Prüfung eingereicht.');
+        $this->dispatch('work-time-day-submitted', workspace: $this->getId());
     }
 
     private function pendingDayReview(): ?WorkTimeEntry
@@ -191,19 +191,22 @@ trait TracksWorkTime
         $this->dispatch('personal-time-period-applied');
     }
 
-    public function showTimeFilter(string $filter): void
+    public function showTimeFilter(string $filter, bool $focusFilter = true): void
     {
         $this->access();
         abort_unless(array_key_exists($filter, self::TIME_FILTERS), 404);
         $this->timeFilter = $filter;
         $this->resetPage('timesPage');
+        if ($focusFilter) {
+            $this->dispatch('personal-time-status-applied');
+        }
     }
 
     public function openCurrentTimeIssues(): void
     {
         $this->showTab('time');
         $this->setCurrentTimePeriod();
-        $this->showTimeFilter('all');
+        $this->showTimeFilter('all', focusFilter: false);
         $this->dispatch('personal-time-issues-opened');
     }
 

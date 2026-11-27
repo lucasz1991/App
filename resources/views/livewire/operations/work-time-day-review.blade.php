@@ -1,4 +1,5 @@
-<section class="rt-day-review" aria-labelledby="day-review-{{ $entryId }}">
+<section class="rt-day-review" aria-labelledby="day-review-{{ $entryId }}" x-data="{}"
+    x-on:day-review-edit-finished="$nextTick(() => $refs.editButton?.focus())">
     @if($confirmed)
         <p id="day-review-{{ $entryId }}" role="status">Tagesbeleg bestätigt und zur Prüfung eingereicht.</p>
     @else
@@ -43,16 +44,18 @@
             @endif
         @endif
         @if($errors->any())
-            <p class="rt-day-review__notice" role="alert">{{ $errors->first() }}</p>
+            <p class="rt-day-review__notice" id="day-review-error-{{ $entryId }}" role="alert" tabindex="-1"
+                x-init="$nextTick(() => $el.focus())">{{ $errors->first() }}</p>
         @endif
         @if($editing)
-            <form wire:submit="apply" class="rt-day-review__editor">
-                <h3>Zuordnung ändern</h3>
+            <form wire:submit="apply" class="rt-day-review__editor" aria-labelledby="day-review-edit-{{ $entryId }}"
+                @if($errors->any()) aria-describedby="day-review-error-{{ $entryId }}" @endif>
+                <h3 id="day-review-edit-{{ $entryId }}" tabindex="-1" x-init="$nextTick(() => $el.focus())">Zuordnung ändern</h3>
                 @foreach($summary['duties'] as $duty)
                     @php($id = $duty['assignment_id'])
                     <fieldset wire:key="assignment-{{ $entryId }}-{{ $id }}">
                         <legend>{{ $duty['title'] }}</legend>
-                        <label><input type="checkbox" wire:model.live="fields.{{ $id }}.performed"> Dienst geleistet</label>
+                        <label class="rt-day-review__performed"><input type="checkbox" wire:model.live="fields.{{ $id }}.performed"> Dienst geleistet</label>
                         @if($fields[$id]['performed'] ?? false)
                             <div class="rt-day-review__inputs">
                                 <label>Dienstbeginn<input type="datetime-local" step="1" required wire:model="fields.{{ $id }}.starts_at"></label>
@@ -71,7 +74,7 @@
         @else
             <div class="rt-day-review__actions">
                 @if($summary['duties'])
-                    <x-ui.buttons.button-basic type="button" wire:click="edit">Zuordnung ändern</x-ui.buttons.button-basic>
+                    <x-ui.buttons.button-basic type="button" x-ref="editButton" wire:click="edit">Zuordnung ändern</x-ui.buttons.button-basic>
                 @endif
                 <x-ui.buttons.button-basic type="button" mode="primary" wire:click="confirm" :disabled="(bool)$summary['issue']" wire:loading.attr="disabled">Tagesbeleg bestätigen</x-ui.buttons.button-basic>
             </div>
@@ -80,7 +83,7 @@
 </section>
 @assets
 <style>
-.rt-day-review{--day-rule:var(--rt-border,#cbd5df);--day-accent:#96243d;color:inherit;display:grid;gap:1rem;min-width:0}
+.rt-day-review{--day-rule:var(--rt-border,#cbd5df);--day-accent:#96243d;color:inherit;display:grid;grid-template-columns:minmax(0,1fr);gap:1rem;min-width:0;overflow-wrap:anywhere}
 .rt-day-review__heading p,.rt-day-review__caption{margin:0 0 .2rem;color:inherit;opacity:.8;font-size:.875rem}
 .rt-day-review h2,.rt-day-review h3,.rt-day-review legend{font-weight:650;margin:0;line-height:1.25}
 .rt-day-review h2{font-size:1.4rem}.rt-day-review__totals{display:grid;grid-template-columns:minmax(8rem,.7fr) minmax(12rem,1.3fr);gap:1.5rem;align-items:start}
@@ -92,6 +95,9 @@
 .rt-day-review dd{font-weight:600;margin:0;text-align:right}.rt-day-review__actions{display:flex;justify-content:flex-end;gap:.65rem;flex-wrap:wrap}
 .rt-day-review__editor{display:grid;gap:.85rem}.rt-day-review__editor fieldset{padding:.7rem .9rem;border:1px solid var(--day-rule);border-radius:.5rem;min-width:0}
 .rt-day-review__editor legend{padding:0 .25rem}.rt-day-review__inputs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem;margin-top:.5rem}
+.rt-day-review__split dt{min-width:0}.rt-day-review__split dd{flex-shrink:0;white-space:nowrap}
+.rt-day-review__performed{display:flex;align-items:center;gap:.5rem;width:fit-content;min-height:44px;cursor:pointer}
+.rt-day-review [tabindex="-1"],.rt-day-review__actions button{scroll-margin-block:5rem}
 .rt-day-review__inputs label{display:grid;gap:.2rem;font-size:.875rem}.rt-day-review input[type=datetime-local]{width:100%;min-width:0;min-height:2.75rem;background:transparent;border:1px solid var(--day-rule);border-radius:.375rem;padding:.45rem;color:inherit}
 .rt-day-review__notice{border-inline-start:3px solid #ab7130;padding-inline-start:.7rem}
 @media(max-width:640px){.rt-day-review__totals,.rt-day-review__inputs{grid-template-columns:1fr;gap:.75rem}.rt-day-review__actions>*{width:100%;min-height:44px}}

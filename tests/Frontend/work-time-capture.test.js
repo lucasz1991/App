@@ -128,8 +128,14 @@ async function captureRuntime(t, { realSync = false } = {}) {
     let savedState = null;
     let sequence = 0;
     const store = { rows: async () => rows, state: async () => savedState, sequence: async () => sequence,
-        saveState: async (_scope, state, nextSequence) => { savedState = state; sequence = Math.max(sequence, nextSequence); },
-        remove: async id => rows.splice(rows.findIndex(row => row.id === id), 1), close: () => {},
+        saveState: async (_scope, state, nextSequence, settledIds = []) => {
+            savedState = state;
+            sequence = Math.max(sequence, nextSequence);
+            for (const id of settledIds) {
+                const index = rows.findIndex(row => row.id === id);
+                if (index !== -1) rows.splice(index, 1);
+            }
+        }, close: () => {},
         append: async row => { rows.push(row); sequence = row.sequence; },
         update: async row => { rows[rows.findIndex(existing => existing.id === row.id)] = row; } };
     CaptureStore.open = async () => store;
@@ -186,6 +192,66 @@ test('offline projection exposes pending work and only links directly to a singl
     assert.equal(component.conflicts, 2);
     assert.equal(component.conflictEventKey, null);
     assert.equal(component.conflictReason, '');
+});
+
+test('a failed refresh never displays a successful transfer and a retry clears the connection warning', async t => {
+    const runtime = await captureRuntime(t, { realSync: true });
+    runtime.respond(async () => { throw new TypeError('Connection lost'); });
+    await runtime.component.sync();
+    assert.notEqual(runtime.component.transferStatus(), 'Synchronisiert');
+    assert.match(runtime.component.error, /Verbindung/);
+    runtime.respond(null);
+    await runtime.component.sync();
+    assert.equal(runtime.component.transferStatus(), 'Synchronisiert');
+    assert.equal(runtime.component.error, '');
+});
+
+test('the paused duration stays fixed when sub-second starts fall just below a minute boundary', async t => {
+    const { component } = await captureRuntime(t);
+    component.active = { starts_at: '2026-11-27T08:00:00.900Z', paused_at: '2026-11-27T08:02:00.100Z', pause_seconds: 60 };
+    for (const instant of ['08:05:00.000', '08:05:00.500', '08:15:09.999']) {
+        component.now = Date.parse('2026-11-27T' + instant + 'Z');
+        assert.equal(component.elapsed(), '0:00');
+    }
+});
+
+test('an accepted clock start stays visible when the response to the final state refresh is lost', async t => {
+    const runtime = await captureRuntime(t, { realSync: true });
+    runtime.browserNavigator.onLine = false;
+    await runtime.component.capture({ action: 'start_day' });
+    const expected = runtime.component.active.capture_id;
+    runtime.browserNavigator.onLine = true;
+    let accepted = false;
+    runtime.respond(async (url, payload) => {
+        if (url === '/capture/sync') {
+            accepted = true;
+            return runtime.response({ results: [{ event_key: payload.events[0].event_key, status: 'accepted', entry_id: 9, revision: 1 }] });
+        }
+        if (accepted) throw new TypeError('Connection lost');
+        return runtime.response({ actor_id: 1, device_id: 'device-one', active: null, last_sequence: 0, receipts: [] });
+    });
+    await runtime.component.sync();
+    assert.equal(accepted, true);
+    assert.equal(runtime.rows.length, 0);
+    assert.equal(runtime.component.active?.capture_id, expected);
+    assert.equal(runtime.component.active?.status, 'running');
+});
+
+test('a delayed stop cannot stop the next clock and parallel pause clicks create only one event', async t => {
+    const runtime = await captureRuntime(t);
+    runtime.browserNavigator.onLine = false;
+    const running = { capture_id: 'current', revision: 1, status: 'running', starts_at: new Date().toISOString(), timezone: 'Europe/Berlin' };
+    await runtime.store.saveState(runtime.component.scope, await encryptCapture(runtime.key, { active: running }), 0);
+    runtime.component.active = { ...running, capture_id: 'previous' };
+    await runtime.component.capture({ action: 'stop' });
+    assert.equal(runtime.rows.length, 0);
+    assert.equal(runtime.component.active.capture_id, 'current');
+
+    await runtime.component.capture({ action: 'pause' });
+    runtime.component.active = running; // another tab still shows the old pause button
+    await runtime.component.capture({ action: 'pause' });
+    assert.equal(runtime.rows.length, 1);
+    assert.equal(runtime.component.active.status, 'paused');
 });
 
 test('BFCache return reboots the same account securely without reloading or losing form state', async t => {

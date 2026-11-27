@@ -58,3 +58,8 @@
     .rt-activity-dialog__inner { padding: .85rem 1rem max(1rem, env(safe-area-inset-bottom)); }
     .rt-activity-dialog__inner::before { content: ''; width: 2.4rem; height: .23rem; background: var(--rt-act-line); border-radius: .2rem; align-self: center; flex: none; }
 }
+@media (max-height: 25rem) {
+    .rt-activity-dialog { overflow-y: auto; overscroll-behavior: contain; }
+    .rt-activity-dialog__inner { max-height: none; }
+    .rt-activity-dialog__options { overflow: visible; }
+}

@@ -112,15 +112,27 @@ html.dark .rt-day-clock[data-clock-state="running"] .rt-day-clock__running .rt-d
 .rt-day-clock__more { margin-top: 12px; }
 .rt-day-clock .rt-ui-button { min-height: 44px; white-space: normal; }
 .rt-day-clock[data-clock-state="running"] .rt-day-clock__duty-start:not(:disabled) { color: #fff; background: var(--personal-signal); border-color: var(--personal-signal); }
+html.dark .rt-personal-work .rt-day-clock[data-clock-state="running"] .rt-day-clock__duty-start:not(:disabled) {
+    color: #2d1720 !important;
+    background: var(--personal-signal) !important;
+    border-color: var(--personal-signal) !important;
+}
 .rt-day-clock .rt-clock-more > summary { color: var(--personal-muted); }
 .rt-day-clock .ops-errors { margin-block-end: 12px; }
 .rt-day-clock .rt-clock-conflict { margin-block-end: 12px; }
 @media (max-width: 600px) {
-    .rt-day-clock__start { display: grid; gap: 12px; }
+    .rt-day-clock__start { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
     .rt-day-clock__start > button { width: 100%; }
     .rt-day-clock__duty { grid-template-columns: 22px minmax(0, 1fr); align-items: start; }
     .rt-day-clock__duty > :nth-child(3) { grid-column: 2; }
     .rt-day-clock__duty-start { width: 100%; }
     .rt-day-clock__duration { font-size: 34px; }
-    .rt-day-clock__more { gap: 4px 10px; }
+    .rt-day-clock__more { position: relative; gap: 4px 10px; }
+    .rt-day-clock__more .rt-clock-more { position: static; }
+    .rt-day-clock__more .rt-clock-more__menu {
+        right: auto;
+        inset-inline-start: 0;
+        min-width: min(260px, 100%);
+        max-width: 100%;
+    }
 }

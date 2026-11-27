@@ -2,6 +2,10 @@
 <div class="rt-personal-clock-block ops-stack">
     @if($workTimeReady)
         @include('operations.partials.work-clock', ['compactMobileClock' => $compactMobileClock ?? false, 'compactActionClock' => $compactActionClock ?? false])
+        <p x-data="{ submitted: false }" x-show="submitted" x-cloak role="status" tabindex="-1"
+            x-on:work-time-day-submitted.window="if ($event.detail.workspace === $el.closest('[data-personal-workspace]')?.getAttribute('wire:id')) { submitted = true; $nextTick(() => $el.focus()) }"
+            x-on:work-time-day-opened.window="submitted = false"
+            x-on:worktime-synced.window="submitted = false">Tagesbeleg bestätigt und zur Prüfung eingereicht.</p>
         @if(isset($dayReviewEntry))
             <div id="personal-day-review" tabindex="-1" x-on:work-time-day-opened.window="$nextTick(() => $el.focus())">
                 <livewire:operations.work-time-day-review :entry-id="$dayReviewEntry->id" :key="'day-review-'.$tab.'-'.$dayReviewEntry->id.'-'.$dayReviewEntry->revision" />

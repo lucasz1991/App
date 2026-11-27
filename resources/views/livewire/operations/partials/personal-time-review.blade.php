@@ -4,7 +4,9 @@
 <div class="rt-time-review" x-data data-personal-time-review>
     <header class="rt-time-review__heading">
         <h2>Meine Zeiten</h2>
-        <details class="rt-time-review__export">
+        <details class="rt-time-review__export"
+            x-on:click.outside="$el.open = false"
+            x-on:keydown.escape="if ($el.open) { $event.stopPropagation(); $el.open = false; $el.querySelector('summary').focus() }">
             <summary><i class="far fa-download" aria-hidden="true"></i> Export</summary>
             <div>
                 <p class="rt-time-entry__meta">{{ $periodCaption }} · alle Status</p>
@@ -64,7 +66,8 @@
                 @endforeach
             </section>
         @endif
-        <div class="rt-time-review__filters">
+        <div class="rt-time-review__filters"
+            x-on:personal-time-status-applied.window="$nextTick(() => { if (document.activeElement === document.body) $el.querySelector('#personal-time-status')?.focus({preventScroll:true}) })">
             <h3>Zeitmeldungen</h3>
             <div class="rt-time-review__status" wire:key="time-status-{{ $timeFilter }}">
                 <x-ui.forms.label for="personal-time-status" value="Status" class="sr-only"/>
@@ -73,6 +76,7 @@
                 </x-ui.forms.select>
             </div>
             <details class="rt-time-review__period" @if($errors->has('timePeriod.*')) open @endif
+                x-on:keydown.escape="if ($el.open) { $event.preventDefault(); $event.stopPropagation(); $el.open = false; $el.querySelector('summary').focus(); $wire.cancelTimePeriod() }"
                 x-on:personal-time-period-applied.window="$el.open = false; $el.querySelector('summary').focus()">
                 <summary><i class="far fa-calendar" aria-hidden="true"></i> {{ $periodCaption }}</summary>
                 <form wire:submit="applyTimePeriod" class="rt-time-review__period-form">

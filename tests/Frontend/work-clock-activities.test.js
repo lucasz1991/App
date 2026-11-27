@@ -24,6 +24,7 @@ test('a search choice captures exactly once and an outdated correction cannot af
     const picker = workClockActivities(labels);
     const saved = [];
     picker.$refs = { activityDialog: { open: true, close() { this.open = false; } } };
+    picker.$nextTick = () => {};
     picker.ready = true;
     picker.active = { capture_id: 'a', revision: 2, status: 'running', kind: 'driving' };
     picker.openedEntry = 'a';
@@ -40,6 +41,24 @@ test('a search choice captures exactly once and an outdated correction cannot af
     await picker.chooseActivity('waiting');
     assert.equal(saved.length, 1);
     assert.match(picker.error, /erneut auswählen/);
+});
+
+test('booking restores lost focus to the picker without moving it away from another control', async () => {
+    const picker = workClockActivities(labels);
+    const body = {};
+    const page = { body, activeElement: body };
+    const trigger = { getClientRects: () => [1], focus: () => { page.activeElement = trigger; } };
+    picker.$refs = { activityDialog: { open: false, ownerDocument: page }, activityPicker: trigger };
+    picker.$nextTick = callback => callback();
+    picker.ready = true;
+    picker.active = { capture_id: 'a', revision: 2, status: 'running', kind: 'driving' };
+    picker.capture = async () => {};
+    await picker.chooseActivity('shunting');
+    assert.equal(page.activeElement, trigger);
+    const other = {};
+    page.activeElement = other;
+    await picker.chooseActivity('shunting');
+    assert.equal(page.activeElement, other);
 });
 
 test('offline corrections and pauses preserve activity times and the original clock', () => {

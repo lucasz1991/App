@@ -43,6 +43,7 @@ export function workClockActivities(labels) {
         async chooseActivity(kind) {
             if (!this.labels[kind] || this.busy || !this.ready || this.conflicts || this.active?.status !== 'running') return;
             const dialog = this.$refs.activityDialog;
+            const trigger = dialog.open && this.correcting ? this.$refs.activityCorrection : this.$refs.activityPicker;
             if (dialog.open && (this.openedEntry !== this.active.capture_id || this.openedRevision !== this.active.revision)) {
                 dialog.close();
                 this.error = 'Die Arbeitsuhr hat sich geändert. Bitte die Tätigkeit erneut auswählen.';
@@ -53,6 +54,12 @@ export function workClockActivities(labels) {
                     ...(dialog.open && this.correcting ? { correct_activity: true } : {}) });
             }
             if (dialog.open) dialog.close();
+            this.$nextTick(() => {
+                const page = dialog.ownerDocument;
+                if (page.activeElement !== page.body || this.active?.status !== 'running') return;
+                const target = trigger && !trigger.disabled && trigger.getClientRects().length ? trigger : this.$refs.activityCurrent;
+                target.focus({ preventScroll: true });
+            });
         },
         moveFocus(direction) {
             const options = [...this.$refs.activityDialog.querySelectorAll('[data-activity-choice]:not(:disabled)')];

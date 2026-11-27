@@ -63,6 +63,7 @@ class WorkTimeDayReview extends Component
     {
         $this->resetValidation();
         $this->editing = false;
+        $this->dispatch('day-review-edit-finished')->self();
     }
 
     public function apply(WorkTimeDayReviewService $service): void

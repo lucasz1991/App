@@ -99,18 +99,12 @@ export class CaptureStore {
         return (await requestValue(tx.objectStore('meta').get(scope)))?.state || null;
     }
 
-    async saveState(scope, state, sequence) {
-        const tx = this.database.transaction('meta', 'readwrite');
+    async saveState(scope, state, sequence, settledIds = []) {
+        const tx = this.database.transaction(settledIds.length ? ['meta', 'events'] : ['meta'], 'readwrite');
         const done = transactionDone(tx);
         const previous = await requestValue(tx.objectStore('meta').get(scope));
         tx.objectStore('meta').put({ ...previous, scope, state, sequence: Math.max(previous?.sequence || 0, sequence) });
-        await done;
-    }
-
-    async remove(id) {
-        const tx = this.database.transaction('events', 'readwrite');
-        const done = transactionDone(tx);
-        tx.objectStore('events').delete(id);
+        for (const id of settledIds) tx.objectStore('events').delete(id);
         await done;
     }
 
@@ -128,7 +122,7 @@ export function workTimeCapture(options) {
     return {
         ready: false, busy: false, syncing: false, offline: !navigator.onLine,
         pending: 0, conflicts: 0, conflictEventKey: null, conflictReason: '', error: '', active: null, context: 'internal', title: '', trainingId: '', startDialogOpen: false,
-        key: null, store: null, device: null, sequence: 0, scope: '', base: null, lastConflictMessage: '',
+        key: null, store: null, device: null, sequence: 0, scope: '', base: null, lastConflictMessage: '', lastSyncError: '',
         _online: null, _offline: null, _pagehide: null, _pageshow: null, _visibility: null, _connection: null,
         _channel: null, _timer: null, _destroyed: false, _generation: 0, _bootstrap: null, _accountBinding: '', now: Date.now(),
 
@@ -166,9 +160,14 @@ export function workTimeCapture(options) {
             this._generation += 1;
             this.key = null;
             this.ready = false;
+            this.base = null;
+            this.active = null;
+            this.pending = 0;
+            this.conflicts = 0;
             this.conflictEventKey = null;
             this.conflictReason = '';
             this.lastConflictMessage = '';
+            this.lastSyncError = '';
             this._bootstrap = null;
         },
 
@@ -268,9 +267,9 @@ export function workTimeCapture(options) {
         assertIdentity(state) {
             if (Number(state.actor_id) !== Number(options.actorId) || this.device && state.device_id !== this.device) {
                 state.key = null;
-                this.key = null;
-                this.ready = false;
+                this.clearKey();
                 const error = new Error('Sitzung geändert. Erneut online anmelden.');
+                this.error = error.message;
                 error.status = 403;
                 throw error;
             }
@@ -310,6 +309,7 @@ export function workTimeCapture(options) {
             const rows = await this.store.rows(scope);
             this.assertCurrent(generation);
             const batches = rows.length ? Array.from({ length: Math.ceil(rows.length / 500) }, (_, i) => rows.slice(i * 500, (i + 1) * 500)) : [[]];
+            const settledIds = [];
             let state;
             for (const batch of batches) {
                 this.assertCurrent(generation);
@@ -322,7 +322,7 @@ export function workTimeCapture(options) {
                     this.assertCurrent(generation);
                     const row = batch.find(item => item.id === result.event_key);
                     if (!row) continue;
-                    if (['accepted', 'reviewed'].includes(result.status)) await this.store.remove(row.id);
+                    if (['accepted', 'reviewed'].includes(result.status)) settledIds.push(row.id);
                     else if (result.status === 'conflict' && row.status !== 'conflict') {
                         const event = await decryptCapture(key, row);
                         const encrypted = await encryptCapture(key, { ...event, conflict_reason: result.reason });
@@ -336,14 +336,15 @@ export function workTimeCapture(options) {
             this.assertCurrent(generation);
             this.base = state.active;
             this.sequence = sequence;
-            await this.store.saveState(scope, encrypted, sequence);
+            await this.store.saveState(scope, encrypted, sequence, settledIds);
         },
 
         transferStatus() {
             const parts = [];
             if (this.offline) parts.push('Offline');
-            if (!this.ready) parts.push('Online-Anmeldung erforderlich');
+            if (!this.ready) parts.push(this._bootstrap ? 'Arbeitsuhr wird geladen' : 'Online-Anmeldung erforderlich');
             else if (this.syncing) parts.push('Übertragung läuft');
+            else if (this.lastSyncError && !this.offline) parts.push('Synchronisation ausstehend');
             if (this.pending) parts.push(this.pending + ' ausstehend');
             if (this.conflicts) parts.push(this.conflicts === 1 ? '1 Konflikt' : this.conflicts + ' Konflikte');
             return parts.length ? parts.join(' · ') : 'Synchronisiert';
@@ -351,9 +352,9 @@ export function workTimeCapture(options) {
 
         elapsed() {
             if (!this.active) return '0:00';
-            const end = Date.parse(this.active.ends_at || '') || this.now;
-            const pause = (this.active.pause_seconds || 0) + (this.active.paused_at ? Math.max(0, Math.floor((end - Date.parse(this.active.paused_at)) / 1000)) : 0);
-            const seconds = Math.max(0, Math.floor((end - Date.parse(this.active.starts_at)) / 1000) - pause);
+            const stoppedAt = this.active.paused_at || this.active.ends_at;
+            const end = stoppedAt ? Date.parse(stoppedAt) : this.now;
+            const seconds = Math.max(0, Math.floor((end - Date.parse(this.active.starts_at)) / 1000) - (this.active.pause_seconds || 0));
             return Math.floor(seconds / 3600) + ':' + String(Math.floor(seconds / 60) % 60).padStart(2, '0');
         },
 
@@ -369,6 +370,7 @@ export function workTimeCapture(options) {
         async capture(detail) {
             if (!this.ready || !this.key || this.busy || this.conflicts) return;
             const generation = this._generation, key = this.key, scope = this.scope;
+            const displayedClockId = this.active?.capture_id;
             const intendedDutyClock = detail.action === 'start_duty' && this.active && ['running', 'paused'].includes(this.active.status)
                 ? this.active.capture_id : null;
             this.busy = true;
@@ -388,6 +390,12 @@ export function workTimeCapture(options) {
                     this.assertCurrent(generation);
                     const activeClock = this.active && ['running', 'paused'].includes(this.active.status);
                     let action = detail.action;
+                    if (['pause', 'resume', 'stop'].includes(action)) {
+                        if (!activeClock || displayedClockId && this.active.capture_id !== displayedClockId) {
+                            throw new Error('Die Arbeitsuhr hat sich geändert. Bitte den aktuellen Stand prüfen.');
+                        }
+                        if (action === 'pause' && this.active.status === 'paused' || action === 'resume' && this.active.status === 'running') return;
+                    }
                     if (action === 'start_duty' && (activeClock || intendedDutyClock)) action = 'attach_duty';
                     if (action === 'attach_duty') {
                         if (!activeClock) throw new Error('Die Arbeitszeit ist bereits beendet.');
@@ -467,14 +475,19 @@ export function workTimeCapture(options) {
                     this.assertCurrent(generation);
                     const response = await this.post(options.syncUrl, { device_id: device, events });
                     this.assertCurrent(generation);
+                    let confirmedState = this.base;
+                    const settledIds = [];
                     for (const result of response.results) {
                         this.assertCurrent(generation);
                         const row = rows.find(item => item.id === result.event_key);
                         if (!row) continue;
                         if (result.status === 'accepted') {
                             const event = events.find(item => item.event_key === result.event_key);
-                            this.base = { ...projectCapture(this.base, event), id: result.entry_id, revision: result.revision };
-                            await this.store.remove(row.id);
+                            const projected = projectCapture(confirmedState, event);
+                            if (projected && projected !== confirmedState) {
+                                confirmedState = { ...projected, id: result.entry_id, revision: result.revision };
+                            }
+                            settledIds.push(row.id);
                         } else if (result.status === 'conflict') {
                             const event = events.find(item => item.event_key === result.event_key);
                             const encrypted = await encryptCapture(key, { ...event, conflict_reason: result.reason });
@@ -484,6 +497,12 @@ export function workTimeCapture(options) {
                             this.error = this.lastConflictMessage;
                         }
                     }
+                    if (settledIds.length) {
+                        const encrypted = await encryptCapture(key, { active: confirmedState });
+                        this.assertCurrent(generation);
+                        await this.store.saveState(scope, encrypted, this.sequence, settledIds);
+                        this.base = confirmedState;
+                    }
                     if (response.results.some(result => result.status === 'awaiting') || response.results.every(result => !['accepted', 'conflict', 'reviewed'].includes(result.status))) break;
                     }
                     await this.refreshState(generation);
@@ -492,11 +511,15 @@ export function workTimeCapture(options) {
                 });
                 await this.restore(generation);
                 this.assertCurrent(generation);
+                this.offline = !navigator.onLine;
+                if (this.lastSyncError && this.error === this.lastSyncError) this.error = '';
+                this.lastSyncError = '';
                 window.dispatchEvent(new CustomEvent('worktime-synced'));
             } catch (error) {
                 if (error.interrupted || generation !== this._generation) return;
                 this.offline = !navigator.onLine;
                 this.error = navigator.onLine ? (error.status ? error.message : 'Verbindung unterbrochen. Ereignisse bleiben gespeichert.') : '';
+                this.lastSyncError = this.error;
                 if (this.key) {
                     try { await this.restore(generation); }
                     catch (restoreError) { if (!restoreError.interrupted) this.error = 'Gespeicherte Erfassungen konnten nicht geladen werden.'; }

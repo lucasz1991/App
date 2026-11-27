@@ -1,5 +1,5 @@
 @php($clockKinds = \Illuminate\Support\Arr::except(\App\Services\Operations\WorkTimeActivityService::KINDS, ['break']))
-<div class="rt-clock-activities" x-data="rtWorkClockActivities(@js($clockKinds))" x-id="['activity-dialog-title', 'activity-search']"
+<div class="rt-clock-activities" wire:ignore x-data="rtWorkClockActivities(@js($clockKinds))" x-id="['activity-dialog-title', 'activity-search']"
     x-effect="if (active?.status !== 'running' && $refs.activityDialog?.open) $refs.activityDialog.close()">
     <p class="rt-clock-activities__resume" x-show="active?.status === 'paused' && labels[active?.previous_kind]" x-cloak>
         Weiter mit <strong x-text="labels[active?.previous_kind]"></strong>
@@ -7,18 +7,18 @@
     <div x-show="active?.status === 'running'" x-cloak>
         <span class="rt-clock-activities__caption">Aktuelle Tätigkeit</span>
         <div class="rt-clock-activities__current">
-            <p role="status" aria-live="polite" aria-atomic="true">
+            <p role="status" aria-live="polite" aria-atomic="true" x-ref="activityCurrent" tabindex="-1">
                 <strong x-text="labels[active?.kind] || 'Tätigkeit wählen'"></strong>
                 <span x-show="activityTime" x-text="'seit ' + activityTime"></span>
             </p>
-            <button type="button" class="rt-clock-activities__text" x-show="active?.can_correct_activity" x-cloak
+            <button type="button" class="rt-clock-activities__text" x-ref="activityCorrection" x-show="active?.can_correct_activity" x-cloak
                 :disabled="busy || !ready || conflicts > 0" @click="openActivities(true)">Korrigieren</button>
         </div>
         <div class="rt-clock-activities__quick">
             <template x-for="kind in (quickKinds.length ? quickKinds : recentKinds)" :key="kind">
                 <button type="button" :disabled="busy || !ready || conflicts > 0" @click="chooseActivity(kind)" x-text="labels[kind]"></button>
             </template>
-            <button type="button" class="rt-clock-activities__picker" :disabled="busy || !ready || conflicts > 0"
+            <button type="button" class="rt-clock-activities__picker" x-ref="activityPicker" :disabled="busy || !ready || conflicts > 0"
                 aria-haspopup="dialog" @click="openActivities()"><i class="far fa-search" aria-hidden="true"></i> Alle Tätigkeiten</button>
         </div>
     </div>

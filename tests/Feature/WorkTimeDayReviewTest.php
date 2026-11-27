@@ -80,6 +80,13 @@ class WorkTimeDayReviewTest extends TestCase
         $this->assertSame(28800, $review['net_seconds']);
         $this->assertSame(10800, $review['duties'][0]['seconds']);
         $this->assertSame(18000, $review['standard_seconds']);
+        $listRow = view('components.tables.rows.personal.time-row', [
+            'item' => $entry, 'timeFilterOptions' => ['submitted' => 'Eingereicht'],
+        ])->render();
+        foreach (['Tagesbeleg', 'Zeitanteile ansehen', 'Dienst West', '3:00 h', 'Standardarbeit', '5:00 h'] as $label) {
+            $this->assertStringContainsString($label, $listRow);
+        }
+        $this->assertStringNotContainsString('Interne Arbeit', $listRow);
         $this->assertDatabaseCount('work_time_entries', 1);
         $this->assertSame($review, $entry->revisions()->firstOrFail()->snapshot['plan_snapshot']['day_review']);
         $completeness = app(WorkTimeExtensionService::class)->completeness($this->employee, '2026-11-27', '2026-11-27', $this->employee);

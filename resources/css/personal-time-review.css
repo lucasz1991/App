@@ -35,6 +35,12 @@
 .rt-time-review__legacy { justify-self:start; }
 .rt-time-entry { padding:14px 0; display:grid; gap:10px; }
 .rt-time-entry__main { display:flex; justify-content:space-between; gap:12px; align-items:start; }
+.rt-time-entry__main>div { min-width:0; overflow-wrap:anywhere; }
+.rt-time-entry__shares summary { display:list-item; min-height:0; padding-block:10px; color:var(--personal-signal); }
+.rt-time-entry__shares dl { display:grid; gap:4px; }
+.rt-time-entry__shares dl>div { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; font-size:13px; }
+.rt-time-entry__shares dt { overflow-wrap:anywhere; }
+.rt-time-entry__shares dd { font-variant-numeric:tabular-nums; }
 .rt-time-entry__main h3 { font-size:14px; font-weight:650; }
 .rt-time-entry__meta { color:var(--personal-muted); font-size:12px; line-height:1.6; margin-top:4px; }
 .rt-time-entry__duration { color:var(--personal-ink); white-space:nowrap; font-size:16px; font-weight:700; font-variant-numeric:tabular-nums; }

@@ -1,18 +1,32 @@
 @php
     $entry = $item;
+    $isDay = (bool) ($entry->plan_snapshot['day_clock'] ?? false);
+    $dayReview = in_array($entry->status, ['submitted', 'approved', 'exported'], true)
+        ? ($entry->plan_snapshot['day_review'] ?? null) : null;
     $submitClockAction = '$dispatch(\'work-clock\', '.\Illuminate\Support\Js::from(['action'=>'submit','entry_capture_id'=>$entry->capture_id,'revision'=>$entry->revision,'timezone'=>$entry->timezone]).')';
 @endphp
 <div class="rt-time-entry">
-    <header class="rt-time-entry__main"><div><h3>{{ $entry->plan_snapshot['title'] ?? $entry->contextLabel() }}</h3><p class="rt-time-entry__meta">{{ $entry->starts_at->format('d.m.Y') }} · {{ $entry->contextLabel() }}</p></div><x-operations.status :value="$entry->status" :label="$timeFilterOptions[$entry->status] ?? null" /></header>
+    <header class="rt-time-entry__main"><div><h3>{{ $entry->plan_snapshot['title'] ?? $entry->contextLabel() }}</h3><p class="rt-time-entry__meta">{{ $entry->starts_at->format('d.m.Y') }} · {{ $isDay ? 'Tagesbeleg' : $entry->contextLabel() }}</p></div><x-operations.status :value="$entry->status" :label="$timeFilterOptions[$entry->status] ?? null" /></header>
     <div class="rt-time-entry__main"><p class="rt-time-entry__meta">{{ $entry->starts_at->format('H:i') }} – {{ $entry->ends_at?->format($entry->ends_at?->isSameDay($entry->starts_at) ? 'H:i' : 'd.m. H:i') ?? 'Läuft' }} · {{ intdiv($entry->pause_seconds,60) }} min Pause</p><strong class="rt-time-entry__duration">{{ \App\Support\Operations\OperationsDateTime::duration($entry->netSeconds()) }}</strong></div>
     @if($entry->status === 'returned' && $entry->review_note)<p class="ops-errors">Rückgabe: {{ $entry->review_note }}</p>@endif
     @if($entry->status === 'approved' && $entry->review_note)<p class="rt-time-entry__meta">Prüfvermerk: {{ $entry->review_note }}</p>@endif
+    @if($isDay && $dayReview)
+        <details class="rt-time-entry__shares">
+            <summary>Zeitanteile ansehen</summary>
+            <dl>
+                <div><dt>Standardarbeit</dt><dd>{{ \App\Support\Operations\OperationsDateTime::duration($dayReview['standard_seconds']) }}</dd></div>
+                @foreach($dayReview['duties'] as $duty)
+                    <div><dt>{{ $duty['title'] }}</dt><dd>{{ $duty['performed'] ? \App\Support\Operations\OperationsDateTime::duration($duty['seconds']) : 'Ausgefallen' }}</dd></div>
+                @endforeach
+            </dl>
+        </details>
+    @endif
     <div class="ops-actions">
         @if(in_array($entry->status,['completed','returned']))
             <x-ui.buttons.button-basic wire:click="editTime({{ $entry->id }}, {{ $entry->revision }})">Korrigieren</x-ui.buttons.button-basic>
             @if(\App\Support\Operations\WorkTimeSchema::ready())<x-ui.buttons.button-basic wire:click="openSections({{ $entry->id }})">Arbeitsabschnitte</x-ui.buttons.button-basic>@endif
         @endif
-        @if(($entry->plan_snapshot['day_clock'] ?? false) && in_array($entry->status, ['completed', 'returned'], true))
+        @if($isDay && in_array($entry->status, ['completed', 'returned'], true))
             <x-ui.buttons.button-basic mode="primary" wire:click="openDayReview({{ $entry->id }})">Tagesbeleg prüfen</x-ui.buttons.button-basic>
         @elseif($entry->status === 'completed')
             @if(\App\Support\Operations\WorkTimeSchema::ready() && $entry->capture_id)
