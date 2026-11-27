@@ -8,14 +8,13 @@
     data-rt-overlay-base="200"
     x-data="callRoom({
         roomUuid: @js($room->uuid),
-        prejoin: @js((bool) data_get($room->settings, 'video', true) && ($me?->canPublish() ?? false)),
         tokenUrl: @js(route('calls.token', $room)),
         recordingAcknowledgementUrl: @js(route('calls.recording.acknowledge')),
         recordingPolicyVersion: @js(config('call_recording.policy_version')),
         csrf: @js(csrf_token()),
         selfIdentity: @js(\App\Services\Calls\LiveKitService::identityFor(auth()->user())),
         canPublish: @js($me?->canPublish() ?? false),
-        startWithVideo: @js((bool) data_get($room->settings, 'video', true)),
+        startWithVideo: @js($room->startsWithVideo()),
         qualityPilot: @js($qualityPilot),
         cameraEffectsEnabled: @js((bool) config('livekit.background_effects')),
         waiting: @js($this->waitingFor()),
@@ -50,54 +49,27 @@
     x-on:rt-call-waiting.window="setWaiting($event.detail.waiting)"
     x-on:keydown.escape="if (panelOpen && ! $event.defaultPrevented) { closePanel(); $event.stopPropagation() }"
 >
-    <section x-show="prejoinOpen" x-cloak
+    <section x-show="deviceSettingsOpen" x-cloak
              x-on:keydown.escape.stop.prevent="cancelDeviceSettings()"
              class="flex h-full min-h-0 flex-col overflow-y-auto bg-rt-anthracite p-3 text-white sm:p-6"
              aria-labelledby="rt-call-device-title">
         <div class="mx-auto my-auto w-full max-w-xl space-y-4 rounded-2xl border border-white/15 bg-[#171e29] p-4 sm:p-6">
             <h2 id="rt-call-device-title" tabindex="-1" x-ref="deviceSettingsTitle" class="text-lg font-bold">
-                <span x-show="!configuringDuringCall">{{ __('app.calls_prejoin_title') }}</span>
-                <span x-show="configuringDuringCall">{{ __('app.calls_setup_camera') }}</span>
+                {{ __('app.calls_setup_camera') }}
             </h2>
             @include('livewire.calls.camera-preview')
-            <fieldset x-show="!configuringDuringCall" class="space-y-2 border-t border-white/15 pt-3">
-                <legend class="px-1 text-sm font-semibold">{{ __('app.calls_microphone') }}</legend>
-                <label class="flex min-h-10 items-center gap-2 text-sm">
-                    <input type="checkbox" x-model="startWithMicrophone" x-on:change="if (!startWithMicrophone) stopMicrophoneTest()">
-                    {{ __('app.calls_prejoin_mic_on') }}
-                </label>
-                <div x-show="startWithMicrophone" class="space-y-2">
-                    <div class="flex flex-wrap gap-2">
-                        <select x-model="microphoneId" x-on:change="testMicrophone()"
-                                aria-label="{{ __('app.calls_microphone') }}" class="min-h-11 min-w-0 flex-1 rounded-lg border border-white/25 bg-[#171e29] px-2 text-sm">
-                            <option value="">{{ __('app.calls_prejoin_default_mic') }}</option>
-                            <template x-for="(device, index) in microphones" :key="device.deviceId">
-                                <option :value="device.deviceId" x-text="device.label || (@js(__('app.calls_microphone')) + ' ' + (index + 1))"></option>
-                            </template>
-                        </select>
-                        <button type="button" x-on:click="microphoneTesting ? stopMicrophoneTest() : testMicrophone()" :disabled="microphoneOpening"
-                                class="min-h-11 rounded-lg border border-white/25 px-3 text-sm font-semibold">
-                            <span x-show="!microphoneTesting">{{ __('app.calls_prejoin_test') }}</span>
-                            <span x-show="microphoneTesting">{{ __('app.calls_prejoin_stop') }}</span>
-                        </button>
-                    </div>
-                    <meter x-show="microphoneTesting" min="0" max="100" :value="microphoneLevel" aria-label="{{ __('app.calls_prejoin_level') }}" class="block h-3 w-full"></meter>
-                    <p x-show="microphoneTestError" x-text="microphoneTestError" role="status" class="text-sm text-amber-200"></p>
-                </div>
-            </fieldset>
             <div class="flex flex-wrap justify-end gap-2 border-t border-white/15 pt-3">
                 <button type="button" x-on:click="cancelDeviceSettings()" :disabled="deviceSettingsBusy" class="min-h-11 rounded-lg px-4 text-sm font-semibold">
-                    {{ __('app.calls_prejoin_cancel') }}
+                    {{ __('app.cancel') }}
                 </button>
                 <button type="button" x-on:click="acceptDeviceSettings()" :disabled="deviceSettingsBusy || !cameraPreviewReady || cameraPreviewBusy"
                         class="min-h-11 rounded-lg bg-rt-red px-4 text-sm font-bold text-white disabled:opacity-50">
-                    <span x-show="!configuringDuringCall">{{ $room->type === 'meeting' ? __('app.calls_prejoin_join') : __('app.calls_prejoin_join_call') }}</span>
-                    <span x-show="configuringDuringCall">{{ __('app.calls_prejoin_apply') }}</span>
+                    {{ __('app.calls_camera_apply') }}
                 </button>
             </div>
         </div>
     </section>
-    <div x-show="!prejoinOpen" class="rt-call-layout flex h-full min-h-0 flex-col overflow-hidden bg-rt-anthracite">
+    <div x-show="!deviceSettingsOpen" class="rt-call-layout flex h-full min-h-0 flex-col overflow-hidden bg-rt-anthracite">
 
         {{-- Kopfzeile --}}
         <header class="rt-call-header flex shrink-0 items-center gap-3 px-4 py-3 sm:px-6" :inert="recordingRequiresAcknowledgement"

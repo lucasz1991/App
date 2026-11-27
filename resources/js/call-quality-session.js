@@ -68,7 +68,7 @@ export function callQualitySession(raw, settings = {}, sample = observeMediaQual
         if (applying || component.audioOnly || (uploadMode === 'off' && downloadMode === 'off')) return;
         const down = downloadMode === 'off'
             ? { eligibleSids: new Set(), cappedSids: new Set(), visibleSids: new Set() } : receive.sync(active);
-        const canSend = uploadMode !== 'off' && component.canControlMedia && !component.prejoinOpen
+        const canSend = uploadMode !== 'off' && component.canControlMedia && !component.deviceSettingsOpen
             && !component.cameraBusy && !component.screenShareBusy && !component.profileBusy;
         const actions = policy.evaluate(rows, {
             now: now(),
@@ -90,7 +90,7 @@ export function callQualitySession(raw, settings = {}, sample = observeMediaQual
                 let changed = false;
                 if (!observe) {
                     if (sending) {
-                        if (!component.canControlMedia || component.prejoinOpen || component.profileBusy ||
+                        if (!component.canControlMedia || component.deviceSettingsOpen || component.profileBusy ||
                             component.cameraBusy || component.screenShareBusy) continue;
                         const pub = active.localParticipant.getTrackPublication(action.source);
                         if (!pub?.track || pub.isMuted || pub.trackSid !== action.sid) continue;

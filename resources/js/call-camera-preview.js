@@ -279,7 +279,7 @@ export function callCameraPreview(config, rawRoom, capture = createLocalVideoTra
             const previousOutput = track.mediaStreamTrack;
             const request = revision;
             const current = () => request === revision && this.isActiveRoom(room, connection)
-                && this.canControlMedia && this.cameraOn && !this.prejoinOpen && !this.audioOnly
+                && this.canControlMedia && this.cameraOn && !this.deviceSettingsOpen && !this.audioOnly
                 && !publication.isMuted && participant.getTrackPublication(Track.Source.Camera)?.track === track
                 && sending === previous && !previous?.stopped;
             if (!current() || track.getProcessor?.()

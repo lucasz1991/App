@@ -2236,16 +2236,7 @@ return [
 
     // Profil-Einstellungen
     'calls_setup_camera' => 'Kamera einrichten',
-    'calls_prejoin_title' => 'Geräte vor dem Beitritt prüfen',
-    'calls_prejoin_mic_on' => 'Mit eingeschaltetem Mikrofon beitreten',
-    'calls_prejoin_default_mic' => 'Standardmikrofon',
-    'calls_prejoin_test' => 'Mikrofon testen',
-    'calls_prejoin_stop' => 'Test stoppen',
-    'calls_prejoin_level' => 'Mikrofonpegel',
-    'calls_prejoin_cancel' => 'Abbrechen',
-    'calls_prejoin_join_call' => 'Am Anruf teilnehmen',
-    'calls_prejoin_join' => 'Meeting beitreten',
-    'calls_prejoin_apply' => 'Übernehmen',
+    'calls_camera_apply' => 'Übernehmen',
     'language_hint' => 'Sprache der Oberfläche für dieses Konto.',
     'appearance_hint' => 'Zwischen hellem und dunklem Erscheinungsbild wechseln.',
     'sound_hint' => 'Alle Benachrichtigungs- und Hinweistöne ein- oder ausschalten.',

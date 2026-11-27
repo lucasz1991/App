@@ -44,7 +44,7 @@ export function callQualityControls(raw, labels, pilot) {
             const room = raw(this.room);
             const generation = this.connectionGeneration;
             if (!room || !this.canControlMedia || this.profileBusy || this.cameraBusy || this.audioOnly
-                || this.prejoinOpen || !['auto', 'saver'].includes(profile)
+                || this.deviceSettingsOpen || !['auto', 'saver'].includes(profile)
                 || (!manual && (!this.cameraOn || (profile === 'auto' && this.cameraProfile === 'saver')))) return false;
             if (profile === this.effectiveCameraProfile) {
                 if (manual) this.cameraProfile = profile;

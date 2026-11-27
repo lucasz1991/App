@@ -23,7 +23,7 @@
             </template>
         </select>
     </label>
-    <p x-show="configuringDuringCall" class="text-xs text-slate-300">{{ __('app.calls_camera_preview_paused') }}</p>
+    <p class="text-xs text-slate-300">{{ __('app.calls_camera_preview_paused') }}</p>
     <p x-show="cameraPreviewBusy" role="status" class="text-xs text-slate-300">{{ __('app.calls_camera_preparing') }}</p>
     <div x-show="cameraPreviewMessage" class="space-y-1">
         <p role="status" class="text-sm text-amber-200" x-text="cameraPreviewMessage"></p>

@@ -2236,16 +2236,7 @@ return [
 
     // Profil-Einstellungen
     'calls_setup_camera' => 'Camera setup',
-    'calls_prejoin_title' => 'Check your devices before joining',
-    'calls_prejoin_mic_on' => 'Join with microphone on',
-    'calls_prejoin_default_mic' => 'Default microphone',
-    'calls_prejoin_test' => 'Test microphone',
-    'calls_prejoin_stop' => 'Stop test',
-    'calls_prejoin_level' => 'Microphone level',
-    'calls_prejoin_cancel' => 'Cancel',
-    'calls_prejoin_join_call' => 'Join call',
-    'calls_prejoin_join' => 'Join meeting',
-    'calls_prejoin_apply' => 'Apply',
+    'calls_camera_apply' => 'Apply',
     'language_hint' => 'Interface language for this account.',
     'appearance_hint' => 'Switch between the light and dark appearance.',
     'sound_hint' => 'Turn all notification and feedback sounds on or off.',

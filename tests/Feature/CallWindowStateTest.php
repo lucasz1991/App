@@ -41,6 +41,22 @@ class CallWindowStateTest extends TestCase
         });
     }
 
+    public function test_call_windows_pass_the_rooms_camera_mode_without_a_device_check_at_join(): void
+    {
+        [$host, , $room] = $this->roomWithParticipants();
+        app()->setLocale('de');
+
+        foreach (['call', 'meeting'] as $type) {
+            foreach ([false, true] as $video) {
+                $room->update(['type' => $type, 'settings' => ['video' => $video]]);
+                $window = Livewire::actingAs($host)->test(CallWindow::class, ['room' => $room]);
+                $window->assertSeeHtml('startWithVideo: '.($video ? 'true' : 'false'))
+                    ->assertDontSee('Geräte vor dem Beitritt prüfen')
+                    ->assertDontSee('Am Anruf teilnehmen');
+            }
+        }
+    }
+
     public function test_quality_rollout_resolves_each_direction_for_the_signed_in_participant(): void
     {
         [$host, $guest, $room] = $this->roomWithParticipants();

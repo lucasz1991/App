@@ -13,9 +13,12 @@ const deferred = () => {
 
 class FakeRoom {
     static nextConnect = null;
-    constructor() {
+    constructor(options) {
         this.handlers = new Map();
         this.remoteParticipants = new Map();
+        // LiveKit clones capture settings; reactive proxies at any depth would make joining fail.
+        this.options = structuredClone(options);
+        this.mediaRequests = [];
         this.disconnects = 0;
         this.connectResult = FakeRoom.nextConnect;
         FakeRoom.nextConnect = null;
@@ -29,8 +32,14 @@ class FakeRoom {
             get isMicrophoneEnabled() { return publications.has(Track.Source.Microphone); },
             get isCameraEnabled() { return publications.has(Track.Source.Camera); },
             get isScreenShareEnabled() { return publications.has(Track.Source.ScreenShare); },
-            async setMicrophoneEnabled(enabled) { set(Track.Source.Microphone, enabled); },
-            async setCameraEnabled(enabled) { set(Track.Source.Camera, enabled); },
+            setMicrophoneEnabled: async (enabled, options) => {
+                if (enabled) this.mediaRequests.push({ kind: 'microphone', options: structuredClone(options) });
+                set(Track.Source.Microphone, enabled);
+            },
+            setCameraEnabled: async (enabled, options) => {
+                if (enabled) this.mediaRequests.push({ kind: 'camera', options: structuredClone(options) });
+                set(Track.Source.Camera, enabled);
+            },
             async setScreenShareEnabled(enabled) { set(Track.Source.ScreenShare, enabled); },
         };
     }
@@ -63,6 +72,62 @@ async function fixture({ startWithVideo = false, navigator: navigatorLike, react
     component.requestSession = async () => ({ ok: true, async json() { return { wsUrl: 'fixture', token: 'fixture' }; } });
     return component;
 }
+
+for (const startWithVideo of [true, false]) {
+    test(`opening a ${startWithVideo ? 'video' : 'voice'} call joins immediately using the browser's default devices`, async () => {
+        const component = await fixture({ startWithVideo, reactiveState: true });
+        component.watchViewportShape = () => {};
+        component.openCameraPreview = () => assert.fail('opening a call must not start a preview');
+        await component.init();
+
+        assert.equal(component.connected, true);
+        assert.equal(component.micOn, true);
+        assert.equal(component.cameraOn, startWithVideo);
+        const room = toRaw(component.room);
+        assert.deepEqual(room.mediaRequests.map(request => request.kind), startWithVideo ? ['microphone', 'camera'] : ['microphone']);
+        assert.equal(room.options.audioCaptureDefaults?.deviceId, undefined);
+        assert.equal(room.options.videoCaptureDefaults?.deviceId, undefined);
+        for (const { options } of room.mediaRequests) assert.equal(options?.deviceId, undefined);
+        if (startWithVideo) {
+            const camera = room.mediaRequests.find(request => request.kind === 'camera');
+            assert.ok(room.options.videoCaptureDefaults.resolution.width > 0);
+            assert.deepEqual(camera.options, room.options.videoCaptureDefaults);
+        }
+        await component.disconnect();
+    });
+}
+
+test('cancelling camera settings during a call returns focus and stays in the same room', async () => {
+    const component = await fixture();
+    await component.connect();
+    const room = component.room;
+    let focus = 0;
+    component.openCameraPreview = () => {};
+    component.openCallDeviceSettings({ isConnected: true, focus() { focus++; } });
+    assert.equal(component.deviceSettingsOpen, true);
+    await component.cancelDeviceSettings();
+    assert.equal(component.deviceSettingsOpen, false);
+    assert.equal(focus, 1);
+    assert.equal(component.room, room);
+    assert.equal(component.connected, true);
+    await component.disconnect();
+});
+
+test('a denied camera leaves the video participant connected with a working microphone', async () => {
+    const component = await fixture({ startWithVideo: true });
+    const enableTrack = component.enableTrack.bind(component);
+    component.enableTrack = kind => {
+        if (kind === 'camera') throw new DOMException('Camera denied', 'NotAllowedError');
+        return enableTrack(kind);
+    };
+    component.watchViewportShape = () => {};
+    await component.init();
+    assert.equal(component.connected, true);
+    assert.equal(component.micOn, true);
+    assert.equal(component.cameraOn, false);
+    assert.equal(component.deviceSetupNeeded, true);
+    await component.disconnect();
+});
 
 test('reactive SDK room ownership accepts its proxy and rejects a different native room', async () => {
     const component = await fixture({ reactiveState: true });
