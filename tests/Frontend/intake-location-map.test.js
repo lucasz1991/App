@@ -99,7 +99,7 @@ test('safe fallback without IntersectionObserver enables zoom controls and bound
     f.state.init();
     await flush();
     assert.equal(f.state.status, 'ready');
-    assert.equal(f.calls[0].zoom, 15);
+    assert.equal(f.calls[0].zoom, 11);
     assert.equal(f.calls[0].interactive, true);
 });
 

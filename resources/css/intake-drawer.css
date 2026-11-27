@@ -88,7 +88,7 @@
 .rt-intake-visuals__clock .rt-intake-visuals__time { justify-content: center; margin: 0; text-align: center; }
 .rt-intake-visuals__map-stage { position: relative; flex: 1; min-height: clamp(245px, 32vh, 360px); isolation: isolate; background: var(--intake-inset); }
 .rt-intake-visuals__map-canvas { position: absolute; inset: 0; background: var(--intake-inset); }
-.rt-intake-visuals__map-canvas .leaflet-tooltip { max-width: min(220px, 46vw); white-space: normal; font-weight: 600; text-align: center; }
+.rt-intake-visuals__map-canvas .leaflet-tooltip { width: max-content; max-width: min(260px, 65vw); padding: 4px 9px; white-space: normal; overflow-wrap: anywhere; word-break: normal; color: #182435; background: #fff; font-size: 13px; font-weight: 600; line-height: 1.35; text-align: center; }
 .rt-intake-visuals__map-canvas .rt-live-location-marker { display: grid; place-items: center; width: 36px; height: 36px; color: var(--intake-accent); background: transparent; border: 0; border-radius: 0; box-shadow: none; }
 .rt-intake-visuals__map-canvas .rt-live-location-marker > i { font-size: 30px; }
 .rt-intake-visuals__map-canvas .rt-live-location-marker > i::before { content: '\f3c5'; }

@@ -38,7 +38,7 @@ export function intakeLocationMap(point, { createMap = createLiveLocationMap, wi
                     element: this.$refs.canvas,
                     latitude: Number(point.latitude),
                     longitude: Number(point.longitude),
-                    zoom: [14, 15, 16].includes(point.zoom) ? point.zoom : 15,
+                    zoom: Number.isInteger(point.zoom) && point.zoom >= 1 && point.zoom <= 19 ? point.zoom : 11,
                     interactive: true,
                     markerLabel: point.label,
                     windowLike,

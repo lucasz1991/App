@@ -56,7 +56,7 @@ final class AiIntakeVisualContext
         if (in_array($preview['state'] ?? null, ['located', 'outside'], true)
             && self::coordinates($preview['latitude'] ?? null, $preview['longitude'] ?? null)) {
             $point = ['latitude' => (float) $preview['latitude'], 'longitude' => (float) $preview['longitude'],
-                'zoom' => ($preview['confirmed'] ?? false) ? 16 : 15, 'label' => $location];
+                'label' => $location];
         }
 
         return ['start' => $start, 'end' => $end, 'timeLabel' => $timeLabel, 'timeTitle' => $timeTitle,
