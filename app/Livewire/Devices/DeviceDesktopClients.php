@@ -6,15 +6,24 @@ use App\Enums\DevicePlatform;
 use App\Models\Device;
 use App\Models\DeviceDesktopClient;
 use App\Models\User;
+use App\Services\DeviceManagement\Desktop\DeviceClientReleaseService;
 use App\Services\DeviceManagement\Desktop\DeviceDesktopService;
 use App\Services\DeviceManagement\Desktop\DeviceSoftwareService;
 use App\Services\DeviceManagement\DeviceManagementSettings;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 class DeviceDesktopClients extends Component
 {
+    use WithFileUploads;
+
+    /** Installer der RailTime-App (nur Superadmin). */
+    public $releaseFile = null;
+
+    public string $releaseVersion = '';
+
     public string $devicePublicId = '';
 
     #[Locked]
@@ -113,6 +122,19 @@ class DeviceDesktopClients extends Component
             : 'Office-Vertrauen vorgemerkt. Der Mitarbeiter bestätigt es am Gerät; danach öffnet Excel Dateien aus dem Ordner „RailTime\\Listen“ in seinem Benutzerordner ohne Makrosperre.';
     }
 
+    public function uploadRelease(DeviceClientReleaseService $releases): void
+    {
+        $actor = $this->actor();
+        abort_unless($releases->canManage($actor), 403);
+        $this->validate(['releaseFile' => ['required', 'file', 'max:'.(int) (DeviceClientReleaseService::MAX_BYTES / 1024)], 'releaseVersion' => ['required', 'string', 'max:40']], [
+            'releaseFile.required' => 'Bitte den Installer (.exe) auswählen.',
+            'releaseFile.max' => 'Der Installer darf höchstens 50 MB groß sein.',
+        ]);
+        $release = $releases->store($this->releaseFile->getRealPath(), $this->releaseVersion, $actor);
+        $this->reset('releaseFile', 'releaseVersion');
+        $this->notice = 'Installer '.$release['version'].' freigegeben'.($release['signed'] ? ' (enthält eine Signatur)' : ' (ohne Signatur – Windows warnt beim Start)').'. Mitarbeiter laden ihn unter „Meine Geräte“ herunter.';
+    }
+
     public function revoke(DeviceDesktopService $clients): void
     {
         $this->validate(['revokeConfirmed' => ['accepted']]);
@@ -153,7 +175,11 @@ class DeviceDesktopClients extends Component
             ->with('activeAssignment.user:id,name')->orderBy('display_name')->limit(250)->get();
         $commandsEnabled = app(DeviceManagementSettings::class)->productionCommandsEnabled(fresh: true);
 
-        return view('livewire.devices.device-desktop-clients', compact('clients', 'selected', 'jobs', 'devices', 'commandsEnabled', 'setupBlocked', 'softwareReady'))
+        $releases = app(DeviceClientReleaseService::class);
+        $release = $releases->current();
+        $canManageRelease = $releases->canManage(auth()->user());
+
+        return view('livewire.devices.device-desktop-clients', compact('clients', 'selected', 'jobs', 'devices', 'commandsEnabled', 'setupBlocked', 'softwareReady', 'release', 'canManageRelease'))
             ->layout('layouts.master');
     }
 }

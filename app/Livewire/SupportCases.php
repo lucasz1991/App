@@ -3,6 +3,8 @@
 namespace App\Livewire;
 
 use App\Models\SupportCase;
+use App\Models\SupportRemoteSession;
+use App\Services\DeviceManagement\Desktop\RemoteSupportService;
 use App\Services\Support\SupportAttachmentService;
 use App\Services\Support\SupportCaseService;
 use Illuminate\Support\Facades\Gate;
@@ -89,6 +91,18 @@ class SupportCases extends Component
         $this->replyId = (string) Str::uuid();
     }
 
+    /** Fernwartung anfragen: der Mitarbeiter muss am PC zustimmen. */
+    public function requestRemoteSupport(RemoteSupportService $remote): void
+    {
+        $remote->request($this->selected(), auth()->user());
+    }
+
+    public function endRemoteSupport(string $sessionId, RemoteSupportService $remote): void
+    {
+        $case = $this->selected();
+        $remote->end(SupportRemoteSession::query()->where('public_id', $sessionId)->where('support_case_id', $case->id)->firstOrFail(), auth()->user());
+    }
+
     public function transition(string $status): void
     {
         app(SupportCaseService::class)->transition($this->selected(), auth()->user(), $status);
@@ -113,6 +127,19 @@ class SupportCases extends Component
             ->with(['user', 'device'])->latest('updated_at')->paginate(20);
         $detail = $this->showCase && $this->caseId ? app(SupportCaseService::class)->serialize($this->selected(), $user) : null;
 
-        return view('livewire.support-cases', compact('cases', 'detail', 'canManage'))->layout('layouts.master');
+        // Fernwartung je Fall: nur für IT mit Fernsupport-Recht und nur mit verbundener App auf einem Firmengerät.
+        $remote = null;
+        $remoteService = app(RemoteSupportService::class);
+        if ($detail && $remoteService->ready() && $remoteService->canRequest($user)) {
+            $case = $this->selected();
+            $sessions = $case->sessions()->latest('id')->limit(5)->get();
+            $remote = ['available' => $remoteService->clientFor($case) !== null,
+                'open' => $sessions->contains(fn ($session) => in_array($session->status, ['requested', 'consented'], true) && $session->expires_at->isFuture()),
+                'sessions' => $sessions->map(fn ($session) => ['id' => $session->public_id, 'status' => $session->status,
+                    'created_at' => $session->created_at, 'consented_at' => $session->consented_at, 'ended_at' => $session->ended_at,
+                    'expires_at' => $session->expires_at, 'url' => $remoteService->remoteUrl($session, $user)])->all()];
+        }
+
+        return view('livewire.support-cases', compact('cases', 'detail', 'canManage', 'remote'))->layout('layouts.master');
     }
 }

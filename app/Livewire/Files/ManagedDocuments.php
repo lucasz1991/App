@@ -7,6 +7,7 @@ use App\Models\DeviceTrustCertificate;
 use App\Models\ManagedDocument;
 use App\Models\ManagedDocumentVersion;
 use App\Models\Team;
+use App\Services\DeviceManagement\Desktop\DeviceFileSyncService;
 use App\Services\DeviceManagement\Desktop\DeviceTrustService;
 use App\Services\ManagedDocumentNotifier;
 use App\Support\FileExplorer;
@@ -213,6 +214,21 @@ class ManagedDocuments extends Component
         $this->dispatch('swal:toast', type: 'success', text: __('app.managed_document_version_restored'));
     }
 
+    /** Aktuelle Version auf Firmen-PCs verteilen (Ordner RailTime\Listen). Nur Superadmin, nur gekoppelte Versionen. */
+    public function releaseToDevices(int $documentId): void
+    {
+        Gate::authorize('files.manage');
+        $version = app(DeviceFileSyncService::class)->release(ManagedDocument::findOrFail($documentId), auth()->user());
+        $this->dispatch('swal:toast', type: 'success', text: 'Version '.$version->version_number.' wird auf Firmen-PCs mit Office-Vertrauen abgelegt.');
+    }
+
+    public function withdrawFromDevices(int $documentId): void
+    {
+        Gate::authorize('files.manage');
+        app(DeviceFileSyncService::class)->withdraw(ManagedDocument::findOrFail($documentId), auth()->user());
+        $this->dispatch('swal:toast', type: 'success', text: 'Verteilung beendet. Bereits abgelegte Dateien bleiben auf den PCs.');
+    }
+
     public function toggleActive(int $documentId): void
     {
         Gate::authorize('files.manage');
@@ -345,6 +361,7 @@ class ManagedDocuments extends Component
         $this->normalizeExplorerOptions();
         $trust = app(DeviceTrustService::class);
         $trustReady = $trust->ready();
+        $fileSync = app(DeviceFileSyncService::class);
         $documents = ManagedDocument::query()
             ->with(['currentVersion.file', 'teams'])
             ->when($trustReady, fn ($query) => $query->with('currentVersion.trustCertificates'))
@@ -370,6 +387,8 @@ class ManagedDocuments extends Component
             'trustReady' => $trustReady,
             'canManageTrust' => $trustReady && $trust->canManage(auth()->user()),
             'certificates' => $trustReady ? DeviceTrustCertificate::query()->where('active', true)->orderBy('name')->get(['public_id', 'name', 'thumbprint_sha1', 'valid_until']) : collect(),
+            'fileSyncReady' => $fileSync->ready(),
+            'canReleaseToDevices' => $fileSync->ready() && $fileSync->canRelease(auth()->user()),
         ])->layout('layouts.master', ['area' => 'admin']);
     }
 }

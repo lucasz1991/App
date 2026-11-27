@@ -6,6 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Setting;
 use App\Models\SupportCase;
 use App\Services\DeviceManagement\Desktop\DeviceDesktopService;
+use App\Services\DeviceManagement\Desktop\DeviceFileSyncService;
+use App\Services\DeviceManagement\Desktop\OutlookDesktopPairingService;
+use App\Services\DeviceManagement\Desktop\RemoteSupportService;
 use App\Services\DeviceManagement\DeviceWorkplaceService;
 use App\Services\Support\SupportCaseService;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -94,6 +97,59 @@ final class DeviceDesktopClientController extends Controller
 
                 return $receipt;
             }, requireManagement: false);
+        });
+    }
+
+    /** Die App bestätigt eine Outlook-Kopplung, nachdem der Nutzer am PC zugestimmt hat. */
+    public function confirmPairing(Request $request, DeviceDesktopService $clients): JsonResponse
+    {
+        return $this->respond(function () use ($request, $clients): array {
+            $data = $this->input($request, ['nonce']);
+            abort_unless(is_string($data['nonce'] ?? null), 422);
+
+            $result = $clients->withAuthenticated($request->bearerToken() ?? '',
+                fn ($client): array => app(OutlookDesktopPairingService::class)->confirm($client, $data['nonce']), requireManagement: false);
+            // Fremdes Konto: die Anfrage ist bereits als abgelehnt gespeichert.
+            abort_unless($result['confirmed'] === true, 403);
+
+            return $result;
+        });
+    }
+
+    /** Freigegebene verbindliche Datei für den vertrauenswürdigen Ordner (nur Firmengeräte mit Office-Vertrauen). */
+    public function file(Request $request, string $document, int $version, DeviceDesktopService $clients): mixed
+    {
+        try {
+            // Prüfen unter der Clientsperre; ausgeliefert wird nach dem Ende der Transaktion.
+            $plan = $clients->withAuthenticated($request->bearerToken() ?? '', function ($client, $device) use ($clients): array {
+                $policy = $clients->effectivePolicy($client, $device);
+
+                return [$device, $client->assignment->user, $policy];
+            });
+            [$device, $employee, $policy] = $plan;
+
+            return app(DeviceFileSyncService::class)->download($device, $employee, $policy, $document, $version);
+        } catch (HttpExceptionInterface $exception) {
+            return $this->json(['message' => 'Clientanfrage nicht zugelassen.'], $exception->getStatusCode());
+        } catch (ModelNotFoundException) {
+            return $this->json(['message' => 'Clientanfrage nicht zugelassen.'], 404);
+        } catch (Throwable $exception) {
+            $reference = (string) Str::uuid();
+            Log::error('Desktopclient file request failed.', ['failure_class' => get_class($exception), 'reference' => $reference]);
+
+            return $this->json(['message' => 'Datei konnte nicht sicher ausgeliefert werden.', 'reference' => $reference], 500);
+        }
+    }
+
+    /** Antwort des Mitarbeiters auf eine Fernwartungsanfrage oder das Ende einer Sitzung. */
+    public function remoteSession(Request $request, string $session, DeviceDesktopService $clients): JsonResponse
+    {
+        return $this->respond(function () use ($request, $session, $clients): array {
+            $data = $this->input($request, ['decision']);
+            abort_unless(is_string($data['decision'] ?? null), 422);
+
+            return $clients->withAuthenticated($request->bearerToken() ?? '',
+                fn ($client): array => app(RemoteSupportService::class)->answer($client, $session, $data['decision']));
         });
     }
 

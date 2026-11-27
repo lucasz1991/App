@@ -15,6 +15,7 @@ use App\Http\Controllers\Admin\MarketingFileController;
 use App\Http\Controllers\Admin\MarketingRenderController;
 use App\Http\Controllers\Admin\MarketingVariantController;
 use App\Http\Controllers\Admin\OutlookAddinDeploymentController;
+use App\Http\Controllers\DesktopAppController;
 use App\Http\Controllers\Admin\OutlookUniversalDiagnosticFixtureController;
 use App\Http\Controllers\Admin\OutlookUniversalDraftController;
 use App\Http\Controllers\Admin\PageBuilderPreviewController;
@@ -41,6 +42,7 @@ use App\Http\Controllers\Operations\AiIntakeSourceController;
 use App\Http\Controllers\OperationsEvidenceController;
 use App\Http\Controllers\OperationsTravelReceiptController;
 use App\Http\Controllers\OperationsWorkspaceRedirectController;
+use App\Http\Controllers\OutlookAddin\DesktopPairingPageController;
 use App\Http\Controllers\OutlookAddin\OutlookAddinController;
 use App\Http\Controllers\ProfileEmailTemplateController;
 use App\Http\Controllers\PushSubscriptionController;
@@ -168,6 +170,12 @@ Route::get('/outlook-addin/assets/icon-{size}.png', [OutlookAddinController::cla
 Route::get('/.well-known/microsoft-officeaddins-allowed.json', [OutlookAddinController::class, 'allowed'])
     ->withoutMiddleware(LogActivity::class)
     ->name('outlook-addin.allowed');
+// Brücke vom Add-in zur RailTime-App (railtime-client://pair). Verrät nichts und verbraucht nichts.
+Route::get('/outlook-addin/geraet-koppeln/{nonce}', DesktopPairingPageController::class)
+    ->where('nonce', '[A-Za-z0-9_-]{43}')
+    ->withoutMiddleware(LogActivity::class)
+    ->middleware('throttle:30,1')
+    ->name('outlook-addin.desktop-pairing');
 
 // Legacy-Pfad fuer bereits installierte Manifeste/Service Worker. Auf Servern,
 // die physische Unterordner vor Laravel abfangen, zeigt die Anwendung selbst
@@ -298,6 +306,8 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
     Route::get('/geraete/import-vorlage.csv', DeviceInventoryTemplateController::class)
         ->name('devices.import-template');
     Route::get('/meine-geraete', MyDevices::class)->name('devices.mine');
+    Route::get('/railtime-app', [DesktopAppController::class, 'install'])->name('desktop-app.install');
+    Route::get('/railtime-app/download', [DesktopAppController::class, 'download'])->middleware('throttle:10,1')->name('desktop-app.download');
     Route::get('/geraete/einrichten/{token}', DeviceEnrollmentSetup::class)
         ->where('token', '[A-Za-z0-9_-]{40,128}')
         ->middleware('throttle:10,1')

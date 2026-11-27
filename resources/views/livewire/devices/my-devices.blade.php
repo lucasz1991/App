@@ -16,6 +16,43 @@
             </div>
         </div>
 
+        @if($hasWindows || $release || $desktopClients->isNotEmpty())
+            <section id="railtime-app" class="scroll-mt-24 rounded-2xl border border-rt-border bg-white p-5 shadow-rt-xs dark:border-rt-dark-border dark:bg-rt-dark-surface" aria-labelledby="railtime-app-heading" data-my-devices-desktop-app>
+                <div class="grid gap-4 lg:grid-cols-[auto_1fr_auto] lg:items-start">
+                    <span class="grid h-12 w-12 place-items-center rounded-xl bg-rt-red/10 text-rt-red"><i class="far fa-desktop h-6 w-6 text-xl leading-6 text-center"></i></span>
+                    <div class="min-w-0">
+                        <h2 id="railtime-app-heading" class="text-base font-bold text-rt-text dark:text-rt-dark-text">RailTime-App für Windows</h2>
+                        <p class="mt-1 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">Die App öffnet RailTime wie ein eigenes Programm, richtet freigegebene Programme und das Vertrauen für signierte Listen ein und verbindet Outlook mit diesem PC.</p>
+                        <ol class="mt-3 space-y-1 text-sm text-rt-text dark:text-rt-dark-text">
+                            <li><span class="font-semibold">1.</span> Installer herunterladen und starten.</li>
+                            <li><span class="font-semibold">2.</span> Den Einmalcode der IT in der App eintragen (die IT gibt ihn persönlich weiter).</li>
+                            <li><span class="font-semibold">3.</span> In Outlook unter „RailTime-Einstellungen“ „Diesen PC koppeln“ wählen.</li>
+                        </ol>
+                        @if($desktopClients->isNotEmpty())
+                            <ul class="mt-3 flex flex-wrap gap-2 text-xs">
+                                @foreach($desktopClients as $desktopClient)
+                                    @php $online = $desktopClient->last_seen_at?->gte(now()->subSeconds(\App\Services\DeviceManagement\Desktop\OutlookDesktopPairingService::RUNNING_SECONDS)); @endphp
+                                    <li class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-semibold {{ $online ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300' : 'border-rt-border text-rt-muted dark:border-rt-dark-border dark:text-rt-dark-muted' }}">
+                                        <i class="far {{ $online ? 'fa-check' : 'fa-clock' }} h-3 w-3 text-[11px] leading-3 text-center"></i>
+                                        {{ $desktopClient->device?->display_name ?: $desktopClient->device?->hostname ?: 'PC' }} · {{ $online ? 'App läuft' : 'zuletzt '.($desktopClient->last_seen_at?->diffForHumans() ?? 'noch nie') }}
+                                    </li>
+                                @endforeach
+                            </ul>
+                        @endif
+                    </div>
+                    <div class="flex flex-col gap-2 lg:items-end">
+                        @if($release)
+                            <a href="{{ route('desktop-app.download') }}" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-4 text-sm font-semibold text-white"><i class="far fa-download h-4 w-4 text-sm leading-4 text-center"></i>Installer herunterladen</a>
+                            <p class="text-xs text-rt-muted dark:text-rt-dark-muted">Version {{ $release['version'] }} · {{ number_format($release['size'] / 1048576, 1, ',', '.') }} MB{{ $release['signed'] ? ' · signiert' : '' }}</p>
+                            <p class="max-w-[16rem] break-all font-mono text-[10px] leading-4 text-rt-muted dark:text-rt-dark-muted" title="SHA-256">SHA-256 {{ $release['sha256'] }}</p>
+                        @else
+                            <span class="inline-flex min-h-11 items-center justify-center rounded-xl border border-amber-300 bg-amber-50 px-4 text-sm font-semibold text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">Installer folgt durch die IT</span>
+                        @endif
+                    </div>
+                </div>
+            </section>
+        @endif
+
         @forelse($assignments as $assignment)
             @php
                 $device = $assignment->device;

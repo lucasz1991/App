@@ -42,6 +42,7 @@ import { assertUniversalBundleCompatibility, universalBundleFailureReport, readU
 import { bindAutomaticPreferencesView, createAccountPreferencesSession, normalizeAutomaticPreferences } from './automatic-preferences-view.js';
 import { bindWordingPreferencesView, bindTemplateChoiceView, createAccountOptionsSession,
     normalizeWordingPreferences, normalizeTemplateChoicePreferences } from './account-options-view.js';
+import { startDesktopClientArea } from './desktop-client-view.js';
 
 const CONFIG_META_NAME = 'railtime-outlook-config-url';
 const CONFIG_TIMEOUT_MS = 8000;
@@ -78,6 +79,7 @@ let wordingReady = false;
 let templateChoicesReady = false;
 let insertView;
 let insertFeedbackTimer;
+let desktopClientArea = null;
 // Display evidence only, never cached authorization for another Office write.
 const confirmedInsertions = new WeakMap();
 const universalStatusByItem = new WeakMap();
@@ -292,6 +294,16 @@ function requiredHttpsUrl(value, code) {
     return url.toString();
 }
 
+// Zusätzliche, rein optionale Adressen: ungültig zählt wie fehlend, damit nichts anderes ausfällt.
+function optionalHttpsUrl(value, code) {
+    if (!value) return null;
+    try {
+        return requiredHttpsUrl(value, code);
+    } catch {
+        return null;
+    }
+}
+
 function mailboxAddress() {
     const address = requiredString(
         globalThis.Office?.context?.mailbox?.userProfile?.emailAddress,
@@ -337,9 +349,12 @@ function validateConfig(payload) {
                 ? requiredHttpsUrl(payload.endpoints.accountWording, 'CONFIG_ACCOUNT_WORDING_URL_INVALID') : null,
             accountTemplateChoices: payload.endpoints?.accountTemplateChoices
                 ? requiredHttpsUrl(payload.endpoints.accountTemplateChoices, 'CONFIG_ACCOUNT_CHOICES_URL_INVALID') : null,
+            desktopClient: optionalHttpsUrl(payload.endpoints?.desktopClient, 'CONFIG_DESKTOP_CLIENT_URL_INVALID'),
+            desktopClientPairings: optionalHttpsUrl(payload.endpoints?.desktopClientPairings, 'CONFIG_DESKTOP_CLIENT_PAIRINGS_URL_INVALID'),
         }),
         urls: Object.freeze({ profileSettings: payload.urls?.profileSettings
-            ? requiredHttpsUrl(payload.urls.profileSettings, 'CONFIG_PROFILE_SETTINGS_URL_INVALID') : null }),
+            ? requiredHttpsUrl(payload.urls.profileSettings, 'CONFIG_PROFILE_SETTINGS_URL_INVALID') : null,
+            desktopClientInstall: optionalHttpsUrl(payload.urls?.desktopClientInstall, 'CONFIG_DESKTOP_CLIENT_INSTALL_URL_INVALID') }),
         marker: requiredString(payload.marker, 'CONFIG_MARKER_MISSING'),
     });
 }
@@ -2341,8 +2356,30 @@ async function refreshAccountSettings(allowPopup = false) {
         accountSettingsReady = true;
         lastAccountSettingsRefreshAt = Date.now();
         renderAccountSettings('success', 'Verbunden. Ihre Auswahl gilt für Ihr Firmenkonto auf allen Geräten.');
+        // Unabhängig und nicht abgewartet: der App-Bereich sperrt keine Einstellung.
+        desktopClientArea?.refresh();
     } catch (error) { accountSettingsFailure(error); }
     finally { accountSettingsBusy = false; renderAccountSettings(); }
+}
+
+// Die RailTime-App gibt es nur für Windows; auf Mac und mobil bleibt der Bereich verborgen.
+function isWindowsDesktopHost() {
+    const platform = String(globalThis.Office?.context?.platform || globalThis.Office?.context?.diagnostics?.platform || '');
+    return platform === 'PC' || /Windows/i.test(String(globalThis.navigator?.userAgent || ''));
+}
+
+function startDesktopClient() {
+    try {
+        desktopClientArea = startDesktopClientArea(document, {
+            endpoints: { state: currentConfig?.endpoints.desktopClient, pairings: currentConfig?.endpoints.desktopClientPairings },
+            installUrl: currentConfig?.urls.desktopClientInstall,
+            isMobileHost: () => isMobileComposeHost(globalThis.Office) || !isWindowsDesktopHost(),
+            storage: () => globalThis.localStorage,
+            readMailbox: mailboxAddress,
+            authenticate: allowPopup => acquireAccessToken(currentConfig, allowPopup),
+            request: (url, options) => fetchJson(url, options, API_TIMEOUT_MS),
+        });
+    } catch { desktopClientArea = null; }
 }
 
 async function saveAccountPreference(change) {
@@ -2379,6 +2416,7 @@ async function initializeAccountSettings() {
             request: options => fetchJson(currentConfig.endpoints.accountPreferences, options, API_TIMEOUT_MS),
         });
         configureAccountOptions();
+        startDesktopClient();
     } catch (error) { accountSettingsFailure(error); }
     finally { accountSettingsBusy = false; renderAccountSettings(); }
     if (!accountPreferencesSession) return;

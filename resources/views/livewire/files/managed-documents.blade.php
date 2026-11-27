@@ -116,6 +116,32 @@
                     @if($trustReady && $version && $version->trustCertificates->isNotEmpty())
                         <p class="mt-1 inline-flex items-center gap-1.5 text-xs text-rt-muted dark:text-rt-dark-muted"><i class="far fa-file-certificate text-rt-soft" aria-hidden="true"></i>Signiert mit: {{ $version->trustCertificates->pluck('name')->join(', ') }}</p>
                     @endif
+                    @if($fileSyncReady && ($document->device_release_version_id || $canReleaseToDevices))
+                        @php
+                            $releasedNumber = $document->device_release_version_id ? \App\Models\ManagedDocumentVersion::query()->whereKey($document->device_release_version_id)->value('version_number') : null;
+                            $releaseBlocker = $canReleaseToDevices ? app(\App\Services\DeviceManagement\Desktop\DeviceFileSyncService::class)->blocker($document) : null;
+                        @endphp
+                        <div class="mt-2 flex flex-wrap items-center gap-2 text-xs" data-managed-device-release>
+                            <span class="inline-flex items-center gap-1.5 {{ $releasedNumber ? 'text-emerald-700 dark:text-emerald-300' : 'text-rt-muted dark:text-rt-dark-muted' }}"><i class="far fa-desktop" aria-hidden="true"></i>
+                                @if($releasedNumber)
+                                    Auf Firmen-PCs: Version {{ $releasedNumber }}{{ $version && $releasedNumber !== $version->version_number ? ' – neue Version '.$version->version_number.' noch nicht freigegeben' : '' }}
+                                @else
+                                    Nicht auf Firmen-PCs verteilt
+                                @endif
+                            </span>
+                            @if($canReleaseToDevices)
+                                @if($version && $releasedNumber !== $version->version_number)
+                                    <button type="button" wire:click="releaseToDevices({{ $document->id }})" wire:confirm="Version {{ $version->version_number }} auf allen Firmen-PCs mit Office-Vertrauen im Ordner RailTime\Listen ablegen? Excel führt die Makros dort ohne Sperre aus." @disabled($releaseBlocker !== null) title="{{ $releaseBlocker ?? 'Nur Superadmins' }}" class="rounded-lg border border-rt-border px-2.5 py-1 font-semibold text-rt-text disabled:opacity-50 dark:border-rt-dark-border dark:text-white">Auf Firmen-PCs verteilen</button>
+                                @endif
+                                @if($releasedNumber)
+                                    <button type="button" wire:click="withdrawFromDevices({{ $document->id }})" class="rounded-lg px-2 py-1 font-semibold text-rt-muted underline dark:text-rt-dark-muted">Verteilung beenden</button>
+                                @endif
+                                @if($releaseBlocker && (! $version || $releasedNumber !== $version->version_number))
+                                    <span class="text-rt-muted dark:text-rt-dark-muted">{{ $releaseBlocker }}</span>
+                                @endif
+                            @endif
+                        </div>
+                    @endif
                 </div>
 
                 <div @class(['flex flex-wrap items-center gap-2', 'lg:max-w-md lg:justify-end' => $layout === 'list'])>

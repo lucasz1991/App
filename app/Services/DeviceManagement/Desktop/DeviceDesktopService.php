@@ -129,9 +129,9 @@ final class DeviceDesktopService
     {
         $data = Validator::make($input, [
             'client_version' => ['required', 'string', 'regex:'.self::VERSION_PATTERN],
-            'capabilities' => ['sometimes', 'array', 'max:5'],
-            'capabilities.*' => ['string', 'in:winget_install,notification,'.DeviceSoftwareService::CAPABILITY.','.self::OFFICE_TRUST.','.DeviceTrustService::CAPABILITY, 'distinct'],
-            'report' => ['sometimes', 'array:software_runner,software,trust'],
+            'capabilities' => ['sometimes', 'array', 'max:8'],
+            'capabilities.*' => ['string', 'in:winget_install,notification,'.DeviceSoftwareService::CAPABILITY.','.self::OFFICE_TRUST.','.DeviceTrustService::CAPABILITY.','.DeviceFileSyncService::CAPABILITY.','.RemoteSupportService::CAPABILITY, 'distinct'],
+            'report' => ['sometimes', 'array:software_runner,software,trust,files'],
             'report.software_runner' => ['sometimes', 'in:available,unavailable,unknown'],
             'report.software' => ['sometimes', 'array', 'max:'.DeviceSoftwareService::MAX_PACKAGES],
             'report.software.*' => ['array:package_id,installed,version'],
@@ -145,6 +145,12 @@ final class DeviceDesktopService
             'report.trust.certificates.*' => ['string', 'regex:/\A[a-f0-9]{64}\z/', 'distinct'],
             'report.trust.declined' => ['sometimes', 'array', 'max:'.DeviceTrustService::MAX_ACTIVE],
             'report.trust.declined.*' => ['string', 'regex:/\A[a-f0-9]{64}\z/', 'distinct'],
+            // Abgelegte Dateien: liegt die freigegebene Version im Ordner, oder hat der Nutzer die Datei verändert?
+            'report.files' => ['sometimes', 'array', 'max:'.DeviceFileSyncService::MAX_FILES],
+            'report.files.*' => ['array:key,version,state'],
+            'report.files.*.key' => ['required', 'string', 'regex:'.DeviceFileSyncService::KEY_PATTERN],
+            'report.files.*.version' => ['required', 'integer', 'between:1,100000'],
+            'report.files.*.state' => ['required', 'in:placed,conflict,failed'],
         ])->validate();
 
         return $this->withAuthenticated($token, function (DeviceDesktopClient $client, Device $device) use ($data): array {
@@ -172,6 +178,15 @@ final class DeviceDesktopService
             $trust = app(DeviceTrustService::class);
             if ($response['policy']['allow_office_trust'] && in_array(DeviceTrustService::CAPABILITY, $capabilities, true) && $trust->ready()) {
                 $response['trust'] = ['certificates' => $trust->plan()];
+            }
+            // Freigegebene verbindliche Dateien für den vertrauenswürdigen Ordner; fehlt `files`, legt die App nichts Neues ab.
+            $fileSync = app(DeviceFileSyncService::class);
+            if ($response['policy']['allow_office_trust'] && in_array(DeviceFileSyncService::CAPABILITY, $capabilities, true) && $fileSync->ready()) {
+                $response['files'] = $fileSync->plan($device, $client->assignment->user, $response['policy'])->all();
+            }
+            // Fernwartung: offene Anfrage (der Mitarbeiter entscheidet am PC) und laufende Sitzung.
+            if (in_array(RemoteSupportService::CAPABILITY, $capabilities, true) && ($remote = app(RemoteSupportService::class)->forClient($client)) !== []) {
+                $response['remote_support'] = $remote;
             }
             // Only a client that understands directory orders and reports the
             // installed state takes part in the automatic reconciliation.
@@ -367,7 +382,15 @@ final class DeviceDesktopService
             // Capabilities this server accepts beyond the first contract. A client reports
             // one only after seeing it here, so a newer client keeps working with an older server.
             'features' => array_merge(app(DeviceSoftwareService::class)->ready() ? [DeviceSoftwareService::CAPABILITY] : [], [self::OFFICE_TRUST],
-                app(DeviceTrustService::class)->ready() ? [DeviceTrustService::CAPABILITY] : [])];
+                app(DeviceTrustService::class)->ready() ? [DeviceTrustService::CAPABILITY] : [],
+                app(DeviceFileSyncService::class)->ready() ? [DeviceFileSyncService::CAPABILITY] : [],
+                app(RemoteSupportService::class)->ready() ? [RemoteSupportService::CAPABILITY] : [])];
+    }
+
+    /** Wirksame Richtlinie wie im Abgleich (globaler Schalter, Eigentum). */
+    public function effectivePolicy(DeviceDesktopClient $client, Device $device): array
+    {
+        return $this->response($client, $device)['policy'];
     }
 
     public function withAuthenticated(#[\SensitiveParameter] string $token, callable $action, bool $requireManagement = true): mixed

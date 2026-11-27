@@ -35,6 +35,28 @@
             </details>
         @endcan
 
+        <details class="{{ $panel }}" data-desktop-release>
+            <summary class="cursor-pointer text-sm font-semibold">RailTime-App-Installer · {{ $release ? 'Version '.$release['version'].($release['signed'] ? ', signiert' : ', ohne Signatur') : 'noch nicht hochgeladen' }}</summary>
+            <div class="mt-3 space-y-3 text-sm">
+                <p class="text-xs text-rt-muted">Mitarbeiter laden den freigegebenen Installer angemeldet unter „Meine Geräte“ herunter; das Outlook-Add-in verweist dorthin. Die Datei liegt im privaten Speicher, nicht öffentlich.</p>
+                @if($release)
+                    <p>Version {{ $release['version'] }} · {{ number_format($release['size'] / 1048576, 1, ',', '.') }} MB · hochgeladen {{ \Illuminate\Support\Carbon::parse($release['uploaded_at'])->format('d.m.Y H:i') }}</p>
+                    <p class="break-all font-mono text-xs text-rt-muted">SHA-256 {{ $release['sha256'] }}</p>
+                @endif
+                @if($canManageRelease)
+                    <form wire:submit="uploadRelease" class="grid gap-3 sm:grid-cols-3 sm:items-end">
+                        <div>
+                            <x-ui.forms.label for="desktop-release-file">Installer (.exe, NSIS)</x-ui.forms.label>
+                            <input id="desktop-release-file" type="file" wire:model="releaseFile" accept=".exe" class="mt-1 block w-full text-sm" />
+                        </div>
+                        <x-operations.field id="desktop-release-version" label="Version" model="releaseVersion" maxlength="40" placeholder="0.2.0" />
+                        <button type="submit" wire:loading.attr="disabled" wire:target="releaseFile,uploadRelease" class="{{ $button }}">Freigeben</button>
+                    </form>
+                    <p class="text-xs text-rt-muted">Ersetzt den bisherigen Installer. Nur Superadmins. Ohne Signatur zeigt Windows beim Start eine Warnung.</p>
+                @endif
+            </div>
+        </details>
+
         <x-tables.table :columns="[['label'=>'Gerät','width'=>'35%'],['label'=>'Mitarbeiter','width'=>'30%'],['label'=>'Clientstatus','width'=>'35%']]" :items="$clients" :selected-items="$selected ? [$selected->id] : []" row-view="components.tables.rows.devices.desktop-client-row" empty="Noch keine Desktopclients verbunden. Die Geräte müssen zuerst im Inventar eindeutig einem aktiven Mitarbeiter zugewiesen sein." />
         @can('devices.manage')
             <details class="{{ $panel }}"><summary class="cursor-pointer font-semibold">Arbeitsplatzprofile & Eigentümerfreigaben</summary><div class="mt-3 space-y-2">@foreach($devices as $profileDevice)<div class="flex flex-wrap items-center justify-between gap-2"><span class="text-sm">{{ $profileDevice->display_name }}</span><livewire:devices.workplace-consent :device-id="$profileDevice->public_id" :key="'admin-workplace-'.$profileDevice->public_id" /></div>@endforeach</div></details>

@@ -129,6 +129,13 @@
         .maintenance-actions .action-copy span { color: var(--rt-muted); }
         .settings-feedback { margin: 12px 0; font-size: 13px; }
         .app-link { display: inline-flex; align-items: center; min-height: 44px; padding-block: 8px; color: var(--rt-ink); font-size: 12px; text-underline-offset: 3px; }
+        .link-button { padding-inline: 0; border: 0; background: transparent; text-decoration: underline; }
+        .desktop-client { margin-top: 20px; border-top: 1px solid var(--rt-line); }
+        .desktop-client-status { margin: 0; font-size: 13px; line-height: 1.55; overflow-wrap: anywhere; }
+        .desktop-client-running { margin: 4px 0 0; color: var(--rt-muted); font-size: 12px; }
+        .desktop-client-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin-top: 8px; }
+        .desktop-client-pending { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 12px; margin-top: 4px; }
+        .desktop-client-pending .settings-note { margin: 0; }
         .template-picker { position: fixed; inset: auto 0 0; width: min(100%, 480px); max-width: 100%; max-height: min(75vh, 600px); max-height: min(75dvh, 600px); margin: auto auto 0; padding: 12px 16px 24px; padding-bottom: max(24px, env(safe-area-inset-bottom)); border: 1px solid var(--rt-line); border-bottom: 0; border-radius: 22px 22px 0 0; background: var(--rt-surface); color: var(--rt-ink); box-shadow: 0 -16px 44px #0003; overflow: auto; overscroll-behavior: contain; }
         .template-picker::backdrop { background: #07111e99; }
         .sheet-grip { width: 44px; height: 4px; margin: 0 auto 12px; border-radius: 4px; background: var(--rt-muted); opacity: .65; }
@@ -303,6 +310,25 @@
                     </div>
                     @endunless
                 </section>
+
+                @if ($accountSettingsMode)
+                {{-- Bleibt verborgen, bis der Server den App-Zustand liefert; sperrt keine andere Einstellung. --}}
+                <section class="settings-card desktop-client" data-outlook-desktop-client data-state="hidden" aria-labelledby="outlook-desktop-client-heading" aria-busy="false" hidden>
+                    <div class="settings-section-heading"><h2 id="outlook-desktop-client-heading">RailTime-App auf diesem PC</h2></div>
+                    <p class="desktop-client-status" data-desktop-client-status role="status" aria-live="polite" aria-atomic="true"></p>
+                    <p class="desktop-client-running" data-desktop-client-running hidden></p>
+                    <div class="desktop-client-actions">
+                        <a class="app-link" data-desktop-client-install target="_blank" rel="noopener noreferrer" hidden>RailTime-App installieren ↗</a>
+                        <button type="button" class="glass-button" data-desktop-client-pair hidden>Diesen PC koppeln</button>
+                        <button type="button" class="app-link link-button" data-desktop-client-forget hidden>Kopplung auf diesem PC vergessen</button>
+                    </div>
+                    <div class="desktop-client-pending" data-desktop-client-pending hidden>
+                        <a class="app-link" data-desktop-client-confirm target="_blank" rel="noopener noreferrer" aria-describedby="outlook-desktop-client-validity">In der RailTime-App bestätigen ↗</a>
+                        <p id="outlook-desktop-client-validity" class="settings-note">Gilt 2 Minuten.</p>
+                    </div>
+                    <p class="automatic-feedback" data-desktop-client-feedback role="status" aria-live="polite"></p>
+                </section>
+                @endif
 
                 @unless ($accountSettingsMode)
                 <dialog id="outlook-template-picker" class="template-picker" data-outlook-template-picker aria-labelledby="outlook-template-picker-heading" aria-describedby="outlook-template-picker-hint">

@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\OutlookAddinAccountPreferencesController;
 use App\Http\Controllers\Api\OutlookAddinAccountTemplateChoicesController;
 use App\Http\Controllers\Api\OutlookAddinAccountWordingController;
 use App\Http\Controllers\Api\OutlookAddinBootstrapController;
+use App\Http\Controllers\Api\OutlookAddinDesktopClientController;
 use App\Http\Controllers\Api\OutlookAddinDiagnosticsController;
 use App\Http\Controllers\Api\OutlookAddinPreferencesController;
 use App\Http\Controllers\Api\WorkTimeV2Controller;
@@ -91,6 +92,18 @@ Route::match(['get', 'patch'], '/outlook-addin/account-template-choices', Outloo
     ->middleware('throttle:outlook-addin')
     ->name('api.outlook-addin.account-template-choices');
 
+// RailTime-App erkennen und diesen PC koppeln (nur eigenes Konto, keine Nachrichtendaten).
+Route::get('/outlook-addin/desktop-client', [OutlookAddinDesktopClientController::class, 'show'])
+    ->middleware('throttle:outlook-addin')
+    ->name('api.outlook-addin.desktop-client');
+Route::post('/outlook-addin/desktop-client/pairings', [OutlookAddinDesktopClientController::class, 'start'])
+    ->middleware(['throttle:outlook-addin', 'throttle:12,10'])
+    ->name('api.outlook-addin.desktop-client.pairings.store');
+Route::get('/outlook-addin/desktop-client/pairings/{pairing}', [OutlookAddinDesktopClientController::class, 'poll'])
+    ->whereUuid('pairing')
+    ->middleware('throttle:outlook-addin')
+    ->name('api.outlook-addin.desktop-client.pairings.show');
+
 // Connector-Rueckmeldungen sind HMAC-signiert (Zeitstempel + Rohbody),
 // groessenbegrenzt und zusaetzlich durch den allgemeinen API-Limiter geschuetzt.
 Route::post('/device-management/providers/{provider}/events', DeviceProviderWebhookController::class)
@@ -112,6 +125,11 @@ Route::prefix('device-client/v1')->name('api.device-client.')->group(function ()
     Route::post('/support/{supportCase}', [DeviceDesktopClientController::class, 'supportReply'])->whereUuid('supportCase')->middleware('throttle:12,1')->name('support.reply');
     Route::get('/workplace', [DeviceDesktopClientController::class, 'workplace'])->middleware('throttle:device-desktop-client')->name('workplace');
     Route::post('/withdraw', [DeviceDesktopClientController::class, 'withdraw'])->middleware('throttle:6,1')->name('withdraw');
+    Route::post('/pairings/confirm', [DeviceDesktopClientController::class, 'confirmPairing'])->middleware('throttle:12,1')->name('pairings.confirm');
+    Route::post('/remote-sessions/{session}', [DeviceDesktopClientController::class, 'remoteSession'])
+        ->whereUuid('session')->middleware('throttle:12,1')->name('remote-sessions.answer');
+    Route::get('/files/{document}/{version}', [DeviceDesktopClientController::class, 'file'])
+        ->where('document', '[a-z0-9][a-z0-9-]{0,190}')->whereNumber('version')->middleware('throttle:device-desktop-client')->name('files.show');
     Route::post('/enroll', [DeviceDesktopClientController::class, 'enroll'])
         ->middleware('throttle:6,1')->name('enroll');
     Route::post('/sync', [DeviceDesktopClientController::class, 'sync'])

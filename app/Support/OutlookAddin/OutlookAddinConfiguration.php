@@ -119,8 +119,11 @@ final class OutlookAddinConfiguration
                 'accountPreferences' => $baseUrl !== '' ? $baseUrl.'/api/outlook-addin/account-preferences' : '',
                 'accountWording' => $baseUrl !== '' ? $baseUrl.'/api/outlook-addin/account-wording' : '',
                 'accountTemplateChoices' => $baseUrl !== '' ? $baseUrl.'/api/outlook-addin/account-template-choices' : '',
+                'desktopClient' => $baseUrl !== '' ? $baseUrl.'/api/outlook-addin/desktop-client' : '',
+                'desktopClientPairings' => $baseUrl !== '' ? $baseUrl.'/api/outlook-addin/desktop-client/pairings' : '',
             ],
-            'urls' => ['profileSettings' => $baseUrl !== '' ? $baseUrl.'/user/profile?tab=outlook' : ''],
+            'urls' => ['profileSettings' => $baseUrl !== '' ? $baseUrl.'/user/profile?tab=outlook' : '',
+                'desktopClientInstall' => $baseUrl !== '' ? $baseUrl.'/railtime-app' : ''],
             'marker' => (string) config('outlook_addin.marker', 'RT-SIGNATURE-MANAGED-V1'),
             'addinBuild' => app(OutlookAddinBuild::class)->metadata(),
         ];
