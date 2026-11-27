@@ -109,6 +109,16 @@ class DispositionPageHeaderTest extends TestCase
         $this->assertSame(0, $xpath->query('//*[@*[name()="wire:click"]]')->length);
     }
 
+    public function test_empty_offers_guide_to_the_permitted_inbox_or_reset_the_active_filters(): void
+    {
+        $component = Livewire::test(CommercialOfferIndex::class, ['headerInPage' => true, 'customerId' => $this->customer->id])
+            ->assertSee('Noch keine Angebote vorhanden.')->assertSee('Zum Eingang');
+        $link = $this->xpath($component->html())->query('//a[normalize-space(.)="Zum Eingang"]')->item(0);
+        $this->assertSame(\App\Support\Operations\OperationsPages::url('cases', ['view' => 'inbox', 'customer' => $this->customer->id]), $link->getAttribute('href'));
+        $component->set('search', 'fehlend')->set('status', 'draft')->assertSee('Filter zurücksetzen')->assertDontSee('Zum Eingang')
+            ->call('resetFilters')->assertSet('status', 'all')->assertSet('search', '')->assertSee('Zum Eingang');
+    }
+
     public function test_offers_use_page_controls_only_when_requested_and_keep_search_status_and_customer_scope(): void
     {
         $draft = $this->offer($this->inquiry('Header draft'), 'draft');

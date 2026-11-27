@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Livewire\Operations\Calendar;
 use App\Livewire\Operations\ShiftManagement;
 use App\Models\Customer;
 use App\Models\EmployeeQualification;
@@ -90,6 +91,53 @@ class ShiftStaffingPanelTest extends TestCase
         $component->set('candidateSearch', 'Nicht vorhanden')->assertViewHas('candidateTotal', 0)
             ->assertSee('Keine Treffer. Suche oder Filter anpassen.');
         $this->assertSame(0, ShiftAssignment::count());
+    }
+
+    public function test_closed_shifts_show_history_in_both_drawers_even_when_no_one_was_assigned(): void
+    {
+        foreach (['completed', 'cancelled'] as $status) {
+            $this->shift->update(['status' => $status, 'required_staff' => 1]);
+            $this->panel()->call('loadStaffingCandidates')
+                ->assertSee('Historische Besetzung')->assertSee('1 Platz geplant')
+                ->assertSee('Keine Zuweisung dokumentiert.')->assertDontSee('Platz zu besetzen')
+                ->assertDontSee('Mitarbeitende finden')->assertDontSee('Erste Veröffentlichung')
+                ->assertViewHas('candidateTotal', 0);
+            Livewire::actingAs($this->admin)->test(Calendar::class)->call('openDetails', $this->shift->id)
+                ->assertSee('Historische Besetzung')->assertSee('1 Platz geplant')->assertSee('Keine Zuweisung dokumentiert.')
+                ->assertDontSee('Noch niemand eingeteilt.')->assertDontSee('Platz offen');
+        }
+        $this->assertSame(0, ShiftAssignment::count());
+    }
+
+    public function test_historical_reports_are_visible_with_their_own_status_and_without_assignment_actions(): void
+    {
+        $this->shift->update(['status' => 'completed']);
+        $reported = $this->employee('Historische Testperson');
+        ShiftAssignment::create(['shift_id' => $this->shift->id, 'user_id' => $reported->id, 'status' => 'reported']);
+        $this->panel()->assertSee('Historische Testperson')->assertSee('Historisch gemeldet')
+            ->assertDontSee('Keine Zuweisung dokumentiert.')->assertDontSee('Zuweisung entfernen')
+            ->assertViewHas('selectedStaffing', fn ($data) => $data->reserved === 0 && $data->open === 0);
+    }
+
+    public function test_filled_shift_keeps_its_roster_and_hides_the_picker_until_a_place_reopens(): void
+    {
+        $employee = $this->employee();
+        $this->shift->update(['required_staff' => 1]);
+        $assignment = app(ShiftAssignmentService::class)->assign($this->shift, $employee, $this->admin);
+        $this->panel()->call('loadStaffingCandidates')
+            ->assertSee($employee->name)->assertDontSee('Mitarbeitende finden')->assertViewHas('candidateTotal', 0)
+            ->call('removeAssignment', $assignment->id)->assertSee('1 Platz zu besetzen')->assertSee('Mitarbeitende finden');
+    }
+
+    public function test_removal_from_a_stale_roster_preserves_the_historical_assignment(): void
+    {
+        $employee = $this->employee();
+        $assignment = app(ShiftAssignmentService::class)->assign($this->shift, $employee, $this->admin);
+        $panel = $this->panel();
+        $this->shift->update(['status' => 'completed']);
+        $panel->call('removeAssignment', $assignment->id)->assertHasErrors(['assignment'])
+            ->assertSee('Historische Besetzung')->assertDontSeeHtml('wire:click="removeAssignment('.$assignment->id.')"');
+        $this->assertSame('confirmed', $assignment->fresh()->status->value);
     }
 
     public function test_full_population_is_ranked_before_incremental_twelve_then_twenty_four_and_filters_reset_limit(): void

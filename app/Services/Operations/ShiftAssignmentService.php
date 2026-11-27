@@ -117,10 +117,11 @@ class ShiftAssignmentService
         ShiftAssignment $assignment,
         User $actor,
         ?string $note = null,
+        bool $fromActiveRoster = false,
     ): ShiftAssignment {
         OperationsAccess::authorize($actor, 'operations.manage');
 
-        return OperationsTransaction::run(function () use ($assignment, $actor, $note): ShiftAssignment {
+        return OperationsTransaction::run(function () use ($assignment, $actor, $note, $fromActiveRoster): ShiftAssignment {
             OperationsAccess::authorize(User::findOrFail($actor->id), 'operations.manage');
             $lockedShift = PlanningLocks::acquire([$assignment->shift_id], [$assignment->user_id])->get($assignment->shift_id);
             abort_unless($lockedShift, 404);
@@ -140,6 +141,13 @@ class ShiftAssignmentService
                 throw ValidationException::withMessages([
                     'user_id' => 'Für diesen Mitarbeiter besteht in der Schicht keine Zuweisung.',
                 ]);
+            }
+
+            if ($fromActiveRoster) {
+                $this->assertShiftCanBeStaffed($lockedShift);
+                if (! $lockedAssignment->status->blocksAvailability()) {
+                    throw ValidationException::withMessages(['workflow' => 'Diese Person hat keinen reservierten Platz mehr.']);
+                }
             }
 
             if (OperationsAccess::ready() && WorkTimeEntry::where('shift_assignment_id', $lockedAssignment->id)->exists()) {

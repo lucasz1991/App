@@ -19,8 +19,14 @@ use Illuminate\Support\Str;
 
 class WorkTimeTerminalService
 {
+    private function requireEnabled(): void
+    {
+        abort_unless(config('operations.terminal_enabled', false), 404);
+    }
+
     public function configure(User $subject, array $data, User $actor): OperationsTerminalProfile
     {
+        $this->requireEnabled();
         OperationsEnhancementsSchema::requireReady();
         if ($subject->id === $actor->id) {
             OperationsAccess::own($actor, $actor->id);
@@ -44,6 +50,7 @@ class WorkTimeTerminalService
     /** Returns a short-lived capability, never an authenticated ordinary application session. */
     public function authenticate(int $userId, string $pin, string $terminalId, string $sourceKey): array
     {
+        $this->requireEnabled();
         OperationsEnhancementsSchema::requireReady();
         Validator::make(compact('userId', 'pin', 'terminalId'), ['userId' => 'required|integer|min:1', 'pin' => 'required|string|max:10', 'terminalId' => 'required|uuid'])->validate();
         $ipKey = 'rt-terminal-ip:'.hash('sha256', $sourceKey);
@@ -76,6 +83,7 @@ class WorkTimeTerminalService
 
     public function capture(string $token, string $terminalId, array $input, array $location = []): array
     {
+        $this->requireEnabled();
         Validator::make(compact('token', 'terminalId') + $input, ['token' => 'required|string|size:64', 'terminalId' => 'required|uuid', 'event_key' => 'required|uuid', 'action' => 'required|in:start,pause,resume,stop,submit,activity', 'revision' => 'required|integer|min:0', 'kind' => 'nullable|string', 'assignment_id' => 'nullable|integer', 'plan_revision' => 'nullable|integer', 'work_context' => 'nullable|in:shift,internal,training,unplanned', 'title' => 'nullable|string|max:180', 'training_session_id' => 'nullable|integer'])->validate();
 
         $travel = null;

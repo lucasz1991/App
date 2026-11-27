@@ -5,7 +5,22 @@
         <p class="ops-muted">Arbeitsbereich nicht verfügbar.</p>
     @else
         @unless($modalOnly)
-        <x-tables.toolbar :title="$this::TABS[$tab]" id="operations-enhancement-filters">
+        @if($proofShifts)
+            @forelse($proofShifts as $shift)
+                @include('livewire.operations.partials.duty-proof-coverage', [
+                    'shift' => $shift,
+                    'coverageTitle' => $shift->title.' · '.$shift->starts_at?->format('d.m.Y H:i'),
+                    'coverageScope' => $proofScope,
+                ])
+            @empty
+                <p class="ops-muted">Für diesen Auftrag ist noch keine Schicht geplant.</p>
+            @endforelse
+            @if($proofShifts->hasPages())
+                <x-tables.pagination :paginator="$proofShifts" label="Schichten mit Dienstnachweisen" compact />
+            @endif
+        @endif
+        @if(!$proofShifts || $records->total() || $search !== '')
+        <x-tables.toolbar :title="$proofShifts ? 'Erfasste Belege' : $this::TABS[$tab]" id="operations-enhancement-filters">
             <x-slot:search>
                 @if(in_array($tab, ['proofs','travel','partners','imports']))
                     <x-ui.forms.search wire:model.live.debounce.300ms="search" placeholder="Vorgang suchen" />
@@ -15,6 +30,7 @@
         </x-tables.toolbar>
         <x-tables.table :columns="[['label'=>'Vorgang','key'=>'title'],['label'=>'Mitarbeiter','key'=>'user_id'],['label'=>'Status','key'=>'status'],['label'=>'Revision','key'=>'revision'],['label'=>'Aktion','key'=>'action']]" :items="$records" row-view="components.tables.rows.time.enhancement-row" empty="Keine Vorgänge in dieser Ansicht." />
         @if($records instanceof \Illuminate\Contracts\Pagination\LengthAwarePaginator)<x-tables.pagination :paginator="$records" />@endif
+        @endif
         @if($tab === 'costs')
             @include('livewire.operations.partials.service-fulfilment.cost-calculation')
         @endif
@@ -29,7 +45,7 @@
         </x-operations.modal>
         <x-operations.modal wire:model="detailOpen" :title="$this::TABS[$tab]" max-width="4xl" :variant="$modalOnly ? 'drawer' : 'modal'">
             @if($selected)
-                <header class="ops-toolbar"><h2>{{ $selected->title ?? $selected->name ?? $selected->month ?? 'Terminalzugang' }}</h2><span class="ops-muted">Revision {{ $selectedRevision }}</span></header>
+                <header class="ops-toolbar"><h2>{{ $selected->title ?? $selected->name ?? $selected->month ?? $this::TABS[$tab] }}</h2><span class="ops-muted">Revision {{ $selectedRevision }}</span></header>
                 @if($selected instanceof \App\Models\OperationWorkflow)
                     <x-operations.status :value="$selected->status" />
                     @if($tab === 'proofs')
@@ -41,7 +57,7 @@
                     @elseif($tab === 'imports')
                         @include('livewire.operations.partials.service-fulfilment.detail-import')
                     @endif
-                    @if(($tab === 'proofs' && $selected->status === 'draft' && $selected->user_id === auth()->id()) || ($tab === 'travel' && $selected->status === 'booked' && $selected->user_id === auth()->id()))<form wire:submit="uploadFile" class="ops-form"><x-operations.field label="Beleg (PDF/JPG/PNG)" model="upload" type="file" accept="application/pdf,image/jpeg,image/png" /><div class="self-end"><x-ui.buttons.button-basic type="submit" wire:loading.attr="disabled">Beleg hinzufügen</x-ui.buttons.button-basic></div></form>@endif
+                    @if(($tab === 'proofs' && $currentProof && $selected->status === 'draft' && $selected->user_id === auth()->id()) || ($tab === 'travel' && $selected->status === 'booked' && $selected->user_id === auth()->id()))<form wire:submit="uploadFile" class="ops-form"><x-operations.field label="Beleg (PDF/JPG/PNG)" model="upload" type="file" accept="application/pdf,image/jpeg,image/png" /><div class="self-end"><x-ui.buttons.button-basic type="submit" wire:loading.attr="disabled">Beleg hinzufügen</x-ui.buttons.button-basic></div></form>@endif
                 @elseif($tab === 'costs')<dl class="ops-meta"><div><dt>Stundenkosten</dt><dd>{{ number_format($selected->hourly_cents/100,2,',','.') }} €</dd></div><div><dt>Gültig ab</dt><dd>{{ $selected->starts_on->format('d.m.Y') }}</dd></div></dl>
                 @endif
             @endif

@@ -9,6 +9,22 @@ html.dark :is(.rt-personal-workspace-page, .rt-personal-form) { --rt-personnel-a
 html.dark .rt-personal-form .rt-ui-button-primary { color: #2d1720 !important; }
 .rt-personal-workspace-content { display: grid; gap: 24px; min-width: 0; }
 
+/* The employee menu keeps its native keyboard/teleport controller and four destinations. */
+.rt-area-menu[data-workday-navigation] { --rt-red: #8d253d; --rt-shell-accent: #8d253d; }
+html.dark .rt-area-menu[data-workday-navigation] { --rt-red: #efa3b2; --rt-shell-accent: #efa3b2; }
+@media (min-width: 1024px) {
+    .rt-area-menu[data-workday-navigation].rt-multi-toggle[data-toggle-labels] .rt-multi-toggle__button.rt-ui-button { flex: 0 0 auto; width: auto; min-width: 84px; min-height: 44px; padding-inline: 12px !important; gap: 8px; }
+    .rt-area-menu[data-workday-navigation] .rt-multi-toggle__label--full { display: inline; font-size: 13px; line-height: 1.3; white-space: nowrap; }
+    .rt-area-menu[data-workday-navigation] .rt-multi-toggle__label--compact { display: none; }
+}
+@media (max-width: 767.98px) {
+    .rt-area-menu[data-workday-navigation] .rt-multi-toggle__label { font-size: 11px; line-height: 1.2; }
+    .rt-area-menu[data-workday-navigation] .rt-multi-toggle__label--full { display: none; }
+    .rt-area-menu[data-workday-navigation] .rt-multi-toggle__label--compact { display: block; }
+}
+html.dark .rt-area-menu[data-workday-navigation] .rt-area-menu__ink { color: #2d1720; }
+@media (max-width: 767.98px) { html.dark .rt-area-menu[data-workday-navigation] .rt-area-menu__ink { color: var(--rt-shell-accent); } }
+
 .rt-personal-work {
     --personal-ink: var(--rt-shell-text);
     --personal-muted: var(--rt-shell-muted);

@@ -33,14 +33,19 @@
                     $directPath = ($payload['business_path'] ?? 'inquiry') === 'direct_order';
                 @endphp
                 <article class="rt-intake-drawer__position" wire:key="drawer-position-{{ $proposal->id }}-{{ $proposal->revision }}" data-intake-drawer-position="{{ $proposal->id }}">
-                    <div class="rt-intake-drawer__position-header"><h3>Leistung {{ $proposal->position_index + 1 }}</h3></div>
+                    <div class="rt-intake-drawer__position-header"><h3>Leistung {{ $proposal->position_index + 1 }}</h3>
+                        @if(($edit = $drawerState['positionEdit'] ?? null) && !$edit['disabled'])
+                            <x-ui.buttons.button-basic type="button" size="sm" wire:click="{{ $edit['action'] }}" wire:loading.attr="disabled" data-intake-edit-position="{{ $proposal->id }}"><i class="far fa-pen" aria-hidden="true"></i>{{ $edit['label'] }}</x-ui.buttons.button-basic>
+                        @endif
+                    </div>
                     <h4>{{ $payload['demand']['title'] ?? 'Leistung prüfen' }}</h4>
 
                     @if($editingProposalId === $proposal->id && $canCorrect)
                         <div class="rt-intake-drawer__form">@include('livewire.operations.partials.ai-intake-position-form')</div>
                     @else
-                        <x-operations.intake.visuals :demand="$payload['demand'] ?? []" :order="$proposal->inquiry?->order" :identity="'proposal-'.$proposal->id" />
-                        <x-operations.intake.facts :activities="$activityCatalog ?? []" class="rt-intake-drawer__facts" :demand="$payload['demand'] ?? []" variant="drawer" :assumptions="$payload['assumptions'] ?? []" :confirmed="$positionConfirmed" />
+                        @php $visual = \App\Support\Operations\AiIntakeVisualContext::forDemand($payload['demand'] ?? [], $proposal->inquiry?->order); @endphp
+                        <x-operations.intake.facts :activities="$activityCatalog ?? []" class="rt-intake-drawer__facts" :demand="$payload['demand'] ?? []" variant="drawer" :schedule="$visual" :assumptions="$payload['assumptions'] ?? []" :confirmed="$positionConfirmed" />
+                        <x-operations.intake.visuals :visual="$visual" :identity="'proposal-'.$proposal->id" />
                     @endif
 
                     @if(!$currentProposal)<p class="rt-intake-drawer__notice" role="status">Ein neuerer Eingang liegt vor. Den aktuellen Vorschlag prüfen.</p>
@@ -60,8 +65,9 @@
                         <article class="rt-intake-drawer__position" data-ai-intake-analysis-preview wire:key="drawer-analysis-{{ $selected->id }}-{{ $selected->source_revision }}-{{ $index }}">
                             <div class="rt-intake-drawer__position-header"><h3>Position {{ $index + 1 }}</h3><span class="rt-intake-drawer__meta">Erkannte Angaben</span></div>
                             <h4>{{ $position['title'] ?? 'Leistung prüfen' }}</h4>
-                            <x-operations.intake.visuals :demand="$position" :identity="'analysis-'.$selected->id.'-'.$index" />
-                            <x-operations.intake.facts :activities="$activityCatalog ?? []" class="rt-intake-drawer__facts" :demand="$position" variant="drawer" :assumptions="$position['assumptions'] ?? []" />
+                            @php $visual = \App\Support\Operations\AiIntakeVisualContext::forDemand($position); @endphp
+                            <x-operations.intake.facts :activities="$activityCatalog ?? []" class="rt-intake-drawer__facts" :demand="$position" variant="drawer" :schedule="$visual" :assumptions="$position['assumptions'] ?? []" />
+                            <x-operations.intake.visuals :visual="$visual" :identity="'analysis-'.$selected->id.'-'.$index" />
                         </article>
                     @endforeach
                 @else

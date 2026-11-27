@@ -224,13 +224,8 @@ class AiIntakeInbox extends Component
             $confirmation = ['enabled' => false, 'completed' => false, 'reason' => 'Die geänderte Kunden- oder Kontaktzuordnung zuerst speichern.'];
         }
 
-        $activityCatalog = $selected && \Illuminate\Support\Facades\Schema::hasTable('duty_activities')
-            ? \App\Models\DutyActivity::with('bundle')->orderBy('code')->get()->keyBy('id')
-            : collect();
-
-        $codes = $activityCatalog->isNotEmpty() ? \Illuminate\Support\Facades\DB::table('duty_activity_codes')->pluck('duty_activity_id', 'lookup') : collect();
         return view('livewire.operations.ai-intake-inbox', [
-            'activityCatalog' => $codes->map(fn ($id) => $activityCatalog->get($id))->filter(),
+            'activityCatalog' => $selected ? \App\Models\DutyActivity::catalogByCode() : collect(),
             'ready' => $ready, 'enabled' => AiDispositionSettings::enabled(), 'labels' => self::LABELS, 'fieldLabels' => self::FIELD_LABELS,
             'intakes' => $this->intakePage($ready), 'selected' => $selected,
             'customers' => Customer::active()->when($this->customerId, fn ($query) => $query->whereKey($this->customerId))->orderBy('company_name')->get(),

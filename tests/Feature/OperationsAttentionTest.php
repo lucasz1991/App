@@ -337,7 +337,17 @@ class OperationsAttentionTest extends TestCase
         foreach (['proofs', 'travel', 'partners'] as $area) {
             Livewire::withQueryParams(['area' => $area])->actingAs($this->employee)->test(PersonalWorkspace::class)->assertSeeLivewire(ServiceFulfilment::class)->assertDontSeeLivewire(TimeAdministration::class);
         }
-        Livewire::withQueryParams(['area' => 'terminal'])->actingAs($this->employee)->test(PersonalWorkspace::class)->assertSeeLivewire(TimeAdministration::class)->assertDontSeeLivewire(ServiceFulfilment::class);
+        config(['operations.terminal_enabled' => false]);
+        $this->assertArrayNotHasKey('terminal', \App\Support\Operations\PersonalWorkspaceAreas::all());
+        foreach ([['area' => 'terminal'], ['area' => 'operations', 'tab' => 'terminal']] as $query) {
+            Livewire::withQueryParams($query)->actingAs($this->employee)->test(PersonalWorkspace::class)
+                ->assertSet('area', 'work')->assertDontSeeLivewire(TimeAdministration::class);
+        }
+        config(['operations.terminal_enabled' => true]);
+        $terminalPage = Livewire::withQueryParams(['area' => 'terminal'])->actingAs($this->employee)->test(PersonalWorkspace::class)
+            ->assertSeeLivewire(TimeAdministration::class)->assertDontSeeLivewire(ServiceFulfilment::class);
+        config(['operations.terminal_enabled' => false]);
+        $terminalPage->call('$refresh')->assertSet('area', 'work')->assertDontSeeLivewire(TimeAdministration::class);
     }
 
     public function test_closed_payroll_month_also_protects_existing_time_account_adjustments(): void
@@ -369,6 +379,7 @@ class OperationsAttentionTest extends TestCase
     public function test_all_private_new_tabs_enforce_employee_and_manager_boundaries(): void
     {
         $this->allEnhancements();
+        config(['operations.terminal_enabled' => true]);
         foreach (['reports', 'approvals', 'calendars', 'recruiting'] as $tab) {
             Livewire::actingAs($this->employee)->test(PersonnelEnhancements::class, ['personal' => true, 'tab' => $tab])->assertForbidden();
         }

@@ -11,7 +11,10 @@
                     @foreach($day['segments'] as $segment)
                         @php($event = $segment['event'])
                         <li data-event-tone="{{ $segment['tone'] }}" wire:key="{{ $idPrefix }}-{{ $day['date']->toDateString() }}-{{ $event->id }}">
-                            <button type="button" class="rt-pcal-agenda-event" wire:click="openCalendarEvent('{{ $event->id }}')" data-personal-event="{{ $event->id }}" aria-label="{{ $segment['accessible_label'] }} · Details öffnen">
+                            <button type="button" class="rt-pcal-agenda-event" wire:click="openCalendarEvent('{{ $event->id }}')" data-personal-event="{{ $event->id }}" aria-label="{{ $segment['accessible_label'] }} · Details öffnen"
+                                x-bind:data-selected="(calendarHover || calendarFocus || calendarSelection) === @js($event->id) ? '' : null"
+                                x-on:pointerenter="calendarHover = @js($event->id)" x-on:pointerleave="calendarHover = null"
+                                x-on:focus="calendarFocus = @js($event->id)" x-on:blur="calendarFocus = null" x-on:click="calendarSelection = @js($event->id)">
                                 <span class="rt-pcal-agenda-time">
                                     @if($segment['all_day'])
                                         Ganztägig

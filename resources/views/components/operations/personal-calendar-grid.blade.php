@@ -21,7 +21,10 @@
             @foreach($days as $day)
                 <div class="rt-pcal-all-day-cell">
                     @foreach($day['all_day'] as $segment)
-                        <button type="button" class="rt-pcal-all-day-event" data-event-tone="{{ $segment['tone'] }}" wire:click="openCalendarEvent('{{ $segment['event']->id }}')" aria-label="{{ $segment['accessible_label'] }}" title="{{ $segment['accessible_label'] }}"><span>{{ $segment['event']->title }}</span></button>
+                        <button type="button" class="rt-pcal-all-day-event" data-event-tone="{{ $segment['tone'] }}" wire:click="openCalendarEvent('{{ $segment['event']->id }}')" aria-label="{{ $segment['accessible_label'] }}" title="{{ $segment['accessible_label'] }}"
+                            x-bind:data-selected="(calendarHover || calendarFocus || calendarSelection) === @js($segment['event']->id) ? '' : null"
+                            x-on:pointerenter="calendarHover = @js($segment['event']->id)" x-on:pointerleave="calendarHover = null"
+                            x-on:focus="calendarFocus = @js($segment['event']->id)" x-on:blur="calendarFocus = null" x-on:click="calendarSelection = @js($segment['event']->id)"><span>{{ $segment['event']->title }}</span></button>
                     @endforeach
                 </div>
             @endforeach
@@ -45,9 +48,17 @@
                     @foreach($segment['time_segments'] as $part)
                         @php($duration = round($part['height'] * ($axis['end'] - $axis['start']) / 100, 4))
                         @if($isWeek)
-                            <span class="rt-pcal-time-bar" aria-hidden="true" data-event-tone="{{ $segment['tone'] }}" data-calendar-bar="{{ $segment['event']->id }}" style="top:{{ $part['top'] }}%;height:{{ $part['height'] }}%;--pcal-lane:{{ $segment['lane'] }};--pcal-lanes:{{ $segment['lanes'] }}" title="{{ $segment['accessible_label'] }}"></span>
+                            <button type="button" class="rt-pcal-time-bar" data-event-tone="{{ $segment['tone'] }}" data-calendar-bar="{{ $segment['event']->id }}"
+                                style="top:{{ $part['top'] }}%;height:{{ $part['height'] }}%;--pcal-lane:{{ $segment['lane'] }};--pcal-lanes:{{ $segment['lanes'] }}"
+                                wire:click="openCalendarEvent('{{ $segment['event']->id }}')" aria-label="{{ $segment['accessible_label'] }} · Details öffnen" title="{{ $segment['accessible_label'] }}"
+                                x-bind:data-selected="(calendarHover || calendarFocus || calendarSelection) === @js($segment['event']->id) ? '' : null"
+                                x-on:pointerenter="calendarHover = @js($segment['event']->id)" x-on:pointerleave="calendarHover = null"
+                                x-on:focus="calendarFocus = @js($segment['event']->id)" x-on:blur="calendarFocus = null" x-on:click="calendarSelection = @js($segment['event']->id)"></button>
                         @else
-                            <button type="button" @class(['rt-pcal-time-event', 'is-short'=>$duration < 75, 'is-tiny'=>$duration < 30]) data-event-tone="{{ $segment['tone'] }}" data-calendar-bar="{{ $segment['event']->id }}" style="top:{{ $part['top'] }}%;height:{{ $part['height'] }}%;--pcal-lane:{{ $segment['lane'] }};--pcal-lanes:{{ $segment['lanes'] }}" wire:click="openCalendarEvent('{{ $segment['event']->id }}')" aria-label="{{ $segment['accessible_label'] }} · Details öffnen" title="{{ $segment['accessible_label'] }}">
+                            <button type="button" @class(['rt-pcal-time-event', 'is-short'=>$duration < 75, 'is-tiny'=>$duration < 30]) data-event-tone="{{ $segment['tone'] }}" data-calendar-bar="{{ $segment['event']->id }}" style="top:{{ $part['top'] }}%;height:{{ $part['height'] }}%;--pcal-lane:{{ $segment['lane'] }};--pcal-lanes:{{ $segment['lanes'] }}" wire:click="openCalendarEvent('{{ $segment['event']->id }}')" aria-label="{{ $segment['accessible_label'] }} · Details öffnen" title="{{ $segment['accessible_label'] }}"
+                                x-bind:data-selected="(calendarHover || calendarFocus || calendarSelection) === @js($segment['event']->id) ? '' : null"
+                                x-on:pointerenter="calendarHover = @js($segment['event']->id)" x-on:pointerleave="calendarHover = null"
+                                x-on:focus="calendarFocus = @js($segment['event']->id)" x-on:blur="calendarFocus = null" x-on:click="calendarSelection = @js($segment['event']->id)">
                                 <span>{{ $segment['time_label'] }}</span><strong>{{ $segment['event']->title }}</strong>@if($segment['place'])<small>{{ $segment['place'] }}</small>@endif
                             </button>
                         @endif

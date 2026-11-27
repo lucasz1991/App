@@ -20,7 +20,21 @@
         <x-tables.filter-field label="Status" for="case-offer-status"><x-ui.forms.select id="case-offer-status" wire:model.live="status"><option value="all">Alle Stände</option><option value="draft">Entwürfe</option><option value="offered">Angeboten</option><option value="accepted">Zugesagt</option></x-ui.forms.select></x-tables.filter-field>
     </x-tables.toolbar>
     @endif
-    <x-tables.table :columns="[['label'=>'Vorgang / Kunde','key'=>'case'],['label'=>'Angebotsstand','key'=>'revision'],['label'=>'Betrag netto','key'=>'total'],['label'=>'Status','key'=>'status']]" :items="$offers" :flush-top="$headerInPage" :scroll-body="$headerInPage" label="Angebote" data-disposition-list-table detail-action="select" row-view="components.tables.rows.offers.case-offer-row" table-key="case-offers" empty="Keine Angebote für diese Auswahl." />
+    <x-tables.table :columns="[['label'=>'Vorgang / Kunde','key'=>'case'],['label'=>'Angebotsstand','key'=>'revision'],['label'=>'Betrag netto','key'=>'total'],['label'=>'Status','key'=>'status']]" :items="$offers" :flush-top="$headerInPage" :scroll-body="$headerInPage" label="Angebote" data-disposition-list-table detail-action="select" row-view="components.tables.rows.offers.case-offer-row" table-key="case-offers" empty="Keine Angebote für diese Auswahl.">
+        @if($offers->isEmpty())
+            <x-slot:empty>
+                <x-ui.empty-state variant="inline" :title="$this->activeFilterCount() ? 'Keine Angebote für diese Auswahl.' : 'Noch keine Angebote vorhanden.'">
+                    <x-slot:action>
+                        @if($this->activeFilterCount())
+                            <x-ui.buttons.button-basic type="button" mode="link" size="sm" wire:click="resetFilters">Filter zurücksetzen</x-ui.buttons.button-basic>
+                        @elseif($headerInPage && ! $inquiryId && ! $orderId && isset(\App\Livewire\Operations\CaseWorkspace::availableViews(auth()->user())['inbox']))
+                            <x-ui.buttons.button-basic mode="link" size="sm" :href="\App\Support\Operations\OperationsPages::url('cases', ['view' => 'inbox', 'customer' => $customerId])">Zum Eingang</x-ui.buttons.button-basic>
+                        @endif
+                    </x-slot:action>
+                </x-ui.empty-state>
+            </x-slot:empty>
+        @endif
+    </x-tables.table>
     @if($headerInPage)<div data-disposition-list-pagination><x-tables.pagination :paginator="$offers" label="Angebotsseiten" /></div>@else<x-tables.pagination :paginator="$offers" label="Angebotsseiten" />@endif
     @if($selectedId)
         <livewire:operations.commercial-offers :subject-type="$selectedSubjectType" :subject-id="$selectedSubjectId" :initial-offer-id="$selectedId" :show-list="false" :key="'case-offer-detail-'.$selectedId.'-'.$detailGeneration" />

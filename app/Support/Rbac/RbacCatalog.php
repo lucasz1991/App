@@ -17,9 +17,9 @@ class RbacCatalog
     /**
      * @return array<string, array<int, array{key: string, label: string}>>
      */
-    public static function permissionGroups(): array
+    public static function permissionGroups(bool $enabledOnly = false): array
     {
-        return [
+        $groups = [
             'System' => [
                 ['key' => 'settings.manage', 'label' => 'Einstellungen verwalten'],
             ],
@@ -87,6 +87,19 @@ class RbacCatalog
                 ['key' => 'devices.audit.view', 'label' => 'Geräteprotokoll anzeigen'],
             ],
         ];
+
+        if ($enabledOnly) {
+            foreach ($groups as $group => $items) {
+                $groups[$group] = array_values(array_filter($items, static fn ($item) => self::permissionEnabled($item['key'])));
+            }
+        }
+
+        return $groups;
+    }
+
+    public static function permissionEnabled(string $ability): bool
+    {
+        return $ability !== 'operations.terminal.manage' || config('operations.terminal_enabled', false);
     }
 
     /**

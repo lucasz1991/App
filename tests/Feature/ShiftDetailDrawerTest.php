@@ -341,7 +341,7 @@ class ShiftDetailDrawerTest extends TestCase
     public function test_native_staffing_and_feedback_share_one_tab_with_existing_assignment_actions(): void
     {
         (require database_path('migrations/2026_09_15_190000_create_operations_workflow_tables.php'))->up();
-        $this->shift->forceFill(['revision' => 1, 'published_revision' => 1])->save();
+        $this->shift->forceFill(['revision' => 1, 'published_revision' => 1, 'required_staff' => 3])->save();
         $assignments = collect(['requested', 'confirmed', 'declined', 'cancelled'])->mapWithKeys(function (string $status): array {
             $assignment = ShiftAssignment::create([
                 'shift_id' => $this->shift->id,
@@ -360,14 +360,15 @@ class ShiftDetailDrawerTest extends TestCase
         $staffingTab = $xpath->query('.//*[@data-panel-tab="staffing"]', $tabs)->item(0);
         $this->assertNotNull($staffingTab);
         $this->assertStringContainsString('Besetzung & Rückmeldungen', $staffingTab->textContent);
-        $this->assertStringContainsString('2/1', $staffingTab->textContent);
+        $this->assertStringContainsString('2/3', $staffingTab->textContent);
         $this->assertSame(0, $xpath->query('.//*[@data-panel-tab="feedback"]', $tabs)->length);
         $this->assertSame(0, $xpath->query('//*[@data-panel-mode="detail"]//*[@data-panel-section="feedback"]')->length);
 
         $staffing = $xpath->query('//*[@data-panel-mode="detail"]//*[@data-panel-section="staffing"]')->item(0);
         $this->assertNotNull($staffing);
         $this->assertStringContainsString('Rückmeldungen', $staffing->textContent);
-        $this->assertStringContainsString('2 von 1 Plätzen reserviert', $staffing->textContent);
+        $this->assertStringContainsString('2 von 3 Plätzen reserviert', $staffing->textContent);
+        $this->assertStringContainsString('1 Platz zu besetzen', $staffing->textContent);
         foreach (['Angefragt', 'Bestätigt', 'Abgelehnt', 'Noch nicht geöffnet', 'Mitarbeitende finden'] as $label) {
             $this->assertStringContainsString($label, $staffing->textContent);
         }

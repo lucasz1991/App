@@ -57,6 +57,20 @@ class OrdersPeriodControlsUiTest extends TestCase
         ], $attributes));
     }
 
+    public function test_empty_order_list_links_the_applied_dates_to_its_own_period_dialog(): void
+    {
+        $list = Livewire::actingAs($this->admin)->test(Orders::class, ['consolidated' => true])
+            ->call('applyPeriod', '2027-05-04', '2027-05-09')
+            ->assertSee('Keine Leistungen vom 04.05.2027 bis 09.05.2027 für diese Auswahl.');
+        $dom = $this->xpath($list->html());
+        $button = $dom->query('//*[@data-orders-list-scroll]//button[normalize-space(.)="Zeitraum ändern"]')->item(0);
+        $this->assertInstanceOf(DOMElement::class, $button);
+        $this->assertSame(1, $dom->query('//*[@id="'.$button->getAttribute('aria-controls').'"]')->length);
+        $this->order();
+        $list->call('applyPeriod', '2027-05-15', '2027-05-17')->assertDontSee('Zeitraum ändern')
+            ->assertSee('Lokale Zeitraumleistung');
+    }
+
     public function test_native_order_period_control_is_directly_before_filter_in_the_same_first_header_host(): void
     {
         $this->order();

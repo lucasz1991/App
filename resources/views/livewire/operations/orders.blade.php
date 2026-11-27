@@ -36,7 +36,21 @@
         </div>
     @endif
     <section class="rt-orders-list" aria-label="{{ __('pagination.orders_list') }}" @if($boundedOrdersList) data-orders-list-scroll @endif>
-        <x-operations.service-table :items="$orderTableItems" sort-action="tableSort" :sort-by="$sortBy" :sort-dir="$sortDir" table-key="orders" data-table-pagination-key="orders" :scroll-body="$boundedOrdersList" :selected-items="[$selectedOrderId]" :bulk-selected-items="$selectedServiceRows" bulk-selection-action="toggleServiceSelection" selection-action="selectOrder" detail-action="openDetails" label="Aufträge und Leistungen" />
+        <x-operations.service-table :items="$orderTableItems" sort-action="tableSort" :sort-by="$sortBy" :sort-dir="$sortDir" table-key="orders" data-table-pagination-key="orders" :scroll-body="$boundedOrdersList" :selected-items="[$selectedOrderId]" :bulk-selected-items="$selectedServiceRows" bulk-selection-action="toggleServiceSelection" selection-action="selectOrder" detail-action="openDetails" label="Aufträge und Leistungen">
+            @if($boundedOrdersList && $orderTableItems->isEmpty())
+                <x-slot:empty>
+                    <x-ui.empty-state variant="inline" :title="'Keine Leistungen vom '.\Carbon\CarbonImmutable::parse($rangeFrom)->format('d.m.Y').' bis '.\Carbon\CarbonImmutable::parse($rangeTo)->format('d.m.Y').' für diese Auswahl.'">
+                        <x-slot:action>
+                            <x-ui.buttons.button-basic type="button" mode="link" size="sm" aria-haspopup="dialog"
+                                aria-controls="rt-dropdown-orders-period-{{ $this->getId() }}-content"
+                                x-on:click.stop="$dispatch('orders-period-request', { id: $el.getAttribute('aria-controls') })">
+                                Zeitraum ändern
+                            </x-ui.buttons.button-basic>
+                        </x-slot:action>
+                    </x-ui.empty-state>
+                </x-slot:empty>
+            @endif
+        </x-operations.service-table>
         <div class="rt-service-pagination" data-orders-pagination>
             <x-tables.pagination :paginator="$orders" table-key="orders" label="Auftragsseiten" />
         </div>

@@ -33,6 +33,11 @@ class PersonalWorkspace extends Component
         OperationsAccess::requireReady();
         OperationsAccess::own(auth()->user(), auth()->id());
         $definition = PersonalWorkspaceAreas::get($this->area);
+        if ($this->area === 'terminal' && ! $definition) {
+            $this->area = 'work';
+            $this->initialTab = '';
+            $definition = PersonalWorkspaceAreas::get($this->area);
+        }
         abort_unless($definition, 503);
 
         return view('livewire.operations.personal-workspace', ['definition' => $definition])

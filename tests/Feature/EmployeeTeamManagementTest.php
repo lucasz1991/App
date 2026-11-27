@@ -57,6 +57,27 @@ class EmployeeTeamManagementTest extends TestCase
         $this->actingAs($this->admin);
     }
 
+    public function test_paused_terminal_permission_is_hidden_and_its_saved_grant_survives_team_edits(): void
+    {
+        $permission = 'operations.terminal.manage';
+        $this->destination->forceFill(['rbac_permissions' => [$permission => true]])->save();
+        config(['operations.terminal_enabled' => false]);
+        $this->assertFalse($this->admin->can($permission));
+
+        $editor = Livewire::test(TeamRbacModal::class)->call('open', $this->destination->id)
+            ->assertDontSee('Terminalzugänge verwalten')
+            ->call('setSelectedTeamToFalse')
+            ->set('matrix.'.$this->destination->id.'.operations__dot__terminal__dot__manage', false)
+            ->call('save')->assertHasNoErrors();
+        $this->assertTrue($this->destination->fresh()->rbac_permissions[$permission]);
+
+        config(['operations.terminal_enabled' => true]);
+        $this->assertTrue($this->admin->can($permission));
+        $editor->call('open', $this->destination->id)->assertSee('Terminalzugänge verwalten')
+            ->call('setSelectedTeamToFalse')->call('save')->assertHasNoErrors();
+        $this->assertFalse($this->destination->fresh()->rbac_permissions[$permission]);
+    }
+
     public function test_primary_team_change_retains_other_memberships_and_all_non_team_account_data(): void
     {
         $extra = $this->team('Zusatzteam');

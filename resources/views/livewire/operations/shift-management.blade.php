@@ -224,13 +224,9 @@
         $detailIdPrefix = 'shift-detail-'.$this->getId();
         $formIdPrefix = 'shift-form-'.$this->getId();
         if ($selectedShift) {
-            $selectedShiftStatus = $selectedShift->status instanceof \BackedEnum ? $selectedShift->status->value : (string) $selectedShift->status;
-            $selectedAssignments = $selectedShift->assignments->filter(fn ($assignment) => in_array(
-                $assignment->status instanceof \BackedEnum ? $assignment->status->value : $assignment->status,
-                ['requested', 'confirmed'],
-                true,
-            ));
-            $selectedReservedCount = $selectedAssignments->count();
+            $shiftClosed = $selectedStaffing->closed;
+            $selectedAssignments = $shiftClosed ? $selectedShift->assignments : $selectedShift->assignments->filter(fn ($assignment) => $assignment->status->blocksAvailability());
+            $selectedReservedCount = $selectedStaffing->reserved;
             $shiftStart = $selectedShift->starts_at?->setTimezone($displayTimezone)->locale('de');
             $shiftEnd = $selectedShift->ends_at?->setTimezone($displayTimezone)->locale('de');
             $shiftWindow = $shiftStart && $shiftEnd
@@ -239,12 +235,11 @@
                     : $shiftStart->isoFormat('dd, DD.MM. HH:mm').' – '.$shiftEnd->isoFormat('dd, DD.MM. HH:mm'))
                 : null;
             $shiftLocation = $selectedShift->location_name ?: $selectedShift->order?->location_name;
-            $shiftClosed = in_array($selectedShiftStatus, ['cancelled', 'completed'], true);
             $shiftPublished = (int) $selectedShift->published_revision === (int) $selectedShift->revision;
             $canPublish = $nativeOperations && ! $shiftPublished && ! $shiftClosed;
             $detailTabs = [
                 'overview' => ['label' => 'Übersicht', 'alert' => $canPublish],
-                'staffing' => ['label' => $nativeOperations ? 'Besetzung & Rückmeldungen' : 'Besetzung', 'count' => $selectedReservedCount.'/'.$selectedShift->required_staff],
+                'staffing' => ['label' => $nativeOperations ? 'Besetzung & Rückmeldungen' : 'Besetzung', 'count' => $shiftClosed ? null : $selectedReservedCount.'/'.$selectedShift->required_staff],
             ];
             if ($nativeOperations) {
                 if (\App\Support\Operations\PlanningSchema::ready()) {
@@ -338,7 +333,7 @@
                             @endif
                             {{-- Offene Änderungen gehören zum Veröffentlichungs-Hinweis; die Liste der zuletzt
                                  veröffentlichten Änderungen ist Nachschlagewissen und steht am Ende. --}}
-                            @if($nativeOperations && count($planChanges) && ! $shiftPublished)
+                            @if($canPublish && count($planChanges))
                                 <x-operations.panel.group :title="$selectedShift->published_revision ? 'Änderungen zur Veröffentlichung' : 'Erste Veröffentlichung'">
                                     <x-tables.table :columns="[['label'=>'Feld','key'=>'label'],['label'=>'Bisher','key'=>'before'],['label'=>'Neu','key'=>'after']]" :items="collect($planChanges)->map(fn ($change, $key) => (object) ($change + ['id'=>$key]))" row-view="components.tables.rows.planning.plan-change-row" />
                                 </x-operations.panel.group>
@@ -389,13 +384,13 @@
                                     @if($nativeOperations)
                                         <x-operations.panel.row label="Geplante Pause"><span class="rt-ops-panel__num">{{ (int) $selectedShift->planned_break_minutes }} Minuten</span></x-operations.panel.row>
                                     @endif
-                                    <x-operations.panel.row label="Besetzung"><span class="rt-ops-panel__num">{{ $selectedReservedCount }} von {{ $selectedShift->required_staff }}</span> eingeplant</x-operations.panel.row>
+                                    <x-operations.panel.row label="Besetzung"><span class="rt-ops-panel__num">{{ $shiftClosed ? $selectedStaffing->plannedPlacesLabel() : $selectedReservedCount.' von '.$selectedStaffing->required.' eingeplant' }}</span></x-operations.panel.row>
                                     @if($nativeOperations)
-                                        <x-operations.panel.row label="Nachweise">
+                                        <x-operations.panel.row label="Qualifikationen der Schicht">
                                             @if($selectedShift->qualifications->isNotEmpty())
                                                 <span class="rt-ops-panel__chips">@foreach($selectedShift->qualifications as $qualification)<x-ui.badge size="sm">{{ $qualification->name }}</x-ui.badge>@endforeach</span>
                                             @else
-                                                Keine erforderlich
+                                                Keine direkt hinterlegt
                                             @endif
                                         </x-operations.panel.row>
                                     @endif
@@ -409,7 +404,7 @@
                                     <p class="rt-ops-panel__text">{{ $selectedShift->notes }}</p>
                                 </x-operations.panel.group>
                             @endif
-                            @if($nativeOperations && count($planChanges) && $shiftPublished)
+                            @if($nativeOperations && count($planChanges) && ($shiftPublished || $shiftClosed))
                                 <x-operations.panel.group title="Zuletzt veröffentlichte Änderungen">
                                     <x-tables.table :columns="[['label'=>'Feld','key'=>'label'],['label'=>'Bisher','key'=>'before'],['label'=>'Neu','key'=>'after']]" :items="collect($planChanges)->map(fn ($change, $key) => (object) ($change + ['id'=>$key]))" row-view="components.tables.rows.planning.plan-change-row" />
                                 </x-operations.panel.group>
@@ -420,7 +415,7 @@
                             @if($nativeOperations)
                                 @include('livewire.operations.partials.shift-staffing')
                             @else
-                                <x-operations.panel.group title="Eingeteilte Mitarbeitende" :meta="$selectedAssignments->count().' Zuweisungen'">
+                                <x-operations.panel.group :title="$shiftClosed ? 'Historische Besetzung' : 'Eingeteilte Mitarbeitende'" :meta="$shiftClosed ? $selectedStaffing->plannedPlacesLabel() : $selectedAssignments->count().' Zuweisungen'">
                                     <div class="rt-ops-panel__list">
                                         @forelse($selectedAssignments as $assignment)
                                             @php $assignmentValue = $assignment->status instanceof \BackedEnum ? $assignment->status->value : (string) $assignment->status; @endphp
@@ -429,27 +424,25 @@
                                                     @if($assignment->user)<x-user.person-anchor-preview :user="$assignment->user" :show-presence="false" :show-email="false" :size="9" />@else<span class="ops-muted">Unbekannter Mitarbeiter</span>@endif
                                                     <p class="mt-0.5 truncate text-xs text-rt-muted dark:text-rt-dark-muted">{{ method_exists($assignment->status, 'label') ? $assignment->status->label() : \Illuminate\Support\Str::headline($assignmentValue) }}@if($assignment->note) · {{ $assignment->note }}@endif</p>
                                                 </div>
+                                                @unless($shiftClosed)
                                                 <x-ui.buttons.button-basic type="button" wire:click="removeAssignment({{ $assignment->id }})" wire:confirm="Zuweisung wirklich entfernen?" wire:loading.attr="disabled" class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-rt-muted transition hover:bg-red-50 hover:text-rt-red disabled:opacity-60 dark:text-rt-dark-muted dark:hover:bg-red-500/10" aria-label="{{ $assignment->user?->name }} aus der Schicht entfernen" title="Entfernen">
                                                     <i class="far fa-times" aria-hidden="true"></i>
                                                 </x-ui.buttons.button-basic>
+                                                @endunless
                                             </div>
                                         @empty
-                                            <p class="px-4 py-7 text-center text-sm text-rt-muted dark:text-rt-dark-muted">Noch niemand eingeteilt. Weise unten den ersten Mitarbeiter zu.</p>
+                                            <p class="px-4 py-7 text-center text-sm text-rt-muted dark:text-rt-dark-muted">{{ $shiftClosed ? 'Keine Zuweisung dokumentiert.' : 'Noch niemand eingeteilt.' }}</p>
                                         @endforelse
                                     </div>
                                 </x-operations.panel.group>
-                            @if($selectedShiftStatus === 'cancelled')
-                                <x-operations.panel.group title="Schicht storniert">
-                                    <p class="rt-ops-panel__text">Für eine stornierte Schicht können keine weiteren Mitarbeitenden reserviert werden.</p>
-                                </x-operations.panel.group>
-                            @else
-                                <x-operations.panel.group title="Mitarbeiter zuweisen">
+                            @unless($shiftClosed)
+                                <x-operations.panel.group :title="$selectedStaffing->open ? 'Mitarbeiter zuweisen' : 'Zuweisung bearbeiten'">
                                     <div class="space-y-3">
                                         <div class="rt-ops-panel__fields">
                                             <div>
                                                 <x-ui.forms.label for="assignment-employee" value="Mitarbeiter" />
                                                 <x-ui.forms.select id="assignment-employee" wire:model="employeeId" class="mt-1" placeholder="Mitarbeiter auswählen">
-                                                    @foreach($employees as $employee)<option value="{{ $employee->id }}">{{ $employee->name }}@if($employee->profile?->position) · {{ $employee->profile->position }}@endif</option>@endforeach
+                                                    @foreach($selectedStaffing->open ? $employees : $employees->whereIn('id', $selectedAssignments->pluck('user_id')) as $employee)<option value="{{ $employee->id }}">{{ $employee->name }}@if($employee->profile?->position) · {{ $employee->profile->position }}@endif</option>@endforeach
                                                 </x-ui.forms.select>
                                                 @error('employeeId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                                             </div>
@@ -470,11 +463,11 @@
                                         <x-ui.buttons.button-basic type="button" mode="primary" wire:click="assignEmployee" wire:loading.attr="disabled">
                                             <i wire:loading.remove wire:target="assignEmployee" class="far fa-user-plus" aria-hidden="true"></i>
                                             <i wire:loading wire:target="assignEmployee" class="far fa-spinner-third fa-spin" aria-hidden="true"></i>
-                                            Zuweisen
+                                            {{ $selectedStaffing->open ? 'Zuweisen' : 'Zuweisung speichern' }}
                                         </x-ui.buttons.button-basic>
                                     </div>
                                 </x-operations.panel.group>
-                            @endif
+                            @endunless
                             @endif
                         </x-operations.panel.tab>
 

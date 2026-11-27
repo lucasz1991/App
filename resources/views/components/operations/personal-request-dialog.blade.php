@@ -26,6 +26,12 @@
     $stateKey = $scopedId.'-'.($row ? $row['type'].'-'.$row['id'].'-'.$row['revision'].'-'.$requestedRevision : 'unavailable');
     $durationMinutes = $row['duration_minutes'] ?? ($start && $end ? max(0, (int) (($end->getTimestamp() - $start->getTimestamp()) / 60)) : 0);
     $durationLabel = trim(($durationMinutes >= 60 ? intdiv($durationMinutes, 60).' Std. ' : '').($durationMinutes % 60 ? ($durationMinutes % 60).' Min.' : '')) ?: '0 Min.';
+    // Only the published revision's actual differences belong in this view.
+    $publishedChanges = collect(! empty($row['changed_plan']) ? ($request['changes'] ?? []) : [])
+        ->filter(fn ($change) => is_array($change) && filled($change['label'] ?? null)
+            && array_key_exists('before', $change) && array_key_exists('after', $change)
+            && $change['before'] !== $change['after'])->values();
+    $changeLabels = $publishedChanges->pluck('label')->unique()->values();
     $requestTabs = [
         $scopedId.'-assignment' => ['label' => 'Übersicht', 'icon' => 'fal fa-th-large'],
         $scopedId.'-details' => ['label' => 'Details', 'icon' => 'fal fa-list-ul'],
@@ -42,8 +48,7 @@
             <span class="rt-request-dialog__intro" data-personal-request-heading>
                 <span class="rt-request-dialog__eyebrow">{{ $row['label'] }} <span aria-hidden="true">·</span> Version {{ $row['revision'] }}</span>
                 <span class="rt-request-dialog__title">{{ $row['title'] }}</span>
-                <span class="rt-request-dialog__customer">{{ $row['customer'] ?: 'Kunde nicht hinterlegt' }}</span>
-                @if($context === 'shift' && filled($row['status'] ?? null))<span class="rt-request-dialog__status"><x-operations.status :value="$row['status']" /></span>@endif
+                <span class="rt-request-dialog__customer">{{ $row['customer'] ?: 'Kunde nicht hinterlegt' }}@if(filled($row['status'] ?? null))<span class="rt-request-dialog__status"><span aria-hidden="true">·</span> {{ \App\Support\Operations\OperationsNavigation::status($row['status']) }}</span>@endif</span>
             </span>
         @else
             Anfrage prüfen
@@ -54,19 +59,28 @@
             @if($row)
                 <x-ui.accordion.tabs :tabs="$requestTabs" :default="$scopedId.'-assignment'" :persist="false" :reset-on-open="true" :persist-key="$stateKey.'-tabs'" :aria-label="$context === 'shift' ? 'Dienst ansehen' : 'Anfrage prüfen'" content-class="rt-request-dialog__panels" class="rt-request-dialog__tabs" data-anim="none">
                     <x-ui.accordion.tab-panel :for="$scopedId.'-assignment'" :order="0" content-class="rt-request-dialog__panel">
-                        <div class="rt-request-dialog__schedule">
-                            <p class="rt-request-dialog__period"><span>{{ $start->locale('de')->isoFormat('dddd, D. MMM YYYY') }}</span><strong>{{ $start->format('H:i') }} <span aria-hidden="true">–</span><span class="sr-only">bis</span> {{ $end->format($start->isSameDay($end) ? 'H:i' : 'd.m. H:i') }}</strong></p>
-                            <p class="rt-request-dialog__duration">{{ $durationLabel }} Zeitraum <span aria-hidden="true">·</span> {{ $row['break_minutes'] > 0 ? $row['break_minutes'].' Min. geplante Pause' : 'Keine geplante Pause' }}</p>
+                        <div @class(['rt-request-dialog__schedule', 'rt-request-dialog__schedule--changed' => $publishedChanges->isNotEmpty()])>
+                            <div>
+                                <p class="rt-request-dialog__period"><span><i class="fal fa-calendar-alt" aria-hidden="true"></i>{{ $start->locale('de')->isoFormat('dddd, D. MMM YYYY') }}</span><strong>{{ $start->format('H:i') }} <span aria-hidden="true">–</span><span class="sr-only">bis</span> {{ $end->format($start->isSameDay($end) ? 'H:i' : 'd.m. H:i') }}</strong></p>
+                                <p class="rt-request-dialog__duration">{{ $durationLabel }} Zeitraum <span aria-hidden="true">·</span> {{ $row['break_minutes'] > 0 ? $row['break_minutes'].' Min. geplante Pause' : 'Keine geplante Pause' }}</p>
+                            </div>
+                            @if($publishedChanges->isNotEmpty())
+                                <section class="rt-request-dialog__change-summary" aria-label="Planänderungen im Überblick" data-personal-request-change-summary>
+                                    <strong><i class="fal fa-pen" aria-hidden="true"></i>{{ $publishedChanges->count() }} {{ $publishedChanges->count() === 1 ? 'Änderung' : 'Änderungen' }}</strong>
+                                    <span title="{{ $changeLabels->join(', ') }}">{{ $changeLabels->take(2)->join(', ') }}@if($changeLabels->count() > 2) <span class="rt-request-dialog__change-more">+{{ $changeLabels->count() - 2 }} weitere</span>@endif</span>
+                                    <x-ui.buttons.button-basic type="button" mode="link" class="rt-request-dialog__change-link" :x-on:click="'selectTab('.\Illuminate\Support\Js::from($scopedId.'-details').', true)'" :aria-controls="'panel-'.$scopedId.'-details'">Änderungen ansehen <i class="far fa-arrow-right" aria-hidden="true"></i></x-ui.buttons.button-basic>
+                                </section>
+                            @endif
                         </div>
                         <dl class="rt-request-dialog__facts rt-request-dialog__facts--assignment">
-                            <div><dt><i class="fal fa-user-hard-hat" aria-hidden="true"></i>Deine Funktion</dt><dd>{{ $row['role'] ?: 'Noch nicht hinterlegt' }}</dd></div>
+                            <div><dt><i class="fal fa-user-hard-hat" aria-hidden="true"></i>Funktion</dt><dd>{{ $row['role'] ?: 'Noch nicht hinterlegt' }}</dd></div>
                             <div><dt><i class="fal fa-building" aria-hidden="true"></i>Kunde</dt><dd>{{ $row['customer'] ?: 'Noch nicht hinterlegt' }}</dd></div>
+                            <div class="rt-request-dialog__location-fact"><dt><i class="fal fa-map-marker-alt" aria-hidden="true"></i>Einsatzort</dt><dd>{{ $row['location'] ?: 'Noch nicht hinterlegt' }}</dd></div>
                         </dl>
                         <div class="rt-request-dialog__previews">
                             <div class="rt-request-dialog__mini-calendar"><x-operations.timeline-mini-calendar :start="$start" :end="$end" /></div>
                             <x-operations.personal-request-map :preview="$row['location_preview'] ?? null" :location="$row['location'] ?? null" :id="$scopedId.'-map'" />
                         </div>
-                        @if(filled($row['location'] ?? null))<p class="rt-request-dialog__place"><i class="far fa-map-marker-alt" aria-hidden="true"></i><span>{{ $row['location'] }}</span></p>@endif
                     </x-ui.accordion.tab-panel>
                     <x-ui.accordion.tab-panel :for="$scopedId.'-details'" :order="1" content-class="rt-request-dialog__panel">
                         <section class="rt-request-dialog__section" aria-label="Einsatzdetails">
@@ -91,9 +105,9 @@
                         @if(filled($row['notes'] ?? null))
                             <section class="rt-request-dialog__section rt-request-dialog__notes"><h3>Hinweise zum Einsatz</h3><p>{{ $row['notes'] }}</p></section>
                         @endif
-                        @if(! empty($request['changes']))
+                        @if($publishedChanges->isNotEmpty())
                             <section class="rt-request-dialog__changes" aria-label="Veröffentlichte Planänderungen"><h3>Was sich geändert hat <span>Version {{ $row['revision'] }}</span></h3>
-                                <dl>@foreach($request['changes'] as $change)<div><dt>{{ $change['label'] }}</dt><dd><span>Bisher: {{ $change['before'] }}</span><strong>Aktuell: {{ $change['after'] }}</strong></dd></div>@endforeach</dl>
+                                <dl>@foreach($publishedChanges as $change)<div><dt>{{ $change['label'] }}</dt><dd><span>Bisher: {{ $change['before'] }}</span><strong>Aktuell: {{ $change['after'] }}</strong></dd></div>@endforeach</dl>
                             </section>
                         @endif
                     </x-ui.accordion.tab-panel>
@@ -128,13 +142,13 @@
                 @else
                 @if($open && $canRespond)
                     @if($livewire)
-                        <x-ui.buttons.button-basic type="button" mode="primary" wire:click="{{ $respondAction }}(true)" wire:loading.attr="disabled" wire:target="{{ $respondAction }}">{{ $acceptLabel }}</x-ui.buttons.button-basic>
+                        <x-ui.buttons.button-basic type="button" mode="primary" icon="far fa-check" wire:click="{{ $respondAction }}(true)" wire:loading.attr="disabled" wire:target="{{ $respondAction }}">{{ $acceptLabel }}</x-ui.buttons.button-basic>
                         <x-ui.buttons.button-basic type="button" :confirm-method="$respondAction" :confirm-arguments="[false]"
                             :confirm-title="$isCapacity ? 'Kapazitätsanfrage ablehnen?' : 'Dienstanfrage ablehnen?'"
                             :confirm-message="$row['title'].' · '.$start->format('d.m.Y H:i').' – '.$end->format($start->isSameDay($end) ? 'H:i' : 'd.m.Y H:i')"
                             :confirm-label="$declineLabel" wire:loading.attr="disabled" wire:target="{{ $respondAction }}">{{ $declineLabel }}</x-ui.buttons.button-basic>
                     @else
-                        <x-ui.buttons.button-basic type="button" mode="primary" disabled>{{ $acceptLabel }}</x-ui.buttons.button-basic><x-ui.buttons.button-basic type="button" disabled>{{ $declineLabel }}</x-ui.buttons.button-basic>
+                        <x-ui.buttons.button-basic type="button" mode="primary" icon="far fa-check" disabled>{{ $acceptLabel }}</x-ui.buttons.button-basic><x-ui.buttons.button-basic type="button" disabled>{{ $declineLabel }}</x-ui.buttons.button-basic>
                     @endif
                 @endif
                 @if(! $canRespond)

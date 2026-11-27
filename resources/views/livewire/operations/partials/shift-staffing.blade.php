@@ -1,15 +1,28 @@
 <div class="rt-staffing" data-shift-staffing x-data>
-    <section class="rt-staffing-section" aria-label="Aktuelle Besetzung">
+    <section class="rt-staffing-section" aria-label="{{ $shiftClosed ? 'Historische Besetzung' : 'Aktuelle Besetzung' }}">
         <div class="rt-staffing-heading">
-            <div><h3>Besetzung & Rückmeldungen</h3><p>{{ $selectedReservedCount }} von {{ $selectedShift->required_staff }} Plätzen reserviert · {{ max(0, $selectedShift->required_staff - $selectedReservedCount) }} offen</p></div>
-            <span class="rt-staffing-count">{{ $feedback->count() }}</span>
+            <div>
+                <h3>{{ $shiftClosed ? 'Historische Besetzung' : 'Besetzung & Rückmeldungen' }}</h3>
+                <p>
+                    @if($shiftClosed)
+                        {{ $selectedStaffing->plannedPlacesLabel() }}
+                    @elseif($selectedReservedCount)
+                        {{ $selectedStaffing->required === 1 && $selectedReservedCount === 1 ? '1 Platz reserviert' : $selectedReservedCount.' von '.$selectedStaffing->required.' Plätzen reserviert' }}
+                    @endif
+                    @if($selectedStaffing->open)
+                        @if($selectedReservedCount) · @endif
+                        {{ $selectedStaffing->open }} {{ $selectedStaffing->open === 1 ? 'Platz' : 'Plätze' }} zu besetzen
+                    @endif
+                </p>
+            </div>
+            @if($feedback->isNotEmpty())<span class="rt-staffing-count" title="Dokumentierte Einträge">{{ $feedback->count() }}</span>@endif
         </div>
         @if($feedback->isNotEmpty())
-            <x-tables.table :columns="[['label'=>'Mitarbeiter','key'=>'name','width'=>'minmax(0,1.2fr)'],['label'=>'Rückmeldung & Zustellung','key'=>'response','width'=>'minmax(0,1.3fr)'],['label'=>'','key'=>'action','width'=>'44px']]" :items="$feedback" row-view="components.tables.rows.planning.staffing-feedback-row" label="Aktuelle Besetzung und Rückmeldungen" class="rt-staffing-table" />
-        @else
-            <p class="rt-staffing-note">Noch niemand zugewiesen. Wählen Sie unten passende Mitarbeitende aus.</p>
+            <x-tables.table :columns="[['label'=>'Mitarbeiter','key'=>'name','width'=>'minmax(0,1.2fr)'],['label'=>'Rückmeldung & Zustellung','key'=>'response','width'=>'minmax(0,1.3fr)'],['label'=>'','key'=>'action','width'=>'44px']]" :items="$feedback" row-view="components.tables.rows.planning.staffing-feedback-row" :row-context="['shiftClosed' => $shiftClosed]" :label="$shiftClosed ? 'Historische Besetzung und Rückmeldungen' : 'Aktuelle Besetzung und Rückmeldungen'" class="rt-staffing-table" />
+        @elseif($shiftClosed)
+            <p class="rt-staffing-note">Keine Zuweisung dokumentiert.</p>
         @endif
-        @if($detailOpen)
+        @if($detailOpen && ! $shiftClosed)
             @if(\App\Support\Routing\TomTomSettings::all()['enabled'] && $feedback->filter(fn($entry) => $entry->status->blocksAvailability())->isNotEmpty())
                 @php
                     $allAssignedRouteIds = $feedback->filter(fn($entry) => $entry->status->blocksAvailability())->pluck('user_id')->unique();
@@ -25,18 +38,16 @@
         @endif
     </section>
 
-    @if($regionalEmployee)
+    @if($regionalEmployee && $selectedStaffing->open)
         @include('livewire.operations.partials.staffing-regions')
     @endif
 
-    @if($selectedCandidate)
+    @if($selectedCandidate && $selectedStaffing->open)
         @include('livewire.operations.partials.staffing-assignment-review')
     @endif
     @error('assignment')<p class="rt-staffing-alert" role="alert">{{ $message }}</p>@enderror
 
-    @if($shiftClosed)
-        <p class="rt-staffing-note">Diese Schicht ist abgeschlossen oder storniert. Neue Zuweisungen sind nicht möglich.</p>
-    @else
+    @if($selectedStaffing->open)
         <livewire:operations.ai-planning-helper :shift-id="$selectedShift->id" :key="'ai-planning-shift-'.$selectedShift->id.'-'.$selectedShift->revision" />
         <section class="rt-staffing-section" aria-label="Mitarbeitende finden" data-staffing-candidates>
             <div class="rt-staffing-heading">

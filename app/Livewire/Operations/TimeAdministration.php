@@ -44,6 +44,7 @@ class TimeAdministration extends Component
         $this->payrollExportOnly = $payrollExportOnly;
         $this->contextUserId = $initialUserId;
         abort_if($payrollExportOnly && ($personal || $tab !== 'payroll'), 403);
+        abort_if($tab === 'terminal' && ! $this->tabOffered($tab), 403);
         $allowed = $this->tabs();
         abort_unless($allowed, 403);
         $this->tab = array_key_exists($tab, $allowed) ? $tab : array_key_first($allowed);
@@ -56,7 +57,9 @@ class TimeAdministration extends Component
 
     protected function tabOffered(string $tab): bool
     {
-        return (! $this->personal || $tab === 'terminal') && (! $this->payrollExportOnly || $tab === 'payroll');
+        return ($tab !== 'terminal' || config('operations.terminal_enabled', false))
+            && (! $this->personal || $tab === 'terminal')
+            && (! $this->payrollExportOnly || $tab === 'payroll');
     }
 
     protected function ability(string $tab): string
@@ -79,7 +82,7 @@ class TimeAdministration extends Component
     protected function access(): User
     {
         $actor = $this->freshActor(requireReady: false);
-        abort_unless($this->canTab($this->tab) && (! $this->personal || $this->tab === 'terminal'), 403);
+        abort_unless($this->tabOffered($this->tab) && $this->canTab($this->tab), 403);
         if ($this->personal) {
             OperationsAccess::own($actor, $actor->id);
         } else {

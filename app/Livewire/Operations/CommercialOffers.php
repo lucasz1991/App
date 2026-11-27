@@ -44,12 +44,16 @@ class CommercialOffers extends Component
     #[Locked]
     public bool $showList = true;
 
-    public function mount(string $subjectType, int $subjectId, ?int $initialOfferId = null, bool $showList = true): void
+    #[Locked]
+    public ?string $createFormId = null;
+
+    public function mount(string $subjectType, int $subjectId, ?int $initialOfferId = null, bool $showList = true, ?string $createFormId = null): void
     {
         abort_unless(in_array($subjectType, ['OperationInquiry', 'Order'], true), 404);
         $this->subjectType = $subjectType;
         $this->subjectId = $subjectId;
         $this->showList = $showList;
+        $this->createFormId = $createFormId;
         $this->subject();
         if ($initialOfferId !== null) {
             $this->select($initialOfferId);

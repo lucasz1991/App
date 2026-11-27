@@ -1,4 +1,4 @@
-@props(['demand' => [], 'variant' => 'grid', 'assumptions' => [], 'confirmed' => false, 'activities' => []])
+@props(['demand' => [], 'variant' => 'grid', 'assumptions' => [], 'confirmed' => false, 'activities' => [], 'schedule' => []])
 @php
     $fields = ['role_name'=>['Tätigkeit','fa-user-hard-hat'],'location_name'=>['Einsatzort','fa-map-marker-alt'],'starts_at'=>['Beginn','fa-calendar-alt'],'ends_at'=>['Ende','fa-calendar-check'],'required_staff'=>['Personalbedarf','fa-users'],'timezone'=>['Zeitzone','fa-clock']];
     $parseLocal = static function ($raw) {
@@ -10,7 +10,7 @@
     };
     $reviewRows = $variant === 'review';
     $drawerRows = $variant === 'drawer';
-    if ($drawerRows) $fields = ['role_name' => ['Tätigkeit', 'fa-user-hard-hat'], 'required_staff' => ['Personalbedarf', 'fa-users']];
+    if ($drawerRows) $fields = ['role_name' => ['Tätigkeit', 'fa-user-hard-hat'], 'required_staff' => ['Personalbedarf', 'fa-users'], 'schedule' => ['Einsatzzeit', 'fa-clock']];
     $isConfirmed = filter_var($confirmed, FILTER_VALIDATE_BOOL);
     $starts = $parseLocal($demand['starts_at'] ?? null);
     $ends = $parseLocal($demand['ends_at'] ?? null);
@@ -25,7 +25,14 @@
     @foreach($fields as $key => [$label, $icon])
         @php
             $value = $demand[$key] ?? null;
-            if ($key === 'role_name' && is_string($value)) $value = ($activities[mb_strtolower(preg_replace('~\s*/\s*~u', '/', trim($value)))]['title'] ?? null) ?: $value;
+            if ($key === 'role_name' && is_string($value)) {
+                $activity = $activities[mb_strtolower(preg_replace('~\s*/\s*~u', '/', trim($value)))] ?? null;
+                if ($activity) $value = $drawerRows ? $activity->displayLabel() : ($activity->title ?: $value);
+            }
+            if ($key === 'schedule') {
+                $value = $schedule['timeLabel'] ?? null;
+                if ($value && $schedule['start']->isSameDay($schedule['end'])) $value = $schedule['start']->format('d.m.Y').' · '.$value;
+            }
             if ($key === 'date') $value = $dateLabel;
             if (in_array($key, ['starts_at', 'ends_at'], true)) {
                 $date = $key === 'starts_at' ? $starts : $ends;

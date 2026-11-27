@@ -98,16 +98,15 @@ class TeamRbacModal extends Component
 
     public function setSelectedTeamToFalse(): void
     {
-        $this->authorizeManager();
-        if ($this->selectedTeamId === null) {
-            return;
-        }
-
-        $teamId = (int) $this->selectedTeamId;
-        $this->matrix[(string) $teamId] = $this->defaultMatrixForTeam();
+        $this->setSelectedTeamPermissions(false);
     }
 
     public function setSelectedTeamToTrue(): void
+    {
+        $this->setSelectedTeamPermissions(true);
+    }
+
+    private function setSelectedTeamPermissions(bool $enabled): void
     {
         $this->authorizeManager();
         if ($this->selectedTeamId === null) {
@@ -115,37 +114,36 @@ class TeamRbacModal extends Component
         }
 
         $teamId = (int) $this->selectedTeamId;
-        $permissions = RbacCatalog::allPermissions();
-        $permissionMatrix = [];
-        foreach ($permissions as $permission) {
-            $encodedPermission = $this->permissionKey($permission);
-            $permissionMatrix[$encodedPermission] = true;
+        foreach (RbacCatalog::allPermissions() as $permission) {
+            if (RbacCatalog::permissionEnabled($permission)) {
+                $this->matrix[(string) $teamId][$this->permissionKey($permission)] = $enabled;
+            }
         }
-
-        $this->matrix[(string) $teamId] = $permissionMatrix;
     }
 
     public function save(): void
     {
         $this->authorizeManager();
 
-        $teams = $this->teams();
-        $teamIds = $teams->pluck('id')->map(fn ($id) => (int) $id)->all();
-        $teamSet = array_flip($teamIds);
+        $teams = $this->teams()->keyBy('id');
+        $legacy = (array) Setting::getValue('rbac', 'team_permissions');
         $permissions = RbacCatalog::allPermissions();
         $permissionMap = [];
         foreach ($permissions as $permission) {
-            $permissionMap[$this->permissionKey($permission)] = $permission;
+            if (RbacCatalog::permissionEnabled($permission)) {
+                $permissionMap[$this->permissionKey($permission)] = $permission;
+            }
         }
+        $hiddenKeys = array_flip(array_diff($permissions, $permissionMap));
 
         $updatedTeamIds = [];
         foreach ($this->matrix as $teamId => $permissionMatrix) {
             $teamId = (int) $teamId;
-            if (! isset($teamSet[$teamId])) {
+            if (! isset($teams[$teamId])) {
                 continue;
             }
 
-            $payload = [];
+            $payload = array_intersect_key($this->storedPermissions($teams[$teamId], $legacy), $hiddenKeys);
 
             foreach ($permissionMatrix as $encodedPermission => $enabled) {
                 if (! isset($permissionMap[$encodedPermission])) {
@@ -202,34 +200,26 @@ class TeamRbacModal extends Component
     {
         $this->matrix = [];
         $permissions = RbacCatalog::allPermissions();
-        $legacy = Setting::getValue('rbac', 'team_permissions');
-        $legacy = is_array($legacy) ? $legacy : [];
+        $legacy = (array) Setting::getValue('rbac', 'team_permissions');
 
         foreach ($this->teams() as $team) {
             $teamPermissions = [];
-            $stored = is_array($team->rbac_permissions) ? $team->rbac_permissions : [];
+            $stored = $this->storedPermissions($team, $legacy);
 
             foreach ($permissions as $permission) {
                 $encodedPermission = $this->permissionKey($permission);
                 $teamPermissions[$encodedPermission] = (bool) ($stored[$permission] ?? false);
             }
 
-            if (! empty($stored)) {
-                $this->matrix[(string) $team->id] = $teamPermissions;
-
-                continue;
-            }
-
-            // Legacy-Fallback: aus settings lesen (falls alte Daten existieren)
-            if (isset($legacy[(string) $team->id]) && is_array($legacy[(string) $team->id])) {
-                foreach ($permissions as $permission) {
-                    $encodedPermission = $this->permissionKey($permission);
-                    $teamPermissions[$encodedPermission] = (bool) ($legacy[(string) $team->id][$permission] ?? false);
-                }
-            }
-
             $this->matrix[(string) $team->id] = $teamPermissions;
         }
+    }
+
+    private function storedPermissions(Team $team, array $legacy): array
+    {
+        $stored = $team->rbac_permissions ?: ($legacy[$team->id] ?? []);
+
+        return is_array($stored) ? $stored : [];
     }
 
     protected function prepareManager(): void
@@ -287,7 +277,7 @@ class TeamRbacModal extends Component
         $permissionGroups = [];
         if ($this->embedded || $this->showModal) {
             $teams = $this->teams();
-            $permissionGroups = RbacCatalog::permissionGroups();
+            $permissionGroups = RbacCatalog::permissionGroups(enabledOnly: true);
         }
 
         return view('livewire.employees.team-rbac-modal', [

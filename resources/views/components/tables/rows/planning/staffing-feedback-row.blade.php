@@ -14,10 +14,10 @@
             @if($item->plan_revision > 0 && $item->plan_revision === $item->shift->published_revision)
                 <span class="rt-table-meta">Revision {{ $item->plan_revision }}@if($item->responded_at) · {{ $item->responded_at->setTimezone($displayTimezone ?? config('operations.display_timezone'))->format('d.m. H:i') }}@endif</span>
                 <span class="rt-table-meta"><i class="far {{ $item->plan_opened_at ? 'fa-eye' : 'fa-envelope' }}" aria-hidden="true"></i> {{ $item->plan_opened_at ? 'Geöffnet am '.$item->plan_opened_at->setTimezone(config('operations.display_timezone'))->format('d.m. H:i') : 'Noch nicht geöffnet' }}</span>
-            @else<span class="rt-table-meta">Aktueller Stand noch nicht veröffentlicht</span>@endif
+            @elseif(! $shiftClosed)<span class="rt-table-meta">Aktueller Stand noch nicht veröffentlicht</span>@endif
         </div>
     @else
-        @if($item->status->blocksAvailability())<x-ui.buttons.button-basic type="button" wire:click="removeAssignment({{ $item->id }})" wire:confirm="Zuweisung wirklich entfernen?" wire:loading.attr="disabled" :aria-label="$item->user?->name.' aus der Schicht entfernen'" title="Zuweisung entfernen"><i class="far fa-user-minus" aria-hidden="true"></i></x-ui.buttons.button-basic>@endif
+        @if(! $shiftClosed && $item->status->blocksAvailability())<x-ui.buttons.button-basic type="button" wire:click="removeAssignment({{ $item->id }})" wire:confirm="Zuweisung wirklich entfernen?" wire:loading.attr="disabled" :aria-label="$item->user?->name.' aus der Schicht entfernen'" title="Zuweisung entfernen"><i class="far fa-user-minus" aria-hidden="true"></i></x-ui.buttons.button-basic>@endif
     @endif
 </div>
 @endforeach

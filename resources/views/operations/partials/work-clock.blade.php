@@ -1,6 +1,7 @@
 <section class="ops-panel ops-stack rt-personal-work-clock{{ ($compactActionClock ?? false) ? ' rt-personal-work-clock--action' : '' }}" aria-label="Arbeitszeiterfassung" x-bind:data-clock-state="active?.status ?? 'idle'" data-worktime-capture wire:ignore.self
+    @if($compactActionClock ?? false) data-compact-action-clock @isset($clockDuty) data-has-planned-duty @endisset @endif
     @if($compactMobileClock ?? false) x-data="{ overviewClockExpanded: false }" x-id="['overview-clock-details']" data-compact-clock data-overview-expanded="false" :data-overview-expanded="overviewClockExpanded ? 'true' : 'false'" :data-overview-idle="!active || !['running','paused'].includes(active.status) ? 'true' : 'false'" @endif>
-    <header class="ops-toolbar" wire:ignore>
+    <header class="ops-toolbar" wire:ignore @if(($compactActionClock ?? false) && isset($clockDuty)) x-bind:class="{ 'rt-clock-header--quiet': (!active || !['running','paused'].includes(active.status)) && ready && !offline && !pending && !syncing && conflicts === 0 }" @endif>
         @if($compactMobileClock ?? false)<i class="far fa-clock rt-personal-clock-overview-icon" aria-hidden="true"></i>@endif
         <h2 x-text="active && ['running','paused'].includes(active.status) ? active.title : '{{ ($compactActionClock ?? false) ? 'Arbeitszeit' : 'Arbeitszeit erfassen' }}'"></h2>
         @if($compactMobileClock ?? false)<span class="rt-personal-clock-overview-label" x-show="!active || !['running','paused'].includes(active.status)">Arbeitszeit</span>@endif
@@ -41,13 +42,25 @@
                     $dutyEnd = $clockDuty->shift->ends_at->copy()->setTimezone($clockDuty->shift->timezone);
                 @endphp
                 <div class="rt-clock-duty" wire:key="clock-duty-{{ $clockDuty->id }}-{{ $clockDuty->shift->revision }}">
-                    <div><strong>{{ $clockDuty->shift->title }}</strong><p>{{ $dutyStart->format('d.m. H:i') }} – {{ $dutyEnd->format($dutyStart->isSameDay($dutyEnd) ? 'H:i' : 'd.m. H:i') }} · {{ $clockDuty->shift->timezone }}</p></div>
-                    @include('livewire.operations.partials.personal-shift-actions', ['assignment' => $clockDuty, 'shift' => $clockDuty->shift])
+                    @if($compactActionClock ?? false)<i class="far fa-train rt-clock-duty__icon" aria-hidden="true"></i>@endif
+                    <div class="rt-clock-duty__context"><strong>{{ $clockDuty->shift->title }}</strong><p>{{ $dutyStart->format('d.m. H:i') }} – {{ $dutyEnd->format($dutyStart->isSameDay($dutyEnd) ? 'H:i' : 'd.m. H:i') }}@if(($compactActionClock ?? false) && filled($clockDuty->shift->location_name)) · {{ $clockDuty->shift->location_name }}@else · {{ $clockDuty->shift->timezone }}@endif</p></div>
+                    <div class="rt-clock-duty__primary">@include('livewire.operations.partials.personal-shift-actions', ['assignment' => $clockDuty, 'shift' => $clockDuty->shift, 'hideDutyProof' => $compactActionClock ?? false])</div>
                 </div>
             @endisset
-            <div class="ops-actions">
+            <div class="ops-actions rt-clock-idle-actions">
+                @if(($compactActionClock ?? false) && isset($clockDuty))
+                    <x-ui.buttons.button-basic mode="link" class="rt-clock-manual" wire:click="openGeneralManual" wire:loading.attr="disabled" x-bind:disabled="offline"><i class="far fa-clock" aria-hidden="true"></i>Zeit nachtragen</x-ui.buttons.button-basic>
+                    <details class="rt-clock-more" x-on:click.outside="$el.open = false" x-on:keydown.escape.stop="$el.open = false; $el.querySelector('summary').focus()">
+                        <summary aria-label="Weitere Aktionen"><span class="rt-clock-more__full-label">Weitere Aktionen</span><span class="rt-clock-more__short-label">Mehr</span><i class="far fa-chevron-down" aria-hidden="true"></i></summary>
+                        <div class="rt-clock-more__menu">
+                            <x-ui.buttons.button-basic x-bind:disabled="busy || !ready || conflicts > 0" x-on:click="$el.closest('details').querySelector('summary').focus(); $el.closest('details').open = false; startDialogOpen = true">Andere Arbeit starten</x-ui.buttons.button-basic>
+                            @include('livewire.operations.partials.personal-shift-actions', ['assignment' => $clockDuty, 'shift' => $clockDuty->shift, 'proofOnly' => true])
+                        </div>
+                    </details>
+                @else
                 <x-ui.buttons.button-basic :mode="isset($clockDuty) ? 'secondary' : 'primary'" x-bind:disabled="busy || !ready || conflicts > 0" x-on:click="startDialogOpen=true">{{ isset($clockDuty) ? 'Andere Arbeit starten' : 'Arbeit starten' }}</x-ui.buttons.button-basic>
-                <x-ui.buttons.button-basic wire:click="openGeneralManual" wire:loading.attr="disabled" x-bind:disabled="offline">Zeit nachtragen</x-ui.buttons.button-basic>
+                <x-ui.buttons.button-basic :mode="($compactActionClock ?? false) ? 'link' : 'secondary'" class="rt-clock-manual" wire:click="openGeneralManual" wire:loading.attr="disabled" x-bind:disabled="offline">Zeit nachtragen</x-ui.buttons.button-basic>
+                @endif
             </div>
         </div>
     @php($startFormId = 'employee-clock-start-'.(isset($__livewire) ? $__livewire->getId() : 'preview'))

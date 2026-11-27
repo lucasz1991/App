@@ -179,6 +179,7 @@ class PersonnelPageWorkspaceTest extends TestCase
 
     public function test_terminal_only_opens_terminal_without_hr_or_time_data(): void
     {
+        config(['operations.terminal_enabled' => true]);
         $this->actingAs($this->manager(['operations.terminal.manage']));
         Livewire::test(PersonnelPageWorkspace::class, ['page' => 'time-review'])
             ->assertSet('view', '')
@@ -186,6 +187,23 @@ class PersonnelPageWorkspaceTest extends TestCase
             ->assertSee('Zugang einrichten')
             ->assertDontSee('Zeitstatus')
             ->assertDontSee('Outside Synthetic');
+    }
+
+    public function test_switching_off_the_terminal_hides_access_and_blocks_open_forms(): void
+    {
+        config(['operations.terminal_enabled' => true]);
+        $this->actingAs($this->admin);
+        $terminal = Livewire::test(TimeAdministration::class, ['tab' => 'terminal'])
+            ->call('create')->assertSet('formOpen', true);
+        config(['operations.terminal_enabled' => false]);
+
+        $terminal->call('save')->assertForbidden();
+        $this->assertArrayNotHasKey('terminal', PersonnelPageWorkspace::availableSections($this->admin, 'time-review'));
+        Livewire::test(PersonnelPageWorkspace::class, ['page' => 'time-review', 'initialSection' => 'terminal'])->assertForbidden();
+        Livewire::test(TimeAdministration::class, ['tab' => 'terminal'])->assertForbidden();
+        Livewire::test(TimeAdministration::class, ['tab' => 'rules'])
+            ->assertDontSee('Terminalzugang')->call('setTab', 'terminal')->assertForbidden();
+        Livewire::actingAs($this->employee)->test(TimeAdministration::class, ['personal' => true, 'tab' => 'terminal'])->assertForbidden();
     }
 
     public function test_unrelated_missing_operations_table_does_not_disable_personnel_records(): void

@@ -38,7 +38,7 @@ class PlanChangeService
         $requirements = $shift->qualifications()->orderBy('name')->pluck('name')->implode(', ') ?: '—';
         $oldRequirements = $previous?->data['requirements'] ?? ($shift->published_revision ? null : '—');
         if ($oldRequirements !== null && $requirements !== $oldRequirements) {
-            $changes[] = ['field' => 'requirements', 'label' => 'Nachweise', 'before' => $oldRequirements, 'after' => $requirements];
+            $changes[] = ['field' => 'requirements', 'label' => 'Qualifikationen der Schicht', 'before' => $oldRequirements, 'after' => $requirements];
         }
         $sections = app(DutyActivityService::class)->snapshot($shift);
         $beforeSections = $before['sections'] ?? [];

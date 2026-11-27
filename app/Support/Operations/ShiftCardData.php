@@ -56,6 +56,11 @@ final class ShiftCardData
         return min(100, (int) round($this->reserved / max(1, $this->required) * 100));
     }
 
+    public function plannedPlacesLabel(): string
+    {
+        return $this->required === 1 ? '1 Platz geplant' : $this->required.' Plätze geplant';
+    }
+
     /** Ein Zustand je Schicht: closed, open, pending oder staffed. */
     public function state(): string
     {

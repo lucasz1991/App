@@ -223,6 +223,7 @@ class UserSuperAdminRoleRecognitionTest extends TestCase
 
     public function test_explicit_superadmins_receive_existing_admin_abilities_but_not_an_implicit_location_grant(): void
     {
+        config(['operations.terminal_enabled' => true]);
         foreach (['admin', 'superadmin'] as $role) {
             $user = $this->user($role);
 

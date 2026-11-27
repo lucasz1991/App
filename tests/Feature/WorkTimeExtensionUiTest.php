@@ -69,6 +69,10 @@ class WorkTimeExtensionUiTest extends TestCase
             @$dom->loadHTML($component->html());
             $xpath = new \DOMXPath($dom);
             $this->assertCount(1, $xpath->query('//*[@data-worktime-capture]//button[normalize-space(.)="Dienst starten"]'));
+            $this->assertCount(1, $xpath->query('//*[@data-worktime-capture]//details/summary[contains(., "Weitere Aktionen")]'));
+            $this->assertCount(1, $xpath->query('//*[@data-worktime-capture]//details//button[normalize-space(.)="Andere Arbeit starten"]'));
+            $this->assertCount(1, $xpath->query('//*[@data-worktime-capture]//button[@*[name()="wire:click"]="openGeneralManual"]'));
+            $this->assertCount(1, $xpath->query('//*[@data-worktime-capture]//*[@role="status" and @aria-atomic="true"]'));
         }
     }
 
@@ -239,10 +243,10 @@ class WorkTimeExtensionUiTest extends TestCase
         $events = [$this->event(1, 'start', $id, '2027-10-31T00:10:00Z', ['work_context' => 'internal', 'title' => 'Nachtbesprechung']), $this->event(2, 'pause', $id, '2027-10-31T00:20:00Z'), $this->event(3, 'resume', $id, '2027-10-31T01:20:00Z', ['offset_minutes' => 60]), $this->event(4, 'stop', $id, '2027-10-31T01:40:00Z', ['offset_minutes' => 60])];
         $this->travel(120)->minutes();
         $result = $service->ingest($this->employee, $boot['device_id'], $events);
-        $this->assertSame(['accepted', 'accepted', 'accepted', 'accepted'],array_column($result['results'],'status'),json_encode($result));
+        $this->assertSame(['accepted', 'accepted', 'accepted', 'accepted'], array_column($result['results'], 'status'), json_encode($result));
         $entry = WorkTimeEntry::firstOrFail();
-        $this->assertSame(1800,$entry->netSeconds());
-        $this->assertSame(5400,$entry->creditedSeconds());
-        $this->assertSame('00:10',$entry->activities()->first()->starts_at->utc()->format('H:i'));
+        $this->assertSame(1800, $entry->netSeconds());
+        $this->assertSame(5400, $entry->creditedSeconds());
+        $this->assertSame('00:10', $entry->activities()->first()->starts_at->utc()->format('H:i'));
     }
 }

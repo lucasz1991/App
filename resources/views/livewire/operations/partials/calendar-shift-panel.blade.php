@@ -2,11 +2,11 @@
     $calendarPanelId = 'calendar-shift-detail-'.$this->getId();
     $calendarTabsPrefix = 'calendar-shift-tabs-'.$this->getId();
     if ($selectedShift) {
-        $panelStatus = $selectedShift->status instanceof \BackedEnum ? $selectedShift->status->value : (string) $selectedShift->status;
+        $panelStaffing = \App\Support\Operations\ShiftCardData::from($selectedShift, $displayTimezone);
         $panelAssignments = $selectedShift->assignments
             ->sortBy(fn ($assignment) => ['confirmed' => 0, 'requested' => 1, 'declined' => 2, 'cancelled' => 3][$assignment->status instanceof \BackedEnum ? $assignment->status->value : (string) $assignment->status] ?? 9)
             ->values();
-        $panelReserved = $panelAssignments->filter(fn ($assignment) => in_array($assignment->status instanceof \BackedEnum ? $assignment->status->value : (string) $assignment->status, ['requested', 'confirmed'], true))->count();
+        $panelReserved = $panelStaffing->reserved;
         $panelStart = $selectedShift->starts_at?->setTimezone($displayTimezone)->locale('de');
         $panelEnd = $selectedShift->ends_at?->setTimezone($displayTimezone)->locale('de');
         $panelWindow = $panelStart && $panelEnd
@@ -15,11 +15,11 @@
                 : $panelStart->isoFormat('dd, DD.MM. HH:mm').' – '.$panelEnd->isoFormat('dd, DD.MM. HH:mm'))
             : null;
         $panelLocation = $selectedShift->location_name ?: $selectedShift->order?->location_name;
-        $panelClosed = in_array($panelStatus, ['cancelled', 'completed'], true);
-        $panelOpenSlots = $panelClosed ? 0 : max(0, $selectedShift->required_staff - $panelReserved);
+        $panelClosed = $panelStaffing->closed;
+        $panelOpenSlots = $panelStaffing->open;
         $panelTabs = [
             'overview' => ['label' => 'Übersicht'],
-            'staffing' => ['label' => 'Besetzung', 'count' => $panelReserved.'/'.$selectedShift->required_staff],
+            'staffing' => ['label' => 'Besetzung', 'count' => $panelClosed ? null : $panelReserved.'/'.$selectedShift->required_staff],
         ];
     }
 @endphp
@@ -117,7 +117,7 @@
                                 </x-operations.panel.row>
                                 <x-operations.panel.row label="Geplante Pause"><span class="rt-ops-panel__num">{{ (int) $selectedShift->planned_break_minutes }} Minuten</span></x-operations.panel.row>
                                 @if($selectedShift->relationLoaded('qualifications'))
-                                    <x-operations.panel.row label="Nachweise">{{ $selectedShift->qualifications->pluck('name')->filter()->implode(', ') ?: 'Keine besonderen Nachweise' }}</x-operations.panel.row>
+                                    <x-operations.panel.row label="Qualifikationen der Schicht">{{ $selectedShift->qualifications->pluck('name')->filter()->implode(', ') ?: 'Keine direkt hinterlegt' }}</x-operations.panel.row>
                                 @endif
                                 <x-operations.panel.row label="Planstand">
                                     @if((int) $selectedShift->published_revision === 0)
@@ -132,7 +132,7 @@
                         </x-operations.panel.group>
                     </x-operations.panel.tab>
                     <x-operations.panel.tab name="staffing" :id-prefix="$calendarTabsPrefix">
-                        <x-operations.panel.group title="Eingeteilte Mitarbeitende" :meta="$panelReserved.' von '.$selectedShift->required_staff">
+                        <x-operations.panel.group :title="$panelClosed ? 'Historische Besetzung' : 'Eingeteilte Mitarbeitende'" :meta="$panelClosed ? $panelStaffing->plannedPlacesLabel() : $panelReserved.' von '.$selectedShift->required_staff">
                             <div class="rt-ops-panel__list">
                                 @forelse($panelAssignments as $assignment)
                                     @php
@@ -145,7 +145,7 @@
                                         </div>
                                     </div>
                                 @empty
-                                    <p class="px-4 py-7 text-center text-sm text-rt-muted dark:text-rt-dark-muted">Noch niemand eingeteilt.</p>
+                                    <p class="px-4 py-7 text-center text-sm text-rt-muted dark:text-rt-dark-muted">{{ $panelClosed ? 'Keine Zuweisung dokumentiert.' : 'Noch niemand eingeteilt.' }}</p>
                                 @endforelse
                                 @for($slot = 0; $slot < $panelOpenSlots; $slot++)
                                     <div class="flex min-h-12 items-center gap-3 px-3.5 py-2 text-sm text-rt-muted dark:text-rt-dark-muted"><span class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-dashed border-rt-line dark:border-rt-dark-line" aria-hidden="true"><i class="far fa-user-plus"></i></span>Platz offen</div>

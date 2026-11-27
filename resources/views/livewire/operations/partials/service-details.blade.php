@@ -101,11 +101,8 @@
                                     @endif
                                     <x-operations.status :value="$shift->status" />
                                 </div>
-                                <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $shift->starts_at?->format('d.m.Y H:i') }} · {{ $shift->assignments->filter(fn ($assignment) => in_array(
-                                    $assignment->status instanceof \BackedEnum ? $assignment->status->value : $assignment->status,
-                                    \App\Enums\ShiftAssignmentStatus::blockingValues(),
-                                    true,
-                                ))->count() }}/{{ $shift->required_staff }} reserviert</p>
+                                @php($shiftStaffing = \App\Support\Operations\ShiftCardData::from($shift, config('operations.display_timezone')))
+                                <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $shift->starts_at?->format('d.m.Y H:i') }} · {{ $shiftStaffing->closed ? $shiftStaffing->plannedPlacesLabel() : $shiftStaffing->reserved.'/'.$shiftStaffing->required.' reserviert' }}</p>
                                 @php($historicalPeople = $shift->assignments->filter(fn ($assignment) => $assignment->status === \App\Enums\ShiftAssignmentStatus::Reported)->map(fn ($assignment) => $assignment->user?->name)->filter()->unique())
                                 @if($historicalPeople->isNotEmpty())
                                     <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">Historisch gemeldet: {{ $historicalPeople->implode(', ') }}</p>

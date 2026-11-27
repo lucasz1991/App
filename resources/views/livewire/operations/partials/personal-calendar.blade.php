@@ -1,4 +1,5 @@
-<section class="rt-personal-calendar" data-personal-calendar data-calendar-view="{{ $viewMode }}" aria-label="Mein Kalender">
+<section class="rt-personal-calendar" data-personal-calendar data-calendar-view="{{ $viewMode }}" aria-label="Mein Kalender"
+    x-data="{ calendarSelection: null, calendarHover: null, calendarFocus: null }">
     <header class="rt-pcal-toolbar">
         <div class="rt-pcal-period-nav" role="group" aria-label="Kalenderzeitraum">
             <x-ui.buttons.button-basic type="button" mode="link" class="rt-pcal-arrow" wire:click="previousPeriod" wire:loading.attr="disabled" wire:target="previousPeriod,nextPeriod,today" aria-label="Vorheriger Zeitraum"><i class="far fa-chevron-left" aria-hidden="true"></i></x-ui.buttons.button-basic>

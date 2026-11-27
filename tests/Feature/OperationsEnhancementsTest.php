@@ -228,7 +228,9 @@ class OperationsEnhancementsTest extends TestCase
         Storage::fake('local');
         $first = $service->attachment($first->id, 1, UploadedFile::fake()->createWithContent('bericht.pdf', "%PDF-1.4\nDienst"), $this->employee);
         $first = $service->submit($first->id, $first->revision, $this->employee);
+        $this->assertSame(['In Prüfung · Prüfende Person' => 1, 'Entwurf · Bearbeitende Person' => 1], $service->proofOverview($shift)['lines'][1]['states']);
         $first = $service->decide($first->id, $first->revision, 'review', 'Unterlagen vollständig', null, $this->admin);
+        $this->assertArrayHasKey('Kundenabnahme offen · Disposition', $service->proofOverview($shift)['lines'][1]['states']);
         $this->assertSame(0, $service->coverage($shift)[1]['complete']);
         $contact = CustomerContact::create(['customer_id'=>$this->order->customer_id,'name'=>'Testkontakt','roles'=>['acceptance'],'is_active'=>true,'updated_by'=>$this->admin->id]);
         $service->decide($first->id, $first->revision, 'accept', 'Vom Kunden bestätigt', $contact->id, $this->admin);
@@ -237,6 +239,70 @@ class OperationsEnhancementsTest extends TestCase
         $shared = $service->submit($shared->id, $shared->revision, $this->employee);
         $service->decide($shared->id, $shared->revision, 'review', 'Ausfall fachlich geprüft', null, $this->admin);
         $this->assertSame(1, $service->coverage($shift)[0]['complete']);
+    }
+
+    public function test_order_and_shift_show_the_same_expected_and_returned_proof_without_creating_a_record_on_read(): void
+    {
+        $this->enableDutyCatalog();
+        $this->actingAs($this->admin);
+        $this->shift->update(['role_name' => 'WU']);
+        $service = app(CustomerProofService::class);
+        $order = Livewire::test(ServiceFulfilment::class, ['tab' => 'proofs', 'orderId' => $this->order->id, 'embedded' => true])
+            ->assertSee('Synthetic Duty')->assertSee('Wagenliste')->assertSee('Erwartet · Eingeteilte Person')
+            ->assertDontSee('Keine Vorgänge in dieser Ansicht.');
+        $this->view('livewire.operations.partials.duty-proof-coverage', ['shift' => $this->shift])
+            ->assertSee('Wagenliste')->assertSee('Erwartet · Eingeteilte Person');
+        $this->assertDatabaseCount('operation_workflows', 0);
+        $proof = $service->create(['order_id' => $this->order->id, 'shift_id' => $this->shift->id, 'title' => 'Ein Wagenlistenbeleg', 'rows' => [['activity'=>'Dienst','quantity'=>1,'unit'=>'Dienst']]], $this->employee);
+        $service->deviation($proof->id, 1, 'Keine Wagen vor Ort.', $this->employee);
+        $service->submit($proof->id, 2, $this->employee);
+        $order->call('$refresh')->assertSee('In Prüfung · Prüfende Person')->assertSee('Ein Wagenlistenbeleg');
+        $service->decide($proof->id, 3, 'return', 'Bitte den Einsatzort ergänzen.', null, $this->admin);
+        $order->call('$refresh')->assertSee('Zur Korrektur · Bearbeitende Person');
+        $this->view('livewire.operations.partials.duty-proof-coverage', ['shift' => $this->shift])
+            ->assertSee('Zur Korrektur · Bearbeitende Person');
+        $this->assertSame([], $service->proofOverview($this->shift, [$this->outside->id])['lines']);
+        $this->assertDatabaseCount('operation_workflows', 1);
+    }
+
+    public function test_published_proof_rules_survive_unpublished_edits_and_old_records_cannot_be_reviewed_against_new_publications(): void
+    {
+        $this->enableDutyCatalog();
+        $this->travelTo(CarbonImmutable::parse('2027-05-01T08:00:00Z'));
+        $this->shift->update(['role_name' => 'WU']);
+        $service = app(CustomerProofService::class);
+        $this->shift->forceFill(['revision' => 2])->save();
+        $this->assignment->delete();
+        app(\App\Services\Operations\PlanPublicationService::class)->publish($this->shift, 2, $this->admin);
+        $this->shift->refresh();
+        $this->assertSame('Wagenliste', $this->shift->published_snapshot['duty_proof_rules'][0]['proof_type']);
+        $this->shift->forceFill(['role_name' => 'RB', 'revision' => 3])->save();
+        $overview = $service->proofOverview($this->shift);
+        $this->assertSame('Wagenliste', $overview['lines'][0]['document']);
+        $this->assertSame(['Zuordnung zu klären · Disposition' => 1], $overview['lines'][0]['states']);
+        $this->shift->forceFill(['published_snapshot' => null])->saveQuietly();
+        $legacy = $service->proofOverview($this->shift);
+        $this->assertSame([], $legacy['lines']);
+        $this->assertStringContainsString('Zu klären', $legacy['notice']);
+        $stale = OperationWorkflow::create(['kind' => 'proof', 'title' => 'Frühere Fassung', 'status' => 'submitted', 'order_id' => $this->order->id,
+            'shift_id' => $this->shift->id, 'user_id' => $this->employee->id, 'created_by' => $this->employee->id,
+            'payload' => ['shift_revision' => 1, 'duty' => ['proof_type' => 'Altes Dokument'], 'rows' => []]]);
+        $this->rejected(fn () => $service->decide($stale->id, 1, 'review', 'Veraltete Fassung', null, $this->admin));
+        $this->assertSame('submitted', $stale->fresh()->status);
+        $this->assertSame([], $service->proofOverview($this->shift)['lines']);
+    }
+
+    public function test_unpublished_historical_shift_has_a_provisional_document_and_no_employee_action(): void
+    {
+        $this->enableDutyCatalog();
+        $this->actingAs($this->admin);
+        Shift::whereKey($this->shift->id)->update(['status' => 'completed', 'role_name' => 'WU', 'published_revision' => 0, 'activity_requirements' => null]);
+        $this->assignment->delete();
+        $this->shift->refresh();
+        Livewire::test(ServiceFulfilment::class, ['orderId' => $this->order->id])
+            ->assertSee('Wagenliste')->assertSee('heutige Katalogvorgabe')->assertSee('Zuordnung zu klären · Disposition')
+            ->assertDontSee('Erwartet · Eingeteilte Person')->assertDontSee('von 1 freigegeben');
+        $this->assertDatabaseCount('operation_workflows', 0);
     }
 
     public function test_personal_duty_wagon_proof_is_revision_bound_reviewable_and_idempotent(): void
@@ -479,6 +545,7 @@ class OperationsEnhancementsTest extends TestCase
 
     public function test_terminal_pin_is_hashed_capability_short_lived_and_never_logs_in(): void
     {
+        config(['operations.terminal_enabled' => true]);
         $s = app(WorkTimeTerminalService::class);
         $terminal = (string) Str::uuid();
         $profile = $s->configure($this->employee, ['pin' => '123456', 'terminal_id' => $terminal, 'location_consent' => false], $this->employee);
@@ -497,6 +564,7 @@ class OperationsEnhancementsTest extends TestCase
 
     public function test_terminal_location_consent_is_optional_and_cannot_be_granted_by_manager(): void
     {
+        config(['operations.terminal_enabled' => true]);
         $terminal = (string) Str::uuid();
         $s = app(WorkTimeTerminalService::class);
         $this->rejected(fn () => $s->configure($this->employee, ['pin' => '123456', 'terminal_id' => $terminal, 'location_consent' => true, 'latitude' => 50, 'longitude' => 10, 'radius_metres' => 100], $this->admin), 403);
@@ -593,6 +661,7 @@ class OperationsEnhancementsTest extends TestCase
 
     public function test_terminal_pin_change_revokes_old_capability_and_public_page_requires_explicit_activation(): void
     {
+        config(['operations.terminal_enabled' => true]);
         $s = app(WorkTimeTerminalService::class);
         $terminal = (string) Str::uuid();
         $s->configure($this->employee, ['pin' => '123456', 'terminal_id' => $terminal, 'location_consent' => false], $this->employee);
@@ -600,9 +669,13 @@ class OperationsEnhancementsTest extends TestCase
         $s->configure($this->employee, ['pin' => '654321', 'terminal_id' => $terminal, 'location_consent' => false], $this->employee);
         $this->rejected(fn () => $s->capture($cap['token'], $terminal, ['event_key' => (string) Str::uuid(), 'action' => 'start', 'revision' => 0, 'work_context' => 'internal', 'title' => 'Actual work']), 403);
         $this->rejected(fn () => $s->authenticate($this->employee->id, '123456', $terminal, 'synthetic-oldpin'), 403);
+        $validCapability = $s->authenticate($this->employee->id, '654321', $terminal, 'synthetic-valid-pin');
         $this->withoutMiddleware(LogActivity::class);
         config(['operations.terminal_enabled' => false]);
         $this->get('/terminal')->assertNotFound();
+        $this->rejected(fn () => $s->configure($this->employee, ['pin' => '111222', 'terminal_id' => $terminal, 'location_consent' => false], $this->employee), 404);
+        $this->rejected(fn () => $s->authenticate($this->employee->id, '654321', $terminal, 'synthetic-disabled'), 404);
+        $this->rejected(fn () => $s->capture($validCapability['token'], $terminal, ['event_key' => (string) Str::uuid(), 'action' => 'start', 'revision' => 0, 'work_context' => 'internal', 'title' => 'Actual work']), 404);
         config(['operations.terminal_enabled' => true]);
         $this->get('/terminal')->assertOk()->assertSee('Zeiterfassung');
         $this->assertSame(0, WorkTimeEntry::count());
@@ -675,6 +748,7 @@ class OperationsEnhancementsTest extends TestCase
 
     public function test_hosts_mount_the_component_of_the_matching_department(): void
     {
+        config(['operations.terminal_enabled' => true]);
         // Phase 7: Die Sammelkomponente ist nach Fachbereich geteilt. Leistungen und Zeitwirtschaft
         // werden von ihren Seiten als eigene Komponenten eingehängt; Reiter und Adressen bleiben gleich.
         $this->actingAs($this->admin);
@@ -702,6 +776,7 @@ class OperationsEnhancementsTest extends TestCase
 
     public function test_snapshots_of_the_former_collective_component_expire_or_continue_through_a_real_update(): void
     {
+        config(['operations.terminal_enabled' => true]);
         // Übergang Phase 7, ganzer Weg: Ein vor dem Umbau geöffneter Snapshot trägt den alten Namen
         // operations.operations-enhancements und alle damaligen Eigenschaften. Die Anfrage läuft über
         // den Alias in ServiceFulfilment; Reiter der Zeitwirtschaft laufen mit 419 ab, eigene Reiter

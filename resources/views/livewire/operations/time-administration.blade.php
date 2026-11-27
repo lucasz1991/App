@@ -65,7 +65,7 @@
         </x-operations.modal>
         <x-operations.modal wire:model="detailOpen" :title="$this::TABS[$tab]" max-width="4xl" variant="modal">
             @if($selected)
-                @unless($tab === 'terminal')<header class="ops-toolbar"><h2>{{ $selected->title ?? $selected->name ?? $selected->month ?? 'Terminalzugang' }}</h2><span class="ops-muted">Revision {{ $selectedRevision }}</span></header>@endunless
+                @unless($tab === 'terminal')<header class="ops-toolbar"><h2>{{ $selected->title ?? $selected->name ?? $selected->month ?? $this::TABS[$tab] }}</h2><span class="ops-muted">Revision {{ $selectedRevision }}</span></header>@endunless
                 @if($tab === 'payroll')
                     @include('livewire.operations.partials.time-administration.detail-payroll')
                 @elseif($tab === 'rules')

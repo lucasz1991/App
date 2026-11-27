@@ -32,6 +32,22 @@ class DutyActivity extends Model
             ->where('lookup', mb_strtolower($code))->select('duty_activity_id'))->first();
     }
 
+    public static function catalogByCode(): \Illuminate\Support\Collection
+    {
+        if (! Schema::hasTable('duty_activity_codes')) {
+            return collect();
+        }
+        $activities = self::with('bundle')->orderBy('code')->get()->keyBy('id');
+
+        return DB::table('duty_activity_codes')->pluck('duty_activity_id', 'lookup')
+            ->map(fn ($id) => $activities->get($id))->filter();
+    }
+
+    public function displayLabel(): string
+    {
+        return $this->title && $this->title !== $this->code ? $this->title.' ('.$this->code.')' : $this->code;
+    }
+
     public function snapshot(): array
     {
         $bundle = $this->bundle;

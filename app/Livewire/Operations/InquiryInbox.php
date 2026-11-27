@@ -368,6 +368,7 @@ class InquiryInbox extends Component
             'history' => $this->selectedId ? OperationAudit::where('subject_type', 'OperationInquiry')->where('subject_id', $this->selectedId)->with(['actor.profile', 'actor.currentTeam'])->latest('id')->limit(30)->get() : collect(),
             'customerWorkflowReady' => CustomerWorkflowService::ready(),
             'commercialReady' => CommercialOfferService::ready(),
+            'activityCatalog' => ($this->editing || $selected) ? \App\Models\DutyActivity::catalogByCode() : collect(),
             'directOrder' => $selected && OperationAudit::where('subject_type', 'OperationInquiry')->where('subject_id', $selected->id)->where('action', 'inquiry.direct_order')->exists(),
         ]);
     }

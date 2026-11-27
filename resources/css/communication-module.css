@@ -324,8 +324,11 @@ body:has(.rt-ai-assist[data-open='true'] .rt-ai-assist__panel[data-window-mode='
 .dark .rt-comm-meetings { --comm-muted: #a2b1c2; }
 .rt-comm-meeting-list,
 .rt-comm-meeting-details {
-    padding: 1rem max(0.75rem, calc((100% - 60rem) / 2));
+    padding: 1rem 0.75rem;
     background: color-mix(in srgb, var(--comm-surface) 62%, var(--comm-canvas));
+}
+.rt-comm-meeting-details {
+    padding-inline: max(0.75rem, calc((100% - 60rem) / 2));
 }
 .rt-comm-history .rt-comm-list {
     padding: 0 0.75rem 0.75rem;

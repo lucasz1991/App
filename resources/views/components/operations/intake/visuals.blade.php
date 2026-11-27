@@ -1,6 +1,6 @@
-@props(['demand' => [], 'order' => null, 'identity' => 'intake'])
+@props(['demand' => [], 'order' => null, 'identity' => 'intake', 'visual' => null])
 @php
-    $visual = \App\Support\Operations\AiIntakeVisualContext::forDemand($demand, $order);
+    $visual ??= \App\Support\Operations\AiIntakeVisualContext::forDemand($demand, $order);
     $mapKey = 'intake-location-'.hash('sha256', $identity.'|'.json_encode([$visual['location'], $visual['point'], $visual['mapLabel']]));
 @endphp
 <div {{ $attributes->class('rt-intake-visuals') }} data-intake-visuals>
@@ -51,6 +51,6 @@
             <div class="rt-intake-visuals__empty" role="status"><i class="far fa-map-marker-alt" aria-hidden="true"></i><span>{{ ($visual['preview']['state'] ?? '') === 'multiple' ? 'Mehrere Einsatzorte' : (($visual['preview']['lookupDisabled'] ?? false) ? 'Kartenposition offen · TomTom nicht eingerichtet' : 'Kartenposition offen') }}</span></div>
         @endif
         <x-operations.worksite-lookup :preview="($visual['point'] && ($visual['preview']['state'] ?? '') === 'outside') ? [] : $visual['preview']" />
-        <figcaption class="rt-intake-visuals__caption" title="{{ $visual['mapLabel'] }}"><i class="far fa-map-marker-alt" aria-hidden="true"></i><span>{{ $visual['location'] }}</span></figcaption>
+        <figcaption class="rt-intake-visuals__caption" title="{{ $visual['mapLabel'] }}"><i class="far fa-map-marker-alt" aria-hidden="true"></i><span>{{ $visual['location'] }}@if($visual['point'] && empty($visual['preview']['confirmed']))<small class="rt-intake-visuals__precision">{{ $visual['preview']['label'] }}</small>@endif</span></figcaption>
     </figure>
 </div>

@@ -137,7 +137,7 @@ class PersonnelPageWorkspace extends Component
             ],
             'time-review' => [
                 'rules' => ['Fachregeln', $actor->can('operations.rules.manage') && PersonnelReview::moduleReady('rules')],
-                'terminal' => ['Terminalzugänge', $actor->can('operations.terminal.manage') && OperationsEnhancementsSchema::ready()],
+                'terminal' => ['Terminalzugänge', config('operations.terminal_enabled', false) && $actor->can('operations.terminal.manage') && OperationsEnhancementsSchema::ready()],
             ],
             'payroll' => [
                 'payroll-references' => ['Lohnzuordnung', $actor->can('operations.time.export') && Schema::hasTable('employee_payroll_references')],

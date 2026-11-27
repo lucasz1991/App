@@ -83,9 +83,14 @@
     </div>
     @endunless
 
-<x-operations.modal :attributes="new \Illuminate\View\ComponentAttributeBag(['wire:model'.($consolidated ? '.live' : '') => 'detailOpen'])" :title="$editing ? ($selectedId ? 'Bedarf bearbeiten' : 'Neue Anfrage') : 'Anfrage'" max-width="4xl" :variant="$editing ? 'modal' : 'drawer'">
+@php
+    $formPrefix = 'inquiry-'.$this->getId().'-'.($selected?->id ?? 'new');
+    $canProcess = $selected && !$portalSubmissionId && !$selected->order_id && !$selected->duplicate_of_id && $selected->status !== 'rejected';
+    $overview = !$consolidated || $detailSection === 'overview';
+@endphp
+<x-operations.modal :attributes="new \Illuminate\View\ComponentAttributeBag(['wire:model'.($consolidated ? '.live' : '') => 'detailOpen'])" :title="$editing ? ($selectedId ? 'Bedarf bearbeiten' : 'Neue Anfrage') : 'Anfrage'" max-width="4xl" :variant="$editing && !$selectedId ? 'modal' : 'drawer'">
             @if($editing)
-                <form wire:submit="save" class="ops-form">
+                <form wire:submit="save" class="ops-form" id="{{ $formPrefix }}-demand">
                     <x-operations.field label="Betreff" model="form.title" required maxlength="180" :wide="true" />
                     @if(!$selectedId)
                         <x-operations.field label="Eingangsweg" model="form.channel" type="select"><option value="manual">Manuell</option><option value="email">E-Mail</option><option value="phone">Telefon</option><option value="portal">Portal</option></x-operations.field>
@@ -100,10 +105,8 @@
                     <x-operations.field label="Beginn" model="form.starts_at" type="datetime-local" />
                     <x-operations.field label="Ende" model="form.ends_at" type="datetime-local" />
                     <x-operations.field label="Einsatzort" model="form.location_name" maxlength="180" />
-                    <x-operations.field label="Tätigkeit" model="form.role_name" maxlength="160" />
+                    <x-operations.activity-field :catalog="$activityCatalog" :scope="$this->getId()" model="form.role_name" :value="$form['role_name'] ?? ''" />
                     <x-operations.field label="Personalbedarf" model="form.required_staff" type="number" min="1" max="999" />
-                    <div class="ops-full ops-actions"><x-ui.buttons.button-basic type="submit" mode="primary" wire:loading.attr="disabled">Speichern</x-ui.buttons.button-basic>@can('operations.manage')<x-ui.buttons.button-basic type="button" wire:click="saveAndTakeDirectOrder" wire:loading.attr="disabled">Speichern und Auftrag direkt annehmen</x-ui.buttons.button-basic>@endcan<x-ui.buttons.button-basic type="button" wire:click="close">Abbrechen</x-ui.buttons.button-basic></div>
-                    @can('operations.manage')<p class="ops-full ops-muted">Mit „Auftrag direkt annehmen“ wird der Auftrag nach Prüfung der vollständigen Angaben bestätigt. Angebot und gesonderte Kundenzusage sind dafür nicht erforderlich.</p>@endcan
                 </form>
             @elseif($selected)
                 <x-ui.section-header :eyebrow="$selected->number.' · Revision '.$selected->revision" :title="$selected->title"><x-slot:actions><x-operations.status :value="$selected->status" /></x-slot:actions></x-ui.section-header>
@@ -120,7 +123,7 @@
                         @endforeach
                     </ol>
                 @endif
-                <dl class="ops-meta"><div><dt>Kunde</dt><dd>{{ $selected->customer?->company_name ?? 'Noch nicht zugeordnet' }}</dd></div><div><dt>Kontakt</dt><dd>{{ $selected->contact_name ?: '—' }}</dd></div><div><dt>Beginn</dt><dd>{{ $selected->starts_at?->format('d.m.Y H:i') ?? '—' }}</dd></div><div><dt>Ende · {{ $selected->timezone }}</dt><dd>{{ $selected->ends_at?->format('d.m.Y H:i') ?? '—' }}</dd></div><div><dt>Einsatzort</dt><dd>{{ $selected->location_name ?: '—' }}</dd></div><div><dt>Bedarf</dt><dd>{{ $selected->required_staff ?? '—' }} × {{ $selected->role_name ?: '—' }}</dd></div></dl>
+                <dl class="ops-meta"><div><dt>Kunde</dt><dd>{{ $selected->customer?->company_name ?? 'Noch nicht zugeordnet' }}</dd></div><div><dt>Kontakt</dt><dd>{{ $selected->contact_name ?: '—' }}</dd></div><div><dt>Beginn</dt><dd>{{ $selected->starts_at?->format('d.m.Y H:i') ?? '—' }}</dd></div><div><dt>Ende · {{ $selected->timezone }}</dt><dd>{{ $selected->ends_at?->format('d.m.Y H:i') ?? '—' }}</dd></div><div><dt>Einsatzort</dt><dd>{{ $selected->location_name ?: '—' }}</dd></div><div><dt>Bedarf</dt><dd>{{ $selected->required_staff ?? '—' }} × {{ $activityCatalog->get(mb_strtolower(preg_replace('~\s*/\s*~u', '/', trim((string) $selected->role_name))))?->displayLabel() ?? ($selected->role_name ?: '—') }}</dd></div></dl>
                 @if($aiIntakeId)
                     <x-ui.buttons.button-basic mode="link" :href="\App\Support\Operations\OperationsPages::intakeFormUrl($aiIntakeId)" data-no-navigate>{{ $selected->order_id ? 'Weiter zur Schichtvorbereitung' : 'Zum Eingang' }} <i class="far fa-arrow-right" aria-hidden="true"></i></x-ui.buttons.button-basic>
                 @endif
@@ -130,36 +133,73 @@
                 @if($customerWorkflowReady && !$portalSubmissionId)
                     <livewire:operations.inquiry-process-panel :inquiry-id="$selected->id" :key="'inquiry-process-'.$selected->id" />
                 @endif
-                @if($commercialReady && !$portalSubmissionId)
-                    <livewire:operations.commercial-offers subject-type="OperationInquiry" :subject-id="$selected->id" :key="'inquiry-offers-'.$selected->id" />
                 @endif
-                @if($portalSubmissionId)
-                    @can('customers.portal.manage')
-                        <x-ui.buttons.button-basic mode="primary" data-no-navigate :href="route('operations.page',['page'=>'cases','view'=>'inbox','section'=>'portal','customer'=>$selected->customer_id,'source'=>'submission','record'=>$portalSubmissionId])">Portalvorgang öffnen</x-ui.buttons.button-basic>
-                    @endcan
-                    @if($selected->order_id)
-                        @can('operations.manage')
-                            <x-ui.buttons.button-basic mode="link" data-no-navigate :href="route('operations.page',['page'=>'cases','view'=>'orders','order'=>$selected->order_id,'inquiry'=>$selected->id])">Auftrag {{ $selected->order?->order_number }}</x-ui.buttons.button-basic>
-                        @endcan
-                    @endif
-                @elseif(!$selected->order_id && !$selected->duplicate_of_id && $selected->status !== 'rejected')
-                    <div class="ops-actions"><x-ui.buttons.button-basic wire:click="$set('editing', true)">Bedarf bearbeiten</x-ui.buttons.button-basic>@if($selected->status === 'new')<x-ui.buttons.button-basic mode="primary" wire:click="transition('verify')" wire:loading.attr="disabled">Bedarf bestätigen</x-ui.buttons.button-basic>@endif @can('operations.manage')<x-ui.buttons.button-basic type="button" mode="primary" wire:click="takeDirectOrder" wire:loading.attr="disabled">Auftrag direkt annehmen</x-ui.buttons.button-basic>@endcan</div>
-                    @can('operations.manage')<p class="ops-muted">Direktannahme ohne Angebot und ohne gesonderten Kundenzusage-Schritt.</p>@endcan
+                @if($commercialReady && !$portalSubmissionId)
+                    <livewire:operations.commercial-offers subject-type="OperationInquiry" :subject-id="$selected->id" :create-form-id="$formPrefix.'-offer'" :show-list="$overview" :key="'inquiry-offers-'.$selected->id.'-'.$detailSection" />
+                @endif
+                @if($overview)
+                @if($canProcess)
+                    <x-ui.buttons.button-basic wire:click="$set('editing', true)" wire:loading.attr="disabled">Bedarf bearbeiten</x-ui.buttons.button-basic>
                     @if(!$commercialReady && in_array($selected->status, ['verified','offered']))
-                        <form wire:submit="transition('offer')" class="ops-form"><x-operations.field label="Angebotsbetrag netto (€)" model="amount" type="number" min="0" step="0.01" required /><x-operations.field label="Leistungsumfang und Konditionen" model="terms" type="textarea" required /><div class="ops-full"><x-ui.buttons.button-basic type="submit" mode="primary" wire:loading.attr="disabled">Angebot festhalten</x-ui.buttons.button-basic></div></form>
+                        <form wire:submit="transition('offer')" id="{{ $formPrefix }}-legacy-offer" class="ops-form"><x-operations.field label="Angebotsbetrag netto (€)" model="amount" type="number" min="0" step="0.01" required /><x-operations.field label="Leistungsumfang und Konditionen" model="terms" type="textarea" required /></form>
                     @endif
                     @if($selected->offer && !$commercialReady)<x-ui.surface.card variant="ops" as="div"><p class="ops-kicker">Angebot · Revision {{ $selected->offer['revision'] }}</p><h2>{{ number_format($selected->offer['amount_cents']/100,2,',','.') }} € netto</h2><p>{{ $selected->offer['terms'] }}</p></x-ui.surface.card>@endif
                     @if($selected->status === 'offered' && !$commercialReady)
-                        <form wire:submit="transition('accept')" class="ops-stack"><x-operations.field label="Kundenzusage · Person, Zeitpunkt, Referenz" model="acceptance" type="textarea" required /><x-ui.forms.checkbox wire:model="authorized" required label="Beauftragung durch berechtigten Kundenkontakt bestätigt" /><x-ui.buttons.button-basic type="submit" mode="primary" wire:loading.attr="disabled">Zusage dokumentieren</x-ui.buttons.button-basic></form>
-                    @elseif($selected->status === 'accepted')<x-ui.buttons.button-basic mode="primary" wire:click="transition('convert')" wire:loading.attr="disabled">Auftrag anlegen</x-ui.buttons.button-basic>@endif
+                        <form wire:submit="transition('accept')" id="{{ $formPrefix }}-accept" class="ops-stack"><x-operations.field label="Kundenzusage · Person, Zeitpunkt, Referenz" model="acceptance" type="textarea" required /><x-ui.forms.checkbox wire:model="authorized" required label="Beauftragung durch berechtigten Kundenkontakt bestätigt" /></form>
+                    @endif
                     @if(!$selected->offer)<details><summary>Dublette zuordnen</summary><form wire:submit="transition('duplicate')" class="ops-actions"><x-operations.field label="Nummer des älteren Originals" model="duplicateId" type="number" min="1" required /><x-ui.buttons.button-basic type="submit">Verknüpfen</x-ui.buttons.button-basic></form></details>@endif
-                @elseif($selected->order)@can('operations.manage')<a class="ops-link" data-no-navigate href="{{ \Illuminate\Support\Facades\Route::has('operations.page') ? route('operations.page',['page'=>'cases','view'=>'orders','order'=>$selected->order_id,'inquiry'=>$selected->id]) : route('operations.workspace',['module'=>'orders','order'=>$selected->order_id]) }}">Auftrag {{ $selected->order->order_number }} →</a>@else<span>Auftrag {{ $selected->order->order_number }}</span>@endcan
-                @else<p>Original: {{ $selected->duplicateOf?->number }}</p>@endif
+                @elseif($selected->duplicate_of_id)<p>Original: {{ $selected->duplicateOf?->number }}</p>
+                @elseif($selected->order && !auth()->user()->can('operations.manage'))<p>Auftrag {{ $selected->order->order_number }}</p>
+                @endif
                 @endif
                 @if(!$consolidated || $detailSection === 'history')
                 <details class="rt-disposition-detail-section"><summary>Verlauf</summary>@forelse($history as $event)<div class="ops-row" wire:key="inquiry-event-{{ $event->id }}"><span>{{ \App\Support\Operations\OperationsNavigation::auditLabel($event->action) }}</span><div class="min-w-0 space-y-1">@if($event->actor)<x-user.public-info :user="$event->actor" :size="6" :show-presence="false" />@endif<span class="ops-muted">{{ $event->created_at->setTimezone(config('operations.display_timezone'))->format('d.m. H:i') }}</span></div></div>@empty<p class="ops-muted">Noch keine Einträge.</p>@endforelse</details>
                 @endif
             @else<x-ui.empty-state icon="far fa-hand-pointer" description="Anfrage auswählen." />@endif
 
+    @if($editing || $canProcess || ($portalSubmissionId && auth()->user()->can('customers.portal.manage')) || ($selected?->order && auth()->user()->can('operations.manage')))
+        <x-slot:footer>
+            <div class="flex w-full flex-wrap items-center justify-end gap-2" data-inquiry-workflow-footer>
+                @if($editing)
+                    <x-ui.buttons.button-basic type="button" wire:click="close">Abbrechen</x-ui.buttons.button-basic>
+                    <x-ui.buttons.button-basic type="submit" :form="$formPrefix.'-demand'" mode="primary" wire:loading.attr="disabled">Speichern</x-ui.buttons.button-basic>
+                    @can('operations.manage')
+                        <x-ui.buttons.button-basic type="button" wire:click="saveAndTakeDirectOrder" wire:loading.attr="disabled">Speichern und Auftrag direkt annehmen</x-ui.buttons.button-basic>
+                    @endcan
+                @elseif($canProcess)
+                    @if($selected->status === 'new')
+                        <x-ui.buttons.button-basic type="button" mode="primary" wire:click="transition('verify')" wire:loading.attr="disabled">Bedarf bestätigen</x-ui.buttons.button-basic>
+                    @endif
+                    @if($commercialReady)
+                        <x-ui.buttons.button-basic type="submit" :form="$formPrefix.'-offer'" :mode="$selected->status === 'verified' ? 'primary' : 'secondary'" wire:loading.attr="disabled">Angebot anlegen</x-ui.buttons.button-basic>
+                    @elseif($overview && in_array($selected->status, ['verified', 'offered'], true))
+                        <x-ui.buttons.button-basic type="submit" :form="$formPrefix.'-legacy-offer'" wire:loading.attr="disabled">Angebot festhalten</x-ui.buttons.button-basic>
+                        @if($selected->status === 'offered')
+                            <x-ui.buttons.button-basic type="submit" :form="$formPrefix.'-accept'" mode="primary" wire:loading.attr="disabled">Zusage dokumentieren</x-ui.buttons.button-basic>
+                        @endif
+                    @elseif(!$overview && in_array($selected->status, ['verified', 'offered'], true))
+                        <x-ui.buttons.button-basic type="button" wire:click="setDetailSection('overview')">Zum Angebot</x-ui.buttons.button-basic>
+                    @endif
+                    @if($selected->status === 'accepted')
+                        <x-ui.buttons.button-basic type="button" mode="primary" wire:click="transition('convert')" wire:loading.attr="disabled">Auftrag anlegen</x-ui.buttons.button-basic>
+                    @endif
+                    @can('operations.manage')
+                        <x-ui.buttons.button-basic type="button" wire:click="takeDirectOrder" wire:loading.attr="disabled">Direktauftrag annehmen</x-ui.buttons.button-basic>
+                    @endcan
+                @else
+                    @if($portalSubmissionId)
+                        @can('customers.portal.manage')
+                            <x-ui.buttons.button-basic mode="primary" data-no-navigate :href="route('operations.page',['page'=>'cases','view'=>'inbox','section'=>'portal','customer'=>$selected->customer_id,'source'=>'submission','record'=>$portalSubmissionId])">Portalvorgang öffnen</x-ui.buttons.button-basic>
+                        @endcan
+                    @endif
+                    @if($selected->order)
+                        @can('operations.manage')
+                            <x-ui.buttons.button-basic data-no-navigate :href="\Illuminate\Support\Facades\Route::has('operations.page') ? route('operations.page',['page'=>'cases','view'=>'orders','order'=>$selected->order_id,'inquiry'=>$selected->id]) : route('operations.workspace',['module'=>'orders','order'=>$selected->order_id])">Auftrag {{ $selected->order->order_number }} öffnen</x-ui.buttons.button-basic>
+                        @endcan
+                    @endif
+                @endif
+            </div>
+        </x-slot:footer>
+    @endif
 </x-operations.modal>
 </div>

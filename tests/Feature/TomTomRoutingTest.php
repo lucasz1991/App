@@ -515,6 +515,7 @@ class TomTomRoutingTest extends TestCase
 
     public function test_terminal_capture_checks_route_outside_locks_and_keeps_receipt_without_provider_metrics(): void
     {
+        config(['operations.terminal_enabled' => true]);
         (require database_path('migrations/2026_10_04_123000_extend_work_time_contexts.php'))->up();
         (require database_path('migrations/2026_10_06_102000_create_operations_enhancements.php'))->up();
         $this->travelTo(CarbonImmutable::parse('2027-05-12T09:00:00+02:00'));

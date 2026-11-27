@@ -49,7 +49,7 @@ final class PersonalWorkspaceAreas
             'development' => $personnel ? $area('Entwicklung', 'trending-up', 'Meine Personalakte', 'personnel', 'development') : null,
             'feedback' => $personnel ? $area('Rückmeldungen', 'message-square', 'Meine Personalakte', 'personnel', 'surveys') : null,
 
-            'terminal' => $operations ? $area('Terminalzugang', 'key', '', 'operations', 'terminal', 'Persönlich') : null,
+            'terminal' => $operations && config('operations.terminal_enabled', false) ? $area('Terminalzugang', 'key', '', 'operations', 'terminal', 'Persönlich') : null,
             'emergency' => $personnel ? $area('Notfallkontakt', 'phone', '', 'personnel', 'emergency', 'Persönlich') : null,
         ]);
     }

@@ -226,6 +226,60 @@ class PersonalRequestDashboardTest extends TestCase
         $this->assertNotNull($assignment->fresh()->responded_at);
     }
 
+    public function test_first_publication_omits_change_summary_even_when_the_creation_audit_contains_data(): void
+    {
+        $assignment = $this->assignment();
+        OperationAudit::create(['subject_type' => 'Shift', 'subject_id' => $assignment->shift_id, 'action' => 'shift.published', 'revision' => 1,
+            'actor_id' => $this->admin->id, 'created_at' => now()->utc(), 'data' => ['changes' => [['field' => 'title', 'label' => 'Titel', 'before' => '—', 'after' => $assignment->shift->title]]]]);
+
+        Livewire::withQueryParams($this->deeplink('shift', $assignment->id))->actingAs($this->employee)->test(MyWork::class)
+            ->assertSee('Dienst bestätigen')->assertDontSee('Änderung bestätigen')
+            ->assertDontSeeHtml('data-personal-request-change-summary')->assertDontSee('Was sich geändert hat');
+
+        $this->assertSame('requested', $assignment->fresh()->status->value);
+        $this->assertNull($assignment->fresh()->responded_at);
+        $this->assertSame(1, OperationAudit::count());
+    }
+
+    public function test_change_summary_lists_only_published_differences_and_targets_the_native_details_tab(): void
+    {
+        $assignment = $this->assignment(2, ['revision' => 2, 'published_revision' => 2]);
+        OperationAudit::create(['subject_type' => 'Shift', 'subject_id' => $assignment->shift_id, 'action' => 'shift.published', 'revision' => 1,
+            'actor_id' => $this->admin->id, 'created_at' => now()->utc(), 'data' => []]);
+        $unchanged = ['field' => 'role_name', 'label' => 'Unveränderte Funktion', 'before' => 'Tf', 'after' => 'Tf'];
+        $publication = OperationAudit::create(['subject_type' => 'Shift', 'subject_id' => $assignment->shift_id, 'action' => 'shift.published', 'revision' => 2,
+            'actor_id' => $this->admin->id, 'created_at' => now()->utc(), 'data' => ['changes' => [
+                ['field' => 'starts_at', 'label' => 'Beginn', 'before' => '15.10.2026 07:00 +02:00', 'after' => '15.10.2026 08:00 +02:00'],
+                ['field' => 'location_name', 'label' => 'Einsatzort', 'before' => 'Vorheriger veröffentlichter Ort', 'after' => 'Request yard fixture'],
+                $unchanged,
+            ]]]);
+
+        $ui = Livewire::withQueryParams($this->deeplink('shift', $assignment->id, 2))->actingAs($this->employee)->test(MyWork::class)
+            ->assertSee('Änderung bestätigen')->assertSee('Was sich geändert hat')->assertDontSee('Unveränderte Funktion')
+            ->assertSee('Vorheriger veröffentlichter Ort');
+        $document = new DOMDocument;
+        @$document->loadHTML('<?xml encoding="utf-8" ?>'.$ui->html());
+        $xpath = new DOMXPath($document);
+        $summaries = $xpath->query('//*[@data-personal-request-change-summary]');
+        $this->assertSame(1, $summaries->length);
+        $this->assertStringContainsString('2 Änderungen', $summaries->item(0)->textContent);
+        $this->assertStringContainsString('Beginn, Einsatzort', $summaries->item(0)->textContent);
+        $link = $xpath->query('.//button[@aria-controls]', $summaries->item(0))->item(0);
+        $this->assertNotNull($link);
+        $this->assertStringContainsString('selectTab(', $link->getAttribute('x-on:click'));
+        $this->assertStringNotContainsString('@js', $link->getAttribute('x-on:click'));
+        $this->assertStringNotContainsString('$scopedId', $link->getAttribute('x-on:click'));
+        $this->assertStringContainsString(', true)', $link->getAttribute('x-on:click'));
+        $this->assertSame(1, $xpath->query('//*[@role="tabpanel" and @id="'.$link->getAttribute('aria-controls').'"]')->length);
+
+        $publication->forceFill(['data' => ['changes' => [$unchanged]]])->save();
+        $ui->call('openConsentRequest', 'shift', $assignment->id, 2)
+            ->assertDontSeeHtml('data-personal-request-change-summary')->assertDontSee('Was sich geändert hat');
+        $this->assertSame('requested', $assignment->fresh()->status->value);
+        $this->assertNull($assignment->fresh()->responded_at);
+        $this->assertSame(2, OperationAudit::count());
+    }
+
     public function test_unpublished_change_only_exposes_previous_published_details_and_blocks_response(): void
     {
         $assignment = $this->assignment();

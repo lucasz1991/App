@@ -90,7 +90,7 @@ trait BuildsIntakeDrawerState
     private function drawerState(?AiIntake $record, bool $canApprove): array
     {
         $state = $this->legacyDrawerState($record, $canApprove) + [
-            'activeProposalId' => null, 'primary' => null, 'secondary' => null, 'more' => [], 'cancelAction' => null,
+            'activeProposalId' => null, 'positionEdit' => null, 'primary' => null, 'secondary' => null, 'more' => [], 'cancelAction' => null,
         ];
         if (! $record) {
             return $state;
@@ -117,7 +117,7 @@ trait BuildsIntakeDrawerState
             }
             if (AiIntakeSchema::manualReady() && $proposal && ! in_array($proposal->status, ['applied', 'stale'], true)
                 && (! $proposal->inquiry || in_array($proposal->inquiry->status, ['new', 'verified'], true))) {
-                $state['more'][] = $action('edit', 'Leistung bearbeiten', 'editProposal('.$proposal->id.')', disable: $disabled);
+                $state['positionEdit'] = $action('edit', 'Leistung bearbeiten', 'editProposal('.$proposal->id.')', disable: $disabled);
             }
             if ($proposals->count() > 1 && $state['workPending']) {
                 $state['more'][] = $action('confirm-all', $state['hasDirectOrders'] ? 'Alle Positionen gemäß Übernahmeweg bestätigen' : 'Alle Positionen als Anfragen übernehmen', 'confirmManual',

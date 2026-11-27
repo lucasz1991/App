@@ -11,6 +11,8 @@ use App\Models\User;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsTransaction;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -29,55 +31,155 @@ class CustomerProofService
 
     public function dutyRule(Shift $shift, ?int $sectionId = null): array
     {
+        $publishedRule = [];
+        if ($shift->published_revision && $shift->revision === $shift->published_revision && isset($shift->published_snapshot['duty_proof_rules'])) {
+            $publishedRule = collect($shift->published_snapshot['duty_proof_rules'])->first(fn ($row) => ($row['section_id'] ?? null) === $sectionId);
+            abort_unless($publishedRule, 422, 'Der Leistungsabschnitt gehört nicht zur veröffentlichten Schicht.');
+        }
         if ($sectionId) {
             $section = $shift->sectionActivityRules()->get($sectionId);
             abort_unless($section, 422, 'Der Leistungsabschnitt gehört nicht zu diesem Dienst.');
 
-            return $section;
+            return $publishedRule + $section;
         }
         $rule = $shift->activity_requirements;
         if ($rule === null && $shift->published_revision && $shift->exists) {
-            $prior = OperationWorkflow::where('kind', 'proof')->where('shift_id', $shift->id)->oldest('id')->get()
+            $prior = OperationWorkflow::where('kind', 'proof')->where('order_id', $shift->order_id)->where('shift_id', $shift->id)->oldest('id')->get()
                 ->first(fn ($r) => isset($r->payload['duty']) && empty($r->payload['duty']['section_id'])
                     && ($r->payload['shift_revision'] ?? null) === $shift->published_revision);
             $rule = $prior?->payload['duty'] ?? null;
         }
         $rule ??= $shift->currentActivityRequirements();
 
-        return $rule + ['title' => $shift->role_name ?: $shift->title, 'proof_type' => 'Einsatzbericht', 'wagon_list' => false, 'individual_proof' => false];
+        return $publishedRule + $rule + ['title' => $shift->role_name ?: $shift->title, 'proof_type' => 'Einsatzbericht', 'wagon_list' => false, 'individual_proof' => false];
     }
 
     public function dutyRecord(Shift $shift, User $actor, ?int $sectionId = null): ?OperationWorkflow
     {
         $individual = $this->dutyRule($shift, $sectionId)['individual_proof'];
 
-        return OperationWorkflow::where('kind', 'proof')->where('shift_id', $shift->id)
+        return OperationWorkflow::where('kind', 'proof')->where('order_id', $shift->order_id)->where('shift_id', $shift->id)
             ->when($individual, fn ($q) => $q->where('user_id', $actor->id))->orderBy('id')->get()
             ->first(fn ($proof) => ($proof->payload['shift_revision'] ?? null) === $shift->published_revision && ($proof->payload['duty']['section_id'] ?? null) === $sectionId);
     }
 
-    /** One row per expected service or section, with the number of reviewed results. */
+    /** Freeze only the service-document fields, never employee records or attachments. */
+    public function plannedProofRules(Shift $shift): array
+    {
+        $rule = $shift->planningActivityRequirements() ?? $shift->currentActivityRequirements();
+        $rule += ['title' => $shift->role_name ?: $shift->title, 'proof_type' => 'Einsatzbericht', 'individual_proof' => false, 'wagon_list' => false];
+
+        return $shift->sectionActivityRules()->prepend($rule)->map(fn ($row) => Arr::only($row, [
+            'activity_id', 'code', 'title', 'section_id', 'section_label', 'proof_type', 'individual_proof', 'wagon_list', 'customer_acceptance',
+        ]))->values()->all();
+    }
+
+    /** Stable contract used by the closing check. */
     public function coverage(Shift $shift): array
     {
-        $staff = $shift->assignments()->whereIn('status', ['requested', 'confirmed'])->where('plan_revision', $shift->published_revision)->pluck('user_id');
-        $records = OperationWorkflow::where('kind', 'proof')->where('shift_id', $shift->id)->get()
-            ->filter(fn ($r) => ($r->payload['shift_revision'] ?? null) === $shift->published_revision);
-        $rules = $shift->sectionActivityRules()->prepend($this->dutyRule($shift));
-        return $rules->map(function ($rule) use ($staff, $records) {
-            $required = $rule['individual_proof'] ? max(1, $staff->count()) : 1;
-            $completed = $records->filter(fn ($r) => ($r->payload['duty']['section_id'] ?? null) === ($rule['section_id'] ?? null)
-                && in_array($r->status, ($rule['customer_acceptance'] ?? false) ? ['accepted'] : ['reviewed','accepted'], true)
-                && (! $rule['individual_proof'] || $staff->contains($r->user_id)))->unique('user_id')->count();
-            return ['title' => $rule['section_label'] ?? $rule['title'], 'document' => $rule['proof_type'],
-                'required' => $required, 'complete' => min($required, $completed)];
-        })->values()->all();
+        return array_map(fn ($line) => Arr::only($line, ['title', 'document', 'required', 'complete']), $this->proofOverview($shift)['lines']);
+    }
+
+    /** Read-only projection for the order, shift drawer and calendar. */
+    public function proofOverview(Shift $shift, ?array $visibleUserIds = null): array
+    {
+        $revision = (int) $shift->published_revision;
+        $futureDraft = $revision > 0 && $revision !== $shift->revision;
+        $historical = in_array($shift->status->value, ['completed', 'cancelled'], true);
+        $staff = $shift->assignments()->whereIn('status', $historical ? ['requested', 'confirmed', 'reported'] : ['requested', 'confirmed'])
+            ->where('plan_revision', $revision)->pluck('user_id')->unique();
+        $records = $revision ? OperationWorkflow::where('kind', 'proof')->where('order_id', $shift->order_id)
+            ->where('shift_id', $shift->id)->orderBy('id')->get()
+            ->filter(fn ($proof) => ($proof->payload['shift_revision'] ?? null) === $revision) : collect();
+        if ($visibleUserIds !== null && (! $visibleUserIds || $staff->merge($records->pluck('user_id'))->diff($visibleUserIds)->isNotEmpty())) {
+            return ['notice' => 'Prüfstand außerhalb der eigenen Personalzuständigkeit.', 'lines' => []];
+        }
+
+        $snapshot = $shift->published_snapshot ?? [];
+        if ($futureDraft && isset($snapshot['order_id']) && (int) $snapshot['order_id'] !== (int) $shift->order_id) {
+            return ['notice' => 'Die Zuordnung zu diesem Auftrag ist noch nicht veröffentlicht.', 'lines' => []];
+        }
+        $notice = $revision ? 'Veröffentlichte Fassung '.$revision : 'Ohne veröffentlichte Fassung';
+        $rules = $revision ? ($snapshot['duty_proof_rules'] ?? null) : null;
+        if ($rules === null && $futureDraft) {
+            // Older releases stored no document rules. Only records from that release can identify them.
+            $rules = $records->map(fn ($record) => $record->payload['duty'] ?? null)->filter()
+                ->unique(fn ($rule) => $rule['section_id'] ?? 0)->values()->all();
+            $notice .= ' · Zu klären: Die vollständigen Nachweisanforderungen sind für diese Fassung nicht dokumentiert.';
+        } elseif ($rules === null) {
+            $rules = $shift->sectionActivityRules()->prepend($this->dutyRule($shift))->values()->all();
+            if ($historical && ! $shift->activity_requirements && ! $records->contains(fn ($proof) => isset($proof->payload['duty']))) {
+                $notice .= ' · Zu klären: Für den Altbestand ist nur die heutige Katalogvorgabe verfügbar.';
+            }
+        }
+        $recordsBySection = $records->groupBy(fn ($proof) => $proof->payload['duty']['section_id'] ?? 0);
+        $rows = [];
+        foreach ($rules as $rule) {
+            $sectionRecords = $recordsBySection->get($rule['section_id'] ?? 0, collect());
+            $rows[] = $this->proofLine($rule, $staff, $sectionRecords, $shift, $futureDraft);
+        }
+
+        return ['notice' => $notice, 'lines' => $rows];
+    }
+
+    private function proofLine(array $rule, Collection $staff, Collection $records, Shift $shift, bool $futureDraft): array
+    {
+        $individual = $rule['individual_proof'] ?? false;
+        $slots = $individual && $staff->isNotEmpty() ? $staff : collect([null]);
+        $terminal = in_array($shift->status->value, ['completed', 'cancelled'], true);
+        $states = [];
+        $complete = 0;
+        $approved = ($rule['customer_acceptance'] ?? false) ? ['accepted'] : ['reviewed', 'accepted'];
+        foreach ($slots as $userId) {
+            $matching = $individual ? $records->where('user_id', $userId) : $records;
+            $record = $matching->first(fn ($p) => in_array($p->status, $approved, true)) ?? $matching->first();
+            if ($record && in_array($record->status, $approved, true)) {
+                $complete++;
+            }
+            $state = match ($record?->status) {
+                'accepted' => 'Vom Kunden abgenommen',
+                'reviewed' => ($rule['customer_acceptance'] ?? false) ? 'Kundenabnahme offen · Disposition' : 'Geprüft',
+                'submitted' => 'In Prüfung · Prüfende Person',
+                'rejected' => 'Vom Kunden zurückgewiesen · Bearbeitende Person',
+                'draft' => isset($record->payload['review']['note']) ? 'Zur Korrektur · Bearbeitende Person' : 'Entwurf · Bearbeitende Person',
+                null => match (true) {
+                    $shift->status->value === 'cancelled' => 'Storniert · Keine Erfassung',
+                    $terminal => $staff->isEmpty() ? 'Zuordnung zu klären · Disposition' : 'Beleg zum abgeschlossenen Dienst klären · Disposition',
+                    ! $shift->published_revision => 'Vorgesehen · Disposition',
+                    $staff->isEmpty() => 'Zuordnung zu klären · Disposition',
+                    $futureDraft => 'Planänderung offen · Disposition',
+                    default => 'Erwartet · Eingeteilte Person',
+                },
+                default => 'Prüfstand zu klären · Disposition',
+            };
+            if ($futureDraft && $record && in_array($record->status, ['draft', 'rejected'], true)) {
+                $state = ($record->status === 'draft' ? 'Entwurf' : 'Vom Kunden zurückgewiesen').' · Planänderung bei der Disposition';
+            }
+            $states[$state] = ($states[$state] ?? 0) + 1;
+        }
+
+        $unassigned = $individual ? $records->whereNotIn('user_id', $staff->all())->count() : 0;
+
+        return ['title' => $rule['section_label'] ?? $rule['title'], 'document' => $rule['proof_type'], 'required' => $slots->count(),
+            'complete' => $complete, 'states' => $states, 'individual' => $individual, 'unassigned' => $unassigned];
+    }
+
+    public function currentDutyRevision(OperationWorkflow $proof, bool $lock = false): bool
+    {
+        if (! isset($proof->payload['duty'])) {
+            return true;
+        }
+        $revision = $proof->payload['shift_revision'] ?? 0;
+
+        return $revision > 0 && Shift::whereKey($proof->shift_id)->where('order_id', $proof->order_id)->notCancelled()
+            ->where('published_revision', $revision)->when($lock, fn ($query) => $query->lockForUpdate())->first(['id']) !== null;
     }
 
     private function ownDutyRecord(OperationWorkflow $record, User $actor): Shift
     {
         abort_unless($record->kind === 'proof' && (int) $record->user_id === $actor->id, 403);
         $shift = $this->ownShift(Shift::findOrFail($record->shift_id)->public_id, $actor);
-        abort_unless(($record->payload['shift_revision'] ?? null) === $shift->published_revision && ($shift->status->value !== 'completed' || $shift->activity_requirements === null), 409);
+        abort_unless((int) $record->order_id === (int) $shift->order_id && ($record->payload['shift_revision'] ?? null) === $shift->published_revision && ($shift->status->value !== 'completed' || $shift->activity_requirements === null), 409);
 
         return $shift;
     }
@@ -194,6 +296,7 @@ class CustomerProofService
 
         return app(OperationsWorkflowService::class)->change($id, $revision, $actor, function ($r) use ($action, $note, $contactId, $actor, $revision) {
             abort_unless($r->kind === 'proof', 404);
+            abort_unless($this->currentDutyRevision($r, lock: true), 409, 'Dieser Nachweis gehört nicht mehr zur veröffentlichten Schichtfassung.');
             $payload = $r->payload;
             if (in_array($action, ['accept', 'reject'], true)) {
                 abort_unless($r->status === 'reviewed' && $contactId, 409);

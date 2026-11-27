@@ -4,7 +4,8 @@
 <x-ui.dropdown.anchor-dropdown align="right" width="auto" offset="6" :max-height="448"
     dropdown-id="orders-period-{{ $this->getId() }}" layer-group="operations-orders"
     content-role="dialog" content-label="Auftragszeitraum anpassen" dropdown-classes="rt-shift-plan-range-dropdown"
-    content-classes="bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text" data-orders-period-control>
+    content-classes="bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text" data-orders-period-control
+    :trap="true" x-on:orders-period-request.window="if ($event.detail.id === layerId + '-content') openDropdown(true)">
     <x-slot:trigger>
         <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-plan-control rt-shift-plan-period-trigger rt-orders-period-trigger"
             aria-label="Auftragszeitraum auswählen: {{ $ordersRangeLabel }}" title="{{ $ordersRangeLabel }}" data-orders-period-trigger>

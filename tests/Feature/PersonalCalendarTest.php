@@ -122,6 +122,36 @@ class PersonalCalendarTest extends TestCase
             ->assertSee('Meine persönliche Notiz')->assertSeeHtml('role="dialog"');
     }
 
+    public function test_week_bars_open_their_own_details_and_empty_days_remain_selectable(): void
+    {
+        $first = $this->assignment();
+        $second = $this->assignment(null, ['title' => 'Zweiter eigener Dienst', 'starts_at' => '2026-09-17 12:00', 'ends_at' => '2026-09-17 14:00']);
+        $ui = Livewire::actingAs($this->employee)->test(MyWork::class)->call('showTab', 'schedule')->call('switchView', 'week');
+
+        $document = new \DOMDocument;
+        $document->loadHTML('<?xml encoding="UTF-8">'.$ui->html(), LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+        $xpath = new \DOMXPath($document);
+        foreach ([$first, $second] as $assignment) {
+            $eventId = 'shift-'.$assignment->id;
+            $bars = $xpath->query('//*[@data-calendar-bar="'.$eventId.'"]');
+            $this->assertSame(1, $bars->length);
+            $bar = $bars->item(0);
+            $this->assertSame('button', $bar->nodeName, 'Each timed weekly event must be keyboard actionable.');
+            $this->assertSame('button', $bar->getAttribute('type'));
+            $this->assertSame("openCalendarEvent('".$eventId."')", $bar->getAttribute('wire:click'));
+            $this->assertStringContainsString($assignment->shift->title, $bar->getAttribute('aria-label'));
+            $this->assertStringContainsString('Details öffnen', $bar->getAttribute('aria-label'));
+            $this->assertNotSame('true', $bar->getAttribute('aria-hidden'));
+        }
+        $emptyDay = $xpath->query('//button[contains(concat(" ", normalize-space(@class), " "), " rt-pcal-column-select ") and @*[name()="wire:click"]="selectCalendarDay(\'2026-09-18\')"]');
+        $this->assertSame(1, $emptyDay->length, 'The day selection action must remain available behind event bars.');
+
+        $ui->call('openCalendarEvent', 'shift-'.$second->id)->assertSet('calendarEventOpen', true)
+            ->assertSet('selectedCalendarEventId', 'shift-'.$second->id)->assertSee('Zweiter eigener Dienst')
+            ->call('closeCalendarEvent')->call('selectCalendarDay', '2026-09-18')
+            ->assertSet('calendarEventOpen', false)->assertSet('viewMode', 'week')->assertSet('anchorDate', '2026-09-18');
+    }
+
     public function test_today_overview_hides_foreign_duties_and_open_day_jumps_to_the_day(): void
     {
         $this->assignment();

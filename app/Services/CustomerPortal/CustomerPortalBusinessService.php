@@ -12,6 +12,7 @@ use App\Models\CustomerPortalRequest;
 use App\Models\OperationWorkflow;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\Operations\CustomerProofService;
 use App\Services\Operations\OperationsWorkflowService;
 use App\Support\CustomerPortal\CustomerPortalScope;
 use App\Support\CustomerPortal\CustomerPortalWorkflowSchema;
@@ -137,6 +138,7 @@ class CustomerPortalBusinessService
             app(CustomerPortalScope::class)->orders($identity, $customerId, null)->lockForUpdate()->findOrFail($publication->order_id);
             $record = OperationWorkflow::where('kind', 'proof')->where('order_id', $publication->order_id)->lockForUpdate()->findOrFail($publication->subject_id);
             abort_unless($record->revision === $publication->source_revision && $record->status === 'reviewed' && isset($record->payload['review']), 409);
+            abort_unless(app(CustomerProofService::class)->currentDutyRevision($record, lock: true), 409, 'Die Schichtfassung dieses Nachweises ist überholt.');
             $contact = CustomerContact::where('customer_id', $customerId)->where('is_active', true)->findOrFail($member->contact_id);
             abort_unless(in_array('acceptance', $contact->roles ?? [], true), 403);
             $payload = $record->payload;

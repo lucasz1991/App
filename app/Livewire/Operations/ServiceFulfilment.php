@@ -20,6 +20,7 @@ use App\Services\Operations\ReviewedInquiryImportService;
 use App\Support\Exports\CsvDownload;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsEnhancementsSchema;
+use Illuminate\Support\Facades\Schema;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -318,6 +319,14 @@ class ServiceFulfilment extends Component
         $ready = $this->ready();
         $records = $ready ? $this->query()->paginate(15) : collect();
         $selected = $ready && $this->selectedId ? $this->query()->find($this->selectedId) : null;
+        $currentProof = $this->tab !== 'proofs' || ! $selected || app(CustomerProofService::class)->currentDutyRevision($selected);
+        $proofShifts = null;
+        $proofScope = null;
+        if ($ready && ! $this->modalOnly && ! $this->personal && $this->tab === 'proofs' && $this->orderId && Schema::hasTable('duty_activities')) {
+            $proofScope = app(PersonnelScopeService::class)->visibleUserIds($actor, 'employees.master-data.view');
+            $proofShifts = Shift::where('order_id', $this->orderId)->orderBy('starts_at')->orderBy('id')
+                ->paginate(5, ['*'], 'proofShiftsPage');
+        }
         $staff = collect();
         if (! $this->personal && $ready && $this->formOpen && in_array($this->tab, ['partners', 'costs'], true)) {
             $staff = app(PersonnelScopeService::class)->applyUsers(User::where('role', 'staff')->where('status', true), $actor, $this->tab === 'costs' ? 'operations.costs.manage' : 'employees.master-data.view')->orderBy('name')->get(['id', 'name']);
@@ -328,6 +337,6 @@ class ServiceFulfilment extends Component
         $orders = $ready && $this->tab === 'proofs' ? Order::whereIn('id', $shifts->pluck('order_id'))->orderBy('title')->get(['id', 'title', 'order_number']) : collect();
         $acceptedProofs = $ready && $this->tab === 'costs' && app(PersonnelScopeService::class)->visibleUserIds($actor, 'operations.costs.manage') === null ? OperationWorkflow::where('kind', 'proof')->where('status', 'accepted')->when($this->orderId, fn ($q) => $q->where('order_id', $this->orderId))->latest('id')->limit(100)->get(['id', 'title', 'revision']) : collect();
 
-        return view('livewire.operations.service-fulfilment', compact('ready', 'records', 'selected', 'staff', 'contacts', 'ownProofs', 'shifts', 'orders', 'acceptedProofs'));
+        return view('livewire.operations.service-fulfilment', compact('ready', 'records', 'selected', 'staff', 'contacts', 'ownProofs', 'shifts', 'orders', 'acceptedProofs', 'proofShifts', 'proofScope', 'currentProof'));
     }
 }

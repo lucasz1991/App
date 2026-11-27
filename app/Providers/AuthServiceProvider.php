@@ -39,6 +39,10 @@ class AuthServiceProvider extends ServiceProvider
                 return $user->status && ($user->currentTeam?->rbac_permissions['operations.locations.view'] ?? false) === true;
             }
 
+            if (! RbacCatalog::permissionEnabled($ability)) {
+                return false;
+            }
+
             return $user->isAdmin() ? true : null;
         });
 
