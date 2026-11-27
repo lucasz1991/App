@@ -129,7 +129,7 @@ export function callQualityControls(raw, labels) {
 
         async changeCameraProfile(profile) {
             const room = raw(this.room);
-            if (!room || !this.connected || this.profileBusy || this.cameraBusy || this.audioOnly
+            if (!room || !this.canControlMedia || this.profileBusy || this.cameraBusy || this.audioOnly
                 || !['auto', 'saver'].includes(profile) || profile === this.cameraProfile) return;
             this.profileBusy = true;
             try {
@@ -146,7 +146,10 @@ export function callQualityControls(raw, labels) {
             } catch {
                 if (this.isActiveRoom(room)) this.toast(labels.profileFailed, 'warning');
             } finally {
-                if (this.isActiveRoom(room)) this.profileBusy = false;
+                if (this.isActiveRoom(room)) {
+                    this.syncLocalMediaState(room);
+                    this.profileBusy = false;
+                }
             }
         },
 

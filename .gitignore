@@ -395,3 +395,12 @@ __pycache__/
 !/tests/Frontend/intake-location-map.test.js
 !/tests/Feature/DropboxSourceAndContactSafetyTest.php
 !/tests/Feature/DropboxQualificationEvidenceTest.php
+
+!/tests/Feature/CallWindowStateTest.php
+!/tests/Frontend/call-room-lifecycle.test.js
+!/tests/Frontend/meeting-device-check.test.js
+!/tests/Frontend/call-camera-preview.test.js
+!/tests/Frontend/call-media-quality.test.js
+!/tests/Frontend/fixtures/
+/tests/Frontend/fixtures/*
+!/tests/Frontend/fixtures/call-room-factory.js

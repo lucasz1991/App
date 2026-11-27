@@ -19,6 +19,7 @@ return [
     'ws_url' => env('LIVEKIT_WS_URL', 'wss://livekit.rail-time.de'),
     'api_key' => env('LIVEKIT_API_KEY'),
     'api_secret' => env('LIVEKIT_API_SECRET'),
+    'background_effects' => (bool) env('LIVEKIT_BACKGROUND_EFFECTS', true),
 
     // Gueltigkeit der Beitritts-Tokens in Sekunden (Standard: 1 Stunde).
     // Bewusst kurz: die SFU kann unsere DB nicht befragen, ein einmal

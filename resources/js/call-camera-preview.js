@@ -3,6 +3,51 @@ import { cameraCaptureOptions } from './call-media-quality.js';
 
 const abortCamera = () => new DOMException('Camera setup changed.', 'AbortError');
 
+export function supportsNativeCameraBlur(track, platform = globalThis) {
+    return Boolean(platform.MediaStreamTrackProcessor && platform.MediaStreamTrackGenerator
+        && track.getCapabilities?.().backgroundBlur?.includes(true));
+}
+
+// Publish a gated output. If an OS setting changes, even before the
+// configurationchange notification arrives, subsequent frames are dropped.
+export async function nativeCameraBlur(track, onFrame, onFailure, platform = globalThis) {
+    if (!supportsNativeCameraBlur(track, platform)) throw new Error('Native blur unavailable');
+    await track.applyConstraints({ ...track.getConstraints(), backgroundBlur: { exact: true } });
+    const active = () => track.getSettings().backgroundBlur === true;
+    if (!active()) throw new Error('Camera did not enable native blur');
+    const input = new platform.MediaStreamTrackProcessor({ track });
+    const output = new platform.MediaStreamTrackGenerator({ kind: 'video' });
+    const controller = new AbortController();
+    let warmed = false;
+    const check = () => { if (!active()) onFailure(); };
+    track.addEventListener('configurationchange', check);
+    track.addEventListener('ended', onFailure);
+    input.readable.pipeThrough(new TransformStream({
+        transform(frame, sink) {
+            if (!active() || controller.signal.aborted) {
+                frame.close();
+                onFailure();
+            } else if (!warmed) {
+                warmed = true;
+                frame.close();
+            } else {
+                sink.enqueue(frame);
+                onFrame();
+            }
+        },
+    })).pipeTo(output.writable, { signal: controller.signal })
+        .then(() => { if (!controller.signal.aborted) onFailure(); }, () => { if (!controller.signal.aborted) onFailure(); });
+    return {
+        track: output,
+        stop() {
+            track.removeEventListener('configurationchange', check);
+            track.removeEventListener('ended', onFailure);
+            controller.abort();
+            output.stop();
+        },
+    };
+}
+
 // Keep SDK tracks, processors and timers outside Alpine's reactive proxies.
 export function callCameraPreview(config, rawRoom, capture = createLocalVideoTrack, loadEffects = url => import(/* @vite-ignore */ url)) {
     let revision = 0;
@@ -19,6 +64,7 @@ export function callCameraPreview(config, rawRoom, capture = createLocalVideoTra
         if (!item || item.stopped) return;
         item.stopped = true;
         clearInterval(item.watchdog);
+        item.native?.stop();
         item.output?.removeEventListener('ended', item.fail);
         if (item.output) item.output.enabled = false;
         item.local.detach();
@@ -46,35 +92,49 @@ export function callCameraPreview(config, rawRoom, capture = createLocalVideoTra
         try {
             if (!current()) throw abortCamera();
             const raw = local.mediaStreamTrack;
+            component.cameraNativeBlurAvailable = config.cameraEffectsEnabled !== false && supportsNativeCameraBlur(raw);
             if (mode === 'original') {
                 item.output = raw;
                 return item;
             }
-            if (!config.cameraAssets) throw new Error('Effects unavailable');
             const base = config.cameraAssets;
             const sdk = await effects;
             if (!current()) throw abortCamera();
-            if (!sdk?.supportsBackgroundProcessors()) throw new Error('Unsupported processor');
             let lastFrame = 0;
             let frames = 0;
-            const processor = sdk.BackgroundProcessor({
-                ...(mode === 'blur'
-                    ? { mode: 'background-blur', blurRadius: 16 }
-                    : { mode: 'virtual-background', imagePath: config.cameraBackground }),
-                assetPaths: { modelAssetPath: base + '/selfie_segmenter.tflite', tasksVisionFileSet: base + '/wasm' },
-                onFrameProcessed() { lastFrame = Date.now(); frames++; },
-            });
-            await local.setProcessor(processor);
-            if (!current()) { local.stop(); throw abortCamera(); }
+            const onFrame = () => { lastFrame = Date.now(); frames++; };
+            if (base && sdk?.supportsBackgroundProcessors()) {
+                const processor = sdk.BackgroundProcessor({
+                    ...(mode === 'blur'
+                        ? { mode: 'background-blur', blurRadius: 16 }
+                        : { mode: 'virtual-background', imagePath: config.cameraBackground }),
+                    assetPaths: { modelAssetPath: base + '/selfie_segmenter.tflite', tasksVisionFileSet: base + '/wasm' },
+                    onFrameProcessed: onFrame,
+                });
+                await local.setProcessor(processor);
+                item.output = processor.processedTrack;
+            } else if (mode === 'blur' && component.cameraNativeBlurAvailable) {
+                item.native = await nativeCameraBlur(raw, onFrame, () => {
+                    if (item.fail) item.fail();
+                    else release(item);
+                });
+                item.output = item.native.track;
+            } else {
+                throw new Error('Unsupported processor');
+            }
+            if (!current() || item.stopped) {
+                item.native?.stop();
+                local.stop();
+                throw abortCamera();
+            }
             const readyBy = Date.now() + 6000;
             // The library can emit an initialization frame. Publish only an
             // already-running processor output, never the capture track itself.
-            while (frames < 2 && Date.now() < readyBy) {
+            while (!item.stopped && frames < 2 && Date.now() < readyBy) {
                 if (!current()) throw abortCamera();
                 await new Promise(resolve => setTimeout(resolve, 40));
             }
-            item.output = processor.processedTrack;
-            if (!current() || frames < 2 || !item.output || item.output === raw) throw abortCamera();
+            if (!current() || item.stopped || frames < 2 || !item.output || item.output === raw) throw abortCamera();
             item.fail = () => {
                 if (item.stopped) return;
                 const active = item === sending;
@@ -83,6 +143,8 @@ export function callCameraPreview(config, rawRoom, capture = createLocalVideoTra
                     component.cameraPreviewReady = false;
                     component.cameraPreviewMessage = config.labels.effectFailed;
                     if (active) {
+                        component.startWithVideo = false;
+                        component.cameraNeedsSetup = true;
                         void stopSending(component, rawRoom(component.room)?.localParticipant).catch(() => {});
                         component.toast(config.labels.effectFailed, 'warning');
                     }
@@ -106,6 +168,7 @@ export function callCameraPreview(config, rawRoom, capture = createLocalVideoTra
         cameraDeviceId: '',
         cameraDevices: [],
         cameraEffectsAvailable: false,
+        cameraNativeBlurAvailable: false,
         cameraPreviewReady: false,
         cameraPreviewBusy: false,
         cameraPreviewMessage: '',
@@ -121,6 +184,10 @@ export function callCameraPreview(config, rawRoom, capture = createLocalVideoTra
             }
             this.cameraMode = preference?.mode || (this.startWithVideo ? 'original' : 'off');
             this.cameraDeviceId = preference?.deviceId || '';
+            if (this.connected) {
+                this.startWithVideo = false;
+                this.cameraNeedsSetup = true;
+            }
             pausePromise = this.connected ? stopSending(this, rawRoom(this.room)?.localParticipant) : Promise.resolve();
             return this.refreshCameraPreview();
         },
@@ -150,7 +217,7 @@ export function callCameraPreview(config, rawRoom, capture = createLocalVideoTra
                 }
                 if (!current()) return;
                 this.cameraPreviewReady = true;
-                const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
+                const devices = await navigator.mediaDevices?.enumerateDevices?.().catch(() => []) || [];
                 if (current()) this.cameraDevices = devices.filter(device => device.kind === 'videoinput');
             } catch (error) {
                 if (!current()) return;
@@ -203,7 +270,7 @@ export function callCameraPreview(config, rawRoom, capture = createLocalVideoTra
         async publishCameraSelection(room, connection) {
             const request = revision;
             const current = () => request === revision && this.isActiveRoom(room, connection) && this.canPublish && !this.leaving && !this.failed;
-            if (!current() || !preference || preference.mode === 'off') throw abortCamera();
+            if (!current() || this.cameraNeedsSetup || !preference || preference.mode === 'off') throw abortCamera();
             clearTimeout(releaseTimer);
             const item = prepared && !prepared.stopped ? prepared : await captureSelection(this, preference.mode, preference.deviceId, current);
             prepared = null;

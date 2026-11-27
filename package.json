@@ -3,8 +3,6 @@
     "type": "module",
     "scripts": {
         "dev": "vite",
-        "prebuild": "node scripts/build-call-backgrounds.mjs --if-installed",
-        "prebuild:clean": "node scripts/build-call-backgrounds.mjs --if-installed",
         "build:call-backgrounds": "node scripts/build-call-backgrounds.mjs",
         "build": "vite build && npm run verify:mail-editor-build && npm run build:outlook-addin",
         "build:clean": "vite build && npm run verify:mail-editor-build && npm run build:outlook-addin && node scripts/prune-build-assets.mjs",
@@ -17,6 +15,7 @@
         "verify:ck19-mobile-style": "node scripts/build-ck19-mobile-style.mjs --check"
     },
     "devDependencies": {
+        "@vue/reactivity": "3.5.44",
         "autoprefixer": "^10.4.7",
         "axios": "^1.6.4",
         "gifenc": "^1.0.3",

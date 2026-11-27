@@ -261,7 +261,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         openCallDeviceSettings(trigger) {
-            if (!this.canControlMedia || this.prejoinOpen || this.cameraBusy) return;
+            if (!this.canControlMedia || this.prejoinOpen || this.cameraBusy || this.audioOnly || this.profileBusy) return;
             this.deviceSettingsTrigger = trigger;
             this.configuringDuringCall = true;
             this.prejoinOpen = true;
@@ -272,7 +272,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         async acceptDeviceSettings() {
-            if (!this.prejoinOpen || this.deviceSettingsBusy) return;
+            if (!this.prejoinOpen || this.deviceSettingsBusy || (this.configuringDuringCall && (this.audioOnly || !this.canControlMedia))) return;
             this.deviceSettingsBusy = true;
             try {
                 if (!await this.commitCameraPreview() || this.disposed || !this.prejoinOpen) return;
@@ -968,6 +968,7 @@ document.addEventListener('alpine:init', () => {
             this.recordingCanPublish = Boolean(recording?.canPublish);
             this.canPublish = (this.recordingEnabled ? this.recordingCanPublish : this.participantMayPublish)
                 && this.sfuCanPublish !== false && !this.recordingRequiresAcknowledgement;
+            if (this.connected && !this.canPublish) this.disposeCameraPreview();
         },
 
         applySessionRole(session) {
@@ -984,6 +985,7 @@ document.addEventListener('alpine:init', () => {
             if (!this.recordingEnabled) this.participantMayPublish = this.sfuCanPublish;
             this.canPublish = (this.recordingEnabled ? this.recordingCanPublish : this.participantMayPublish)
                 && this.sfuCanPublish && !this.recordingRequiresAcknowledgement;
+            if (!this.canPublish) this.disposeCameraPreview();
 
             // Preparing recordings already have their own poll. An active
             // recording role change needs fresh server approval without
@@ -1355,6 +1357,7 @@ document.addEventListener('alpine:init', () => {
                 .on(RoomEvent.TrackPublished, current(() => { if (this.audioOnly) this.syncIncomingVideo(activeRoom); }))
                 .on(RoomEvent.ParticipantConnected, current(render))
                 .on(RoomEvent.ParticipantDisconnected, current(render))
+                .on(RoomEvent.Reconnected, current(render))
                 .on(RoomEvent.TrackSubscribed, current(render))
                 .on(RoomEvent.TrackUnsubscribed, current((track) => { track?.detach(); render(); }))
                 .on(RoomEvent.LocalTrackPublished, current(render))
@@ -1632,6 +1635,8 @@ document.addEventListener('alpine:init', () => {
 
         async toggleCamera() {
             if (!this.cameraOn && this.cameraNeedsSetup) {
+                if (this.audioOnly) await this.setAudioOnly(false);
+                if (this.audioOnly || !this.canControlMedia) return;
                 return this.openCallDeviceSettings(document.activeElement);
             }
             await this.toggleMedia('camera');
@@ -1641,10 +1646,12 @@ document.addEventListener('alpine:init', () => {
             const state = kind === 'camera' ? 'cameraOn' : 'micOn';
             const busy = kind === 'camera' ? 'cameraBusy' : 'micBusy';
             if (!this.canControlMedia || this[busy] || (kind === 'camera' && this.profileBusy)) return;
-            if (kind === 'camera' && this.audioOnly) await this.setAudioOnly(false);
-
             const activeRoom = rawCallValue(this.room);
             const generation = this.connectionGeneration;
+            if (kind === 'camera' && this.audioOnly) {
+                await this.setAudioOnly(false);
+                if (this.audioOnly || !this.canControlMedia || !this.isActiveRoom(activeRoom, generation)) return;
+            }
             const enable = !this[state];
             this[busy] = true;
 
@@ -1672,9 +1679,12 @@ document.addEventListener('alpine:init', () => {
 
         async toggleScreenShare() {
             if (!this.canControlMedia || this.screenShareBusy || this.profileBusy || !this.screenShareSupported) return;
-            if (this.audioOnly) await this.setAudioOnly(false);
             const activeRoom = rawCallValue(this.room);
             const generation = this.connectionGeneration;
+            if (this.audioOnly) {
+                await this.setAudioOnly(false);
+                if (this.audioOnly || !this.canControlMedia || !this.isActiveRoom(activeRoom, generation)) return;
+            }
             const enable = !this.screenSharing;
             this.screenShareBusy = true;
             try {

@@ -8,7 +8,7 @@
     data-rt-overlay-base="200"
     x-data="callRoom({
         roomUuid: @js($room->uuid),
-        prejoin: @js($room->type === 'meeting' && (bool) data_get($room->settings, 'video', true) && ($me?->canPublish() ?? false)),
+        prejoin: @js((bool) data_get($room->settings, 'video', true) && ($me?->canPublish() ?? false)),
         tokenUrl: @js(route('calls.token', $room)),
         recordingAcknowledgementUrl: @js(route('calls.recording.acknowledge')),
         recordingPolicyVersion: @js(config('call_recording.policy_version')),
@@ -16,7 +16,8 @@
         selfIdentity: @js(\App\Services\Calls\LiveKitService::identityFor(auth()->user())),
         canPublish: @js($me?->canPublish() ?? false),
         startWithVideo: @js((bool) data_get($room->settings, 'video', true)),
-        cameraAssets: @js(is_file(public_path('vendor/call-backgrounds/0.7.2/processor.js')) ? url('vendor/call-backgrounds/0.7.2') : null),
+        cameraAssets: @js(config('livekit.background_effects') && is_file(public_path('vendor/call-backgrounds/0.7.2/processor.js')) ? url('vendor/call-backgrounds/0.7.2') : null),
+        cameraEffectsEnabled: @js((bool) config('livekit.background_effects')),
         cameraBackground: @js(url('rt-brand/img/hero-railtime.jpg')),
         waiting: @js($this->waitingFor()),
         labels: {
@@ -89,9 +90,9 @@
                 <button type="button" x-on:click="cancelDeviceSettings()" :disabled="deviceSettingsBusy" class="min-h-11 rounded-lg px-4 text-sm font-semibold">
                     {{ __('app.calls_prejoin_cancel') }}
                 </button>
-                <button type="button" x-on:click="acceptDeviceSettings()" :disabled="deviceSettingsBusy"
+                <button type="button" x-on:click="acceptDeviceSettings()" :disabled="deviceSettingsBusy || !cameraPreviewReady || cameraPreviewBusy"
                         class="min-h-11 rounded-lg bg-rt-red px-4 text-sm font-bold text-white disabled:opacity-50">
-                    <span x-show="!configuringDuringCall">{{ __('app.calls_prejoin_join') }}</span>
+                    <span x-show="!configuringDuringCall">{{ $room->type === 'meeting' ? __('app.calls_prejoin_join') : __('app.calls_prejoin_join_call') }}</span>
                     <span x-show="configuringDuringCall">{{ __('app.calls_prejoin_apply') }}</span>
                 </button>
             </div>

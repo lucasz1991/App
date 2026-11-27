@@ -61,7 +61,7 @@
     "isDynamicEntry": true
   },
   "resources/css/app.css": {
-    "file": "assets/app-D6_mYQlw.css",
+    "file": "assets/app-BukTWE70.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
@@ -99,7 +99,7 @@
     ]
   },
   "resources/js/admin-dashboard-motion.js": {
-    "file": "assets/admin-dashboard-motion-CZv-cNcp.js",
+    "file": "assets/admin-dashboard-motion-2Z8RuFM2.js",
     "name": "admin-dashboard-motion",
     "src": "resources/js/admin-dashboard-motion.js",
     "isDynamicEntry": true,
@@ -110,7 +110,7 @@
     ]
   },
   "resources/js/app.js": {
-    "file": "assets/app-B77oD7Oz.js",
+    "file": "assets/app-D-SqTKoZ.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
@@ -126,16 +126,16 @@
       "resources/js/operations-charts.js"
     ],
     "css": [
-      "assets/app-DjYuGVOs.css"
+      "assets/app-BpFMKFrF.css"
     ]
   },
   "resources/js/calls.js": {
-    "file": "assets/calls-Dp3WcwdM.js",
+    "file": "assets/calls-2TIukR3W.js",
     "name": "calls",
     "src": "resources/js/calls.js",
     "isEntry": true,
     "css": [
-      "assets/calls-Dj97u_8K.css"
+      "assets/calls-dH0be5PK.css"
     ]
   },
   "resources/js/customer-portal.js": {

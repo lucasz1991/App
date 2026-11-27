@@ -12,13 +12,7 @@ const out = resolve(app, 'public/vendor/call-backgrounds/0.7.2');
 const model = resolve(out, 'selfie_segmenter.tflite');
 const modelUrl = 'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/1/selfie_segmenter.tflite';
 const modelDigest = '191ac9529ae506ee0beefa6b2c945a172dab9d07d1e802a290a4e4038226658b';
-try {
-    await access(resolve(sdk, 'dist/index.mjs'));
-} catch (error) {
-    if (!process.argv.includes('--if-installed') || error.code !== 'ENOENT') throw error;
-    console.warn('Camera effects unavailable in this build. Install the locked dependencies to enable them.');
-    process.exit(0);
-}
+await access(resolve(sdk, 'dist/index.mjs'));
 await mkdir(out, { recursive: true });
 const valid = bytes => createHash('sha256').update(bytes).digest('hex') === modelDigest;
 let bytes = await readFile(model).catch(() => null);

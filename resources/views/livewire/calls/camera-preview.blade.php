@@ -9,7 +9,7 @@
         <select x-model="cameraMode" x-on:change="refreshCameraPreview()" class="mt-1 block min-h-10 w-full rounded-lg border border-white/25 bg-slate-900 px-3 text-white">
             <option value="off">{{ __('app.calls_without_camera') }}</option>
             <option value="original">{{ __('app.calls_camera_original') }}</option>
-            <option value="blur" :disabled="!cameraEffectsAvailable">{{ __('app.calls_camera_blur') }}</option>
+            <option value="blur" :disabled="!cameraEffectsAvailable && !cameraNativeBlurAvailable">{{ __('app.calls_camera_blur') }}</option>
             <option value="brand" :disabled="!cameraEffectsAvailable">{{ __('app.calls_camera_brand') }}</option>
         </select>
     </label>
@@ -23,7 +23,7 @@
         </select>
     </label>
     <p x-show="configuringDuringCall" class="text-xs text-slate-300">{{ __('app.calls_camera_preview_paused') }}</p>
-    <p x-show="!cameraEffectsAvailable" class="text-xs text-slate-300">{{ __('app.calls_camera_no_effects') }}</p>
+    <p x-show="cameraMode !== 'off' && !cameraPreviewBusy && !cameraEffectsAvailable && !cameraNativeBlurAvailable" class="text-xs text-slate-300">{{ __('app.calls_camera_no_effects') }}</p>
     <p x-show="cameraPreviewBusy" role="status" class="text-xs text-slate-300">{{ __('app.calls_camera_preparing') }}</p>
     <div x-show="cameraPreviewMessage" class="space-y-1">
         <p role="status" class="text-sm text-amber-200" x-text="cameraPreviewMessage"></p>
