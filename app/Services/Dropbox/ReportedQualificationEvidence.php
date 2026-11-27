@@ -58,8 +58,61 @@ final class ReportedQualificationEvidence
         return 'dropbox-contact:'.$appearanceId;
     }
 
+    /** A contact can become linked while another file's chunk is running. */
+    public function outstandingLinkedContacts(DropboxConnection $connection, array $bound): array
+    {
+        if (! in_array('competencies', $connection->option('domains'), true)) {
+            return [];
+        }
+        $recordByScope = [];
+        foreach ($bound as $row) {
+            $entry = $row['entry'];
+            if ($entry['domain'] === 'contacts' && ($entry['locator']['kind'] ?? null) === 'employee'
+                && trim($entry['values'][self::FIELD] ?? '') !== '' && isset($entry['locator']['cells'][self::FIELD])) {
+                $recordByScope[self::scopeFor($row['appearance']->id)] = $row['appearance']->record_id;
+            }
+        }
+        if (! $recordByScope) {
+            return [];
+        }
+        $stored = EmployeeCompetencyFact::where('kind', self::KIND)->whereIn('scope', array_keys($recordByScope))->pluck('scope');
+        $unrecorded = array_diff_key($recordByScope, array_flip($stored->all()));
+        if (! $unrecorded) {
+            return [];
+        }
+
+        return DropboxRecord::where('connection_id', $connection->id)->where('model_type', 'DropboxIdentity')
+            ->whereIntegerInRaw('id', array_unique($unrecorded))
+            ->whereIn('model_id', DropboxIdentity::where('connection_id', $connection->id)->where('kind', 'employee')->whereNotNull('user_id')->select('id'))
+            ->pluck('id')->flip()->all();
+    }
+
+    /** A disputed phone number does not invalidate an independently corroborated qualification cell. */
+    public function recordWithDisputedPhone(DropboxIdentity $identity, DropboxSource $source, Collection $rows, array $accepted, string $revision): void
+    {
+        $email = trim($accepted['contact_email'] ?? '');
+        if ($email === '' || ! $identity->user_id || ! User::whereKey($identity->user_id)->where('role', 'staff')
+            ->whereRaw('LOWER(email) = ?', [mb_strtolower($email)])->exists()) {
+            return;
+        }
+        foreach ($rows as $row) {
+            $entry = $row['entry'];
+            $values = $entry['values'];
+            if (trim($values[self::FIELD] ?? '') === '' || ($values['contact_email'] ?? '') !== $email) {
+                continue;
+            }
+            $nameFields = trim($values['name'] ?? '') !== '' ? ['name'] : ['first_name', 'last_name'];
+            foreach ($nameFields as $field) {
+                if (trim($values[$field] ?? '') === '' || ($accepted[$field] ?? null) !== $values[$field]) {
+                    continue 2;
+                }
+            }
+            $this->record($identity, $source, $row['appearance'], $entry, $accepted, $revision);
+        }
+    }
+
     /** Keep the source statement and its exact cell distinct from approved personnel proof. */
-    public function record(DropboxIdentity $identity, DropboxSource $source, DropboxAppearance $appearance, array $entry, array $accepted): void
+    public function record(DropboxIdentity $identity, DropboxSource $source, DropboxAppearance $appearance, array $entry, array $accepted, ?string $sourceRevision = null): void
     {
         $value = $entry['values'][self::FIELD] ?? null;
         $cell = $entry['locator']['cells'][self::FIELD] ?? null;
@@ -78,7 +131,8 @@ final class ReportedQualificationEvidence
         $sameIdentity = (int) $fact?->identity_id === $identity->id;
         $sameStatement = $sameIdentity && ($previous['value'] ?? null) === $value
             && $this->sameProperties(array_diff_key($previousOrigin, ['revision' => true]), $origin);
-        $origin['revision'] = $sameStatement ? ($previousOrigin['revision'] ?? $appearance->seen_rev) : $appearance->seen_rev;
+        $readRevision = $sourceRevision ?? $appearance->seen_rev;
+        $origin['revision'] = $sameStatement ? ($previousOrigin['revision'] ?? $readRevision) : $readRevision;
         $evidence = ['value' => $value, 'color' => null, 'status' => $value === '' ? 'withdrawn' : 'reported',
             'qualification_type_ids' => $this->typeIds($value), 'origin' => $origin];
         if ($sameIdentity && $this->sameProperties($previousOrigin, $origin)

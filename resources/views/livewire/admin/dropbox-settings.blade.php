@@ -228,6 +228,15 @@
                             <x-ui.buttons.button-basic type="button" mode="primary" wire:click="linkRow">Zeile diesem Datensatz zuordnen</x-ui.buttons.button-basic>
                         @endif
                         @if($selectedConflict->reason === 'row_missing')<p class="text-sm">Der App-Datensatz bleibt erhalten. Die fehlende Excel-Zeile kann aus dem aktuellen App-Stand wieder angelegt werden.</p><x-ui.buttons.button-basic type="button" mode="primary" wire:click="restoreRow">Fehlende Zeile wieder anlegen</x-ui.buttons.button-basic>@endif
+                        @if($selectedConflict->reason === 'planning_copy_time_disagreement')
+                            <p class="text-sm"><strong>{{ $selectedConflict->snapshot['date'] ?? '' }}</strong> · {{ $selectedConflict->snapshot['sheet'] ?? '' }} {{ $selectedConflict->snapshot['cell'] ?? '' }} · {{ $selectedConflict->snapshot['starts'] ?? '' }}–{{ $selectedConflict->snapshot['ends'] ?? '' }}</p>
+                            <ul class="space-y-1 text-sm">
+                                @foreach($selectedConflict->snapshot['counterparts'] ?? [] as $counterpart)
+                                    <li>{{ $counterpart['sheet'] }} {{ $counterpart['cell'] ?? '' }} · {{ $counterpart['starts'] }}–{{ $counterpart['ends'] }}</li>
+                                @endforeach
+                            </ul>
+                            <p class="text-sm">Gleichen Sie die Planzeiten desselben Einsatzes ab. Wenn es getrennte Leistungen sind, tragen Sie ihre jeweiligen Leistungs-IDs ein.</p>
+                        @endif
                         @foreach($selectedConflict->snapshot['messages'] ?? [] as $messages)@foreach($messages as $message)<p class="text-sm">{{ $message }}</p>@endforeach@endforeach
                         @if($selectedConflict->reason === 'destination_required')<x-ui.forms.select wire:model="targetSource" aria-label="Zielmappe"><option value="">Zielmappe auswählen</option>@foreach($sources as $source)<option value="{{ $source->id }}">{{ $source->name }}</option>@endforeach</x-ui.forms.select><x-ui.buttons.button-basic type="button" mode="primary" wire:click="chooseDestination">Ziel festlegen</x-ui.buttons.button-basic>@endif
                         <x-ui.buttons.button-basic type="button" mode="secondary" wire:click="retryConflict({{ $selectedConflict->id }})">Nach Korrektur erneut prüfen</x-ui.buttons.button-basic>

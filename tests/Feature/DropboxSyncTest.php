@@ -1449,4 +1449,147 @@ class DropboxSyncTest extends TestCase
 
         return $person;
     }
+
+    public function test_provider_contact_resolves_an_existing_unbound_planning_placeholder_without_staffing(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-10-23T12:00:00+02:00'));
+        $this->connection->update(['settings' => [...$this->connection->settings, 'retain_unassigned_drafts' => true, 'historical_auto_complete' => true]]);
+        $source = $this->source($this->workbook(employee: 'Synthetischer Dienstleister GmbH'));
+        app(FileSynchronizer::class)->sync($this->connection, $source);
+        $shift = Shift::firstOrFail();
+        $this->assertSame(ShiftStatus::Completed, $shift->status);
+        $this->assertSame('unresolved', DropboxIdentity::firstOrFail()->kind);
+        $this->assertSame(1, DropboxConflict::where('reason', 'assignment_pending')->where('state', 'open')->count());
+
+        $bytes = $this->withProviderContact($this->client->downloadSource($this->connection, $source->fresh())['bytes'], 'Synthetischer Dienstleister GmbH');
+        $this->client->put($source->path, $bytes);
+        app(FileSynchronizer::class)->sync($this->connection, $source->fresh());
+        $this->assertSame('provider', DropboxIdentity::sole()->kind);
+        $this->assertNull(DropboxIdentity::sole()->user_id);
+        $this->assertSame(ShiftStatus::Completed, $shift->fresh()->status);
+        $this->assertSame(1, Shift::count());
+        $this->assertSame(0, ShiftAssignment::count());
+        $this->assertSame(0, WorkTimeEntry::count());
+        $this->assertFalse(DropboxConflict::whereIn('reason', ['assignment_pending', 'mapping_required'])->where('state', 'open')->exists());
+        $parsed = app(WorkbookReader::class)->read($this->client->downloadSource($this->connection, $source->fresh())['bytes'], 'weekly');
+        $this->assertSame('Synthetischer Dienstleister GmbH', collect($parsed['rows'])->firstWhere('domain', 'planning')['values']['employee']);
+        $this->assertSame('provider', collect($parsed['rows'])->firstWhere('domain', 'contacts')['locator']['kind']);
+
+        app(FileSynchronizer::class)->sync($this->connection, $source->fresh());
+        $this->assertSame(1, DropboxRecord::where('domain', 'contacts')->count());
+    }
+
+    public function test_provider_contact_does_not_override_a_conflicting_employee_identity(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-09-14T12:00:00+02:00'));
+        $employee = $this->mappedStaff('Bestehender Mitarbeiter');
+        $bytes = $this->withProviderContact($this->workbook(employee: 'Bestehender Mitarbeiter'), 'Mitarbeiter, Bestehender');
+        $source = $this->source($bytes);
+        app(FileSynchronizer::class)->sync($this->connection, $source);
+        $identity = DropboxIdentity::sole();
+        $this->assertSame('employee', $identity->kind);
+        $this->assertSame($employee->id, $identity->user_id);
+        $assignment = ShiftAssignment::sole();
+        $this->assertSame('requested', $assignment->status->value);
+        $this->assertSame($employee->id, $assignment->user_id);
+        $this->assertSame(1, DropboxConflict::where('reason', 'mapping_required')->where('state', 'open')->count());
+        $this->assertSame(0, DropboxRecord::where('domain', 'contacts')->count());
+    }
+
+    public function test_provider_contact_preserves_a_stored_employee_role_without_a_user_link(): void
+    {
+        $identity = DropboxIdentity::create(['connection_id' => $this->connection->id, 'alias' => 'bisherige zuordnung', 'kind' => 'unresolved']);
+        DropboxRecord::create(['connection_id' => $this->connection->id, 'domain' => 'contacts', 'model_type' => 'DropboxIdentity', 'model_id' => $identity->id, 'metadata' => ['kind' => 'employee']]);
+        $source = $this->source($this->withProviderContact($this->workbook(), 'Bisherige Zuordnung'));
+        app(FileSynchronizer::class)->sync($this->connection, $source);
+        $this->assertSame('unresolved', $identity->fresh()->kind);
+        $this->assertNull($identity->fresh()->user_id);
+        $this->assertSame('employee', DropboxRecord::where('domain', 'contacts')->sole()->metadata['kind']);
+        $this->assertSame(1, DropboxConflict::where('reason', 'mapping_required')->where('state', 'open')->count());
+    }
+
+    public function test_new_staff_mapping_rechecks_pending_historical_rows_from_an_earlier_chunk(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-10-23T12:00:00+02:00'));
+        $this->connection->update(['settings' => [...$this->connection->settings, 'retain_unassigned_drafts' => true, 'historical_auto_complete' => true]]);
+        $source = $this->source($this->workbook(employee: 'Belegte Historienperson'));
+        app(FileSynchronizer::class)->sync($this->connection, $source);
+        $pending = DropboxConflict::where('reason', 'assignment_pending')->where('state', 'open')->sole();
+        $person = User::factory()->create(['name' => 'Belegte Historienperson', 'role' => 'staff', 'status' => false]);
+        DropboxIdentity::sole()->update(['user_id' => $person->id, 'kind' => 'employee']);
+        $source->refresh()->update(['state' => 'processing', 'progress' => ['rev' => $source->rev, 'next' => 1]]);
+
+        app(FileSynchronizer::class)->sync($this->connection, $source->fresh());
+        app(FileSynchronizer::class)->sync($this->connection, $source->fresh());
+        $assignment = ShiftAssignment::sole();
+        $this->assertSame($person->id, $assignment->user_id);
+        $this->assertSame('reported', $assignment->status->value);
+        $this->assertSame('resolved', $pending->fresh()->state);
+        $this->assertSame(0, WorkTimeEntry::count());
+        $this->assertSame(1, OperationAudit::where('action', 'assignment.import_reported')->count());
+    }
+
+    private function withProviderContact(string $bytes, string $label): string
+    {
+        $package = new WorkbookPackage($bytes);
+        $package->addEmployeeSheet('Kontaktliste Extern DL', 'WTU Abrechnung + Übersicht', ['B1' => ['value' => 'Name']]);
+        $package->patch(['Kontaktliste Extern DL' => ['A3' => ['value' => 1], 'B3' => ['value' => $label]]]);
+
+        return $package->bytes();
+    }
+
+    public function test_provider_role_is_resolved_while_the_conflicting_reported_end_stays_open(): void
+    {
+        [$source, $shift, $record, $pending] = $this->providerFieldConflictFixture();
+        $details = $shift->disposition_details;
+        $revision = $shift->revision;
+        app(FileSynchronizer::class)->sync($this->connection, $source->fresh());
+
+        $this->assertSame('resolved', $pending->fresh()->state);
+        $this->assertNull($record->fresh()->metadata['assignment_pending']);
+        $this->assertSame(ShiftStatus::Completed, $shift->fresh()->status);
+        $this->assertSame($revision, $shift->fresh()->revision);
+        $this->assertSame([...$details, 'provider_label' => 'Dienst Test GmbH'], $shift->fresh()->disposition_details);
+        $conflict = DropboxConflict::where('record_id', $record->id)->where('reason', 'field_conflict')->where('state', 'open')->sole();
+        $this->assertSame(['actual_end'], array_keys($conflict->snapshot['fields']));
+        $this->assertSame(0, ShiftAssignment::count());
+        $this->assertSame(0, WorkTimeEntry::count());
+
+        app(FileSynchronizer::class)->sync($this->connection, $source->fresh());
+        $this->assertSame('open', $conflict->fresh()->state);
+        $this->assertSame($revision, $shift->fresh()->revision);
+    }
+
+    public function test_provider_role_stays_open_when_one_source_also_disagrees_on_cancellation(): void
+    {
+        [$source, $shift, $record, $pending] = $this->providerFieldConflictFixture(cancelInMaster: true);
+        app(FileSynchronizer::class)->sync($this->connection, $source->fresh());
+
+        $this->assertSame('open', $pending->fresh()->state);
+        $this->assertArrayNotHasKey('provider_label', $shift->fresh()->disposition_details);
+        $this->assertSame(ShiftStatus::Completed, $shift->fresh()->status);
+        $this->assertTrue(DropboxConflict::where('record_id', $record->id)->where('reason', 'field_conflict')->where('state', 'open')->exists());
+    }
+
+    private function providerFieldConflictFixture(bool $cancelInMaster = false): array
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-10-23T12:00:00+02:00'));
+        $this->connection->update(['settings' => [...$this->connection->settings, 'retain_unassigned_drafts' => true, 'historical_auto_complete' => true]]);
+        $label = 'Dienst Test GmbH';
+        $source = $this->source($this->workbook(employee: $label, personal: true));
+        app(FileSynchronizer::class)->sync($this->connection, $source);
+        $shift = Shift::sole();
+        $record = DropboxRecord::where('domain', 'planning')->sole();
+        $pending = DropboxConflict::where('reason', 'assignment_pending')->where('state', 'open')->sole();
+        $bytes = $this->withProviderContact($this->client->downloadSource($this->connection, $source->fresh())['bytes'], $label);
+        $package = new WorkbookPackage($bytes);
+        $master = ['D2' => ['value' => '08:00–10:00/–11:40']];
+        if ($cancelInMaster) {
+            $master['K2'] = ['value' => 'Storno'];
+        }
+        $package->patch(['WTU Abrechnung + Übersicht' => $master, $label => ['D2' => ['value' => '08:00–10:00/–11:50']]]);
+        $this->client->put($source->path, $package->bytes());
+
+        return [$source, $shift, $record, $pending];
+    }
 }

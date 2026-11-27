@@ -40,6 +40,8 @@ class WorkbookWriter
                 $value = ($values['starts'] ?? '').'–'.($values['ends'] ?? '');
                 if ($values['actual_end'] ?? null) {
                     $value .= '/–'.$values['actual_end'];
+                } elseif (! array_key_exists('actual_end', $values)) {
+                    $value .= $loc['unreported_actual_suffix'] ?? '';
                 }
             }
             if ($field === 'notes') {

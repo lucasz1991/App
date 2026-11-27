@@ -6,10 +6,12 @@ use App\Enums\OrderStatus;
 use App\Enums\ShiftAssignmentStatus;
 use App\Enums\ShiftStatus;
 use App\Models\Customer;
+use App\Models\DropboxAppearance;
 use App\Models\DropboxConflict;
 use App\Models\DropboxConnection;
 use App\Models\DropboxIdentity;
 use App\Models\DropboxRecord;
+use App\Models\DropboxSource;
 use App\Models\EmployeeCompetencyFact;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
@@ -28,6 +30,8 @@ use Illuminate\Validation\ValidationException;
 
 class DomainAdapter
 {
+    private const ASSIGNMENT_IDENTITY_REVIEW = 'Mitarbeiter oder Dienstleister zuerst unter Zuordnungen bestätigen.';
+
     public function __construct(private EmployeeIdentityResolver $identityResolver) {}
 
     public function identity(DropboxConnection $connection, string $name, string $kind = 'unresolved', bool $historical = false, bool $resolve = true): DropboxIdentity
@@ -42,10 +46,18 @@ class DomainAdapter
     public function contactIdentity(DropboxConnection $connection, array $locator): DropboxIdentity
     {
         $kind = $locator['kind'];
+        $this->validateContactRoleEvidence($locator);
         $identity = $this->identity($connection, $locator['subject'], $kind === 'provider' ? 'provider' : 'unresolved');
         $this->validateContactKind($identity, $kind);
 
         return $identity;
+    }
+
+    public function validateContactRoleEvidence(array $locator): void
+    {
+        if ($locator['contact_role_conflict'] ?? false) {
+            throw ValidationException::withMessages(['sync' => 'Die Dienstleisterangabe überschneidet sich mit einer Mitarbeiteridentität. Rolle ausdrücklich prüfen.']);
+        }
     }
 
     public function validateContactMapping(DropboxRecord $record, string $kind): void
@@ -244,9 +256,9 @@ class DomainAdapter
         $assignmentPending = null;
         if ($identity && ! in_array($identity->kind, ['employee', 'provider'], true)) {
             if ($retainDraft) {
-                $assignmentPending = ['sync' => ['Mitarbeiter oder Dienstleister zuerst unter Zuordnungen bestätigen.']];
+                $assignmentPending = ['sync' => [self::ASSIGNMENT_IDENTITY_REVIEW]];
             } else {
-                throw ValidationException::withMessages(['sync' => 'Mitarbeiter oder Dienstleister zuerst unter Zuordnungen bestätigen.']);
+                throw ValidationException::withMessages(['sync' => self::ASSIGNMENT_IDENTITY_REVIEW]);
             }
         }
         $assignee = $identity?->kind === 'employee' && $identity->user_id ? User::find($identity->user_id) : null;
@@ -372,6 +384,74 @@ class DomainAdapter
         } else {
             DropboxConflict::where('record_id', $record->id)->where('reason', 'assignment_pending')->update(['state' => 'resolved']);
         }
+    }
+
+    /** Recheck only old role placeholders when source chunk progress would otherwise skip their rows. */
+    public function newlyResolvedAssignmentRecords(DropboxConnection $connection, array $recordIds): Collection
+    {
+        $pending = DropboxConflict::where('connection_id', $connection->id)->where('reason', 'assignment_pending')
+            ->whereIn('state', ['open', 'rechecking'])->whereIntegerInRaw('record_id', $recordIds)->get()
+            ->filter(fn ($conflict) => in_array(self::ASSIGNMENT_IDENTITY_REVIEW, $conflict->snapshot['messages']['sync'] ?? [], true))
+            ->mapWithKeys(fn ($conflict) => [$conflict->record_id => WorkbookReader::normalize($conflict->snapshot['values']['employee'] ?? '')]);
+        if ($pending->isEmpty()) {
+            return collect();
+        }
+        $known = DropboxIdentity::where('connection_id', $connection->id)->whereIn('alias', $pending->unique()->values())
+            ->where(fn ($query) => $query->where('kind', 'provider')->whereNull('user_id')
+                ->orWhere(fn ($employee) => $employee->where('kind', 'employee')->whereNotNull('user_id')))->pluck('alias')->flip();
+
+        return $pending->filter(fn ($alias) => $known->has($alias));
+    }
+
+    /** Resolve the independent supplier role without applying a conflicted plan payload. */
+    public function completeProviderRoleDuringFieldConflict(DropboxConnection $connection, DropboxRecord $record, array $local, array $rows, array $conflicts): bool
+    {
+        $allowedConflicts = ['actual_end', 'notes'];
+        $metadata = $record->metadata ?? [];
+        if ($record->domain !== 'planning' || $record->model_type !== 'Shift' || ! ($metadata['imported_order'] ?? false)
+            || ! in_array('assignments', $connection->option('domains'), true) || $record->assignment_id || ($metadata['user_id'] ?? null)
+            || ! in_array(self::ASSIGNMENT_IDENTITY_REVIEW, $metadata['assignment_pending']['sync'] ?? [], true)
+            || ! $conflicts || array_diff(array_keys($conflicts), $allowedConflicts)) {
+            return false;
+        }
+        $label = $metadata['employee_label'] ?? '';
+        if ($label === '' || $label !== ($local['employee'] ?? null)) {
+            return false;
+        }
+        $provider = DropboxIdentity::where('connection_id', $connection->id)->where('alias', WorkbookReader::normalize($label))
+            ->where('kind', 'provider')->whereNull('user_id')->lockForUpdate()->first();
+        if (! $provider || ! DropboxAppearance::where('locator->kind', 'provider')->where('slot', 'not like', 'missing:%')
+            ->whereIn('record_id', DropboxRecord::where('connection_id', $connection->id)->where('domain', 'contacts')->where('model_type', 'DropboxIdentity')
+                ->where('model_id', $provider->id)->where('metadata->kind', 'provider')->select('id'))
+            ->whereIn('source_id', DropboxSource::where('connection_id', $connection->id)->whereNotIn('state', ['missing', 'excluded'])->select('id'))->exists()) {
+            return false;
+        }
+        $shift = Shift::lockForUpdate()->findOrFail($record->model_id);
+        $details = $shift->disposition_details ?? [];
+        if ($shift->published_revision || $shift->published_at || $shift->assignments()->exists() || ($metadata['historical_assignment_id'] ?? null)
+            || (filled($details['provider_label'] ?? null) && $details['provider_label'] !== $label)) {
+            return false;
+        }
+
+        $sources = collect($rows)->pluck('excel')->concat(DropboxAppearance::where('record_id', $record->id)->get(['last_excel'])->pluck('last_excel'));
+        $ignored = array_fill_keys($allowedConflicts, true);
+        foreach ($sources as $source) {
+            if (($source['employee'] ?? null) !== $label) {
+                return false;
+            }
+            foreach (array_diff_key($source, $ignored) as $field => $value) {
+                if (($value ?? '') !== ($local[$field] ?? '')) {
+                    return false;
+                }
+            }
+        }
+
+        SyncContext::import(fn () => $shift->update(['disposition_details' => [...$details, 'provider_label' => $label]]));
+        $record->update(['metadata' => [...$metadata, 'assignment_pending' => null]]);
+        DropboxConflict::where('connection_id', $connection->id)->where('record_id', $record->id)->where('reason', 'assignment_pending')
+            ->whereIn('state', ['open', 'rechecking'])->update(['state' => 'resolved']);
+
+        return true;
     }
 
     /** Repair native projections even when the Excel values themselves did not change. */

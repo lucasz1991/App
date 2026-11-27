@@ -81,6 +81,21 @@ class DropboxWorkbookCoverageTest extends TestCase
         $this->assertSame(2, $parsed['coverage']['skipped_rows']);
     }
 
+    public function test_explicit_midnight_end_and_empty_actual_suffix_preserve_only_documented_endpoints(): void
+    {
+        $reader = app(WorkbookReader::class);
+        $this->assertSame(['15:00', '00:00', null], $reader->times('15:00 – 24:00'));
+        $this->assertSame(['15:00', '00:00', '00:30'], $reader->times('15.00 – 24.00 /– 00.30'));
+        $this->assertSame(['20:00', '22:00', null], $reader->times('20:00–22:00/–'));
+        $this->assertSame(['20:00', '22:00', null], $reader->times('20:00–22:00/–?'));
+        $this->assertSame(['20:00', '22:00', null], $reader->times('20:00–22:00/–??'));
+        $this->assertSame(['15:00', null, null], $reader->times('15:00–24:00/–24:30'));
+        $this->assertSame([null, '08:00', null], $reader->times('24:00–08:00'));
+        $this->assertSame([null, null, null], $reader->times('17:00/–19:00–21:00'));
+        $this->assertSame([null, null, null], $reader->times('13:00:15:00'));
+        $this->assertSame([null, null, null], $reader->times('22:00/–00:00'));
+    }
+
     public function test_weekly_staff_contact_sheet_is_read_without_guessing_name_parts(): void
     {
         $book = new Spreadsheet;

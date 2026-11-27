@@ -74,6 +74,7 @@ class DropboxSourceReplacementTest extends TestCase
         $this->assertNull($registered->processed_rev);
         $this->assertNull($registered->progress);
         $this->assertSame(['name' => 'Ursprünglicher Stand'], $appearance->fresh()->baseline);
+        $this->assertNull($appearance->fresh()->seen_rev);
         $this->assertSame($source->id, $appearance->fresh()->source_id);
         $this->assertTrue(DropboxWorkItem::where('resource', 'file:'.$source->id)->whereColumn('requested', '>', 'completed')->exists());
     }
@@ -168,7 +169,10 @@ class DropboxSourceReplacementTest extends TestCase
         $this->connection->update(['mode' => DropboxMode::Import]);
         $registered = app(SourceScanner::class)->register($this->connection, $replacement);
         $this->assertSame($source->id, $registered->id);
-        $this->assertSame($appearanceBefore, $appearance->fresh()->getAttributes());
+        $appearance->refresh();
+        $technical = ['seen_rev' => true, 'updated_at' => true];
+        $this->assertSame(array_diff_key($appearanceBefore, $technical), array_diff_key($appearance->getAttributes(), $technical));
+        $this->assertNull($appearance->seen_rev);
         app(FileSynchronizer::class)->sync($this->connection, $registered);
         $this->assertSame($readsBefore + 3, $reader->reads);
         $this->assertSame($downloadsBefore + 3, $this->client->downloads);

@@ -12,7 +12,7 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 class WorkbookReader
 {
     /** Bump when decoding, classification or the shape of parsed workbook data changes. */
-    public const CACHE_VERSION = 1;
+    public const CACHE_VERSION = 3;
 
     public const PLANNING_COLUMNS = ['B' => 'location', 'C' => 'date', 'D' => 'time', 'E' => 'employee', 'F' => 'train_reference', 'G' => 'notes', 'H' => 'role', 'I' => 'customer', 'J' => 'ordered_at', 'K' => 'cancellation', 'L' => 'information', 'M' => 'billing_notes', 'N' => 'other'];
 
@@ -150,10 +150,14 @@ class WorkbookReader
                 $fields = array_diff_key($fields, WorkbookServiceMetadata::HEADERS);
             }
             $fields['date'] = $date;
-            [$start, $end, $actual] = $this->times($fields['time'] ?? '');
+            $time = $fields['time'] ?? '';
+            [$start, $end, $actual] = $this->times($time);
+            $unreportedActual = $start && $end ? $this->unreportedActualSuffix($time) : null;
             $fields['starts'] = $start;
             $fields['ends'] = $end;
-            $fields['actual_end'] = $actual;
+            if ($unreportedActual === null) {
+                $fields['actual_end'] = $actual;
+            }
             if (! $start || ! $end) {
                 $warnings[] = ['sheet' => $sheet->getTitle(), 'row' => $row, 'reason' => 'planning_time_missing', 'fields' => array_values(array_filter(['starts' => ! $start ? 'starts' : null, 'ends' => ! $end ? 'ends' : null])), 'retained' => true];
             }
@@ -170,7 +174,14 @@ class WorkbookReader
                 $fields['ordered_at'] = $this->date($fields['ordered_at']) ?? $fields['ordered_at'];
             }
             unset($fields['time']);
-            $entries[] = $this->entry('planning', $sheet->getTitle(), (string) $row, $fields, ['row' => $row, 'cells' => $cells, 'styles' => $styles, 'columns' => $columns, 'master' => str_contains(self::normalize($sheet->getTitle()), 'übersicht') || str_contains(self::normalize($sheet->getTitle()), 'uebersicht')]);
+            $locator = ['row' => $row, 'cells' => $cells, 'styles' => $styles, 'columns' => $columns, 'master' => str_contains(self::normalize($sheet->getTitle()), 'übersicht') || str_contains(self::normalize($sheet->getTitle()), 'uebersicht')];
+            if ($unreportedActual !== null) {
+                $locator['unreported_actual_suffix'] = $unreportedActual;
+            }
+            if ($start && $end && ($unreportedActual !== null || ($end === '00:00' && preg_match('#[-–—−]\s*24[:.]00(?:\s*Uhr)?(?:\s*/.*)?$#uD', $time)))) {
+                $locator['recovered_plan_time'] = true;
+            }
+            $entries[] = $this->entry('planning', $sheet->getTitle(), (string) $row, $fields, $locator);
         }
         $styles = [];
         if ($header) {
@@ -266,10 +277,11 @@ class WorkbookReader
                 if (! $subject) {
                     continue;
                 }
+                $this->retainContactWithoutAmbiguousEmail($sheet, $row, $values, $warnings);
                 $entries[] = $this->entry('contacts', $sheet->getTitle(), (string) $row, $values, ['row' => $row, 'cells' => $cells, 'columns' => $columns, 'subject' => $subject, 'kind' => $isProvider ? 'provider' : 'employee']);
             }
 
-            return [$entries, ['kind' => $isProvider ? 'provider' : 'employee', 'columns' => $columns, 'last_row' => $last], []];
+            return [$entries, ['kind' => $isProvider ? 'provider' : 'employee', 'columns' => $columns, 'last_row' => $last], $warnings];
         }
         $kind = match (true) {
             $title === 'freigaben-sperrungen' => 'customer_authorization', $title === 'einweisung' => 'introduction', str_starts_with($title, 'unterlagen') => 'document', default => null
@@ -348,6 +360,7 @@ class WorkbookReader
             return [[], null, [['reason' => 'contact_headers_missing', 'sheet' => $sheet->getTitle()]]];
         }
         $entries = [];
+        $warnings = [];
         for ($row = $header + 1; $row <= $last; $row++) {
             $values = [];
             $cells = [];
@@ -359,10 +372,22 @@ class WorkbookReader
             if ($subject === '' || in_array(self::normalize($subject), ['name', 'mitarbeiter', 'mitarbeitername'], true)) {
                 continue;
             }
+            $this->retainContactWithoutAmbiguousEmail($sheet, $row, $values, $warnings);
             $entries[] = $this->entry('contacts', $sheet->getTitle(), (string) $row, $values, ['row' => $row, 'cells' => $cells, 'columns' => $columns, 'subject' => $subject, 'kind' => 'employee']);
         }
 
-        return [$entries, ['kind' => 'employee', 'columns' => $columns, 'header' => $header, 'last_row' => $last], []];
+        return [$entries, ['kind' => 'employee', 'columns' => $columns, 'header' => $header, 'last_row' => $last], $warnings];
+    }
+
+    private function retainContactWithoutAmbiguousEmail(Worksheet $sheet, int $row, array &$values, array &$warnings): void
+    {
+        $addresses = preg_split('#\h+/\h+|[;,\r\n]#u', $values['contact_email'] ?? '');
+        if (count($addresses) < 2 || array_filter($addresses, fn ($address) => filter_var(trim($address), FILTER_VALIDATE_EMAIL) === false)) {
+            return;
+        }
+        // The cell lists multiple addresses, but the contact has one address slot.
+        unset($values['contact_email']);
+        $warnings[] = ['sheet' => $sheet->getTitle(), 'row' => $row, 'reason' => 'contact_email_multiple', 'fields' => ['contact_email'], 'retained' => true];
     }
 
     private function coverage(WorkbookPackage $package, array $rows, array $sheets, array $issues): array
@@ -459,6 +484,10 @@ class WorkbookReader
     public function times(string $value): array
     {
         $value = preg_replace('/\s+|Uhr/u', '', str_replace(['–', '—', '−'], '-', $value));
+        // Some source cells show an explicitly unfilled actual-time suffix.
+        if (($suffix = $this->unreportedActualSuffix($value)) !== null) {
+            $value = substr($value, 0, -strlen($suffix));
+        }
         if (! preg_match('/^(?<start>[0-2]?\d[:.][0-5]\d)-(?<end>[0-2]?\d[:.][0-5]\d)(?:\/-?(?<actual>[0-2]?\d[:.][0-5]\d))?$/D', $value, $m)) {
             return [null, null, null];
         }
@@ -470,6 +499,20 @@ class WorkbookReader
             return (int) $h < 24 ? sprintf('%02d:%02d', $h, $min) : null;
         };
 
-        return [$format($m['start']), $format($m['end']), $format($m['actual'] ?? null)];
+        $start = $format($m['start']);
+        $end = $format($m['end']);
+        $actual = $format($m['actual'] ?? null);
+        // 24:00 is the end of the dated day. Schedule application already
+        // assigns an end clock at or before the start to the following day.
+        if ($start !== null && in_array($m['end'], ['24:00', '24.00'], true) && (! isset($m['actual']) || $actual !== null)) {
+            $end = '00:00';
+        }
+
+        return [$start, $end, $actual];
+    }
+
+    private function unreportedActualSuffix(string $value): ?string
+    {
+        return preg_match('#/\s*[-–—−]\s*\?{0,2}$#uD', $value, $match) ? $match[0] : null;
     }
 }

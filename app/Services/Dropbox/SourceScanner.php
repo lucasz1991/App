@@ -3,6 +3,7 @@
 namespace App\Services\Dropbox;
 
 use App\Enums\DropboxMode;
+use App\Models\DropboxAppearance;
 use App\Models\DropboxConflict;
 use App\Models\DropboxConnection;
 use App\Models\DropboxSource;
@@ -251,6 +252,7 @@ class SourceScanner
                 // Dropbox revisions belong to a file ID. Preserve the common row
                 // baselines but discard every progress/own-revision shortcut.
                 $fresh->forceFill(['file_id' => $entry['id'], 'state' => 'new', 'processed_rev' => null, 'own_rev' => null, 'progress' => null])->save();
+                DropboxAppearance::where('source_id', $fresh->id)->update(['seen_rev' => null]);
 
                 return $fresh;
             });

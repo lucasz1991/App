@@ -179,6 +179,77 @@ class DropboxQualificationEvidenceTest extends TestCase
         $this->assertSame('external_customer_block', $issues[$employee->id][0]['code']);
     }
 
+    public function test_phone_dispute_preserves_independently_corroborated_qualification_cells(): void
+    {
+        $employee = $this->employee();
+        $employee->update(['email' => 'mara@example.test']);
+        $sync = app(FileSynchronizer::class);
+        $first = $this->register(self::WEEKLY, $this->contactWorkbook('WGM', '030 12345'));
+        $sync->sync($this->connection, $first);
+        $second = $this->register('/Disposition/Aufträge KW 46 2026.xlsx', $this->contactWorkbook('WGM', '040 98765'));
+        $sync->sync($this->connection, $second, true);
+        $this->assertSame(1, EmployeeCompetencyFact::where('kind', ReportedQualificationEvidence::KIND)->count());
+        $sync->sync($this->connection, $second->fresh());
+        $this->assertDatabaseHas('dropbox_conflicts', ['source_id' => $second->id, 'reason' => 'field_conflict', 'state' => 'open']);
+        $appearance = DropboxAppearance::where('source_id', $second->id)->where('sheet', 'Kontaktliste Rail Time')->sole();
+        $fact = EmployeeCompetencyFact::where('scope', ReportedQualificationEvidence::scopeFor($appearance->id))->sole();
+        $this->assertSame($second->rev, $fact->value['origin']['revision']);
+        $this->assertSame('reported', $fact->value['status']);
+        $sync->sync($this->connection, $second->fresh());
+        $this->assertSame($fact->revision, $fact->fresh()->revision);
+
+        $other = $this->register('/Disposition/Aufträge KW 47 2026.xlsx', $this->contactWorkbook('Anderer Nachweis', '040 98765'));
+        $sync->sync($this->connection, $other);
+        $employee->update(['email' => 'abweichend@example.test']);
+        $unverified = $this->register('/Disposition/Aufträge KW 48 2026.xlsx', $this->contactWorkbook('WGM', '040 98765'));
+        $sync->sync($this->connection, $unverified);
+        $this->assertSame(2, EmployeeCompetencyFact::where('kind', ReportedQualificationEvidence::KIND)->count());
+        $this->assertSame(0, EmployeeQualification::count());
+    }
+
+    public function test_late_contact_mapping_rechecks_qualification_from_prior_chunk(): void
+    {
+        $this->connection->update(['settings' => [...$this->connection->settings, 'import_chunk_size' => 50]]);
+        $type = QualificationType::create(['name' => 'WGM', 'is_active' => true]);
+        $book = new Spreadsheet;
+        $sheet = $book->getActiveSheet()->setTitle('Kontaktliste Rail Time');
+        $sheet->fromArray([['Name', 'E-Mail', 'Position - Qualifikation'], ['Mara Muster', 'mara@example.test', 'WGM']]);
+        for ($row = 3; $row <= 102; $row++) {
+            $sheet->setCellValue('A'.$row, 'Neutraler Testkontakt '.$row);
+            $sheet->setCellValue('B'.$row, 'test-'.$row.'@example.test');
+        }
+        $source = $this->register(self::WEEKLY, $this->workbookBytes($book));
+        $originalRevision = $source->rev;
+        $sync = app(FileSynchronizer::class);
+        $sync->sync($this->connection, $source);
+        $identity = DropboxIdentity::where('alias', 'mara muster')->sole();
+        $appearance = DropboxAppearance::where('source_id', $source->id)->where('slot', '2')->sole();
+        $this->assertNull($identity->user_id);
+        $this->assertSame(50, $source->fresh()->progress['next']);
+        $this->assertSame(0, EmployeeCompetencyFact::where('kind', ReportedQualificationEvidence::KIND)->count());
+
+        $employee = User::factory()->create(['name' => 'Mara Muster', 'role' => 'staff', 'status' => true, 'email' => 'mara@example.test']);
+        $identity->update(['kind' => 'employee', 'user_id' => $employee->id, 'revision' => $identity->revision + 1]);
+        $sync->sync($this->connection, $source->fresh());
+
+        $fact = EmployeeCompetencyFact::where('kind', ReportedQualificationEvidence::KIND)->sole();
+        $this->assertSame(100, $source->fresh()->progress['next']);
+        $this->assertSame($identity->id, $fact->identity_id);
+        $this->assertSame([$type->id], $fact->value['qualification_type_ids']);
+        $this->assertSame($appearance->id, $fact->value['origin']['appearance_id']);
+        $this->assertSame('C2', $fact->value['origin']['cell']);
+        $this->assertSame($originalRevision, $fact->value['origin']['revision']);
+        $this->assertSame('reported', $fact->value['status']);
+
+        $sync->sync($this->connection, $source->fresh());
+        $this->assertNull($source->fresh()->progress);
+        $this->assertSame($originalRevision, $source->fresh()->processed_rev);
+        $this->assertSame(1, EmployeeCompetencyFact::where('kind', ReportedQualificationEvidence::KIND)->count());
+        $this->assertSame($fact->revision, $fact->fresh()->revision);
+        $this->assertSame(0, EmployeeQualification::count());
+        $this->assertSame(0, $this->client->uploads);
+    }
+
     private function employee(bool $active = true): User
     {
         return User::factory()->create(['name' => 'Mara Muster', 'role' => 'staff', 'status' => $active]);
@@ -189,11 +260,14 @@ class DropboxQualificationEvidenceTest extends TestCase
         return app(SourceScanner::class)->register($this->connection, $this->client->put($path, $bytes));
     }
 
-    private function contactWorkbook(string $reported): string
+    private function contactWorkbook(string $reported, ?string $phone = null): string
     {
         $book = new Spreadsheet;
         $employees = $book->getActiveSheet()->setTitle('Kontaktliste Rail Time');
         $employees->fromArray([['Name', 'E-Mail', 'Position - Qualifikation'], ['Mara Muster', 'mara@example.test', $reported]]);
+        if ($phone !== null) {
+            $employees->setCellValue('D1', 'Telefon')->setCellValue('D2', $phone);
+        }
         $providers = $book->createSheet()->setTitle('Kontaktliste extern DL');
         $providers->setCellValue('A3', 1)->setCellValue('B3', 'Firma Muster GmbH')->setCellValue('C3', 'Wagenmeister');
 

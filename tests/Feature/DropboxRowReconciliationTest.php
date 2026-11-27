@@ -18,6 +18,8 @@ use App\Services\Dropbox\FileSynchronizer;
 use App\Services\Dropbox\RowMapping;
 use App\Services\Dropbox\WorkbookPackage;
 use App\Services\Dropbox\WorkbookReader;
+use App\Services\Dropbox\WorkbookRevisionCache;
+use App\Services\Dropbox\WorkbookWriter;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -92,6 +94,42 @@ class DropboxRowReconciliationTest extends TestCase
         app(FileSynchronizer::class)->sync($this->connection, $source->fresh());
         $this->assertSame(1, Shift::count());
         $this->assertSame('ALT', Shift::firstOrFail()->disposition_details['train_reference']);
+        $this->assertSame(2, DropboxConflict::where('reason', 'ambiguous_row')->where('state', 'open')->count());
+    }
+
+    public function test_identical_plan_rows_keep_their_accepted_positions_only_within_the_same_revision(): void
+    {
+        $this->connection->update(['mode' => DropboxMode::Import]);
+        $bytes = $this->workbook([[], []]);
+        $source = $this->source($bytes);
+        $sync = app(FileSynchronizer::class);
+        $sync->sync($this->connection, $source);
+        $appearances = DropboxAppearance::where('source_id', $source->id)->orderBy('slot')->get();
+        $this->assertCount(2, $appearances);
+        $before = $appearances->pluck('record_id', 'slot')->all();
+        $parsed = app(WorkbookReader::class)->read($bytes, 'weekly');
+        foreach ($parsed['rows'] as $index => $entry) {
+            app(ConflictStore::class)->put($this->connection, $source, null, 'ambiguous_row', app(RowMapping::class)->snapshot($this->connection, $entry), $entry['sheet'].'!'.$entry['slot']);
+            $appearance = $appearances[$index];
+            app(ConflictStore::class)->put($this->connection, $source, DropboxRecord::findOrFail($appearance->record_id), 'row_missing',
+                ['sheet' => $appearance->sheet, 'previous_slot' => $appearance->slot], (string) $appearance->id);
+        }
+
+        $sync->sync($this->connection, $source->fresh());
+        $this->assertSame($before, DropboxAppearance::where('source_id', $source->id)->orderBy('slot')->pluck('record_id', 'slot')->all());
+        $this->assertSame(2, Shift::count());
+        $this->assertSame(0, DropboxConflict::where('state', 'open')->count());
+
+        $review = DropboxConflict::where('reason', 'ambiguous_row')->orderBy('id')->firstOrFail();
+        $reviewed = ['record_id' => $appearances[1]->record_id];
+        $review->update(['state' => 'rechecking', 'decision' => $reviewed, 'resolved_by' => 1]);
+        $sync->sync($this->connection, $source->fresh());
+        $this->assertSame('open', $review->fresh()->state);
+        $this->assertSame($reviewed, $review->fresh()->decision);
+
+        $this->client->put(self::PATH, $bytes);
+        $sync->sync($this->connection, $source->fresh());
+        $this->assertSame(2, Shift::count());
         $this->assertSame(2, DropboxConflict::where('reason', 'ambiguous_row')->where('state', 'open')->count());
     }
 
@@ -193,6 +231,158 @@ class DropboxRowReconciliationTest extends TestCase
         }
     }
 
+    public function test_unchanged_revision_backfills_an_explicit_midnight_end_and_resolves_old_time_hints(): void
+    {
+        $this->connection->update(['mode' => DropboxMode::Import]);
+        $package = new WorkbookPackage($this->workbook([[]]));
+        $package->patch(['Disposition Übersicht' => ['D2' => ['value' => '15:00–24:00']]]);
+        $source = $this->source($package->bytes());
+        $revision = $source->rev;
+        $legacyReader = new class extends WorkbookReader
+        {
+            public function times(string $value): array
+            {
+                return $value === '15:00–24:00' ? ['15:00', null, null] : parent::times($value);
+            }
+        };
+        $this->app->instance(WorkbookReader::class, $legacyReader);
+        app(FileSynchronizer::class)->sync($this->connection, $source);
+        $this->assertSame(0, Shift::count());
+        $this->assertSame(2, DropboxConflict::where('state', 'open')->count());
+
+        $this->app->forgetInstance(WorkbookReader::class);
+        app(WorkbookRevisionCache::class)->forgetConnection($this->connection);
+        app(FileSynchronizer::class)->sync($this->connection, $source->fresh());
+        app(FileSynchronizer::class)->sync($this->connection, $source->fresh());
+
+        $shift = Shift::sole();
+        $this->assertSame('2026-09-15 15:00', $shift->starts_at->setTimezone('Europe/Berlin')->format('Y-m-d H:i'));
+        $this->assertSame('2026-09-16 00:00', $shift->ends_at->setTimezone('Europe/Berlin')->format('Y-m-d H:i'));
+        $this->assertSame($revision, $source->fresh()->processed_rev);
+        $this->assertSame(0, DropboxConflict::where('state', 'open')->count());
+        $this->assertSame(0, $this->client->uploads);
+    }
+
+    public function test_explicit_unknown_actual_time_keeps_the_existing_app_time_and_the_excel_marker(): void
+    {
+        $this->connection->update(['mode' => DropboxMode::Import]);
+        $package = new WorkbookPackage($this->workbook([[]]));
+        $package->patch(['Disposition Übersicht' => ['D2' => ['value' => '08:00–10:00/–10:30']]]);
+        $source = $this->source($package->bytes());
+        app(FileSynchronizer::class)->sync($this->connection, $source);
+        $record = DropboxRecord::sole();
+        $this->assertSame('10:30', $record->metadata['actual_end']);
+
+        $package->patch(['Disposition Übersicht' => ['D2' => ['value' => '08:00–10:00/–??']]]);
+        $bytes = $package->bytes();
+        $this->client->put(self::PATH, $bytes);
+        app(FileSynchronizer::class)->sync($this->connection, $source->fresh());
+        $this->assertSame('10:30', $record->fresh()->metadata['actual_end']);
+        $this->assertSame(0, DropboxConflict::where('state', 'open')->count());
+        $entry = app(WorkbookReader::class)->read($bytes, 'weekly')['rows'][0];
+        $this->assertArrayNotHasKey('actual_end', $entry['values']);
+        $updated = app(WorkbookWriter::class)->write($bytes, [['entry' => $entry, 'values' => [...$entry['values'], 'starts' => '08:15']]], 'weekly');
+        $readback = app(WorkbookReader::class)->read($updated, 'weekly')['rows'][0];
+        $this->assertSame('08:15', $readback['values']['starts']);
+        $this->assertArrayNotHasKey('actual_end', $readback['values']);
+        $this->assertSame('/–??', $readback['locator']['unreported_actual_suffix']);
+    }
+
+    public function test_recovered_interval_with_an_overlapping_disagreement_cannot_create_a_second_shift(): void
+    {
+        $this->connection->update(['mode' => DropboxMode::Import]);
+        $source = $this->source($this->planningCopies(['15:00–17:00/–??'], ['15:30–17:30']));
+        $sync = app(FileSynchronizer::class);
+        $sync->sync($this->connection, $source);
+        $sync->sync($this->connection, $source->fresh());
+
+        $this->assertSame('15:30', Shift::sole()->starts_at->setTimezone('Europe/Berlin')->format('H:i'));
+        $appearance = DropboxAppearance::sole();
+        $this->assertSame('Personalblatt', $appearance->sheet);
+        $conflict = DropboxConflict::where('reason', 'planning_copy_time_disagreement')->where('state', 'open')->sole();
+        $this->assertSame('D2', $conflict->snapshot['cell']);
+        $this->assertSame('15:30', $conflict->snapshot['counterparts'][0]['starts']);
+        $this->assertSame(1, $source->fresh()->last_report['missing']['planning_copy_time_disagreement']);
+
+        $this->client->put(self::PATH, $this->planningCopies(['15:30–17:30/–??'], ['15:30–17:30']));
+        $sync->sync($this->connection, $source->fresh());
+        $this->assertSame(1, Shift::count());
+        $this->assertSame(2, DropboxAppearance::count());
+        $this->assertSame('resolved', $conflict->fresh()->state);
+    }
+
+    public function test_existing_plan_associations_survive_a_recovered_interval_disagreement(): void
+    {
+        $this->connection->update(['mode' => DropboxMode::Import]);
+        $source = $this->source($this->planningCopies(['15:00–17:00'], ['15:30–17:30']));
+        $sync = app(FileSynchronizer::class);
+        $sync->sync($this->connection, $source);
+        $before = DropboxAppearance::orderBy('id')->pluck('record_id', 'id')->all();
+        $this->assertSame(2, Shift::count());
+
+        $this->client->put(self::PATH, $this->planningCopies(['15:05–17:00/–??'], ['15:30–17:30']));
+        $sync->sync($this->connection, $source->fresh());
+        $this->assertSame($before, DropboxAppearance::orderBy('id')->pluck('record_id', 'id')->all());
+        $this->assertSame(['15:00', '15:30'], Shift::orderBy('starts_at')->get()->map(fn ($shift) => $shift->starts_at->setTimezone('Europe/Berlin')->format('H:i'))->all());
+        $this->assertSame(1, DropboxConflict::where('reason', 'planning_copy_time_disagreement')->where('state', 'open')->count());
+    }
+
+    public function test_exact_recovered_copy_can_link_while_the_other_service_interval_stays_separate(): void
+    {
+        $this->connection->update(['mode' => DropboxMode::Import]);
+        $source = $this->source($this->planningCopies(['12:00–14:00', '18:30–20:30'], ['12:00–14:00/–?']));
+        $sync = app(FileSynchronizer::class);
+        $sync->sync($this->connection, $source);
+        $sync->sync($this->connection, $source->fresh());
+
+        $this->assertSame(2, Shift::count());
+        $this->assertSame(3, DropboxAppearance::count());
+        $personal = DropboxAppearance::where('sheet', 'Personalblatt')->sole();
+        $this->assertSame(DropboxAppearance::where('sheet', 'Disposition Übersicht')->where('slot', '2')->sole()->record_id, $personal->record_id);
+        $this->assertSame(0, DropboxConflict::where('state', 'open')->count());
+    }
+
+    public function test_explicitly_distinct_service_references_preserve_two_overlapping_plan_intervals(): void
+    {
+        $this->connection->update(['mode' => DropboxMode::Import]);
+        $source = $this->source($this->planningCopies(['15:00–17:00/–?'], ['15:30–17:30'], ['LEISTUNG-A', 'LEISTUNG-B']));
+        app(FileSynchronizer::class)->sync($this->connection, $source);
+
+        $this->assertSame(2, Shift::count());
+        $this->assertSame(0, DropboxConflict::where('reason', 'planning_copy_time_disagreement')->where('state', 'open')->count());
+    }
+
+    public function test_multiple_contact_emails_keep_other_fields_and_preserve_the_saved_contact_email(): void
+    {
+        $this->connection->update(['mode' => DropboxMode::Import]);
+        $employee = User::factory()->create(['name' => 'Mara Prüfer', 'role' => 'staff', 'status' => true]);
+        $book = new Spreadsheet;
+        $sheet = $book->getActiveSheet()->setTitle('Kontaktliste Rail Time');
+        $sheet->fromArray([['Name', 'E-Mail', 'Telefon'], ['Mara Prüfer', 'original@example.test', '1234']]);
+        $source = $this->source($this->bytes($book));
+        $sync = app(FileSynchronizer::class);
+        $sync->sync($this->connection, $source);
+        $identity = DropboxIdentity::where('user_id', $employee->id)->sole();
+
+        $package = new WorkbookPackage($this->client->files[mb_strtolower(self::PATH)]['bytes']);
+        $package->patch(['Kontaktliste Rail Time' => ['B2' => ['value' => 'eins@example.test / zwei@example.test'], 'C2' => ['value' => '5678']]]);
+        $this->client->put(self::PATH, $package->bytes());
+        $sync->sync($this->connection, $source->fresh());
+        $sync->sync($this->connection, $source->fresh());
+
+        $this->assertSame('original@example.test', $identity->fresh()->details['contact_email']);
+        $this->assertSame('5678', $identity->fresh()->details['phone']);
+        $this->assertSame(1, DropboxConflict::where('reason', 'contact_email_multiple')->where('state', 'open')->count());
+        $this->assertSame(0, DropboxConflict::where('reason', 'mapping_required')->where('state', 'open')->count());
+        $this->assertSame(0, $this->client->uploads);
+
+        $package->patch(['Kontaktliste Rail Time' => ['B2' => ['value' => 'eins@example.test']]]);
+        $this->client->put(self::PATH, $package->bytes());
+        $sync->sync($this->connection, $source->fresh());
+        $this->assertSame('eins@example.test', $identity->fresh()->details['contact_email']);
+        $this->assertSame(0, DropboxConflict::where('reason', 'contact_email_multiple')->where('state', 'open')->count());
+    }
+
     private function source(string $bytes): DropboxSource
     {
         $metadata = $this->client->put(self::PATH, $bytes);
@@ -218,6 +408,30 @@ class DropboxRowReconciliationTest extends TestCase
                 'F' => $row['reference'] ?? 'ZUG-1', 'G' => $row['note'] ?? 'Anfahrt', 'H' => $row['role'] ?? 'WGM', 'I' => $row['customer'] ?? 'Testkunde'];
             foreach ($values as $column => $value) {
                 $sheet->setCellValue($column.($index + 2), $value);
+            }
+        }
+
+        return $this->bytes($book);
+    }
+
+    private function planningCopies(array $masterTimes, array $personalTimes, array $serviceReferences = []): string
+    {
+        $book = new Spreadsheet;
+        $sheets = [$book->getActiveSheet()->setTitle('Disposition Übersicht'), $book->createSheet()->setTitle('Personalblatt')];
+        foreach ([$masterTimes, $personalTimes] as $index => $times) {
+            $sheet = $sheets[$index];
+            foreach (WorkbookReader::HEADERS as $column => $label) {
+                $sheet->setCellValue($column.'1', $label);
+            }
+            if (isset($serviceReferences[$index])) {
+                $sheet->setCellValue('O1', 'Leistungs-ID');
+            }
+            foreach ($times as $row => $time) {
+                $values = ['B' => 'Testbahnhof', 'C' => '2026-09-15', 'D' => $time, 'E' => 'Dienstleister', 'F' => 'ZUG-1',
+                    'H' => 'WGM', 'I' => 'Testkunde', 'O' => $serviceReferences[$index] ?? ''];
+                foreach ($values as $column => $value) {
+                    $sheet->setCellValue($column.($row + 2), $value);
+                }
             }
         }
 

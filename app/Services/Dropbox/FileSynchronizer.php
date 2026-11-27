@@ -49,9 +49,13 @@ class FileSynchronizer
         $source->rev = $rev;
         $parsed = app(WeeklyAvailability::class)->contextualize($download['parsed'], $source);
         unset($download['parsed']);
+        $timeDisagreements = in_array('planning', $connection->option('domains'), true)
+            ? app(PlanningTimeCopyEvidence::class)->disagreements($parsed['rows']) : [];
+        array_push($parsed['issues'], ...array_values($timeDisagreements));
+        [$parsed, $providersChanged] = app(WorkbookContactRoles::class)->prepare($connection, $parsed, $preview);
         if (! $preview) {
             $people = app(HistoricalContactProvisioner::class)->reconcile($connection, [...$parsed, 'source_id' => $source->id], User::findOrFail(1));
-            if ($people['mapped'] > 0) {
+            if ($people['mapped'] > 0 || $providersChanged > 0) {
                 // New contact evidence can resolve old MA labels in an unchanged earlier week.
                 foreach (DropboxSource::where('connection_id', $connection->id)->whereKeyNot($source->id)->whereNotIn('state', ['missing', 'excluded'])->pluck('id') as $otherSourceId) {
                     $this->ledger->enqueue($connection, 'file', 'file:'.$otherSourceId, ['source_id' => $otherSourceId], 0);
@@ -64,7 +68,7 @@ class FileSynchronizer
         app(WeeklyAvailability::class)->ignoreGroups($source, $parsed, $preview);
         $summary = ['rows' => count($parsed['rows']), 'imported' => 0, 'exported' => 0, 'conflicts' => 0, 'new' => 0, 'preview' => $preview];
         $issueKeys = array_map(fn ($i) => ($i['reason'] ?? '').':'.($i['sheet'] ?? '').':'.($i['row'] ?? ''), $parsed['issues']);
-        DropboxConflict::where('source_id', $source->id)->whereIn('reason', ['invalid_date', 'planning_headers_missing', 'service_headers_ambiguous', 'planning_date_missing', 'planning_time_missing', 'planning_columns_missing', 'contact_headers_missing', 'contact_headers_ambiguous', 'availability_headers_missing', 'availability_row_invalid', 'availability_week_missing'])->get()
+        DropboxConflict::where('source_id', $source->id)->whereIn('reason', ['invalid_date', 'planning_headers_missing', 'service_headers_ambiguous', 'planning_date_missing', 'planning_time_missing', 'planning_copy_time_disagreement', 'planning_columns_missing', 'contact_headers_missing', 'contact_headers_ambiguous', 'contact_email_multiple', 'availability_headers_missing', 'availability_row_invalid', 'availability_week_missing'])->get()
             ->filter(fn ($c) => ! in_array($c->reason.':'.($c->snapshot['sheet'] ?? '').':'.($c->snapshot['row'] ?? ''), $issueKeys, true))->each(fn ($c) => $c->update(['state' => 'resolved']));
         foreach ($parsed['issues'] as $issue) {
             $this->conflicts->put($connection, $source, null, $issue['reason'], $issue, ($issue['sheet'] ?? '').':'.($issue['row'] ?? ''));
@@ -118,7 +122,19 @@ class FileSynchronizer
             }) : null;
             if ($manual && ! isset($used[$manual->id])) {
                 $used[$manual->id] = true;
-                $bound[] = ['entry' => $entry, 'appearance' => $manual];
+                $bound[] = ['entry' => $entry, 'appearance' => $manual, 'manual' => true];
+                unset($pending[$key]);
+            }
+        }
+        // Within one verified Dropbox revision a previously accepted position is
+        // still the same row, even if that workbook contains identical plan rows.
+        $sameRevision = $replacementPreview ? collect() : $existing->whereStrict('seen_rev', $rev)->keyBy(fn ($appearance) => $appearance->sheet.'!'.$appearance->slot);
+        foreach ($pending as $key => $entry) {
+            $appearance = $sameRevision->get($key);
+            if ($entry['domain'] === 'planning' && $appearance && ! isset($used[$appearance->id]) && $appearance->fingerprint === $entry['fingerprint']
+                && ! $mappingDecisions->has($entry['sheet'].'!'.$entry['fingerprint'])) {
+                $used[$appearance->id] = true;
+                $bound[] = ['entry' => $entry, 'appearance' => $appearance];
                 unset($pending[$key]);
             }
         }
@@ -220,6 +236,9 @@ class FileSynchronizer
             if (! isset($selected[$entry['sheet'].'!'.$entry['slot']])) {
                 continue;
             }
+            if (isset($timeDisagreements[$entry['sheet'].'!'.$entry['slot']])) {
+                continue;
+            }
             $summary['new']++;
             $subject = $entry['locator']['subject'] ?? $entry['values']['employee'] ?? '';
             if ($subject !== '' && $entry['domain'] !== 'contacts') {
@@ -272,8 +291,17 @@ class FileSynchronizer
         $changes = [];
         $pendingRelocations = 0;
         $qualificationEvidence = app(ReportedQualificationEvidence::class);
-        foreach (collect($bound)->groupBy(fn ($b) => $b['appearance']->record_id) as $recordId => $rows) {
-            if (! $rows->contains(fn ($b) => isset($selected[$b['entry']['sheet'].'!'.$b['entry']['slot']]))) {
+        $rowsByRecord = collect($bound)->groupBy(fn ($b) => $b['appearance']->record_id);
+        $newlyResolvedAssignments = $offset > 0 && in_array('assignments', $connection->option('domains'), true)
+            ? $this->domain->newlyResolvedAssignmentRecords($connection, $rowsByRecord->keys()->all())
+            : collect();
+        $unrecordedContacts = $offset > 0 ? $qualificationEvidence->outstandingLinkedContacts($connection, $bound) : [];
+        foreach ($rowsByRecord as $recordId => $rows) {
+            if (! isset($unrecordedContacts[$recordId]) && ! $newlyResolvedAssignments->has($recordId)
+                && ! $rows->contains(fn ($b) => isset($selected[$b['entry']['sheet'].'!'.$b['entry']['slot']]))) {
+                continue;
+            }
+            if ($rows->contains(fn ($b) => empty($b['manual']) && isset($timeDisagreements[$b['entry']['sheet'].'!'.$b['entry']['slot']]))) {
                 continue;
             }
             try {
@@ -281,6 +309,9 @@ class FileSynchronizer
                     $this->guard->current($connection, preview: $preview, lock: true);
                     $record = DropboxRecord::lockForUpdate()->findOrFail($recordId);
                     if ($record->domain === 'contacts') {
+                        foreach ($rows as $row) {
+                            $this->domain->validateContactRoleEvidence($row['entry']['locator']);
+                        }
                         foreach ($rows->pluck('entry.locator.kind')->unique() as $kind) {
                             $this->domain->validateContactMapping($record, $kind);
                         }
@@ -306,7 +337,13 @@ class FileSynchronizer
                             $merge['values'] = array_replace($merge['values'], $conflict->decision);
                             $decisionConflict = $conflict;
                         } else {
-                            return ['conflict' => true, 'changes' => [], 'imported' => false];
+                            if (! $preview && $record->domain === 'contacts' && $evidenceIdentity
+                                && ! array_diff(array_keys($merge['conflicts']), ['phone', 'mobile'])) {
+                                $qualificationEvidence->recordWithDisputedPhone($evidenceIdentity, $source, $rows, $local, $rev);
+                            }
+                            $roleCompleted = ! $preview && $this->domain->completeProviderRoleDuringFieldConflict($connection, $record, $local, $versions, $merge['conflicts']);
+
+                            return ['conflict' => true, 'changes' => [], 'imported' => $roleCompleted];
                         }
                     }
                     $incoming = $merge['values'];
