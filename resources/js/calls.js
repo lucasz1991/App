@@ -1546,6 +1546,7 @@ document.addEventListener('alpine:init', () => {
                     viewport.scrollLeft = 0;
                     viewport.scrollTop = 0;
                 }
+                this.syncQualityView();
             };
             button.addEventListener('click', () => tile.setZoom(!root.classList.contains('rt-call-tile--zoomed')));
             viewport.addEventListener('keydown', (event) => {

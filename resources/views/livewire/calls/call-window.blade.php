@@ -638,7 +638,7 @@
                         <livewire:calls.call-chat :room="$room" :embedded="true" :key="'active-call-chat-'.$room->id" />
                     @endif
                 </div>
-                <div id="rt-call-{{ $room->id }}-panel-quality" aria-labelledby="rt-call-{{ $room->id }}-tab-quality" x-show="panelTab === 'quality'" x-effect="showQualityMeasurements(panelOpen && panelTab === 'quality' && connected)" role="tabpanel" class="scroll-container min-h-0 flex-1 space-y-4 overflow-y-auto p-3 text-sm text-rt-text dark:text-rt-dark-text">
+                <div id="rt-call-{{ $room->id }}-panel-quality" aria-labelledby="rt-call-{{ $room->id }}-tab-quality" x-show="panelTab === 'quality'" x-init="showQualityMeasurements(panelOpen && panelTab === 'quality' && connected); $watch(`panelOpen && panelTab === 'quality' && connected`, visible => showQualityMeasurements(visible))" role="tabpanel" class="scroll-container min-h-0 flex-1 space-y-4 overflow-y-auto p-3 text-sm text-rt-text dark:text-rt-dark-text">
                     <div class="space-y-1">
                         <label for="rt-call-profile-{{ $room->id }}" class="block font-bold">{{ __('app.calls_camera_profile') }}</label>
                         <select id="rt-call-profile-{{ $room->id }}" :value="cameraProfile" x-on:change="await changeCameraProfile($el.value); $el.value = cameraProfile" :disabled="!canControlMedia || cameraBusy || profileBusy || audioOnly || protectedCameraOn()" class="w-full rounded-lg border-rt-border bg-rt-surface text-sm dark:border-rt-dark-border dark:bg-rt-dark-control">
@@ -656,18 +656,58 @@
                         <h3 class="font-bold">{{ __('app.calls_video_stats') }}</h3>
                         <p x-show="!qualityRows.length" class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.calls_no_video_stats') }}</p>
                         <template x-for="row in qualityRows" :key="row.sid">
-                            <div class="rounded-lg bg-rt-surface-muted p-2 text-xs dark:bg-rt-dark-control">
-                                <p class="font-bold"><span x-text="row.source === 'screen_share' ? @js(__('app.calls_screen')) : @js(__('app.calls_camera'))"></span> · <span x-text="row.local ? @js(__('app.calls_stats_sent')) : row.name"></span></p>
+                            <article class="rounded-lg bg-rt-surface-muted p-2 text-xs dark:bg-rt-dark-control">
+                                <p class="font-bold" x-text="row.source === 'screen_share' ? @js(__('app.calls_screen')) : row.source === 'screen_share_audio' ? @js(__('app.calls_stats_share_audio')) : row.kind === 'audio' ? @js(__('app.calls_microphone')) : @js(__('app.calls_camera'))"></p>
+                                <p class="text-rt-muted dark:text-rt-dark-muted">
+                                    <span x-text="row.local ? @js(__('app.calls_stats_sent')) : @js(__('app.calls_stats_received'))"></span><template x-if="!row.local && row.name"><span x-text="' · ' + row.name"></span></template>
+                                </p>
                                 <dl class="mt-1 grid grid-cols-[1fr_auto] gap-x-2 gap-y-0.5 tabular-nums">
-                                    <template x-if="row.capture"><div class="contents"><dt>{{ __('app.calls_stats_capture') }}</dt><dd x-text="row.capture"></dd></div></template>
-                                    <dt x-text="row.local ? @js(__('app.calls_stats_sent')) : @js(__('app.calls_stats_received'))"></dt><dd x-text="row.resolution || '—'"></dd>
-                                    <dt>{{ __('app.calls_stats_rate') }}</dt><dd x-text="formatQuality(row.fps, 'fps') + ' · ' + formatQuality(row.kbps, 'kbit/s')"></dd>
+                                    <template x-if="row.kind === 'video'"><div class="contents">
+                                        <dt>{{ __('app.calls_stats_image') }}</dt>
+                                        <dd x-text="(row.resolution || '—') + ' · ' + formatQuality(row.fps, 'fps')"></dd>
+                                    </div></template>
+                                    <dt>{{ __('app.calls_stats_bitrate') }}</dt><dd x-text="formatQuality(row.kbps, 'kbit/s')"></dd>
+                                    <template x-if="Number.isFinite(row.meanKbps) && row.windowSeconds > 0"><div class="contents">
+                                        <dt>{{ __('app.calls_stats_average') }} <span x-text="'(' + formatQuality(row.windowSeconds, 's') + ')'"></span></dt>
+                                        <dd x-text="formatQuality(row.meanKbps, 'kbit/s')"></dd>
+                                    </div></template>
                                     <dt>{{ __('app.calls_stats_loss') }}</dt><dd x-text="formatQuality(row.loss, '%', 1)"></dd>
-                                    <dt>Jitter</dt><dd x-text="formatQuality(row.jitter, 'ms')"></dd>
-                                    <template x-if="!row.local"><div class="contents"><dt>{{ __('app.calls_stats_freezes') }}</dt><dd x-text="formatQuality(row.frozen, 's', 2)"></dd></div></template>
+                                    <template x-if="row.kind === 'video' && row.local"><div class="contents">
+                                        <dt>{{ __('app.calls_stats_cpu_limited') }}</dt>
+                                        <dd x-text="formatQuality(Number.isFinite(row.cpuFraction) ? row.cpuFraction * 100 : null, '%')"></dd>
+                                        <dt>{{ __('app.calls_stats_bandwidth_limited') }}</dt>
+                                        <dd x-text="formatQuality(Number.isFinite(row.bandwidthFraction) ? row.bandwidthFraction * 100 : null, '%')"></dd>
+                                    </div></template>
+                                    <template x-if="row.kind === 'video' && !row.local"><div class="contents">
+                                        <dt>{{ __('app.calls_stats_dropped') }}</dt><dd x-text="formatQuality(Number.isFinite(row.dropRatio) ? row.dropRatio * 100 : null, '%', 1)"></dd>
+                                        <dt>{{ __('app.calls_stats_freezes') }}</dt><dd x-text="formatQuality(row.frozen, 's', 2)"></dd>
+                                        <dt>{{ __('app.calls_stats_decode') }}</dt><dd x-text="formatQuality(row.decodeMs, 'ms', 1)"></dd>
+                                    </div></template>
+                                    <template x-if="row.kind === 'audio'"><div class="contents">
+                                        <dt>{{ __('app.calls_stats_concealment') }}</dt><dd x-text="formatQuality(Number.isFinite(row.concealmentRatio) ? row.concealmentRatio * 100 : null, '%', 1)"></dd>
+                                        <dt>{{ __('app.calls_stats_buffer') }}</dt><dd x-text="formatQuality(row.bufferMs, 'ms')"></dd>
+                                    </div></template>
+                                    <template x-if="row.capture"><div class="contents"><dt>{{ __('app.calls_stats_capture') }}</dt><dd x-text="row.capture"></dd></div></template>
+                                    <template x-if="Number.isFinite(row.jitter)"><div class="contents"><dt>Jitter</dt><dd x-text="formatQuality(row.jitter, 'ms')"></dd></div></template>
                                 </dl>
-                            </div>
+                            </article>
                         </template>
+                    </section>
+                    <section x-cloak x-show="qualityDecisions.length > 0" class="space-y-2 border-t border-rt-border pt-3 dark:border-rt-dark-border">
+                        <h3 class="font-bold">{{ __('app.calls_quality_decisions') }}</h3>
+                        <ul class="space-y-2 text-xs">
+                            <template x-for="(entry, index) in qualityDecisions.slice(0, 6)" :key="entry.at + '-' + entry.direction + '-' + index">
+                                <li>
+                                    <time class="tabular-nums text-rt-muted dark:text-rt-dark-muted" x-text="new Date(entry.at).toLocaleTimeString(document.documentElement.lang || undefined, {hour:'2-digit', minute:'2-digit', second:'2-digit'})"></time>
+                                    <span x-text="entry.direction === 'upload' ? @js(__('app.calls_stats_sent')) : @js(__('app.calls_stats_received'))"></span>
+                                    <span x-text="entry.source === 'screen_share' ? @js(__('app.calls_screen')) : @js(__('app.calls_camera'))"></span>
+                                    <strong class="block" x-text="entry.observe
+                                        ? (entry.limited ? @js(__('app.calls_decision_would_limit')) : @js(__('app.calls_decision_would_restore')))
+                                        : (entry.limited ? @js(__('app.calls_decision_limited')) : @js(__('app.calls_decision_restored')))"></strong>
+                                    <span class="text-rt-muted dark:text-rt-dark-muted" x-text="(@js(__('app.calls_quality_reasons')))[entry.reason] || ''"></span>
+                                </li>
+                            </template>
+                        </ul>
                     </section>
                 </div>
             </aside>

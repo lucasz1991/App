@@ -5,7 +5,7 @@ namespace App\Livewire\Operations;
 use App\Livewire\Concerns\ResolvesOperationsActor;
 use App\Models\LexwareProfile;
 use App\Models\User;
-use App\Services\Operations\LexwareExportService;
+use App\Services\Operations\LexwareMonthlyFile;
 use App\Services\Operations\LexwareProfileService;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -52,6 +52,9 @@ class LexwareSettings extends Component
     public function addMapping(): void
     {
         $this->actor();
+        if (count($this->form['mappings']) >= 500) {
+            throw ValidationException::withMessages(['form.mappings' => 'Ein Profil kann höchstens 500 Lohnarten enthalten.']);
+        }
         $this->form['mappings'][] = ['source_code' => '', 'target_code' => '', 'quantity_kind' => 'base', 'disjoint' => false];
         $this->rowKeys[] = (string) Str::uuid();
         $this->notice = '';
@@ -88,9 +91,12 @@ class LexwareSettings extends Component
     public function downloadSample(): StreamedResponse
     {
         $this->actor();
-        $bytes = LexwareExportService::sample();
+        if (func_num_args() !== 0) {
+            throw ValidationException::withMessages(['sample' => 'Die Musterdatei akzeptiert keine Mitarbeiter- oder Abrechnungsdaten.']);
+        }
+        $bytes = LexwareMonthlyFile::sample();
 
-        return response()->streamDownload(static fn () => print($bytes), 'Lexware-MUSTER-2026-03.txt', [
+        return response()->streamDownload(static fn () => print($bytes), 'Lexware-MUSTER-2026-11.txt', [
             'Content-Type' => 'text/plain; charset=Windows-1252',
             'Cache-Control' => 'private, no-store',
         ]);

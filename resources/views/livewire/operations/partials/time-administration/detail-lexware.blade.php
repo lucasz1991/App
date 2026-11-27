@@ -2,7 +2,11 @@
     <div>
         <h3 class="font-semibold">Lexware lohn+gehalt für Windows</h3>
         @if($lexware['available'] && $lexware['closing_revision'] === $selectedRevision)
-            <p class="ops-muted">Die Datei in der angegebenen Windows-Firma importieren und das Ergebnis anschließend hier dokumentieren.</p>
+            @if($lexware['run'])
+                <p class="ops-muted">Diese Datei wurde bereits erstellt. Vor einem erneuten Import die bisherigen Buchungen in Lexware mit dem Exportverlauf abgleichen.</p>
+            @else
+                <p class="ops-muted">Die Datei in der angegebenen Windows-Firma importieren und das Ergebnis anschließend hier dokumentieren.</p>
+            @endif
         @else
             <p class="ops-muted">{{ $lexware['reason'] ?: 'Die Abschlussrevision hat sich geändert. Bitte die Details erneut öffnen.' }}</p>
         @endif
@@ -36,8 +40,13 @@
         @if($lexware['skipped_zero'])
             <p class="ops-muted">Ausgelassene Nullmengen oder unbezahlte Pausen: {{ $lexware['skipped_zero'] }}.</p>
         @endif
+        @unless($lexware['run'])
+            <x-ui.forms.checkbox wire:model.live="lexwareFirstTransfers.{{ $selectedRevision }}-{{ $lexware['profile_version'] }}"
+                label="Zielfirma und Personalnummer sind geprüft. Für diese Person und diesen Monat ist dies die erste Vollübergabe an Lexware." />
+        @endunless
         <div class="ops-actions">
-            <x-ui.buttons.button-basic type="button" wire:click="downloadLexware({{ $lexware['profile_version'] }})" wire:loading.attr="disabled">
+            <x-ui.buttons.button-basic type="button" wire:click="downloadLexware({{ $lexware['profile_version'] }})" wire:loading.attr="disabled"
+                :disabled="!$lexware['run'] && !($lexwareFirstTransfers[$selectedRevision.'-'.$lexware['profile_version']] ?? false)">
                 {{ $lexware['run'] ? 'Identische Datei erneut herunterladen' : 'Lexware-Datei herunterladen' }}
             </x-ui.buttons.button-basic>
         </div>
@@ -52,6 +61,7 @@
                     <p class="text-sm">Datei erstellt am {{ \Illuminate\Support\Carbon::parse($run['created_at'], 'UTC')->timezone(config('operations.display_timezone'))->format('d.m.Y H:i') }} Uhr</p>
                     <details class="text-sm"><summary>Datei-Prüfsumme (SHA-256)</summary><code class="break-all">{{ $run['sha256'] }}</code></details>
                     @if($run['status'] === 'open')
+                        <p class="text-sm">Importbestätigung ausstehend</p>
                         <form wire:submit="recordLexwareResult({{ $run['id'] }})" class="flex flex-wrap items-end gap-2">
                             <x-operations.field label="Ergebnis des Windows-Imports" model="lexwareResults.{{ $run['id'] }}" type="select" required>
                                 <option value="">Ergebnis auswählen</option>

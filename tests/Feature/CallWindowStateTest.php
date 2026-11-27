@@ -41,6 +41,25 @@ class CallWindowStateTest extends TestCase
         });
     }
 
+    public function test_quality_rollout_resolves_each_direction_for_the_signed_in_participant(): void
+    {
+        [$host, $guest, $room] = $this->roomWithParticipants();
+        $this->acceptedInvitation($room, $host, $guest);
+        config([
+            'livekit.quality_pilot_users' => '123456789, '.$host->id,
+            'livekit.quality_upload' => 'active',
+            'livekit.quality_download' => 'observe',
+        ]);
+        $enabled = ['upload' => 'active', 'download' => 'observe'];
+
+        Livewire::actingAs($host)->test(CallWindow::class, ['room' => $room])->assertViewHas('qualityPilot', $enabled);
+        Livewire::actingAs($guest)->test(CallWindow::class, ['room' => $room])
+            ->assertViewHas('qualityPilot', ['upload' => 'off', 'download' => 'off']);
+
+        config(['livekit.quality_pilot_users' => '']);
+        Livewire::actingAs($guest)->test(CallWindow::class, ['room' => $room])->assertViewHas('qualityPilot', $enabled);
+    }
+
     public function test_full_call_window_loads_the_call_module_once_before_alpine_in_the_head(): void
     {
         [$host, , $room] = $this->roomWithParticipants();

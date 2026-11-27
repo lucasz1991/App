@@ -142,7 +142,7 @@ class PersonnelPageWorkspace extends Component
             ],
             'payroll' => [
                 'payroll-references' => ['Lohnzuordnung', $actor->can('operations.time.export') && Schema::hasTable('employee_payroll_references')],
-                'lexware-settings' => ['Lexware-Einstellungen', $actor->can('operations.lexware.manage') && Schema::hasTable('lexware_profiles') && app(LexwareProfileService::class)->canManage($actor)],
+                'lexware-settings' => ['Lexware-Einstellungen', app(LexwareProfileService::class)->canManage($actor) && LexwareProfileService::ready()],
             ],
             default => [],
         };

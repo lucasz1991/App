@@ -133,6 +133,21 @@ test('media actions are inert during connecting, leaving, terminal, failure and 
     assert.equal(component.canControlMedia, true);
 });
 
+test('the camera control can cancel an active quality switch before it acquires the new camera', async () => {
+    const component = await fixture();
+    const room = new FakeRoom();
+    Object.assign(component, { room, connected: true, cameraOn: true, profileBusy: true, cameraProfileChanging: true });
+    let stopped = 0;
+    component.stopConfiguredCamera = async owner => { assert.equal(owner, room); stopped++; };
+    let starts = 0;
+    component.enableTrack = async () => { starts++; };
+    await component.toggleCamera();
+    await component.toggleCamera();
+    assert.equal(stopped, 1);
+    assert.equal(starts, 0);
+    assert.equal(component.cameraOn, false);
+});
+
 test('closed or revoked token responses finish the session without a futile retry state', async () => {
     for (const status of [403, 410]) {
         const component = await fixture();

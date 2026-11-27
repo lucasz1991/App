@@ -185,10 +185,15 @@ async function activeCamera(mode) {
     let publication;
     const room = { localParticipant: {
         getTrackPublication: () => publication,
+        async unpublishTrack(track) {
+            assert.equal(publication.track, track);
+            publication = undefined;
+        },
         async publishTrack(output) {
             assert.equal(publication, undefined, 'The existing camera must be replaced in place');
             publication = { isMuted: false, track: {
                 mediaStreamTrack: output,
+                stop() { this.mediaStreamTrack.enabled = false; },
                 async replaceTrack(candidate) {
                     swaps.push(candidate);
                     this.mediaStreamTrack = candidate;
@@ -275,6 +280,28 @@ test('a late profile capture after disconnect is discarded even if the room is r
     assert.equal(swaps.length, 0);
     assert.equal(state.effectiveCameraProfile, 'auto');
 });
+
+for (const stage of ['capture', 'swap']) {
+    test(`turning the camera off during profile ${stage} prevents a late camera restart`, async () => {
+        const { state, swaps, captures, delayCapture, delaySwap } = await activeCamera('original');
+        let resume;
+        const gate = new Promise(resolve => { resume = resolve; });
+        if (stage === 'capture') delayCapture(gate);
+        else delaySwap(gate);
+        const pending = state.applyCameraProfile('saver');
+        await new Promise(resolve => setImmediate(resolve));
+        await state.stopConfiguredCamera(state.room);
+        assert.equal(state.cameraOn, false);
+        assert.equal(state.room.localParticipant.getTrackPublication(), undefined);
+        if (stage === 'swap') assert.equal(swaps[0].enabled, false);
+        resume();
+        assert.equal(await pending, false);
+        assert.equal(state.effectiveCameraProfile, 'auto');
+        assert.equal(swaps.length, stage === 'capture' ? 0 : 1);
+        assert.ok(captures.every(({ local }) => local.stopped));
+        assert.equal(state.room.localParticipant.getTrackPublication(), undefined);
+    });
+}
 
 test('revoking permission during sender replacement immediately stops both captures', async () => {
     const { state, swaps, captures, delaySwap } = await activeCamera('original');

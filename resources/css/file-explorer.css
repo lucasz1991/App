@@ -389,7 +389,7 @@
     }
 
     .rt-explorer-scope-picker {
-        flex-basis: 4.75rem;
+        flex-basis: 4rem;
         padding-inline: .1875rem;
     }
 
@@ -402,6 +402,10 @@
     }
 
     .rt-explorer-search > i {
+        display: none;
+    }
+
+    .rt-explorer-search input::-webkit-search-decoration {
         display: none;
     }
 }

@@ -18,6 +18,11 @@ class LexwareProfileService
 
     private const FIELDS = ['company_name', 'import_profile', 'product_version', 'mappings'];
 
+    public static function ready(): bool
+    {
+        return Schema::hasTable('lexware_profiles') && Schema::hasTable('employee_payroll_references') && Schema::hasTable('operation_audits');
+    }
+
     public function canManage(User $actor): bool
     {
         return $actor->status && $actor->can(self::ABILITY);
@@ -126,9 +131,9 @@ class LexwareProfileService
             $target = is_string($mapping['target_code'] ?? null) ? trim($mapping['target_code']) : '';
             $kind = $mapping['quantity_kind'] ?? '';
             if (! preg_match('/\A[A-Za-z0-9_.-]{1,40}\z/', $source)
-                || ! preg_match('/\A[0-9]{1,4}\z/', $target)
+                || ! preg_match('/\A[0-9]{1,4}\z/', $target) || (int) $target === 0
                 || ! in_array($kind, ['base', 'supplement'], true)) {
-                $reasons[] = 'Zuordnung '.($index + 1).': RailTime-Lohnart, Lexware-Lohnart (1–4 Ziffern) und Mengenart vervollständigen.';
+                $reasons[] = 'Zuordnung '.($index + 1).': RailTime-Lohnart, Lexware-Lohnart (0001–9999) und Mengenart vervollständigen.';
                 continue;
             }
             if (isset($sources[$source])) {
@@ -207,7 +212,7 @@ class LexwareProfileService
     private function requireReady(User $actor): void
     {
         OperationsAccess::authorize($actor, self::ABILITY);
-        abort_unless(Schema::hasTable('lexware_profiles') && Schema::hasTable('employee_payroll_references'), 503);
+        abort_unless(self::ready(), 503);
     }
 
     private function authorizeCompany(string $employer, User $actor, bool $lock = false): array

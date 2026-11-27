@@ -40,6 +40,8 @@ class TimeAdministration extends Component
 
     public array $lexwareResults = [];
 
+    public array $lexwareFirstTransfers = [];
+
     public function mount(bool $personal = false, string $tab = 'rules', ?int $initialRecordId = null, bool $embedded = false, bool $payrollExportOnly = false, ?int $initialUserId = null): void
     {
         $this->personal = $personal;
@@ -79,7 +81,7 @@ class TimeAdministration extends Component
 
     protected function resetTabState(): void
     {
-        $this->reset('selectedId', 'selectedRevision', 'detailOpen', 'formOpen', 'form', 'note', 'search', 'lexwareResults');
+        $this->reset('selectedId', 'selectedRevision', 'detailOpen', 'formOpen', 'form', 'note', 'search', 'lexwareResults', 'lexwareFirstTransfers');
     }
 
     protected function access(): User
@@ -180,7 +182,7 @@ class TimeAdministration extends Component
         $this->selectedId = $record->id;
         $this->selectedRevision = $this->payrollExportOnly ? (int) $record->revisions()->where('action', 'closed')->latest('revision')->value('revision') : ($record->revision ?? 1);
         $this->form = [];
-        $this->reset('note', 'lexwareResults');
+        $this->reset('note', 'lexwareResults', 'lexwareFirstTransfers');
         $this->resetValidation();
         $this->detailOpen = true;
     }
@@ -219,9 +221,12 @@ class TimeAdministration extends Component
     public function downloadLexware(int $profileVersion)
     {
         $actor = $this->lexwareActor();
-        $file = app(LexwareExportService::class)->download($actor, $this->selectedId, $this->selectedRevision, $profileVersion);
+        $key = $this->selectedRevision.'-'.$profileVersion;
+        $confirmed = ($this->lexwareFirstTransfers[$key] ?? false) === true;
+        $file = app(LexwareExportService::class)->download($actor, $this->selectedId, $this->selectedRevision, $profileVersion, $confirmed);
+        unset($this->lexwareFirstTransfers[$key]);
 
-        return CsvDownload::streamContent($file['content'], $file['filename'], 'text/csv; charset=windows-1252');
+        return CsvDownload::streamContent($file['content'], $file['filename'], 'text/plain; charset=windows-1252');
     }
 
     public function recordLexwareResult(int $runId): void

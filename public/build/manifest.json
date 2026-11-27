@@ -61,7 +61,7 @@
     "isDynamicEntry": true
   },
   "resources/css/app.css": {
-    "file": "assets/app-BzLB6sdX.css",
+    "file": "assets/app-BKCViS3L.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
@@ -130,7 +130,7 @@
     ]
   },
   "resources/js/calls.js": {
-    "file": "assets/calls-ByPamIwX.js",
+    "file": "assets/calls-DtRYF7TR.js",
     "name": "calls",
     "src": "resources/js/calls.js",
     "isEntry": true,

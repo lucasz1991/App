@@ -11,9 +11,24 @@ final class LexwareMonthlyFile
 {
     public static function sample(): string
     {
-        $seconds = 4 * 3600 + 30 * 60 + 3 * 3600 + 30 * 60;
+        $closing = new OperationsMonthClosing(['month' => '2026-11', 'timezone' => 'Europe/Berlin', 'user_id' => 1]);
+        $entries = [];
+        $mappings = [];
+        foreach ([
+            [1, 'STANDARD', 'internal', '08:00:00', '12:30:00', 16200],
+            [2, 'DIENST', 'work', '12:30:00', '16:00:00', 12600],
+        ] as [$id, $code, $activity, $start, $end, $seconds]) {
+            $mappings[] = ['source_code' => $code, 'target_code' => '0001', 'quantity_kind' => 'base', 'disjoint' => true];
+            $entries[] = [
+                'id' => $id, 'status' => 'approved', 'starts_at' => '2026-11-02T'.$start.'+01:00', 'ends_at' => '2026-11-02T'.$end.'+01:00',
+                'quantities' => [['rule_id' => $id, 'rule_revision' => 1, 'wage_code' => $code, 'activity' => $activity, 'additive' => false,
+                    'multiplier_bps' => 10000, 'rounding_minutes' => 0, 'rounding_mode' => 'none', 'raw_seconds' => $seconds, 'quantity_seconds' => $seconds]],
+            ];
+        }
+        $snapshot = ['schema' => 'railtime-payroll-preparation-v2', 'user_id' => 1, 'month' => $closing->month, 'timezone' => $closing->timezone,
+            'complete' => true, 'payroll_reference' => ['personnel_number' => '00017'], 'entries' => $entries];
 
-        return self::encode('2026-03', '00017', [['target_code' => '0001', 'value' => self::hours($seconds)]]);
+        return self::build($closing, $snapshot, $mappings)['content'];
     }
 
     public static function build(OperationsMonthClosing $closing, array $snapshot, array $mappings): array
