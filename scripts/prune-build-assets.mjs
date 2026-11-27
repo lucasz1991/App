@@ -3,8 +3,8 @@
  *
  * Warum ueberhaupt noetig?
  * In vite.config.js steht `emptyOutDir: false` – und das MUSS so bleiben:
- * public/build enthaelt neben assets/ auch handgepflegte Ordner (libs/ mit
- * CKEditor, css/, fonts/, icons/), die ein automatisches Leeren mitnehmen
+ * public/build enthaelt neben assets/ auch den handgepflegten Ordner libs/
+ * (u. a. CKEditor), den ein automatisches Leeren mitnehmen
  * wuerde. Der Preis dafuer: Jeder Build legt neue Dateien mit neuem Hash ab,
  * die alten bleiben liegen. Ohne Aufraeumen waechst der Ordner unbegrenzt
  * (Stand 29.07.2026: 319 Dateien / 77 MB, davon 308 verwaist).

@@ -5,11 +5,10 @@ namespace App\Support\Ui;
 /**
  * Einzige Entscheidung, ob eine Seite die Legacy-Assets laedt
  * (resources/css/legacy-allowlist.css – Rest der frueheren
- * build/css/tailwind.min.css –, ApexCharts, Trix, Dropzone, FullCalendar).
+ * build/css/tailwind.min.css –, Trix, Dropzone, FullCalendar).
  *
  * Die nativen Planungsseiten (Arbeitsplatz-Ansichten "cases" und "shifts")
- * kommen ohne diese Schicht aus. layouts.head-css und layouts.vendor-scripts
- * fragen beide hier nach, damit CSS- und Skriptseite nie auseinanderlaufen.
+ * kommen ohne diese Schicht aus. layouts.head-css fragt hier nach.
  */
 final class LegacyAssets
 {
