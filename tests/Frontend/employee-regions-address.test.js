@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import { registerPlaceLookup } from '../../resources/js/place-lookup.js';
 
 const blade = readFileSync(new URL('../../resources/views/livewire/employees/profile/partials/employee-regions-address.blade.php', import.meta.url), 'utf8');
 const source = blade.match(/x-data="([\s\S]*?)" x-on:click.outside/)[1];
@@ -80,4 +81,40 @@ test('keyboard selection wraps while coordinates retain honest precision labels'
     state.move(-1); assert.equal(state.active, 1);
     assert.match(state.precisionLabel('interpolated'), /angenähert/);
     assert.match(state.precisionLabel('locality'), /ungefähr/);
+});
+
+function placeField(config) {
+    const registry = {};
+    registerPlaceLookup({ data(name, factory) { registry[name] = factory; } });
+    const state = registry.rtPlaceField(config);
+    const values = {};
+    state.$wire = { $set(key, value) { values[key] = value; }, $get(key) { return values[key]; } };
+    return { state, values };
+}
+
+test('a chosen customer site fills structured fields and always requires fresh confirmation', async () => {
+    const fields = {street:'form.street', postal:'form.postal_code',city:'form.city',country:'form.country',
+        latitude:'form.latitude',longitude:'form.longitude',confirmed:'form.coordinates_confirmed'};
+    const { state, values } = placeField({ fields, model: 'form.street' });
+    await state.select({ name:'Werk', street:'Beispielweg 9', postal:'1010', city:'Wien', country:'AT', latitude:48.2, longitude:16.3 });
+    assert.deepEqual(values, {'form.street':'Beispielweg 9','form.postal_code':'1010','form.city':'Wien',
+        'form.country':'AT','form.latitude':48.2,'form.longitude':16.3,'form.coordinates_confirmed':false});
+    state.clearSite();
+    assert.equal(values['form.latitude'],'');
+    assert.equal(values['form.longitude'],'');
+});
+
+test('locality selection stores the city and leaves other fields alone', async () => {
+    const { state, values } = placeField({fields:{}, place:true, locality:true, model:'preferences.no_go_areas.0.location'});
+    await state.select({city:'Hamburg',label:'Beispielstraße 7, Hamburg'});
+    assert.deepEqual(values, {'preferences.no_go_areas.0.location':'Hamburg'});
+});
+
+test('portal corrections target the proposal only and a new result clears absent fields', async () => {
+    const prefix = 'form.proposed_fields.';
+    const {state, values} = placeField({fields:{street:prefix+'street', postal:prefix+'postal_code',city:prefix+'city',country:prefix+'country'}});
+    await state.select({street:'Testweg',city:'Basel',country:'CH'});
+    assert.equal(values[prefix+'postal_code'],'');
+    assert.equal(values[prefix+'city'],'Basel');
+    assert.equal(Object.keys(values).length,4);
 });

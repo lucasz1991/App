@@ -47,7 +47,7 @@ import { createMailBlocks, mailCanvasStyles, MAIL_CTA_CLASS, MAIL_DEFAULT_FONT_S
 // "@include('livewire.admin.mail-document-editor.<partial>')" wird durch den Partial-Inhalt ersetzt.
 function readBladeViewWithPartials(view, root = view) {
     const source = readFileSync(new URL(`../../resources/views/${view.replaceAll('.', '/')}.blade.php`, import.meta.url), 'utf8');
-    const include = new RegExp(`^[ \\t]*@include\\('(${root.replaceAll('.', '\\.')}\\.[A-Za-z0-9._-]+)'\\)\\n`, 'gm');
+    const include = new RegExp(`^[ \\t]*@include\\('(${root.replaceAll('.', '\\.')}\\.[A-Za-z0-9._-]+)'\\)\\r?\\n`, 'gm');
 
     return source.replace(include, (_line, partial) => readBladeViewWithPartials(partial, root));
 }

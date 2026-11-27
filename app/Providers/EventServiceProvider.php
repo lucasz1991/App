@@ -12,7 +12,7 @@ use Illuminate\Auth\Events\Registered;
 use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 use Illuminate\Mail\Events\MessageSending;
-use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Artisan;
 use Laravel\Jetstream\Events\TeamMemberAdded;
 use Laravel\Jetstream\Events\TeamMemberRemoved;
 use Laravel\Jetstream\Events\TeamMemberUpdated;
@@ -69,10 +69,9 @@ class EventServiceProvider extends ServiceProvider
                     try {
                         $settings = \App\Support\Routing\TomTomSettings::all();
                         if ($settings['enabled'] && $settings['has_api_key'] && $settings['server_cache_enabled']) {
+                            $job = Artisan::queue('routing:resolve-worksites', ['--model' => $type, '--id' => $id]);
                             if (config('queue.connections.'.config('queue.default').'.driver') === 'sync') {
-                                \App\Jobs\ResolveWorksite::dispatchAfterResponse($type, $id);
-                            } else {
-                                \App\Jobs\ResolveWorksite::dispatch($type, $id);
+                                $job->afterResponse();
                             }
                         }
                     } catch (\Throwable $error) {

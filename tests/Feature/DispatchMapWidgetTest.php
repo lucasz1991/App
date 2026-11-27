@@ -10,6 +10,8 @@ use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\Team;
 use App\Models\User;
+use App\Services\Routing\TomTomAddressSearchService;
+use App\Services\Routing\WorksiteLookup;
 use App\Support\Dashboard\DashboardLayout;
 use App\Support\Dashboard\DispatchMapData;
 use App\Support\Dashboard\WidgetDataProvider;
@@ -96,7 +98,7 @@ class DispatchMapWidgetTest extends TestCase
         $initial = $this->map();
         $this->assertSame(2, $initial['unlocatedCount']);
         $this->assertCount(1, $initial['lookups']);
-        $this->mock(\App\Services\Routing\TomTomAddressSearchService::class)->shouldReceive('suggest')->once()
+        $this->mock(TomTomAddressSearchService::class)->shouldReceive('suggest')->once()
             ->andReturn(['status' => 'known', 'results' => [[
                 'name' => $name, 'label' => '27568 Bremerhaven', 'city' => 'Bremerhaven', 'street' => '',
                 'postal' => '27568', 'country' => 'DE', 'precision' => 'poi', 'latitude' => 53.55, 'longitude' => 8.58,
@@ -650,5 +652,84 @@ class DispatchMapWidgetTest extends TestCase
         }
 
         return new \DOMXPath($document);
+    }
+
+    public function test_a_saved_worksite_uses_the_same_lookup_as_the_scheduled_command(): void
+    {
+        config(['queue.default' => 'database']);
+        \Illuminate\Support\Facades\Queue::fake();
+        \App\Support\Routing\TomTomSettings::save(array_replace(\App\Support\Routing\TomTomSettings::DEFAULTS, ['enabled' => true]), 'test-worksite-token');
+        $name = 'Wacker Werk';
+        $shift = $this->shift(['location_name' => $name]);
+        $this->mock(TomTomAddressSearchService::class)->shouldReceive('suggest')->once()
+            ->andReturn(['status' => 'known', 'results' => [$this->worksiteRow($name, 48.2)]]);
+        $jobs = \Illuminate\Support\Facades\Queue::pushed(\Illuminate\Foundation\Console\QueuedCommand::class);
+        $this->assertCount(1, $jobs);
+        $jobs->first()->handle(app(\Illuminate\Contracts\Console\Kernel::class));
+        $this->assertSame(48.2, WorksiteLookup::cached(WorksiteLookup::forRecord($shift))['point']['latitude']);
+        $this->artisan('routing:resolve-worksites')->assertSuccessful();
+    }
+
+    private function worksiteRow(string $name, float $latitude): array
+    {
+        return ['name' => $name, 'label' => '84489 Burghausen', 'latitude' => $latitude, 'longitude' => 12.82,
+            'country' => 'DE', 'city' => 'Burghausen', 'street' => '', 'postal' => '84489', 'precision' => 'poi'];
+    }
+
+    public function test_existing_shifts_and_intake_share_one_provider_lookup_and_keep_confirmation_separate(): void
+    {
+        $this->actingAs($this->admin);
+        request()->attributes->set('worksite_search_enabled', true);
+        $name = 'Burghausen Wackerwerk';
+        $shift = (new Shift)->forceFill(['location_name' => $name]);
+        $input = WorksiteLookup::forRecord($shift);
+        $base = ['state' => 'unknown', 'label' => 'Kartenposition offen'];
+        $first = WorksiteLookup::preview($base, $input);
+        $this->assertSame($name, $first['lookup']['query']);
+        $this->mock(TomTomAddressSearchService::class)->shouldReceive('suggest')->once()->with($name, '', true)
+            ->andReturn(['status' => 'known', 'results' => [$this->worksiteRow('Wacker Werk', 48.18), $this->worksiteRow('Andere Anlage', 48.3)]]);
+        $service = app(WorksiteLookup::class);
+        $service->resolve($input);
+        $service->resolve($input);
+        $point = WorksiteLookup::preview($base, $input);
+        $this->assertSame(48.18, $point['latitude']);
+        $this->assertFalse($point['confirmed'] ?? false);
+        $this->assertSame($point, WorksiteLookup::preview($base, WorksiteLookup::forRecord((new OperationInquiry)->forceFill(['location_name' => $name]))));
+        $confirmed = ['state' => 'located', 'confirmed' => true, 'latitude' => 48.4];
+        $this->assertSame($confirmed, WorksiteLookup::preview($confirmed, $input));
+    }
+
+    public function test_ambiguous_and_missing_matches_do_not_produce_map_points_and_shift_override_is_isolated(): void
+    {
+        $this->actingAs($this->admin);
+        request()->attributes->set('worksite_search_enabled', true);
+        $name = 'Werk Tor';
+        $input = WorksiteLookup::input($name);
+        $this->mock(TomTomAddressSearchService::class)->shouldReceive('suggest')->once()
+            ->andReturn(['status' => 'known', 'results' => [$this->worksiteRow($name, 48.1), $this->worksiteRow($name, 48.2)]]);
+        app(WorksiteLookup::class)->resolve($input);
+        $preview = WorksiteLookup::preview(['state' => 'unknown'], $input, 'shift:22');
+        $this->assertArrayNotHasKey('latitude', $preview);
+        $this->assertCount(2, $preview['alternatives']);
+        $this->assertNotEmpty($preview['choice']['proof']);
+        $selection = $preview['choice'] + ['latitude' => 48.2, 'longitude' => 12.82];
+        $this->postJson(route('places.choose'), $selection)->assertOk();
+        request()->attributes->set('worksite_search_enabled', true);
+        $this->assertSame(48.2, WorksiteLookup::preview(['state' => 'unknown'], $input, 'shift:22')['latitude']);
+        $this->assertArrayNotHasKey('latitude', WorksiteLookup::preview(['state' => 'unknown'], $input, 'shift:23'));
+        $this->postJson(route('places.choose'), array_replace($selection, ['latitude' => 55.0]))->assertStatus(409);
+        $shift = (new Shift)->forceFill(['location_name' => 'Hafen']);
+        $shift->setRelation('order', (new Order)->forceFill(['location_name' => 'Bahnhof', 'street' => 'Gleisweg', 'country' => 'AT', 'city' => 'Wien']));
+        $this->assertSame(WorksiteLookup::input('Hafen'), WorksiteLookup::forRecord($shift));
+    }
+
+    public function test_standard_and_portal_fields_render_real_comboboxes_and_keep_original_model(): void
+    {
+        foreach (['address', 'form.proposed_fields.street', 'proposalForm.demand.location_name', 'inlineValues.street'] as $model) {
+            $html = Blade::render('<x-ui.forms.input id="target" :wire:model="$model" autocomplete="street-address" />', compact('model'));
+            $this->assertStringContainsString('role="combobox"', $html);
+            $this->assertStringContainsString('wire:model="'.$model.'"', $html);
+            $this->assertStringContainsString('id="target"', $html);
+        }
     }
 }
