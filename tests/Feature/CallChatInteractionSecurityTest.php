@@ -30,6 +30,55 @@ class CallChatInteractionSecurityTest extends TestCase
         config(['broadcasting.default' => 'log']);
     }
 
+    public function test_hidden_call_chat_counts_incoming_messages_and_restores_the_draft_on_open(): void
+    {
+        $this->freezeSecond();
+        [$owner, $guest, $room, $chat] = $this->callChat();
+        $message = $chat->messages()->create(['user_id' => $guest->id, 'body' => 'Erste Nachricht']);
+        $chat->messages()->create(['user_id' => $owner->id, 'body' => 'Eigene Nachricht']);
+
+        $component = Livewire::actingAs($owner)
+            ->test(CallChat::class, ['room' => $room, 'embedded' => true])
+            ->assertSet('unreadCount', 1)
+            ->call('setVisible', true)
+            ->assertDispatched('call-chat:show-unread', messageId: $message->id)
+            ->assertSet('unreadCount', 0)
+            ->set('messageText', 'Mein Entwurf')
+            ->call('setVisible', false);
+
+        $next = $chat->messages()->create(['user_id' => $guest->id, 'body' => 'Nachricht in derselben Sekunde']);
+        $component->call('refreshMessages')
+            ->call('refreshMessages')
+            ->assertSet('unreadCount', 1)
+            ->call('setVisible', true)
+            ->assertDispatched('call-chat:show-unread', messageId: $next->id)
+            ->assertSet('unreadCount', 0)
+            ->assertSet('messageText', 'Mein Entwurf')
+            ->call('send')
+            ->assertSet('messageText', '');
+
+        $this->assertSame(1, $chat->messages()->get()->where('body', 'Mein Entwurf')->count());
+    }
+
+    public function test_opening_the_chat_loads_the_first_unread_message_beyond_the_initial_page(): void
+    {
+        [$owner, $guest, $room, $chat] = $this->callChat();
+        $first = $chat->messages()->create(['user_id' => $guest->id, 'body' => 'Anfang']);
+        $rows = array_fill(0, 100, [
+            'chat_id' => $chat->id, 'user_id' => $guest->id, 'body' => encrypt('Weitere Nachricht', false),
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        ChatMessage::query()->insert($rows);
+
+        Livewire::actingAs($owner)
+            ->test(CallChat::class, ['room' => $room, 'embedded' => true])
+            ->assertDontSee('Anfang')
+            ->assertSet('unreadCount', 101)
+            ->call('setVisible', true)
+            ->assertSee('Anfang')
+            ->assertDispatched('call-chat:show-unread', messageId: $first->id);
+    }
+
     public function test_call_chat_rejects_reactions_to_the_senders_own_message(): void
     {
         [$owner, , $room, $chat] = $this->callChat();

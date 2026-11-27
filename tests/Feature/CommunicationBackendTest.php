@@ -253,6 +253,42 @@ class CommunicationBackendTest extends TestCase
         app(MeetingPlanningService::class)->plan($host, ['title' => 'DST Planung', 'starts_at' => '2027-03-28T02:30', 'ends_at' => '2027-03-28T04:00', 'timezone' => 'Europe/Berlin', 'participant_ids' => [$guest->id]]);
     }
 
+    public function test_meeting_cards_follow_invitation_role_and_live_state(): void
+    {
+        [$host, $guest] = $this->chat();
+        $meeting = $this->plan($host, $guest);
+
+        Livewire::actingAs($host)->test(Meetings::class)->assertSee('Meeting starten')->assertDontSee('Zusagen');
+        Livewire::actingAs($guest)->test(Meetings::class)->assertSee('Zusagen')->assertDontSee('Meeting starten')
+            ->call('respond', $meeting->id, 'accepted')->assertSee('Zugesagt')->assertNotDispatched('communication:call');
+        $this->assertSame(0, Room::count());
+
+        $room = app(MeetingPlanningService::class)->start($meeting, $host);
+        Livewire::actingAs($guest)->test(Meetings::class)->assertSee('Beitreten')->assertDontSee('Zusagen')
+            ->assertDontSeeHtml('wire:key="meeting-plan-'.$meeting->id.'"')
+            ->set('filter', 'past')->assertDontSee($meeting->title);
+        $room->participants()->create(['user_id' => $guest->id, 'role' => 'speaker', 'connection' => 'disconnected']);
+        Livewire::actingAs($guest)->test(Meetings::class)->assertSee($meeting->title)->assertDontSee('Beitreten');
+
+        $room->update(['status' => 'ended']);
+        $meeting->update(['ends_at' => now()->subHour()]);
+        Livewire::actingAs($host)->test(Meetings::class)->set('filter', 'past')->assertSee($meeting->title)
+            ->assertDontSee('Meeting starten')->call('openMeeting', $meeting->id)->assertSee('Termin vergangen');
+    }
+
+    public function test_meeting_form_previews_actual_duration_and_identifies_the_invalid_field(): void
+    {
+        [$host, $guest] = $this->chat();
+        $this->travelTo(now()->setDate(2027, 3, 25));
+        Livewire::actingAs($host)->test(Meetings::class)->call('showCreate', 'plan')
+            ->set('name', 'Zeitumstellung')->set('participantIds', [$guest->id])
+            ->set('startsAt', '2027-03-28T01:45')->set('endsAt', '2027-03-28T03:15')->assertSee('30 Minuten')
+            ->set('endsAt', '2027-03-28T01:30')->assertSee('Das Ende muss nach dem Beginn liegen.')
+            ->call('savePlan')->assertHasErrors('ends_at')
+            ->set('endsAt', '2027-03-28T03:15')->assertHasNoErrors('ends_at')->assertSee('30 Minuten');
+        $this->assertSame(0, CommunicationMeeting::count());
+    }
+
     public function test_embedded_meeting_details_and_rsvp_do_not_redirect_or_join(): void
     {
         [$host, $guest] = $this->chat();

@@ -78,6 +78,9 @@ class Meetings extends Component
         $this->resetValidation();
         $this->reset(['name', 'participantIds', 'participantSearch', 'selectedMeetingId']);
         $this->formMode = $mode === 'instant' ? 'instant' : 'plan';
+        if (! in_array($this->timezone, timezone_identifiers_list(\DateTimeZone::ALL_WITH_BC), true)) {
+            $this->reset('timezone');
+        }
         $this->startsAt = now()->addHour()->setTimezone($this->timezone)->format('Y-m-d\TH:i');
         $this->endsAt = now()->addHours(2)->setTimezone($this->timezone)->format('Y-m-d\TH:i');
         $this->pane = 'form';

@@ -18,6 +18,9 @@ import {
     ParticipantKind,
 } from 'livekit-client';
 import '../css/call-window.css';
+import { callQualityControls, cameraCaptureOptions, cameraConstraints, shareCaptureOptions, sharePublishOptions } from './call-media-quality.js';
+import { createMeetingMicrophoneCheck } from './meeting-microphone-check.js';
+import { callCameraPreview } from './call-camera-preview.js';
 import {
     clampSelfPreviewPosition,
     isSelfPreviewCenterOutside,
@@ -33,6 +36,12 @@ function rawCallValue(value) {
 
 document.addEventListener('alpine:init', () => {
     window.Alpine.data('callRoom', (config) => ({
+        ...createMeetingMicrophoneCheck(),
+        ...callCameraPreview(config, rawCallValue),
+        prejoinOpen: config.prejoin === true,
+        configuringDuringCall: false,
+        deviceSettingsBusy: false,
+        deviceSettingsTrigger: null,
         room: null,
         connected: false,
         connectionBusy: false,
@@ -43,6 +52,9 @@ document.addEventListener('alpine:init', () => {
         micBusy: false,
         cameraBusy: false,
         screenShareBusy: false,
+        ...callQualityControls(rawCallValue, config.labels),
+        get cameraCaptureOptions() { return cameraCaptureOptions(this.cameraProfile); },
+        get cameraMediaConstraints() { return cameraConstraints(this.cameraProfile); },
         statusLabel: config.labels.connecting,
         connectedRoster: [],
         moreOpen: false,
@@ -181,6 +193,8 @@ document.addEventListener('alpine:init', () => {
         },
 
         resetMediaState() {
+            this.disposeCameraPreview();
+            this.resetQualityState();
             this.micOn = false;
             this.cameraOn = false;
             this.screenSharing = false;
@@ -235,7 +249,67 @@ document.addEventListener('alpine:init', () => {
                 this.observeSelfPreviewStage();
                 this.queueSelfPreviewGeometry();
             });
+            if (this.prejoinOpen) {
+                this.$nextTick(() => {
+                    this.$refs.deviceSettingsTitle?.focus();
+                    this.listMicrophones();
+                    this.openCameraPreview();
+                });
+                return;
+            }
             await this.connect();
+        },
+
+        openCallDeviceSettings(trigger) {
+            if (!this.canControlMedia || this.prejoinOpen || this.cameraBusy) return;
+            this.deviceSettingsTrigger = trigger;
+            this.configuringDuringCall = true;
+            this.prejoinOpen = true;
+            this.$nextTick(() => {
+                this.$refs.deviceSettingsTitle?.focus();
+                this.openCameraPreview();
+            });
+        },
+
+        async acceptDeviceSettings() {
+            if (!this.prejoinOpen || this.deviceSettingsBusy) return;
+            this.deviceSettingsBusy = true;
+            try {
+                if (!await this.commitCameraPreview() || this.disposed || !this.prejoinOpen) return;
+                this.stopMicrophoneTest();
+                this.prejoinOpen = false;
+                if (!this.configuringDuringCall) {
+                    await this.connect();
+                } else {
+                    this.restoreDeviceSettingsFocus();
+                }
+            } finally {
+                this.deviceSettingsBusy = false;
+            }
+        },
+
+        restoreDeviceSettingsFocus() {
+            this.configuringDuringCall = false;
+            const trigger = this.deviceSettingsTrigger;
+            this.deviceSettingsTrigger = null;
+            this.$nextTick(() => { if (trigger?.isConnected) trigger.focus(); });
+        },
+
+        async cancelDeviceSettings() {
+            if (!this.prejoinOpen || this.deviceSettingsBusy) return;
+            this.deviceSettingsBusy = true;
+            try {
+                this.stopMicrophoneTest();
+                await this.closeCameraPreview();
+                if (this.configuringDuringCall) {
+                    this.prejoinOpen = false;
+                    this.restoreDeviceSettingsFocus();
+                } else {
+                    await this.$wire.leaveCall();
+                }
+            } finally {
+                this.deviceSettingsBusy = false;
+            }
         },
 
         // --- Klingelzustand beim ANRUFER ----------------------------------
@@ -818,6 +892,7 @@ document.addEventListener('alpine:init', () => {
                 const options = {
                     adaptiveStream: true,
                     dynacast: true,
+                    videoCaptureDefaults: this.cameraCaptureOptions,
                 };
 
                 if (Array.isArray(session.iceServers) && session.iceServers.length > 0) {
@@ -1137,7 +1212,7 @@ document.addEventListener('alpine:init', () => {
             // Mikrofon und Kamera GETRENNT behandeln: Frueher liess ein
             // Kamerafehler auch das bereits aktive Mikrofon als "nicht
             // verfuegbar" erscheinen – die Meldung war schlicht falsch.
-            if (!this.micOn && !this.micBusy) {
+            if (this.startWithMicrophone && !this.micOn && !this.micBusy) {
                 this.micBusy = true;
                 try {
                     await this.enableTrack('microphone');
@@ -1157,7 +1232,7 @@ document.addEventListener('alpine:init', () => {
                 }
             }
 
-            if (this.startWithVideo && !this.cameraOn && !this.cameraBusy) {
+            if (this.startWithVideo && !this.audioOnly && !this.cameraOn && !this.cameraBusy && !this.profileBusy) {
                 this.cameraBusy = true;
                 try {
                     await this.enableTrack('camera');
@@ -1204,11 +1279,16 @@ document.addEventListener('alpine:init', () => {
                 throw new DOMException('Call is no longer publishable.', 'AbortError');
             }
 
+            if (kind === 'camera' && this.cameraSelectionCommitted) {
+                // A selected background must never reach the generic raw-camera fallback.
+                return this.publishCameraSelection(activeRoom, generation);
+            }
+
             try {
                 if (kind === 'camera') {
-                    await activeRoom.localParticipant.setCameraEnabled(true);
+                    await activeRoom.localParticipant.setCameraEnabled(true, this.cameraCaptureOptions);
                 } else {
-                    await activeRoom.localParticipant.setMicrophoneEnabled(true);
+                    await activeRoom.localParticipant.setMicrophoneEnabled(true, this.microphoneId ? { deviceId: { exact: this.microphoneId } } : undefined);
                 }
 
                 if (!this.isActiveRoom(activeRoom, generation) || !this.canPublish) {
@@ -1235,7 +1315,7 @@ document.addEventListener('alpine:init', () => {
             }
 
             const stream = await navigator.mediaDevices.getUserMedia(
-                kind === 'camera' ? { video: true } : { audio: true },
+                kind === 'camera' ? { video: this.cameraMediaConstraints } : { audio: this.microphoneId ? { deviceId: { exact: this.microphoneId } } : true },
             );
             const track = kind === 'camera' ? stream.getVideoTracks()[0] : stream.getAudioTracks()[0];
 
@@ -1269,6 +1349,10 @@ document.addEventListener('alpine:init', () => {
             };
 
             activeRoom
+                .on(RoomEvent.ConnectionQualityChanged, current((quality, participant) => {
+                    if (participant === activeRoom.localParticipant) this.connectionQuality = quality;
+                }))
+                .on(RoomEvent.TrackPublished, current(() => { if (this.audioOnly) this.syncIncomingVideo(activeRoom); }))
                 .on(RoomEvent.ParticipantConnected, current(render))
                 .on(RoomEvent.ParticipantDisconnected, current(render))
                 .on(RoomEvent.TrackSubscribed, current(render))
@@ -1546,12 +1630,18 @@ document.addEventListener('alpine:init', () => {
 
         async toggleMic() { await this.toggleMedia('microphone'); },
 
-        async toggleCamera() { await this.toggleMedia('camera'); },
+        async toggleCamera() {
+            if (!this.cameraOn && this.cameraNeedsSetup) {
+                return this.openCallDeviceSettings(document.activeElement);
+            }
+            await this.toggleMedia('camera');
+        },
 
         async toggleMedia(kind) {
             const state = kind === 'camera' ? 'cameraOn' : 'micOn';
             const busy = kind === 'camera' ? 'cameraBusy' : 'micBusy';
-            if (!this.canControlMedia || this[busy]) return;
+            if (!this.canControlMedia || this[busy] || (kind === 'camera' && this.profileBusy)) return;
+            if (kind === 'camera' && this.audioOnly) await this.setAudioOnly(false);
 
             const activeRoom = rawCallValue(this.room);
             const generation = this.connectionGeneration;
@@ -1562,7 +1652,8 @@ document.addEventListener('alpine:init', () => {
                 if (enable) {
                     await this.enableTrack(kind);
                 } else if (kind === 'camera') {
-                    await activeRoom.localParticipant.setCameraEnabled(false);
+                    if (this.cameraSelectionCommitted) await this.stopConfiguredCamera(activeRoom);
+                    else await activeRoom.localParticipant.setCameraEnabled(false);
                 } else {
                     await activeRoom.localParticipant.setMicrophoneEnabled(false);
                 }
@@ -1580,13 +1671,14 @@ document.addEventListener('alpine:init', () => {
         },
 
         async toggleScreenShare() {
-            if (!this.canControlMedia || this.screenShareBusy || !this.screenShareSupported) return;
+            if (!this.canControlMedia || this.screenShareBusy || this.profileBusy || !this.screenShareSupported) return;
+            if (this.audioOnly) await this.setAudioOnly(false);
             const activeRoom = rawCallValue(this.room);
             const generation = this.connectionGeneration;
             const enable = !this.screenSharing;
             this.screenShareBusy = true;
             try {
-                await activeRoom.localParticipant.setScreenShareEnabled(enable);
+                await activeRoom.localParticipant.setScreenShareEnabled(enable, shareCaptureOptions, sharePublishOptions);
                 if (!this.isActiveRoom(activeRoom, generation)) {
                     await activeRoom.localParticipant.setScreenShareEnabled(false).catch(() => {});
                     return;
@@ -1608,6 +1700,8 @@ document.addEventListener('alpine:init', () => {
         },
 
         disconnect() {
+            this.prejoinOpen = false;
+            this.stopMicrophoneTest();
             if (this.leaving && this.disconnectPromise) return this.disconnectPromise;
             const activeRoom = rawCallValue(this.room);
             this.stopRecordingPolling();

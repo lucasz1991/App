@@ -8,6 +8,7 @@
     data-rt-overlay-base="200"
     x-data="callRoom({
         roomUuid: @js($room->uuid),
+        prejoin: @js($room->type === 'meeting' && (bool) data_get($room->settings, 'video', true) && ($me?->canPublish() ?? false)),
         tokenUrl: @js(route('calls.token', $room)),
         recordingAcknowledgementUrl: @js(route('calls.recording.acknowledge')),
         recordingPolicyVersion: @js(config('call_recording.policy_version')),
@@ -15,6 +16,8 @@
         selfIdentity: @js(\App\Services\Calls\LiveKitService::identityFor(auth()->user())),
         canPublish: @js($me?->canPublish() ?? false),
         startWithVideo: @js((bool) data_get($room->settings, 'video', true)),
+        cameraAssets: @js(is_file(public_path('vendor/call-backgrounds/0.7.2/processor.js')) ? url('vendor/call-backgrounds/0.7.2') : null),
+        cameraBackground: @js(url('rt-brand/img/hero-railtime.jpg')),
         waiting: @js($this->waitingFor()),
         labels: {
             beingCalled: @js(__('app.calls_being_called')),
@@ -30,6 +33,9 @@
             cameraMissing: @js(__('app.calls_camera_missing')),
             microphoneBusy: @js(__('app.calls_microphone_busy')),
             cameraBusy: @js(__('app.calls_camera_busy')),
+            effectFailed: @js(__('app.calls_camera_effect_failed')),
+            cameraSetupFailed: @js(__('app.calls_camera_setup_failed')),
+            profileFailed: @js(__('app.calls_profile_failed')),
             shareZoom: @js(__('app.calls_share_zoom')),
             shareFit: @js(__('app.calls_share_fit')),
             sharePan: @js(__('app.calls_share_pan')),
@@ -44,10 +50,59 @@
     x-on:rt-call-waiting.window="setWaiting($event.detail.waiting)"
     x-on:keydown.escape="if (panelOpen && ! $event.defaultPrevented) { closePanel(); $event.stopPropagation() }"
 >
-    <div class="rt-call-layout flex h-full min-h-0 flex-col overflow-hidden bg-rt-anthracite">
+    <section x-show="prejoinOpen" x-cloak
+             x-on:keydown.escape.stop.prevent="cancelDeviceSettings()"
+             class="flex h-full min-h-0 flex-col overflow-y-auto bg-rt-anthracite p-3 text-white sm:p-6"
+             aria-labelledby="rt-call-device-title">
+        <div class="mx-auto my-auto w-full max-w-xl space-y-4 rounded-2xl border border-white/15 bg-[#171e29] p-4 sm:p-6">
+            <h2 id="rt-call-device-title" tabindex="-1" x-ref="deviceSettingsTitle" class="text-lg font-bold">
+                <span x-show="!configuringDuringCall">{{ __('app.calls_prejoin_title') }}</span>
+                <span x-show="configuringDuringCall">{{ __('app.calls_setup_camera') }}</span>
+            </h2>
+            @include('livewire.calls.camera-preview')
+            <fieldset x-show="!configuringDuringCall" class="space-y-2 border-t border-white/15 pt-3">
+                <legend class="px-1 text-sm font-semibold">{{ __('app.calls_microphone') }}</legend>
+                <label class="flex min-h-10 items-center gap-2 text-sm">
+                    <input type="checkbox" x-model="startWithMicrophone" x-on:change="if (!startWithMicrophone) stopMicrophoneTest()">
+                    {{ __('app.calls_prejoin_mic_on') }}
+                </label>
+                <div x-show="startWithMicrophone" class="space-y-2">
+                    <div class="flex flex-wrap gap-2">
+                        <select x-model="microphoneId" x-on:change="testMicrophone()"
+                                aria-label="{{ __('app.calls_microphone') }}" class="min-h-11 min-w-0 flex-1 rounded-lg border border-white/25 bg-[#171e29] px-2 text-sm">
+                            <option value="">{{ __('app.calls_prejoin_default_mic') }}</option>
+                            <template x-for="(device, index) in microphones" :key="device.deviceId">
+                                <option :value="device.deviceId" x-text="device.label || (@js(__('app.calls_microphone')) + ' ' + (index + 1))"></option>
+                            </template>
+                        </select>
+                        <button type="button" x-on:click="microphoneTesting ? stopMicrophoneTest() : testMicrophone()" :disabled="microphoneOpening"
+                                class="min-h-11 rounded-lg border border-white/25 px-3 text-sm font-semibold">
+                            <span x-show="!microphoneTesting">{{ __('app.calls_prejoin_test') }}</span>
+                            <span x-show="microphoneTesting">{{ __('app.calls_prejoin_stop') }}</span>
+                        </button>
+                    </div>
+                    <meter x-show="microphoneTesting" min="0" max="100" :value="microphoneLevel" aria-label="{{ __('app.calls_prejoin_level') }}" class="block h-3 w-full"></meter>
+                    <p x-show="microphoneTestError" x-text="microphoneTestError" role="status" class="text-sm text-amber-200"></p>
+                </div>
+            </fieldset>
+            <div class="flex flex-wrap justify-end gap-2 border-t border-white/15 pt-3">
+                <button type="button" x-on:click="cancelDeviceSettings()" :disabled="deviceSettingsBusy" class="min-h-11 rounded-lg px-4 text-sm font-semibold">
+                    {{ __('app.calls_prejoin_cancel') }}
+                </button>
+                <button type="button" x-on:click="acceptDeviceSettings()" :disabled="deviceSettingsBusy"
+                        class="min-h-11 rounded-lg bg-rt-red px-4 text-sm font-bold text-white disabled:opacity-50">
+                    <span x-show="!configuringDuringCall">{{ __('app.calls_prejoin_join') }}</span>
+                    <span x-show="configuringDuringCall">{{ __('app.calls_prejoin_apply') }}</span>
+                </button>
+            </div>
+        </div>
+    </section>
+    <div x-show="!prejoinOpen" class="rt-call-layout flex h-full min-h-0 flex-col overflow-hidden bg-rt-anthracite">
 
         {{-- Kopfzeile --}}
-        <header class="rt-call-header flex shrink-0 items-center gap-3 px-4 py-3 sm:px-6" :inert="recordingRequiresAcknowledgement">
+        <header class="rt-call-header flex shrink-0 items-center gap-3 px-4 py-3 sm:px-6" :inert="recordingRequiresAcknowledgement"
+            :data-actions-open="moreOpen" x-on:click.outside="if (!$event.target.closest('[role=dialog]')) moreOpen = false"
+            x-on:keydown.escape="if (moreOpen) { moreOpen = false; $event.stopPropagation(); $refs.moreTrigger.focus() }">
             <div class="rt-call-identity">
             <span class="relative flex h-2.5 w-2.5">
                 <span x-show.important="connected" class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60"></span>
@@ -65,7 +120,6 @@
             </div>
             </div>
 
-            <div class="rt-call-header-actions">
             <span class="rt-call-kind">
                 <i class="far {{ data_get($room->settings, 'video', true) ? 'fa-video' : 'fa-phone' }}" aria-hidden="true"></i>
                 {{ data_get($room->settings, 'video', true) ? __('app.calls_video_call') : __('app.calls_audio_call') }}
@@ -87,6 +141,7 @@
                 <span class="hidden sm:inline" x-text="recordingStatusLabel" aria-hidden="true"></span>
             </div>
 
+            <div class="rt-call-header-actions" id="rt-call-actions-{{ $room->id }}">
             <x-ui.page-info-button
                 :title="$room->name"
                 route-name="calls.window"
@@ -181,10 +236,27 @@
             >
                 <i class="far fa-users" aria-hidden="true"></i>
             </button>
+            @if ($canModerate)
+                <button type="button" class="rt-call-end-action" x-cloak x-show="moreOpen"
+                    x-on:click="moreOpen = false; $refs.endDialog.showModal()"
+                    :disabled="terminal || leaving">
+                    <i class="far fa-phone-slash" aria-hidden="true"></i> {{ __('app.calls_end_for_everyone') }}
+                </button>
+            @endif
             </div>
+            <button type="button" x-ref="moreTrigger" class="rt-call-more {{ $canModerate ? 'rt-call-more--moderator' : '' }}"
+                x-on:click="moreOpen = !moreOpen" :aria-expanded="moreOpen" aria-controls="rt-call-actions-{{ $room->id }}"
+                title="{{ __('app.calls_more_actions') }}" aria-label="{{ __('app.calls_more_actions') }}">
+                <i class="far fa-ellipsis-h" aria-hidden="true"></i>
+                <span x-cloak x-show="chatUnreadCount > 0" class="rt-call-more-unread" aria-hidden="true"></span>
+            </button>
         </header>
 
         {{-- Buehne: Video-Grid + Teilnehmer-Panel --}}
+        <div x-cloak x-show.important="connected && ['poor', 'lost'].includes(connectionQuality)" role="status" class="flex shrink-0 items-center justify-between gap-2 bg-amber-100 px-3 py-1 text-xs text-amber-950">
+            <span><i class="far fa-signal" aria-hidden="true"></i> {{ __('app.calls_weak_connection') }}</span>
+            <button type="button" x-on:click="togglePanel('quality', $el)" class="rounded px-2 py-1 font-bold underline">{{ __('app.calls_quality') }}</button>
+        </div>
         <div class="rt-call-main relative flex min-h-0 flex-1">
             <div
                 x-ref="selfPreviewStage"
@@ -460,17 +532,18 @@
                     </button>
                 </div>
                 <x-operations.panel.tabs class="m-2 shrink-0 [&_.rt-ops-panel__count:empty]:hidden" appearance="surface" model="panelTab" :label="__('app.calls_panel')" :id-prefix="'rt-call-'.$room->id"
-                    :tabs="['participants' => ['label' => __('app.calls_participants'), 'icon' => 'far fa-users'], 'chat' => ['label' => __('app.calls_chat'), 'icon' => 'far fa-comment-dots', 'countExpression' => "chatUnreadCount || ''"]]" />
+                    :tabs="['participants' => ['label' => __('app.calls_participants'), 'icon' => 'far fa-users'], 'chat' => ['label' => __('app.calls_chat'), 'icon' => 'far fa-comment-dots', 'countExpression' => 'chatUnreadCount || null'], 'quality' => ['label' => __('app.calls_quality'), 'icon' => 'far fa-signal']]" />
 
                 <div id="rt-call-{{ $room->id }}-panel-participants" aria-labelledby="rt-call-{{ $room->id }}-tab-participants" x-show="panelTab === 'participants'" class="scroll-container min-h-0 flex-1 overflow-y-auto p-3" role="tabpanel">
                     <p class="px-1 pb-2 text-[10px] font-bold uppercase tracking-[0.1em] text-rt-muted dark:text-rt-dark-muted">
-                        {{ __('app.calls_participants') }}
+                        {{ __('app.calls_connected_now') }} <span x-text="participantCount"></span>
                     </p>
 
                     <ul class="space-y-1">
                     @foreach ($room->participants as $participant)
                         <li
                             class="flex items-center gap-2.5 rounded-xl p-2 transition-colors hover:bg-rt-surface-muted dark:hover:bg-rt-dark-surface-muted"
+                            x-cloak x-show="isParticipantConnected(@js($participant->livekit_identity))"
                             wire:key="participant-{{ $participant->id }}"
                         >
                             <x-chat.avatar
@@ -496,9 +569,8 @@
                                     ])>
                                         {{ __('app.calls_role_'.$participant->role) }}
                                     </span>
-                                    <span x-cloak x-show.important="isParticipantConnected(@js($participant->livekit_identity))" class="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" title="online"></span>
+                                    <span class="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true"></span>
                                 </span>
-                                <span x-show.important="! isParticipantConnected(@js($participant->livekit_identity))" class="mt-1 block text-[11px] text-rt-muted dark:text-rt-dark-muted">{{ __('app.calls_not_connected') }}</span>
                             </span>
 
                             @if ($canModerate && $participant->role !== 'host' && (int) $participant->user_id !== auth()->id())
@@ -540,13 +612,63 @@
                             @endif
                         </li>
                     @endforeach
+                    <template x-for="person in connectedRoster.filter(person => connected && !@js($room->participants->pluck('livekit_identity')->values()).includes(person.identity))" :key="person.identity">
+                        <li class="flex items-center gap-2.5 rounded-xl p-2 text-sm font-bold">
+                            <i class="far fa-user" aria-hidden="true"></i><span x-text="person.name"></span>
+                        </li>
+                    </template>
                     </ul>
+                    <section x-cloak x-show="openInvitations.length" class="mt-4 border-t border-rt-border pt-3 dark:border-rt-dark-border">
+                        <h3 class="px-1 text-[10px] font-bold uppercase tracking-[0.1em] text-rt-muted dark:text-rt-dark-muted">
+                            {{ __('app.calls_open_invitations') }} <span x-text="openInvitations.length"></span>
+                        </h3>
+                        <ul class="mt-1 space-y-1">
+                            <template x-for="invitation in openInvitations" :key="invitation.id">
+                                <li class="flex items-center justify-between gap-2 rounded-xl p-2 text-sm">
+                                    <span class="truncate" x-text="invitation.name"></span>
+                                    <span class="text-xs text-rt-muted" x-text="invitation.ringing ? @js(__('app.calls_rings_there')) : @js(__('app.calls_being_called'))"></span>
+                                </li>
+                            </template>
+                        </ul>
+                    </section>
                 </div>
 
                 <div id="rt-call-{{ $room->id }}-panel-chat" aria-labelledby="rt-call-{{ $room->id }}-tab-chat" x-show="panelTab === 'chat'" class="min-h-0 flex-1" role="tabpanel">
                     @if ($room->callChat)
                         <livewire:calls.call-chat :room="$room" :embedded="true" :key="'active-call-chat-'.$room->id" />
                     @endif
+                </div>
+                <div id="rt-call-{{ $room->id }}-panel-quality" aria-labelledby="rt-call-{{ $room->id }}-tab-quality" x-show="panelTab === 'quality'" x-effect="showQualityMeasurements(panelOpen && panelTab === 'quality' && connected)" role="tabpanel" class="scroll-container min-h-0 flex-1 space-y-4 overflow-y-auto p-3 text-sm text-rt-text dark:text-rt-dark-text">
+                    <div class="space-y-1">
+                        <label for="rt-call-profile-{{ $room->id }}" class="block font-bold">{{ __('app.calls_camera_profile') }}</label>
+                        <select id="rt-call-profile-{{ $room->id }}" :value="cameraProfile" x-on:change="await changeCameraProfile($el.value); $el.value = cameraProfile" :disabled="!canControlMedia || cameraBusy || profileBusy || audioOnly || protectedCameraOn()" class="w-full rounded-lg border-rt-border bg-rt-surface text-sm dark:border-rt-dark-border dark:bg-rt-dark-control">
+                            <option value="auto">{{ __('app.calls_profile_auto') }}</option>
+                            <option value="saver">{{ __('app.calls_profile_saver') }}</option>
+                        </select>
+                        <p x-show="protectedCameraOn()" class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.calls_profile_protected_hint') }}</p>
+                        <button type="button" x-on:click="openCallDeviceSettings($el)" :disabled="!canControlMedia || cameraBusy || profileBusy || audioOnly" class="rounded py-2 text-sm font-bold text-rt-red">{{ __('app.calls_setup_camera') }}</button>
+                    </div>
+                    <label class="flex items-start gap-2">
+                        <input type="checkbox" :checked="audioOnly" :disabled="!connected || profileBusy || cameraBusy || screenShareBusy" x-on:change="await setAudioOnly($el.checked); $el.checked = audioOnly" class="mt-0.5 rounded text-rt-red">
+                        <span><strong class="block">{{ __('app.calls_audio_only_profile') }}</strong><span class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.calls_audio_only_hint') }}</span></span>
+                    </label>
+                    <section class="space-y-2 border-t border-rt-border pt-3 dark:border-rt-dark-border">
+                        <h3 class="font-bold">{{ __('app.calls_video_stats') }}</h3>
+                        <p x-show="!qualityRows.length" class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.calls_no_video_stats') }}</p>
+                        <template x-for="row in qualityRows" :key="row.sid">
+                            <div class="rounded-lg bg-rt-surface-muted p-2 text-xs dark:bg-rt-dark-control">
+                                <p class="font-bold"><span x-text="row.source === 'screen_share' ? @js(__('app.calls_screen')) : @js(__('app.calls_camera'))"></span> · <span x-text="row.local ? @js(__('app.calls_stats_sent')) : row.name"></span></p>
+                                <dl class="mt-1 grid grid-cols-[1fr_auto] gap-x-2 gap-y-0.5 tabular-nums">
+                                    <template x-if="row.capture"><div class="contents"><dt>{{ __('app.calls_stats_capture') }}</dt><dd x-text="row.capture"></dd></div></template>
+                                    <dt x-text="row.local ? @js(__('app.calls_stats_sent')) : @js(__('app.calls_stats_received'))"></dt><dd x-text="row.resolution || '—'"></dd>
+                                    <dt>{{ __('app.calls_stats_rate') }}</dt><dd x-text="formatQuality(row.fps, 'fps') + ' · ' + formatQuality(row.kbps, 'kbit/s')"></dd>
+                                    <dt>{{ __('app.calls_stats_loss') }}</dt><dd x-text="formatQuality(row.loss, '%', 1)"></dd>
+                                    <dt>Jitter</dt><dd x-text="formatQuality(row.jitter, 'ms')"></dd>
+                                    <template x-if="!row.local"><div class="contents"><dt>{{ __('app.calls_stats_freezes') }}</dt><dd x-text="formatQuality(row.frozen, 's', 2)"></dd></div></template>
+                                </dl>
+                            </div>
+                        </template>
+                    </section>
                 </div>
             </aside>
         </div>
@@ -614,23 +736,20 @@
                 <span>{{ __('app.calls_leave') }}</span>
             </button>
 
-            @if ($canModerate)
-                <button
-                    type="button"
-                    x-on:click="disconnect(); $wire.endCall()"
-                    :disabled="leaving"
-                    wire:loading.attr="disabled"
-                    wire:target="leaveCall,endCall"
-                    class="rt-call-control rt-call-control--end inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white/10 px-3 text-sm font-bold text-white/80 hover:bg-white/20 hover:text-white sm:h-12 sm:rounded-2xl sm:px-4"
-                    title="{{ __('app.calls_end_for_everyone') }}"
-                    aria-label="{{ __('app.calls_end_for_everyone') }}"
-                >
-                    <i class="far fa-power-off" aria-hidden="true"></i>
-                    <span>{{ __('app.calls_end_short') }}</span>
-                </button>
-            @endif
         </div>
         </footer>
+        @if ($canModerate)
+            <dialog x-ref="endDialog" class="rt-call-end-dialog" aria-labelledby="rt-end-title-{{ $room->id }}"
+                aria-describedby="rt-end-hint-{{ $room->id }}" x-on:close="$refs.moreTrigger.focus()">
+                <h2 id="rt-end-title-{{ $room->id }}" class="text-lg font-bold">{{ __('app.calls_end_confirm') }}</h2>
+                <p id="rt-end-hint-{{ $room->id }}" class="mt-2 text-sm">{{ __('app.calls_end_consequence') }}</p>
+                <div class="mt-5 flex flex-wrap justify-end gap-2">
+                    <button type="button" autofocus class="rounded-lg px-3 py-2" x-on:click="$refs.endDialog.close()">{{ __('app.cancel') }}</button>
+                    <button type="button" class="rounded-lg bg-rt-red px-3 py-2 font-bold text-white"
+                        wire:click="endCall" wire:loading.attr="disabled" wire:target="endCall">{{ __('app.calls_end_for_everyone') }}</button>
+                </div>
+            </dialog>
+        @endif
     </div>
 
     {{-- calls.js wird vom Layout vor app.js geladen, damit callRoom beim

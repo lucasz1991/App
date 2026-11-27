@@ -38,6 +38,12 @@ class CallChat extends Component
     #[Locked]
     public int $unreadCount = 0;
 
+    #[Locked]
+    public ?int $lastSeenMessageId = null;
+
+    #[Locked]
+    public ?string $lastSeenAt = null;
+
     public string $messageText = '';
 
     /** @var array<int, TemporaryUploadedFile> */
@@ -95,7 +101,7 @@ class CallChat extends Component
         $chat = $this->authorizedChat();
 
         if ($visible && ! $this->readOnly) {
-            $firstUnreadId = $chat->unreadMessagesFor(auth()->user())?->min('id');
+            $firstUnreadId = $this->unreadMessages($chat)->min('id');
             if ($firstUnreadId !== null) {
                 $firstUnreadId = (int) $firstUnreadId;
                 $this->oldestLoadedId = min($this->oldestLoadedId ?? $firstUnreadId, $firstUnreadId);
@@ -336,20 +342,39 @@ class CallChat extends Component
         $this->oldestLoadedId = $ids->isEmpty() ? null : (int) $ids->min();
     }
 
+    protected function unreadMessages(Chat $chat): Builder
+    {
+        $lastRead = $chat->participantFor(auth()->id())->pivot->last_read_at;
+        // The pivot stores seconds. During this call, IDs distinguish arrivals
+        // in the same second. A newer read on another device takes precedence.
+        if ($this->lastSeenMessageId !== null && (string) $lastRead === $this->lastSeenAt) {
+            return $this->visibleMessagesQuery($chat)
+                ->where('user_id', '!=', auth()->id())
+                ->where('id', '>', $this->lastSeenMessageId);
+        }
+
+        return $chat->unreadMessagesFor(auth()->user())->getQuery();
+    }
+
     protected function markRead(Chat $chat): void
     {
         if ($this->embedded && ! $this->visible) {
             if (! $this->readOnly) {
-                $this->unreadCount = $chat->unreadCountFor(auth()->user());
+                $this->unreadCount = $this->unreadMessages($chat)->count();
             }
 
             return;
         }
 
         $this->unreadCount = 0;
+        $readAt = now();
+        if ($this->embedded && ! $this->readOnly) {
+            $this->lastSeenMessageId = (int) $this->visibleMessagesQuery($chat)->max('id');
+            $this->lastSeenAt = $readAt->toDateTimeString();
+        }
         $chat->participants()->updateExistingPivot(auth()->id(), [
-            'last_read_at' => now(),
-            'last_opened_at' => now(),
+            'last_read_at' => $readAt,
+            'last_opened_at' => $readAt,
         ]);
     }
 

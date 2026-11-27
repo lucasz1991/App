@@ -19,9 +19,12 @@
 
 .rt-call-window .rt-call-layout {
     background: var(--call-canvas);
+    container: call-layout / inline-size;
 }
 
 .rt-call-window .rt-call-header {
+    position: relative;
+    z-index: 35;
     min-height: 72px;
     gap: 16px !important;
     padding: max(12px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) 12px max(20px, env(safe-area-inset-left)) !important;
@@ -57,6 +60,72 @@
     flex: none;
     align-items: center;
     gap: 6px;
+}
+
+.rt-call-more {
+    position: relative;
+    display: none;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    color: #fff;
+    background: var(--call-control);
+}
+
+.rt-call-more--moderator { display: inline-flex; }
+.rt-call-more-unread { display: none; }
+
+.rt-call-end-action {
+    position: absolute;
+    right: 12px;
+    top: calc(100% + 4px);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: var(--call-surface);
+    border: 1px solid var(--call-border);
+    color: #ffafb9;
+    white-space: nowrap;
+}
+
+.rt-call-end-dialog {
+    margin: auto;
+    width: min(24rem, calc(100% - 24px));
+    border: 1px solid var(--call-border);
+    border-radius: 16px;
+    padding: 20px;
+    background: var(--call-surface);
+    color: white;
+}
+.rt-call-end-dialog::backdrop { background: rgb(0 0 0 / 65%); }
+
+@container call-layout (max-width: 700px) {
+    .rt-call-window .rt-call-layout .rt-call-header { flex-wrap: nowrap; min-height: 56px; }
+    .rt-call-window .rt-call-identity { flex-basis: 0; }
+    .rt-call-window .rt-call-kind { display: none; }
+    .rt-call-window .rt-call-header-actions {
+        display: none;
+        position: absolute;
+        inset: calc(100% + 4px) 8px auto auto;
+        width: max-content;
+        max-width: calc(100% - 16px);
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 4px;
+        padding: 6px;
+        border: 1px solid var(--call-border);
+        border-radius: 12px;
+        background: var(--call-surface);
+        box-shadow: 0 6px 24px rgb(0 0 0 / 30%);
+    }
+    .rt-call-header[data-actions-open="true"] .rt-call-header-actions { display: flex; }
+    .rt-call-more { display: inline-flex; }
+    .rt-call-more-unread { position: absolute; top: 6px; right: 6px; display: block; width: 7px; height: 7px; border-radius: 50%; background: #ff506c; }
+    .rt-call-window .rt-call-end-action { position: static; flex: 1 0 100%; justify-content: center; font-size: 13px; }
 }
 
 .rt-call-kind {
@@ -151,6 +220,18 @@
     left: auto !important;
     right: 8px;
     max-width: calc(100% - 112px) !important;
+}
+
+.rt-call-window .rt-call-grid:has(> .rt-call-tile--zoomed) {
+    display: block !important;
+}
+
+.rt-call-grid:has(> .rt-call-tile--zoomed) > .rt-call-tile:not(.rt-call-tile--zoomed) {
+    display: none !important;
+}
+
+.rt-call-grid > .rt-call-tile--zoomed {
+    height: 100%;
 }
 
 .rt-call-tile--zoomed .rt-call-video-viewport {

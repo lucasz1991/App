@@ -115,3 +115,105 @@ export function observeMediaQuality(room, publish) {
     sample();
     return () => { cancelled = true; clearTimeout(timer); previous.clear(); };
 }
+
+// Keep the transport itself outside Alpine's proxy while updating the local view state.
+export function callQualityControls(raw, labels) {
+    return {
+        cameraProfile: 'auto',
+        audioOnly: false,
+        profileBusy: false,
+        connectionQuality: 'unknown',
+        pausedVideoSids: new Set(),
+        qualityRows: [],
+        stopQualitySampling: null,
+
+        async changeCameraProfile(profile) {
+            const room = raw(this.room);
+            if (!room || !this.connected || this.profileBusy || this.cameraBusy || this.audioOnly
+                || !['auto', 'saver'].includes(profile) || profile === this.cameraProfile) return;
+            this.profileBusy = true;
+            try {
+                const publication = room.localParticipant.getTrackPublication('camera');
+                if (publication?.track && !publication.isMuted) {
+                    if (this.cameraSelectionCommitted || publication.track.getProcessor?.()) return;
+                    const deviceId = publication.track.getSourceTrackSettings?.().deviceId;
+                    await publication.track.restartTrack({ ...cameraCaptureOptions(profile), ...(deviceId ? { deviceId } : {}) });
+                } else if (publication?.track) {
+                    // Unmute otherwise reuses the capture constraints of the old publication.
+                    await room.localParticipant.unpublishTrack(publication.track, true);
+                }
+                if (this.isActiveRoom(room)) this.cameraProfile = profile;
+            } catch {
+                if (this.isActiveRoom(room)) this.toast(labels.profileFailed, 'warning');
+            } finally {
+                if (this.isActiveRoom(room)) this.profileBusy = false;
+            }
+        },
+
+        protectedCameraOn() {
+            return this.cameraOn && (this.cameraSelectionCommitted || Boolean(raw(this.room)?.localParticipant.getTrackPublication?.('camera')?.track?.getProcessor?.()));
+        },
+
+        syncIncomingVideo(room = raw(this.room)) {
+            for (const participant of room?.remoteParticipants?.values() || []) {
+                for (const pub of participant.trackPublications.values()) {
+                    if (pub.kind !== 'video') continue;
+                    if (this.audioOnly && pub.isDesired) {
+                        this.pausedVideoSids.add(pub.trackSid);
+                        pub.setSubscribed(false);
+                    } else if (!this.audioOnly && this.pausedVideoSids.delete(pub.trackSid)) {
+                        pub.setSubscribed(true);
+                    }
+                }
+            }
+            if (!this.audioOnly) this.pausedVideoSids.clear();
+        },
+
+        async setAudioOnly(enabled) {
+            const room = raw(this.room);
+            if (!room || !this.connected || this.profileBusy || this.cameraBusy || this.screenShareBusy || this.audioOnly === enabled) return;
+            this.profileBusy = true;
+            try {
+                if (enabled && this.screenSharing) await room.localParticipant.setScreenShareEnabled(false);
+                if (!this.isActiveRoom(room)) return;
+                if (enabled && this.cameraOn) {
+                    if (this.cameraSelectionCommitted) await this.stopConfiguredCamera(room);
+                    else await room.localParticipant.setCameraEnabled(false);
+                }
+                if (!this.isActiveRoom(room)) return;
+                this.audioOnly = enabled;
+                this.syncIncomingVideo(room);
+            } catch {
+                if (this.isActiveRoom(room)) this.toast(labels.profileFailed, 'warning');
+            } finally {
+                if (this.isActiveRoom(room)) {
+                    this.syncLocalMediaState(room);
+                    this.profileBusy = false;
+                }
+            }
+        },
+
+        showQualityMeasurements(visible) {
+            if (visible && this.room) {
+                if (this.stopQualitySampling) return;
+                this.stopQualitySampling = observeMediaQuality(raw(this.room), rows => { this.qualityRows = rows; });
+            } else if (this.stopQualitySampling) {
+                this.stopQualitySampling();
+                this.stopQualitySampling = null;
+                this.qualityRows = [];
+            }
+        },
+
+        resetQualityState() {
+            this.showQualityMeasurements(false);
+            this.connectionQuality = 'unknown';
+            this.audioOnly = false;
+            this.profileBusy = false;
+            this.pausedVideoSids.clear();
+        },
+
+        formatQuality(value, unit, digits = 0) {
+            return Number.isFinite(value) ? value.toLocaleString(document.documentElement.lang || undefined, { maximumFractionDigits: digits }) + ' ' + unit : '—';
+        },
+    };
+}

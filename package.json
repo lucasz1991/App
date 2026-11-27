@@ -3,6 +3,9 @@
     "type": "module",
     "scripts": {
         "dev": "vite",
+        "prebuild": "node scripts/build-call-backgrounds.mjs --if-installed",
+        "prebuild:clean": "node scripts/build-call-backgrounds.mjs --if-installed",
+        "build:call-backgrounds": "node scripts/build-call-backgrounds.mjs",
         "build": "vite build && npm run verify:mail-editor-build && npm run build:outlook-addin",
         "build:clean": "vite build && npm run verify:mail-editor-build && npm run build:outlook-addin && node scripts/prune-build-assets.mjs",
         "verify:mail-editor-build": "node scripts/verify-mail-editor-build.mjs",
@@ -27,6 +30,7 @@
     "dependencies": {
         "@azure/msal-browser": "^4.30.0",
         "@fontsource-variable/plus-jakarta-sans": "^5.2.8",
+        "@livekit/track-processors": "0.7.2",
         "echarts": "^6.1.0",
         "gsap": "^3.15.0",
         "laravel-echo": "^2.4.0",

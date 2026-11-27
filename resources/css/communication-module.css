@@ -419,7 +419,8 @@ body:has(.rt-ai-assist[data-open='true'] .rt-ai-assist__panel[data-window-mode='
 }
 .rt-comm-meeting-list > * + * { margin-top: 0.625rem; }
 .rt-comm-meeting-list > [role='status'] { background: var(--comm-surface); }
-.rt-comm-meeting-card > span:first-child,
+.rt-comm-meeting-summary { gap: 0.75rem; min-height: 2.75rem; }
+.rt-comm-meeting-summary > span:first-child,
 .rt-comm-meeting-card--live > i:first-child {
     display: inline-flex;
     width: 2.75rem;
@@ -431,7 +432,7 @@ body:has(.rt-ai-assist[data-open='true'] .rt-ai-assist__panel[data-window-mode='
     background: color-mix(in srgb, var(--comm-surface) 55%, var(--comm-canvas));
 }
 .rt-comm-meeting-card--live > i:first-child { color: #047857; background: rgb(16 185 129 / 10%); }
-.rt-comm-meeting-card > span:nth-child(2) > span + span {
+.rt-comm-meeting-summary > span:nth-child(2) > span + span {
     margin-top: 0.2rem;
     color: var(--comm-muted);
     line-height: 1.5;
@@ -454,6 +455,11 @@ body:has(.rt-ai-assist[data-open='true'] .rt-ai-assist__panel[data-window-mode='
 .rt-comm-meeting-form {
     padding: 1.5rem max(1rem, calc((100% - 40rem) / 2));
     background: var(--comm-surface);
+}
+.rt-comm-meeting-times {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+    gap: 0.75rem;
 }
 .rt-comm-meeting-form > label,
 .rt-comm-meeting-form legend { color: var(--comm-ink); font-size: 0.8125rem; line-height: 1.5; }
@@ -481,7 +487,7 @@ body:has(.rt-ai-assist[data-open='true'] .rt-ai-assist__panel[data-window-mode='
 }
 .rt-comm-meeting-form fieldset > label:has(input:checked),
 .rt-comm-meeting-details button[aria-pressed='true'],
-.rt-comm-meeting-list > button.rt-comm-meeting-card:focus-visible {
+.rt-comm-meeting-list > .rt-comm-meeting-card:has(.rt-comm-meeting-summary:focus-visible) {
     background: color-mix(in srgb, var(--meeting-action) 9%, var(--comm-surface));
     border-color: color-mix(in srgb, var(--meeting-action) 44%, var(--comm-line));
 }
@@ -508,7 +514,7 @@ body:has(.rt-ai-assist[data-open='true'] .rt-ai-assist__panel[data-window-mode='
 .rt-comm-meeting-details { padding-inline: max(0.75rem, calc((100% - 48rem) / 2)); }
 .rt-comm-meeting-details > section { border: 1px solid var(--comm-line); border-radius: 0.875rem; background: var(--comm-surface); }
 .dark .rt-comm-meeting-form input { color-scheme: dark; }
-.dark .rt-comm-meeting-card > span:first-child { color: #fb7185; }
+.dark .rt-comm-meeting-summary > span:first-child { color: #fb7185; }
 .dark .rt-comm-meeting-card > .fa-chevron-right { color: var(--comm-muted); }
 .dark .rt-comm-meeting-card--live > i:first-child,
 .dark .rt-comm-meeting-card--live > div > p + p { color: #6ee7b7; }
@@ -522,7 +528,7 @@ body:has(.rt-ai-assist[data-open='true'] .rt-ai-assist__panel[data-window-mode='
     outline-offset: 3px;
 }
 @media (hover: hover) {
-    .rt-comm-meeting-list > button.rt-comm-meeting-card:hover {
+    .rt-comm-meeting-list > .rt-comm-meeting-card:has(.rt-comm-meeting-summary:hover) {
         border-color: color-mix(in srgb, var(--meeting-action) 30%, var(--comm-line));
         background: color-mix(in srgb, var(--meeting-action) 6%, var(--comm-surface));
     }

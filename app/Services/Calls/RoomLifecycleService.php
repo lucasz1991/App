@@ -200,7 +200,7 @@ class RoomLifecycleService
         $othersConnected = $room->participants()
             ->whereKeyNot($participant->getKey())
             ->where('connection', 'joined')
-            ->exists();
+            ->exists() || $this->hasJoiningInvitee($room, $participant->getKey());
 
         // Der LEFT-Webhook kann vor der Auflegen-Aktion ankommen. Auch dann
         // beendet das bewusste Auflegen den letzten Anruf samt Klingeln und
@@ -389,24 +389,23 @@ class RoomLifecycleService
             ? true
             : $this->livekit->hasConnectedParticipants($room);
 
-        $acceptedParticipantStillJoining = ! $stillConnected
-            && $room->participants()
-                ->where('connection', 'invited')
-                ->whereIn(
-                    'user_id',
-                    $room->invitations()
-                        ->select('invitee_id')
-                        ->where('status', 'accepted'),
-                )
-                ->exists();
-
         if (
             ! $stillConnected
-            && ! $acceptedParticipantStillJoining
+            && ! $this->hasJoiningInvitee($room)
             && $sfuHasParticipants === false
             && $room->isActive()
         ) {
             $this->markEnded($room, 'empty');
         }
+    }
+
+    /** A confirmed invite can be connected before its participant_joined webhook arrives. */
+    private function hasJoiningInvitee(Room $room, ?int $exceptParticipant = null): bool
+    {
+        return $room->participants()
+            ->when($exceptParticipant !== null, fn ($query) => $query->whereKeyNot($exceptParticipant))
+            ->where('connection', 'invited')
+            ->whereIn('user_id', $room->invitations()->select('invitee_id')->where('status', 'accepted'))
+            ->exists();
     }
 }
