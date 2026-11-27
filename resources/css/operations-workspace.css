@@ -3,8 +3,8 @@
    (--rt-red #e4002b / --rt-dark-accent #ff7189) abweichendes Rot. Auf ein
    Rot vereinheitlicht, damit Topbar/Sidebar und Betriebsbereich als ein
    System lesen. */
-.rt-ops { --ops-signal: var(--rt-brand-red); --ops-ink: #182230; --ops-muted: #637083; --ops-line: rgba(83,101,122,.16); --ops-platform: #f5f7f9; --ops-sheet: #fff; --ops-ok: #25603b; --ops-warn: #855d19; color:var(--ops-ink); min-width:0; font-size:14px; }
-.dark .rt-ops { --ops-ink:#edf0f5; --ops-muted:#a6b1c1; --ops-line:rgba(192,204,220,.16); --ops-platform:#17202d; --ops-sheet:#1c2736; --ops-signal:#ff7189; --ops-ok:#ace2bf; --ops-warn:#edcd91; }
+.rt-ops { --ops-signal: var(--rt-color-accent); --ops-ink: #182230; --ops-muted: #637083; --ops-line: rgba(83,101,122,.16); --ops-platform: #f5f7f9; --ops-sheet: #fff; --ops-ok: #25603b; --ops-warn: #855d19; color:var(--ops-ink); min-width:0; font-size:14px; }
+.dark .rt-ops { --ops-ink:#edf0f5; --ops-muted:#a6b1c1; --ops-line:rgba(192,204,220,.16); --ops-platform:#17202d; --ops-sheet:#1c2736; --ops-signal:var(--rt-color-accent); --ops-ok:#ace2bf; --ops-warn:#edcd91; }
 .rt-ops h1 { font-size:28px; font-weight:650; letter-spacing:-.035em; }
 .rt-ops h2 { font-size:20px; font-weight:650; letter-spacing:-.025em; }
 .rt-ops h3 { font-size:16px; font-weight:650; }

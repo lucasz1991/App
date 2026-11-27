@@ -198,7 +198,7 @@
 .rt-shift-plan-timeline-zoom .rt-shift-plan-timeline-zoom__button { min-height: 36px; min-width: 46px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: var(--rt-shell-muted, #637188); box-shadow: none; font-size: 12px; font-weight: 650; }
 .rt-shift-plan-timeline-zoom .rt-shift-plan-timeline-zoom__button[aria-pressed='true'] { background: var(--rt-shell-surface-solid, #fff); color: var(--rt-shell-text, #182435); box-shadow: 0 1px 3px rgb(24 36 53 / .09), inset 0 0 0 1px var(--rt-shell-line, #dce1e6); }
 .rt-shift-plan-timeline-zoom .rt-shift-plan-timeline-zoom__button:focus-visible { outline: 2px solid var(--rt-shell-accent, #e4002b); outline-offset: -2px; }
-.dark .rt-shift-plan-timeline-zoom { --rt-shell-line: var(--rt-dark-border, #303846); --rt-shell-panel: var(--rt-dark-surface-muted, #222b39); --rt-shell-surface-solid: var(--rt-dark-surface, #171d28); --rt-shell-text: var(--rt-dark-text, #edf2f8); --rt-shell-muted: var(--rt-dark-muted, #a5afbd); }
+.dark .rt-shift-plan-timeline-zoom { --rt-shell-line: var(--rt-dark-border, #303846); --rt-shell-panel: var(--rt-dark-surface-muted, #222b39); --rt-shell-surface-solid: var(--rt-dark-surface, #171d28); --rt-shell-text: var(--rt-color-text); --rt-shell-muted: var(--rt-dark-muted, #a5afbd); }
 @media (max-width: 480px) {
     .rt-shift-plan-timeline-zoom { gap: 0; padding: 2px; }
     .rt-shift-plan-timeline-zoom .rt-shift-plan-timeline-zoom__button { min-width: 30px; min-height: 38px; padding-inline: 5px; font-size: 11px; }
