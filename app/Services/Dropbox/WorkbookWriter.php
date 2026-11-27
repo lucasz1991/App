@@ -106,6 +106,6 @@ class WorkbookWriter
             }
         }
 
-        return ['bytes' => $output, 'changes' => $changes];
+        return ['bytes' => $output, 'changes' => $changes, 'parsed' => $parsed];
     }
 }

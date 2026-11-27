@@ -1,6 +1,7 @@
 {{-- Kompakte Tagesaktionen; die nativen Start-, Revisions- und Erfassungsregeln bleiben erhalten. --}}
 @php
-    $actionDuty = $assignments->first(fn ($assignment) => $assignment->shift?->ends_at?->isFuture());
+    $actionDuty = $assignments->first(fn ($assignment) => $assignment->shift?->ends_at?->isFuture()
+        && (! $workTimeReady || (! ($assignment->clock_unavailable ?? false) && ! $assignment->timeEntry)));
     $actionNow = now($displayTimezone);
     $actionStart = $actionDuty?->shift->starts_at->copy()->setTimezone($displayTimezone);
     $actionEnd = $actionDuty?->shift->ends_at->copy()->setTimezone($displayTimezone);

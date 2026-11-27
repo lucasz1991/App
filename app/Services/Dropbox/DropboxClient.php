@@ -3,6 +3,7 @@
 namespace App\Services\Dropbox;
 
 use App\Models\DropboxConnection;
+use App\Models\DropboxSource;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\DB;
@@ -70,6 +71,43 @@ class DropboxClient
         }
 
         return ['bytes' => $response->body(), 'metadata' => json_decode($response->header('Dropbox-API-Result'), true, 512, JSON_THROW_ON_ERROR)];
+    }
+
+    /** @return array{bytes: string, metadata: array} */
+    public function sourceMetadata(DropboxConnection $connection, DropboxSource $source): array
+    {
+        $guard = app(SyncGuard::class);
+        $guard->assertSourceAvailable($connection, $source);
+        try {
+            $metadata = $this->rpc($connection, 'files/get_metadata', ['path' => $source->path]);
+        } catch (DropboxApiException $e) {
+            if ($e->reason === 'not_found') {
+                throw new DropboxApiException('source_unavailable', $e->retryAfter);
+            }
+
+            throw $e;
+        }
+        $guard->assertSourceMetadata($source, $metadata);
+
+        return $metadata;
+    }
+
+    public function downloadSource(DropboxConnection $connection, DropboxSource $source): array
+    {
+        $guard = app(SyncGuard::class);
+        $guard->assertSourceAvailable($connection, $source);
+        try {
+            $download = $this->download($connection, $connection->isLocalImport() ? $source->file_id : $source->path);
+        } catch (DropboxApiException $e) {
+            if ($e->reason === 'not_found') {
+                throw new DropboxApiException('source_unavailable', $e->retryAfter);
+            }
+
+            throw $e;
+        }
+        $guard->assertSourceMetadata($source, $download['metadata']);
+
+        return $download;
     }
 
     public function upload(DropboxConnection $connection, string $path, string $bytes, ?string $revision): array

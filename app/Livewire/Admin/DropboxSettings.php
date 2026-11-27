@@ -17,10 +17,13 @@ use App\Services\Dropbox\ClosingService;
 use App\Services\Dropbox\ConnectionManager;
 use App\Services\Dropbox\DomainAdapter;
 use App\Services\Dropbox\DropboxClient;
+use App\Services\Dropbox\PlanningWeekRelocation;
 use App\Services\Dropbox\QualificationProjection;
+use App\Services\Dropbox\SyncGuard;
 use App\Services\Dropbox\SyncHealth;
 use App\Services\Dropbox\SyncLabels;
 use App\Services\Dropbox\TemplateService;
+use App\Services\Dropbox\WeekFileMatcher;
 use App\Services\Dropbox\WorkbookReader;
 use App\Services\Dropbox\WorkLedger;
 use Carbon\CarbonImmutable;
@@ -362,13 +365,29 @@ class DropboxSettings extends Component
     public function chooseDestination(): void
     {
         $conflict = $this->selectedConflict();
-        abort_unless($conflict->record_id, 422);
-        $source = DropboxSource::where('connection_id', $this->connectionId)->findOrFail((int) $this->targetSource);
-        $record = DropboxRecord::findOrFail($conflict->record_id);
-        $record->metadata = array_merge($record->metadata ?? [], ['target_source_id' => $source->id]);
-        $record->save();
-        app(WorkLedger::class)->enqueue($this->connection(), 'export', $record->model_type.':'.$record->model_id, ['type' => $record->model_type, 'id' => $record->model_id], 0);
-        $conflict->update(['state' => 'resolved', 'resolved_by' => auth()->id()]);
+        abort_unless($conflict->reason === 'destination_required' && $conflict->record_id, 422);
+        $connection = $this->connection();
+        DB::transaction(function () use ($conflict, $connection) {
+            $source = DropboxSource::where('connection_id', $connection->id)->findOrFail((int) $this->targetSource);
+            $record = DropboxRecord::where('connection_id', $connection->id)->lockForUpdate()->findOrFail($conflict->record_id);
+            $week = $conflict->snapshot['week'] ?? null;
+            if ($week) {
+                $current = app(DomainAdapter::class)->current($record);
+                if (app(WeekFileMatcher::class)->week($current['date']) !== $week) {
+                    throw ValidationException::withMessages(['targetSource' => 'Der Einsatz wurde erneut verschoben. Bitte den Abgleich erneut starten.']);
+                }
+                if (! app(PlanningWeekRelocation::class)->belongsToWeek($connection, $source, $week)
+                    || in_array($source->state, ['missing', 'excluded'], true) || ! app(SyncGuard::class)->pathAllowed($connection, $source->path)) {
+                    throw ValidationException::withMessages(['targetSource' => 'Eine verfügbare Wochenmappe für '.$week.' auswählen.']);
+                }
+            }
+            $record->metadata = array_merge($record->metadata ?? [], ['target_source_id' => $source->id]);
+            $record->save();
+            app(WorkLedger::class)->enqueue($connection, 'export', $record->model_type.':'.$record->model_id, ['type' => $record->model_type, 'id' => $record->model_id], 0);
+            $conflict->update(['state' => $week ? 'rechecking' : 'resolved', 'resolved_by' => auth()->id()]);
+        });
+        app(WorkLedger::class)->dispatch($connection->id);
+        $this->resetValidation('targetSource');
         $this->conflictId = null;
     }
 

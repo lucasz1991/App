@@ -7,6 +7,7 @@ use App\Models\DropboxConflict;
 use App\Models\DropboxConnection;
 use App\Models\DropboxRecord;
 use App\Models\DropboxSource;
+use Illuminate\Validation\ValidationException;
 
 class RowMapping
 {
@@ -32,6 +33,13 @@ class RowMapping
             $record = DropboxRecord::where('connection_id', $connection->id)->where('domain', $entry['domain'])->find($conflict->decision['record_id'] ?? null);
             if (! $record) {
                 continue;
+            }
+            if ($record->domain === 'contacts') {
+                try {
+                    app(DomainAdapter::class)->validateContactMapping($record, $entry['locator']['kind']);
+                } catch (ValidationException) {
+                    continue;
+                }
             }
             $appearances = DropboxAppearance::where('source_id', $source->id)->where('sheet', $entry['sheet'])->where('record_id', $record->id)->get();
             if ($appearances->count() > 1) {

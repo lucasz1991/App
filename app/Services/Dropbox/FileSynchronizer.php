@@ -39,17 +39,15 @@ class FileSynchronizer
     {
         $fresh = $this->guard->current($connection, preview: $preview);
         $preview = $preview || $fresh->mode === DropboxMode::Preview;
-        if (! $this->guard->pathAllowed($connection, $source->path) || in_array($source->state, ['excluded', 'missing'], true)) {
-            throw new DropboxApiException('source_unavailable');
-        }
-        $download = $this->client->download($connection, $source->file_id);
+        $cache = app(WorkbookRevisionCache::class);
+        $download = $cache->read($this->client, $fresh, $source, $prepared);
         $rev = $download['metadata']['rev'];
         if (! $preview && $fresh->mode !== DropboxMode::Preview) {
             app(UploadRecovery::class)->recover($connection, $source, $download['metadata']);
         }
         $source->rev = $rev;
-        $parsed = $connection->isLocalImport() && $prepared !== null ? $prepared : app(WorkbookReader::class)->read($download['bytes'], $source->profile);
-        $parsed = app(WeeklyAvailability::class)->contextualize($parsed, $source);
+        $parsed = app(WeeklyAvailability::class)->contextualize($download['parsed'], $source);
+        unset($download['parsed']);
         if (! $preview) {
             $people = app(HistoricalContactProvisioner::class)->reconcile($connection, [...$parsed, 'source_id' => $source->id], User::findOrFail(1));
             if ($people['mapped'] > 0) {
@@ -223,13 +221,17 @@ class FileSynchronizer
             }
             $summary['new']++;
             $subject = $entry['locator']['subject'] ?? $entry['values']['employee'] ?? '';
-            if ($subject !== '') {
+            if ($subject !== '' && $entry['domain'] !== 'contacts') {
                 $this->domain->identity($connection, $subject, ($entry['locator']['kind'] ?? '') === 'provider' ? 'provider' : 'unresolved', historical: $entry['domain'] === 'planning');
             }
-            if ($preview) {
-                continue;
-            }
             try {
+                if ($preview) {
+                    if ($entry['domain'] === 'contacts') {
+                        $this->related($connection, $source, $entry);
+                    }
+
+                    continue;
+                }
                 $b = OperationsTransaction::run(function () use ($connection, $source, $entry, $rev) {
                     $this->guard->current($connection, lock: true);
                     $occupied = DropboxAppearance::where('source_id', $source->id)->where('sheet', $entry['sheet'])->where('slot', $entry['slot'])->exists();
@@ -271,6 +273,7 @@ class FileSynchronizer
             }
         }
         $changes = [];
+        $pendingRelocations = 0;
         foreach (collect($bound)->groupBy(fn ($b) => $b['appearance']->record_id) as $recordId => $rows) {
             if (! $rows->contains(fn ($b) => isset($selected[$b['entry']['sheet'].'!'.$b['entry']['slot']]))) {
                 continue;
@@ -279,6 +282,11 @@ class FileSynchronizer
                 $result = OperationsTransaction::run(function () use ($connection, $source, $rev, $recordId, $rows, $preview) {
                     $this->guard->current($connection, preview: $preview, lock: true);
                     $record = DropboxRecord::lockForUpdate()->findOrFail($recordId);
+                    if ($record->domain === 'contacts') {
+                        foreach ($rows->pluck('entry.locator.kind')->unique() as $kind) {
+                            $this->domain->validateContactMapping($record, $kind);
+                        }
+                    }
                     if ($record->domain === 'planning' && $record->model_type === 'Shift') {
                         // The service is shared by multiple records. Lock it before
                         // reading the merge basis, not only when applying that basis.
@@ -343,6 +351,9 @@ class FileSynchronizer
                         $retired = $this->retirePersonalCopies($connection, $record, $local);
                     }
                     $out = [];
+                    $pendingRelocations = 0;
+                    $targetWeek = $record->domain === 'planning' && $record->model_type === 'Shift' && $source->profile === 'weekly'
+                        && ! $connection->isLocalImport() ? app(WeekFileMatcher::class)->week($target['date']) : null;
                     foreach ($rows as $b) {
                         $entry = $b['entry'];
                         $appearance = $b['appearance'];
@@ -354,13 +365,17 @@ class FileSynchronizer
                         if ($record->domain === 'planning' && ! isset($record->metadata['historical_values'])) {
                             $represented += array_intersect_key($rowTarget, array_flip(PlanningServiceProjection::FIELDS));
                         }
-                        if (WorkbookReader::fingerprint($represented) !== WorkbookReader::fingerprint($entry['values'])) {
+                        $relocating = $targetWeek !== null && ! isset($retired[$appearance->id])
+                            && app(PlanningWeekRelocation::class)->needsMove($connection, $source, $appearance, $targetWeek);
+                        if ($relocating) {
+                            $pendingRelocations++;
+                        } elseif (WorkbookReader::fingerprint($represented) !== WorkbookReader::fingerprint($entry['values'])) {
                             $out[] = ['entry' => $entry, 'values' => $represented, 'appearance_id' => $appearance->id];
                         }
                         if (! $preview) {
                             $baseline = $appearance->baseline;
                             foreach ($entry['values'] as $field => $value) {
-                                if (($rowTarget[$field] ?? null) === $value) {
+                                if (($rowTarget[$field] ?? null) === $value && (! $relocating || $field !== 'date')) {
                                     $baseline[$field] = $value;
                                 }
                             }
@@ -394,7 +409,7 @@ class FileSynchronizer
                         }
                     }
 
-                    return ['conflict' => false, 'changes' => $out, 'imported' => $changed];
+                    return ['conflict' => false, 'changes' => $out, 'imported' => $changed, 'pending_relocations' => $pendingRelocations];
                 }, 3);
                 if ($result['conflict']) {
                     $summary['conflicts']++;
@@ -403,6 +418,7 @@ class FileSynchronizer
                     $summary['imported']++;
                 }
                 array_push($changes, ...$result['changes']);
+                $pendingRelocations += $result['pending_relocations'] ?? 0;
             } catch (ValidationException $e) {
                 $record = DropboxRecord::find($recordId);
                 $this->conflicts->put($connection, $source, $record, 'business_rule', ['rev' => $rev, 'messages' => $e->errors()]);
@@ -423,12 +439,13 @@ class FileSynchronizer
                 $summary['conflicts']++;
             }
         }
-        $summary['outgoing'] = count($changes);
+        $summary['outgoing'] = count($changes) + $pendingRelocations;
         if ($changes && ! $preview && $connection->mode === DropboxMode::Bidirectional) {
             $written = app(WorkbookWriter::class)->writeChanges($download['bytes'], $changes, $source->profile);
             $bytes = $written['bytes'];
             $changes = $written['changes'];
             $metadata = app(RevisionUploader::class)->upload($connection, $source->path, $bytes, $rev, $changes);
+            $cache->store($connection, $source, $metadata, $bytes, $written['parsed']);
             DB::transaction(function () use ($changes, $source, $metadata, &$rev, &$summary) {
                 $rev = $metadata['rev'];
                 foreach ($changes as $change) {
@@ -568,10 +585,16 @@ class FileSynchronizer
             return app(NativeAvailabilityWorkbook::class)->related($connection, $source, $entry);
         }
         if ($entry['domain'] !== 'planning') {
-            $identity = $this->domain->identity($connection, $entry['locator']['subject']);
             if ($entry['domain'] === 'contacts') {
-                return DropboxRecord::where('connection_id', $connection->id)->where('model_type', 'DropboxIdentity')->where('model_id', $identity->id)->first();
+                $identity = $this->domain->contactIdentity($connection, $entry['locator']);
+                $record = DropboxRecord::where('connection_id', $connection->id)->where('model_type', 'DropboxIdentity')->where('model_id', $identity->id)->first();
+                if ($record) {
+                    $this->domain->validateContactMapping($record, $entry['locator']['kind']);
+                }
+
+                return $record;
             }
+            $identity = $this->domain->identity($connection, $entry['locator']['subject']);
             $fact = EmployeeCompetencyFact::where('identity_id', $identity->id)->where('kind', $entry['locator']['kind'])->where('name', $entry['locator']['name'])->where('scope', $entry['locator']['scope'])->first();
 
             return $fact ? DropboxRecord::where('connection_id', $connection->id)->where('model_type', 'EmployeeCompetencyFact')->where('model_id', $fact->id)->first() : null;

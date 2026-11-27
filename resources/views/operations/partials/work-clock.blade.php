@@ -11,7 +11,7 @@
         <x-ui.buttons.button-basic x-bind:disabled="offline || !ready" x-on:click="$wire.showCaptureConflicts(conflictEventKey)">Konflikt ansehen</x-ui.buttons.button-basic>
     </div>
 
-    <div class="rt-day-clock__start" x-show="!active || !['running','paused'].includes(active.status)" x-cloak>
+    <div class="rt-day-clock__start" x-show="ready && (!active || !['running','paused'].includes(active.status))" x-cloak>
         <div>
             <p class="rt-day-clock__state"><i class="far fa-clock" aria-hidden="true"></i>{{ ($clockEndedToday ?? false) ? 'Arbeitszeit beendet' : 'Noch nicht gestartet' }}</p>
             @if(isset($clockTargetMinutes))
@@ -34,7 +34,7 @@
         <i class="far fa-train" aria-hidden="true"></i>
         <div><strong x-text="active?.active_duty?.title"></strong>
             <p class="rt-day-clock__meta" x-text="active?.active_duty ? 'Dienst seit ' + clockTime(active.active_duty.started_at) : ''"></p></div>
-        <span class="rt-day-clock__duty-status">Dienst aktiv</span>
+        <span class="rt-day-clock__duty-status" x-text="active?.status === 'paused' ? 'Dienst zugeordnet' : 'Dienst aktiv'"></span>
     </div>
     @foreach($clockOffers ?? collect() as $offer)
         @php

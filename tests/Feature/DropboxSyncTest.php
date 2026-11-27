@@ -53,6 +53,7 @@ use Livewire\Livewire;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\Support\FakeDropboxClient;
@@ -243,7 +244,76 @@ class DropboxSyncTest extends TestCase
         }
     }
 
-    private function workbook(string $notes = 'Anfahrt', string $employee = '', bool $personal = false, ?string $headerColor = null): string
+    #[DataProvider('invalidBerlinShiftTimes')]
+    public function test_excel_shift_time_at_dst_transition_requires_review(string $date, string $time, string $field): void
+    {
+        $source = $this->source($this->workbook(date: $date, time: $time));
+
+        $summary = app(FileSynchronizer::class)->sync($this->connection, $source);
+
+        $this->assertSame(1, $summary['conflicts']);
+        $this->assertSame(0, Shift::count());
+        $this->assertSame(0, $this->client->uploads);
+        $conflict = DropboxConflict::where('source_id', $source->id)->where('reason', 'mapping_required')->sole();
+        $this->assertArrayHasKey($field, $conflict->snapshot['messages']);
+    }
+
+    public static function invalidBerlinShiftTimes(): array
+    {
+        return [
+            'spring start' => ['2026-03-29', '02:30–05:30', 'starts'],
+            'spring end' => ['2026-03-29', '01:30–02:30', 'ends'],
+            'spring overnight end' => ['2026-03-28', '23:30–02:30', 'ends'],
+            'autumn start' => ['2026-10-25', '02:30–05:30', 'starts'],
+            'autumn end' => ['2026-10-25', '01:30–02:30', 'ends'],
+            'autumn overnight end' => ['2026-10-24', '23:30–02:30', 'ends'],
+        ];
+    }
+
+    public function test_invalid_excel_time_change_holds_the_existing_shift_and_workbook(): void
+    {
+        $source = $this->source($this->workbook(date: '2026-03-29', time: '01:30–03:30'));
+        $sync = app(FileSynchronizer::class);
+        $sync->sync($this->connection, $source);
+        $shift = Shift::sole();
+        $uploads = $this->client->uploads;
+        $invalid = $this->workbook(date: '2026-03-29', time: '01:30–02:30');
+        $metadata = $this->client->put($source->path, $invalid);
+
+        $summary = $sync->sync($this->connection, $source->fresh());
+
+        $this->assertSame(1, $summary['conflicts']);
+        $this->assertSame(1, Shift::count());
+        $this->assertEquals($shift->ends_at, $shift->fresh()->ends_at);
+        $this->assertSame($uploads, $this->client->uploads);
+        $this->assertSame($metadata['rev'], $this->client->files[$source->path]['metadata']['rev']);
+        $conflict = DropboxConflict::where('source_id', $source->id)->where('reason', 'business_rule')->sole();
+        $this->assertArrayHasKey('ends', $conflict->snapshot['messages']);
+    }
+
+    #[DataProvider('validBerlinOvernightShifts')]
+    public function test_excel_overnight_shift_uses_actual_utc_interval(string $date, string $time, string $startsAt, string $endsAt): void
+    {
+        $source = $this->source($this->workbook(date: $date, time: $time));
+
+        $summary = app(FileSynchronizer::class)->sync($this->connection, $source);
+
+        $this->assertSame(0, $summary['conflicts']);
+        $shift = Shift::sole();
+        $this->assertSame($startsAt, $shift->starts_at->utc()->format('Y-m-d H:i'));
+        $this->assertSame($endsAt, $shift->ends_at->utc()->format('Y-m-d H:i'));
+    }
+
+    public static function validBerlinOvernightShifts(): array
+    {
+        return [
+            'normal overnight' => ['2026-09-15', '22:00–05:30', '2026-09-15 20:00', '2026-09-16 03:30'],
+            'overnight across spring transition' => ['2026-03-28', '23:30–03:30', '2026-03-28 22:30', '2026-03-29 01:30'],
+            'overnight across autumn transition' => ['2026-10-24', '23:30–03:30', '2026-10-24 21:30', '2026-10-25 02:30'],
+        ];
+    }
+
+    private function workbook(string $notes = 'Anfahrt', string $employee = '', bool $personal = false, ?string $headerColor = null, string $date = '2026-09-15', string $time = '08:00–10:00/–11:30'): string
     {
         $book = new Spreadsheet;
         $main = $book->getActiveSheet()->setTitle('WTU Abrechnung + Übersicht');
@@ -255,7 +325,7 @@ class DropboxSyncTest extends TestCase
             foreach (WorkbookReader::HEADERS as $col => $label) {
                 $sheet->setCellValue($col.'1', $label);
             }
-            $values = ['B' => 'Testbahnhof', 'C' => '2026-09-15', 'D' => '08:00–10:00/–11:30', 'E' => $employee, 'F' => 'ZUG-42', 'G' => $notes, 'H' => 'WGM', 'I' => 'Testkunde'];
+            $values = ['B' => 'Testbahnhof', 'C' => $date, 'D' => $time, 'E' => $employee, 'F' => 'ZUG-42', 'G' => $notes, 'H' => 'WGM', 'I' => 'Testkunde'];
             foreach ($values as $col => $value) {
                 $sheet->setCellValue($col.'2', $value);
             }
@@ -416,6 +486,116 @@ class DropboxSyncTest extends TestCase
         $this->assertCount(2, $parsed['rows']);
         $this->assertCount(2, $parsed['sheets']);
         $this->assertSame(2, DropboxAppearance::count());
+    }
+
+    public function test_week_relocation_keeps_mixed_workbook_rows_and_uses_iso_year_at_the_boundary(): void
+    {
+        [$shift, $previous] = $this->weekRelocationFixture();
+        $package = new WorkbookPackage($this->client->files[$previous->path]['bytes']);
+        $master = DropboxAppearance::where('source_id', $previous->id)->get()->first(fn ($appearance) => $appearance->locator['master']);
+        $row = (int) $master->slot + 1;
+        $package->patch([$master->sheet => [
+            'B'.$row => ['value' => 'Anderer Bahnhof'], 'C'.$row => ['value' => '2027-01-05'], 'D'.$row => ['value' => '10:00–12:00'],
+            'F'.$row => ['value' => 'FREMD-01'], 'H'.$row => ['value' => 'WGM'], 'I'.$row => ['value' => 'Testkunde'],
+        ]]);
+        $this->client->put($previous->path, $package->bytes());
+        app(FileSynchronizer::class)->sync($this->connection, $previous->fresh());
+        $this->assertSame(['2026-W53', '2027-W01'], $previous->fresh()->weeks);
+
+        $shift->update(['starts_at' => '2027-01-04 08:00:00', 'ends_at' => '2027-01-04 10:00:00']);
+        $uploads = $this->client->uploads;
+        app(FileSynchronizer::class)->sync($this->connection, $previous->fresh());
+        $this->assertSame($uploads, $this->client->uploads);
+        $this->assertSame([], DropboxConflict::where('source_id', $previous->id)->where('state', 'open')->get()->toArray());
+        app(RecordExporter::class)->export($this->connection, 'Shift', $shift->id);
+        $destination = DropboxSource::where('id', '!=', $previous->id)->firstOrFail();
+        $this->assertStringContainsString('kw 01 2027', $destination->path);
+        $this->assertSame(2, DropboxAppearance::where('source_id', $destination->id)->count());
+        $this->assertSame($uploads + 1, $this->client->uploads);
+
+        app(FileSynchronizer::class)->sync($this->connection, $previous->fresh());
+        app(FileSynchronizer::class)->sync($this->connection, $destination->fresh());
+        app(RecordExporter::class)->export($this->connection, 'Shift', $shift->id);
+        $this->assertSame($uploads + 2, $this->client->uploads);
+        $reader = app(WorkbookReader::class);
+        $old = collect($reader->read($this->client->files[$previous->path]['bytes'], 'weekly')['rows'])->pluck('values');
+        $new = collect($reader->read($this->client->files[$destination->path]['bytes'], 'weekly')['rows'])->pluck('values');
+        $moved = $old->where('date', '2026-12-31');
+        $this->assertCount(2, $moved);
+        $this->assertTrue($moved->every(fn ($values) => $values['cancelled'] && str_contains($values['cancellation'], 'nach 2027-W01 verschoben')));
+        $this->assertSame('FREMD-01', $old->firstWhere('date', '2027-01-05')['train_reference']);
+        $this->assertCount(2, $new);
+        $this->assertTrue($new->every(fn ($values) => $values['date'] === '2027-01-04' && ! $values['cancelled']));
+        $this->assertSame(ShiftStatus::Draft, $shift->fresh()->status);
+        $this->assertSame('requested', $shift->assignments()->firstOrFail()->status->value);
+        $this->assertSame(2, Shift::count());
+    }
+
+    public function test_week_relocation_waits_for_explicit_target_when_two_nominal_week_files_exist(): void
+    {
+        [$shift, $previous, $template] = $this->weekRelocationFixture();
+        $shift->update(['starts_at' => '2027-01-04 08:00:00', 'ends_at' => '2027-01-04 10:00:00']);
+        $bytes = app(TemplateService::class)->load($template);
+        $chosen = app(SourceScanner::class)->register($this->connection, $this->client->put('/Disposition/Aufträge KW 01 2027.xlsx', $bytes));
+        app(SourceScanner::class)->register($this->connection, $this->client->put('/Disposition/Aufträge KW 01 aktuell 2027.xlsx', $bytes));
+        app(RecordExporter::class)->export($this->connection, 'Shift', $shift->id);
+        app(FileSynchronizer::class)->sync($this->connection, $previous->fresh());
+        $this->assertSame(1, $this->client->uploads);
+        $this->assertSame('pending_export', $previous->fresh()->state);
+        $conflict = DropboxConflict::where('reason', 'destination_required')->firstOrFail();
+        $this->assertSame('2027-W01', $conflict->snapshot['week']);
+        $component = Livewire::actingAs(User::findOrFail(1))->test(DropboxSettings::class)
+            ->call('selectConflict', $conflict->id)->set('targetSource', (string) $previous->id);
+        $component->call('chooseDestination')->assertHasErrors('targetSource');
+        $component->set('targetSource', (string) $chosen->id)->call('chooseDestination')->assertHasNoErrors();
+        $this->assertSame('rechecking', $conflict->fresh()->state);
+
+        app(FileSynchronizer::class)->sync($this->connection, $chosen->fresh());
+        app(RecordExporter::class)->export($this->connection, 'Shift', $shift->id);
+        $this->assertSame(2, DropboxAppearance::where('source_id', $chosen->id)->count());
+        $this->assertSame('resolved', $conflict->fresh()->state);
+    }
+
+    public function test_week_relocation_compares_new_excel_revision_before_exporting_the_new_week(): void
+    {
+        [$shift, $previous] = $this->weekRelocationFixture();
+        $shift->update(['starts_at' => '2027-01-04 08:00:00', 'ends_at' => '2027-01-04 10:00:00']);
+        $package = new WorkbookPackage($this->client->files[$previous->path]['bytes']);
+        $master = DropboxAppearance::where('source_id', $previous->id)->get()->first(fn ($appearance) => $appearance->locator['master']);
+        $package->patch([$master->sheet => ['G'.$master->slot => ['value' => '[ENTWURF] Aktualisierter Excel-Hinweis']]]);
+        $this->client->put($previous->path, $package->bytes());
+
+        try {
+            app(RecordExporter::class)->export($this->connection, 'Shift', $shift->id);
+            $this->fail('Die bisherige Datei muss zuerst abgeglichen werden.');
+        } catch (DropboxApiException $e) {
+            $this->assertSame('relocation_source_needs_import', $e->reason);
+        }
+        $this->assertCount(1, $this->client->files);
+        app(FileSynchronizer::class)->sync($this->connection, $previous->fresh());
+        $this->assertSame([], DropboxConflict::where('source_id', $previous->id)->where('state', 'open')->get()->toArray());
+        $this->assertSame('Aktualisierter Excel-Hinweis', $shift->fresh()->notes);
+        app(RecordExporter::class)->export($this->connection, 'Shift', $shift->id);
+        $destination = DropboxSource::where('id', '!=', $previous->id)->firstOrFail();
+        $new = app(WorkbookReader::class)->read($this->client->files[$destination->path]['bytes'], 'weekly')['rows'];
+        $this->assertSame('Aktualisierter Excel-Hinweis', $new[0]['values']['notes']);
+    }
+
+    private function weekRelocationFixture(): array
+    {
+        $template = app(TemplateService::class)->install($this->workbook());
+        $this->connection->update(['settings' => [...$this->connection->settings, 'week_template' => $template, 'employee_template' => $template]]);
+        $user = User::factory()->create(['name' => 'Test Person', 'role' => 'staff', 'status' => true]);
+        DropboxIdentity::create(['connection_id' => $this->connection->id, 'user_id' => $user->id, 'alias' => 'test person', 'kind' => 'employee', 'details' => ['display_name' => 'Test Person']]);
+        $customer = Customer::create(['company_name' => 'Testkunde', 'is_active' => true]);
+        $order = Order::create(['customer_id' => $customer->id, 'title' => 'Testauftrag', 'service_type' => 'WGM', 'status' => 'requested', 'priority' => 'normal',
+            'starts_at' => '2026-12-30 00:00:00', 'ends_at' => '2027-01-06 00:00:00', 'timezone' => 'Europe/Berlin', 'required_staff' => 1]);
+        $shift = Shift::create(['order_id' => $order->id, 'title' => 'Testdienst', 'role_name' => 'WGM', 'status' => 'draft', 'required_staff' => 1,
+            'starts_at' => '2026-12-31 08:00:00', 'ends_at' => '2026-12-31 10:00:00', 'timezone' => 'Europe/Berlin', 'location_name' => 'Testbahnhof']);
+        ShiftAssignment::create(['shift_id' => $shift->id, 'user_id' => $user->id, 'status' => 'requested', 'assigned_by' => 1]);
+        app(RecordExporter::class)->export($this->connection, 'Shift', $shift->id);
+
+        return [$shift, DropboxSource::firstOrFail(), $template];
     }
 
     public function test_settings_render_and_every_action_rejects_an_ordinary_admin(): void

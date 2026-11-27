@@ -66,6 +66,9 @@ class WorkTimeDayReviewTest extends TestCase
     public function test_plan_overlap_excludes_breaks_and_edited_allocation_submits_one_daily_entry(): void
     {
         $duty = $this->duty();
+        $pending = app(WorkTimeExtensionService::class)->completeness($this->employee, '2026-11-27', '2026-11-27', $this->employee);
+        $this->assertSame([], $pending['missing_shift_times']);
+        $this->assertSame([$this->entry->id], array_column($pending['unfinished_times'], 'id'));
         Livewire::actingAs($this->employee)->test(WorkTimeDayReview::class, ['entryId' => $this->entry->id])
             ->assertSee('Tagesbeleg prüfen')->assertSee('8:00 h')->assertSee('4:30 h')->assertSee('3:30 h')
             ->call('edit')->set('fields.'.$duty->id.'.starts_at', '2026-11-27T10:30')

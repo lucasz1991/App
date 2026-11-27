@@ -17,7 +17,7 @@ use Illuminate\Validation\ValidationException;
 
 class RecordExporter
 {
-    public function __construct(private DomainAdapter $domain, private DropboxClient $client, private WorkLedger $ledger, private SyncGuard $guard) {}
+    public function __construct(private DomainAdapter $domain, private DropboxClient $client, private WorkLedger $ledger, private SyncGuard $guard, private PlanningWeekRelocation $relocation) {}
 
     public function export(DropboxConnection $connection, string $type, int $id, bool $preview = false): void
     {
@@ -60,7 +60,32 @@ class RecordExporter
                     && Shift::whereKey($record->model_id)->whereIn('status', ['completed', 'cancelled'])->exists())) {
                     continue; // Existing cells and closed imported history use the queued file comparison.
                 }
-                foreach (DropboxSource::whereIn('id', $appearances->pluck('source_id'))->where('profile', 'weekly')->get() as $source) {
+                $sources = DropboxSource::whereIn('id', $appearances->pluck('source_id'))->where('profile', 'weekly')->get();
+                $week = app(WeekFileMatcher::class)->week($this->domain->current($record)['date']);
+                $previous = $sources->filter(fn ($source) => $appearances->where('source_id', $source->id)
+                    ->contains(fn ($appearance) => $this->relocation->needsMove($connection, $source, $appearance, $week)));
+                if ($previous->isNotEmpty()) {
+                    try {
+                        $target = $this->target($connection, $record, $week, $sources->diff($previous)->modelKeys());
+                        foreach ($previous as $source) {
+                            $this->relocation->assertReady($connection, $record, $source);
+                        }
+                        $destination = $this->append($connection, $record, $target);
+                    } catch (ValidationException $e) {
+                        app(ConflictStore::class)->put($connection, null, $record, 'destination_required', ['messages' => $e->errors(), 'week' => $week]);
+
+                        continue;
+                    }
+                    if ($destination) {
+                        foreach ($previous as $source) {
+                            $this->relocation->retire($connection, $record, $source, $destination, $week);
+                        }
+                        DropboxConflict::where('record_id', $record->id)->where('reason', 'destination_required')->whereNotNull('snapshot->week')->update(['state' => 'resolved']);
+                    }
+
+                    continue;
+                }
+                foreach ($sources as $source) {
                     $this->append($connection, $record, $source);
                 }
             } else {
@@ -73,10 +98,14 @@ class RecordExporter
         }
     }
 
-    private function target(DropboxConnection $connection, DropboxRecord $record): ?DropboxSource
+    private function target(DropboxConnection $connection, DropboxRecord $record, ?string $relocationWeek = null, array $preferredSources = []): ?DropboxSource
     {
         if ($record->metadata['target_source_id'] ?? null) {
             $source = DropboxSource::where('connection_id', $connection->id)->whereKey($record->metadata['target_source_id'])->firstOrFail();
+            if ($relocationWeek !== null && (! $this->relocation->belongsToWeek($connection, $source, $relocationWeek)
+                || in_array($source->state, ['missing', 'excluded'], true) || ! $this->guard->pathAllowed($connection, $source->path))) {
+                throw ValidationException::withMessages(['sync' => 'Die gewählte Zielmappe gehört nicht zur neuen Einsatzwoche '.$relocationWeek.'.']);
+            }
             if (in_array($record->metadata['kind'] ?? '', ['availability_note', 'availability_submission'], true)) {
                 $week = app(WeeklyAvailability::class)->recordWeek($record);
                 if (! $week || $source->profile !== 'weekly' || in_array($source->state, ['missing', 'excluded'], true)
@@ -89,8 +118,13 @@ class RecordExporter
             return $source;
         }
         if ($record->domain === 'planning') {
-            $week = app(WeekFileMatcher::class)->week($this->domain->current($record)['date']);
-            $sources = DropboxSource::where('connection_id', $connection->id)->where('profile', 'weekly')->whereNotIn('state', ['missing', 'excluded'])->get()->filter(fn ($s) => in_array($week, $s->weeks ?? [], true));
+            $week = $relocationWeek ?? app(WeekFileMatcher::class)->week($this->domain->current($record)['date']);
+            $sources = DropboxSource::where('connection_id', $connection->id)->where('profile', 'weekly')->whereNotIn('state', ['missing', 'excluded'])->get()
+                ->filter(fn ($source) => $this->guard->pathAllowed($connection, $source->path) && $this->relocation->belongsToWeek($connection, $source, $week));
+            $preferred = $sources->whereIn('id', $preferredSources);
+            if ($preferred->count() === 1) {
+                return $preferred->first();
+            }
             if ($sources->count() > 1) {
                 throw ValidationException::withMessages(['sync' => 'Mehrere Zielmappen für '.$week.'. Ziel unter Konflikte auswählen.']);
             }
@@ -124,7 +158,7 @@ class RecordExporter
         return $sources->first();
     }
 
-    private function append(DropboxConnection $connection, DropboxRecord $record, ?DropboxSource $source): void
+    private function append(DropboxConnection $connection, DropboxRecord $record, ?DropboxSource $source): ?DropboxSource
     {
         $values = $this->domain->current($record);
         $week = $record->domain === 'planning' ? app(WeekFileMatcher::class)->week($values['date']) : app(WeeklyAvailability::class)->recordWeek($record);
@@ -163,7 +197,7 @@ class RecordExporter
                 if (! $this->guard->pathAllowed($connection, $source->path) || in_array($source->state, ['missing', 'excluded'], true)) {
                     throw new DropboxApiException('source_unavailable');
                 }
-                $download = $this->client->download($connection, $source->file_id);
+                $download = app(WorkbookRevisionCache::class)->read($this->client, $connection, $source);
                 if ($source->processed_rev !== $download['metadata']['rev'] && $source->own_rev !== $download['metadata']['rev']) {
                     $this->ledger->enqueue($connection, 'file', 'file:'.$source->id, ['source_id' => $source->id], 0);
                     throw new DropboxApiException('destination_needs_import', 10);
@@ -176,7 +210,7 @@ class RecordExporter
             }
             $profile = $source?->profile ?? 'weekly';
             $context = $source ?? new DropboxSource(['connection_id' => $connection->id, 'name' => basename($path), 'profile' => $profile, 'weeks' => $week ? [$week] : []]);
-            $parsed = app(WorkbookReader::class)->read($bytes, $profile);
+            $parsed = $download['parsed'] ?? app(WorkbookReader::class)->read($bytes, $profile);
             $parsed = app(WeeklyAvailability::class)->contextualize($parsed, $context);
             if (($record->metadata['kind'] ?? '') === 'availability_submission' && ! isset($parsed['sheets'][NativeAvailabilityWorkbook::SHEET])) {
                 if (! $connection->option('create_sheets')) {
@@ -246,7 +280,7 @@ class RecordExporter
                 }
             } else {
                 if ($appearances->isNotEmpty()) {
-                    return;
+                    return $source;
                 }
                 [$entry, $extraCells] = ($record->metadata['kind'] ?? '') === 'availability_submission'
                     ? app(NativeAvailabilityWorkbook::class)->appendEntry($connection, $record, $parsed, $values)
@@ -254,7 +288,7 @@ class RecordExporter
                 $changes[] = ['entry' => $entry, 'values' => $values, 'record_id' => $record->id];
             }
             if (! $changes) {
-                return;
+                return $source;
             }
             if ($extraCells) {
                 $package = new WorkbookPackage($bytes);
@@ -278,9 +312,12 @@ class RecordExporter
                 }
                 DropboxConnection::whereKey($connection->id)->update(['exported_at' => now()]);
             });
+            app(WorkbookRevisionCache::class)->store($connection, $source, $metadata, $bytes, $written['parsed']);
             // Own uploads are skipped by the cursor once processed_rev matches.
             // Recheck once so the durable per-file result includes appended rows.
             $this->ledger->enqueue($connection, 'file', 'file:'.$source->id, ['source_id' => $source->id], 0);
+
+            return $source;
         } finally {
             $lock->release();
         }

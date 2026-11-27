@@ -4,6 +4,7 @@ namespace App\Services\Dropbox;
 
 use App\Enums\DropboxMode;
 use App\Models\DropboxConnection;
+use App\Models\DropboxSource;
 
 class SyncGuard
 {
@@ -36,5 +37,22 @@ class SyncGuard
         }
 
         return false;
+    }
+
+    public function assertSourceAvailable(DropboxConnection $connection, DropboxSource $source): void
+    {
+        if ((int) $source->connection_id !== (int) $connection->id || ! $this->pathAllowed($connection, $source->path) || in_array($source->state, ['excluded', 'missing'], true)) {
+            throw new DropboxApiException('source_unavailable');
+        }
+    }
+
+    /** The request used the registered path. Its occupant must still be the registered file. */
+    public function assertSourceMetadata(DropboxSource $source, array $metadata): void
+    {
+        $path = $metadata['path_lower'] ?? $metadata['path_display'] ?? null;
+        if (($metadata['.tag'] ?? 'file') !== 'file' || ($metadata['id'] ?? null) !== $source->file_id
+            || ($path !== null && (! is_string($path) || mb_strtolower($path) !== mb_strtolower($source->path)))) {
+            throw new DropboxApiException('source_unavailable');
+        }
     }
 }

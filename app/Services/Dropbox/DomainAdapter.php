@@ -19,6 +19,7 @@ use App\Models\WorkTimeEntry;
 use App\Services\Operations\OrderSchedulingService;
 use App\Services\Operations\ShiftAssignmentService;
 use App\Services\Operations\ShiftSchedulingService;
+use App\Support\Operations\OperationsDateTime;
 use App\Support\Operations\OperationsTransaction;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -35,7 +36,34 @@ class DomainAdapter
             'connection_id' => $connection->id, 'alias' => WorkbookReader::normalize($name),
         ], ['kind' => $kind, 'details' => ['display_name' => trim($name)]]));
 
-        return $connection->isLocalImport() ? $identity : $this->identityResolver->resolve($connection, $identity, $historical);
+        return $connection->isLocalImport() || $kind === 'provider' ? $identity : $this->identityResolver->resolve($connection, $identity, $historical);
+    }
+
+    public function contactIdentity(DropboxConnection $connection, array $locator): DropboxIdentity
+    {
+        $kind = $locator['kind'];
+        $identity = $this->identity($connection, $locator['subject'], $kind === 'provider' ? 'provider' : 'unresolved');
+        $this->validateContactKind($identity, $kind);
+
+        return $identity;
+    }
+
+    public function validateContactMapping(DropboxRecord $record, string $kind): void
+    {
+        $identity = DropboxIdentity::where('connection_id', $record->connection_id)->lockForUpdate()->findOrFail($record->model_id);
+        $this->validateContactKind($identity, $kind, $record->metadata['kind'] ?? null);
+    }
+
+    private function validateContactKind(DropboxIdentity $identity, string $kind, ?string $registeredKind = null): void
+    {
+        $compatible = match ($kind) {
+            'provider' => $identity->kind === 'provider' && ! $identity->user_id,
+            'employee' => in_array($identity->kind, ['employee', 'unresolved'], true),
+            default => false,
+        };
+        if (! $compatible || (in_array($registeredKind, ['employee', 'provider'], true) && $registeredKind !== $kind)) {
+            throw ValidationException::withMessages(['sync' => 'Der Excel-Kontakt passt nicht zur vorhandenen Mitarbeiter- oder Dienstleisterzuordnung. Bitte die Bezeichnung in Excel oder ihre Zuordnung prüfen.']);
+        }
     }
 
     public function current(DropboxRecord $record): array
@@ -89,7 +117,7 @@ class DomainAdapter
             $identity = DropboxIdentity::findOrFail($record->model_id);
             $values = $identity->details ?? [];
             unset($values['display_name']);
-            if ($identity->user_id && ($profile = UserProfile::where('user_id', $identity->user_id)->first())) {
+            if ($identity->kind === 'employee' && $identity->user_id && ($profile = UserProfile::where('user_id', $identity->user_id)->first())) {
                 $values['first_name'] ??= $profile->first_name ?? '';
                 $values['last_name'] ??= $profile->last_name ?? '';
                 foreach (['first_name', 'last_name', 'phone', 'mobile', 'city', 'birth_date', 'birth_place', 'nationality'] as $field) {
@@ -119,10 +147,12 @@ class DomainAdapter
                 return $record;
             }
             $loc = $entry['locator'];
-            $identity = $this->identity($connection, $loc['subject'], $loc['kind'] === 'provider' ? 'provider' : 'unresolved');
             if ($entry['domain'] === 'contacts') {
+                $identity = $this->contactIdentity($connection, $loc);
                 $record = DropboxRecord::firstOrCreate(['connection_id' => $connection->id, 'domain' => 'contacts', 'model_type' => 'DropboxIdentity', 'model_id' => $identity->id], ['metadata' => ['kind' => $loc['kind']]]);
+                $this->validateContactKind($identity, $loc['kind'], $record->metadata['kind'] ?? null);
             } else {
+                $identity = $this->identity($connection, $loc['subject']);
                 $fact = EmployeeCompetencyFact::where('identity_id', $identity->id)->where('kind', $loc['kind'])->where('name', $loc['name'])->where('scope', $loc['scope'])->first();
                 if (! $fact) {
                     $fact = SyncContext::import(fn () => EmployeeCompetencyFact::create(['identity_id' => $identity->id, 'kind' => $loc['kind'], 'name' => $loc['name'], 'scope' => $loc['scope'], 'value' => $entry['values']]));
@@ -152,7 +182,11 @@ class DomainAdapter
                 return;
             }
             if ($record->domain === 'contacts') {
-                $identity = DropboxIdentity::lockForUpdate()->findOrFail($record->model_id);
+                $identity = DropboxIdentity::where('connection_id', $connection->id)->lockForUpdate()->findOrFail($record->model_id);
+                $kind = $record->metadata['kind'] ?? null;
+                if (in_array($kind, ['employee', 'provider'], true)) {
+                    $this->validateContactKind($identity, $kind);
+                }
                 $allowed = ['first_name', 'last_name', 'name', 'reported_qualifications', 'contact_email', 'phone', 'mobile', 'city', 'deployment_region', 'birth_date', 'birth_place', 'nationality', 'notes'];
                 $values = array_intersect_key($values, array_flip($allowed));
                 Validator::make($values, ['contact_email' => 'nullable|email|max:254', 'birth_date' => 'nullable|date_format:Y-m-d', '*' => 'nullable|string|max:4000'])->validate();
@@ -186,17 +220,11 @@ class DomainAdapter
         $actor = User::findOrFail(1);
         abort_unless($actor->isSuperAdmin() && $actor->status, 403);
         $zone = $connection->option('timezone');
-        $start = CarbonImmutable::createFromFormat('!Y-m-d H:i', $values['date'].' '.$values['starts'], $zone);
-        $end = CarbonImmutable::createFromFormat('!Y-m-d H:i', $values['date'].' '.$values['ends'], $zone);
-        if ($end->lte($start)) {
-            $end = $end->addDay();
-        }
-        if ($start->format('Y-m-d H:i') !== $values['date'].' '.$values['starts']) {
-            throw ValidationException::withMessages(['sync' => 'Zeit liegt in einer Sommerzeitlücke.']);
-        }
-        // Scheduling services compare SQL timestamps in UTC; workbook values are local civil times.
-        $start = $start->utc();
-        $end = $end->utc();
+        $date = $values['date'];
+        // The workbook supplies only the start date. Determine the local end date before interpreting either clock time.
+        $endDate = $values['ends'] <= $values['starts'] ? CarbonImmutable::parse($date, 'UTC')->addDay()->toDateString() : $date;
+        $start = OperationsDateTime::local($date.' '.$values['starts'], $zone, 'starts');
+        $end = OperationsDateTime::local($endDate.' '.$values['ends'], $zone, 'ends');
         $identity = ! empty($values['employee']) ? $this->identity($connection, $values['employee'], historical: ($record->metadata['imported_order'] ?? false) && $end->isPast()) : null;
         $retainDraft = (bool) $connection->option('retain_unassigned_drafts') && ($record->metadata['imported_order'] ?? false)
             && (! $record->model_id || (($record->metadata['assignment_pending'] ?? false) && ! Shift::findOrFail($record->model_id)->published_revision));

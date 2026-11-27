@@ -367,6 +367,7 @@ trait TracksWorkTime
             $eligible->withoutRecordedTime();
         }
         $ids = $eligible->pluck('id');
+        $candidates->each(fn ($assignment) => $assignment->setAttribute('clock_unavailable', ! $ids->contains($assignment->id)));
         $available = $candidates->whereIn('id', $ids)->sortBy(fn ($assignment) => $assignment->shift->starts_at->timestamp)->values();
         $startable = $available->filter(fn ($assignment) => $assignment->shift->starts_at->lte($windowEnd));
         return $startable->isEmpty() ? $available->take(1) : $startable;

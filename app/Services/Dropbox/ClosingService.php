@@ -62,6 +62,11 @@ class ClosingService
             throw new DropboxApiException('configuration_changed');
         }
         $client = app(DropboxClient::class);
+        $download = $client->downloadSource($connection, $source);
+        if ($download['metadata']['rev'] !== $source->processed_rev) {
+            app(WorkLedger::class)->enqueue($connection, 'file', 'file:'.$source->id, ['source_id' => $source->id], 0);
+            throw new DropboxApiException('revision_conflict');
+        }
         try {
             $client->rpc($connection, 'files/create_folder_v2', ['path' => $connection->archive_path, 'autorename' => false]);
         } catch (DropboxApiException $e) {
@@ -73,11 +78,6 @@ class ClosingService
                 throw $e;
             }
         }
-        $download = $client->download($connection, $source->file_id);
-        if ($download['metadata']['rev'] !== $source->processed_rev) {
-            app(WorkLedger::class)->enqueue($connection, 'file', 'file:'.$source->id, ['source_id' => $source->id], 0);
-            throw new DropboxApiException('revision_conflict');
-        }
         $path = $connection->archive_path.'/'.$source->id.'-'.$source->processed_rev.'-'.$source->name;
         $metadata = app(RevisionUploader::class)->upload($connection, $path, $download['bytes'], null);
         DB::table('dropbox_archives')->updateOrInsert(['source_id' => $source->id, 'generation' => $connection->generation, 'source_rev' => $source->processed_rev], ['connection_id' => $connection->id, 'archive_path' => $path, 'archive_rev' => $metadata['rev'], 'created_at' => now(), 'updated_at' => now()]);
@@ -85,13 +85,14 @@ class ClosingService
 
     public function finish(DropboxConnection $connection): void
     {
-        app(SyncGuard::class)->current($connection, write: true);
+        $guard = app(SyncGuard::class);
+        $guard->current($connection, write: true);
         if (! $connection->closing) {
             throw new DropboxApiException('configuration_changed');
         }
         $client = app(DropboxClient::class);
         foreach (DropboxSource::where('connection_id', $connection->id)->whereNotIn('state', ['missing', 'excluded'])->get() as $source) {
-            $actual = $client->rpc($connection, 'files/get_metadata', ['path' => $source->file_id]);
+            $actual = $client->sourceMetadata($connection, $source);
             if ($actual['rev'] !== $source->processed_rev || ! DB::table('dropbox_archives')->where('source_id', $source->id)->where('generation', $connection->generation)->where('source_rev', $actual['rev'])->exists()) {
                 app(WorkLedger::class)->enqueue($connection, 'file', 'file:'.$source->id, ['source_id' => $source->id], 0);
                 throw new DropboxApiException('revision_conflict');
