@@ -79,6 +79,7 @@ export async function createLiveLocationMap({
     accuracy = 0,
     interactive = false,
     showInitialMarker = true,
+    markerLabel = null,
     zoom = interactive ? 16 : 15,
     mapConfig = null,
     documentLike = globalThis.document,
@@ -129,6 +130,11 @@ export async function createLiveLocationMap({
         interactive: false,
         keyboard: false,
     }).addTo(map);
+    if (markerLabel) {
+        const label = element.ownerDocument.createElement('span');
+        label.textContent = markerLabel;
+        marker.bindTooltip(label, { permanent: true, direction: 'top', offset: [0, -17] });
+    }
     const accuracyCircle = L.circle(center, {
         radius: positiveAccuracy(accuracy),
         color: '#e4002b',

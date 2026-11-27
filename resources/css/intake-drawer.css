@@ -71,7 +71,7 @@
 .rt-intake-drawer__position-header h3 { color: var(--intake-muted); font-size: 11px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; }
 .rt-intake-drawer__position > h4 { font-size: 19px; line-height: 1.4; font-weight: 650; letter-spacing: -.02em; overflow-wrap: anywhere; }
 .rt-intake-visuals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin: 18px 0; }
-.rt-intake-visuals__calendar, .rt-intake-visuals__map { display: flex; flex-direction: column; min-width: 0; min-height: 236px; overflow: hidden; border: 1px solid var(--intake-line); border-radius: 9px; background: var(--intake-paper); }
+.rt-intake-visuals__calendar, .rt-intake-visuals__clock, .rt-intake-visuals__map { display: flex; flex-direction: column; min-width: 0; min-height: 236px; overflow: hidden; border: 1px solid var(--intake-line); border-radius: 9px; background: var(--intake-paper); }
 .rt-intake-visuals__calendar > .rt-event-mini-calendar--intake { display: flex; flex: 1; flex-direction: column; width: 100%; min-width: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .rt-intake-visuals .rt-event-mini-calendar__header { display: flex; align-items: center; justify-content: center; padding: 10px 12px 6px; min-height: 37px; }
 .rt-intake-visuals .rt-event-mini-calendar__month { color: var(--intake-ink); font-size: 14px; font-weight: 650; }
@@ -83,9 +83,12 @@
 .rt-intake-visuals .rt-event-mini-calendar__day:is(.is-start, .is-end) { justify-self: center; width: 27px; border-radius: 50%; background: var(--intake-accent); color: #fff; font-weight: 600; }
 .rt-intake-visuals__time, .rt-intake-visuals__caption { display: flex; align-items: center; gap: 9px; min-height: 42px; margin-top: auto; padding: 9px 13px; border-top: 1px solid var(--intake-line); color: var(--intake-ink); font-size: 13px; line-height: 1.4; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .rt-intake-visuals__time i, .rt-intake-visuals__caption i { flex: none; font-size: 16px; }
-.rt-intake-visuals__map-stage { position: relative; flex: 1; min-height: 192px; isolation: isolate; background: var(--intake-inset); }
+.rt-intake-visuals__calendar:has(> .rt-intake-visuals__empty), .rt-intake-visuals__map { grid-column: 1 / -1; }
+.rt-intake-visuals__dial { width: min(72%, 158px); height: auto; margin: auto; color: var(--intake-ink); }
+.rt-intake-visuals__clock .rt-intake-visuals__time { justify-content: center; margin: 0; text-align: center; }
+.rt-intake-visuals__map-stage { position: relative; flex: 1; min-height: clamp(245px, 32vh, 360px); isolation: isolate; background: var(--intake-inset); }
 .rt-intake-visuals__map-canvas { position: absolute; inset: 0; background: var(--intake-inset); }
-.rt-intake-visuals__map-canvas .leaflet-tile-pane { filter: saturate(.35); }
+.rt-intake-visuals__map-canvas .leaflet-tooltip { max-width: min(220px, 46vw); white-space: normal; font-weight: 600; text-align: center; }
 .rt-intake-visuals__map-canvas .rt-live-location-marker { display: grid; place-items: center; width: 36px; height: 36px; color: var(--intake-accent); background: transparent; border: 0; border-radius: 0; box-shadow: none; }
 .rt-intake-visuals__map-canvas .rt-live-location-marker > i { font-size: 30px; }
 .rt-intake-visuals__map-canvas .rt-live-location-marker > i::before { content: '\f3c5'; }
@@ -152,11 +155,12 @@ html.dark .rt-intake-drawer__footer { color: var(--rt-dark-text, #e5eaf1); }
     .rt-intake-drawer__tabs .rt-ops-panel__tab > i { font-size: 17px; }
     .rt-intake-drawer__body { padding: 18px 16px 24px; }
     .rt-intake-drawer__position > h4 { font-size: 17px; }
-    .rt-intake-visuals { grid-template-columns: minmax(0, 1fr); gap: 14px; margin: 16px 0; }
-    .rt-intake-visuals__calendar, .rt-intake-visuals__map { min-height: 224px; }
-    .rt-intake-visuals__map-stage, .rt-intake-visuals__empty { min-height: 180px; }
-    .rt-intake-visuals .rt-event-mini-calendar__grid { padding-inline: 24px; }
-    .rt-intake-visuals :is(.rt-event-mini-calendar__weekday, .rt-event-mini-calendar__day) { min-height: 26px; }
+    .rt-intake-visuals { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 8px; margin: 16px 0; }
+    .rt-intake-visuals__calendar, .rt-intake-visuals__clock { min-height: 175px; }
+    .rt-intake-visuals .rt-event-mini-calendar__day:is(.is-start, .is-end) { width: min(22px, 100%); }
+    .rt-intake-visuals__empty { min-height: 150px; }
+    .rt-intake-visuals .rt-event-mini-calendar__grid { padding-inline: 3px; }
+    .rt-intake-visuals :is(.rt-event-mini-calendar__weekday, .rt-event-mini-calendar__day) { min-height: 20px; }
     .rt-intake-drawer .rt-ui-button { min-height: 44px; }
     .rt-intake-drawer__footer { gap: 8px; align-items: flex-end; }
     .rt-intake-drawer__footer-actions { gap: 8px; flex: 1; }

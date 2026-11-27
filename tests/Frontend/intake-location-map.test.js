@@ -46,7 +46,7 @@ test('lazy preview loads only when visible, once, and reflows after a tab return
     await flush();
     assert.equal(f.calls.length, 1);
     assert.equal(f.state.status, 'ready');
-    assert.equal(f.calls[0].interactive, false);
+    assert.equal(f.calls[0].interactive, true);
     assert.equal(f.calls[0].zoom, 14);
     f.hide(); f.show();
     assert.equal(f.calls.length, 1);
@@ -94,13 +94,13 @@ test('invalid or missing coordinates never create a map', async () => {
     }
 });
 
-test('safe fallback without IntersectionObserver remains noninteractive and bounds zoom', async () => {
+test('safe fallback without IntersectionObserver enables zoom controls and bounds zoom', async () => {
     const f = fixture({ observer: false, point: { latitude: 53.5, longitude: 10, zoom: 99 } });
     f.state.init();
     await flush();
     assert.equal(f.state.status, 'ready');
-    assert.equal(f.calls[0].zoom, 11);
-    assert.equal(f.calls[0].interactive, false);
+    assert.equal(f.calls[0].zoom, 15);
+    assert.equal(f.calls[0].interactive, true);
 });
 
 test('loading or tile failure produces honest state and late events cannot revive destroyed map', async () => {

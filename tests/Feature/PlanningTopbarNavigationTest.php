@@ -55,6 +55,7 @@ class PlanningTopbarNavigationTest extends TestCase
             $groups = $xpath->query('//*[@id="case-workspace-view"]');
             $this->assertSame(1, $groups->length);
             $group = $groups->item(0);
+            $this->assertSame(count($expected), $xpath->query('.//a', $group)->length);
             $this->assertSame('template', $group->parentNode->nodeName);
             $this->assertSame('[data-topbar-planning-navigation]', $group->parentNode->getAttribute('x-teleport'));
             $this->assertSame('group', $group->getAttribute('role'));

@@ -19,7 +19,7 @@ export function intakeLocationMap(point, { createMap = createLiveLocationMap, wi
             if (typeof Observer === 'function') {
                 observer = new Observer((entries) => {
                     if (disposed || !entries.some((entry) => entry.isIntersecting)) return;
-                    if (map) map.invalidate({ recenter: true });
+                    if (map) map.invalidate({ recenter: false });
                     else this.load();
                 }, { threshold: 0.01 });
                 observer.observe(this.$el);
@@ -38,8 +38,9 @@ export function intakeLocationMap(point, { createMap = createLiveLocationMap, wi
                     element: this.$refs.canvas,
                     latitude: Number(point.latitude),
                     longitude: Number(point.longitude),
-                    zoom: [11, 14, 16].includes(point.zoom) ? point.zoom : 11,
-                    interactive: point.interactive === true,
+                    zoom: [14, 15, 16].includes(point.zoom) ? point.zoom : 15,
+                    interactive: true,
+                    markerLabel: point.label,
                     windowLike,
                 });
                 if (disposed || !this.$refs.canvas.isConnected) {

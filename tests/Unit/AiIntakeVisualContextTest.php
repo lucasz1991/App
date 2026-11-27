@@ -28,7 +28,7 @@ final class AiIntakeVisualContextTest extends TestCase
         $this->assertSame('2026-10-13T16:00:00+02:00', $context['start']->toIso8601String());
         $this->assertSame('16:00–18:00', $context['timeLabel']);
         $this->assertStringContainsString('Europe/Berlin', $context['timeTitle']);
-        $this->assertSame(11, $context['point']['zoom']);
+        $this->assertSame(15, $context['point']['zoom']);
         $this->assertStringContainsString('ungefähr', $context['mapLabel']);
         $days = TimelineMiniCalendar::forInterval($context['start'], $context['end'])['days'];
         $this->assertSame(['2026-10-13'], array_values(array_column(array_filter($days, fn ($day) => $day['selected']), 'date')));
@@ -88,7 +88,7 @@ final class AiIntakeVisualContextTest extends TestCase
         $snapshot = ['name' => 'Synthetischer Einsatzort', 'confirmed' => true, 'latitude' => 53.5, 'longitude' => 10.0];
         $order->setRawAttributes(['location_name' => $snapshot['name'], 'location_snapshot' => json_encode($snapshot)]);
         $context = AiIntakeVisualContext::forDemand($this->demand(['location_name' => $snapshot['name']]), $order);
-        $this->assertSame(['latitude' => 53.5, 'longitude' => 10.0, 'zoom' => 16], $context['point']);
+        $this->assertSame(['latitude' => 53.5, 'longitude' => 10.0, 'zoom' => 16, 'label' => $snapshot['name']], $context['point']);
         $this->assertSame('Bestätigter Einsatzstandort', $context['preview']['label']);
         $this->assertNull(AiIntakeVisualContext::forDemand($this->demand(['location_name' => 'Anderer Einsatzort']), $order)['point']);
 
@@ -113,6 +113,7 @@ final class AiIntakeVisualContextTest extends TestCase
         $html = Blade::render('<x-operations.intake.visuals :demand="$demand" identity="proposal-42" />', ['demand' => $this->demand()]);
         $this->assertStringContainsString('x-data="rtIntakeLocationMap', $html);
         $this->assertStringContainsString('wire:ignore', $html);
+        $this->assertStringContainsString('stroke-dasharray="120 720" transform="rotate(30)"', $html);
         $this->assertStringContainsString('wire:key="intake-location-', $html);
         $this->assertStringContainsString('Berlin · Stadtmitte · ungefähr', $html);
         $this->assertStringContainsString('16:00–18:00', $html);
