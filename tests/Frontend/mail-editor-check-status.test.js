@@ -3,7 +3,19 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
 
-const view = readFileSync(new URL('../../resources/views/livewire/admin/mail-document-editor.blade.php', import.meta.url), 'utf8');
+// Die Editor-View ist in Partials zerlegt (resources/views/livewire/admin/mail-document-editor/...).
+// Quelltext-Pruefungen sehen den zusammenhaengenden Text: jede Zeile
+// "@include('livewire.admin.mail-document-editor.<partial>')" wird durch den Partial-Inhalt ersetzt.
+function readBladeViewWithPartials(view, root = view) {
+    const source = readFileSync(new URL(`../../resources/views/${view.replaceAll('.', '/')}.blade.php`, import.meta.url), 'utf8');
+    const include = new RegExp(`^[ \\t]*@include\\('(${root.replaceAll('.', '\\.')}\\.[A-Za-z0-9._-]+)'\\)\\n`, 'gm');
+
+    return source.replace(include, (_line, partial) => readBladeViewWithPartials(partial, root));
+}
+
+const readMailDocumentEditorView = () => readBladeViewWithPartials('livewire.admin.mail-document-editor');
+
+const view = readMailDocumentEditorView();
 const start = view.indexOf('const showFindings = (report, compatibility = undefined) => {');
 const end = view.indexOf('// Bereits der serverseitig geladene Entwurf', start);
 assert.ok(start > 0 && end > start);

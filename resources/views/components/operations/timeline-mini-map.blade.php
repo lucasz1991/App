@@ -10,6 +10,7 @@
     <div class="rt-event-mini-map__heading">Deutschland</div>
     <x-ui.germany-map class="rt-event-mini-map__canvas" :height="112" :label="$mapLabel"
         :points="$pins" />
+    <x-operations.worksite-lookup :preview="$preview" />
     <figcaption>
         <strong class="rt-event-mini-map__place" title="{{ $location ?: ($preview['place'] ?? 'Kein Einsatzort hinterlegt') }}">{{ $located ? $preview['place'] : ($location ?: 'Kein Einsatzort') }}</strong>
         <span class="rt-event-mini-map__precision">{{ $preview['label'] }}</span>

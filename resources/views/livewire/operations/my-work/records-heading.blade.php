@@ -1,0 +1,2 @@
+{{-- Mein Arbeitstag, Fokusansicht „Qualifikationen": Kopfzeile. Die Dokumentenliste (eigene Livewire-Komponente) bleibt in my-work.blade.php, damit ihr Schlüssel stabil ist. --}}
+<header class="rt-personal-work-heading"><div><p class="ops-muted">Dokumente, Qualifikationen und Gültigkeit im Überblick.</p></div><x-ui.buttons.button-basic mode="primary" wire:click="openForm('qualification')" wire:loading.attr="disabled">Nachweis einreichen</x-ui.buttons.button-basic></header>

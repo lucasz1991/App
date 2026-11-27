@@ -90,6 +90,13 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
+Route::middleware(['auth', 'throttle:60,1'])->withoutMiddleware(LogActivity::class)->group(function () {
+    Route::post('/orte/suche', [\App\Http\Controllers\PlaceLookupController::class, 'search'])->name('places.search');
+    Route::post('/orte/adresse', [\App\Http\Controllers\PlaceLookupController::class, 'reverse'])->name('places.reverse');
+    Route::post('/orte/auswahl', [\App\Http\Controllers\PlaceLookupController::class, 'choose'])->name('places.choose');
+    Route::post('/orte/kartenpunkt', [\App\Http\Controllers\PlaceLookupController::class, 'resolve'])->name('places.resolve');
+});
+
 Route::get('/pwa-icons/{icon}', PwaIconController::class)
     ->whereIn('icon', array_keys(PwaIcon::DIMENSIONS))
     ->withoutMiddleware(LogActivity::class)
@@ -116,6 +123,7 @@ Route::prefix('kundenportal')->withoutMiddleware([LogActivity::class, CheckUserS
     Route::post('/abmelden', [$authController, 'logout'])->name('customer-portal.logout');
 
     Route::middleware(EnsureCustomerPortalAccess::class)->group(function () use ($authController) {
+        Route::post('/orte/suche', [\App\Http\Controllers\PlaceLookupController::class, 'search'])->middleware('throttle:60,1')->name('customer-portal.places.search');
         Route::get('/', function () {
             $identity = Auth::guard('customer_portal')->user();
             $membership = app(CustomerPortalScope::class)->memberships($identity)->first();

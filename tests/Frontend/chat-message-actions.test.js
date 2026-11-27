@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import {
@@ -8,8 +8,37 @@ import {
     shouldCancelChatLongPress,
 } from '../../resources/js/chat-message-actions.js';
 
+// Die Chat-Ansicht besteht aus der Wurzeldatei und Partials unter
+// livewire/chat-box/. Gelesen wird sie als EIN Text in Einbindungsreihenfolge,
+// damit die Abschnittsmarken unabhaengig von der Dateiaufteilung bleiben.
+async function readChatBoxView(file = 'chat-box.blade.php') {
+    const source = await readFile(new URL(`../../resources/views/livewire/${file}`, import.meta.url), 'utf8');
+    const parts = source.split(/^[ \t]*@include\('livewire\.chat-box\.([a-z0-9-]+)'\)[ \t]*$/m);
+    for (let index = 1; index < parts.length; index += 2) {
+        parts[index] = (await readChatBoxView(`chat-box/${parts[index]}.blade.php`)).replace(/\n+$/, '');
+    }
+    const view = parts.join('');
+    // Eine Einbindung in anderer Schreibweise (Datenarray, @includeWhen) bliebe sonst
+    // unbemerkt stehen und die Pruefungen saehen nur noch einen Teil der Ansicht.
+    if (/@include\w*\(\s*['"]livewire\.chat-box\./.test(view)) {
+        throw new Error(`Chat-Partial in ${file} wurde nicht eingesetzt.`);
+    }
+    return view;
+}
+
+// Die Chat-Komponente samt ihrer Concerns (App\Livewire\Concerns\Chat) als ein Text.
+async function readChatBoxComponent() {
+    const directory = new URL('../../app/Livewire/Concerns/Chat/', import.meta.url);
+    const concerns = (await readdir(directory)).filter((name) => name.endsWith('.php')).sort();
+    const files = [
+        new URL('../../app/Livewire/ChatBox.php', import.meta.url),
+        ...concerns.map((name) => new URL(name, directory)),
+    ];
+    return (await Promise.all(files.map((file) => readFile(file, 'utf8')))).join('\n');
+}
+
 async function readChatSection(name) {
-    const view = await readFile(new URL('../../resources/views/livewire/chat-box.blade.php', import.meta.url), 'utf8');
+    const view = await readChatBoxView();
     const startMarker = `{{-- chat-section:${name}:start --}}`;
     const endMarker = `{{-- chat-section:${name}:end --}}`;
     const start = view.indexOf(startMarker);
@@ -172,19 +201,28 @@ test('message long press uses the locked 500ms and 10px contract', () => {
 });
 
 test('chat and call transcripts use the same anchored dropdown components', async () => {
-    const [transcript, callChat] = await Promise.all([
+    const [transcript, callChat, reactions] = await Promise.all([
         readChatSection('transcript'),
         readFile(new URL('../../resources/views/livewire/calls/call-chat.blade.php', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/views/components/chat/reactions.blade.php', import.meta.url), 'utf8'),
     ]);
 
     for (const source of [transcript, callChat]) {
         assert.match(source, /<x-chat\.message-dropdown/);
-        assert.match(source, /<x-chat\.reaction-dropdown/);
-        assert.match(source, /rt-chat-reactions--overlay/);
+        // Die Reaktionsleiste ist ein gemeinsamer Baustein; keine der beiden
+        // Ansichten baut sie noch selbst.
+        assert.match(source, /<x-chat\.reactions\b/);
+        assert.doesNotMatch(source, /<x-chat\.reaction-dropdown|rt-chat-reactions--overlay|rt-chat-reaction-chip/);
         assert.match(source, /x-on:contextmenu\.stop="openActionsAtPointer\(\$event\)"/);
         assert.doesNotMatch(source, /actionX|actionY|menuStyle|x-show="actionOpen"|x-show="reactionOpen"/);
         assert.doesNotMatch(source, /wire:click="(?:toggleReaction|react)\(/);
     }
+
+    assert.match(reactions, /<x-chat\.reaction-dropdown/);
+    assert.match(reactions, /rt-chat-reactions--overlay/);
+    assert.match(reactions, /trans_choice\('app\.chat_reaction_count'/);
+    assert.doesNotMatch(reactions, /actionX|actionY|menuStyle|x-show="actionOpen"|x-show="reactionOpen"/);
+    assert.doesNotMatch(reactions, /wire:click="(?:toggleReaction|react)\(/);
 
     assert.match(callChat, /chatMessageActions\(/);
     assert.doesNotMatch(callChat, /\$allReactions\s*=/);
@@ -263,7 +301,7 @@ test('rendered reaction emojis stay transparent while the rail overlaps the bubb
 
 test('premium chat hierarchy keeps real presence, group identity, and external message metadata', async () => {
     const [chatBox, list, header, transcript] = await Promise.all([
-        readFile(new URL('../../app/Livewire/ChatBox.php', import.meta.url), 'utf8'),
+        readChatBoxComponent(),
         readChatSection('chat-list'),
         readChatSection('conversation-header'),
         readChatSection('transcript'),
@@ -356,7 +394,7 @@ test('premium stacked lists are shared by the topbar, chat sidebar, and creation
         readFile(new URL('../../resources/views/components/user/public-info.blade.php', import.meta.url), 'utf8'),
         readFile(new URL('../../resources/css/chat.css', import.meta.url), 'utf8'),
         readFile(new URL('../../app/Livewire/Tools/HeaderInbox.php', import.meta.url), 'utf8'),
-        readFile(new URL('../../app/Livewire/ChatBox.php', import.meta.url), 'utf8'),
+        readChatBoxComponent(),
     ]);
 
     assert.match(component, /data-chat-stacked-item/);

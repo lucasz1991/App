@@ -5,6 +5,7 @@ namespace App\Livewire\Operations;
 use App\Enums\OrderStatus;
 use App\Enums\ShiftAssignmentStatus;
 use App\Enums\ShiftStatus;
+use App\Livewire\Concerns\Operations\FiltersShiftPlanning;
 use App\Livewire\Concerns\Operations\SupportsOperationsUi;
 use App\Livewire\Concerns\Operations\SupportsPlanningTravel;
 use App\Livewire\Concerns\Operations\SupportsServiceTableSelection;
@@ -19,7 +20,6 @@ use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Services\Operations\PlanChangeService;
-use App\Services\Operations\PlanningCapacityService;
 use App\Services\Operations\PlanningTravelDisplay;
 use App\Services\Operations\PlanPublicationService;
 use App\Services\Operations\ShiftAssignmentExceptionService;
@@ -50,6 +50,7 @@ use Livewire\WithPagination;
 
 class ShiftManagement extends Component
 {
+    use FiltersShiftPlanning;
     use SupportsOperationsUi;
     use SupportsPlanningTravel;
     use SupportsServiceTableSelection;
@@ -187,12 +188,8 @@ class ShiftManagement extends Component
 
     public string $rangeTo = '';
 
-    public string $orderFilter = 'all';
-
     #[Locked]
     public string $customerFilter = 'all';
-
-    public string $search = '';
 
     #[Locked]
     public ?string $mapLocationKey = null;
@@ -283,7 +280,7 @@ class ShiftManagement extends Component
     public function currentWeek(): void
     {
         $this->ensureAdmin();
-        $today = now((string) config('operations.display_timezone', 'Europe/Berlin'));
+        $today = now($this->displayTimezone());
         $this->rangeFrom = $today->copy()->startOfWeek()->toDateString();
         $this->rangeTo = $today->copy()->endOfWeek()->toDateString();
         $this->resetDistributionPages();
@@ -328,19 +325,16 @@ class ShiftManagement extends Component
     private function notifyPlanningPeriod(): void
     {
         [$from, $until] = $this->resolvedRange();
-        $this->dispatch('operations-period-changed', from: $from->toDateString(), until: $until->toDateString());
+        $this->dispatchPlanningPeriod($from->toDateString(), $until->toDateString());
     }
 
     public function updatedOrderFilter(): void
     {
         $this->ensureAdmin();
-        $order = $this->orderFilter === 'all' ? null : filter_var($this->orderFilter, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $order = $this->planningFilterId($this->orderFilter);
         abort_if($order === false, 422);
         $customer = $this->customerFilter === 'all' ? null : (int) $this->customerFilter;
-        if ($order !== null) {
-            Order::query()->when($customer !== null, fn (Builder $query) => $query->where('customer_id', $customer))->findOrFail($order);
-        }
-        $this->dispatch('operations-planning-filters-changed', customer: $customer, order: $order);
+        $this->dispatchPlanningFilters($customer, $order);
         $this->resetPage('servicesPage');
     }
 
@@ -380,8 +374,6 @@ class ShiftManagement extends Component
 
     public ?int $orderId = null;
 
-    public string $orderSearch = '';
-
     public string $title = '';
 
     public string $roleName = '';
@@ -416,35 +408,21 @@ class ShiftManagement extends Component
     public function mount(): void
     {
         $this->ensureAdmin();
-        $today = now((string) config('operations.display_timezone', 'Europe/Berlin'));
+        $today = now($this->displayTimezone());
         $this->rangeFrom = $today->copy()->startOfWeek()->format('Y-m-d');
         $this->rangeTo = $today->copy()->endOfWeek()->format('Y-m-d');
         $this->status = $this->enumDefault(ShiftStatus::class, 'draft');
         $this->assignmentStatus = $this->enumDefault(ShiftAssignmentStatus::class, 'confirmed');
-        if (request()->has('customer')) {
-            $value = request()->query('customer');
-            $customerId = is_string($value) || is_int($value) ? filter_var($value, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) : false;
-            abort_unless($customerId && Customer::whereKey($customerId)->exists(), 404);
-            $this->customerFilter = (string) $customerId;
+        if ($this->applyPlanningCustomerQuery()) {
             $this->viewMode = 'orders';
         }
-        if (request()->has('order')) {
-            $orderId = filter_var(request()->query('order'), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
-            abort_unless($orderId, 404);
-            $order = Order::query()->when($this->customerFilter !== 'all', fn (Builder $query) => $query->where('customer_id', (int) $this->customerFilter))->find($orderId);
-            abort_unless($order, 404);
-            $this->orderFilter = (string) $order->id;
+        if ($order = $this->applyPlanningOrderQuery()) {
             $this->rangeFrom = $order->starts_at->setTimezone($today->timezone)->toDateString();
             $this->rangeTo = $order->ends_at->setTimezone($today->timezone)->toDateString();
             $this->viewMode = 'orders';
         }
-        if (request()->hasAny(['from', 'until'])) {
-            abort_unless(is_string(request()->query('from')) && is_string(request()->query('until')), 422);
-            try {
-                [$from, $until] = app(PlanningCapacityService::class)->range(request()->query('from'), request()->query('until'));
-            } catch (ValidationException) {
-                abort(422, 'Ungültiger Planungszeitraum.');
-            }
+        if ($range = $this->planningRangeFromQuery()) {
+            [$from, $until] = $range;
             $this->rangeFrom = $from->toDateString();
             $this->rangeTo = $until->subDay()->toDateString();
         }
@@ -582,7 +560,7 @@ class ShiftManagement extends Component
     /** @return array{0: Carbon, 1: Carbon} */
     private function distributionRange(): array
     {
-        $zone = (string) config('operations.display_timezone', 'Europe/Berlin');
+        $zone = $this->displayTimezone();
 
         return [Carbon::parse($this->rangeFrom, $zone)->startOfDay(), Carbon::parse($this->rangeTo, $zone)->endOfDay()];
     }
@@ -973,7 +951,7 @@ class ShiftManagement extends Component
             'nativeOperations' => OperationsAccess::ready(),
             'qualificationTypes' => OperationsAccess::ready() ? QualificationType::where('is_active', true)->orderBy('name')->get() : collect(),
             'shifts' => $shifts,
-            'planMap' => $this->viewMode === 'map' ? GermanyMap::planning($shifts) : null,
+            'planMap' => $this->viewMode === 'map' ? GermanyMap::planning($shifts, true) : null,
             'dailyGroups' => $dailyGroups,
             'orderGroups' => $orderGroups,
             'serviceGroups' => $serviceGroups,
@@ -983,7 +961,7 @@ class ShiftManagement extends Component
                 'staffed' => 'Besetzt',
                 'closed' => 'Abgeschlossen / storniert',
             ])->map(fn (string $label, string $key): array => ['label' => $label, 'items' => $staffingGroups->get($key, collect())]),
-            'displayTimezone' => (string) config('operations.display_timezone', 'Europe/Berlin'),
+            'displayTimezone' => $this->displayTimezone(),
             'selectedShift' => $selectedShift,
             'candidates' => $candidates,
             'staffingTravelAutoKey' => $selectedShift ? $this->travelContextKey($selectedShift->id, (int) $selectedShift->revision) : '',
@@ -1104,7 +1082,7 @@ class ShiftManagement extends Component
     /** @return array{0: Carbon, 1: Carbon} */
     private function resolvedRange(): array
     {
-        $timezone = (string) config('operations.display_timezone', 'Europe/Berlin');
+        $timezone = $this->displayTimezone();
         try {
             $from = Carbon::createFromFormat('!Y-m-d', $this->rangeFrom, $timezone)->startOfDay();
         } catch (\Throwable) {

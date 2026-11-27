@@ -257,7 +257,7 @@
                     </span>
                 </summary>
                 <div class="rt-help-notifications__body">
-                    <livewire:settings.push-settings :show-test="true" :show-install="false" />
+                    <livewire:settings.push-settings :show-test="true" />
                 </div>
             </details>
 

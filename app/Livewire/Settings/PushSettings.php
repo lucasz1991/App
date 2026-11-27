@@ -15,7 +15,18 @@ class PushSettings extends Component
      */
     public bool $showTest = false;
 
-    public bool $showInstall = true;
+    // Den frueheren Schalter $showInstall gibt es nicht mehr: die einzige
+    // Einbindung (Hilfeseite) hatte ihn abgeschaltet, weil die Seite genau
+    // eine Installationsaktion fuehrt (data-help-install-action). Aeltere
+    // Browser-Sitzungen tragen den Wert noch im Snapshot; Livewire uebergeht
+    // unbekannte Eigenschaften beim Hydrieren.
+    //
+    // Folge fuer Einbindungen: dieser Baustein loest die Installation nicht
+    // mehr selbst aus. Meldet der Browser canPromptInstall, zeigt die View
+    // weder Knopf noch manuellen Hinweis. Die einbindende Seite muss die
+    // Installationsaktion deshalb selbst bereitstellen (data-help-install-action,
+    // siehe livewire.help-center); promptInstall() in resources/js/pwa.js
+    // bleibt dafuer bestehen.
 
     public function render(): View
     {

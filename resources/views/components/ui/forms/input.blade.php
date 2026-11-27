@@ -1,5 +1,6 @@
 @props([
     'type' => 'text',
+    'placeCoordinates' => false,
     'disabled' => false,
     'readonly' => false,
     'autofocus' => false,
@@ -32,6 +33,11 @@
         default => null,
     };
     $wireModel = $attributes->wire('model')->value();
+    $modelLeaf = \Illuminate\Support\Str::afterLast((string) $wireModel, '.');
+    $isLocality = $modelLeaf === 'base_location' || str_contains((string) $wireModel, '.no_go_areas.');
+    $usePlaceSearch = $type === 'text' && !$disabled && !$readonly && $wireModel && (
+        $attributes->get('autocomplete') === 'street-address' || $modelLeaf === 'street'
+        || in_array($modelLeaf, ['location_name', 'locationName', 'handover_location'], true) || $isLocality);
     $autosaveFieldId = (string) ($attributes->get('data-autosave-field-id')
         ?: $attributes->get('id')
         ?: ($wireModel ? 'autosave-'.substr(md5($wireModel), 0, 10) : ''));
@@ -97,6 +103,9 @@
             </button>
         @endif
     </div>
+@elseif($usePlaceSearch)
+    <x-ui.forms.place-field :model="$wireModel" :coordinate-fields="$placeCoordinates" :locality="$isLocality"
+        {{ $attributes->merge(array_merge(['type' => $type, 'class' => $allClasses], $autosaveAttributes)) }} />
 @else
     <input
         type="{{ $type }}"

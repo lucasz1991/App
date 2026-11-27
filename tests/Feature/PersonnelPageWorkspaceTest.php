@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Livewire\Employees\Profile as EmployeeProfile;
-use App\Livewire\Operations\OperationsEnhancements;
+use App\Livewire\Operations\TimeAdministration;
 use App\Livewire\Operations\PersonnelPageWorkspace;
 use App\Livewire\Operations\WorkforceAccounts;
 use App\Models\EmployeeQualification;
@@ -240,7 +240,7 @@ class PersonnelPageWorkspaceTest extends TestCase
         $closing = OperationsMonthClosing::create(['user_id' => $this->employee->id, 'month' => '2027-04', 'timezone' => 'Europe/Berlin', 'status' => 'reopened', 'revision' => 3, 'snapshot' => $snapshot + ['private_current' => 'NOT-THE-CLOSED-SNAPSHOT'], 'prepared_by' => $this->admin->id]);
         $closing->revisions()->create(['revision' => 2, 'action' => 'closed', 'snapshot' => $snapshot, 'actor_id' => $this->admin->id, 'created_at' => now()]);
         $this->actingAs($manager);
-        Livewire::test(OperationsEnhancements::class, ['tab' => 'payroll', 'embedded' => true, 'payrollExportOnly' => true, 'initialRecordId' => $closing->id])
+        Livewire::test(TimeAdministration::class, ['tab' => 'payroll', 'embedded' => true, 'payrollExportOnly' => true, 'initialRecordId' => $closing->id])
             ->assertSet('selectedRevision', 2)
             ->assertViewHas('closingSnapshot', $snapshot)
             ->assertDontSee('Kontrolliert öffnen')

@@ -7,7 +7,23 @@ import { parseHTML } from 'linkedom';
 
 const source = await readFile(new URL('../../resources/js/communication-module.js', import.meta.url), 'utf8');
 const view = await readFile(new URL('../../resources/views/livewire/communication.blade.php', import.meta.url), 'utf8');
-const chatView = await readFile(new URL('../../resources/views/livewire/chat-box.blade.php', import.meta.url), 'utf8');
+// Die Chat-Ansicht besteht aus der Wurzeldatei und Partials unter
+// livewire/chat-box/; gelesen wird sie als EIN Text in Einbindungsreihenfolge.
+async function readChatBoxView(file = 'chat-box.blade.php') {
+    const chatSource = await readFile(new URL(`../../resources/views/livewire/${file}`, import.meta.url), 'utf8');
+    const parts = chatSource.split(/^[ \t]*@include\('livewire\.chat-box\.([a-z0-9-]+)'\)[ \t]*$/m);
+    for (let index = 1; index < parts.length; index += 2) {
+        parts[index] = (await readChatBoxView(`chat-box/${parts[index]}.blade.php`)).replace(/\n+$/, '');
+    }
+    const view = parts.join('');
+    // Eine Einbindung in anderer Schreibweise (Datenarray, @includeWhen) bliebe sonst
+    // unbemerkt stehen und die Pruefungen saehen nur noch einen Teil der Ansicht.
+    if (/@include\w*\(\s*['"]livewire\.chat-box\./.test(view)) {
+        throw new Error(`Chat-Partial in ${file} wurde nicht eingesetzt.`);
+    }
+    return view;
+}
+const chatView = await readChatBoxView();
 const listStart = chatView.indexOf('{{-- chat-section:chat-list:start --}}');
 const listEnd = chatView.indexOf('{{-- chat-section:chat-list:end --}}');
 assert.ok(listStart >= 0 && listEnd > listStart, 'Chat list section must be present');

@@ -112,7 +112,7 @@ export function workTimeTerminal({ identifyUrl, captureUrl }) {
                 const result = await request(captureUrl, { terminal_id: this.terminalId, event, location }, this.token, signal);
                 if (signal.aborted) return;
                 const accepted = result.status === 'accepted';
-                this.finish(accepted ? 'Erfassung bestätigt.' : (result.reason || 'Erfassung zur Prüfung erhalten.'), accepted ? 'ok' : 'warning');
+                this.finish(accepted ? ['Erfassung bestätigt.', result.location_label].filter(Boolean).join(' ') : (result.reason || 'Erfassung zur Prüfung erhalten.'), accepted ? 'ok' : 'warning');
             } catch (error) {
                 if (!signal.aborted) this.finish(error instanceof TypeError ? 'Übertragung unbestätigt. Bitte erneut anmelden und den Arbeitszustand prüfen.' : error.message, 'error');
             }

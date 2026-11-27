@@ -10,23 +10,16 @@
         @elseif($tab === 'schedule')
             @include('livewire.operations.partials.personal-calendar')
         @elseif($tab === 'today')
-            <div class="rt-today rt-workday-overview-page">
-                @include('livewire.operations.partials.personal-glance')
-                @include('livewire.operations.partials.personal-workday-actions')
-                <x-operations.workday-overview :overview="$workdayOverview" :timezone="$displayTimezone" :request-count="$requestCount" :sickness-url="route('operations.mine', ['area' => 'sickness'])" :vacation-url="route('operations.mine', ['area' => 'absences', 'new' => 1])" />
-                <div class="rt-today-install rt-today-enter" style="--i:6">@include('livewire.operations.partials.pwa-install-card')</div>
-            </div>
+            @include('livewire.operations.my-work.today')
         @elseif($tab === 'time')
             @include('livewire.operations.partials.personal-time-review')
         @elseif($tab === 'records')
-            <header class="rt-personal-work-heading"><div><p class="ops-muted">Dokumente, Qualifikationen und Gültigkeit im Überblick.</p></div><x-ui.buttons.button-basic mode="primary" wire:click="openForm('qualification')" wire:loading.attr="disabled">Nachweis einreichen</x-ui.buttons.button-basic></header>
+            @include('livewire.operations.my-work.records-heading')
+            {{-- Kindkomponenten bleiben in dieser Datei: ihr Livewire-Schlüssel hängt an Datei und Reihenfolge. --}}
             @if($showPersonnelDocuments)<livewire:operations.personnel-documents />@endif
-            @include('livewire.operations.partials.personal-forms')
-            <x-tables.table class="rt-personal-record-list" :columns="[['label'=>'Nachweis','key'=>'record']]" :items="$qualifications" row-view="components.tables.rows.personal.qualification-row" empty="Keine Nachweise eingereicht. Ergänze hier deine gültigen Qualifikationen." /><x-tables.pagination :paginator="$qualifications" label="Nachweisseiten" />
+            @include('livewire.operations.my-work.records')
         @elseif($tab === 'absences')
-            <header class="rt-personal-work-heading"><div><p class="ops-muted">Deine Abwesenheiten und Anträge.</p></div><x-ui.buttons.button-basic mode="primary" wire:click="openForm('absence')" wire:loading.attr="disabled">Abwesenheit beantragen</x-ui.buttons.button-basic></header>
-            @include('livewire.operations.partials.personal-forms')
-            <x-tables.table class="rt-personal-record-list" label="Meine Abwesenheiten" :columns="[['label'=>'Abwesenheit','key'=>'record']]" :items="$absences" row-view="components.tables.rows.personal.absence-row" empty="Noch keine Abwesenheiten. Beantrage hier Urlaub oder einen anderen Zeitraum." /><x-tables.pagination :paginator="$absences" label="Abwesenheitsseiten" />
+            @include('livewire.operations.my-work.absences')
         @endif
     </div>
     @if($tab === 'today')

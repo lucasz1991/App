@@ -39,7 +39,7 @@ export function intakeLocationMap(point, { createMap = createLiveLocationMap, wi
                     latitude: Number(point.latitude),
                     longitude: Number(point.longitude),
                     zoom: [11, 14, 16].includes(point.zoom) ? point.zoom : 11,
-                    interactive: false,
+                    interactive: point.interactive === true,
                     windowLike,
                 });
                 if (disposed || !this.$refs.canvas.isConnected) {

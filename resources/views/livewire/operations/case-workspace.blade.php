@@ -19,7 +19,7 @@
     @if($view === 'inbox')
         @if($section !== 'overview')<x-ui.buttons.button-basic mode="link" :href="\App\Support\Operations\OperationsPages::url('cases', ['view'=>'inbox','customer'=>$context['customer'] ?? null])" wire:navigate><i class="far fa-inbox" aria-hidden="true"></i>Gemeinsamen Eingang öffnen</x-ui.buttons.button-basic>@endif
         @if($section === 'imports')
-            <livewire:operations.operations-enhancements tab="imports" :embedded="true" :key="'case-imports'" />
+            <livewire:operations.service-fulfilment tab="imports" :embedded="true" :key="'case-imports'" />
         @elseif($section === 'portal')
             @if($portalCustomers->isNotEmpty())
                 <x-ui.forms.select aria-label="Portalkunde" change="$wire.setPortalCustomer(Number($event.target.value))">@foreach($portalCustomers as $customer)<option value="{{ $customer->id }}" @selected($customer->id === ($context['customer'] ?? null))>{{ $customer->company_name }}</option>@endforeach</x-ui.forms.select>
@@ -38,7 +38,7 @@
         <livewire:operations.commercial-offer-index :header-in-page="true" :customer-id="$context['customer'] ?? null" :inquiry-id="$context['inquiry'] ?? null" :order-id="$context['order'] ?? null" :initial-revision="$context['revision'] ?? null" :key="'case-offers-'.md5(json_encode($context))" />
     @elseif($view === 'orders')
         @if($costsOnly)
-            <livewire:operations.operations-enhancements tab="costs" :order-id="$context['order'] ?? null" :embedded="true" :key="'case-costs-'.($context['order'] ?? 'all')" />
+            <livewire:operations.service-fulfilment tab="costs" :order-id="$context['order'] ?? null" :embedded="true" :key="'case-costs-'.($context['order'] ?? 'all')" />
         @else
             <livewire:operations.orders :initial-order-id="$context['order'] ?? null" :customer-id="$context['customer'] ?? null" :initial-section="$section" :initial-record-id="($context['record_type'] ?? '') === 'proof' && $section === 'proofs' ? ($context['record'] ?? null) : null" :consolidated="true" :key="'case-orders-'.($context['customer'] ?? 'all').'-'.($context['order'] ?? '').'-'.$section" />
         @endif

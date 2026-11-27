@@ -72,6 +72,21 @@ class TomTomAddressSearchTest extends TestCase
         Http::assertSentCount(1);
     }
 
+    public function test_structured_international_address_and_reverse_preserve_fields_and_gps_point(): void
+    {
+        $address = ['countryCode' => 'AT', 'streetName' => 'Testgasse', 'streetNumber' => '7',
+            'postalCode' => '1010', 'municipality' => 'Wien', 'freeformAddress' => 'Testgasse 7, 1010 Wien'];
+        Http::fakeSequence()->push(['results' => [$this->row('at', replace: [
+            'address' => $address, 'position' => ['lat' => 48.2, 'lon' => 16.37],
+        ])]])->push(['addresses' => [['address' => $address, 'position' => '48.1,16.1']]]);
+        $service = app(TomTomAddressSearchService::class);
+        $first = $service->suggest('Testgasse', 'AT')['results'][0];
+        $this->assertSame(['Testgasse 7', '1010', 'Wien', 'AT'], [$first['street'], $first['postal'], $first['city'], $first['country']]);
+        $point = $service->reverse(48.21, 16.38)['results'][0];
+        $this->assertSame([48.21, 16.38, 'Wien'], [$point['latitude'], $point['longitude'], $point['city']]);
+        Http::assertSentCount(2);
+    }
+
     public function test_short_invalid_and_oversized_queries_never_call_provider_or_reserve_usage(): void
     {
         Http::fake();

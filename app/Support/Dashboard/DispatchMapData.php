@@ -69,13 +69,14 @@ final class DispatchMapData
         $canViewInquiries = $user->can('operations.inquiries.manage');
         $totals = ['shifts' => 0, 'inquiries' => 0, 'undated' => 0, 'located' => 0, 'unlocated' => 0];
         $understaffed = 0;
+        $lookups = [];
         $markers = [];
         $items = [];
         $displayed = ['shifts' => 0, 'inquiries' => 0];
 
         if ($canViewShifts) {
             $shiftColumns = ['id', 'public_id', 'order_id', 'title', 'role_name', 'starts_at', 'ends_at', 'timezone', 'location_name', 'required_staff', 'status'];
-            $orderColumns = ['id', 'customer_id', 'title', 'description', 'location_name', 'city', 'postal_code', 'country'];
+            $orderColumns = ['id', 'customer_id', 'title', 'description', 'location_name', 'street', 'city', 'postal_code', 'country'];
             // Select only available snapshot columns once per batch, including
             // during a rolling migration; never inspect schema per map item.
             if (SchemaReadiness::remember(__METHOD__.':shift-snapshot', fn () => Schema::hasColumn('shifts', 'location_snapshot'))) {
@@ -93,6 +94,10 @@ final class DispatchMapData
                 $item = $this->shiftItem($shift, $day->toDateString());
                 // Ueber ALLE Schichten des Tages, nicht nur die gelisteten.
                 $understaffed += (int) ($item['assignedStaff'] < $item['requiredStaff']);
+                if (isset($item['location']['lookup'])) {
+                    $lookup = $item['location']['lookup'];
+                    $lookups[$lookup['signature']] = $lookup;
+                }
                 $this->aggregate($item, 'shifts', $totals, $markers, $items, $displayed);
             }
         }
@@ -111,6 +116,10 @@ final class DispatchMapData
 
             foreach ($query->lazyById(250) as $inquiry) {
                 $item = $this->inquiryItem($inquiry);
+                if (isset($item['location']['lookup'])) {
+                    $lookup = $item['location']['lookup'];
+                    $lookups[$lookup['signature']] = $lookup;
+                }
                 $this->aggregate($item, 'inquiries', $totals, $markers, $items, $displayed);
             }
         }
@@ -124,7 +133,7 @@ final class DispatchMapData
             'canViewShifts' => $canViewShifts, 'canViewInquiries' => $canViewInquiries,
             'totals' => $totals, 'shiftsCount' => $totals['shifts'], 'inquiriesCount' => $totals['inquiries'],
             'undatedCount' => $totals['undated'], 'understaffedCount' => $understaffed, 'locatedCount' => $totals['located'], 'unlocatedCount' => $totals['unlocated'],
-            'items' => $items, 'markers' => array_values($markers),
+            'outsideCount' => $totals['outside'] ?? 0, 'lookups' => array_values($lookups), 'items' => $items, 'markers' => array_values($markers),
             'unlocatedItems' => array_values(array_filter($items, fn (array $item) => $item['locationKeys'] === [])),
             'count' => $count, 'displayedCount' => count($items), 'displayedByType' => $displayed,
             'truncated' => $count > count($items), 'itemLimit' => self::ITEMS_PER_TYPE * ((int) $canViewShifts + (int) $canViewInquiries),
@@ -144,11 +153,15 @@ final class DispatchMapData
                 $locations[$this->locationKey($location)] ??= $location;
             }
         }
-        $located = $locations !== [];
+        $outside = ($item['location']['state'] ?? '') === 'outside' && isset($item['location']['latitude'], $item['location']['longitude']);
+        $located = $locations !== [] || $outside;
+        if ($outside) {
+            $totals['outside'] = ($totals['outside'] ?? 0) + 1;
+        }
         $totals[$located ? 'located' : 'unlocated']++;
         $retained = $displayed[$type] < self::ITEMS_PER_TYPE;
-        $item['locationKeys'] = array_keys($locations);
-        $item['locationKey'] = count($locations) === 1 ? $item['locationKeys'][0] : ($located ? 'multiple' : 'unlocated');
+        $item['locationKeys'] = $outside ? ['outside'] : array_keys($locations);
+        $item['locationKey'] = count($item['locationKeys']) === 1 ? $item['locationKeys'][0] : ($located ? 'multiple' : 'unlocated');
 
         if ($retained) {
             $items[] = $item;
@@ -200,7 +213,7 @@ final class DispatchMapData
 
     private function shiftItem(Shift $shift, string $date): array
     {
-        $location = TimelineLocationPreview::fromShift($shift);
+        $location = TimelineLocationPreview::fromShift($shift, true);
 
         return $this->period($shift->starts_at, $shift->ends_at) + [
             'key' => 'shift-'.$shift->id, 'type' => 'shift', 'id' => $shift->id, 'title' => $shift->title,
@@ -224,7 +237,7 @@ final class DispatchMapData
                 'verified' => 'Bedarf geprüft', 'offered' => 'Angebot erstellt', 'accepted' => 'Angebot angenommen', default => 'Neue Anfrage',
             },
             'locationLabel' => $inquiry->location_name,
-            'location' => TimelineLocationPreview::fromInquiry($inquiry),
+            'location' => TimelineLocationPreview::fromInquiry($inquiry, true),
             'href' => OperationsPages::moduleUrl('inquiries', ['inquiry' => $inquiry->id]),
             'requiredStaff' => $inquiry->required_staff, 'assignedStaff' => null,
         ];

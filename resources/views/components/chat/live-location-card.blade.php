@@ -117,6 +117,11 @@
                 role="alert"
             ></p>
         </div>
+        <div x-data="rtCoordinateAddress(@js(route('places.reverse', [], false)))" x-show="isActive"
+            x-effect="observe(isActive, latitude, longitude)" class="px-3 py-1 text-xs text-rt-muted">
+            <button type="button" x-show="!label" x-on:click="locate(latitude, longitude)" x-bind:disabled="busy">Adresse zum Standort anzeigen</button>
+            <span role="status" x-text="label || message"></span>
+        </div>
         <div x-cloak x-show="profileHistoryConsent && profileHistoryUrl" class="border-t border-rt-border/50 bg-rt-surface px-3 py-2 text-xs text-rt-muted dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-muted">
             <p>{{ __('app.chat_live_location_profile_history_active') }}</p>
             <button type="button" x-on:click.stop="withdrawProfileHistory()" x-bind:disabled="withdrawingHistory" class="mt-1 inline-flex min-h-11 items-center rounded-lg px-2 font-semibold text-rt-red focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red disabled:opacity-50 dark:text-rt-dark-accent">{{ __('app.chat_live_location_profile_history_withdraw') }}</button>

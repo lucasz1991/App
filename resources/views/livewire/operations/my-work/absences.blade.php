@@ -1,0 +1,4 @@
+{{-- Mein Arbeitstag, Fokusansicht „Urlaub & Abwesenheit" (area=absences). Daten aus MyWork::render(). --}}
+<header class="rt-personal-work-heading"><div><p class="ops-muted">Deine Abwesenheiten und Anträge.</p></div><x-ui.buttons.button-basic mode="primary" wire:click="openForm('absence')" wire:loading.attr="disabled">Abwesenheit beantragen</x-ui.buttons.button-basic></header>
+@include('livewire.operations.partials.personal-forms')
+<x-tables.table class="rt-personal-record-list" label="Meine Abwesenheiten" :columns="[['label'=>'Abwesenheit','key'=>'record']]" :items="$absences" row-view="components.tables.rows.personal.absence-row" empty="Noch keine Abwesenheiten. Beantrage hier Urlaub oder einen anderen Zeitraum." /><x-tables.pagination :paginator="$absences" label="Abwesenheitsseiten" />

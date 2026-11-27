@@ -92,7 +92,7 @@ class WorkTimeTerminalService
             }
         }
 
-        return OperationsTransaction::run(function () use ($token, $terminalId, $input, $location, $travel) {
+        $result = OperationsTransaction::run(function () use ($token, $terminalId, $input, $location, $travel) {
             $known = OperationsTerminalSession::where('token_hash', hash('sha256', $token))->where('terminal_id', $terminalId)->firstOrFail();
             $actor = User::lockForUpdate()->findOrFail($known->user_id);
             $session = OperationsTerminalSession::where('token_hash', hash('sha256', $token))->where('terminal_id', $terminalId)->lockForUpdate()->findOrFail($known->id);
@@ -109,8 +109,23 @@ class WorkTimeTerminalService
             $session->forceFill(['sequence' => $session->sequence + 1, 'revoked_at' => now()->utc()])->save();
 
             // No personnel/contact/plan data or encryption key is returned to a kiosk.
-            return ['event_key' => $input['event_key'], 'status' => $receipts['results'][0]['status'], 'reason' => $receipts['results'][0]['reason'] ?? null];
+            return ['describe_location' => (bool) $profile->location_consent, 'event_key' => $input['event_key'], 'status' => $receipts['results'][0]['status'], 'reason' => $receipts['results'][0]['reason'] ?? null];
         }, 3);
+        $describe = $result['describe_location'];
+        unset($result['describe_location']);
+        if ($describe) {
+            // Capture is already committed. An address lookup must never fail the receipt.
+            try {
+                $address = app(\App\Services\Routing\TomTomAddressSearchService::class)
+                    ->reverse((float) $location['latitude'], (float) $location['longitude']);
+                if (isset($address['results'][0])) {
+                    $result['location_label'] = $address['results'][0]['label'];
+                }
+            } catch (\Throwable) {
+                // Keep the successful capture response available during provider outages.
+            }
+        }
+        return $result;
     }
 
     private function location(OperationsTerminalProfile $profile, array $location): void

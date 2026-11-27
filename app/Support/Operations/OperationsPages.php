@@ -4,8 +4,9 @@ namespace App\Support\Operations;
 
 use App\Livewire\Operations\CaseWorkspace;
 use App\Livewire\Operations\CustomerWorkspace;
-use App\Livewire\Operations\OperationsEnhancements;
 use App\Livewire\Operations\PersonnelPageWorkspace;
+use App\Livewire\Operations\ServiceFulfilment;
+use App\Livewire\Operations\TimeAdministration;
 use App\Models\User;
 use App\Services\Operations\PersonnelProcessService;
 use App\Services\Operations\WorkforceAccountService;
@@ -297,9 +298,26 @@ final class OperationsPages
             abort_unless(OperationsNavigation::enhancementReady($module), 503, 'Leitstellenprofile sind noch nicht eingerichtet.');
         }
         if ($module === 'operations-enhancements' && empty($query['tab'])) {
-            $query['tab'] = array_key_first((new OperationsEnhancements)->tabs()) ?? '';
+            $query['tab'] = self::firstEnhancementTab();
         }
 
         return self::moduleUrl($module, $query);
+    }
+
+    /**
+     * Erster Reiter des alten Moduls „operations-enhancements“, den der angemeldete Nutzer
+     * öffnen darf. Die Reihenfolge ist die der früheren gemeinsamen Reiterleiste; die Reiter
+     * liegen seit Phase 7 in ServiceFulfilment (Leistungen) und TimeAdministration (Zeitwirtschaft).
+     */
+    private static function firstEnhancementTab(): string
+    {
+        $allowed = (new ServiceFulfilment)->tabs() + (new TimeAdministration)->tabs();
+        foreach (['proofs', 'travel', 'partners', 'imports', 'rules', 'payroll', 'costs', 'terminal'] as $tab) {
+            if (isset($allowed[$tab])) {
+                return $tab;
+            }
+        }
+
+        return '';
     }
 }

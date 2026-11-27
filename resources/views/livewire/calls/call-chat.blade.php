@@ -160,34 +160,19 @@
                     </div>
 
                     @if ($reactionGroups->isNotEmpty())
-                        <div class="rt-chat-reactions rt-chat-reactions--overlay {{ $mine ? 'rt-chat-reactions--own' : 'rt-chat-reactions--other' }} flex max-w-full flex-nowrap items-center gap-1 px-1" data-chat-action-ignore data-no-chat-swipe aria-label="{{ __('app.chat_message_reactions') }}">
-                            @foreach ($allowedReactions as $emoji)
-                                @if ($reactionGroups->has($emoji))
-                                    @php $reactions = $reactionGroups->get($emoji); @endphp
-                                    @if ($readOnly || $mine)
-                                        <span
-                                            class="rt-chat-reaction-chip inline-flex items-center gap-1 px-0.5 text-sm"
-                                            title="{{ $reactions->pluck('user.name')->filter()->join(', ') }}"
-                                            aria-label="{{ trans_choice('app.chat_reaction_count', $reactions->count(), ['emoji' => $emoji, 'count' => $reactions->count()]) }}"
-                                        >
-                                            <span aria-hidden="true">{{ $emoji }}</span>
-                                            @if ($reactions->count() > 1)<span class="text-[10px] font-extrabold tabular-nums">{{ $reactions->count() }}</span>@endif
-                                        </span>
-                                    @else
-                                        <x-chat.reaction-dropdown
-                                            :message-id="$message->id"
-                                            :emoji="$emoji"
-                                            :count="$reactions->count()"
-                                            :names="$reactions->pluck('user.name')->filter()->join(', ')"
-                                            :my-reaction="$myReaction"
-                                            react-method="setReaction"
-                                            remove-method="removeReaction"
-                                            dropdown-id="call-chat-reaction-{{ $message->id }}-{{ md5($emoji) }}"
-                                        />
-                                    @endif
-                                @endif
-                            @endforeach
-                        </div>
+                        <x-chat.reactions
+                            :message-id="$message->id"
+                            :reaction-groups="$reactionGroups"
+                            :allowed-reactions="$allowedReactions"
+                            :own="$mine"
+                            :interactive="! $readOnly && ! $mine"
+                            :my-reaction="$myReaction"
+                            :centered="false"
+                            :show-names="true"
+                            react-method="setReaction"
+                            remove-method="removeReaction"
+                            id-prefix="call-chat-reaction"
+                        />
                     @endif
                 </div>
             </article>

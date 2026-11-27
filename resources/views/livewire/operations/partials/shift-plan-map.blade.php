@@ -15,6 +15,7 @@
 <section class="rt-shift-plan-map" aria-label="Schichten auf der Karte" data-shift-plan-map
     wire:key="shift-plan-map-{{ $mapScope }}" data-map-scope="{{ $mapScope }}"
     x-data="rtMapHighlight" x-on:shift-plan-view-changed.window="mapReset()">
+    <x-operations.worksite-lookup :lookups="$planMap['lookups'] ?? []" />
     <div class="rt-shift-plan-map__canvas">
         <x-ui.germany-map :height="560" :points="$pins" :highlightable="true" :label="'Deutschlandkarte mit '.$mapPoints->count().' Einsatzorten'" />
         <ul class="rt-shift-plan-map__legend" aria-label="Legende">

@@ -86,6 +86,30 @@ class DispatchMapWidgetTest extends TestCase
         return $user->fresh();
     }
 
+    public function test_dashboard_and_inbox_resolve_an_existing_shared_worksite_without_saving_the_shifts(): void
+    {
+        $this->actingAs($this->admin);
+        $name = 'Werktor Nord Testkai';
+        $this->shift(['location_name' => $name]);
+        $this->shift(['location_name' => $name]);
+        request()->attributes->set('worksite_search_enabled', true);
+        $initial = $this->map();
+        $this->assertSame(2, $initial['unlocatedCount']);
+        $this->assertCount(1, $initial['lookups']);
+        $this->mock(\App\Services\Routing\TomTomAddressSearchService::class)->shouldReceive('suggest')->once()
+            ->andReturn(['status' => 'known', 'results' => [[
+                'name' => $name, 'label' => '27568 Bremerhaven', 'city' => 'Bremerhaven', 'street' => '',
+                'postal' => '27568', 'country' => 'DE', 'precision' => 'poi', 'latitude' => 53.55, 'longitude' => 8.58,
+            ]]]);
+        $this->withoutMiddleware()->postJson(route('places.resolve'), $initial['lookups'][0])->assertOk();
+        request()->attributes->set('worksite_search_enabled', true);
+        $this->assertSame(0, $this->map()['unlocatedCount']);
+        $this->assertSame(2, $this->map()['markers'][0]['shiftCount']);
+        $intake = \App\Support\Operations\AiIntakeVisualContext::forDemand(['location_name' => $name], null, 'proposal-12');
+        $this->assertSame(53.55, $intake['point']['latitude']);
+        $this->assertFalse($intake['preview']['confirmed'] ?? false);
+    }
+
     private function map(?User $user = null, ?string $date = null): array
     {
         return app(DispatchMapData::class)->forUser($user ?? $this->admin, $date);

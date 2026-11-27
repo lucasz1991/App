@@ -42,7 +42,7 @@
         @elseif($detail['kind'] === 'ai')
             <livewire:operations.ai-intake-inbox :initial-intake-id="$detail['id']" :customer-id="$detail['customer']" :modal-only="true" :key="'unified-detail-'.$detailRevision" />
         @elseif($detail['kind'] === 'import')
-            <livewire:operations.operations-enhancements tab="imports" :initial-record-id="$detail['id']" :embedded="true" :modal-only="true" :key="'unified-detail-'.$detailRevision" />
+            <livewire:operations.service-fulfilment tab="imports" :initial-record-id="$detail['id']" :embedded="true" :modal-only="true" :key="'unified-detail-'.$detailRevision" />
         @else
             <livewire:operations.customer-portal-management tab="requests" :customer-id="$detail['customer']" :initial-record-id="$detail['id']" :initial-source="$detail['kind']" :embedded="true" :modal-only="true" :key="'unified-detail-'.$detailRevision" />
         @endif

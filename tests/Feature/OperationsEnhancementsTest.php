@@ -3,7 +3,8 @@
 namespace Tests\Feature;
 
 use App\Http\Middleware\LogActivity;
-use App\Livewire\Operations\OperationsEnhancements;
+use App\Livewire\Operations\ServiceFulfilment;
+use App\Livewire\Operations\TimeAdministration;
 use App\Livewire\Operations\UnifiedInbox;
 use App\Models\Customer;
 use App\Models\CustomerContact;
@@ -89,8 +90,8 @@ class OperationsEnhancementsTest extends TestCase
     {
         $this->actingAs($this->admin);
         $record = app(ReviewedInquiryImportService::class)->preview('text', 'Synthetic input', 'Unified import', $this->admin);
-        Livewire::test(UnifiedInbox::class)->assertSee('Unified import')->call('select', 'import', $record->id)->assertSeeLivewire(OperationsEnhancements::class);
-        Livewire::test(OperationsEnhancements::class, ['tab' => 'imports', 'embedded' => true, 'initialRecordId' => $record->id, 'modalOnly' => true])->assertSet('detailOpen', true)->assertDontSee('operations-enhancement-filters', false)->assertSee('Originaleingang');
+        Livewire::test(UnifiedInbox::class)->assertSee('Unified import')->call('select', 'import', $record->id)->assertSeeLivewire(ServiceFulfilment::class);
+        Livewire::test(ServiceFulfilment::class, ['tab' => 'imports', 'embedded' => true, 'initialRecordId' => $record->id, 'modalOnly' => true])->assertSet('detailOpen', true)->assertDontSee('operations-enhancement-filters', false)->assertSee('Originaleingang');
         $this->assertSame('draft', $record->fresh()->status);
         $this->assertDatabaseCount('operation_inquiries', 0);
     }
@@ -304,7 +305,7 @@ class OperationsEnhancementsTest extends TestCase
 
     public function test_rule_kind_switch_requires_a_valid_activity_and_preserves_shared_choices(): void
     {
-        Livewire::actingAs($this->admin)->test(OperationsEnhancements::class, ['tab' => 'rules'])
+        Livewire::actingAs($this->admin)->test(TimeAdministration::class, ['tab' => 'rules'])
             ->call('create')->set('form.kind', 'remuneration')
             ->assertSet('form.configuration.activity', '')->assertSee('Lohnart')
             ->set('form.configuration.activity', 'travel')->set('form.kind', 'planning')
@@ -508,14 +509,16 @@ class OperationsEnhancementsTest extends TestCase
     public function test_livewire_personal_tabs_and_selected_records_cannot_cross_private_scope(): void
     {
         $this->actingAs($this->employee);
-        Livewire::test(OperationsEnhancements::class, ['personal' => true, 'tab' => 'proofs'])->assertSee('Leistungsnachweise')->assertDontSee('Auftragskosten')->call('setTab', 'costs')->assertForbidden();
+        Livewire::test(ServiceFulfilment::class, ['personal' => true, 'tab' => 'proofs'])->assertSee('Leistungsnachweise')->assertDontSee('Auftragskosten')->call('setTab', 'costs')->assertForbidden();
     }
 
     public function test_management_forms_use_standard_components_and_no_manufacturer_mentions(): void
     {
         $this->actingAs($this->admin);
-        Livewire::test(OperationsEnhancements::class, ['tab' => 'rules'])->call('create')->assertSee('Fachregeln')->assertSee('Betrieblich geprüfte Regel freigeben')->assertDontSee('WILSON');
-        $this->assertStringContainsString('<x-operations.modal', file_get_contents(resource_path('views/livewire/operations/operations-enhancements.blade.php')));
+        Livewire::test(TimeAdministration::class, ['tab' => 'rules'])->call('create')->assertSee('Fachregeln')->assertSee('Betrieblich geprüfte Regel freigeben')->assertDontSee('WILSON');
+        foreach (['service-fulfilment', 'time-administration'] as $view) {
+            $this->assertStringContainsString('<x-operations.modal', file_get_contents(resource_path('views/livewire/operations/'.$view.'.blade.php')));
+        }
     }
 
     public function test_migration_retry_and_historical_rollback_protection(): void
@@ -583,7 +586,7 @@ class OperationsEnhancementsTest extends TestCase
     {
         $this->shift->forceFill(['revision' => 2, 'title' => 'SECRET DRAFT CUSTOMER'])->save();
         $this->actingAs($this->employee);
-        Livewire::test(OperationsEnhancements::class, ['personal' => true, 'tab' => 'proofs'])->call('create')->assertDontSee('SECRET DRAFT CUSTOMER');
+        Livewire::test(ServiceFulfilment::class, ['personal' => true, 'tab' => 'proofs'])->call('create')->assertDontSee('SECRET DRAFT CUSTOMER');
         $this->rejected(fn () => app(CustomerProofService::class)->create(['order_id' => $this->order->id, 'title' => 'Proof', 'rows' => [['activity' => 'Checked', 'quantity' => 1, 'unit' => 'wagons']]], $this->employee), 403);
         $this->assertSame(0, OperationWorkflow::count());
     }
@@ -637,14 +640,14 @@ class OperationsEnhancementsTest extends TestCase
         $this->assertSame(50000, app(OperationalCostService::class)->order($this->order, $this->admin)['accepted_revenue_cents']);
         $this->assertNull(app(OperationalCostService::class)->order($this->order, $this->admin)['contribution_cents']);
         $this->actingAs($this->employee);
-        Livewire::test(OperationsEnhancements::class, ['personal' => true, 'tab' => 'proofs'])->call('openDetails', $proof->id)->assertDontSee('50000');
+        Livewire::test(ServiceFulfilment::class, ['personal' => true, 'tab' => 'proofs'])->call('openDetails', $proof->id)->assertDontSee('50000');
     }
 
     public function test_standard_list_row_contract_uses_cells_not_html_table_tags(): void
     {
         $proof = app(CustomerProofService::class)->create(['order_id' => $this->order->id, 'title' => 'Actual customer proof', 'rows' => [['activity' => 'Checked wagons', 'quantity' => 2, 'unit' => 'wagons']]], $this->employee);
         $this->actingAs($this->employee);
-        $html = Livewire::test(OperationsEnhancements::class, ['personal' => true, 'tab' => 'proofs'])->call('openDetails', $proof->id)->html();
+        $html = Livewire::test(ServiceFulfilment::class, ['personal' => true, 'tab' => 'proofs'])->call('openDetails', $proof->id)->html();
         $dom = new \DOMDocument;
         @$dom->loadHTML($html);
         $this->assertSame(0, $dom->getElementsByTagName('td')->length);
@@ -668,5 +671,32 @@ class OperationsEnhancementsTest extends TestCase
         $this->assertSame('Tf', $data['role']);
         $this->shift->forceFill(['revision' => 2])->save();
         $this->rejected(fn () => $s->projection($request->id, $this->admin), 409);
+    }
+
+    public function test_hosts_mount_the_component_of_the_matching_department(): void
+    {
+        // Phase 7: Die Sammelkomponente ist nach Fachbereich geteilt. Leistungen und Zeitwirtschaft
+        // werden von ihren Seiten als eigene Komponenten eingehängt; Reiter und Adressen bleiben gleich.
+        $this->actingAs($this->admin);
+
+        Livewire::test(\App\Livewire\Operations\PersonnelPageWorkspace::class, ['page' => 'time-review', 'initialSection' => 'rules'])
+            ->assertDontSeeLivewire(TimeAdministration::class)
+            ->call('setRuleView', 'rates')
+            ->assertSeeLivewire(TimeAdministration::class)->assertDontSeeLivewire(ServiceFulfilment::class);
+        Livewire::test(\App\Livewire\Operations\PersonnelPageWorkspace::class, ['page' => 'time-review', 'initialSection' => 'terminal'])
+            ->assertSeeLivewire(TimeAdministration::class);
+        Livewire::test(\App\Livewire\Operations\PersonnelPageWorkspace::class, ['page' => 'payroll', 'initialView' => 'closing'])
+            ->assertSeeLivewire(TimeAdministration::class);
+        Livewire::test(\App\Livewire\Operations\Orders::class, ['initialOrderId' => $this->order->id, 'initialSection' => 'proofs', 'consolidated' => true])
+            ->assertSeeLivewire(ServiceFulfilment::class)->assertDontSeeLivewire(TimeAdministration::class);
+        Livewire::test(\App\Livewire\Operations\CaseWorkspace::class, ['initialView' => 'inbox', 'initialSection' => 'imports'])
+            ->assertSeeLivewire(ServiceFulfilment::class);
+
+        foreach ([[ServiceFulfilment::class, 'proofs', 'Leistungsnachweise'], [ServiceFulfilment::class, 'costs', 'Auftragskosten'], [TimeAdministration::class, 'payroll', 'Monatsabschluss'], [TimeAdministration::class, 'terminal', 'Terminalzugang']] as [$class, $tab, $title]) {
+            Livewire::test($class, ['tab' => $tab, 'embedded' => true])->assertSet('tab', $tab)->assertSee($title)->assertSee('operations-enhancement-filters', false);
+        }
+        // Ein Reiter des anderen Fachbereichs ist in keiner der beiden Komponenten erreichbar.
+        Livewire::test(ServiceFulfilment::class, ['tab' => 'proofs'])->call('setTab', 'payroll')->assertForbidden();
+        Livewire::test(TimeAdministration::class, ['tab' => 'payroll'])->call('setTab', 'costs')->assertForbidden();
     }
 }

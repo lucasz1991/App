@@ -18,15 +18,23 @@ class TomTomAddressSearchService
         'Geography' => 'locality',
     ];
 
-    /**
-     * Callers authorize the actor, throttle input and discard outdated query results.
-     * Search shares the existing RailTime routing request cap, not a provider tariff.
-     * No provider response or search query is persisted by this service.
-     *
-     * @return array{status:string,reason:?string,results:array}
-     */
+    public const COUNTRIES = ['DE', 'AT', 'CH', 'NL', 'PL', 'CZ'];
+
     public function search(string $query): array
     {
+        return $this->lookup($query, 'DE', false, false);
+    }
+
+    public function suggest(string $query, string $country, bool $places = false): array
+    {
+        return $this->lookup($query, $country, $places, true);
+    }
+
+    private function lookup(string $query, string $country, bool $places, bool $structured): array
+    {
+        if ($country !== '' && ! in_array($country, self::COUNTRIES, true)) {
+            return $this->unknown('unsupported_country');
+        }
         if (! mb_check_encoding($query, 'UTF-8') || mb_strlen($query) > 200 || preg_match('/[\x00-\x1F\x7F]/u', $query)) {
             return $this->unknown('invalid_query');
         }
@@ -34,6 +42,39 @@ class TomTomAddressSearchService
         if (mb_strlen($query) < 3) {
             return $this->unknown('query_too_short');
         }
+        $response = $this->request('search/'.rawurlencode($query), [
+            'typeahead' => $places ? 'false' : 'true', 'limit' => 6,
+            'countrySet' => $country ?: implode(',', self::COUNTRIES), 'language' => 'de-DE',
+            'idxSet' => $places ? 'POI,PAD,Addr,Str,Geo' : 'PAD,Addr,Str,Geo',
+        ]);
+        if (isset($response['reason'])) {
+            return $response;
+        }
+        $rows = $response['body']['results'] ?? null;
+        if (! is_array($rows) || ! array_is_list($rows)) {
+            return $this->unknown('invalid_response');
+        }
+        $results = [];
+        $seen = [];
+        foreach (array_slice($rows, 0, 30) as $row) {
+            if (! is_array($row) || ($result = $this->result($row, $country, $places, $structured)) === null) {
+                continue;
+            }
+            if (isset($seen[$result['provider_id']])) {
+                continue;
+            }
+            $seen[$result['provider_id']] = true;
+            $results[] = $result;
+            if (count($results) === 6) {
+                break;
+            }
+        }
+
+        return ['status' => 'known', 'reason' => null, 'results' => $results];
+    }
+
+    private function request(string $path, array $parameters): array
+    {
         $configuration = TomTomSettings::serverConfiguration();
         if (($reason = $this->unavailable($configuration)) !== null) {
             return $this->unknown($reason);
@@ -49,10 +90,7 @@ class TomTomAddressSearchService
         try {
             $response = Http::acceptJson()->connectTimeout(2)->timeout(4)
                 ->withOptions(['allow_redirects' => false])
-                ->get('https://api.tomtom.com/search/2/search/'.rawurlencode($query).'.json', [
-                    'key' => $apiKey, 'typeahead' => 'true', 'limit' => 6,
-                    'countrySet' => 'DE', 'language' => 'de-DE', 'idxSet' => 'PAD,Addr,Str,Geo',
-                ]);
+                ->get('https://api.tomtom.com/search/2/'.$path.'.json', ['key' => $apiKey] + $parameters);
             if (($reason = $this->changed($apiKey)) !== null) {
                 return $this->unknown($reason);
             }
@@ -66,34 +104,14 @@ class TomTomAddressSearchService
             if (strlen($response->body()) > 262144) {
                 return $this->unknown('invalid_response');
             }
-            $rows = $response->json('results');
-            if (! is_array($rows) || ! array_is_list($rows)) {
-                return $this->unknown('invalid_response');
-            }
-            $results = [];
-            $seen = [];
-            foreach (array_slice($rows, 0, 30) as $row) {
-                if (! is_array($row) || ($result = $this->result($row)) === null) {
-                    continue;
-                }
-                if (isset($seen[$result['provider_id']])) {
-                    continue;
-                }
-                $seen[$result['provider_id']] = true;
-                $results[] = $result;
-                if (count($results) === 6) {
-                    break;
-                }
-            }
-
-            return ['status' => 'known', 'reason' => null, 'results' => $results];
+            return ['body' => $response->json()];
         } catch (Throwable) {
             // Never log the request URL, credential, search text or provider payload.
             return $this->unknown('provider_unavailable');
         }
     }
 
-    private function result(array $row): ?array
+    private function result(array $row, string $country, bool $places, bool $structured): ?array
     {
         $type = match ($row['type'] ?? null) {
             'PointAddress' => 'Point Address',
@@ -102,8 +120,8 @@ class TomTomAddressSearchService
         };
         $address = $row['address'] ?? null;
         $position = $row['position'] ?? null;
-        if (! is_string($type) || ! isset(self::PRECISIONS[$type]) || ! is_array($address) || ! is_array($position)
-            || ($address['countryCode'] ?? null) !== 'DE') {
+        if (! is_string($type) || (! isset(self::PRECISIONS[$type]) && ! ($places && $type === 'POI')) || ! is_array($address) || ! is_array($position)
+            || ! in_array($address['countryCode'] ?? null, $country === '' ? self::COUNTRIES : [$country], true)) {
             return null;
         }
         $label = $address['freeformAddress'] ?? null;
@@ -121,14 +139,45 @@ class TomTomAddressSearchService
         $latitude = (float) $point['latitude'];
         $longitude = (float) $point['longitude'];
         // Conservative Germany bounds supplement countrySet and the response country.
-        if ($latitude < 47.0 || $latitude > 56.0 || $longitude < 5.0 || $longitude > 16.0) {
+        if ($address['countryCode'] === 'DE' && ($latitude < 47.0 || $latitude > 56.0 || $longitude < 5.0 || $longitude > 16.0)) {
             return null;
         }
 
         return [
             'label' => trim($label), 'latitude' => $latitude, 'longitude' => $longitude,
-            'provider' => 'tomtom', 'provider_id' => $id, 'type' => $type, 'precision' => self::PRECISIONS[$type],
+            'provider' => 'tomtom', 'provider_id' => $id, 'type' => $type, 'precision' => self::PRECISIONS[$type] ?? 'poi',
+        ] + ($structured ? $this->addressFields($address) + ['name' => $this->field($row['poi']['name'] ?? null)] : []);
+    }
+
+    private function field(mixed $value): string
+    {
+        return is_string($value) && mb_strlen($value) <= 200 && ! preg_match('/[[:cntrl:]]/u', $value) ? trim($value) : '';
+    }
+
+    private function addressFields(array $address): array
+    {
+        return [
+            'street' => trim($this->field($address['streetName'] ?? null).' '.$this->field($address['streetNumber'] ?? null)),
+            'postal' => $this->field($address['postalCode'] ?? null),
+            'city' => $this->field($address['municipality'] ?? null),
+            'country' => $this->field($address['countryCode'] ?? null),
         ];
+    }
+
+    public function reverse(float $latitude, float $longitude): array
+    {
+        if (! TomTomRoutingService::validPoint(compact('latitude', 'longitude'))) {
+            return $this->unknown('invalid_point');
+        }
+        $response = $this->request(sprintf('reverseGeocode/%.6F,%.6F', $latitude, $longitude), ['language' => 'de-DE']);
+        if (isset($response['reason'])) {
+            return $response;
+        }
+        $address = $response['body']['addresses'][0]['address'] ?? null;
+        $label = is_array($address) ? $this->field($address['freeformAddress'] ?? null) : '';
+        return ['status' => 'known', 'results' => $label === '' ? [] : [
+            $this->addressFields($address) + compact('latitude', 'longitude', 'label') + ['precision' => 'gps'],
+        ]];
     }
 
     private function unavailable(array $configuration): ?string

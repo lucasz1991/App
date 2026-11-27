@@ -58,7 +58,29 @@ class EventServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        foreach ([\App\Models\Order::class, \App\Models\Shift::class, \App\Models\OperationInquiry::class] as $type) {
+            $type::saved(function ($record) use ($type) {
+                if (! $record->wasRecentlyCreated && ! $record->wasChanged(['location_name', 'street', 'city', 'postal_code', 'country', 'order_id', 'location_snapshot'])) {
+                    return;
+                }
+                $id = (int) $record->getKey();
+                \Illuminate\Support\Facades\DB::afterCommit(function () use ($type, $id) {
+                    // Pending work is also recovered on view and by the scheduled batch.
+                    try {
+                        $settings = \App\Support\Routing\TomTomSettings::all();
+                        if ($settings['enabled'] && $settings['has_api_key'] && $settings['server_cache_enabled']) {
+                            if (config('queue.connections.'.config('queue.default').'.driver') === 'sync') {
+                                \App\Jobs\ResolveWorksite::dispatchAfterResponse($type, $id);
+                            } else {
+                                \App\Jobs\ResolveWorksite::dispatch($type, $id);
+                            }
+                        }
+                    } catch (\Throwable $error) {
+                        report($error);
+                    }
+                });
+            });
+        }
     }
 
     /**

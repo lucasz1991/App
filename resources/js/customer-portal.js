@@ -1,4 +1,5 @@
 import { Livewire, Alpine } from '../../vendor/livewire/livewire/dist/livewire.esm';
+import { registerPlaceLookup } from './place-lookup';
 import { numberInput } from './number-input';
 import { dateField } from './date-field';
 import { dateRangePicker } from './date-range-picker';
@@ -18,6 +19,7 @@ Alpine.store('theme', {
         document.documentElement.classList.toggle('dark', this.dark);
     },
 });
+registerPlaceLookup(Alpine);
 Alpine.data('rtNumberInput', numberInput);
 Alpine.data('rtDateField', dateField);
 Alpine.data('rtDateRangePicker', dateRangePicker);

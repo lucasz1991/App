@@ -5,6 +5,10 @@
     $highlightScope = hash('sha256', json_encode([$data['markers'], $data['items']], JSON_THROW_ON_ERROR));
 @endphp
 <div class="wv-dispatch-map" data-dispatch-map data-dispatch-date="{{ $data['date'] }}" wire:key="dispatch-map-content-{{ $data['date'] }}-{{ $highlightScope }}" x-data="rtMapHighlight()" x-effect="if (day !== $el.dataset.dispatchDate) { kind = 'all'; place = 'all'; day = $el.dataset.dispatchDate } kind; place; mapReset()">
+    <x-operations.worksite-lookup :lookups="$data['lookups'] ?? []" />
+    @if($data['unlocatedCount'] && request()->attributes->get('worksite_search_enabled') === false)
+        <p class="text-xs text-rt-muted" role="status">Automatische Ortssuche ist unter TomTom / Routenplanung nicht aktiviert oder noch nicht eingerichtet.</p>
+    @endif
     @error('dispatchMapDate')<p class="ops-errors" role="alert">{{ $message }}</p>@enderror
     {{-- Tageslage auf einen Blick, bevor man Punkte anfaehrt. --}}
     <div class="wv-dispatch-map__stats" role="list" aria-label="Tageslage {{ $data['dateLabel'] }}">
@@ -49,12 +53,17 @@
                 </x-slot:markers>
             </x-ui.germany-map>
             <figcaption class="wv-dispatch-map__legend">@if($data['canViewShifts'])<span><i class="wv-dispatch-map__shift-key"></i>Schichten</span>@endif @if($data['canViewInquiries'])<span><i class="wv-dispatch-map__inquiry-key"></i>Anfragen</span>@endif</figcaption>
-            @if($data['markers'] === [])<p class="wv-dispatch-map__map-empty">{{ $data['count'] === 0 ? 'Keine Einträge für diesen Tag.' : 'Keine Kartenpunkte für diesen Tag.' }}</p>@endif
+            @if($data['markers'] === [])<p class="wv-dispatch-map__map-empty">{{ $data['count'] === 0 ? 'Keine Einträge für diesen Tag.' : (!empty($data['outsideCount']) ? 'Standorte außerhalb Deutschlands in der Liste öffnen.' : 'Keine Kartenpunkte für diesen Tag.') }}</p>@endif
             <p class="wv-dispatch-map__map-empty" x-cloak x-show="place === 'unlocated'">Einträge ohne ermittelten Kartenpunkt.</p>
         </figure>
         <div class="wv-dispatch-map__list" role="region" aria-label="{{ $entryKinds }} mit Standort" tabindex="0">
             @forelse($data['items'] as $entry)
                 @include('dashboard.widgets.partials.dispatch-map-entry', ['entry' => $entry, 'preview' => false])
+                @if(isset($entry['location']['choice']) || ($entry['location']['state'] ?? '') === 'outside')
+                    <div x-show="(kind === 'all' || kind === @js($entry['type'])) && mapMatchesPlace(place, @js($entry['locationKeys']))">
+                        <x-operations.worksite-lookup :preview="$entry['location']" />
+                    </div>
+                @endif
             @empty
                 <p class="wv-dispatch-map__empty">Keine {{ $entryKinds }} für diesen Tag.</p>
             @endforelse

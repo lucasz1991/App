@@ -6,7 +6,23 @@ import { parseHTML } from 'linkedom';
 
 const settle = () => new Promise(resolve => setTimeout(resolve, 25));
 const paneSource = await readFile(new URL('../../resources/js/chat-pane-navigation.js', import.meta.url), 'utf8');
-const blade = await readFile(new URL('../../resources/views/livewire/chat-box.blade.php', import.meta.url), 'utf8');
+// Die Chat-Ansicht besteht aus der Wurzeldatei und Partials unter
+// livewire/chat-box/; gelesen wird sie als EIN Text in Einbindungsreihenfolge.
+async function readChatBoxView(file = 'chat-box.blade.php') {
+    const source = await readFile(new URL(`../../resources/views/livewire/${file}`, import.meta.url), 'utf8');
+    const parts = source.split(/^[ \t]*@include\('livewire\.chat-box\.([a-z0-9-]+)'\)[ \t]*$/m);
+    for (let index = 1; index < parts.length; index += 2) {
+        parts[index] = (await readChatBoxView(`chat-box/${parts[index]}.blade.php`)).replace(/\n+$/, '');
+    }
+    const view = parts.join('');
+    // Eine Einbindung in anderer Schreibweise (Datenarray, @includeWhen) bliebe sonst
+    // unbemerkt stehen und die Pruefungen saehen nur noch einen Teil der Ansicht.
+    if (/@include\w*\(\s*['"]livewire\.chat-box\./.test(view)) {
+        throw new Error(`Chat-Partial in ${file} wurde nicht eingesetzt.`);
+    }
+    return view;
+}
+const blade = await readChatBoxView();
 const nativeDataExpression = blade.match(/x-data="([^"]+)"/)[1];
 const listInert = blade.match(/class="rt-chat-list-pane[^"]*"[\s\S]*?x-bind:inert="([^"]+)"/)[1];
 const chatInert = blade.match(/class="rt-chat-conversation-pane[^"]*"[\s\S]*?x-bind:inert="([^"]+)"/)[1];

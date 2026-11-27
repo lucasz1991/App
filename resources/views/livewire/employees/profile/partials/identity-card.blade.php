@@ -1,56 +1,54 @@
-{{-- Eine zusammenhaengende Identitaet mit nachgeordneten Eckdaten. --}}
-<header class="employee-profile__identity" data-profile-identity data-anim="fade-up">
+{{-- Eine zusammenhaengende Identitaet mit nachgeordneten Eckdaten.
+     Das Geruest (Kopf, Layout, Portraet, Textspalte) liefert x-user.identity-card. --}}
+@php
+    $teamName = $user->currentTeam?->name;
 
-  @php
-      $teamName = $user->currentTeam?->name;
+    // Rolle, Funktion und Team stehen als Badges beieinander. Ein Team
+    // heisst haeufig genauso wie die Rolle ("Mitarbeiter") — dann waere
+    // dieselbe Angabe zweimal zu sehen.
+    $identityBadges = [];
+    $seen = [];
 
-      // Rolle, Funktion und Team stehen als Badges beieinander. Ein Team
-      // heisst haeufig genauso wie die Rolle ("Mitarbeiter") — dann waere
-      // dieselbe Angabe zweimal zu sehen.
-      $identityBadges = [];
-      $seen = [];
+    foreach ([
+        ['value' => $roleLabel, 'color' => $roleColor, 'icon' => 'far fa-user-tag', 'title' => __('app.role')],
+        ['value' => $profile?->position, 'color' => 'slate', 'icon' => 'far fa-briefcase', 'title' => __('app.position')],
+        ['value' => $teamName, 'color' => 'slate', 'icon' => 'far fa-users', 'title' => __('app.team')],
+    ] as $badge) {
+        $value = trim((string) $badge['value']);
+        $key = mb_strtolower($value);
 
-      foreach ([
-          ['value' => $roleLabel, 'color' => $roleColor, 'icon' => 'far fa-user-tag', 'title' => __('app.role')],
-          ['value' => $profile?->position, 'color' => 'slate', 'icon' => 'far fa-briefcase', 'title' => __('app.position')],
-          ['value' => $teamName, 'color' => 'slate', 'icon' => 'far fa-users', 'title' => __('app.team')],
-      ] as $badge) {
-          $value = trim((string) $badge['value']);
-          $key = mb_strtolower($value);
+        if ($value === '' || in_array($key, $seen, true)) {
+            continue;
+        }
 
-          if ($value === '' || in_array($key, $seen, true)) {
-              continue;
-          }
+        $seen[] = $key;
+        $identityBadges[] = ['value' => $value] + $badge;
+    }
 
-          $seen[] = $key;
-          $identityBadges[] = ['value' => $value] + $badge;
-      }
+    // Funktion und Team stehen links als Badges — rechts bleiben nur die
+    // Angaben, die dort nicht schon zu sehen sind.
+    $identityFacts = array_values(array_filter([
+        ['key' => 'status', 'icon' => 'far fa-shield-check', 'label' => 'Kontostatus', 'value' => $user->isActive() ? 'Aktiv' : 'Inaktiv', 'status' => $user->isActive() ? 'active' : 'inactive'],
+        $canViewMasterData && $profile?->personnel_nr
+            ? ['key' => 'personnel', 'icon' => 'far fa-id-badge', 'label' => __('app.personnel_nr'), 'value' => $profile->personnel_nr]
+            : null,
+        ['key' => 'member', 'icon' => 'far fa-calendar-alt', 'label' => __('app.member_since'), 'value' => $user->created_at?->format('d.m.Y') ?: '—'],
+        ['key' => 'activity', 'icon' => 'far fa-clock', 'label' => __('app.last_online'), 'value' => $lastActivityAt ? $lastActivityAt->format('d.m.Y H:i') : __('app.never')],
+    ]));
 
-      // Funktion und Team stehen links als Badges — rechts bleiben nur die
-      // Angaben, die dort nicht schon zu sehen sind.
-      $identityFacts = array_values(array_filter([
-          ['key' => 'status', 'icon' => 'far fa-shield-check', 'label' => 'Kontostatus', 'value' => $user->isActive() ? 'Aktiv' : 'Inaktiv', 'status' => $user->isActive() ? 'active' : 'inactive'],
-          $canViewMasterData && $profile?->personnel_nr
-              ? ['key' => 'personnel', 'icon' => 'far fa-id-badge', 'label' => __('app.personnel_nr'), 'value' => $profile->personnel_nr]
-              : null,
-          ['key' => 'member', 'icon' => 'far fa-calendar-alt', 'label' => __('app.member_since'), 'value' => $user->created_at?->format('d.m.Y') ?: '—'],
-          ['key' => 'activity', 'icon' => 'far fa-clock', 'label' => __('app.last_online'), 'value' => $lastActivityAt ? $lastActivityAt->format('d.m.Y H:i') : __('app.never')],
-      ]));
+    // Schnellaktionen wie in der Personen-Schnellansicht (person-preview-modal).
+    $viewer = auth()->user();
+    $canReachPerson = $user->isActive() && ! $user->is($viewer);
+    $canCallPerson = $canReachPerson
+        && ($viewer->isAdmin() || $viewer->hasRbacPermission('calls.start'))
+        && ($user->isAdmin() || $user->hasRbacPermission('calls.join'));
+    $mobileNumber = trim((string) ($profile?->mobile ?: $profile?->phone));
+@endphp
 
-      // Schnellaktionen wie in der Personen-Schnellansicht (person-preview-modal).
-      $viewer = auth()->user();
-      $canReachPerson = $user->isActive() && ! $user->is($viewer);
-      $canCallPerson = $canReachPerson
-          && ($viewer->isAdmin() || $viewer->hasRbacPermission('calls.start'))
-          && ($user->isAdmin() || $user->hasRbacPermission('calls.join'));
-      $mobileNumber = trim((string) ($profile?->mobile ?: $profile?->phone));
-  @endphp
-
-  <div class="employee-profile__identity-layout">
-      {{-- Identitaet und Bearbeitungsfelder bleiben nativ. Kontostatus und
-           aktuelle Praesenz sind bewusst zwei getrennte Angaben. --}}
-      <div class="employee-profile__person">
-          <span class="employee-profile__portrait relative shrink-0">
+<x-user.identity-card variant="employee">
+  {{-- Identitaet und Bearbeitungsfelder bleiben nativ. Kontostatus und
+       aktuelle Praesenz sind bewusst zwei getrennte Angaben. --}}
+  <x-slot name="photo">
               <img
                   src="{{ $user->profile_photo_url }}"
                   alt="{{ $user->name }}"
@@ -73,9 +71,8 @@
                   <span aria-hidden="true"></span>
                   <span class="sr-only">{{ ! $user->isActive() ? ucfirst(__('app.inactive')) : ($isUserOnline ? __('app.online') : __('app.offline')) }}</span>
               </span>
-          </span>
+  </x-slot>
 
-          <div class="employee-profile__person-copy">
             <div class="employee-profile__name-line">
               <div class="employee-profile__name">
                   <x-ui.inline-edit-field
@@ -114,9 +111,8 @@
                       @endforeach
               </div>
             </div>
-          </div>
-      </div>
 
+  <x-slot name="actions">
       @if ($canReachPerson || $mobileNumber !== '')
           <div class="employee-profile__actions" data-profile-actions>
               <x-user.quick-actions
@@ -137,7 +133,9 @@
               @endif
           </div>
       @endif
+  </x-slot>
 
+  <x-slot name="meta">
       <section class="employee-profile__status" data-profile-status aria-labelledby="{{ $profilePrefix }}-status-title">
           <h2 id="{{ $profilePrefix }}-status-title">Einrichtungs Status</h2>
           <div class="employee-profile__status-rail">
@@ -165,5 +163,5 @@
               </dl>
           </div>
       </section>
-  </div>
-</header>
+  </x-slot>
+</x-user.identity-card>

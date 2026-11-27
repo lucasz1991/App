@@ -136,7 +136,7 @@
                 @endif
             </div>
             @if($consolidated && $detailOpen && in_array($detailSection,['proofs','costs'],true))
-                <livewire:operations.operations-enhancements :tab="$detailSection" :order-id="$selectedOrder->id" :initial-record-id="$detailSection === 'proofs' ? $fulfilmentRecordId : null" :embedded="true" :key="'order-fulfilment-'.$selectedOrder->id.'-'.$detailSection" />
+                <livewire:operations.service-fulfilment :tab="$detailSection" :order-id="$selectedOrder->id" :initial-record-id="$detailSection === 'proofs' ? $fulfilmentRecordId : null" :embedded="true" :key="'order-fulfilment-'.$selectedOrder->id.'-'.$detailSection" />
             @endif
                 </div>
             </div>

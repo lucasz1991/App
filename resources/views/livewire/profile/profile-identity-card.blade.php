@@ -1,17 +1,14 @@
-<section
-    class="employee-profile__identity relative overflow-hidden rounded-2xl border border-rt-border/80 bg-rt-surface shadow-rt-sm dark:border-rt-dark-border/80 dark:bg-rt-dark-surface"
-    data-anim="fade-up"
-    data-profile-identity
-    data-autosave-scope
->
+{{-- Das Geruest (Abschnitt, Layout, Fotofeld) liefert x-user.identity-card. --}}
+<x-user.identity-card variant="own">
+    <x-slot name="before">
     <x-ui.autosave-status
         event="identity-saved"
         target="saveIdentity"
         dirty-target="name,email"
     />
+    </x-slot>
 
-    <div class="profile-identity__layout bg-rt-surface dark:bg-rt-dark-surface">
-        <div class="profile-identity__photo">
+    <x-slot name="photo">
             <div
                 x-data="{ preview: null }"
                 class="relative shrink-0"
@@ -64,7 +61,7 @@
                     </span>
                 </button>
             </div>
-        </div>
+    </x-slot>
 
         <div
             x-data="{
@@ -261,6 +258,7 @@
             </div>
         </div>
 
+    <x-slot name="actions">
         @if($this->user->profile_photo_path)
             <button
                 type="button"
@@ -276,8 +274,9 @@
                 <i class="far fa-trash-alt text-sm" aria-hidden="true"></i>
             </button>
         @endif
-    </div>
+    </x-slot>
 
+    <x-slot name="after">
     @if($verificationLinkSent)
         <p class="border-t border-rt-border/70 bg-emerald-50/70 px-5 py-3 text-sm font-medium text-emerald-700 dark:border-rt-dark-border/70 dark:bg-emerald-500/10 dark:text-emerald-200 sm:px-6">
             {{ __('app.verification_link_sent') }}
@@ -285,4 +284,5 @@
     @endif
 
     <x-ui.forms.input-error for="photo" class="px-5 pb-4 sm:px-6" />
-</section>
+    </x-slot>
+</x-user.identity-card>

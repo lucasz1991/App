@@ -15,7 +15,7 @@
             @else<p>Ein Teammitglied bearbeitet den gemeinsamen Beleg.</p>@endif
         </section>
         @if($opened && $proof?->id === $opened && $proof->user_id == auth()->id())
-            <livewire:operations.operations-enhancements :personal="true" :embedded="true" :modal-only="true" :initial-record-id="$opened" :key="'duty-proof-'.$opened.'-'.$openCount" />
+            <livewire:operations.service-fulfilment :personal="true" :embedded="true" :modal-only="true" :initial-record-id="$opened" :key="'duty-proof-'.$opened.'-'.$openCount" />
         @endif
     </x-ui.page>
 </div>

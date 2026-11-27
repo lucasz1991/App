@@ -27,6 +27,7 @@ import './gsap';
 import './vengeance-motion';
 import { wagonList } from './wagon-list';
 import { wagonVideoCapture } from './wagon-video-capture';
+import { registerPlaceLookup } from './place-lookup';
 import { numberInput } from './number-input';
 import { dateField } from './date-field';
 import { dateRangePicker } from './date-range-picker';
@@ -222,6 +223,7 @@ registerIntakeLocationMap(Alpine);
 
 Alpine.data('wagonList', wagonList);
 Alpine.data('wagonVideoCapture', wagonVideoCapture);
+registerPlaceLookup(Alpine);
 Alpine.data('rtNumberInput', numberInput);
 Alpine.data('rtDateField', dateField);
 Alpine.data('rtDateRangePicker', dateRangePicker);

@@ -46,6 +46,9 @@
                     @foreach($data['markers'] as $marker)
                         <label class="wv-dispatch-map__choice"><input type="radio" name="{{ $mapId }}-place-choice" value="{{ $marker['key'] }}" x-model="place" x-on:change="close(true)" data-dispatch-place="{{ $marker['key'] }}" /><span>{{ $marker['place'] }}</span><small>{{ $marker['count'] }}</small></label>
                     @endforeach
+                    @if(!empty($data['outsideCount']))
+                        <label class="wv-dispatch-map__choice"><input type="radio" name="{{ $mapId }}-place-choice" value="outside" x-model="place" x-on:change="close(true)" data-dispatch-place="outside" /><span>Außerhalb Deutschlands</span><small>{{ $data['outsideCount'] }}</small></label>
+                    @endif
                     @if($data['unlocatedCount'] > 0)
                         <label class="wv-dispatch-map__choice"><input type="radio" name="{{ $mapId }}-place-choice" value="unlocated" x-model="place" x-on:change="close(true)" data-dispatch-place="unlocated" /><span>Ohne Kartenpunkt</span><small>{{ $data['unlocatedCount'] }}</small></label>
                     @endif

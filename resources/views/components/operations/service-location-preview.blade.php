@@ -2,7 +2,7 @@
 @php
     $location = $order?->location_name ?: 'Einsatzort offen';
     $locationPreview = $order instanceof \App\Models\Order
-        ? \App\Support\Operations\TimelineLocationPreview::fromOrder($order)
+        ? \App\Support\Operations\TimelineLocationPreview::fromOrder($order, true)
         : ['state' => 'unknown', 'label' => 'Standort nicht verortet'];
 @endphp
 <x-operations.service-cell-preview :label="'Ort: '.$location" :preview-id="$previewId" kind="location">

@@ -13,6 +13,12 @@
         @case('planning')<livewire:operations.workforce-planning :personal="true" :tab="request()->query('planning_tab') === 'offers' ? 'offers' : 'wishes'" />@break
         @case('account')<livewire:operations.workforce-accounts :personal="true" />@break
         @case('personnel')<livewire:operations.personnel-enhancements :personal="true" :embedded="true" :tab="$definition['tab']" :key="'personnel-'.$area" />@break
-        @case('operations')<livewire:operations.operations-enhancements :personal="true" :embedded="true" :tab="$definition['tab']" :key="'operations-'.$area" />@break
+        @case('operations')
+            @if($definition['tab'] === 'terminal')
+                <livewire:operations.time-administration :personal="true" :embedded="true" tab="terminal" :key="'operations-'.$area" />
+            @else
+                <livewire:operations.service-fulfilment :personal="true" :embedded="true" :tab="$definition['tab']" :key="'operations-'.$area" />
+            @endif
+            @break
     @endswitch
 </x-ui.page>

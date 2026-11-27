@@ -3,7 +3,8 @@
 namespace Tests\Feature;
 
 use App\Livewire\Operations\AttentionCenter;
-use App\Livewire\Operations\OperationsEnhancements;
+use App\Livewire\Operations\ServiceFulfilment;
+use App\Livewire\Operations\TimeAdministration;
 use App\Livewire\Operations\PersonalWorkspace;
 use App\Livewire\Operations\PersonnelEnhancements;
 use App\Livewire\Operations\PlanningEnhancements;
@@ -332,6 +333,11 @@ class OperationsAttentionTest extends TestCase
         foreach (array_keys(\App\Support\Operations\PersonalWorkspaceAreas::all()) as $area) {
             Livewire::withQueryParams(['area' => $area])->actingAs($this->employee)->test(PersonalWorkspace::class)->assertSet('area', $area)->assertOk();
         }
+        // Phase 7: Leistungen und Zeitwirtschaft sind getrennte Komponenten; jeder Bereich öffnet genau eine.
+        foreach (['proofs', 'travel', 'partners'] as $area) {
+            Livewire::withQueryParams(['area' => $area])->actingAs($this->employee)->test(PersonalWorkspace::class)->assertSeeLivewire(ServiceFulfilment::class)->assertDontSeeLivewire(TimeAdministration::class);
+        }
+        Livewire::withQueryParams(['area' => 'terminal'])->actingAs($this->employee)->test(PersonalWorkspace::class)->assertSeeLivewire(TimeAdministration::class)->assertDontSeeLivewire(ServiceFulfilment::class);
     }
 
     public function test_closed_payroll_month_also_protects_existing_time_account_adjustments(): void
@@ -367,7 +373,7 @@ class OperationsAttentionTest extends TestCase
             Livewire::actingAs($this->employee)->test(PersonnelEnhancements::class, ['personal' => true, 'tab' => $tab])->assertForbidden();
         }
         foreach (['rules', 'payroll', 'costs', 'imports'] as $tab) {
-            Livewire::actingAs($this->employee)->test(OperationsEnhancements::class, ['personal' => true])->call('setTab', $tab)->assertForbidden();
+            Livewire::actingAs($this->employee)->test(in_array($tab, ['rules', 'payroll'], true) ? TimeAdministration::class : ServiceFulfilment::class, ['personal' => true])->call('setTab', $tab)->assertForbidden();
         }
         Livewire::actingAs($this->employee)->test(PlanningEnhancements::class)->assertForbidden();
     }

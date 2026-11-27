@@ -42,6 +42,18 @@ import {
 } from '../../resources/js/mail-builder.js';
 import { createMailBlocks, mailCanvasStyles, MAIL_CTA_CLASS, MAIL_DEFAULT_FONT_STACK, MAIL_PERSON_FIELDS } from '../../resources/js/mail-builder-blocks.js';
 
+// Die Editor-View ist in Partials zerlegt (resources/views/livewire/admin/mail-document-editor/...).
+// Quelltext-Pruefungen sehen den zusammenhaengenden Text: jede Zeile
+// "@include('livewire.admin.mail-document-editor.<partial>')" wird durch den Partial-Inhalt ersetzt.
+function readBladeViewWithPartials(view, root = view) {
+    const source = readFileSync(new URL(`../../resources/views/${view.replaceAll('.', '/')}.blade.php`, import.meta.url), 'utf8');
+    const include = new RegExp(`^[ \\t]*@include\\('(${root.replaceAll('.', '\\.')}\\.[A-Za-z0-9._-]+)'\\)\\n`, 'gm');
+
+    return source.replace(include, (_line, partial) => readBladeViewWithPartials(partial, root));
+}
+
+const readMailDocumentEditorView = () => readBladeViewWithPartials('livewire.admin.mail-document-editor');
+
 const canonicalTrain = '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto 0 0;margin-bottom:-200px;overflow:hidden;font-size:0;line-height:0;text-align:left;"><table class="rt-sign-train-frame" role="presentation" width="100%" height="200" border="0" cellspacing="0" cellpadding="0" style="width:100%;height:200px;border-collapse:collapse;"><tbody><tr><td class="rt-sign-train-slot" height="200" valign="bottom" style="height:200px;padding:0;text-align:left;vertical-align:bottom;font-size:0;line-height:0;"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:bottom;mso-hide:all;"></td></tr></tbody></table></div>';
 const canonicalSignatureStage = (content = '') => '<div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;">'
     + canonicalTrain
@@ -560,7 +572,7 @@ test('mail canvas uses authoritative theme colors without leaking CSS or changin
 
     // Verify both the initial iframe and later theme switches use the server input.
     const builderSource = readFileSync(new URL('../../resources/js/mail-builder.js', import.meta.url), 'utf8');
-    const viewSource = readFileSync(new URL('../../resources/views/livewire/admin/mail-document-editor.blade.php', import.meta.url), 'utf8');
+    const viewSource = readMailDocumentEditorView();
     assert.match(viewSource, /previewThemeValues:\s*config\.previewThemeValues \|\| \{\}/);
     assert.match(builderSource, /mailCanvasStyles\(activeTheme, previewAssets, responsiveCssForTheme\(activeTheme\), previewThemeValues\)/);
     assert.match(builderSource, /responsiveCssForTheme\(activeTheme, editor\.Canvas\?\.getDocument\?\.\(\)\), previewThemeValues\)/);
@@ -3158,10 +3170,7 @@ test('preview controller ignores identical ResizeObserver feedback after geometr
 
 test('mail editor waits for the teleported fullscreen workspace before booting LMZ', async () => {
     const { readFile } = await import('node:fs/promises');
-    const source = await readFile(
-        new URL('../../resources/views/livewire/admin/mail-document-editor.blade.php', import.meta.url),
-        'utf8',
-    );
+    const source = readMailDocumentEditorView();
     const coreSource = await readFile(
         new URL('../../resources/js/lmz-editor-core.js', import.meta.url),
         'utf8',
@@ -3179,7 +3188,7 @@ test('mail editor waits for the teleported fullscreen workspace before booting L
 });
 
 test('compiled preview drops stale bytes on failure, late responses and editor teardown', async () => {
-    const source = readFileSync(new URL('../../resources/views/livewire/admin/mail-document-editor.blade.php', import.meta.url), 'utf8');
+    const source = readMailDocumentEditorView();
     const start = source.indexOf('const loadCompiledDeliveryPreview =');
     const end = source.indexOf('const selectViewMode =', start);
     const pending = [];
@@ -3219,7 +3228,7 @@ test('compiled preview drops stale bytes on failure, late responses and editor t
 });
 
 test('server save preserves edits made during a request and detaches its update observer', async () => {
-    const source = readFileSync(new URL('../../resources/views/livewire/admin/mail-document-editor.blade.php', import.meta.url), 'utf8');
+    const source = readMailDocumentEditorView();
     const signature = 'onSave: async ({ project, html, css, editor }) => {';
     const start = source.indexOf(signature) + signature.length;
     const end = source.indexOf('                                    },', start);
@@ -3259,7 +3268,7 @@ test('shared page builder opens from preview into a compact responsive Mail Stud
     const { readFile } = await import('node:fs/promises');
     const [shell, mailView, mailIndex, adminSidebar, mailCss, shellCss] = await Promise.all([
         readFile(new URL('../../resources/views/components/ui/page-builder/editor-shell.blade.php', import.meta.url), 'utf8'),
-        readFile(new URL('../../resources/views/livewire/admin/mail-document-editor.blade.php', import.meta.url), 'utf8'),
+        readMailDocumentEditorView(),
         readFile(new URL('../../resources/views/email-templates/index.blade.php', import.meta.url), 'utf8'),
         readFile(new URL('../../resources/views/layouts/admin-sidebar.blade.php', import.meta.url), 'utf8'),
         readFile(new URL('../../resources/css/mail-builder.css', import.meta.url), 'utf8'),
@@ -3379,7 +3388,7 @@ test('shared page builder opens from preview into a compact responsive Mail Stud
 });
 
 test('mail view controls work after teleport and ignore other panels and destroyed editors', async () => {
-    const source = readFileSync(new URL('../../resources/views/livewire/admin/mail-document-editor.blade.php', import.meta.url), 'utf8');
+    const source = readMailDocumentEditorView();
     const queriesStart = source.indexOf('const viewPanelId =');
     const queriesEnd = source.indexOf('const saveButton =', queriesStart);
     const eventsStart = source.indexOf('// Delegation erreicht auch einen erst spaeter teleportierten');
@@ -3498,7 +3507,7 @@ test('mail view controls work after teleport and ignore other panels and destroy
 });
 
 test('code import drains pending autosave and keeps the previous canvas locked through reload', async () => {
-    const mailView = readFileSync(new URL('../../resources/views/livewire/admin/mail-document-editor.blade.php', import.meta.url), 'utf8');
+    const mailView = readMailDocumentEditorView();
     const start = mailView.indexOf('const applyCodeAsDraft = async () => {');
     const end = mailView.indexOf("bindToolControl('[data-mail-code-open]'", start);
     assert.ok(start > 0 && end > start);
@@ -3650,7 +3659,7 @@ test('code import drains pending autosave and keeps the previous canvas locked t
 test('mail editor exposes one responsive topbar with grouped controls and visible publishing actions', async () => {
     const { readFile } = await import('node:fs/promises');
     const [view, css] = await Promise.all([
-        readFile(new URL('../../resources/views/livewire/admin/mail-document-editor.blade.php', import.meta.url), 'utf8'),
+        readMailDocumentEditorView(),
         readFile(new URL('../../resources/css/mail-builder.css', import.meta.url), 'utf8'),
     ]);
 
@@ -3696,7 +3705,7 @@ test('mail editor exposes one responsive topbar with grouped controls and visibl
 test('mail design manager uses the shared state modal and saves before slot or version transitions', async () => {
     const { readFile } = await import('node:fs/promises');
     const [view, editorShell, modalShell] = await Promise.all([
-        readFile(new URL('../../resources/views/livewire/admin/mail-document-editor.blade.php', import.meta.url), 'utf8'),
+        readMailDocumentEditorView(),
         readFile(new URL('../../resources/views/components/ui/page-builder/editor-shell.blade.php', import.meta.url), 'utf8'),
         readFile(new URL('../../resources/views/components/modal.blade.php', import.meta.url), 'utf8'),
     ]);

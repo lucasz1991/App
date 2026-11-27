@@ -101,7 +101,7 @@
                             <x-operations.panel.group title="Zeit & Ort">
                                 <div class="rt-ops-panel__previews">
                                     <x-operations.timeline-mini-calendar :start="$panelStart" :end="$panelEnd" />
-                                    <x-operations.timeline-mini-map :preview="\App\Support\Operations\TimelineLocationPreview::fromShift($selectedShift)" :location="$panelLocation" />
+                                    <x-operations.timeline-mini-map :preview="\App\Support\Operations\TimelineLocationPreview::fromShift($selectedShift, true)" :location="$panelLocation" />
                                 </div>
                             </x-operations.panel.group>
                         @endif

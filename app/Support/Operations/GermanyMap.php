@@ -136,12 +136,17 @@ final class GermanyMap
      *
      * @return array{points: list<array{key: string, left: float, top: float, label: string, precisionLabels: list<string>, count: int, open: int, tone: string}>, unplaced: int, total: int}
      */
-    public static function planning(Collection $shifts): array
+    public static function planning(Collection $shifts, bool $worksite = false): array
     {
         $points = [];
+        $lookups = [];
         $unplaced = 0;
         foreach ($shifts as $shift) {
-            $places = self::locateAll($shift);
+            $preview = TimelineLocationPreview::fromShift($shift, $worksite);
+            if (isset($preview['lookup'])) {
+                $lookups[$preview['lookup']['signature']] = $preview['lookup'];
+            }
+            $places = array_map(fn (array $point) => ['place' => $point['label'], 'label' => $preview['state'] === 'multiple' ? $point['label'] : self::label($shift)] + $point, self::pointsFromPreview($preview));
             if ($places === []) {
                 $unplaced++;
 
@@ -169,7 +174,7 @@ final class GermanyMap
         $points = array_values($points);
         usort($points, fn (array $a, array $b): int => [$b['open'], $b['count']] <=> [$a['open'], $a['count']]);
 
-        return ['points' => $points, 'unplaced' => $unplaced, 'total' => $shifts->count()];
+        return ['points' => $points, 'unplaced' => $unplaced, 'total' => $shifts->count()] + ($lookups ? ['lookups' => array_values($lookups)] : []);
     }
 
     /** @return array{0: string, 1: int} Ton und offene Plätze einer Schicht */

@@ -78,6 +78,7 @@ export async function createLiveLocationMap({
     longitude,
     accuracy = 0,
     interactive = false,
+    showInitialMarker = true,
     zoom = interactive ? 16 : 15,
     mapConfig = null,
     documentLike = globalThis.document,
@@ -124,6 +125,7 @@ export async function createLiveLocationMap({
     });
     const marker = L.marker(center, {
         icon: markerIcon,
+        opacity: showInitialMarker ? 1 : 0,
         interactive: false,
         keyboard: false,
     }).addTo(map);
@@ -226,6 +228,7 @@ export async function createLiveLocationMap({
             const nextPoint = point(current.latitude, current.longitude);
 
             marker.setLatLng(nextPoint);
+            if (!showInitialMarker) marker.setOpacity(1);
             accuracyCircle.setLatLng(nextPoint);
             accuracyCircle.setRadius(current.accuracy);
 

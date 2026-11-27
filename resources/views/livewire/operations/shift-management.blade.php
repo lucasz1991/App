@@ -374,7 +374,7 @@
                                         @else
                                             <p class="rt-ops-panel__text">Kein vollständiger Zeitraum hinterlegt.</p>
                                         @endif
-                                        <x-operations.timeline-mini-map :preview="\App\Support\Operations\TimelineLocationPreview::fromShift($selectedShift)" :location="$shiftLocation" />
+                                        <x-operations.timeline-mini-map :preview="\App\Support\Operations\TimelineLocationPreview::fromShift($selectedShift, true)" :location="$shiftLocation" />
                                     </div>
                                 </x-operations.panel.group>
                             @endif

@@ -59,6 +59,12 @@ class LivewireAliasServiceProvider extends ServiceProvider
         // Phase 7 – Umbenennungen
         'operations.wagon-list-prototype' => ['operations.wagon-list', \App\Livewire\Operations\WagonList::class],
         'operations.personal-page-workspace' => ['operations.personnel-page-workspace', \App\Livewire\Operations\PersonnelPageWorkspace::class],
+
+        // Phase 7 – Sammelkomponente nach Fachbereich geteilt (Leistungen / Zeitwirtschaft).
+        // Der alte Name löst auf die Leistungen auf; Snapshots mit einem Reiter der Zeitwirtschaft
+        // (Fachregeln, Monatsabschluss, Terminalzugang) laufen dort mit 419 ab (Neuladen),
+        // siehe ManagesEnhancementRecords::hydrate().
+        'operations.operations-enhancements' => ['operations.service-fulfilment', \App\Livewire\Operations\ServiceFulfilment::class],
     ];
 
     public function boot(): void

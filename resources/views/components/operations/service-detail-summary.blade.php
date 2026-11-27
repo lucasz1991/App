@@ -35,7 +35,7 @@
     }
     $location = $order?->location_name ?: 'Einsatzort offen';
     $locationPreview = $order instanceof \App\Models\Order
-        ? \App\Support\Operations\TimelineLocationPreview::fromOrder($order)
+        ? \App\Support\Operations\TimelineLocationPreview::fromOrder($order, true)
         : ['state' => 'unknown', 'label' => 'Standort nicht verortet'];
     $address = collect([$order?->street, trim(($order?->postal_code ?? '').' '.($order?->city ?? '')), $order?->country])->filter()->join(', ');
     $orderFrom = $item->orderFrom ?? null;

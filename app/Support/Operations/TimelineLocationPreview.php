@@ -27,9 +27,10 @@ final class TimelineLocationPreview
      *
      * @return array{state: string, label: string, confirmed?: bool, place?: string, x?: float, y?: float, latitude?: float, longitude?: float}
      */
-    public static function fromShift(Shift $shift): array
+    public static function fromShift(Shift $shift, bool $worksite = false): array
     {
-        return self::shiftPreview($shift, true);
+        $preview = self::shiftPreview($shift, true, $worksite);
+        return $worksite ? \App\Services\Routing\WorksiteLookup::preview($preview, \App\Services\Routing\WorksiteLookup::forRecord($shift), 'shift:'.$shift->getKey()) : $preview;
     }
 
     /** Map-only fallbacks must not change persisted regional exclusion policy. */
@@ -38,15 +39,16 @@ final class TimelineLocationPreview
         return self::shiftPreview($shift, false);
     }
 
-    public static function fromOrder(Order $order): array
+    public static function fromOrder(Order $order, bool $worksite = false): array
     {
-        if (($snapshot = self::confirmedSnapshot($order->getAttribute('location_snapshot'))) !== null) {
+        if (($snapshot = self::confirmedSnapshot($order->getAttribute('location_snapshot'), $worksite)) !== null) {
             return $snapshot;
         }
 
-        return self::structuredDisplayLocation($order, [
+        $preview = self::structuredDisplayLocation($order, [
             $order->getAttribute('title'), $order->getAttribute('description'),
         ]);
+        return $worksite ? \App\Services\Routing\WorksiteLookup::preview($preview, \App\Services\Routing\WorksiteLookup::forRecord($order), 'order:'.$order->getKey()) : $preview;
     }
 
     private static function structuredDisplayLocation(Order $order, array $texts): array
@@ -83,18 +85,19 @@ final class TimelineLocationPreview
         ]);
     }
 
-    public static function fromInquiry(OperationInquiry $inquiry): array
+    public static function fromInquiry(OperationInquiry $inquiry, bool $worksite = false): array
     {
         // The inquiry's explicit worksite is separate from contact/customer and
         // linked order addresses; none of those relationships are consulted.
         $location = self::normalize($inquiry->getAttribute('location_name'));
 
-        return $location === null ? self::unlocated('unknown') : self::displayLocation($location, self::mapLocation($location));
+        $preview = $location === null ? self::unlocated('unknown') : self::displayLocation($location, self::mapLocation($location));
+        return $worksite ? \App\Services\Routing\WorksiteLookup::preview($preview, \App\Services\Routing\WorksiteLookup::forRecord($inquiry), 'inquiry:'.$inquiry->getKey()) : $preview;
     }
 
-    private static function shiftPreview(Shift $shift, bool $mapFallbacks): array
+    private static function shiftPreview(Shift $shift, bool $mapFallbacks, bool $worksite = false): array
     {
-        if ($mapFallbacks && ($snapshot = self::confirmedSnapshot($shift->getAttribute('location_snapshot'))) !== null) {
+        if ($mapFallbacks && ($snapshot = self::confirmedSnapshot($shift->getAttribute('location_snapshot'), $worksite)) !== null) {
             return $snapshot;
         }
         $location = self::normalize($shift->getAttribute('location_name'));
@@ -256,7 +259,7 @@ final class TimelineLocationPreview
     }
 
     /** Pure display validation: no directory lookups, GPS sources or routing. */
-    private static function confirmedSnapshot(mixed $snapshot): ?array
+    private static function confirmedSnapshot(mixed $snapshot, bool $worksite = false): ?array
     {
         if (! is_array($snapshot) || ($snapshot['confirmed'] ?? false) !== true) {
             return null;
@@ -273,7 +276,7 @@ final class TimelineLocationPreview
 
         $preview = self::located([0, trim($name), (float) $latitude, (float) $longitude]);
         if ($preview['state'] !== 'located') {
-            return ['state' => 'outside', 'label' => 'Bestätigter Einsatzstandort außerhalb der Deutschlandkarte', 'confirmed' => true, 'place' => trim($name)];
+            return ['state' => 'outside', 'label' => 'Bestätigter Einsatzstandort außerhalb der Deutschlandkarte', 'confirmed' => true, 'place' => trim($name)] + ($worksite ? ['latitude' => (float) $latitude, 'longitude' => (float) $longitude] : []);
         }
 
         $preview['label'] = 'Bestätigter Einsatzstandort';

@@ -2,6 +2,9 @@
 
 namespace App\Livewire\Operations;
 
+use App\Livewire\Operations\Concerns\SavesPersonalAbsenceForms;
+use App\Livewire\Operations\Concerns\SavesPersonnelProcessForms;
+use App\Livewire\Operations\Concerns\SavesWorkforceAccountForms;
 use App\Models\AbsenceRequest;
 use App\Models\EmployeeRuleAssignment;
 use App\Models\EmployeeVacationPolicy;
@@ -29,15 +32,20 @@ use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithPagination;
 
+/**
+ * Arbeitsmodelle, Konten und Personalprozesse eines Mitarbeiters in einer gemeinsamen
+ * Ansicht (ein Mitarbeiter, ein Reiter, ein Formulardialog). Das Speichern liegt je
+ * Fachbereich in einem Concern:
+ *   - SavesWorkforceAccountForms  (Konten, Arbeitsmodelle, Richtlinien, Regeln, Prüfungen, Zuständigkeiten)
+ *   - SavesPersonnelProcessForms  (Aufgaben, Schulungen)
+ *   - SavesPersonalAbsenceForms   (Urlaubsantrag, Krankmeldung der persönlichen Ansicht)
+ */
 class WorkforceAccounts extends Component
 {
-    use WithPagination;
+    use SavesPersonalAbsenceForms, SavesPersonnelProcessForms, SavesWorkforceAccountForms, WithPagination;
 
     #[Locked]
     public bool $personal = false;
-
-    #[Locked]
-    public bool $processOnly = false;
 
     #[Locked]
     public bool $embedded = false;
@@ -168,7 +176,7 @@ class WorkforceAccounts extends Component
     {
         $this->access();
         abort_if($this->profileUserId !== null && $tab !== $this->profileTab, 403);
-        abort_unless(in_array($tab, $this->personal ? ['account', 'absences', 'tasks', 'training'] : ($this->processOnly ? ['tasks', 'training'] : ['account', 'models', 'policies', 'rules', 'checks', 'absences', 'responsibilities', 'training']), true), 404);
+        abort_unless(in_array($tab, $this->personal ? ['account', 'absences', 'tasks', 'training'] : ['account', 'models', 'policies', 'rules', 'checks', 'absences', 'responsibilities', 'training'], true), 404);
         $this->tab = $tab;
         $this->focusedRecordId = null;
         $this->access();
@@ -232,123 +240,19 @@ class WorkforceAccounts extends Component
         $actor = auth()->user();
         $data = array_map(fn ($value) => $value === '' ? null : $value, $this->form);
         if (! $this->personal) {
-            if ($this->formKind === 'model') {
-                $windows = [];
-                foreach (range(1, 7) as $day) {
-                    $start = $data['window_start'][$day] ?? '';
-                    $end = $data['window_end'][$day] ?? '';
-                    if ($start !== '' || $end !== '') {
-                        $windows[$day] = [['start' => $start, 'end' => $end]];
-                    }
-                    $start2 = $data['window_start_2'][$day] ?? '';
-                    $end2 = $data['window_end_2'][$day] ?? '';
-                    if ($start2 !== '' || $end2 !== '') {
-                        $windows[$day] ??= [];
-                        $windows[$day][] = ['start' => $start2, 'end' => $end2];
-                    }
-                }
-                $percent = array_filter($data['valuation_percent'] ?? [], fn ($value) => $value !== '' && $value !== null);
-                Validator::make(['rates' => $percent], ['rates.*' => 'numeric|between:0,100|decimal:0,2'])->validate();
-                $rates = array_map(fn ($rate) => (int) round((float) $rate * 100), $percent);
-                unset($data['window_start'], $data['window_end'], $data['window_start_2'], $data['window_end_2'], $data['valuation_percent']);
-                $accounts->createModel($employee, $data + ['work_windows' => $windows, 'valuation_rules' => $rates], $actor);
-            } elseif ($this->formKind === 'policy') {
-                $data['non_working_dates'] = array_values(array_filter(preg_split('/[\s,;]+/', $data['non_working_dates_text'] ?? '')));
-                unset($data['non_working_dates_text']);
-                $accounts->createPolicy($employee, $data, $actor);
-            } elseif ($this->formKind === 'credit') {
-                $accounts->creditVacation($employee, $data, $actor);
-            } elseif ($this->formKind === 'adjustment') {
-                $accounts->adjustTime($employee, $data, $actor);
-            } elseif ($this->formKind === 'rule') {
-                $accounts->assignRules($employee, $data, $actor);
-            } elseif ($this->formKind === 'task') {
-                $process->createTask($employee, $data, $actor);
-            } elseif ($this->formKind === 'training') {
-                $process->createTraining($data, $actor);
-            } elseif ($this->formKind === 'enroll') {
-                $this->validate(['form.personnel_training_id' => 'required|integer', 'form.revision' => 'required|integer']);
-                $process->enroll(PersonnelTraining::findOrFail($data['personnel_training_id']), $employee, (int) $data['revision'], $actor);
-            } elseif (in_array($this->formKind, ['end_model', 'end_policy'], true)) {
-                $class = $this->formKind === 'end_model' ? EmployeeWorkModel::class : EmployeeVacationPolicy::class;
-                $record = $class::where('user_id', $employee->id)->findOrFail($this->recordId);
-                $accounts->endVersion($record, (int) ($data['revision'] ?? 0), $data['ends_on'] ?? '', $data['note'] ?? '', $actor);
-            } elseif ($this->formKind === 'reduce_credit') {
-                $record = WorkforceAccountEntry::where('user_id', $employee->id)->findOrFail($this->recordId);
-                $accounts->reduceCreditAmount($record, $data['quantity'] ?? null, $data['note'] ?? '', $actor, $data['idempotency_key'] ?? null);
-            } elseif ($this->formKind === 'participation') {
-                $record = PersonnelTrainingParticipant::where('user_id', $employee->id)->findOrFail($this->recordId);
-                $process->participation($record, (int) ($data['revision'] ?? 0), $data['action'] ?? '', $data['note'] ?? '', $actor);
-            } elseif ($this->formKind === 'task_cancel') {
-                $record = PersonnelTask::where('user_id', $employee->id)->findOrFail($this->recordId);
-                $process->cancelTask($record, (int) ($data['revision'] ?? 0), $data['note'] ?? '', $actor);
-            } elseif ($this->formKind === 'training_cancel') {
-                $process->cancelTraining(PersonnelTraining::findOrFail($this->recordId), (int) ($data['revision'] ?? 0), $data['note'] ?? '', $actor);
-            } elseif ($this->formKind === 'sickness_correction') {
-                $record = AbsenceRequest::where('user_id', $employee->id)->findOrFail($this->recordId);
-                $workflow->correctSickness($record, (int) ($data['revision'] ?? 0), $data, $actor);
-            } elseif ($this->formKind === 'responsibility') {
-                app(PersonnelScopeService::class)->assign($employee, $data, $actor);
-            } elseif ($this->formKind === 'adopt_absence') {
-                $record = AbsenceRequest::where('user_id', $employee->id)->findOrFail($this->recordId);
-                $accounts->adoptApprovedAbsence($record, (int) ($data['revision'] ?? 0), $data['note'] ?? '', $actor);
-            } elseif ($this->formKind === 'plan_review') {
-                $record = PersonnelPlanReview::where('user_id', $employee->id)->findOrFail($this->recordId);
-                app(WorkforcePlanReviewService::class)->reassess($record, (int) ($data['revision'] ?? 0), $data['note'] ?? '', $actor);
-            } else {
-                abort(403);
-            }
-        } elseif ($this->formKind === 'vacation') {
-            $this->validate(['form.starts_on' => 'required|date_format:Y-m-d', 'form.ends_on' => 'required|date_format:Y-m-d|after_or_equal:form.starts_on']);
-            $timezone = $accounts->effectiveModel($employee, $data['starts_on'])?->timezone ?? config('operations.display_timezone');
-            $partial = $data['vacation_fraction'] !== '1' && $data['vacation_fraction'] !== 1;
-            if ($partial) {
-                $this->validate(['form.starts_time' => 'required|date_format:H:i', 'form.ends_time' => 'required|date_format:H:i', 'form.ends_on' => 'same:form.starts_on']);
-            }
-            $workflow->requestAbsence($actor, ['kind' => 'vacation', 'starts_at' => $data['starts_on'].'T'.($partial ? $data['starts_time'] : '00:00'), 'ends_at' => $partial ? $data['ends_on'].'T'.$data['ends_time'] : CarbonImmutable::parse($data['ends_on'])->addDay()->format('Y-m-d\T00:00'), 'timezone' => $timezone, 'vacation_fraction' => $data['vacation_fraction'] === 'window' ? '1' : $data['vacation_fraction'], 'note' => $data['note'] ?? '']);
-        } elseif ($this->formKind === 'sick') {
-            try {
-                $workflow->reportSickness($actor, $data);
-            } catch (ValidationException $exception) {
-                throw ValidationException::withMessages(collect($exception->errors())->mapWithKeys(fn ($messages, $key) => [array_key_exists($key, $data) ? 'form.'.$key : $key => $messages])->all());
-            }
+            abort_unless($this->saveAccountForm($employee, $data, $actor, $accounts, $workflow) || $this->saveProcessForm($employee, $data, $actor, $process), 403);
         } else {
-            abort(403);
+            abort_unless($this->savePersonalAbsenceForm($employee, $data, $actor, $accounts, $workflow), 403);
         }
         $this->resetValidation();
         $this->formOpen = false;
         session()->flash('operations.saved', 'Gespeichert.');
     }
 
-    public function selectTraining(): void
-    {
-        $this->access();
-        $this->authorizeProfileForm('enroll');
-        $training = PersonnelTraining::findOrFail($this->form['personnel_training_id'] ?? 0);
-        $this->form['revision'] = $training->revision;
-    }
-
     public function prepareRecord(string $kind, int $id, int $revision): void
     {
         $this->openForm($kind, $id);
         $this->form['revision'] = $revision;
-    }
-
-    public function activate(string $kind, int $id, int $revision, WorkforceAccountService $service): void
-    {
-        $employee = $this->employee();
-        $this->authorizeProfileForm($kind);
-        abort_if($this->personal, 403);
-        abort_unless(in_array($kind, ['model', 'policy'], true), 404);
-        $class = $kind === 'model' ? EmployeeWorkModel::class : EmployeeVacationPolicy::class;
-        $service->activate($class::where('user_id', $employee->id)->findOrFail($id), $revision, auth()->user());
-    }
-
-    public function completeTask(int $id, int $revision, PersonnelProcessService $service): void
-    {
-        $employee = $this->employee();
-        $this->authorizeProfileForm('task');
-        $service->completeTask(PersonnelTask::where('user_id', $employee->id)->findOrFail($id), $revision, '', auth()->user());
     }
 
     private function authorizeProfileForm(string $kind): void

@@ -2,78 +2,51 @@
 
 namespace App\Livewire\Operations;
 
-use App\Livewire\Concerns\ResetsPageOnFilterChange;
-use App\Livewire\Concerns\ResolvesOperationsActor;
+use App\Livewire\Operations\Concerns\ManagesEnhancementRecords;
 use App\Models\CustomerContact;
 use App\Models\EmployeeQualification;
 use App\Models\OperationsCostRate;
-use App\Models\OperationsMonthClosing;
-use App\Models\OperationsRateRule;
-use App\Models\OperationsTerminalProfile;
 use App\Models\OperationWorkflow;
 use App\Models\Order;
 use App\Models\Shift;
 use App\Models\User;
-use App\Models\WorkTimeEntry;
 use App\Services\Operations\CustomerProofService;
 use App\Services\Operations\OperationalCostService;
 use App\Services\Operations\OperationsPartnerService;
-use App\Services\Operations\OperationsRuleEvaluationService;
 use App\Services\Operations\OperationsTravelService;
 use App\Services\Operations\OperationsWorkflowService;
-use App\Services\Operations\PayrollClosingService;
 use App\Services\Operations\PersonnelScopeService;
 use App\Services\Operations\ReviewedInquiryImportService;
-use App\Services\Operations\WorkTimeActivityService;
-use App\Services\Operations\WorkTimeTerminalService;
 use App\Support\Exports\CsvDownload;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsEnhancementsSchema;
-use Carbon\CarbonImmutable;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
-use Livewire\WithPagination;
 
-class OperationsEnhancements extends Component
+/**
+ * Leistungen rund um den Auftrag: Leistungsnachweise, Reisen, Partneranfragen,
+ * Eingangsprüfung und Auftragskosten.
+ *
+ * Bis Phase 7 Teil der Sammelkomponente OperationsEnhancements; die
+ * Zeitwirtschaft (Fachregeln, Monatsabschluss, Terminalzugang) liegt seitdem in
+ * TimeAdministration. Der alte Komponentenname löst über
+ * LivewireAliasServiceProvider auf diese Klasse auf.
+ */
+class ServiceFulfilment extends Component
 {
-    use ResetsPageOnFilterChange, ResolvesOperationsActor, WithFileUploads, WithPagination;
+    use ManagesEnhancementRecords, WithFileUploads;
 
-    public const TABS = ['proofs' => 'Leistungsnachweise', 'travel' => 'Reisen', 'partners' => 'Partneranfragen', 'imports' => 'Eingangsprüfung', 'rules' => 'Fachregeln', 'payroll' => 'Monatsabschluss', 'costs' => 'Auftragskosten', 'terminal' => 'Terminalzugang'];
+    public const TABS = ['proofs' => 'Leistungsnachweise', 'travel' => 'Reisen', 'partners' => 'Partneranfragen', 'imports' => 'Eingangsprüfung', 'costs' => 'Auftragskosten'];
 
-    #[Locked]
-    public bool $personal = false;
+    /** Reiter der persönlichen Ansicht unter „Mein Arbeitstag“. */
+    private const PERSONAL_TABS = ['proofs', 'travel', 'partners'];
 
-    #[Locked]
-    public bool $embedded = false;
-
-    #[Locked]
-    public bool $payrollExportOnly = false;
+    /** Reiter, die im Auftrag eingebettet werden dürfen. */
+    private const ORDER_TABS = ['proofs', 'travel', 'costs'];
 
     #[Locked]
     public ?int $orderId = null;
-
-    #[Locked]
-    public ?int $contextUserId = null;
-
-    #[Locked]
-    public string $tab = 'proofs';
-
-    #[Locked]
-    public ?int $selectedId = null;
-
-    #[Locked]
-    public ?int $selectedRevision = null;
-
-    public bool $formOpen = false;
-
-    public bool $detailOpen = false;
-
-    public string $search = '';
-
-    public array $form = [];
-
-    public string $note = '';
 
     public ?int $contactId = null;
 
@@ -88,15 +61,13 @@ class OperationsEnhancements extends Component
     #[Locked]
     public bool $modalOnly = false;
 
-    public function mount(bool $personal = false, string $tab = 'proofs', ?int $orderId = null, ?int $initialRecordId = null, bool $embedded = false, bool $payrollExportOnly = false, ?int $initialUserId = null, bool $workspace = false, bool $modalOnly = false): void
+    public function mount(bool $personal = false, string $tab = 'proofs', ?int $orderId = null, ?int $initialRecordId = null, bool $embedded = false, ?int $initialUserId = null, bool $modalOnly = false): void
     {
         $this->personal = $personal;
         $this->modalOnly = $modalOnly;
-        $this->embedded = $embedded || $workspace;
-        $this->payrollExportOnly = $payrollExportOnly;
+        $this->embedded = $embedded;
         $this->orderId = $orderId;
         $this->contextUserId = $initialUserId;
-        abort_if($payrollExportOnly && ($personal || $tab !== 'payroll'), 403);
         if ($orderId) {
             OperationsAccess::authorize(auth()->user(), $tab === 'costs' ? 'operations.costs.manage' : 'operations.manage');
             Order::findOrFail($orderId);
@@ -104,7 +75,7 @@ class OperationsEnhancements extends Component
         $allowed = $this->tabs();
         abort_unless($allowed, 403);
         $this->tab = array_key_exists($tab, $allowed) ? $tab : array_key_first($allowed);
-        $this->form = $this->tab === 'costs' ? ['order_id' => $this->orderId ?? '', 'proof_id' => '', 'billing_cents' => ''] : [];
+        $this->form = $this->blankTabForm();
         $this->access();
         if ($initialRecordId) {
             $this->openDetails($initialRecordId);
@@ -113,44 +84,42 @@ class OperationsEnhancements extends Component
         }
     }
 
-    public function ready(): bool
+    protected function tabOffered(string $tab): bool
     {
-        return OperationsEnhancementsSchema::ready();
+        return (! $this->personal || in_array($tab, self::PERSONAL_TABS, true)) && (! $this->orderId || in_array($tab, self::ORDER_TABS, true));
     }
 
-    public function tabs(): array
-    {
-        return array_filter(self::TABS, fn ($label, $key) => (! $this->personal || in_array($key, ['proofs', 'travel', 'partners', 'terminal'])) && (! $this->payrollExportOnly || $key === 'payroll') && (! $this->orderId || in_array($key, ['proofs', 'travel', 'costs'], true)) && $this->canTab($key), ARRAY_FILTER_USE_BOTH);
-    }
-
-    private function ability(string $tab): string
+    protected function ability(string $tab): string
     {
         return match ($tab) {
-            'rules' => 'operations.rules.manage', 'payroll' => $this->payrollExportOnly ? 'operations.time.export' : 'operations.time.review', 'costs' => 'operations.costs.manage', 'imports' => 'operations.inquiries.manage', 'terminal' => 'operations.terminal.manage', default => 'operations.manage'
+            'costs' => 'operations.costs.manage', 'imports' => 'operations.inquiries.manage', default => 'operations.manage'
         };
     }
 
-    private function canTab(string $tab): bool
+    protected function blankTabForm(): array
     {
-        $actor = auth()->user()?->fresh();
-
-        return $actor && $actor->status && ($this->personal ? OperationsAccess::isEmployee($actor) : $actor->can($this->ability($tab)));
+        return $this->tab === 'costs' ? ['order_id' => $this->orderId ?? '', 'proof_id' => '', 'billing_cents' => ''] : [];
     }
 
-    private function access(): User
+    protected function resetTabState(): void
+    {
+        $this->reset('selectedId', 'selectedRevision', 'detailOpen', 'formOpen', 'form', 'note', 'costResult', 'upload', 'search');
+    }
+
+    protected function access(): User
     {
         $actor = $this->freshActor(requireReady: false);
-        abort_unless($this->canTab($this->tab) && (! $this->personal || in_array($this->tab, ['proofs', 'travel', 'partners', 'terminal'])), 403);
+        abort_unless($this->canTab($this->tab) && (! $this->personal || in_array($this->tab, self::PERSONAL_TABS, true)), 403);
         if ($this->personal) {
             OperationsAccess::own($actor, $actor->id);
         } else {
             OperationsAccess::authorize($actor, $this->ability($this->tab));
-            if ($this->contextUserId && in_array($this->tab, ['payroll', 'costs', 'terminal', 'rules'], true)) {
+            if ($this->contextUserId && $this->tab === 'costs') {
                 app(PersonnelScopeService::class)->authorize($actor, $this->contextUserId, $this->ability($this->tab));
             }
             if ($this->orderId) {
                 OperationsAccess::authorize($actor, $this->tab === 'costs' ? 'operations.costs.manage' : 'operations.manage');
-                abort_unless(in_array($this->tab, ['proofs', 'travel', 'costs'], true), 403);
+                abort_unless(in_array($this->tab, self::ORDER_TABS, true), 403);
                 Order::findOrFail($this->orderId);
             }
         }
@@ -158,43 +127,11 @@ class OperationsEnhancements extends Component
         return $actor;
     }
 
-    public function setTab(string $tab): void
-    {
-        $this->access();
-        abort_unless(array_key_exists($tab, $this->tabs()), 403);
-        $this->tab = $tab;
-        $this->reset('selectedId', 'selectedRevision', 'detailOpen', 'formOpen', 'form', 'note', 'costResult', 'upload', 'search');
-        $this->form = $this->tab === 'costs' ? ['order_id' => $this->orderId ?? '', 'proof_id' => '', 'billing_cents' => ''] : [];
-        $this->resetPage();
-    }
-
-    protected function pageResetProperties(): array
-    {
-        return ['search'];
-    }
-
     private function query()
     {
         $actor = $this->access();
-        if ($this->tab === 'rules') {
-            return OperationsRateRule::with('user:id,name,role,status')->orderByDesc('id');
-        }
-        if ($this->tab === 'payroll') {
-            return app(PersonnelScopeService::class)->applyRelatedQuery(OperationsMonthClosing::with('user:id,name'), $actor, $this->ability('payroll'))
-                ->when($this->contextUserId, fn ($q) => $q->where('user_id', $this->contextUserId))
-                ->when($this->payrollExportOnly, fn ($q) => $q->whereHas('revisions', fn ($r) => $r->where('action', 'closed')))
-                ->when(filled($this->search), function ($query) {
-                    $term = '%'.mb_substr(trim($this->search), 0, 100).'%';
-                    $query->where(fn ($q) => $q->where('month', 'like', $term)->orWhereHas('user', fn ($user) => $user->where('name', 'like', $term)));
-                })->orderByDesc('id');
-        }
         if ($this->tab === 'costs') {
             return app(PersonnelScopeService::class)->applyRelatedQuery(OperationsCostRate::with('user:id,name,role,status'), $actor, 'operations.costs.manage')->orderByDesc('id');
-        }
-        if ($this->tab === 'terminal') {
-            $query = OperationsTerminalProfile::with('user:id,name,role,status');
-
-            return $this->personal ? $query->where('user_id', $actor->id) : app(PersonnelScopeService::class)->applyRelatedQuery($query, $actor, 'operations.terminal.manage')->when($this->contextUserId, fn ($q) => $q->where('user_id', $this->contextUserId));
         }
         $kind = ['proofs' => 'proof', 'travel' => 'travel', 'partners' => 'partner', 'imports' => 'import'][$this->tab];
         $query = OperationWorkflow::with('user:id,name', 'order')->where('kind', $kind)->when($this->orderId, fn ($q) => $q->where('order_id', $this->orderId))->when($this->search !== '', fn ($q) => $q->where('title', 'like', '%'.mb_substr($this->search, 0, 100).'%'))->orderByDesc('id');
@@ -211,7 +148,6 @@ class OperationsEnhancements extends Component
     public function create(): void
     {
         $this->access();
-        abort_if($this->payrollExportOnly, 403);
         OperationsEnhancementsSchema::requireReady();
         abort_if($this->personal && $this->tab === 'partners', 403);
         $this->reset('selectedId', 'selectedRevision', 'upload', 'note');
@@ -221,10 +157,7 @@ class OperationsEnhancements extends Component
             'travel' => ['shift_id' => '', 'title' => '', 'travel_kind' => 'train', 'starts_at' => '', 'ends_at' => '', 'destination' => '', 'note' => ''],
             'partners' => ['shift_id' => '', 'user_id' => '', 'partner_name' => '', 'deadline' => '', 'note' => ''],
             'imports' => ['format' => 'text', 'source' => '', 'reference' => ''],
-            'rules' => ['name' => '', 'kind' => 'planning', 'user_id' => '', 'starts_on' => '', 'ends_on' => '', 'confirmed' => false, 'configuration' => ['type' => 'rolling_minutes', 'days' => '', 'limit' => '', 'timezone' => config('operations.display_timezone'), 'activity' => 'all', 'window_start' => '', 'window_end' => '', 'wage_code' => '', 'multiplier_bps' => '', 'rounding_minutes' => 0, 'rounding_mode' => 'none', 'additive' => false, 'weekdays' => []]],
-            'payroll' => ['user_id' => '', 'month_date' => ''],
             'costs' => ['user_id' => '', 'starts_on' => '', 'ends_on' => '', 'hourly_cents' => '', 'currency' => 'EUR'],
-            'terminal' => ['user_id' => '', 'pin' => '', 'terminal_id' => '', 'location_consent' => false, 'latitude' => '', 'longitude' => '', 'radius_metres' => ''],
         };
         if ($this->contextUserId && array_key_exists('user_id', $this->form)) {
             $this->form['user_id'] = $this->contextUserId;
@@ -233,20 +166,6 @@ class OperationsEnhancements extends Component
             $this->form['order_id'] = $this->orderId;
         }
         $this->formOpen = true;
-    }
-
-    public function updatedFormKind(string $kind): void
-    {
-        if ($this->tab !== 'rules') {
-            return;
-        }
-
-        $activity = $this->form['configuration']['activity'] ?? '';
-        if ($kind === 'remuneration' && ! array_key_exists($activity, WorkTimeActivityService::KINDS)) {
-            $this->form['configuration']['activity'] = '';
-        } elseif ($kind === 'planning' && ! in_array($activity, ['all', 'on_call', 'travel'], true)) {
-            $this->form['configuration']['activity'] = 'all';
-        }
     }
 
     public function addRow(): void
@@ -259,14 +178,7 @@ class OperationsEnhancements extends Component
     public function save(): void
     {
         $actor = $this->access();
-        abort_if($this->payrollExportOnly, 403);
         OperationsEnhancementsSchema::requireReady();
-        if ($this->tab === 'payroll') {
-            $this->validate([
-                'form.user_id' => 'required|integer|min:1',
-                'form.month_date' => 'required|date_format:Y-m,Y-m-d',
-            ]);
-        }
         $data = $this->nulls($this->form);
         if ($this->orderId && in_array($this->tab, ['proofs', 'travel'], true)) {
             abort_if(isset($data['order_id']) && (int) $data['order_id'] !== $this->orderId, 403);
@@ -279,23 +191,11 @@ class OperationsEnhancements extends Component
             'travel' => app(OperationsTravelService::class)->request($data, $actor),
             'partners' => app(OperationsPartnerService::class)->request($data, $actor),
             'imports' => app(ReviewedInquiryImportService::class)->preview($data['format'], $data['source'], $data['reference'], $actor),
-            'rules' => app(OperationsRuleEvaluationService::class)->configure($data, $actor),
-            'payroll' => app(PayrollClosingService::class)->prepare(User::findOrFail((int) $data['user_id']), CarbonImmutable::parse($data['month_date'])->format('Y-m'), $actor),
             'costs' => app(OperationalCostService::class)->configure(User::findOrFail((int) $data['user_id']), $data, $actor),
-            'terminal' => app(WorkTimeTerminalService::class)->configure($this->personal ? $actor : User::findOrFail((int) $data['user_id']), $data, $actor),
         };
         $this->reset('form', 'upload');
         $this->formOpen = false;
         $this->openDetails($result->id);
-    }
-
-    private function nulls(array $data): array
-    {
-        foreach ($data as $key => $value) {
-            $data[$key] = is_array($value) ? $this->nulls($value) : ($value === '' ? null : $value);
-        }
-
-        return $data;
     }
 
     public function openDetails(int $id): void
@@ -307,7 +207,7 @@ class OperationsEnhancements extends Component
             app(OperationsWorkflowService::class)->authorize($record, $actor);
         }
         $this->selectedId = $record->id;
-        $this->selectedRevision = $this->payrollExportOnly ? (int) $record->revisions()->where('action', 'closed')->latest('revision')->value('revision') : ($record->revision ?? 1);
+        $this->selectedRevision = $record->revision ?? 1;
         $this->form = $record instanceof OperationWorkflow ? $record->payload : [];
         if ($this->tab === 'travel') {
             $this->form += ['booking_reference' => '', 'cancel_until' => '', 'actual_cents' => ''];
@@ -326,7 +226,6 @@ class OperationsEnhancements extends Component
     public function act(string $action): void
     {
         $actor = $this->access();
-        abort_if($this->payrollExportOnly, 403);
         OperationsEnhancementsSchema::requireReady();
         abort_unless($this->selectedId && $this->selectedRevision, 422);
         $record = $this->query()->findOrFail($this->selectedId);
@@ -354,16 +253,6 @@ class OperationsEnhancements extends Component
                 abort_unless($action === 'convert', 422);
                 app(ReviewedInquiryImportService::class)->createInquiries($record->id, $this->selectedRevision, $actor);
             }
-        } elseif ($this->tab === 'payroll') {
-            if ($action === 'close') {
-                app(PayrollClosingService::class)->close($record->id, $this->selectedRevision, $actor);
-            } elseif ($action === 'reopen') {
-                app(PayrollClosingService::class)->reopen($record->id, $this->selectedRevision, $this->note, $actor);
-            } elseif ($action === 'prepare') {
-                app(PayrollClosingService::class)->prepare(User::findOrFail($record->user_id), $record->month, $actor);
-            } else {
-                abort(422);
-            }
         } else {
             abort(422);
         }
@@ -390,31 +279,6 @@ class OperationsEnhancements extends Component
             abort(403);
         }
         $this->openDetails($record->id);
-    }
-
-    public function exportPayroll(bool $delta = false, ?int $revision = null)
-    {
-        $actor = $this->access();
-        abort_unless($this->tab === 'payroll', 403);
-        $record = $this->query()->findOrFail($this->selectedId);
-        $revision ??= $this->selectedRevision;
-        $csv = app(PayrollClosingService::class)->csv($record->id, $revision, $actor, $delta);
-
-        return CsvDownload::stream($csv, 'RailTime-Lohnvorbereitung-'.$record->month.'-r'.$revision.'.csv');
-    }
-
-    public function returnTime(int $id, int $revision): void
-    {
-        $actor = $this->access();
-        abort_if($this->payrollExportOnly, 403);
-        abort_unless($this->tab === 'payroll', 403);
-        $closing = $this->query()->findOrFail($this->selectedId);
-        abort_unless($closing->status === 'reopened', 409);
-        $a = CarbonImmutable::parse($closing->month.'-01', $closing->timezone)->utc();
-        $b = $a->setTimezone($closing->timezone)->addMonth()->utc();
-        $entry = WorkTimeEntry::where('user_id', $closing->user_id)->where('starts_at', '<', $b)->where('ends_at', '>', $a)->findOrFail($id);
-        app(PayrollClosingService::class)->returnForCorrection($entry->id, $revision, $this->note, $actor);
-        $this->openDetails($closing->id);
     }
 
     public function saveBilling(): void
@@ -455,21 +319,15 @@ class OperationsEnhancements extends Component
         $records = $ready ? $this->query()->paginate(15) : collect();
         $selected = $ready && $this->selectedId ? $this->query()->find($this->selectedId) : null;
         $staff = collect();
-        if (! $this->personal && $ready && $this->formOpen && ! $this->payrollExportOnly && in_array($this->tab, ['partners', 'payroll', 'costs', 'rules', 'terminal'])) {
-            $ability = match ($this->tab) {
-                'payroll' => 'operations.time.review', 'costs' => 'operations.costs.manage', 'rules' => 'operations.rules.manage','terminal' => 'operations.terminal.manage', default => 'employees.master-data.view'
-            };
-            $staff = app(PersonnelScopeService::class)->applyUsers(User::where('role', 'staff')->where('status', true), $actor, $ability)->orderBy('name')->get(['id', 'name']);
+        if (! $this->personal && $ready && $this->formOpen && in_array($this->tab, ['partners', 'costs'], true)) {
+            $staff = app(PersonnelScopeService::class)->applyUsers(User::where('role', 'staff')->where('status', true), $actor, $this->tab === 'costs' ? 'operations.costs.manage' : 'employees.master-data.view')->orderBy('name')->get(['id', 'name']);
         }
         $contacts = $selected instanceof OperationWorkflow && $selected->order_id && $this->tab === 'proofs' && ! $this->personal ? CustomerContact::where('customer_id', $selected->order->customer_id)->where('is_active', true)->get()->filter(fn ($c) => in_array('acceptance', $c->roles ?? [])) : collect();
         $ownProofs = $this->personal && $this->tab === 'partners' && $ready ? EmployeeQualification::where('user_id', $actor->id)->where('status', 'approved')->with('type')->get() : collect();
         $shifts = $ready && $this->formOpen && in_array($this->tab, ['proofs', 'travel', 'partners']) ? Shift::whereNotIn('status', $this->tab === 'proofs' ? ['cancelled'] : ['cancelled', 'completed'])->when($this->orderId, fn ($q) => $q->where('order_id', $this->orderId))->when($this->tab !== 'partners', fn ($q) => $q->where('published_revision', '>', 0)->whereColumn('revision', 'published_revision')->whereHas('assignments', fn ($a) => $a->where('user_id', $actor->id)->whereIn('status', ['requested', 'confirmed'])->whereColumn('shift_assignments.plan_revision', 'shifts.published_revision')))->orderByDesc('starts_at')->limit(100)->get(['id', 'order_id', 'title']) : collect();
         $orders = $ready && $this->tab === 'proofs' ? Order::whereIn('id', $shifts->pluck('order_id'))->orderBy('title')->get(['id', 'title', 'order_number']) : collect();
-        $closedVersions = $selected instanceof OperationsMonthClosing ? $selected->revisions()->where('action', 'closed')->latest('revision')->get(['id', 'revision']) : collect();
-        $correctionTimes = ! $this->payrollExportOnly && $selected instanceof OperationsMonthClosing && $selected->status === 'reopened' ? WorkTimeEntry::where('user_id', $selected->user_id)->where('status', 'approved')->where('starts_at', '<', CarbonImmutable::parse($selected->month.'-01', $selected->timezone)->addMonth()->utc())->where('ends_at', '>', CarbonImmutable::parse($selected->month.'-01', $selected->timezone)->utc())->get() : collect();
         $acceptedProofs = $ready && $this->tab === 'costs' && app(PersonnelScopeService::class)->visibleUserIds($actor, 'operations.costs.manage') === null ? OperationWorkflow::where('kind', 'proof')->where('status', 'accepted')->when($this->orderId, fn ($q) => $q->where('order_id', $this->orderId))->latest('id')->limit(100)->get(['id', 'title', 'revision']) : collect();
-        $closingSnapshot = $selected instanceof OperationsMonthClosing ? ($this->payrollExportOnly ? $selected->revisions()->where('action', 'closed')->latest('revision')->value('snapshot') : $selected->snapshot) : [];
 
-        return view('livewire.operations.operations-enhancements', compact('ready', 'records', 'selected', 'staff', 'contacts', 'ownProofs', 'shifts', 'orders', 'closedVersions', 'correctionTimes', 'acceptedProofs', 'closingSnapshot'));
+        return view('livewire.operations.service-fulfilment', compact('ready', 'records', 'selected', 'staff', 'contacts', 'ownProofs', 'shifts', 'orders', 'acceptedProofs'));
     }
 }

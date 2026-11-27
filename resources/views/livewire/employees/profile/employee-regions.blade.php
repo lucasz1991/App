@@ -125,8 +125,8 @@
                 <p class="rt-regions__hint">Diese Gebiete bleiben auch im Notfall gesperrt.</p>
                 @foreach($preferences['no_go_areas'] ?? [] as $index => $area)
                     <div class="rt-regions__exclusion" wire:key="region-exclusion-{{ $index }}"><label><span
-                        class="sr-only">Ausgeschlossener Ort {{ $index + 1 }}</span><input type="text" wire:model="preferences.no_go_areas.{{ $index }}.location"
-                        placeholder="Ort" maxlength="200"></label><label><span class="sr-only">Ausschlussradius {{ $index + 1 }} in km</span><x-ui.forms.number-input
+                        class="sr-only">Ausgeschlossener Ort {{ $index + 1 }}</span><x-ui.forms.input type="text" wire:model="preferences.no_go_areas.{{ $index }}.location"
+                        placeholder="Ort" maxlength="200" /></label><label><span class="sr-only">Ausschlussradius {{ $index + 1 }} in km</span><x-ui.forms.number-input
                         :stepper="false" min="1" max="1000" wire:model="preferences.no_go_areas.{{ $index }}.radius_km"
                         aria-label="Ausschlussradius {{ $index + 1 }} in km" /></label><button type="button" wire:click="removeExclusion({{ $index }})"
                         aria-label="Ausschluss {{ $index + 1 }} entfernen"><i class="far fa-trash-alt" aria-hidden="true"></i></button></div>

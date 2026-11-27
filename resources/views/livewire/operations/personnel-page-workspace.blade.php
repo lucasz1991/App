@@ -61,10 +61,10 @@
             @if($ruleView === 'profiles')
                 <livewire:operations.personnel-review module="rules" :embedded="true" :key="$contentKey" />
             @else
-                <livewire:operations.operations-enhancements tab="rules" :embedded="true" :initial-record-id="$recordId" :key="$contentKey" />
+                <livewire:operations.time-administration tab="rules" :embedded="true" :initial-record-id="$recordId" :key="$contentKey" />
             @endif
         @elseif($section === 'terminal')
-            <livewire:operations.operations-enhancements tab="terminal" :embedded="true" :initial-user-id="$userId ?: null" :initial-record-id="$recordId" :key="$contentKey" />
+            <livewire:operations.time-administration tab="terminal" :embedded="true" :initial-user-id="$userId ?: null" :initial-record-id="$recordId" :key="$contentKey" />
         @elseif($section === 'payroll-references')
             <livewire:operations.payroll-references :key="$contentKey" />
         @elseif(in_array($section, ['models','policies','rules','checks','responsibilities'], true))
@@ -111,11 +111,11 @@
         @endif
     @elseif($page === 'payroll')
         @if($view === 'closing')
-            <livewire:operations.operations-enhancements tab="payroll" :embedded="true" :initial-record-id="$recordId" :initial-user-id="$userId ?: null" :key="$contentKey" />
+            <livewire:operations.time-administration tab="payroll" :embedded="true" :initial-record-id="$recordId" :initial-user-id="$userId ?: null" :key="$contentKey" />
         @else
             <livewire:operations.time-review :exports="true" :embedded="true" :history-only="$view === 'history'" :initial-record-id="$recordId" :key="$contentKey" />
             @if($view === 'history' && \App\Support\Operations\OperationsEnhancementsSchema::ready())
-                <livewire:operations.operations-enhancements tab="payroll" :embedded="true" :payroll-export-only="true" :key="$contentKey.'-closing-history'" />
+                <livewire:operations.time-administration tab="payroll" :embedded="true" :payroll-export-only="true" :key="$contentKey.'-closing-history'" />
             @endif
         @endif
     @endif

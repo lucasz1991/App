@@ -2,6 +2,10 @@
 
 namespace App\Livewire\Operations;
 
+use App\Livewire\Operations\Concerns\AuthorizesPersonnelProfileScope;
+use App\Livewire\Operations\Concerns\ListsPersonnelRecords;
+use App\Livewire\Operations\Concerns\ManagesPersonnelReports;
+use App\Livewire\Operations\Concerns\ManagesPersonnelSignatures;
 use App\Models\AbsenceApprovalPolicy;
 use App\Models\AbsenceRequest;
 use App\Models\EmployeeDocumentVersion;
@@ -9,13 +13,10 @@ use App\Models\EmployeeEmergencyContact;
 use App\Models\PersonnelApplicant;
 use App\Models\PersonnelDevelopmentReview;
 use App\Models\PersonnelDocumentTemplate;
-use App\Models\PersonnelSavedReport;
 use App\Models\PersonnelSignatureRequest;
 use App\Models\PersonnelSurvey;
-use App\Models\PersonnelSurveyResponse;
 use App\Models\PersonnelTask;
 use App\Models\PersonnelWorkflowRun;
-use App\Models\PersonnelWorkflowStep;
 use App\Models\PersonnelWorkflowTemplate;
 use App\Models\RegionalPersonnelCalendar;
 use App\Models\SicknessEvidenceWorkflow;
@@ -26,18 +27,27 @@ use App\Services\Operations\PersonnelEnhancementService;
 use App\Services\Operations\PersonnelProcessService;
 use App\Services\Operations\PersonnelScopeService;
 use App\Services\Operations\PersonnelWorkflowService;
-use App\Support\Exports\CsvDownload;
 use App\Support\Operations\OperationsAccess;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
+/**
+ * Personalbereich eines Mitarbeiters: Prozesse, Unterlagen, Notfallkontakt, Freigaben,
+ * Regionalkalender, Bewerbungen, Entwicklung, Rückmeldungen und Nachweisstatus.
+ *
+ * Die Reiter teilen Mitarbeiterauswahl, Formulardialog und Profilbindung und bleiben
+ * deshalb eine Komponente. Fachlich getrennt liegen in Concerns:
+ *   - ListsPersonnelRecords           (Listenzeilen je Reiter)
+ *   - ManagesPersonnelReports         (Berichte ausführen, laden, aktivieren)
+ *   - ManagesPersonnelSignatures      (Dokumentvorlagen und Unterzeichnungen)
+ *   - AuthorizesPersonnelProfileScope (Bindung an das Mitarbeiterprofil)
+ */
 class PersonnelEnhancements extends Component
 {
-    use WithFileUploads;
+    use AuthorizesPersonnelProfileScope, ListsPersonnelRecords, ManagesPersonnelReports, ManagesPersonnelSignatures, WithFileUploads;
 
     #[Locked]
     public bool $personal = false;
@@ -419,83 +429,6 @@ class PersonnelEnhancements extends Component
         app(PersonnelEnhancementService::class)->activate($class::findOrFail($id), $revision, auth()->user());
     }
 
-    public function runReport(int $id, int $revision): void
-    {
-        $this->access();
-        abort_if($this->profileUserId !== null, 403);
-        abort_if($this->personal, 403);
-        $this->display = app(PersonnelEnhancementService::class)->runReport(PersonnelSavedReport::findOrFail($id), $revision, auth()->user());
-        $this->formKind = 'report_result';
-        $this->formOpen = true;
-    }
-
-    public function downloadReport(int $id)
-    {
-        $this->access();
-        abort_if($this->profileUserId !== null, 403);
-        abort_if($this->personal, 403);
-        $results = app(PersonnelEnhancementService::class)->authorizedReportResult(PersonnelSavedReport::findOrFail($id), auth()->user());
-        abort_unless($results !== [], 404);
-        $result = end($results);
-
-        $rows = [];
-        foreach ($result['rows'] as $row) {
-            $name = preg_match('/^[=+\-@\t\r]/', $row['name']) ? "'".$row['name'] : $row['name'];
-            $rows[] = [$result['from'], $result['until'], $row['user_id'], $name, $row['target_minutes'], $row['actual_minutes'], $row['balance_minutes'], $row['missing_days'], $row['pending_absences']];
-        }
-        $csv = CsvDownload::fromRows(['Zeitraum_von', 'Zeitraum_bis', 'Mitarbeiter_ID', 'Name', 'Soll_Minuten', 'Ist_Minuten', 'Saldo_Minuten', 'Fehlende_Grundlagen', 'Offene_Abwesenheiten'], $rows, ';', '"', '');
-
-        return CsvDownload::stream($csv, 'Personalbericht.csv');
-    }
-
-    public function reportState(int $id, int $revision, bool $active): void
-    {
-        $this->access();
-        abort_if($this->profileUserId !== null, 403);
-        abort_if($this->personal, 403);
-        app(PersonnelEnhancementService::class)->reportState(PersonnelSavedReport::findOrFail($id), $revision, $active, auth()->user());
-    }
-
-    public function downloadDocumentTemplate(int $id)
-    {
-        $this->access();
-        $this->authorizeProfileAction('document_download');
-        abort_if($this->personal, 403);
-        $text = app(PersonnelEnhancementService::class)->renderDocument(PersonnelDocumentTemplate::findOrFail($id), User::findOrFail($this->userId), auth()->user());
-
-        return CsvDownload::streamContent($text, 'Personalvorlage.txt', CsvDownload::TEXT);
-    }
-
-    public function reviewSignature(int $id, int $revision, bool $accept): void
-    {
-        $this->access();
-        $this->authorizeProfileAction('signature_review');
-        abort_if($this->personal, 403);
-        $record = PersonnelSignatureRequest::findOrFail($id);
-        $this->authorizeProfileRecord($record);
-        app(PersonnelEnhancementService::class)->reviewSignatureResult($record, $revision, $accept, auth()->user());
-    }
-
-    public function downloadSignature(int $id)
-    {
-        $this->access();
-        $this->authorizeProfileAction('signature_download');
-        $record = PersonnelSignatureRequest::findOrFail($id);
-        $this->authorizeProfileRecord($record);
-
-        return app(PersonnelEnhancementService::class)->signatureResult($record, auth()->user());
-    }
-
-    public function downloadSignatureSource(int $id)
-    {
-        $this->access();
-        $this->authorizeProfileAction('signature_download');
-        $record = PersonnelSignatureRequest::findOrFail($id);
-        $this->authorizeProfileRecord($record);
-
-        return app(PersonnelEnhancementService::class)->signatureSource($record, auth()->user());
-    }
-
     public function completeTask(int $id, int $revision): void
     {
         $this->access();
@@ -522,142 +455,6 @@ class PersonnelEnhancements extends Component
         abort_if($this->profileUserId !== null, 403);
         abort_if($this->personal, 403);
         app(PersonnelEnhancementService::class)->eraseApplicant(PersonnelApplicant::findOrFail($id), $revision, auth()->user());
-    }
-
-    private function authorizeProfileRecord($record): void
-    {
-        abort_if($this->profileUserId !== null && (int) $record->user_id !== $this->profileUserId, 403);
-    }
-
-    private function authorizeProfileAction(string $kind): void
-    {
-        if ($this->profileUserId === null) {
-            return;
-        }
-
-        $allowed = match ($this->profileTab) {
-            'workflows' => ['workflow_run', 'task_complete'],
-            'documents' => ['signature_request', 'signature_review', 'signature_download', 'document_download'],
-            'emergency' => ['emergency_read'],
-            'development' => ['development', 'feedback'],
-            'sickness' => ['sickness', 'sickness_update'],
-            default => [],
-        };
-        abort_unless(in_array($kind, $allowed, true), 403);
-    }
-
-    private function related(string $class)
-    {
-        $query = $class::where('user_id', $this->userId);
-        if (! $this->personal) {
-            app(PersonnelScopeService::class)->applyRelatedQuery($query, auth()->user(), 'employees.master-data.view');
-        }
-
-        if ($this->focusedRecordId) {
-            if ($this->focusedRecordType === 'workflow-run' && $class === PersonnelTask::class) {
-                $query->whereIn('id', PersonnelWorkflowStep::where('run_id', $this->focusedRecordId)->select('task_id'));
-            } else {
-                $query->whereKey($this->focusedRecordId);
-            }
-        }
-
-        return $query->orderByDesc('id')->limit(60)->get();
-    }
-
-    private function recordRows(): Collection
-    {
-        $records = collect();
-        $actor = auth()->user();
-        $service = app(PersonnelEnhancementService::class);
-        if ($this->tab === 'workflows') {
-            if (! $this->focusedRecordId && ! $this->personal && Gate::forUser($actor)->allows('employees.master-data.edit') && app(PersonnelScopeService::class)->visibleUserIds($actor, 'employees.master-data.edit') === null) {
-                foreach (PersonnelWorkflowTemplate::when($this->profileUserId !== null, fn ($query) => $query->where('status', 'active'))->latest()->limit(30)->get() as $record) {
-                    $records->push($this->row($record, 'workflow_template', $record->title, count($record->payload['steps']).' Schritte'));
-                }
-            }
-            foreach ($this->related(PersonnelTask::class) as $task) {
-                if ($this->personal && (int) $task->assigned_to !== auth()->id() && ! $service->delegateCanComplete($task, $actor)) {
-                    continue;
-                }
-                $records->push($this->row($task, 'task', $task->title, $task->due_on ?: '—'));
-            }
-        } elseif ($this->tab === 'reports') {
-            foreach (PersonnelSavedReport::where('created_by', $actor->id)->latest()->limit(60)->get() as $record) {
-                // Re-check every private target before displaying even a saved report title.
-                $service->authorizedReportResult($record, $actor);
-                $records->push($this->row($record, 'report', $record->title, $record->payload['from'].' – '.$record->payload['until']));
-            }
-        } elseif ($this->tab === 'documents') {
-            if (! $this->focusedRecordId && ! $this->personal && Gate::forUser($actor)->allows('employees.master-data.edit') && app(PersonnelScopeService::class)->visibleUserIds($actor, 'employees.master-data.edit') === null) {
-                foreach (PersonnelDocumentTemplate::when($this->profileUserId !== null, fn ($query) => $query->where('status', 'active'))->latest()->limit(30)->get() as $record) {
-                    $records->push($this->row($record, 'document_template', $record->title, 'Vorlage'));
-                }
-            }
-            foreach ($this->related(PersonnelSignatureRequest::class) as $record) {
-                $records->push($this->row($record, 'signature', $record->title, $record->due_on));
-            }
-        } elseif ($this->tab === 'emergency') {
-            if ($contact = EmployeeEmergencyContact::where('user_id', $this->userId)->first()) {
-                $records->push($this->row($contact, 'emergency', 'Notfallkontakt', $contact->confirmed_at->format('d.m.Y'), 'present'));
-            }
-        } elseif ($this->tab === 'approvals') {
-            foreach (app(AbsenceApprovalChainService::class)->inbox($actor) as $item) {
-                $records->push((object) ['id' => 'absence:'.$item['id'], 'record_id' => $item['id'], 'kind' => 'absence', 'label' => $item['title'], 'detail' => $item['due_on'], 'status' => $item['status'], 'revision' => $item['revision'], 'personal_view' => false, 'context_user_id' => $this->userId]);
-            }
-            if (Gate::forUser($actor)->allows('operations.rules.manage') && app(PersonnelScopeService::class)->visibleUserIds($actor, 'operations.rules.manage') === null) {
-                foreach (AbsenceApprovalPolicy::latest()->limit(30)->get() as $record) {
-                    $records->push($this->row($record, 'approval_policy', $record->title, count($record->payload['stages']).' Stufen'));
-                }
-            }
-        } elseif ($this->tab === 'calendars') {
-            OperationsAccess::authorize($actor, 'operations.rules.manage');
-            foreach (RegionalPersonnelCalendar::latest()->limit(60)->get() as $record) {
-                $p = $record->payload;
-                $records->push($this->row($record, 'calendar', $record->title, $p['region'].' · '.$p['year'].' · '.count($p['dates']).' Daten'));
-            }
-        } elseif ($this->tab === 'recruiting') {
-            foreach (PersonnelApplicant::latest()->limit(60)->get() as $record) {
-                $records->push($this->row($record, 'applicant', $record->payload['name'] ?? 'Bereinigt', $record->title.' · '.$record->due_on));
-            }
-        } elseif ($this->tab === 'development') {
-            foreach ($this->related(PersonnelDevelopmentReview::class) as $record) {
-                $records->push($this->row($record, 'development', $record->title, $record->due_on));
-            }
-        } elseif ($this->tab === 'surveys') {
-            foreach (PersonnelSurvey::latest()->limit(60)->get() as $record) {
-                if ($this->personal) {
-                    if (! in_array(auth()->id(), $record->payload['user_ids'], true)) {
-                        continue;
-                    }
-                    $response = PersonnelSurveyResponse::where('survey_id', $record->id)->where('user_id', auth()->id())->first();
-                    $records->push($this->row($record, 'survey', $record->title, $record->payload['until'], $response?->status ?? 'open'));
-                } elseif ((int) $record->created_by === (int) $actor->id || $actor->isAdmin()) {
-                    $records->push($this->row($record, 'survey', $record->title, $record->payload['until']));
-                }
-            }
-        } else {
-            foreach ($this->related(SicknessEvidenceWorkflow::class) as $record) {
-                if (! $this->personal) {
-                    $service->access($actor, (int) $record->user_id, true, false);
-                    app(PersonnelScopeService::class)->authorize($actor, (int) $record->user_id, 'operations.absences.review');
-                }
-                $absence = AbsenceRequest::find($record->absence_request_id);
-                $status = $record->status === 'covered' && $absence?->revision !== ($record->payload['absence_revision'] ?? null) ? 'needs_review' : $record->status;
-                $records->push($this->row($record, 'sickness', 'Nachweisprüfung', $record->due_on, $status));
-            }
-        }
-
-        return $this->focusedRecordId && $this->focusedRecordType !== 'workflow-run'
-            ? $records->filter(fn ($record) => (int) $record->record_id === $this->focusedRecordId && $record->kind === $this->focusedRecordType)->values()
-            : $records;
-    }
-
-    private function row($record, string $kind, string $label, ?string $detail, ?string $status = null): object
-    {
-        $canComplete = $record instanceof PersonnelTask && ((int) $record->assigned_to === auth()->id() || auth()->user()->isAdmin() || app(PersonnelEnhancementService::class)->delegateCanComplete($record, auth()->user()));
-        $canActivate = $this->profileUserId === null && ! $this->personal && (int) $record->created_by !== auth()->id() && auth()->user()->can(in_array($kind, ['calendar', 'approval_policy'], true) ? 'operations.rules.manage' : 'employees.master-data.edit');
-
-        return (object) ['id' => $kind.':'.$record->id, 'record_id' => $record->id, 'kind' => $kind, 'label' => $label, 'detail' => $detail, 'status' => $status ?? $record->status, 'revision' => $record->revision, 'personal_view' => $this->personal, 'context_user_id' => $this->userId, 'can_complete' => $canComplete, 'can_activate' => $canActivate];
     }
 
     public function render()

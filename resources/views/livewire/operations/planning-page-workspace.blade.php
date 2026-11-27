@@ -73,7 +73,7 @@
     @elseif($page === 'planning' && in_array($view,['capacity','tools'],true))
         <livewire:operations.planning-enhancements :tab="$section" :embedded="true" :key="'hub-planning-'.$section" />
     @elseif($page === 'planning' && $view === 'logistics')
-        <livewire:operations.operations-enhancements :tab="$section" :workspace="true" :key="'hub-logistics-'.$section" />
+        <livewire:operations.service-fulfilment :tab="$section" :embedded="true" :key="'hub-logistics-'.$section" />
     @elseif($page === 'duty')
         @if(!\App\Support\Operations\OperationsNavigation::enhancementReady('duty-monitor'))
             <p class="ops-panel ops-muted" role="note">Der Dienststand zeigt veröffentlichte Schichten und tatsächliche Zeitmeldungen. Überwachungsprofile und automatische Meldungsprüfungen sind noch nicht eingerichtet; es werden keine Toleranzen angenommen.</p>

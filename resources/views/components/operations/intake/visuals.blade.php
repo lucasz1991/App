@@ -1,7 +1,7 @@
 @props(['demand' => [], 'order' => null, 'identity' => 'intake'])
 @php
-    $visual = \App\Support\Operations\AiIntakeVisualContext::forDemand($demand, $order);
-    $mapKey = 'intake-location-'.hash('sha256', $identity.'|'.json_encode([$visual['location'], $visual['point'], $visual['mapLabel']]));
+    $visual = \App\Support\Operations\AiIntakeVisualContext::forDemand($demand, $order, $identity);
+    $mapKey = 'intake-location-'.hash('sha256', $identity.'|'.json_encode([$visual['location'], $visual['point'], $visual['mapLabel'], $visual['preview']['choice']['key'] ?? null]));
 @endphp
 <div {{ $attributes->class('rt-intake-visuals') }} data-intake-visuals>
     <div class="rt-intake-visuals__calendar">
@@ -15,11 +15,13 @@
         @if($visual['point'])
             <div class="rt-intake-visuals__map-stage" x-data="rtIntakeLocationMap(@js($visual['point']))">
                 <div class="rt-intake-visuals__map-canvas" x-ref="canvas" wire:ignore role="img" aria-label="{{ $visual['mapLabel'] }}"></div>
+                <span x-cloak x-show="status === 'error'" class="text-xs">{{ $visual['point']['latitude'] }}, {{ $visual['point']['longitude'] }}</span>
                 <span class="rt-intake-visuals__map-status" x-show="status !== 'ready'" x-text="status === 'error' ? 'Karte nicht verfügbar' : 'Karte wird geladen'" role="status">Karte wird geladen</span>
             </div>
         @else
-            <div class="rt-intake-visuals__empty" role="status"><i class="far fa-map-marker-alt" aria-hidden="true"></i><span>{{ ($visual['preview']['state'] ?? '') === 'multiple' ? 'Mehrere Einsatzorte' : 'Kartenposition offen' }}</span></div>
+            <div class="rt-intake-visuals__empty" role="status"><i class="far fa-map-marker-alt" aria-hidden="true"></i><span>{{ ($visual['preview']['state'] ?? '') === 'multiple' ? 'Mehrere Einsatzorte' : (isset($visual['preview']['alternatives']) ? $visual['preview']['label'] : (($visual['preview']['lookupDisabled'] ?? false) ? 'Kartenposition offen · TomTom nicht eingerichtet' : 'Kartenposition offen')) }}</span></div>
         @endif
+        <x-operations.worksite-lookup :preview="($visual['point'] && ($visual['preview']['state'] ?? '') === 'outside') ? [] : $visual['preview']" />
         <figcaption class="rt-intake-visuals__caption" title="{{ $visual['mapLabel'] }}"><i class="far fa-map-marker-alt" aria-hidden="true"></i><span>{{ $visual['location'] }}</span></figcaption>
     </figure>
 </div>
