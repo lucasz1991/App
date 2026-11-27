@@ -175,6 +175,60 @@ class OperationsAttentionTest extends TestCase
         $service->escalate($assignment->id, 2, $this->manager);
     }
 
+    public function test_day_clock_marks_a_duty_without_end_or_start_reminders_for_the_whole_day(): void
+    {
+        (require database_path('migrations/2026_10_04_123000_extend_work_time_contexts.php'))->up();
+        $assignment = $this->assignment('2027-05-12T09:00', '2027-05-12T11:00');
+        $this->profile(['auto_cases' => true]);
+        $this->preference();
+        $this->preference(['kind' => 'punch_end', 'lead_minutes' => 240]);
+        $reminders = app(OperationsReminderService::class);
+        $this->assertSame(1, $reminders->syncUser($this->employee));
+        $day = WorkTimeEntry::create(['user_id' => $this->employee->id, 'work_context' => 'internal', 'title' => 'Arbeitszeit',
+            'timezone' => 'Europe/Berlin', 'starts_at' => '2027-05-12T08:00', 'plan_snapshot' => ['day_clock' => true]]);
+        $day->events()->create(['actor_id' => $this->employee->id, 'event_key' => (string) Str::uuid(), 'kind' => 'duty_start',
+            'occurred_at' => '2027-05-12 07:15:00', 'received_at' => '2027-05-12 07:15:01', 'data' => ['assignment_id' => $assignment->id, 'plan_revision' => 1]]);
+        $reminders->syncUser($this->employee);
+        $this->assertSame(0, OperationsAttentionItem::whereNull('resolved_at')->count());
+        $monitor = app(OperationsDutyMonitorService::class);
+        $read = fn () => $monitor->board($this->manager, '2027-05-12', '2027-05-12')->sole();
+        $row = $read();
+        $this->assertSame('running', $row['state']);
+        $this->assertSame('07:15', $row['actual_start']->utc()->format('H:i'));
+        $this->assertNull($row['actual_end']);
+        $this->travelTo(CarbonImmutable::parse('2027-05-12T12:00:00+02:00'));
+        $this->assertSame('day_review', $read()['state']);
+        $this->assertSame(0, $monitor->runScheduled());
+        $this->assertSame(0, $reminders->syncUser($this->employee));
+        $this->assertSame(0, StaffingCase::count());
+    }
+
+    public function test_day_review_supplies_corrected_shift_bounds_and_handles_a_confirmed_absence(): void
+    {
+        (require database_path('migrations/2026_10_04_123000_extend_work_time_contexts.php'))->up();
+        $performed = $this->assignment('2027-05-12T08:00', '2027-05-12T11:00');
+        $canceled = $this->assignment('2027-05-12T11:00', '2027-05-12T13:00');
+        $this->profile(['auto_cases' => true]);
+        WorkTimeEntry::create(['user_id' => $this->employee->id, 'work_context' => 'internal', 'title' => 'Arbeitszeit',
+            'timezone' => 'Europe/Berlin', 'starts_at' => '2027-05-12T08:00', 'ends_at' => '2027-05-12T16:30', 'status' => 'submitted',
+            'plan_snapshot' => ['day_clock' => true, 'day_review' => ['assignment_ids' => [$performed->id, $canceled->id],
+                'duties' => [
+                    ['assignment_id' => $performed->id, 'performed' => true, 'starts_at' => '2027-05-12T07:15:00Z', 'ends_at' => '2027-05-12T08:45:00Z', 'seconds' => 5400],
+                    ['assignment_id' => $canceled->id, 'performed' => false, 'starts_at' => null, 'ends_at' => null, 'seconds' => 0],
+                ],
+            ]]]);
+        $this->travelTo(CarbonImmutable::parse('2027-05-12T17:00:00+02:00'));
+        $monitor = app(OperationsDutyMonitorService::class);
+        $rows = $monitor->board($this->manager, '2027-05-12', '2027-05-12')->keyBy('assignment_id');
+        $this->assertSame('ended', $rows[$performed->id]['state']);
+        $this->assertSame('07:15', $rows[$performed->id]['actual_start']->utc()->format('H:i'));
+        $this->assertSame('08:45', $rows[$performed->id]['actual_end']->utc()->format('H:i'));
+        $this->assertSame('not_performed', $rows[$canceled->id]['state']);
+        $this->assertNull($rows[$canceled->id]['actual_start']);
+        $this->assertNull($rows[$canceled->id]['actual_end']);
+        $this->assertSame(0, $monitor->runScheduled());
+    }
+
     public function test_profiles_switch_atomically_and_reject_stale_changes(): void
     {
         $old = $this->profile();

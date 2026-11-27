@@ -14,6 +14,24 @@ test('AES-GCM encrypts minimal event data and rejects changed ciphertext', async
     await assert.rejects(() => decryptCapture(key, row, webcrypto));
 });
 
+test('a duty uses the same daily capture when starting or attaching offline', () => {
+    const morning = { entry_capture_id: 'day', occurred_at: '2026-11-27T07:00:00Z', timezone: 'Europe/Berlin' };
+    const duty = { assignment_id: 4, title: 'Dienst West' };
+    const direct = projectCapture(null, { ...morning, ...duty, action: 'start_duty' });
+    assert.equal(direct.day_clock, true);
+    assert.equal(direct.active_duty.started_at, morning.occurred_at);
+    assert.equal(direct.revision, 1);
+    const started = projectCapture(null, { ...morning, action: 'start_day' });
+    const marking = { ...morning, ...duty, action: 'attach_duty', revision: 1, occurred_at: '2026-11-27T09:00:00Z' };
+    const attached = projectCapture(started, marking);
+    assert.equal(attached.starts_at, started.starts_at);
+    assert.equal(attached.capture_id, started.capture_id);
+    assert.equal(attached.kind, 'work');
+    assert.equal(attached.active_duty.started_at, marking.occurred_at);
+    assert.deepEqual(attached.duty_assignment_ids, [4]);
+    assert.deepEqual(projectCapture(attached, marking), attached);
+});
+
 test('each encryption has a new nonce', async () => {
     const key = await webcrypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
     const first = await encryptCapture(key, {}, webcrypto);

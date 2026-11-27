@@ -6,7 +6,6 @@ use App\Models\DutyReport;
 use App\Models\Shift;
 use App\Models\ShiftSection;
 use App\Models\User;
-use App\Models\WorkTimeEntry;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsDateTime;
 use App\Support\Operations\OperationsTransaction;
@@ -31,7 +30,7 @@ class DutyActivityService
         OperationsTransaction::run(function () use ($shiftId, $revision, $id, $data, $actor) {
             $shift = Shift::lockForUpdate()->findOrFail($shiftId);
             $this->check($shift->revision === $revision && ! in_array($shift->status->value, ['cancelled', 'completed']), 'Dienst wurde geändert oder abgeschlossen.');
-            $this->check(! WorkTimeEntry::whereHas('assignment', fn ($q) => $q->where('shift_id', $shiftId))->exists(), 'Für diesen Dienst sind bereits Zeiten erfasst.');
+            $this->check(! $shift->assignments()->withRecordedTime()->exists(), 'Für diesen Dienst sind bereits Zeiten erfasst.');
             if ($shift->published_revision > 0 && ! $shift->published_snapshot) {
                 $shift->published_snapshot = $shift->only(['order_id', 'title', 'role_name', 'starts_at', 'ends_at', 'timezone', 'location_name', 'planned_break_minutes']) + ['sections' => $this->snapshot($shift)];
                 $shift->save();

@@ -74,6 +74,22 @@ $warnings = $detailWarnings;
                 <dl class="ops-meta">@if(!empty($entry->plan_snapshot['starts_at']) && !empty($entry->plan_snapshot['ends_at']))<div><dt>Plan · {{ $entry->timezone }}</dt><dd>{{ \Carbon\CarbonImmutable::parse($entry->plan_snapshot['starts_at'])->setTimezone($entry->timezone)->format('d.m. H:i') }} – {{ \Carbon\CarbonImmutable::parse($entry->plan_snapshot['ends_at'])->setTimezone($entry->timezone)->format('d.m. H:i') }}</dd></div>@endif<div><dt>Ist · {{ $entry->timezone }}</dt><dd>{{ $entry->starts_at->format('d.m. H:i') }} – {{ $entry->ends_at?->format('d.m. H:i') ?? 'Läuft' }}</dd></div><div><dt>Pause</dt><dd>{{ intdiv($entry->pause_seconds,60) }} min</dd></div><div><dt>Netto</dt><dd>{{ \App\Support\Operations\OperationsDateTime::duration($entry->netSeconds()) }}</dd></div>@if($workTimeReady)<div><dt>Kontogutschrift</dt><dd>{{ ($credited = $entry->creditedSeconds()) === null ? 'Nicht bewertet' : \App\Support\Operations\OperationsDateTime::duration($credited) }}</dd></div>@endif</dl>
                 @if($entry->relationLoaded('activities') && $entry->activities->isNotEmpty())<x-tables.table :columns="[['label'=>'Abschnitt','key'=>'kind'],['label'=>'Beginn','key'=>'starts_at'],['label'=>'Ende','key'=>'ends_at'],['label'=>'Bewertung','key'=>'source']]" :items="$entry->activities" row-view="components.tables.rows.time.activity-row" />@endif
                 @if($warnings)<div class="ops-actions">@foreach($warnings as $warning)<x-ui.badge color="amber" size="sm">{{ $warning }}</x-ui.badge>@endforeach</div>@endif
+                @if($dayReview = $entry->plan_snapshot['day_review'] ?? null)
+                    <section aria-label="Bestätigte Tageszuordnung" class="ops-stack">
+                        <h3 class="font-semibold">Bestätigte Tageszuordnung</h3>
+                        <dl class="ops-meta">
+                            <div><dt>Standardarbeit</dt><dd>{{ \App\Support\Operations\OperationsDateTime::duration($dayReview['standard_seconds']) }}</dd></div>
+                            @foreach($dayReview['duties'] as $duty)
+                                <div><dt>{{ $duty['title'] }}</dt><dd>
+                                    @if($duty['performed'])
+                                        {{ \App\Support\Operations\OperationsDateTime::duration($duty['seconds']) }}
+                                        <span class="ops-muted">({{ \Carbon\CarbonImmutable::parse($duty['starts_at'])->setTimezone($entry->timezone)->format('d.m. H:i') }}–{{ \Carbon\CarbonImmutable::parse($duty['ends_at'])->setTimezone($entry->timezone)->format('d.m. H:i') }})</span>
+                                    @else Ausgefallen @endif
+                                </dd></div>
+                            @endforeach
+                        </dl>
+                    </section>
+                @endif
                 @if($entry->note)<p>{{ $entry->note }}</p>@endif
                 @if($entry->review_note)<p class="ops-muted">{{ $entry->review_note }}</p>@endif
                 @if(!$exports && $entry->status === 'submitted' && $entry->user_id !== auth()->id())<x-operations.field label="Prüfvermerk" :model="'notes.'.$entry->id" maxlength="1000" /><div class="ops-actions"><x-ui.buttons.button-basic mode="primary" wire:click="decide({{ $entry->id }}, {{ $entry->revision }}, true)" wire:loading.attr="disabled">Freigeben</x-ui.buttons.button-basic><x-ui.buttons.button-basic wire:click="decide({{ $entry->id }}, {{ $entry->revision }}, false)" wire:loading.attr="disabled">Zur Korrektur</x-ui.buttons.button-basic></div>@endif

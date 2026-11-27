@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Query\Expression;
 
 class ShiftAssignment extends Model
 {
@@ -44,6 +45,37 @@ class ShiftAssignment extends Model
     public function timeEntry(): HasOne
     {
         return $this->hasOne(WorkTimeEntry::class);
+    }
+
+    /** Old shift bookings, actual duty starts and assignments confirmed on a day slip. */
+    public function scopeWithoutRecordedTime(Builder $query): Builder
+    {
+        $assignmentId = match ($query->getConnection()->getDriverName()) {
+            'mysql', 'mariadb' => 'cast(shift_assignments.id as char)',
+            'pgsql' => 'to_jsonb(shift_assignments.id)',
+            default => 'shift_assignments.id',
+        };
+
+        return $query->whereDoesntHave('timeEntry')->whereNotExists(function ($events) use ($assignmentId) {
+            $events->selectRaw('1')->from('work_time_events')
+                ->where('work_time_events.kind', 'duty_start')
+                ->whereColumn('work_time_events.actor_id', 'shift_assignments.user_id')
+                ->whereJsonContains('work_time_events.data->assignment_id', new Expression($assignmentId));
+        })->whereNotExists(function ($entries) use ($assignmentId) {
+            $entries->selectRaw('1')->from('work_time_entries')
+                ->whereColumn('work_time_entries.user_id', 'shift_assignments.user_id')
+                ->whereJsonContains('work_time_entries.plan_snapshot->day_review->assignment_ids', new Expression($assignmentId));
+        });
+    }
+
+    public function scopeWithRecordedTime(Builder $query): Builder
+    {
+        return $query->whereNot(fn (Builder $assignment) => $assignment->withoutRecordedTime());
+    }
+
+    public function hasRecordedTime(): bool
+    {
+        return self::whereKey($this->getKey())->withRecordedTime()->exists();
     }
 
     public function assigner(): BelongsTo

@@ -248,7 +248,7 @@ class OperationsEnhancementsTest extends TestCase
         $this->shift->update(['role_name' => 'WU']);
         $service = app(CustomerProofService::class);
         $order = Livewire::test(ServiceFulfilment::class, ['tab' => 'proofs', 'orderId' => $this->order->id, 'embedded' => true])
-            ->assertSee('Synthetic Duty')->assertSee('Wagenliste')->assertSee('Erwartet · Eingeteilte Person')
+            ->assertSee('Synthetic Duty')->assertSee('13.05.2027 08:00 CEST')->assertSee('Wagenliste')->assertSee('Erwartet · Eingeteilte Person')
             ->assertDontSee('Keine Vorgänge in dieser Ansicht.');
         $this->view('livewire.operations.partials.duty-proof-coverage', ['shift' => $this->shift])
             ->assertSee('Wagenliste')->assertSee('Erwartet · Eingeteilte Person');
@@ -289,6 +289,10 @@ class OperationsEnhancementsTest extends TestCase
             'payload' => ['shift_revision' => 1, 'duty' => ['proof_type' => 'Altes Dokument'], 'rows' => []]]);
         $this->rejected(fn () => $service->decide($stale->id, 1, 'review', 'Veraltete Fassung', null, $this->admin));
         $this->assertSame('submitted', $stale->fresh()->status);
+        $stale->forceFill(['payload' => ['shift_revision' => 1, 'rows' => []]])->save();
+        $this->rejected(fn () => $service->decide($stale->id, 1, 'review', 'Alter Schichtbeleg', null, $this->admin));
+        $stale->forceFill(['shift_id' => null, 'payload' => ['rows' => []]])->save();
+        $this->assertTrue($service->currentDutyRevision($stale));
         $this->assertSame([], $service->proofOverview($this->shift)['lines']);
     }
 
@@ -303,6 +307,39 @@ class OperationsEnhancementsTest extends TestCase
             ->assertSee('Wagenliste')->assertSee('heutige Katalogvorgabe')->assertSee('Zuordnung zu klären · Disposition')
             ->assertDontSee('Erwartet · Eingeteilte Person')->assertDontSee('von 1 freigegeben');
         $this->assertDatabaseCount('operation_workflows', 0);
+    }
+
+    public function test_incomplete_catalog_snapshot_blocks_closure_but_a_pre_catalog_shift_keeps_its_original_closure_path(): void
+    {
+        $this->enableDutyCatalog();
+        $this->actingAs($this->admin);
+        OperationWorkflow::create(['kind' => 'proof', 'title' => 'Alter Beleg', 'status' => 'accepted', 'order_id' => $this->order->id,
+            'shift_id' => $this->shift->id, 'user_id' => $this->employee->id, 'created_by' => $this->employee->id,
+            'payload' => ['shift_revision' => 1, 'rows' => []]]);
+        $service = app(\App\Services\Operations\ShiftSchedulingService::class);
+        $this->shift->forceFill(['published_snapshot' => ['duty_proof_rules' => []]])->saveQuietly();
+        $this->rejected(fn () => $service->save($this->shift, ['status' => 'completed', 'expected_revision' => 1], $this->admin));
+        $this->assertSame('open', $this->shift->fresh()->status->value);
+        $this->assignment->delete();
+        $this->shift->forceFill(['published_snapshot' => null])->saveQuietly();
+        $this->assertSame('completed', $service->save($this->shift, ['status' => 'completed', 'expected_revision' => 1], $this->admin)->status->value);
+    }
+
+    public function test_dispatch_without_personnel_access_sees_the_same_protected_proof_overview_in_order_and_shift(): void
+    {
+        $this->enableDutyCatalog();
+        Gate::define('operations.manage', fn (User $user) => $user->id === $this->outside->id);
+        Gate::define('employees.master-data.view', fn () => false);
+        $this->actingAs($this->outside);
+        $this->shift->update(['role_name' => 'WU']);
+        $order = Livewire::test(ServiceFulfilment::class, ['orderId' => $this->order->id])
+            ->assertSee('Prüfstand außerhalb der eigenen Personalzuständigkeit.')->assertDontSee('Wagenliste');
+        $this->view('livewire.operations.partials.duty-proof-coverage', ['shift' => $this->shift])
+            ->assertSee('Prüfstand außerhalb der eigenen Personalzuständigkeit.')->assertDontSee('Wagenliste');
+        $record = OperationWorkflow::create(['kind' => 'proof', 'title' => 'Privater Beleg', 'order_id' => $this->order->id,
+            'shift_id' => $this->shift->id, 'user_id' => $this->employee->id, 'created_by' => $this->employee->id,'payload' => ['rows' => []]]);
+        $this->expectException(\Illuminate\Database\Eloquent\ModelNotFoundException::class);
+        $order->call('openDetails', $record->id);
     }
 
     public function test_personal_duty_wagon_proof_is_revision_bound_reviewable_and_idempotent(): void
@@ -493,6 +530,23 @@ class OperationsEnhancementsTest extends TestCase
         $this->assertStringNotContainsString('4200', DB::table('operations_cost_rates')->value('hourly_cents'));
         $this->expectException(AuthorizationException::class);
         $s->order($this->order, $this->employee);
+    }
+
+    public function test_day_clock_costs_use_only_the_approved_duty_share_for_its_order(): void
+    {
+        $entry = $this->entry('submitted');
+        $entry->update(['shift_assignment_id' => null, 'order_id' => null, 'work_context' => 'internal',
+            'plan_snapshot' => ['day_clock' => true, 'day_review' => [
+                'assignment_ids' => [$this->assignment->id],
+                'duties' => [['assignment_id' => $this->assignment->id, 'seconds' => 12600, 'performed' => true]],
+            ]]]);
+        $service = app(OperationalCostService::class);
+        $service->configure($this->employee, ['starts_on' => '2027-05-01', 'hourly_cents' => 4200, 'currency' => 'EUR'], $this->admin);
+        $this->assertNull($service->order($this->order, $this->admin)['actual_cost_cents']);
+        $entry->update(['status' => 'approved']);
+        $result = $service->order($this->order, $this->admin);
+        $this->assertSame(14700, $result['actual_cost_cents']);
+        $this->assertSame([], $result['missing_assignment_ids']);
     }
 
     public function test_travel_booking_is_documented_and_cancellation_is_not_remote_booking(): void

@@ -27,16 +27,40 @@ export async function decryptCapture(key, record, cryptography = globalThis.cryp
 }
 
 export function projectCapture(base, event) {
+    const startsDay = event.action === 'start_day' || event.action === 'start_duty';
+    const duty = ['start_duty', 'attach_duty'].includes(event.action)
+        ? { assignment_id: event.assignment_id, title: event.title, started_at: event.occurred_at }
+        : null;
+    if (startsDay) {
+        return {
+            capture_id: event.entry_capture_id, revision: 1, status: 'running', title: 'Arbeitszeit',
+            work_context: 'internal', starts_at: event.occurred_at, timezone: event.timezone,
+            pause_seconds: 0, paused_at: null, kind: 'work', activity_since: event.occurred_at,
+            day_clock: true, active_duty: duty, duty_assignment_ids: duty ? [duty.assignment_id] : [],
+        };
+    }
     if (event.action === 'start') {
-        return { capture_id: event.entry_capture_id, revision: 1, status: 'running', title: event.title || 'Dienst', work_context: event.work_context || 'shift', starts_at: event.occurred_at, timezone: event.timezone, pause_seconds: 0, paused_at: null, kind: event.work_context === 'training' ? 'training' : (event.work_context === 'internal' ? 'internal' : 'work') };
+        return { capture_id: event.entry_capture_id, revision: 1, status: 'running', title: event.title || 'Dienst', work_context: event.work_context || 'shift', starts_at: event.occurred_at, timezone: event.timezone, pause_seconds: 0, paused_at: null, activity_since: event.occurred_at, kind: event.work_context === 'training' ? 'training' : (event.work_context === 'internal' ? 'internal' : 'work') };
     }
     if (! base || base.capture_id !== event.entry_capture_id || base.revision !== event.revision) return base;
+    if (event.action === 'attach_duty') {
+        return { ...base, day_clock: true, revision: base.revision + 1, active_duty: duty,
+            duty_assignment_ids: [...new Set([...(base.duty_assignment_ids || []), duty.assignment_id])] };
+    }
     const closingPause = ['resume', 'stop'].includes(event.action) && base.paused_at;
+    const priorKind = base.kind === 'break' ? base.previous_kind : base.kind;
+    const fallbackKind = !base.day_clock && ['internal', 'training'].includes(base.work_context) ? base.work_context : 'work';
+    const nextKind = { activity: event.kind, pause: 'break', resume: priorKind || fallbackKind }[event.action] ?? base.kind;
+    const history = [nextKind, priorKind, ...(base.recent_kinds || [])].filter(kind => kind && kind !== 'break');
     return { ...base, revision: base.revision + 1, status: { pause: 'paused', resume: 'running', stop: 'completed', submit: 'submitted' }[event.action] || base.status,
         ends_at: event.action === 'stop' ? event.occurred_at : base.ends_at,
         paused_at: event.action === 'pause' ? event.occurred_at : (closingPause ? null : base.paused_at),
         pause_seconds: (base.pause_seconds || 0) + (closingPause ? Math.max(0, Math.floor((Date.parse(event.occurred_at) - Date.parse(base.paused_at)) / 1000)) : 0),
-        kind: event.action === 'activity' ? event.kind : (event.action === 'pause' ? 'break' : (event.action === 'resume' ? (['internal', 'training'].includes(base.work_context) ? base.work_context : 'work') : base.kind)) };
+        kind: nextKind,
+        previous_kind: priorKind,
+        activity_since: event.correct_activity || nextKind === base.kind ? base.activity_since : event.occurred_at,
+        can_correct_activity: event.action === 'activity' ? (nextKind !== base.kind || base.can_correct_activity) : false,
+        recent_kinds: [...new Set(history)] };
 }
 
 export class CaptureStore {
@@ -103,7 +127,7 @@ export class CaptureStore {
 export function workTimeCapture(options) {
     return {
         ready: false, busy: false, syncing: false, offline: !navigator.onLine,
-        pending: 0, conflicts: 0, conflictEventKey: null, conflictReason: '', error: '', active: null, context: 'internal', title: '', trainingId: '', activityKind: 'work', startDialogOpen: false,
+        pending: 0, conflicts: 0, conflictEventKey: null, conflictReason: '', error: '', active: null, context: 'internal', title: '', trainingId: '', startDialogOpen: false,
         key: null, store: null, device: null, sequence: 0, scope: '', base: null, lastConflictMessage: '',
         _online: null, _offline: null, _pagehide: null, _pageshow: null, _visibility: null, _connection: null,
         _channel: null, _timer: null, _destroyed: false, _generation: 0, _bootstrap: null, _accountBinding: '', now: Date.now(),
@@ -278,7 +302,6 @@ export function workTimeCapture(options) {
                 this.lastConflictMessage = '';
             }
             this.active = active;
-            this.activityKind = this.active?.kind || 'work';
         },
 
         async refreshState(generation = this._generation) {
@@ -334,9 +357,20 @@ export function workTimeCapture(options) {
             return Math.floor(seconds / 3600) + ':' + String(Math.floor(seconds / 60) % 60).padStart(2, '0');
         },
 
+        canAttachDuty() {
+            return !this.active || !['running', 'paused'].includes(this.active.status)
+                || this.active.day_clock || ['internal', 'unplanned'].includes(this.active.work_context);
+        },
+
+        clockTime(instant) {
+            return new Date(instant).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', timeZone: this.active?.timezone || options.timezone });
+        },
+
         async capture(detail) {
             if (!this.ready || !this.key || this.busy || this.conflicts) return;
             const generation = this._generation, key = this.key, scope = this.scope;
+            const intendedDutyClock = detail.action === 'start_duty' && this.active && ['running', 'paused'].includes(this.active.status)
+                ? this.active.capture_id : null;
             this.busy = true;
             this.error = '';
             try {
@@ -352,8 +386,27 @@ export function workTimeCapture(options) {
                     if (rows.some(row => row.status === 'conflict')) throw new Error('Offene Erfassungen zuerst prüfen.');
                     const sequence = Math.max(this.sequence, await this.store.sequence(scope)) + 1;
                     this.assertCurrent(generation);
-                    const action = detail.action;
-                    if (action === 'start' && this.active && ['running', 'paused'].includes(this.active.status)) throw new Error('Es läuft bereits eine Zeiterfassung.');
+                    const activeClock = this.active && ['running', 'paused'].includes(this.active.status);
+                    let action = detail.action;
+                    if (action === 'start_duty' && (activeClock || intendedDutyClock)) action = 'attach_duty';
+                    if (action === 'attach_duty') {
+                        if (!activeClock) throw new Error('Die Arbeitszeit ist bereits beendet.');
+                        if (intendedDutyClock && this.active.capture_id !== intendedDutyClock) throw new Error('Die Arbeitsuhr hat sich geändert. Bitte den Dienst erneut auswählen.');
+                        if (!this.canAttachDuty()) throw new Error('Diese Zeiterfassung ist bereits einem eigenen Vorgang zugeordnet.');
+                        if (this.active.status === 'paused') throw new Error('Bitte zuerst die Arbeit fortsetzen.');
+                        if (this.active.duty_assignment_ids?.includes(detail.assignment_id)) return;
+                    }
+                    if (action === 'activity') {
+                        if (this.active?.status !== 'running' || detail.entry_capture_id && detail.entry_capture_id !== this.active.capture_id) {
+                            throw new Error('Die Arbeitsuhr hat sich geändert. Bitte den aktuellen Stand prüfen.');
+                        }
+                        if (detail.kind === this.active.kind) return;
+                        if (detail.revision !== undefined && detail.revision !== this.active.revision) {
+                            throw new Error('Der letzte Abschnitt hat sich geändert. Bitte die Tätigkeit erneut auswählen.');
+                        }
+                    }
+                    const startsClock = ['start', 'start_day', 'start_duty'].includes(action);
+                    if (startsClock && activeClock) throw new Error('Es läuft bereits eine Zeiterfassung.');
                     if (action === 'submit') {
                         for (const row of rows) {
                             const pending = await decryptCapture(key, row);
@@ -369,9 +422,9 @@ export function workTimeCapture(options) {
                     const offsetText = new Intl.DateTimeFormat('en', { timeZone: timezone, timeZoneName: 'longOffset' }).formatToParts(at).find(part => part.type === 'timeZoneName').value;
                     const offsetMatch = /GMT([+-])(\d{2}):(\d{2})/.exec(offsetText);
                     const offset = offsetMatch ? (offsetMatch[1] === '-' ? -1 : 1) * (Number(offsetMatch[2]) * 60 + Number(offsetMatch[3])) : 0;
-                    const event = { ...detail, event_key: crypto.randomUUID(), sequence, occurred_at: at.toISOString(), timezone, offset_minutes: offset,
-                        entry_capture_id: action === 'start' ? crypto.randomUUID() : (detail.entry_capture_id || this.active?.capture_id),
-                        revision: action === 'start' ? 0 : (detail.revision ?? this.active?.revision) };
+                    const event = { ...detail, action, event_key: crypto.randomUUID(), sequence, occurred_at: at.toISOString(), timezone, offset_minutes: offset,
+                        entry_capture_id: startsClock ? crypto.randomUUID() : (detail.entry_capture_id || this.active?.capture_id),
+                        revision: startsClock ? 0 : (detail.revision ?? this.active?.revision) };
                     if (!event.entry_capture_id || !Number.isInteger(event.revision)) throw new Error('Zeitstand neu laden.');
                     const encrypted = await encryptCapture(key, event);
                     this.assertCurrent(generation);

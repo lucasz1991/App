@@ -9,7 +9,6 @@ use App\Models\PlanVariant;
 use App\Models\QualificationType;
 use App\Models\Shift;
 use App\Models\User;
-use App\Models\WorkTimeEntry;
 use App\Services\Routing\RoutingSiteSelection;
 use App\Services\Routing\TomTomRoutingService;
 use App\Services\Routing\TravelAssessmentService;
@@ -119,7 +118,7 @@ class PlanVariantService
             if (! empty($entry['shift_id'])) {
                 $shift = Shift::findOrFail($entry['shift_id']);
                 $this->check($shift->published_revision === 0 && $shift->status->value === 'draft', 'Veröffentlichte Dienste werden durch Varianten nicht überschrieben. Für Ergänzungen eine Kopie verwenden.');
-                $this->check(! WorkTimeEntry::whereHas('assignment', fn ($q) => $q->where('shift_id', $shift->id))->exists(), 'Zeitbebuchte Dienste bleiben geschützt.');
+                $this->check(! $shift->assignments()->withRecordedTime()->exists(), 'Zeitbebuchte Dienste bleiben geschützt.');
             }
         }
     }

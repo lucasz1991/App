@@ -7,6 +7,7 @@ use App\Models\OperationsMonitorProfile;
 use App\Models\ShiftAssignment;
 use App\Models\StaffingCase;
 use App\Models\User;
+use App\Models\WorkTimeEntry;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsTransaction;
 use App\Support\Operations\PersonalSchedule;
@@ -22,7 +23,7 @@ use Illuminate\Validation\ValidationException;
 
 class OperationsDutyMonitorService
 {
-    public const LABELS = ['planned' => 'Geplant', 'start_due' => 'Startmeldung ausstehend', 'start_missing' => 'Startmeldung fehlt', 'running' => 'Im Dienst', 'end_overdue' => 'Endmeldung fehlt', 'ended' => 'Beendet', 'unconfigured' => 'Toleranz offen', 'needs_review' => 'Veröffentlichungsstand prüfen'];
+    public const LABELS = ['planned' => 'Geplant', 'start_due' => 'Startmeldung ausstehend', 'start_missing' => 'Startmeldung fehlt', 'running' => 'Im Dienst', 'end_overdue' => 'Endmeldung fehlt', 'ended' => 'Beendet', 'day_review' => 'Tagesbeleg ausstehend', 'not_performed' => 'Ausgefallen', 'unconfigured' => 'Toleranz offen', 'needs_review' => 'Veröffentlichungsstand prüfen'];
 
     public function ready(): bool
     {
@@ -75,9 +76,11 @@ class OperationsDutyMonitorService
         abort_if($start->diffInDays($end) > 31, 422);
         $profile = $this->ready() ? OperationsMonitorProfile::where('is_active', true)->first() : null;
 
-        return ShiftAssignment::where('status', 'confirmed')->whereHas('shift', fn ($q) => $q->whereNotIn('status', ['cancelled', 'completed'])->where('published_revision', '>', 0)->whereColumn('shifts.published_revision', 'shift_assignments.plan_revision')->where(fn ($q) => $q->whereColumn('shifts.revision', '!=', 'shifts.published_revision')->orWhere(fn ($q) => $q->during($start, $end))))
-            ->with(['shift', 'user', 'timeEntry'])->get()
-            ->map(fn ($assignment) => $this->row($assignment, $profile))
+        $assignments = ShiftAssignment::where('status', 'confirmed')->whereHas('shift', fn ($q) => $q->whereNotIn('status', ['cancelled', 'completed'])->where('published_revision', '>', 0)->whereColumn('shifts.published_revision', 'shift_assignments.plan_revision')->where(fn ($q) => $q->whereColumn('shifts.revision', '!=', 'shifts.published_revision')->orWhere(fn ($q) => $q->during($start, $end))))
+            ->with(['shift', 'user', 'timeEntry'])->get();
+        $reports = $this->dayDutyReports($assignments);
+
+        return $assignments->map(fn ($assignment) => $this->row($assignment, $profile, $reports[$assignment->id] ?? null))
             ->filter(fn ($row) => $row !== null && ($row['state'] === 'needs_review' || ($row['starts_at']->lt($end) && $row['ends_at']->gt($start))))
             ->sortBy(fn ($row) => [in_array($row['state'], ['start_missing', 'end_overdue', 'needs_review'], true) ? 0 : 1, $row['starts_at']?->timestamp ?? PHP_INT_MAX])->values();
     }
@@ -96,7 +99,8 @@ class OperationsDutyMonitorService
             if ($assignment->plan_revision !== $planRevision || $assignment->shift->published_revision !== $planRevision || in_array($assignment->shift->status->value, ['cancelled', 'completed'], true)) {
                 throw ValidationException::withMessages(['workflow' => 'Dienststand wurde geändert.']);
             }
-            $row = $this->row($assignment, $profile);
+            $reports = $this->dayDutyReports(collect([$assignment]));
+            $row = $this->row($assignment, $profile, $reports[$assignment->id] ?? null);
             if (! $row || ! in_array($row['state'], ['start_missing', 'end_overdue'], true)) {
                 throw ValidationException::withMessages(['workflow' => 'Es liegt keine überfällige Meldung vor.']);
             }
@@ -148,15 +152,55 @@ class OperationsDutyMonitorService
         return $count;
     }
 
-    private function row(ShiftAssignment $assignment, ?OperationsMonitorProfile $profile): ?array
+    private function dayDutyReports(Collection $assignments): array
+    {
+        $reports = [];
+        foreach ($assignments->filter(fn ($assignment) => ! $assignment->timeEntry)->keyBy('id')->chunk(120) as $batch) {
+            $ids = $batch->keys()->all();
+            $entries = WorkTimeEntry::whereNull('shift_assignment_id')->whereIn('user_id', $batch->pluck('user_id')->unique())
+                ->where(function ($query) use ($ids) {
+                    $query->whereHas('dutyStarts', fn ($events) => $events->whereIn('data->assignment_id', $ids));
+                    foreach ($ids as $id) {
+                        $query->orWhereJsonContains('plan_snapshot->day_review->assignment_ids', (int) $id);
+                    }
+                })->with(['dutyStarts' => fn ($events) => $events->orderBy('occurred_at')->orderBy('id')])->get();
+
+            foreach ($entries as $entry) {
+                $lastMarker = $entry->dutyStarts->last();
+                foreach ($entry->dutyStarts as $marker) {
+                    $id = $marker->data['assignment_id'] ?? null;
+                    if ($batch->get($id)?->user_id === $entry->user_id) {
+                        $reports[$id] ??= ['start' => $marker->occurred_at, 'end' => null,
+                            'state' => $entry->ends_at || $marker->id !== $lastMarker->id ? 'day_review' : 'running'];
+                    }
+                }
+                foreach ($entry->plan_snapshot['day_review']['duties'] ?? [] as $duty) {
+                    $id = $duty['assignment_id'];
+                    if ($batch->get($id)?->user_id === $entry->user_id) {
+                        $reports[$id] = ['start' => $duty['performed'] ? CarbonImmutable::parse($duty['starts_at']) : null,
+                            'end' => $duty['performed'] ? CarbonImmutable::parse($duty['ends_at']) : null,
+                            'state' => $duty['performed'] ? 'ended' : 'not_performed'];
+                    }
+                }
+            }
+        }
+
+        return $reports;
+    }
+
+    private function row(ShiftAssignment $assignment, ?OperationsMonitorProfile $profile, ?array $report): ?array
     {
         $window = app(PersonalSchedule::class)->publishedWindow($assignment);
+        $entry = $assignment->timeEntry;
+        $actualStart = $report['start'] ?? $entry?->starts_at;
+        $actualEnd = $report['end'] ?? $entry?->ends_at;
         if (! $window) {
-            return ['id' => 'duty-'.$assignment->id, 'assignment_id' => $assignment->id, 'user_id' => $assignment->user_id, 'user_name' => $assignment->user?->name, 'title' => 'Freigegebener Dienststand fehlt', 'starts_at' => null, 'ends_at' => null, 'actual_start' => $assignment->timeEntry?->starts_at, 'actual_end' => $assignment->timeEntry?->ends_at, 'plan_revision' => $assignment->plan_revision, 'state' => 'needs_review', 'status' => self::LABELS['needs_review'], 'shift_id' => $assignment->shift_id];
+            return ['id' => 'duty-'.$assignment->id, 'assignment_id' => $assignment->id, 'user_id' => $assignment->user_id, 'user_name' => $assignment->user?->name, 'title' => 'Freigegebener Dienststand fehlt', 'starts_at' => null, 'ends_at' => null, 'actual_start' => $actualStart, 'actual_end' => $actualEnd, 'plan_revision' => $assignment->plan_revision, 'state' => 'needs_review', 'status' => self::LABELS['needs_review'], 'shift_id' => $assignment->shift_id];
         }
         $now = CarbonImmutable::now('UTC');
-        $entry = $assignment->timeEntry;
         $state = match (true) {
+            ($report['state'] ?? null) === 'running' && $now->gte($window['ends_at']) => 'day_review',
+            $report !== null => $report['state'],
             $entry?->ends_at !== null => 'ended',
             $entry !== null && $profile !== null && $now->gt($window['ends_at']->addMinutes($profile->end_grace_minutes)) => 'end_overdue',
             $entry !== null => 'running',
@@ -167,7 +211,7 @@ class OperationsDutyMonitorService
         };
 
         return ['id' => 'duty-'.$assignment->id, 'assignment_id' => $assignment->id, 'user_id' => $assignment->user_id, 'user_name' => $assignment->user?->name, 'title' => $window['title'],
-            'starts_at' => $window['starts_at'], 'ends_at' => $window['ends_at'], 'actual_start' => $entry?->starts_at, 'actual_end' => $entry?->ends_at,
+            'starts_at' => $window['starts_at'], 'ends_at' => $window['ends_at'], 'actual_start' => $actualStart, 'actual_end' => $actualEnd,
             'plan_revision' => $assignment->plan_revision, 'state' => $state, 'status' => self::LABELS[$state], 'shift_id' => $assignment->shift_id];
     }
 }

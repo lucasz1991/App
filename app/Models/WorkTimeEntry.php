@@ -47,6 +47,11 @@ class WorkTimeEntry extends Model
         return $this->hasMany(WorkTimeEvent::class);
     }
 
+    public function dutyStarts(): HasMany
+    {
+        return $this->events()->where('kind', 'duty_start');
+    }
+
     public function revisions(): HasMany
     {
         return $this->hasMany(WorkTimeRevision::class);

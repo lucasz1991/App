@@ -63,16 +63,17 @@ class WorkTimeExtensionUiTest extends TestCase
         $component = Livewire::actingAs($this->employee)->test(MyWork::class);
 
         foreach (['today', 'time'] as $tab) {
-            $component->call('showTab', $tab)->assertSee('Frühdienst Nord')->assertSee('Andere Arbeit starten')
+            $component->call('showTab', $tab)->assertSee('Frühdienst Nord')->assertSee('Arbeitszeit starten')->assertSee('8:00 h')
                 ->assertSeeHtml('showCaptureConflicts(conflictEventKey)');
             $dom = new \DOMDocument;
             @$dom->loadHTML($component->html());
             $xpath = new \DOMXPath($dom);
             $this->assertCount(1, $xpath->query('//*[@data-worktime-capture]//button[normalize-space(.)="Dienst starten"]'));
+            $this->assertCount(1, $xpath->query('//*[@data-worktime-capture]//button[normalize-space(.)="Arbeitszeit starten" and not(ancestor::details)]'));
             $this->assertCount(1, $xpath->query('//*[@data-worktime-capture]//details/summary[contains(., "Weitere Aktionen")]'));
             $this->assertCount(1, $xpath->query('//*[@data-worktime-capture]//details//button[normalize-space(.)="Andere Arbeit starten"]'));
             $this->assertCount(1, $xpath->query('//*[@data-worktime-capture]//button[@*[name()="wire:click"]="openGeneralManual"]'));
-            $this->assertCount(1, $xpath->query('//*[@data-worktime-capture]//*[@role="status" and @aria-atomic="true"]'));
+            $this->assertCount(1, $xpath->query('//*[@data-worktime-capture]//*[contains(@class, "rt-clock-transfer") and @role="status" and @aria-atomic="true"]'));
         }
     }
 
@@ -90,6 +91,45 @@ class WorkTimeExtensionUiTest extends TestCase
         $this->assertStringContainsString('vollständig', $preview('2026-02-21T22:00', '', null));
         $this->assertStringContainsString('Pause', $preview('2026-02-21T22:00', '2026-02-21T22:30', 30));
         $this->assertStringContainsString('24 Stunden', $preview('2026-02-21T08:00', '2026-02-22T09:00'));
+    }
+
+    public function test_offline_day_clock_attaches_one_duty_and_opens_the_day_review_after_stop(): void
+    {
+        $customer = Customer::create(['company_name' => 'Tagesuhr', 'is_active' => true]);
+        $order = Order::create(['customer_id' => $customer->id, 'title' => 'West', 'status' => 'confirmed', 'priority' => 'normal', 'timezone' => 'Europe/Berlin', 'starts_at' => now(), 'ends_at' => now()->addDay(), 'required_staff' => 1]);
+        $shift = Shift::forceCreate(['order_id' => $order->id, 'title' => 'Dienst West', 'timezone' => 'Europe/Berlin', 'starts_at' => now()->addHours(2), 'ends_at' => now()->addHours(6), 'role_name' => 'Betrieb', 'location_name' => 'Hamburg', 'status' => 'open', 'required_staff' => 1, 'planned_break_minutes' => 30, 'revision' => 1, 'published_revision' => 1]);
+        $assignment = ShiftAssignment::forceCreate(['shift_id' => $shift->id, 'user_id' => $this->employee->id, 'status' => 'confirmed', 'plan_revision' => 1]);
+        $capture = app(WorkTimeCaptureService::class);
+        $device = $capture->bootstrap($this->employee, null)['device_id'];
+        $id = (string) Str::uuid();
+        $duty = ['assignment_id' => $assignment->id, 'plan_revision' => 1];
+        $events = [
+            $this->event(1, 'start_day', $id, '2027-05-12T06:00:00Z'),
+            $this->event(2, 'attach_duty', $id, '2027-05-12T08:00:00Z', $duty),
+            $this->event(3, 'activity', $id, '2027-05-12T08:12:00Z', ['kind' => 'shunting']),
+        ];
+        $this->travel(132)->minutes();
+        $result = $capture->ingest($this->employee, $device, $events);
+        $this->assertSame(['accepted', 'accepted', 'accepted'], array_column($result['results'], 'status'));
+        $this->assertSame($result, $capture->ingest($this->employee, $device, $events));
+        $state = $capture->bootstrap($this->employee, $device)['active'];
+        $this->assertTrue($state['day_clock']);
+        $this->assertSame($assignment->id, $state['active_duty']['assignment_id']);
+        $this->assertSame('shunting', $state['kind']);
+        $this->assertSame(132 * 60, $state['net_seconds']);
+
+        $this->travelTo(CarbonImmutable::parse('2027-05-12T14:30:00Z'));
+        $finish = [
+            $this->event(4, 'pause', $id, '2027-05-12T10:00:00Z'),
+            $this->event(5, 'resume', $id, '2027-05-12T10:30:00Z'),
+            $this->event(6, 'stop', $id, '2027-05-12T14:30:00Z'),
+        ];
+        $this->assertSame(['accepted', 'accepted', 'accepted'], array_column($capture->ingest($this->employee, $device, $finish)['results'], 'status'));
+        $entry = WorkTimeEntry::sole();
+        $this->assertSame(8 * 3600, $entry->netSeconds());
+        Livewire::actingAs($this->employee)->test(MyWork::class)
+            ->assertSee('Tagesbeleg prüfen')->assertSee('Dienst West')
+            ->call('showTab', 'time')->assertSee('Tagesbeleg prüfen')->assertSee('Dienst West');
     }
 
     public function test_personal_clock_shared_modals_and_actual_sections_render(): void

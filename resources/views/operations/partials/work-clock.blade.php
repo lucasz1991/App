@@ -1,17 +1,8 @@
-<section class="ops-panel ops-stack rt-personal-work-clock{{ ($compactActionClock ?? false) ? ' rt-personal-work-clock--action' : '' }}" aria-label="Arbeitszeiterfassung" x-bind:data-clock-state="active?.status ?? 'idle'" data-worktime-capture wire:ignore.self
-    @if($compactActionClock ?? false) data-compact-action-clock @isset($clockDuty) data-has-planned-duty @endisset @endif
-    @if($compactMobileClock ?? false) x-data="{ overviewClockExpanded: false }" x-id="['overview-clock-details']" data-compact-clock data-overview-expanded="false" :data-overview-expanded="overviewClockExpanded ? 'true' : 'false'" :data-overview-idle="!active || !['running','paused'].includes(active.status) ? 'true' : 'false'" @endif>
-    <header class="ops-toolbar" wire:ignore @if(($compactActionClock ?? false) && isset($clockDuty)) x-bind:class="{ 'rt-clock-header--quiet': (!active || !['running','paused'].includes(active.status)) && ready && !offline && !pending && !syncing && conflicts === 0 }" @endif>
-        @if($compactMobileClock ?? false)<i class="far fa-clock rt-personal-clock-overview-icon" aria-hidden="true"></i>@endif
-        <h2 x-text="active && ['running','paused'].includes(active.status) ? active.title : '{{ ($compactActionClock ?? false) ? 'Arbeitszeit' : 'Arbeitszeit erfassen' }}'"></h2>
-        @if($compactMobileClock ?? false)<span class="rt-personal-clock-overview-label" x-show="!active || !['running','paused'].includes(active.status)">Arbeitszeit</span>@endif
-        <span class="rt-clock-transfer" role="status" aria-atomic="true"><span class="sr-only">Übertragung: </span><span x-text="transferStatus()"></span></span>
-        @if($compactMobileClock ?? false)
-            <x-ui.buttons.button-basic mode="link" class="rt-personal-clock-expand" x-show="!active || !['running','paused'].includes(active.status)"
-                x-bind:aria-expanded="overviewClockExpanded" x-bind:aria-controls="$id('overview-clock-details')" x-on:click="overviewClockExpanded = !overviewClockExpanded">
-                <span x-text="overviewClockExpanded ? 'Weniger' : 'Erfassen'"></span><i class="far fa-chevron-down" :class="{ 'rotate-180': overviewClockExpanded }" aria-hidden="true"></i>
-            </x-ui.buttons.button-basic>
-        @endif
+<section class="ops-panel rt-personal-work-clock rt-day-clock" aria-label="Arbeitszeiterfassung" data-worktime-capture wire:ignore.self
+    x-bind:data-clock-state="active?.status ?? 'idle'" @if($compactActionClock ?? false) data-compact-action-clock @endif>
+    <header class="rt-day-clock__header">
+        <h2>Meine Arbeitszeit</h2>
+        <span class="rt-clock-transfer" role="status" aria-atomic="true" wire:ignore><span class="sr-only">Übertragung: </span><span x-text="transferStatus()"></span></span>
     </header>
     <p class="ops-errors" role="alert" x-show="error" x-text="error" x-cloak wire:ignore></p>
     <div class="rt-clock-conflict" x-show="conflicts > 0" x-cloak wire:ignore>
@@ -19,50 +10,72 @@
             <p x-show="offline">Sobald du online bist, kannst du den Vorgang öffnen.</p></div>
         <x-ui.buttons.button-basic x-bind:disabled="offline || !ready" x-on:click="$wire.showCaptureConflicts(conflictEventKey)">Konflikt ansehen</x-ui.buttons.button-basic>
     </div>
-        <div class="rt-personal-clock-running" x-show.important="active && ['running','paused'].includes(active.status)" x-cloak wire:ignore>
-            <div class="rt-personal-clock-reading">
-                <p class="rt-personal-clock-label" x-text="active?.status === 'paused' ? 'In Pause' : 'Arbeitszeit läuft'"></p>
-                <p class="ops-clock" aria-label="Erfasste Arbeitszeit" x-text="elapsed()"></p>
-                <p class="ops-muted" x-text="active ? 'Gestartet um ' + new Date(active.starts_at).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',timeZone:active.timezone}) + ' · ' + active.timezone : ''"></p>
-            </div>
-            <div class="ops-stack rt-personal-clock-controls">
-                <div class="ops-actions">
-                    <x-ui.buttons.button-basic mode="primary" x-show.important="active?.status === 'running'" x-bind:disabled="busy || !ready || conflicts > 0" x-on:click="capture({action:'pause'})">Pause starten</x-ui.buttons.button-basic>
-                    <x-ui.buttons.button-basic mode="primary" x-show.important="active?.status === 'paused'" x-bind:disabled="busy || !ready || conflicts > 0" x-on:click="capture({action:'resume'})">Weiterarbeiten</x-ui.buttons.button-basic>
-                    <x-ui.buttons.button-basic x-bind:disabled="busy || !ready || conflicts > 0" x-on:click="capture({action:'stop'})">Arbeit beenden</x-ui.buttons.button-basic>
-                </div>
-                <fieldset x-show="active?.status === 'running'" x-bind:disabled="busy || !ready || conflicts > 0"><x-ui.forms.label value="Arbeitsabschnitt" /><x-ui.forms.select aria-label="Arbeitsabschnitt" x-model="activityKind" change="capture({action:'activity',kind:$event.target.value})">@foreach(\App\Services\Operations\WorkTimeActivityService::KINDS as $kind => $label)@if($kind !== 'break')<option value="{{ $kind }}">{{ $label }}</option>@endif @endforeach</x-ui.forms.select></fieldset>
-            </div>
+
+    <div class="rt-day-clock__start" x-show="!active || !['running','paused'].includes(active.status)" x-cloak>
+        <div>
+            <p class="rt-day-clock__state"><i class="far fa-clock" aria-hidden="true"></i>{{ ($clockEndedToday ?? false) ? 'Arbeitszeit beendet' : 'Noch nicht gestartet' }}</p>
+            @if(isset($clockTargetMinutes))
+                <p class="rt-day-clock__meta">Heute sind {{ \App\Support\Operations\OperationsDateTime::duration($clockTargetMinutes * 60) }} geplant.</p>
+            @else
+                <p class="rt-day-clock__meta">Für heute ist kein Tages-Soll hinterlegt.</p>
+            @endif
         </div>
-        <div class="rt-personal-clock-idle" x-show.important="!active || !['running','paused'].includes(active.status)" x-cloak wire:ignore.self @if($compactMobileClock ?? false) :id="$id('overview-clock-details')" @endif>
-            @if(!($compactActionClock ?? false) && !isset($clockDuty))<p class="ops-muted">Erfasse interne Arbeit, Schulungen oder ungeplante Tätigkeiten. Einen Dienst startest du direkt im Dienstplan.</p>@endif
-            @isset($clockDuty)
-                @php
-                    $dutyStart = $clockDuty->shift->starts_at->copy()->setTimezone($clockDuty->shift->timezone);
-                    $dutyEnd = $clockDuty->shift->ends_at->copy()->setTimezone($clockDuty->shift->timezone);
-                @endphp
-                <div class="rt-clock-duty" wire:key="clock-duty-{{ $clockDuty->id }}-{{ $clockDuty->shift->revision }}">
-                    @if($compactActionClock ?? false)<i class="far fa-train rt-clock-duty__icon" aria-hidden="true"></i>@endif
-                    <div class="rt-clock-duty__context"><strong>{{ $clockDuty->shift->title }}</strong><p>{{ $dutyStart->format('d.m. H:i') }} – {{ $dutyEnd->format($dutyStart->isSameDay($dutyEnd) ? 'H:i' : 'd.m. H:i') }}@if(($compactActionClock ?? false) && filled($clockDuty->shift->location_name)) · {{ $clockDuty->shift->location_name }}@else · {{ $clockDuty->shift->timezone }}@endif</p></div>
-                    <div class="rt-clock-duty__primary">@include('livewire.operations.partials.personal-shift-actions', ['assignment' => $clockDuty, 'shift' => $clockDuty->shift, 'hideDutyProof' => $compactActionClock ?? false])</div>
-                </div>
-            @endisset
-            <div class="ops-actions rt-clock-idle-actions">
-                @if(($compactActionClock ?? false) && isset($clockDuty))
-                    <x-ui.buttons.button-basic mode="link" class="rt-clock-manual" wire:click="openGeneralManual" wire:loading.attr="disabled" x-bind:disabled="offline"><i class="far fa-clock" aria-hidden="true"></i>Zeit nachtragen</x-ui.buttons.button-basic>
-                    <details class="rt-clock-more" x-on:click.outside="$el.open = false" x-on:keydown.escape.stop="$el.open = false; $el.querySelector('summary').focus()">
-                        <summary aria-label="Weitere Aktionen"><span class="rt-clock-more__full-label">Weitere Aktionen</span><span class="rt-clock-more__short-label">Mehr</span><i class="far fa-chevron-down" aria-hidden="true"></i></summary>
-                        <div class="rt-clock-more__menu">
-                            <x-ui.buttons.button-basic x-bind:disabled="busy || !ready || conflicts > 0" x-on:click="$el.closest('details').querySelector('summary').focus(); $el.closest('details').open = false; startDialogOpen = true">Andere Arbeit starten</x-ui.buttons.button-basic>
-                            @include('livewire.operations.partials.personal-shift-actions', ['assignment' => $clockDuty, 'shift' => $clockDuty->shift, 'proofOnly' => true])
-                        </div>
-                    </details>
-                @else
-                <x-ui.buttons.button-basic :mode="isset($clockDuty) ? 'secondary' : 'primary'" x-bind:disabled="busy || !ready || conflicts > 0" x-on:click="startDialogOpen=true">{{ isset($clockDuty) ? 'Andere Arbeit starten' : 'Arbeit starten' }}</x-ui.buttons.button-basic>
-                <x-ui.buttons.button-basic :mode="($compactActionClock ?? false) ? 'link' : 'secondary'" class="rt-clock-manual" wire:click="openGeneralManual" wire:loading.attr="disabled" x-bind:disabled="offline">Zeit nachtragen</x-ui.buttons.button-basic>
-                @endif
-            </div>
+        <x-ui.buttons.button-basic mode="primary" x-bind:disabled="busy || !ready || conflicts > 0" x-on:click="capture({ action: 'start_day' })">Arbeitszeit starten</x-ui.buttons.button-basic>
+    </div>
+    <div class="rt-day-clock__running" x-show="active && ['running','paused'].includes(active.status)" x-cloak wire:ignore>
+        <p class="rt-day-clock__duration" aria-label="Erfasste Nettoarbeitszeit"><span x-text="elapsed()"></span><small>h</small></p>
+        <div>
+            <p class="rt-day-clock__state" x-text="active?.status === 'paused' ? 'In Pause' : 'Arbeitszeit läuft'"></p>
+            <p class="rt-day-clock__meta" x-text="active ? 'Seit ' + clockTime(active.starts_at) : ''"></p>
+            <p class="rt-day-clock__meta" x-show="active && !active.day_clock" x-text="active?.title"></p>
         </div>
+    </div>
+    <div class="rt-day-clock__duty rt-day-clock__duty--active" x-show="active?.active_duty && ['running','paused'].includes(active.status)" x-cloak wire:ignore>
+        <i class="far fa-train" aria-hidden="true"></i>
+        <div><strong x-text="active?.active_duty?.title"></strong>
+            <p class="rt-day-clock__meta" x-text="active?.active_duty ? 'Dienst seit ' + clockTime(active.active_duty.started_at) : ''"></p></div>
+        <span class="rt-day-clock__duty-status">Dienst aktiv</span>
+    </div>
+    @foreach($clockOffers ?? collect() as $offer)
+        @php
+            $duty = $offer->shift;
+            $start = $duty->starts_at->setTimezone($duty->timezone);
+            $end = $duty->ends_at->setTimezone($duty->timezone);
+            $firstStart = $start->subMinutes(config('operations.clock_start_early_minutes'));
+            $today = now($duty->timezone);
+        @endphp
+        <div class="rt-day-clock__duty" wire:key="clock-offer-{{ $offer->id }}-{{ $duty->revision }}"
+            x-show="canAttachDuty() && !active?.duty_assignment_ids?.includes({{ (int) $offer->id }}) && now < {{ $end->getTimestampMs() }}" x-cloak>
+            <i class="far fa-train" aria-hidden="true"></i>
+            <div><strong>{{ $duty->title }}</strong>
+                <p class="rt-day-clock__meta">Geplant {{ $start->format($start->isSameDay($today) ? 'H:i' : 'd.m. H:i') }}–{{ $end->format($end->isSameDay($start) ? 'H:i' : 'd.m. H:i') }}@if($duty->timezone !== $displayTimezone) · {{ $duty->timezone }}@endif @if(filled($duty->location_name)) · {{ $duty->location_name }}@endif</p>
+                <p class="rt-day-clock__hint" x-show="now < {{ $firstStart->getTimestampMs() }}">Start möglich ab {{ $firstStart->format($firstStart->isSameDay($today) ? 'H:i' : 'd.m. H:i') }} Uhr.</p>
+                <p class="rt-day-clock__hint" x-show="active?.status === 'running' && now >= {{ $firstStart->getTimestampMs() }}">Die Arbeitsuhr läuft weiter.</p>
+                <p class="rt-day-clock__hint" x-show="active?.status === 'paused'">Zum Dienststart zuerst die Arbeit fortsetzen.</p>
+            </div>
+            @include('livewire.operations.partials.personal-shift-actions', ['assignment' => $offer, 'shift' => $duty, 'knownClockOffer' => true, 'hideDutyProof' => true])
+        </div>
+    @endforeach
+    <div class="rt-day-clock__controls" x-show="active && ['running','paused'].includes(active.status)" x-cloak>
+        <div class="rt-day-clock__actions" wire:ignore>
+            <x-ui.buttons.button-basic x-show.important="active?.status === 'running'" x-bind:disabled="busy || !ready || conflicts > 0" x-on:click="capture({action:'pause'})">Pause starten</x-ui.buttons.button-basic>
+            <x-ui.buttons.button-basic mode="primary" x-show.important="active?.status === 'paused'" x-bind:disabled="busy || !ready || conflicts > 0" x-on:click="capture({action:'resume'})">Arbeit fortsetzen</x-ui.buttons.button-basic>
+            <x-ui.buttons.button-basic mode="link" x-bind:disabled="busy || !ready || conflicts > 0" x-on:click="capture({action:'stop'})">Arbeitszeit beenden</x-ui.buttons.button-basic>
+        </div>
+        @include('operations.partials.work-clock-activities')
+    </div>
+    <div class="rt-day-clock__more" x-show="!active || !['running','paused'].includes(active.status)" x-cloak>
+        <x-ui.buttons.button-basic mode="link" wire:click="openGeneralManual" wire:loading.attr="disabled" x-bind:disabled="offline"><i class="far fa-clock" aria-hidden="true"></i> Zeit nachtragen</x-ui.buttons.button-basic>
+        <details class="rt-clock-more" x-on:click.outside="$el.open = false" x-on:keydown.escape.stop="$el.open = false; $el.querySelector('summary').focus()">
+            <summary>Weitere Aktionen <i class="far fa-chevron-down" aria-hidden="true"></i></summary>
+            <div class="rt-clock-more__menu">
+                <x-ui.buttons.button-basic x-bind:disabled="busy || !ready || conflicts > 0" x-on:click="$el.closest('details').querySelector('summary').focus(); $el.closest('details').open = false; startDialogOpen = true">Andere Arbeit starten</x-ui.buttons.button-basic>
+                @foreach($clockOffers ?? collect() as $offer)
+                    @include('livewire.operations.partials.personal-shift-actions', ['assignment' => $offer, 'shift' => $offer->shift, 'proofOnly' => true])
+                @endforeach
+            </div>
+        </details>
+    </div>
     @php($startFormId = 'employee-clock-start-'.(isset($__livewire) ? $__livewire->getId() : 'preview'))
     @php($availableTrainings = $startableTrainings ?? $clockTrainings)
     <x-operations.modal wire:model="generalStartOpen" show-expression="startDialogOpen" :show-offline="false" title="Arbeit starten">

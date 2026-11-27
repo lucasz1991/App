@@ -46,7 +46,9 @@
                             <p>{{ \Carbon\CarbonImmutable::parse($unfinished['starts_at'])->setTimezone($displayTimezone)->format('d.m.Y · H:i') }} · {{ $timeFilterOptions[$unfinished['status']] }}</p>
                             @if(filled($unfinished['review_note']))<p>{{ $unfinished['review_note'] }}</p>@endif
                         </div>
-                        @if($unfinished['status'] === 'returned')
+                        @if(($unfinished['day_clock'] ?? false) && in_array($unfinished['status'], ['completed', 'returned'], true))
+                            <x-ui.buttons.button-basic wire:click="openDayReview({{ $unfinished['id'] }})">Tagesbeleg prüfen</x-ui.buttons.button-basic>
+                        @elseif($unfinished['status'] === 'returned')
                             <x-ui.buttons.button-basic wire:click="editTime({{ $unfinished['id'] }}, {{ $unfinished['revision'] }})">Korrigieren</x-ui.buttons.button-basic>
                         @elseif($unfinished['status'] === 'completed')
                             @if($unfinished['capture_id'])

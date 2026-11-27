@@ -146,6 +146,31 @@ class IndependentIntakeFormUiTest extends TestCase
         Queue::assertNothingPushed();
     }
 
+    public function test_verified_inquiry_footer_opens_its_own_offer_form_and_retains_direct_acceptance(): void
+    {
+        $service = app(InquiryWorkflowService::class);
+        $record = $service->save(null, $this->demand() + ['customer_id' => $this->customer->id, 'channel' => 'manual', 'original' => 'Synthetic instruction'], $this->actor);
+        $service->transition($record, $record->revision, 'verify', [], $this->actor);
+        $component = Livewire::test(InquiryInbox::class, ['initialInquiryId' => $record->id, 'modalOnly' => true, 'consolidated' => true]);
+        foreach (['overview', 'history'] as $section) {
+            if ($section === 'history') {
+                $component->call('setDetailSection', 'history');
+            }
+            $doc = new \DOMDocument;
+            @$doc->loadHTML('<?xml encoding="UTF-8">'.$component->html());
+            $xpath = new \DOMXPath($doc);
+            $footer = $xpath->query('//footer//*[@data-inquiry-workflow-footer]')->item(0);
+            $this->assertNotNull($footer);
+            $offer = $xpath->query('.//button[normalize-space(.)="Angebot anlegen"]', $footer)->item(0);
+            $this->assertNotNull($offer);
+            $this->assertSame('create', $doc->getElementById($offer->getAttribute('form'))->getAttribute('wire:submit'));
+            $this->assertStringContainsString('Direktauftrag annehmen', $footer->textContent);
+        }
+        $component->call('takeDirectOrder')->assertHasNoErrors();
+        $this->assertDatabaseCount('orders', 1);
+        $this->assertNull($record->fresh()->offer);
+    }
+
     public function test_native_inquiry_assist_uses_saved_context_and_neutral_form_links(): void
     {
         $record = app(InquiryWorkflowService::class)->save(null, $this->demand() + ['customer_id' => $this->customer->id, 'channel' => 'manual', 'original' => 'Synthetic instruction'], $this->actor, null);

@@ -7,7 +7,6 @@ use App\Enums\ShiftStatus;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
-use App\Models\WorkTimeEntry;
 use App\Services\Routing\TravelAssessmentService;
 use App\Services\Routing\TravelPreflight;
 use App\Support\Operations\OperationsAccess;
@@ -82,7 +81,7 @@ class ShiftAssignmentService
                     || $assignment->plan_revision !== $lockedShift->revision);
 
             if (OperationsAccess::ready()) {
-                if ($assignment->exists && WorkTimeEntry::where('shift_assignment_id', $assignment->id)->exists()) {
+                if ($assignment->exists && $assignment->hasRecordedTime()) {
                     throw ValidationException::withMessages(['workflow' => 'Für diesen Dienst wurden bereits Zeiten erfasst.']);
                 }
                 $assignment->plan_revision = $lockedShift->revision;
@@ -150,7 +149,7 @@ class ShiftAssignmentService
                 }
             }
 
-            if (OperationsAccess::ready() && WorkTimeEntry::where('shift_assignment_id', $lockedAssignment->id)->exists()) {
+            if (OperationsAccess::ready() && $lockedAssignment->hasRecordedTime()) {
                 throw ValidationException::withMessages(['workflow' => 'Für diesen Dienst wurden bereits Zeiten erfasst.']);
             }
 

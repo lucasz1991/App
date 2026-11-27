@@ -80,9 +80,22 @@ class CustomerProofService
         return array_map(fn ($line) => Arr::only($line, ['title', 'document', 'required', 'complete']), $this->proofOverview($shift)['lines']);
     }
 
+    /** Null is the existing unrestricted personnel scope. An empty list grants no targets. */
+    public function visibleProofOwners(?User $actor): ?array
+    {
+        if (! $actor?->status || ! $actor->can('operations.manage') || ! $actor->can('employees.master-data.view')) {
+            return [];
+        }
+
+        return app(PersonnelScopeService::class)->visibleUserIds($actor, 'employees.master-data.view');
+    }
+
     /** Read-only projection for the order, shift drawer and calendar. */
     public function proofOverview(Shift $shift, ?array $visibleUserIds = null): array
     {
+        if ($visibleUserIds === []) {
+            return ['notice' => 'Prüfstand außerhalb der eigenen Personalzuständigkeit.', 'lines' => []];
+        }
         $revision = (int) $shift->published_revision;
         $futureDraft = $revision > 0 && $revision !== $shift->revision;
         $historical = in_array($shift->status->value, ['completed', 'cancelled'], true);
@@ -91,7 +104,7 @@ class CustomerProofService
         $records = $revision ? OperationWorkflow::where('kind', 'proof')->where('order_id', $shift->order_id)
             ->where('shift_id', $shift->id)->orderBy('id')->get()
             ->filter(fn ($proof) => ($proof->payload['shift_revision'] ?? null) === $revision) : collect();
-        if ($visibleUserIds !== null && (! $visibleUserIds || $staff->merge($records->pluck('user_id'))->diff($visibleUserIds)->isNotEmpty())) {
+        if ($visibleUserIds !== null && $staff->merge($records->pluck('user_id'))->diff($visibleUserIds)->isNotEmpty()) {
             return ['notice' => 'Prüfstand außerhalb der eigenen Personalzuständigkeit.', 'lines' => []];
         }
 
@@ -108,7 +121,7 @@ class CustomerProofService
             $notice .= ' · Zu klären: Die vollständigen Nachweisanforderungen sind für diese Fassung nicht dokumentiert.';
         } elseif ($rules === null) {
             $rules = $shift->sectionActivityRules()->prepend($this->dutyRule($shift))->values()->all();
-            if ($historical && ! $shift->activity_requirements && ! $records->contains(fn ($proof) => isset($proof->payload['duty']))) {
+            if (($historical || $revision) && ! $shift->activity_requirements && ! $records->contains(fn ($proof) => isset($proof->payload['duty']))) {
                 $notice .= ' · Zu klären: Für den Altbestand ist nur die heutige Katalogvorgabe verfügbar.';
             }
         }
@@ -119,7 +132,10 @@ class CustomerProofService
             $rows[] = $this->proofLine($rule, $staff, $sectionRecords, $shift, $futureDraft);
         }
 
-        return ['notice' => $notice, 'lines' => $rows];
+        $documented = $revision > 0 && ! $futureDraft && (! empty($snapshot['duty_proof_rules']) || $shift->activity_requirements !== null
+            || $records->contains(fn ($proof) => isset($proof->payload['duty']) && empty($proof->payload['duty']['section_id'])));
+
+        return ['notice' => $notice, 'lines' => $rows, 'documented' => $documented];
     }
 
     private function proofLine(array $rule, Collection $staff, Collection $records, Shift $shift, bool $futureDraft): array
@@ -166,7 +182,7 @@ class CustomerProofService
 
     public function currentDutyRevision(OperationWorkflow $proof, bool $lock = false): bool
     {
-        if (! isset($proof->payload['duty'])) {
+        if (! isset($proof->payload['duty']) && (! $proof->shift_id || ! isset($proof->payload['shift_revision']))) {
             return true;
         }
         $revision = $proof->payload['shift_revision'] ?? 0;

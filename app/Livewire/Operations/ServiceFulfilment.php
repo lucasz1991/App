@@ -139,6 +139,10 @@ class ServiceFulfilment extends Component
         if ($this->personal) {
             return $query->where('user_id', $actor->id);
         }
+        if ($kind === 'proof' && $this->orderId) {
+            $owners = app(CustomerProofService::class)->visibleProofOwners($actor);
+            return $owners === null ? $query : $query->whereIn('user_id', $owners);
+        }
         if ($kind !== 'import') {
             app(PersonnelScopeService::class)->applyRelatedQuery($query, $actor, 'employees.master-data.view');
         }
@@ -323,7 +327,7 @@ class ServiceFulfilment extends Component
         $proofShifts = null;
         $proofScope = null;
         if ($ready && ! $this->modalOnly && ! $this->personal && $this->tab === 'proofs' && $this->orderId && Schema::hasTable('duty_activities')) {
-            $proofScope = app(PersonnelScopeService::class)->visibleUserIds($actor, 'employees.master-data.view');
+            $proofScope = app(CustomerProofService::class)->visibleProofOwners($actor);
             $proofShifts = Shift::where('order_id', $this->orderId)->orderBy('starts_at')->orderBy('id')
                 ->paginate(5, ['*'], 'proofShiftsPage');
         }

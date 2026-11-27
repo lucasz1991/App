@@ -9,7 +9,6 @@ use App\Models\OrderDemand;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
-use App\Models\WorkTimeEntry;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsActor;
 use App\Support\Operations\OperationsAutomationActor;
@@ -69,7 +68,8 @@ class ShiftSchedulingService
                 }
                 $requestedStatus = $attributes['status'] ?? null;
                 $closing = in_array($requestedStatus, [ShiftStatus::Completed, ShiftStatus::Completed->value], true);
-                if ($persistedShift->activity_requirements !== null && ($closing || $persistedShift->status === ShiftStatus::Completed)) {
+                $hasProofRules = $persistedShift->activity_requirements !== null || isset($persistedShift->published_snapshot['duty_proof_rules']);
+                if ($hasProofRules && ($closing || $persistedShift->status === ShiftStatus::Completed)) {
                     $before = clone $persistedShift;
                     $before->syncOriginal();
                     $before->fill(\Illuminate\Support\Arr::except($attributes, ['status']));
@@ -81,15 +81,16 @@ class ShiftSchedulingService
                     if ($persistedShift->status === ShiftStatus::Completed) {
                         return $persistedShift->load(['order.customer', 'assignments.user']);
                     }
-                    $coverage = app(CustomerProofService::class)->coverage($persistedShift);
-                    $check->check(! collect($coverage)->contains(fn ($item) => $item['complete'] < $item['required']),
+                    $overview = app(CustomerProofService::class)->proofOverview($persistedShift);
+                    $check->check(($overview['documented'] ?? false) && ! empty($overview['lines']), 'Die veröffentlichten Nachweisanforderungen dieses Dienstes müssen geklärt werden.');
+                    $check->check(! collect($overview['lines'])->contains(fn ($item) => $item['complete'] < $item['required']),
                         'Für diesen Dienst sind noch Nachweise oder Freigaben offen.');
                     $persistedShift->forceFill(['status' => ShiftStatus::Completed, 'updated_by' => OperationsActor::internalId($actor)])->save();
                     app(OperationsAuditService::class)->record($persistedShift, $actor, 'shift.completed', ['published_revision' => $persistedShift->published_revision]);
 
                     return $persistedShift->load(['order.customer', 'assignments.user']);
                 }
-                if (WorkTimeEntry::whereHas('assignment', fn ($q) => $q->where('shift_id', $persistedShift->id))->exists()) {
+                if ($persistedShift->assignments()->withRecordedTime()->exists()) {
                     throw ValidationException::withMessages(['workflow' => 'Für diese Schicht wurden bereits Zeiten erfasst.']);
                 }
             }

@@ -33,12 +33,24 @@ class WorkTimeExtensionService
             $end = CarbonImmutable::parse($until, $timezone)->addDay()->utc();
         }
         $missing = ShiftAssignment::where('user_id', $subject->id)->where('status', 'confirmed')
-            ->whereHas('shift', fn ($q) => $q->where('starts_at', '>=', $start)->where('starts_at', '<', $end)->where('ends_at', '<=', now()->utc())->where('published_revision', '>', 0)->where('status', '!=', 'cancelled'))
-            ->whereDoesntHave('timeEntry')->with('shift')->get()->map(fn ($a) => ['assignment_id' => $a->id, 'title' => $a->shift->title, 'starts_at' => $a->shift->starts_at->toIso8601String()])->all();
+            ->whereHas('shift', fn ($q) => $q->where('starts_at', '>=', $start)->where('starts_at', '<', $end)->where('ends_at', '<=', now()->utc())->where('published_revision', '>', 0)->where('status', '!=', 'cancelled')
+                ->whereNotExists(fn ($days) => $days->selectRaw('1')->from('work_time_entries as days')
+                    ->where('days.user_id', $subject->id)->where('days.plan_snapshot->day_clock', true)
+                    ->whereIn('days.status', ['completed', 'returned'])
+                    ->where('days.starts_at', '>=', $start)->where('days.starts_at', '<', $end)
+                    ->whereColumn('shifts.revision', 'shifts.published_revision')
+                    ->whereColumn('shift_assignments.plan_revision', 'shifts.published_revision')
+                    ->whereColumn('days.starts_at', '<', 'shifts.ends_at')->whereColumn('days.ends_at', '>', 'shifts.starts_at')))
+            ->withoutRecordedTime()->with('shift')->get()->map(fn ($a) => ['assignment_id' => $a->id, 'title' => $a->shift->title, 'starts_at' => $a->shift->starts_at->toIso8601String()])->all();
+        $answered = app(WorkTimeDayReviewService::class)->confirmedAssignmentIds($subject->id, array_column($missing, 'assignment_id'));
+        if ($answered) {
+            $missing = array_values(array_filter($missing, fn ($row) => ! in_array($row['assignment_id'], $answered, true)));
+        }
         $unsubmitted = WorkTimeEntry::where('user_id', $subject->id)->where('starts_at', '>=', $start)->where('starts_at', '<', $end)
             ->whereIn('status', ['completed', 'returned', 'running', 'paused'])->latest('starts_at')->get()
             ->map(fn ($entry) => [
                 'id' => $entry->id, 'revision' => $entry->revision, 'status' => $entry->status,
+                'day_clock' => (bool) ($entry->plan_snapshot['day_clock'] ?? false),
                 'title' => $entry->plan_snapshot['title'] ?? $entry->contextLabel(), 'starts_at' => $entry->starts_at->toIso8601String(),
                 'capture_id' => $entry->capture_id, 'timezone' => $entry->timezone, 'review_note' => $entry->status === 'returned' ? $entry->review_note : null,
             ])->all();

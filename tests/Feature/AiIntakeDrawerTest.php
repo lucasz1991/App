@@ -141,11 +141,20 @@ class AiIntakeDrawerTest extends TestCase
         (require database_path('migrations/2026_11_23_190000_create_duty_activities.php'))->up();
         \App\Models\DutyActivity::fromCode('WU')->update(['description' => 'Nur für die Verwaltung']);
         $source = $this->source();
-        $source->proposals()->create(['source_revision'=>1, 'position_index'=>0, 'revision'=>1, 'status'=>'proposed',
+        $proposal = $source->proposals()->create(['source_revision'=>1, 'position_index'=>0, 'revision'=>1, 'status'=>'proposed',
             'payload'=>['demand'=>$this->demand(),'segments'=>[], 'business_path'=>'inquiry']]);
         $component = $this->drawer($source)->assertDontSee('Nur für die Verwaltung');
         $review = $this->assertActiveTab($component, 'Bearbeiten');
-        $this->assertStringContainsString('Wagenuntersuchung', $review->textContent);
+        $this->assertStringContainsString('Wagenuntersuchung (WU)', $review->textContent);
+        $this->assertStringContainsString('2 Personen', $review->textContent);
+        $render = $component->html();
+        $this->assertLessThan(strpos($render, 'data-intake-visuals'), strpos($render, 'data-field="schedule"'));
+        $edit = $this->dom($render)->query('//*[@data-intake-edit-position]')->item(0);
+        $this->assertSame('editProposal('.$proposal->id.')', $edit->getAttribute('wire:click'));
+        $component->call('editProposal', $proposal->id)->assertSet('proposalForm.demand.role_name', 'WU');
+        $input = $this->dom($component->html())->query('//input[contains(@list,"role_name")]')->item(0);
+        $this->assertSame('Wagenuntersuchung (WU)', $input->getAttribute('value'));
+        $component->call('cancelPositionEdit');
         $this->assertStringNotContainsString('Quellen und Prüfhinweise', $review->textContent);
         $details = $this->assertActiveTab($component->call('setDetailTab', 'details'), 'Details');
         $this->assertStringContainsString('Wagenliste', $details->textContent);

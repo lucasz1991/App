@@ -255,10 +255,13 @@ auth.json
 !/tests/Feature/CustomerWorkflowExtensionsTest.php
 !/tests/Feature/WorkforcePlanningWorkflowTest.php
 !/tests/Feature/WorkTimeContextsTest.php
+!/tests/Feature/WorkTimeDayReviewTest.php
 !/tests/Feature/WorkTimeExtensionUiTest.php
+!/tests/Feature/WorkClockActivitiesTest.php
 !/tests/Feature/WorkTimeExportReviewTest.php
 !/tests/Feature/OperationsTransactionTest.php
 !/tests/Frontend/work-time-capture.test.js
+!/tests/Frontend/work-clock-activities.test.js
 !/tests/Frontend/work-time-terminal.test.js
 !/tests/Feature/TimelinePlanningSuggestionServiceTest.php
 !/tests/Feature/TimelinePlanningActionsTest.php

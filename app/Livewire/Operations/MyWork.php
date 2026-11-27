@@ -184,7 +184,7 @@ class MyWork extends Component
 
         $activeTime = $this->activeTimeEntry();
         $visible->each(fn ($assignment) => $assignment->setAttribute('has_active_time', $activeTime !== null));
-        $clockDuty = $this->clockDuty($visible, $activeTime);
+        $clockOffers = $this->clockOffers($visible, $activeTime);
         $workdayOverview = $this->workdayOverviewData($loaded, $activeTime !== null);
 
         $calendarGrid = $this->calendarGrid($visible, $window);
@@ -201,7 +201,7 @@ class MyWork extends Component
             ...$this->todayViewData($workdayOverview, $timeCompleteness),
             ...$this->requestViewData($requestInbox, $requestHistory, $selectedRequest),
             ...$this->calendarViewData($window, $calendarGrid, $calendarSelection),
-            ...$this->timeViewData($timeQuery, $timeCompleteness, $clockDuty, $activeTime),
+            ...$this->timeViewData($timeQuery, $timeCompleteness, $clockOffers, $activeTime),
             ...$this->absencesViewData(),
             ...$this->recordsViewData(),
         ]);

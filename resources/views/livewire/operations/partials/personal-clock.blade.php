@@ -2,6 +2,11 @@
 <div class="rt-personal-clock-block ops-stack">
     @if($workTimeReady)
         @include('operations.partials.work-clock', ['compactMobileClock' => $compactMobileClock ?? false, 'compactActionClock' => $compactActionClock ?? false])
+        @if(isset($dayReviewEntry))
+            <div id="personal-day-review" tabindex="-1" x-on:work-time-day-opened.window="$nextTick(() => $el.focus())">
+                <livewire:operations.work-time-day-review :entry-id="$dayReviewEntry->id" :key="'day-review-'.$tab.'-'.$dayReviewEntry->id.'-'.$dayReviewEntry->revision" />
+            </div>
+        @endif
         @php($generalFormId = 'employee-time-'.(isset($__livewire) ? $__livewire->getId() : 'preview'))
         @php($generalTimezone = is_string($generalManual['timezone'] ?? null) ? $generalManual['timezone'] : '')
         <x-operations.modal wire:model="generalManualOpen" title="Arbeitszeit nachtragen">

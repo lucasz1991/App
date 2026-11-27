@@ -160,7 +160,7 @@ class OperationsReminderService
         if (in_array($preference->kind, ['shift_reply', 'punch_start'], true)) {
             return ShiftAssignment::where('user_id', $subject->id)->where('status', $preference->kind === 'shift_reply' ? 'requested' : 'confirmed')
                 ->whereHas('shift', fn ($q) => $q->where('published_revision', '>', 0)->whereNotIn('status', ['cancelled', 'completed'])->whereColumn('shifts.published_revision', 'shift_assignments.plan_revision')->where(fn ($q) => $q->whereColumn('shifts.revision', '!=', 'shifts.published_revision')->orWhere(fn ($q) => $q->where('starts_at', '<=', $cutoff)->where('ends_at', '>', $now))))
-                ->when($preference->kind === 'punch_start', fn ($q) => $q->whereDoesntHave('timeEntry'))->with('shift')->limit(200)->get()
+                ->when($preference->kind === 'punch_start', fn ($q) => $q->withoutRecordedTime())->with('shift')->limit(200)->get()
                 ->map(function ($row) use ($make, $preference, $cutoff, $now) {
                     $window = app(PersonalSchedule::class)->publishedWindow($row);
 

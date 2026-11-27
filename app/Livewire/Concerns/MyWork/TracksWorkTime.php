@@ -7,6 +7,7 @@ use App\Models\ShiftAssignment;
 use App\Models\WorkTimeEntry;
 use App\Services\Operations\WorkTimeExtensionService;
 use App\Services\Operations\WorkTimeService;
+use App\Services\Operations\WorkforceAccountService;
 use App\Support\Operations\ReportingPeriod;
 use App\Support\Operations\WorkTimeSchema;
 use Carbon\CarbonImmutable;
@@ -16,6 +17,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
+use Livewire\Attributes\On;
 
 /**
  * Reiter „Zeiten" und die Stempeluhr auf „Heute": Zeitraum, Statusfilter, Nachträge,
@@ -48,6 +50,41 @@ trait TracksWorkTime
     public bool $generalManualOpen = false;
 
     public bool $generalStartOpen = false;
+
+    #[Locked]
+    public ?int $dayReviewId = null;
+
+    public function openDayReview(int $id): void
+    {
+        $this->access();
+        WorkTimeSchema::requireReady();
+        WorkTimeEntry::where('user_id', auth()->id())->where('plan_snapshot->day_clock', true)
+            ->whereIn('status', ['completed', 'returned'])->findOrFail($id);
+        $this->dayReviewId = $id;
+        $this->dispatch('work-time-day-opened');
+    }
+
+    #[On('work-time-day-confirmed')]
+    public function resetDayReview(int $entryId): void
+    {
+        if ($this->dayReviewId === $entryId) {
+            $this->dayReviewId = null;
+        }
+        session()->flash('operations.saved', 'Tagesbeleg bestätigt und zur Prüfung eingereicht.');
+    }
+
+    private function pendingDayReview(): ?WorkTimeEntry
+    {
+        if (! in_array($this->tab, ['today', 'time'], true) || ! WorkTimeSchema::ready()) {
+            return null;
+        }
+
+        $entries = WorkTimeEntry::where('user_id', auth()->id())->where('plan_snapshot->day_clock', true)
+            ->whereIn('status', ['completed', 'returned']);
+
+        return $this->dayReviewId !== null ? $entries->find($this->dayReviewId)
+            : $entries->where('ends_at', '>=', now($this->displayTimezone())->startOfDay()->utc())->latest('ends_at')->first();
+    }
 
     public bool $sectionsOpen = false;
 
@@ -219,7 +256,7 @@ trait TracksWorkTime
     private function manualAssignments(): Collection
     {
         [$from, $until] = ReportingPeriod::bounds($this->timeFrom, $this->timeUntil);
-        return ShiftAssignment::where('user_id', auth()->id())->where('status', 'confirmed')->whereDoesntHave('timeEntry')
+        return ShiftAssignment::where('user_id', auth()->id())->where('status', 'confirmed')->withoutRecordedTime()
             ->whereHas('shift', fn ($q) => $q->where('published_revision', '>', 0)->whereColumn('published_revision', 'revision')
                 ->whereColumn('shift_assignments.plan_revision', 'shifts.published_revision')->where('starts_at', '<=', now()->utc())
                 ->whereNotIn('status', ['draft', 'cancelled'])
@@ -311,18 +348,28 @@ trait TracksWorkTime
         return WorkTimeEntry::where('user_id', auth()->id())->whereIn('status', ['running', 'paused'])->first();
     }
 
-    /** Der eine bestätigte Dienst, der sich gerade stempeln lässt (Heute und Zeiten). */
-    private function clockDuty(Collection $visible, ?WorkTimeEntry $activeTime): ?object
+    /** Startbare Dienste oder der nächste bestätigte Dienst außerhalb des Startfensters. */
+    private function clockOffers(Collection $visible, ?WorkTimeEntry $activeTime): Collection
     {
+        if (! in_array($this->tab, ['today', 'time'], true) || ($activeTime && ! WorkTimeSchema::ready())) {
+            return collect();
+        }
         $now = CarbonImmutable::now('UTC');
-
-        return ! $activeTime && in_array($this->tab, ['today', 'time'], true)
-            ? $visible->first(fn ($assignment) => $assignment->status->value === 'confirmed'
-                && ! $assignment->plan_is_stale && ! $assignment->timeEntry
-                && $assignment->shift->starts_at->lte($now->addMinutes(config('operations.clock_start_early_minutes')))
-                && $assignment->shift->ends_at->gt($now)
-                && $assignment->shift()->whereNotIn('status', ['draft', 'cancelled', 'completed'])->exists())
-            : null;
+        $windowEnd = $now->addMinutes(config('operations.clock_start_early_minutes'));
+        $candidates = $visible->filter(fn ($assignment) => $assignment->status->value === 'confirmed'
+            && ! $assignment->plan_is_stale && ! $assignment->timeEntry && $assignment->shift->ends_at->gt($now));
+        if ($candidates->isEmpty()) {
+            return collect();
+        }
+        $eligible = ShiftAssignment::whereKey($candidates->pluck('id')->all())
+            ->whereHas('shift', fn ($query) => $query->whereNotIn('status', ['draft', 'cancelled', 'completed']));
+        if (WorkTimeSchema::ready()) {
+            $eligible->withoutRecordedTime();
+        }
+        $ids = $eligible->pluck('id');
+        $available = $candidates->whereIn('id', $ids)->sortBy(fn ($assignment) => $assignment->shift->starts_at->timestamp)->values();
+        $startable = $available->filter(fn ($assignment) => $assignment->shift->starts_at->lte($windowEnd));
+        return $startable->isEmpty() ? $available->take(1) : $startable;
     }
 
     private function timeCompleteness(): ?array
@@ -334,12 +381,21 @@ trait TracksWorkTime
     }
 
     /** Daten für Stempeluhr, Zeitformulare und die Liste im Reiter „Zeiten". */
-    private function timeViewData(Builder $timeQuery, ?array $timeCompleteness, ?object $clockDuty, ?WorkTimeEntry $activeTime): array
+    private function timeViewData(Builder $timeQuery, ?array $timeCompleteness, Collection $clockOffers, ?WorkTimeEntry $activeTime): array
     {
+        $now = CarbonImmutable::now($this->displayTimezone());
+        $showClock = in_array($this->tab, ['today', 'time'], true) && WorkTimeSchema::ready();
+        $model = $showClock
+            ? app(WorkforceAccountService::class)->effectiveModel(auth()->user(), $now) : null;
         return [
             'timeCompleteness' => $timeCompleteness,
+            'dayReviewEntry' => $this->pendingDayReview(),
             'timeFilterOptions' => self::TIME_FILTERS,
-            'clockDuty' => $clockDuty,
+            'clockOffers' => $clockOffers,
+            'clockDuty' => $clockOffers->first(fn ($assignment) => $assignment->shift->starts_at->lte($now->addMinutes(config('operations.clock_start_early_minutes')))),
+            'clockTargetMinutes' => $model ? ($model->daily_minutes[$now->setTimezone($model->timezone)->dayOfWeekIso] ?? null) : null,
+            'clockEndedToday' => $showClock && ! $activeTime && WorkTimeEntry::where('user_id', auth()->id())
+                ->where('ends_at', '>=', $now->startOfDay()->utc())->where('ends_at', '<=', $now->utc())->exists(),
             'correctingEntry' => $this->correctionOpen && $this->correctingId
                 ? WorkTimeEntry::where('user_id', auth()->id())->find($this->correctingId) : null,
             'workTimeReady' => WorkTimeSchema::ready(),

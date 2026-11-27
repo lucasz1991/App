@@ -9,7 +9,7 @@
             @forelse($proofShifts as $shift)
                 @include('livewire.operations.partials.duty-proof-coverage', [
                     'shift' => $shift,
-                    'coverageTitle' => $shift->title.' · '.$shift->starts_at?->format('d.m.Y H:i'),
+                    'coverageTitle' => $shift->title.' · '.$shift->starts_at?->timezone(config('operations.display_timezone', 'Europe/Berlin'))->format('d.m.Y H:i T'),
                     'coverageScope' => $proofScope,
                 ])
             @empty

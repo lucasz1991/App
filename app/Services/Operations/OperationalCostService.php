@@ -35,10 +35,34 @@ class OperationalCostService
         app(PersonnelScopeService::class)->authorizeGlobal($actor, 'operations.costs.manage');
         OperationsEnhancementsSchema::requireReady();
         $allEntries = WorkTimeEntry::where(fn ($q) => $q->where('order_id', $order->id)->orWhereHas('assignment.shift', fn ($s) => $s->where('order_id', $order->id)))->get();
+        $assignmentIds = ShiftAssignment::whereHas('shift', fn ($q) => $q->where('order_id', $order->id))->pluck('id');
+        $orderAssignmentKeys = $assignmentIds->flip();
+        foreach ($assignmentIds->chunk(100) as $chunk) {
+            $days = WorkTimeEntry::where('plan_snapshot->day_clock', true)->where(function ($query) use ($chunk) {
+                foreach ($chunk as $id) {
+                    $query->orWhereJsonContains('plan_snapshot->day_review->assignment_ids', (int) $id);
+                }
+            })->get();
+            $allEntries = $allEntries->merge($days);
+        }
         $entries = $allEntries->where('status', 'approved');
         $cost = 0;
         $missing = [];
+        $settledDutyIds = [];
         foreach ($entries as $entry) {
+            $seconds = $entry->netSeconds();
+            if ($entry->plan_snapshot['day_clock'] ?? false) {
+                $seconds = 0;
+                foreach ($entry->plan_snapshot['day_review']['duties'] ?? [] as $duty) {
+                    if ($orderAssignmentKeys->has($duty['assignment_id'])) {
+                        $settledDutyIds[] = $duty['assignment_id'];
+                        $seconds += $duty['seconds'];
+                    }
+                }
+                if ($seconds === 0) {
+                    continue;
+                }
+            }
             $date = $entry->starts_at->setTimezone($entry->timezone)->toDateString();
             $lastDate = $entry->ends_at?->subSecond()->setTimezone($entry->timezone)->toDateString();
             $rate = OperationsCostRate::where('user_id', $entry->user_id)->where('starts_on', '<=', $date)->where(fn ($q) => $q->whereNull('ends_on')->orWhere('ends_on', '>=', $lastDate ?? $date))->first();
@@ -47,7 +71,7 @@ class OperationalCostService
 
                 continue;
             }
-            $cost += (int) round($entry->netSeconds() * $rate->hourly_cents / 3600);
+            $cost += (int) round($seconds * $rate->hourly_cents / 3600);
         }
         $accepted = OperationWorkflow::where('kind', 'proof')->where('order_id', $order->id)->where('status', 'accepted')->get();
         $billings = OperationWorkflow::where('kind', 'billing')->where('order_id', $order->id)->get();
@@ -63,7 +87,7 @@ class OperationalCostService
         }
         $cost += OperationWorkflow::where('kind', 'travel')->where('order_id', $order->id)->where('status', 'expense_approved')->get()->sum(fn ($t) => $t->payload['actual_cents'] ?? 0);
         $pendingIds = $allEntries->where('status', '!=', 'approved')->pluck('id')->all();
-        $missingAssignments = ShiftAssignment::where('status', 'confirmed')->whereHas('shift', fn ($q) => $q->where('order_id', $order->id)->where('published_revision', '>', 0)->where('ends_at', '<=', now()->utc())->where('status', '!=', 'cancelled'))->whereDoesntHave('timeEntry', fn ($q) => $q->where('status', 'approved'))->pluck('id')->all();
+        $missingAssignments = ShiftAssignment::where('status', 'confirmed')->whereHas('shift', fn ($q) => $q->where('order_id', $order->id)->where('published_revision', '>', 0)->where('ends_at', '<=', now()->utc())->where('status', '!=', 'cancelled'))->whereDoesntHave('timeEntry', fn ($q) => $q->where('status', 'approved'))->whereNotIn('id', $settledDutyIds)->pluck('id')->all();
         $costKnown = $missing === [] && $pendingIds === [] && $missingAssignments === [] && $entries->isNotEmpty();
 
         return ['order_id' => $order->id, 'currency' => 'EUR', 'actual_cost_cents' => $costKnown ? $cost : null, 'known_cost_cents' => $cost, 'missing_entry_ids' => $missing, 'pending_entry_ids' => $pendingIds, 'missing_assignment_ids' => $missingAssignments, 'accepted_revenue_cents' => $revenueKnown ? $revenue : null, 'contribution_cents' => $costKnown && $revenueKnown ? $revenue - $cost : null];

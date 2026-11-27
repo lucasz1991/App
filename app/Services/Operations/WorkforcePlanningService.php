@@ -13,7 +13,6 @@ use App\Models\ShiftTransferRequest;
 use App\Models\StaffingCase;
 use App\Models\User;
 use App\Models\WorkforcePool;
-use App\Models\WorkTimeEntry;
 use App\Services\Routing\TravelAssessmentService;
 use App\Services\Routing\TravelPreflight;
 use App\Support\Operations\OperationsAccess;
@@ -301,7 +300,7 @@ class WorkforcePlanningService
         $this->check($source->shift !== null, 'Dienst wurde entfernt.');
         $this->publishedFuture($source->shift, $revision);
         $this->check($source->status === ShiftAssignmentStatus::Confirmed && $source->plan_revision === $revision, 'Nur eigene bestätigte Dienste können übergeben werden.');
-        $this->check(! WorkTimeEntry::where('shift_assignment_id', $source->id)->exists(), 'Für diesen Dienst wurden bereits Zeiten erfasst.');
+        $this->check(! $source->hasRecordedTime(), 'Für diesen Dienst wurden bereits Zeiten erfasst.');
     }
 
     public function requestTransfer(int $sourceId, int $sourceRevision, int $targetUserId, ?int $targetId, ?int $targetRevision, string $note, User $actor): ShiftTransferRequest

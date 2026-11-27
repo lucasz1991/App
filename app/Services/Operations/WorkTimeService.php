@@ -11,6 +11,8 @@ use App\Models\WorkTimeEntry;
 use App\Models\WorkTimeEvent;
 use App\Models\WorkTimeExport;
 use App\Models\WorkTimeExportItem;
+use App\Services\Routing\TravelAssessmentService;
+use App\Services\Routing\TravelPreflight;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsDateTime;
 use App\Support\Operations\OperationsTransaction;
@@ -43,7 +45,7 @@ class WorkTimeService
                 return $existing;
             }
             $this->check($assignment->status->value === 'confirmed' && $assignment->plan_revision === $planRevision && $shift->revision === $planRevision && $shift->published_revision === $planRevision && ! in_array($shift->status->value, ['draft', 'cancelled'], true), 'Der aktuelle Dienst muss bestätigt sein.');
-            $this->check($shift->starts_at->lte(now()) && ! WorkTimeEntry::where('shift_assignment_id', $assignment->id)->exists(), 'Dieser Dienst kann nicht nachgetragen werden.');
+            $this->check($shift->starts_at->lte(now()) && ! $assignment->hasRecordedTime(), 'Dieser Dienst kann nicht nachgetragen werden.');
             [$start,$end] = OperationsDateTime::interval($data['starts_at'], $data['ends_at'], $shift->timezone);
             app(PayrollClosingService::class)->assertMutable($actor, $start, $end);
             $this->check($end->lte(now()->utc()) && $start->diffInMinutes($end) <= 1440 && $data['pause_minutes'] < $start->diffInMinutes($end), 'Zeitraum oder Pause sind ungültig.');
@@ -60,16 +62,30 @@ class WorkTimeService
         }, 3);
     }
 
-    public function start(int $assignmentId, int $planRevision, string $eventKey, User $actor, ?CarbonImmutable $capturedAt = null, ?string $payloadHash = null, bool $requireNewEvent = false, ?\App\Services\Routing\TravelPreflight $travel = null): WorkTimeEntry
+    public function start(int $assignmentId, int $planRevision, string $eventKey, User $actor, ?CarbonImmutable $capturedAt = null, ?string $payloadHash = null, bool $requireNewEvent = false, ?TravelPreflight $travel = null): WorkTimeEntry
+    {
+        return $this->startAssignment($assignmentId, $planRevision, $eventKey, $actor, $capturedAt, $requireNewEvent, $travel, payloadHash: $payloadHash);
+    }
+
+    public function startDuty(int $assignmentId, int $planRevision, string $eventKey, User $actor, ?CarbonImmutable $capturedAt = null, ?int $expectedEntryId = null, ?int $expectedRevision = null, bool $mustStartNew = false, bool $requireNewEvent = false, ?TravelPreflight $travel = null): WorkTimeEntry
+    {
+        WorkTimeSchema::requireReady();
+
+        return $this->startAssignment($assignmentId, $planRevision, $eventKey, $actor, $capturedAt, $requireNewEvent, $travel,
+            dayClock: true, expectedEntryId: $expectedEntryId, expectedRevision: $expectedRevision, mustStartNew: $mustStartNew);
+    }
+
+    private function startAssignment(int $assignmentId, int $planRevision, string $eventKey, User $actor, ?CarbonImmutable $capturedAt, bool $requireNewEvent, ?TravelPreflight $travel,
+        ?string $payloadHash = null, bool $dayClock = false, ?int $expectedEntryId = null, ?int $expectedRevision = null, bool $mustStartNew = false): WorkTimeEntry
     {
         OperationsAccess::own($actor, $actor->id);
         $this->uuid($eventKey);
         $assignment = ShiftAssignment::where('user_id', $actor->id)->findOrFail($assignmentId);
 
-        app(\App\Services\Routing\TravelAssessmentService::class)->assertBindingPreflight($travel);
-        $travel ??= app(\App\Services\Routing\TravelAssessmentService::class)->preflight($assignment->shift, collect([$actor]));
+        app(TravelAssessmentService::class)->assertBindingPreflight($travel);
+        $travel ??= app(TravelAssessmentService::class)->preflight($assignment->shift, collect([$actor]));
 
-        return OperationsTransaction::run(function () use ($assignment, $planRevision, $eventKey, $actor, $capturedAt, $payloadHash, $requireNewEvent, $travel) {
+        return OperationsTransaction::run(function () use ($assignment, $planRevision, $eventKey, $actor, $capturedAt, $payloadHash, $requireNewEvent, $travel, $dayClock, $expectedEntryId, $expectedRevision, $mustStartNew) {
             Order::lockForUpdate()->findOrFail($assignment->shift->order_id);
             $shift = Shift::lockForUpdate()->findOrFail($assignment->shift_id);
             User::lockForUpdate()->findOrFail($actor->id);
@@ -77,7 +93,10 @@ class WorkTimeService
             if ($event = WorkTimeEvent::where('event_key', $eventKey)->first()) {
                 $entry = WorkTimeEntry::findOrFail($event->work_time_entry_id);
                 $this->check(! $requireNewEvent, 'Ereignisschlüssel wurde bereits außerhalb dieser Erfassung verwendet.');
-                $this->check($entry->user_id === $actor->id && $entry->shift_assignment_id === $assignment->id && $event->kind === 'start', 'Ereignisschlüssel wurde bereits verwendet.');
+                $matches = $dayClock
+                    ? $event->kind === 'duty_start' && ($event->data['assignment_id'] ?? null) === $assignment->id && ($event->data['plan_revision'] ?? null) === $planRevision && ($expectedEntryId === null || $expectedEntryId === $entry->id)
+                    : $event->kind === 'start' && $entry->shift_assignment_id === $assignment->id;
+                $this->check($entry->user_id === $actor->id && $matches, 'Ereignisschlüssel wurde bereits verwendet.');
                 abort_if($payloadHash !== null && ($event->data['payload_hash'] ?? null) !== $payloadHash, 409, 'Wiederholung enthält geänderte Daten.');
 
                 return $entry;
@@ -87,9 +106,34 @@ class WorkTimeService
             $now = $capturedAt ?? CarbonImmutable::now('UTC');
             app(PayrollClosingService::class)->assertMutable($actor, $now);
             $this->check($now->gte($shift->starts_at->subMinutes(config('operations.clock_start_early_minutes'))) && $now->lt($shift->ends_at), 'Der Dienst liegt außerhalb des Startzeitraums.');
-            $this->check(! WorkTimeEntry::where('user_id', $actor->id)->whereIn('status', ['running', 'paused'])->exists(), 'Es läuft bereits eine Zeiterfassung.');
-            $this->check(! WorkTimeEntry::where('shift_assignment_id', $assignment->id)->exists(), 'Für diesen Dienst existiert bereits eine Zeiterfassung.');
+            $active = WorkTimeEntry::where('user_id', $actor->id)->whereIn('status', ['running', 'paused'])->lockForUpdate()->first();
+            $this->check(! $active || ($dayClock && ! $mustStartNew), 'Es läuft bereits eine Zeiterfassung.');
+            if ($expectedEntryId !== null || $expectedRevision !== null) {
+                $this->check($active && $active->id === $expectedEntryId && $active->revision === $expectedRevision, 'Die Arbeitsuhr wurde geändert. Bitte neu laden.');
+            }
+            if ($active) {
+                $this->check($active->status === 'running', 'Bitte die Arbeitszeit nach der Pause ausdrücklich fortsetzen.');
+                $this->check($active->shift_assignment_id === null && in_array($active->work_context, ['internal', 'unplanned'], true), 'Bitte die bisherige dienst- oder schulungsgebundene Erfassung zuerst abschließen.');
+                $this->assertChronology($active, $now);
+                app(PayrollClosingService::class)->assertMutable($actor, $active->starts_at, $now);
+                if (($active->dutyStarts()->latest('occurred_at')->latest('id')->first()?->data['assignment_id'] ?? null) === $assignment->id) {
+                    return $active;
+                }
+            }
+            $this->check(! $assignment->hasRecordedTime(), 'Für diesen Dienst existiert bereits eine Zeiterfassung.');
             app(ShiftAssignmentExceptionService::class)->assertEligibleForAssignment($shift, $actor, $assignment, ['travel_preflight' => $travel]);
+            if ($dayClock) {
+                $entry = $active ?? $this->startDay((string) Str::uuid(), $actor, $shift->timezone, $now);
+                if ($active) {
+                    $entry->forceFill(['revision' => $entry->revision + 1, 'plan_snapshot' => array_merge($entry->plan_snapshot ?? [], ['day_clock' => true])])->save();
+                }
+                $this->event($entry, $actor, 'duty_start', $eventKey, $now, [
+                    'assignment_id' => $assignment->id, 'plan_revision' => $planRevision,
+                    'title' => $shift->title, 'planned_starts_at' => $shift->starts_at->toIso8601String(), 'planned_ends_at' => $shift->ends_at->toIso8601String(),
+                ]);
+
+                return $entry;
+            }
             $entry = WorkTimeEntry::create([
                 'shift_assignment_id' => $assignment->id, 'user_id' => $actor->id, 'status' => 'running',
                 'timezone' => $shift->timezone, 'starts_at' => $now,
@@ -121,10 +165,12 @@ class WorkTimeService
             $this->check($entry->revision === $revision, 'Zeitmeldung wurde geändert. Bitte neu laden.');
             $allowed = ['pause' => ['running'], 'resume' => ['paused'], 'stop' => ['running', 'paused'], 'submit' => ['completed']];
             $this->check(in_array($entry->status, $allowed[$action] ?? [], true), 'Aktion ist für diesen Zeitstatus nicht möglich.');
+            if ($action === 'submit' && ($entry->plan_snapshot['day_clock'] ?? false)) {
+                $this->check(($entry->plan_snapshot['day_review']['entry_revision'] ?? null) === $entry->revision, 'Bitte zuerst den Tagesbeleg prüfen und bestätigen.');
+            }
             $now = $capturedAt ?? CarbonImmutable::now('UTC');
             app(PayrollClosingService::class)->assertMutable($actor, $entry->starts_at, $entry->ends_at ?? $now);
-            $latest = $entry->events()->max('occurred_at');
-            $this->check($now->gte($entry->starts_at) && (! $latest || $now->gte(CarbonImmutable::parse($latest, 'UTC'))), 'Ereigniszeit liegt vor dem aktuellen Zeitstand.');
+            $this->assertChronology($entry, $now);
             if ($action === 'pause') {
                 $entry->paused_at = $now;
                 $entry->status = 'paused';
@@ -316,6 +362,12 @@ class WorkTimeService
         $this->check(! WorkTimeEntry::where('user_id', $entry->user_id)->where('id', '!=', $entry->id)->where('starts_at', '<', $entry->ends_at->utc())->where(fn ($q) => $q->whereNull('ends_at')->orWhere('ends_at', '>', $entry->starts_at->utc()))->exists(), 'Die Arbeitszeit überschneidet sich mit einer anderen Zeitmeldung.');
     }
 
+    private function assertChronology(WorkTimeEntry $entry, CarbonImmutable $at): void
+    {
+        $latest = $entry->events()->max('occurred_at');
+        $this->check($at->gte($entry->starts_at) && (! $latest || $at->gte(CarbonImmutable::parse($latest, 'UTC'))), 'Ereigniszeit liegt vor dem aktuellen Zeitstand.');
+    }
+
     private function values(WorkTimeEntry $entry): array
     {
         $values = $entry->only(['status', 'starts_at', 'ends_at', 'timezone', 'pause_seconds', 'note', 'plan_snapshot', 'reviewed_by', 'review_note']) + ['net_seconds' => $entry->netSeconds()];
@@ -380,19 +432,25 @@ class WorkTimeService
         return hash('sha256', json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
 
-    public function startContext(array $data, string $eventKey, User $actor, ?CarbonImmutable $capturedAt = null, bool $requireNewEvent = false, bool $manual = false): WorkTimeEntry
+    public function startDay(string $eventKey, User $actor, string $timezone, ?CarbonImmutable $capturedAt = null, bool $requireNewEvent = false): WorkTimeEntry
+    {
+        return $this->startContext(['work_context' => 'internal', 'title' => 'Arbeitszeit', 'timezone' => $timezone],
+            $eventKey, $actor, $capturedAt, $requireNewEvent, dayClock: true);
+    }
+
+    public function startContext(array $data, string $eventKey, User $actor, ?CarbonImmutable $capturedAt = null, bool $requireNewEvent = false, bool $manual = false, bool $dayClock = false): WorkTimeEntry
     {
         OperationsAccess::own($actor, $actor->id);
         WorkTimeSchema::requireReady();
         $this->uuid($eventKey);
         $data = Validator::make($data, ['work_context' => 'required|in:internal,training,unplanned', 'title' => 'required|string|min:3|max:180', 'timezone' => 'required|timezone', 'order_id' => 'nullable|integer|min:1', 'training_session_id' => 'nullable|integer|min:1'])->validate();
 
-        return OperationsTransaction::run(function () use ($data, $eventKey, $actor, $capturedAt, $requireNewEvent, $manual) {
+        return OperationsTransaction::run(function () use ($data, $eventKey, $actor, $capturedAt, $requireNewEvent, $manual, $dayClock) {
             User::lockForUpdate()->findOrFail($actor->id);
             if ($event = WorkTimeEvent::where('event_key', $eventKey)->first()) {
                 $entry = WorkTimeEntry::findOrFail($event->work_time_entry_id);
                 $this->check(! $requireNewEvent, 'Ereignisschlüssel wurde bereits außerhalb dieser Erfassung verwendet.');
-                $this->check($entry->user_id === $actor->id && $entry->work_context === $data['work_context'] && $event->kind === 'start', 'Ereignisschlüssel wurde bereits verwendet.');
+                $this->check($entry->user_id === $actor->id && $entry->work_context === $data['work_context'] && $event->kind === 'start' && ($event->data['day_clock'] ?? false) === $dayClock, 'Ereignisschlüssel wurde bereits verwendet.');
                 abort_unless(($event->data['payload_hash'] ?? null) === $this->contextFingerprint($data), 409, 'Wiederholung enthält geänderte Daten.');
 
                 return $entry;
@@ -411,9 +469,9 @@ class WorkTimeService
                 $this->check(empty($data['training_session_id']), 'Schulungsbezug ist nur bei Schulung zulässig.');
             }
             $entry = WorkTimeEntry::create(['user_id' => $actor->id, 'shift_assignment_id' => null, 'work_context' => $data['work_context'], 'timezone' => $data['timezone'], 'starts_at' => $at,
-                'order_id' => $order?->id, 'training_session_id' => $data['training_session_id'] ?? null, 'plan_snapshot' => ['title' => $data['title'], 'order_number' => $order?->order_number, 'valuation' => app(WorkforceAccountService::class)->effectiveModel($actor, $at)?->valuation_rules ?? [], 'rules' => $this->rules($actor, $at)?->only(['id', 'maximum_shift_minutes', 'break_after_minutes', 'minimum_break_minutes'])]]);
+                'order_id' => $order?->id, 'training_session_id' => $data['training_session_id'] ?? null, 'plan_snapshot' => ['title' => $data['title'], 'order_number' => $order?->order_number, 'valuation' => app(WorkforceAccountService::class)->effectiveModel($actor, $at)?->valuation_rules ?? [], 'rules' => $this->rules($actor, $at)?->only(['id', 'maximum_shift_minutes', 'break_after_minutes', 'minimum_break_minutes'])] + ($dayClock ? ['day_clock' => true] : [])]);
             $this->openSession($entry, $at);
-            $this->event($entry, $actor, 'start', $eventKey, $at, ['payload_hash' => $this->contextFingerprint($data)]);
+            $this->event($entry, $actor, 'start', $eventKey, $at, ['payload_hash' => $this->contextFingerprint($data)] + ($dayClock ? ['day_clock' => true] : []));
 
             return $entry;
         }, 3);

@@ -5,7 +5,24 @@
 @endphp
 <div class="rt-intake-drawer" data-intake-drawer data-active-tab="{{ $detailTab }}"
     x-data="{ editorFocusKey: null }"
-    x-effect="const key = $wire.manualEditorOpen ? 'new-' + $wire.selectedId : ($wire.editingProposalId !== null ? 'position-' + $wire.editingProposalId : ($wire.customerEditorOpen ? 'customer-' + $wire.selectedId : ($wire.planningProposalId !== null ? 'planning-' + $wire.planningProposalId : null))); const changed = key !== editorFocusKey; editorFocusKey = key; if (changed &amp;&amp; key &amp;&amp; $wire.detailTab === 'review') $nextTick(() => { const region = key.startsWith('customer-') ? $el.querySelector('.rt-intake-drawer__customer-form') : (key.startsWith('planning-') ? $el.querySelector('[data-ai-intake-planning-editor]') : $el.querySelector('[data-intake-position-form]')); const target = region?.querySelector('input:not([type=hidden]):not([disabled]),select:not([disabled]),textarea:not([disabled]),[role=combobox]:not([disabled]),button:not([disabled])'); target?.focus({ preventScroll: true }); target?.scrollIntoView({ block: 'nearest', behavior: 'auto' }); });">
+    x-effect="
+        const key = $wire.manualEditorOpen ? 'new-' + $wire.selectedId
+            : ($wire.editingProposalId !== null ? 'position-' + $wire.editingProposalId
+            : ($wire.customerEditorOpen ? 'customer-' + $wire.selectedId
+            : ($wire.planningProposalId !== null ? 'planning-' + $wire.planningProposalId : null)));
+        const previous = editorFocusKey;
+        editorFocusKey = key;
+        if (key !== previous &amp;&amp; $wire.detailTab === 'review') $nextTick(() => {
+            if (!key) {
+                if (previous?.startsWith('position-')) $el.querySelector('[data-intake-edit-position]')?.focus({ preventScroll: true });
+                return;
+            }
+            const region = key.startsWith('customer-') ? $el.querySelector('.rt-intake-drawer__customer-form')
+                : (key.startsWith('planning-') ? $el.querySelector('[data-ai-intake-planning-editor]') : $el.querySelector('[data-intake-position-form]'));
+            const target = region?.querySelector('input:not([type=hidden]):not([disabled]),select:not([disabled]),textarea:not([disabled]),[role=combobox]:not([disabled]),button:not([disabled])');
+            target?.focus({ preventScroll: true });
+            target?.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+        });">
     <div class="rt-intake-drawer__navigation">
         <x-operations.panel.tabs class="rt-intake-drawer__tabs" label="Eingang bearbeiten" :id-prefix="'intake-drawer-'.$this->getId()" action="setDetailTab" model="detailTab" :active="$detailTab" :tabs="['review' => ['label' => 'Bearbeiten', 'icon' => 'far fa-pen'], 'sources' => ['label' => 'Original & Anlagen', 'icon' => 'far fa-paperclip'], 'communication' => ['label' => 'Verlauf', 'icon' => 'far fa-history'], 'details' => ['label' => 'Details', 'icon' => 'far fa-list']]" />
     </div>

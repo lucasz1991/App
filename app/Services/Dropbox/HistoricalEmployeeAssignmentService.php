@@ -11,7 +11,6 @@ use App\Models\OperationAudit;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
-use App\Models\WorkTimeEntry;
 use App\Services\Operations\OperationsAuditService;
 use App\Support\Operations\OperationsTransaction;
 use Carbon\CarbonImmutable;
@@ -74,7 +73,7 @@ class HistoricalEmployeeAssignmentService
 
                 return $assignment; // Preserve personal decisions for the same user, including rejection or cancellation.
             }
-            if ($assignment && WorkTimeEntry::where('shift_assignment_id', $assignment->id)->exists()) {
+            if ($assignment && $assignment->hasRecordedTime()) {
                 return $assignment;
             }
             $assignment ??= new ShiftAssignment;
@@ -100,7 +99,7 @@ class HistoricalEmployeeAssignmentService
     private function restorable(DropboxRecord $record, ShiftAssignment $assignment): bool
     {
         if ($assignment->status !== ShiftAssignmentStatus::Cancelled || ! $record->exists
-            || WorkTimeEntry::where('shift_assignment_id', $assignment->id)->exists()) {
+            || $assignment->hasRecordedTime()) {
             return false;
         }
         $audit = OperationAudit::where('subject_type', 'ShiftAssignment')->where('subject_id', $assignment->id)->latest('id')->first();
@@ -114,7 +113,7 @@ class HistoricalEmployeeAssignmentService
     private function retire(DropboxRecord $record, ShiftAssignment $assignment, User $actor): void
     {
         if ((int) ($record->metadata['historical_assignment_id'] ?? 0) !== (int) $assignment->id
-            || WorkTimeEntry::where('shift_assignment_id', $assignment->id)->exists()) {
+            || $assignment->hasRecordedTime()) {
             throw ValidationException::withMessages(['sync' => 'Historische Zuordnung wurde außerhalb des Imports bearbeitet und muss geprüft werden.']);
         }
         $assignment->update(['status' => ShiftAssignmentStatus::Cancelled]);

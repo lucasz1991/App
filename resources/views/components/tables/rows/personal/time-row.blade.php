@@ -12,7 +12,9 @@
             <x-ui.buttons.button-basic wire:click="editTime({{ $entry->id }}, {{ $entry->revision }})">Korrigieren</x-ui.buttons.button-basic>
             @if(\App\Support\Operations\WorkTimeSchema::ready())<x-ui.buttons.button-basic wire:click="openSections({{ $entry->id }})">Arbeitsabschnitte</x-ui.buttons.button-basic>@endif
         @endif
-        @if($entry->status === 'completed')
+        @if(($entry->plan_snapshot['day_clock'] ?? false) && in_array($entry->status, ['completed', 'returned'], true))
+            <x-ui.buttons.button-basic mode="primary" wire:click="openDayReview({{ $entry->id }})">Tagesbeleg prüfen</x-ui.buttons.button-basic>
+        @elseif($entry->status === 'completed')
             @if(\App\Support\Operations\WorkTimeSchema::ready() && $entry->capture_id)
                 <x-ui.buttons.button-basic mode="primary" :x-on:click="$submitClockAction" x-bind:disabled="busy || !ready || conflicts > 0">Zur Prüfung einreichen</x-ui.buttons.button-basic>
             @else

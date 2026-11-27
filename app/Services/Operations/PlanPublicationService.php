@@ -6,7 +6,6 @@ use App\Enums\ShiftAssignmentStatus;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
-use App\Models\WorkTimeEntry;
 use App\Services\Routing\TravelAssessmentService;
 use App\Services\Routing\TravelPreflight;
 use App\Support\Operations\OperationsAccess;
@@ -29,7 +28,7 @@ class PlanPublicationService
             PlanningLocks::acquire([$shift->id], $shift->assignments()->blocking()->pluck('user_id')->all());
             $record = Shift::lockForUpdate()->findOrFail($shift->id);
             $this->check($record->revision === $revision, 'Schicht wurde geändert. Bitte neu laden.');
-            $this->check(! WorkTimeEntry::whereHas('assignment', fn ($q) => $q->where('shift_id', $record->id))->exists(), 'Für diese Schicht wurden bereits Zeiten erfasst.');
+            $this->check(! $record->assignments()->withRecordedTime()->exists(), 'Für diese Schicht wurden bereits Zeiten erfasst.');
             if ($useCatalog) {
                 $this->check($record->starts_at->isFuture() && ! in_array($record->status->value, ['cancelled', 'completed'], true), 'Nur ein bevorstehender Dienst kann neu geplant werden.');
                 $rule = $record->currentActivityRequirements();

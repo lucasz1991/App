@@ -12,7 +12,7 @@
 @endphp
 @if($actionDuty || $workTimeReady || $activeTime)
     <section class="rt-workday-actions" aria-label="Dienst und Arbeitszeit" data-workday-actions>
-        @if($actionDuty && (!$workTimeReady || $actionDuty->id !== ($clockDuty ?? null)?->id))
+        @if($actionDuty && (!$workTimeReady || ! $clockOffers->contains('id', $actionDuty->id)))
             <div class="rt-workday-actions__duty">
                 <div class="rt-workday-actions__summary">
                     <p>{{ $actionDay }} · {{ $actionStart->format('H:i') }} – {{ $actionEnd->format($actionStart->isSameDay($actionEnd) ? 'H:i' : 'd.m. H:i') }}</p>
