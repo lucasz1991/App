@@ -834,17 +834,25 @@ function retainReferenceDiagnosticPlan(operation, layout, kind) {
     if (layout.sourceOnly !== 'fluid-v17' || !['M', 'B'].includes(layout.profile) || layout.singleDispatch !== true || typeof layout.raisedTrain !== 'boolean'
         || !/^[0-9a-f]{32}$/.test(layout.nonce || '') || !/^[0-9a-f]{16}$/.test(layout.version || '')) return;
     operation.v17DiagnosticPlan = Object.freeze({ family: 17, profile: layout.profile, nonce: layout.nonce, version: layout.version, kind, singleDispatch: true, raisedTrain: layout.raisedTrain, sourceLogoUrl: layout.sourceLogoUrl,
-        officeActionsWire: layout.officeActionsWire, defaultDispatchPhoneImage: layout.defaultDispatchPhoneImage, inlineHybrid: layout.inlineHybrid });
+        officeActionsWire: layout.officeActionsWire, defaultDispatchPhoneImage: layout.defaultDispatchPhoneImage, inlineHybrid: layout.inlineHybrid, dispatchWhatsAppHref: layout.dispatchWhatsAppHref });
 }
 
 function v17OfficeWireMatches(material, plan) {
     return plan.officeActionsWire === true && material.officeActionsWire === true && plan.inlineHybrid === true && material.inlineHybrid === true
-        && typeof plan.defaultDispatchPhoneImage === 'boolean' && material.defaultDispatchPhoneImage === plan.defaultDispatchPhoneImage;
+        && typeof plan.defaultDispatchPhoneImage === 'boolean' && material.defaultDispatchPhoneImage === plan.defaultDispatchPhoneImage
+        && /^https:\/\/wa\.me\/[0-9]{3,15}$/.test(plan.dispatchWhatsAppHref || '') && material.dispatchWhatsAppHref === plan.dispatchWhatsAppHref;
 }
 
-function currentV17OfficeWire(material, contract) {
+function currentV17OfficeWire(material, contract, sourceHtml) {
     if (material.family !== 17) return true;
     if (material.officeActionsWire !== true || material.inlineHybrid !== true) return false;
+    // A version marker alone cannot attest an editable link destination.
+    if (typeof sourceHtml !== 'string' || !sourceHtml) return false;
+    let source;
+    try { source = standaloneSignatureContract(sourceHtml); }
+    catch { source = managedTemplateContract(sourceHtml); }
+    const expected = verifyFluidLayoutMaterial(sourceHtml, source, true);
+    if (expected.family !== 17 || material.dispatchWhatsAppHref !== expected.dispatchWhatsAppHref) return false;
     const dispatch = material.columns[3].index;
     const knownDefault = contract.elements.some((node, index) => node.tag === 'a' && node.attrs.href === 'tel:+491601881839'
         && withinContract(contract, index, dispatch));
@@ -1047,13 +1055,13 @@ function existingStandalone(snapshot, cleanup = false) {
     }
 }
 
-export function standaloneSignatureLayoutIsCurrent(html, currentHtml, version, office) {
+export function standaloneSignatureLayoutIsCurrent(html, currentHtml, version, office, sourceHtml) {
     try {
         const fluid = fluidLayoutContract(html, currentHtml, null, version);
         if (fluid.kind !== 'standalone-signature-v1') return false;
         if ([15, 16, 17].includes(fluid.fluidLayout.family) && fluid.fluidLayout.profile !== outlookSignatureDeliveryProfile(office)) return false;
         const material = verifyFluidLayoutMaterial(html, fluid);
-        return material.sourceOnly === true && currentV17OfficeWire(material, fluid);
+        return material.sourceOnly === true && currentV17OfficeWire(material, fluid, sourceHtml);
     } catch { /* Historical families retain their existing independent proof. */ }
     try {
         const contract = standaloneSignatureContract(html, currentHtml, null, version);
@@ -1065,13 +1073,13 @@ export function standaloneSignatureLayoutIsCurrent(html, currentHtml, version, o
 }
 
 /** Each profiled family binds the host for standalone and combined documents. */
-export function signatureHostProfileIsCurrent(html, currentHtml, version, office) {
+export function signatureHostProfileIsCurrent(html, currentHtml, version, office, sourceHtml) {
     try {
         const contract = fluidLayoutContract(html, currentHtml, null, version);
         const material = verifyFluidLayoutMaterial(html, contract);
         return [15, 16, 17].includes(contract.fluidLayout.family)
             && contract.fluidLayout.profile === outlookSignatureDeliveryProfile(office)
-            && material.sourceOnly === true && currentV17OfficeWire(material, contract);
+            && material.sourceOnly === true && currentV17OfficeWire(material, contract, sourceHtml);
     } catch { return false; }
 }
 

@@ -6,6 +6,8 @@ namespace Tests\Feature;
 
 use App\Models\MailDocument;
 use App\Models\UserProfile;
+use App\Models\Setting;
+use App\Support\CompanyData;
 use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\SystemMailCssInliner;
 use App\Support\Mail\SystemMailInlineImageEmbedder;
@@ -15,6 +17,7 @@ use App\Support\OutlookAddin\OutlookCompactReferencePresentation as Compact;
 use App\Support\OutlookAddin\OutlookMobileReferencePresentation;
 use App\Support\OutlookAddin\OutlookMobileSignature;
 use App\Support\OutlookAddin\OutlookStaticLinkedTestProfiles;
+use App\Support\OutlookAddin\OutlookUniversalPayloadPresentation;
 use DOMDocument;
 use DOMXPath;
 use Illuminate\Support\Facades\Http;
@@ -28,6 +31,43 @@ use Tests\TestCase;
 
 final class OutlookCompactReferencePresentationTest extends TestCase
 {
+    public function test_company_whatsapp_setting_refreshes_only_the_proved_owned_action_and_personal_payload(): void
+    {
+        [$canonical, $user] = $this->source();
+        $old = OutlookStaticLinkedTestProfiles::payload(OutlookClientPresentation::payload($canonical), $user)['signature']['html'];
+        $before = MailDocument::query()->orderBy('id')->get()->toArray();
+        $fingerprint = app(OutlookAddinPayloadService::class)->sourceFingerprint($user);
+        Setting::setValue('company', 'profile', array_replace(CompanyData::all(), ['whatsapp_phone' => '+49 170 555 0202']));
+        app()->forgetScopedInstances();
+
+        $expected = 'https://wa.me/491705550202';
+        self::assertSame(str_replace('https://wa.me/491601881848', $expected, $old), Compact::document($old));
+        self::assertSame(Compact::canonicalizeToV16($old), Compact::canonicalizeToV16(Compact::document($old)));
+        $service = app(OutlookAddinPayloadService::class);
+        self::assertNotSame($fingerprint, $service->sourceFingerprint($user));
+        $fresh = $service->forUser($user->fresh());
+        $fresh['version']['personal'] = substr($service->sourceFingerprint($user->fresh()), 0, 16);
+        $wire = OutlookStaticLinkedTestProfiles::payload(OutlookClientPresentation::payload($fresh), $user->fresh());
+        self::assertStringContainsString('href="'.$expected.'"', $wire['signature']['html']);
+        foreach ($wire['templates'] as $entry) {
+            foreach (['combinedComposeHtml', 'mobileComposeHtml'] as $key) {
+                if (isset($entry[$key])) {
+                    self::assertStringContainsString('href="'.$expected.'"', $entry[$key]);
+                }
+            }
+        }
+        foreach (['editor', 'send'] as $mode) {
+            $review = app(OutlookUniversalPayloadPresentation::class)->review($wire, (new EmailTemplateBuilder($user))->profileValues(), null, $mode);
+            self::assertNotNull($review['draft'], json_encode($review['admission']));
+            self::assertStringContainsString('href="'.$expected.'"', $review['draft']['bodyHtml']);
+        }
+        $authored = '<p>Manual text</p><a href="https://wa.me/491601881848">Own link</a>'
+            .'<blockquote><a href="https://wa.me/491601881848">Quoted link</a></blockquote>';
+        self::assertSame($authored, Compact::document($authored));
+        self::assertSame($before, MailDocument::query()->orderBy('id')->get()->toArray());
+        Http::assertNothingSent();
+    }
+
     public function test_real_employee_linked_delivery_is_compact_without_mutating_published_sources(): void
     {
         [$canonical, $user] = $this->source();

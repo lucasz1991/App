@@ -1068,11 +1068,11 @@ function signatureIsCurrent(payload, bodyHtml, composeType) {
     }
 
     if (!isMobileComposeHost(Office) && /\bdata-rt-desktop-flow\s*=\s*["']outlook-desktop-flow-v15["']/.test(payload.signature?.html || '')) {
-        return signatureHostProfileIsCurrent(bodyHtml, currentBodyHtml, expectedVersion, Office);
+        return signatureHostProfileIsCurrent(bodyHtml, currentBodyHtml, expectedVersion, Office, payload.signature?.html);
     }
     if (!isMobileComposeHost(Office) && requiresStandaloneSignatureLayout(payload.signature?.html)
         && !templateStateFromBody(bodyHtml, composeType).present) {
-        return standaloneSignatureLayoutIsCurrent(bodyHtml, currentBodyHtml, expectedVersion, Office);
+        return standaloneSignatureLayoutIsCurrent(bodyHtml, currentBodyHtml, expectedVersion, Office, payload.signature?.html);
     }
     return signatureVersionsFromBody(currentBodyHtml).includes(expectedVersion);
 }

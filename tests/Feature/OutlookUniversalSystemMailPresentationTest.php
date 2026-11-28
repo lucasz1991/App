@@ -7,6 +7,8 @@ namespace Tests\Feature;
 use App\Enums\MailDocumentKind;
 use App\Http\Controllers\Admin\MailDocumentController;
 use App\Models\MailDocument;
+use App\Models\Setting;
+use App\Support\CompanyData;
 use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\OutlookUniversalSystemMailPresentation;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
@@ -264,6 +266,19 @@ final class OutlookUniversalSystemMailPresentationTest extends TestCase
             $values['NOTFALLNUMMER'] = $label;
             self::assertNull((new OutlookUniversalSystemMailPresentation)->project($source, $values, new HtmlString($author)));
         }
+        Http::assertNothingSent();
+    }
+
+    public function test_current_system_send_and_editor_projection_use_changed_company_whatsapp_without_touching_application_links(): void
+    {
+        Setting::setValue('company', 'profile', array_replace(CompanyData::all(), ['whatsapp_phone' => '+49 170 555 0202']));
+        app()->forgetScopedInstances();
+        $author = '<p><a href="https://wa.me/491601881848">Unchanged application link</a></p>';
+        $source = $this->legacy($author);
+        $result = (new OutlookUniversalSystemMailPresentation)->project($source, $this->values(), new HtmlString($author));
+        self::assertNotNull($result);
+        self::assertSame(1, $this->xpath($result['html'])->query('//a[@href="https://wa.me/491705550202"]')->length);
+        self::assertStringContainsString($author, $result['html']);
         Http::assertNothingSent();
     }
 

@@ -76,7 +76,7 @@ test('new wrapper proof rejects foreign wrappers, altered spacer/slot geometry, 
         mutateNode(pair.cells[1].node,'width="8"','width="9"'),
         mutateNode(phone.cells[0].node,'width="2"','width="3"'),
         mutateNode(phone.cells[2].node,'width:6px','width:7px'),
-        plan.html.replace('https://wa.me/491601881848','https://wa.me/491601881849'),
+        plan.html.replace('https://wa.me/491601881848','https://wa.me/491601881849?text=hello'),
         plan.html.replace('margin-left:0px;','margin-left:8px;'),
         plan.html.slice(0,pair.cells[1].node.openEnd)+'Injected'+plan.html.slice(pair.cells[1].node.openEnd),
         plan.html.slice(0,pair.cells[0].node.close)+'<img src="https://foreign.invalid/x.png" width="24" height="24">'+plan.html.slice(pair.cells[0].node.close),
@@ -216,11 +216,13 @@ test('reloaded currentness never labels old action geometry or a lost default ph
     const plan = prepareNativeLayoutRestore(source, canonical(source, 'standalone'), '85'.repeat(16), host('M'));
     const sourceAction = /<table\b[^>]*rt-v17-dispatch-actions[^>]*>[\s\S]*?<\/table>/.exec(source)[0];
     const action = /<table\b[^>]*rt-v17-dispatch-actions[^>]*>[\s\S]*?<\/table>/.exec(plan.html)[0];
-    assert.equal(signatureHostProfileIsCurrent(plan.html, plan.html, plan.version, host('M')), true);
-    assert.equal(standaloneSignatureLayoutIsCurrent(plan.html, plan.html, plan.version, host('M')), true);
-    for (const changed of [plan.html.replace(action, sourceAction), plan.html.replace(/<img\b[^>]*ef89fd23c6\.png[^>]*>/, '+49 160 1881839')]) {
-        assert.equal(signatureHostProfileIsCurrent(changed, changed, plan.version, host('M')), false);
-        assert.equal(standaloneSignatureLayoutIsCurrent(changed, changed, plan.version, host('M')), false);
+    assert.equal(signatureHostProfileIsCurrent(plan.html, plan.html, plan.version, host('M'), source), true);
+    assert.equal(standaloneSignatureLayoutIsCurrent(plan.html, plan.html, plan.version, host('M'), source), true);
+    assert.equal(standaloneSignatureLayoutIsCurrent(plan.html, plan.html, plan.version, host('M')), false);
+    for (const changed of [plan.html.replace(action, sourceAction), plan.html.replace(/<img\b[^>]*ef89fd23c6\.png[^>]*>/, '+49 160 1881839'),
+        plan.html.replace('https://wa.me/491601881848', 'https://wa.me/491601881849')]) {
+        assert.equal(signatureHostProfileIsCurrent(changed, changed, plan.version, host('M'), source), false);
+        assert.equal(standaloneSignatureLayoutIsCurrent(changed, changed, plan.version, host('M'), source), false);
     }
 });
 

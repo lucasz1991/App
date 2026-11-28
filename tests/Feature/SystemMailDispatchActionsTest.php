@@ -28,6 +28,20 @@ use TijsVerkoyen\CssToInlineStyles\CssToInlineStyles;
 
 final class SystemMailDispatchActionsTest extends TestCase
 {
+    public function test_company_whatsapp_number_is_preserved_by_the_strict_system_action_projection(): void
+    {
+        [$source, $actual, $documents] = $this->fixture('+491601881839', '+49 170 555 0202');
+        $url = 'https://wa.me/491705550202';
+        self::assertSame(1, $this->xpath($actual)->query('//a[@href="'.$url.'"]')->length);
+        self::assertStringNotContainsString('https://wa.me/491601881848', $actual);
+        self::assertSame($actual, SystemMailDispatchActions::project($actual, OutlookLinkedAnimatedDelivery::PROFILE, 'https://mail.example.test'));
+        self::assertSame($documents, MailDocument::query()->orderBy('id')->get()->toArray());
+        Http::assertNothingSent();
+
+        $this->expectException(RuntimeException::class);
+        SystemMailDispatchActions::project(str_replace($url, 'https://wa.me/491601881848', $source), OutlookLinkedAnimatedDelivery::PROFILE, 'https://mail.example.test');
+    }
+
     public function test_real_published_system_default_has_one_numeric_action_row_and_white_number_without_changing_documents(): void
     {
         [$source, $actual, $documents] = $this->fixture('+491601881839');
@@ -161,7 +175,7 @@ final class SystemMailDispatchActionsTest extends TestCase
     }
 
     /** Actual builder/inliner plus independent pre-egress preview, all SQLite in memory. */
-    private function fixture(string $phone): array
+    private function fixture(string $phone, ?string $whatsapp = null): array
     {
         $fixture = new PublishedStaticSystemDeliveryTest('test_effective_published_system_pair_uses_remote_pngs_through_the_real_inliner_and_embedder');
         (new ReflectionMethod($fixture, 'setUp'))->invoke($fixture);
@@ -173,7 +187,8 @@ final class SystemMailDispatchActionsTest extends TestCase
         $templateHtml = $mark->invoke($marker, $template->published_html, false);
         $signature->forceFill(['html' => $signatureHtml, 'published_html' => $signatureHtml])->saveQuietly();
         $template->forceFill(['html' => $templateHtml, 'published_html' => $templateHtml, 'published_signature_document_id' => $signature->id])->saveQuietly();
-        Setting::setValue('company', 'profile', array_replace(CompanyData::all(), ['emergency_phone' => $phone]));
+        Setting::setValue('company', 'profile', array_replace(CompanyData::all(), ['emergency_phone' => $phone],
+            $whatsapp === null ? [] : ['whatsapp_phone' => $whatsapp]));
         app()->forgetScopedInstances();
         $before = MailDocument::query()->orderBy('id')->get()->toArray();
         // This fixture exercises the historical V17 adapter. The current U2e

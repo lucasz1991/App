@@ -356,7 +356,7 @@ export function verifyCompactReferenceMaterial(html, contract, source, verifyV16
     const replyAutoLink = !source && ['rt-v17-dispatch-whatsapp OWAAutoLink', 'x_rt-v17-dispatch-whatsapp OWAAutoLink'].includes(wa.node.attrs.class)
         && /^OWA[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(wa.node.attrs.id || '')
         && nodes.filter(node => node.attrs.id === wa.node.attrs.id).length === 1;
-    if (wa.node.attrs.href !== 'https://wa.me/491601881848' || source && wa.node.attrs.class !== 'rt-v17-dispatch-whatsapp'
+    if (!/^https:\/\/wa\.me\/[0-9]{3,15}$/.test(wa.node.attrs.href || '') || source && wa.node.attrs.class !== 'rt-v17-dispatch-whatsapp'
         || owns(wa.node.attrs, 'class') && !replyAutoLink && !['rt-v17-dispatch-whatsapp', 'x_rt-v17-dispatch-whatsapp'].includes(wa.node.attrs.class)
         || waImage.node.parent !== wa.index || children(nodes, wa.index).length !== 1 || text(html, wa.node)
         || Object.keys(wa.node.attrs).some(name => !['class', 'href', 'style', ...(replyAutoLink ? ['id'] : [])].includes(name))) invalid();
@@ -539,5 +539,6 @@ export function verifyCompactReferenceMaterial(html, contract, source, verifyV16
     const actual = value => value && { ...value, node: actualNodes[value.index] };
     return { ...proved, root: actual(proved.root), columns: proved.columns.map(actual), train: actual(proved.train),
         caption: actual(proved.caption), trainImage: actual(proved.trainImage), family: 17, singleDispatch: true, raisedTrain, fluidInline: true, sourceLogoUrl: normalized.sourceLogoUrl,
-        officeActionsWire: wireActions.officeActionsWire, defaultDispatchPhoneImage: wireActions.defaultDispatchPhoneImage, inlineHybrid };
+        officeActionsWire: wireActions.officeActionsWire, defaultDispatchPhoneImage: wireActions.defaultDispatchPhoneImage, inlineHybrid,
+        dispatchWhatsAppHref: wa.node.attrs.href };
 }

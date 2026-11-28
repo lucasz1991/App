@@ -23,6 +23,8 @@ class CompanySection extends Component
     {
         Gate::authorize('settings.manage');
 
+        $hadValidationErrors = $this->getErrorBag()->isNotEmpty();
+
         $validated = $this->validate([
             'company.name' => ['required', 'string', 'max:160'],
             'company.street' => ['required', 'string', 'max:160'],
@@ -31,6 +33,14 @@ class CompanySection extends Component
             'company.country' => ['required', 'string', 'max:120'],
             'company.phone' => ['nullable', 'string', 'max:60'],
             'company.emergency_phone' => ['nullable', 'string', 'max:60'],
+            'company.whatsapp_phone' => [
+                'bail', 'required', 'string', 'max:60',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if (! CompanyData::validWhatsappPhone($value)) {
+                        $fail(__('app.company_whatsapp_invalid'));
+                    }
+                },
+            ],
             'company.email' => ['required', 'email', 'max:160'],
             'company.website' => ['nullable', 'url', 'max:255'],
             'company.managing_directors' => ['nullable', 'string', 'max:255'],
@@ -49,7 +59,10 @@ class CompanySection extends Component
                 array_keys($validated['company']),
             ),
         );
-        $this->skipRender();
+        // Clear a previously rendered validation error after a corrected save.
+        if (! $hadValidationErrors) {
+            $this->skipRender();
+        }
     }
 
     public function render()

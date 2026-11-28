@@ -334,7 +334,7 @@ final class EmailHtmlSanitizer
 
     /** Vollstaendige Linkziele, die nach dem Sanitizer bewusst ersetzt werden. */
     private const HREF_URL_PLACEHOLDERS = [
-        'CTA_URL', 'FIRMEN_WEBSITE_HREF',
+        'CTA_URL', 'FIRMEN_WEBSITE_HREF', 'FIRMEN_WHATSAPP_HREF',
     ];
 
     /** Werte hinter einem feststehenden mailto:-Schema. */

@@ -6,6 +6,8 @@ namespace Tests\Feature;
 
 use App\Http\Middleware\LogActivity;
 use App\Models\User;
+use App\Models\Setting;
+use App\Support\CompanyData;
 use App\Support\OutlookAddin\OutlookAddinUserSnapshotStore;
 use App\Support\OutlookAddin\OutlookCompactReferencePresentation;
 use App\Support\OutlookAddin\OutlookUniversalPayloadPresentation;
@@ -30,6 +32,26 @@ final class OutlookUniversalPersonalExportTest extends TestCase
         config(['app.url' => 'https://mail.example.test']);
         Http::preventStrayRequests();
         Mail::fake();
+    }
+
+    public function test_changed_company_whatsapp_reaches_html_copy_and_eml_exports_without_sending(): void
+    {
+        Setting::setValue('company', 'profile', array_replace(CompanyData::all(), ['whatsapp_phone' => '+49 170 555 0202']));
+        $service = $this->service();
+        $expected = 'href="https://wa.me/491705550202"';
+        foreach (['vorlage-html', 'signatur-hell'] as $key) {
+            $result = $service->project($this->pilot(), $key, $this->legacy('text/html; charset=UTF-8'));
+            self::assertStringContainsString($expected, $result['content']);
+        }
+        self::assertStringContainsString($expected, $service->signatureCopy($this->pilot(), 'Legacy copy'));
+        $legacy = $this->legacy('message/rfc822');
+        $legacy['content'] = "MIME-Version: 1.0\r\nSubject: Download only\r\nFrom: Test Person <it-technik@rail-time.de>\r\nTo: {{EMPFAENGER_E_MAIL}}\r\nX-Unsent: 1\r\nX-RailTime-Theme: light\r\nContent-Type: multipart/alternative; boundary=\"old\"\r\n\r\nOLD BODY";
+        $mime = $service->project($this->pilot(), 'vorlage-eml', $legacy)['content'];
+        preg_match('~Content-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n([A-Za-z0-9+/=\r\n]+)\r\n--~', $mime, $part);
+        self::assertArrayHasKey(1, $part);
+        self::assertStringContainsString($expected, base64_decode($part[1], true));
+        Http::assertNothingSent();
+        Mail::assertNothingSent();
     }
 
     public function test_html_download_embeds_nine_images_and_preserves_the_author_and_complete_head(): void

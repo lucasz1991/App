@@ -7,7 +7,7 @@
     <x-ui.autosave-status
         event="company-settings-saved"
         target="saveCompany"
-        dirty-target="company.name,company.email,company.street,company.postal_code,company.city,company.country,company.phone,company.emergency_phone,company.website,company.managing_directors,company.register_court,company.commercial_register_number,company.vat_id,company.tax_number"
+        dirty-target="company.name,company.email,company.street,company.postal_code,company.city,company.country,company.phone,company.emergency_phone,company.whatsapp_phone,company.website,company.managing_directors,company.register_court,company.commercial_register_number,company.vat_id,company.tax_number"
     />
     <div class="rounded-[calc(1rem-2px)] bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6" data-rt-glow>
     <div class="flex min-w-0 items-start gap-3 sm:gap-4">
@@ -35,6 +35,7 @@
                         ['country', 'country', 'text', 'country-name'],
                         ['phone', 'company_phone', 'tel', 'tel'],
                         ['emergency_phone', 'emergency_phone', 'tel', 'tel'],
+                        ['whatsapp_phone', 'company_whatsapp_phone', 'tel', 'tel'],
                         ['website', 'website', 'url', 'url'],
                         ['managing_directors', 'managing_directors', 'text', 'off'],
                         ['register_court', 'register_court', 'text', 'off'],
@@ -50,9 +51,15 @@
                                 id="company_{{ $field }}"
                                 type="{{ $type }}"
                                 autocomplete="{{ $autocomplete }}"
+                                :aria-describedby="$field === 'whatsapp_phone' ? 'company_whatsapp_phone_hint' : null"
                                 wire:model="company.{{ $field }}"
                                 class="mt-1.5"
                             />
+                            @if ($field === 'whatsapp_phone')
+                                <p id="company_whatsapp_phone_hint" class="mt-1.5 text-sm text-rt-muted dark:text-rt-dark-muted">
+                                    {{ __('app.company_whatsapp_hint') }}
+                                </p>
+                            @endif
                             @error('company.'.$field)
                                 <p class="mt-1.5 text-sm text-rt-red">{{ $message }}</p>
                             @enderror

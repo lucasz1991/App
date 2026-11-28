@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Support\Mail;
 
+use App\Support\CompanyData;
 use App\Support\OutlookAddin\OutlookLinkedAnimatedDelivery;
 use RuntimeException;
 
@@ -100,7 +101,8 @@ final class SystemMailDispatchActions
         }
         $href = $nodes[$phone]['attrs']['href'] ?? '';
         if (! preg_match('/\Amailto:[^\s<>?@]+@[^\s<>?@]+\z/', $nodes[$mail]['attrs']['href'] ?? '')
-            || ($nodes[$whatsapp]['attrs']['href'] ?? '') !== 'https://wa.me/491601881848'
+            || ! preg_match('~\Ahttps://wa\.me/[0-9]{3,15}\z~', $nodes[$whatsapp]['attrs']['href'] ?? '')
+            || ($nodes[$whatsapp]['attrs']['href'] ?? '') !== CompanyData::whatsappHref()
             || ! preg_match('/\Atel:(\+?[0-9]{3,15})\z/', $href, $phoneMatch)
             || ($nodes[$number]['attrs']['href'] ?? '') !== $href) {
             self::fail();

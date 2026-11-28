@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Support\OutlookAddin;
 
+use App\Support\CompanyData;
 use App\Support\Mail\CssSemantic;
 use RuntimeException;
 
@@ -51,11 +52,15 @@ final class OutlookCompactReferencePresentation
     {
         if (str_contains($html, 'data-rt-desktop-flow="'.self::FLOW.'"')) {
             $previous = self::canonicalizeToV16($html);
-            if (self::project($previous, true) !== $html) {
+            $nodes = self::nodes($html);
+            $priorHref = $nodes[self::oneClass($nodes, 'rt-v17-dispatch-whatsapp')]['attrs']['href'] ?? '';
+            if (self::project($previous, true, $priorHref) !== $html) {
                 self::fail();
             }
 
-            return $html;
+            // Only a fully proved owned V17 action is refreshed. Published
+            // documents, authored links and quoted messages are never rewritten.
+            return self::project($previous, true);
         }
         if (! str_contains($html, 'data-rt-desktop-flow="'.OutlookV30ReferencePresentation::FLOW.'"')) {
             return $html;
@@ -78,7 +83,7 @@ final class OutlookCompactReferencePresentation
         return $result;
     }
 
-    private static function project(string $html, bool $forward): string
+    private static function project(string $html, bool $forward, ?string $whatsappHref = null): string
     {
         if (! $forward) {
             $html = OutlookMobileReferencePresentation::canonicalize($html);
@@ -158,7 +163,9 @@ final class OutlookCompactReferencePresentation
             self::fail();
         }
         $set($mailLink, ['style' => $forward ? $mailStyle.$mailSuffix : substr($mailStyle, 0, -strlen($mailSuffix))]);
-        $wa = self::whatsapp(self::fillUrl($html));
+        $wa = self::whatsapp(self::fillUrl($html), $forward
+            ? ($whatsappHref ?? CompanyData::whatsappHref())
+            : ($nodes[self::oneClass($nodes, 'rt-v17-dispatch-whatsapp')]['attrs']['href'] ?? ''));
         $extraEdits = [];
         if ($forward) {
             if (self::findClass($nodes, 'rt-v17-dispatch-whatsapp') !== []) {
@@ -293,13 +300,16 @@ final class OutlookCompactReferencePresentation
         return $forward ? OutlookMobileReferencePresentation::document(OutlookCompactMobilePresentation::document($result)) : $result;
     }
 
-    private static function whatsapp(string $fill): string
+    private static function whatsapp(string $fill, string $href): string
     {
+        if (! preg_match('~\Ahttps://wa\.me/[0-9]{3,15}\z~', $href)) {
+            self::fail();
+        }
         $native = str_contains($fill, '/mail-assets/');
         $origin = substr($fill, 0, -strlen($native ? '/mail-assets/outlook-hotline-fill-v1.png' : '/m/3ee5033b5b.png'));
         $source = $origin.($native ? '/mail-assets/outlook-dispo-whatsapp-weiss-v3.png' : '/m/f9d88b899d.png');
 
-        return '<a class="rt-v17-dispatch-whatsapp" href="https://wa.me/491601881848" style="color:#ffffff;text-decoration:none;display:inline-block;vertical-align:middle;margin-left:14px;"><img src="'.$source.'" width="24" height="24" alt="WhatsApp" style="display:block;width:24px;height:24px;border:0;"></a>';
+        return '<a class="rt-v17-dispatch-whatsapp" href="'.$href.'" style="color:#ffffff;text-decoration:none;display:inline-block;vertical-align:middle;margin-left:14px;"><img src="'.$source.'" width="24" height="24" alt="WhatsApp" style="display:block;width:24px;height:24px;border:0;"></a>';
     }
 
     private static function imageSource(string $source, bool $system, bool $forward): string

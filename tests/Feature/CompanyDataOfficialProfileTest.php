@@ -17,6 +17,7 @@ class CompanyDataOfficialProfileTest extends TestCase
 
         $this->assertSame('04171 546803', $defaults['phone']);
         $this->assertSame('04171 546803', $defaults['emergency_phone']);
+        $this->assertSame('+49 160 1881848', $defaults['whatsapp_phone']);
         $this->assertSame('info@rail-time.de', $defaults['email']);
         $this->assertSame('https://www.rail-time.de', $defaults['website']);
         $this->assertSame('Amtsgericht Tostedt', $defaults['register_court']);

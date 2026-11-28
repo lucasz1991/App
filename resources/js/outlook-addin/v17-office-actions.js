@@ -41,7 +41,7 @@ function group(width, name, cells) {
 function groupProjection(html, nodes, cells) {
     const left = children(nodes, cells[0].index), phone = children(nodes, cells[1].index);
     if (left.length !== 2 || left.some(value => value.node.tag !== 'a') || phone.length !== 1 || phone[0].node.tag !== 'a'
-        || left[1].node.attrs.href !== 'https://wa.me/491601881848' || !close(props(left[1].node).get('margin-left'), 14)) invalid();
+        || !/^https:\/\/wa\.me\/[0-9]{3,15}$/.test(left[1].node.attrs.href || '') || !close(props(left[1].node).get('margin-left'), 14)) invalid();
     const wa = opening(html, left[1].node, { style: (left[1].node.attrs.style || '').replace(/(^|;)(\s*margin-left\s*:\s*)14px(?=;|$)/i, '$1$20px') }).value
         + html.slice(left[1].node.openEnd, left[1].node.end);
     return [
@@ -93,7 +93,7 @@ function normalizeGroup(html, nodes, cell, name, widths, linkSlots) {
     }
     const gaps = owner => { let cursor = nodes[owner].openEnd; for (const value of children(nodes, owner)) { if (html.slice(cursor, value.node.start).trim()) invalid(); cursor = value.node.end; } if (html.slice(cursor, nodes[owner].close).trim()) invalid(); };
     for (const owner of [cell.index, container.index, table.index, body.index, row.index]) gaps(owner);
-    if (name === PAIR && (!close(props(anchors[1].node).get('margin-left'), 0) || anchors[1].node.attrs.href !== 'https://wa.me/491601881848')) invalid();
+    if (name === PAIR && (!close(props(anchors[1].node).get('margin-left'), 0) || !/^https:\/\/wa\.me\/[0-9]{3,15}$/.test(anchors[1].node.attrs.href || ''))) invalid();
     if (name === PAIR) setStyle(anchors[1].node, { 'margin-left': '14px' });
     // Keep the original indices/offsets. Only the proven wrapper bytes become
     // virtual whitespace; exact original links/images remain opaque and owned.

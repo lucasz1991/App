@@ -92,7 +92,7 @@ test('V17 source requires its exact all-recipient contract and rejects altered s
         ['padding-bottom:3px!important;', 'padding-bottom:4px!important;'],
         ['padding:8px 40px 8px;', 'padding:9px 40px 8px;'], ['#dde1e6', '#dde1e7'], ['#47515e', '#47515f'],
         ['/m/4a55285090.png', '/m/a7626cc065.png'], ['/m/19125261c2.png', '/m/30b48b18c0.png'],
-        ['/m/f9d88b899d.png', '/m/0000000000.png'], ['https://wa.me/491601881848', 'https://wa.me/491601881849'],
+        ['/m/f9d88b899d.png', '/m/0000000000.png'], ['https://wa.me/491601881848', 'https://wa.me/491601881849?text=hello'],
         ['margin-left:14px;', 'margin-left:15px;'], ['outlook-brand-v2-light.gif', 'outlook-brand-v1-light.gif'],
     ];
     for (const [before, after] of mutations) {
@@ -180,6 +180,35 @@ for (const profile of ['M', 'B']) for (const path of ['standalone', 'prepend', '
         assert.equal(box.state.writes, 1); assert.equal(box.state.completed, 1);
         if (path !== 'standalone') assert.ok(box.state.html.endsWith(outside));
         assert.equal(checked(box.state.html).family, 17);
+    });
+}
+
+for (const profile of ['M', 'B']) for (const path of ['standalone', 'prepend', 'replace']) {
+    test('V17 ' + profile + '/' + path + ' confirms a configured WhatsApp destination and preserves unrelated links', async () => {
+        const kind = path === 'standalone' ? 'standalone' : 'combined';
+        const url = 'https://wa.me/491705550202';
+        const input = current.source[kind].replaceAll('https://wa.me/491601881848', url);
+        const outside = '<blockquote><a href="https://wa.me/491601881848">Unchanged quoted link</a></blockquote>';
+        const box = mailbox(profile, word);
+        box.state.html = path === 'replace' ? prepare(current.source.combined.replaceAll(current.version, 'ee'.repeat(8)), 'combined', profile).html + outside : outside;
+        if (path === 'standalone') await insertStandaloneSignature(box.office, box.item, input, () => {}, { media: [] });
+        else if (path === 'prepend') await prependTemplate(box.office, box.item, input, () => {}, { media: [] });
+        else await replaceManagedTemplate(box.office, box.item, input, () => {}, { media: [] });
+        assert.equal(box.state.writes, 1); assert.equal(box.state.completed, 1);
+        assert.equal(checked(box.state.html).dispatchWhatsAppHref, url);
+        if (path !== 'standalone') assert.ok(box.state.html.includes(outside));
+    });
+    test('V17 ' + profile + '/' + path + ' rejects a different valid WhatsApp destination after the write', async () => {
+        const kind = path === 'standalone' ? 'standalone' : 'combined';
+        const input = current.source[kind].replaceAll('https://wa.me/491601881848', 'https://wa.me/491705550202');
+        const box = mailbox(profile, value => word(value).replaceAll('https://wa.me/491705550202', 'https://wa.me/49305550102'));
+        if (path === 'replace') box.state.html = prepare(current.source.combined.replaceAll(current.version, 'ee'.repeat(8)), 'combined', profile).html;
+        const invoke = () => path === 'standalone' ? insertStandaloneSignature(box.office, box.item, input, () => {}, { media: [] })
+            : path === 'prepend' ? prependTemplate(box.office, box.item, input, () => {}, { media: [] })
+                : replaceManagedTemplate(box.office, box.item, input, () => {}, { media: [] });
+        await assert.rejects(invoke(), error => error.code === (path === 'standalone' ? 'SIGNATURE_LAYOUT_UNCONFIRMED' : 'TEMPLATE_LAYOUT_UNCONFIRMED'));
+        assert.equal(box.state.writes, 1); assert.equal(box.state.completed, 0);
+        await assert.rejects(invoke()); assert.equal(box.state.writes, 1);
     });
 }
 

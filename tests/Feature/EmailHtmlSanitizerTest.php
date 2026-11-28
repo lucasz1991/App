@@ -454,6 +454,7 @@ class EmailHtmlSanitizerTest extends TestCase
     public function test_url_platzhalter_bilden_den_ganzen_wert_oder_folgen_einem_festen_schema(): void
     {
         $html = '<a href="{{CTA_URL}}">CTA</a>'
+            .'<a href="{{FIRMEN_WHATSAPP_HREF}}">WhatsApp</a>'
             .'<a href="mailto:{{E_MAIL}}">Mail</a>'
             .'<a href="tel:{{DURCHWAHL_TEL}}">Telefon</a>'
             .'<a href="tel:{{NOTFALLNUMMER_TEL}}">Notfall</a>'
